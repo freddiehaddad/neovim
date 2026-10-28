@@ -158,10 +158,10 @@ pub fn socket_address_tcp_host_end(address: impl crate::strings::IntoCCharPtr) -
     }
     unsafe {
         // Windows drive letter path: "X:/..." is a local path, not TCP.
-        let b0 = *address as u8;
+        let b0 = crate::memory::cstr_first_byte(address);
         if b0.is_ascii_alphabetic()
-            && *address.add(1) == b':' as c_char
-            && *address.add(2) == b'/' as c_char
+            && crate::memory::cstr_byte_at(address, 1) == b':'
+            && crate::memory::cstr_byte_at(address, 2) == b'/'
         {
             return ptr::null_mut();
         }

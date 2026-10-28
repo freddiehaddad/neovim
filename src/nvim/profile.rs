@@ -441,7 +441,7 @@ pub fn set_context_in_profile_cmd(xp: &mut expand_T, arg: *const c_char) {
     }
 
     let len = (end_subcmd as usize) - (arg as usize);
-    let sub_bytes = unsafe { std::slice::from_raw_parts(arg.cast::<u8>(), len) };
+    let sub_bytes =  { crate::memory::cstr_slice(arg, len) };
     if sub_bytes == b"start" || sub_bytes == b"file" {
         xp.xp_context = EXPAND_FILES;
         xp.xp_pattern = skipwhite(end_subcmd);
@@ -521,7 +521,7 @@ fn prof_sort_list(
                 prefer_self,
             );
             let name_ptr = fp.uf_name.as_ptr();
-            if (*name_ptr as u8) == K_SPECIAL {
+            if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
                 fprintf!(fd, c" <SNR>%s()\n", name_ptr.add(3));
             } else {
                 fprintf!(fd, c" %s()\n", name_ptr);
@@ -655,7 +655,7 @@ fn func_dump_profile(fd: *mut FILE) {
                 sorttab.push(fp);
 
                 let name_ptr = (*fp).uf_name.as_ptr();
-                if (*name_ptr as u8) == K_SPECIAL {
+                if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
                     fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.add(3));
                 } else {
                     fprintf!(fd, c"FUNCTION  %s()\n", name_ptr);

@@ -25,7 +25,7 @@ impl NvimString {
         if self.size == 0 || self.data.is_null() {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) }
+             crate::memory::cstr_slice(self.data, self.size)
         }
     }
 }

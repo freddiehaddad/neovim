@@ -232,7 +232,7 @@ pub fn os_expand_wildcards(
 
         if num_pat == 1 && **pat == b'`' as c_char {
             let pat0_len = crate::memory::cstr_len(*pat);
-            if pat0_len > 2 && *(*pat).add(pat0_len - 1) == b'`' as c_char {
+            if pat0_len > 2 && crate::memory::cstr_byte_at((*pat), pat0_len - 1) == b'`' {
                 shell_style = STYLE_BT;
             }
         }
@@ -267,8 +267,8 @@ pub fn os_expand_wildcards(
             len += 1;
             let p_i = *pat.add(i);
             let mut j = 0;
-            while *p_i.add(j) != NUL {
-                if !vim_strchr(SHELL_SPECIAL, *p_i.add(j) as u8 as c_int).is_null() {
+            while crate::memory::cstr_byte_at(p_i, j) != 0 {
+                if !vim_strchr(SHELL_SPECIAL, crate::memory::cstr_byte_at(p_i, j) as c_int).is_null() {
                     len += 1;
                 }
                 len += 1;
@@ -341,11 +341,11 @@ pub fn os_expand_wildcards(
                 *p = b' ' as c_char;
                 p = p.add(1);
                 let mut j = 0;
-                while *p_i.add(j) != NUL {
+                while crate::memory::cstr_byte_at(p_i, j) != 0 {
                     let ch = *p_i.add(j);
                     if ch == b'`' as c_char {
                         intick = !intick;
-                    } else if ch == b'\\' as c_char && *p_i.add(j + 1) != NUL {
+                    } else if ch == b'\\' as c_char && crate::memory::cstr_byte_at(p_i, j + 1) != 0 {
                         let next_ch = *p_i.add(j + 1);
                         if intick
                             || !vim_strchr(SHELL_SPECIAL, next_ch as u8 as c_int).is_null()
@@ -485,7 +485,7 @@ pub fn os_expand_wildcards(
                 }
             }
 
-            if len != 0 && *buffer.add(len - 1) == NUL {
+            if len != 0 && crate::memory::cstr_byte_at(buffer, len - 1) == 0 {
                 len -= 1;
             } else {
                 *buffer.add(len) = NUL;
@@ -502,7 +502,7 @@ pub fn os_expand_wildcards(
                 count += 1;
             }
         }
-        debug_assert!(*buffer.add(len) == NUL || *buffer.add(len) == b'\n' as c_char);
+        debug_assert!(crate::memory::cstr_byte_at(buffer, len) == 0 || crate::memory::cstr_byte_at(buffer, len) == b'\n');
 
         if count == 0 {
             if (flags & EW_NOTFOUND) != 0 {
@@ -1087,7 +1087,7 @@ fn out_data_append_to_screen(
             };
             if !eof
                 && i == 1
-                && usize::from(utf8len_tab_zero[*p as u8 as usize])
+                && usize::from(utf8len_tab_zero[crate::memory::cstr_first_byte(p) as usize])
                     > (end as usize).wrapping_sub(p as usize)
             {
                 *count = off;
@@ -1127,7 +1127,7 @@ fn tokenize(str_in: *const c_char, argv: &mut Vec<std::ffi::CString>) {
 
         while !crate::memory::cstr_is_empty(p) {
             let len = word_length(p);
-            argv.push(vim_strnsave_unquoted(std::slice::from_raw_parts(p.cast::<u8>(), len)));
+            argv.push(vim_strnsave_unquoted(crate::memory::cstr_slice(p, len)));
             p = skipwhite(p.add(len));
         }
     }
@@ -1202,7 +1202,7 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
                 continue;
             }
 
-            if *output.add(off) == NUL {
+            if crate::memory::cstr_byte_at(output, off) == 0 {
                 *output.add(off) = NL;
             }
             off += 1;

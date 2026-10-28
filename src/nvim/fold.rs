@@ -303,9 +303,9 @@ pub fn fold_info(win: &mut win_T, lnum: linenr_T) -> foldinfo_T {
 
 /// Return true if 'foldmethod' is "manual".
 pub fn foldmethodIsManual(wp: &mut win_T) -> bool {
-    unsafe {
+     {
         let fdm = wp.w_onebuf_opt.wo_fdm;
-        !crate::memory::cstr_is_empty(fdm) && *fdm.add(3) == b'u' as c_char
+        !crate::memory::cstr_is_empty(fdm) && crate::memory::cstr_byte_at(fdm, 3) == b'u'
     }
 }
 
@@ -316,17 +316,17 @@ pub fn foldmethodIsIndent(wp: &mut win_T) -> bool {
 
 /// Return true if 'foldmethod' is "expr".
 pub fn foldmethodIsExpr(wp: &mut win_T) -> bool {
-    unsafe {
+     {
         let fdm = wp.w_onebuf_opt.wo_fdm;
-        !crate::memory::cstr_is_empty(fdm) && *fdm.add(1) == b'x' as c_char
+        !crate::memory::cstr_is_empty(fdm) && crate::memory::cstr_byte_at(fdm, 1) == b'x'
     }
 }
 
 /// Return true if 'foldmethod' is "marker".
 pub fn foldmethodIsMarker(wp: &mut win_T) -> bool {
-    unsafe {
+     {
         let fdm = wp.w_onebuf_opt.wo_fdm;
-        !crate::memory::cstr_is_empty(fdm) && *fdm.add(2) == b'r' as c_char
+        !crate::memory::cstr_is_empty(fdm) && crate::memory::cstr_byte_at(fdm, 2) == b'r'
     }
 }
 
@@ -1376,18 +1376,18 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
 
         let cms = buf.b_p_cms;
         let line = ml_get_buf(buf, lnum);
-        let marker_slice = std::slice::from_raw_parts(marker.cast::<u8>(), markerlen);
+        let marker_slice = crate::memory::cstr_slice(marker, markerlen);
         let mut p = line;
         while !crate::memory::cstr_is_empty(p) {
             let rem_len = crate::memory::cstr_len(p);
             if rem_len < markerlen
-                || std::slice::from_raw_parts(p.cast::<u8>(), markerlen) != marker_slice
+                || crate::memory::cstr_slice(p, markerlen) != marker_slice
             {
                 p = p.add(1);
                 continue;
             }
             let mut len = markerlen;
-            if ascii_isdigit(*p.add(len) as u8 as c_int) {
+            if ascii_isdigit(crate::memory::cstr_byte_at(p, len) as c_int) {
                 len += 1;
             }
             if !crate::memory::cstr_is_empty(cms) {
@@ -1398,9 +1398,9 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
                     let suffix_len = crate::memory::cstr_len(suffix);
                     if (p as usize) - (line as usize) >= prefix_len
                         && std::slice::from_raw_parts(p.sub(prefix_len).cast::<u8>(), prefix_len)
-                            == std::slice::from_raw_parts(cms.cast::<u8>(), prefix_len)
+                            == crate::memory::cstr_slice(cms, prefix_len)
                         && crate::memory::cstr_as_bytes(p.add(len)).starts_with(
-                            std::slice::from_raw_parts(suffix.cast::<u8>(), suffix_len),
+                            crate::memory::cstr_slice(suffix, suffix_len),
                         )
                     {
                         p = p.sub(prefix_len);
@@ -1553,7 +1553,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
     unsafe {
         let cms_start = skipwhite(curbuf_mut().b_p_cms);
         let mut cms_slen = crate::memory::cstr_len(cms_start);
-        while cms_slen > 0 && ascii_iswhite(*cms_start.add(cms_slen - 1) as u8 as c_int) {
+        while cms_slen > 0 && ascii_iswhite(crate::memory::cstr_byte_at(cms_start, cms_slen - 1) as c_int) {
             cms_slen -= 1;
         }
 
@@ -1564,7 +1564,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
             cms_elen = cms_slen - start_off;
             cms_slen = start_off;
 
-            while cms_slen > 0 && ascii_iswhite(*cms_start.add(cms_slen - 1) as u8 as c_int) {
+            while cms_slen > 0 && ascii_iswhite(crate::memory::cstr_byte_at(cms_start, cms_slen - 1) as c_int) {
                 cms_slen -= 1;
             }
 
@@ -1577,11 +1577,9 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
         let mut did1 = false;
         let mut did2 = false;
 
-        let fmr_slice = std::slice::from_raw_parts(
-            curwin_mut().w_onebuf_opt.wo_fmr.cast::<u8>(),
-            fold_st().foldstartmarkerlen,
+        let fmr_slice = crate::memory::cstr_slice(curwin_mut().w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen,
         );
-        let end_slice = std::slice::from_raw_parts(fold_st().foldendmarker.cast::<u8>(), fold_st().foldendmarkerlen);
+        let end_slice = crate::memory::cstr_slice(fold_st().foldendmarker, fold_st().foldendmarkerlen);
 
         let mut s = str_ptr;
         while !crate::memory::cstr_is_empty(s) {
@@ -1593,7 +1591,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
                 len = fold_st().foldendmarkerlen;
             }
             if len > 0 {
-                if ascii_isdigit(*s.add(len) as u8 as c_int) {
+                if ascii_isdigit(crate::memory::cstr_byte_at(s, len) as c_int) {
                     len += 1;
                 }
 
@@ -1603,7 +1601,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
                 }
                 if (p as usize) >= (str_ptr as usize) + cms_slen
                     && std::slice::from_raw_parts(p.sub(cms_slen).cast::<u8>(), cms_slen)
-                        == std::slice::from_raw_parts(cms_start.cast::<u8>(), cms_slen)
+                        == crate::memory::cstr_slice(cms_start, cms_slen)
                 {
                     len += ((s as usize) - (p as usize)) + cms_slen;
                     s = p.sub(cms_slen);
@@ -1612,21 +1610,21 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
                 if !did1
                     && cms_slen > 0
                     && s_bytes
-                        .starts_with(std::slice::from_raw_parts(cms_start.cast::<u8>(), cms_slen))
+                        .starts_with(crate::memory::cstr_slice(cms_start, cms_slen))
                 {
                     len = cms_slen;
                     did1 = true;
                 } else if !did2
                     && cms_elen > 0
                     && s_bytes
-                        .starts_with(std::slice::from_raw_parts(cms_end.cast::<u8>(), cms_elen))
+                        .starts_with(crate::memory::cstr_slice(cms_end, cms_elen))
                 {
                     len = cms_elen;
                     did2 = true;
                 }
             }
             if len != 0 {
-                while ascii_iswhite(*s.add(len) as u8 as c_int) {
+                while ascii_iswhite(crate::memory::cstr_byte_at(s, len) as c_int) {
                     len += 1;
                 }
                 let rem = crate::memory::cstr_len(s.add(len)) + 1;
@@ -2399,7 +2397,7 @@ fn foldlevelIndent(flp: &mut fline_T) {
         let buf = (*flp.wp).w_buffer;
         let s = skipwhite(ml_get_buf(&mut *buf, lnum));
 
-        if crate::memory::cstr_is_empty(s) || !vim_strchr((*flp.wp).w_onebuf_opt.wo_fdi, *s as u8 as c_int).is_null() {
+        if crate::memory::cstr_is_empty(s) || !vim_strchr((*flp.wp).w_onebuf_opt.wo_fdi, crate::memory::cstr_first_byte(s) as c_int).is_null() {
             flp.lvl = if lnum == 1 || lnum == (*buf).b_ml.ml_line_count {
                 0
             } else {
@@ -2513,7 +2511,7 @@ fn foldlevelMarker(flp: &mut fline_T) {
         let cend = *fold_st().foldendmarker;
 
         let start_rest =
-            std::slice::from_raw_parts(startmarker.cast::<u8>(), fold_st().foldstartmarkerlen - 1);
+            crate::memory::cstr_slice(startmarker, fold_st().foldstartmarkerlen - 1);
         let end_rest =
             std::slice::from_raw_parts(fold_st().foldendmarker.add(1).cast::<u8>(), fold_st().foldendmarkerlen - 1);
 
@@ -2525,7 +2523,7 @@ fn foldlevelMarker(flp: &mut fline_T) {
             let rem_bytes = crate::memory::cstr_as_bytes(s.add(1));
             if *s == cstart && rem_bytes.starts_with(start_rest) {
                 s = s.add(fold_st().foldstartmarkerlen);
-                if ascii_isdigit(*s as u8 as c_int) {
+                if ascii_isdigit(crate::memory::cstr_first_byte(s) as c_int) {
                     let n = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as c_int;
                     if n > 0 {
                         flp.lvl = n;
@@ -2539,7 +2537,7 @@ fn foldlevelMarker(flp: &mut fline_T) {
                 }
             } else if *s == cend && rem_bytes.starts_with(end_rest) {
                 s = s.add(fold_st().foldendmarkerlen);
-                if ascii_isdigit(*s as u8 as c_int) {
+                if ascii_isdigit(crate::memory::cstr_first_byte(s) as c_int) {
                     let n = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as c_int;
                     if n > 0 {
                         flp.lvl = n;
@@ -2738,7 +2736,7 @@ pub fn f_foldtext(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             }
 
             let mut s = skipwhite(ml_get(lnum));
-            if crate::memory::cstr_first_byte(s) == b'/' && (*s.add(1) == b'*' as c_char || *s.add(1) == b'/' as c_char)
+            if crate::memory::cstr_first_byte(s) == b'/' && (crate::memory::cstr_byte_at(s, 1) == b'*' || crate::memory::cstr_byte_at(s, 1) == b'/')
             {
                 s = skipwhite(s.add(2));
                 if *skipwhite(s) == NUL && lnum + 1 < foldend {

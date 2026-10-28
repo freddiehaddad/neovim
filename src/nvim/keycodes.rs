@@ -2451,7 +2451,7 @@ pub fn find_special_key(
         }
         let end = src.add(src_len - 1);
         let in_string = (flags & FSK_IN_STRING) != 0;
-        if (src as usize) < (end as usize) && *src.add(1) == b'*' as c_char {
+        if (src as usize) < (end as usize) && crate::memory::cstr_byte_at(src, 1) == b'*' {
             // <*xxx>: do not simplify
             src = src.add(1);
         }
@@ -2466,15 +2466,15 @@ pub fn find_special_key(
                     let end_minus_bp = end as usize - bp as usize;
                     let l = utfc_ptr2len_len(bp.add(1), (end_minus_bp + 1) as c_int) as usize;
                     if end_minus_bp > l
-                        && !(in_string && *bp.add(1) == b'"' as c_char)
-                        && *bp.add(l + 1) == b'>' as c_char
+                        && !(in_string && crate::memory::cstr_byte_at(bp, 1) == b'"')
+                        && crate::memory::cstr_byte_at(bp, l + 1) == b'>'
                     {
                         bp = bp.add(l);
                     } else if end_minus_bp > 2
                         && in_string
-                        && *bp.add(1) == b'\\' as c_char
-                        && *bp.add(2) == b'"' as c_char
-                        && *bp.add(3) == b'>' as c_char
+                        && crate::memory::cstr_byte_at(bp, 1) == b'\\'
+                        && crate::memory::cstr_byte_at(bp, 2) == b'"'
+                        && crate::memory::cstr_byte_at(bp, 3) == b'>'
                     {
                         bp = bp.add(2);
                     }
@@ -2482,7 +2482,7 @@ pub fn find_special_key(
             }
             if (bp as usize) <= (end as usize) {
                 let end_minus_bp = end as usize - bp as usize;
-                if end_minus_bp > 3 && crate::memory::cstr_first_byte(bp) == b't' && *bp.add(1) == b'_' as c_char {
+                if end_minus_bp > 3 && crate::memory::cstr_first_byte(bp) == b't' && crate::memory::cstr_byte_at(bp, 1) == b'_' {
                     bp = bp.add(3); // skip t_xx, xx may be '-' or '>'
                 } else if end_minus_bp > 4 && crate::memory::cstr_prefix_bytes(bp, 5).eq_ignore_ascii_case(b"char-") {
                     let mut l: c_int = 0;
@@ -2517,7 +2517,7 @@ pub fn find_special_key(
             bp = src.add(1);
             while (bp as usize) < (last_dash as usize) {
                 if crate::memory::cstr_first_byte(bp) != b'-' {
-                    let bit = name_to_mod_mask(c_int::from(*bp as u8));
+                    let bit = name_to_mod_mask(c_int::from(crate::memory::cstr_first_byte(bp)));
                     if bit == 0 {
                         break; // Illegal modifier name
                     }
@@ -2557,8 +2557,8 @@ pub fn find_special_key(
 
                     // Modifier with single letter, or special key name.
                     if in_string
-                        && *last_dash.add(1) == b'\\' as c_char
-                        && *last_dash.add(2) == b'"' as c_char
+                        && crate::memory::cstr_byte_at(last_dash, 1) == b'\\'
+                        && crate::memory::cstr_byte_at(last_dash, 2) == b'"'
                     {
                         // Special case for a double-quoted string
                         off = 2;
@@ -2567,7 +2567,7 @@ pub fn find_special_key(
                         off = 1;
                         l = utfc_ptr2len(last_dash.add(1)) as usize;
                     }
-                    if modifiers != 0 && *last_dash.add(l + 1) == b'>' as c_char {
+                    if modifiers != 0 && crate::memory::cstr_byte_at(last_dash, l + 1) == b'>' {
                         key = utf_ptr2char(last_dash.add(off));
                     } else {
                         key = get_special_key_code(last_dash.add(off));
@@ -2628,13 +2628,13 @@ pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> c_int {
     let name = name.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(name) == b't'
-            && *name.add(1) == b'_' as c_char
+            && crate::memory::cstr_byte_at(name, 1) == b'_'
             && *name.add(2) != 0
             && *name.add(3) != 0
         {
             return termcap2key(
-                c_int::from(*name.add(2) as u8),
-                c_int::from(*name.add(3) as u8),
+                c_int::from(crate::memory::cstr_byte_at(name, 2)),
+                c_int::from(crate::memory::cstr_byte_at(name, 3)),
             );
         }
 
@@ -2643,7 +2643,7 @@ pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> c_int {
             len += 1;
         }
 
-        let slice = std::slice::from_raw_parts(name.cast::<u8>(), len);
+        let slice = crate::memory::cstr_slice(name, len);
         let idx = get_special_key_code_hash(slice);
         if idx >= 0 {
             KEY_NAMES_TABLE[idx as usize].key
@@ -2700,7 +2700,7 @@ pub fn replace_termcodes(
             // Check for special <> keycodes, like "<C-S-LeftMouse>"
             if do_special
                 && ((flags & REPTERM_DO_LT) != 0
-                    || (rem >= 4 && std::slice::from_raw_parts(src.cast::<u8>(), 4) != b"<lt>"))
+                    || (rem >= 4 && crate::memory::cstr_slice(src, 4) != b"<lt>"))
             {
                 // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
                 // for script-local user functions.
@@ -2806,7 +2806,7 @@ pub fn replace_termcodes(
             while i > 0 {
                 // If the character is K_SPECIAL, replace it with K_SPECIAL
                 // KS_SPECIAL KE_FILLER.
-                if *src as u8 == K_SPECIAL {
+                if crate::memory::cstr_first_byte(src) == K_SPECIAL {
                     *result.add(dlen) = K_SPECIAL as c_char;
                     dlen += 1;
                     *result.add(dlen) = KS_SPECIAL as c_char;
@@ -2861,7 +2861,7 @@ pub fn vim_strsave_escape_ks(p: *const c_char) -> std::ffi::CString {
         let mut d = res.as_mut_ptr();
         let mut s = p;
         while *s != 0 {
-            if *s as u8 == K_SPECIAL && *s.add(1) != 0 && *s.add(2) != 0 {
+            if crate::memory::cstr_first_byte(s) == K_SPECIAL && *s.add(1) != 0 && *s.add(2) != 0 {
                 // Copy special key unmodified.
                 *d = *s;
                 d = d.add(1);

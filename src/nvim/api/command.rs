@@ -1185,7 +1185,7 @@ pub fn nvim_cmd(
             }
 
             if (ea.argt & EX_ARGOPT) != 0 {
-                while *ea.arg.add(0) == b'+' as c_char && *ea.arg.add(1) == b'+' as c_char {
+                while crate::memory::cstr_byte_at(ea.arg, 0) == b'+' && crate::memory::cstr_byte_at(ea.arg, 1) == b'+' {
                     let orig_arg = ea.arg;
                     let result = getargopt(&mut ea);
                     if !result && !is_cmd_ni(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
@@ -1505,7 +1505,7 @@ pub fn create_user_command(
                     );
                     break 'err;
                 }
-                match *opts.nargs.data.string().data as u8 {
+                match crate::memory::cstr_first_byte(opts.nargs.data.string().data) {
                     b'*' => argt |= EX_EXTRA,
                     b'?' => argt |= EX_EXTRA | EX_NOSPC,
                     b'+' => argt |= EX_EXTRA | EX_NEEDARG,
@@ -1542,7 +1542,7 @@ pub fn create_user_command(
                     addr_type_arg = ADDR_LINES;
                 }
             } else if opts.range.obj_type == ObjectType::kObjectTypeString {
-                if !(*opts.range.data.string().data == b'%' as c_char
+                if !(crate::memory::cstr_first_byte(opts.range.data.string().data) == b'%'
                     && opts.range.data.string().size == 1)
                 {
                     api_err_invalid(err, c"range", c"", 0, true);

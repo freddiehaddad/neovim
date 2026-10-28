@@ -73,7 +73,7 @@ pub fn vterm_push_output_bytes(vt: &mut VTerm, bytes: *const c_char, len: usize)
         let slice = if len == 0 || bytes.is_null() {
             &[][..]
         } else {
-            unsafe { std::slice::from_raw_parts(bytes.cast::<u8>(), len) }
+             crate::memory::cstr_slice(bytes, len)
         };
         func(slice, vt.outdata);
     }

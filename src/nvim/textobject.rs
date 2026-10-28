@@ -299,7 +299,7 @@ fn inmacro(opt: *mut c_char, s: *const c_char) -> bool {
 pub fn startPS(lnum: linenr_T, para: c_int, both: bool) -> bool {
     unsafe {
         let s = ml_get(lnum);
-        if c_int::from(*s as u8) == para
+        if c_int::from(crate::memory::cstr_first_byte(s)) == para
             || crate::memory::cstr_first_byte(s) == b'\x0c'
             || (both && crate::memory::cstr_first_byte(s) == b'}')
         {
@@ -367,7 +367,7 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
             }
 
             while cls() == 0 {
-                if curwin_mut().w_cursor.col == 0 && *get_cursor_line_ptr() == NUL {
+                if curwin_mut().w_cursor.col == 0 && crate::memory::cstr_is_empty(get_cursor_line_ptr()) {
                     break;
                 }
 
@@ -744,7 +744,7 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> bool {
         let mut end = line.add(crate::memory::cstr_len(line));
         while end > start {
             let prev = mb_prevptr(line, end);
-            if !ascii_iswhite(c_int::from(*prev as u8)) {
+            if !ascii_iswhite(c_int::from(crate::memory::cstr_first_byte(prev))) {
                 break;
             }
             end = prev;
@@ -1153,13 +1153,13 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
             }
 
             if in_html_tag(false) {
-                while *get_cursor_pos_ptr() != b'>' as c_char {
+                while crate::memory::cstr_first_byte(get_cursor_pos_ptr()) != b'>' {
                     if inc_cursor() < 0 {
                         break;
                     }
                 }
             } else if in_html_tag(true) {
-                while *get_cursor_pos_ptr() != b'<' as c_char {
+                while crate::memory::cstr_first_byte(get_cursor_pos_ptr()) != b'<' {
                     if dec_cursor() < 0 {
                         break;
                     }
@@ -1198,7 +1198,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
             inc_cursor();
             let p = get_cursor_pos_ptr();
             let mut cp = p;
-            while !crate::memory::cstr_is_empty(cp) && crate::memory::cstr_first_byte(cp) != b'>' && !ascii_iswhite(c_int::from(*cp as u8)) {
+            while !crate::memory::cstr_is_empty(cp) && crate::memory::cstr_first_byte(cp) != b'>' && !ascii_iswhite(c_int::from(crate::memory::cstr_first_byte(cp))) {
                 cp = cp.add(utfc_ptr2len(cp) as usize);
             }
             let len = cp.offset_from(p) as usize;
@@ -1208,7 +1208,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
                 return retval;
             }
 
-            let tag_bytes = std::slice::from_raw_parts(p.cast::<u8>(), len);
+            let tag_bytes = crate::memory::cstr_slice(p, len);
             let mut spat = Vec::with_capacity(len + 39);
             spat.extend_from_slice(b"<");
             spat.extend_from_slice(tag_bytes);
@@ -1238,7 +1238,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
             }
 
             if do_include {
-                while *get_cursor_pos_ptr() != b'>' as c_char {
+                while crate::memory::cstr_first_byte(get_cursor_pos_ptr()) != b'>' {
                     if inc_cursor() < 0 {
                         break;
                     }
@@ -1482,12 +1482,12 @@ fn find_next_quote(
 ) -> c_int {
     unsafe {
         loop {
-            let c = c_int::from(*line.add(col as usize) as u8);
+            let c = c_int::from(crate::memory::cstr_byte_at(line, col as usize));
             if c == c_int::from(NUL) {
                 return -1;
             } else if !escape.is_null() && !vim_strchr(escape, c).is_null() {
                 col += 1;
-                if *line.add(col as usize) == NUL {
+                if crate::memory::cstr_byte_at(line, col as usize) == 0 {
                     return -1;
                 }
             } else if c == quotechar {
@@ -1524,7 +1524,7 @@ fn find_prev_quote(
             }
             if (n & 1) != 0 {
                 col_start -= n;
-            } else if c_int::from(*line.add(col_start as usize) as u8) == quotechar {
+            } else if c_int::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar {
                 break;
             }
         }
@@ -1608,10 +1608,10 @@ pub fn current_quote(
             }
 
             while i <= col_end {
-                if *line.add(i as usize) == NUL {
+                if crate::memory::cstr_byte_at(line, i as usize) == 0 {
                     break;
                 }
-                let ch = c_int::from(*line.add(i as usize) as u8);
+                let ch = c_int::from(crate::memory::cstr_byte_at(line, i as usize));
                 i += 1;
                 if ch == quotechar {
                     selected_quote = true;
@@ -1620,7 +1620,7 @@ pub fn current_quote(
             }
         }
 
-        if !vis_empty && c_int::from(*line.add(col_start as usize) as u8) == quotechar {
+        if !vis_empty && c_int::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar {
             if vis_bef_curs {
                 col_start = find_next_quote(line, col_start + 1, quotechar, ptr::null_mut());
                 if col_start < 0 {
@@ -1633,16 +1633,16 @@ pub fn current_quote(
                 }
             } else {
                 col_end = find_prev_quote(line, col_start, quotechar, ptr::null_mut());
-                if c_int::from(*line.add(col_end as usize) as u8) != quotechar {
+                if c_int::from(crate::memory::cstr_byte_at(line, col_end as usize)) != quotechar {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
                 col_start = find_prev_quote(line, col_end, quotechar, curbuf_mut().b_p_qe);
-                if c_int::from(*line.add(col_start as usize) as u8) != quotechar {
+                if c_int::from(crate::memory::cstr_byte_at(line, col_start as usize)) != quotechar {
                     col_start = col_end;
                     col_end = curwin_mut().w_cursor.col;
                 }
             }
-        } else if c_int::from(*line.add(col_start as usize) as u8) == quotechar || !vis_empty {
+        } else if c_int::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar || !vis_empty {
             let mut first_col = col_start;
 
             if !vis_empty {
@@ -1669,7 +1669,7 @@ pub fn current_quote(
             }
         } else {
             col_start = find_prev_quote(line, col_start, quotechar, curbuf_mut().b_p_qe);
-            if c_int::from(*line.add(col_start as usize) as u8) != quotechar {
+            if c_int::from(crate::memory::cstr_byte_at(line, col_start as usize)) != quotechar {
                 col_start = find_next_quote(line, col_start, quotechar, ptr::null_mut());
                 if col_start < 0 {
                     return abort_search(did_exclusive_adj, restore_vis_bef);

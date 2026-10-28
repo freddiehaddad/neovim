@@ -41,7 +41,7 @@ fn line_slice<'a>(m: &mmfile_t) -> &'a [u8] {
     if m.ptr.is_null() || m.size <= 0 {
         return &[];
     }
-    let raw = unsafe { std::slice::from_raw_parts(m.ptr.cast::<u8>(), m.size as usize) };
+    let raw =  { crate::memory::cstr_slice(m.ptr, m.size as usize) };
     let len = raw.iter().position(|&b| b == b'\n').unwrap_or(raw.len());
     &raw[..len.min(MATCH_CHAR_MAX_LEN - 1)]
 }
@@ -146,7 +146,7 @@ pub fn fastforward_buf_to_lnum(mut s: mmfile_t, lnum: linenr_T) -> mmfile_t {
             s.size = 0;
             break;
         }
-        let slice = unsafe { std::slice::from_raw_parts(s.ptr.cast::<u8>(), s.size as usize) };
+        let slice =  { crate::memory::cstr_slice(s.ptr, s.size as usize) };
         if let Some(pos) = slice.iter().position(|&b| b == b'\n') {
             s.ptr = unsafe { s.ptr.add(pos + 1) };
             s.size -= (pos as c_int) + 1;

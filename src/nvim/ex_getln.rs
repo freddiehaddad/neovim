@@ -520,7 +520,7 @@ pub fn parse_pattern_and_range(
 
         // Skip over the range to find the command.
         let cmd = skip_range(ea.cmd, None);
-        if vim_strchr(c"sgvlu", (*cmd as u8) as c_int).is_null() {
+        if vim_strchr(c"sgvlu", (crate::memory::cstr_first_byte(cmd)) as c_int).is_null() {
             return false;
         }
 
@@ -539,9 +539,9 @@ pub fn parse_pattern_and_range(
             || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"snomagic", cmd_len.max(3)))
             || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"vglobal", cmd_len))
         {
-            if crate::memory::cstr_first_byte(cmd) == b's' && *cmd.add(1) == b'm' as c_char {
+            if crate::memory::cstr_first_byte(cmd) == b's' && crate::memory::cstr_byte_at(cmd, 1) == b'm' {
                 *is_magic = true;
-            } else if crate::memory::cstr_first_byte(cmd) == b's' && *cmd.add(1) == b'n' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b's' && crate::memory::cstr_byte_at(cmd, 1) == b'n' {
                 *is_magic = false;
             }
         } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"sort", cmd_len.max(3)))
@@ -582,7 +582,7 @@ pub fn parse_pattern_and_range(
         }
 
         p = skipwhite(p);
-        let delim = if delim_optional && vim_isIDc((*p as u8) as c_int) {
+        let delim = if delim_optional && vim_isIDc((crate::memory::cstr_first_byte(p)) as c_int) {
             b' ' as c_int
         } else {
             let d = *p as c_int;
@@ -631,7 +631,7 @@ pub fn parse_pattern_and_range(
             // Allow for reverse match.
             g_st().Search.first_line = ea.line2.min(ea.line1);
             g_st().Search.last_line = ea.line2.max(ea.line1);
-        } else if crate::memory::cstr_first_byte(cmd) == b's' && *cmd.add(1) != b'o' as c_char {
+        } else if crate::memory::cstr_first_byte(cmd) == b's' && crate::memory::cstr_byte_at(cmd, 1) != b'o' {
             // :s defaults to the current line
             g_st().Search.first_line = curwin_mut().w_cursor.lnum;
             g_st().Search.last_line = curwin_mut().w_cursor.lnum;
@@ -1266,9 +1266,7 @@ fn command_line_enter(
                     );
                     if (*s).firstc == b':' as c_int {
                         g_st().new_last_cmdline = Some(crate::memory::cstr_from_bytes(
-                            std::slice::from_raw_parts(
-                                getln_st().ccline.cmdbuff.cast::<u8>(),
-                                getln_st().ccline.cmdlen as usize,
+                            crate::memory::cstr_slice(getln_st().ccline.cmdbuff, getln_st().ccline.cmdlen as usize,
                             ),
                         ));
                     }
@@ -1966,7 +1964,7 @@ fn may_do_command_line_next_incsearch(
             restore_last_search_pattern();
             return true;
         }
-        if patlen == 0 && *getln_st().ccline.cmdbuff.add(skiplen as usize) == NUL {
+        if patlen == 0 && crate::memory::cstr_byte_at(getln_st().ccline.cmdbuff, skiplen as usize) == 0 {
             restore_last_search_pattern();
             return false;
         }
@@ -2343,7 +2341,7 @@ fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
 
         if (*s).lookfor.is_none() {
             let prefix_len = getln_st().ccline.cmdpos as usize;
-            let bytes = std::slice::from_raw_parts(getln_st().ccline.cmdbuff.cast::<u8>(), prefix_len);
+            let bytes = crate::memory::cstr_slice(getln_st().ccline.cmdbuff, prefix_len);
             (*s).lookfor = Some(std::ffi::CString::new(bytes).unwrap_or_default());
             (*s).lookforlen = getln_st().ccline.cmdpos;
         }
@@ -2386,16 +2384,16 @@ fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
                 for i in 0..=1 {
                     len = 0;
                     let mut j: usize = 0;
-                    while *p.add(j) != NUL {
+                    while crate::memory::cstr_byte_at(p, j) != 0 {
                         if *p.add(j) as c_int == old_firstc
-                            && (j == 0 || *p.add(j - 1) != b'\\' as c_char)
+                            && (j == 0 || crate::memory::cstr_byte_at(p, j - 1) != b'\\')
                         {
                             if i > 0 {
                                 *getln_st().ccline.cmdbuff.add(len as usize) = (*s).firstc as c_char;
                             }
                         } else {
                             if *p.add(j) as c_int == (*s).firstc
-                                && (j == 0 || *p.add(j - 1) != b'\\' as c_char)
+                                && (j == 0 || crate::memory::cstr_byte_at(p, j - 1) != b'\\')
                             {
                                 if i > 0 {
                                     *getln_st().ccline.cmdbuff.add(len as usize) = b'\\' as c_char;
@@ -2889,19 +2887,19 @@ fn empty_pattern(p: *mut c_char, len: usize, delim: c_int) -> bool {
 }
 
 fn empty_pattern_magic(p: *mut c_char, mut len: usize, magic_val: magic_T) -> bool {
-    unsafe {
+     {
         while len >= 2
-            && *p.add(len - 2) == b'\\' as c_char
-            && !vim_strchr(c"mMvVcCZ", (*p.add(len - 1) as u8) as c_int).is_null()
+            && crate::memory::cstr_byte_at(p, len - 2) == b'\\'
+            && !vim_strchr(c"mMvVcCZ", (crate::memory::cstr_byte_at(p, len - 1)) as c_int).is_null()
         {
             len -= 2;
         }
 
         len == 0
             || (len > 1
-                && *p.add(len - 1) == b'|' as c_char
-                && ((*p.add(len - 2) == b'\\' as c_char && magic_val == MAGIC_ON)
-                    || (*p.add(len - 2) != b'\\' as c_char && magic_val == MAGIC_ALL)))
+                && crate::memory::cstr_byte_at(p, len - 1) == b'|'
+                && ((crate::memory::cstr_byte_at(p, len - 2) == b'\\' && magic_val == MAGIC_ON)
+                    || (crate::memory::cstr_byte_at(p, len - 2) != b'\\' && magic_val == MAGIC_ALL)))
     }
 }
 
@@ -3401,7 +3399,7 @@ pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> bool {
             while ascii_isalpha(*p.add(i) as c_int) {
                 i += 1;
             }
-            if *p.add(i) != NUL && *p.add(i) != b',' as c_char && *p.add(i) != b':' as c_char {
+            if crate::memory::cstr_byte_at(p, i) != 0 && crate::memory::cstr_byte_at(p, i) != b',' && crate::memory::cstr_byte_at(p, i) != b':' {
                 return false;
             }
             if i == 7 && (crate::memory::cstr_prefix_bytes(p, 7) == &b"longest"[..7]) {
@@ -3859,7 +3857,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         printed_errmsg = true;
                         break 'color_cmdline_error;
                     } else if utf8len_tab_zero
-                        [*colored_ccline.cmdbuff.add(start as usize) as u8 as usize]
+                        [crate::memory::cstr_byte_at(colored_ccline.cmdbuff, start as usize) as usize]
                         == 0
                     {
                         g_st().msg_scroll = 1;
@@ -3901,7 +3899,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         break 'color_cmdline_error;
                     } else if end < colored_ccline.cmdlen as varnumber_T
                         && utf8len_tab_zero
-                            [*colored_ccline.cmdbuff.add(end as usize) as u8 as usize]
+                            [crate::memory::cstr_byte_at(colored_ccline.cmdbuff, end as usize) as usize]
                             == 0
                     {
                         g_st().msg_scroll = 1;
@@ -4436,8 +4434,8 @@ pub fn cmdline_paste_str(s: impl crate::strings::IntoCCharPtr, literally: bool) 
             put_on_cmdline(s, -1, true);
         } else {
             while !crate::memory::cstr_is_empty(s) {
-                let cv = (*s as u8) as c_int;
-                if cv == Ctrl_V && *s.add(1) != NUL {
+                let cv = (crate::memory::cstr_first_byte(s)) as c_int;
+                if cv == Ctrl_V && crate::memory::cstr_byte_at(s, 1) != 0 {
                     s = s.add(1);
                 }
                 let c = mb_cptr2char_adv(&raw mut s);
@@ -4594,7 +4592,7 @@ fn ccheck_abbr(c: c_int) -> c_int {
             spos += 1;
         }
         if getln_st().ccline.cmdlen - spos > 5
-            && *getln_st().ccline.cmdbuff.add(spos as usize) == b'\'' as c_char
+            && crate::memory::cstr_byte_at(getln_st().ccline.cmdbuff, spos as usize) == b'\''
             && *getln_st().ccline.cmdbuff.add((spos + 2) as usize) == b',' as c_char
             && *getln_st().ccline.cmdbuff.add((spos + 3) as usize) == b'\'' as c_char
         {
@@ -4621,7 +4619,7 @@ pub fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> std::ffi::C
         let mut cp = chars;
         while !crate::memory::cstr_is_empty(cp) {
             if (crate::memory::cstr_first_byte(cp) != b'[' && crate::memory::cstr_first_byte(cp) != b'{' && crate::memory::cstr_first_byte(cp) != b'!')
-                || !vim_isfilec((*cp as u8) as c_int)
+                || !vim_isfilec((crate::memory::cstr_first_byte(cp)) as c_int)
             {
                 buf[j] = *cp;
                 j += 1;
@@ -4667,8 +4665,8 @@ pub fn escape_fname_cstr(s: &mut std::ffi::CString) {
 /// For each file name in `files`:
 /// If `orig_pat` starts with `~/`, replace the home directory with `~`.
 pub fn tilde_replace(orig_pat: *mut c_char, files: &mut [std::ffi::CString]) {
-    unsafe {
-        if crate::memory::cstr_first_byte(orig_pat) == b'~' && vim_ispathsep((*orig_pat.add(1) as u8) as c_int) {
+     {
+        if crate::memory::cstr_first_byte(orig_pat) == b'~' && vim_ispathsep((crate::memory::cstr_byte_at(orig_pat, 1)) as c_int) {
             for f in files {
                 *f = home_replace_save(None, f.as_ptr().cast_mut());
             }
@@ -4733,7 +4731,7 @@ fn get_cmdline_str() -> Option<std::ffi::CString> {
         if p.is_null() {
             return None;
         }
-        let slice = std::slice::from_raw_parts((*p).cmdbuff.cast::<u8>(), (*p).cmdlen as usize);
+        let slice = crate::memory::cstr_slice((*p).cmdbuff, (*p).cmdlen as usize);
         let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
         Some(crate::memory::cstr_from_bytes(&slice[..len]))
     }
@@ -5130,7 +5128,7 @@ fn open_cmdwin() -> c_int {
 
         let content = (!getln_st().ccline.cmdbuff.is_null()).then(|| {
             let bytes =
-                std::slice::from_raw_parts(getln_st().ccline.cmdbuff.cast::<u8>(), getln_st().ccline.cmdlen as usize);
+                crate::memory::cstr_slice(getln_st().ccline.cmdbuff, getln_st().ccline.cmdlen as usize);
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             std::ffi::CString::new(&bytes[..end]).unwrap()
         });
@@ -5160,7 +5158,7 @@ pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CStri
     unsafe {
         let mut cmd = eap.arg;
 
-        if crate::memory::cstr_first_byte(cmd) != b'<' || *cmd.add(1) != b'<' as c_char || eap.ea_getline.is_none() {
+        if crate::memory::cstr_first_byte(cmd) != b'<' || crate::memory::cstr_byte_at(cmd, 1) != b'<' || eap.ea_getline.is_none() {
             *lenp = crate::memory::cstr_len(eap.arg);
             return if eap.skip != 0 {
                 None

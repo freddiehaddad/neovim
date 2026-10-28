@@ -308,7 +308,7 @@ pub(super) fn cstring_from_bytes(
     ptr: *const c_char,
     len: usize,
 ) -> Option<std::ffi::CString> {
-    let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) };
+    let bytes =  { crate::memory::cstr_slice(ptr, len) };
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(len);
     std::ffi::CString::new(&bytes[..end]).ok()
 }
@@ -1560,9 +1560,9 @@ pub fn re_multiline(prog: &regprog_T) -> c_int {
 pub(super) fn get_equi_class(pp: *mut *mut c_char) -> c_int {
     unsafe {
         let p = *pp;
-        if *p.add(1) == b'=' as c_char && *p.add(2) != NUL as c_char {
+        if crate::memory::cstr_byte_at(p, 1) == b'=' && crate::memory::cstr_byte_at(p, 2) != 0 {
             let l = utfc_ptr2len(p.add(2)) as usize;
-            if *p.add(l + 2) == b'=' as c_char && *p.add(l + 3) == b']' as c_char {
+            if crate::memory::cstr_byte_at(p, l + 2) == b'=' && crate::memory::cstr_byte_at(p, l + 3) == b']' {
                 let c = utf_ptr2char(p.add(2));
                 *pp = (*pp).add(l + 4);
                 return c;
@@ -1576,9 +1576,9 @@ pub(super) fn get_equi_class(pp: *mut *mut c_char) -> c_int {
 pub(super) fn get_coll_element(pp: *mut *mut c_char) -> c_int {
     unsafe {
         let p = *pp;
-        if !crate::memory::cstr_is_empty(p) && *p.add(1) == b'.' as c_char && *p.add(2) != NUL as c_char {
+        if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_byte_at(p, 1) == b'.' && crate::memory::cstr_byte_at(p, 2) != 0 {
             let l = utfc_ptr2len(p.add(2)) as usize;
-            if *p.add(l + 2) == b'.' as c_char && *p.add(l + 3) == b']' as c_char {
+            if crate::memory::cstr_byte_at(p, l + 2) == b'.' && crate::memory::cstr_byte_at(p, l + 3) == b']' {
                 let c = utf_ptr2char(p.add(2));
                 *pp = (*pp).add(l + 4);
                 return c;
@@ -1611,9 +1611,9 @@ pub(super) fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
                     mb_ptr_adv(&raw mut p);
                 }
             } else if crate::memory::cstr_first_byte(p) == b'\\'
-                && (!vim_strchr(REGEXP_INRANGE, *p.add(1) as u8 as c_int).is_null()
+                && (!vim_strchr(REGEXP_INRANGE, crate::memory::cstr_byte_at(p, 1) as c_int).is_null()
                     || (re_st().reg_cpo_lit == 0
-                        && !vim_strchr(REGEXP_ABBR, *p.add(1) as u8 as c_int).is_null()))
+                        && !vim_strchr(REGEXP_ABBR, crate::memory::cstr_byte_at(p, 1) as c_int).is_null()))
             {
                 p = p.add(2);
             } else if crate::memory::cstr_first_byte(p) == b'[' {
@@ -1647,9 +1647,9 @@ pub fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_ch
 
 /// Call `skip_regexp()` and when the delimiter does not match give an error and return NULL.
 pub fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
-    unsafe {
+     {
         let p = skip_regexp(startp, delim, magic);
-        if *p as u8 as c_int != delim {
+        if crate::memory::cstr_first_byte(p) as c_int != delim {
             semsg!(
                 tr(e_missing_delimiter_after_search_pattern_str),
                 startp,
@@ -1676,18 +1676,18 @@ pub fn skip_regexp_ex(
         get_cpo_flags();
 
         while !crate::memory::cstr_is_empty(p) {
-            if *p as u8 as c_int == dirc {
+            if crate::memory::cstr_first_byte(p) as c_int == dirc {
                 break;
             }
             if (crate::memory::cstr_first_byte(p) == b'[' && mymagic >= MAGIC_ON)
-                || (crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) == b'[' as c_char && mymagic <= MAGIC_OFF)
+                || (crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) == b'[' && mymagic <= MAGIC_OFF)
             {
                 p = skip_anyof(p.add(1));
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
-            } else if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != NUL as c_char {
-                if dirc == b'?' as c_int && in_place && *p.add(1) == b'?' as c_char {
+            } else if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0 {
+                if dirc == b'?' as c_int && in_place && crate::memory::cstr_byte_at(p, 1) == b'?' {
                     if startplen == 0 {
                         startplen = crate::memory::cstr_len(startp);
                     }
@@ -1766,7 +1766,7 @@ pub(super) fn peekchr() -> c_int {
             return re_st().curchr;
         }
 
-        re_st().curchr = *re_st().regparse as u8 as c_int;
+        re_st().curchr = crate::memory::cstr_first_byte(re_st().regparse) as c_int;
         match re_st().curchr as u8 {
             b'.' | b'[' | b'~' => {
                 if re_st().reg_magic >= MAGIC_ON {
@@ -1832,7 +1832,7 @@ pub(super) fn peekchr() -> c_int {
                 }
             }
             b'\\' => {
-                let c = *re_st().regparse.add(1) as u8 as c_int;
+                let c = crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int;
                 if c == NUL as c_int {
                     re_st().curchr = b'\\' as c_int;
                 } else if c <= b'~' as c_int && META_flags[c as usize] != 0 {
@@ -1870,7 +1870,7 @@ pub(super) fn peekchr() -> c_int {
 
 pub(super) fn skipchr() {
     unsafe {
-        if *re_st().regparse == b'\\' as c_char {
+        if crate::memory::cstr_first_byte(re_st().regparse) == b'\\' {
             re_st().prevchr_len = 1;
         } else {
             re_st().prevchr_len = 0;
@@ -1925,7 +1925,7 @@ pub(super) fn gethexchrs(maxinputlen: c_int) -> i64 {
         let mut nr: i64 = 0;
         let mut i: c_int = 0;
         while i < maxinputlen {
-            let c = *re_st().regparse as u8 as c_int;
+            let c = crate::memory::cstr_first_byte(re_st().regparse) as c_int;
             if !ascii_isxdigit(c) {
                 break;
             }
@@ -1943,7 +1943,7 @@ pub(super) fn getdecchrs() -> i64 {
         let mut nr: i64 = 0;
         let mut i: c_int = 0;
         loop {
-            let c = *re_st().regparse as u8;
+            let c = crate::memory::cstr_first_byte(re_st().regparse);
             if !c.is_ascii_digit() {
                 break;
             }
@@ -1961,7 +1961,7 @@ pub(super) fn getoctchrs() -> i64 {
         let mut nr: i64 = 0;
         let mut i: c_int = 0;
         while i < 3 && nr < 0o40 {
-            let c = *re_st().regparse as u8;
+            let c = crate::memory::cstr_first_byte(re_st().regparse);
             if !(b'0'..=b'7').contains(&c) {
                 break;
             }
@@ -1977,28 +1977,28 @@ pub(super) fn getoctchrs() -> i64 {
 pub(super) fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> bool {
     unsafe {
         let mut reverse = false;
-        if *re_st().regparse == b'-' as c_char {
+        if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
             re_st().regparse = re_st().regparse.add(1);
             reverse = true;
         }
         let first_char = re_st().regparse;
         *minval = getdigits_int(&raw mut re_st().regparse, false, 0);
-        if *re_st().regparse == b',' as c_char {
+        if crate::memory::cstr_first_byte(re_st().regparse) == b',' {
             re_st().regparse = re_st().regparse.add(1);
-            if ascii_isdigit(*re_st().regparse as u8 as c_int) {
+            if ascii_isdigit(crate::memory::cstr_first_byte(re_st().regparse) as c_int) {
                 *maxval = getdigits_int(&raw mut re_st().regparse, false, MAX_LIMIT);
             } else {
                 *maxval = MAX_LIMIT;
             }
-        } else if ascii_isdigit(*first_char as u8 as c_int) {
+        } else if ascii_isdigit(crate::memory::cstr_first_byte(first_char) as c_int) {
             *maxval = *minval;
         } else {
             *maxval = MAX_LIMIT;
         }
-        if *re_st().regparse == b'\\' as c_char {
+        if crate::memory::cstr_first_byte(re_st().regparse) == b'\\' {
             re_st().regparse = re_st().regparse.add(1);
         }
-        if *re_st().regparse != b'}' as c_char {
+        if crate::memory::cstr_first_byte(re_st().regparse) != b'}' {
             semsg!(
                 tr(c"E554: Syntax error in %s{...}"),
                 if re_st().reg_magic == MAGIC_ALL {
@@ -2410,10 +2410,10 @@ pub(super) fn cstrchr(s: *const c_char, c: c_int) -> *mut c_char {
         while !crate::memory::cstr_is_empty(p) {
             let uc = utf_ptr2char(p);
             if c > 0x80 || uc > 0x80 {
-                if (uc < 0x80 || uc != *p as u8 as c_int) && utf_fold(uc) == lc {
+                if (uc < 0x80 || uc != crate::memory::cstr_first_byte(p) as c_int) && utf_fold(uc) == lc {
                     return p.cast_mut();
                 }
-            } else if *p as u8 as c_int == c || *p as u8 as c_int == cc {
+            } else if crate::memory::cstr_first_byte(p) as c_int == c || crate::memory::cstr_first_byte(p) as c_int == cc {
                 return p.cast_mut();
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -2486,7 +2486,7 @@ pub fn regtilde(
                 }
                 continue;
             } else {
-                if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != NUL as c_char {
+                if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0 {
                     p = p.add(1);
                 }
                 p = p.add(utfc_ptr2len(p) as usize);
@@ -2636,7 +2636,7 @@ fn vim_regsub_both(
         let mut src = source;
         let mut dst = dest;
 
-        if expr.is_some() || (crate::memory::cstr_first_byte(source) == b'\\' && *source.add(1) == b'=' as c_char) {
+        if expr.is_some() || (crate::memory::cstr_first_byte(source) == b'\\' && crate::memory::cstr_byte_at(source, 1) == b'=') {
             if copy {
                 if let Some(ref eval_cstr) = *eval_slot {
                     let eval_len = eval_cstr.to_bytes().len();
@@ -2728,7 +2728,7 @@ fn vim_regsub_both(
                     while !crate::memory::cstr_is_empty(s) {
                         if *s == NL as c_char && re_st().rsm.sm_line_lbr == 0 {
                             *s = CAR as c_char;
-                        } else if crate::memory::cstr_first_byte(s) == b'\\' && *s.add(1) != NUL as c_char {
+                        } else if crate::memory::cstr_first_byte(s) == b'\\' && crate::memory::cstr_byte_at(s, 1) != 0 {
                             s = s.add(1);
                             if *s == NL as c_char && re_st().rsm.sm_line_lbr == 0 {
                                 *s = CAR as c_char;
@@ -2755,7 +2755,7 @@ fn vim_regsub_both(
             }
         } else {
             loop {
-                let mut c = *src as u8 as c_int;
+                let mut c = crate::memory::cstr_first_byte(src) as c_int;
                 src = src.add(1);
                 if c == NUL as c_int {
                     break;
@@ -2766,11 +2766,11 @@ fn vim_regsub_both(
                     if crate::memory::cstr_first_byte(src) == b'&' && (flags & REGSUB_MAGIC) == 0 {
                         src = src.add(1);
                         no = 0;
-                    } else if (*src as u8).is_ascii_digit() {
-                        no = (*src as u8 - b'0') as c_int;
+                    } else if (crate::memory::cstr_first_byte(src)).is_ascii_digit() {
+                        no = (crate::memory::cstr_first_byte(src) - b'0') as c_int;
                         src = src.add(1);
-                    } else if !vim_strchr(c"uUlLeE", *src as u8 as c_int).is_null() {
-                        let ch = *src as u8;
+                    } else if !vim_strchr(c"uUlLeE", crate::memory::cstr_first_byte(src) as c_int).is_null() {
+                        let ch = crate::memory::cstr_first_byte(src);
                         src = src.add(1);
                         match ch {
                             b'u' => {
@@ -2801,7 +2801,7 @@ fn vim_regsub_both(
                 if no < 0 {
                     if c == c_int::from(K_SPECIAL)
                         && !crate::memory::cstr_is_empty(src)
-                        && *src.add(1) != NUL as c_char
+                        && crate::memory::cstr_byte_at(src, 1) != 0
                     {
                         if copy {
                             if dst.add(3) > dest.add(destlen as usize) {
@@ -2824,7 +2824,7 @@ fn vim_regsub_both(
                     }
 
                     if c == b'\\' as c_int && !crate::memory::cstr_is_empty(src) {
-                        match *src as u8 {
+                        match crate::memory::cstr_first_byte(src) {
                             b'r' => {
                                 c = CAR;
                                 src = src.add(1);
@@ -2852,7 +2852,7 @@ fn vim_regsub_both(
                                     }
                                     dst = dst.add(1);
                                 }
-                                c = *src as u8 as c_int;
+                                c = crate::memory::cstr_first_byte(src) as c_int;
                                 src = src.add(1);
                             }
                         }
@@ -3295,7 +3295,7 @@ pub(super) fn seen_endbrace(refnum: c_int) -> bool {
 pub(super) fn coll_get_char() -> c_int {
     unsafe {
         let mut nr: i64 = -1;
-        let ch = *re_st().regparse as u8;
+        let ch = crate::memory::cstr_first_byte(re_st().regparse);
         re_st().regparse = re_st().regparse.add(1);
         match ch {
             b'd' => nr = getdecchrs(),
@@ -3328,7 +3328,7 @@ pub fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
         re_st().regexp_engine = opt_vars().p_re as c_int;
 
         if crate::memory::cstr_prefix_bytes(expr, 4) == &b"\\%#="[..4] {
-            let newengine = (*expr.add(4) as u8).wrapping_sub(b'0') as c_int;
+            let newengine = (crate::memory::cstr_byte_at(expr, 4)).wrapping_sub(b'0') as c_int;
             if newengine == AUTOMATIC_ENGINE
                 || newengine == BACKTRACKING_ENGINE
                 || newengine == NFA_ENGINE

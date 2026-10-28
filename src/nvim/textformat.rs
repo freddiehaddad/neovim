@@ -575,13 +575,13 @@ fn fmt_check_par(
 }
 
 fn ends_in_white(lnum: linenr_T) -> bool {
-    unsafe {
+     {
         let s = ml_get(lnum);
         if crate::memory::cstr_is_empty(s) {
             return false;
         }
         let l = ml_get_len(lnum) - 1;
-        ascii_iswhite(*s.add(l as usize) as u8 as c_int)
+        ascii_iswhite(crate::memory::cstr_byte_at(s, l as usize) as c_int)
     }
 }
 

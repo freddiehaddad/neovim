@@ -207,7 +207,7 @@ pub fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
             ptr::copy_nonoverlapping(buf.cast::<u8>(), (&raw mut sc).cast::<u8>(), len);
             sc
         } else {
-            let bytes = std::slice::from_raw_parts(buf.cast::<u8>(), len);
+            let bytes = crate::memory::cstr_slice(buf, len);
             let keys_ptr = &raw mut grid_st().glyph_cache_keys;
             let offsets_ptr = &raw mut grid_st().glyph_cache_offsets;
             let idx = if let Some(&existing_idx) = (*offsets_ptr).get(bytes) {

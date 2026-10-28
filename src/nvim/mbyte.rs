@@ -2018,7 +2018,7 @@ pub fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
 
 pub fn utf_ambiguous_width(p: *const c_char) -> bool {
     unsafe {
-        if crate::memory::cstr_is_empty(p) || *p.add(1) == NUL {
+        if crate::memory::cstr_is_empty(p) || crate::memory::cstr_byte_at(p, 1) == 0 {
             return false;
         }
         let info = utf_ptr2CharInfo(p);
@@ -2992,8 +2992,8 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
         if !p.is_null() {
             if p.cast_const() > s.add(2)
                 && crate::memory::cstr_prefix_bytes(p.add(1), 3).eq_ignore_ascii_case(b"EUC")
-                && !(*p.add(4) as u8).is_ascii_alphanumeric()
-                && *p.add(4) != b'-' as c_char
+                && !(crate::memory::cstr_byte_at(p, 4)).is_ascii_alphanumeric()
+                && crate::memory::cstr_byte_at(p, 4) != b'-'
                 && *p.sub(3) == b'_' as c_char
             {
                 ptr::copy_nonoverlapping(b"euc-".as_ptr().cast::<c_char>(), buf.as_mut_ptr(), 4);
@@ -3016,8 +3016,8 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
         }
 
         let mut i = 0usize;
-        while i < buf.len() - 1 && *s.add(i) != NUL {
-            let ch = *s.add(i) as u8;
+        while i < buf.len() - 1 && crate::memory::cstr_byte_at(s, i) != 0 {
+            let ch = crate::memory::cstr_byte_at(s, i);
             if ch == b'_' || ch == b'-' {
                 buf[i] = b'-' as c_char;
             } else if ch.is_ascii_alphanumeric() {

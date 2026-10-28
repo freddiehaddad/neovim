@@ -443,11 +443,11 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
         if (*wp).w_onebuf_opt.wo_lbr != 0
             && (*wp).w_onebuf_opt.wo_wrap != 0
             && (*wp).w_view_width != 0
-            && vim_isbreak(c_int::from(*cur.add(0) as u8))
-            && !vim_isbreak(c_int::from(*cur.add(1) as u8))
+            && vim_isbreak(c_int::from(crate::memory::cstr_byte_at(cur, 0)))
+            && !vim_isbreak(c_int::from(crate::memory::cstr_byte_at(cur, 1)))
         {
             let mut t = csarg.line;
-            while vim_isbreak(c_int::from(*t as u8)) {
+            while vim_isbreak(c_int::from(crate::memory::cstr_first_byte(t))) {
                 t = t.add(1);
             }
             need_lbr = cur >= t;
@@ -472,9 +472,9 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
             loop {
                 let ps = s;
                 s = s.add(utfc_ptr2len(s) as usize);
-                let c = c_int::from(*s as u8);
+                let c = c_int::from(crate::memory::cstr_first_byte(s));
                 if !(c != 0
-                    && (vim_isbreak(c) || vcol2 == vcol || !vim_isbreak(c_int::from(*ps as u8))))
+                    && (vim_isbreak(c) || vcol2 == vcol || !vim_isbreak(c_int::from(crate::memory::cstr_first_byte(ps)))))
                 {
                     break;
                 }

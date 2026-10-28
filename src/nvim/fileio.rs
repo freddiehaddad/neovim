@@ -775,7 +775,7 @@ mod win_iconv {
         }
         unsafe {
             while *inbytesleft > 0 {
-                let src = std::slice::from_raw_parts((*inbuf).cast::<u8>(), *inbytesleft);
+                let src = crate::memory::cstr_slice(*inbuf, *inbytesleft);
                 match decode_one(desc, src) {
                     StepResult::SkipBom(consumed) => {
                         *inbuf = (*inbuf).add(consumed);
@@ -1886,10 +1886,10 @@ pub fn readfile(
                                 p = ptr.cast::<u8>().offset(size);
                                 if fio_flags == FIO_UTF8 {
                                     tail = ptr.offset(size - 1);
-                                    while tail > ptr && (*tail as u8 & 0xc0) == 0x80 {
+                                    while tail > ptr && (crate::memory::cstr_first_byte(tail) & 0xc0) == 0x80 {
                                         tail = tail.sub(1);
                                     }
-                                    if tail.offset(utf_byte2len(*tail as u8 as c_int) as isize)
+                                    if tail.offset(utf_byte2len(crate::memory::cstr_first_byte(tail) as c_int) as isize)
                                         <= ptr.offset(size)
                                     {
                                         tail = ptr::null_mut();
@@ -2274,7 +2274,7 @@ pub fn readfile(
 
                         while ptr < end {
                             let rem = end.offset_from(ptr) as usize;
-                            let slice = std::slice::from_raw_parts(ptr.cast::<u8>(), rem);
+                            let slice = crate::memory::cstr_slice(ptr, rem);
                             let Some(nl_pos) = slice.iter().position(|&b| b == b'\n') else {
                                 let rem_slice =
                                     std::slice::from_raw_parts_mut(ptr.cast::<u8>(), rem);
@@ -2807,10 +2807,10 @@ pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
             && bytes.len() > 8
             && ascii_isdigit(bytes[8])
             && *skipdigits(fname.add(9)) == NUL
-            && (*fname.add(9) != NUL
-                || (*fname.add(8) != b'0' as c_char
-                    && *fname.add(8) != b'1' as c_char
-                    && *fname.add(8) != b'2' as c_char))
+            && (crate::memory::cstr_byte_at(fname, 9) != 0
+                || (crate::memory::cstr_byte_at(fname, 8) != b'0'
+                    && crate::memory::cstr_byte_at(fname, 8) != b'1'
+                    && crate::memory::cstr_byte_at(fname, 8) != b'2'))
     }
 }
 
@@ -2832,7 +2832,7 @@ fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char) -> li
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
 /// equal to the buffer "buf".
 pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
-    unsafe {
+     {
         let fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
         let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
         cmd_vec.extend_from_slice(b"e ++enc=");
@@ -2841,7 +2841,7 @@ pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
         eap.cmd = cmd_cstr.as_ptr().cast_mut();
         eap.force_enc = 8;
         eap.bad_char = buf.b_bad_char;
-        eap.force_ff = (*buf.b_p_ff as u8) as c_int;
+        eap.force_ff = (crate::memory::cstr_first_byte(buf.b_p_ff)) as c_int;
         eap.force_bin = if buf.b_p_bin != 0 {
             FORCE_BIN
         } else {
@@ -2900,7 +2900,7 @@ fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
             res
         } else {
             let len = p.offset_from(*pp) as usize;
-            let tmp = std::ffi::CString::new(std::slice::from_raw_parts((*pp).cast::<u8>(), len))
+            let tmp = std::ffi::CString::new(crate::memory::cstr_slice(*pp, len))
                 .unwrap_or_default();
             *pp = p.add(1);
             enc_canonize(tmp.as_ptr())
@@ -3866,12 +3866,12 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                         helpmesg = true;
                         can_reload = true;
 
-                        if *reason.add(2) == b'n' as c_char {
+                        if crate::memory::cstr_byte_at(reason, 2) == b'n' {
                             mesg = tr(
                                 c"W12: Warning: File \"%s\" has changed and the buffer was changed in Vim as well",
                             );
                             mesg2 = tr(c"See \":help W12\" for more info.");
-                        } else if *reason.add(1) == b'h' as c_char {
+                        } else if crate::memory::cstr_byte_at(reason, 1) == b'h' {
                             mesg = tr(
                                 c"W11: Warning: File \"%s\" has changed since editing started",
                             );
@@ -4287,7 +4287,7 @@ pub fn readdir_core(
     path: *const c_char,
     mut context: Option<&mut crate::eval::typval::typval_T>,
 ) -> bool {
-    unsafe {
+     {
         entries.clear();
 
         let mut dir = Directory::new();
@@ -4303,7 +4303,7 @@ pub fn readdir_core(
             }
 
             let mut ignore = crate::memory::cstr_first_byte(p) == b'.'
-                && (*p.add(1) == NUL || (*p.add(1) == b'.' as c_char && *p.add(2) == NUL));
+                && (crate::memory::cstr_byte_at(p, 1) == 0 || (crate::memory::cstr_byte_at(p, 1) == b'.' && crate::memory::cstr_byte_at(p, 2) == 0));
             if !ignore && context.is_some() {
                 let r = crate::eval::fs::readdir_checkitem(context.as_deref_mut().unwrap(), p);
                 if r < 0 {
@@ -4476,7 +4476,7 @@ fn vim_settempdir(tempdir: *mut c_char) -> bool {
             buflen += sep_bytes.len() - 1;
         }
         fio_st().VIM_TEMPDIR = Some(
-            std::ffi::CString::new(std::slice::from_raw_parts(buf.cast::<u8>(), buflen))
+            std::ffi::CString::new(crate::memory::cstr_slice(buf, buflen))
                 .unwrap_or_default(),
         );
         #[cfg(unix)]
@@ -4597,7 +4597,7 @@ pub fn file_pat_to_reg_pat(
 
         let mut p = pat;
         while p < pat_end {
-            match *p as u8 {
+            match crate::memory::cstr_first_byte(p) {
                 b'*' | b'.' | b',' | b'{' | b'}' | b'~' => size += 2,
                 #[cfg(windows)]
                 b'\\' | b'/' => size += 4,
@@ -4629,13 +4629,13 @@ pub fn file_pat_to_reg_pat(
         let mut nested: c_int = 0;
         p = pat;
         while !crate::memory::cstr_is_empty(p) && nested >= 0 && p <= endp {
-            match *p as u8 {
+            match crate::memory::cstr_first_byte(p) {
                 b'*' => {
                     *reg_pat.add(i) = b'.' as c_char;
                     i += 1;
                     *reg_pat.add(i) = b'*' as c_char;
                     i += 1;
-                    while *p.add(1) == b'*' as c_char {
+                    while crate::memory::cstr_byte_at(p, 1) == b'*' {
                         p = p.add(1);
                     }
                 }
@@ -4650,12 +4650,12 @@ pub fn file_pat_to_reg_pat(
                     i += 1;
                 }
                 b'\\' => {
-                    if *p.add(1) == NUL {
+                    if crate::memory::cstr_byte_at(p, 1) == 0 {
                         break;
                     }
                     #[cfg(windows)]
                     if no_bslash == 0 {
-                        let next_ch = *p.add(1) as u8;
+                        let next_ch = crate::memory::cstr_byte_at(p, 1);
                         if (vim_isfilec(c_int::from(next_ch)) || next_ch == b'*' || next_ch == b'?')
                             && next_ch != b'+'
                         {
@@ -4689,8 +4689,8 @@ pub fn file_pat_to_reg_pat(
                         *reg_pat.add(i) = ch;
                         i += 1;
                     } else if ch == b'\\' as c_char
-                        && *p.add(1) == b'\\' as c_char
-                        && *p.add(2) == b'{' as c_char
+                        && crate::memory::cstr_byte_at(p, 1) == b'\\'
+                        && crate::memory::cstr_byte_at(p, 2) == b'{'
                     {
                         *reg_pat.add(i) = b'\\' as c_char;
                         i += 1;

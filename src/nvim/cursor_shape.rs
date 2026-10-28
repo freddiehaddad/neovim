@@ -303,14 +303,14 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                 let mut all_idx: isize = -1;
                 while (modep as usize) < (colonp as usize) || all_idx >= 0 {
                     if all_idx < 0 {
-                        let m1 = *modep.add(1) as u8;
+                        let m1 = crate::memory::cstr_byte_at(modep, 1);
                         let len = if m1 == b'-' || m1 == b':' {
                             1usize
                         } else {
                             2usize
                         };
 
-                        if len == 1 && (*modep as u8).eq_ignore_ascii_case(&b'a') {
+                        if len == 1 && (crate::memory::cstr_first_byte(modep)).eq_ignore_ascii_case(&b'a') {
                             all_idx = (SHAPE_IDX_COUNT - 1) as isize;
                         } else {
                             idx = SHAPE_IDX_COUNT;
@@ -323,7 +323,7 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                             if idx == SHAPE_IDX_COUNT || (tbl[idx].used_for as c_int & what) == 0 {
                                 return c"E546: Illegal mode".as_ptr();
                             }
-                            if len == 2 && *modep as u8 == b'v' && m1 == b'e' {
+                            if len == 2 && crate::memory::cstr_first_byte(modep) == b'v' && m1 == b'e' {
                                 found_ve = true;
                             }
                         }
@@ -336,8 +336,8 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                     }
 
                     p = colonp.add(1);
-                    while *p != 0 && *p as u8 != b',' {
-                        let first_byte = *p as u8;
+                    while *p != 0 && crate::memory::cstr_first_byte(p) != b',' {
+                        let first_byte = crate::memory::cstr_first_byte(p);
                         let len = if crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"ver")
                             || crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"hor")
                         {
@@ -354,7 +354,7 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
 
                         if len != 0 {
                             p = p.add(len);
-                            if !(*p as u8).is_ascii_digit() {
+                            if !(crate::memory::cstr_first_byte(p)).is_ascii_digit() {
                                 return c"E548: Digit expected".as_ptr();
                             }
                             let n = getdigits_int((&raw mut p).cast(), false, 0);
@@ -409,13 +409,13 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                             p = endp;
                         }
 
-                        if *p as u8 == b'-' {
+                        if crate::memory::cstr_first_byte(p) == b'-' {
                             p = p.add(1);
                         }
                     }
                 }
                 modep = p;
-                if !modep.is_null() && *modep as u8 == b',' {
+                if !modep.is_null() && crate::memory::cstr_first_byte(modep) == b',' {
                     modep = modep.add(1);
                 }
             }

@@ -586,7 +586,7 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
                     let mut len = 0usize;
                     let s = lua_tolstring(lstate, -2, &mut len);
                     if len > 0 {
-                        let slice = std::slice::from_raw_parts(s.cast::<u8>(), len);
+                        let slice = crate::memory::cstr_slice(s, len);
                         if slice.contains(&0) {
                             ret.has_string_with_nul = true;
                         }
@@ -2294,7 +2294,7 @@ pub fn nlua_pop_keydict_opt(
         while lua_next(L, -2) != 0 {
             let mut len = 0usize;
             let s = lua_tolstring(L, -2, &mut len);
-            let key_bytes = if s.is_null() || len == 0 { &[][..] } else { std::slice::from_raw_parts(s.cast::<u8>(), len) };
+            let key_bytes = if s.is_null() || len == 0 { &[][..] } else { crate::memory::cstr_slice(s, len) };
             let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
                     err,

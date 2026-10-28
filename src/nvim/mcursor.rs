@@ -872,14 +872,14 @@ fn mc_ins_preview_set(new_text: &NvimString) {
 }
 
 fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
-    unsafe {
+     {
         let mut i = 0;
         while i < len {
-            let mut key = c_int::from(*keys.add(i) as u8);
+            let mut key = c_int::from(crate::memory::cstr_byte_at(keys, i));
             if key == c_int::from(K_SPECIAL) && i + 2 < len {
                 key = to_special(
-                    c_int::from(*keys.add(i + 1) as u8),
-                    c_int::from(*keys.add(i + 2) as u8),
+                    c_int::from(crate::memory::cstr_byte_at(keys, i + 1)),
+                    c_int::from(crate::memory::cstr_byte_at(keys, i + 2)),
                 );
                 i += 2;
             }
@@ -1042,7 +1042,7 @@ fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
             None
         };
         mc_st().mc_ins_span.done_len = ins.size;
-        let keys_slice = std::slice::from_raw_parts(keys.as_ptr().cast::<u8>(), keys.len());
+        let keys_slice = crate::memory::cstr_slice(keys.as_ptr(), keys.len());
         mc_ins_span_push(std::ffi::CString::new(keys_slice).unwrap(), text);
         if !commit {
             mc_ins_preview_rebase();

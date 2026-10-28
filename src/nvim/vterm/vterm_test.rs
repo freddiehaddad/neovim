@@ -150,7 +150,7 @@ fn clear_test_output() {
 fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
     let len = frag.len();
     if len > 0 && !frag.str_.is_null() {
-        let slice = unsafe { std::slice::from_raw_parts(frag.str_.cast::<u8>(), len) };
+        let slice =  { crate::memory::cstr_slice(frag.str_, len) };
         out.extend_from_slice(slice);
     }
 }
@@ -158,9 +158,9 @@ fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
 pub fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull) -> c_int {
     let mut out = b"text ".to_vec();
     let mut i = 0usize;
-    unsafe {
+     {
         while i < len {
-            let b = *bytes.add(i) as u8;
+            let b = crate::memory::cstr_byte_at(bytes, i);
             if b < 0x20 || b == 0x7f || (0x80..0xa0).contains(&b) {
                 break;
             }
@@ -191,7 +191,7 @@ pub fn parser_csi<T>(
             out.extend_from_slice(b" L=");
             let mut i = 0usize;
             while *leader.add(i) != 0 {
-                let _ = write!(out, "{:02x}", *leader.add(i) as u8);
+                let _ = write!(out, "{:02x}", crate::memory::cstr_byte_at(leader, i));
                 i += 1;
             }
         }
@@ -214,7 +214,7 @@ pub fn parser_csi<T>(
             out.extend_from_slice(b" I=");
             let mut i = 0usize;
             while *intermed.add(i) != 0 {
-                let _ = write!(out, "{:02x}", *intermed.add(i) as u8);
+                let _ = write!(out, "{:02x}", crate::memory::cstr_byte_at(intermed, i));
                 i += 1;
             }
         }
@@ -252,7 +252,7 @@ pub fn parser_dcs<T>(
     if frag.initial() {
         out.push(b'[');
         if commandlen > 0 && !command.is_null() {
-            let cmd = unsafe { std::slice::from_raw_parts(command.cast::<u8>(), commandlen) };
+            let cmd =  { crate::memory::cstr_slice(command, commandlen) };
             out.extend_from_slice(cmd);
         }
     }

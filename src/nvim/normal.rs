@@ -2646,8 +2646,8 @@ pub fn find_ident_at_pos(
         let mut i = if (find_type & FIND_IDENT) != 0 { 0 } else { 1 };
         while i < 2 {
             col = startcol;
-            while *ptr.add(col as usize) != NUL {
-                if (find_type & FIND_EVAL) != 0 && *ptr.add(col as usize) == b']' as c_char {
+            while crate::memory::cstr_byte_at(ptr, col as usize) != 0 {
+                if (find_type & FIND_EVAL) != 0 && crate::memory::cstr_byte_at(ptr, col as usize) == b']' {
                     break;
                 }
                 this_class = mb_get_class(ptr.add(col as usize));
@@ -2657,9 +2657,9 @@ pub fn find_ident_at_pos(
                 col += utfc_ptr2len(ptr.add(col as usize));
             }
 
-            bn = c_int::from(*ptr.add(col as usize) == b']' as c_char);
+            bn = c_int::from(crate::memory::cstr_byte_at(ptr, col as usize) == b']');
 
-            if (find_type & FIND_EVAL) != 0 && *ptr.add(col as usize) == b']' as c_char {
+            if (find_type & FIND_EVAL) != 0 && crate::memory::cstr_byte_at(ptr, col as usize) == b']' {
                 this_class = mb_get_class(c"a");
             } else {
                 this_class = mb_get_class(ptr.add(col as usize));
@@ -2690,7 +2690,7 @@ pub fn find_ident_at_pos(
             i += 1;
         }
 
-        if *ptr.add(col as usize) == NUL || (i == 0 && this_class != 2) {
+        if crate::memory::cstr_byte_at(ptr, col as usize) == 0 || (i == 0 && this_class != 2) {
             if (find_type & FIND_STRING) != 0 {
                 emsg(tr(c"E348: No string under cursor"));
             } else {
@@ -2708,7 +2708,7 @@ pub fn find_ident_at_pos(
         startcol -= col;
         col = 0;
         this_class = mb_get_class(ptr);
-        while *ptr.add(col as usize) != NUL
+        while crate::memory::cstr_byte_at(ptr, col as usize) != 0
             && ((if i == 0 {
                 mb_get_class(ptr.add(col as usize)) == this_class
             } else {
@@ -3294,14 +3294,14 @@ fn nv_gd(oap: &mut oparg_T, nchar: c_int, thisblock: c_int) {
 }
 
 fn is_ident(line: *const c_char, offset: c_int) -> bool {
-    unsafe {
+     {
         let mut incomment = false;
         let mut instring: c_int = 0;
         let mut prev: c_int = 0;
 
         let mut i: c_int = 0;
-        while i < offset && *line.add(i as usize) != NUL {
-            let cur = c_int::from(*line.add(i as usize) as u8);
+        while i < offset && crate::memory::cstr_byte_at(line, i as usize) != 0 {
+            let cur = c_int::from(crate::memory::cstr_byte_at(line, i as usize));
             if instring != 0 {
                 if prev != b'\\' as c_int && cur == instring {
                     instring = 0;
@@ -4489,7 +4489,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
             crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"help!");
             buflen = 5;
         } else if cmdchar == b'K' as c_int && !kp_help {
-            let ptr_cstr = std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), n))
+            let ptr_cstr = std::ffi::CString::new(crate::memory::cstr_slice(ptr, n))
                 .unwrap_or_default();
             let p = if kp_ex {
                 vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
@@ -4527,7 +4527,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
             let mut p = buf.add(buflen);
             while n > 0 {
                 n -= 1;
-                if !vim_strchr(aux_ptr, c_int::from(*ptr as u8)).is_null() {
+                if !vim_strchr(aux_ptr, c_int::from(crate::memory::cstr_first_byte(ptr))).is_null() {
                     *p = b'\\' as c_char;
                     p = p.add(1);
                 }
@@ -4724,7 +4724,7 @@ fn nv_scroll(cap: &mut cmdarg_T) {
 }
 
 fn nv_right(cap: &mut cmdarg_T) {
-    unsafe {
+     {
         if (g_st().mod_mask & (c_int::from(MOD_MASK_SHIFT) | MOD_MASK_CTRL)) != 0 {
             if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
                 cap.arg = 1;
@@ -4743,7 +4743,7 @@ fn nv_right(cap: &mut cmdarg_T) {
 
         let mut n = cap.count1;
         while n > 0 {
-            if (!past_line && !oneright()) || (past_line && *get_cursor_pos_ptr() == NUL) {
+            if (!past_line && !oneright()) || (past_line && crate::memory::cstr_is_empty(get_cursor_pos_ptr())) {
                 if ((cap.cmdchar == b' ' as c_int && !vim_strchr(opt_vars().p_ww, b's' as c_int).is_null())
                     || (cap.cmdchar == b'l' as c_int
                         && !vim_strchr(opt_vars().p_ww, b'l' as c_int).is_null())
@@ -5499,7 +5499,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
 }
 
 fn buf_has_cstyle_comments() -> bool {
-    unsafe {
+     {
         let mut part_buf: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
         let mut list = curbuf_mut().b_p_com;
         while !crate::memory::cstr_is_empty(list) {
@@ -5511,8 +5511,8 @@ fn buf_has_cstyle_comments() -> bool {
             );
             let string = vim_strchr(part_buf.as_ptr(), b':' as c_int);
             if !string.is_null()
-                && *string.add(1) == b'/' as c_char
-                && (*string.add(2) == b'/' as c_char || *string.add(2) == b'*' as c_char)
+                && crate::memory::cstr_byte_at(string, 1) == b'/'
+                && (crate::memory::cstr_byte_at(string, 2) == b'/' || crate::memory::cstr_byte_at(string, 2) == b'*')
             {
                 return true;
             }
@@ -7233,7 +7233,7 @@ pub fn set_cursor_for_append_to_line() {
 }
 
 fn nv_edit(cap: &mut cmdarg_T) {
-    unsafe {
+     {
         if cap.cmdchar == K_INS || cap.cmdchar == K_KINS {
             cap.cmdchar = b'i' as c_int;
         }
@@ -7258,11 +7258,11 @@ fn nv_edit(cap: &mut cmdarg_T) {
                 c if c == b'a' as c_int => {
                     if virtual_active(curwin_mut())
                         && (curwin_mut().w_cursor.coladd > 0
-                            || *get_cursor_pos_ptr() == NUL
-                            || *get_cursor_pos_ptr() == b'\t' as c_char)
+                            || crate::memory::cstr_is_empty(get_cursor_pos_ptr())
+                            || crate::memory::cstr_first_byte(get_cursor_pos_ptr()) == b'\t')
                     {
                         curwin_mut().w_cursor.coladd += 1;
-                    } else if *get_cursor_pos_ptr() != NUL {
+                    } else if !crate::memory::cstr_is_empty(get_cursor_pos_ptr()) {
                         inc_cursor();
                     }
                 }

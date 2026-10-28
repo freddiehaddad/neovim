@@ -69,7 +69,7 @@ pub fn ex_trust(eap: &mut exarg_T) {
         let arg = eap.arg;
         let p = skiptowhite(arg);
         let arg1_len = (p as usize) - (arg as usize);
-        let arg1 = CString::new(std::slice::from_raw_parts(arg.cast::<u8>(), arg1_len)).unwrap();
+        let arg1 = CString::new(crate::memory::cstr_slice(arg, arg1_len)).unwrap();
         let mut action = c"allow".as_ptr();
         let mut path = skipwhite(p);
 

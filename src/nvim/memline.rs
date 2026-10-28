@@ -871,7 +871,7 @@ pub fn ml_recover(checkext: bool) {
             && crate::memory::cstr_prefix_bytes(fname.add(len - 4), 2).eq_ignore_ascii_case(b".s")
             && !vim_strchr(
                 c"abcdefghijklmnopqrstuvw",
-                ((*fname.add(len - 2) as u8).to_ascii_lowercase()) as c_int,
+                ((crate::memory::cstr_byte_at(fname, len - 2)).to_ascii_lowercase()) as c_int,
             )
             .is_null()
             && ascii_isalpha(*fname.add(len - 1) as c_int)
@@ -1107,7 +1107,7 @@ pub fn ml_recover(checkext: bool) {
                 p = p.offset(-1);
             }
             let fenc_len = fname_base.add(fnsize).offset_from(p) as usize;
-            let fenc_bytes = std::slice::from_raw_parts(p.cast::<u8>(), fenc_len);
+            let fenc_bytes = crate::memory::cstr_slice(p, fenc_len);
             let end = fenc_bytes
                 .iter()
                 .position(|&b| b == 0)
@@ -1531,7 +1531,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut list_
             dir_name.size = copy_option_part(&raw mut dirp, dir_name.data, 31000, c",");
 
             let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
-            if crate::memory::cstr_first_byte(dir_name.data) == b'.' && *dir_name.data.add(1) == NUL {
+            if crate::memory::cstr_first_byte(dir_name.data) == b'.' && crate::memory::cstr_byte_at(dir_name.data, 1) == 0 {
                 if fname.is_null() {
                     names_vec.push(c"*.sw?".to_owned());
                     names_vec.push(c".*.sw?".to_owned());
@@ -1631,7 +1631,7 @@ pub fn make_percent_swname(
         }
         let mut p = fixed_data;
         while !crate::memory::cstr_is_empty(p) {
-            if vim_ispathsep(*p as u8 as c_int) {
+            if vim_ispathsep(crate::memory::cstr_first_byte(p) as c_int) {
                 *p = b'%' as c_char;
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -3391,7 +3391,7 @@ pub fn makeswapname(
         let r = modname(
             fname_res,
             c".swp",
-            crate::memory::cstr_first_byte(dir_name) == b'.' && *dir_name.add(1) == NUL,
+            crate::memory::cstr_first_byte(dir_name) == b'.' && crate::memory::cstr_byte_at(dir_name, 1) == 0,
         )?;
 
         get_file_in_dir(r.as_ptr().cast_mut(), dir_name)
@@ -3403,16 +3403,16 @@ pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ff
     unsafe {
         let tail = cstr_as_string(path_tail(fname));
 
-        if crate::memory::cstr_first_byte(dname) == b'.' && *dname.add(1) == NUL {
+        if crate::memory::cstr_first_byte(dname) == b'.' && crate::memory::cstr_byte_at(dname, 1) == 0 {
             let n = tail.data.offset_from(fname) as usize + tail.size;
             return Some(
-                std::ffi::CString::new(std::slice::from_raw_parts(fname.cast::<u8>(), n))
+                std::ffi::CString::new(crate::memory::cstr_slice(fname, n))
                     .unwrap_or_default(),
             );
         }
 
         let dname_len = crate::memory::cstr_len(dname);
-        let retval = if crate::memory::cstr_first_byte(dname) == b'.' && vim_ispathsep(*dname.add(1) as u8 as c_int) {
+        let retval = if crate::memory::cstr_first_byte(dname) == b'.' && vim_ispathsep(crate::memory::cstr_byte_at(dname, 1) as c_int) {
             if tail.data == fname {
                 concat_fnames(
                     NvimString {
@@ -3574,8 +3574,8 @@ fn findswapname(
                 break;
             }
 
-            if *fname.add(n - 2) == b'w' as c_char
-                && *fname.add(n - 1) == b'p' as c_char
+            if crate::memory::cstr_byte_at(fname, n - 2) == b'w'
+                && crate::memory::cstr_byte_at(fname, n - 1) == b'p'
                 && !g_st().recoverymode
                 && !buf_fname.is_null()
                 && !buf.b_help
@@ -3743,8 +3743,8 @@ fn findswapname(
                 }
             }
 
-            if *fname.add(n - 1) == b'a' as c_char {
-                if *fname.add(n - 2) == b'a' as c_char {
+            if crate::memory::cstr_byte_at(fname, n - 1) == b'a' {
+                if crate::memory::cstr_byte_at(fname, n - 2) == b'a' {
                     emsg(tr(c"E326: Too many swap files found"));
                     fname_vec = None;
                     break;
@@ -4197,13 +4197,13 @@ pub fn goto_byte(cnt: c_int) {
 
 /// Increment the line pointer `lp` crossing line boundaries as necessary.
 pub fn inc(lp: &mut pos_T) -> c_int {
-    unsafe {
+     {
         if lp.col != MAXCOL {
             let p = ml_get_pos(lp);
             if !crate::memory::cstr_is_empty(p) {
                 let l = utfc_ptr2len(p);
                 lp.col += l;
-                return if *p.add(l as usize) != NUL { 0 } else { 2 };
+                return if crate::memory::cstr_byte_at(p, l as usize) != 0 { 0 } else { 2 };
             }
         }
         if lp.lnum != curbuf_mut().b_ml.ml_line_count {

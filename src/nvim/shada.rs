@@ -812,8 +812,8 @@ impl std::hash::Hash for PathKey {
         let mut p = self.0;
         let mut h: u32 = 0;
         if cfg!(target_os = "windows") {
-            let c0 = unsafe { *p as u8 };
-            if c0.is_ascii_alphabetic() && unsafe { *p.add(1) as u8 } == b':' {
+            let c0 =  { crate::memory::cstr_first_byte(p) };
+            if c0.is_ascii_alphabetic() &&  { crate::memory::cstr_byte_at(p, 1) } == b':' {
                 p = unsafe { p.add(2) };
             }
         }
@@ -3770,7 +3770,7 @@ fn shada_read_next_item(
                         }
                         if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__f)) != 0 {
                             let mut bytes =
-                                std::slice::from_raw_parts(it.f.data.cast::<u8>(), it.f.size)
+                                crate::memory::cstr_slice(it.f.data, it.f.size)
                                     .to_vec();
                             bytes.push(0);
                             #[cfg(windows)]
@@ -3907,7 +3907,7 @@ fn shada_read_next_item(
                             break 'parse_item false;
                         }
                         let item_slice =
-                            std::slice::from_raw_parts(item.data.cast::<u8>(), item.size);
+                            crate::memory::cstr_slice(item.data, item.size);
                         if item_slice.contains(&0) {
                             semsg!(
                                 gettext(
@@ -4412,13 +4412,13 @@ pub fn shada_read_string(bytes: &[u8], flags: c_int) {
 pub fn get_shada_parameter(param_type: c_int) -> c_int {
     unsafe {
         let p = find_shada_parameter(param_type);
-        if !p.is_null() && (*p as u8).is_ascii_digit() {
+        if !p.is_null() && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
             let mut val: c_int = 0;
             let mut cur = p;
-            while (*cur as u8).is_ascii_digit() {
+            while (crate::memory::cstr_first_byte(cur)).is_ascii_digit() {
                 val = val
                     .wrapping_mul(10)
-                    .wrapping_add(c_int::from((*cur as u8) - b'0'));
+                    .wrapping_add(c_int::from((crate::memory::cstr_first_byte(cur)) - b'0'));
                 cur = cur.add(1);
             }
             return val;
@@ -4432,7 +4432,7 @@ pub fn find_shada_parameter(param_type: c_int) -> *mut c_char {
     unsafe {
         let mut p = opt_vars().p_shada;
         while *p != 0 {
-            if c_int::from(*p as u8) == param_type {
+            if c_int::from(crate::memory::cstr_first_byte(p)) == param_type {
                 return p.add(1);
             }
             if *p == (b'n' as c_char) {

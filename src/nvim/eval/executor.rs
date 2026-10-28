@@ -175,7 +175,7 @@ pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: impl crate::strings::I
     let op = op.into_c_char_ptr();
     let tv1 =  { tv1 };
     let tv2 =  { tv2 };
-    let op_byte = unsafe { *op as u8 };
+    let op_byte =  { crate::memory::cstr_first_byte(op) };
 
     if tv2.v_type == VarType::VAR_FUNC
         || tv2.v_type == VarType::VAR_DICT

@@ -92,8 +92,8 @@ pub fn hashitem_empty(hi: &hashitem_T) -> bool {
 #[inline]
 fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize) -> bool {
     for i in 0..key_len {
-        let a = unsafe { *hi_key.add(i) as u8 };
-        let b = unsafe { *key.add(i) as u8 };
+        let a =  { crate::memory::cstr_byte_at(hi_key, i) };
+        let b =  { crate::memory::cstr_byte_at(key, i) };
         if a != b || a == 0 {
             return false;
         }
@@ -361,7 +361,7 @@ pub fn hash_hash_len(key: *const c_char, len: usize) -> hash_T {
     if len == 0 {
         return 0;
     }
-    let slice = unsafe { std::slice::from_raw_parts(key.cast::<u8>(), len) };
+    let slice =  { crate::memory::cstr_slice(key, len) };
     let mut hash = usize::from(slice[0]);
     for &b in &slice[1..] {
         hash = hash.wrapping_mul(101).wrapping_add(usize::from(b));

@@ -597,7 +597,7 @@ pub fn u_compute_hash(buf: &mut buf_T, hash: *mut u8) {
         let mut ctx = context_sha256_T::new();
         for lnum in 1..=buf.b_ml.ml_line_count {
             let p = ml_get_buf(buf, lnum);
-            ctx.update(std::slice::from_raw_parts(p.cast::<u8>(), crate::memory::cstr_len(p) + 1));
+            ctx.update(crate::memory::cstr_slice(p, crate::memory::cstr_len(p) + 1));
         }
         ctx.finish_into(&mut *(hash as *mut [u8; UNDO_HASH_SIZE]));
     }

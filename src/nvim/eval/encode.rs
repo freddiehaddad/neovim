@@ -333,9 +333,9 @@ fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
 
 #[inline]
 fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
-    unsafe {
+     {
         if !s.is_null() && len > 0 {
-            gap.extend_from_slice(std::slice::from_raw_parts(s.cast::<u8>(), len));
+            gap.extend_from_slice(crate::memory::cstr_slice(s, len));
         }
     }
 }
@@ -451,7 +451,7 @@ fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char, len: u
             let quotes = { let _d = (buf).cast::<u8>(); let _sz = len; if _sz == 0 { 0 } else { std::slice::from_raw_parts(_d, _sz).iter().filter(|&&_b| _b == (b'\'' as c_char) as u8).count() } };
             gap.reserve(2 + len + quotes);
             gap.push(b'\'');
-            let bytes = std::slice::from_raw_parts(buf.cast::<u8>(), len);
+            let bytes = crate::memory::cstr_slice(buf, len);
             for &b in bytes {
                 if b == b'\'' {
                     gap.push(b'\'');
@@ -1208,7 +1208,7 @@ fn convert_one_value(
                 let prefix: &[u8] = if !fun.is_null()
                     && !pt.is_null()
                     && (*pt).pt_name.is_none()
-                    && ((*fun as u8).is_ascii_uppercase())
+                    && ((crate::memory::cstr_first_byte(fun)).is_ascii_uppercase())
                 {
                     b"g:"
                 } else {
@@ -1821,10 +1821,10 @@ mod tests {
             lv_lock: 0,
             lua_table_ref: -2,
         };
-        unsafe {
+         {
             let buf = encode_vim_list_to_buf(Some(&list)).unwrap();
             assert_eq!(buf.len(), 5);
-            let slice = std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len());
+            let slice = crate::memory::cstr_slice(buf.as_ptr(), buf.len());
             assert_eq!(slice, b"a\0b\nc");
         }
         li1.li_tv.v_type = VarType::VAR_UNKNOWN;

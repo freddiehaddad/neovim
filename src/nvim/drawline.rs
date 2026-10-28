@@ -1825,7 +1825,7 @@ pub fn win_line(
                 while ascii_iswhite(*ptr.add(leadcol as usize)) {
                     leadcol += 1;
                 }
-                if *ptr.add(leadcol as usize) == NUL {
+                if crate::memory::cstr_byte_at(ptr, leadcol as usize) == 0 {
                     leadcol = 0;
                 } else {
                     leadcol += ptr.offset_from(line) as colnr_T + 1;
@@ -2480,7 +2480,7 @@ pub fn win_line(
                         || (mb_l > 1 && !vim_isprintc(mb_c))
                     {
                         let extra_ptr = (&raw mut wlv.extra).cast::<c_char>();
-                        transchar_hex(extra_ptr, if mb_c < 0 { c_int::from(*ptr as u8) } else { mb_c });
+                        transchar_hex(extra_ptr, if mb_c < 0 { c_int::from(crate::memory::cstr_first_byte(ptr)) } else { mb_c });
                         if wp.w_onebuf_opt.wo_rl != 0 {
                             rl_mirror_ascii(extra_ptr, ptr::null_mut());
                         }
@@ -2680,7 +2680,7 @@ pub fn win_line(
                         if wp.w_onebuf_opt.wo_lbr != 0
                             && !wlv.need_lbr
                             && mb_schar != 0
-                            && !vim_isbreak(c_int::from(*ptr as u8))
+                            && !vim_isbreak(c_int::from(crate::memory::cstr_first_byte(ptr)))
                         {
                             wlv.need_lbr = true;
                         }
@@ -2689,7 +2689,7 @@ pub fn win_line(
                             && mb_c < 128
                             && wlv.need_lbr
                             && vim_isbreak(mb_c)
-                            && !vim_isbreak(c_int::from(*ptr as u8))
+                            && !vim_isbreak(c_int::from(crate::memory::cstr_first_byte(ptr)))
                         {
                             let mb_off = utf_head_off(line, ptr.sub(1));
                             let p = ptr.sub((mb_off + 1) as usize);
@@ -2981,7 +2981,7 @@ pub fn win_line(
                             }
                             wlv.sc_extra = 0;
                             wlv.sc_final = 0;
-                            mb_schar = schar_from_ascii(*wlv.p_extra as u8);
+                            mb_schar = schar_from_ascii(crate::memory::cstr_first_byte(wlv.p_extra));
                             mb_schar_width = 1;
                             if wp.w_onebuf_opt.wo_lbr != 0 {
                                 let p = get_extra_buf((wlv.n_extra as usize) + 1);

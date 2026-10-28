@@ -441,12 +441,12 @@ fn spell_read_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
 
 #[inline]
 fn spell_read_nonnul_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
-    unsafe {
+     {
         let ret = spell_read_bytes(buf, n, fd);
         if ret != 0 {
             return ret;
         }
-        if std::slice::from_raw_parts(buf.cast::<u8>(), n).contains(&0) {
+        if crate::memory::cstr_slice(buf, n).contains(&0) {
             return SP_FORMERROR;
         }
         0
@@ -455,13 +455,13 @@ fn spell_read_nonnul_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
 
 #[inline]
 fn spell_check_magic_string(fd: *mut FILE) -> c_int {
-    unsafe {
+     {
         let mut buf = [0 as c_char; VIMSPELLMAGICL];
         let ret = spell_read_bytes(buf.as_mut_ptr(), VIMSPELLMAGICL, fd);
         if ret != 0 {
             return ret;
         }
-        if std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), VIMSPELLMAGICL)
+        if crate::memory::cstr_slice(buf.as_ptr(), VIMSPELLMAGICL)
             != &VIMSPELLMAGIC[..VIMSPELLMAGICL]
         {
             return SP_FORMERROR;
@@ -811,7 +811,7 @@ pub fn suggest_load_files() {
                     for slot in buf.iter_mut().take(VIMSUGMAGICL) {
                         *slot = fgetc(fd) as c_char;
                     }
-                    if std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), VIMSUGMAGICL)
+                    if crate::memory::cstr_slice(buf.as_ptr(), VIMSUGMAGICL)
                         != &VIMSUGMAGIC[..VIMSUGMAGICL]
                     {
                         semsg!(
@@ -1807,7 +1807,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
             let mut itemcnt: usize = 0;
             let mut p = line;
             loop {
-                while !crate::memory::cstr_is_empty(p) && (*p as u8) <= b' ' {
+                while !crate::memory::cstr_is_empty(p) && (crate::memory::cstr_first_byte(p)) <= b' ' {
                     p = p.add(1);
                 }
                 if crate::memory::cstr_is_empty(p) || itemcnt == MAXITEMCNT {
@@ -1816,11 +1816,11 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                 items[itemcnt] = p;
                 itemcnt += 1;
                 if itemcnt == 2 && spell_info_item(items[0]) {
-                    while (*p as u8) >= b' ' || *p == TAB {
+                    while (crate::memory::cstr_first_byte(p)) >= b' ' || *p == TAB {
                         p = p.add(1);
                     }
                 } else {
-                    while (*p as u8) > b' ' {
+                    while (crate::memory::cstr_first_byte(p)) > b' ' {
                         p = p.add(1);
                     }
                 }
@@ -2767,8 +2767,8 @@ fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compflags: *mu
 
         let mut cur = compflags;
         while !crate::memory::cstr_is_empty(cur) {
-            if !vim_strchr(c"/?*+[]", *cur as u8 as c_int).is_null() {
-                bytes.push(*cur as u8);
+            if !vim_strchr(c"/?*+[]", crate::memory::cstr_first_byte(cur) as c_int).is_null() {
+                bytes.push(crate::memory::cstr_first_byte(cur));
                 cur = cur.add(1);
             } else {
                 let prevp = cur;
@@ -3006,7 +3006,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
             let mut p = w;
             while !crate::memory::cstr_is_empty(p) {
                 if crate::memory::cstr_first_byte(p) == b'\\'
-                    && (*p.add(1) == b'\\' as c_char || *p.add(1) == b'/' as c_char)
+                    && (crate::memory::cstr_byte_at(p, 1) == b'\\' || crate::memory::cstr_byte_at(p, 1) == b'/')
                 {
                     ptr::copy(p.add(1), p, crate::memory::cstr_len(p.add(1)) + 1);
                 } else if crate::memory::cstr_first_byte(p) == b'/' {
@@ -3709,13 +3709,13 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                         flags |= WF_BANNED;
                     } else if crate::memory::cstr_first_byte(p) == b'?' {
                         flags |= WF_RARE;
-                    } else if ascii_isdigit(*p as u8 as c_int) {
+                    } else if ascii_isdigit(crate::memory::cstr_first_byte(p) as c_int) {
                         if (flags & WF_REGION) == 0 {
                             regionmask = 0;
                         }
                         flags |= WF_REGION;
 
-                        let r = (*p as u8 - b'0') as c_int;
+                        let r = (crate::memory::cstr_first_byte(p) - b'0') as c_int;
                         if r == 0 || r > spin.si_region_count {
                             smsg!(
                                 0,
@@ -3780,7 +3780,7 @@ fn valid_spell_word(word: *const c_char, end: *const c_char) -> bool {
         }
         let mut p = word;
         while !crate::memory::cstr_is_empty(p) && p < end {
-            if (*p as u8) < b' ' || (crate::memory::cstr_first_byte(p) == b'/' && *p.add(1) == NUL) {
+            if (crate::memory::cstr_first_byte(p)) < b' ' || (crate::memory::cstr_first_byte(p) == b'/' && crate::memory::cstr_byte_at(p, 1) == 0) {
                 return false;
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -3817,7 +3817,7 @@ fn store_word(
                     spin.si_foldroot,
                     ct | flags,
                     region,
-                    if p.is_null() { 0 } else { *p as u8 as c_int },
+                    if p.is_null() { 0 } else { crate::memory::cstr_first_byte(p) as c_int },
                 );
             }
             if crate::memory::cstr_is_empty(p) {
@@ -3837,7 +3837,7 @@ fn store_word(
                         spin.si_keeproot,
                         flags,
                         region,
-                        if p2.is_null() { 0 } else { *p2 as u8 as c_int },
+                        if p2.is_null() { 0 } else { crate::memory::cstr_first_byte(p2) as c_int },
                     );
                 }
                 if crate::memory::cstr_is_empty(p2) {
@@ -3859,7 +3859,7 @@ fn tree_add_word(
     region: c_int,
     affixID: c_int,
 ) -> bool {
-    unsafe {
+     {
                 let mut node = root;
         let mut prev: Option<NodeSlot> = None;
 
@@ -3898,7 +3898,7 @@ fn tree_add_word(
                 }
             }
 
-            let wb = *word.add(i) as u8;
+            let wb = crate::memory::cstr_byte_at(word, i);
             while let Some(node_idx) = node {
                 let n = spin.si_nodes[node_idx];
                 let advance = n.wn_byte < wb
@@ -5059,15 +5059,15 @@ fn mkspell(
                 if incount > 1 {
                     let in_i = innames[i].as_ptr();
                     let len = innames[i].as_bytes().len();
-                    if crate::memory::cstr_len(path_tail(in_i)) < 5 || *in_i.add(len - 3) != b'_' as c_char {
+                    if crate::memory::cstr_len(path_tail(in_i)) < 5 || crate::memory::cstr_byte_at(in_i, len - 3) != b'_' {
                         semsg!(gettext(c"E755: Invalid region in %s"), in_i);
                         region_ok = false;
                         break;
                     }
                     spin.si_region_name[i * 2] =
-                        (*in_i.add(len - 2) as u8).to_ascii_lowercase() as c_char;
+                        (crate::memory::cstr_byte_at(in_i, len - 2)).to_ascii_lowercase() as c_char;
                     spin.si_region_name[i * 2 + 1] =
-                        (*in_i.add(len - 1) as u8).to_ascii_lowercase() as c_char;
+                        (crate::memory::cstr_byte_at(in_i, len - 1)).to_ascii_lowercase() as c_char;
                 }
             }
 
@@ -5355,7 +5355,7 @@ pub fn spell_add_word(
                 semsg!(gettext(e_notopen), fname);
             } else {
                 let wlen = (0..(len as usize))
-                    .take_while(|&i| *word.add(i) != NUL)
+                    .take_while(|&i| crate::memory::cstr_byte_at(word, i) != 0)
                     .count();
                 fwrite(word.cast(), 1, wlen, fd);
                 if what == SPELL_ADD_BAD {
@@ -5411,7 +5411,7 @@ fn init_spellfile() {
         }
 
         let mut lend = (*win_s(curwin_mut())).b_p_spl;
-        while !crate::memory::cstr_is_empty(lend) && vim_strchr(c",._", *lend as u8 as c_int).is_null() {
+        while !crate::memory::cstr_is_empty(lend) && vim_strchr(c",._", crate::memory::cstr_first_byte(lend) as c_int).is_null() {
             if vim_ispathsep(*lend as c_int) {
                 aspath = true;
                 lstart = lend.add(1);

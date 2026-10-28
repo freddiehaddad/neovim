@@ -422,7 +422,7 @@ pub fn set_context_in_user_cmdarg(
             while !crate::memory::cstr_is_empty(p) {
                 if crate::memory::cstr_first_byte(p) == b' ' {
                     arg = p.add(1);
-                } else if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != NUL {
+                } else if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0 {
                     p = p.add(1);
                 }
                 p = p.add(utfc_ptr2len(p) as usize);
@@ -840,7 +840,7 @@ pub fn parse_addr_type_arg(
 
         let err = value;
         let mut i = 0usize;
-        while *err.add(i) != NUL && !ascii_iswhite(*err.add(i)) {
+        while crate::memory::cstr_byte_at(err, i) != 0 && !ascii_iswhite(*err.add(i)) {
             i += 1;
         }
         *err.add(i) = NUL;
@@ -866,7 +866,7 @@ pub fn parse_compl_arg(
         let mut valend: c_int = vallen;
 
         for i in 0..vallen {
-            if *value.add(i as usize) == b',' as c_char {
+            if crate::memory::cstr_byte_at(value, i as usize) == b',' {
                 arg = value.add((i + 1) as usize);
                 arglen = (vallen - i - 1) as usize;
                 valend = i;
@@ -915,7 +915,7 @@ pub fn parse_compl_arg(
 
         if !arg.is_null() {
             *compl_arg = Some(
-                CString::new(std::slice::from_raw_parts(arg.cast::<u8>(), arglen))
+                CString::new(crate::memory::cstr_slice(arg, arglen))
                     .unwrap_or_default(),
             );
         }
@@ -955,7 +955,7 @@ fn uc_scan_attr(
             let mut attrlen: usize = len;
 
             for i in 0..len {
-                if *attr.add(i) == b'=' as c_char {
+                if crate::memory::cstr_byte_at(attr, i) == b'=' {
                     val = attr.add(i + 1);
                     vallen = len - i - 1;
                     attrlen = i;
@@ -965,7 +965,7 @@ fn uc_scan_attr(
 
             if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nargs", attrlen)) {
                 if vallen == 1 {
-                    match *val as u8 {
+                    match crate::memory::cstr_first_byte(val) {
                         b'0' => {}
                         b'1' => *argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG,
                         b'*' => *argt |= EX_EXTRA,
@@ -1075,7 +1075,7 @@ pub fn uc_validate_name(mut name: *mut c_char) -> *mut c_char {
                 name = name.add(1);
             }
         }
-        if ends_excmd(c_int::from(*name as u8)) == 0 && !ascii_iswhite(*name) {
+        if ends_excmd(c_int::from(crate::memory::cstr_first_byte(name))) == 0 && !ascii_iswhite(*name) {
             return ptr::null_mut();
         }
         name
@@ -1162,7 +1162,7 @@ pub fn uc_add_command(
         }
 
         if cmp != 0 {
-            let name_slice = std::slice::from_raw_parts(name.cast::<u8>(), name_len);
+            let name_slice = crate::memory::cstr_slice(name, name_len);
             let mut empty_ucmd = ucmd_T::new();
             empty_ucmd.uc_name = CString::new(name_slice).unwrap();
             gap.insert(i as usize, empty_ucmd);
@@ -1232,7 +1232,7 @@ pub fn ex_command(eap: &mut exarg_T) {
         let name_len = end.offset_from(name) as usize;
 
         p = skipwhite(end);
-        if !has_attr && ends_excmd(c_int::from(*p as u8)) != 0 {
+        if !has_attr && ends_excmd(c_int::from(crate::memory::cstr_first_byte(p))) != 0 {
             uc_list(name, name_len);
         } else if !ascii_isupper(*name) {
             emsg(gettext(
@@ -1344,8 +1344,8 @@ pub fn uc_split_args_iter(
 
         let mut l: usize = 0;
         while pos < arglen - 1 {
-            if *arg.add(pos) == b'\\' as c_char
-                && (*arg.add(pos + 1) == b'\\' as c_char || ascii_iswhite(*arg.add(pos + 1)))
+            if crate::memory::cstr_byte_at(arg, pos) == b'\\'
+                && (crate::memory::cstr_byte_at(arg, pos + 1) == b'\\' || ascii_iswhite(*arg.add(pos + 1)))
             {
                 pos += 1;
                 *buf.add(l) = *arg.add(pos);
@@ -1399,7 +1399,7 @@ fn uc_split_args(
         if args.is_empty() {
             let mut p = arg;
             while !crate::memory::cstr_is_empty(p) {
-                if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) == b'\\' as c_char {
+                if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) == b'\\' {
                     len += 2;
                     p = p.add(2);
                 } else if crate::memory::cstr_first_byte(p) == b'\\' && ascii_iswhite(*p.add(1)) {
@@ -1450,7 +1450,7 @@ fn uc_split_args(
         if args.is_empty() {
             let mut p = arg;
             while !crate::memory::cstr_is_empty(p) {
-                if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) == b'\\' as c_char {
+                if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) == b'\\' {
                     *q = b'\\' as c_char;
                     *q.add(1) = b'\\' as c_char;
                     q = q.add(2);
@@ -1670,8 +1670,8 @@ fn uc_check_code(
         let mut quote: c_int = 0;
         let mut type_ = CodeType::None;
 
-        if !vim_strchr(c"qQfF", c_int::from(*p as u8)).is_null()
-            && *p.add(1) == b'-' as c_char
+        if !vim_strchr(c"qQfF", c_int::from(crate::memory::cstr_first_byte(p))).is_null()
+            && crate::memory::cstr_byte_at(p, 1) == b'-'
         {
             quote = if crate::memory::cstr_first_byte(p) == b'q' || crate::memory::cstr_first_byte(p) == b'Q' {
                 1
@@ -1902,12 +1902,12 @@ pub fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
                 }
                 if !buf.is_null() {
                     let mut ksp = p;
-                    while !crate::memory::cstr_is_empty(ksp) && (*ksp as u8) != K_SPECIAL {
+                    while !crate::memory::cstr_is_empty(ksp) && (crate::memory::cstr_first_byte(ksp)) != K_SPECIAL {
                         ksp = ksp.add(1);
                     }
-                    if (*ksp as u8) == K_SPECIAL
+                    if (crate::memory::cstr_first_byte(ksp)) == K_SPECIAL
                         && (start.is_null() || ksp < start || end.is_null())
-                        && (*ksp.add(1) as u8) == KS_SPECIAL
+                        && (crate::memory::cstr_byte_at(ksp, 1)) == KS_SPECIAL
                         && *ksp.add(2) == KE_FILLER
                     {
                         let len = ksp.offset_from(p) as usize;

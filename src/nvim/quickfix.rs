@@ -750,7 +750,7 @@ fn qf_init_process_nextline(
     state: &mut qfstate_T,
     fields: &mut qffields_T,
 ) -> c_int {
-    unsafe {
+     {
         let mut status = qf_get_nextline(state);
         if status != QF_OK {
             return status;
@@ -767,7 +767,7 @@ fn qf_init_process_nextline(
             return status;
         }
 
-        let fname = if *fields.namebuf.as_ptr() != NUL || !qfl.qf_dir_stack.is_empty() {
+        let fname = if !crate::memory::cstr_is_empty(fields.namebuf.as_ptr()) || !qfl.qf_dir_stack.is_empty() {
             fields.namebuf.as_mut_ptr()
         } else if !qfl.qf_file_stack.is_empty() && fields.valid {
             qfl.currfile_ptr()
@@ -862,8 +862,8 @@ fn efmpat_to_regpat(
             crate::memory::cstr_cpy(regpat, c"\\%(\\a:\\)\\=");
             regpat = regpat.add(10);
         }
-        if crate::memory::cstr_first_byte(efmpat) == b'f' && *efmpat.add(1) != NUL {
-            if *efmpat.add(1) != b'\\' as c_char && *efmpat.add(1) != b'%' as c_char {
+        if crate::memory::cstr_first_byte(efmpat) == b'f' && crate::memory::cstr_byte_at(efmpat, 1) != 0 {
+            if crate::memory::cstr_byte_at(efmpat, 1) != b'\\' && crate::memory::cstr_byte_at(efmpat, 1) != b'%' {
                 crate::memory::cstr_cpy(regpat, c".\\{-1,}");
                 regpat = regpat.add(7);
             } else {
@@ -904,7 +904,7 @@ fn scanf_fmt_to_regpat(
             let ch = *regpat;
             regpat = regpat.add(1);
             if ch == b'[' as c_char {
-                if *efmp.add(1) == b'^' as c_char {
+                if crate::memory::cstr_byte_at(efmp, 1) == b'^' {
                     efmp = efmp.add(1);
                     *regpat = *efmp;
                     regpat = regpat.add(1);
@@ -949,11 +949,11 @@ fn scanf_fmt_to_regpat(
 
 fn efm_analyze_prefix(mut efmp: *const c_char, efminfo: &mut efm_T) -> *const c_char {
     unsafe {
-        if !vim_strchr(c"+-", c_int::from(*efmp as u8)).is_null() {
+        if !vim_strchr(c"+-", c_int::from(crate::memory::cstr_first_byte(efmp))).is_null() {
             efminfo.flags = *efmp;
             efmp = efmp.add(1);
         }
-        if !vim_strchr(c"DXAEWINCZGOPQ", c_int::from(*efmp as u8)).is_null() {
+        if !vim_strchr(c"DXAEWINCZGOPQ", c_int::from(crate::memory::cstr_first_byte(efmp))).is_null() {
             efminfo.prefix = *efmp;
         } else {
             semsg!(
@@ -1001,7 +1001,7 @@ fn efm_to_regpat(
                     if ptr.is_null() {
                         return false;
                     }
-                } else if !vim_strchr(c"%\\.^$~[", c_int::from(*efmp as u8)).is_null() {
+                } else if !vim_strchr(c"%\\.^$~[", c_int::from(crate::memory::cstr_first_byte(efmp))).is_null() {
                     *ptr = *efmp;
                     ptr = ptr.add(1);
                 } else if crate::memory::cstr_first_byte(efmp) == b'#' {
@@ -1024,7 +1024,7 @@ fn efm_to_regpat(
             } else {
                 if crate::memory::cstr_first_byte(efmp) == b'\\' && efmp.add(1) < end {
                     efmp = efmp.add(1);
-                } else if !vim_strchr(c".*^$~[", c_int::from(*efmp as u8)).is_null() {
+                } else if !vim_strchr(c".*^$~[", c_int::from(crate::memory::cstr_first_byte(efmp))).is_null() {
                     *ptr = b'\\' as c_char;
                     ptr = ptr.add(1);
                 }
@@ -1063,10 +1063,10 @@ fn efm_regpat_bufsz(efm: *const c_char) -> usize {
 
 fn efm_option_part_len(efm: impl crate::strings::IntoCCharPtr) -> c_int {
     let efm = efm.into_c_char_ptr();
-    unsafe {
+     {
         let mut len: usize = 0;
-        while *efm.add(len) != NUL && *efm.add(len) != b',' as c_char {
-            if *efm.add(len) == b'\\' as c_char && *efm.add(len + 1) != NUL {
+        while crate::memory::cstr_byte_at(efm, len) != 0 && crate::memory::cstr_byte_at(efm, len) != b',' {
+            if crate::memory::cstr_byte_at(efm, len) == b'\\' && crate::memory::cstr_byte_at(efm, len + 1) != 0 {
                 len += 1;
             }
             len += 1;
@@ -2013,9 +2013,9 @@ fn qf_parse_get_fields(
 }
 
 fn qf_parse_dir_pfx(idx: c_int, fields: &mut qffields_T, qfl: &mut qf_list_T) -> c_int {
-    unsafe {
+     {
         if idx == c_int::from(b'D') {
-            if *fields.namebuf.as_ptr() == NUL {
+            if crate::memory::cstr_is_empty(fields.namebuf.as_ptr()) {
                 emsg(gettext(c"E379: Missing or empty directory name"));
                 return QF_FAIL;
             }
@@ -2040,8 +2040,8 @@ fn qf_parse_file_pfx(
 ) -> c_int {
     unsafe {
         fields.valid = false;
-        if *fields.namebuf.as_ptr() == NUL || os_path_exists(fields.namebuf.as_ptr()) {
-            if *fields.namebuf.as_ptr() != NUL && idx == c_int::from(b'P') {
+        if crate::memory::cstr_is_empty(fields.namebuf.as_ptr()) || os_path_exists(fields.namebuf.as_ptr()) {
+            if !crate::memory::cstr_is_empty(fields.namebuf.as_ptr()) && idx == c_int::from(b'P') {
                 qf_push_dir(
                     fields.namebuf.as_mut_ptr(),
                     &mut qfl.qf_file_stack,
@@ -2086,7 +2086,7 @@ fn qf_parse_multiline_pfx(
                 return QF_FAIL;
             };
             let qfprev: *mut qfline_T = qfprev;
-            if *fields.errmsg.as_ptr() != NUL {
+            if !crate::memory::cstr_is_empty(fields.errmsg.as_ptr()) {
                 let mut bytes = (*qfprev).qf_text.as_bytes().to_vec();
                 bytes.push(b'\n');
                 bytes.extend_from_slice(crate::memory::cstr_as_bytes(fields.errmsg.as_ptr()));
@@ -2114,7 +2114,7 @@ fn qf_parse_multiline_pfx(
             }
             if (*qfprev).qf_fnum == 0 {
                 let fname =
-                    if *fields.namebuf.as_ptr() != NUL || !qfl.qf_dir_stack.is_empty() {
+                    if !crate::memory::cstr_is_empty(fields.namebuf.as_ptr()) || !qfl.qf_dir_stack.is_empty() {
                         fields.namebuf.as_mut_ptr()
                     } else if !qfl.qf_file_stack.is_empty() && fields.valid {
                         qfl.currfile_ptr()
@@ -2627,7 +2627,7 @@ fn qf_push_dir(
     stack: &mut Vec<std::ffi::CString>,
     is_file_stack: bool,
 ) {
-    unsafe {
+     {
         if vim_isAbsName(dirbuf) || stack.is_empty() || is_file_stack {
             stack.push(crate::memory::cstr_to_cstring(dirbuf));
             return;
@@ -2653,7 +2653,7 @@ fn qf_push_dir(
         stack.truncate(truncate_to);
 
         let cstr = new_dirname.unwrap_or_else(|| {
-            let slice = std::slice::from_raw_parts(dirbuf.cast::<u8>(), dirbuf_len);
+            let slice = crate::memory::cstr_slice(dirbuf, dirbuf_len);
             std::ffi::CString::new(slice).unwrap()
         });
         stack.push(cstr);
@@ -3564,7 +3564,7 @@ fn qf_list_entry(qfp: &mut qfline_T, qf_idx: c_int, cursel: bool) {
         }
         qfga_concat(gap, qf_types(c_int::from(qfp.qf_type), qfp.qf_nr));
         gap.push(NUL);
-        if *gap.as_ptr() != NUL {
+        if !crate::memory::cstr_is_empty(gap.as_ptr()) {
             msg_puts_hl(gap.as_ptr(), qf_st().qfLine_hl_id, false);
         }
         msg_puts_hl(c":", qf_st().qfSep_hl_id, false);
@@ -3673,7 +3673,7 @@ fn qf_fmt_text(gap: &mut Vec<c_char>, text: *const c_char) {
                     if crate::memory::cstr_is_empty(p) {
                         break;
                     }
-                    if !ascii_iswhite(c_int::from(*p as u8)) && crate::memory::cstr_first_byte(p) != b'\n' {
+                    if !ascii_iswhite(c_int::from(crate::memory::cstr_first_byte(p))) && crate::memory::cstr_first_byte(p) != b'\n' {
                         break;
                     }
                 }
@@ -4818,7 +4818,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
 
         let mut p = opt_vars().p_mef;
         while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b'#' && *p.add(1) == b'#' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'#' && crate::memory::cstr_byte_at(p, 1) == b'#' {
                 break;
             }
             p = p.add(1);
@@ -7537,7 +7537,7 @@ fn hgr_search_file(qfl: &mut qf_list_T, fname: *mut c_char, p_regmatch: &mut reg
 
             if vim_regexec(p_regmatch, line, 0) {
                 let mut l = crate::memory::cstr_len(line);
-                while l > 0 && (*line.add(l - 1) as u8) <= b' ' {
+                while l > 0 && (crate::memory::cstr_byte_at(line, l - 1)) <= b' ' {
                     l -= 1;
                     *line.add(l) = NUL;
                 }
@@ -7797,7 +7797,7 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
                 || crate::memory::cstr_first_byte(act) == b'u'
                 || crate::memory::cstr_first_byte(act) == b' '
                 || crate::memory::cstr_first_byte(act) == b'f')
-                && *act.add(1) == NUL
+                && crate::memory::cstr_byte_at(act, 1) == 0
             {
                 action = *act;
             } else {

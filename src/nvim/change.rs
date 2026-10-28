@@ -635,8 +635,8 @@ pub fn unchanged(buf: &mut buf_T, ff: bool, always_inc_changedtick: bool) {
 
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
 pub fn save_file_ff(buf: &mut buf_T) {
-    unsafe {
-        buf.b_start_ffc = c_int::from(*buf.b_p_ff as u8);
+     {
+        buf.b_start_ffc = c_int::from(crate::memory::cstr_first_byte(buf.b_p_ff));
         buf.b_start_eof = buf.b_p_eof;
         buf.b_start_eol = buf.b_p_eol;
         buf.b_start_bomb = buf.b_p_bomb;
@@ -744,7 +744,7 @@ pub fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
                     0,
                 );
                 let new_vcol = vcol + win_chartabsize(curwin_mut(), buf, vcol);
-                while *oldp.add(col + oldlen) != NUL && vcol < new_vcol {
+                while crate::memory::cstr_byte_at(oldp, col + oldlen) != 0 && vcol < new_vcol {
                     vcol += win_chartabsize(curwin_mut(), oldp.add(col + oldlen), vcol);
                     if vcol > new_vcol && *oldp.add(col + oldlen) == TAB {
                         break;
@@ -755,7 +755,7 @@ pub fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
                     }
                 }
                 curwin_mut().w_onebuf_opt.wo_list = old_list;
-            } else if *oldp.add(col) != NUL {
+            } else if crate::memory::cstr_byte_at(oldp, col) != 0 {
                 oldlen = utfc_ptr2len(oldp.add(col)) as usize;
             }
 
@@ -835,9 +835,9 @@ pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
 
 /// Delete one character under the cursor.
 pub fn del_char(fixpos: bool) -> bool {
-    unsafe {
+     {
         mb_adjust_cursor();
-        if *get_cursor_pos_ptr() == NUL {
+        if crate::memory::cstr_is_empty(get_cursor_pos_ptr()) {
             return false;
         }
         del_chars(1, c_int::from(fixpos))
@@ -1008,7 +1008,7 @@ pub fn open_line(
             p_extra = saved_line.add(curwin_mut().w_cursor.col as usize);
             if do_si {
                 let p = skipwhite(p_extra);
-                first_char = c_int::from(*p as u8);
+                first_char = c_int::from(crate::memory::cstr_first_byte(p));
             }
             extra_len = crate::memory::cstr_len(p_extra) as c_int;
             saved_char = *p_extra;
@@ -1058,7 +1058,7 @@ pub fn open_line(
                     }
                     if lead_len > 0 {
                         let mut p = skipwhite(ptr);
-                        if crate::memory::cstr_first_byte(p) == b'/' && *p.add(1) == b'*' as c_char {
+                        if crate::memory::cstr_first_byte(p) == b'/' && crate::memory::cstr_byte_at(p, 1) == b'*' {
                             p = p.add(1);
                         }
                         if crate::memory::cstr_first_byte(p) == b'*' {
@@ -1276,7 +1276,7 @@ pub fn open_line(
 
                         if !ascii_iswhite(*saved_line.add((lead_len - 1) as usize))
                             && ((!p_extra.is_null() && curwin_mut().w_cursor.col == lead_len)
-                                || (p_extra.is_null() && *saved_line.add(lead_len as usize) == NUL)
+                                || (p_extra.is_null() && crate::memory::cstr_byte_at(saved_line, lead_len as usize) == 0)
                                 || require_blank)
                         {
                             extra_space = true;
@@ -1424,7 +1424,7 @@ pub fn open_line(
                         {
                             let repl_size = vim_strnsize(lead_repl, lead_repl_len);
                             let mut i: c_int = 0;
-                            while i < lead_len && *p.add(i as usize) != NUL {
+                            while i < lead_len && crate::memory::cstr_byte_at(p, i as usize) != 0 {
                                 let l = utfc_ptr2len(p.add(i as usize));
                                 if vim_strnsize(p, i + l) > repl_size {
                                     break;
@@ -1523,7 +1523,7 @@ pub fn open_line(
                 g_st().Ins.can_si = false;
             } else if !comment_end.is_null()
                 && crate::memory::cstr_first_byte(comment_end) == b'*'
-                && *comment_end.add(1) == b'/' as c_char
+                && crate::memory::cstr_byte_at(comment_end, 1) == b'/'
                 && (curbuf_mut().b_p_ai != 0 || do_si)
             {
                 let old_cursor = curwin_mut().w_cursor;
@@ -1894,7 +1894,7 @@ pub fn get_leader_len(
             i += 1;
         }
 
-        while *line.add(i) != NUL {
+        while crate::memory::cstr_byte_at(line, i) != 0 {
             let mut found_one = false;
             let mut list = curbuf_mut().b_p_com;
             while !crate::memory::cstr_is_empty(list) {
@@ -1941,16 +1941,16 @@ pub fn get_leader_len(
                     }
                 }
                 let mut j: usize = 0;
-                while *string.add(j) != NUL && *string.add(j) == *line.add(i + j) {
+                while crate::memory::cstr_byte_at(string, j) != 0 && *string.add(j) == *line.add(i + j) {
                     j += 1;
                 }
-                if *string.add(j) != NUL {
+                if crate::memory::cstr_byte_at(string, j) != 0 {
                     continue;
                 }
 
                 if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8)).is_null()
                     && !ascii_iswhite(*line.add(i + j))
-                    && *line.add(i + j) != NUL
+                    && crate::memory::cstr_byte_at(line, i + j) != 0
                 {
                     continue;
                 }
@@ -2046,16 +2046,16 @@ pub fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_i
                     }
                 }
                 let mut j: usize = 0;
-                while *string.add(j) != NUL && *string.add(j) == *line.add(i as usize + j) {
+                while crate::memory::cstr_byte_at(string, j) != 0 && *string.add(j) == *line.add(i as usize + j) {
                     j += 1;
                 }
-                if *string.add(j) != NUL {
+                if crate::memory::cstr_byte_at(string, j) != 0 {
                     continue;
                 }
 
                 if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8)).is_null()
                     && !ascii_iswhite(*line.add(i as usize + j))
-                    && *line.add(i as usize + j) != NUL
+                    && crate::memory::cstr_byte_at(line, i as usize + j) != 0
                 {
                     continue;
                 }

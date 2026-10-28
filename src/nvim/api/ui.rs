@@ -574,7 +574,7 @@ fn ui_set_option(
             let slice = if s.data.is_null() || s.size == 0 {
                 &[][..]
             } else {
-                std::slice::from_raw_parts(s.data.cast::<u8>(), s.size)
+                crate::memory::cstr_slice(s.data, s.size)
             };
             let term_cstr = std::ffi::CString::new(slice).unwrap();
             set_tty_option(c"term", Some(term_cstr.clone()));

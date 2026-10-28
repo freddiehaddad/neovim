@@ -174,7 +174,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
             if regtype.is_null() || crate::memory::cstr_len(regtype) > 1 {
                 return fail_cleanup(reg, errmsg, target);
             }
-            reg.y_type = match *regtype as u8 {
+            reg.y_type = match crate::memory::cstr_first_byte(regtype) {
                 0 => MotionType::kMTUnknown,
                 b'v' | b'c' => MotionType::kMTCharWise,
                 b'V' | b'l' => MotionType::kMTLineWise,

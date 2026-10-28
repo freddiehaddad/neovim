@@ -563,7 +563,7 @@ pub fn msg_multiline(
                 if *s == BELL as c_char {
                     vim_beep(kOptBoFlagShell);
                 } else {
-                    msg_putchar_hl((*s as u8) as c_int, hl_id);
+                    msg_putchar_hl((crate::memory::cstr_first_byte(s)) as c_int, hl_id);
                 }
                 chunk = s.add(1);
             }
@@ -875,7 +875,7 @@ pub fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: 
 
         // First part: Start of the string.
         while len < half && e < buflen {
-            if *s.add(e as usize) == NUL {
+            if crate::memory::cstr_byte_at(s, e as usize) == 0 {
                 // text fits without truncating!
                 *buf.add(e as usize) = NUL;
                 return;
@@ -2253,8 +2253,8 @@ pub fn msg_outtrans_len(
                 len -= mb_l - 1;
                 str_ = str_.add(mb_l as usize);
             } else {
-                let s = transchar_byte_buf(None, c_int::from(*str_ as u8));
-                if *s.add(1) != NUL {
+                let s = transchar_byte_buf(None, c_int::from(crate::memory::cstr_first_byte(str_)));
+                if crate::memory::cstr_byte_at(s, 1) != 0 {
                     if str_ > plain_start {
                         msg_puts_len(plain_start, str_.offset_from(plain_start), hl_id, hist);
                     }
@@ -2286,7 +2286,7 @@ pub fn msg_make(mut arg: *const c_char) {
         arg = skipwhite(arg);
         let mut i: isize = 5;
         while !crate::memory::cstr_is_empty(arg) && i >= 0 {
-            if *arg as u8 != STR[i as usize] {
+            if crate::memory::cstr_first_byte(arg) != STR[i as usize] {
                 break;
             }
             arg = arg.add(1);
@@ -2313,14 +2313,14 @@ pub fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) 
         let hl_id = HLF_8;
 
         while !crate::memory::cstr_is_empty(str_) {
-            let mut text = if (str_ == strstart || *str_.add(1) == NUL) && crate::memory::cstr_first_byte(str_) == b' ' {
+            let mut text = if (str_ == strstart || crate::memory::cstr_byte_at(str_, 1) == 0) && crate::memory::cstr_first_byte(str_) == b' ' {
                 str_ = str_.add(1);
                 c"<Space>".as_ptr()
             } else {
                 str2special(&raw mut str_, from, kFalse, None)
             };
-            if !crate::memory::cstr_is_empty(text) && *text.add(1) == NUL {
-                text = transchar_byte_buf(None, c_int::from(*text as u8));
+            if !crate::memory::cstr_is_empty(text) && crate::memory::cstr_byte_at(text, 1) == 0 {
+                text = transchar_byte_buf(None, c_int::from(crate::memory::cstr_first_byte(text)));
             }
             let len = vim_strsize(text);
             if maxlen > 0 && retval + len >= maxlen {
@@ -2414,17 +2414,17 @@ pub fn str2special(
         }
 
         let mut str_ = *sp;
-        let mut c = (*str_ as u8) as c_int;
+        let mut c = (crate::memory::cstr_first_byte(str_)) as c_int;
         let mut modifiers = 0;
         let mut special = false;
-        if c == K_SPECIAL as c_int && *str_.add(1) != NUL && *str_.add(2) != NUL {
-            if *str_.add(1) as u8 == KS_MODIFIER {
-                modifiers = (*str_.add(2) as u8) as c_int;
+        if c == K_SPECIAL as c_int && crate::memory::cstr_byte_at(str_, 1) != 0 && crate::memory::cstr_byte_at(str_, 2) != 0 {
+            if crate::memory::cstr_byte_at(str_, 1) == KS_MODIFIER {
+                modifiers = (crate::memory::cstr_byte_at(str_, 2)) as c_int;
                 str_ = str_.add(3);
-                c = (*str_ as u8) as c_int;
+                c = (crate::memory::cstr_first_byte(str_)) as c_int;
             }
-            if c == K_SPECIAL as c_int && *str_.add(1) != NUL && *str_.add(2) != NUL {
-                c = to_special(*str_.add(1) as u8 as c_int, *str_.add(2) as u8 as c_int);
+            if c == K_SPECIAL as c_int && crate::memory::cstr_byte_at(str_, 1) != 0 && crate::memory::cstr_byte_at(str_, 2) != 0 {
+                c = to_special(crate::memory::cstr_byte_at(str_, 1) as c_int, crate::memory::cstr_byte_at(str_, 2) as c_int);
                 str_ = str_.add(2);
             }
             if is_special(c) || modifiers != 0 {
@@ -2541,7 +2541,7 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                     sc = sc_extra;
                 } else {
                     assert!(!p_extra.is_null());
-                    sc = schar_from_ascii(*p_extra as u8);
+                    sc = schar_from_ascii(crate::memory::cstr_first_byte(p_extra));
                     p_extra = p_extra.add(1);
                 }
             } else {
@@ -2565,7 +2565,7 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                     continue;
                 } else {
                     hl_id = 0;
-                    let c = (*s as u8) as c_int;
+                    let c = (crate::memory::cstr_first_byte(s)) as c_int;
                     s = s.add(1);
                     if c >= 0x80 {
                         col += utf_char2cells(c);
@@ -2619,7 +2619,7 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                         if n > 1 {
                             n_extra = n - 1;
                             p_extra = transchar_byte_buf(None, c_int::from(c as u8));
-                            sc = schar_from_ascii(*p_extra as u8);
+                            sc = schar_from_ascii(crate::memory::cstr_first_byte(p_extra));
                             p_extra = p_extra.add(1);
                             hl_id = HLF_0;
                             true
@@ -2720,9 +2720,9 @@ pub fn msg_puts_hl<S: crate::strings::IntoCCharPtr>(s: S, hl_id: c_int, hist: bo
 /// Write a message with highlight id.
 pub fn msg_puts_len(str_: impl crate::strings::IntoCCharPtr, len: isize, hl_id: c_int, hist: bool) {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+     {
         assert!(
-            len < 0 || !std::slice::from_raw_parts(str_.cast::<u8>(), len as usize).contains(&0)
+            len < 0 || !crate::memory::cstr_slice(str_, len as usize).contains(&0)
         );
         // If redirection is on, also write to the redirection file.
         redir_write(str_, len);
@@ -2914,7 +2914,7 @@ fn msg_puts_display(str_: impl crate::strings::IntoCCharPtr, maxlen: c_int, hl_i
                 break;
             }
 
-            if g_st().msg_row != msg_row_pending && (*s as u8 >= 0x20 || *s == TAB as c_char) {
+            if g_st().msg_row != msg_row_pending && (crate::memory::cstr_first_byte(s) >= 0x20 || *s == TAB as c_char) {
                 if msg_row_pending >= 0 {
                     msg_line_flush();
                 }
@@ -2922,7 +2922,7 @@ fn msg_puts_display(str_: impl crate::strings::IntoCCharPtr, maxlen: c_int, hl_i
                 msg_row_pending = g_st().msg_row;
             }
 
-            if *s as u8 >= 0x20 {
+            if crate::memory::cstr_first_byte(s) >= 0x20 {
                 let mut cw = utf_ptr2cells(s);
                 let l = if maxlen >= 0 {
                     utfc_ptr2len_len(s, str_.add(maxlen as usize).offset_from(s) as c_int)

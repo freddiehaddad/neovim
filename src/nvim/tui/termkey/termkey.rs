@@ -334,7 +334,7 @@ fn strpncmp_camel(
         let mut prev_lower = false;
 
         while (*s != 0 || *sc != 0) && n != 0 {
-            let sc_u8 = *sc as u8;
+            let sc_u8 = crate::memory::cstr_first_byte(sc);
             let b = sc_u8.to_ascii_lowercase() as c_char;
             if sc_u8.is_ascii_uppercase() && prev_lower {
                 if crate::memory::cstr_first_byte(s) != b' ' {
@@ -799,7 +799,7 @@ pub fn termkey_getkey_force(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyRe
 }
 
 pub fn termkey_push_bytes(tk: &mut TermKey, bytes: *const c_char, mut len: usize) -> usize {
-    unsafe {
+     {
         if tk.buffstart != 0 {
             let start = tk.buffstart;
             let count = tk.buffcount;
@@ -817,7 +817,7 @@ pub fn termkey_push_bytes(tk: &mut TermKey, bytes: *const c_char, mut len: usize
         }
 
         if len > 0 {
-            let src = std::slice::from_raw_parts(bytes.cast::<u8>(), len);
+            let src = crate::memory::cstr_slice(bytes, len);
             tk.buffer[tk.buffcount..tk.buffcount + len].copy_from_slice(src);
             tk.buffcount += len;
         }
@@ -878,7 +878,7 @@ fn termkey_lookup_keyname_format(
                 } else {
                     let mut matched = true;
                     for (i, &kb) in key_bytes.iter().enumerate() {
-                        if *str_in.add(i) as u8 != kb {
+                        if crate::memory::cstr_byte_at(str_in, i) != kb {
                             matched = false;
                             break;
                         }

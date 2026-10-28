@@ -1038,7 +1038,7 @@ fn eval_all_expr_in_str(str_arg: *mut c_char) -> Option<std::ffi::CString> {
             }
         }
 
-        let bytes = std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len());
+        let bytes = crate::memory::cstr_slice(buf.as_ptr(), buf.len());
         Some(cstr_from_bytes(bytes))
     }
 }
@@ -1072,7 +1072,7 @@ pub fn heredoc_get(
         let mut eval_failed = false;
         loop {
             if (crate::memory::cstr_prefix_bytes(cmd, 4) == &b"trim"[..4])
-                && (*cmd.add(4) == NUL || ascii_iswhite(*cmd.add(4) as c_int))
+                && (crate::memory::cstr_byte_at(cmd, 4) == 0 || ascii_iswhite(*cmd.add(4) as c_int))
             {
                 cmd = skipwhite(cmd.add(4));
 
@@ -1085,7 +1085,7 @@ pub fn heredoc_get(
                 continue;
             }
             if (crate::memory::cstr_prefix_bytes(cmd, 4) == &b"eval"[..4])
-                && (*cmd.add(4) == NUL || ascii_iswhite(*cmd.add(4) as c_int))
+                && (crate::memory::cstr_byte_at(cmd, 4) == 0 || ascii_iswhite(*cmd.add(4) as c_int))
             {
                 cmd = skipwhite(cmd.add(4));
                 evalstr = true;
@@ -1104,7 +1104,7 @@ pub fn heredoc_get(
                 return ptr::null_mut();
             }
             *p = NUL;
-            if !script_get && (*marker as u8).is_ascii_lowercase() {
+            if !script_get && (crate::memory::cstr_first_byte(marker)).is_ascii_lowercase() {
                 emsg(gettext(
                     c"E221: Marker cannot start with lower case letter",
                 ));
@@ -1227,8 +1227,8 @@ pub fn ex_let(eap: &mut exarg_T) {
         let mut expr = skipwhite(argend);
         let concat = crate::memory::cstr_prefix_bytes(expr, 3) == &b"..="[..3];
         let has_assign = crate::memory::cstr_first_byte(expr) == b'='
-            || (!vim_strchr(c"+-*/%.", *expr as u8 as c_int).is_null()
-                && *expr.add(1) == b'=' as c_char);
+            || (!vim_strchr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as c_int).is_null()
+                && crate::memory::cstr_byte_at(expr, 1) == b'=');
         if !has_assign && !concat {
             if crate::memory::cstr_first_byte(arg) == b'[' {
                 emsg(gettext(e_invarg));
@@ -1248,8 +1248,8 @@ pub fn ex_let(eap: &mut exarg_T) {
         }
 
         if crate::memory::cstr_first_byte(expr) == b'='
-            && *expr.add(1) == b'<' as c_char
-            && *expr.add(2) == b'<' as c_char
+            && crate::memory::cstr_byte_at(expr, 1) == b'<'
+            && crate::memory::cstr_byte_at(expr, 2) == b'<'
         {
             let l = heredoc_get(eap, expr.add(3), false);
             if !l.is_null() {
@@ -1277,9 +1277,9 @@ pub fn ex_let(eap: &mut exarg_T) {
         op[0] = b'=' as c_char;
         op[1] = NUL;
         if crate::memory::cstr_first_byte(expr) != b'=' {
-            if !vim_strchr(c"+-*/%.", *expr as u8 as c_int).is_null() {
+            if !vim_strchr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as c_int).is_null() {
                 op[0] = *expr;
-                if crate::memory::cstr_first_byte(expr) == b'.' && *expr.add(1) == b'.' as c_char {
+                if crate::memory::cstr_first_byte(expr) == b'.' && crate::memory::cstr_byte_at(expr, 1) == b'.' {
                     expr = expr.add(1);
                 }
             }
@@ -1455,7 +1455,7 @@ pub fn skip_var_list(
 /// Skip one (assignable) variable name, including @r, $VAR, &option, d.key, l[idx].
 fn skip_var_one(arg: *const c_char) -> *const c_char {
     unsafe {
-        if crate::memory::cstr_first_byte(arg) == b'@' && *arg.add(1) != NUL {
+        if crate::memory::cstr_first_byte(arg) == b'@' && crate::memory::cstr_byte_at(arg, 1) != 0 {
             return arg.add(2);
         }
         find_name_end(
@@ -1599,8 +1599,8 @@ fn list_arg_vars(
                         {
                             error = true;
                         } else {
-                            if arg == arg_subsc && len == 2 && *name.add(1) == b':' as c_char {
-                                match *name as u8 {
+                            if arg == arg_subsc && len == 2 && crate::memory::cstr_byte_at(name, 1) == b':' {
+                                match crate::memory::cstr_first_byte(name) {
                                     b'g' => list_glob_vars(first),
                                     b'b' => list_buf_vars(first),
                                     b'w' => list_win_vars(first),
@@ -1674,7 +1674,7 @@ fn ex_let_env(
         arg = arg_const.cast_mut();
         if len == 0 {
             semsg!(gettext(e_invarg2), name.sub(1));
-        } else if !op.is_null() && !vim_strchr(c"+-*/%", *op as u8 as c_int).is_null() {
+        } else if !op.is_null() && !vim_strchr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int).is_null() {
             semsg!(gettext(e_letwrong), op);
         } else if !endchars.is_null()
             && vim_strchr(endchars, *skipwhite(arg) as u8 as c_int).is_null()
@@ -1796,7 +1796,7 @@ fn ex_let_option(
                     OptInt::from(newval.data.boolean())
                 };
 
-                match *op as u8 {
+                match crate::memory::cstr_first_byte(op) {
                     b'+' => new_n = cur_n.wrapping_add(new_n),
                     b'-' => new_n = cur_n.wrapping_sub(new_n),
                     b'*' => new_n = cur_n.wrapping_mul(new_n),
@@ -1850,7 +1850,7 @@ fn ex_let_register(
 
         let mut arg_end: *mut c_char = ptr::null_mut();
         arg = arg.add(1);
-        if !op.is_null() && !vim_strchr(c"+-*/%", *op as u8 as c_int).is_null() {
+        if !op.is_null() && !vim_strchr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int).is_null() {
             semsg!(gettext(e_letwrong), op);
         } else if !endchars.is_null()
             && vim_strchr(endchars, *skipwhite(arg.add(1)) as u8 as c_int).is_null()
@@ -1863,7 +1863,7 @@ fn ex_let_register(
                 let reg_c = if crate::memory::cstr_first_byte(arg) == b'@' {
                     b'"' as c_int
                 } else {
-                    *arg as u8 as c_int
+                    crate::memory::cstr_first_byte(arg) as c_int
                 };
                 if let Some(s) = get_reg_contents_str(reg_c, kGRegExprSrc) {
                     let mut bytes = Vec::from(s.as_bytes());
@@ -1877,7 +1877,7 @@ fn ex_let_register(
                 let reg_c = if crate::memory::cstr_first_byte(arg) == b'@' {
                     b'"' as c_int
                 } else {
-                    *arg as u8 as c_int
+                    crate::memory::cstr_first_byte(arg) as c_int
                 };
                 write_reg_contents(reg_c, p, crate::memory::cstr_len(p) as isize, false as c_int);
                 arg_end = arg.add(1);
@@ -1906,7 +1906,7 @@ fn ex_let_one(
             return ex_let_option(arg, tv, is_const, endchars, op);
         } else if crate::memory::cstr_first_byte(arg) == b'@' {
             return ex_let_register(arg, tv, is_const, endchars, op);
-        } else if eval_isnamec1(*arg as u8 as c_int) || crate::memory::cstr_first_byte(arg) == b'{' {
+        } else if eval_isnamec1(crate::memory::cstr_first_byte(arg) as c_int) || crate::memory::cstr_first_byte(arg) == b'{' {
             let mut lv: lval_T = lval_T::new();
             let p = get_lval(arg, Some(tv), &mut lv, false, false, 0, FNE_CHECK_START);
             if !p.is_null() && !lv.ll_name.is_null() {
@@ -2130,7 +2130,7 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
                 } else if ptr::eq(ht, &raw mut vars_st().compat_hashtab) {
                     d = &raw mut vars_st().vimvardict;
                 } else {
-                    let di = find_var_in_ht( &mut *ht, *name as u8 as c_int, c"", 0, 0);
+                    let di = find_var_in_ht( &mut *ht, crate::memory::cstr_first_byte(name) as c_int, c"", 0, 0);
                     d = (*di).di_tv.vval.v_dict();
                 }
                 if d.is_null() {
@@ -2690,7 +2690,7 @@ pub fn find_var(
         }
         let ret = find_var_in_ht(
              &mut *ht,
-            *name as u8 as c_int,
+            crate::memory::cstr_first_byte(name) as c_int,
             varname,
             name_len - (varname.offset_from(name) as usize),
             c_int::from(no_autoload != 0 || !htp.is_null()),
@@ -2760,7 +2760,7 @@ fn find_var_ht_dict(
         if name_len == 0 {
             return ptr::null_mut();
         }
-        if name_len == 1 || *name.add(1) != b':' as c_char {
+        if name_len == 1 || crate::memory::cstr_byte_at(name, 1) != b':' {
             if crate::memory::cstr_first_byte(name) == b':' || *name == AUTOLOAD_CHAR {
                 return ptr::null_mut();
             }
@@ -3230,13 +3230,13 @@ pub fn var_check_fixed(flags: c_int, mut name: *const c_char, mut name_len: usiz
 /// Check if name is a valid name to assign funcref to.
 pub fn var_wrong_func_name(name: *const c_char, new_var: bool) -> bool {
     unsafe {
-        let first_after_scope = if !crate::memory::cstr_is_empty(name) && *name.add(1) == b':' as c_char {
+        let first_after_scope = if !crate::memory::cstr_is_empty(name) && crate::memory::cstr_byte_at(name, 1) == b':' {
             *name.add(2)
         } else {
             *name
         };
-        if !(!vim_strchr(c"wbst", *name as u8 as c_int).is_null()
-            && *name.add(1) == b':' as c_char)
+        if !(!vim_strchr(c"wbst", crate::memory::cstr_first_byte(name) as c_int).is_null()
+            && crate::memory::cstr_byte_at(name, 1) == b':')
             && !ascii_isupper(first_after_scope)
             && vim_strchr(name, b'#' as c_int).is_null()
         {
@@ -3262,7 +3262,7 @@ pub fn valid_varname(varname: *const c_char) -> bool {
     unsafe {
         let mut p = varname;
         while !crate::memory::cstr_is_empty(p) {
-            if !eval_isnamec1(*p as u8 as c_int)
+            if !eval_isnamec1(crate::memory::cstr_first_byte(p) as c_int)
                 && (p == varname || !ascii_isdigit(*p as c_int))
                 && *p != AUTOLOAD_CHAR
             {
@@ -3315,7 +3315,7 @@ fn get_var_from(
                         g_st().curbuf = buf;
                     }
 
-                    if *varname.add(1) == NUL {
+                    if crate::memory::cstr_byte_at(varname, 1) == 0 {
                         let opts = get_winbuf_options(c_int::from(htname == b'b' as c_int));
                         if !opts.is_null() {
                             tv_dict_set_ret(rettv, opts);
@@ -3418,11 +3418,11 @@ fn opt_from_tv(tv: &mut typval_T,
             if !err && tv.v_type == VarType::VAR_STRING && n == 0 {
                 let mut idx: usize = 0;
                 while !tv.vval.v_string().is_null()
-                    && *tv.vval.v_string().add(idx) == b'0' as c_char
+                    && crate::memory::cstr_byte_at(tv.vval.v_string(), idx) == b'0'
                 {
                     idx += 1;
                 }
-                if idx == 0 || *tv.vval.v_string().add(idx) != NUL {
+                if idx == 0 || crate::memory::cstr_byte_at(tv.vval.v_string(), idx) != 0 {
                     err = true;
                     semsg!(
                         gettext(c"E521: Number required: &%s = '%s'"),
@@ -3652,7 +3652,7 @@ pub fn var_exists(mut var: *const c_char) -> bool {
 /// Start recording command output to a variable.
 pub fn var_redir_start(name: *mut c_char, append: bool) -> bool {
     unsafe {
-        if !eval_isnamec1(*name as u8 as c_int) {
+        if !eval_isnamec1(crate::memory::cstr_first_byte(name) as c_int) {
             emsg(gettext(e_invarg));
             return false;
         }
@@ -3676,8 +3676,8 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> bool {
             0,
             FNE_CHECK_START,
         );
-        if vars_st().redir_endp.is_null() || (*lval_ptr).ll_name.is_null() || *vars_st().redir_endp != NUL {
-            if !vars_st().redir_endp.is_null() && *vars_st().redir_endp != NUL {
+        if vars_st().redir_endp.is_null() || (*lval_ptr).ll_name.is_null() || !crate::memory::cstr_is_empty(vars_st().redir_endp) {
+            if !vars_st().redir_endp.is_null() && !crate::memory::cstr_is_empty(vars_st().redir_endp) {
                 semsg!(gettext(e_trailing_arg), vars_st().redir_endp);
             } else {
                 semsg!(gettext(e_invarg2), name);

@@ -1129,7 +1129,7 @@ fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut c_int, mut def
             while ascii_isdigit(*p.add(i) as c_int) {
                 def = def
                     .wrapping_mul(10)
-                    .wrapping_add((*p.add(i) as u8 - b'0') as c_int);
+                    .wrapping_add((crate::memory::cstr_byte_at(p, i) - b'0') as c_int);
                 i += 1;
             }
             *idx = i as c_int;
@@ -1355,7 +1355,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                     mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                 }
                 argv_idx = -1;
-                if *arg0.add(1) == NUL {
+                if crate::memory::cstr_byte_at(arg0, 1) == 0 {
                     parmp.commands.push(c"$".to_owned());
                 } else {
                     parmp
@@ -1364,7 +1364,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                 }
             } else if crate::memory::cstr_first_byte(arg0) == b'-' && !had_minmin {
                 let mut want_argument = false;
-                let c = *arg0.add(argv_idx as usize) as u8;
+                let c = crate::memory::cstr_byte_at(arg0, argv_idx as usize);
                 argv_idx += 1;
                 match c {
                     0 => {
@@ -1502,7 +1502,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
                         }
                         parmp.edit_type = EDIT_QF;
-                        if *arg0.add(argv_idx as usize) != NUL {
+                        if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
                             parmp.use_ef =
                                 Some(crate::memory::cstr_to_cstring(arg0.add(argv_idx as usize)));
                             argv_idx = -1;
@@ -1539,7 +1539,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
                         }
                         parmp.edit_type = EDIT_TAG;
-                        if *arg0.add(argv_idx as usize) != NUL {
+                        if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
                             parmp.tagname =
                                 Some(crate::memory::cstr_to_cstring(arg0.add(argv_idx as usize)));
                             argv_idx = -1;
@@ -1553,7 +1553,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                     }
                     b'V' => {
                         opt_vars().p_verbose = i64::from(get_number_arg(arg0, &mut argv_idx, 10));
-                        if *arg0.add(argv_idx as usize) != NUL {
+                        if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
                             set_option_value_give_err(
                                 kOptVerbosefile,
                                 cstr_as_obj(arg0.add(argv_idx as usize)),
@@ -1571,7 +1571,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         }
                     }
                     b'c' => {
-                        if *arg0.add(argv_idx as usize) != NUL {
+                        if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
                             if parmp.commands.len() >= MAX_ARG_CMDS {
                                 mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                             }
@@ -1592,7 +1592,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                 }
 
                 if want_argument {
-                    if *arg0.add(argv_idx as usize) != NUL {
+                    if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
                         mainerr(ERR_OPT_GARBAGE, arg0, ptr::null());
                     }
 
@@ -1792,7 +1792,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                 );
             }
 
-            if argv_idx <= 0 || *(*argv).add(argv_idx as usize) == NUL {
+            if argv_idx <= 0 || crate::memory::cstr_byte_at(*argv, argv_idx as usize) == 0 {
                 argc -= 1;
                 argv = argv.add(1);
                 argv_idx = 1;
@@ -2280,7 +2280,7 @@ fn exe_commands(parmp: &mut mparm_T) {
 }
 
 fn do_system_initialization() {
-    unsafe {
+     {
         if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs) {
             let mut iter: *const c_char = ptr::null();
             let appname = get_appname(false);
@@ -2303,7 +2303,7 @@ fn do_system_initialization() {
                 }
                 let path_len = dir_len + 1 + appname_bytes.len() + sysinit_suffix.len();
                 let mut vimrc = Vec::with_capacity(path_len);
-                vimrc.extend_from_slice(std::slice::from_raw_parts(dir.cast::<u8>(), dir_len));
+                vimrc.extend_from_slice(crate::memory::cstr_slice(dir, dir_len));
                 if vimrc.last() != Some(&PATHSEP) {
                     vimrc.push(PATHSEP);
                 }
@@ -2327,7 +2327,7 @@ fn do_system_initialization() {
 }
 
 fn do_user_initialization() -> bool {
-    unsafe {
+     {
         let mut do_exrc = opt_vars().p_exrc != 0;
         if execute_env(c"VIMINIT") {
             do_exrc = opt_vars().p_exrc != 0;
@@ -2388,14 +2388,14 @@ fn do_user_initialization() -> bool {
 
                 let init_lua_len = dir_len + 1 + appname_bytes.len() + init_lua_suffix.len();
                 let mut init_lua = Vec::with_capacity(init_lua_len);
-                init_lua.extend_from_slice(std::slice::from_raw_parts(dir.cast::<u8>(), dir_len));
+                init_lua.extend_from_slice(crate::memory::cstr_slice(dir, dir_len));
                 init_lua.push(PATHSEP);
                 init_lua.extend_from_slice(appname_bytes);
                 init_lua.extend_from_slice(&init_lua_suffix);
 
                 let init_vim_len = dir_len + 1 + appname_bytes.len() + init_vim_suffix.len();
                 let mut init_vim = Vec::with_capacity(init_vim_len);
-                init_vim.extend_from_slice(std::slice::from_raw_parts(dir.cast::<u8>(), dir_len));
+                init_vim.extend_from_slice(crate::memory::cstr_slice(dir, dir_len));
                 init_vim.push(PATHSEP);
                 init_vim.extend_from_slice(appname_bytes);
                 init_vim.extend_from_slice(&init_vim_suffix);

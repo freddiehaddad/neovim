@@ -556,7 +556,7 @@ pub fn nvim_set_hl_ns_fast(ns_id: Integer, _err: &mut Error) {
 /// @see vim_strsave_escape_ks
 // DLLEXPORT void nvim_feedkeys(String keys, String mode, Boolean escape_ks) FUNC_API_SINCE(1);
 pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
-    unsafe {
+     {
         let mut remap = true;
         let mut insert = false;
         let mut typed = false;
@@ -565,7 +565,7 @@ pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
         let mut lowlevel = false;
 
         for i in 0..mode.size {
-            match *mode.data.add(i) as u8 {
+            match crate::memory::cstr_byte_at(mode.data, i) {
                 b'n' => remap = false,
                 b'm' => remap = true,
                 b't' => typed = true,
@@ -2322,7 +2322,7 @@ pub fn nvim_chan_set(
 /// @param[out] err Error details, if any.
 // DLLEXPORT void nvim__cmdwin_set(String type, Buffer buf, Error *err) FUNC_API_SINCE(14);
 pub fn nvim__cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
-    unsafe {
+     {
         if type_str.size == 0 || buf == 0 {
             g_st().cmdwin_type = 0;
             g_st().cmdwin_buf = ptr::null_mut();
@@ -2332,7 +2332,7 @@ pub fn nvim__cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
         if error_set(err) {
             return;
         }
-        g_st().cmdwin_type = c_int::from(*type_str.data as u8);
+        g_st().cmdwin_type = c_int::from(crate::memory::cstr_first_byte(type_str.data));
         g_st().cmdwin_buf = b;
     }
 }
@@ -2725,7 +2725,7 @@ pub fn nvim__unpack(
 /// @see |nvim_get_mark()|
 // DLLEXPORT Boolean nvim_del_mark(String name, Error *err) FUNC_API_SINCE(8);
 pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
-    unsafe {
+     {
         if !validate_s(
             name.size == 1,
             c"mark name (must be a single char)",
@@ -2734,7 +2734,7 @@ pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
         ) {
             return false;
         }
-        let ch = *name.data as u8;
+        let ch = crate::memory::cstr_first_byte(name.data);
         if !validate_s(
             ch.is_ascii_uppercase() || ch.is_ascii_digit(),
             c"mark name (must be file/uppercase)",
@@ -2779,7 +2779,7 @@ pub fn nvim_get_mark(
         ) {
             return rv;
         }
-        let ch = *name.data as u8;
+        let ch = crate::memory::cstr_first_byte(name.data);
         if !validate_s(
             ch.is_ascii_uppercase() || ch.is_ascii_digit(),
             c"mark name (must be file/uppercase)",

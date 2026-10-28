@@ -81,7 +81,7 @@ fn console_dialog_alloc(
         let mut idx = 0usize;
         let mut r = buttons;
         while *r != 0 {
-            let b = *r as u8;
+            let b = crate::memory::cstr_first_byte(r);
             if b == DLG_BUTTON_SEP {
                 button_len += 3;
                 lenhotkey += HOTK_LEN;
@@ -142,7 +142,7 @@ fn copy_confirm_hotkeys(
         let mut r = buttons;
 
         while *r != 0 {
-            let b = *r as u8;
+            let b = crate::memory::cstr_first_byte(r);
             if b == DLG_BUTTON_SEP {
                 *msgp = b',' as c_char;
                 *msgp.add(1) = b' ' as c_char;
@@ -167,7 +167,7 @@ fn copy_confirm_hotkeys(
                     r = r.add(1);
                 }
                 first_hotkey = false;
-                if *r as u8 == DLG_HOTKEY_CHAR {
+                if crate::memory::cstr_first_byte(r) == DLG_HOTKEY_CHAR {
                     *msgp = *r;
                     msgp = msgp.add(1);
                 } else {

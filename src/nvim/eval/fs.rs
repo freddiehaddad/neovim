@@ -133,19 +133,19 @@ pub fn modify_fname(
 
         loop {
             // ":p" - full path/file_name
-            if *src.add(*usedlen) == b':' as c_char && *src.add(*usedlen + 1) == b'p' as c_char {
+            if crate::memory::cstr_byte_at(src, *usedlen) == b':' && crate::memory::cstr_byte_at(src, *usedlen + 1) == b'p' {
                 has_fullname = true;
 
                 valid |= VALID_PATH;
                 *usedlen += 2;
 
                 // Expand "~/path" for all systems and "~user/path" for Unix
-                let tilde_cond = *(*fnamep) == b'~' as c_char
+                let tilde_cond = crate::memory::cstr_first_byte(*fnamep) == b'~'
                     && (cfg!(unix)
-                        || *(*fnamep).add(1) == b'/' as c_char
-                        || (cfg!(windows) && *(*fnamep).add(1) == b'\\' as c_char)
-                        || *(*fnamep).add(1) == NUL)
-                    && !(tilde_file && *(*fnamep).add(1) == NUL);
+                        || crate::memory::cstr_byte_at(*fnamep, 1) == b'/'
+                        || (cfg!(windows) && crate::memory::cstr_byte_at(*fnamep, 1) == b'\\')
+                        || crate::memory::cstr_byte_at(*fnamep, 1) == 0)
+                    && !(tilde_file && crate::memory::cstr_byte_at(*fnamep, 1) == 0);
                 if tilde_cond {
                     let exp = expand_env_save(*fnamep);
                     set_fname_buf(fnamep, bufp, cstr_into_char_vec(exp));
@@ -154,12 +154,12 @@ pub fn modify_fname(
                 // When "/." or "/.." is used: force expansion to get rid of it.
                 p = *fnamep;
                 while !crate::memory::cstr_is_empty(p) {
-                    if vim_ispathsep(*p as u8 as c_int)
-                        && *p.add(1) == b'.' as c_char
-                        && (*p.add(2) == NUL
-                            || vim_ispathsep(*p.add(2) as u8 as c_int)
-                            || (*p.add(2) == b'.' as c_char
-                                && (*p.add(3) == NUL || vim_ispathsep(*p.add(3) as u8 as c_int))))
+                    if vim_ispathsep(crate::memory::cstr_first_byte(p) as c_int)
+                        && crate::memory::cstr_byte_at(p, 1) == b'.'
+                        && (crate::memory::cstr_byte_at(p, 2) == 0
+                            || vim_ispathsep(crate::memory::cstr_byte_at(p, 2) as c_int)
+                            || (crate::memory::cstr_byte_at(p, 2) == b'.'
+                                && (crate::memory::cstr_byte_at(p, 3) == 0 || vim_ispathsep(crate::memory::cstr_byte_at(p, 3) as c_int))))
                     {
                         break;
                     }
@@ -170,7 +170,7 @@ pub fn modify_fname(
                 if !crate::memory::cstr_is_empty(p)
                     || !vim_isAbsName(*fnamep)
                     || (cfg!(windows)
-                        && (*(*fnamep) == b'/' as c_char || *(*fnamep) == b'\\' as c_char))
+                        && (crate::memory::cstr_first_byte(*fnamep) == b'/' || crate::memory::cstr_first_byte(*fnamep) == b'\\'))
                 {
                     let Some(full) = FullName_save(*fnamep, !crate::memory::cstr_is_empty(p)) else {
                         *fnamep = ptr::null_mut();
@@ -196,8 +196,8 @@ pub fn modify_fname(
             // ":." - path relative to the current directory
             // ":~" - path relative to the home directory
             // ":8" - shortname path - postponed till after
-            while *src.add(*usedlen) == b':' as c_char && {
-                c = *src.add(*usedlen + 1) as u8 as c_int;
+            while crate::memory::cstr_byte_at(src, *usedlen) == b':' && {
+                c = crate::memory::cstr_byte_at(src, *usedlen + 1) as c_int;
                 c == b'.' as c_int || c == b'~' as c_int || c == b'8' as c_int
             } {
                 *usedlen += 2;
@@ -207,7 +207,7 @@ pub fn modify_fname(
                 pbuf = None;
                 // Need full path first (use expand_env() to remove a "~/")
                 if !has_fullname && !has_homerelative {
-                    if *(*fnamep) == b'~' as c_char {
+                    if crate::memory::cstr_first_byte(*fnamep) == b'~' {
                         let exp = cstr_into_char_vec(expand_env_save(*fnamep));
                         p = exp.as_ptr().cast_mut();
                         pbuf = Some(exp);
@@ -248,8 +248,8 @@ pub fn modify_fname(
                         // even though the path does not have a prefix.
                         if path_cmp(opt_vars().p_fic != 0, p, dirname.as_ptr(), dirnamelen) == 0 {
                             p = p.add(dirnamelen);
-                            if vim_ispathsep(*p as u8 as c_int) {
-                                while !crate::memory::cstr_is_empty(p) && vim_ispathsep(*p as u8 as c_int) {
+                            if vim_ispathsep(crate::memory::cstr_first_byte(p) as c_int) {
+                                while !crate::memory::cstr_is_empty(p) && vim_ispathsep(crate::memory::cstr_first_byte(p) as c_int) {
                                     p = p.add(1);
                                 }
                                 *fnamep = p;
@@ -275,7 +275,7 @@ pub fn modify_fname(
 
             let mut file_info = FileInfo::new();
             os_fileinfo2(*fnamep, &mut file_info);
-            if *src.add(*usedlen) == b':' as c_char && *src.add(*usedlen + 1) == b'h' as c_char {
+            if crate::memory::cstr_byte_at(src, *usedlen) == b':' && crate::memory::cstr_byte_at(src, *usedlen + 1) == b'h' {
                 s = (*fnamep).add(file_info.rest_off);
                 *fnamep = (*fnamep).add(file_info.prefix_off);
             }
@@ -285,7 +285,7 @@ pub fn modify_fname(
 
             // ":h" - head, remove "/file_name", can be repeated
             // Don't remove the logical root, see `FileInfo`.
-            while *src.add(*usedlen) == b':' as c_char && *src.add(*usedlen + 1) == b'h' as c_char {
+            while crate::memory::cstr_byte_at(src, *usedlen) == b':' && crate::memory::cstr_byte_at(src, *usedlen + 1) == b'h' {
                 valid |= VALID_HEAD;
                 *usedlen += 2;
                 while (tail as usize) > (s as usize) && after_pathsep(s, tail) != 0 {
@@ -310,12 +310,12 @@ pub fn modify_fname(
             }
 
             // ":8" - shortname
-            if *src.add(*usedlen) == b':' as c_char && *src.add(*usedlen + 1) == b'8' as c_char {
+            if crate::memory::cstr_byte_at(src, *usedlen) == b':' && crate::memory::cstr_byte_at(src, *usedlen + 1) == b'8' {
                 *usedlen += 2;
             }
 
             // ":t" - tail, just the basename
-            if *src.add(*usedlen) == b':' as c_char && *src.add(*usedlen + 1) == b't' as c_char {
+            if crate::memory::cstr_byte_at(src, *usedlen) == b':' && crate::memory::cstr_byte_at(src, *usedlen + 1) == b't' {
                 *usedlen += 2;
                 *fnamelen -= (tail as usize).wrapping_sub(*fnamep as usize);
                 *fnamep = tail;
@@ -323,15 +323,15 @@ pub fn modify_fname(
 
             // ":e" - extension, can be repeated
             // ":r" - root, without extension, can be repeated
-            while *src.add(*usedlen) == b':' as c_char
-                && (*src.add(*usedlen + 1) == b'e' as c_char
-                    || *src.add(*usedlen + 1) == b'r' as c_char)
+            while crate::memory::cstr_byte_at(src, *usedlen) == b':'
+                && (crate::memory::cstr_byte_at(src, *usedlen + 1) == b'e'
+                    || crate::memory::cstr_byte_at(src, *usedlen + 1) == b'r')
             {
                 // find a '.' in the tail:
                 // - for second :e: before the current fname
                 // - otherwise: The last '.'
                 let is_second_e = (*fnamep as usize) > (tail as usize);
-                if *src.add(*usedlen + 1) == b'e' as c_char && is_second_e {
+                if crate::memory::cstr_byte_at(src, *usedlen + 1) == b'e' && is_second_e {
                     s = (*fnamep).wrapping_sub(2);
                 } else {
                     s = (*fnamep).wrapping_add(*fnamelen).wrapping_sub(1);
@@ -343,7 +343,7 @@ pub fn modify_fname(
                     }
                     s = s.wrapping_sub(1);
                 }
-                if *src.add(*usedlen + 1) == b'e' as c_char {
+                if crate::memory::cstr_byte_at(src, *usedlen + 1) == b'e' {
                     if (s as usize) > (tail as usize) {
                         // we stopped at a '.' (so anchor to &'.' + 1)
                         let newstart = s.add(1);
@@ -380,35 +380,31 @@ pub fn modify_fname(
             // ":s?pat?foo?" - substitute
             // ":gs?pat?foo?" - global substitute
             let mut repeat_loop = false;
-            if *src.add(*usedlen) == b':' as c_char
-                && (*src.add(*usedlen + 1) == b's' as c_char
-                    || (*src.add(*usedlen + 1) == b'g' as c_char
-                        && *src.add(*usedlen + 2) == b's' as c_char))
+            if crate::memory::cstr_byte_at(src, *usedlen) == b':'
+                && (crate::memory::cstr_byte_at(src, *usedlen + 1) == b's'
+                    || (crate::memory::cstr_byte_at(src, *usedlen + 1) == b'g'
+                        && crate::memory::cstr_byte_at(src, *usedlen + 2) == b's'))
             {
                 let mut flags = c"".as_ptr();
                 s = src.add(*usedlen + 2);
-                if *src.add(*usedlen + 1) == b'g' as c_char {
+                if crate::memory::cstr_byte_at(src, *usedlen + 1) == b'g' {
                     flags = c"g".as_ptr();
                     s = s.add(1);
                 }
 
-                let sep = *s as u8 as c_int;
+                let sep = crate::memory::cstr_first_byte(s) as c_int;
                 s = s.add(1);
                 if sep != 0 {
                     // find end of pattern
                     p = vim_strchr(s, sep);
                     if !p.is_null() {
-                        let pat = cstr_from_bytes(std::slice::from_raw_parts(
-                            s.cast::<u8>(),
-                            (p as usize).wrapping_sub(s as usize),
+                        let pat = cstr_from_bytes(crate::memory::cstr_slice(s, (p as usize).wrapping_sub(s as usize),
                         ));
                         s = p.add(1);
                         // find end of substitution
                         p = vim_strchr(s, sep);
                         if !p.is_null() {
-                            let sub = cstr_from_bytes(std::slice::from_raw_parts(
-                                s.cast::<u8>(),
-                                (p as usize).wrapping_sub(s as usize),
+                            let sub = cstr_from_bytes(crate::memory::cstr_slice(s, (p as usize).wrapping_sub(s as usize),
                             ));
                             let mut str_copy = vec![0 as c_char; *fnamelen + 1];
                             if *fnamelen > 0 {
@@ -438,9 +434,9 @@ pub fn modify_fname(
                 continue;
             }
 
-            if *src.add(*usedlen) == b':' as c_char && *src.add(*usedlen + 1) == b'S' as c_char {
+            if crate::memory::cstr_byte_at(src, *usedlen) == b':' && crate::memory::cstr_byte_at(src, *usedlen + 1) == b'S' {
                 // vim_strsave_shellescape() needs a NUL terminated string.
-                c = *(*fnamep).add(*fnamelen) as u8 as c_int;
+                c = crate::memory::cstr_byte_at(*fnamep, *fnamelen) as c_int;
                 if c != NUL as c_int {
                     *(*fnamep).add(*fnamelen) = NUL;
                 }
@@ -1563,7 +1559,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
 
                     // Finished a line.  Remove CRs before NL.
                     if readlen > 0 && !binary {
-                        while len > 0 && *start.add(len - 1) == b'\r' as c_char {
+                        while len > 0 && crate::memory::cstr_byte_at(start, len - 1) == b'\r' {
                             len -= 1;
                         }
                         // removal may cross back to the "prev" string
@@ -1597,7 +1593,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
                     }
                 } else if crate::memory::cstr_is_empty(p) {
                     *p = b'\n' as c_char;
-                } else if *p as u8 == 0xbf && !binary {
+                } else if crate::memory::cstr_first_byte(p) == 0xbf && !binary {
                     // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
                     // when finding the BF and check the previous two bytes.
                     let back1 = if (p as usize) >= (buf_ptr.add(1) as usize) {
@@ -1715,8 +1711,8 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             let mut p = p_vec.as_mut_ptr();
 
             if crate::memory::cstr_first_byte(p) == b'.'
-                && (vim_ispathsep(*p.add(1) as u8 as c_int)
-                    || (*p.add(1) == b'.' as c_char && vim_ispathsep(*p.add(2) as u8 as c_int)))
+                && (vim_ispathsep(crate::memory::cstr_byte_at(p, 1) as c_int)
+                    || (crate::memory::cstr_byte_at(p, 1) == b'.' && vim_ispathsep(crate::memory::cstr_byte_at(p, 2) as c_int)))
             {
                 is_relative_to_current = true;
             }
@@ -1763,7 +1759,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
                     // Separate the first path component in the link value and
                     // concatenate the remainders.
-                    let start_comp = if vim_ispathsep(*buf as u8 as c_int) {
+                    let start_comp = if vim_ispathsep(crate::memory::cstr_first_byte(buf) as c_int) {
                         buf.add(1)
                     } else {
                         buf
@@ -1835,14 +1831,14 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
             // If the result is a relative path name, make it explicitly relative to
             // the current directory if and only if the argument had this form.
-            if !vim_ispathsep(*p as u8 as c_int) {
+            if !vim_ispathsep(crate::memory::cstr_first_byte(p) as c_int) {
                 if is_relative_to_current
                     && !crate::memory::cstr_is_empty(p)
                     && !(crate::memory::cstr_first_byte(p) == b'.'
-                        && (*p.add(1) == NUL
-                            || vim_ispathsep(*p.add(1) as u8 as c_int)
-                            || (*p.add(1) == b'.' as c_char
-                                && (*p.add(2) == NUL || vim_ispathsep(*p.add(2) as u8 as c_int)))))
+                        && (crate::memory::cstr_byte_at(p, 1) == 0
+                            || vim_ispathsep(crate::memory::cstr_byte_at(p, 1) as c_int)
+                            || (crate::memory::cstr_byte_at(p, 1) == b'.'
+                                && (crate::memory::cstr_byte_at(p, 2) == 0 || vim_ispathsep(crate::memory::cstr_byte_at(p, 2) as c_int)))))
                 {
                     // Prepend "./".
                     let p_len = crate::memory::cstr_len(p);
@@ -1855,7 +1851,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 } else if !is_relative_to_current {
                     // Strip leading "./".
                     q = p;
-                    while crate::memory::cstr_first_byte(q) == b'.' && vim_ispathsep(*q.add(1) as u8 as c_int) {
+                    while crate::memory::cstr_first_byte(q) == b'.' && vim_ispathsep(crate::memory::cstr_byte_at(q, 1) as c_int) {
                         q = q.add(2);
                     }
                     if (q as usize) > (p as usize) {
@@ -2040,7 +2036,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             }
             let mut p = flags;
             while !crate::memory::cstr_is_empty(p) {
-                match *p as u8 {
+                match crate::memory::cstr_first_byte(p) {
                     b'b' => binary = true,
                     b'a' => append = true,
                     b'D' => defer = true,

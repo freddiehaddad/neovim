@@ -1,7 +1,7 @@
 //! NFA regular expression engine (`src/nvim/regexp.c`).
 
 use crate::message::{semsg, siemsg};
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_int, c_uint};
 use std::mem::size_of;
 use std::ptr;
 
@@ -1135,9 +1135,9 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                 true
             }
             b'#' => {
-                if *re_st().regparse == b'=' as c_char
-                    && (*re_st().regparse.add(1) as u8) >= 48
-                    && (*re_st().regparse.add(1) as u8) <= 50
+                if crate::memory::cstr_first_byte(re_st().regparse) == b'='
+                    && (crate::memory::cstr_byte_at(re_st().regparse, 1)) >= 48
+                    && (crate::memory::cstr_byte_at(re_st().regparse, 1)) <= 50
                 {
                     semsg!(
                         tr(e_atom_engine_must_be_at_start_of_pattern),
@@ -1338,14 +1338,14 @@ fn nfa_regatom_collection(
             }
 
             let mut negated = false;
-            if *re_st().regparse == b'^' as c_char {
+            if crate::memory::cstr_first_byte(re_st().regparse) == b'^' {
                 negated = true;
                 mb_ptr_adv(&raw mut re_st().regparse);
                 EMIT(NFA_START_NEG_COLL);
             } else {
                 EMIT(NFA_START_COLL);
             }
-            if *re_st().regparse == b'-' as c_char {
+            if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
                 *startc = b'-' as c_int;
                 EMIT(*startc);
                 EMIT(NFA_CONCAT);
@@ -1359,7 +1359,7 @@ fn nfa_regatom_collection(
                 *startc = -1;
                 let mut got_coll_char = false;
 
-                if *re_st().regparse == b'[' as c_char {
+                if crate::memory::cstr_first_byte(re_st().regparse) == b'[' {
                     let mut equiclass: c_int = 0;
                     let mut collclass: c_int = 0;
                     let charclass = get_char_class(&raw mut re_st().regparse);
@@ -1411,35 +1411,35 @@ fn nfa_regatom_collection(
                     }
                 }
 
-                if *re_st().regparse == b'-' as c_char && oldstartc != -1 {
+                if crate::memory::cstr_first_byte(re_st().regparse) == b'-' && oldstartc != -1 {
                     emit_range = true;
                     *startc = oldstartc;
                     mb_ptr_adv(&raw mut re_st().regparse);
                     continue;
                 }
 
-                if *re_st().regparse == b'\\' as c_char
+                if crate::memory::cstr_first_byte(re_st().regparse) == b'\\'
                     && (re_st().regparse.add(1).cast::<u8>() as *const u8) <= endp
-                    && (!vim_strchr(REGEXP_INRANGE, *re_st().regparse.add(1) as u8 as c_int)
+                    && (!vim_strchr(REGEXP_INRANGE, crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int)
                         .is_null()
                         || (re_st().reg_cpo_lit == 0
                             && !vim_strchr(
                                 REGEXP_ABBR,
-                                *re_st().regparse.add(1) as u8 as c_int,
+                                crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
                             )
                             .is_null()))
                 {
                     mb_ptr_adv(&raw mut re_st().regparse);
-                    if *re_st().regparse == b'n' as c_char {
+                    if crate::memory::cstr_first_byte(re_st().regparse) == b'n' {
                         *startc = if re_st().reg_string != 0
                             || emit_range
-                            || *re_st().regparse.add(1) == b'-' as c_char
+                            || crate::memory::cstr_byte_at(re_st().regparse, 1) == b'-'
                         {
                             NL
                         } else {
                             NFA_NEWL
                         };
-                    } else if matches!(*re_st().regparse as u8, b'd' | b'o' | b'x' | b'u' | b'U') {
+                    } else if matches!(crate::memory::cstr_first_byte(re_st().regparse), b'd' | b'o' | b'x' | b'u' | b'U') {
                         *startc = coll_get_char();
                         if *startc == c_int::MAX {
                             emsg(tr(e_unicode_val_too_large));
@@ -1449,7 +1449,7 @@ fn nfa_regatom_collection(
                         got_coll_char = true;
                         mb_ptr_back(*old_regparse, &raw mut re_st().regparse);
                     } else {
-                        *startc = backslash_trans(*re_st().regparse as u8 as c_int);
+                        *startc = backslash_trans(crate::memory::cstr_first_byte(re_st().regparse) as c_int);
                     }
                 }
 
@@ -1522,7 +1522,7 @@ fn nfa_regatom_collection(
             }
 
             mb_ptr_back(*old_regparse, &raw mut re_st().regparse);
-            if *re_st().regparse == b'-' as c_char {
+            if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
                 EMIT(b'-' as c_int);
                 EMIT(NFA_CONCAT);
             }

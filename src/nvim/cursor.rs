@@ -2,7 +2,6 @@
 
 use crate::buffer::buf_T;
 use crate::change::{TAB, inserted_bytes, kOptVeFlagOnemore};
-use crate::charset::NUL;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
@@ -242,7 +241,7 @@ fn coladvance2(
                 && wcol >= 0
                 && ((col != wcol && col != wcol + 1) || csize > 1)
             {
-                if *line.add(idx as usize) == NUL {
+                if crate::memory::cstr_byte_at(line, idx as usize) == 0 {
                     let correct = wcol - col;
                     let newline_size = (idx as usize)
                         .checked_add(correct as usize)

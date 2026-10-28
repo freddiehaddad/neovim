@@ -679,7 +679,7 @@ fn decay_compl_timeout() {
 /// Count the string of a new match in the duplicate-check hashtab.
 fn compl_strings_add(str_ptr: *const c_char, len: usize) {
     unsafe {
-        let bytes = std::slice::from_raw_parts(str_ptr.cast::<u8>(), len);
+        let bytes = crate::memory::cstr_slice(str_ptr, len);
         let key_len = bytes.iter().position(|&b| b == 0).unwrap_or(len);
         let ht_ptr = &raw mut insexp().compl_strings_ht;
         *(*ht_ptr).entry(bytes[..key_len].to_vec()).or_insert(0) += 1;
@@ -1224,7 +1224,7 @@ fn ins_compl_add(
         let ht_ptr = &raw const insexp().compl_strings_ht;
         let list = &raw mut insexp().compl_list;
         if !(*list).is_empty() && !adup && !(*ht_ptr).is_empty() {
-            let bytes = std::slice::from_raw_parts(str_ptr.cast::<u8>(), len as usize);
+            let bytes = crate::memory::cstr_slice(str_ptr, len as usize);
             let key_len = bytes.iter().position(|&b| b == 0).unwrap_or(len as usize);
             if (*ht_ptr).contains_key(&bytes[..key_len]) {
                 if is_nearest_active() && score > 0 {
@@ -1232,7 +1232,7 @@ fn ins_compl_add(
                         if !match_at_original_text(match_)
                             && (crate::memory::cstr_prefix_bytes(match_.cp_str.data, len as usize) == crate::memory::cstr_prefix_bytes(str_ptr, len as usize))
                             && (match_.cp_str.size as c_int <= len
-                                || *match_.cp_str.data.add(len as usize) == NUL)
+                                || crate::memory::cstr_byte_at(match_.cp_str.data, len as usize) == 0)
                         {
                             if score < match_.cp_score {
                                 match_.cp_score = score;
@@ -1384,8 +1384,8 @@ fn ins_compl_equal_sc(match_: &mut compl_T, str_ptr: *const c_char, len: usize) 
         for i in 0..len {
             let idx = i as c_int;
             let mismatch = if idx >= typed && idx < longest_end {
-                let c1 = *match_.cp_str.data.add(i) as u8;
-                let c2 = *str_ptr.add(i) as u8;
+                let c1 = crate::memory::cstr_byte_at(match_.cp_str.data, i);
+                let c2 = crate::memory::cstr_byte_at(str_ptr, i);
                 !c1.eq_ignore_ascii_case(&c2)
             } else {
                 *match_.cp_str.data.add(i) != *str_ptr.add(i)
@@ -2162,7 +2162,7 @@ fn ins_compl_dictionaries(
             }
 
             if count == -1 {
-                let ptr = if crate::memory::cstr_first_byte(pat) == b'\\' && *pat.add(1) == b'<' as c_char {
+                let ptr = if crate::memory::cstr_first_byte(pat) == b'\\' && crate::memory::cstr_byte_at(pat, 1) == b'<' {
                     pat.add(2)
                 } else {
                     pat
@@ -2219,7 +2219,7 @@ fn thesaurus_add_words_in_line(
 
             while !crate::memory::cstr_is_empty(ptr) {
                 let l = utfc_ptr2len(ptr);
-                if l < 2 && !vim_iswordc(c_int::from(*ptr as u8)) {
+                if l < 2 && !vim_iswordc(c_int::from(crate::memory::cstr_first_byte(ptr))) {
                     break;
                 }
                 ptr = ptr.add(l as usize);
@@ -3087,7 +3087,7 @@ fn ins_compl_fixRedoBufForLeader(ptr_arg: *const c_char) {
         }
         if !insexp().compl_orig_text.data.is_null() {
             let mut p = insexp().compl_orig_text.data.cast_const();
-            while *p.add(len) != NUL && *p.add(len) == *ptr.add(len) {
+            while crate::memory::cstr_byte_at(p, len) != 0 && *p.add(len) == *ptr.add(len) {
                 len += 1;
             }
             if len > 0 {
@@ -4339,7 +4339,7 @@ fn get_next_filename_completion() {
             let last_sep = crate::memory::cstr_as_bytes(leader).iter().rposition(|&b| b == PATHSEP as u8).map_or(ptr::null_mut(), |i| leader.add(i));
             if last_sep.is_null() {
                 insexp().compl_pattern = Some(c"*".to_owned());
-            } else if *last_sep.add(1) == NUL {
+            } else if crate::memory::cstr_byte_at(last_sep, 1) == 0 {
                 in_fuzzy_collect = false;
             } else {
                 let path_len = last_sep.offset_from(leader) as usize + 1;
@@ -5445,9 +5445,9 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
                         let mut s2 = compl.cp_str.data;
 
                         while j < len && !crate::memory::cstr_is_empty(s1) && !crate::memory::cstr_is_empty(s2) {
-                            let l1 = utf_byte2len(c_int::from(*s1 as u8));
-                            let l2 = utf_byte2len(c_int::from(*s2 as u8));
-                            if l1 != l2 || std::slice::from_raw_parts(s1.cast::<u8>(), l1 as usize) != std::slice::from_raw_parts(s2.cast::<u8>(), l1 as usize) {
+                            let l1 = utf_byte2len(c_int::from(crate::memory::cstr_first_byte(s1)));
+                            let l2 = utf_byte2len(c_int::from(crate::memory::cstr_first_byte(s2)));
+                            if l1 != l2 || crate::memory::cstr_slice(s1, l1 as usize) != crate::memory::cstr_slice(s2, l1 as usize) {
                                 break;
                             }
 
@@ -5940,7 +5940,7 @@ fn get_normal_compl_info(
             if !compl_status_adding() {
                 while {
                     startcol -= 1;
-                    startcol >= 0 && vim_isIDc(c_int::from(*line.add(startcol as usize) as u8))
+                    startcol >= 0 && vim_isIDc(c_int::from(crate::memory::cstr_byte_at(line, startcol as usize)))
                 } {}
                 startcol += 1;
                 insexp().compl_col += startcol;
@@ -6686,7 +6686,7 @@ fn quote_meta(mut dest: *mut c_char, mut src: *const c_char, mut len: c_int) -> 
             len -= 1;
             len >= 0
         } {
-            let ch = *src as u8;
+            let ch = crate::memory::cstr_first_byte(src);
             let quote = match ch {
                 b'.' | b'*' | b'[' => {
                     if ctrl_x_mode_dictionary() || ctrl_x_mode_thesaurus() {

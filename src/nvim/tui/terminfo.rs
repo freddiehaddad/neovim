@@ -3113,7 +3113,7 @@ pub fn terminfo_fmt(
                     }
                 }
                 b'p' => {
-                    let sc = *str_ as u8;
+                    let sc = crate::memory::cstr_first_byte(str_);
                     if !(b'1'..=b'9').contains(&sc) {
                         continue;
                     }
@@ -3126,7 +3126,7 @@ pub fn terminfo_fmt(
                 }
                 b'P' => {
                     pop(&mut val, None, &mut stack);
-                    let sc = *str_ as u8;
+                    let sc = crate::memory::cstr_first_byte(str_);
                     if sc.is_ascii_lowercase() {
                         dnums[(sc - b'a') as usize] = val;
                     } else if sc.is_ascii_uppercase() {
@@ -3134,7 +3134,7 @@ pub fn terminfo_fmt(
                     }
                 }
                 b'g' => {
-                    let sc = *str_ as u8;
+                    let sc = crate::memory::cstr_first_byte(str_);
                     if sc.is_ascii_lowercase() {
                         if push(dnums[(sc - b'a') as usize], None, &mut stack) != 0 {
                             return 0;
@@ -3150,7 +3150,7 @@ pub fn terminfo_fmt(
                     (*params.add(1)).num += 1;
                 }
                 b'\'' => {
-                    let ch = *str_ as u8;
+                    let ch = crate::memory::cstr_first_byte(str_);
                     str_ = str_.add(1);
                     if push(c_long::from(ch), None, &mut stack) != 0 {
                         return 0;
@@ -3164,8 +3164,8 @@ pub fn terminfo_fmt(
                 }
                 b'{' => {
                     val = 0;
-                    while (*str_ as u8).is_ascii_digit() {
-                        val = (val * 10) + c_long::from((*str_ as u8) - b'0');
+                    while (crate::memory::cstr_first_byte(str_)).is_ascii_digit() {
+                        val = (val * 10) + c_long::from((crate::memory::cstr_first_byte(str_)) - b'0');
                         str_ = str_.add(1);
                     }
                     if push(val, None, &mut stack) != 0 {

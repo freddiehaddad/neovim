@@ -3268,7 +3268,7 @@ pub fn ExpandBufnames(
         let mut regmatch: regmatch_T = regmatch_T::new();
 
         if !fuzzy {
-            let patc: *const c_char = if crate::memory::cstr_first_byte(pat) == b'^' && *pat.add(1) != NUL {
+            let patc: *const c_char = if crate::memory::cstr_first_byte(pat) == b'^' && crate::memory::cstr_byte_at(pat, 1) != 0 {
                 let pc = cstr_to_cstring(pat.add(1));
                 let ptr = pc.as_ptr();
                 patc_owned = Some(pc);
@@ -4421,7 +4421,7 @@ pub fn fname_expand(
 
 /// Return true if `buf` is a prompt buffer.
 pub fn bt_prompt(buf: Option<&buf_T>) -> bool {
-    unsafe { buf.is_some() && *buf.unwrap().b_p_bt == b'p' as c_char }
+     buf.is_some() && crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'p'
 }
 
 /// Return true if `buf` is the `|cmdwin|` scratch buffer.
@@ -4664,8 +4664,8 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
                     break;
                 }
                 if (crate::memory::cstr_first_byte(s) == b'v' || crate::memory::cstr_first_byte(s) == b'V')
-                    && *s.add(1) == b'i' as c_char
-                    && *s.add(2) == b'm' as c_char
+                    && crate::memory::cstr_byte_at(s, 1) == b'i'
+                    && crate::memory::cstr_byte_at(s, 2) == b'm'
                 {
                     let s3 = *s.add(3);
                     if s3 == b'<' as c_char || s3 == b'=' as c_char || s3 == b'>' as c_char {
@@ -4675,7 +4675,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
                     }
                     let mut vers: i64 = 0;
                     if !try_getdigits(&raw mut e, &mut vers) {
-                        prev = *s as u8 as c_int;
+                        prev = crate::memory::cstr_first_byte(s) as c_int;
                         s = s.add(1);
                         continue;
                     }
@@ -4694,7 +4694,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
                     }
                 }
             }
-            prev = *s as u8 as c_int;
+            prev = crate::memory::cstr_first_byte(s) as c_int;
             s = s.add(1);
         }
 
@@ -4710,7 +4710,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
         }
 
         let len = line_end.offset_from(s) as usize;
-        let linecopy_cstr = cstr_from_bytes(std::slice::from_raw_parts(s.cast::<u8>(), len));
+        let linecopy_cstr = cstr_from_bytes(crate::memory::cstr_slice(s, len));
         let mut linecopy_vec: Vec<c_char> = linecopy_cstr
             .into_bytes_with_nul()
             .into_iter()
@@ -4730,7 +4730,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
 
             e = s;
             while crate::memory::cstr_first_byte(e) != b':' && !crate::memory::cstr_is_empty(e) {
-                if crate::memory::cstr_first_byte(e) == b'\\' && *e.add(1) == b':' as c_char {
+                if crate::memory::cstr_first_byte(e) == b'\\' && crate::memory::cstr_byte_at(e, 1) == b':' {
                     ptr::copy(e.add(1), e, line_end.offset_from(e.add(1)) as usize + 1);
                     line_end = line_end.sub(1);
                 }
@@ -4745,7 +4745,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
                     break;
                 }
                 end = true;
-                s = s.add(if *s.add(2) == b' ' as c_char { 3 } else { 4 });
+                s = s.add(if crate::memory::cstr_byte_at(s, 2) == b' ' { 3 } else { 4 });
             }
             *e = NUL;
 
@@ -4782,56 +4782,56 @@ pub fn bt_help(buf: Option<&buf_T>) -> bool {
 
 /// Return true if `buf` is a normal buffer, `'buftype'` is empty.
 pub fn bt_normal(buf: Option<&buf_T>) -> bool {
-    unsafe { buf.is_some() && *buf.unwrap().b_p_bt == NUL }
+     buf.is_some() && crate::memory::cstr_is_empty(buf.unwrap().b_p_bt)
 }
 
 /// Return true if `buf` is the quickfix buffer.
 pub fn bt_quickfix(buf: Option<&buf_T>) -> bool {
-    unsafe { buf.is_some() && *buf.unwrap().b_p_bt == b'q' as c_char }
+     buf.is_some() && crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'q'
 }
 
 /// Return true if `buf` is a terminal buffer.
 pub fn bt_terminal(buf: Option<&buf_T>) -> bool {
-    unsafe { buf.is_some() && *buf.unwrap().b_p_bt == b't' as c_char }
+     buf.is_some() && crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b't'
 }
 
 /// Return true if `buf` is a `"nofile"`, `"acwrite"`, `"terminal"` or `"prompt"` buffer.
 pub fn bt_nofilename(buf: Option<&buf_T>) -> bool {
-    unsafe {
+     {
         buf.is_some()
-            && ((*buf.unwrap().b_p_bt == b'n' as c_char && *buf.unwrap().b_p_bt.add(2) == b'f' as c_char)
-                || *buf.unwrap().b_p_bt == b'a' as c_char
+            && ((crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'n' && crate::memory::cstr_byte_at(buf.unwrap().b_p_bt, 2) == b'f')
+                || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'a'
                 || !buf.unwrap().terminal.is_null()
-                || *buf.unwrap().b_p_bt == b'p' as c_char)
+                || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'p')
     }
 }
 
 fn bt_nofileread(buf: Option<&buf_T>) -> bool {
-    unsafe {
+     {
         buf.is_some()
-            && ((*buf.unwrap().b_p_bt == b'n' as c_char && *buf.unwrap().b_p_bt.add(2) == b'f' as c_char)
-                || *buf.unwrap().b_p_bt == b't' as c_char
-                || *buf.unwrap().b_p_bt == b'q' as c_char
-                || *buf.unwrap().b_p_bt == b'p' as c_char)
+            && ((crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'n' && crate::memory::cstr_byte_at(buf.unwrap().b_p_bt, 2) == b'f')
+                || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b't'
+                || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'q'
+                || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'p')
     }
 }
 
 /// Return true if `buf` has `'buftype'` set to `"nofile"`.
 pub fn bt_nofile(buf: Option<&buf_T>) -> bool {
-    unsafe {
+     {
         buf.is_some()
-            && *buf.unwrap().b_p_bt == b'n' as c_char
-            && *buf.unwrap().b_p_bt.add(2) == b'f' as c_char
+            && crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'n'
+            && crate::memory::cstr_byte_at(buf.unwrap().b_p_bt, 2) == b'f'
     }
 }
 
 /// Return true if `buf` is a `"nowrite"`, `"nofile"`, `"terminal"` or `"prompt"` buffer.
 pub fn bt_dontwrite(buf: Option<&buf_T>) -> bool {
-    unsafe {
+     {
         buf.is_some()
-            && (*buf.unwrap().b_p_bt == b'n' as c_char
+            && (crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'n'
                 || !buf.unwrap().terminal.is_null()
-                || *buf.unwrap().b_p_bt == b'p' as c_char)
+                || crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'p')
     }
 }
 
@@ -4847,8 +4847,8 @@ pub fn bt_dontwrite_msg(buf: Option<&buf_T>) -> bool {
 
 /// Return true if the buffer should be hidden, according to `'hidden'`, `":hide"` and `'bufhidden'`.
 pub fn buf_hide(buf: &buf_T) -> bool {
-    unsafe {
-        match *buf.b_p_bh as u8 {
+     {
+        match crate::memory::cstr_first_byte(buf.b_p_bh) {
             b'u' | b'w' | b'd' => false,
             b'h' => true,
             _ => opt_vars().p_hid != 0 || (g_st().cmdmod.cmod_flags & CMOD_HIDE) != 0,

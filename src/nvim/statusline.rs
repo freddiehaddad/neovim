@@ -1433,7 +1433,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             false
         };
 
-        if crate::memory::cstr_first_byte(fmt) == b'%' && *fmt.add(1) == b'!' as c_char {
+        if crate::memory::cstr_first_byte(fmt) == b'%' && crate::memory::cstr_byte_at(fmt, 1) == b'!' {
             let mut tv = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: 0,
@@ -1720,7 +1720,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 stl_items!()[stl_st().curitem as usize].start = out_p;
                 stl_items!()[stl_st().curitem as usize].cmd = if !tabtab.is_null() {
                     let slice =
-                        std::slice::from_raw_parts(t.cast::<u8>(), fmt_p.offset_from(t) as usize);
+                        crate::memory::cstr_slice(t, fmt_p.offset_from(t) as usize);
                     Some(std::ffi::CString::new(slice).unwrap())
                 } else {
                     None
@@ -1783,7 +1783,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             }
 
             if *fmt_p == STL_HIGHLIGHT {
-                if *fmt_p.add(1) == b'(' as c_char {
+                if crate::memory::cstr_byte_at(fmt_p, 1) == b'(' {
                     fmt_p = fmt_p.add(2);
                     stl_groupitems!()[groupdepth] = stl_st().curitem;
                     groupdepth += 1;
@@ -1792,7 +1792,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     stl_items!()[stl_st().curitem as usize].minwid = curr_hl_pos;
                     stl_st().curitem += 1;
                     continue;
-                } else if *fmt_p.add(1) == b')' as c_char {
+                } else if crate::memory::cstr_byte_at(fmt_p, 1) == b')' {
                     fmt_p = fmt_p.add(2);
                     if groupdepth < 1 {
                         continue;
@@ -1827,7 +1827,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
             }
 
-            if vim_strchr(STL_ALL, c_int::from(*fmt_p as u8)).is_null() {
+            if vim_strchr(STL_ALL, c_int::from(crate::memory::cstr_first_byte(fmt_p))).is_null() {
                 if crate::memory::cstr_is_empty(fmt_p) {
                     break;
                 }
@@ -2132,7 +2132,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s", ft);
                         let mut t = buf_tmp.as_mut_ptr();
                         while !crate::memory::cstr_is_empty(t) {
-                            *t = (*t as u8).to_ascii_uppercase() as c_char;
+                            *t = (crate::memory::cstr_first_byte(t)).to_ascii_uppercase() as c_char;
                             t = t.add(1);
                         }
                         str = buf_tmp.as_mut_ptr();
@@ -2283,7 +2283,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 let mut t = str;
                 if itemisflag {
                     if !crate::memory::cstr_is_empty(t)
-                        && *t.add(1) != NUL
+                        && crate::memory::cstr_byte_at(t, 1) != 0
                         && ((!prevchar_isitem && crate::memory::cstr_first_byte(t) == b',')
                             || (prevchar_isflag && crate::memory::cstr_first_byte(t) == b' '))
                     {

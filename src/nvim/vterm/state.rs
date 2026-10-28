@@ -574,7 +574,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
 
         let mut encoding = if state.gsingle_set != 0 {
             &raw mut state.encoding[state.gsingle_set as usize]
-        } else if ((*bytes.add(eaten) as u8) & 0x80) == 0 {
+        } else if ((crate::memory::cstr_byte_at(bytes, eaten)) & 0x80) == 0 {
             &raw mut state.encoding[state.gl_set as usize]
         } else if ((&mut *state.vt).mode & VT_MODE_UTF8) != 0 {
             &raw mut state.encoding_utf8
@@ -591,7 +591,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
         } else {
             maxpoints
         };
-        let bytes_slice = std::slice::from_raw_parts(bytes.cast::<u8>(), len);
+        let bytes_slice = crate::memory::cstr_slice(bytes, len);
         (*encoding).decode(
             &mut codepoints[..cp_limit],
             &mut npoints,
@@ -849,12 +849,12 @@ fn savecursor(state: &mut VTermStateFull, save: c_int) {
 fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_int {
     unsafe {
         let state = &mut *state;
-        match *bytes as u8 {
+        match crate::memory::cstr_first_byte(bytes) {
             b' ' => {
                 if len != 2 {
                     return 0;
                 }
-                match *bytes.add(1) as u8 {
+                match crate::memory::cstr_byte_at(bytes, 1) {
                     b'F' => {
                         // S7C1T
                         (&mut *state.vt).mode &= !VT_MODE_CTRL8BIT;
@@ -871,7 +871,7 @@ fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_
                 if len != 2 {
                     return 0;
                 }
-                match *bytes.add(1) as u8 {
+                match crate::memory::cstr_byte_at(bytes, 1) {
                     b'3' => {
                         // DECDHL top
                         if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
@@ -915,7 +915,7 @@ fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_
                 if len != 2 {
                     return 0;
                 }
-                let setnum = ((*bytes as u8) - 0x28) as usize;
+                let setnum = ((crate::memory::cstr_first_byte(bytes)) - 0x28) as usize;
                 if let Some(newenc) =
                     vterm_lookup_encoding(VTermEncodingType::ENC_SINGLE_94, *bytes.add(1))
                 {
@@ -1256,9 +1256,9 @@ fn on_csi(
             if *leader_ptr.add(1) != 0 {
                 return 0;
             }
-            match *leader_ptr as u8 {
+            match crate::memory::cstr_first_byte(leader_ptr) {
                 b'?' | b'>' | b'<' | b'=' => {
-                    leader_byte = c_int::from(*leader_ptr as u8);
+                    leader_byte = c_int::from(crate::memory::cstr_first_byte(leader_ptr));
                 }
                 _ => return 0,
             }
@@ -1268,9 +1268,9 @@ fn on_csi(
             if *intermed_ptr.add(1) != 0 {
                 return 0;
             }
-            match *intermed_ptr as u8 {
+            match crate::memory::cstr_first_byte(intermed_ptr) {
                 b' ' | b'!' | b'"' | b'$' | b'\'' => {
-                    intermed_byte = c_int::from(*intermed_ptr as u8);
+                    intermed_byte = c_int::from(crate::memory::cstr_first_byte(intermed_ptr));
                 }
                 _ => return 0,
             }
@@ -2015,7 +2015,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
         }
 
         while tmp_selection_state(state) == 0 && frag_len != 0 {
-            match *frag_str as u8 {
+            match crate::memory::cstr_first_byte(frag_str) {
                 b'c' => {
                     let m = tmp_selection_mask(state) | VTERM_SELECTION_CLIPBOARD;
                     set_tmp_selection_mask(state, m);
@@ -2033,7 +2033,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
                     set_tmp_selection_mask(state, m);
                 }
                 b'0'..=b'7' => {
-                    let bit = VTERM_SELECTION_CUT0 << ((*frag_str as u8) - b'0');
+                    let bit = VTERM_SELECTION_CUT0 << ((crate::memory::cstr_first_byte(frag_str)) - b'0');
                     let m = tmp_selection_mask(state) | bit;
                     set_tmp_selection_mask(state, m);
                 }
@@ -2074,7 +2074,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
         }
 
         if tmp_selection_state(state) == SELECTION_SELECTED {
-            if (*frag_str as u8) == b'?' {
+            if (crate::memory::cstr_first_byte(frag_str)) == b'?' {
                 set_tmp_selection_state(state, SELECTION_QUERY);
             } else {
                 set_tmp_selection_state(state, SELECTION_SET_INITIAL);
@@ -2112,7 +2112,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
             }
 
             while (buflen - bufcur) >= 3 && frag_len != 0 {
-                if (*frag_str as u8) == b'=' {
+                if (crate::memory::cstr_first_byte(frag_str)) == b'=' {
                     if n == 2 {
                         (&mut state.selection.buffer)[bufcur] = ((x >> 4) & 0xff) as c_char;
                         bufcur += 1;
@@ -2123,14 +2123,14 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
                         bufcur += 2;
                     }
 
-                    while frag_len != 0 && (*frag_str as u8) == b'=' {
+                    while frag_len != 0 && (crate::memory::cstr_first_byte(frag_str)) == b'=' {
                         frag_str = frag_str.add(1);
                         frag_len -= 1;
                     }
 
                     n = 0;
                 } else {
-                    let b = unbase64one(*frag_str as u8);
+                    let b = unbase64one(crate::memory::cstr_first_byte(frag_str));
                     if b == 0xff {
                         set_tmp_selection_state(state, SELECTION_INVALID);
                         let err_frag = VTermStringFragment::new(
@@ -2236,7 +2236,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
             i += 1;
         }
         while i < 3 && frag_len != 0 {
-            *tmp.add(i) = *frag_str as u8;
+            *tmp.add(i) = crate::memory::cstr_first_byte(frag_str);
             i += 1;
             frag_str = frag_str.add(1);
             frag_len -= 1;
@@ -2327,7 +2327,7 @@ fn on_dcs(
 ) -> c_int {
     unsafe {
         let state = &mut *state;
-        if commandlen == 2 && (*command as u8) == b'$' && (*command.add(1) as u8) == b'q' {
+        if commandlen == 2 && (crate::memory::cstr_first_byte(command)) == b'$' && (crate::memory::cstr_byte_at(command, 1)) == b'q' {
             request_status_string(state, frag);
             return 1;
         } else if let Some(fallbacks) = state.fallbacks

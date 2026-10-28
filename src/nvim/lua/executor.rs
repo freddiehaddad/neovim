@@ -779,7 +779,7 @@ fn nlua_luv_thread_common_cfpcall(
             let error = nlua_get_error(lstate, &mut len);
             let ev = Event::NluaLuvError {
                 msg: (!error.is_null()).then(|| {
-                    let slice = std::slice::from_raw_parts(error.cast::<u8>(), len);
+                    let slice = crate::memory::cstr_slice(error, len);
                     let end = slice.iter().position(|&b| b == 0).unwrap_or(len);
                     std::ffi::CString::new(&slice[..end]).unwrap()
                 }),
@@ -1574,7 +1574,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
 
             if input.v_type != VarType::VAR_STRING
                 || input.vval.v_string().is_null()
-                || *input.vval.v_string() == NUL
+                || crate::memory::cstr_is_empty(input.vval.v_string())
                 || crate::memory::cstr_as_bytes(input.vval.v_string()) == b"cont"
             {
                 tv_clear(&mut input);
@@ -2321,7 +2321,7 @@ pub fn ex_lua(eap: &mut exarg_T) {
             return;
         }
 
-        let code_cstr = if eap.cmdidx == CMD_equal || *raw_cstr.as_ptr() == b'=' as c_char {
+        let code_cstr = if eap.cmdidx == CMD_equal || crate::memory::cstr_first_byte(raw_cstr.as_ptr()) == b'=' {
             let off: usize = if eap.cmdidx == CMD_equal { 0 } else { 1 };
             let body =
                 std::slice::from_raw_parts(raw_cstr.as_ptr().add(off).cast::<u8>(), len - off);
@@ -2549,9 +2549,7 @@ pub fn nlua_expand_pat(xp: &mut expand_T) {
                         all_strings = false;
                         break;
                     }
-                    (*er).push(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-                        v.data.string().data.cast::<u8>(),
-                        v.data.string().size,
+                    (*er).push(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(v.data.string().data, v.data.string().size,
                     )));
                 }
 

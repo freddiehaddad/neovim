@@ -236,7 +236,7 @@ pub fn vterm_input_write(vt: &mut VTerm, bytes: *const c_char, len: usize) -> us
         };
 
         while pos < len {
-            let mut c = *bytes.add(pos) as u8;
+            let mut c = crate::memory::cstr_byte_at(bytes, pos);
             let mut c1_allowed = (vt.mode & 0x01) == 0;
 
             if c == 0x00 || c == 0x7f {

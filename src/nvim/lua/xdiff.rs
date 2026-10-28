@@ -191,7 +191,7 @@ pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[mmbuffer_t]) -> c_int {
     for chunk in mb {
         if chunk.size > 0 && !chunk.ptr.is_null() {
             let slice =
-                unsafe { std::slice::from_raw_parts(chunk.ptr.cast::<u8>(), chunk.size as usize) };
+                 { crate::memory::cstr_slice(chunk.ptr, chunk.size as usize) };
             out.extend_from_slice(slice);
         }
     }

@@ -447,7 +447,7 @@ pub fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
         if buf.is_empty() {
             None
         } else {
-            let bytes = std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len());
+            let bytes = crate::memory::cstr_slice(buf.as_ptr(), buf.len());
             Some(crate::memory::cstr_from_bytes(bytes))
         }
     }
@@ -768,7 +768,7 @@ pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int) {
         } {
             let start = s;
             while *s >= b' ' as c_char
-                && (*s as u8) < DEL as u8
+                && (crate::memory::cstr_first_byte(s)) < DEL as u8
                 && (len < 0 || s.offset_from(str_) < len as isize)
             {
                 s = s.add(1);
@@ -818,7 +818,7 @@ pub fn redo_append_lit(str_: *const c_char, len: c_int) {
 pub fn sb_add_spec(buf: &mut Vec<c_char>, mut s: *const c_char) {
     unsafe {
         while !crate::memory::cstr_is_empty(s) {
-            if *s as u8 == K_SPECIAL && *s.add(1) != NUL as c_char && *s.add(2) != NUL as c_char {
+            if crate::memory::cstr_first_byte(s) == K_SPECIAL && crate::memory::cstr_byte_at(s, 1) != 0 && crate::memory::cstr_byte_at(s, 2) != 0 {
                 buf.extend_from_slice(std::slice::from_raw_parts(s, 3));
                 s = s.add(3);
             } else {
@@ -876,7 +876,7 @@ pub fn stuffReadbuffLen(s: impl crate::strings::IntoCCharPtr, len: isize) {
 pub fn stuffReadbuffSpecial(mut s: *const c_char) {
     unsafe {
         while !crate::memory::cstr_is_empty(s) {
-            if *s as u8 == K_SPECIAL && *s.add(1) != NUL as c_char && *s.add(2) != NUL as c_char {
+            if crate::memory::cstr_first_byte(s) == K_SPECIAL && crate::memory::cstr_byte_at(s, 1) != 0 && crate::memory::cstr_byte_at(s, 2) != 0 {
                 stuffReadbuffLen(s, 3);
                 s = s.add(3);
             } else {
@@ -905,8 +905,8 @@ pub fn stuffescaped(mut arg: *const c_char, literally: bool) {
     unsafe {
         while !crate::memory::cstr_is_empty(arg) {
             let start = arg;
-            while (*arg >= b' ' as c_char && (*arg as u8) < DEL as u8)
-                || (*arg as u8 == K_SPECIAL && !literally)
+            while (*arg >= b' ' as c_char && (crate::memory::cstr_first_byte(arg)) < DEL as u8)
+                || (crate::memory::cstr_first_byte(arg) == K_SPECIAL && !literally)
             {
                 arg = arg.add(1);
             }
@@ -973,11 +973,11 @@ pub fn start_redo_ins() -> bool {
         let mut p = (*body).as_ptr();
         let end = p.add((*body).len());
         while p < end {
-            if *p as u8 == K_SPECIAL && end.offset_from(p) >= 3 {
+            if crate::memory::cstr_first_byte(p) == K_SPECIAL && end.offset_from(p) >= 3 {
                 p = p.add(3);
                 continue;
             }
-            if !vim_strchr(c"AaIiRrOo", *p as u8 as c_int).is_null() {
+            if !vim_strchr(c"AaIiRrOo", crate::memory::cstr_first_byte(p) as c_int).is_null() {
                 if crate::memory::cstr_first_byte(p) == b'O' || crate::memory::cstr_first_byte(p) == b'o' {
                     add_buff(&mut inp_st().readbuf2, NL_STR, -1);
                 }
@@ -1544,9 +1544,7 @@ pub fn open_scriptin(scriptin_name: *mut c_char) -> bool {
                 uv_strerror(error),
             );
             if n > 0 {
-                let slice = std::slice::from_raw_parts(
-                    errbuf.as_ptr().cast::<u8>(),
-                    (n as usize).min(errbuf.len() - 1),
+                let slice = crate::memory::cstr_slice(errbuf.as_ptr(), (n as usize).min(errbuf.len() - 1),
                 );
                 let _ = std::io::Write::write_all(&mut std::io::stderr(), slice);
             }
@@ -2857,7 +2855,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                             let p = tb_buf_ptr()
                                 .add((g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize)
                                 .cast::<c_char>();
-                            if utf_ptr2cells(p) == 1 && (*p as u8) < 128 {
+                            if utf_ptr2cells(p) == 1 && (crate::memory::cstr_first_byte(p)) < 128 {
                                 putcmdline(*p, false);
                                 showing_partial = true;
                             }
@@ -3306,7 +3304,7 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
         while s < str_end {
             let start = s;
             while s < str_end
-                && *s as u8 != K_SPECIAL
+                && crate::memory::cstr_first_byte(s) != K_SPECIAL
                 && !crate::memory::cstr_is_empty(s)
                 && *s != NL as c_char
                 && !(crlf && *s == CAR as c_char)
@@ -3326,7 +3324,7 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
             }
 
             if s < str_end {
-                let mut c = *s as u8 as c_int;
+                let mut c = crate::memory::cstr_first_byte(s) as c_int;
                 s = s.add(1);
                 if crlf && c == CAR {
                     if s < str_end && *s == NL as c_char {

@@ -248,7 +248,7 @@ unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> c_int {
 
         let mut idx: c_int = 1;
         let mut i: usize = 0;
-        while i < s1_len && *s1.add(i) != NUL {
+        while i < s1_len && crate::memory::cstr_byte_at(s1, i) != 0 {
             let clen = utf_ptr2len_len(s1.add(i), (s1_len - i) as c_int) as usize;
             lua_pushinteger(lstate, (i as lua_Integer) + 1);
             lua_rawseti(lstate, -2, idx);
@@ -517,8 +517,8 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> c_int {
         assert_eq!(*s2.add(s2_len), NUL);
 
         loop {
-            let slice1 = std::slice::from_raw_parts(s1.cast::<u8>(), s1_len);
-            let slice2 = std::slice::from_raw_parts(s2.cast::<u8>(), s2_len);
+            let slice1 = crate::memory::cstr_slice(s1, s1_len);
+            let slice2 = crate::memory::cstr_slice(s2, s2_len);
             let nul1 = slice1.iter().position(|&b| b == 0);
             let nul2 = slice2.iter().position(|&b| b == 0);
             ret = mb_stricmp(s1, s2);

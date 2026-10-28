@@ -796,9 +796,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                             )
                             && !tagp2.user_data.is_null()
                         {
-                            let ud_slice = std::slice::from_raw_parts(
-                                tagp2.user_data.cast::<u8>(),
-                                tagp2.user_data_end.offset_from(tagp2.user_data) as usize,
+                            let ud_slice = crate::memory::cstr_slice(tagp2.user_data, tagp2.user_data_end.offset_from(tagp2.user_data) as usize,
                             );
                             (*tagstack.add(tagstackidx as usize)).user_data =
                                 Some(std::ffi::CString::new(ud_slice).unwrap());
@@ -1160,7 +1158,7 @@ fn tag_strnicmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::
     let mut s2 = s2.into_c_char_ptr();
     unsafe {
         while len > 0 {
-            let i = toupper_asc(c_int::from(*s1 as u8)) - toupper_asc(c_int::from(*s2 as u8));
+            let i = toupper_asc(c_int::from(crate::memory::cstr_first_byte(s1))) - toupper_asc(c_int::from(crate::memory::cstr_first_byte(s2)));
             if i != 0 {
                 return i;
             }
@@ -1182,14 +1180,14 @@ fn prepare_pats(pats: &mut pat_T, has_re: bool) {
         if has_re {
             if crate::memory::cstr_first_byte(pats.pat) == b'^' {
                 pats.head = pats.pat.add(1);
-            } else if crate::memory::cstr_first_byte(pats.pat) == b'\\' && *pats.pat.add(1) == b'<' as c_char {
+            } else if crate::memory::cstr_first_byte(pats.pat) == b'\\' && crate::memory::cstr_byte_at(pats.pat, 1) == b'<' {
                 pats.head = pats.pat.add(2);
             }
             if pats.head == pats.pat {
                 pats.headlen = 0;
             } else {
                 pats.headlen = 0;
-                while *pats.head.add(pats.headlen as usize) != NUL {
+                while crate::memory::cstr_byte_at(pats.head, pats.headlen as usize) != 0 {
                     let magic_chars = if opt_vars().p_magic != 0 {
                         c".[~*\\$".as_ptr()
                     } else {
@@ -1197,7 +1195,7 @@ fn prepare_pats(pats: &mut pat_T, has_re: bool) {
                     };
                     if !vim_strchr(
                         magic_chars,
-                        *pats.head.add(pats.headlen as usize) as u8 as c_int,
+                        crate::memory::cstr_byte_at(pats.head, pats.headlen as usize) as c_int,
                     )
                     .is_null()
                     {
@@ -1231,7 +1229,7 @@ fn tagfunc_cmd_kind(cmd: *mut c_char) -> tagcmd_T {
         }
         if crate::memory::cstr_first_byte(cmd) == b'/' || crate::memory::cstr_first_byte(cmd) == b'?' {
             let end = skip_regexp(cmd.add(1), *cmd as c_int, 0);
-            return if *end == *cmd && *end.add(1) == NUL {
+            return if *end == *cmd && crate::memory::cstr_byte_at(end, 1) == 0 {
                 tagcmd_T::TAGCMD_ADDRESS
             } else {
                 tagcmd_T::TAGCMD_INVALID
@@ -1732,11 +1730,11 @@ fn findtags_hdr_parse(st: &mut findtags_state_T) -> bool {
         }
 
         if crate::memory::cstr_prefix_bytes(lbuf, 18) == &b"!_TAG_FILE_SORTED\t"[..18] {
-            st.tag_file_sorted = *lbuf.add(18) as u8 as c_int;
+            st.tag_file_sorted = crate::memory::cstr_byte_at(lbuf, 18) as c_int;
         }
         if crate::memory::cstr_prefix_bytes(lbuf, 20) == &b"!_TAG_FILE_ENCODING\t"[..20] {
             let mut p = lbuf.add(20);
-            while (*p as u8) > b' ' && (*p as u8) < 127 {
+            while (crate::memory::cstr_first_byte(p)) > b' ' && (crate::memory::cstr_first_byte(p)) < 127 {
                 p = p.add(1);
             }
             *p = NUL;
@@ -1830,9 +1828,9 @@ fn findtags_parse_line(
             }
 
             if st.state == tagsearch_state_T::TS_BINARY {
-                let mut i = *tagpp.tagname as u8 as c_int;
+                let mut i = crate::memory::cstr_first_byte(tagpp.tagname) as c_int;
                 if margs.sortic {
-                    i = toupper_asc(c_int::from(*tagpp.tagname as u8));
+                    i = toupper_asc(c_int::from(crate::memory::cstr_first_byte(tagpp.tagname)));
                 }
                 if i < sinfo_p.low_char || i > sinfo_p.high_char {
                     margs.sort_error = true;
@@ -1862,9 +1860,9 @@ fn findtags_parse_line(
                     if sinfo_p.curr_offset < sinfo_p.high_offset {
                         sinfo_p.low_offset = sinfo_p.curr_offset;
                         if margs.sortic {
-                            sinfo_p.low_char = toupper_asc(c_int::from(*tagpp.tagname as u8));
+                            sinfo_p.low_char = toupper_asc(c_int::from(crate::memory::cstr_first_byte(tagpp.tagname)));
                         } else {
-                            sinfo_p.low_char = *tagpp.tagname as u8 as c_int;
+                            sinfo_p.low_char = crate::memory::cstr_first_byte(tagpp.tagname) as c_int;
                         }
                         return tagmatch_status_T::TAG_MATCH_NEXT;
                     }
@@ -1872,9 +1870,9 @@ fn findtags_parse_line(
                 if tagcmp > 0 && sinfo_p.curr_offset != sinfo_p.high_offset {
                     sinfo_p.high_offset = sinfo_p.curr_offset;
                     if margs.sortic {
-                        sinfo_p.high_char = toupper_asc(c_int::from(*tagpp.tagname as u8));
+                        sinfo_p.high_char = toupper_asc(c_int::from(crate::memory::cstr_first_byte(tagpp.tagname)));
                     } else {
-                        sinfo_p.high_char = *tagpp.tagname as u8 as c_int;
+                        sinfo_p.high_char = crate::memory::cstr_first_byte(tagpp.tagname) as c_int;
                     }
                     return tagmatch_status_T::TAG_MATCH_NEXT;
                 }
@@ -2329,7 +2327,7 @@ pub fn find_tags(
         {
             let keep = (st.orgpat.len - 3) as usize;
             let cstr =
-                std::ffi::CString::new(std::slice::from_raw_parts(pat.cast::<u8>(), keep)).unwrap();
+                std::ffi::CString::new(crate::memory::cstr_slice(pat, keep)).unwrap();
             st.help_lang_find = Some([
                 *pat.add((st.orgpat.len - 2) as usize),
                 *pat.add((st.orgpat.len - 1) as usize),
@@ -3095,8 +3093,8 @@ fn find_extra(pp: *mut *mut c_char) -> bool {
             if str_.is_null()
                 || crate::memory::cstr_first_byte(str_) != b';'
                 || !(ascii_isdigit(*str_.add(1))
-                    || *str_.add(1) == b'/' as c_char
-                    || *str_.add(1) == b'?' as c_char)
+                    || crate::memory::cstr_byte_at(str_, 1) == b'/'
+                    || crate::memory::cstr_byte_at(str_, 1) == b'?')
             {
                 break;
             }
@@ -3104,7 +3102,7 @@ fn find_extra(pp: *mut *mut c_char) -> bool {
             first_char = *str_;
         }
 
-        if !str_.is_null() && { let _p = str_; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b";\""[..2] } {
+        if !str_.is_null() && { let _p = str_; crate::memory::xstrnlen(_p, 2) == 2 && crate::memory::cstr_slice(_p, 2) == &b";\""[..2] } {
             *pp = str_;
             return true;
         }
@@ -3290,8 +3288,8 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
                     } else if !ascii_iswhite(*p) {
                         let n = p;
                         while !crate::memory::cstr_is_empty(p)
-                            && (*p as u8) >= b' '
-                            && (*p as u8) < 127
+                            && (crate::memory::cstr_first_byte(p)) >= b' '
+                            && (crate::memory::cstr_first_byte(p)) < 127
                             && crate::memory::cstr_first_byte(p) != b':'
                         {
                             p = p.add(1);
@@ -3300,7 +3298,7 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
                         if crate::memory::cstr_first_byte(p) == b':' && len > 0 {
                             p = p.add(1);
                             let s = p;
-                            while !crate::memory::cstr_is_empty(p) && (*p as u8) >= b' ' {
+                            while !crate::memory::cstr_is_empty(p) && (crate::memory::cstr_first_byte(p)) >= b' ' {
                                 p = p.add(1);
                             }
                             *n.add(len as usize) = NUL;
@@ -3309,7 +3307,7 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
                             }
                             *n.add(len as usize) = b':' as c_char;
                         } else {
-                            while !crate::memory::cstr_is_empty(p) && (*p as u8) >= b' ' {
+                            while !crate::memory::cstr_is_empty(p) && (crate::memory::cstr_first_byte(p)) >= b' ' {
                                 p = p.add(1);
                             }
                         }

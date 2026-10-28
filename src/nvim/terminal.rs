@@ -560,20 +560,20 @@ fn schedule_termrequest(term: &mut Terminal) {
 fn parse_osc8(str_: *const c_char, attr: &mut c_int) -> c_int {
     unsafe {
         let mut i: usize = 0;
-        while *str_.add(i) != NUL {
-            if *str_.add(i) == b';' as c_char {
+        while crate::memory::cstr_byte_at(str_, i) != 0 {
+            if crate::memory::cstr_byte_at(str_, i) == b';' {
                 break;
             }
             i += 1;
         }
 
-        if *str_.add(i) != b';' as c_char {
+        if crate::memory::cstr_byte_at(str_, i) != b';' {
             return 0;
         }
 
         i += 1;
 
-        if *str_.add(i) == NUL {
+        if crate::memory::cstr_byte_at(str_, i) == 0 {
             *attr = 0;
             return 1;
         }
@@ -1614,7 +1614,7 @@ pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCha
             let mut crlf_data: Vec<c_char> = Vec::with_capacity(len);
             for i in 0..len {
                 let b = *data.add(i);
-                if b == b'\n' as c_char && (i == 0 || *data.add(i - 1) != b'\r' as c_char) {
+                if b == b'\n' as c_char && (i == 0 || crate::memory::cstr_byte_at(data, i - 1) != b'\r') {
                     crlf_data.push(b'\r' as c_char);
                 }
                 crlf_data.push(b);
@@ -2086,9 +2086,7 @@ fn term_selection_set(
         }
 
         if frag.final_() {
-            let bytes = std::slice::from_raw_parts(
-                term.selection.as_ptr().cast::<u8>(),
-                term.selection.len(),
+            let bytes = crate::memory::cstr_slice(term.selection.as_ptr(), term.selection.len(),
             );
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             let data = std::ffi::CString::new(&bytes[..end]).unwrap();

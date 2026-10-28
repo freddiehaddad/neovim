@@ -840,7 +840,7 @@ pub fn update_search_hl(
                 idx += 1;
             }
         }
-        if *(*line).add(col as usize) == NUL && (wp.w_onebuf_opt.wo_list != 0 && !lcs_eol_todo) {
+        if crate::memory::cstr_byte_at(*line, col as usize) == 0 && (wp.w_onebuf_opt.wo_list != 0 && !lcs_eol_todo) {
             search_attr = 0;
         }
         search_attr
@@ -1286,9 +1286,7 @@ pub fn ex_match(eap: &mut exarg_T) {
                 let mut p = skiptowhite(arg);
                 if eap.skip == 0 {
                     g = Some(
-                        std::ffi::CString::new(std::slice::from_raw_parts(
-                            arg.cast::<u8>(),
-                            p.offset_from(arg) as usize,
+                        std::ffi::CString::new(crate::memory::cstr_slice(arg, p.offset_from(arg) as usize,
                         ))
                         .unwrap_or_default(),
                     );
@@ -1298,7 +1296,7 @@ pub fn ex_match(eap: &mut exarg_T) {
                     semsg!(gettext(e_invarg2), arg);
                     return;
                 }
-                end = skip_regexp(p.add(1), c_int::from(*p as u8), 1);
+                end = skip_regexp(p.add(1), c_int::from(crate::memory::cstr_first_byte(p)), 1);
                 if eap.skip == 0 {
                     if !crate::memory::cstr_is_empty(end) && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0 {
                         eap.errmsg = ex_errmsg(e_trailing_arg, end);

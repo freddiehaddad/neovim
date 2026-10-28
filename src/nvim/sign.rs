@@ -978,7 +978,7 @@ fn parse_sign_cmd_args(
                     *arg = NUL;
                     arg = arg.add(1);
                 }
-                while crate::memory::cstr_first_byte(namep) == b'0' && *namep.add(1) != NUL {
+                while crate::memory::cstr_first_byte(namep) == b'0' && crate::memory::cstr_byte_at(namep, 1) != 0 {
                     namep = namep.add(1);
                 }
                 *name = namep;
@@ -1052,7 +1052,7 @@ pub fn ex_sign(eap: &mut exarg_T) {
                     *p = NUL;
                     p = p.add(1);
                 }
-                while crate::memory::cstr_first_byte(arg) == b'0' && *arg.add(1) != NUL {
+                while crate::memory::cstr_first_byte(arg) == b'0' && crate::memory::cstr_byte_at(arg, 1) != 0 {
                     arg = arg.add(1);
                 }
 

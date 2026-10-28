@@ -1902,7 +1902,7 @@ unsafe extern "C-unwind" fn __has_ancestor(L: *mut lua_State) -> c_int {
                 if lua_type(L, -1) == LUA_TSTRING {
                     let mut check_len: usize = 0;
                     let check_str = lua_tolstring(L, -1, &mut check_len);
-                    let check_bytes = std::slice::from_raw_parts(check_str.cast::<u8>(), check_len);
+                    let check_bytes = crate::memory::cstr_slice(check_str, check_len);
                     if node_type_bytes == check_bytes {
                         lua_pushboolean(L, 1);
                         return 1;
@@ -2303,7 +2303,7 @@ fn query_err_string(
                 && error_offset > 0
                 && *suffix.offset(-1) == b'"' as c_char;
             let mut suffix_len: usize = 0;
-            let mut c = *suffix.add(suffix_len) as u8;
+            let mut c = crate::memory::cstr_byte_at(suffix, suffix_len);
             if is_anonymous {
                 let mut backslashes: c_int = 0;
                 while c != b'"' || backslashes % 2 != 0 {
@@ -2313,12 +2313,12 @@ fn query_err_string(
                         backslashes = 0;
                     }
                     suffix_len += 1;
-                    c = *suffix.add(suffix_len) as u8;
+                    c = crate::memory::cstr_byte_at(suffix, suffix_len);
                 }
             } else {
                 while c.is_ascii_alphanumeric() || c == b'_' || c == b'-' || c == b'.' {
                     suffix_len += 1;
-                    c = *suffix.add(suffix_len) as u8;
+                    c = crate::memory::cstr_byte_at(suffix, suffix_len);
                 }
             }
             vim_snprintf!(

@@ -249,7 +249,7 @@ fn buf_write_convert(ip: &mut bw_info, bufp: *mut *mut c_char, lenp: &mut c_int)
                 let c: u32 = if n > 1 {
                     utf_ptr2char((*bufp).add(wlen as usize)) as u32
                 } else {
-                    u32::from(*(*bufp).add(wlen as usize) as u8)
+                    u32::from(crate::memory::cstr_byte_at(*bufp, wlen as usize))
                 };
 
                 if (flags & FIO_LATIN1) == 0 {
@@ -994,12 +994,12 @@ fn buf_write_make_backup(
                                 wp = bk_ptr;
                             }
                             *wp = b'z' as c_char;
-                            while (*wp as u8) > b'a'
+                            while (crate::memory::cstr_first_byte(wp)) > b'a'
                                 && os_fileinfo(bk_ptr, &mut file_info_new)
                             {
                                 *wp -= 1;
                             }
-                            if (*wp as u8) == b'a' {
+                            if (crate::memory::cstr_first_byte(wp)) == b'a' {
                                 keep_bk = false;
                             }
                         }
@@ -1084,10 +1084,10 @@ fn buf_write_make_backup(
                             p = bk_ptr;
                         }
                         *p = b'z' as c_char;
-                        while (*p as u8) > b'a' && os_path_exists(bk_ptr) {
+                        while (crate::memory::cstr_first_byte(p)) > b'a' && os_path_exists(bk_ptr) {
                             *p -= 1;
                         }
-                        if (*p as u8) == b'a' {
+                        if (crate::memory::cstr_first_byte(p)) == b'a' {
                             keep_bk = false;
                         }
                     }
@@ -1575,9 +1575,7 @@ pub fn buf_write(
                             let mut ptr = ml_get_buf(&mut *buf, lnum).sub(1);
                             if write_undo_file {
                                 let line_ptr = ptr.add(1);
-                                sha_ctx.update(std::slice::from_raw_parts(
-                                    line_ptr.cast::<u8>(),
-                                    crate::memory::cstr_len(line_ptr) + 1,
+                                sha_ctx.update(crate::memory::cstr_slice(line_ptr, crate::memory::cstr_len(line_ptr) + 1,
                                 ));
                             }
                             loop {

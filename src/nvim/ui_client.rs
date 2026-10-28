@@ -464,7 +464,7 @@ pub fn ui_client_event_connect(args: Array) {
         let bytes = if s.size == 0 || s.data.is_null() {
             &[][..]
         } else {
-            std::slice::from_raw_parts(s.data.cast::<u8>(), s.size)
+            crate::memory::cstr_slice(s.data, s.size)
         };
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
         let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
@@ -1066,7 +1066,7 @@ pub fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int {
     if str_in.is_null() {
         return -1;
     }
-    let bytes = unsafe { std::slice::from_raw_parts(str_in.cast::<u8>(), len) };
+    let bytes =  { crate::memory::cstr_slice(str_in, len) };
     let low: isize = match len {
         4 => 0,
         5 => match bytes[0] {

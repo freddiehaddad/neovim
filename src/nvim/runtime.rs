@@ -529,7 +529,7 @@ pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
         if buf.is_empty() {
             None
         } else {
-            let bytes = std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len());
+            let bytes = crate::memory::cstr_slice(buf.as_ptr(), buf.len());
             Some(cstr_from_bytes(bytes))
         }
     }
@@ -621,7 +621,7 @@ fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_int {
         if where_len == 0 {
             return 0;
         }
-        let slice = std::slice::from_raw_parts(arg.cast::<u8>(), where_len);
+        let slice = crate::memory::cstr_slice(arg, where_len);
         if b"START".starts_with(slice) {
             *argp = skipwhite(arg.add(where_len));
             return DIP_START + DIP_NORTP;
@@ -751,7 +751,7 @@ pub fn do_in_path(
         {
             if opt_vars().p_verbose > 10 && !name.is_null() {
                 verbose_enter();
-                if *prefix.as_ptr() != NUL {
+                if !crate::memory::cstr_is_empty(prefix.as_ptr()) {
                     smsg!(
                         0,
                         gettext(c"Searching for \"%s\" under \"%s\" in \"%s\""),
@@ -1217,13 +1217,13 @@ fn expand_pack_entry(
 fn path_is_after(buf: *const c_char, buflen: usize) -> bool {
     unsafe {
         buflen >= 5
-            && (buflen < 6 || vim_ispathsep(*buf.add(buflen - 6) as u8 as c_int))
+            && (buflen < 6 || vim_ispathsep(crate::memory::cstr_byte_at(buf, buflen - 6) as c_int))
             && crate::memory::cstr_as_bytes(buf.add(buflen - 5)) == b"after"
     }
 }
 
 fn runtime_search_path_build() -> RuntimeSearchPath {
-    unsafe {
+     {
         let mut pack_entries: Vec<NvimString> = Vec::new();
         let mut pack_used: std::collections::HashMap<Vec<u8>, c_int> =
             std::collections::HashMap::new();
@@ -1244,7 +1244,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
 
             pack_entries.push(the_entry);
             pack_used.insert(
-                std::slice::from_raw_parts(cur_entry.cast::<u8>(), buflen).to_vec(),
+                crate::memory::cstr_slice(cur_entry, buflen).to_vec(),
                 0,
             );
         }
@@ -1279,7 +1279,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         let sentinel_pos_in_rtp = ((rtp_entry as usize) - (opt_vars().p_rtp as usize)).saturating_sub(1);
 
         for item in pack_entries {
-            let item_bytes = std::slice::from_raw_parts(item.data.cast::<u8>(), item.size);
+            let item_bytes = crate::memory::cstr_slice(item.data, item.size);
             let h = pack_used.get(item_bytes).copied().unwrap_or(0);
             if h == 0 {
                 expand_pack_entry(
@@ -1438,7 +1438,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
         let mut p4 = p1;
         let mut p = p1;
         while !crate::memory::cstr_is_empty(p) {
-            if vim_ispathsep_nocolon(*p as u8 as c_int) {
+            if vim_ispathsep_nocolon(crate::memory::cstr_first_byte(p) as c_int) {
                 p4 = p3;
                 p3 = p2;
                 p2 = p1;
@@ -1476,7 +1476,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
                 let cur_entry = entry;
                 buf.size = copy_option_part(&mut entry, buf.data, MAXPATHL, c",");
 
-                p_rtp_len += if *cur_entry.add(buf.size) == b',' as c_char {
+                p_rtp_len += if crate::memory::cstr_byte_at(cur_entry, buf.size) == b',' {
                     buf.size + 1
                 } else {
                     buf.size
@@ -1486,9 +1486,9 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
                 let is_after = !p_after.is_null()
                     && (p_after as usize) > (buf.data as usize)
                     && vim_ispathsep(*p_after.sub(1) as u8 as c_int)
-                    && (vim_ispathsep(*p_after.add(5) as u8 as c_int)
-                        || *p_after.add(5) == NUL
-                        || *p_after.add(5) == b',' as c_char);
+                    && (vim_ispathsep(crate::memory::cstr_byte_at(p_after, 5) as c_int)
+                        || crate::memory::cstr_byte_at(p_after, 5) == 0
+                        || crate::memory::cstr_byte_at(p_after, 5) == b',');
 
                 if is_after {
                     if insp.is_null() {
@@ -1568,7 +1568,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
                 after_pos = keep_after;
             }
 
-            if *opt_vars().p_rtp.add(keep) != NUL {
+            if crate::memory::cstr_byte_at(opt_vars().p_rtp, keep) != 0 {
                 let append_len = p_rtp_len - keep;
                 ptr::copy(
                     opt_vars().p_rtp.add(keep),
@@ -1609,7 +1609,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
                 for item in &mut rsp[idx1..] {
                     item.pos_in_rtp += fname_len + 1;
                 }
-                let fname_bytes = std::slice::from_raw_parts(fname.cast::<u8>(), fname_len);
+                let fname_bytes = crate::memory::cstr_slice(fname, fname_len);
                 let fname_end = fname_bytes
                     .iter()
                     .position(|&b| b == 0)
@@ -1635,7 +1635,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
                         item.pos_in_rtp += afterdir.size + 1;
                     }
                     let after_bytes =
-                        std::slice::from_raw_parts(afterdir.data.cast::<u8>(), afterdir.size);
+                        crate::memory::cstr_slice(afterdir.data, afterdir.size);
                     let after_end = after_bytes
                         .iter()
                         .position(|&b| b == 0)
@@ -2004,7 +2004,7 @@ fn ExpandRTDir_int(
 
         let mut pat_pathsep_cnt: c_int = 0;
         for idx in 0..pat_len {
-            if vim_ispathsep(*pat.add(idx) as u8 as c_int) {
+            if vim_ispathsep(crate::memory::cstr_byte_at(pat, idx) as c_int) {
                 pat_pathsep_cnt += 1;
             }
         }
@@ -2028,7 +2028,7 @@ fn ExpandRTDir_int(
                 };
             s = e;
             while (s as usize) > (match_ptr as usize) {
-                if vim_ispathsep(*s as u8 as c_int) {
+                if vim_ispathsep(crate::memory::cstr_first_byte(s) as c_int) {
                     match_pathsep_cnt += 1;
                     if match_pathsep_cnt > pat_pathsep_cnt {
                         break;
@@ -2039,7 +2039,7 @@ fn ExpandRTDir_int(
             s = s.add(1);
             let copy_len = (e as usize) - (s as usize);
             *slot =
-                crate::memory::cstr_from_bytes(std::slice::from_raw_parts(s.cast::<u8>(), copy_len));
+                crate::memory::cstr_from_bytes(crate::memory::cstr_slice(s, copy_len));
         }
 
         if gap.is_empty() {
@@ -2082,7 +2082,7 @@ pub fn expand_runtime_cmd(
     pat: *mut c_char,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    unsafe {
+     {
         matches.clear();
 
         let pat_len = crate::memory::cstr_len(pat);
@@ -2098,7 +2098,7 @@ pub fn expand_runtime_cmd(
 
         if rt_st().runtime_expand_flags == 0 {
             let where_values = [c"START", c"OPT", c"PACK", c"ALL"];
-            let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), pat_len);
+            let pat_slice = crate::memory::cstr_slice(pat, pat_len);
             for wv in &where_values {
                 if wv.to_bytes().starts_with(pat_slice) {
                     matches.push((*wv).to_owned());
@@ -2147,7 +2147,7 @@ fn strcpy_comma_escaped(dest: *mut c_char, src: *const c_char, len: usize) -> *m
     unsafe {
         let mut shift: usize = 0;
         for i in 0..len {
-            if *src.add(i) == b',' as c_char {
+            if crate::memory::cstr_byte_at(src, i) == b',' {
                 *dest.add(i + shift) = b'\\' as c_char;
                 shift += 1;
             }
@@ -2174,7 +2174,7 @@ fn compute_double_env_sep_len(
             iter = vim_env_iter(ENV_SEPCHAR, val, iter, &mut dir, &mut dir_len);
             if !dir.is_null() && dir_len > 0 {
                 ret += (dir_len
-                    + std::slice::from_raw_parts(dir.cast::<u8>(), dir_len).iter().filter(|&&b| b == b',').count()
+                    + crate::memory::cstr_slice(dir, dir_len).iter().filter(|&&b| b == b',').count()
                     + common_suf_len
                     + usize::from(after_pathsep(dir, dir.add(dir_len)) == 0))
                     * 2
@@ -2302,9 +2302,9 @@ fn add_dir(
 }
 
 pub fn get_lib_dir() -> Option<std::ffi::CString> {
-    unsafe {
+     {
         if !default_lib_dir().is_null()
-            && *default_lib_dir() != NUL
+            && !crate::memory::cstr_is_empty(default_lib_dir())
             && os_isdir(default_lib_dir().cast_mut())
         {
             return Some(crate::memory::cstr_to_cstring(default_lib_dir()));
@@ -2367,7 +2367,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
             };
             if data_len != 0 {
                 rtp_size += (data_len
-                    + std::slice::from_raw_parts(data_home.cast::<u8>(), data_len).iter().filter(|&&b| b == b',').count()
+                    + crate::memory::cstr_slice(data_home, data_len).iter().filter(|&&b| b == b',').count()
                     + nvim_data_size
                     + 1
                     + SITE_SIZE
@@ -2589,7 +2589,7 @@ fn concat_continued_line(ga: &mut Vec<c_char>, p: *const c_char, mut len: usize)
     unsafe {
         let line = skipwhite_len(p, len);
         len -= (line as usize) - (p as usize);
-        let slice = std::slice::from_raw_parts(line.cast::<u8>(), len);
+        let slice = crate::memory::cstr_slice(line, len);
         if slice.starts_with(b"\"\\ ") {
             return true;
         }
@@ -2693,9 +2693,7 @@ fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_char) {
         sp.buflines.clear();
         while !crate::memory::cstr_is_empty(str_ptr) {
             let eol = skip_to_newline(str_ptr);
-            let slice = std::slice::from_raw_parts(
-                str_ptr.cast::<u8>(),
-                (eol as usize) - (str_ptr as usize),
+            let slice = crate::memory::cstr_slice(str_ptr, (eol as usize) - (str_ptr as usize),
             );
             sp
                 .buflines
@@ -3346,7 +3344,7 @@ pub fn getsourceline(
     _indent: c_int,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    unsafe {
+     {
         if sp.dbg_tick < g_st().debug_tick && !sp.source_from_buf_or_str {
             let fname_ptr = sp
                 .fname
@@ -3383,8 +3381,8 @@ pub fn getsourceline(
                 let p = skipwhite(next.as_ptr());
                 if crate::memory::cstr_first_byte(p) == b'\\'
                     || (crate::memory::cstr_first_byte(p) == b'"'
-                        && *p.add(1) == b'\\' as c_char
-                        && *p.add(2) == b' ' as c_char)
+                        && crate::memory::cstr_byte_at(p, 1) == b'\\'
+                        && crate::memory::cstr_byte_at(p, 2) == b' ')
                 {
                     if buf.last() == Some(&NUL) {
                         buf.pop();
@@ -3414,7 +3412,7 @@ pub fn getsourceline(
             {
                 cstr_to_cstring(s.as_ptr().cast())
             } else {
-                cstr_from_bytes(std::slice::from_raw_parts(b.as_ptr().cast::<u8>(), len))
+                cstr_from_bytes(crate::memory::cstr_slice(b.as_ptr(), len))
             }
         });
 
@@ -3617,12 +3615,12 @@ pub fn source_finished(fgetline: LineGetter) -> bool {
 
 /// Return the autoload script name for a function or variable name.
 pub fn autoload_name(name: *const c_char, name_len: usize) -> std::ffi::CString {
-    unsafe {
+     {
         const PREFIX: &[u8] = b"autoload/";
         const SUFFIX: &[u8] = b".vim";
         let mut scriptname = Vec::with_capacity(name_len + PREFIX.len() + SUFFIX.len());
         scriptname.extend_from_slice(PREFIX);
-        scriptname.extend_from_slice(std::slice::from_raw_parts(name.cast::<u8>(), name_len));
+        scriptname.extend_from_slice(crate::memory::cstr_slice(name, name_len));
         let mut auchar_idx: usize = 0;
         let mut i = PREFIX.len();
         while i - PREFIX.len() < name_len {
@@ -3642,7 +3640,7 @@ pub fn autoload_name(name: *const c_char, name_len: usize) -> std::ffi::CString 
 /// If name has a package name try autoloading the script for it.
 pub fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool {
     unsafe {
-        let slice = std::slice::from_raw_parts(name.cast::<u8>(), name_len);
+        let slice = crate::memory::cstr_slice(name, name_len);
         let Some(pos) = slice.iter().position(|&b| b == AUTOLOAD_CHAR) else {
             return false;
         };

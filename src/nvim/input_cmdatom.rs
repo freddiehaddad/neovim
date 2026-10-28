@@ -562,7 +562,7 @@ fn atom_from_cmdline(
     cmdline: *const c_char,
     vis: bool,
 ) -> CmdAtom {
-    unsafe {
+     {
         let mut sb: Vec<c_char> = Vec::new();
         if ca.cmdchar != b':' as c_int && ca.count0 != 0 {
             let mut num_buf = [0 as c_char; 32];
@@ -586,7 +586,7 @@ fn atom_from_cmdline(
             sb_add_lit(&mut sb, cmdline, -1);
         }
         sb_add_char(&mut sb, NL);
-        let sb_u8 = std::slice::from_raw_parts(sb.as_ptr().cast::<u8>(), sb.len());
+        let sb_u8 = crate::memory::cstr_slice(sb.as_ptr(), sb.len());
         let mut atom = CmdAtom::new();
         atom.r#type = r#type;
         atom.spec = CmdSpec {
@@ -624,14 +624,14 @@ fn atom_from_frame(ca: &mut cmdarg_T, frame: &mut CmdFrame) -> CmdAtom {
 }
 
 fn atoms_concat_keys(atoms: &[CmdAtom], from: usize) -> std::ffi::CString {
-    unsafe {
+     {
         let mut keys: Vec<c_char> = Vec::new();
         for atom in &atoms[from..] {
             if let Some(ref k) = atom.keys {
                 sb_concat(&mut keys, k.as_ptr());
             }
         }
-        let bytes = std::slice::from_raw_parts(keys.as_ptr().cast::<u8>(), keys.len());
+        let bytes = crate::memory::cstr_slice(keys.as_ptr(), keys.len());
         cstr_from_bytes(bytes)
     }
 }
@@ -891,7 +891,7 @@ fn atom_composite_lhs() -> std::ffi::CString {
             tail.as_ptr().cast::<c_char>(),
             tail.len(),
         ));
-        let slice = std::slice::from_raw_parts(keys.as_ptr().cast::<u8>(), keys.len());
+        let slice = crate::memory::cstr_slice(keys.as_ptr(), keys.len());
         std::ffi::CString::new(slice).unwrap()
     }
 }
@@ -1121,7 +1121,7 @@ pub fn atom_cmdline_set(firstc: c_int, line: *const c_char, len: usize) {
         }
         let root = root_frame();
         if (*root).cmdline.is_none() {
-            let slice = std::slice::from_raw_parts(line.cast::<u8>(), len);
+            let slice = crate::memory::cstr_slice(line, len);
             (*root).cmdline = Some(std::ffi::CString::new(slice).unwrap());
         }
     }
@@ -1298,7 +1298,7 @@ pub fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
         if get_real_state() == MODE_OP_PENDING && *op != 0 {
             assert!(*lhs.add(len) == 0);
             let mut full_bytes = Vec::from(crate::memory::cstr_as_bytes(op));
-            full_bytes.extend_from_slice(std::slice::from_raw_parts(lhs.cast::<u8>(), len));
+            full_bytes.extend_from_slice(crate::memory::cstr_slice(lhs, len));
             let full = cstr_from_bytes(&full_bytes);
             atom_composite_start(full.as_ptr(), full.as_bytes().len());
             atom_st().typed.map_start = (*typed_keys).len();
@@ -2051,13 +2051,13 @@ mod tests {
 
     #[test]
     fn sb_concat_works() {
-        unsafe {
+         {
             let mut sb: Vec<c_char> = Vec::new();
             sb_concat(&mut sb, c"abc");
             sb_concat(&mut sb, c"def");
             assert_eq!(sb.len(), 6);
             assert_eq!(
-                std::slice::from_raw_parts(sb.as_ptr().cast::<u8>(), 6),
+                crate::memory::cstr_slice(sb.as_ptr(), 6),
                 b"abcdef"
             );
 

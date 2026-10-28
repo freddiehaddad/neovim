@@ -111,31 +111,31 @@ fn ensure_input_ptrs_init() {
 fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(c_int, c_int, usize)> {
     let s = s.into_c_char_ptr();
     unsafe {
-        if s.is_null() || *s as u8 != b'<' {
+        if s.is_null() || crate::memory::cstr_first_byte(s) != b'<' {
             return None;
         }
         let mut p = s.add(1);
         let parse_int = |mut cur: *const c_char| -> Option<(c_int, *const c_char)> {
-            while matches!(*cur as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+            while matches!(crate::memory::cstr_first_byte(cur), b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
                 cur = cur.add(1);
             }
-            let neg = if *cur as u8 == b'-' {
+            let neg = if crate::memory::cstr_first_byte(cur) == b'-' {
                 cur = cur.add(1);
                 true
             } else {
-                if *cur as u8 == b'+' {
+                if crate::memory::cstr_first_byte(cur) == b'+' {
                     cur = cur.add(1);
                 }
                 false
             };
-            if !(*cur as u8).is_ascii_digit() {
+            if !(crate::memory::cstr_first_byte(cur)).is_ascii_digit() {
                 return None;
             }
             let mut acc: i64 = 0;
-            while (*cur as u8).is_ascii_digit() {
+            while (crate::memory::cstr_first_byte(cur)).is_ascii_digit() {
                 acc = acc
                     .saturating_mul(10)
-                    .saturating_add(i64::from((*cur as u8) - b'0'));
+                    .saturating_add(i64::from((crate::memory::cstr_first_byte(cur)) - b'0'));
                 cur = cur.add(1);
             }
             let val = if neg { -acc } else { acc } as c_int;
@@ -143,13 +143,13 @@ fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(c_int, c_
         };
         let (col, after_col) = parse_int(p)?;
         p = after_col;
-        if *p as u8 != b',' {
+        if crate::memory::cstr_first_byte(p) != b',' {
             return None;
         }
         p = p.add(1);
         let (row, after_row) = parse_int(p)?;
         p = after_row;
-        if *p as u8 != b'>' {
+        if crate::memory::cstr_first_byte(p) != b'>' {
             return None;
         }
         p = p.add(1);
@@ -421,7 +421,7 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
             }
 
             // copy the character, escaping K_SPECIAL
-            if *ptr_cur as u8 == K_SPECIAL {
+            if crate::memory::cstr_first_byte(ptr_cur) == K_SPECIAL {
                 let k_spec = K_SPECIAL as c_char;
                 let ks_spec = KS_SPECIAL as c_char;
                 let ke_fill = KE_FILLER as c_char;

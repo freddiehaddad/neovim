@@ -894,7 +894,7 @@ fn fname2fnum(fm: &mut xfmark_T) {
         };
         let fname = fname_cstr.as_ptr();
 
-        if crate::memory::cstr_first_byte(fname) == b'~' && vim_ispathsep_nocolon(c_int::from(*fname.add(1) as u8)) {
+        if crate::memory::cstr_first_byte(fname) == b'~' && vim_ispathsep_nocolon(c_int::from(crate::memory::cstr_byte_at(fname, 1))) {
             let len = expand_env(
                 c"~/",
                 &raw mut g_st().NameBuff[0],
@@ -1033,7 +1033,7 @@ fn mark_line(mp: &mut pos_T, lead_len: c_int) -> std::ffi::CString {
             p = p.add(utfc_ptr2len(p) as usize);
         }
         let keep = (p.offset_from(line) as usize).min(max_bytes);
-        std::ffi::CString::new(std::slice::from_raw_parts(line.cast::<u8>(), keep))
+        std::ffi::CString::new(crate::memory::cstr_slice(line, keep))
             .unwrap_or_default()
     }
 }
@@ -1088,15 +1088,15 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
             let timestamp = os_time();
             let mut p = eap.arg;
             while !crate::memory::cstr_is_empty(p) {
-                let ch = c_int::from(*p as u8);
+                let ch = c_int::from(crate::memory::cstr_first_byte(p));
                 let lower = ascii_islower(ch);
                 let digit = ascii_isdigit(ch);
                 if lower || digit || ascii_isupper(ch) {
                     let from: c_int;
                     let to: c_int;
-                    if *p.add(1) == b'-' as c_char {
+                    if crate::memory::cstr_byte_at(p, 1) == b'-' {
                         from = ch;
-                        to = c_int::from(*p.add(2) as u8);
+                        to = c_int::from(crate::memory::cstr_byte_at(p, 2));
                         let valid_to = if lower {
                             ascii_islower(to)
                         } else if digit {
@@ -1142,7 +1142,7 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
                         }
                     }
                 } else {
-                    match *p as u8 {
+                    match crate::memory::cstr_first_byte(p) {
                         b'"' => {
                             if curbuf_mut().b_last_cursor.mark.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, curbuf_mut());

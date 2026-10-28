@@ -138,7 +138,7 @@ pub fn tabstop_set(
     unsafe {
         let mut valcount: usize = 1;
 
-        if crate::memory::cstr_is_empty(var) || (crate::memory::cstr_first_byte(var) == b'0' && *var.add(1) == NUL) {
+        if crate::memory::cstr_is_empty(var) || (crate::memory::cstr_first_byte(var) == b'0' && crate::memory::cstr_byte_at(var, 1) == 0) {
             array.clear();
             return ptr::null();
         }
@@ -163,7 +163,7 @@ pub fn tabstop_set(
             if crate::memory::cstr_first_byte(cp) == b','
                 && cp > var
                 && *cp.sub(1) != b',' as c_char
-                && *cp.add(1) != NUL
+                && crate::memory::cstr_byte_at(cp, 1) != 0
             {
                 valcount += 1;
                 cp = cp.add(1);
@@ -1079,7 +1079,7 @@ pub fn ins_try_si(c: c_int) {
                 }
                 curwin_mut().w_cursor.lnum = (*pos).lnum;
                 curwin_mut().w_cursor.col = i;
-                if *ptr.add(i as usize) == b')' as c_char {
+                if crate::memory::cstr_byte_at(ptr, i as usize) == b')' {
                     let p2 = findmatch(None, b'(' as c_int);
                     if !p2.is_null() {
                         curwin_mut().w_cursor = *p2;
@@ -1437,9 +1437,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
             None
         } else {
             Some(
-                std::ffi::CString::new(std::slice::from_raw_parts(
-                    ts_start.cast::<u8>(),
-                    ptr.offset_from(ts_start) as usize,
+                std::ffi::CString::new(crate::memory::cstr_slice(ts_start, ptr.offset_from(ts_start) as usize,
                 ))
                 .unwrap_or_default(),
             )
@@ -1461,7 +1459,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
                         start_vcol = vcol;
                         start_col = col;
                     }
-                    if *ptr.add(col as usize) == b' ' as c_char {
+                    if crate::memory::cstr_byte_at(ptr, col as usize) == b' ' {
                         num_spaces += 1;
                     } else {
                         got_tab = true;
@@ -1547,7 +1545,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
                         break;
                     }
                 }
-                if *ptr.add(col as usize) == NUL {
+                if crate::memory::cstr_byte_at(ptr, col as usize) == 0 {
                     break;
                 }
                 vcol += i64::from(win_chartabsize(
@@ -1682,7 +1680,7 @@ pub fn get_lisp_indent() -> c_int {
                 let mut that = get_cursor_line_ptr();
                 while !crate::memory::cstr_is_empty(that) {
                     if crate::memory::cstr_first_byte(that) == b';' {
-                        while *that.add(1) != NUL {
+                        while crate::memory::cstr_byte_at(that, 1) != 0 {
                             that = that.add(1);
                         }
                         that = that.add(1);
@@ -1690,14 +1688,14 @@ pub fn get_lisp_indent() -> c_int {
                     }
 
                     if crate::memory::cstr_first_byte(that) == b'\\' {
-                        if *that.add(1) != NUL {
+                        if crate::memory::cstr_byte_at(that, 1) != 0 {
                             that = that.add(1);
                         }
                         that = that.add(1);
                         continue;
                     }
 
-                    if crate::memory::cstr_first_byte(that) == b'"' && *that.add(1) != NUL {
+                    if crate::memory::cstr_first_byte(that) == b'"' && crate::memory::cstr_byte_at(that, 1) != 0 {
                         loop {
                             that = that.add(1);
                             if crate::memory::cstr_is_empty(that) || crate::memory::cstr_first_byte(that) == b'"' {
@@ -1708,7 +1706,7 @@ pub fn get_lisp_indent() -> c_int {
                                 if crate::memory::cstr_is_empty(that) {
                                     break;
                                 }
-                                if *that.add(1) == NUL {
+                                if crate::memory::cstr_byte_at(that, 1) == 0 {
                                     that = that.add(1);
                                     break;
                                 }
@@ -1773,7 +1771,7 @@ pub fn get_lisp_indent() -> c_int {
                             cstype,
                             amount,
                             that,
-                            i32::from(*that as u8),
+                            i32::from(crate::memory::cstr_first_byte(that)),
                             &mut csarg,
                             1,
                         )
@@ -1811,7 +1809,7 @@ pub fn get_lisp_indent() -> c_int {
                                 {
                                     parencount -= 1;
                                 }
-                                if ci.value == b'\\' as i32 && *that.add(1) != NUL {
+                                if ci.value == b'\\' as i32 && crate::memory::cstr_byte_at(that, 1) != 0 {
                                     let cli = utf_ClusterInfo(StrCharInfo { ptr: that, chr: ci });
                                     amount += win_charsize(
                                         cstype,
@@ -1846,7 +1844,7 @@ pub fn get_lisp_indent() -> c_int {
                                 cstype,
                                 amount,
                                 that,
-                                i32::from(*that as u8),
+                                i32::from(crate::memory::cstr_first_byte(that)),
                                 &mut csarg,
                                 1,
                             )

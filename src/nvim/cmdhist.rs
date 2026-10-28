@@ -268,7 +268,7 @@ fn in_history(
 }
 
 fn get_histtype(name: *const c_char, len: usize, return_default: bool) -> c_int {
-    unsafe {
+     {
         if len == 0 {
             return if return_default {
                 HIST_DEFAULT
@@ -283,7 +283,7 @@ fn get_histtype(name: *const c_char, len: usize, return_default: bool) -> c_int 
             }
         }
 
-        let b0 = *name as u8;
+        let b0 = crate::memory::cstr_first_byte(name);
         if len == 1 && matches!(b0, b':' | b'=' | b'@' | b'>' | b'?' | b'/') {
             return hist_char2type(b0 as c_int);
         }
@@ -629,11 +629,11 @@ pub fn ex_history(eap: &mut exarg_T) {
             return;
         }
 
-        let b0 = *arg as u8;
+        let b0 = crate::memory::cstr_first_byte(arg);
         let mut end = arg;
         if !(b0.is_ascii_digit() || b0 == b'-' || b0 == b',') {
-            while (*end as u8).is_ascii_alphabetic()
-                || matches!(*end as u8, b':' | b'=' | b'@' | b'>' | b'/' | b'?')
+            while (crate::memory::cstr_first_byte(end)).is_ascii_alphabetic()
+                || matches!(crate::memory::cstr_first_byte(end), b':' | b'=' | b'@' | b'>' | b'/' | b'?')
             {
                 end = end.add(1);
             }

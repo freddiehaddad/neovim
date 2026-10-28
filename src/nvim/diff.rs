@@ -2196,7 +2196,7 @@ fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: &mut c_int) -> boo
         } else {
             if *p1 != *p2
                 && ((diff_st().diff_flags & DIFF_ICASE) == 0
-                    || !(*p1 as u8).eq_ignore_ascii_case(&(*p2 as u8)))
+                    || !(crate::memory::cstr_first_byte(p1)).eq_ignore_ascii_case(&(crate::memory::cstr_first_byte(p2))))
             {
                 return false;
             }
@@ -2582,7 +2582,7 @@ fn diff_find_change_simple(
                 let line_new = ml_get_buf(&mut *curtab_mut().tp_diffbuf[i], dp.df_lnum[i] + off);
                 let mut si_org: c_int = 0;
                 let mut si_new: c_int = 0;
-                while *line_org.add(si_org as usize) != NUL {
+                while crate::memory::cstr_byte_at(line_org, si_org as usize) != 0 {
                     if ((diff_st().diff_flags & DIFF_IWHITE) != 0
                         && ascii_iswhite(*line_org.add(si_org as usize))
                         && ascii_iswhite(*line_new.add(si_new as usize)))
@@ -2610,7 +2610,7 @@ fn diff_find_change_simple(
                 si_org -= utf_head_off(line_org, line_org.add(si_org as usize));
                 si_new -= utf_head_off(line_new, line_new.add(si_new as usize));
                 *startp = (*startp).min(si_org);
-                if *line_org.add(si_org as usize) != NUL || *line_new.add(si_new as usize) != NUL {
+                if crate::memory::cstr_byte_at(line_org, si_org as usize) != 0 || crate::memory::cstr_byte_at(line_new, si_new as usize) != 0 {
                     let mut ei_org = crate::memory::cstr_len(line_org) as c_int;
                     let mut ei_new = crate::memory::cstr_len(line_new) as c_int;
                     while ei_org >= *startp && ei_new >= si_new && ei_org >= 0 && ei_new >= 0 {
@@ -2759,7 +2759,7 @@ fn diff_refine_inline_word_highlight(
                 let mut only_non_word = true;
                 let mut has_content = false;
                 let mut i: c_int = 0;
-                while i < gap_size && *gap_text.add(i as usize) != NUL {
+                while i < gap_size && crate::memory::cstr_byte_at(gap_text, i as usize) != 0 {
                     has_content = true;
                     let char_class = mb_get_class_tab(
                         gap_text.add(i as usize),
@@ -3704,7 +3704,7 @@ fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
         if crate::memory::cstr_first_byte(p) != b'a' && crate::memory::cstr_first_byte(p) != b'c' && crate::memory::cstr_first_byte(p) != b'd' {
             return false;
         }
-        let difftype = *p as u8;
+        let difftype = crate::memory::cstr_first_byte(p);
         p = p.add(1);
         let f2 = getdigits_int(&raw mut p, true, 0);
         let l2 = if crate::memory::cstr_first_byte(p) == b',' {
@@ -3737,9 +3737,9 @@ fn parse_diff_unified(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
     unsafe {
         let mut p = line;
         if crate::memory::cstr_first_byte(p) == b'@'
-            && *p.add(1) == b'@' as c_char
-            && *p.add(2) == b' ' as c_char
-            && *p.add(3) == b'-' as c_char
+            && crate::memory::cstr_byte_at(p, 1) == b'@'
+            && crate::memory::cstr_byte_at(p, 2) == b' '
+            && crate::memory::cstr_byte_at(p, 3) == b'-'
         {
             p = p.add(4);
             let mut oldline = getdigits_int32(&raw mut p, true, 0);
@@ -3749,7 +3749,7 @@ fn parse_diff_unified(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
             } else {
                 1
             };
-            if crate::memory::cstr_first_byte(p) == b' ' && *p.add(1) == b'+' as c_char {
+            if crate::memory::cstr_first_byte(p) == b' ' && crate::memory::cstr_byte_at(p, 1) == b'+' {
                 p = p.add(2);
                 let mut newline = getdigits_int(&raw mut p, true, 0);
                 let newcount = if crate::memory::cstr_first_byte(p) == b',' {

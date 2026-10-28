@@ -266,7 +266,7 @@ pub fn spell_check(
     docount: bool,
 ) -> usize {
     unsafe {
-        if (*ptr as u8) <= b' ' {
+        if (crate::memory::cstr_first_byte(ptr)) <= b' ' {
             return 1;
         }
         let w_s = wp.w_s_ptr();
@@ -281,11 +281,11 @@ pub fn spell_check(
         let mut mi = matchinf_T::new();
         if *ptr >= b'0' as c_char && *ptr <= b'9' as c_char {
             if crate::memory::cstr_first_byte(ptr) == b'0'
-                && (*ptr.add(1) == b'b' as c_char || *ptr.add(1) == b'B' as c_char)
+                && (crate::memory::cstr_byte_at(ptr, 1) == b'b' || crate::memory::cstr_byte_at(ptr, 1) == b'B')
             {
                 mi.mi_end = skipbin(ptr.add(2)).cast_mut();
             } else if crate::memory::cstr_first_byte(ptr) == b'0'
-                && (*ptr.add(1) == b'x' as c_char || *ptr.add(1) == b'X' as c_char)
+                && (crate::memory::cstr_byte_at(ptr, 1) == b'x' || crate::memory::cstr_byte_at(ptr, 1) == b'X')
             {
                 mi.mi_end = skiphex(ptr.add(2));
             } else {
@@ -526,10 +526,10 @@ fn find_word(mip: &mut matchinf_T, mode: c_int) {
                     break;
                 }
             }
-            if *ptr.add(wlen as usize) == NUL {
+            if crate::memory::cstr_byte_at(ptr, wlen as usize) == 0 {
                 break;
             }
-            let mut c = *ptr.add(wlen as usize) as u8 as c_int;
+            let mut c = crate::memory::cstr_byte_at(ptr, wlen as usize) as c_int;
             if c == TAB as u8 as c_int {
                 c = b' ' as c_int;
             }
@@ -901,7 +901,7 @@ pub fn match_compoundrule(slang: &mut slang_T, compflags: *const u8) -> bool {
                     let mut matched = false;
                     p = p.add(1);
                     while crate::memory::cstr_first_byte(p) != b']' && !crate::memory::cstr_is_empty(p) {
-                        if *p as u8 == c {
+                        if crate::memory::cstr_first_byte(p) == c {
                             matched = true;
                         }
                         p = p.add(1);
@@ -909,7 +909,7 @@ pub fn match_compoundrule(slang: &mut slang_T, compflags: *const u8) -> bool {
                     if !matched {
                         break;
                     }
-                } else if *p as u8 != c {
+                } else if crate::memory::cstr_first_byte(p) != c {
                     break;
                 }
                 if !crate::memory::cstr_is_empty(p) {
@@ -1001,10 +1001,10 @@ fn find_prefix(mip: &mut matchinf_T, mode: c_int) {
                     break;
                 }
             }
-            if *ptr.add(wlen as usize) == NUL {
+            if crate::memory::cstr_byte_at(ptr, wlen as usize) == 0 {
                 break;
             }
-            let c = *ptr.add(wlen as usize) as u8 as c_int;
+            let c = crate::memory::cstr_byte_at(ptr, wlen as usize) as c_int;
             let mut lo = arridx;
             let mut hi = arridx + len - 1;
             while lo < hi {
@@ -1287,7 +1287,7 @@ pub fn spell_move_to(
 pub fn spell_cat_line(buf: *mut c_char, line: *mut c_char, maxlen: c_int) {
     unsafe {
         let mut p = skipwhite(line);
-        while !vim_strchr(c"*#/\"\t", *p as u8 as c_int).is_null() {
+        while !vim_strchr(c"*#/\"\t", crate::memory::cstr_first_byte(p) as c_int).is_null() {
             p = skipwhite(p.add(1));
         }
         if crate::memory::cstr_is_empty(p) {
@@ -1531,14 +1531,14 @@ pub fn spell_load_cb(
     }
 }
 pub fn count_common_word(lp: &mut slang_T, word: *mut c_char, len: c_int, count: u8) {
-    unsafe {
+     {
         if len >= MAXWLEN as c_int {
             return;
         }
         let bytes = if len == -1 {
             crate::memory::cstr_as_bytes(word)
         } else {
-            let slice = std::slice::from_raw_parts(word.cast::<u8>(), len as usize);
+            let slice = crate::memory::cstr_slice(word, len as usize);
             let actual_len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
             &slice[..actual_len]
         };
@@ -1937,7 +1937,7 @@ fn use_midword(lp: &mut slang_T, wp: &mut win_T) {
                     .b_spell_ismw_mb
                     .take()
                     .map_or_else(Vec::new, |cs| cs.into_bytes());
-                bytes.extend_from_slice(std::slice::from_raw_parts(p.cast::<u8>(), l as usize));
+                bytes.extend_from_slice(crate::memory::cstr_slice(p, l as usize));
                 (*w_s).b_spell_ismw_mb = Some(std::ffi::CString::new(bytes).unwrap_or_default());
             }
             p = p.add(l as usize);
@@ -1948,7 +1948,7 @@ fn find_region(rp: *const c_char, region: *const c_char) -> c_int {
     unsafe {
         let mut i: usize = 0;
         loop {
-            if *rp.add(i) == NUL {
+            if crate::memory::cstr_byte_at(rp, i) == 0 {
                 return REGION_ALL;
             }
             if *rp.add(i) == *region && *rp.add(i + 1) == *region.add(1) {
@@ -2090,7 +2090,7 @@ pub fn spell_iswordp(p: *const c_char, wp: &win_T) -> bool {
         let l = utfc_ptr2len(p);
         let mut s = p;
         if l == 1 {
-            if (*w_s).b_spell_ismw[*p as u8 as usize] {
+            if (*w_s).b_spell_ismw[crate::memory::cstr_first_byte(p) as usize] {
                 s = p.add(1);
             }
         } else {
@@ -2539,7 +2539,7 @@ fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: *mut c_
                     }
                     let mut sr = (*smp.add(cur_n)).sm_rules.as_ptr();
                     let mut pri: c_int = 5;
-                    p0 = *sr as u8 as c_int;
+                    p0 = crate::memory::cstr_first_byte(sr) as c_int;
                     let mut k0 = k;
                     while crate::memory::cstr_first_byte(sr) == b'-' && k > 1 {
                         k -= 1;
@@ -2548,11 +2548,11 @@ fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: *mut c_
                     if crate::memory::cstr_first_byte(sr) == b'<' {
                         sr = sr.add(1);
                     }
-                    if ascii_isdigit(*sr as u8 as c_int) {
-                        pri = (*sr as u8 - b'0') as c_int;
+                    if ascii_isdigit(crate::memory::cstr_first_byte(sr) as c_int) {
+                        pri = (crate::memory::cstr_first_byte(sr) - b'0') as c_int;
                         sr = sr.add(1);
                     }
-                    if crate::memory::cstr_first_byte(sr) == b'^' && *sr.add(1) == b'^' as c_char {
+                    if crate::memory::cstr_first_byte(sr) == b'^' && crate::memory::cstr_byte_at(sr, 1) == b'^' {
                         sr = sr.add(1);
                     }
                     let word_ptr = (&raw const word).cast::<c_int>();
@@ -2561,7 +2561,7 @@ fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: *mut c_
                             && (i == 0
                                 || !(word[i - 1] == b' ' as c_int
                                     || spell_iswordp_w(word_ptr.add(i - 1), curwin_mut())))
-                            && (*sr.add(1) != b'$' as c_char
+                            && (crate::memory::cstr_byte_at(sr, 1) != b'$'
                                 || !spell_iswordp_w(word_ptr.add(i + k0), curwin_mut())))
                         || (crate::memory::cstr_first_byte(sr) == b'$'
                             && i > 0
@@ -2631,8 +2631,8 @@ fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: *mut c_
                                 if crate::memory::cstr_first_byte(sr) == b'<' {
                                     sr = sr.add(1);
                                 }
-                                if ascii_isdigit(*sr as u8 as c_int) {
-                                    p0 = (*sr as u8 - b'0') as c_int;
+                                if ascii_isdigit(crate::memory::cstr_first_byte(sr) as c_int) {
+                                    p0 = (crate::memory::cstr_first_byte(sr) - b'0') as c_int;
                                     sr = sr.add(1);
                                 }
                                 if crate::memory::cstr_is_empty(sr)
@@ -3254,7 +3254,7 @@ pub fn valid_spellfile(val: *const c_char) -> bool {
             }
             let mut s = spf_ptr;
             while !crate::memory::cstr_is_empty(s) {
-                if !vim_is_fname_char(*s as u8 as c_int) {
+                if !vim_is_fname_char(crate::memory::cstr_first_byte(s) as c_int) {
                     return false;
                 }
                 s = s.add(1);

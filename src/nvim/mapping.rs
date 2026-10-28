@@ -537,12 +537,12 @@ fn set_maparg_rhs(
     cpo_val: *const c_char,
     mapargs: &mut MapArguments,
 ) {
-    unsafe {
+     {
         mapargs.rhs_lua = rhs_lua;
 
         if rhs_lua == LUA_NOREF {
             mapargs.orig_rhs_len = orig_rhs_len;
-            let orig_slice = std::slice::from_raw_parts(orig_rhs.cast::<u8>(), orig_rhs_len);
+            let orig_slice = crate::memory::cstr_slice(orig_rhs, orig_rhs_len);
             mapargs.orig_rhs = Some(CString::new(orig_slice).unwrap());
             if crate::memory::cstr_as_bytes(orig_rhs)
                 .eq_ignore_ascii_case(b"<nop>")
@@ -635,9 +635,9 @@ fn str_to_mapargs(
 
         let mut lhs_end = to_parse;
         let do_backslash = vim_strchr(opt_vars().p_cpo, kCpoBslash).is_null();
-        while !crate::memory::cstr_is_empty(lhs_end) && (is_unmap || !ascii_iswhite(*lhs_end as u8 as c_int)) {
+        while !crate::memory::cstr_is_empty(lhs_end) && (is_unmap || !ascii_iswhite(crate::memory::cstr_first_byte(lhs_end) as c_int)) {
             if (*lhs_end == Ctrl_V as c_char || (do_backslash && crate::memory::cstr_first_byte(lhs_end) == b'\\'))
-                && *lhs_end.add(1) != NUL
+                && crate::memory::cstr_byte_at(lhs_end, 1) != 0
             {
                 lhs_end = lhs_end.add(1);
             }
@@ -739,7 +739,7 @@ fn map_add(
                 (*abbr).insert(0, mp);
             }
         } else {
-            let n = map_hash(mp.m_mode, *mp.m_keys.as_ptr() as u8);
+            let n = map_hash(mp.m_mode, crate::memory::cstr_first_byte(mp.m_keys.as_ptr()));
             if local {
                 (&mut buf.b_maphash)[n].insert(0, mp);
             } else {
@@ -845,7 +845,7 @@ fn buf_do_map(
                         }
 
                         for i in 0..(len as usize) {
-                            if ascii_iswhite(*lhs.add(i) as u8 as c_int) {
+                            if ascii_iswhite(crate::memory::cstr_byte_at(lhs, i) as c_int) {
                                 retval = 1;
                                 break 'outer;
                             }
@@ -862,7 +862,7 @@ fn buf_do_map(
                 }
 
                 if args.unique && local && has_lhs && has_rhs && maptype != MAPTYPE_UNMAP {
-                    let lhs_slice = std::slice::from_raw_parts(lhs.cast::<u8>(), len as usize);
+                    let lhs_slice = crate::memory::cstr_slice(lhs, len as usize);
                     for bucket in get_map_buckets(ptr::null(), is_abbrev) {
                         if g_st().got_int {
                             break;
@@ -900,7 +900,7 @@ fn buf_do_map(
                                     let cmp_len = n.min(len) as usize;
                                     let mp_slice = &mp.m_keys.as_bytes()[..cmp_len];
                                     let lhs_slice =
-                                        std::slice::from_raw_parts(lhs.cast::<u8>(), cmp_len);
+                                        crate::memory::cstr_slice(lhs, cmp_len);
                                     if mp_slice == lhs_slice {
                                         showmap(mp, true);
                                         did_local = true;
@@ -924,7 +924,7 @@ fn buf_do_map(
                         let start = if is_abbrev {
                             0
                         } else {
-                            map_hash(mode, *lhs as u8)
+                            map_hash(mode, crate::memory::cstr_first_byte(lhs))
                         };
                         (start, start + 1)
                     } else {
@@ -967,9 +967,9 @@ fn buf_do_map(
                                     (mp.m_keylen, mp.m_keys.as_ptr())
                                 };
                                 let cmp_len = n.min(len) as usize;
-                                let p_slice = std::slice::from_raw_parts(p.cast::<u8>(), cmp_len);
+                                let p_slice = crate::memory::cstr_slice(p, cmp_len);
                                 let lhs_slice =
-                                    std::slice::from_raw_parts(lhs.cast::<u8>(), cmp_len);
+                                    crate::memory::cstr_slice(lhs, cmp_len);
                                 if p_slice == lhs_slice {
                                     if maptype == MAPTYPE_UNMAP {
                                         if n != len
@@ -1031,7 +1031,7 @@ fn buf_do_map(
                                         continue;
                                     }
 
-                                    let new_hash = map_hash(mp.m_mode, *mp.m_keys.as_ptr() as u8);
+                                    let new_hash = map_hash(mp.m_mode, crate::memory::cstr_first_byte(mp.m_keys.as_ptr()));
                                     if !is_abbrev && new_hash != hash {
                                         let moved = mpp.remove(idx);
                                         if local {
@@ -1136,7 +1136,7 @@ pub fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: bool) ->
 fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> c_int {
     unsafe {
         let mut p = *cmdp;
-        let modec = *p as u8;
+        let modec = crate::memory::cstr_first_byte(p);
         p = p.add(1);
         let mode = if modec == b'i' {
             MODE_INSERT
@@ -1213,7 +1213,7 @@ pub fn map_clear_mode(buf: &mut buf_T, mode: c_int, local: bool, abbr: bool) {
                         mpp.remove(idx);
                         continue;
                     }
-                    let new_hash = map_hash(mp.m_mode, *mp.m_keys.as_ptr() as u8);
+                    let new_hash = map_hash(mp.m_mode, crate::memory::cstr_first_byte(mp.m_keys.as_ptr()));
                     if !abbr && new_hash != hash {
                         let moved = mpp.remove(idx);
                         if local {
@@ -1573,7 +1573,7 @@ pub fn check_abbr(
             let min_ptr = ptr_arg.add(mincol.max(0) as usize);
             while (p as usize) > (min_ptr as usize) {
                 p = mb_prevptr(ptr_arg, p);
-                if ascii_isspace(*p as u8 as c_int) || (!vim_abbr && is_id != vim_iswordp(p)) {
+                if ascii_isspace(crate::memory::cstr_first_byte(p) as c_int) || (!vim_abbr && is_id != vim_iswordp(p)) {
                     p = p.add(utfc_ptr2len(p) as usize);
                     break;
                 }
@@ -1607,8 +1607,8 @@ pub fn check_abbr(
                 }
                 let match_found = (cand.m_mode & g_st().State) != 0
                     && qlen == len
-                    && std::slice::from_raw_parts(q.cast::<u8>(), len as usize)
-                        == std::slice::from_raw_parts(ptr_arg.cast::<u8>(), len as usize);
+                    && crate::memory::cstr_slice(q, len as usize)
+                        == crate::memory::cstr_slice(ptr_arg, len as usize);
                 if match_found {
                     mp_opt = Some(cand);
                     break;
@@ -1766,9 +1766,9 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
 
                     let mut p = mp.m_str.as_ptr();
                     while !crate::memory::cstr_is_empty(p) {
-                        if *p as u8 == K_SPECIAL
-                            && *p.add(1) as u8 == KS_EXTRA
-                            && *p.add(2) as u8 == KE_SNR
+                        if crate::memory::cstr_first_byte(p) == K_SPECIAL
+                            && crate::memory::cstr_byte_at(p, 1) == KS_EXTRA
+                            && crate::memory::cstr_byte_at(p, 2) == KE_SNR
                         {
                             break;
                         }
@@ -1952,7 +1952,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> bool {
             str_ptr = p_in.cast::<u8>();
             if !p.is_null() {
                 while !crate::memory::cstr_is_empty(p) {
-                    if fputc(*p as u8 as c_int, fd) < 0 {
+                    if fputc(crate::memory::cstr_first_byte(p) as c_int, fd) < 0 {
                         return false;
                     }
                     p = p.add(1);
@@ -2050,15 +2050,15 @@ pub fn check_map(
                         let mut keylen = mp.m_keylen;
                         if ign_mod != 0
                             && keylen >= 3
-                            && *s as u8 == K_SPECIAL
-                            && *s.add(1) as u8 == KS_MODIFIER
+                            && crate::memory::cstr_first_byte(s) == K_SPECIAL
+                            && crate::memory::cstr_byte_at(s, 1) == KS_MODIFIER
                         {
                             s = s.add(3);
                             keylen -= 3;
                         }
                         let minlen = keylen.min(len).max(0) as usize;
-                        if std::slice::from_raw_parts(s.cast::<u8>(), minlen)
-                            == std::slice::from_raw_parts(keys.cast::<u8>(), minlen)
+                        if crate::memory::cstr_slice(s, minlen)
+                            == crate::memory::cstr_slice(keys, minlen)
                         {
                             if let Some(ref mut out) = mp_out {
                                 **out = Some(mp);
@@ -2342,7 +2342,7 @@ fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
         }
         let mut mode: c_int = 0;
         while !crate::memory::cstr_is_empty(p) {
-            let modec = *p as u8;
+            let modec = crate::memory::cstr_first_byte(p);
             p = p.add(1);
             let tmode = match modec {
                 b'i' => MODE_INSERT,
@@ -2648,7 +2648,7 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
         while !crate::memory::cstr_is_empty(p) {
             let mut p2 = p;
             while !crate::memory::cstr_is_empty(p2) && crate::memory::cstr_first_byte(p2) != b',' && crate::memory::cstr_first_byte(p2) != b';' {
-                if crate::memory::cstr_first_byte(p2) == b'\\' && *p2.add(1) != NUL {
+                if crate::memory::cstr_first_byte(p2) == b'\\' && crate::memory::cstr_byte_at(p2, 1) != 0 {
                     p2 = p2.add(1);
                 }
                 p2 = p2.add(utfc_ptr2len(p2) as usize);
@@ -2663,7 +2663,7 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
                     p = p.add(1);
                     break;
                 }
-                if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != NUL {
+                if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0 {
                     p = p.add(1);
                 }
                 let from = utf_ptr2char(p);

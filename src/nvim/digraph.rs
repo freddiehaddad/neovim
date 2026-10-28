@@ -1762,9 +1762,9 @@ pub fn putdigraph(mut str: *mut c_char) {
             if crate::memory::cstr_is_empty(str) {
                 return;
             }
-            let char1 = *str as u8;
+            let char1 = crate::memory::cstr_first_byte(str);
             str = str.add(1);
-            let char2 = *str as u8;
+            let char2 = crate::memory::cstr_first_byte(str);
             str = str.add(1);
 
             if !check_digraph_chars_valid(c_int::from(char1), c_int::from(char2)) {
@@ -2170,11 +2170,11 @@ pub fn ex_loadkeymap(eap: &mut exarg_T) {
             if crate::memory::cstr_first_byte(p) != b'"' && !crate::memory::cstr_is_empty(p) {
                 let mut s = skiptowhite(p);
                 let from_len = s.offset_from(p) as usize;
-                let from_slice = std::slice::from_raw_parts(p.cast::<u8>(), from_len);
+                let from_slice = crate::memory::cstr_slice(p, from_len);
                 p = skipwhite(s);
                 s = skiptowhite(p);
                 let to_len = s.offset_from(p) as usize;
-                let to_slice = std::slice::from_raw_parts(p.cast::<u8>(), to_len);
+                let to_slice = crate::memory::cstr_slice(p, to_len);
 
                 if from_len + to_len >= KMAP_LLEN || from_len == 0 || to_len == 0 {
                     if to_len == 0 {

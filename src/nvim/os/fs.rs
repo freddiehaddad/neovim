@@ -666,7 +666,7 @@ fn is_executable_ext(
         }
         let mut ext = pathext;
         while *ext != 0 {
-            if crate::memory::cstr_first_byte(ext) == b'.' && (*ext.add(1) == NUL || (*ext.add(1) as u8) == ENV_SEPCHAR)
+            if crate::memory::cstr_first_byte(ext) == b'.' && (crate::memory::cstr_byte_at(ext, 1) == 0 || (crate::memory::cstr_byte_at(ext, 1)) == ENV_SEPCHAR)
             {
                 if is_executable(name, abspath.as_deref_mut()) {
                     return true;
@@ -749,7 +749,7 @@ fn is_executable_in_path(
                 rv = true;
                 break;
             }
-            if (*e as u8) != ENV_SEPCHAR {
+            if (crate::memory::cstr_first_byte(e)) != ENV_SEPCHAR {
                 break;
             }
             p = e.add(1);
@@ -1442,7 +1442,7 @@ pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
         if !dir_of_file_exists(fname) {
             let tail = path_tail_with_sep(fname);
             let last_char = tail.add(crate::memory::cstr_len(tail)).sub(1);
-            if vim_ispathsep(c_int::from(*last_char as u8)) {
+            if vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(last_char))) {
                 emsg(gettext(e_noname));
                 return -1;
             }
@@ -1561,8 +1561,8 @@ pub fn os_fileinfo2(path: *const c_char, info: &mut FileInfo) -> bool {
 
     #[cfg(windows)]
     unsafe {
-        let p0 = *p as u8;
-        let p1 = *p.add(1) as u8;
+        let p0 = crate::memory::cstr_first_byte(p);
+        let p1 = crate::memory::cstr_byte_at(p, 1);
         if leading_slashes == 0 && p0.is_ascii_alphabetic() && p1 == b':' {
             info.r#type = kPathDrive;
             p = path_skip_sep(p.add(2), false);
@@ -1577,11 +1577,11 @@ pub fn os_fileinfo2(path: *const c_char, info: &mut FileInfo) -> bool {
             info.prefix_off = leading_slashes - 2;
             p = path_skip_sep(p.add(2), false);
             let p_bytes = [
-                (*p as u8).to_ascii_lowercase(),
-                (*p.add(1) as u8).to_ascii_lowercase(),
-                (*p.add(2) as u8).to_ascii_lowercase(),
+                (crate::memory::cstr_first_byte(p)).to_ascii_lowercase(),
+                (crate::memory::cstr_byte_at(p, 1)).to_ascii_lowercase(),
+                (crate::memory::cstr_byte_at(p, 2)).to_ascii_lowercase(),
             ];
-            if &p_bytes == b"unc" && vim_ispathsep_nocolon(c_int::from(*p.add(3) as u8)) {
+            if &p_bytes == b"unc" && vim_ispathsep_nocolon(c_int::from(crate::memory::cstr_byte_at(p, 3))) {
                 info.r#type = kPathDeviceUNC;
                 p = path_skip_sep(p.add(4), false);
                 info.root_off = (p as usize) - (path as usize);
@@ -1591,7 +1591,7 @@ pub fn os_fileinfo2(path: *const c_char, info: &mut FileInfo) -> bool {
                 return true;
             }
             info.root_off = (p as usize) - (path as usize);
-            if (*p as u8).is_ascii_alphabetic() && (*p.add(1) as u8) == b':' {
+            if (crate::memory::cstr_first_byte(p)).is_ascii_alphabetic() && (crate::memory::cstr_byte_at(p, 1)) == b':' {
                 p = p.add(2);
             }
             p = path_skip_sep(path_next_component(p), false);

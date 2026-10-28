@@ -1309,7 +1309,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
             }
             return ret;
         }
-        let bytes = std::slice::from_raw_parts(pline.data.cast::<u8>(), pline.size);
+        let bytes = crate::memory::cstr_slice(pline.data, pline.size);
         ret.len = 1;
         let schar = bytes[0];
 
@@ -1919,7 +1919,7 @@ fn parse_quoted_string(
             );
             while (p as usize) < (e as usize) {
                 let rem = e as usize - p as usize;
-                let slice = std::slice::from_raw_parts(p.cast::<u8>(), rem);
+                let slice = crate::memory::cstr_slice(p, rem);
                 let Some(pos) = slice.iter().position(|&b| b == b'\'') else {
                     break;
                 };
@@ -1944,7 +1944,7 @@ fn parse_quoted_string(
                 p = s.add(1);
                 while (p as usize) < (e as usize) {
                     let rem = e as usize - p as usize;
-                    let slice = std::slice::from_raw_parts(p.cast::<u8>(), rem);
+                    let slice = crate::memory::cstr_slice(p, rem);
                     let Some(pos) = slice.iter().position(|&b| b == b'\'') else {
                         std::ptr::copy_nonoverlapping(p, v_p, rem);
                         break;
@@ -1972,16 +1972,16 @@ fn parse_quoted_string(
                         size -= 1;
                         break;
                     }
-                    match *p as u8 {
+                    match crate::memory::cstr_first_byte(p) {
                         b'<' => {
                             size += 5;
                         }
                         b'x' | b'X' => {
                             size -= 1;
-                            if ascii_isxdigit(*p.add(1) as u8) {
+                            if ascii_isxdigit(crate::memory::cstr_byte_at(p, 1)) {
                                 size -= 1;
                                 if (p.add(2) as usize) < (e as usize)
-                                    && ascii_isxdigit(*p.add(2) as u8)
+                                    && ascii_isxdigit(crate::memory::cstr_byte_at(p, 2))
                                 {
                                     size -= 1;
                                 }
@@ -1989,16 +1989,16 @@ fn parse_quoted_string(
                         }
                         b'u' | b'U' => {
                             let esc_start = p;
-                            let mut n: usize = if *p as u8 == b'u' { 4 } else { 8 };
+                            let mut n: usize = if crate::memory::cstr_first_byte(p) == b'u' { 4 } else { 8 };
                             let mut nr: c_int = 0;
                             p = p.add(1);
                             while (p.add(1) as usize) < (e as usize)
                                 && n != 0
-                                && ascii_isxdigit(*p.add(1) as u8)
+                                && ascii_isxdigit(crate::memory::cstr_byte_at(p, 1))
                             {
                                 n -= 1;
                                 p = p.add(1);
-                                nr = (nr << 4) + hex2nr(c_int::from(*p as u8));
+                                nr = (nr << 4) + hex2nr(c_int::from(crate::memory::cstr_first_byte(p)));
                             }
                             let esc_len = (p as usize) - (esc_start as usize - 1);
                             let char_len = utf_char2len(nr) as usize;
@@ -2008,12 +2008,12 @@ fn parse_quoted_string(
                         b'0'..=b'7' => {
                             size -= 1;
                             p = p.add(1);
-                            if (*p as u8) >= b'0' && (*p as u8) <= b'7' {
+                            if (crate::memory::cstr_first_byte(p)) >= b'0' && (crate::memory::cstr_first_byte(p)) <= b'7' {
                                 size -= 1;
                                 p = p.add(1);
                                 if (p as usize) < (e as usize)
-                                    && (*p as u8) >= b'0'
-                                    && (*p as u8) <= b'7'
+                                    && (crate::memory::cstr_first_byte(p)) >= b'0'
+                                    && (crate::memory::cstr_first_byte(p)) <= b'7'
                                 {
                                     size -= 1;
                                     p = p.add(1);
@@ -2036,7 +2036,7 @@ fn parse_quoted_string(
                 p = s.add(1);
                 while (p as usize) < (e as usize) {
                     let rem = e as usize - p as usize;
-                    let slice = std::slice::from_raw_parts(p.cast::<u8>(), rem);
+                    let slice = crate::memory::cstr_slice(p, rem);
                     let Some(pos) = slice.iter().position(|&b| b == b'\\') else {
                         std::ptr::copy_nonoverlapping(p, v_p, rem);
                         v_p = v_p.add(rem);
@@ -2053,7 +2053,7 @@ fn parse_quoted_string(
                     }
                     let mut is_unknown = false;
                     let v_p_start = v_p;
-                    match *p as u8 {
+                    match crate::memory::cstr_first_byte(p) {
                         b'b' => {
                             *v_p = BS as c_char;
                             v_p = v_p.add(1);
@@ -2095,12 +2095,12 @@ fn parse_quoted_string(
                             p = p.add(1);
                         }
                         b'X' | b'x' | b'u' | b'U' => {
-                            if (p.add(1) as usize) < (e as usize) && ascii_isxdigit(*p.add(1) as u8)
+                            if (p.add(1) as usize) < (e as usize) && ascii_isxdigit(crate::memory::cstr_byte_at(p, 1))
                             {
-                                let is_hex = *p as u8 == b'x' || *p as u8 == b'X';
+                                let is_hex = crate::memory::cstr_first_byte(p) == b'x' || crate::memory::cstr_first_byte(p) == b'X';
                                 let mut n: usize = if is_hex {
                                     2
-                                } else if *p as u8 == b'u' {
+                                } else if crate::memory::cstr_first_byte(p) == b'u' {
                                     4
                                 } else {
                                     8
@@ -2108,11 +2108,11 @@ fn parse_quoted_string(
                                 let mut nr: c_int = 0;
                                 while (p.add(1) as usize) < (e as usize)
                                     && n != 0
-                                    && ascii_isxdigit(*p.add(1) as u8)
+                                    && ascii_isxdigit(crate::memory::cstr_byte_at(p, 1))
                                 {
                                     n -= 1;
                                     p = p.add(1);
-                                    nr = (nr << 4) + hex2nr(c_int::from(*p as u8));
+                                    nr = (nr << 4) + hex2nr(c_int::from(crate::memory::cstr_first_byte(p)));
                                 }
                                 p = p.add(1);
                                 if is_hex {
@@ -2129,19 +2129,19 @@ fn parse_quoted_string(
                             }
                         }
                         b'0'..=b'7' => {
-                            let mut ch = (*p as u8) - b'0';
+                            let mut ch = (crate::memory::cstr_first_byte(p)) - b'0';
                             p = p.add(1);
                             if (p as usize) < (e as usize)
-                                && (*p as u8) >= b'0'
-                                && (*p as u8) <= b'7'
+                                && (crate::memory::cstr_first_byte(p)) >= b'0'
+                                && (crate::memory::cstr_first_byte(p)) <= b'7'
                             {
-                                ch = (ch << 3).wrapping_add(*p as u8 - b'0');
+                                ch = (ch << 3).wrapping_add(crate::memory::cstr_first_byte(p) - b'0');
                                 p = p.add(1);
                                 if (p as usize) < (e as usize)
-                                    && (*p as u8) >= b'0'
-                                    && (*p as u8) <= b'7'
+                                    && (crate::memory::cstr_first_byte(p)) >= b'0'
+                                    && (crate::memory::cstr_first_byte(p)) <= b'7'
                                 {
-                                    ch = (ch << 3).wrapping_add(*p as u8 - b'0');
+                                    ch = (ch << 3).wrapping_add(crate::memory::cstr_first_byte(p) - b'0');
                                     p = p.add(1);
                                 }
                             }
@@ -2150,7 +2150,7 @@ fn parse_quoted_string(
                         }
                         b'<' => {
                             let mut flags = FSK_KEYCODE | FSK_IN_STRING;
-                            if *p.add(1) != b'*' as c_char {
+                            if crate::memory::cstr_byte_at(p, 1) != b'*' {
                                 flags |= FSK_SIMPLIFY;
                             }
                             let special_len = trans_special(
@@ -2706,7 +2706,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 pline.data.add(cur_token.start.col + cur_token.len);
                             cur_node.data.opt_mut().ident_len = 0;
                             cur_node.data.opt_mut().scope = if cur_token.len == 3 {
-                                c_int::from(*pline.data.add(cur_token.start.col + 1) as u8)
+                                c_int::from(crate::memory::cstr_byte_at(pline.data, cur_token.start.col + 1))
                             } else {
                                 kExprOptScopeUnspecified
                             };

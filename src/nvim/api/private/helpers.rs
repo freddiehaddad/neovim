@@ -730,11 +730,11 @@ pub fn cstr_to_string(str_: impl crate::strings::IntoCCharPtr) -> NvimString {
 }
 
 pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
-    unsafe {
+     {
         let slice = if str_.data.is_null() || str_.size == 0 {
             &[]
         } else {
-            std::slice::from_raw_parts(str_.data.cast::<u8>(), str_.size)
+            crate::memory::cstr_slice(str_.data, str_.size)
         };
         crate::memory::cstr_from_bytes(slice)
     }
@@ -1216,7 +1216,7 @@ pub fn api_dict_to_keydict(
         };
         for i in 0..dict.size {
             let k = dict[i].key;
-            let key_bytes = if k.data.is_null() || k.size == 0 { &[][..] } else { std::slice::from_raw_parts(k.data.cast::<u8>(), k.size) };
+            let key_bytes = if k.data.is_null() || k.size == 0 { &[][..] } else { crate::memory::cstr_slice(k.data, k.size) };
             let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
                     err,

@@ -754,12 +754,12 @@ pub fn tv_set_string(tv: &mut typval_T, s: impl crate::strings::IntoCCharPtr) {
 
 #[inline]
 pub fn tv_set_string_len(tv: &mut typval_T, s: *const c_char, len: usize) {
-    unsafe {
+     {
         tv.v_type = VarType::VAR_STRING;
         tv.vval = crate::eval::typval::TypvalVval::String(if s.is_null() {
             ptr::null_mut()
         } else {
-            tv_alloc_string_bytes(std::slice::from_raw_parts(s.cast::<u8>(), len))
+            tv_alloc_string_bytes(crate::memory::cstr_slice(s, len))
         });
     }
 }
@@ -1285,11 +1285,11 @@ pub fn tv_list_append_string<S: crate::strings::IntoCCharPtr>(
     len: isize,
 ) {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+     {
         let v_string = if str_.is_null() {
             ptr::null_mut()
         } else if len >= 0 {
-            tv_alloc_string_bytes(std::slice::from_raw_parts(str_.cast::<u8>(), len as usize))
+            tv_alloc_string_bytes(crate::memory::cstr_slice(str_, len as usize))
         } else {
             tv_alloc_string(str_)
         };
@@ -2652,7 +2652,7 @@ pub fn tv_dict_watcher_remove(
     key_pattern_len: usize,
     callback: &Callback,
 ) -> bool {
-    unsafe {
+     {
         if dict.is_none() {
             return false;
         }
@@ -2667,7 +2667,7 @@ pub fn tv_dict_watcher_remove(
                 && tv_callback_equal(&w.callback, callback)
                 && w.key_pattern_len == key_pattern_len
                 && w.key_pattern.as_bytes()
-                    == std::slice::from_raw_parts(key_pattern.cast::<u8>(), key_pattern_len)
+                    == crate::memory::cstr_slice(key_pattern, key_pattern_len)
             {
                 matched_idx = Some(idx);
                 if queue_is_busy {
@@ -2691,10 +2691,10 @@ pub fn tv_dict_watcher_remove(
 
 /// Test if `key` matches with `watcher->key_pattern`.
 fn tv_dict_watcher_matches(watcher: &DictWatcher, key: *const c_char) -> bool {
-    unsafe {
+     {
         let len = watcher.key_pattern_len;
         let pat_ptr = watcher.key_pattern.as_ptr();
-        if len > 0 && *pat_ptr.add(len - 1) == b'*' as c_char {
+        if len > 0 && crate::memory::cstr_byte_at(pat_ptr, len - 1) == b'*' {
             crate::memory::cstr_prefix_bytes(key, len - 1) == crate::memory::cstr_prefix_bytes(pat_ptr, len - 1)
         } else {
             crate::memory::cstr_as_bytes(key) == crate::memory::cstr_as_bytes(pat_ptr)
@@ -3249,7 +3249,7 @@ pub fn tv_dict_add_str_len<S: crate::strings::IntoCCharPtr>(
         } else if len < 0 {
             tv_alloc_string(val)
         } else {
-            tv_alloc_string_bytes(std::slice::from_raw_parts(val.cast::<u8>(), len as usize))
+            tv_alloc_string_bytes(crate::memory::cstr_slice(val, len as usize))
         };
         let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
         (*item).di_tv.v_type = VarType::VAR_STRING;
@@ -4808,11 +4808,11 @@ pub fn tv_get_lnum(tv: &typval_T) -> linenr_T {
 
 /// Get the line number from Vimscript object.
 pub fn tv_get_lnum_buf(tv: &typval_T, buf: Option<&buf_T>) -> linenr_T {
-    unsafe {
+     {
         if tv.v_type == VarType::VAR_STRING
             && !tv.vval.v_string().is_null()
-            && *tv.vval.v_string() == b'$' as c_char
-            && *tv.vval.v_string().add(1) == NUL
+            && crate::memory::cstr_first_byte(tv.vval.v_string()) == b'$'
+            && crate::memory::cstr_byte_at(tv.vval.v_string(), 1) == 0
             && let Some(buf) = buf
         {
             return buf.b_ml.ml_line_count;
@@ -5144,7 +5144,7 @@ pub fn tv2bool(tv: &typval_T) -> bool {
             VarType::VAR_FLOAT => tv.vval.v_float() != 0.0,
             VarType::VAR_PARTIAL => !tv.vval.v_partial().is_null(),
             VarType::VAR_FUNC | VarType::VAR_STRING => {
-                !tv.vval.v_string().is_null() && *tv.vval.v_string() != NUL
+                !tv.vval.v_string().is_null() && !crate::memory::cstr_is_empty(tv.vval.v_string())
             }
             VarType::VAR_LIST => !tv.vval.v_list().is_null() && (*tv.vval.v_list()).lv_len > 0,
             VarType::VAR_DICT => {
@@ -5258,7 +5258,7 @@ mod tests {
             let mut joined: Vec<c_char> = Vec::new();
             assert!(tv_list_join(&mut joined, l2.as_mut(), c", "));
             assert_eq!(
-                std::slice::from_raw_parts(joined.as_ptr().cast::<u8>(), joined.len()),
+                crate::memory::cstr_slice(joined.as_ptr(), joined.len()),
                 b"99, hello, world"
             );
 

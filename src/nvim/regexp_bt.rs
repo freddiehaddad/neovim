@@ -1131,9 +1131,9 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     b'^' => return regnode(RE_BOF),
                     b'$' => return regnode(RE_EOF),
                     b'#' => {
-                        if *re_st().regparse == b'=' as c_char
-                            && (*re_st().regparse.add(1) as u8) >= 48
-                            && (*re_st().regparse.add(1) as u8) <= 50
+                        if crate::memory::cstr_first_byte(re_st().regparse) == b'='
+                            && (crate::memory::cstr_byte_at(re_st().regparse, 1)) >= 48
+                            && (crate::memory::cstr_byte_at(re_st().regparse, 1)) <= 50
                         {
                             semsg!(
                                 tr(e_atom_engine_must_be_at_start_of_pattern),
@@ -1381,32 +1381,32 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     }
                 }
 
-                if *re_st().regparse == b'^' as c_char {
+                if crate::memory::cstr_first_byte(re_st().regparse) == b'^' {
                     ret = regnode(ANYBUT + extra);
                     re_st().regparse = re_st().regparse.add(1);
                 } else {
                     ret = regnode(ANYOF + extra);
                 }
 
-                if *re_st().regparse == b']' as c_char || *re_st().regparse == b'-' as c_char {
-                    startc = *re_st().regparse as u8 as c_int;
+                if crate::memory::cstr_first_byte(re_st().regparse) == b']' || crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
+                    startc = crate::memory::cstr_first_byte(re_st().regparse) as c_int;
                     regc(startc);
                     re_st().regparse = re_st().regparse.add(1);
                 }
 
-                while *re_st().regparse != NUL as c_char && *re_st().regparse != b']' as c_char {
-                    if *re_st().regparse == b'-' as c_char {
+                while !crate::memory::cstr_is_empty(re_st().regparse) && crate::memory::cstr_first_byte(re_st().regparse) != b']' {
+                    if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
                         re_st().regparse = re_st().regparse.add(1);
-                        if *re_st().regparse == b']' as c_char
-                            || *re_st().regparse == NUL as c_char
+                        if crate::memory::cstr_first_byte(re_st().regparse) == b']'
+                            || crate::memory::cstr_is_empty(re_st().regparse)
                             || startc == -1
-                            || (*re_st().regparse == b'\\' as c_char && *re_st().regparse.add(1) == b'n' as c_char)
+                            || (crate::memory::cstr_first_byte(re_st().regparse) == b'\\' && crate::memory::cstr_byte_at(re_st().regparse, 1) == b'n')
                         {
                             regc(b'-' as c_int);
                             startc = b'-' as c_int;
                         } else {
                             let mut endc: c_int = 0;
-                            if *re_st().regparse == b'[' as c_char {
+                            if crate::memory::cstr_first_byte(re_st().regparse) == b'[' {
                                 endc = get_coll_element(&raw mut re_st().regparse);
                             }
                             if endc == 0 {
@@ -1444,25 +1444,25 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             }
                             startc = -1;
                         }
-                    } else if *re_st().regparse == b'\\' as c_char
-                        && (!vim_strchr(REGEXP_INRANGE, *re_st().regparse.add(1) as u8 as c_int)
+                    } else if crate::memory::cstr_first_byte(re_st().regparse) == b'\\'
+                        && (!vim_strchr(REGEXP_INRANGE, crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int)
                             .is_null()
                             || (re_st().reg_cpo_lit == 0
                                 && !vim_strchr(
                                     REGEXP_ABBR,
-                                    *re_st().regparse.add(1) as u8 as c_int,
+                                    crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
                                 )
                                 .is_null()))
                     {
                         re_st().regparse = re_st().regparse.add(1);
-                        if *re_st().regparse == b'n' as c_char {
+                        if crate::memory::cstr_first_byte(re_st().regparse) == b'n' {
                             if ret != just_calc_size() && *ret == ANYOF as u8 {
                                 *ret = (ANYOF + ADD_NL) as u8;
                                 *flagp |= HASNL;
                             }
                             re_st().regparse = re_st().regparse.add(1);
                             startc = -1;
-                        } else if matches!(*re_st().regparse as u8, b'd' | b'o' | b'x' | b'u' | b'U') {
+                        } else if matches!(crate::memory::cstr_first_byte(re_st().regparse), b'd' | b'o' | b'x' | b'u' | b'U') {
                             startc = coll_get_char();
                             if startc == c_int::MAX {
                                 emsg(tr(e_unicode_val_too_large));
@@ -1475,11 +1475,11 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                 regmbc(startc);
                             }
                         } else {
-                            startc = backslash_trans(*re_st().regparse as u8 as c_int);
+                            startc = backslash_trans(crate::memory::cstr_first_byte(re_st().regparse) as c_int);
                             re_st().regparse = re_st().regparse.add(1);
                             regc(startc);
                         }
-                    } else if *re_st().regparse == b'[' as c_char {
+                    } else if crate::memory::cstr_first_byte(re_st().regparse) == b'[' {
                         let mut c_class = get_char_class(&raw mut re_st().regparse);
                         startc = -1;
                         match c_class {
@@ -1492,7 +1492,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                     if c_class != 0 {
                                         regmbc(c_class);
                                     } else {
-                                        startc = *re_st().regparse as u8 as c_int;
+                                        startc = crate::memory::cstr_first_byte(re_st().regparse) as c_int;
                                         re_st().regparse = re_st().regparse.add(1);
                                         regc(startc);
                                     }
@@ -1615,14 +1615,14 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             len -= 1;
                             len >= 0
                         } {
-                            regc(*re_st().regparse as u8 as c_int);
+                            regc(crate::memory::cstr_first_byte(re_st().regparse) as c_int);
                             re_st().regparse = re_st().regparse.add(1);
                         }
                     }
                 }
                 regc(NUL as c_int);
                 re_st().prevchr_len = 1;
-                if *re_st().regparse != b']' as c_char {
+                if crate::memory::cstr_first_byte(re_st().regparse) != b']' {
                     emsg(tr(e_toomsbra));
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();

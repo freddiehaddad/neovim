@@ -408,10 +408,10 @@ pub fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> 
             if crate::memory::cstr_is_empty(p)
                 || (crate::memory::cstr_first_byte(p) == b'E'
                     && ascii_isdigit(*p.add(1))
-                    && (*p.add(2) == b':' as c_char
+                    && (crate::memory::cstr_byte_at(p, 2) == b':'
                         || (ascii_isdigit(*p.add(2))
-                            && (*p.add(3) == b':' as c_char
-                                || (ascii_isdigit(*p.add(3)) && *p.add(4) == b':' as c_char)))))
+                            && (crate::memory::cstr_byte_at(p, 3) == b':'
+                                || (ascii_isdigit(*p.add(3)) && crate::memory::cstr_byte_at(p, 4) == b':')))))
             {
                 if crate::memory::cstr_is_empty(p) || ptr::eq(p, mesg) {
                     out.extend_from_slice(crate::memory::cstr_as_bytes(mesg));
@@ -931,7 +931,7 @@ pub fn ex_else(eap: &mut exarg_T) {
             let mut error = false;
             if skip
                 && crate::memory::cstr_first_byte(eap.arg) != b'"'
-                && ends_excmd(c_int::from(*eap.arg as u8)) != 0
+                && ends_excmd(c_int::from(crate::memory::cstr_first_byte(eap.arg))) != 0
             {
                 semsg!(gettext(e_invexpr2), eap.arg);
             } else {
@@ -1206,12 +1206,12 @@ pub fn ex_catch(eap: &mut exarg_T) {
         }
 
         let (pat, end): (*const c_char, *mut c_char) =
-            if ends_excmd(c_int::from(*eap.arg as u8)) != 0 {
+            if ends_excmd(c_int::from(crate::memory::cstr_first_byte(eap.arg))) != 0 {
                 eap.nextcmd = find_nextcmd(eap.arg);
                 (c".*".as_ptr(), ptr::null_mut())
             } else {
                 let pat = eap.arg.add(1);
-                let end = skip_regexp_err(pat, c_int::from(*eap.arg as u8), 1);
+                let end = skip_regexp_err(pat, c_int::from(crate::memory::cstr_first_byte(eap.arg)), 1);
                 if end.is_null() {
                     give_up = true;
                 }
@@ -1717,7 +1717,7 @@ pub fn has_loop_cmd(mut p: *mut c_char) -> bool {
             }
             p = p.add(len as usize);
         }
-        (crate::memory::cstr_first_byte(p) == b'w' && *p.add(1) == b'h' as c_char)
-            || (crate::memory::cstr_first_byte(p) == b'f' && *p.add(1) == b'o' as c_char && *p.add(2) == b'r' as c_char)
+        (crate::memory::cstr_first_byte(p) == b'w' && crate::memory::cstr_byte_at(p, 1) == b'h')
+            || (crate::memory::cstr_first_byte(p) == b'f' && crate::memory::cstr_byte_at(p, 1) == b'o' && crate::memory::cstr_byte_at(p, 2) == b'r')
     }
 }

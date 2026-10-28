@@ -60,8 +60,8 @@ pub fn ex_help(eap: &mut exarg_T) {
                 if crate::memory::cstr_first_byte(arg) == b'\n'
                     || crate::memory::cstr_first_byte(arg) == b'\r'
                     || (crate::memory::cstr_first_byte(arg) == b'|'
-                        && *arg.add(1) != NUL
-                        && *arg.add(1) != b'|' as c_char)
+                        && crate::memory::cstr_byte_at(arg, 1) != 0
+                        && crate::memory::cstr_byte_at(arg, 1) != b'|')
                 {
                     *arg = NUL;
                     arg = arg.add(1);
@@ -121,7 +121,7 @@ pub fn ex_help(eap: &mut exarg_T) {
             );
             if rettv.v_type == VarType::VAR_STRING
                 && !rettv.vval.v_string().is_null()
-                && *rettv.vval.v_string() != NUL
+                && !crate::memory::cstr_is_empty(rettv.vval.v_string())
             {
                 allocated_arg = crate::eval::typval::tv_take_string(rettv.vval.v_string());
                 arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
@@ -273,7 +273,7 @@ pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
     unsafe {
         let len = crate::memory::cstr_len(arg);
         if len >= 3
-            && *arg.add(len - 3) == b'@' as c_char
+            && crate::memory::cstr_byte_at(arg, len - 3) == b'@'
             && ascii_isalpha(*arg.add(len - 2))
             && ascii_isalpha(*arg.add(len - 1))
         {
@@ -312,7 +312,7 @@ pub fn help_heuristic(
         if wrong_case {
             offset += 5000;
         }
-        if crate::memory::cstr_first_byte(matched_string) == b'+' && *matched_string.add(1) != NUL {
+        if crate::memory::cstr_first_byte(matched_string) == b'+' && crate::memory::cstr_byte_at(matched_string, 1) != 0 {
             offset += 100;
         }
         let len = crate::memory::cstr_len(matched_string) as c_int;
@@ -398,14 +398,14 @@ pub fn find_help_tags(
 
 /// Cleanup matches for help tags (`cleanup_help_tags`).
 pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
-    unsafe {
+     {
         let mut buf = [0u8; 3];
         let has_default_lang =
-            !crate::memory::cstr_is_empty(opt_vars().p_hlg) && (crate::memory::cstr_first_byte(opt_vars().p_hlg) != b'e' || *opt_vars().p_hlg.add(1) != b'n' as c_char);
+            !crate::memory::cstr_is_empty(opt_vars().p_hlg) && (crate::memory::cstr_first_byte(opt_vars().p_hlg) != b'e' || crate::memory::cstr_byte_at(opt_vars().p_hlg, 1) != b'n');
         if has_default_lang {
             buf[0] = b'@';
-            buf[1] = *opt_vars().p_hlg as u8;
-            buf[2] = *opt_vars().p_hlg.add(1) as u8;
+            buf[1] = crate::memory::cstr_first_byte(opt_vars().p_hlg);
+            buf[2] = crate::memory::cstr_byte_at(opt_vars().p_hlg, 1);
         }
 
         for i in 0..file.len() {

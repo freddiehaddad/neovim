@@ -15834,7 +15834,7 @@ pub fn msgpack_rpc_get_handler_for(
     error: &mut Error,
 ) -> MsgpackRpcRequestHandler {
     unsafe {
-        let key_bytes = if name.is_null() || name_len == 0 { &[][..] } else { std::slice::from_raw_parts(name.cast::<u8>(), name_len) };
+        let key_bytes = if name.is_null() || name_len == 0 { &[][..] } else { crate::memory::cstr_slice(name, name_len) };
         let hash = msgpack_rpc_get_handler_for_hash(key_bytes);
         if hash < 0 {
             let empty = c"<empty>";

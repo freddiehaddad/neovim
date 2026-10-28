@@ -284,7 +284,7 @@ pub fn parse_isopt(var: *const c_char, chartab: *mut u64) -> bool {
             let mut tilde = false;
             let mut do_isalpha = false;
 
-            if crate::memory::cstr_first_byte(p) == b'^' && *p.add(1) != NUL {
+            if crate::memory::cstr_first_byte(p) == b'^' && crate::memory::cstr_byte_at(p, 1) != 0 {
                 tilde = true;
                 p = p.add(1);
             }
@@ -296,7 +296,7 @@ pub fn parse_isopt(var: *const c_char, chartab: *mut u64) -> bool {
             };
             let mut c2: c_int = -1;
 
-            if crate::memory::cstr_first_byte(p) == b'-' && *p.add(1) != NUL {
+            if crate::memory::cstr_first_byte(p) == b'-' && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
                 c2 = if ascii_isdigit(*p as c_int) {
                     getdigits_int((&raw mut p).cast::<*mut c_char>(), false, 0)
@@ -360,7 +360,7 @@ pub fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
             if trs_len > 1 {
                 len -= trs_len;
             } else {
-                let trs = transchar_byte(c_int::from(*buf as u8));
+                let trs = transchar_byte(c_int::from(crate::memory::cstr_first_byte(buf)));
                 trs_len = crate::memory::cstr_len(trs) as c_int;
 
                 if trs_len > 1 {
@@ -402,7 +402,7 @@ pub fn transstr_len(s: *const c_char, untab: bool) -> usize {
                 len += 1;
                 p = p.add(1);
             } else {
-                let c = *p as u8;
+                let c = crate::memory::cstr_first_byte(p);
                 p = p.add(1);
                 len += if c < 0x80 {
                     ascii2cells(c_int::from(c)) as usize
@@ -457,7 +457,7 @@ pub fn transstr_buf(
                 buf_p = buf_p.add(1);
                 p = p.add(1);
             } else {
-                let c = *p as u8;
+                let c = crate::memory::cstr_first_byte(p);
                 p = p.add(1);
                 let tb = transchar_byte(c_int::from(c));
                 let tb_len = crate::memory::cstr_len(tb);
@@ -475,11 +475,11 @@ pub fn transstr_buf(
 }
 
 pub fn transstr(s: *const c_char, untab: bool) -> CString {
-    unsafe {
+     {
         let len = transstr_len(s, untab) + 1;
         let mut buf = vec![0 as c_char; len];
         let written = transstr_buf(s, -1, buf.as_mut_ptr(), len, untab);
-        cstr_from_bytes(std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), written))
+        cstr_from_bytes(crate::memory::cstr_slice(buf.as_ptr(), written))
     }
 }
 
@@ -742,8 +742,8 @@ pub fn vim_iswordp(p: *const c_char) -> bool {
 }
 
 pub fn vim_iswordp_buf(p: *const c_char, buf: &mut buf_T) -> bool {
-    unsafe {
-        let mut c = c_int::from(*p as u8);
+     {
+        let mut c = c_int::from(crate::memory::cstr_first_byte(p));
         if utf8len_tab[c as usize] > 1 {
             c = utf_ptr2char(p);
         }
@@ -874,7 +874,7 @@ pub fn skiptowhite(mut p: *const c_char) -> *mut c_char {
 pub fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while crate::memory::cstr_first_byte(p) != b' ' && crate::memory::cstr_first_byte(p) != b'\t' && !crate::memory::cstr_is_empty(p) {
-            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == Ctrl_V) && *p.add(1) != NUL {
+            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == Ctrl_V) && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
             }
             p = p.add(1);
@@ -1059,7 +1059,7 @@ pub fn vim_str2nr(
                 STR2NR_HEX => {
                     if !string_ended(ptr.add(2))
                         && crate::memory::cstr_first_byte(ptr) == b'0'
-                        && (*ptr.add(1) == b'x' as c_char || *ptr.add(1) == b'X' as c_char)
+                        && (crate::memory::cstr_byte_at(ptr, 1) == b'x' || crate::memory::cstr_byte_at(ptr, 1) == b'X')
                         && ascii_isxdigit(*ptr.add(2) as c_int)
                     {
                         ptr = ptr.add(2);
@@ -1069,7 +1069,7 @@ pub fn vim_str2nr(
                 STR2NR_BIN => {
                     if !string_ended(ptr.add(2))
                         && crate::memory::cstr_first_byte(ptr) == b'0'
-                        && (*ptr.add(1) == b'b' as c_char || *ptr.add(1) == b'B' as c_char)
+                        && (crate::memory::cstr_byte_at(ptr, 1) == b'b' || crate::memory::cstr_byte_at(ptr, 1) == b'B')
                         && ascii_isbdigit(*ptr.add(2) as c_int)
                     {
                         ptr = ptr.add(2);
@@ -1079,7 +1079,7 @@ pub fn vim_str2nr(
                 x if x == STR2NR_OCT || x == STR2NR_OOCT || x == (STR2NR_OCT | STR2NR_OOCT) => {
                     if !string_ended(ptr.add(2))
                         && crate::memory::cstr_first_byte(ptr) == b'0'
-                        && (*ptr.add(1) == b'o' as c_char || *ptr.add(1) == b'O' as c_char)
+                        && (crate::memory::cstr_byte_at(ptr, 1) == b'o' || crate::memory::cstr_byte_at(ptr, 1) == b'O')
                         && ascii_isodigit(*ptr.add(2) as c_int)
                     {
                         ptr = ptr.add(2);
@@ -1094,10 +1094,10 @@ pub fn vim_str2nr(
         } else if (what & (STR2NR_HEX | STR2NR_OCT | STR2NR_OOCT | STR2NR_BIN)) != 0
             && !string_ended(ptr.add(1))
             && crate::memory::cstr_first_byte(ptr) == b'0'
-            && *ptr.add(1) != b'8' as c_char
-            && *ptr.add(1) != b'9' as c_char
+            && crate::memory::cstr_byte_at(ptr, 1) != b'8'
+            && crate::memory::cstr_byte_at(ptr, 1) != b'9'
         {
-            pre = c_int::from(*ptr.add(1) as u8);
+            pre = c_int::from(crate::memory::cstr_byte_at(ptr, 1));
             if (what & STR2NR_HEX) != 0
                 && !string_ended(ptr.add(2))
                 && (pre == b'X' as c_int || pre == b'x' as c_int)
@@ -1127,7 +1127,7 @@ pub fn vim_str2nr(
                     let mut is_oct = true;
                     let mut i: usize = 2;
                     while !string_ended(ptr.add(i)) && ascii_isdigit(*ptr.add(i) as c_int) {
-                        if (*ptr.add(i) as u8) > b'7' {
+                        if (crate::memory::cstr_byte_at(ptr, i)) > b'7' {
                             is_oct = false;
                             break;
                         }
@@ -1244,11 +1244,11 @@ pub fn hexhex2nr(p: *const c_char) -> c_int {
 }
 
 pub fn rem_backslash(str_: *const c_char) -> bool {
-    unsafe {
+     {
         #[cfg(windows)]
         {
-            let b0 = *str_ as u8;
-            let b1 = *str_.add(1) as u8;
+            let b0 = crate::memory::cstr_first_byte(str_);
+            let b1 = crate::memory::cstr_byte_at(str_, 1);
             b0 == b'\\'
                 && b1 < 0x80
                 && (b1 == b' '
@@ -1256,7 +1256,7 @@ pub fn rem_backslash(str_: *const c_char) -> bool {
         }
         #[cfg(not(windows))]
         {
-            crate::memory::cstr_first_byte(str_) == b'\\' && *str_.add(1) != NUL
+            crate::memory::cstr_first_byte(str_) == b'\\' && crate::memory::cstr_byte_at(str_, 1) != 0
         }
     }
 }
@@ -1292,10 +1292,10 @@ pub fn backslash_halve_save(mut p: *const c_char) -> CString {
         let mut res = Vec::with_capacity(crate::memory::cstr_len(p));
         while !crate::memory::cstr_is_empty(p) {
             if rem_backslash(p) {
-                res.push(*p.add(1) as u8);
+                res.push(crate::memory::cstr_byte_at(p, 1));
                 p = p.add(2);
             } else {
-                res.push(*p as u8);
+                res.push(crate::memory::cstr_first_byte(p));
                 p = p.add(1);
             }
         }

@@ -104,7 +104,7 @@ pub fn decode_string(
     let s = s.into_c_char_ptr();
     assert!(!s.is_null() || len == 0);
     let has_nul = if !s.is_null() && len > 0 {
-        let slice = unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) };
+        let slice =  { crate::memory::cstr_slice(s, len) };
         slice.contains(&0)
     } else {
         false
@@ -121,7 +121,7 @@ pub fn decode_string(
             let b = &mut *tv_blob_alloc_ret(&mut tv);
             if !s.is_null() && len > 0 {
                 b.bv_ga
-                    .extend_from_slice(std::slice::from_raw_parts(s.cast::<u8>(), len));
+                    .extend_from_slice(crate::memory::cstr_slice(s, len));
             }
         }
         return tv;
@@ -261,8 +261,8 @@ fn parse_json_string(
     let mut len = 0usize;
 
     unsafe {
-        while p < e && *p as u8 != b'"' {
-            if *p as u8 == b'\\' {
+        while p < e && crate::memory::cstr_first_byte(p) != b'"' {
+            if crate::memory::cstr_first_byte(p) == b'\\' {
                 p = p.add(1);
                 if p == e {
                     semsg!(
@@ -273,7 +273,7 @@ fn parse_json_string(
                     *pp = p;
                     return false;
                 }
-                match *p as u8 {
+                match crate::memory::cstr_first_byte(p) {
                     b'u' => {
                         if p.add(4) >= e {
                             semsg!(
@@ -284,10 +284,10 @@ fn parse_json_string(
                             *pp = p;
                             return false;
                         }
-                        if !((*p.add(1) as u8).is_ascii_hexdigit()
-                            && (*p.add(2) as u8).is_ascii_hexdigit()
-                            && (*p.add(3) as u8).is_ascii_hexdigit()
-                            && (*p.add(4) as u8).is_ascii_hexdigit())
+                        if !((crate::memory::cstr_byte_at(p, 1)).is_ascii_hexdigit()
+                            && (crate::memory::cstr_byte_at(p, 2)).is_ascii_hexdigit()
+                            && (crate::memory::cstr_byte_at(p, 3)).is_ascii_hexdigit()
+                            && (crate::memory::cstr_byte_at(p, 4)).is_ascii_hexdigit())
                         {
                             let start = p.sub(1);
                             semsg!(
@@ -317,7 +317,7 @@ fn parse_json_string(
                     }
                 }
             } else {
-                let p_byte = *p as u8;
+                let p_byte = crate::memory::cstr_first_byte(p);
                 if p_byte < 0x20 {
                     semsg!(
                         c"E474: ASCII control characters cannot be present inside string: %.*s",
@@ -330,7 +330,7 @@ fn parse_json_string(
                 let ch = utf_ptr2char(p);
                 if ch >= 0x80
                     && c_int::from(p_byte) == ch
-                    && !(ch == 0xC3 && p.add(1) < e && (*p.add(1) as u8) == 0x83)
+                    && !(ch == 0xC3 && p.add(1) < e && (crate::memory::cstr_byte_at(p, 1)) == 0x83)
                 {
                     semsg!(
                         c"E474: Only UTF-8 strings allowed: %.*s",
@@ -355,7 +355,7 @@ fn parse_json_string(
             }
         }
 
-        if p == e || *p as u8 != b'"' {
+        if p == e || crate::memory::cstr_first_byte(p) != b'"' {
             semsg!(
                 c"E474: Expected string end: %.*s",
                 buf_len as c_int,
@@ -372,19 +372,19 @@ fn parse_json_string(
         let mut t = s;
 
         while t < p {
-            if (*t as u8 != b'\\' || *t.add(1) as u8 != b'u') && fst_in_pair != 0 {
+            if (crate::memory::cstr_first_byte(t) != b'\\' || crate::memory::cstr_byte_at(t, 1) != b'u') && fst_in_pair != 0 {
                 str_end = str_end.add(utf_char2bytes(fst_in_pair, str_end) as usize);
                 fst_in_pair = 0;
             }
-            if *t as u8 == b'\\' {
+            if crate::memory::cstr_first_byte(t) == b'\\' {
                 t = t.add(1);
-                match *t as u8 {
+                match crate::memory::cstr_first_byte(t) {
                     b'u' => {
                         let ubuf = [
-                            *t.add(1) as u8,
-                            *t.add(2) as u8,
-                            *t.add(3) as u8,
-                            *t.add(4) as u8,
+                            crate::memory::cstr_byte_at(t, 1),
+                            crate::memory::cstr_byte_at(t, 2),
+                            crate::memory::cstr_byte_at(t, 3),
+                            crate::memory::cstr_byte_at(t, 4),
                         ];
                         t = t.add(4);
                         let hex_str = std::str::from_utf8_unchecked(&ubuf);
@@ -498,15 +498,15 @@ fn parse_json_number(
     let mut exps_s: *const c_char = std::ptr::null();
 
     unsafe {
-        if *p as u8 == b'-' {
+        if crate::memory::cstr_first_byte(p) == b'-' {
             p = p.add(1);
         }
         let ints = p;
         if p < e {
-            while p < e && (*p as u8).is_ascii_digit() {
+            while p < e && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
                 p = p.add(1);
             }
-            if p != ints.add(1) && *ints as u8 == b'0' {
+            if p != ints.add(1) && crate::memory::cstr_first_byte(ints) == b'0' {
                 semsg!(
                     c"E474: Leading zeroes are not allowed: %.*s",
                     ((e as usize) - (s as usize)) as c_int,
@@ -516,21 +516,21 @@ fn parse_json_number(
                 return false;
             }
             if p < e && p != ints {
-                if *p as u8 == b'.' {
+                if crate::memory::cstr_first_byte(p) == b'.' {
                     p = p.add(1);
                     fracs = p;
-                    while p < e && (*p as u8).is_ascii_digit() {
+                    while p < e && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
                         p = p.add(1);
                     }
                 }
-                if p < e && (fracs.is_null() || p != fracs) && matches!(*p as u8, b'e' | b'E') {
+                if p < e && (fracs.is_null() || p != fracs) && matches!(crate::memory::cstr_first_byte(p), b'e' | b'E') {
                     p = p.add(1);
                     exps_s = p;
-                    if p < e && matches!(*p as u8, b'-' | b'+') {
+                    if p < e && matches!(crate::memory::cstr_first_byte(p), b'-' | b'+') {
                         p = p.add(1);
                     }
                     exps = p;
-                    while p < e && (*p as u8).is_ascii_digit() {
+                    while p < e && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
                         p = p.add(1);
                     }
                 }
@@ -645,7 +645,7 @@ pub fn json_decode_string(
     unsafe {
         let mut p = buf;
         let e = buf.add(buf_len);
-        while p < e && matches!(*p as u8, b' ' | b'\t' | b'\n' | b'\r') {
+        while p < e && matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t' | b'\n' | b'\r') {
             p = p.add(1);
         }
         if p == e {
@@ -669,16 +669,16 @@ pub fn json_decode_string(
 
         'outer: while p < e {
             loop {
-                debug_assert!(*p as u8 == b'{' || !next_map_special);
+                debug_assert!(crate::memory::cstr_first_byte(p) == b'{' || !next_map_special);
                 let len_rem = ((e as usize) - (p as usize)) as c_int;
-                match *p as u8 {
+                match crate::memory::cstr_first_byte(p) {
                     b'}' | b']' => {
                         if container_stack.is_empty() {
                             semsg!(c"E474: No container to close: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
                         let last_container = *container_stack.last().unwrap();
-                        if *p as u8 == b'}' && last_container.container.v_type != VarType::VAR_DICT
+                        if crate::memory::cstr_first_byte(p) == b'}' && last_container.container.v_type != VarType::VAR_DICT
                         {
                             semsg!(
                                 c"E474: Closing list with curly bracket: %.*s",
@@ -686,7 +686,7 @@ pub fn json_decode_string(
                                 p,
                             );
                             return fail_cleanup(stack);
-                        } else if *p as u8 == b']'
+                        } else if crate::memory::cstr_first_byte(p) == b']'
                             && last_container.container.v_type != VarType::VAR_LIST
                         {
                             semsg!(
@@ -1016,7 +1016,7 @@ pub fn json_decode_string(
         }
 
         while p < e {
-            match *p as u8 {
+            match crate::memory::cstr_first_byte(p) {
                 b'\n' | b' ' | b'\t' | b'\r' => p = p.add(1),
                 _ => {
                     let len_rem = ((e as usize) - (p as usize)) as c_int;
@@ -1149,7 +1149,7 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                 let len = node.tok.length as usize;
                 if len > 0 {
                     let chunk =
-                        std::slice::from_raw_parts(node.tok.data.chunk_ptr().cast::<u8>(), len);
+                        crate::memory::cstr_slice(node.tok.data.chunk_ptr(), len);
                     data[(*parent).pos..((*parent).pos + len)].copy_from_slice(chunk);
                 }
             }

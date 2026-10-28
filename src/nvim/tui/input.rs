@@ -396,7 +396,7 @@ fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
                 buf[len..len + 4].copy_from_slice(b"<lt>");
                 len += 4;
             } else {
-                buf[len] = *ptr as u8;
+                buf[len] = crate::memory::cstr_first_byte(ptr);
                 len += 1;
             }
             assert!(len < buf.len());
@@ -628,9 +628,9 @@ unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
 }
 
 fn handle_focus_event(_input: &mut TermInput, ptr: *const c_char, size: usize) -> usize {
-    unsafe {
+     {
         if size >= 3 {
-            let bytes = std::slice::from_raw_parts(ptr.cast::<u8>(), 3);
+            let bytes = crate::memory::cstr_slice(ptr, 3);
             if bytes == b"\x1b[I" || bytes == b"\x1b[O" {
                 let focus_gained = bytes[2] == b'I';
                 let mut items = [boolean_obj(focus_gained)];
@@ -653,8 +653,8 @@ fn handle_bracketed_paste(
     size: usize,
     incomplete: &mut bool,
 ) -> usize {
-    unsafe {
-        let bytes = std::slice::from_raw_parts(ptr.cast::<u8>(), size);
+     {
+        let bytes = crate::memory::cstr_slice(ptr, size);
         if size >= 6 && (&bytes[..6] == START_PASTE || &bytes[..6] == END_PASTE) {
             let enable = bytes[4] == b'0';
             if input.paste != 0 && enable {
@@ -922,7 +922,7 @@ fn handle_raw_buffer(
             let mut count: usize = 0;
             for i in 0..size {
                 count = i + 1;
-                if (*ptr.add(i) as u8) == 0x1b && count > 1 {
+                if (crate::memory::cstr_byte_at(ptr, i)) == 0x1b && count > 1 {
                     count -= 1;
                     break;
                 }

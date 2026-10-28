@@ -60,9 +60,9 @@ fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
 
 #[inline]
 fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
-    unsafe {
+     {
         if !s.is_null() && len > 0 {
-            gap.extend_from_slice(std::slice::from_raw_parts(s.cast::<u8>(), len));
+            gap.extend_from_slice(crate::memory::cstr_slice(s, len));
         }
     }
 }
@@ -95,7 +95,7 @@ fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: 
             return;
         }
 
-        let b = *p as u8;
+        let b = crate::memory::cstr_first_byte(p);
         match b {
             BS => ga_concat_literal(gap, b"\\b"),
             ESC => ga_concat_literal(gap, b"\\e"),

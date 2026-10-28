@@ -4,7 +4,7 @@ use crate::api::private::helpers::api_free_object;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::api::win_config::kUIMultigrid;
 use crate::buffer::{buf_is_empty, kUIMessages};
-use crate::charset::{NUL, vim_strsize};
+use crate::charset::vim_strsize;
 use crate::drawscreen::screenclear;
 use crate::ex_docmd::exarg_T;
 use crate::globals::*;
@@ -4064,7 +4064,7 @@ pub fn list_lua_version() {
 }
 
 pub fn list_version() {
-    unsafe {
+     {
         msg_ext_set_kind(c"list_cmd");
         msg_puts(longVersion());
         msg_putchar(b'\n' as c_int);
@@ -4093,13 +4093,13 @@ pub fn list_version() {
             version_msg(c"$VIM/sysinit.vim");
             version_msg(c"\"\n");
 
-            if *default_vim_dir() != NUL {
+            if !crate::memory::cstr_is_empty(default_vim_dir()) {
                 version_msg(gettext(c"  fall-back for $VIM: \""));
                 version_msg(default_vim_dir());
                 version_msg(c"\"\n");
             }
 
-            if *default_vimruntime_dir() != NUL {
+            if !crate::memory::cstr_is_empty(default_vimruntime_dir()) {
                 version_msg(gettext(c" f-b for $VIMRUNTIME: \""));
                 version_msg(default_vimruntime_dir());
                 version_msg(c"\"\n");
@@ -4223,7 +4223,7 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
             while !crate::memory::cstr_is_empty(p) {
                 let clen = utfc_ptr2len(p);
                 let mut attr: c_int = 0;
-                if (*p as u8) >= 0x80 {
+                if (crate::memory::cstr_first_byte(p)) >= 0x80 {
                     seen_diagonal = seen_diagonal || (clen == 3 && utf_ptr2char(p) == 0x2572);
                     attr = if seen_diagonal {
                         string_attr
@@ -4239,9 +4239,9 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
         }
 
         let is_version = crate::memory::cstr_first_byte(mesg) == b'N'
-            && *mesg.add(1) == b'V' as c_char
-            && *mesg.add(2) == b'I' as c_char
-            && *mesg.add(3) == b'M' as c_char;
+            && crate::memory::cstr_byte_at(mesg, 1) == b'V'
+            && crate::memory::cstr_byte_at(mesg, 2) == b'I'
+            && crate::memory::cstr_byte_at(mesg, 3) == b'M';
         let is_sep = utfc_ptr2len(mesg) == 3 && utf_ptr2char(mesg) == 0x2500;
         if is_version || is_sep {
             let clen = if is_sep { 3 } else { 1 };
@@ -4259,9 +4259,9 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
         let mut p = mesg;
         while !crate::memory::cstr_is_empty(p) {
             let mut l: c_int = 0;
-            while *p.add(l as usize) != NUL
+            while crate::memory::cstr_byte_at(p, l as usize) != 0
                 && (l == 0
-                    || (*p.add(l as usize) != b'<' as c_char
+                    || (crate::memory::cstr_byte_at(p, l as usize) != b'<'
                         && *p.add((l - 1) as usize) != b'>' as c_char))
             {
                 l += utfc_ptr2len(p.add(l as usize));
@@ -4270,8 +4270,8 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
             if crate::memory::cstr_first_byte(p) == b'<' {
                 col += grid_line_puts(col, p, l, hlf8_attr);
             } else {
-                let colon_pos = std::slice::from_raw_parts(p.cast::<u8>(), l as usize).iter().position(|&b| b == b':').map_or(ptr::null(), |i| p.add(i));
-                if !colon_pos.is_null() && *p.add(l as usize) == b'<' as c_char {
+                let colon_pos = crate::memory::cstr_slice(p, l as usize).iter().position(|&b| b == b':').map_or(ptr::null(), |i| p.add(i));
+                if !colon_pos.is_null() && crate::memory::cstr_byte_at(p, l as usize) == b'<' {
                     let prefix_len = colon_pos.offset_from(p) as c_int;
                     col += grid_line_puts(col, p, prefix_len, 0);
                     col += grid_line_puts(col, colon_pos, 1, hlf8_attr);

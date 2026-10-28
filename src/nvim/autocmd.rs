@@ -1358,7 +1358,7 @@ fn event_name2nr_hash(str_: *const c_char, len: usize) -> isize {
     if str_.is_null() {
         return -1;
     }
-    let s = unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) };
+    let s =  { crate::memory::cstr_slice(str_, len) };
     let (low, high): (usize, usize) = match len {
         4 => (0, 1),
         6 => match s[0] {
@@ -1579,7 +1579,7 @@ fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char) {
 
                 let pat_matches = if patlen != 0 {
                     ap.patlen == patlen
-                        && std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize)
+                        && crate::memory::cstr_slice(pat, patlen as usize)
                             == ap.pat.as_bytes()
                 } else {
                     true
@@ -1990,11 +1990,11 @@ pub fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
                 ei = ei.add(1);
             }
             if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(b"all")
-                && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
+                && (crate::memory::cstr_byte_at(ei, 3) == 0 || crate::memory::cstr_byte_at(ei, 3) == b',')
             {
                 ignored = ptr::eq(ei.cast_const(), opt_vars().p_ei.cast_const())
                     || EVENT_NAMES[event as usize].event <= 0;
-                ei = ei.add(3 + usize::from(*ei.add(3) == b',' as c_char));
+                ei = ei.add(3 + usize::from(crate::memory::cstr_byte_at(ei, 3) == b','));
             } else if event_name2nr(ei, &raw mut ei) == event {
                 if unignore {
                     return false;
@@ -2010,9 +2010,9 @@ pub fn check_ei(mut ei: *mut c_char, win: bool) -> bool {
     unsafe {
         while !crate::memory::cstr_is_empty(ei) {
             if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(b"all")
-                && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
+                && (crate::memory::cstr_byte_at(ei, 3) == 0 || crate::memory::cstr_byte_at(ei, 3) == b',')
             {
-                ei = ei.add(3 + usize::from(*ei.add(3) == b',' as c_char));
+                ei = ei.add(3 + usize::from(crate::memory::cstr_byte_at(ei, 3) == b','));
             } else {
                 if crate::memory::cstr_first_byte(ei) == b'-' {
                     ei = ei.add(1);
@@ -2240,7 +2240,7 @@ pub fn do_autocmd_event(
                     if let Some(ref ap) = ac.pat
                         && ap.group == findgroup
                         && ap.patlen == patlen
-                        && std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize)
+                        && crate::memory::cstr_slice(pat, patlen as usize)
                             == ap.pat.as_bytes()
                     {
                         aucmd_del(ac);
@@ -2323,7 +2323,7 @@ pub fn autocmd_register(
             };
             if ac_ap.group == findgroup
                 && ac_ap.patlen == patlen
-                && std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize)
+                && crate::memory::cstr_slice(pat, patlen as usize)
                     == ac_ap.pat.as_bytes()
             {
                 ap = Some(ac_ap.clone());
@@ -2380,7 +2380,7 @@ pub fn autocmd_register(
                 use_tabpage(save_curtab);
             }
 
-            let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize);
+            let pat_slice = crate::memory::cstr_slice(pat, patlen as usize);
             std::rc::Rc::new(AutoPat {
                 pat: CString::new(pat_slice).unwrap(),
                 reg_prog,
@@ -3707,7 +3707,7 @@ pub fn aupat_is_buflocal(pat: *const c_char, patlen: c_int) -> bool {
     if patlen < 8 {
         return false;
     }
-    let slice = unsafe { std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize) };
+    let slice =  { crate::memory::cstr_slice(pat, patlen as usize) };
     slice.starts_with(b"<buffer") && slice[slice.len() - 1] == b'>'
 }
 
@@ -3719,7 +3719,7 @@ pub fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int {
             return curbuf_mut().b_fnum;
         }
 
-        if patlen > 9 && *pat.add(7) == b'=' as c_char {
+        if patlen > 9 && crate::memory::cstr_byte_at(pat, 7) == b'=' {
             if patlen == 13 && crate::memory::cstr_prefix_bytes(pat, 13).eq_ignore_ascii_case(b"<buffer=abuf>") {
                 return g_st().autocmd_bufnr;
             }
@@ -3786,7 +3786,7 @@ fn arg_event_skip(arg: *mut c_char, have_group: bool) -> *mut c_char {
         let mut p: *mut c_char = ptr::null_mut();
 
         if crate::memory::cstr_first_byte(arg) == b'*' {
-            if *arg.add(1) != NUL && !ascii_iswhite(*arg.add(1)) {
+            if crate::memory::cstr_byte_at(arg, 1) != 0 && !ascii_iswhite(*arg.add(1)) {
                 semsg!(tr(c"E215: Illegal character after *: %s"), arg);
                 return ptr::null_mut();
             }
@@ -3822,7 +3822,7 @@ fn arg_augroup_get(argp: *mut *mut c_char) -> c_int {
 
         let len = p.offset_from(arg) as usize;
         let group_name =
-            CString::new(std::slice::from_raw_parts(arg.cast::<u8>(), len)).unwrap_or_default();
+            CString::new(crate::memory::cstr_slice(arg, len)).unwrap_or_default();
         let mut group = augroup_find(group_name.as_ptr());
         if group == AUGROUP_ERROR {
             group = AUGROUP_ALL;
@@ -3841,7 +3841,7 @@ fn arg_autocmd_flag_get(
 ) -> bool {
     unsafe {
         let cmd_bytes = crate::memory::cstr_as_bytes(*cmd_ptr);
-        let pat_slice = std::slice::from_raw_parts(pattern.as_ptr().cast::<u8>(), len as usize);
+        let pat_slice = crate::memory::cstr_slice(pattern.as_ptr(), len as usize);
         if cmd_bytes.starts_with(pat_slice) && ascii_iswhite(*(*cmd_ptr).add(len as usize)) {
             if *flag {
                 semsg!(tr(e_duparg2), pattern.as_ptr());

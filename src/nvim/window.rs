@@ -1498,7 +1498,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 if len == 0 {
                     return;
                 }
-                let pat = std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), len))
+                let pat = std::ffi::CString::new(crate::memory::cstr_slice(ptr, len))
                     .unwrap();
                 find_pattern_in_path(
                     pat.as_ptr().cast_mut(),
@@ -1653,22 +1653,22 @@ pub fn win_set_buf(win: &mut win_T, buf: &mut buf_T, err: &mut Error) {
 
 /// Return the number of fold columns to display
 pub fn win_fdccol_count(wp: &mut win_T) -> c_int {
-    unsafe {
+     {
         let fdc = wp.w_onebuf_opt.wo_fdc;
         if crate::memory::cstr_first_byte(fdc) == b'a'
-            && *fdc.add(1) == b'u' as c_char
-            && *fdc.add(2) == b't' as c_char
-            && *fdc.add(3) == b'o' as c_char
+            && crate::memory::cstr_byte_at(fdc, 1) == b'u'
+            && crate::memory::cstr_byte_at(fdc, 2) == b't'
+            && crate::memory::cstr_byte_at(fdc, 3) == b'o'
         {
-            let fdccol = if *fdc.add(4) == b':' as c_char {
-                c_int::from(*fdc.add(5) as u8) - c_int::from(b'0')
+            let fdccol = if crate::memory::cstr_byte_at(fdc, 4) == b':' {
+                c_int::from(crate::memory::cstr_byte_at(fdc, 5)) - c_int::from(b'0')
             } else {
                 1
             };
             let needed_fdccols = getDeepestNesting(wp);
             return fdccol.min(needed_fdccols);
         }
-        c_int::from(*fdc as u8) - c_int::from(b'0')
+        c_int::from(crate::memory::cstr_first_byte(fdc)) - c_int::from(b'0')
     }
 }
 
@@ -2942,7 +2942,7 @@ fn get_maximum_wincount(fr: &mut frame_T, mut height: c_int) -> c_int {
 pub fn win_equal(next_curwin: *mut win_T, current: bool, mut dir: c_int) {
     unsafe {
         if dir == 0 {
-            dir = c_int::from(*opt_vars().p_ead as u8);
+            dir = c_int::from(crate::memory::cstr_first_byte(opt_vars().p_ead));
         }
         win_equal_rec(
             if next_curwin.is_null() {
@@ -3732,7 +3732,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
 
             if !curwin_mut().w_floating
                 && opt_vars().p_ea != 0
-                && (crate::memory::cstr_first_byte(opt_vars().p_ead) == b'b' || c_int::from(*opt_vars().p_ead as u8) == dir)
+                && (crate::memory::cstr_first_byte(opt_vars().p_ead) == b'b' || c_int::from(crate::memory::cstr_first_byte(opt_vars().p_ead)) == dir)
             {
                 win_equal(
                     curwin_ptr(),
@@ -8216,7 +8216,7 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut win_T>) -> *const 
             if crate::memory::cstr_first_byte(s) == b'-' || crate::memory::cstr_first_byte(s) == b'+' {
                 col = if crate::memory::cstr_first_byte(s) == b'-' { -1 } else { 1 };
                 s = s.add(1);
-                if !ascii_isdigit(c_int::from(*s as u8)) {
+                if !ascii_isdigit(c_int::from(crate::memory::cstr_first_byte(s))) {
                     return e_invarg.as_ptr();
                 }
                 col *= getdigits_int(&raw mut s, true, 0);
@@ -8228,7 +8228,7 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut win_T>) -> *const 
                         skip = true;
                     }
                 }
-            } else if ascii_isdigit(c_int::from(*s as u8)) {
+            } else if ascii_isdigit(c_int::from(crate::memory::cstr_first_byte(s))) {
                 col = getdigits_int(&raw mut s, true, 0);
             } else {
                 return e_invarg.as_ptr();

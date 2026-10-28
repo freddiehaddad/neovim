@@ -702,8 +702,8 @@ fn execreg_line_continuation(lines: *mut NvimString, idx: &mut usize) -> Vec<c_c
             let p = skipwhite((*lines.add(cmd_start)).data);
             if crate::memory::cstr_first_byte(p) != b'\\'
                 && (crate::memory::cstr_first_byte(p) != b'"'
-                    || *p.add(1) != b'\\' as c_char
-                    || *p.add(2) != b' ' as c_char)
+                    || crate::memory::cstr_byte_at(p, 1) != b'\\'
+                    || crate::memory::cstr_byte_at(p, 2) != b' ')
             {
                 break;
             }
@@ -812,8 +812,8 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
                     let p = skipwhite(str_);
                     if crate::memory::cstr_first_byte(p) == b'\\'
                         || (crate::memory::cstr_first_byte(p) == b'"'
-                            && *p.add(1) == b'\\' as c_char
-                            && *p.add(2) == b' ' as c_char)
+                            && crate::memory::cstr_byte_at(p, 1) == b'\\'
+                            && crate::memory::cstr_byte_at(p, 2) == b' ')
                     {
                         cont_vec =
                             execreg_line_continuation(reg.y_array.as_ptr().cast_mut(), &mut i);
@@ -2481,7 +2481,7 @@ pub fn do_put(
 fn dis_msg(mut p: *const c_char, skip_esc: bool) {
     unsafe {
         let mut n = g_st().Columns - 6;
-        while !crate::memory::cstr_is_empty(p) && !(*p == ESC && skip_esc && *p.add(1) == NUL) {
+        while !crate::memory::cstr_is_empty(p) && !(*p == ESC && skip_esc && crate::memory::cstr_byte_at(p, 1) == 0) {
             n -= ptr2cells(p);
             if n < 0 {
                 break;
@@ -2745,7 +2745,7 @@ pub fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> Option<std::ffi
         let mut out: Vec<u8> = Vec::with_capacity(len);
         for (i, &item) in reg.y_array.iter().enumerate() {
             if item.size > 0 {
-                out.extend_from_slice(std::slice::from_raw_parts(item.data.cast::<u8>(), item.size));
+                out.extend_from_slice(crate::memory::cstr_slice(item.data, item.size));
             }
             if reg.y_type == MotionType::kMTLineWise || i < reg.y_array.len() - 1 {
                 out.push(b'\n');
@@ -2856,7 +2856,7 @@ fn str_to_reg(
             newlines = { let _d = (str_).cast::<u8>(); let _sz = len; if _sz == 0 { 0 } else { std::slice::from_raw_parts(_d, _sz).iter().filter(|&&_b| _b == (b'\n' as c_char) as u8).count() } };
             if yank_type == MotionType::kMTCharWise
                 || len == 0
-                || *str_.add(len - 1) != b'\n' as c_char
+                || crate::memory::cstr_byte_at(str_, len - 1) != b'\n'
             {
                 extraline = 1;
                 newlines += 1;
@@ -2894,7 +2894,7 @@ fn str_to_reg(
             let limit = end.add(extraline);
             while (start as usize) < (limit as usize) {
                 let rem = (end as usize).saturating_sub(start as usize);
-                let slice = std::slice::from_raw_parts(start.cast::<u8>(), rem);
+                let slice = crate::memory::cstr_slice(start, rem);
                 let line_len = slice.iter().position(|&b| b == b'\n').unwrap_or(rem);
                 if yank_type == MotionType::kMTBlockWise {
                     let charlen = mb_string2cells_len(start, line_len);
@@ -3023,7 +3023,7 @@ pub fn write_reg_contents_ex(
                 return;
             }
 
-            let buf = if (*str_ as u8).is_ascii_digit() {
+            let buf = if (crate::memory::cstr_first_byte(str_)).is_ascii_digit() {
                 let num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str_)) as c_int;
                 let b = buflist_findnr(num);
                 if b.is_null() {
@@ -3053,7 +3053,7 @@ pub fn write_reg_contents_ex(
             {
                 out.extend_from_slice(el.as_bytes());
             }
-            let slice = std::slice::from_raw_parts(str_.cast::<u8>(), len as usize);
+            let slice = crate::memory::cstr_slice(str_, len as usize);
             let end = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
             out.extend_from_slice(&slice[..end]);
             reg_st().expr_line = Some(std::ffi::CString::new(out).unwrap_or_default());
@@ -3081,7 +3081,7 @@ pub fn prepare_yankreg_from_object(
 ) -> bool {
     unsafe {
         let type_ch = if !regtype.data.is_null() {
-            *regtype.data as u8
+            crate::memory::cstr_first_byte(regtype.data)
         } else {
             0
         };
@@ -3099,7 +3099,7 @@ pub fn prepare_yankreg_from_object(
             if reg.y_type != MotionType::kMTBlockWise {
                 return false;
             }
-            if !(*regtype.data.add(1) as u8).is_ascii_digit() {
+            if !(crate::memory::cstr_byte_at(regtype.data, 1)).is_ascii_digit() {
                 return false;
             }
             let mut p = regtype.data.add(1);

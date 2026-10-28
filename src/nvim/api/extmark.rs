@@ -207,7 +207,7 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
         let name_bytes = if name.size == 0 || name.data.is_null() {
             &[][..]
         } else {
-            std::slice::from_raw_parts(name.data.cast::<u8>(), name.size)
+            crate::memory::cstr_slice(name.data, name.size)
         };
         let ns_ptr = &raw mut g_st().namespace_ids;
         if !name_bytes.is_empty()

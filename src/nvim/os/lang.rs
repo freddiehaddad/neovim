@@ -593,7 +593,7 @@ fn is_valid_mess_lang(lang: impl crate::strings::IntoCCharPtr) -> bool {
     if lang.is_null() {
         return false;
     }
-    unsafe { (*lang as u8).is_ascii_alphabetic() && (*lang.add(1) as u8).is_ascii_alphabetic() }
+     (crate::memory::cstr_first_byte(lang)).is_ascii_alphabetic() && (crate::memory::cstr_byte_at(lang, 1)).is_ascii_alphabetic()
 }
 
 /// Obtain the current messages language. Used to set the default for `'helplang'`.
@@ -618,7 +618,7 @@ fn get_mess_env(
         get_locale_val(LC_MESSAGES)
     }
     #[cfg(windows)]
-    unsafe {
+     {
         let mut p = os_getenv_buf(c"LC_ALL", buf.as_mut_ptr(), buf.len());
             if !p.is_null() {
                 return p;
@@ -628,7 +628,7 @@ fn get_mess_env(
                 return p;
             }
             p = os_getenv_buf(c"LANG", buf.as_mut_ptr(), buf.len());
-            if !p.is_null() && (*p as u8).is_ascii_digit() {
+            if !p.is_null() && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
                 p = ptr::null_mut();
             }
         if p.is_null() {
@@ -695,7 +695,7 @@ pub fn ex_language(eap: &mut exarg_T) {
 
         let p = skiptowhite(eap.arg);
         let arg_len = (p as usize) - (eap.arg as usize);
-        if (crate::memory::cstr_is_empty(p) || matches!(*p as u8, b' ' | b'\t')) && arg_len >= 3 {
+        if (crate::memory::cstr_is_empty(p) || matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t')) && arg_len >= 3 {
             if mb_strnicmp(eap.arg, c"messages", arg_len) == 0 {
                 what = VIM_LC_MESSAGES;
                 name = skipwhite(p);

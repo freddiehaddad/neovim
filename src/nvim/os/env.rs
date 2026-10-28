@@ -220,7 +220,7 @@ pub fn env_name_len(p: impl crate::strings::IntoCCharPtr) -> usize {
     unsafe {
         let mut s = p;
         loop {
-            let b = *s as u8;
+            let b = crate::memory::cstr_first_byte(s);
             if b < 0x80 {
                 if !b.is_ascii_alphanumeric() && b != b'_' {
                     break;
@@ -257,13 +257,13 @@ pub fn os_getenv_cstr<S: crate::strings::IntoCCharPtr>(name: S) -> Option<std::f
             if r != 0 || size == 0 || vec_buf[0] == NUL {
                 None
             } else {
-                let bytes = std::slice::from_raw_parts(vec_buf.as_ptr().cast::<u8>(), size);
+                let bytes = crate::memory::cstr_slice(vec_buf.as_ptr(), size);
                 Some(cstr_from_bytes(bytes))
             }
         } else if r != 0 || size == 0 || buf[0] == NUL {
             None
         } else {
-            let bytes = std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), size);
+            let bytes = crate::memory::cstr_slice(buf.as_ptr(), size);
             Some(cstr_from_bytes(bytes))
         };
         assert_ne!(r, UV_EINVAL);
@@ -628,7 +628,7 @@ pub fn expand_env_esc(
         let mut src = skipwhite(srcp);
         dstlen -= 1;
         while *src != 0 && dstlen > 0 {
-            if crate::memory::cstr_first_byte(src) == b'`' && *src.add(1) == b'=' as c_char {
+            if crate::memory::cstr_first_byte(src) == b'`' && crate::memory::cstr_byte_at(src, 1) == b'=' {
                 let var = src;
                 src = src.add(2);
                 let _ = skip_expr(&raw mut src, None);
@@ -684,10 +684,10 @@ pub fn expand_env_esc(
                     }
 
                     #[cfg(not(windows))]
-                    if *src.add(1) == b'{' as c_char && crate::memory::cstr_first_byte(tail) != b'}' {
+                    if crate::memory::cstr_byte_at(src, 1) == b'{' && crate::memory::cstr_first_byte(tail) != b'}' {
                         var = ptr::null_mut();
                     } else {
-                        if *src.add(1) == b'{' as c_char {
+                        if crate::memory::cstr_byte_at(src, 1) == b'{' {
                             tail = tail.add(1);
                         }
                         *var = NUL;
@@ -711,9 +711,9 @@ pub fn expand_env_esc(
                             .as_ref()
                             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
                     }
-                } else if *src.add(1) == NUL
-                    || vim_ispathsep(c_int::from(*src.add(1) as u8))
-                    || !vim_strchr(c" ,\t\n", c_int::from(*src.add(1) as u8)).is_null()
+                } else if crate::memory::cstr_byte_at(src, 1) == 0
+                    || vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(src, 1)))
+                    || !vim_strchr(c" ,\t\n", c_int::from(crate::memory::cstr_byte_at(src, 1))).is_null()
                 {
                     var = (&raw const env_st().HOMEDIR)
                         .as_ref()
@@ -729,8 +729,8 @@ pub fn expand_env_esc(
                         let mut c = dstlen - 1;
                         while c > 0
                             && *tail != 0
-                            && vim_isfilec(c_int::from(*tail as u8))
-                            && !vim_ispathsep(c_int::from(*tail as u8))
+                            && vim_isfilec(c_int::from(crate::memory::cstr_first_byte(tail)))
+                            && !vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(tail)))
                         {
                             c -= 1;
                             *var = *tail;
@@ -772,10 +772,10 @@ pub fn expand_env_esc(
                         dstlen -= c as c_int;
                         let ends_with_sep = after_pathsep(dst, dst.add(c)) != 0;
                         #[cfg(windows)]
-                        let not_colon = *dst.add(c - 1) != b':' as c_char;
+                        let not_colon = crate::memory::cstr_byte_at(dst, c - 1) != b':';
                         #[cfg(not(windows))]
                         let not_colon = true;
-                        if ends_with_sep && not_colon && vim_ispathsep(c_int::from(*tail as u8)) {
+                        if ends_with_sep && not_colon && vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(tail))) {
                             tail = tail.add(1);
                         }
                         dst = dst.add(c);
@@ -788,7 +788,7 @@ pub fn expand_env_esc(
 
             if copy_char {
                 at_start = false;
-                if crate::memory::cstr_first_byte(src) == b'\\' && *src.add(1) != NUL {
+                if crate::memory::cstr_first_byte(src) == b'\\' && crate::memory::cstr_byte_at(src, 1) != 0 {
                     *dst = *src;
                     dst = dst.add(1);
                     src = src.add(1);
@@ -805,7 +805,7 @@ pub fn expand_env_esc(
                     if !prefix.is_null()
                         && (src as usize) >= (srcp as usize) + prefix_len
                         && std::slice::from_raw_parts(src.sub(prefix_len).cast::<u8>(), prefix_len)
-                            == std::slice::from_raw_parts(prefix.cast::<u8>(), prefix_len)
+                            == crate::memory::cstr_slice(prefix, prefix_len)
                     {
                         at_start = true;
                     }
@@ -955,7 +955,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
         {
             let mut vim_path_cstr: Option<std::ffi::CString> = None;
             if vimruntime
-                && *default_vimruntime_dir() == NUL
+                && crate::memory::cstr_is_empty(default_vimruntime_dir())
                 && let Some(kos_cstr) = os_getenv_cstr(c"VIM")
             {
                 vim_path_cstr = vim_runtime_dir(kos_cstr.as_ptr()).or(Some(kos_cstr));
@@ -995,9 +995,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
                         vim_path_end = vim_path_end.sub(1);
                     }
                     assert!((vim_path_end as usize) >= (vim_path as usize));
-                    let cand = std::ffi::CString::new(std::slice::from_raw_parts(
-                        vim_path.cast::<u8>(),
-                        (vim_path_end as usize) - (vim_path as usize),
+                    let cand = std::ffi::CString::new(crate::memory::cstr_slice(vim_path, (vim_path_end as usize) - (vim_path as usize),
                     ))
                     .unwrap_or_default();
                     if os_isdir(cand.as_ptr()) {
@@ -1007,9 +1005,9 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
             }
 
             if vim_path_cstr.is_none() {
-                if vimruntime && *default_vimruntime_dir() != NUL {
+                if vimruntime && !crate::memory::cstr_is_empty(default_vimruntime_dir()) {
                     vim_path_cstr = Some(crate::memory::cstr_to_cstring(default_vimruntime_dir()));
-                } else if *default_vim_dir() != NUL {
+                } else if !crate::memory::cstr_is_empty(default_vim_dir()) {
                     if vimruntime {
                         vim_path_cstr = vim_runtime_dir(default_vim_dir());
                     }
@@ -1101,7 +1099,7 @@ pub fn home_replace(
                 homedir_env_mod_vec = mod_vec;
                 homedir_env_mod = homedir_env_mod_vec.as_mut_ptr();
             }
-            if flen > 0 && vim_ispathsep(c_int::from(*homedir_env_mod.add(flen - 1) as u8)) {
+            if flen > 0 && vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(homedir_env_mod, flen - 1))) {
                 *homedir_env_mod.add(flen - 1) = NUL;
             }
         }
@@ -1123,11 +1121,11 @@ pub fn home_replace(
                 let cmp_ok = len != 0 && path_cmp(opt_vars().p_fic != 0, src, p, len) == 0;
 
                 if cmp_ok
-                    && (vim_ispathsep(c_int::from(*src.add(len) as u8))
+                    && (vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(src, len)))
                         || (!one
-                            && (*src.add(len) == b',' as c_char
-                                || *src.add(len) == b' ' as c_char))
-                        || *src.add(len) == NUL)
+                            && (crate::memory::cstr_byte_at(src, len) == b','
+                                || crate::memory::cstr_byte_at(src, len) == b' '))
+                        || crate::memory::cstr_byte_at(src, len) == 0)
                 {
                     src = src.add(len);
                     dstlen -= 1;

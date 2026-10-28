@@ -1042,7 +1042,7 @@ fn spell_suggest_file(su: &mut suginfo_T, fname: *mut c_char) {
             ) == 0
             {
                 let mut len: usize = 0;
-                while (*p.add(len) as u8) >= b' ' {
+                while (crate::memory::cstr_byte_at(p, len)) >= b' ' {
                     len += 1;
                 }
                 *p.add(len) = NUL;
@@ -1284,7 +1284,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                     if (flags & WF_NOSUGGEST) != 0 {
                         continue;
                     }
-                    let fword_ends = *fword.add(stack[udepth].ts_fidx as usize) == NUL
+                    let fword_ends = crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) == 0
                         || if soundfold {
                             ascii_iswhite(*fword.add(stack[udepth].ts_fidx as usize))
                         } else {
@@ -1672,7 +1672,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                         curwin_mut(),
                                     ))
                                     || fword_ends)
-                                    && *fword.add(stack[udepth].ts_fidx as usize) != NUL
+                                    && crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) != 0
                                     && goodword_ends
                                 {
                                     let l = utfc_ptr2len(fword.add(stack[udepth].ts_fidx as usize));
@@ -1727,7 +1727,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                     let mut goto_del = false;
                     if state == state_T::STATE_ENDNUL {
                         su.su_badflags = stack[udepth].ts_save_badflags as c_int;
-                        if *fword.add(stack[udepth].ts_fidx as usize) == NUL
+                        if crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) == 0
                             && stack[udepth].ts_tcharlen == 0
                         {
                             stack[udepth].ts_state = state_T::STATE_DEL;
@@ -1750,7 +1750,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             stack[udepth].ts_curi += 1;
                             c = *byts.add(arridx as usize) as c_int;
                             let newscore = if c
-                                == *fword.add(stack[udepth].ts_fidx as usize) as u8 as c_int
+                                == crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) as c_int
                                 || (stack[udepth].ts_tcharlen > 0
                                     && stack[udepth].ts_isdiff != DIFF_NONE)
                             {
@@ -1761,14 +1761,14 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             if (newscore == 0
                                 || (stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry
                                     && ((stack[udepth].ts_flags & TSF_DIDDEL) == 0
-                                        || c != *fword.add(stack[udepth].ts_delidx as usize) as u8
+                                        || c != crate::memory::cstr_byte_at(fword, stack[udepth].ts_delidx as usize)
                                             as c_int)))
                                 && try_deeper(su, &stack, udepth, newscore)
                             {
                                 go_deeper(&mut stack, udepth, newscore);
                                 depth += 1;
                                 udepth = depth as usize;
-                                if *fword.add(stack[udepth].ts_fidx as usize) != NUL {
+                                if crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) != 0 {
                                     stack[udepth].ts_fidx += 1;
                                 }
                                 let twl = stack[udepth].ts_twordlen as usize;
@@ -1850,13 +1850,13 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             stack[udepth].ts_curi = 1;
                             let newscore = if soundfold
                                 && stack[udepth].ts_fidx == 0
-                                && *fword.add(stack[udepth].ts_fidx as usize) == b'*' as c_char
+                                && crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) == b'*'
                             {
                                 2 * SCORE_DEL / 3
                             } else {
                                 SCORE_DEL
                             };
-                            if *fword.add(stack[udepth].ts_fidx as usize) != NUL
+                            if crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) != 0
                                 && try_deeper(su, &stack, udepth, newscore)
                             {
                                 go_deeper(&mut stack, udepth, newscore);
@@ -1919,7 +1919,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         } else {
                             SCORE_INS
                         };
-                    if c != *fword.add(stack[udepth].ts_fidx as usize) as u8 as c_int
+                    if c != crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) as c_int
                         && try_deeper(su, &stack, udepth, newscore)
                     {
                         go_deeper(&mut stack, udepth, newscore);
@@ -1945,7 +1945,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                 }
                 state_T::STATE_SWAP => {
                     let p = fword.add(stack[udepth].ts_fidx as usize);
-                    c = *p as u8 as c_int;
+                    c = crate::memory::cstr_first_byte(p) as c_int;
                     if c == NUL as c_int {
                         stack[udepth].ts_state = state_T::STATE_FINAL;
                         continue;
@@ -1956,7 +1956,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                     }
                     n = utf_ptr2len(p);
                     c = utf_ptr2char(p);
-                    if *p.add(n as usize) == NUL {
+                    if crate::memory::cstr_byte_at(p, n as usize) == 0 {
                         c2 = NUL as c_int;
                     } else if !soundfold && !spell_iswordp(p.add(n as usize), curwin_mut()) {
                         c2 = c;
@@ -2105,7 +2105,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             do_rep = false;
                         } else {
                             let first_byte =
-                                *fword.add(stack[udepth].ts_fidx as usize) as u8 as usize;
+                                crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) as usize;
                             stack[udepth].ts_curi = if soundfold {
                                 slang.sl_repsal_first[first_byte]
                             } else {
@@ -2223,7 +2223,7 @@ fn find_keepcap_word(slang: &mut slang_T, fword: *mut c_char, kword: *mut c_char
         let mut depth: isize = 0;
         while depth >= 0 {
             let udepth = depth as usize;
-            if *fword.add(fwordidx[udepth] as usize) == NUL {
+            if crate::memory::cstr_byte_at(fword, fwordidx[udepth] as usize) == 0 {
                 if *byts.add((arridx[udepth] + 1) as usize) == 0 {
                     *kword.add(kwordlen[udepth] as usize) = NUL;
                     return;
@@ -2254,7 +2254,7 @@ fn find_keepcap_word(slang: &mut slang_T, fword: *mut c_char, kword: *mut c_char
                     while l > 0 {
                         let len = *byts.add(tryidx as usize) as c_int;
                         tryidx += 1;
-                        let c = *p as u8 as c_int;
+                        let c = crate::memory::cstr_first_byte(p) as c_int;
                         p = p.add(1);
                         let mut lo = tryidx;
                         let mut hi = tryidx + len - 1;
@@ -2807,7 +2807,7 @@ fn add_suggestion(
             }
         }
         if !found {
-            let bytes = std::slice::from_raw_parts(goodword.cast::<u8>(), goodlen as usize);
+            let bytes = crate::memory::cstr_slice(goodword, goodlen as usize);
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             gap.push(suggest_T {
                 st_word: std::ffi::CString::new(&bytes[..end]).unwrap(),
@@ -2935,8 +2935,8 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
         let mut score: c_int = 0;
         if (crate::memory::cstr_first_byte(badsound) == b'*' || crate::memory::cstr_first_byte(goodsound) == b'*') && *badsound != *goodsound
         {
-            if (crate::memory::cstr_is_empty(badsound) && *goodsound.add(1) == NUL)
-                || (crate::memory::cstr_is_empty(goodsound) && *badsound.add(1) == NUL)
+            if (crate::memory::cstr_is_empty(badsound) && crate::memory::cstr_byte_at(goodsound, 1) == 0)
+                || (crate::memory::cstr_is_empty(goodsound) && crate::memory::cstr_byte_at(badsound, 1) == 0)
             {
                 return SCORE_DEL;
             }
@@ -2944,8 +2944,8 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                 return SCORE_MAXMAX;
             }
             if *badsound.add(1) == *goodsound.add(1)
-                || (*badsound.add(1) != NUL
-                    && *goodsound.add(1) != NUL
+                || (crate::memory::cstr_byte_at(badsound, 1) != 0
+                    && crate::memory::cstr_byte_at(goodsound, 1) != 0
                     && *badsound.add(2) == *goodsound.add(2))
             {
                 // handle like a substitute

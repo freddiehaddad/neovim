@@ -486,11 +486,11 @@ mod tests {
         let mut data = *b"0123456789abcdef";
         let mut fp = FileDescriptor::new();
 
-        unsafe {
+         {
             file_open_buffer(&mut fp, data.as_mut_ptr().cast::<c_char>(), data.len());
             let chunk = file_try_read_buffered(&mut fp, 4);
             assert!(!chunk.is_null());
-            assert_eq!(std::slice::from_raw_parts(chunk.cast::<u8>(), 4), b"0123");
+            assert_eq!(crate::memory::cstr_slice(chunk, 4), b"0123");
 
             assert_eq!(file_skip(&mut fp, 6), 6);
             let mut out = [0u8; 6];

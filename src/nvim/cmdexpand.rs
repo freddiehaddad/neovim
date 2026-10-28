@@ -1782,7 +1782,7 @@ fn sort_func_compare(p1: &CString, p2: &CString) -> c_int {
 
 /// Escape special characters in the cmdline completion matches.
 fn wildescape(xp: &mut expand_T, str_arg: *const c_char, files: &mut [CString]) {
-    unsafe {
+     {
         let vse_what = if xp.xp_context == EXPAND_BUFFERS {
             VSE_BUFFER
         } else {
@@ -1827,7 +1827,7 @@ fn wildescape(xp: &mut expand_T, str_arg: *const c_char, files: &mut [CString]) 
                 }
 
                 if crate::memory::cstr_first_byte(str_arg) == b'\\'
-                    && *str_arg.add(1) == b'~' as c_char
+                    && crate::memory::cstr_byte_at(str_arg, 1) == b'~'
                     && file_slot.as_bytes().first() == Some(&b'~')
                 {
                     escape_fname_cstr(file_slot);
@@ -1974,7 +1974,7 @@ pub fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool
 
         if !wild_navigate && !(*ccline).cmdbuff.is_null() {
             let slice =
-                std::slice::from_raw_parts((*ccline).cmdbuff.cast::<u8>(), (*ccline).cmdlen as usize);
+                crate::memory::cstr_slice((*ccline).cmdbuff, (*ccline).cmdlen as usize);
             let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
             cmdexp().cmdline_orig = Some(slice[..len].to_vec());
         }
@@ -2151,18 +2151,18 @@ fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
 
 /// Return the number of characters that should be skipped in the wildmenu.
 fn skip_wildmenu_char(xp: &expand_T, s: *mut c_char) -> c_int {
-    unsafe {
+     {
         if (rem_backslash(s)
             && xp.xp_context != EXPAND_HELP
             && xp.xp_context != EXPAND_PATTERN_IN_BUF)
             || ((xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES)
-                && (crate::memory::cstr_first_byte(s) == b'\t' || (crate::memory::cstr_first_byte(s) == b'\\' && *s.add(1) != NUL)))
+                && (crate::memory::cstr_first_byte(s) == b'\t' || (crate::memory::cstr_first_byte(s) == b'\\' && crate::memory::cstr_byte_at(s, 1) != 0)))
         {
             #[cfg(not(windows))]
             if xp.xp_shell
                 && csh_like_shell() != 0
-                && *s.add(1) == b'\\' as c_char
-                && *s.add(2) == b'!' as c_char
+                && crate::memory::cstr_byte_at(s, 1) == b'\\'
+                && crate::memory::cstr_byte_at(s, 2) == b'!'
             {
                 return 2;
             }
@@ -2300,7 +2300,7 @@ fn redraw_wildmenu(
                         s = s.add((l - 1) as usize);
                         len += l as usize;
                     } else {
-                        crate::memory::cstr_cpy(buf.add(len), transchar_byte(c_int::from(*s as u8)));
+                        crate::memory::cstr_cpy(buf.add(len), transchar_byte(c_int::from(crate::memory::cstr_first_byte(s))));
                         len += crate::memory::cstr_len(buf.add(len));
                     }
                     s = s.add(1);
@@ -2537,7 +2537,7 @@ fn find_longest_match(xp: &mut expand_T, options: c_int) -> CString {
         let files = xp.xp_files.as_slice();
         let first_file = files[0].as_ptr();
 
-        while *first_file.add(len) != NUL {
+        while crate::memory::cstr_byte_at(first_file, len) != 0 {
             let mb_len = utfc_ptr2len(first_file.add(len)) as usize;
             let c0 = utf_ptr2char(first_file.add(len));
             let mut i: usize = 1;
@@ -2567,7 +2567,7 @@ fn find_longest_match(xp: &mut expand_T, options: c_int) -> CString {
             len += mb_len;
         }
 
-        cstr_from_bytes(std::slice::from_raw_parts(first_file.cast::<u8>(), len))
+        cstr_from_bytes(crate::memory::cstr_slice(first_file, len))
     }
 }
 
@@ -2947,7 +2947,7 @@ fn expand_showtail(xp: &mut expand_T) -> bool {
         while (s as usize) < (end as usize) {
             if rem_backslash(s) {
                 s = s.add(1);
-            } else if !vim_strchr(c"*?[", *s as u8 as c_int).is_null() {
+            } else if !vim_strchr(c"*?[", crate::memory::cstr_first_byte(s) as c_int).is_null() {
                 return false;
             }
             s = s.add(1);
@@ -2984,7 +2984,7 @@ pub fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
                 || context == EXPAND_MARKS
                 || context == EXPAND_LUA
             {
-                cstr_from_bytes(std::slice::from_raw_parts(fname.cast::<u8>(), len))
+                cstr_from_bytes(crate::memory::cstr_slice(fname, len))
             } else {
                 let mut new_len = len + 2;
                 for i in 0..len {
@@ -3008,7 +3008,7 @@ pub fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
                 while i < len {
                     if context != EXPAND_USER_DEFINED
                         && context != EXPAND_USER_LIST
-                        && *fname.add(i) == b'\\' as c_char
+                        && crate::memory::cstr_byte_at(fname, i) == b'\\'
                     {
                         i += 1;
                         if i == len {
@@ -3016,7 +3016,7 @@ pub fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
                         }
                     }
 
-                    match *fname.add(i) as u8 {
+                    match crate::memory::cstr_byte_at(fname, i) {
                         b'*' => {
                             retval[j] = b'.';
                             j += 1;
@@ -3041,7 +3041,7 @@ pub fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
                         }
                         _ => {}
                     }
-                    retval[j] = *fname.add(i) as u8;
+                    retval[j] = crate::memory::cstr_byte_at(fname, i);
                     i += 1;
                     j += 1;
                 }
@@ -3054,14 +3054,14 @@ pub fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
 
             let tail = path_tail(retval);
             #[cfg(windows)]
-            let ends_in_star = len > 0 && *retval.add(len - 1) == b'*' as c_char;
+            let ends_in_star = len > 0 && crate::memory::cstr_byte_at(retval, len - 1) == b'*';
             #[cfg(not(windows))]
-            let mut ends_in_star = len > 0 && *retval.add(len - 1) == b'*' as c_char;
+            let mut ends_in_star = len > 0 && crate::memory::cstr_byte_at(retval, len - 1) == b'*';
             #[cfg(not(windows))]
             {
                 let mut k = (len as isize) - 2;
                 while k >= 0 {
-                    if *retval.add(k as usize) != b'\\' as c_char {
+                    if crate::memory::cstr_byte_at(retval, k as usize) != b'\\' {
                         break;
                     }
                     ends_in_star = !ends_in_star;
@@ -3075,11 +3075,11 @@ pub fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
             {
                 *retval.add(len) = b'*' as c_char;
                 len += 1;
-            } else if len > 0 && *retval.add(len - 1) == b'$' as c_char {
+            } else if len > 0 && crate::memory::cstr_byte_at(retval, len - 1) == b'$' {
                 len -= 1;
             }
             *retval.add(len) = NUL;
-            cstr_from_bytes(std::slice::from_raw_parts(retval.cast::<u8>(), len))
+            cstr_from_bytes(crate::memory::cstr_slice(retval, len))
         }
     }
 }
@@ -3134,7 +3134,7 @@ fn set_cmd_index(
         let mut p: *const c_char;
         let fuzzy = cmdline_fuzzy_complete(cmd);
 
-        if !fuzzy && opt_vars().p_ic == 0 && crate::memory::cstr_first_byte(cmd) == b'k' && *cmd.add(1) != b'e' as c_char {
+        if !fuzzy && opt_vars().p_ic == 0 && crate::memory::cstr_first_byte(cmd) == b'k' && crate::memory::cstr_byte_at(cmd, 1) != b'e' {
             eap.cmdidx = cmdidx_T::CMD_k as c_int;
             p = cmd.add(1);
         } else {
@@ -3148,7 +3148,7 @@ fn set_cmd_index(
                 }
             }
             if crate::memory::cstr_first_byte(cmd) == b'p'
-                && *cmd.add(1) == b'y' as c_char
+                && crate::memory::cstr_byte_at(cmd, 1) == b'y'
                 && p == cmd.add(2)
                 && crate::memory::cstr_first_byte(p) == b'3'
             {
@@ -3157,7 +3157,7 @@ fn set_cmd_index(
                     p = p.add(1);
                 }
             }
-            if p == cmd && !vim_strchr(c"@*!=><&~#", *p as u8 as c_int).is_null() {
+            if p == cmd && !vim_strchr(c"@*!=><&~#", crate::memory::cstr_first_byte(p) as c_int).is_null() {
                 p = p.add(1);
             }
             let len = p.offset_from(cmd) as usize;
@@ -3184,7 +3184,7 @@ fn set_cmd_index(
 
         if eap.cmdidx == cmdidx_T::CMD_SIZE as c_int as c_int {
             if crate::memory::cstr_first_byte(cmd) == b's'
-                && !vim_strchr(c"cgriI", *cmd.add(1) as u8 as c_int).is_null()
+                && !vim_strchr(c"cgriI", crate::memory::cstr_byte_at(cmd, 1) as c_int).is_null()
             {
                 eap.cmdidx = cmdidx_T::CMD_substitute as c_int;
                 p = cmd.add(1);
@@ -3222,7 +3222,7 @@ fn set_context_for_wildcard_arg(
         let mut p: *const c_char = xp.xp_pattern;
         while !crate::memory::cstr_is_empty(p) {
             let mut c = utf_ptr2char(p);
-            if c == b'\\' as c_int && *p.add(1) != NUL {
+            if c == b'\\' as c_int && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
             } else if c == b'`' as c_int {
                 if !in_quote {
@@ -3341,7 +3341,7 @@ fn set_context_in_match_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const
             arg = skipwhite(skiptowhite(arg));
             if !crate::memory::cstr_is_empty(arg) {
                 xp.xp_context = EXPAND_NOTHING;
-                arg = skip_regexp(arg.add(1).cast_mut(), *arg as u8 as c_int, opt_vars().p_magic);
+                arg = skip_regexp(arg.add(1).cast_mut(), crate::memory::cstr_first_byte(arg) as c_int, opt_vars().p_magic);
             }
         }
         find_nextcmd(arg)
@@ -3351,13 +3351,13 @@ fn set_context_in_match_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const
 /// Returns a pointer to the next command after a :global or a :v command.
 fn find_cmd_after_global_cmd(mut arg: *const c_char) -> *const c_char {
     unsafe {
-        let delim = *arg as u8 as c_int;
+        let delim = crate::memory::cstr_first_byte(arg) as c_int;
         if delim != 0 {
             arg = arg.add(1);
         }
 
-        while !crate::memory::cstr_is_empty(arg) && (*arg as u8 as c_int) != delim {
-            if crate::memory::cstr_first_byte(arg) == b'\\' && *arg.add(1) != NUL {
+        while !crate::memory::cstr_is_empty(arg) && (crate::memory::cstr_first_byte(arg) as c_int) != delim {
+            if crate::memory::cstr_first_byte(arg) == b'\\' && crate::memory::cstr_byte_at(arg, 1) != 0 {
                 arg = arg.add(1);
             }
             arg = arg.add(1);
@@ -3373,15 +3373,15 @@ fn find_cmd_after_global_cmd(mut arg: *const c_char) -> *const c_char {
 /// Returns a pointer to the next command after a :substitute or a :& command.
 fn find_cmd_after_substitute_cmd(mut arg: *const c_char) -> *const c_char {
     unsafe {
-        let delim = *arg as u8 as c_int;
+        let delim = crate::memory::cstr_first_byte(arg) as c_int;
         if delim != 0 {
             arg = arg.add(1);
             arg = skip_regexp(arg.cast_mut(), delim, opt_vars().p_magic);
 
-            if !crate::memory::cstr_is_empty(arg) && (*arg as u8 as c_int) == delim {
+            if !crate::memory::cstr_is_empty(arg) && (crate::memory::cstr_first_byte(arg) as c_int) == delim {
                 arg = arg.add(1);
-                while !crate::memory::cstr_is_empty(arg) && (*arg as u8 as c_int) != delim {
-                    if crate::memory::cstr_first_byte(arg) == b'\\' && *arg.add(1) != NUL {
+                while !crate::memory::cstr_is_empty(arg) && (crate::memory::cstr_first_byte(arg) as c_int) != delim {
+                    if crate::memory::cstr_first_byte(arg) == b'\\' && crate::memory::cstr_byte_at(arg, 1) != 0 {
                         arg = arg.add(1);
                     }
                     arg = arg.add(1);
@@ -3412,7 +3412,7 @@ fn find_cmd_after_isearch_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *con
 
         arg = arg.add(1);
         while !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b'/' {
-            if crate::memory::cstr_first_byte(arg) == b'\\' && *arg.add(1) != NUL {
+            if crate::memory::cstr_first_byte(arg) == b'\\' && crate::memory::cstr_byte_at(arg, 1) != 0 {
                 arg = arg.add(1);
             }
             arg = arg.add(1);
@@ -4052,7 +4052,7 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char 
         ea.argt = 0;
 
         let mut cmd = buff;
-        while !vim_strchr(c" \t:|", *cmd as u8 as c_int).is_null() {
+        while !vim_strchr(c" \t:|", crate::memory::cstr_first_byte(cmd) as c_int).is_null() {
             cmd = cmd.add(1);
         }
         xp.xp_pattern = cmd.cast_mut();
@@ -4156,13 +4156,13 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char 
             p = arg;
             if ea.cmdidx == cmdidx_T::CMD_redir as c_int as c_int
                 && crate::memory::cstr_first_byte(p) == b'@'
-                && *p.add(1) == b'"' as c_char
+                && crate::memory::cstr_byte_at(p, 1) == b'"'
             {
                 p = p.add(2);
             }
             while !crate::memory::cstr_is_empty(p) {
                 if *p == Ctrl_V {
-                    if *p.add(1) != NUL {
+                    if crate::memory::cstr_byte_at(p, 1) != 0 {
                         p = p.add(1);
                     }
                 } else if ((crate::memory::cstr_first_byte(p) == b'"' && (ea.argt & EX_NOTRLCOM) == 0)
@@ -4191,7 +4191,7 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char 
                 p = p.add(1);
                 xp.xp_pattern = p.cast_mut();
             } else {
-                if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != NUL {
+                if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0 {
                     p = p.add(1);
                 }
                 p = p.add(utfc_ptr2len(p) as usize);
@@ -4330,25 +4330,25 @@ fn expand_files_and_dirs(
             while !crate::memory::cstr_is_empty(p) {
                 if crate::memory::cstr_first_byte(p) == b'\\' {
                     if (xp.xp_backslash & XP_BS_THREE) != 0
-                        && *p.add(1) == b'\\' as c_char
-                        && *p.add(2) == b'\\' as c_char
-                        && *p.add(3) == b' ' as c_char
+                        && crate::memory::cstr_byte_at(p, 1) == b'\\'
+                        && crate::memory::cstr_byte_at(p, 2) == b'\\'
+                        && crate::memory::cstr_byte_at(p, 3) == b' '
                     {
                         let from = p.add(3);
                         ptr::copy(from, p, (pat_end.offset_from(from) as usize) + 1);
                         pat_end = pat_end.sub(3);
-                    } else if (xp.xp_backslash & XP_BS_ONE) != 0 && *p.add(1) == b' ' as c_char {
+                    } else if (xp.xp_backslash & XP_BS_ONE) != 0 && crate::memory::cstr_byte_at(p, 1) == b' ' {
                         let from = p.add(1);
                         ptr::copy(from, p, (pat_end.offset_from(from) as usize) + 1);
                         pat_end = pat_end.sub(1);
                     } else if (xp.xp_backslash & XP_BS_COMMA) != 0 {
-                        if *p.add(1) == b'\\' as c_char && *p.add(2) == b',' as c_char {
+                        if crate::memory::cstr_byte_at(p, 1) == b'\\' && crate::memory::cstr_byte_at(p, 2) == b',' {
                             let from = p.add(2);
                             ptr::copy(from, p, (pat_end.offset_from(from) as usize) + 1);
                             pat_end = pat_end.sub(2);
                         } else {
                             #[cfg(windows)]
-                            if *p.add(1) == b',' as c_char {
+                            if crate::memory::cstr_byte_at(p, 1) == b',' {
                                 let from = p.add(1);
                                 ptr::copy(from, p, (pat_end.offset_from(from) as usize) + 1);
                                 pat_end = pat_end.sub(1);
@@ -5204,7 +5204,7 @@ fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flagsarg: c
         let mut path_owned: Option<std::ffi::CString> = None;
         let path: *mut c_char = if crate::memory::cstr_first_byte(pat) == b'.'
             && (vim_ispathsep(*pat.add(1) as c_int)
-                || (*pat.add(1) == b'.' as c_char && vim_ispathsep(*pat.add(2) as c_int)))
+                || (crate::memory::cstr_byte_at(pat, 1) == b'.' && vim_ispathsep(*pat.add(2) as c_int)))
         {
             c".".as_ptr().cast_mut()
         } else {
@@ -5296,9 +5296,7 @@ fn call_user_expand_func<R>(
             *(*ccline).cmdbuff.add((*ccline).cmdlen as usize) = 0;
         }
 
-        let pat = cstr_from_bytes(std::slice::from_raw_parts(
-            (*xp).xp_pattern.cast::<u8>(),
-            (*xp).xp_pattern_len,
+        let pat = cstr_from_bytes(crate::memory::cstr_slice((*xp).xp_pattern, (*xp).xp_pattern_len,
         ));
         args[0].v_type = VarType::VAR_STRING;
         args[1].v_type = VarType::VAR_STRING;
@@ -5366,9 +5364,7 @@ fn ExpandUserDefined(
             *e = keep;
 
             if match_ok {
-                let p = cstr_from_bytes(std::slice::from_raw_parts(
-                    s.cast::<u8>(),
-                    e.offset_from(s) as usize,
+                let p = cstr_from_bytes(crate::memory::cstr_slice(s, e.offset_from(s) as usize,
                 ));
 
                 if !fuzzy {
@@ -5605,13 +5601,13 @@ fn wildmenu_process_key_menunames(
                 j -= 1;
                 j > 0
             } {
-                if *cclp.cmdbuff.add(j as usize) == b' ' as c_char
+                if crate::memory::cstr_byte_at(cclp.cmdbuff, j as usize) == b' '
                     && *cclp.cmdbuff.add((j - 1) as usize) != b'\\' as c_char
                 {
                     i = j + 1;
                     break;
                 }
-                if *cclp.cmdbuff.add(j as usize) == b'.' as c_char
+                if crate::memory::cstr_byte_at(cclp.cmdbuff, j as usize) == b'.'
                     && *cclp.cmdbuff.add((j - 1) as usize) != b'\\' as c_char
                 {
                     if found {

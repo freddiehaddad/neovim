@@ -271,7 +271,7 @@ pub fn get_extra_op_char(optype: c_int) -> c_int {
 
 /// Handle a shift operation.
 pub fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
-    unsafe {
+     {
         let mut block_col: c_int = 0;
 
         if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
@@ -284,7 +284,7 @@ pub fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
 
         let mut i = oap.line_count - 1;
         while i >= 0 {
-            let first_char = c_int::from(*get_cursor_line_ptr() as u8);
+            let first_char = c_int::from(crate::memory::cstr_first_byte(get_cursor_line_ptr()));
             if first_char == 0 {
                 curwin_mut().w_cursor.col = 0;
             } else if oap.motion_type == kMTBlockWise {
@@ -594,12 +594,12 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
                 curwin_mut().w_cursor.lnum,
                 bd.textstart,
             );
-            while ascii_iswhite(c_int::from(*non_white as u8)) {
+            while ascii_iswhite(c_int::from(crate::memory::cstr_first_byte(non_white))) {
                 let incr = win_charsize(
                     cstype,
                     non_white_col,
                     non_white,
-                    i32::from(*non_white as u8),
+                    i32::from(crate::memory::cstr_first_byte(non_white)),
                     &mut csarg,
                     1,
                 )
@@ -1593,7 +1593,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
         if oap.op_type == OP_APPEND {
             if oap.motion_type == kMTBlockWise && curwin_mut().w_cursor.coladd == 0 {
                 curwin_mut().w_set_curswant = true;
-                while *get_cursor_pos_ptr() != NUL
+                while !crate::memory::cstr_is_empty(get_cursor_pos_ptr())
                     && curwin_mut().w_cursor.col < bd.textcol + bd.textlen
                 {
                     curwin_mut().w_cursor.col += 1;
@@ -2485,7 +2485,7 @@ pub fn charwise_block_prep(
                     Some(&mut ce),
                     0,
                 );
-                if *p.add(endcol as usize) == NUL
+                if crate::memory::cstr_byte_at(p, endcol as usize) == 0
                     || (cs + end.coladd < ce && utf_head_off(p, p.add(endcol as usize)) == 0)
                 {
                     if start.lnum == end.lnum && start.col == end.col {
@@ -2664,14 +2664,14 @@ pub fn do_addsub(
 
         if !g_st().Visual.active {
             if do_bin {
-                while col > 0 && ascii_isbdigit(c_int::from(*ptr_line.add(col as usize) as u8)) {
+                while col > 0 && ascii_isbdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))) {
                     col -= 1;
                     col -= utf_head_off(ptr_line, ptr_line.add(col as usize));
                 }
             }
 
             if do_hex {
-                while col > 0 && ascii_isxdigit(c_int::from(*ptr_line.add(col as usize) as u8)) {
+                while col > 0 && ascii_isxdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))) {
                     col -= 1;
                     col -= utf_head_off(ptr_line, ptr_line.add(col as usize));
                 }
@@ -2679,15 +2679,15 @@ pub fn do_addsub(
             if do_bin
                 && do_hex
                 && !(col > 0
-                    && (*ptr_line.add(col as usize) == b'X' as c_char
-                        || *ptr_line.add(col as usize) == b'x' as c_char)
+                    && (crate::memory::cstr_byte_at(ptr_line, col as usize) == b'X'
+                        || crate::memory::cstr_byte_at(ptr_line, col as usize) == b'x')
                     && *ptr_line.add((col - 1) as usize) == b'0' as c_char
                     && utf_head_off(ptr_line, ptr_line.add((col - 1) as usize)) == 0
                     && ascii_isxdigit(c_int::from(*ptr_line.add((col + 1) as usize) as u8)))
             {
                 col = curwin_mut().w_cursor.col;
 
-                while col > 0 && ascii_isdigit(c_int::from(*ptr_line.add(col as usize) as u8)) {
+                while col > 0 && ascii_isdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))) {
                     col -= 1;
                     col -= utf_head_off(ptr_line, ptr_line.add(col as usize));
                 }
@@ -2695,15 +2695,15 @@ pub fn do_addsub(
 
             if (do_hex
                 && col > 0
-                && (*ptr_line.add(col as usize) == b'X' as c_char
-                    || *ptr_line.add(col as usize) == b'x' as c_char)
+                && (crate::memory::cstr_byte_at(ptr_line, col as usize) == b'X'
+                    || crate::memory::cstr_byte_at(ptr_line, col as usize) == b'x')
                 && *ptr_line.add((col - 1) as usize) == b'0' as c_char
                 && utf_head_off(ptr_line, ptr_line.add((col - 1) as usize)) == 0
                 && ascii_isxdigit(c_int::from(*ptr_line.add((col + 1) as usize) as u8)))
                 || (do_bin
                     && col > 0
-                    && (*ptr_line.add(col as usize) == b'B' as c_char
-                        || *ptr_line.add(col as usize) == b'b' as c_char)
+                    && (crate::memory::cstr_byte_at(ptr_line, col as usize) == b'B'
+                        || crate::memory::cstr_byte_at(ptr_line, col as usize) == b'b')
                     && *ptr_line.add((col - 1) as usize) == b'0' as c_char
                     && utf_head_off(ptr_line, ptr_line.add((col - 1) as usize)) == 0
                     && ascii_isbdigit(c_int::from(*ptr_line.add((col + 1) as usize) as u8)))
@@ -2713,16 +2713,16 @@ pub fn do_addsub(
             } else {
                 col = pos.col;
 
-                while *ptr_line.add(col as usize) != NUL
-                    && !ascii_isdigit(c_int::from(*ptr_line.add(col as usize) as u8))
-                    && !(do_alpha && ascii_isalpha(c_int::from(*ptr_line.add(col as usize) as u8)))
+                while crate::memory::cstr_byte_at(ptr_line, col as usize) != 0
+                    && !ascii_isdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize)))
+                    && !(do_alpha && ascii_isalpha(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))))
                 {
                     col += 1;
                 }
 
                 while col > 0
                     && ascii_isdigit(c_int::from(*ptr_line.add((col - 1) as usize) as u8))
-                    && !(do_alpha && ascii_isalpha(c_int::from(*ptr_line.add(col as usize) as u8)))
+                    && !(do_alpha && ascii_isalpha(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))))
                 {
                     col -= 1;
                 }
@@ -2730,10 +2730,10 @@ pub fn do_addsub(
         }
 
         if visual {
-            while *ptr_line.add(col as usize) != NUL
+            while crate::memory::cstr_byte_at(ptr_line, col as usize) != 0
                 && length > 0
-                && !ascii_isdigit(c_int::from(*ptr_line.add(col as usize) as u8))
-                && !(do_alpha && ascii_isalpha(c_int::from(*ptr_line.add(col as usize) as u8)))
+                && !ascii_isdigit(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize)))
+                && !(do_alpha && ascii_isalpha(c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize))))
             {
                 let mb_len = utfc_ptr2len(ptr_line.add(col as usize));
                 col += mb_len;
@@ -2762,7 +2762,7 @@ pub fn do_addsub(
             }
         }
 
-        let mut firstdigit = c_int::from(*ptr_line.add(col as usize) as u8);
+        let mut firstdigit = c_int::from(crate::memory::cstr_byte_at(ptr_line, col as usize));
         if !ascii_isdigit(firstdigit) && !(do_alpha && ascii_isalpha(firstdigit)) {
             beep_flush();
             if visual {
@@ -3043,8 +3043,8 @@ fn line_count_info(
         let mut chars: varnumber_T = 0;
         let mut is_word = false;
 
-        while i < limit && *line.add(i as usize) != NUL {
-            let ch = c_int::from(*line.add(i as usize) as u8);
+        while i < limit && crate::memory::cstr_byte_at(line, i as usize) != 0 {
+            let ch = c_int::from(crate::memory::cstr_byte_at(line, i as usize));
             if is_word {
                 if ascii_isspace(ch) {
                     words += 1;
@@ -3062,7 +3062,7 @@ fn line_count_info(
         }
         *wc += words;
 
-        if i < limit && *line.add(i as usize) == NUL {
+        if i < limit && crate::memory::cstr_byte_at(line, i as usize) == 0 {
             i += varnumber_T::from(eol_size);
             chars += varnumber_T::from(eol_size);
         }
@@ -3963,7 +3963,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                         }
                     }
 
-                    if oap.op_type == OP_INDENT && *get_equalprg() == NUL {
+                    if oap.op_type == OP_INDENT && crate::memory::cstr_is_empty(get_equalprg()) {
                         if curbuf_mut().b_p_lisp != 0 {
                             if use_indentexpr_for_lisp() {
                                 op_reindent(oap, get_expr_indent);

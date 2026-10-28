@@ -1205,7 +1205,7 @@ pub fn arg_all() -> CString {
                 bytes.push(b' ');
             }
             while !crate::memory::cstr_is_empty(p) {
-                let ch = *p as u8;
+                let ch = crate::memory::cstr_first_byte(p);
                 let escape = ch == b' ' || ch == b'`' || (cfg!(not(windows)) && ch == b'\\');
                 if escape {
                     bytes.push(b'\\');

@@ -548,7 +548,7 @@ pub fn nvim_parse_expression(
     unsafe {
         let mut pflags: c_int = 0;
         for i in 0..flags.size {
-            let b = *flags.data.add(i) as u8;
+            let b = crate::memory::cstr_byte_at(flags.data, i);
             match b {
                 b'm' => pflags |= kExprFlagsMulti,
                 b'E' => pflags |= kExprFlagsDisallowEOC,

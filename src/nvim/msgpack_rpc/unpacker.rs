@@ -825,7 +825,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                 p.grid_line_event.clear_width = 0;
                 if p.grid_line_event.icell == p.grid_line_event.ncells - 1
                     && cellsize == 1
-                    && *cellbuf as u8 == b' '
+                    && crate::memory::cstr_first_byte(cellbuf) == b' '
                     && repeat > 1
                 {
                     p.grid_line_event.clear_width = repeat;
@@ -998,7 +998,7 @@ pub fn unpack_keydict(
         let hashy_fn = hashy.unwrap();
 
         let alloc_key_error = |key: NvimString, suffix: &[u8]| -> Option<std::ffi::CString> {
-            let key_bytes = std::slice::from_raw_parts(key.data.cast::<u8>(), key.size);
+            let key_bytes = crate::memory::cstr_slice(key.data, key.size);
             let mut out = Vec::with_capacity(4 + key.size + suffix.len());
             out.extend_from_slice(b"has ");
             out.extend_from_slice(key_bytes);
@@ -1016,7 +1016,7 @@ pub fn unpack_keydict(
                 *error = Some(c"has empty key".to_owned());
                 return false;
             }
-            let key_bytes = std::slice::from_raw_parts(key.data.cast::<u8>(), key.size);
+            let key_bytes = crate::memory::cstr_slice(key.data, key.size);
             let field_opt = hashy_fn(key_bytes);
 
             let Some(field) = field_opt else {

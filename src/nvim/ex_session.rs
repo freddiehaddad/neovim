@@ -1035,7 +1035,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
         let fname: *mut c_char;
         if eap.cmdidx == CMD_mkview
             && (crate::memory::cstr_is_empty(eap.arg)
-                || (ascii_isdigit(*eap.arg as c_int) && *eap.arg.add(1) == NUL))
+                || (ascii_isdigit(*eap.arg as c_int) && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
         {
             eap.forceit = 1;
             let Some(vf) = get_view_file(*eap.arg) else {
@@ -1196,7 +1196,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
         let mut len: usize = 0;
         let mut p = sname;
         while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b'=' || vim_ispathsep(c_int::from(*p as u8)) {
+            if crate::memory::cstr_first_byte(p) == b'=' || vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(p))) {
                 len += 1;
             }
             p = p.add(1);
@@ -1214,7 +1214,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
                 *s = b'=' as c_char;
                 *s.add(1) = b'=' as c_char;
                 s = s.add(2);
-            } else if vim_ispathsep(c_int::from(*p as u8)) {
+            } else if vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(p))) {
                 *s = b'=' as c_char;
                 #[cfg(windows)]
                 {

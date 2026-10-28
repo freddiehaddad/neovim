@@ -148,9 +148,9 @@ fn do_checkbacktracelevel() {
 }
 
 fn do_setdebugtracelevel(arg: *mut c_char) {
-    unsafe {
+     {
         let level = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
-        if *arg as u8 == b'+' || level < 0 {
+        if crate::memory::cstr_first_byte(arg) == b'+' || level < 0 {
             g_st().debug_backtrace_level += level;
         } else {
             g_st().debug_backtrace_level = level;
@@ -294,8 +294,8 @@ pub fn do_debug(cmd: *mut c_char) {
             if !cmdline.is_null() {
                 let mut p = skipwhite(cmdline);
                 if *p != 0 {
-                    let b0 = *p as u8;
-                    let b1 = *p.add(1) as u8;
+                    let b0 = crate::memory::cstr_first_byte(p);
+                    let b1 = crate::memory::cstr_byte_at(p, 1);
                     let (mut lcmd, mut tail): (c_int, &[u8]) = match b0 {
                         b'c' => (CMD_CONT, b"ont"),
                         b'n' => (CMD_NEXT, b"ext"),
@@ -324,11 +324,11 @@ pub fn do_debug(cmd: *mut c_char) {
 
                     if lcmd != 0 {
                         p = p.add(1);
-                        while *p != 0 && !tail.is_empty() && (*p as u8) == tail[0] {
+                        while *p != 0 && !tail.is_empty() && (crate::memory::cstr_first_byte(p)) == tail[0] {
                             p = p.add(1);
                             tail = &tail[1..];
                         }
-                        if (*p as u8).is_ascii_alphabetic() && lcmd != CMD_FRAME {
+                        if (crate::memory::cstr_first_byte(p)).is_ascii_alphabetic() && lcmd != CMD_FRAME {
                             lcmd = 0;
                         }
                     }
@@ -433,9 +433,9 @@ pub fn dbg_check_breakpoint(eap: &mut exarg_T) {
         if !dbg_st().DEBUG_BREAKPOINT_NAME.is_null() {
             if eap.skip == 0 {
                 let bp_name = dbg_st().DEBUG_BREAKPOINT_NAME;
-                let is_snr = (*bp_name as u8) == K_SPECIAL
-                    && (*bp_name.add(1) as u8) == KS_EXTRA
-                    && (*bp_name.add(2) as u8) == KE_SNR;
+                let is_snr = (crate::memory::cstr_first_byte(bp_name)) == K_SPECIAL
+                    && (crate::memory::cstr_byte_at(bp_name, 1)) == KS_EXTRA
+                    && (crate::memory::cstr_byte_at(bp_name, 2)) == KE_SNR;
                 let (prefix, rest) = if is_snr {
                     (c"<SNR>".as_ptr(), bp_name.add(3))
                 } else {
@@ -521,7 +521,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
 
         if here {
             bp.dbg_lnum = curwin_mut().w_cursor.lnum;
-        } else if !is_prof && (*p as u8).is_ascii_digit() {
+        } else if !is_prof && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
             bp.dbg_lnum = getdigits_int32(&mut p, true, 0);
             p = skipwhite(p);
         } else {
@@ -555,7 +555,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
         } else {
             let q = expand_env_save(p);
             let p_exp = expand_env_save(q.as_ptr().cast_mut());
-            let raw_name = if *p_exp.as_ptr() as u8 != b'*' {
+            let raw_name = if crate::memory::cstr_first_byte(p_exp.as_ptr()) != b'*' {
                 fix_fname(p_exp.as_ptr())?
             } else {
                 p_exp
@@ -623,14 +623,14 @@ fn update_has_expr_breakpoint() {
 
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
 pub fn ex_breakdel(eap: &mut exarg_T) {
-    unsafe {
+     {
         let mut todel: isize = -1;
         let mut del_all = false;
         let mut best_lnum: i32 = 0;
         let is_prof = eap.cmdidx == CMD_PROFDEL;
         let gap = dbg_vec_mut(is_prof);
 
-        let first_byte = *eap.arg as u8;
+        let first_byte = crate::memory::cstr_first_byte(eap.arg);
         if first_byte.is_ascii_digit() {
             let nr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int;
             if let Some(idx) = gap.iter().position(|bp| bp.dbg_nr == nr) {
@@ -730,7 +730,7 @@ fn debuggy_find(
 
         let mut lnum: i32 = 0;
         let name_owned: Option<CString>;
-        let name = if !file && (*fname as u8) == K_SPECIAL {
+        let name = if !file && (crate::memory::cstr_first_byte(fname)) == K_SPECIAL {
             let rest_bytes = crate::memory::cstr_as_bytes(fname.add(3));
             let mut bytes = Vec::with_capacity(5 + rest_bytes.len());
             bytes.extend_from_slice(b"<SNR>");

@@ -209,12 +209,12 @@ fn mouse_st() -> &'static mut MouseModuleState {
 /// 2: normal word character
 /// >2: multi-byte word character.
 fn get_mouse_class(p: *const c_char) -> c_int {
-    unsafe {
-        if utf8len_tab[*p as u8 as usize] > 1 {
+     {
+        if utf8len_tab[crate::memory::cstr_first_byte(p) as usize] > 1 {
             return mb_get_class(p);
         }
 
-        let c = c_int::from(*p as u8);
+        let c = c_int::from(crate::memory::cstr_first_byte(p));
         if c == b' ' as c_int || c == b'\t' as c_int {
             return 0;
         }
@@ -256,7 +256,7 @@ fn find_end_of_word(pos: &mut pos_T) {
             pos.col -= utf_head_off(line, line.add(pos.col as usize));
         }
         let cclass = get_mouse_class(line.add(pos.col as usize));
-        while *line.add(pos.col as usize) != NUL {
+        while crate::memory::cstr_byte_at(line, pos.col as usize) != 0 {
             let col = pos.col + utfc_ptr2len(line.add(pos.col as usize));
             if get_mouse_class(line.add(col as usize)) != cclass {
                 if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
@@ -1154,7 +1154,7 @@ pub fn do_mouse(
                         find_end_of_word(&mut g_st().Visual.start);
                     } else {
                         find_start_of_word(&mut g_st().Visual.start);
-                        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && *get_cursor_pos_ptr() != NUL {
+                        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && !crate::memory::cstr_is_empty(get_cursor_pos_ptr()) {
                             curwin_mut().w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
                         }
                         find_end_of_word(&mut curwin_mut().w_cursor);

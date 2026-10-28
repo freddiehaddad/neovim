@@ -21,7 +21,7 @@ unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> c_int 
         let slice = if src_len == 0 || src.is_null() {
             &[]
         } else {
-            std::slice::from_raw_parts(src.cast::<u8>(), src_len)
+            crate::memory::cstr_slice(src, src_len)
         };
 
         let encoded = encode_bytes(slice);
@@ -44,7 +44,7 @@ unsafe extern "C-unwind" fn nlua_base64_decode(lstate: *mut lua_State) -> c_int 
         let slice = if src_len == 0 || src.is_null() {
             &[]
         } else {
-            std::slice::from_raw_parts(src.cast::<u8>(), src_len)
+            crate::memory::cstr_slice(src, src_len)
         };
 
         let Some(decoded) = decode_bytes(slice) else {
