@@ -393,7 +393,7 @@ pub fn trans_characters(mut buf: *mut c_char, bufsize: i32) {
 
 pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = s;
         let mut len: usize = 0;
 
@@ -412,7 +412,7 @@ pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize 
                     }
                 }
                 p = p.wrapping_add(l);
-            } else if *p == TAB && !untab {
+            } else if unsafe { *p } == TAB && !untab {
                 len += 1;
                 p = p.wrapping_add(1);
             } else {
@@ -908,12 +908,12 @@ pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
 
 pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     let mut p = p.into_c_char_ptr();
-    unsafe {
+    {
         while crate::memory::cstr_first_byte(p) != b' '
             && crate::memory::cstr_first_byte(p) != b'\t'
             && !crate::memory::cstr_is_empty(p)
         {
-            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST)
+            if (crate::memory::cstr_first_byte(p) == b'\\' || unsafe { *p } == CTRL_V_CONST)
                 && crate::memory::cstr_byte_at(p, 1) != 0
             {
                 p = p.wrapping_add(1);

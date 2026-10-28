@@ -1292,10 +1292,10 @@ fn nfa_regatom_collection(
     startc: &mut i32,
     c: &mut i32,
 ) -> i32 {
-    unsafe {
+    {
         let p = re_st().regparse.cast::<u8>();
         let endp = skip_anyof(p.cast()).cast::<u8>();
-        if *endp == b']' {
+        if unsafe { *endp } == b']' {
             let result = nfa_recognize_char_class(
                 re_st().regparse.cast(),
                 endp,
@@ -1762,7 +1762,7 @@ fn nfa_regbranch() -> bool {
 }
 
 fn nfa_reg(paren: i32) -> bool {
-    unsafe {
+    {
         let mut parno: i32 = 0;
 
         if paren == REG_PAREN {
@@ -1845,9 +1845,11 @@ fn nfa_reg(paren: i32) -> bool {
         }
 
         if paren == REG_PAREN {
-            *(&raw mut re_st().had_endbrace)
-                .cast::<u8>()
-                .wrapping_add(parno as usize) = 1;
+            unsafe {
+                *(&raw mut re_st().had_endbrace)
+                    .cast::<u8>()
+                    .wrapping_add(parno as usize) = 1;
+            }
             emit_fn(NFA_MOPEN + parno);
         } else if paren == REG_ZPAREN {
             emit_fn(NFA_ZOPEN + parno);
@@ -3528,10 +3530,12 @@ fn match_composing(states: &[NfaState], mut sta: Option<usize>, curc: i32, clen:
 }
 
 fn nfa_did_time_out() -> bool {
-    unsafe {
+    {
         if nfa_st().nfa_time_limit.is_some_and(profile_passed_limit) {
             if !nfa_st().nfa_timed_out.is_null() {
-                *nfa_st().nfa_timed_out = 1;
+                unsafe {
+                    *nfa_st().nfa_timed_out = 1;
+                }
             }
             return true;
         }
@@ -4942,7 +4946,7 @@ fn cleanup_nfa_regcomp(prog: Option<NfaRegprog>) -> Option<NfaRegprog> {
 }
 
 pub(super) fn nfa_regexec_nl(rmp: &mut Regmatch, line: *mut u8, col: Colnr, line_lbr: bool) -> i32 {
-    unsafe {
+    {
         re_st().rex.reg_match = rmp;
         re_st().rex.reg_mmatch = ptr::null_mut();
         re_st().rex.reg_maxline = 0;
@@ -4951,7 +4955,7 @@ pub(super) fn nfa_regexec_nl(rmp: &mut Regmatch, line: *mut u8, col: Colnr, line
         re_st().rex.reg_win = ptr::null_mut();
         re_st().rex.reg_ic = rmp.rm_ic;
         re_st().rex.reg_icombine = false;
-        re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as u32)) != 0;
+        re_st().rex.reg_nobreak = (unsafe { (*rmp.regprog).re_flags } & (RE_NOBREAK as u32)) != 0;
         re_st().rex.reg_maxcol = 0;
         nfa_regexec_both(line, col, None, None)
     }

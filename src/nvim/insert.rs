@@ -366,7 +366,7 @@ fn may_trigger_autocomplete(s: &mut InsertState) {
 }
 
 fn insert_enter(s: &mut InsertState) {
-    unsafe {
+    {
         s.did_backspace = true;
         s.old_topfill = -1;
         s.replace_state = MODE_REPLACE;
@@ -396,7 +396,7 @@ fn insert_enter(s: &mut InsertState) {
             }
 
             if !equalpos(curwin_mut().w_cursor, save_cursor)
-                && *get_vim_var_str(VV_CHAR) == NUL
+                && unsafe { *get_vim_var_str(VV_CHAR) } == NUL
                 && save_cursor.lnum <= curbuf_mut().b_ml.ml_line_count
             {
                 let save_state = g_st().state_global;
@@ -1852,7 +1852,7 @@ pub fn get_literal(no_simplify: bool) -> i32 {
 }
 
 fn insert_special(mut c: i32, mut allow_modmask: i32, mut ctrlv: i32) {
-    unsafe {
+    {
         if (g_st().mod_mask & MOD_MASK_CMD) != 0 {
             allow_modmask = 1;
         }
@@ -1864,7 +1864,9 @@ fn insert_special(mut c: i32, mut allow_modmask: i32, mut ctrlv: i32) {
                 if !stop_arrow() {
                     return;
                 }
-                *p.wrapping_add(len - 1) = NUL;
+                unsafe {
+                    *p.wrapping_add(len - 1) = NUL;
+                }
                 ins_str(p, len - 1);
                 redo_append_lit(p, -1);
                 ctrlv = 0;
@@ -2297,11 +2299,11 @@ pub fn beginline(flags: i32) {
 }
 
 pub fn oneright() -> bool {
-    unsafe {
+    {
         if virtual_active(curwin_mut()) {
             let prevpos = curwin_mut().w_cursor;
             let ptr = get_cursor_pos_ptr();
-            let step = if *ptr != TAB as c_char && vim_isprintc(utf_ptr2char(ptr)) {
+            let step = if unsafe { *ptr } != TAB as c_char && vim_isprintc(utf_ptr2char(ptr)) {
                 ptr2cells(ptr)
             } else {
                 1
@@ -2331,7 +2333,7 @@ pub fn oneright() -> bool {
 }
 
 pub fn oneleft() -> bool {
-    unsafe {
+    {
         if virtual_active(curwin_mut()) {
             let v = getviscol();
             if v == 0 {
@@ -2348,7 +2350,10 @@ pub fn oneleft() -> bool {
 
             if curwin_mut().w_cursor.coladd == 1 {
                 let ptr = get_cursor_pos_ptr();
-                if *ptr != TAB as c_char && vim_isprintc(utf_ptr2char(ptr)) && ptr2cells(ptr) > 1 {
+                if unsafe { *ptr } != TAB as c_char
+                    && vim_isprintc(utf_ptr2char(ptr))
+                    && ptr2cells(ptr) > 1
+                {
                     curwin_mut().w_cursor.coladd = 0;
                 }
             }
@@ -2545,12 +2550,13 @@ pub fn get_last_insert() -> NvimString {
 }
 
 pub fn get_last_insert_save() -> Option<std::ffi::CString> {
-    unsafe {
+    {
         let mut insert = get_last_insert();
         if insert.data.is_null() {
             return None;
         }
-        if insert.size > 0 && *insert.data.wrapping_add(insert.size - 1) == ESC as c_char {
+        if insert.size > 0 && unsafe { *insert.data.wrapping_add(insert.size - 1) } == ESC as c_char
+        {
             insert.size -= 1;
         }
         let slice = crate::memory::cstr_slice(insert.data, insert.size);
@@ -3022,7 +3028,7 @@ fn ins_ctrl_o() {
 }
 
 fn ins_shift(c: i32, lastc: i32) {
-    unsafe {
+    {
         if !stop_arrow() {
             return;
         }
@@ -3054,7 +3060,7 @@ fn ins_shift(c: i32, lastc: i32) {
             );
         }
 
-        if g_st().ins_global.did_ai && *skipwhite(get_cursor_line_ptr()) != NUL {
+        if g_st().ins_global.did_ai && unsafe { *skipwhite(get_cursor_line_ptr()) } != NUL {
             g_st().ins_global.did_ai = false;
         }
         g_st().ins_global.did_si = false;

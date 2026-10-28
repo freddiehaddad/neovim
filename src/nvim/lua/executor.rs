@@ -2026,10 +2026,10 @@ pub fn nlua_call_typval<S: crate::strings::IntoCCharPtr>(
     rettv: Option<&mut TypVal>,
 ) {
     let func = func.into_c_char_ptr();
-    unsafe {
+    {
         let mut argcount: i32 = 0;
         let mut tv = argvars;
-        while (*tv).v_type != VarType::VarUnknown {
+        while unsafe { (*tv).v_type } != VarType::VarUnknown {
             argcount += 1;
             tv = tv.wrapping_add(1);
         }

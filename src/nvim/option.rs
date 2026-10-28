@@ -880,7 +880,7 @@ fn set_init_default_cdpath() {
 
 /// Expand environment variables and things like "~" for the defaults.
 fn set_init_expand_env() {
-    unsafe {
+    {
         for opt_idx in 0..K_OPT_COUNT {
             let opt = get_option(opt_idx);
             if (opt.flags & K_OPT_FLAG_NO_DEF_EXP) != 0 {
@@ -888,7 +888,7 @@ fn set_init_expand_env() {
             }
             let mut p: *mut c_char = ptr::null_mut();
             if (opt.flags & K_OPT_FLAG_GETTEXT) != 0 && !opt.var.is_null() {
-                p = tr(*(opt.var.cast::<*mut c_char>()));
+                p = tr(unsafe { *(opt.var.cast::<*mut c_char>()) });
             } else if (opt.flags & K_OPT_FLAG_EXPAND) != 0 {
                 p = option_expand(opt_idx, opt.def_val.data.string().data);
             }
@@ -2401,14 +2401,14 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
 /// Expand environment variables for some string options.
 fn option_expand(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     let mut val = val.into_c_char_ptr();
-    unsafe {
+    {
         let opt = get_option(opt_idx);
         if (opt.flags & K_OPT_FLAG_EXPAND) == 0 || is_option_hidden(opt_idx) {
             return ptr::null_mut();
         }
 
         if val.is_null() {
-            val = *(opt.var.cast::<*const c_char>());
+            val = unsafe { *(opt.var.cast::<*const c_char>()) };
         }
 
         if val.is_null() || crate::memory::cstr_len(val) > MAXPATHL {
@@ -2606,7 +2606,7 @@ pub fn parse_winhl_opt(
     mut wp: Option<&mut WinInfoInfo>,
 ) -> bool {
     let winhl = winhl.into_c_char_ptr();
-    unsafe {
+    {
         let mut p: *const c_char = EMPTY_STRING_OPTION.as_ptr().cast();
         if !winhl.is_null() {
             p = winhl;
@@ -2634,7 +2634,9 @@ pub fn parse_winhl_opt(
                 }) as i32;
             } else {
                 let dp = get_decor_provider(wp.as_deref_mut().unwrap().w_ns_hl_winhl, true);
-                (*dp).hl_valid += 1;
+                unsafe {
+                    (*dp).hl_valid += 1;
+                }
             }
             ns_hl = wp.as_deref_mut().unwrap().w_ns_hl_winhl;
             if wp.as_deref_mut().unwrap().w_ns_hl <= 0 {
@@ -2878,10 +2880,10 @@ pub fn did_set_autochdir(_args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'binary' option value.
 pub fn did_set_binary(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         set_options_bin(
             i32::from(args.os_oldval.data.boolean()),
-            (*args.os_buf).b_p_bin,
+            unsafe { (*args.os_buf).b_p_bin },
             args.os_flags,
         );
         redraw_titles();
@@ -3457,10 +3459,10 @@ pub fn did_set_titlelen(args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'undofile' option value.
 pub fn did_set_undofile(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let buf = args.os_buf;
 
-        if (*buf).b_p_udf == 0 && opt_vars().p_udf == 0 {
+        if unsafe { (*buf).b_p_udf } == 0 && opt_vars().p_udf == 0 {
             return ptr::null();
         }
 
@@ -5923,7 +5925,7 @@ fn set_option(
     value_replaced: bool,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
-    unsafe {
+    {
         assert!(opt_idx != K_OPT_INVALID);
 
         let mut errmsg: *const c_char = ptr::null();
@@ -6000,7 +6002,9 @@ fn set_option(
                         p = p.wrapping_add(1);
                         continue;
                     }
-                    *p = b'/' as c_char;
+                    unsafe {
+                        *p = b'/' as c_char;
+                    }
                     p = p.wrapping_add(1);
                 }
             }
@@ -6321,7 +6325,7 @@ pub fn set_option_value_for(
     value_replaced: bool,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         if let (K_OPT_SCOPE_TAB, OptTarget::Tab(tab)) = (scope, from)
             && tab != g_st().curtab
         {
@@ -6334,7 +6338,9 @@ pub fn set_option_value_for(
                 );
                 return;
             }
-            (*tab).tp_ch_used = value.data.integer();
+            unsafe {
+                (*tab).tp_ch_used = value.data.integer();
+            }
             return;
         }
 
@@ -6478,7 +6484,7 @@ pub fn ui_refresh_options() {
 }
 
 fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
-    unsafe {
+    {
         let save_silent = g_st().silent_mode;
 
         g_st().silent_mode = false;
@@ -6493,7 +6499,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
             } else if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
                 i32::from(curbuf_is_changed_fn())
             } else {
-                *(varp.cast::<i32>())
+                unsafe { *(varp.cast::<i32>()) }
             };
             if val_int == 0 {
                 msg_puts(c"no");
@@ -6522,7 +6528,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
 
 /// Write modified options as ":set" commands to a file.
 pub fn makeset(fd: *mut FILE, opt_flags: i32, local_only: i32) -> bool {
-    unsafe {
+    {
         for pri in (0..=1).rev() {
             for opt_idx in 0..K_OPT_COUNT {
                 let opt = get_option(opt_idx);
@@ -6578,12 +6584,9 @@ pub fn makeset(fd: *mut FILE, opt_flags: i32, local_only: i32) -> bool {
 
                         let mut do_endif = false;
                         if opt_idx == K_OPT_SYNTAX || opt_idx == K_OPT_FILETYPE {
-                            if fprintf!(
-                                fd,
-                                c"if &%s != '%s'",
-                                opt.fullname.as_ptr(),
-                                *(varp.cast::<*mut c_char>()),
-                            ) < 0
+                            if fprintf!(fd, c"if &%s != '%s'", opt.fullname.as_ptr(), unsafe {
+                                *(varp.cast::<*mut c_char>())
+                            },) < 0
                                 || !put_eol(fd.cast())
                             {
                                 return false;
@@ -8271,7 +8274,7 @@ pub fn expand_setting_subtract(
 }
 
 fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
-    unsafe {
+    {
         let opt = get_option(opt_idx);
         let varp = get_varp_scope(opt, opt_flags);
         assert!(!varp.is_null());
@@ -8292,7 +8295,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
         {
             home_replace(
                 None,
-                *(varp.cast::<*mut c_char>()),
+                unsafe { *(varp.cast::<*mut c_char>()) },
                 namebuf_ptr,
                 MAXPATHL,
                 false,
@@ -8308,9 +8311,9 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
 }
 
 fn wc_use_keyname(p: *const OptInt, wcp: &mut OptInt) -> i32 {
-    unsafe {
+    {
         if p == &raw const opt_vars().p_wc || p == &raw const opt_vars().p_wcm {
-            *wcp = *p;
+            *wcp = unsafe { *p };
             if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32) >= 0 {
                 return 1;
             }

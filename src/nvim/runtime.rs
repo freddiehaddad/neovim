@@ -2326,7 +2326,7 @@ pub fn get_lib_dir() -> Option<std::ffi::CString> {
 
 /// Determine the startup value for &runtimepath.
 pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         const SITE_SIZE: usize = 4;
         const AFTER_SIZE: usize = 5;
 
@@ -2497,7 +2497,9 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 ptr::null(),
                 0,
             );
-            *rtp_cur.wrapping_sub(1) = NUL;
+            unsafe {
+                *rtp_cur.wrapping_sub(1) = NUL;
+            }
             debug_assert_eq!((rtp_cur as usize) - (rtp as usize), rtp_size);
             Some(crate::memory::cstr_to_cstring(rtp))
         } else {
@@ -2508,7 +2510,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
 
 fn cmd_source(fname: impl crate::strings::IntoCCharPtr, mut eap: Option<&mut Exarg>) {
     let fname = fname.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         if !crate::memory::cstr_is_empty(fname)
             && eap.is_some()
             && eap.as_deref_mut().unwrap().addr_count > 0
@@ -2531,7 +2533,7 @@ fn cmd_source(fname: impl crate::strings::IntoCCharPtr, mut eap: Option<&mut Exa
                 g_st().global_busy != 0
                     || g_st().listcmd_busy
                     || !eap.nextcmd.is_null()
-                    || (*eap.cstack.cast::<Cstack>()).cs_idx >= 0,
+                    || unsafe { (*eap.cstack.cast::<Cstack>()).cs_idx } >= 0,
             );
         } else if !do_source(fname, false, DOSO_NONE, ptr::null_mut()) {
             semsg!(gettext(E_NOTOPEN), fname);
@@ -3236,9 +3238,9 @@ pub fn free_autoload_scriptnames() {
 }
 
 pub fn get_sourced_lnum(fgetline: LineGetter) -> Linenr {
-    unsafe {
+    {
         if let LineGetter::Source(sp) = fgetline {
-            (*sp).sourcing_lnum
+            unsafe { (*sp).sourcing_lnum }
         } else {
             sourcing_lnum()
         }

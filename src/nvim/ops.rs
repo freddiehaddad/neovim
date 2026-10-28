@@ -1137,7 +1137,7 @@ fn mb_adjust_opend(oap: &mut Oparg) {
 }
 
 fn pbyte(mut lp: CursorPos, c: i32) {
-    unsafe {
+    {
         debug_assert!(c <= u8::MAX as i32);
         let p = ml_get_buf_mut(curbuf_mut(), lp.lnum);
         let len = curbuf_mut().b_ml.ml_line_textlen;
@@ -1145,7 +1145,9 @@ fn pbyte(mut lp: CursorPos, c: i32) {
         if lp.col >= len {
             lp.col = if len > 1 { len - 2 } else { 0 };
         }
-        *p.wrapping_add(lp.col as usize) = c as c_char;
+        unsafe {
+            *p.wrapping_add(lp.col as usize) = c as c_char;
+        }
         if g_st().curbuf_splice_pending == 0 {
             extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);
         }
@@ -3086,7 +3088,7 @@ fn line_count_info(
 }
 
 pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
-    unsafe {
+    {
         let mut buf1 = [0 as c_char; 50];
         let buf1_ptr = (&raw mut buf1).cast::<c_char>();
         let mut buf2 = [0 as c_char; 40];
@@ -3264,7 +3266,9 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             .unwrap_or_else(|| std::process::abort());
                         vim_snprintf!(buf1_ptr, buf1.len(), tr(c"%lld Cols; "), cols,);
                     } else {
-                        *buf1_ptr = NUL;
+                        unsafe {
+                            *buf1_ptr = NUL;
+                        }
                     }
 
                     if char_count_cursor == byte_count_cursor && char_count == byte_count {

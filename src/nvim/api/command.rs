@@ -1221,9 +1221,9 @@ pub fn nvim_cmd(
 }
 
 fn string_iswhite(str_val: NvimString) -> bool {
-    unsafe {
+    {
         for i in 0..str_val.size {
-            let c = *str_val.data.wrapping_add(i);
+            let c = unsafe { *str_val.data.wrapping_add(i) };
             if !ascii_iswhite(c) {
                 return false;
             } else if c == NUL {
@@ -1421,7 +1421,7 @@ pub fn create_user_command(
     flags: i32,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         let mut argt: u32 = 0;
         let mut def: i64 = -1;
         let mut addr_type_arg: CmdAddr = ADDR_NONE;
@@ -1437,7 +1437,7 @@ pub fn create_user_command(
                 api_err_invalid(err, c"command name", name.data, 0, true);
                 break 'err;
             }
-            if mb_islower(i32::from(*name.data.cast::<u8>())) {
+            if mb_islower(i32::from(unsafe { *name.data.cast::<u8>() })) {
                 api_err_invalid(
                     err,
                     c"command name (must start with uppercase)",

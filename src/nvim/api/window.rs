@@ -301,11 +301,11 @@ pub fn nvim_win_get_position(win: Window, arena: &mut Arena, err: &mut Error) ->
 // DLLEXPORT Tabpage nvim_win_get_tabpage(Window win, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
-    unsafe {
+    {
         let mut rv: Tabpage = 0;
         let w = find_window_by_handle(win, err);
         if !w.is_null() {
-            rv = (*win_find_tabpage(w)).handle;
+            rv = unsafe { (*win_find_tabpage(w)).handle };
         }
         rv
     }

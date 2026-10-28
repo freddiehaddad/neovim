@@ -814,7 +814,7 @@ pub fn setcursor() {
 }
 
 pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
-    unsafe {
+    {
         if force || redrawing() {
             validate_cursor(wp);
 
@@ -829,7 +829,7 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
 
             let grid = grid_adjust(&mut wp.w_grid, &mut row, &mut col);
             if !grid.is_null() {
-                ui_grid_cursor_goto((*grid).handle, row, col);
+                ui_grid_cursor_goto(unsafe { (*grid).handle }, row, col);
             }
         }
     }
@@ -846,11 +846,12 @@ pub fn redraw_custom_title_later() -> bool {
 }
 
 pub fn show_cursor_info_later(force: bool) {
-    unsafe {
+    {
         let state = get_real_state();
         let empty_line = i32::from(
             (g_st().state_global & MODE_INSERT) == 0
-                && *ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum) == NUL,
+                && unsafe { *ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum) }
+                    == NUL,
         );
 
         validate_virtcol(curwin_mut());

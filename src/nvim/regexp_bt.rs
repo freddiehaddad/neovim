@@ -241,11 +241,13 @@ fn use_multibytecode(c: i32) -> bool {
 }
 
 fn regc(b: i32) {
-    unsafe {
+    {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += 1;
         } else {
-            *re_st().regcode = b as u8;
+            unsafe {
+                *re_st().regcode = b as u8;
+            }
             re_st().regcode = re_st().regcode.wrapping_add(1);
         }
     }
@@ -1944,7 +1946,7 @@ fn regbranch(flagp: &mut i32) -> *mut u8 {
 }
 
 fn reg(paren: i32, flagp: &mut i32) -> *mut u8 {
-    unsafe {
+    {
         let mut ret: *mut u8;
         let mut parno: i32 = 0;
         let mut flags: i32 = 0;
@@ -2078,9 +2080,11 @@ fn reg(paren: i32, flagp: &mut i32) -> *mut u8 {
         }
 
         if paren == REG_PAREN {
-            *(&raw mut re_st().had_endbrace)
-                .cast::<u8>()
-                .wrapping_add(parno as usize) = 1;
+            unsafe {
+                *(&raw mut re_st().had_endbrace)
+                    .cast::<u8>()
+                    .wrapping_add(parno as usize) = 1;
+            }
         }
 
         re_st().bt_reg_parse_depth -= 1;
@@ -2602,12 +2606,14 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
             .regstack
             .resize(old_len + size_of::<Regitem>() / 8, 0);
 
-        let rp = unsafe {
-            &mut *re_st()
-                .regstack
-                .as_mut_ptr()
-                .wrapping_add(old_len)
-                .cast::<Regitem>()
+        let rp = {
+            &mut unsafe {
+                *re_st()
+                    .regstack
+                    .as_mut_ptr()
+                    .wrapping_add(old_len)
+                    .cast::<Regitem>()
+            }
         };
         rp.rs_state = state;
         rp.rs_scan = scan;
@@ -4214,7 +4220,7 @@ fn finish_bt_regexec(retval: i32, col: Colnr) -> i32 {
 }
 
 pub(super) fn bt_regexec_nl(rmp: &mut Regmatch, line: *mut u8, col: Colnr, line_lbr: bool) -> i32 {
-    unsafe {
+    {
         re_st().rex.reg_match = rmp;
         re_st().rex.reg_mmatch = ptr::null_mut();
         re_st().rex.reg_maxline = 0;
@@ -4223,7 +4229,7 @@ pub(super) fn bt_regexec_nl(rmp: &mut Regmatch, line: *mut u8, col: Colnr, line_
         re_st().rex.reg_win = ptr::null_mut();
         re_st().rex.reg_ic = rmp.rm_ic;
         re_st().rex.reg_icombine = false;
-        re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as u32)) != 0;
+        re_st().rex.reg_nobreak = (unsafe { (*rmp.regprog).re_flags } & (RE_NOBREAK as u32)) != 0;
         re_st().rex.reg_maxcol = 0;
 
         bt_regexec_both(line, col, None, None)

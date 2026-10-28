@@ -1888,7 +1888,7 @@ pub fn make_filter_cmd(
     let cmd = cmd.into_c_char_ptr();
     let itmp = itmp.into_c_char_ptr();
     let otmp = otmp.into_c_char_ptr();
-    unsafe {
+    {
         #[cfg(unix)]
         let is_fish_shell =
             crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, None), 4)
@@ -2007,7 +2007,9 @@ pub fn make_filter_cmd(
                     if crate::memory::cstr_is_empty(opt_vars().p_shq) {
                         let p = find_pipe(buf);
                         if !p.is_null() {
-                            *p = NUL;
+                            unsafe {
+                                *p = NUL;
+                            }
                         }
                     }
                     {
@@ -2066,7 +2068,7 @@ pub fn append_redir(
 ) {
     let opt = opt.into_c_char_ptr();
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let end = buf.wrapping_add(crate::memory::cstr_len(buf));
         let mut p = opt;
         loop {
@@ -2085,7 +2087,9 @@ pub fn append_redir(
             p = p.wrapping_add(1);
         }
         if !p.is_null() {
-            *end = b' ' as c_char;
+            unsafe {
+                *end = b' ' as c_char;
+            }
             vim_snprintf!(
                 end.wrapping_add(1),
                 (buflen as isize - crate::memory::ptr_offset_from(end.wrapping_add(1), buf))
@@ -2150,7 +2154,7 @@ pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
 
 pub fn rename_buffer(new_fname: impl crate::strings::IntoCCharPtr) -> bool {
     let new_fname = new_fname.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut buf = g_st().curbuf;
         apply_autocmds(
             EVENT_BUFFILEPRE,
@@ -2178,7 +2182,7 @@ pub fn rename_buffer(new_fname: impl crate::strings::IntoCCharPtr) -> bool {
         if !crate::memory::cstr_is_empty(xfname) {
             buf = buflist_new(fname, xfname, curwin_mut().w_cursor.lnum, 0);
             if !buf.is_null() && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-                curwin_mut().w_alt_fnum = (*buf).b_fnum;
+                curwin_mut().w_alt_fnum = unsafe { (*buf).b_fnum };
             }
         }
         drop(fname_cstr);
@@ -4914,7 +4918,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
 /// Give message for number of substitutions.
 pub fn do_sub_msg(count_only: bool) -> bool {
-    unsafe {
+    {
         if (((g_st().sub_nsubs as OptInt) > opt_vars().p_report
             && (g_st().key_typed || g_st().sub_nlines > 1 || opt_vars().p_report < 1))
             || count_only)
@@ -4924,7 +4928,9 @@ pub fn do_sub_msg(count_only: bool) -> bool {
             if g_st().got_int {
                 crate::memory::cstr_cpy(msg_buf_ptr, gettext(c"(Interrupted) "));
             } else {
-                *msg_buf_ptr = NUL;
+                unsafe {
+                    *msg_buf_ptr = NUL;
+                }
             }
 
             let msg_single = if count_only {

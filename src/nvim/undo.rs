@@ -355,9 +355,11 @@ fn get_undolevel(buf: &mut FileBuf) -> OptInt {
 
 #[inline]
 fn zero_fmark_additional_data(fmarks: *mut Fmark) {
-    unsafe {
+    {
         for i in 0..NMARKS {
-            (*fmarks.wrapping_add(i)).additional_data = None;
+            unsafe {
+                (*fmarks.wrapping_add(i)).additional_data = None;
+            }
         }
     }
 }

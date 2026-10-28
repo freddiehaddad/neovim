@@ -1201,13 +1201,13 @@ fn tokenize(str_in: impl crate::strings::IntoCCharPtr, argv: &mut Vec<std::ffi::
 
 pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
     let str_in = str_in.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = str_in;
         let mut inquote = false;
         let mut length: usize = 0;
 
         while !crate::memory::cstr_is_empty(p)
-            && (inquote || (crate::memory::cstr_first_byte(p) != b' ' && *p != TAB))
+            && (inquote || (crate::memory::cstr_first_byte(p) != b' ' && unsafe { *p } != TAB))
         {
             if crate::memory::cstr_first_byte(p) == b'"' {
                 inquote = !inquote;

@@ -1169,10 +1169,10 @@ pub fn find_internal_func(name: impl crate::strings::IntoCCharPtr) -> *const Eva
 /// Gets the Lua name of a Lua-implemented "vimfn" function, or NULL if not found.
 pub fn find_internal_func_lua(name: impl crate::strings::IntoCCharPtr) -> *const c_char {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let fdef = find_internal_func(name);
         if !fdef.is_null()
-            && let EvalFuncData::LuaFunc(lua_name) = (*fdef).data
+            && let EvalFuncData::LuaFunc(lua_name) = unsafe { (*fdef).data }
         {
             return lua_name.as_ptr();
         }
@@ -1302,7 +1302,7 @@ pub fn float_op_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFu
 
 /// Invokes an API (`nvim_`) function from Vimscript.
 pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData) {
-    unsafe {
+    {
         if check_secure() {
             return;
         }
@@ -1326,7 +1326,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         };
 
         let mut tv = argvars.as_mut_ptr();
-        while (*tv).v_type != VarType::VarUnknown {
+        while unsafe { (*tv).v_type } != VarType::VarUnknown {
             *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
             args.size += 1;
             tv = tv.wrapping_add(1);
@@ -1352,7 +1352,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 
 /// Invokes a Lua-implemented vimfn/"f_xx" function from Vimscript.
 pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut args_storage = [Object {
             obj_type: ObjectType::ObjectTypeNil,
             data: ObjectData::Boolean(false),
@@ -1369,7 +1369,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         };
 
         let mut tv = argvars.as_mut_ptr();
-        while (*tv).v_type != VarType::VarUnknown {
+        while unsafe { (*tv).v_type } != VarType::VarUnknown {
             *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
             args.size += 1;
             tv = tv.wrapping_add(1);
@@ -3526,7 +3526,7 @@ pub fn f_getregionpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
 /// Common between `getreg()`, `getreginfo()` and `getregtype()`.
 fn getreg_get_regname(argvars: &mut [TypVal]) -> i32 {
-    unsafe {
+    {
         let strregname = if argvars[0].v_type != VarType::VarUnknown {
             let s = tv_get_string_chk(&argvars[0]);
             if s.is_null() {
@@ -3536,7 +3536,7 @@ fn getreg_get_regname(argvars: &mut [TypVal]) -> i32 {
         } else {
             get_vim_var_str(VV_REG)
         };
-        if *strregname == 0 {
+        if unsafe { *strregname } == 0 {
             b'"' as i32
         } else {
             i32::from(crate::memory::cstr_first_byte(strregname))
@@ -3621,8 +3621,8 @@ pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
-    unsafe {
-        if *loop_closing_ptr(&mut g_st().main_loop) {
+    {
+        if unsafe { *loop_closing_ptr(&mut g_st().main_loop) } {
             time_watcher_stop(tw);
             time_watcher_close(tw);
         }
@@ -6081,12 +6081,12 @@ pub fn f_pow(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// "prevnonblank()" function
 pub fn f_prevnonblank(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut lnum = tv_get_lnum(&argvars[0]);
         if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
             lnum = 0;
         } else {
-            while lnum >= 1 && *skipwhite(ml_get(lnum)) == NUL {
+            while lnum >= 1 && unsafe { *skipwhite(ml_get(lnum)) } == NUL {
                 lnum -= 1;
             }
         }
@@ -6936,7 +6936,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
 
 /// "rpcnotify()" function
 pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
@@ -6968,7 +6968,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         };
 
         let mut tv = (&raw mut argvars[2]);
-        while (*tv).v_type != VarType::VarUnknown {
+        while unsafe { (*tv).v_type } != VarType::VarUnknown {
             *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
             args.size += 1;
             tv = tv.wrapping_add(1);

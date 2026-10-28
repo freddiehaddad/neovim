@@ -1450,10 +1450,12 @@ pub fn vterm_screen_set_callbacks(
     callbacks: Option<&'static VTermScreenCallbacks>,
     user: *mut Terminal,
 ) {
-    unsafe {
+    {
         screen.callbacks = callbacks;
         if !user.is_null() {
-            (*screen.vt).outdata = user;
+            unsafe {
+                (*screen.vt).outdata = user;
+            }
         }
     }
 }

@@ -713,11 +713,11 @@ fn send_error(
 
 fn broadcast_event(name: impl crate::strings::IntoCCharPtr, args: Array) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut chans = Vec::<*mut Channel>::new();
 
         for &channel in g_st().channels.values() {
-            if (*channel).is_rpc {
+            if unsafe { (*channel).is_rpc } {
                 chans.push(channel);
             }
         }

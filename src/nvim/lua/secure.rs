@@ -70,7 +70,7 @@ fn nlua_trust(
 
 /// `:trust` command implementation (`ex_trust`).
 pub fn ex_trust(eap: &mut Exarg) {
-    unsafe {
+    {
         let arg = eap.arg;
         let p = skiptowhite(arg);
         let arg1_len = (p as usize) - (arg as usize);
@@ -88,7 +88,7 @@ pub fn ex_trust(eap: &mut Exarg) {
             return;
         }
 
-        if *path == 0 {
+        if unsafe { *path } == 0 {
             path = std::ptr::null_mut();
         }
 

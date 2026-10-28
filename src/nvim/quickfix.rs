@@ -1842,11 +1842,11 @@ fn qf_parse_fmt_k(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
 }
 
 fn qf_parse_fmt_t(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
-    unsafe {
+    {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        fields.type_ = *rmp.startp[midx];
+        fields.type_ = unsafe { *rmp.startp[midx] };
         QF_OK
     }
 }
@@ -1879,17 +1879,19 @@ fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
 }
 
 fn qf_parse_fmt_r(rmp: &mut Regmatch, midx: usize, tail: *mut *mut c_char) -> i32 {
-    unsafe {
+    {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        *tail = rmp.startp[midx];
+        unsafe {
+            *tail = rmp.startp[midx];
+        }
         QF_OK
     }
 }
 
 fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
-    unsafe {
+    {
         if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
         }
@@ -1897,7 +1899,7 @@ fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
         let mut match_ptr = rmp.startp[midx];
         while match_ptr != rmp.endp[midx] {
             fields.col += 1;
-            if *match_ptr == TAB {
+            if unsafe { *match_ptr } == TAB {
                 fields.col += 7;
                 fields.col -= fields.col % 8;
             }
@@ -2100,7 +2102,7 @@ fn qf_parse_file_pfx(
     tail: impl crate::strings::IntoCCharPtr,
 ) -> i32 {
     let tail = tail.into_c_char_ptr();
-    unsafe {
+    {
         fields.valid = false;
         if crate::memory::cstr_is_empty(fields.namebuf.as_ptr())
             || os_path_exists(fields.namebuf.as_ptr())
@@ -2110,7 +2112,9 @@ fn qf_parse_file_pfx(
             } else if idx == i32::from(b'Q') {
                 qf_pop_dir(&mut qfl.qf_file_stack);
             }
-            *fields.namebuf.as_mut_ptr() = NUL;
+            unsafe {
+                *fields.namebuf.as_mut_ptr() = NUL;
+            }
             if !crate::memory::cstr_is_empty(tail) {
                 qfl.qf_multiscan = true;
                 return QF_MULTISCAN;
@@ -2127,8 +2131,10 @@ fn qf_parse_line_nomatch(
     fields: &mut Qffields,
 ) -> i32 {
     let linebuf = linebuf.into_c_char_ptr();
-    unsafe {
-        *fields.namebuf.as_mut_ptr() = NUL;
+    {
+        unsafe {
+            *fields.namebuf.as_mut_ptr() = NUL;
+        }
         fields.lnum = 0;
         fields.valid = false;
 
@@ -2204,13 +2210,13 @@ pub fn qf_stack_get_bufnr() -> i32 {
 }
 
 fn wipe_qf_buffer(qi: &mut QfInfo) {
-    unsafe {
+    {
         if qi.qf_bufnr == INVALID_QFBUFNR {
             return;
         }
 
         let qfbuf = buflist_findnr(qi.qf_bufnr);
-        if !qfbuf.is_null() && (*qfbuf).b_nwindows == 0 {
+        if !qfbuf.is_null() && unsafe { (*qfbuf).b_nwindows } == 0 {
             let mut buf_was_null = false;
             if curwin_mut().w_buffer.is_null() {
                 curwin_mut().w_buffer = g_st().curbuf;
@@ -2515,11 +2521,13 @@ fn qf_cmd_get_stack(eap: &mut Exarg, print_emsg: bool) -> *mut QfInfo {
 }
 
 fn qf_cmd_get_or_alloc_stack(eap: &Exarg, pwinp: *mut *mut WinInfoInfo) -> *mut QfInfo {
-    unsafe {
+    {
         let mut qi = ql_info_ptr();
         if is_loclist_cmd(eap.cmdidx) {
             qi = ll_get_or_alloc_list(curwin_mut());
-            *pwinp = curwin_ptr();
+            unsafe {
+                *pwinp = curwin_ptr();
+            }
         }
         qi
     }
@@ -3246,13 +3254,13 @@ fn qf_jump_edit_buffer(
 }
 
 fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
-    unsafe {
+    {
         let line = get_cursor_line_ptr().cast_const();
         let mut p = line;
         let mut col: Colnr = 0;
 
         while !crate::memory::cstr_is_empty(p) && col < vcol {
-            if *p == TAB {
+            if unsafe { *p } == TAB {
                 col += 8 - (col % 8);
             } else {
                 col += ptr2cells(p);
@@ -3547,7 +3555,7 @@ fn qf_jump_newwin(mut qi: *mut QfInfo, dir: i32, errornr: i32, forceit: i32, new
 }
 
 fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
-    unsafe {
+    {
         let mut fname: *mut c_char = ptr::null_mut();
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         if let Some(ref module) = qfp.qf_module
@@ -3561,7 +3569,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
                     fname = qfp
                         .qf_fname
                         .as_ref()
-                        .map_or((*buf).b_fname, |s| s.as_ptr().cast_mut());
+                        .map_or(unsafe { (*buf).b_fname }, |s| s.as_ptr().cast_mut());
                     if qfp.qf_type == 1 {
                         fname = path_tail(fname);
                     }
@@ -3716,7 +3724,7 @@ pub fn qf_list(eap: &mut Exarg) {
 
 fn qf_fmt_text(gap: &mut Vec<c_char>, text: impl crate::strings::IntoCCharPtr) {
     let text = text.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = text;
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'\n' {
@@ -3733,7 +3741,7 @@ fn qf_fmt_text(gap: &mut Vec<c_char>, text: impl crate::strings::IntoCCharPtr) {
                     }
                 }
             } else {
-                gap.push(*p);
+                gap.push(unsafe { *p });
                 p = p.wrapping_add(1);
             }
         }
@@ -4088,7 +4096,7 @@ fn qf_set_cwindow_options() {
 }
 
 fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
-    unsafe {
+    {
         let mut oldwin = curwin_ptr();
         let prevtab = g_st().curtab;
         let mut flags: i32 = 0;
@@ -4124,7 +4132,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
         }
         if !qf_buf.is_null() {
             if !do_ecmd(
-                (*qf_buf).b_fnum,
+                unsafe { (*qf_buf).b_fnum },
                 ptr::null_mut(),
                 ptr::null_mut(),
                 None,
@@ -4216,11 +4224,11 @@ pub fn ex_copen(eap: &mut Exarg) {
 }
 
 fn qf_win_goto(win: *mut WinInfoInfo, lnum: Linenr) {
-    unsafe {
+    {
         let old_curwin = curwin_ptr();
 
         set_curwin(win);
-        g_st().curbuf = (*win).w_buffer;
+        g_st().curbuf = unsafe { (*win).w_buffer };
         curwin_mut().w_cursor.lnum = lnum;
         curwin_mut().w_cursor.col = 0;
         curwin_mut().w_cursor.coladd = 0;
@@ -5726,11 +5734,13 @@ fn existing_swapfile(buf: &FileBuf) -> bool {
 }
 
 fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
-    unsafe {
+    {
         *args = VgrArgs::new();
 
         args.regmatch.regprog = ptr::null_mut();
-        args.qf_title = Some(crate::memory::cstr_to_cstring(qf_cmdtitle(*eap.cmdlinep)));
+        args.qf_title = Some(crate::memory::cstr_to_cstring(qf_cmdtitle(unsafe {
+            *eap.cmdlinep
+        })));
         args.tomatch = if eap.addr_count > 0 {
             eap.line2
         } else {
@@ -6295,13 +6305,13 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
 }
 
 fn qf_winid(qi: Option<&QfInfo>) -> i32 {
-    unsafe {
+    {
         if qi.is_none() {
             return 0;
         }
         let win = qf_find_win(qi.unwrap());
         if !win.is_null() {
-            return (*win).handle;
+            return unsafe { (*win).handle };
         }
         0
     }
@@ -6463,7 +6473,7 @@ fn qf_getprop_title(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
 }
 
 fn qf_getprop_filewinid(wp: Option<&WinInfoInfo>, qi: &QfInfo, retdict: &mut TvDict) -> bool {
-    unsafe {
+    {
         let mut winid: ObjHandle = 0;
 
         if let Some(wp) = wp
@@ -6471,7 +6481,7 @@ fn qf_getprop_filewinid(wp: Option<&WinInfoInfo>, qi: &QfInfo, retdict: &mut TvD
         {
             let ll_wp = qf_find_win_with_loclist(qi);
             if !ll_wp.is_null() {
-                winid = (*ll_wp).handle;
+                winid = unsafe { (*ll_wp).handle };
             }
         }
 
@@ -6624,7 +6634,7 @@ fn qf_add_entry_from_dict(
     first_entry: bool,
     valid_entry: &mut bool,
 ) -> i32 {
-    unsafe {
+    {
         if first_entry {
             qf_st().did_bufnr_emsg = false;
         }
@@ -6683,7 +6693,11 @@ fn qf_add_entry_from_dict(
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
             nr,
-            if type_.is_null() { NUL } else { *type_ },
+            if type_.is_null() {
+                NUL
+            } else {
+                unsafe { *type_ }
+            },
             Some(&user_data),
             c_char::from(valid),
         );

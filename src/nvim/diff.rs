@@ -644,10 +644,12 @@ fn diff_check_unchanged(tp: &mut TabPageInfo, dp_idx: usize) {
     }
 }
 fn diff_check_sanity(tp: &TabPageInfo, dp: &DiffBlock) -> bool {
-    unsafe {
+    {
         for i in 0..DB_COUNT {
             let buf = tp.tp_diffbuf[i];
-            if !buf.is_null() && dp.df_lnum[i] + dp.df_count[i] - 1 > (*buf).b_ml.ml_line_count {
+            if !buf.is_null()
+                && dp.df_lnum[i] + dp.df_count[i] - 1 > unsafe { (*buf).b_ml.ml_line_count }
+            {
                 return false;
             }
         }
@@ -2017,7 +2019,7 @@ pub fn diff_check_with_linestatus(
     lnum: Linenr,
     mut linestatus: Option<&mut i32>,
 ) -> i32 {
-    unsafe {
+    {
         let buf = wp.w_buffer;
         if let Some(linestatus) = linestatus.as_deref_mut() {
             *linestatus = 0;
@@ -2028,7 +2030,7 @@ pub fn diff_check_with_linestatus(
         if curtab_mut().tp_diffs.is_empty() || wp.w_onebuf_opt.wo_diff == 0 {
             return 0;
         }
-        if lnum < 1 || lnum > (*buf).b_ml.ml_line_count + 1 {
+        if lnum < 1 || lnum > unsafe { (*buf).b_ml.ml_line_count } + 1 {
             return 0;
         }
         let idx = diff_buf_idx(buf, curtab_mut());
@@ -2248,7 +2250,7 @@ fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::Into
     }
 }
 pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
-    unsafe {
+    {
         let frombuf = fromwin.w_buffer;
         let fromidx = diff_buf_idx(frombuf, curtab_mut());
         if fromidx == DB_COUNT as i32 {
@@ -2282,8 +2284,8 @@ pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
                 );
             }
         } else {
-            towin.w_topline =
-                towin.buf_mut().b_ml.ml_line_count - ((*frombuf).b_ml.ml_line_count - lnum);
+            towin.w_topline = towin.buf_mut().b_ml.ml_line_count
+                - (unsafe { (*frombuf).b_ml.ml_line_count } - lnum);
         }
         towin.w_botfill = false;
         if towin.w_topline > towin.buf_mut().b_ml.ml_line_count {

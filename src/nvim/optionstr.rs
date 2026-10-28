@@ -1248,14 +1248,14 @@ fn check_str_opt(
     mut varp: *mut *mut c_char,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
-    unsafe {
+    {
         let opt = get_option(idx);
         if varp.is_null() {
             varp = opt.var.cast::<*mut c_char>();
         }
         let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
         let values = opt_values(idx);
-        opt_strings_flags(*varp, values, opt.flags_var, list, errbuf)
+        opt_strings_flags(unsafe { *varp }, values, opt.flags_var, list, errbuf)
     }
 }
 
@@ -1859,7 +1859,7 @@ pub fn did_set_colorcolumn(args: &mut Optset) -> *const c_char {
 
 /// Validate the 'comments' option.
 pub fn validate_comments(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let mut errmsg: *const c_char = ptr::null();
         let mut s = args.os_newval.data.string().data;
         while !crate::memory::cstr_is_empty(s) {
@@ -1873,7 +1873,7 @@ pub fn validate_comments(args: &mut Optset) -> *const c_char {
                 }
                 s = s.wrapping_add(1);
             }
-            let c = *s;
+            let c = unsafe { *s };
             s = s.wrapping_add(1);
             if c == NUL {
                 errmsg = c"E524: Missing colon".as_ptr();
@@ -2060,7 +2060,7 @@ pub fn did_set_completeopt(args: &mut Optset) -> *const c_char {
 
 #[cfg(windows)]
 pub fn did_set_completeslash(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let buf = args.os_buf;
         let errmsg = opt_strings_flags(
             opt_vars().p_csl,
@@ -2073,7 +2073,7 @@ pub fn did_set_completeslash(args: &mut Optset) -> *const c_char {
             return errmsg;
         }
         opt_strings_flags(
-            (*buf).b_p_csl,
+            unsafe { (*buf).b_p_csl },
             &OPT_CSL_VALUES,
             ptr::null_mut(),
             false,
@@ -2117,12 +2117,14 @@ pub fn validate_cursorlineopt(args: &mut Optset) -> *const c_char {
 
 /// The 'cursorlineopt' option is changed.
 pub fn did_set_cursorlineopt(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         if (args.os_flags & OPT_GLOBAL) != 0 {
             return ptr::null();
         }
         let win = args.os_win;
-        (*win).w_p_culopt_flags = args.os_prep.as_flags() as u8;
+        unsafe {
+            (*win).w_p_culopt_flags = args.os_prep.as_flags() as u8;
+        }
         ptr::null()
     }
 }
@@ -2319,10 +2321,10 @@ pub fn validate_filetype(args: &mut Optset) -> *const c_char {
 
 /// The 'filetype' or the 'syntax' option is changed.
 pub fn did_set_filetype_or_syntax(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let varp = args.os_varp.cast::<*mut c_char>();
         args.os_value_changed = crate::memory::cstr_as_bytes(args.os_oldval.data.string().data)
-            != crate::memory::cstr_as_bytes(*varp);
+            != crate::memory::cstr_as_bytes(unsafe { *varp });
         args.os_value_checked = true;
         ptr::null()
     }
@@ -3134,7 +3136,7 @@ pub fn did_set_titlestring(args: &mut Optset) -> *const c_char {
 
 /// Validate 'vartabstop' or 'varsofttabstop' and prepare its tab widths.
 pub fn validate_vartabstop(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let value = args.os_newval.data.string().data;
         let mut cp = value;
         while !crate::memory::cstr_is_empty(cp) {
@@ -3144,7 +3146,7 @@ pub fn validate_vartabstop(args: &mut Optset) -> *const c_char {
             }
             if crate::memory::cstr_first_byte(cp) == b','
                 && (cp as usize) > (value as usize)
-                && *cp.wrapping_sub(1) != b',' as c_char
+                && unsafe { *cp.wrapping_sub(1) } != b',' as c_char
             {
                 cp = cp.wrapping_add(1);
                 continue;
@@ -3346,7 +3348,7 @@ fn opt_strings_flags(
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
     let mut val = val.into_c_char_ptr();
-    unsafe {
+    {
         let mut new_flags: u32 = 0;
         let iter_one = (crate::memory::cstr_is_empty(val)) && !list;
 
@@ -3385,7 +3387,9 @@ fn opt_strings_flags(
             }
         }
         if !flagp.is_null() {
-            *flagp = new_flags;
+            unsafe {
+                *flagp = new_flags;
+            }
         }
 
         ptr::null()

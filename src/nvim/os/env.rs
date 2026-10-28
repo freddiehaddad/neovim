@@ -925,9 +925,11 @@ pub fn vim_env_iter(
 ) -> *const c_char {
     let val = val.into_c_char_ptr();
     let iter = iter.into_c_char_ptr();
-    unsafe {
+    {
         let varval = if iter.is_null() { val } else { iter };
-        *dir = varval;
+        unsafe {
+            *dir = varval;
+        }
         let bytes = crate::memory::cstr_as_bytes(varval);
         if let Some(pos) = bytes.iter().position(|&b| b == (delim as u8)) {
             *len = pos;

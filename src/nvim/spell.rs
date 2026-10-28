@@ -918,7 +918,7 @@ pub fn can_compound(
     }
 }
 pub fn match_compoundrule(slang: &mut Slang, compflags: *const u8) -> bool {
-    unsafe {
+    {
         let Some(ref rules) = slang.sl_comprules else {
             return false;
         };
@@ -926,7 +926,7 @@ pub fn match_compoundrule(slang: &mut Slang, compflags: *const u8) -> bool {
         while !crate::memory::cstr_is_empty(p) {
             let mut i = 0usize;
             loop {
-                let c = *compflags.wrapping_add(i);
+                let c = unsafe { *compflags.wrapping_add(i) };
                 if c == 0 {
                     return true;
                 }
@@ -1151,7 +1151,7 @@ pub fn spell_move_to(
     curline: bool,
     attrp: *mut Hlf,
 ) -> usize {
-    unsafe {
+    {
         if no_spell_checking(wp) {
             return 0;
         }
@@ -1259,7 +1259,9 @@ pub fn spell_move_to(
                                 if dir == FORWARD {
                                     wp.w_cursor = found_pos;
                                     if !attrp.is_null() {
-                                        *attrp = attr;
+                                        unsafe {
+                                            *attrp = attr;
+                                        }
                                     }
                                     ret = len;
                                     break 'theend;
@@ -2532,7 +2534,7 @@ fn spell_soundfold_sofo(
     res: *mut c_char,
 ) {
     let inword = inword.into_c_char_ptr();
-    unsafe {
+    {
         let mut ri: usize = 0;
         let mut prevc: i32 = 0;
         let mut s = inword;
@@ -2556,7 +2558,9 @@ fn spell_soundfold_sofo(
                 prevc = c;
             }
         }
-        *res.wrapping_add(ri) = NUL;
+        unsafe {
+            *res.wrapping_add(ri) = NUL;
+        }
     }
 }
 fn spell_soundfold_wsal(

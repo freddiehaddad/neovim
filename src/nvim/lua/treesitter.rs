@@ -1584,10 +1584,10 @@ fn push_node(lstate: *mut lua_State, node: TSNode, uindex: i32) {
 }
 
 fn node_check_opt(lstate: *mut lua_State, index: i32, res: &mut TSNode) -> bool {
-    unsafe {
+    {
         let ud = luaL_checkudata(lstate, index, TS_META_NODE).cast::<TSNode>();
         if !ud.is_null() {
-            *res = *ud;
+            *res = unsafe { *ud };
             return true;
         }
         false
@@ -2266,7 +2266,7 @@ fn query_err_string(
     mut err_size: usize,
 ) {
     let src = src.into_c_char_ptr();
-    unsafe {
+    {
         let mut line_start: i32 = 0;
         let mut row: i32 = 0;
         let mut error_line: *const c_char = ptr::null();
@@ -2311,7 +2311,7 @@ fn query_err_string(
             let suffix = src.wrapping_offset(error_offset as isize);
             let is_anonymous = error_type == TSQUERY_ERROR_NODE_TYPE
                 && error_offset > 0
-                && *suffix.wrapping_offset(-1) == b'"' as c_char;
+                && unsafe { *suffix.wrapping_offset(-1) } == b'"' as c_char;
             let mut suffix_len: usize = 0;
             let mut c = crate::memory::cstr_byte_at(suffix, suffix_len);
             if is_anonymous {

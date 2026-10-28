@@ -856,7 +856,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
 
 /// Parse address type argument (`parse_addr_type_arg`).
 pub fn parse_addr_type_arg(value: *mut c_char, vallen: i32, addr_type_arg: &mut CmdAddr) -> bool {
-    unsafe {
+    {
         for entry in &ADDR_TYPE_COMPLETE {
             if entry.expand == ADDR_NONE {
                 break;
@@ -879,7 +879,9 @@ pub fn parse_addr_type_arg(value: *mut c_char, vallen: i32, addr_type_arg: &mut 
         {
             i += 1;
         }
-        *err.wrapping_add(i) = NUL;
+        unsafe {
+            *err.wrapping_add(i) = NUL;
+        }
         semsg!(gettext(c"E180: Invalid address type value: %s"), err,);
         false
     }

@@ -2573,7 +2573,7 @@ fn find_is_eval_item(
     dir: i32,
 ) -> bool {
     let ptr = ptr.into_c_char_ptr();
-    unsafe {
+    {
         if (crate::memory::cstr_first_byte(ptr) == b']' && dir == BACKWARD)
             || (crate::memory::cstr_first_byte(ptr) == b'[' && dir == FORWARD)
         {
@@ -2595,7 +2595,7 @@ fn find_is_eval_item(
         let gt_off: isize = if dir == BACKWARD { 0 } else { 1 };
         let dash_off: isize = if dir == BACKWARD { -1 } else { 0 };
         if crate::memory::cstr_first_byte(ptr.wrapping_offset(gt_off)) == b'>'
-            && *ptr.wrapping_offset(dash_off) == b'-' as c_char
+            && unsafe { *ptr.wrapping_offset(dash_off) } == b'-' as c_char
         {
             *colp += dir;
             return true;
@@ -2994,14 +2994,16 @@ pub fn add_to_showcmd_c(c: i32) {
 }
 
 fn del_from_showcmd(mut len: i32) {
-    unsafe {
+    {
         if opt_vars().p_sc == 0 {
             return;
         }
         let sc_buf = (&raw mut g_st().showcmd_buf).cast::<c_char>();
         let old_len = crate::memory::cstr_len(sc_buf) as i32;
         len = len.min(old_len);
-        *sc_buf.wrapping_add((old_len - len) as usize) = NUL;
+        unsafe {
+            *sc_buf.wrapping_add((old_len - len) as usize) = NUL;
+        }
 
         if !char_avail() {
             display_showcmd();
@@ -3478,7 +3480,7 @@ pub fn find_decl(
 }
 
 pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool) -> bool {
-    unsafe {
+    {
         let mut linelen = linetabsize(curwin_mut(), curwin_mut().w_cursor.lnum);
         let mut retval = true;
         let mut atend = false;
@@ -3586,7 +3588,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
         if curwin_mut().w_cursor.col > 0 && curwin_mut().w_onebuf_opt.wo_wrap != 0 {
             validate_virtcol(curwin_mut());
             let mut virtcol = curwin_mut().w_virtcol;
-            if virtcol > width1 && *get_showbreak_value(curwin_mut()) != NUL {
+            if virtcol > width1 && unsafe { *get_showbreak_value(curwin_mut()) } != NUL {
                 virtcol -= vim_strsize(get_showbreak_value(curwin_mut()));
             }
 
@@ -4587,7 +4589,7 @@ fn nv_ident(cap: &mut Cmdarg) {
 }
 
 pub fn get_visual_text(cap: Option<&mut Cmdarg>, pp: &mut *mut c_char, lenp: &mut usize) -> bool {
-    unsafe {
+    {
         if g_st().visual_global.mode != b'V' as i32 {
             unadjust_for_sel();
         }
@@ -4608,7 +4610,7 @@ pub fn get_visual_text(cap: Option<&mut Cmdarg>, pp: &mut *mut c_char, lenp: &mu
                 *pp = ml_get_pos(&g_st().visual_global.start);
                 *lenp = (curwin_mut().w_cursor.col - g_st().visual_global.start.col + 1) as usize;
             }
-            if **pp == NUL {
+            if unsafe { **pp } == NUL {
                 *lenp = 0;
             }
             if *lenp > 0 {
@@ -5529,7 +5531,7 @@ fn buf_has_cstyle_comments() -> bool {
 }
 
 fn nv_percent(cap: &mut Cmdarg) {
-    unsafe {
+    {
         let lnum = curwin_mut().w_cursor.lnum;
 
         cap.oap_mut().inclusive = true;
@@ -5571,7 +5573,7 @@ fn nv_percent(cap: &mut Cmdarg) {
                 clearopbeep(cap.oap_mut());
             } else {
                 setpcmark();
-                curwin_mut().w_cursor = *pos;
+                curwin_mut().w_cursor = unsafe { *pos };
                 curwin_mut().w_set_curswant = true;
                 curwin_mut().w_cursor.coladd = 0;
                 adjust_for_sel(cap);
@@ -6014,7 +6016,7 @@ fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: &mut Fmark) -> MarkMov
 }
 
 fn v_visop(cap: &mut Cmdarg) {
-    unsafe {
+    {
         let trans = c"YyDdCcxdXdAAIIrr".as_ptr();
 
         if (cap.cmdchar as u8).is_ascii_uppercase() {
@@ -6025,7 +6027,7 @@ fn v_visop(cap: &mut Cmdarg) {
                 curwin_mut().w_curswant = MAXCOL;
             }
         }
-        cap.cmdchar = i32::from(*vim_strchr(trans, cap.cmdchar).wrapping_add(1) as u8);
+        cap.cmdchar = i32::from(unsafe { *vim_strchr(trans, cap.cmdchar).wrapping_add(1) } as u8);
         nv_operator(cap);
     }
 }
@@ -7548,7 +7550,7 @@ fn nv_put(cap: &mut Cmdarg) {
 }
 
 fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
-    unsafe {
+    {
         let mut savereg: Option<Yankreg> = None;
         let mut empty = false;
         let mut was_visual = false;
@@ -7689,7 +7691,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
             }
         }
 
-        if empty && *ml_get(curbuf_mut().b_ml.ml_line_count) == NUL {
+        if empty && unsafe { *ml_get(curbuf_mut().b_ml.ml_line_count) } == NUL {
             ml_delete_flags(curbuf_mut().b_ml.ml_line_count, ML_DEL_MESSAGE);
             deleted_lines(curbuf_mut().b_ml.ml_line_count + 1, 1);
 

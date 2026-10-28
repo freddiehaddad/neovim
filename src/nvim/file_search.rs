@@ -1492,7 +1492,7 @@ pub fn file_name_in_line(
     file_lnum: Option<&mut Linenr>,
 ) -> Option<std::ffi::CString> {
     let rel_fname = rel_fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut ptr = line.wrapping_add(col as usize);
         while !crate::memory::cstr_is_empty(ptr)
             && !vim_isfilec(i32::from(crate::memory::cstr_first_byte(ptr)))
@@ -1513,7 +1513,7 @@ pub fn file_name_in_line(
             let head_off = utf_head_off(line, ptr.wrapping_sub(1)) as usize;
             if head_off > 0 {
                 ptr = ptr.wrapping_sub(head_off + 1);
-            } else if vim_isfilec(i32::from(*ptr.wrapping_sub(1) as u8))
+            } else if vim_isfilec(i32::from(unsafe { *ptr.wrapping_sub(1) } as u8))
                 || ((options & FNAME_HYP) != 0 && path_is_url(ptr.wrapping_sub(1)) != 0)
             {
                 ptr = ptr.wrapping_sub(1);

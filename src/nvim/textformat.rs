@@ -945,7 +945,7 @@ pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
 
 /// Format `line_count` lines starting at the cursor position (`format_lines`).
 pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
-    unsafe {
+    {
         let mut is_not_par: bool;
         let mut next_is_not_par: bool;
         let mut is_end_par: bool;
@@ -1036,7 +1036,8 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                     && prev_is_end_par
                     && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
                 {
-                    if do_second_indent && *ml_get(curwin_mut().w_cursor.lnum + 1) != NUL {
+                    if do_second_indent && unsafe { *ml_get(curwin_mut().w_cursor.lnum + 1) } != NUL
+                    {
                         if leader_len == 0 && next_leader_len == 0 {
                             second_indent = get_indent_lnum(curwin_mut().w_cursor.lnum + 1);
                         } else {

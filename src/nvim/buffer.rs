@@ -1278,9 +1278,13 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
 
 /// Store `buf` in `bufref` and set the free count.
 pub fn set_bufref(bufref: &mut Bufref, buf: *mut FileBuf) {
-    unsafe {
+    {
         bufref.br_buf = buf;
-        bufref.br_fnum = if buf.is_null() { 0 } else { (*buf).b_fnum };
+        bufref.br_fnum = if buf.is_null() {
+            0
+        } else {
+            unsafe { (*buf).b_fnum }
+        };
         bufref.br_buf_free_count = buf_st().buf_free_count;
     }
 }
@@ -1288,12 +1292,12 @@ pub fn set_bufref(bufref: &mut Bufref, buf: *mut FileBuf) {
 /// Return true if `bufref->br_buf` points to the same buffer as when
 /// `set_bufref()` was called and it is a valid buffer.
 pub fn bufref_valid(bufref: Option<&Bufref>) -> bool {
-    unsafe {
+    {
         if bufref.unwrap().br_buf_free_count == buf_st().buf_free_count {
             true
         } else {
             buf_valid(bufref.unwrap().br_buf)
-                && bufref.unwrap().br_fnum == (*bufref.unwrap().br_buf).b_fnum
+                && bufref.unwrap().br_fnum == unsafe { (*bufref.unwrap().br_buf).b_fnum }
         }
     }
 }
@@ -3179,7 +3183,7 @@ pub fn buflist_findpat(
 ) -> i32 {
     let pattern = pattern.into_c_char_ptr();
     let pattern_end = pattern_end.into_c_char_ptr();
-    unsafe {
+    {
         let mut match_fnum = -1;
 
         if pattern_end == pattern.wrapping_add(1)
@@ -3213,7 +3217,9 @@ pub fn buflist_findpat(
             loop {
                 for attempt in 0..=3 {
                     if toggledollar {
-                        *patend = if attempt < 2 { NUL } else { b'$' as c_char };
+                        unsafe {
+                            *patend = if attempt < 2 { NUL } else { b'$' as c_char };
+                        }
                     }
                     let mut p = pat;
                     if crate::memory::cstr_first_byte(p) == b'^' && (attempt & 1) == 0 {
@@ -3536,7 +3542,7 @@ fn wininfo_other_tab_diff(wip: &WinInfo) -> bool {
 }
 
 fn find_wininfo(buf: &mut FileBuf, need_options: bool, skip_diff_buffer: bool) -> *mut WinInfo {
-    unsafe {
+    {
         for wip in &mut buf.b_wininfo {
             if wip.wi_win == curwin_ptr()
                 && (!skip_diff_buffer || !wininfo_other_tab_diff(wip))
@@ -3552,7 +3558,7 @@ fn find_wininfo(buf: &mut FileBuf, need_options: bool, skip_diff_buffer: bool) -
                 if !wininfo_other_tab_diff(wip)
                     && (!need_options
                         || wip.wi_optset
-                        || (!wip.wi_win.is_null() && (*wip.wi_win).w_buffer == buf_ptr))
+                        || (!wip.wi_win.is_null() && unsafe { (*wip.wi_win).w_buffer } == buf_ptr))
                 {
                     return wip;
                 }
@@ -3925,10 +3931,10 @@ pub fn buf_name_changed(buf: &mut FileBuf) {
 
 /// Set alternate file name for current window.
 pub fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: Linenr) -> *mut FileBuf {
-    unsafe {
+    {
         let buf = buflist_new(ffname, sfname, lnum, 0);
         if !buf.is_null() && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-            curwin_mut().w_alt_fnum = (*buf).b_fnum;
+            curwin_mut().w_alt_fnum = unsafe { (*buf).b_fnum };
         }
         buf
     }

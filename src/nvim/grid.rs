@@ -166,9 +166,9 @@ const fn arabic_char(ch: i32) -> bool {
 
 #[inline]
 fn strnlen_4(p: *const u8) -> usize {
-    unsafe {
+    {
         for i in 0..4 {
-            if *p.wrapping_add(i) == 0 {
+            if unsafe { *p.wrapping_add(i) } == 0 {
                 return i;
             }
         }
@@ -264,9 +264,11 @@ pub fn schar_high(sc: Schar) -> bool {
 
 /// Sets final NUL (`schar_get`).
 pub fn schar_get(mut buf_out: *mut c_char, sc: Schar) -> usize {
-    unsafe {
+    {
         let len = schar_get_adv(&raw mut buf_out, sc);
-        *buf_out = NUL;
+        unsafe {
+            *buf_out = NUL;
+        }
         len
     }
 }
@@ -305,12 +307,12 @@ pub fn schar_len(sc: Schar) -> usize {
 
 #[inline]
 fn schar_get_first_byte(sc: Schar) -> c_char {
-    unsafe {
+    {
         assert!(!(schar_high(sc) && (schar_idx(sc) as usize) >= grid_st().glyph_cache_keys.len()));
         if schar_high(sc) {
             grid_st().glyph_cache_keys.as_slice()[schar_idx(sc) as usize]
         } else {
-            *(&raw const sc).cast::<c_char>()
+            unsafe { *(&raw const sc).cast::<c_char>() }
         }
     }
 }
@@ -623,9 +625,9 @@ pub fn grid_line_clear_end(start_col: i32, end_col: i32, bg_attr: i32, clear_att
 }
 
 pub fn grid_line_cursor_goto(col: i32) {
-    unsafe {
+    {
         ui_grid_cursor_goto(
-            (*grid_st().grid_line_grid).handle,
+            unsafe { (*grid_st().grid_line_grid).handle },
             grid_st().grid_line_row,
             col,
         );
@@ -725,9 +727,9 @@ pub fn grid_line_flush() {
 }
 
 pub fn grid_line_flush_if_valid_row() {
-    unsafe {
+    {
         if grid_st().grid_line_row < 0
-            || grid_st().grid_line_row >= (*grid_st().grid_line_grid).rows
+            || grid_st().grid_line_row >= unsafe { (*grid_st().grid_line_grid).rows }
         {
             if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
                 std::process::abort();
@@ -748,11 +750,13 @@ pub fn grid_clear(
     mut end_col: i32,
     attr: i32,
 ) {
-    unsafe {
+    {
         for row in start_row..end_row {
             grid_line_start(grid, row);
             end_col = end_col.min(grid_st().grid_line_maxcol);
-            if grid_st().grid_line_row >= (*grid_st().grid_line_grid).rows || start_col >= end_col {
+            if grid_st().grid_line_row >= unsafe { (*grid_st().grid_line_grid).rows }
+                || start_col >= end_col
+            {
                 grid_st().grid_line_grid = ptr::null_mut();
                 return;
             }

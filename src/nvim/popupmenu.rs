@@ -720,7 +720,7 @@ fn pum_grid_puts_with_attrs(
     attrs: *const i32,
 ) {
     let text = text.into_c_char_ptr();
-    unsafe {
+    {
         let col_start = col;
         let mut ptr = text;
 
@@ -733,7 +733,7 @@ fn pum_grid_puts_with_attrs(
             } else {
                 col - col_start
             };
-            let attr = *attrs.wrapping_add(attr_idx as usize);
+            let attr = unsafe { *attrs.wrapping_add(attr_idx as usize) };
             grid_line_puts(col, ptr, char_len, attr);
             col += utf_ptr2cells(ptr);
             ptr = ptr.wrapping_add(char_len as usize);

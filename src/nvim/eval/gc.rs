@@ -35,11 +35,13 @@ pub fn gc_register_dict(d: &mut TvDict) {
 
 #[inline]
 pub fn gc_unregister_dict(idx: usize) {
-    unsafe {
+    {
         gc_st().gc_dicts.swap_remove(idx);
         if idx < gc_st().gc_dicts.len() {
             let moved = gc_st().gc_dicts.as_slice()[idx];
-            (*moved).dv_gc_idx = Some(idx);
+            unsafe {
+                (*moved).dv_gc_idx = Some(idx);
+            }
         }
     }
 }
@@ -55,11 +57,13 @@ pub fn gc_register_list(l: &mut TvList) {
 
 #[inline]
 pub fn gc_unregister_list(idx: usize) {
-    unsafe {
+    {
         gc_st().gc_lists.swap_remove(idx);
         if idx < gc_st().gc_lists.len() {
             let moved = gc_st().gc_lists.as_slice()[idx];
-            (*moved).lv_gc_idx = Some(idx);
+            unsafe {
+                (*moved).lv_gc_idx = Some(idx);
+            }
         }
     }
 }

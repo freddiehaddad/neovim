@@ -278,10 +278,12 @@ fn mc_session_ns() -> u32 {
 }
 
 pub fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
-    unsafe {
+    {
         let count = cursors().len();
         if count == 0 {
-            *buf = 0;
+            unsafe {
+                *buf = 0;
+            }
             return 0;
         }
         let prefix = if mc_following() {
@@ -1325,7 +1327,7 @@ pub fn mc_undo_time() {
 }
 
 pub fn mc_ins_commit() -> bool {
-    unsafe {
+    {
         let active = mc_st().mc_ins_span.active;
         let ins_cascaded = active && !mc_st().mc_ins_span.first;
         mc_st().mc_ins_span.active = false;
@@ -1337,7 +1339,7 @@ pub fn mc_ins_commit() -> bool {
                 size: ins_cstr.as_bytes().len(),
             };
             if ins.size > mc_st().mc_ins_span.done_len
-                && *ins.data.wrapping_add(ins.size - 1) == ESC
+                && unsafe { *ins.data.wrapping_add(ins.size - 1) } == ESC
             {
                 mc_ins_span_flush(&ins, true);
             }

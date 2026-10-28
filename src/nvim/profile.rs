@@ -377,14 +377,14 @@ pub fn profile_reset() {
 
 /// `":profile cmd args"` (`ex_profile`).
 pub fn ex_profile(eap: &mut Exarg) {
-    unsafe {
+    {
         let arg = eap.arg;
         let mut e = skiptowhite(arg);
         let len = (e as usize) - (arg as usize);
         e = skipwhite(e);
 
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
-        if len == 5 && &arg_bytes[..5] == b"start" && *e != 0 {
+        if len == 5 && &arg_bytes[..5] == b"start" && unsafe { *e } != 0 {
             prof_st().profile_fname = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
             g_st().do_profiling = PROF_YES;
             profile_set_wait(profile_zero());

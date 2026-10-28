@@ -442,7 +442,7 @@ fn cin_islabel_skip(s: *mut *const c_char) -> bool {
     }
 }
 fn cin_islabel() -> bool {
-    unsafe {
+    {
         let mut s = cin_skipcomment(get_cursor_line_ptr());
         if cin_isdefault(s) {
             return false;
@@ -462,7 +462,7 @@ fn cin_islabel() -> bool {
             curwin_mut().w_cursor.col = 0;
             let trypos = ind_find_start_cors(None);
             if !trypos.is_null() {
-                curwin_mut().w_cursor = *trypos;
+                curwin_mut().w_cursor = unsafe { *trypos };
             }
             let mut line: *const c_char = get_cursor_line_ptr();
             if cin_ispreproc(line) {
@@ -506,7 +506,7 @@ fn cin_skip_comment_and_string(s: impl crate::strings::IntoCCharPtr) -> *const c
 }
 fn cin_is_compound_init(s: impl crate::strings::IntoCCharPtr) -> bool {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = s;
         let mut r: *const c_char = std::ptr::null();
         while !crate::memory::cstr_is_empty(p) {
@@ -515,7 +515,7 @@ fn cin_is_compound_init(s: impl crate::strings::IntoCCharPtr) -> bool {
                 p = r;
             } else if (crate::memory::cstr_prefix_bytes(p, 6) == &b"return"[..6])
                 && !vim_is_idc(crate::memory::cstr_byte_at(p, 6) as i32)
-                && (p == s || (p > s && !vim_is_idc(*p.wrapping_sub(1) as u8 as i32)))
+                && (p == s || (p > s && !vim_is_idc(unsafe { *p.wrapping_sub(1) } as u8 as i32)))
             {
                 r = cin_skipcomment(p.wrapping_add(6));
                 p = r;
@@ -755,7 +755,7 @@ fn get_indent_nolabel(lnum: Linenr) -> i32 {
     }
 }
 fn skip_label(lnum: Linenr, pp: *mut *const c_char) -> i32 {
-    unsafe {
+    {
         let cursor_save = curwin_mut().w_cursor;
         curwin_mut().w_cursor.lnum = lnum;
         let mut l: *const c_char = get_cursor_line_ptr();
@@ -771,7 +771,9 @@ fn skip_label(lnum: Linenr, pp: *mut *const c_char) -> i32 {
             l = get_cursor_line_ptr();
             amt
         };
-        *pp = l;
+        unsafe {
+            *pp = l;
+        }
         curwin_mut().w_cursor = cursor_save;
         amount
     }
@@ -825,11 +827,12 @@ fn cin_first_id_amount() -> i32 {
     }
 }
 fn cin_get_equal_amount(lnum: Linenr) -> i32 {
-    unsafe {
+    {
         if lnum > 1 {
             let line = ml_get(lnum - 1);
             if !crate::memory::cstr_is_empty(line)
-                && *line.wrapping_add(crate::memory::cstr_len(line) - 1) == b'\\' as c_char
+                && unsafe { *line.wrapping_add(crate::memory::cstr_len(line) - 1) }
+                    == b'\\' as c_char
             {
                 return -1;
             }
@@ -1121,7 +1124,7 @@ fn cin_is_if_for_while_before_offset(
     poffset: &mut Colnr,
 ) -> i32 {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         let mut offset = *poffset;
         let prev_offset = offset;
         offset -= 1;
@@ -1154,7 +1157,9 @@ fn cin_is_if_for_while_before_offset(
         if !probably_found {
             return 0;
         }
-        if offset == 0 || !vim_is_idc(*line.wrapping_add((offset - 1) as usize) as u8 as i32) {
+        if offset == 0
+            || !vim_is_idc(unsafe { *line.wrapping_add((offset - 1) as usize) } as u8 as i32)
+        {
             *poffset = offset;
             return 1;
         }
@@ -1334,7 +1339,7 @@ fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
     }
 }
 fn get_baseclass_amount(col: Colnr) -> i32 {
-    unsafe {
+    {
         let mut amount: i32;
         let mut vcol: Colnr = 0;
         if col == 0 {
@@ -1342,7 +1347,7 @@ fn get_baseclass_amount(col: Colnr) -> i32 {
             if find_last_paren(get_cursor_line_ptr(), b'(' as c_char, b')' as c_char) {
                 let trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                 if !trypos.is_null() {
-                    amount = get_indent_lnum((*trypos).lnum);
+                    amount = get_indent_lnum(unsafe { (*trypos).lnum });
                 }
             }
             if !cin_ends_in(get_cursor_line_ptr(), c",") {

@@ -97,9 +97,9 @@ pub fn find_buffer(avar: &mut TypVal) -> *mut FileBuf {
 
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
 fn find_win_for_curbuf() {
-    unsafe {
+    {
         for wip in &curbuf_mut().b_wininfo {
-            if !wip.wi_win.is_null() && (*wip.wi_win).w_buffer == g_st().curbuf {
+            if !wip.wi_win.is_null() && unsafe { (*wip.wi_win).w_buffer } == g_st().curbuf {
                 set_curwin(wip.wi_win);
                 break;
             }
@@ -520,10 +520,10 @@ pub fn f_bufexists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// `buflisted(expr)` function (`f_buflisted`).
 pub fn f_buflisted(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let buf = find_buffer(&mut argvars[0]);
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-            !buf.is_null() && (*buf).b_p_bl != 0,
+            !buf.is_null() && unsafe { (*buf).b_p_bl } != 0,
         ));
     }
 }
@@ -568,7 +568,7 @@ pub fn f_bufname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// `bufnr(expr)` function (`f_bufnr`).
 pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut error = false;
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -597,7 +597,8 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         }
 
         if !buf.is_null() {
-            rettv.vval = crate::eval::typval::TypvalVval::Number((*buf).b_fnum as Varnumber);
+            rettv.vval =
+                crate::eval::typval::TypvalVval::Number(unsafe { (*buf).b_fnum } as Varnumber);
         }
     }
 }

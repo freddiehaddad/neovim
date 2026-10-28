@@ -267,10 +267,12 @@ fn invoke_read_cb(stream: &mut RStream, eof: bool) {
 }
 
 pub(crate) fn rstream_close_cb(s: &mut Stream) {
-    unsafe {
+    {
         let stream = (&raw mut *s).cast::<RStream>();
         assert!(!stream.is_null());
-        (*stream).buffer = Vec::new();
+        unsafe {
+            (*stream).buffer = Vec::new();
+        }
     }
 }
 

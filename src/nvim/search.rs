@@ -355,7 +355,7 @@ pub fn search_regcomp(
     regmatch: &mut Regmmatch,
 ) -> bool {
     let mut pat = pat.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         g_st().rc_did_emsg = false;
 
         if crate::memory::cstr_is_empty(pat) {
@@ -382,7 +382,9 @@ pub fn search_regcomp(
         }
 
         if !used_pat.is_null() {
-            *used_pat = pat;
+            unsafe {
+                *used_pat = pat;
+            }
         }
 
         srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl != 0

@@ -490,8 +490,8 @@ pub fn eval_to_bool(
 
 /// Call eval1() and give an error message if not done at a lower level.
 fn eval1_emsg(arg: *mut *mut c_char, rettv: &mut TypVal, eap: Option<&mut Exarg>) -> bool {
-    unsafe {
-        let start = *arg;
+    {
+        let start = unsafe { *arg };
         let did_emsg_before = g_st().did_emsg;
         let called_emsg_before = g_st().called_emsg;
         let mut evalarg = Evalarg::new();
@@ -1934,7 +1934,7 @@ impl Drop for Forinfo {
 }
 
 pub fn set_context_for_expression(xp: &mut ExpandCtx, mut arg: *mut c_char, cmdidx: Cmdidx) {
-    unsafe {
+    {
         let mut got_eq = false;
 
         if cmdidx == Cmdidx::CmdLet || cmdidx == Cmdidx::CmdConst {
@@ -2048,7 +2048,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, mut arg: *mut c_char, cmdi
         if cmd_has_expr_args(cmdidx) && xp.xp_context == EXPAND_EXPRESSION {
             loop {
                 let n = skiptowhite(arg);
-                if n == arg || ascii_iswhite_or_nul(*skipwhite(n)) {
+                if n == arg || ascii_iswhite_or_nul(unsafe { *skipwhite(n) }) {
                     break;
                 }
                 arg = skipwhite(n);
@@ -2208,14 +2208,14 @@ pub fn eval0(
 /// the result. Otherwise return NOTDONE.
 pub fn may_call_simple_func(arg: impl crate::strings::IntoCCharPtr, rettv: &mut TypVal) -> i32 {
     let arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         let parens = crate::memory::cstr_as_bytes(arg)
             .windows(2)
             .position(|w| w == b"()")
             .map_or(ptr::null(), |i| arg.wrapping_add(i));
         let mut r = NOTDONE;
 
-        if !parens.is_null() && *skipwhite(parens.wrapping_add(2)) == NUL {
+        if !parens.is_null() && unsafe { *skipwhite(parens.wrapping_add(2)) } == NUL {
             if crate::memory::cstr_as_bytes(arg).starts_with(b"v:lua.") {
                 let p = arg.wrapping_add(6);
                 if p != parens && skip_luafunc_name(p) == parens {
@@ -4660,14 +4660,14 @@ pub fn set_ref_in_ht(ht: *mut Hashtab, copy_id: i32, list_stack: *mut ListStack)
 
 /// Mark all lists and dicts referenced through list "l" with "copyID".
 pub fn set_ref_in_list_items(l: *mut TvList, copy_id: i32, ht_stack: *mut HtStack) -> bool {
-    unsafe {
+    {
         let mut abort = false;
         let mut list_stack: ListStack = Vec::new();
 
         let mut cur_l = l;
         loop {
             if !cur_l.is_null() {
-                for li in crate::eval::typval::list_iter_mut((*cur_l).lv_first) {
+                for li in crate::eval::typval::list_iter_mut(unsafe { (*cur_l).lv_first }) {
                     if abort {
                         break;
                     }
@@ -5116,8 +5116,8 @@ fn string_to_list(
     keepempty: bool,
 ) -> &'static mut TvList {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
-        if !keepempty && len > 0 && *str_.wrapping_add(len - 1) == NL {
+    {
+        if !keepempty && len > 0 && unsafe { *str_.wrapping_add(len - 1) } == NL {
             len -= 1;
         }
         let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
@@ -5250,7 +5250,7 @@ pub fn f_systemlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// Get a callback from "arg". It can be a Funcref or a function name.
 pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
-    unsafe {
+    {
         let mut r = OK;
 
         let is_lua_tbl = nlua_is_table_from_lua(arg);
@@ -5258,7 +5258,9 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
         if arg.v_type == VarType::VarPartial && !tv_partial(arg).is_null() {
             let pt = tv_partial(arg);
             callback.data = crate::eval::typval::CallbackData::partial(pt);
-            (*pt).pt_refcount += 1;
+            unsafe {
+                (*pt).pt_refcount += 1;
+            }
         } else if arg.v_type == VarType::VarString
             && !arg.vval.v_string().is_null()
             && ascii_isdigit(crate::memory::cstr_first_char(arg.vval.v_string()))
@@ -6347,9 +6349,9 @@ pub fn skip_luafunc_name(p: impl crate::strings::IntoCCharPtr) -> *const c_char 
 /// Check the function name after "v:lua."
 pub fn check_luafunc_name(str_: impl crate::strings::IntoCCharPtr, paren: bool) -> i32 {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let p = skip_luafunc_name(str_);
-        if *p != if paren { b'(' as c_char } else { NUL } {
+        if unsafe { *p } != if paren { b'(' as c_char } else { NUL } {
             return 0;
         }
         ((p as usize).wrapping_sub(str_ as usize)) as i32

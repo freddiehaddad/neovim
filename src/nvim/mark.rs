@@ -573,7 +573,7 @@ pub fn get_jumplist(win: &mut WinInfoInfo, mut count: i32) -> *mut Fmark {
 
 /// Get mark in `count` position in the changelist relative to the current index (`get_changelist`).
 pub fn get_changelist(buf: &mut FileBuf, win: &mut WinInfoInfo, count: i32) -> *mut Fmark {
-    unsafe {
+    {
         if buf.b_changelistlen == 0 {
             return ptr::null_mut();
         }
@@ -594,7 +594,9 @@ pub fn get_changelist(buf: &mut FileBuf, win: &mut WinInfoInfo, count: i32) -> *
         }
         win.w_changelistidx = n;
         let fm = &raw mut buf.b_changelist[n as usize];
-        (*fm).fnum = curbuf_mut().b_fnum;
+        unsafe {
+            (*fm).fnum = curbuf_mut().b_fnum;
+        }
         fm
     }
 }
@@ -656,7 +658,7 @@ pub fn mark_get_global(resolve: bool, mut name: i32) -> *mut Xfmark {
 
 /// Get a local mark (`mark_get_local`).
 pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *mut Fmark {
-    unsafe {
+    {
         let mark = if ascii_islower(name) {
             &raw mut buf.b_namedm[(name - b'a' as i32) as usize]
         } else if name == b'[' as i32 {
@@ -680,7 +682,9 @@ pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *m
         };
 
         if !mark.is_null() {
-            (*mark).fnum = buf.b_fnum;
+            unsafe {
+                (*mark).fnum = buf.b_fnum;
+            }
         }
 
         mark
@@ -983,11 +987,13 @@ pub fn mark_check_line_bounds(
     fm: &mut Fmark,
     errormsg: *mut *const c_char,
 ) -> bool {
-    unsafe {
+    {
         if let Some(buf) = buf
             && fm.mark.lnum > buf.b_ml.ml_line_count
         {
-            *errormsg = gettext(E_MARKINVAL);
+            unsafe {
+                *errormsg = gettext(E_MARKINVAL);
+            }
             return false;
         }
         true

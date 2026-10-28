@@ -1176,14 +1176,16 @@ pub fn tv_list_move_items(
     tgt_l: &mut TvList,
     cnt: i32,
 ) {
-    unsafe {
+    {
         tv_list_drop_items(&mut *l, (&raw mut *item), item2);
         item.li_prev = tgt_l.lv_last;
         item2.li_next = ptr::null_mut();
         if tgt_l.lv_last.is_null() {
             tgt_l.lv_first = (&raw mut *item);
         } else {
-            (*tgt_l.lv_last).li_next = (&raw mut *item);
+            unsafe {
+                (*tgt_l.lv_last).li_next = (&raw mut *item);
+            }
         }
         tgt_l.lv_last = item2;
         tgt_l.lv_len += cnt;
@@ -1222,13 +1224,15 @@ pub fn tv_list_insert_tv(l: &mut TvList, tv: &mut TypVal, item: *mut Listitem) {
 
 /// Append item to the end of list.
 pub fn tv_list_append(l: &mut TvList, item: &mut Listitem) {
-    unsafe {
+    {
         if l.lv_last.is_null() {
             l.lv_first = (&raw mut *item);
             l.lv_last = (&raw mut *item);
             item.li_prev = ptr::null_mut();
         } else {
-            (*l.lv_last).li_next = (&raw mut *item);
+            unsafe {
+                (*l.lv_last).li_next = (&raw mut *item);
+            }
             item.li_prev = l.lv_last;
             l.lv_last = (&raw mut *item);
         }
@@ -1269,7 +1273,7 @@ pub fn tv_list_append_list(l: &mut TvList, itemlist: *mut TvList) {
 
 /// Append a dictionary to a list.
 pub fn tv_list_append_dict(l: &mut TvList, dict: *mut TvDict) {
-    unsafe {
+    {
         tv_list_append_owned_tv(
             l,
             TypVal {
@@ -1279,7 +1283,9 @@ pub fn tv_list_append_dict(l: &mut TvList, dict: *mut TvDict) {
             },
         );
         if !dict.is_null() {
-            (*dict).dv_refcount += 1;
+            unsafe {
+                (*dict).dv_refcount += 1;
+            }
         }
     }
 }
@@ -1810,7 +1816,7 @@ pub fn f_join(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// "list2str()" function.
 pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if argvars[0].v_type != VarType::VarList {
@@ -1826,7 +1832,7 @@ pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let mut out: Vec<c_char> = Vec::with_capacity(80);
         let mut buf: [c_char; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
 
-        for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
+        for li in crate::eval::typval::list_iter_mut(unsafe { (*l).lv_first }) {
             let n = tv_get_number(&li.li_tv);
             let buflen = utf_char2bytes(n as i32, buf.as_mut_ptr()) as usize;
             buf[buflen] = NUL;
@@ -2572,13 +2578,15 @@ pub fn callback_free(callback: &mut Callback) {
 
 /// Copy a callback into a TypVal.
 pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
-    unsafe {
+    {
         match cb.cb_type() {
             K_CALLBACK_PARTIAL => {
                 let pt = cb.data.as_partial();
                 tv.v_type = VarType::VarPartial;
                 tv.vval = crate::eval::typval::TypvalVval::Partial(pt);
-                (*pt).pt_refcount += 1;
+                unsafe {
+                    (*pt).pt_refcount += 1;
+                }
             }
             K_CALLBACK_FUNCREF => {
                 let funcref = cb.data.as_funcref();
@@ -2596,12 +2604,14 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
 
 /// Copy callback from "src" to "dest", incrementing the refcounts.
 pub fn callback_copy(dest: &mut Callback, src: &Callback) {
-    unsafe {
+    {
         match src.cb_type() {
             K_CALLBACK_PARTIAL => {
                 let pt = src.data.as_partial();
                 dest.data = CallbackData::partial(pt);
-                (*pt).pt_refcount += 1;
+                unsafe {
+                    (*pt).pt_refcount += 1;
+                }
             }
             K_CALLBACK_FUNCREF => {
                 let funcref = src.data.as_funcref();
@@ -3184,7 +3194,7 @@ pub fn tv_dict_add_dict<S: crate::strings::IntoCCharPtr>(
     dict: *mut TvDict,
 ) -> bool {
     let key = key.into_c_char_ptr();
-    unsafe {
+    {
         let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
         item.di_tv.v_type = VarType::VarDict;
         item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
@@ -3193,7 +3203,9 @@ pub fn tv_dict_add_dict<S: crate::strings::IntoCCharPtr>(
             tv_dict_item_free(item);
             return false;
         }
-        (*dict).dv_refcount += 1;
+        unsafe {
+            (*dict).dv_refcount += 1;
+        }
         true
     }
 }
@@ -4790,14 +4802,14 @@ pub fn tv_get_bool_chk(tv: &TypVal, ret_error: Option<&mut bool>) -> Varnumber {
 
 /// Get the line number from Vimscript object.
 pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
-    unsafe {
+    {
         let did_emsg_before = g_st().did_emsg;
         let mut lnum = tv_get_number_chk(tv, None) as Linenr;
         if lnum <= 0 && did_emsg_before == g_st().did_emsg && tv.v_type != VarType::VarNumber {
             let mut fnum: i32 = 0;
             let fp = var2fpos(tv, true, &mut fnum, false, curwin_mut());
             if !fp.is_null() {
-                lnum = (*fp).lnum;
+                lnum = unsafe { (*fp).lnum };
             }
         }
         lnum

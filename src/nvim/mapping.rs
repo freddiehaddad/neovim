@@ -596,7 +596,7 @@ fn str_to_mapargs(
     mapargs: &mut MapArguments,
 ) -> i32 {
     let strargs = strargs.into_c_char_ptr();
-    unsafe {
+    {
         let mut to_parse = skipwhite(strargs);
         *mapargs = MapArguments::new();
         mapargs.rhs_lua = 0;
@@ -645,7 +645,7 @@ fn str_to_mapargs(
         while !crate::memory::cstr_is_empty(lhs_end)
             && (is_unmap || !ascii_iswhite(crate::memory::cstr_first_byte(lhs_end) as i32))
         {
-            if (*lhs_end == CTRL_V_CONST as c_char
+            if (unsafe { *lhs_end } == CTRL_V_CONST as c_char
                 || (do_backslash && crate::memory::cstr_first_byte(lhs_end) == b'\\'))
                 && crate::memory::cstr_byte_at(lhs_end, 1) != 0
             {
@@ -697,8 +697,8 @@ fn map_add(
     alt: Option<std::rc::Rc<MapAltLink>>,
 ) {
     let keys = keys.into_c_char_ptr();
-    unsafe {
-        if *keys == CTRL_C_CONST {
+    {
+        if unsafe { *keys } == CTRL_C_CONST {
             if local {
                 buf.b_mapped_ctrl_c |= mode;
             } else {
@@ -2704,11 +2704,13 @@ pub fn langmap_adjust_mb(c: i32) -> i32 {
 }
 
 pub fn langmap_init() {
-    unsafe {
+    {
         for i in 0..256 {
-            *(&raw mut g_st().langmap_mapchar)
-                .cast::<u8>()
-                .wrapping_add(i) = i as u8;
+            unsafe {
+                *(&raw mut g_st().langmap_mapchar)
+                    .cast::<u8>()
+                    .wrapping_add(i) = i as u8;
+            }
         }
         map_st().langmap_mapga = Vec::new();
     }
@@ -3103,7 +3105,7 @@ pub fn modify_keymap(
 /// Get an array containing dictionaries describing mappings
 /// based on mode and buffer id.
 pub fn keymap_array(mode: NvimString, buf: *mut FileBuf, arena: &mut Arena) -> Array {
-    unsafe {
+    {
         let mut mappings = ArrayBuilder::new();
 
         let mut p: *mut c_char = if mode.size > 0 {
@@ -3120,7 +3122,11 @@ pub fn keymap_array(mode: NvimString, buf: *mut FileBuf, arena: &mut Arena) -> A
         let is_abbrev = (int_mode & (MODE_INSERT | MODE_CMDLINE)) != 0
             && crate::memory::cstr_first_byte(p) == b'a';
 
-        let buffer_value = if buf.is_null() { 0 } else { (*buf).b_fnum };
+        let buffer_value = if buf.is_null() {
+            0
+        } else {
+            unsafe { (*buf).b_fnum }
+        };
 
         for bucket in get_map_buckets(buf, is_abbrev) {
             for current_maphash in bucket {

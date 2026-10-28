@@ -918,9 +918,9 @@ pub fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
 #[inline]
 pub fn utf_ptr2_char_info(p_in: impl crate::strings::IntoCCharPtr) -> CharInfo {
     let p_in = p_in.into_c_char_ptr();
-    unsafe {
+    {
         let p = p_in.cast::<u8>();
-        let first = *p;
+        let first = unsafe { *p };
         if first < 0x80 {
             CharInfo {
                 value: i32::from(first),
@@ -952,13 +952,13 @@ pub fn utf_ptr2_str_char_info(ptr: impl crate::strings::IntoCCharPtr) -> StrChar
 #[inline]
 pub fn utf_ptr2_char_info_len(p_in: impl crate::strings::IntoCCharPtr, size: i32) -> CharInfo {
     let p_in = p_in.into_c_char_ptr();
-    unsafe {
+    {
         let p = p_in.cast::<u8>();
         assert!(size >= 0);
         if size == 0 {
             return CharInfo { value: -1, len: 1 };
         }
-        let first = *p;
+        let first = unsafe { *p };
         if first < 0x80 {
             CharInfo {
                 value: i32::from(first),
@@ -1024,10 +1024,14 @@ pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
 
 #[inline]
 pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut i32) -> ClusterInfo {
-    unsafe {
+    {
         *size -= cur.chr.len;
         let nextptr = cur.ptr.wrapping_add(cur.chr.len as usize).cast::<u8>();
-        let nextval = if *size == 0 { -1 } else { i32::from(*nextptr) };
+        let nextval = if *size == 0 {
+            -1
+        } else {
+            i32::from(unsafe { *nextptr })
+        };
         if nextval < 0x80 {
             return ClusterInfo {
                 next: StrCharInfo {
@@ -1111,8 +1115,8 @@ pub fn mb_get_class(p: impl crate::strings::IntoCCharPtr) -> i32 {
 
 pub fn mb_get_class_tab(p: impl crate::strings::IntoCCharPtr, chartab: *const u64) -> i32 {
     let p = p.into_c_char_ptr();
-    unsafe {
-        let b0 = *p.cast::<u8>();
+    {
+        let b0 = unsafe { *p.cast::<u8>() };
         if UTF8LEN_TAB[b0 as usize] == 1 {
             if b0 == 0 || ascii_iswhite(i32::from(b0)) {
                 return 0;
@@ -1178,8 +1182,8 @@ pub fn ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
 
 pub fn utf_ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     let p_in = p_in.into_c_char_ptr();
-    unsafe {
-        if *p_in.cast::<u8>() < 0x80 {
+    {
+        if unsafe { *p_in.cast::<u8>() } < 0x80 {
             return 1;
         }
         ptr2cells(p_in)
@@ -1398,8 +1402,8 @@ pub fn utf_composinglike(
 ) -> bool {
     let p1 = p1.into_c_char_ptr();
     let p2 = p2.into_c_char_ptr();
-    unsafe {
-        if *p2.cast::<u8>() < 128 {
+    {
+        if unsafe { *p2.cast::<u8>() } < 128 {
             return false;
         }
         let first = utf_ptr2char(p1);
@@ -2269,7 +2273,7 @@ pub fn mb_utflen(
     codeunits: &mut usize,
 ) {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut count = 0usize;
         let mut extra = 0usize;
         let mut i = 0usize;
@@ -2278,7 +2282,7 @@ pub fn mb_utflen(
             let c = if clen > 1 {
                 utf_ptr2char(s.wrapping_add(i))
             } else {
-                i32::from(*s.wrapping_add(i).cast::<u8>())
+                i32::from(unsafe { *s.wrapping_add(i).cast::<u8>() })
             };
             count += 1;
             if c > 0xFFFF {
@@ -2298,7 +2302,7 @@ pub fn mb_utf_index_to_bytes(
     use_utf16_units: bool,
 ) -> isize {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         if index == 0 {
             return 0;
         }
@@ -2309,7 +2313,7 @@ pub fn mb_utf_index_to_bytes(
             let c = if clen > 1 {
                 utf_ptr2char(s.wrapping_add(i))
             } else {
-                i32::from(*s.wrapping_add(i).cast::<u8>())
+                i32::from(unsafe { *s.wrapping_add(i).cast::<u8>() })
             };
             count += 1;
             if use_utf16_units && c > 0xFFFF {
@@ -2750,7 +2754,7 @@ pub fn utf_cp_bounds(
 }
 
 pub fn utf_find_illegal() {
-    unsafe {
+    {
         let pos: CursorPos = curwin_mut().w_cursor;
         let mut vimconv = Vimconv {
             vc_type: CONV_NONE,
@@ -2777,7 +2781,9 @@ pub fn utf_find_illegal() {
 
             while !crate::memory::cstr_is_empty(p) {
                 let mut len = utf_ptr2len(p);
-                if *p.cast::<u8>() >= 0x80 && (len == 1 || utf_char2len(utf_ptr2char(p)) != len) {
+                if unsafe { *p.cast::<u8>() } >= 0x80
+                    && (len == 1 || utf_char2len(utf_ptr2char(p)) != len)
+                {
                     if vimconv.vc_type == CONV_NONE {
                         curwin_mut().w_cursor.col +=
                             crate::memory::ptr_offset_from(p, get_cursor_pos_ptr()) as Colnr;
@@ -2858,7 +2864,7 @@ pub fn mb_adjust_cursor() {
 }
 
 pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
-    unsafe {
+    {
         let oldcol = win.w_cursor.col;
 
         if oldcol != 0 {
@@ -2876,7 +2882,7 @@ pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
 
             let cur_col = win.w_cursor.col as usize;
             if win.w_cursor.coladd == 1
-                && *p.wrapping_add(cur_col) != TAB
+                && unsafe { *p.wrapping_add(cur_col) } != TAB
                 && vim_isprintc(utf_ptr2char(p.wrapping_add(cur_col)))
                 && ptr2cells(p.wrapping_add(cur_col)) > 1
             {

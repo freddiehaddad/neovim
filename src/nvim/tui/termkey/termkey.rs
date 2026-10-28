@@ -305,7 +305,7 @@ pub fn termkey_interpret_string(
     key: &TermKeyKey,
     strp: *mut *const c_char,
 ) -> TermKeyResult {
-    unsafe {
+    {
         if key.r#type != TERMKEY_TYPE_DCS
             && key.r#type != TERMKEY_TYPE_OSC
             && key.r#type != TERMKEY_TYPE_APC
@@ -317,7 +317,9 @@ pub fn termkey_interpret_string(
             return TERMKEY_RES_NONE;
         }
 
-        *strp = tk.csi.saved_string.as_ptr();
+        unsafe {
+            *strp = tk.csi.saved_string.as_ptr();
+        }
         TERMKEY_RES_KEY
     }
 }
@@ -468,9 +470,11 @@ fn eat_bytes(tk: &mut TermKey, count: usize) {
 }
 
 pub fn fill_utf8(codepoint: i32, str_out: *mut c_char) -> i32 {
-    unsafe {
+    {
         let nbytes = utf_char2bytes(codepoint, str_out);
-        *str_out.wrapping_add(nbytes as usize) = 0;
+        unsafe {
+            *str_out.wrapping_add(nbytes as usize) = 0;
+        }
         nbytes
     }
 }

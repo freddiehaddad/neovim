@@ -650,14 +650,14 @@ pub fn save_file_ff(buf: &mut FileBuf) {
 /// Return true if `'fileformat'` and/or `'fileencoding'` has a different value
 /// from when editing started.
 pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
-    unsafe {
+    {
         if (buf.b_flags & BF_NEVERLOADED) != 0 {
             return false;
         }
         if ignore_empty
             && (buf.b_flags & BF_NEW) != 0
             && buf.b_ml.ml_line_count == 1
-            && *ml_get_buf(buf, 1) == NUL
+            && unsafe { *ml_get_buf(buf, 1) } == NUL
         {
             return false;
         }

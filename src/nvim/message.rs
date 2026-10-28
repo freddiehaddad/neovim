@@ -1335,7 +1335,7 @@ pub fn msg_trunc(s: *mut c_char, force: bool, hl_id: i32) -> *mut c_char {
 ///
 /// @note: May change the message by replacing a character with '<'.
 pub fn msg_may_trunc(force: bool, mut s: *mut c_char) -> *mut c_char {
-    unsafe {
+    {
         if ui_has(K_UIMESSAGES) {
             return s;
         }
@@ -1360,7 +1360,9 @@ pub fn msg_may_trunc(force: bool, mut s: *mut c_char) -> *mut c_char {
             }
             n -= 1;
             s = s.wrapping_add(n);
-            *s = b'<' as c_char;
+            unsafe {
+                *s = b'<' as c_char;
+            }
         }
         s
     }
@@ -2787,8 +2789,8 @@ pub fn msg_puts<S: crate::strings::IntoCCharPtr>(s: S) {
 
 pub fn msg_puts_title(s: impl crate::strings::IntoCCharPtr) {
     let mut s = s.into_c_char_ptr();
-    unsafe {
-        if ui_has(K_UIMESSAGES) && *s == NL as c_char {
+    {
+        if ui_has(K_UIMESSAGES) && unsafe { *s } == NL as c_char {
             s = s.wrapping_add(1);
         }
         msg_puts_hl(s, HLF_T, false);
@@ -3132,12 +3134,12 @@ pub fn msg_line_flush() {
 }
 
 pub fn msg_cursor_goto(mut row: i32, mut col: i32) {
-    unsafe {
+    {
         if g_st().cmdmsg_rl {
             col = g_st().columns_global - 1 - col;
         }
         let grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
-        ui_grid_cursor_goto((*grid).handle, row, col);
+        ui_grid_cursor_goto(unsafe { (*grid).handle }, row, col);
     }
 }
 

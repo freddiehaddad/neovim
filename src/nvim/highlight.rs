@@ -847,8 +847,8 @@ pub fn hl_get_url(index: u32) -> &'static std::ffi::CStr {
 
 pub fn hl_add_font_idx(font_name: impl crate::strings::IntoCCharPtr) -> i32 {
     let font_name = font_name.into_c_char_ptr();
-    unsafe {
-        if font_name.is_null() || *font_name == 0 {
+    {
+        if font_name.is_null() || unsafe { *font_name } == 0 {
             return -1;
         }
         let font_cstr = crate::memory::cstr_from_ptr(font_name);

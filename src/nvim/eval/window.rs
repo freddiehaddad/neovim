@@ -155,12 +155,14 @@ pub fn win_id2wp(id: i32) -> *mut WinInfoInfo {
 
 /// Return the window and tab pointer of window `id` (`win_id2wp_tp`).
 pub fn win_id2wp_tp(id: i32, tpp: *mut *mut TabPageInfo) -> *mut WinInfoInfo {
-    unsafe {
+    {
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
                 if wp.handle == id {
                     if !tpp.is_null() {
-                        *tpp = tp;
+                        unsafe {
+                            *tpp = tp;
+                        }
                     }
                     return wp;
                 }

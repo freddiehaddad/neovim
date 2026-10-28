@@ -487,10 +487,10 @@ fn sign_cmd_idx(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut c_ch
 }
 
 pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut Schar) -> usize {
-    unsafe {
+    {
         let mut p: usize = 0;
         for i in 0..SIGN_WIDTH {
-            schar_get(buf.wrapping_add(p), *sign_text.wrapping_add(i));
+            schar_get(buf.wrapping_add(p), unsafe { *sign_text.wrapping_add(i) });
             let len = crate::memory::cstr_as_bytes(buf)[p..].len();
             if len == 0 {
                 break;
@@ -847,7 +847,7 @@ fn sign_jump(id: i32, group: impl crate::strings::IntoCCharPtr, buf: &mut FileBu
 
 fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_char) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut icon: *mut c_char = ptr::null_mut();
         let mut text: *mut c_char = ptr::null_mut();
         let mut linehl: *mut c_char = ptr::null_mut();
@@ -884,7 +884,9 @@ fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_
             if crate::memory::cstr_is_empty(cmdline) {
                 break;
             }
-            *cmdline = NUL;
+            unsafe {
+                *cmdline = NUL;
+            }
             cmdline = cmdline.wrapping_add(1);
         }
 

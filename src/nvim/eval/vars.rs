@@ -523,10 +523,10 @@ pub(crate) fn eval_msgpack_type_lists_mut() -> &'static mut [*const TvList; NUM_
 #[inline]
 fn c_memchr(s: impl crate::strings::IntoCCharPtr, c: u8, n: usize) -> *const c_char {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         let p = s.cast::<u8>();
         for i in 0..n {
-            if *p.wrapping_add(i) == c {
+            if unsafe { *p.wrapping_add(i) } == c {
                 return s.wrapping_add(i);
             }
         }
@@ -1251,7 +1251,7 @@ pub fn heredoc_get(
 
 /// ":let" and ":const" commands.
 pub fn ex_let(eap: &mut Exarg) {
-    unsafe {
+    {
         let is_const = eap.cmdidx == Cmdidx::CmdConst as i32;
         let mut arg = eap.arg;
         let mut rettv: TypVal = TypVal::new();
@@ -1318,7 +1318,7 @@ pub fn ex_let(eap: &mut Exarg) {
         op[1] = NUL;
         if crate::memory::cstr_first_byte(expr) != b'=' {
             if crate::strings::vim_haschr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as i32) {
-                op[0] = *expr;
+                op[0] = unsafe { *expr };
                 if crate::memory::cstr_first_byte(expr) == b'.'
                     && crate::memory::cstr_byte_at(expr, 1) == b'.'
                 {
@@ -1906,7 +1906,7 @@ fn ex_let_register(
     let mut arg = arg.into_c_char_ptr().cast_mut();
     let endchars = endchars.into_c_char_ptr();
     let op = op.into_c_char_ptr();
-    unsafe {
+    {
         if is_const {
             emsg(gettext(c"E996: Cannot lock a register"));
             return ptr::null_mut();
@@ -1919,7 +1919,8 @@ fn ex_let_register(
         {
             semsg!(gettext(E_LETWRONG), op);
         } else if !endchars.is_null()
-            && !crate::strings::vim_haschr(endchars, *skipwhite(arg.wrapping_add(1)) as u8 as i32)
+            && !crate::strings::vim_haschr(endchars, unsafe { *skipwhite(arg.wrapping_add(1)) }
+                as u8 as i32)
         {
             emsg(gettext(E_LETUNEXP));
         } else {
@@ -1966,7 +1967,7 @@ fn ex_let_one(
     let arg = arg.into_c_char_ptr().cast_mut();
     let op = op.into_c_char_ptr();
     let endchars = endchars.into_c_char_ptr();
-    unsafe {
+    {
         let mut arg_end: *mut c_char = ptr::null_mut();
 
         if crate::memory::cstr_first_byte(arg) == b'$' {
@@ -1982,7 +1983,7 @@ fn ex_let_one(
             let p = get_lval(arg, Some(tv), &mut lv, false, false, 0, FNE_CHECK_START);
             if !p.is_null() && !lv.ll_name.is_null() {
                 if !endchars.is_null()
-                    && !crate::strings::vim_haschr(endchars, *skipwhite(p) as u8 as i32)
+                    && !crate::strings::vim_haschr(endchars, unsafe { *skipwhite(p) } as u8 as i32)
                 {
                     emsg(gettext(E_LETUNEXP));
                 } else {
@@ -2719,7 +2720,7 @@ pub fn eval_variable(
 /// Check if variable "name[len]" is a local variable or an argument.
 pub fn check_vars(name: impl crate::strings::IntoCCharPtr, len: usize) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if eval_st().eval_lavars_used.is_null() {
             return;
         }
@@ -2730,7 +2731,9 @@ pub fn check_vars(name: impl crate::strings::IntoCCharPtr, len: usize) {
         if (ht == get_funccal_local_ht() || ht == get_funccal_args_ht())
             && !find_var(name, len, ptr::null_mut(), 1).is_null()
         {
-            *eval_st().eval_lavars_used = true;
+            unsafe {
+                *eval_st().eval_lavars_used = true;
+            }
         }
     }
 }
@@ -3350,12 +3353,12 @@ pub fn var_wrong_func_name(name: impl crate::strings::IntoCCharPtr, new_var: boo
 /// Check if a variable name is valid.
 pub fn valid_varname(varname: impl crate::strings::IntoCCharPtr) -> bool {
     let varname = varname.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = varname;
         while !crate::memory::cstr_is_empty(p) {
             if !eval_isnamec1(crate::memory::cstr_first_byte(p) as i32)
                 && (p == varname || !ascii_isdigit(crate::memory::cstr_first_char(p)))
-                && *p != AUTOLOAD_CHAR
+                && unsafe { *p } != AUTOLOAD_CHAR
             {
                 semsg!(gettext(E_ILLVAR), varname);
                 return false;

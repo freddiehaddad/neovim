@@ -722,7 +722,7 @@ pub fn nvim_buf_set_extmark(
     opts: &mut KeyDict_set_extmark,
     err: &mut Error,
 ) -> Integer {
-    unsafe {
+    {
         let mut hl = DECOR_HIGHLIGHT_INLINE_INIT;
         let mut sign = DECOR_SIGN_HIGHLIGHT_INIT;
         let mut virt_text = DecorVirtText {
@@ -1150,7 +1150,7 @@ pub fn nvim_buf_set_extmark(
 
             if opts.ephemeral
                 && !g_st().decor_state.win.is_null()
-                && (*g_st().decor_state.win).w_buffer == (&raw mut *b)
+                && unsafe { (*g_st().decor_state.win).w_buffer } == (&raw mut *b)
             {
                 let r = line as i32;
                 let c = col as i32;
@@ -1558,7 +1558,7 @@ fn extmark_get_index_from_obj(
 
 // DLLEXPORT VirtText parse_virt_text(Array chunks, Error *err, int *width, bool untab);
 pub fn parse_virt_text(chunks: Array, err: &mut Error, width: *mut i32, untab: bool) -> VirtText {
-    unsafe {
+    {
         let mut virt_text = VirtText::new();
         let mut w: i32 = 0;
 
@@ -1628,7 +1628,9 @@ pub fn parse_virt_text(chunks: Array, err: &mut Error, width: *mut i32, untab: b
             }
 
             if !width.is_null() {
-                *width = w;
+                unsafe {
+                    *width = w;
+                }
             }
             return virt_text;
         }

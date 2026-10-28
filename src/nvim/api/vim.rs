@@ -688,7 +688,7 @@ pub fn nvim_input_mouse(
     col: Integer,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         may_trigger_vim_suspend_resume(false);
 
         let valid = 'check: {
@@ -752,7 +752,7 @@ pub fn nvim_input_mouse(
 
         let mut modmask: i32 = 0;
         for i in 0..modifier.size {
-            let byte = *modifier.data.wrapping_add(i);
+            let byte = unsafe { *modifier.data.wrapping_add(i) };
             if byte == (b'-' as c_char) {
                 continue;
             }

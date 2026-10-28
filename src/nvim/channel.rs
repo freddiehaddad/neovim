@@ -206,10 +206,10 @@ use crate::api::private::helpers::add_c;
 
 /// Teardown the module.
 pub fn channel_teardown() {
-    unsafe {
+    {
         let all_chans: Vec<*mut Channel> = g_st().channels.values().copied().collect();
         for chan in all_chans {
-            channel_close((*chan).id, K_CHANNEL_PART_ALL, ptr::null_mut());
+            channel_close(unsafe { (*chan).id }, K_CHANNEL_PART_ALL, ptr::null_mut());
         }
     }
 }

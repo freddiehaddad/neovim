@@ -948,7 +948,7 @@ fn read_cnt_string(fd: *mut FILE, cnt_bytes: i32, cntp: &mut i32) -> Option<Vec<
 }
 
 fn read_region_section(fd: *mut FILE, lp: &mut Slang, len: i32) -> i32 {
-    unsafe {
+    {
         if len > (MAXREGIONS * 2) as i32 {
             return SP_FORMERROR;
         }
@@ -957,7 +957,9 @@ fn read_region_section(fd: *mut FILE, lp: &mut Slang, len: i32) -> i32 {
         if ret != 0 {
             return ret;
         }
-        *regions_ptr.wrapping_offset(len as isize) = NUL;
+        unsafe {
+            *regions_ptr.wrapping_offset(len as isize) = NUL;
+        }
         0
     }
 }
@@ -2591,10 +2593,10 @@ fn is_aff_rule(
     rulename: &std::ffi::CStr,
     mincount: i32,
 ) -> bool {
-    unsafe {
+    {
         crate::memory::cstr_as_bytes(items[0]) == rulename.to_bytes()
             && (itemcnt == mincount
-                || (itemcnt > mincount && *items[mincount as usize] == b'#' as c_char))
+                || (itemcnt > mincount && unsafe { *items[mincount as usize] } == b'#' as c_char))
     }
 }
 

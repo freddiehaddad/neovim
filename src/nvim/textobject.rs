@@ -196,7 +196,7 @@ pub fn findsent(dir: Direction, mut count: i32) -> bool {
 
 /// Find the next paragraph or section in direction `dir` (`findpar`).
 pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool) -> bool {
-    unsafe {
+    {
         let mut fold_first: Linenr = 0;
         let mut fold_last: Linenr = 0;
         let mut curr = curwin_mut().w_cursor.lnum;
@@ -246,7 +246,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
             }
         }
         setpcmark();
-        if both && *ml_get(curr) == b'}' as c_char {
+        if both && unsafe { *ml_get(curr) } == b'}' as c_char {
             curr += 1;
         }
         curwin_mut().w_cursor.lnum = curr;
@@ -1095,7 +1095,7 @@ pub fn current_block(
 
 /// Return true if the cursor is on a `<aaa>` tag (or `</aaa>` when `end_tag` is true) (`in_html_tag`).
 fn in_html_tag(end_tag: bool) -> bool {
-    unsafe {
+    {
         let line = get_cursor_line_ptr();
         let mut p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
         let mut lc: i32 = i32::from(NUL);
@@ -1133,7 +1133,7 @@ fn in_html_tag(end_tag: bool) -> bool {
             if inc(&mut pos) < 0 {
                 return false;
             }
-            let c = i32::from(*ml_get_pos(&pos) as u8);
+            let c = i32::from(unsafe { *ml_get_pos(&pos) } as u8);
             if c == b'>' as i32 {
                 break;
             }
@@ -1545,7 +1545,7 @@ fn find_prev_quote(
 ) -> i32 {
     let line = line.into_c_char_ptr();
     let escape = escape.into_c_char_ptr();
-    unsafe {
+    {
         while col_start > 0 {
             col_start -= 1;
             col_start -= utf_head_off(line, line.wrapping_add(col_start as usize));
@@ -1554,7 +1554,7 @@ fn find_prev_quote(
                 while col_start - n > 0
                     && crate::strings::vim_haschr(
                         escape,
-                        i32::from(*line.wrapping_add((col_start - n - 1) as usize) as u8),
+                        i32::from(unsafe { *line.wrapping_add((col_start - n - 1) as usize) } as u8),
                     )
                 {
                     n += 1;

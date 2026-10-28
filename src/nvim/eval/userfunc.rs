@@ -3544,13 +3544,15 @@ pub fn func_ptr_unref(fp: *mut UserFunc) {
 
 pub fn func_ref(name: impl crate::strings::IntoCCharPtr) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if name.is_null() || !func_name_refcount(name) {
             return;
         }
         let fp = find_func(name);
         if !fp.is_null() {
-            (*fp).uf_refcount += 1;
+            unsafe {
+                (*fp).uf_refcount += 1;
+            }
         } else if (crate::memory::cstr_first_byte(name)).is_ascii_digit() {
             internal_error(c"func_ref()");
         }
@@ -3643,7 +3645,7 @@ fn ex_call_inner(
 ) -> bool {
     let startarg = startarg.into_c_char_ptr().cast_mut();
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut failed = false;
 
         for lnum in eap.line1..=eap.line2 {
@@ -3656,7 +3658,9 @@ fn ex_call_inner(
                 curwin_mut().w_cursor.col = 0;
                 curwin_mut().w_cursor.coladd = 0;
             }
-            *arg = startarg;
+            unsafe {
+                *arg = startarg;
+            }
 
             let mut funcexe = *funcexe_init;
             funcexe.fe_doesrange = false;
@@ -3771,12 +3775,12 @@ pub fn can_add_defer() -> bool {
 
 pub fn add_defer(name: impl crate::strings::IntoCCharPtr, argcount_arg: i32, argvars: *mut TypVal) {
     let name = name.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let dr_name_cstr = cstr_to_cstring(name);
         let argcount = argcount_arg as usize;
         let mut dr_argvars = vec![TypVal::new(); argcount + 1];
         for (i, slot) in dr_argvars.iter_mut().enumerate().take(argcount) {
-            *slot = *argvars.wrapping_add(i);
+            *slot = unsafe { *argvars.wrapping_add(i) };
         }
         cur_funccal_mut().fc_defer.push(DeferCall {
             dr_name: Some(dr_name_cstr),
@@ -4094,8 +4098,10 @@ pub fn get_func_line(
 }
 
 pub fn func_has_ended(fcp: &mut Funccall) -> i32 {
-    unsafe {
-        if (((*fcp.fc_func).uf_flags & FC_ABORT) != 0 && g_st().did_emsg != 0 && !aborted_in_try())
+    {
+        if ((unsafe { (*fcp.fc_func).uf_flags } & FC_ABORT) != 0
+            && g_st().did_emsg != 0
+            && !aborted_in_try())
             || fcp.fc_returned != 0
         {
             1
@@ -4220,11 +4226,11 @@ pub fn free_unref_funccal(copy_id: i32, testing: i32) -> bool {
 }
 
 pub fn get_funccal() -> *mut Funccall {
-    unsafe {
+    {
         let mut funccal = uf_st().current_funccal;
         if g_st().debug_backtrace_level > 0 {
             for i in 0..g_st().debug_backtrace_level {
-                let temp_funccal = (*funccal).fc_caller;
+                let temp_funccal = unsafe { (*funccal).fc_caller };
                 if !temp_funccal.is_null() {
                     funccal = temp_funccal;
                 } else {
@@ -4238,12 +4244,12 @@ pub fn get_funccal() -> *mut Funccall {
 }
 
 fn get_funccal_for_vars() -> *mut Funccall {
-    unsafe {
+    {
         if uf_st().current_funccal.is_null() {
             return ptr::null_mut();
         }
         let funccal = get_funccal();
-        if funccal.is_null() || (*funccal).fc_l_vars.dv_refcount == 0 {
+        if funccal.is_null() || unsafe { (*funccal).fc_l_vars.dv_refcount } == 0 {
             return ptr::null_mut();
         }
         funccal
@@ -4513,7 +4519,7 @@ pub fn set_ref_in_func(
     copy_id: i32,
 ) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut fp = fp_in;
         let mut error = FCERR_NONE;
         let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
@@ -4528,7 +4534,7 @@ pub fn set_ref_in_func(
             fp = find_func(fname);
         }
         if !fp.is_null() {
-            for fc in FunccalScopedMutIter((*fp).uf_scoped) {
+            for fc in FunccalScopedMutIter(unsafe { (*fp).uf_scoped }) {
                 abort = abort || set_ref_in_funccal(fc, copy_id);
             }
         }

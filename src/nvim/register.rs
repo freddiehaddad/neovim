@@ -400,7 +400,7 @@ pub fn op_global_reg_iter(
 }
 
 pub fn reg_max_ts(clipboard: bool) -> Timestamp {
-    unsafe {
+    {
         let mut max_ts: Timestamp = 0;
         let mut iter: Option<usize> = None;
         loop {
@@ -411,7 +411,7 @@ pub fn reg_max_ts(clipboard: bool) -> Timestamp {
             if name == NUL {
                 break;
             }
-            max_ts = max_ts.max((*reg).timestamp);
+            max_ts = max_ts.max(unsafe { (*reg).timestamp });
             if iter.is_none() {
                 break;
             }
@@ -425,7 +425,7 @@ pub fn reg_max_ts(clipboard: bool) -> Timestamp {
 }
 
 pub fn op_reg_set(name: c_char, reg: Yankreg, is_unnamed: bool) -> bool {
-    unsafe {
+    {
         let i = op_reg_index(i32::from(name as u8));
         if i == -1 {
             return false;
@@ -433,7 +433,9 @@ pub fn op_reg_set(name: c_char, reg: Yankreg, is_unnamed: bool) -> bool {
         let target = (&raw mut reg_st().y_regs)
             .cast::<Yankreg>()
             .wrapping_add(i as usize);
-        *target = reg;
+        unsafe {
+            *target = reg;
+        }
 
         if is_unnamed {
             reg_st().y_previous = target;
@@ -1081,10 +1083,12 @@ pub fn shift_delete_registers(y_append: bool) {
 }
 
 pub fn clear_registers() {
-    unsafe {
+    {
         let regs = (&raw mut reg_st().y_regs).cast::<Yankreg>();
         for i in 0..NUM_REGISTERS {
-            *regs.wrapping_add(i) = EMPTY_YANKREG;
+            unsafe {
+                *regs.wrapping_add(i) = EMPTY_YANKREG;
+            }
         }
     }
 }
@@ -2450,10 +2454,10 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
 
 fn dis_msg(p: impl crate::strings::IntoCCharPtr, skip_esc: bool) {
     let mut p = p.into_c_char_ptr();
-    unsafe {
+    {
         let mut n = g_st().columns_global - 6;
         while !crate::memory::cstr_is_empty(p)
-            && !(*p == ESC && skip_esc && crate::memory::cstr_byte_at(p, 1) == 0)
+            && !(unsafe { *p } == ESC && skip_esc && crate::memory::cstr_byte_at(p, 1) == 0)
         {
             n -= ptr2cells(p);
             if n < 0 {
@@ -2769,13 +2773,15 @@ pub fn get_reg_contents_list(mut regname: i32, flags: i32) -> *mut TvList {
 }
 
 fn init_write_reg(name: i32, old_y_previous: *mut *mut Yankreg, must_append: bool) -> *mut Yankreg {
-    unsafe {
+    {
         if !valid_yank_reg(name, true) {
             emsg_invreg(name);
             return ptr::null_mut();
         }
 
-        *old_y_previous = reg_st().y_previous;
+        unsafe {
+            *old_y_previous = reg_st().y_previous;
+        }
 
         let reg = get_yank_register(name, YREG_YANK);
         if !is_append_register(name) && !must_append {

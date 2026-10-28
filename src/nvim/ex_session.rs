@@ -302,7 +302,7 @@ fn ses_fname(fd: *mut FILE, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -
 
 fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut sname_vec: Vec<c_char> = home_replace_save(None, name)
             .into_bytes_with_nul()
             .into_iter()
@@ -312,7 +312,9 @@ fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString {
         let mut p = sname_vec.as_mut_ptr();
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'\\' {
-                *p = b'/' as c_char;
+                unsafe {
+                    *p = b'/' as c_char;
+                }
             }
             p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
@@ -982,8 +984,8 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 pub fn ex_loadview(eap: &mut Exarg) {
-    unsafe {
-        let Some(fname) = get_view_file(*eap.arg) else {
+    {
+        let Some(fname) = get_view_file(unsafe { *eap.arg }) else {
             return;
         };
 

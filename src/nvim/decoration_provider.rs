@@ -351,7 +351,7 @@ pub fn decor_providers_invoke_range(
     end_row: i32,
     end_col: i32,
 ) {
-    unsafe {
+    {
         g_st().decor_state.running_decor_provider = true;
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -392,7 +392,7 @@ pub fn decor_providers_invoke_range(
                 if !status {
                     p.state = K_DECOR_PROVIDER_WIN_DISABLED;
                 } else if res.size >= 1 {
-                    let first = *res.items;
+                    let first = unsafe { *res.items };
                     if matches!(first.obj_type, ObjectType::ObjectTypeBoolean) {
                         if !first.data.boolean() {
                             p.state = K_DECOR_PROVIDER_WIN_DISABLED;

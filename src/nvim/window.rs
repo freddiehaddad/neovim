@@ -3541,10 +3541,12 @@ fn win_close_buffer(win: &mut WinInfoInfo, action: i32, abort_if_last: bool) -> 
 }
 
 fn win_unclose_buffer(win: &mut WinInfoInfo, _bufref: &mut Bufref) {
-    unsafe {
+    {
         if win.w_buffer.is_null() {
             win.w_buffer = g_st().firstbuf;
-            (*g_st().firstbuf).b_nwindows += 1;
+            unsafe {
+                (*g_st().firstbuf).b_nwindows += 1;
+            }
             if ptr::eq((&raw mut *win), curwin_ptr()) {
                 g_st().curbuf = curwin_mut().w_buffer;
             }
@@ -5367,7 +5369,7 @@ pub fn close_tabpage(tab: &mut TabPageInfo) {
 }
 
 pub fn find_tabpage(n: i32) -> *mut TabPageInfo {
-    unsafe {
+    {
         if n == 0 {
             return g_st().curtab;
         }
@@ -5376,19 +5378,19 @@ pub fn find_tabpage(n: i32) -> *mut TabPageInfo {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() && i != n {
             i += 1;
-            tp = (*tp).tp_next;
+            tp = unsafe { (*tp).tp_next };
         }
         tp
     }
 }
 
 pub fn tabpage_index(ftp: *mut TabPageInfo) -> i32 {
-    unsafe {
+    {
         let mut i: i32 = 1;
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() && !ptr::eq(tp, ftp) {
             i += 1;
-            tp = (*tp).tp_next;
+            tp = unsafe { (*tp).tp_next };
         }
         i
     }
@@ -6409,23 +6411,27 @@ pub fn win_remove(wp: &mut WinInfoInfo, tp: *mut TabPageInfo) {
 }
 
 fn frame_append(after: &mut Frame, frp: &mut Frame) {
-    unsafe {
+    {
         frp.fr_next = after.fr_next;
         after.fr_next = frp;
         if !frp.fr_next.is_null() {
-            (*frp.fr_next).fr_prev = frp;
+            unsafe {
+                (*frp.fr_next).fr_prev = frp;
+            }
         }
         frp.fr_prev = after;
     }
 }
 
 fn frame_insert(before: &mut Frame, frp: &mut Frame) {
-    unsafe {
+    {
         frp.fr_next = before;
         frp.fr_prev = before.fr_prev;
         before.fr_prev = frp;
         if !frp.fr_prev.is_null() {
-            (*frp.fr_prev).fr_next = frp;
+            unsafe {
+                (*frp.fr_prev).fr_next = frp;
+            }
         } else {
             frp.parent_mut().fr_child = frp;
         }

@@ -1382,12 +1382,12 @@ mod tests {
     #[test]
     fn default_globals_match_c_initializers() {
         let _guard = TEST_GLOBAL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        {
             assert_eq!({ g_st().rows_global }, 24);
             assert_eq!({ g_st().columns_global }, 80);
             assert_eq!({ g_st().dollar_vcol }, -1);
             assert_eq!({ g_st().t_colors }, 256);
-            assert_eq!({ *starting.as_ptr() }, 2);
+            assert_eq!({ unsafe { *starting.as_ptr() } }, 2);
             assert_eq!({ g_st().state_global }, 0x01);
             assert_eq!({ g_st().visual_global.mode }, b'v' as i32);
             assert_eq!({ g_st().search_global.last_line }, 0x7fffffff);

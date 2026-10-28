@@ -521,9 +521,9 @@ fn atom_origin_moved(origin: CmdOrigin) -> bool {
 
 #[inline]
 fn atom_origin_undoseq(origin: CmdOrigin) -> i32 {
-    unsafe {
+    {
         if bufref_valid(Some(&origin.buf)) {
-            (*origin.buf.br_buf).b_u_seq_cur
+            unsafe { (*origin.buf.br_buf).b_u_seq_cur }
         } else {
             0
         }
@@ -660,7 +660,7 @@ fn atom_key_name(c: i32) -> std::ffi::CString {
 }
 
 fn atom_dict(atom: &CmdAtom) -> Dict {
-    unsafe {
+    {
         let spec = &atom.spec;
         let regname: [c_char; 2] = [spec.regname as c_char, 0];
         let force_buf: [c_char; 2] = [spec.motion_force as c_char, 0];
@@ -719,7 +719,7 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
             _ => keys,
         };
         dict_put(&mut d, c"lhs", cstr_to_obj(lhs_ptr));
-        if *force != 0 {
+        if unsafe { *force } != 0 {
             dict_put(&mut d, c"motionforce", cstr_to_obj(force));
         }
         if !op.as_bytes().is_empty() {
@@ -1135,10 +1135,10 @@ pub fn atom_cmdline_set(firstc: i32, line: impl crate::strings::IntoCCharPtr, le
 
 #[inline]
 fn atom_typed_collecting() -> bool {
-    unsafe {
+    {
         let cur_frame = cur_frame_ptr();
         atom_composite_active()
-            || (!cur_frame.is_null() && (*cur_frame).payload_start != usize::MAX)
+            || (!cur_frame.is_null() && unsafe { (*cur_frame).payload_start } != usize::MAX)
     }
 }
 
@@ -1251,9 +1251,9 @@ pub fn atom_follow_changed() {
 }
 
 pub fn atom_redo_prepped() {
-    unsafe {
+    {
         if atom_is_user_cmd() {
-            let cur_id = (*cur_frame_ptr()).id;
+            let cur_id = unsafe { (*cur_frame_ptr()).id };
             root_frame().redo_frame = cur_id;
         }
     }
@@ -1407,7 +1407,7 @@ fn atom_visual_end_suffix(
     spec: Option<&CmdSpec>,
     redoable: bool,
 ) -> bool {
-    unsafe {
+    {
         if mc_replaying() || atom_st().atom_suppressed {
             return false;
         }
@@ -1490,7 +1490,7 @@ fn atom_visual_end_suffix(
             op_atom.r#type = K_AOPERATOR;
             op_atom.spec = spec.without_body();
             op_atom.keys = suffix;
-            op_atom.origin = (*cur_frame_ptr()).origin;
+            op_atom.origin = unsafe { (*cur_frame_ptr()).origin };
             atom_st().vatom.atoms.push(op_atom);
         }
         atom.cascaded = atom_st().vatom.done > 0;
@@ -1518,7 +1518,7 @@ pub fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool {
 }
 
 pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
-    unsafe {
+    {
         let redoable = op_redoable(oap.op_type, redo_yank);
         let ins_op =
             oap.op_type == OP_CHANGE || oap.op_type == OP_INSERT || oap.op_type == OP_APPEND;
@@ -1542,7 +1542,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
                     spec.cmd2 = if operand { NUL } else { cap.nchar };
                     spec.cmdarg = if operand { cap.nchar } else { NUL };
                     let mut op_atom = atom_from_spec(K_AOPERATOR, spec);
-                    op_atom.origin = (*cur_frame_ptr()).origin;
+                    op_atom.origin = unsafe { (*cur_frame_ptr()).origin };
                     atom_stage_set(&mut op_atom);
                 }
             } else if !g_st().visual_global.active || oap.motion_force != 0 {

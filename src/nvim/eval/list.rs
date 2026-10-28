@@ -262,7 +262,7 @@ fn filter_map_string(
     rettv: &mut TypVal,
 ) {
     let str_ptr = str_ptr.into_c_char_ptr();
-    unsafe {
+    {
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(std::ptr::null_mut());
 
@@ -271,7 +271,7 @@ fn filter_map_string(
         let mut out: Vec<u8> = Vec::with_capacity(80);
         let mut idx: i64 = 0;
         let mut p = str_ptr;
-        while *p != 0 {
+        while unsafe { *p } != 0 {
             let len = utfc_ptr2len(p) as usize;
             let mut tv = TypVal::new();
             crate::eval::typval::tv_set_string_len(&mut tv, p, len);

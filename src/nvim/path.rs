@@ -917,7 +917,7 @@ fn is_unique(
     i: usize,
 ) -> bool {
     let maybe_unique = maybe_unique.into_c_char_ptr();
-    unsafe {
+    {
         let candidate_len = crate::memory::cstr_len(maybe_unique);
 
         for (j, other_cstr) in gap.iter().enumerate() {
@@ -931,7 +931,7 @@ fn is_unique(
             }
             let rival = other.wrapping_add(other_path_len - candidate_len);
             if path_equal(maybe_unique, rival, K_PATH_CMP_LITERAL)
-                && (rival == other || vim_ispathsep(*rival.wrapping_sub(1) as i32))
+                && (rival == other || vim_ispathsep(unsafe { *rival.wrapping_sub(1) } as i32))
             {
                 return false;
             }
@@ -1349,7 +1349,7 @@ pub fn gen_expand_wildcards_vec(
     file: &mut Vec<std::ffi::CString>,
     flags: i32,
 ) -> bool {
-    unsafe {
+    {
         file.clear();
         let mut did_expand_in_path = false;
         let path_option = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
@@ -1386,7 +1386,7 @@ pub fn gen_expand_wildcards_vec(
                 break;
             }
             let mut add_pat: i32 = -1;
-            let mut p = *pat.wrapping_add(i as usize);
+            let mut p = unsafe { *pat.wrapping_add(i as usize) };
             let mut p_owned: Option<std::ffi::CString> = None;
 
             if vim_backtick(p) {
@@ -1891,7 +1891,7 @@ pub fn path_is_url(p: impl crate::strings::IntoCCharPtr) -> i32 {
 
 pub fn path_with_url(fname: impl crate::strings::IntoCCharPtr) -> i32 {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         if !(crate::memory::cstr_first_byte(fname)).is_ascii_alphabetic() {
             return 0;
         }
@@ -1908,7 +1908,7 @@ pub fn path_with_url(fname: impl crate::strings::IntoCCharPtr) -> i32 {
             p = p.wrapping_add(1);
         }
 
-        let prev = *p.wrapping_sub(1) as u8;
+        let prev = unsafe { *p.wrapping_sub(1) } as u8;
         if prev == b'+' || prev == b'-' || prev == b'.' {
             return 0;
         }
@@ -1949,8 +1949,10 @@ pub fn vim_full_name(
     force: bool,
 ) -> bool {
     let fname = fname.into_c_char_ptr();
-    unsafe {
-        *buf = NUL;
+    {
+        unsafe {
+            *buf = NUL;
+        }
         if fname.is_null() {
             return false;
         }
@@ -2066,10 +2068,10 @@ pub fn after_pathsep(
 ) -> i32 {
     let b = b.into_c_char_ptr();
     let p = p.into_c_char_ptr();
-    unsafe {
+    {
         i32::from(
             p > b
-                && vim_ispathsep(*p.wrapping_sub(1) as i32)
+                && vim_ispathsep(unsafe { *p.wrapping_sub(1) } as i32)
                 && utf_head_off(b, p.wrapping_sub(1)) == 0,
         )
     }
@@ -2233,11 +2235,11 @@ pub fn expand_wildcards_eval(
     file: &mut Vec<std::ffi::CString>,
     flags: i32,
 ) -> bool {
-    unsafe {
+    {
         let mut ret = false;
         let mut eval_pat: Option<std::ffi::CString> = None;
         let mut exp_pat_owned: Option<std::ffi::CString> = None;
-        let mut exp_pat = *pat;
+        let mut exp_pat = unsafe { *pat };
         let mut ignored_msg: *const c_char = ptr::null();
         let mut usedlen: usize = 0;
         let is_cur_alt_file = crate::memory::cstr_first_byte(exp_pat) == b'%'
@@ -2497,7 +2499,7 @@ pub fn path_guess_exepath(
     bufsize: usize,
 ) {
     let argv0 = argv0.into_c_char_ptr();
-    unsafe {
+    {
         let path_cstr = os_getenv_cstr(c"PATH");
         let argv0_bytes = crate::memory::cstr_as_bytes(argv0);
 
@@ -2508,7 +2510,9 @@ pub fn path_guess_exepath(
                 || argv0_bytes.contains(&(PATHSEP as u8))
             {
                 if !os_dirname(buf, MAXPATHL) {
-                    *buf = NUL;
+                    unsafe {
+                        *buf = NUL;
+                    }
                 }
                 {
                     let _dst: *mut c_char = buf;

@@ -270,14 +270,16 @@ pub fn ex_helpclose(eap: &mut Exarg) {
 
 /// Search for a language specifier in the form `@xx` (`check_help_lang`).
 pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
-    unsafe {
+    {
         let len = crate::memory::cstr_len(arg);
         if len >= 3
             && crate::memory::cstr_byte_at(arg, len - 3) == b'@'
             && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 2))
             && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 1))
         {
-            *arg.wrapping_add(len - 3) = NUL;
+            unsafe {
+                *arg.wrapping_add(len - 3) = NUL;
+            }
             return arg.wrapping_add(len - 2);
         }
         ptr::null_mut()
@@ -291,7 +293,7 @@ pub fn help_heuristic(
     wrong_case: bool,
 ) -> i32 {
     let matched_string = matched_string.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut num_letters: i32 = 0;
         let p = matched_string;
         for &p_byte in crate::memory::cstr_as_bytes(p) {
@@ -302,7 +304,7 @@ pub fn help_heuristic(
 
         if offset > 0
             && ascii_isalnum(crate::memory::cstr_char_at(matched_string, offset as usize))
-            && ascii_isalnum(*matched_string.wrapping_add((offset - 1) as usize))
+            && ascii_isalnum(unsafe { *matched_string.wrapping_add((offset - 1) as usize) })
         {
             offset += 10000;
         } else if offset > 2 {

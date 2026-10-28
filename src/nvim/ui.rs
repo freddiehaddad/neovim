@@ -599,7 +599,7 @@ pub fn ui_current_col() -> i32 {
 }
 
 pub fn ui_flush() {
-    unsafe {
+    {
         debug_assert!(g_st().ui_client_channel_id == 0);
         if ui_active() == 0 {
             return;
@@ -657,9 +657,11 @@ pub fn ui_flush() {
             } else {
                 ui_state().ui_mode_idx
             };
-            let full_name = (*(&raw const (*shape_table_mut()))
-                .cast::<Cursorentry>()
-                .wrapping_add(idx as usize))
+            let full_name = unsafe {
+                *(&raw const (*shape_table_mut()))
+                    .cast::<Cursorentry>()
+                    .wrapping_add(idx as usize)
+            }
             .full_name;
             ui_call_mode_change(cstr_as_string(full_name.as_ptr()), Integer::from(idx));
             ui_state().pending_mode_update = false;
@@ -749,7 +751,7 @@ pub fn ui_cursor_shape() {
 }
 
 fn ui_cursor_is_behind_floatwin() -> bool {
-    unsafe {
+    {
         if (g_st().state_global & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
             return false;
         }
@@ -766,7 +768,7 @@ fn ui_cursor_is_behind_floatwin() -> bool {
         let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
         top_grid != &raw mut curwin_mut().w_grid_alloc
             && top_grid != &raw mut g_st().default_grid
-            && (*top_grid).zindex >= curwin_mut().w_grid_alloc.zindex + 50
+            && unsafe { (*top_grid).zindex } >= curwin_mut().w_grid_alloc.zindex + 50
     }
 }
 
@@ -944,7 +946,7 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
 }
 
 fn ui_cb_update_ext() {
-    unsafe {
+    {
         ui_state().ui_cb_ext = [false; K_UIEXT_COUNT];
         let ui_cb_ext_ptr = (&raw mut ui_state().ui_cb_ext).cast::<bool>();
 
@@ -952,7 +954,9 @@ fn ui_cb_update_ext() {
         for i in 0..K_UIGLOBAL_COUNT {
             for event_cb in cbs_ptr.values() {
                 if event_cb.ext_widgets[i] {
-                    *ui_cb_ext_ptr.wrapping_add(i) = true;
+                    unsafe {
+                        *ui_cb_ext_ptr.wrapping_add(i) = true;
+                    }
                     break;
                 }
             }

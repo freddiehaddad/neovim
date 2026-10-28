@@ -334,12 +334,12 @@ pub fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) -> i32 {
 }
 
 fn format_schar(out: &mut Vec<u8>, schar: Schar) {
-    unsafe {
+    {
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(buf.as_mut_ptr(), schar);
         let mut ci = utf_ptr2_str_char_info(buf.as_ptr());
         let mut did = false;
-        while *ci.ptr != 0 {
+        while unsafe { *ci.ptr } != 0 {
             if did {
                 out.push(b',');
             }
@@ -837,10 +837,10 @@ pub fn vterm_screen_get_text(
 }
 
 pub fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> i32 {
-    unsafe {
+    {
         while pos.col < screen.cols {
             let cell = getcell(screen, pos.row, pos.col);
-            if (*cell).schar != 0 {
+            if unsafe { (*cell).schar } != 0 {
                 return 0;
             }
             pos.col += 1;

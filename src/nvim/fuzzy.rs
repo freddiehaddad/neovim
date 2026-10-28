@@ -723,7 +723,7 @@ pub fn fuzzy_match_str_with_pos(
 ) -> Option<Vec<u32>> {
     let str_ptr = str_ptr.into_c_char_ptr();
     let pat = pat.into_c_char_ptr();
-    unsafe {
+    {
         if str_ptr.is_null() || pat.is_null() {
             return None;
         }
@@ -745,7 +745,7 @@ pub fn fuzzy_match_str_with_pos(
         let mut match_positions = Vec::with_capacity(10);
         let mut j = 0usize;
         let mut p = pat;
-        while *p != 0 {
+        while unsafe { *p } != 0 {
             if !ascii_iswhite(utf_ptr2char(p)) {
                 match_positions.push(matches[j]);
                 j += 1;

@@ -1338,8 +1338,8 @@ pub fn get_menu_cmd_modes(
     unmenu: Option<&mut bool>,
 ) -> i32 {
     let mut cmd = cmd.into_c_char_ptr();
-    unsafe {
-        let first = *cmd;
+    {
+        let first = unsafe { *cmd };
         cmd = cmd.wrapping_add(1);
         let modes = match first as u8 {
             b'v' => MENU_VISUAL_MODE | MENU_SELECT_MODE,
@@ -1494,11 +1494,11 @@ fn menu_text(
 /// Return true if `name` can be a menu in the MenuBar (`menu_is_menubar`).
 pub fn menu_is_menubar(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         !menu_is_popup(name)
             && !menu_is_toolbar(name)
             && !menu_is_winbar(name)
-            && *name != MNU_HIDDEN_CHAR
+            && unsafe { *name } != MNU_HIDDEN_CHAR
     }
 }
 
@@ -1866,12 +1866,12 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
 /// Find the character just after one part of a menu name (`menu_skip_part`).
 fn menu_skip_part(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     let mut p = p.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         while !crate::memory::cstr_is_empty(p)
             && crate::memory::cstr_first_byte(p) != b'.'
             && !ascii_iswhite(crate::memory::cstr_first_char(p))
         {
-            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST)
+            if (crate::memory::cstr_first_byte(p) == b'\\' || unsafe { *p } == CTRL_V_CONST)
                 && crate::memory::cstr_byte_at(p, 1) != 0
             {
                 p = p.wrapping_add(1);

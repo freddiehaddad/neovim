@@ -520,7 +520,7 @@ fn del_history_idx(histype: i32, idx_arg: i32) -> i32 {
 
 /// `"histadd()"` function (`f_histadd`).
 pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         if check_secure() {
             return;
@@ -537,7 +537,7 @@ pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         let mut buf = [0 as c_char; NUMBUFLEN];
         let entry_str = tv_get_string_buf(&argvars[1], buf.as_mut_ptr());
-        if *entry_str == 0 {
+        if unsafe { *entry_str } == 0 {
             return;
         }
 

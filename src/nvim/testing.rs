@@ -527,10 +527,10 @@ pub fn f_assert_notequal(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
 /// `"assert_exception(string[, msg])"` function (`f_assert_exception`).
 pub fn f_assert_exception(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let error = tv_get_string_chk(&argvars[0]);
         let v_exc = get_vim_var_str(VV_EXCEPTION);
-        if *v_exc == 0 {
+        if unsafe { *v_exc } == 0 {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             ga_concat_literal(&mut ga, b"v:exception is not set");

@@ -1952,7 +1952,7 @@ pub fn free_all_autocmds() {
 
 pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_char) -> AuEvent {
     let start = start.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = start;
         while !crate::memory::cstr_is_empty(p)
             && !ascii_iswhite(crate::memory::cstr_first_char(p))
@@ -1966,7 +1966,9 @@ pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_
         if crate::memory::cstr_first_byte(p) == b',' {
             p = p.wrapping_add(1);
         }
-        *end = p.cast_mut();
+        unsafe {
+            *end = p.cast_mut();
+        }
         if hash_idx < 0 {
             return NUM_EVENTS as AuEvent;
         }
@@ -2066,7 +2068,7 @@ pub fn au_event_restore(old_ei: Option<std::ffi::CString>) {
 }
 
 pub fn do_autocmd(eap: &mut Exarg, arg_in: *mut c_char, forceit: i32) {
-    unsafe {
+    {
         let mut arg = arg_in;
         let mut envpat: Option<CString> = None;
         let mut cmd: *mut c_char;
@@ -2101,7 +2103,9 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: *mut c_char, forceit: i32) {
                     cmd = cmd.wrapping_add(1);
                 }
                 if !crate::memory::cstr_is_empty(cmd) {
-                    *cmd = NUL;
+                    unsafe {
+                        *cmd = NUL;
+                    }
                     cmd = cmd.wrapping_add(1);
                 }
 
@@ -2471,7 +2475,7 @@ pub fn do_doautocmd(
     mut did_something: Option<&mut bool>,
 ) -> bool {
     let arg_start = arg_start.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut arg = arg_start;
         let mut nothing_done = true;
 
@@ -2494,7 +2498,7 @@ pub fn do_doautocmd(
         fname = skipwhite(fname);
 
         while !crate::memory::cstr_is_empty(arg)
-            && ends_excmd(i32::from(*arg.cast::<u8>())) == 0
+            && ends_excmd(i32::from(unsafe { *arg.cast::<u8>() })) == 0
             && !ascii_iswhite(crate::memory::cstr_first_char(arg))
         {
             let ev = event_name2nr(arg, &raw mut arg);

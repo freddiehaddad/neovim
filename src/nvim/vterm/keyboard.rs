@@ -714,18 +714,18 @@ pub fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModifier) {
 }
 
 pub fn vterm_keyboard_start_paste(vt: &mut VTerm) {
-    unsafe {
+    {
         let state: *const VTermStateFull = vt.state_ptr();
-        if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
+        if (unsafe { (*state).mode } & MODE_BRACKETPASTE_BIT) != 0 {
             vterm_push_output_ctrl_bytes(vt, C1_CSI, b"200~");
         }
     }
 }
 
 pub fn vterm_keyboard_end_paste(vt: &mut VTerm) {
-    unsafe {
+    {
         let state: *const VTermStateFull = vt.state_ptr();
-        if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
+        if (unsafe { (*state).mode } & MODE_BRACKETPASTE_BIT) != 0 {
             vterm_push_output_ctrl_bytes(vt, C1_CSI, b"201~");
         }
     }

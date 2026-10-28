@@ -1992,7 +1992,7 @@ fn may_do_command_line_next_incsearch(
     s: &mut IncsearchState,
     next_match: bool,
 ) -> bool {
-    unsafe {
+    {
         let mut skiplen: i32 = 0;
         let mut patlen: i32 = 0;
         let mut search_delim: i32 = 0;
@@ -2072,7 +2072,9 @@ fn may_do_command_line_next_incsearch(
         );
         g_st().emsg_off -= 1;
         if !dircp.is_null() {
-            *dircp = search_delim as c_char;
+            unsafe {
+                *dircp = search_delim as c_char;
+            }
         }
         ui_busy_stop();
         if found != 0 {
@@ -3002,7 +3004,7 @@ pub fn cmdpreview_get_ns() -> i32 {
 
 /// Sets up command preview buffer.
 fn cmdpreview_open_buf() -> *mut FileBuf {
-    unsafe {
+    {
         let mut cmdpreview_buf = if getln_st().cmdpreview_bufnr != 0 {
             buflist_findnr(getln_st().cmdpreview_bufnr)
         } else {
@@ -3051,7 +3053,7 @@ fn cmdpreview_open_buf() -> *mut FileBuf {
         curbuf_mut().b_p_ul = -1;
         curbuf_mut().b_p_tw = 0;
         ctx_restore(&mut aco);
-        getln_st().cmdpreview_bufnr = (*cmdpreview_buf).b_fnum;
+        getln_st().cmdpreview_bufnr = unsafe { (*cmdpreview_buf).b_fnum };
 
         cmdpreview_buf
     }
@@ -3426,7 +3428,7 @@ pub fn getcmdline_prompt(
 ) -> Option<std::ffi::CString> {
     let prompt = prompt.into_c_char_ptr();
     let xp_arg = xp_arg.into_c_char_ptr();
-    unsafe {
+    {
         let msg_col_save = g_st().msg_col;
 
         let mut did_save_ccline = false;
@@ -3462,7 +3464,9 @@ pub fn getcmdline_prompt(
 
         let ret = command_line_enter(firstc, 1, 0, false);
         if !mouse_used.is_null() {
-            *mouse_used = getln_st().ccline.mouse_used.unwrap_or(false);
+            unsafe {
+                *mouse_used = getln_st().ccline.mouse_used.unwrap_or(false);
+            }
         }
         getln_st().ccline.redraw_state = K_CMD_REDRAW_NONE;
         getln_st().ccline.highlight_callback = Callback::NONE;
@@ -4569,7 +4573,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
 /// Put a string on the command line.
 pub fn cmdline_paste_str(s: impl crate::strings::IntoCCharPtr, literally: bool) {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         if literally {
             put_on_cmdline(s, -1, true);
         } else {
@@ -4585,7 +4589,7 @@ pub fn cmdline_paste_str(s: impl crate::strings::IntoCCharPtr, literally: bool) 
                     || c == CAR
                     || c == NL
                     || c == CTRL_L_CONST
-                    || (c == CTRL_BSL && *s as i32 == CTRL_N)
+                    || (c == CTRL_BSL && unsafe { *s } as i32 == CTRL_N)
                 {
                     stuffchar_readbuff(CTRL_V_CONST);
                 }
@@ -4983,10 +4987,10 @@ pub fn f_getcmdline(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// `"getcmdpos()"` function.
 pub fn f_getcmdpos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let p = get_ccline_ptr();
         rettv.vval = crate::eval::typval::TypvalVval::Number(if !p.is_null() {
-            ((*p).cmdpos + 1) as Varnumber
+            (unsafe { (*p).cmdpos } + 1) as Varnumber
         } else {
             0
         });
@@ -5010,10 +5014,10 @@ pub fn f_getcmdprompt(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// `"getcmdscreenpos()"` function.
 pub fn f_getcmdscreenpos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let p = get_ccline_ptr();
         rettv.vval = crate::eval::typval::TypvalVval::Number(if !p.is_null() {
-            ((*p).cmdspos + 1) as Varnumber
+            (unsafe { (*p).cmdspos } + 1) as Varnumber
         } else {
             0
         });

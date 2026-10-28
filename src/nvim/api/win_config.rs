@@ -539,12 +539,12 @@ pub fn nvim_open_win(
 }
 
 fn win_split_dir(win: &WinInfoInfo) -> WinSplit {
-    unsafe {
+    {
         if win.w_frame.is_null() || win.frame_mut().fr_parent.is_null() {
             return K_WIN_SPLIT_LEFT;
         }
 
-        let layout = (*win.frame_mut().fr_parent).fr_layout;
+        let layout = unsafe { (*win.frame_mut().fr_parent).fr_layout };
         if layout == FR_COL {
             if !win.frame_mut().fr_next.is_null() {
                 K_WIN_SPLIT_ABOVE
@@ -1136,7 +1136,7 @@ fn config_put_bordertext(
 // DLLEXPORT Dict(win_config) nvim_win_get_config(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(6);
 pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> KeyDict_win_config {
-    unsafe {
+    {
         const FLOAT_RELATIVE_STR: [&CStr; 6] = [
             c"editor",
             c"win",
@@ -1199,7 +1199,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
                     let s = cstrn_as_string(config.border_chars[i].as_ptr(), MAX_SCHAR_SIZE);
                     let hi_id = config.border_hl_ids[i];
                     let hi_name = syn_id2name(hi_id);
-                    if *hi_name != 0 {
+                    if unsafe { *hi_name } != 0 {
                         let mut tuple = arena_array(arena, 2);
                         add_c(&mut tuple, string_obj(s));
                         add_c(&mut tuple, string_obj(cstr_as_string(hi_name)));

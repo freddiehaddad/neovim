@@ -2487,7 +2487,7 @@ fn stp_sal_score(
     badsound: impl crate::strings::IntoCCharPtr,
 ) -> i32 {
     let badsound = badsound.into_c_char_ptr();
-    unsafe {
+    {
         let mut badsound2: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut fword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut goodsound: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2506,7 +2506,7 @@ fn stp_sal_score(
             if ascii_iswhite(crate::memory::cstr_char_at(
                 su.su_badptr,
                 su.su_badlen as usize,
-            )) && *skiptowhite(stp.st_word.as_ptr()) == NUL
+            )) && unsafe { *skiptowhite(stp.st_word.as_ptr()) } == NUL
             {
                 let mut p = (&raw mut fword).cast::<c_char>();
                 loop {

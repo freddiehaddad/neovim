@@ -2382,7 +2382,7 @@ fn combine_stl_hlt(
     hlf: usize,
     table: *mut i32,
 ) {
-    unsafe {
+    {
         let dst = (hlcnt + i) as usize;
         let u_idx = (id - 1) as usize;
         let s_idx = (id_s - 1) as usize;
@@ -2414,7 +2414,9 @@ fn combine_stl_hlt(
             hl_table_at(dst).sg_rgb_sp = hl_table_at(u_idx).sg_rgb_sp;
         }
         set_hl_attr(hlcnt + i);
-        *table.wrapping_add(i as usize) = syn_id2attr(hlcnt + i + 1);
+        unsafe {
+            *table.wrapping_add(i as usize) = syn_id2attr(hlcnt + i + 1);
+        }
     }
 }
 
@@ -2673,12 +2675,14 @@ pub fn coloridx_to_name(idx: i32, val: i32, hexbuf: *mut c_char) -> *const c_cha
 
 pub fn name_to_ctermcolor(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let off = (crate::memory::cstr_first_byte(name)).to_ascii_uppercase() as c_char;
         let mut i = COLOR_NAMES.len() as isize - 1;
         while i >= 0 {
             let cname = COLOR_NAMES[i as usize].as_ptr();
-            if off == *cname && mb_stricmp(name.wrapping_add(1), cname.wrapping_add(1)) == 0 {
+            if off == unsafe { *cname }
+                && mb_stricmp(name.wrapping_add(1), cname.wrapping_add(1)) == 0
+            {
                 break;
             }
             i -= 1;

@@ -77,7 +77,7 @@ fn validate_option_value_args(
     err: &mut Error,
 ) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mask = opts.is_set_option;
         if has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
             && (has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE)
@@ -123,7 +123,9 @@ fn validate_option_value_args(
         *scope = K_OPT_SCOPE_GLOBAL;
 
         if !filetype.is_null() && has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE) {
-            *filetype = opts.filetype.data;
+            unsafe {
+                *filetype = opts.filetype.data;
+            }
         }
 
         if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) {
@@ -449,7 +451,7 @@ pub fn nvim_option_to_object(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let opt_idx = find_option(name.data);
         if opt_idx == K_OPT_INVALID {
             api_set_error!(
@@ -531,7 +533,9 @@ pub fn nvim_option_to_object(
                     .map_or(ptr::null_mut(), |i| item.wrapping_add(i));
                 let mut val: *mut c_char = ptr::null_mut();
                 if !colon.is_null() {
-                    *colon = NUL;
+                    unsafe {
+                        *colon = NUL;
+                    }
                     val = colon.wrapping_add(1);
                 }
                 let key = arena_string(arena, cstr_as_string(item));

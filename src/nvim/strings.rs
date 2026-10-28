@@ -858,7 +858,7 @@ fn adjust_types(
     type_: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let type_ = type_.into_c_char_ptr();
-    unsafe {
+    {
         if arg <= 0 {
             semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), type_);
             return false;
@@ -877,7 +877,9 @@ fn adjust_types(
                 if crate::memory::cstr_first_byte(pt) == b'*' {
                     pt = prev;
                 }
-                if crate::memory::cstr_first_byte(pt) != b'*' && !matches!(*pt as u8, b'd' | b'i') {
+                if crate::memory::cstr_first_byte(pt) != b'*'
+                    && !matches!(unsafe { *pt } as u8, b'd' | b'i')
+                {
                     semsg!(
                         gettext(E_POSITIONAL_FIELD_SPEC_REUSED),
                         arg,
@@ -904,9 +906,9 @@ fn adjust_types(
 
 pub fn format_overflow_error(pstart: impl crate::strings::IntoCCharPtr) {
     let pstart = pstart.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = pstart;
-        while ascii_isdigit(*p) {
+        while ascii_isdigit(unsafe { *p }) {
             p = p.wrapping_add(1);
         }
         semsg!(
@@ -2199,13 +2201,15 @@ pub fn vim_snprintf_safelen_fmt(
     args: &[FmtVal],
 ) -> usize {
     let fmt = fmt.into_c_char_ptr();
-    unsafe {
+    {
         if str_m == 0 {
             return 0;
         }
         let str_l = vim_snprintf_fmt(str_out, str_m, fmt, args);
         if str_l < 0 {
-            *str_out = NUL;
+            unsafe {
+                *str_out = NUL;
+            }
             return 0;
         }
         let len = str_l as usize;
@@ -3111,7 +3115,7 @@ mod tests {
 
     #[test]
     fn vim_strnsave_unquoted_and_strrep_and_format_typeof_work() {
-        unsafe {
+        {
             let unquoted = vim_strnsave_unquoted(b"\"/bin/sh\"");
             assert_eq!(unquoted.to_str().unwrap(), "/bin/sh");
 
@@ -3128,7 +3132,7 @@ mod tests {
             assert_eq!(crate::charset::parse_i64_prefix(b" +56789"), 56789);
             let mut end: *mut c_char = ptr::null_mut();
             assert_eq!(strtod(c"  -12.5e2px", &raw mut end), -1250.0);
-            assert_eq!(*end as u8, b'p');
+            assert_eq!(unsafe { *end } as u8, b'p');
             assert_eq!(strtod(c"0x1.8p+2", &raw mut end), 6.0);
             assert!(strtod(c"-INF", &raw mut end).is_infinite());
             assert!(strtod(c"NaN", &raw mut end).is_nan());

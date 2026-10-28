@@ -289,12 +289,12 @@ pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
 }
 
 pub fn ui_comp_set_grid(handle: ObjHandle) -> bool {
-    unsafe {
+    {
         if comp().curgrid_mut().handle == handle {
             return true;
         }
         for &g in layers_mut().iter() {
-            if (*g).handle == handle {
+            if unsafe { (*g).handle } == handle {
                 comp().curgrid = g;
                 return true;
             }
@@ -330,7 +330,7 @@ pub fn ui_comp_raise_grid(grid: &mut ScreenGrid, new_index: usize) {
 }
 
 pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
-    unsafe {
+    {
         if !ui_comp_set_grid(grid_handle as i32) {
             return;
         }
@@ -340,7 +340,7 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
         if !ptr::eq(comp().curgrid, &raw const g_st().default_grid) {
             let l = layers_mut();
             let mut new_index = l.len() - 1;
-            while new_index > 1 && (*l[new_index]).zindex > comp().curgrid_mut().zindex {
+            while new_index > 1 && unsafe { (*l[new_index]).zindex } > comp().curgrid_mut().zindex {
                 new_index -= 1;
             }
             if comp().curgrid_mut().comp_index < new_index {
@@ -676,7 +676,7 @@ pub fn ui_comp_raw_line(
     chunk: *const Schar,
     attrs: *const Sattr,
 ) {
-    unsafe {
+    {
         if !ui_comp_should_draw() || !ui_comp_set_grid(grid as i32) {
             return;
         }
@@ -725,7 +725,7 @@ pub fn ui_comp_raw_line(
             );
             compose_debug(row, row + 1, endcol, clearcol, comp().dbghl_clear, true);
             for i in 0..((endcol - startcol) as usize) {
-                debug_assert!(*attrs.wrapping_add(i) >= 0);
+                debug_assert!(unsafe { *attrs.wrapping_add(i) } >= 0);
             }
             ui_composed_call_raw_line(
                 1, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,

@@ -1962,7 +1962,7 @@ fn handle_tag(tagname: Option<&CStr>) {
 }
 
 fn read_stdin() {
-    unsafe {
+    {
         g_st().swap_exists_action = SEA_DIALOG;
         g_st().no_wait_return = 1;
         let save_msg_didany = g_st().msg_didany;
@@ -1987,7 +1987,7 @@ fn read_stdin() {
                 true,
             );
 
-            let stdin_buf_handle: ObjHandle = (*stdin_buf).b_fnum;
+            let stdin_buf_handle: ObjHandle = unsafe { (*stdin_buf).b_fnum };
             let stdin_buf_empty = buf_is_empty(curbuf_mut());
 
             let mut buf = [0 as c_char; 100];
@@ -2025,7 +2025,7 @@ fn read_stdin() {
 }
 
 fn create_windows(parmp: &mut Mparm) {
-    unsafe {
+    {
         if parmp.window_count == -1 {
             parmp.window_count = 1;
         }
@@ -2039,7 +2039,9 @@ fn create_windows(parmp: &mut Mparm) {
             if parmp.window_layout == WIN_TABS {
                 parmp.window_count = make_tabpages(parmp.window_count);
                 time_msg_if_enabled(c"making tab pages");
-            } else if firstwin_mut().w_next.is_null() || (*firstwin_mut().w_next).w_floating {
+            } else if firstwin_mut().w_next.is_null()
+                || unsafe { (*firstwin_mut().w_next).w_floating }
+            {
                 parmp.window_count =
                     make_windows(parmp.window_count, parmp.window_layout == WIN_VER);
                 time_msg_if_enabled(c"making windows");

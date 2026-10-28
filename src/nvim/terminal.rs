@@ -1664,7 +1664,7 @@ const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> i32 {
 }
 
 pub fn terminal_get_line_attributes(term: &mut Terminal, linenr: i32, term_attrs: *mut i32) {
-    unsafe {
+    {
         let mut height: i32 = 0;
         let mut width: i32 = 0;
         vterm_get_size(&term.vt, &mut height, &mut width);
@@ -1775,7 +1775,9 @@ pub fn terminal_get_line_attributes(term: &mut Terminal, linenr: i32, term_attrs
                 attr_id = hl_combine_attr(attr_id, cell.uri);
             }
 
-            *term_attrs.wrapping_add(col as usize) = attr_id;
+            unsafe {
+                *term_attrs.wrapping_add(col as usize) = attr_id;
+            }
         }
     }
 }

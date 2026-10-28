@@ -2884,12 +2884,12 @@ pub fn readfile(
 #[cfg(test)]
 pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let bytes = crate::memory::cstr_as_bytes(fname);
         bytes.starts_with(b"/dev/fd/")
             && bytes.len() > 8
             && ascii_isdigit(bytes[8])
-            && *skipdigits(fname.wrapping_add(9)) == NUL
+            && unsafe { *skipdigits(fname.wrapping_add(9)) } == NUL
             && (crate::memory::cstr_byte_at(fname, 9) != 0
                 || (crate::memory::cstr_byte_at(fname, 8) != b'0'
                     && crate::memory::cstr_byte_at(fname, 8) != b'1'
@@ -3146,7 +3146,7 @@ pub fn fname_msg_id(
     fname: impl crate::strings::IntoCCharPtr,
 ) {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut len = xstrlcpy(msg_id, prefix.as_ptr(), size);
         if len < size {
             len += xstrlcpy(msg_id.wrapping_add(len), c" ", size - len);
@@ -3156,7 +3156,9 @@ pub fn fname_msg_id(
         }
         let total = crate::memory::cstr_len(msg_id);
         if total > 0 {
-            *msg_id.wrapping_add(total - 1) = NUL;
+            unsafe {
+                *msg_id.wrapping_add(total - 1) = NUL;
+            }
         }
     }
 }
@@ -4570,7 +4572,7 @@ fn vim_closetempdir() {
 
 /// Delete the temp directory and all files it contains.
 pub fn vim_deltempdir() {
-    unsafe {
+    {
         let Some(td) = fio_st().vim_tempdir.take() else {
             return;
         };
@@ -4583,7 +4585,9 @@ pub fn vim_deltempdir() {
             .into_iter()
             .map(|b| b as c_char)
             .collect();
-        *path_tail(td_vec.as_mut_ptr()).wrapping_sub(1) = NUL;
+        unsafe {
+            *path_tail(td_vec.as_mut_ptr()).wrapping_sub(1) = NUL;
+        }
         delete_recursive(td_vec.as_ptr());
     }
 }

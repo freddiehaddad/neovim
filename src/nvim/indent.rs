@@ -135,7 +135,7 @@ pub fn tabstop_set(
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
     let mut var = var.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut valcount: usize = 1;
 
         if crate::memory::cstr_is_empty(var)
@@ -165,7 +165,7 @@ pub fn tabstop_set(
             }
             if crate::memory::cstr_first_byte(cp) == b','
                 && cp > var
-                && *cp.wrapping_sub(1) != b',' as c_char
+                && unsafe { *cp.wrapping_sub(1) } != b',' as c_char
                 && crate::memory::cstr_byte_at(cp, 1) != 0
             {
                 valcount += 1;
@@ -421,11 +421,11 @@ pub fn get_indent_buf(buf: &mut FileBuf, lnum: Linenr) -> i32 {
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
 pub fn indent_size_no_ts(ptr: impl crate::strings::IntoCCharPtr) -> i32 {
     let mut ptr = ptr.into_c_char_ptr();
-    unsafe {
+    {
         let tab_size = opt_vars().dy_escape_width;
         let mut vcol: i32 = 0;
         loop {
-            let c = *ptr;
+            let c = unsafe { *ptr };
             ptr = ptr.wrapping_add(1);
             if c == b' ' as c_char {
                 vcol += 1;

@@ -1930,7 +1930,7 @@ fn fold_update_iemsrecurse(
     mut bot: Linenr,
     topflags: c_char,
 ) -> Linenr {
-    unsafe {
+    {
         let mut fp_idx: Option<usize> = None;
 
         if getlevel == LevelGetterKind::Marker && flp.start <= flp.lvl - level && flp.lvl > 0 {
@@ -1944,7 +1944,7 @@ fn fold_update_iemsrecurse(
         let mut startlnum2 = startlnum;
         let firstlnum = flp.lnum;
         let mut finish = false;
-        let linecount = (*flp.wp_mut().w_buffer).b_ml.ml_line_count - flp.off;
+        let linecount = unsafe { (*flp.wp_mut().w_buffer).b_ml.ml_line_count } - flp.off;
 
         flp.lnum_save = flp.lnum;
         while !g_st().got_int {
@@ -2645,12 +2645,12 @@ fn foldlevel_marker(flp: &mut Fline) {
 }
 
 fn foldlevel_syntax(flp: &mut Fline) {
-    unsafe {
+    {
         let lnum = flp.lnum + flp.off;
 
         flp.lvl = syn_get_foldlevel(flp.wp_mut(), lnum);
         flp.start = 0;
-        if lnum < (*flp.wp_mut().w_buffer).b_ml.ml_line_count {
+        if lnum < unsafe { (*flp.wp_mut().w_buffer).b_ml.ml_line_count } {
             let n = syn_get_foldlevel(flp.wp_mut(), lnum + 1);
             if n > flp.lvl {
                 flp.start = n - flp.lvl;

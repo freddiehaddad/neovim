@@ -3603,7 +3603,7 @@ fn attention_message(
 
 fn do_swapexists(buf: &mut FileBuf, fname: impl crate::strings::IntoCCharPtr) -> SeaChoice {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         set_vim_var_string(VV_SWAPNAME, fname, -1);
         set_vim_var_string(VV_SWAPCHOICE, ptr::null(), -1);
 
@@ -3619,7 +3619,7 @@ fn do_swapexists(buf: &mut FileBuf, fname: impl crate::strings::IntoCCharPtr) ->
 
         set_vim_var_string(VV_SWAPNAME, ptr::null(), -1);
 
-        match *get_vim_var_str(VV_SWAPCHOICE) as u8 {
+        match unsafe { *get_vim_var_str(VV_SWAPCHOICE) } as u8 {
             b'o' => SEA_CHOICE_READONLY,
             b'e' => SEA_CHOICE_EDIT,
             b'r' => SEA_CHOICE_RECOVER,

@@ -1699,9 +1699,9 @@ fn cmdexp() -> &'static mut CmdexpandState {
 #[inline]
 fn c_strchr(s: impl crate::strings::IntoCCharPtr, c: c_char) -> *mut c_char {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         loop {
-            if *s == c {
+            if unsafe { *s } == c {
                 return s.cast_mut();
             }
             if crate::memory::cstr_is_empty(s) {
@@ -3439,7 +3439,7 @@ fn find_cmd_after_global_cmd(arg: impl crate::strings::IntoCCharPtr) -> *const c
 /// Returns a pointer to the next command after a :substitute or a :& command.
 fn find_cmd_after_substitute_cmd(arg: impl crate::strings::IntoCCharPtr) -> *const c_char {
     let mut arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         let delim = crate::memory::cstr_first_byte(arg) as i32;
         if delim != 0 {
             arg = arg.wrapping_add(1);
@@ -3464,7 +3464,7 @@ fn find_cmd_after_substitute_cmd(arg: impl crate::strings::IntoCCharPtr) -> *con
                 }
             }
         }
-        while !crate::memory::cstr_is_empty(arg) && c_strchr(c"|\"#", *arg).is_null() {
+        while !crate::memory::cstr_is_empty(arg) && c_strchr(c"|\"#", unsafe { *arg }).is_null() {
             arg = arg.wrapping_add(1);
         }
         if !crate::memory::cstr_is_empty(arg) {
@@ -3481,7 +3481,7 @@ fn find_cmd_after_isearch_cmd(
     arg: impl crate::strings::IntoCCharPtr,
 ) -> *const c_char {
     let mut arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         arg = skipwhite(skipdigits(arg));
         if crate::memory::cstr_first_byte(arg) != b'/' {
             return ptr::null();
@@ -3499,7 +3499,7 @@ fn find_cmd_after_isearch_cmd(
         if !crate::memory::cstr_is_empty(arg) {
             arg = skipwhite(arg.wrapping_add(1));
 
-            if crate::memory::cstr_is_empty(arg) || c_strchr(c"|\"\n", *arg).is_null() {
+            if crate::memory::cstr_is_empty(arg) || c_strchr(c"|\"\n", unsafe { *arg }).is_null() {
                 xp.xp_context = EXPAND_NOTHING;
             } else {
                 return arg;
@@ -4630,7 +4630,7 @@ fn get_mapclear_arg(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
 
 /// Completion for |:checkhealth| command.
 fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    unsafe {
+    {
         let prompt_id = get_cmdline_last_prompt_id();
         if cmdexp().healthcheck_last_gen != prompt_id || cmdexp().healthcheck_last_gen == 0 {
             let a = Array::new();
@@ -4657,12 +4657,14 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
             && idx >= 0
             && (idx as usize) < cmdexp().healthcheck_names.data.array().size
         {
-            let item = *cmdexp()
-                .healthcheck_names
-                .data
-                .array()
-                .items
-                .wrapping_add(idx as usize);
+            let item = unsafe {
+                *cmdexp()
+                    .healthcheck_names
+                    .data
+                    .array()
+                    .items
+                    .wrapping_add(idx as usize)
+            };
             if item.obj_type == ObjectType::ObjectTypeString {
                 return item.data.string().data;
             }

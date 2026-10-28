@@ -382,7 +382,7 @@ fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
 }
 
 fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
-    unsafe {
+    {
         let cp = key.code.codepoint;
         if (0xE000..=0xF8FF).contains(&cp) && kitty_key_name(cp).is_some() {
             handle_kitty_key_protocol(input, key);
@@ -392,7 +392,7 @@ fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
         let mut buf = [0u8; 64];
         let mut len: usize = 0;
         let mut ptr = key.utf8.as_ptr();
-        while *ptr != 0 {
+        while unsafe { *ptr } != 0 {
             if crate::memory::cstr_first_byte(ptr) == b'<' {
                 buf[len..len + 4].copy_from_slice(b"<lt>");
                 len += 4;

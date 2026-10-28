@@ -1799,7 +1799,7 @@ fn findtags_get_next_line(st: &mut FindtagsState, sinfo_p: &mut TagsearchInfo) -
 }
 
 fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
-    unsafe {
+    {
         let lbuf = st.lbuf.as_mut_ptr();
         if !(crate::memory::cstr_prefix_bytes(lbuf, 6) == &b"!_TAG_"[..6]) {
             return true;
@@ -1815,7 +1815,9 @@ fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
             {
                 p = p.wrapping_add(1);
             }
-            *p = NUL;
+            unsafe {
+                *p = NUL;
+            }
             convert_setup(&mut st.vimconv, lbuf.wrapping_add(20), opt_vars().p_enc);
         }
 
@@ -3317,7 +3319,7 @@ fn add_tag_field(
     let start = start.into_c_char_ptr();
     let mut end = end.into_c_char_ptr();
     let field_name = field_name.into_c_char_ptr();
-    unsafe {
+    {
         if !tv_dict_find(dict.as_deref(), field_name, -1).is_null() {
             if opt_vars().p_verbose > 0 {
                 verbose_enter();
@@ -3342,7 +3344,9 @@ fn add_tag_field(
             len = (crate::memory::ptr_offset_from(end, start) as i32).min(MAXPATHL as i32 - 1);
             crate::memory::cstr_ncpy(buf, start, len as usize);
         }
-        *buf.wrapping_add(len as usize) = NUL;
+        unsafe {
+            *buf.wrapping_add(len as usize) = NUL;
+        }
         tv_dict_add_str(dict.unwrap(), field_name, buf)
     }
 }

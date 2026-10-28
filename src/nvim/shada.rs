@@ -4208,12 +4208,12 @@ fn shada_read_next_item(
 
 fn shada_removable(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut part = [0 as c_char; MAXPATHL + 1];
         let mut retval = false;
         let new_name = home_replace_save(None, name);
         let mut p = opt_vars().p_shada;
-        while *p != 0 {
+        while unsafe { *p } != 0 {
             copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ");
             if part[0] == (b'r' as c_char) {
                 let name_buff_ptr = g_st().name_buff.as_mut_ptr();

@@ -1508,7 +1508,7 @@ pub fn ins_compl_lnum_in_range(lnum: Linenr) -> bool {
 
 /// Reduce the longest common string for match "match".
 fn ins_compl_longest_match(match_: &mut Compl) {
-    unsafe {
+    {
         if insexp().compl_leader.data.is_null() {
             insexp().compl_leader = copy_string(match_.cp_str, None);
 
@@ -1541,7 +1541,9 @@ fn ins_compl_longest_match(match_: &mut Compl) {
         }
 
         if !crate::memory::cstr_is_empty(p) {
-            *p = NUL;
+            unsafe {
+                *p = NUL;
+            }
             insexp().compl_leader.size =
                 crate::memory::ptr_offset_from(p, insexp().compl_leader.data) as usize;
 
@@ -1805,7 +1807,7 @@ fn get_leader_for_startcol(match_: Option<&Compl>, cached: bool) -> *mut NvimStr
 }
 
 fn set_fuzzy_score() {
-    unsafe {
+    {
         let list = &mut insexp().compl_list;
         if list.is_empty() {
             return;
@@ -1831,7 +1833,7 @@ fn set_fuzzy_score() {
             next = next.max(comp.cp_order + 1);
 
             if use_leader {
-                pattern = (*get_leader_for_startcol(Some(&*comp), true)).data;
+                pattern = unsafe { (*get_leader_for_startcol(Some(&*comp), true)).data };
             }
 
             comp.cp_score = fuzzy_match_str(comp.cp_str.data, pattern);
@@ -1840,7 +1842,7 @@ fn set_fuzzy_score() {
 }
 
 fn sort_compl_match_list(compare: fn(&Compl, &Compl) -> i32) {
-    unsafe {
+    {
         let list = compl_list_mut();
         if list.len() <= 1 {
             return;
@@ -1880,7 +1882,9 @@ fn sort_compl_match_list(compare: fn(&Compl, &Compl) -> i32) {
             (&raw mut insexp().compl_preselect_idx, saved_ptrs[3]),
         ] {
             if let Some(p) = ptr_opt {
-                *idx_opt = list.iter().position(|m| ptr::eq(m.cp_str.data, p));
+                unsafe {
+                    *idx_opt = list.iter().position(|m| ptr::eq(m.cp_str.data, p));
+                }
             }
         }
         insexp().compl_is_cyclic = true;
@@ -2108,7 +2112,7 @@ pub fn ins_compl_show_pum() {
 }
 
 pub fn compl_match_curr_select(selected: i32) -> bool {
-    unsafe {
+    {
         if selected < 0 {
             return false;
         }
@@ -2118,7 +2122,7 @@ pub fn compl_match_curr_select(selected: i32) -> bool {
         let mut list_idx: i32 = 0;
         for match_ in list {
             if !match_at_original_text(match_) {
-                if !curr.is_null() && (*curr).cp_number == match_.cp_number {
+                if !curr.is_null() && unsafe { (*curr).cp_number } == match_.cp_number {
                     selected_idx = list_idx;
                     break;
                 }
@@ -3277,7 +3281,7 @@ pub fn set_buflocal_cpt_callbacks(buf: Option<&mut FileBuf>) {
 
 fn parse_cpt_callbacks(cpt: impl crate::strings::IntoCCharPtr, cbp: &mut Vec<Callback>) {
     let cpt = cpt.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         clear_cpt_callbacks(cbp);
 
         let count = get_cpt_sources_count(cpt);
@@ -3301,7 +3305,9 @@ fn parse_cpt_callbacks(cpt: impl crate::strings::IntoCCharPtr, cbp: &mut Vec<Cal
                 if slen > 0 && buf[0] == b'F' as c_char && buf[1] != NUL {
                     let caret = vim_strchr(buf.as_mut_ptr(), b'^' as i32);
                     if !caret.is_null() {
-                        *caret = NUL;
+                        unsafe {
+                            *caret = NUL;
+                        }
                     }
                     if !option_set_callback_func(buf.as_mut_ptr().wrapping_add(1), &mut cbp[idx]) {
                         cbp[idx] = Callback::NONE;
@@ -4958,13 +4964,13 @@ fn get_register_completion() {
 
 fn get_callback_if_cpt_func(p: impl crate::strings::IntoCCharPtr, idx: i32) -> CptFuncSource {
     let p = p.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_first_byte(p) == b'o' {
             return CptFuncSource::Ofu;
         }
 
         if crate::memory::cstr_first_byte(p) == b'F' {
-            let next = *p.wrapping_add(1);
+            let next = unsafe { *p.wrapping_add(1) };
             if next != b',' as c_char && next != NUL {
                 let cbs = &curbuf_mut().b_p_cpt_cb;
                 if idx < 0 || (idx as usize) >= cbs.len() {
@@ -5986,7 +5992,7 @@ fn check_elapsed_time() {
 
 pub fn ins_compl_check_keys(frequency: i32, in_compl_func: bool) {
     static COUNT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
-    unsafe {
+    {
         if !in_compl_func && (using_script() != 0 || g_st().ex_normal_busy != 0) {
             return;
         }
@@ -5998,7 +6004,7 @@ pub fn ins_compl_check_keys(frequency: i32, in_compl_func: bool) {
         COUNT.store(0, std::sync::atomic::Ordering::Relaxed);
 
         let mut c = vpeekc_any();
-        if c != NUL as i32 && !*test_disable_char_avail.as_ptr() {
+        if c != NUL as i32 && !unsafe { *test_disable_char_avail.as_ptr() } {
             if vim_is_ctrl_x_key(c) && c != CTRL_X_CONST && c != CTRL_R_CONST {
                 c = safe_vgetc();
                 insexp().compl_shows_dir = ins_compl_key2dir(c);
@@ -6765,7 +6771,7 @@ fn ins_compl_show_statusmsg() {
 }
 
 pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
-    unsafe {
+    {
         insexp().compl_direction = ins_compl_key2dir(c);
         let insert_match = ins_compl_use_match(c);
 
@@ -6816,7 +6822,7 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
         }
 
         let curr = compl_opt(insexp().compl_curr_idx);
-        if ((*curr).cp_flags & CP_CONT_S_IPOS) != 0 {
+        if (unsafe { (*curr).cp_flags } & CP_CONT_S_IPOS) != 0 {
             insexp().compl_cont_status |= CONT_S_IPOS;
         } else {
             insexp().compl_cont_status &= !CONT_S_IPOS;
@@ -6959,10 +6965,12 @@ fn quote_meta(mut dest: *mut c_char, src: impl crate::strings::IntoCCharPtr, mut
 }
 
 pub fn free_insexpand_stuff() {
-    unsafe {
+    {
         api_clear_string(&mut insexp().compl_orig_text);
         let extmarks = &raw mut insexp().compl_orig_extmarks;
-        *extmarks = Vec::new();
+        unsafe {
+            *extmarks = Vec::new();
+        }
         callback_free(&mut opt_vars().p_cfu);
         callback_free(&mut opt_vars().p_ofu);
         callback_free(&mut opt_vars().p_tsrfu);
@@ -6988,7 +6996,7 @@ fn cpt_sources_clear() {
 }
 
 fn setup_cpt_sources() {
-    unsafe {
+    {
         cpt_sources_clear();
 
         let count = get_cpt_sources_count(curbuf_mut().b_p_cpt);
@@ -7017,7 +7025,7 @@ fn setup_cpt_sources() {
                 p = p.wrapping_add(1);
             }
             if !crate::memory::cstr_is_empty(p) {
-                sources[idx].cs_flag = *p;
+                sources[idx].cs_flag = unsafe { *p };
                 buf.fill(0);
                 let slen = copy_option_part(&raw mut p, buf.as_mut_ptr(), LSIZE, c",");
                 if slen > 0 {

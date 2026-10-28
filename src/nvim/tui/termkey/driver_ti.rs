@@ -418,7 +418,7 @@ fn try_load_terminfo_key(
     info: TiKeyInfo,
 ) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut value: *const c_char = std::ptr::null();
 
         if let Some(ti_ref) = ti {
@@ -438,7 +438,7 @@ fn try_load_terminfo_key(
             value = crate::tui::tui::tui_tk_ti_getstr(name, value, input);
         }
 
-        if value.is_null() || value == (-1isize as *const c_char) || *value == 0 {
+        if value.is_null() || value == (-1isize as *const c_char) || unsafe { *value } == 0 {
             return false;
         }
 

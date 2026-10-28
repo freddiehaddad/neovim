@@ -1890,8 +1890,8 @@ pub fn vpeekc_any() -> i32 {
 
 /// Call `vpeekc()` without causing anything to be mapped.
 pub fn char_avail() -> bool {
-    unsafe {
-        if *test_disable_char_avail.as_ptr() {
+    {
+        if unsafe { *test_disable_char_avail.as_ptr() } {
             return false;
         }
         g_st().no_mapping += 1;
@@ -3009,7 +3009,7 @@ fn vgetorpeek(advance: bool) -> i32 {
 }
 
 fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
-    unsafe {
+    {
         let mut len: i32 = 0;
         let mut retesc: i32 = 0;
         let tb_change_cnt = g_st().typebuf.tb_change_cnt;
@@ -3040,7 +3040,9 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
                     return -1;
                 }
             } else {
-                *buf = script_char as u8;
+                unsafe {
+                    *buf = script_char as u8;
+                }
                 len = 1;
             }
         }

@@ -572,7 +572,7 @@ fn draw_col_buf(
     inc_vcol: bool,
 ) {
     let text = text.into_c_char_ptr();
-    unsafe {
+    {
         let mut ci = utf_ptr2_str_char_info(text);
         let end = text.wrapping_add(len);
         while ci.ptr < end && wlv.off < wp.w_view_width {
@@ -604,7 +604,7 @@ fn draw_col_buf(
                     wlv.vcol += 1;
                     v
                 } else if !fold_vcol.is_null() {
-                    let v = *fold_vcol;
+                    let v = unsafe { *fold_vcol };
                     fold_vcol = fold_vcol.wrapping_add(1);
                     v
                 } else {
@@ -839,7 +839,7 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> i32 {
 }
 
 fn draw_lnum_col(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
-    unsafe {
+    {
         let has_cpo_n = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL);
 
         if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
@@ -868,7 +868,9 @@ fn draw_lnum_col(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
                     if wp.w_skipcol > 0 && wlv.startrow == 0 {
                         let mut c = buf_ptr;
                         while crate::memory::cstr_first_byte(c) == b' ' {
-                            *c = b'-' as c_char;
+                            unsafe {
+                                *c = b'-' as c_char;
+                            }
                             c = c.wrapping_add(1);
                         }
                     }

@@ -719,11 +719,13 @@ fn process_ctrl_c() {
 /// `maxlen < 3`.
 fn push_event_key(buf: *mut u8, maxlen: i32) -> i32 {
     const KEY: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_EVENT];
-    unsafe {
+    {
         let mut buf_idx: i32 = 0;
 
         loop {
-            *buf.wrapping_add(buf_idx as usize) = KEY[osi_st().push_event_key_idx];
+            unsafe {
+                *buf.wrapping_add(buf_idx as usize) = KEY[osi_st().push_event_key_idx];
+            }
             buf_idx += 1;
             osi_st().push_event_key_idx = (osi_st().push_event_key_idx + 1) % 3;
             if osi_st().push_event_key_idx == 0 || buf_idx >= maxlen {

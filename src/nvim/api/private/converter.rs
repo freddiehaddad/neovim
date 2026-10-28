@@ -463,7 +463,7 @@ mod tests {
             v_lock: 0,
             vval: TypvalVval::Number(0),
         };
-        unsafe {
+        {
             object_to_vim(
                 Object {
                     obj_type: ObjectType::ObjectTypeInteger,
@@ -512,7 +512,9 @@ mod tests {
             assert_eq!(cyc_obj.data.array().size, 1);
             assert_eq!(cyc_obj.data.array()[0].obj_type, ObjectType::ObjectTypeNil);
             crate::api::private::helpers::api_free_object(cyc_obj);
-            (*list.lv_first).li_tv.v_type = VarType::VarUnknown;
+            unsafe {
+                (*list.lv_first).li_tv.v_type = VarType::VarUnknown;
+            }
             crate::eval::typval::tv_list_free(list);
         }
     }

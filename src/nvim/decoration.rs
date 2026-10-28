@@ -780,9 +780,9 @@ fn decor_free_sh(first_idx: u32) {
 }
 
 pub fn decor_state_invalidate(buf: &mut FileBuf) {
-    unsafe {
+    {
         if !g_st().decor_state.win.is_null()
-            && std::ptr::eq((*g_st().decor_state.win).w_buffer, buf)
+            && std::ptr::eq(unsafe { (*g_st().decor_state.win).w_buffer }, buf)
         {
             g_st().decor_state.itr_valid = false;
         }
@@ -882,9 +882,9 @@ pub fn decor_virt_pos(decor: &DecorRange) -> bool {
 }
 
 pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
-    unsafe {
+    {
         match decor.data {
-            DecorRangeData::Vt(vt) => (*vt).pos,
+            DecorRangeData::Vt(vt) => unsafe { (*vt).pos },
             DecorRangeData::Ui(ui) => ui.pos,
             _ => K_VPOS_END_OF_LINE,
         }
@@ -1152,7 +1152,7 @@ pub fn decor_range_add_sh(
 }
 
 pub fn decor_init_draw_col(win_col: i32, hidden: bool, item: &mut DecorRange) {
-    unsafe {
+    {
         let vt = if item.data.is_vt() {
             item.data.vt()
         } else {
@@ -1162,7 +1162,7 @@ pub fn decor_init_draw_col(win_col: i32, hidden: bool, item: &mut DecorRange) {
         if win_col < 0 && pos != K_VPOS_INLINE {
             item.draw_col = win_col;
         } else if pos == K_VPOS_OVERLAY {
-            item.draw_col = if !vt.is_null() && ((*vt).flags & K_VTHIDE) != 0 && hidden {
+            item.draw_col = if !vt.is_null() && (unsafe { (*vt).flags } & K_VTHIDE) != 0 && hidden {
                 i32::MIN
             } else {
                 win_col

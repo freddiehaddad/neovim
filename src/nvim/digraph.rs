@@ -2234,7 +2234,7 @@ pub fn get_keymap_str(
     buf: *mut c_char,
     len: i32,
 ) -> i32 {
-    unsafe {
+    {
         if wp.buf_mut().b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
             return 0;
         }
@@ -2260,7 +2260,9 @@ pub fn get_keymap_str(
         let mut plen = vim_snprintf!(buf, len as usize, fmt.as_ptr().cast_mut(), p);
         drop(s);
         if plen < 0 || plen > len - 1 {
-            *buf = NUL;
+            unsafe {
+                *buf = NUL;
+            }
             plen = 0;
         }
 
