@@ -72,7 +72,7 @@ impl Default for Cob {
 
 /// Find a buffer by number or exact name (`find_buffer`).
 pub fn find_buffer(avar: &mut TypVal) -> *mut FileBuf {
-    unsafe {
+    {
         let mut buf: *mut FileBuf = ptr::null_mut();
 
         if avar.v_type == VarType::VarNumber {
@@ -82,9 +82,9 @@ pub fn find_buffer(avar: &mut TypVal) -> *mut FileBuf {
             if buf.is_null() {
                 let target = crate::memory::cstr_as_bytes(avar.vval.v_string());
                 for bp in for_all_buffers_ptr() {
-                    if !(*bp).b_fname.is_null()
-                        && (path_with_url((*bp).b_fname) != 0 || bt_nofilename(bp.as_ref()))
-                        && crate::memory::cstr_as_bytes((*bp).b_fname) == target
+                    if !bp.b_fname.is_null()
+                        && (path_with_url(bp.b_fname) != 0 || bt_nofilename(Some(&*bp)))
+                        && crate::memory::cstr_as_bytes(bp.b_fname) == target
                     {
                         buf = bp;
                         break;
@@ -235,11 +235,11 @@ fn set_buffer_lines(
 
             for tp in for_all_tabpages_ptr() {
                 for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
-                    if (*wp).w_buffer == buf
-                        && ((*wp).w_buffer != g_st().curbuf || wp == curwin_ptr())
-                        && (*wp).w_cursor.lnum > append_lnum
+                    if wp.w_buffer == buf
+                        && (wp.w_buffer != g_st().curbuf || std::ptr::eq(wp, curwin_ptr()))
+                        && wp.w_cursor.lnum > append_lnum
                     {
-                        (*wp).w_cursor.lnum += added as Linenr;
+                        wp.w_cursor.lnum += added as Linenr;
                     }
                 }
             }
@@ -311,7 +311,7 @@ fn prompt_trim_scrollback(buf: &mut FileBuf) {
         deleted_lines_buf(buf, 1, to_delete);
 
         for tp in for_all_tabpages_ptr() {
-            for wp in win_iter_mut(first_win_in_tab(unsafe { &mut *tp })) {
+            for wp in win_iter_mut(first_win_in_tab(&mut *tp)) {
                 if wp.w_buffer == buf {
                     wp.w_cursor.lnum = if wp.w_cursor.lnum <= to_delete {
                         1
@@ -714,7 +714,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// Buffer options, variables and other attributes in a dictionary (`get_buffer_info`).
 fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
-    unsafe {
+    {
         let dict = tv_dict_alloc();
 
         tv_dict_add_nr(&mut *dict, c"bufnr", buf.b_fnum as Varnumber);
@@ -814,9 +814,9 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 continue;
             }
             if filtered
-                && ((sel_bufloaded && (*buf).b_ml.ml_mfp.is_none())
-                    || (sel_buflisted && (*buf).b_p_bl == 0)
-                    || (sel_bufmodified && (*buf).b_changed == 0))
+                && ((sel_bufloaded && buf.b_ml.ml_mfp.is_none())
+                    || (sel_buflisted && buf.b_p_bl == 0)
+                    || (sel_bufmodified && buf.b_changed == 0))
             {
                 continue;
             }

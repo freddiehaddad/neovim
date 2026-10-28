@@ -362,12 +362,12 @@ pub fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
         }
         if ui_has(K_UIMULTIGRID) {
             for wp in for_all_windows_ptr() {
-                let grid = &raw mut (*wp).w_grid_alloc;
+                let grid = &raw mut wp.w_grid_alloc;
                 if (*grid).mouse_enabled
-                    && row >= (*wp).w_winrow
-                    && row < (*wp).w_winrow + (*grid).rows
-                    && col >= (*wp).w_wincol
-                    && col < (*wp).w_wincol + (*grid).cols
+                    && row >= wp.w_winrow
+                    && row < wp.w_winrow + (*grid).rows
+                    && col >= wp.w_wincol
+                    && col < wp.w_wincol + (*grid).cols
                 {
                     return grid;
                 }
@@ -392,12 +392,12 @@ pub fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGrid {
         }
 
         for wp in for_all_windows_ptr() {
-            let grid = &raw mut (*wp).w_grid_alloc;
+            let grid = &raw mut wp.w_grid_alloc;
             if row >= (*grid).comp_row
                 && row < (*grid).comp_row + (*grid).rows
                 && col >= (*grid).comp_col
                 && col < (*grid).comp_col + (*grid).cols
-                && !(*wp).w_config.hide
+                && !wp.w_config.hide
             {
                 return grid;
             }

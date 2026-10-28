@@ -1742,9 +1742,9 @@ fn did_set_global_chars_option(
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&*tp) {
                 let opt = if what == CharsOption::Listchars {
-                    (*wp).w_onebuf_opt.wo_lcs
+                    wp.w_onebuf_opt.wo_lcs
                 } else {
-                    (*wp).w_onebuf_opt.wo_fcs
+                    wp.w_onebuf_opt.wo_fcs
                 };
                 if crate::memory::cstr_is_empty(opt) {
                     set_chars_option(&mut *wp, opt, what, true, errbuf);
@@ -2993,7 +2993,7 @@ pub fn did_set_spellsuggest(args: &mut Optset) -> *const c_char {
 pub fn did_set_splitkeep(_args: &mut Optset) -> *const c_char {
     {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
+            for wp in for_all_windows_in_tab_mut(&*tp) {
                 wp.w_prev_height = wp.w_height;
                 wp.w_prev_winrow = wp.w_winrow;
             }
@@ -4177,7 +4177,7 @@ pub fn get_listchars_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 
 /// Check all global and local values of 'listchars' and 'fillchars'.
 pub fn check_chars_options() -> *const c_char {
-    unsafe {
+    {
         if !set_chars_option(
             curwin_mut(),
             opt_vars().p_lcs,
@@ -4203,8 +4203,8 @@ pub fn check_chars_options() -> *const c_char {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&*tp) {
                 if !set_chars_option(
-                    &mut *wp,
-                    (*wp).w_onebuf_opt.wo_lcs,
+                    wp,
+                    wp.w_onebuf_opt.wo_lcs,
                     CharsOption::Listchars,
                     true,
                     None,
@@ -4214,8 +4214,8 @@ pub fn check_chars_options() -> *const c_char {
                     return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
                 }
                 if !set_chars_option(
-                    &mut *wp,
-                    (*wp).w_onebuf_opt.wo_fcs,
+                    wp,
+                    wp.w_onebuf_opt.wo_fcs,
                     CharsOption::Fillchars,
                     true,
                     None,

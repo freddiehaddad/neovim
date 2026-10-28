@@ -4915,7 +4915,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         for (i, arg) in crate::eval::typval::list_iter_ptr(tv_list_first(args.as_ref())).enumerate()
         {
-            let tv = &(*arg).li_tv;
+            let tv = &arg.li_tv;
             let chan = if tv.v_type == VarType::VarNumber {
                 find_channel(tv.vval.v_number() as u64)
             } else {
@@ -5680,7 +5680,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 for (idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(
                     tv_list_first(l.as_ref()),
                 )) {
-                    let li_tv = &(*li).li_tv;
+                    let li_tv = &li.li_tv;
                     if li_tv.v_type == VarType::VarString && !li_tv.vval.v_string().is_null() {
                         get_matches_in_str(
                             li_tv.vval.v_string(),

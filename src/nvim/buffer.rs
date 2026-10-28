@@ -1052,7 +1052,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: c_int) -> c
 
             g_st().curbuf = ptr::null_mut();
             for buf in for_all_buffers_ptr() {
-                if (*buf).b_ml.ml_mfp.is_some() {
+                if buf.b_ml.ml_mfp.is_some() {
                     g_st().curbuf = buf;
                     break;
                 }
@@ -2273,7 +2273,7 @@ fn do_buffer_ext(action: c_int, start: c_int, dir: c_int, mut count: c_int, flag
 
             bp = ptr::null_mut();
             for bp2 in for_all_buffers_ptr() {
-                if (*bp2).b_p_bl != 0 && bp2 != buf {
+                if bp2.b_p_bl != 0 && !std::ptr::eq(bp2, buf) {
                     bp = bp2;
                     break;
                 }
@@ -2427,10 +2427,10 @@ fn do_buffer_ext(action: c_int, start: c_int, dir: c_int, mut count: c_int, flag
             }
             if buf.is_null() {
                 for buf2 in for_all_buffers_ptr() {
-                    if (*buf2).b_p_bl != 0
-                        && buf2 != g_st().curbuf
-                        && !bt_quickfix(buf2.as_ref())
-                        && (*buf2).b_locked_split == 0
+                    if buf2.b_p_bl != 0
+                        && !std::ptr::eq(buf2, g_st().curbuf)
+                        && !bt_quickfix(Some(&*buf2))
+                        && buf2.b_locked_split == 0
                     {
                         buf = buf2;
                         break;
@@ -3148,9 +3148,9 @@ fn buflist_findname_file_id(
     file_id_valid: bool,
 ) -> *mut FileBuf {
     let ffname = ffname.into_c_char_ptr();
-    unsafe {
+    {
         for buf in for_all_buffers_rev_ptr() {
-            if ((*buf).b_flags & BF_DUMMY) == 0
+            if (buf.b_flags & BF_DUMMY) == 0
                 && !otherfile_buf(&mut *buf, ffname, file_id, file_id_valid)
             {
                 return buf;
@@ -3219,7 +3219,7 @@ pub fn buflist_findpat(
                         if regmatch.regprog.is_null() {
                             return -1;
                         }
-                        if (*buf).b_p_bl == find_listed
+                        if buf.b_p_bl == find_listed
                             && (!diffmode || diff_mode_buf(buf))
                             && !buflist_match(&mut regmatch, &mut *buf, false).is_null()
                         {
@@ -3239,7 +3239,7 @@ pub fn buflist_findpat(
                                 match_fnum = -2;
                                 break;
                             }
-                            match_fnum = (*buf).b_fnum;
+                            match_fnum = buf.b_fnum;
                         }
                     }
 
@@ -3313,10 +3313,12 @@ pub fn expand_bufnames(
 
         let mut score = 0;
         for buf in for_all_buffers_ptr() {
-            if (*buf).b_p_bl == 0 {
+            if buf.b_p_bl == 0 {
                 continue;
             }
-            if (options & BUF_DIFF_FILTER) != 0 && (buf == g_st().curbuf || !diff_mode_buf(buf)) {
+            if (options & BUF_DIFF_FILTER) != 0
+                && (std::ptr::eq(buf, g_st().curbuf) || !diff_mode_buf(buf))
+            {
                 continue;
             }
 
@@ -3324,14 +3326,14 @@ pub fn expand_bufnames(
             if !fuzzy {
                 p = buflist_match(&mut regmatch, &mut *buf, opt_vars().p_wic != 0);
             } else {
-                score = fuzzy_match_str((*buf).b_sfname, pat);
+                score = fuzzy_match_str(buf.b_sfname, pat);
                 if score != FUZZY_SCORE_NONE {
-                    p = (*buf).b_sfname;
+                    p = buf.b_sfname;
                 }
                 if p.is_null() {
-                    score = fuzzy_match_str((*buf).b_ffname, pat);
+                    score = fuzzy_match_str(buf.b_ffname, pat);
                     if score != FUZZY_SCORE_NONE {
-                        p = (*buf).b_ffname;
+                        p = buf.b_ffname;
                     }
                 }
             }
@@ -3341,7 +3343,7 @@ pub fn expand_bufnames(
             }
 
             let p_cstr = if (options & WILD_HOME_REPLACE) != 0 {
-                home_replace_save(buf.as_ref(), p)
+                home_replace_save(Some(&*buf), p)
             } else {
                 cstr_to_cstring(p)
             };

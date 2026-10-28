@@ -1421,9 +1421,9 @@ fn linecopy(grid: &mut ScreenGrid, to: c_int, from: c_int, col: c_int, width: c_
 }
 
 pub fn get_win_by_grid_handle(handle: ObjHandle) -> *mut WinInfoInfo {
-    unsafe {
+    {
         for wp in for_all_windows_ptr() {
-            if (*wp).w_grid_alloc.handle == handle {
+            if wp.w_grid_alloc.handle == handle {
                 return wp;
             }
         }

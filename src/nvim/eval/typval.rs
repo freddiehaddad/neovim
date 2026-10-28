@@ -820,7 +820,7 @@ impl Iterator for ListMutIter {
 pub struct ListPtrIter(*mut Listitem);
 
 impl Iterator for ListPtrIter {
-    type Item = *mut Listitem;
+    type Item = &'static mut Listitem;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -830,7 +830,7 @@ impl Iterator for ListPtrIter {
         } else {
             unsafe {
                 self.0 = (*cur).li_next;
-                Some(cur)
+                Some(&mut *cur)
             }
         }
     }

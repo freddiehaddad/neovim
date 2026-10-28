@@ -3088,7 +3088,7 @@ fn cmdpreview_prepare() -> CpInfo {
         };
 
         for win in for_all_windows_ptr() {
-            let buf = (*win).w_buffer;
+            let buf = win.w_buffer;
 
             if (*buf).b_fnum != getln_st().cmdpreview_bufnr {
                 if saved_bufs.insert(buf) {
@@ -3104,15 +3104,15 @@ fn cmdpreview_prepare() -> CpInfo {
 
                 let mut cp_wininfo = CpWinInfo::new();
                 cp_wininfo.win = win;
-                cp_wininfo.save_w_cursor = (*win).w_cursor;
+                cp_wininfo.save_w_cursor = win.w_cursor;
                 save_viewstate(&mut *win, &mut cp_wininfo.save_viewstate);
-                cp_wininfo.save_w_p_cul = (*win).w_onebuf_opt.wo_cul;
-                cp_wininfo.save_w_p_cuc = (*win).w_onebuf_opt.wo_cuc;
+                cp_wininfo.save_w_p_cul = win.w_onebuf_opt.wo_cul;
+                cp_wininfo.save_w_p_cuc = win.w_onebuf_opt.wo_cuc;
 
                 cpinfo.win_info.push(cp_wininfo);
 
-                (*win).w_onebuf_opt.wo_cul = 0;
-                (*win).w_onebuf_opt.wo_cuc = 0;
+                win.w_onebuf_opt.wo_cul = 0;
+                win.w_onebuf_opt.wo_cuc = 0;
             }
         }
 
@@ -3876,7 +3876,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(
                     tv_list_first(v_list.as_ref()),
                 )) {
-                    let li_tv = &mut (*li).li_tv;
+                    let li_tv = &mut li.li_tv;
                     if li_tv.v_type != VarType::VarList {
                         g_st().msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);

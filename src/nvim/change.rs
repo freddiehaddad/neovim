@@ -115,12 +115,10 @@ pub const fn replace_normal(s: c_int) -> bool {
 }
 
 #[inline]
-fn for_all_tab_windows(mut f: impl FnMut(*mut WinInfoInfo)) {
-    {
-        for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(unsafe { &*tp }) {
-                f(wp);
-            }
+fn for_all_tab_windows(mut f: impl FnMut(&'static mut WinInfoInfo)) {
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_ptr(tp) {
+            f(wp);
         }
     }
 }
@@ -278,9 +276,9 @@ pub fn changed_lines_invalidate_buf(
     lnume: Linenr,
     xtra: Linenr,
 ) {
-    unsafe {
+    {
         for_all_tab_windows(|wp| {
-            if (*wp).w_buffer == buf {
+            if wp.w_buffer == buf {
                 changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
             }
         });
@@ -352,16 +350,16 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                             (JUMPLISTSIZE - 1) as usize,
                         );
                         for_all_tab_windows(|wp| {
-                            if (*wp).w_buffer == (&raw mut *buf) && (*wp).w_changelistidx > 0 {
-                                (*wp).w_changelistidx -= 1;
+                            if wp.w_buffer == (&raw mut *buf) && wp.w_changelistidx > 0 {
+                                wp.w_changelistidx -= 1;
                             }
                         });
                     }
                     for_all_tab_windows(|wp| {
-                        if (*wp).w_buffer == (&raw mut *buf)
-                            && (*wp).w_changelistidx == buf.b_changelistlen
+                        if wp.w_buffer == (&raw mut *buf)
+                            && wp.w_changelistidx == buf.b_changelistlen
                         {
-                            (*wp).w_changelistidx += 1;
+                            wp.w_changelistidx += 1;
                         }
                     });
                     buf.b_changelistlen += 1;
@@ -378,25 +376,25 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
         }
 
         for_all_tab_windows(|wp| {
-            if (*wp).w_buffer == (&raw mut *buf) {
-                if !g_st().redraw_not_allowed && (*wp).w_redr_type < UPD_VALID {
-                    (*wp).w_redr_type = UPD_VALID;
+            if wp.w_buffer == (&raw mut *buf) {
+                if !g_st().redraw_not_allowed && wp.w_redr_type < UPD_VALID {
+                    wp.w_redr_type = UPD_VALID;
                 }
 
-                if xtra != 0 && (*wp).w_redraw_top != 0 {
-                    redraw_later(wp.as_mut(), UPD_NOT_VALID);
+                if xtra != 0 && wp.w_redraw_top != 0 {
+                    redraw_later(Some(&mut *wp), UPD_NOT_VALID);
                 }
 
                 let mut last = lnume + xtra - 1;
 
-                if (*wp).w_skipcol > 0
-                    && (last < (*wp).w_topline
-                        || ((*wp).w_topline >= lnum
-                            && (*wp).w_topline < lnume
-                            && linetabsize_eol(&mut *wp, (*wp).w_topline)
-                                <= (*wp).w_skipcol + sms_marker_overlap(&mut *(wp), -1)))
+                if wp.w_skipcol > 0
+                    && (last < wp.w_topline
+                        || (wp.w_topline >= lnum
+                            && wp.w_topline < lnume
+                            && linetabsize_eol(wp, wp.w_topline)
+                                <= wp.w_skipcol + sms_marker_overlap(&mut *(wp), -1)))
                 {
-                    (*wp).w_skipcol = 0;
+                    wp.w_skipcol = 0;
                 }
 
                 fold_update(&mut *(wp), lnum, last);
@@ -409,34 +407,37 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                     false,
                     None,
                 );
-                if (*wp).w_cursor.lnum == lnum {
-                    (*wp).w_cline_folded = folded;
+                if wp.w_cursor.lnum == lnum {
+                    wp.w_cline_folded = folded;
                 }
                 folded = has_folding_win(&mut *wp, last, None, &raw mut last, false, None);
-                if (*wp).w_cursor.lnum == last {
-                    (*wp).w_cline_folded = folded;
+                if wp.w_cursor.lnum == last {
+                    wp.w_cline_folded = folded;
                 }
 
                 changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
 
                 if has_any_folding(&mut *wp) != 0 {
-                    set_topline(&mut *wp, (*wp).w_topline);
+                    set_topline(wp, wp.w_topline);
                 }
 
-                if (*wp).w_onebuf_opt.wo_rnu != 0 && xtra != 0 {
-                    (*wp).w_last_cursor_lnum_rnu = 0;
+                if wp.w_onebuf_opt.wo_rnu != 0 && xtra != 0 {
+                    wp.w_last_cursor_lnum_rnu = 0;
                 }
 
-                if (*wp).w_onebuf_opt.wo_cul != 0 && (*wp).w_last_cursorline >= lnum {
-                    if (*wp).w_last_cursorline < lnume {
-                        (*wp).w_last_cursorline = 0;
+                if wp.w_onebuf_opt.wo_cul != 0 && wp.w_last_cursorline >= lnum {
+                    if wp.w_last_cursorline < lnume {
+                        wp.w_last_cursorline = 0;
                     } else {
-                        (*wp).w_last_cursorline += xtra;
+                        wp.w_last_cursorline += xtra;
                     }
                 }
             }
 
-            if wp == curwin_ptr() && xtra != 0 && g_st().search_hl_has_cursor_lnum >= lnum {
+            if std::ptr::eq(wp, curwin_ptr())
+                && xtra != 0
+                && g_st().search_hl_has_cursor_lnum >= lnum
+            {
                 g_st().search_hl_has_cursor_lnum += xtra;
             }
         });
@@ -455,7 +456,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
 /// Changed bytes within a single line for the current buffer.
 pub fn changed_bytes(lnum: Linenr, col: Colnr) {
-    unsafe {
+    {
         changed_lines_redraw_buf(curbuf_mut(), lnum, lnum + 1, 0);
         changed_common(curbuf_mut(), lnum, col, lnum + 1, 0);
         if spell_check_window(curwin_mut())
@@ -468,8 +469,8 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
 
         if curwin_mut().w_onebuf_opt.wo_diff != 0 {
             for wp in for_all_windows_ptr() {
-                if (*wp).w_onebuf_opt.wo_diff != 0 && wp != curwin_ptr() {
-                    redraw_later(wp.as_mut(), UPD_VALID);
+                if wp.w_onebuf_opt.wo_diff != 0 && !std::ptr::eq(wp, curwin_ptr()) {
+                    redraw_later(Some(&mut *wp), UPD_VALID);
                     let wlnum = diff_lnum_win(lnum, &mut *wp);
                     if wlnum > 0 {
                         changed_lines_redraw_buf((*wp).buf_mut(), wlnum, wlnum + 1, 0);
@@ -573,7 +574,7 @@ pub fn changed_lines(
     xtra: Linenr,
     do_buf_event: bool,
 ) {
-    unsafe {
+    {
         changed_lines_redraw_buf(buf, lnum, lnume, xtra);
 
         if xtra == 0
@@ -582,8 +583,8 @@ pub fn changed_lines(
             && diff_internal() == 0
         {
             for wp in for_all_windows_ptr() {
-                if (*wp).w_onebuf_opt.wo_diff != 0 && wp != curwin_ptr() {
-                    redraw_later(wp.as_mut(), UPD_VALID);
+                if wp.w_onebuf_opt.wo_diff != 0 && !std::ptr::eq(wp, curwin_ptr()) {
+                    redraw_later(Some(&mut *wp), UPD_VALID);
                     let wlnum = diff_lnum_win(lnum, &mut *wp);
                     if wlnum > 0 {
                         changed_lines_redraw_buf((*wp).buf_mut(), wlnum, lnume - lnum + wlnum, 0);

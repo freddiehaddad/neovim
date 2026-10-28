@@ -223,8 +223,8 @@ fn match_add(
                 let mut len: c_int = 1;
                 let mut error = false;
 
-                if (*li).li_tv.v_type == VarType::VarList {
-                    let subl = (*li).li_tv.vval.v_list();
+                if li.li_tv.v_type == VarType::VarList {
+                    let subl = li.li_tv.vval.v_list();
                     let mut subli = tv_list_first(subl.as_ref());
                     if subli.is_null() {
                         semsg!(
@@ -267,11 +267,11 @@ fn match_add(
                     }
                     m.mit_pos[i].col = col;
                     m.mit_pos[i].len = len;
-                } else if (*li).li_tv.v_type == VarType::VarNumber {
-                    if (*li).li_tv.vval.v_number() <= 0 {
+                } else if li.li_tv.v_type == VarType::VarNumber {
+                    if li.li_tv.vval.v_number() <= 0 {
                         continue;
                     }
-                    m.mit_pos[i].lnum = (*li).li_tv.vval.v_number() as Linenr;
+                    m.mit_pos[i].lnum = li.li_tv.vval.v_number() as Linenr;
                     m.mit_pos[i].col = 0;
                     m.mit_pos[i].len = 0;
                 } else {

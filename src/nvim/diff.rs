@@ -268,12 +268,12 @@ fn diff_scan_remember(tp: &mut TabPageInfo, idx: c_int, lnum: Linenr, dp_idx: Op
     diff_st().diff_finger_dp_idx = Some(dp_idx.unwrap_or(0));
 }
 pub fn diff_buf_delete(buf: *mut FileBuf) {
-    unsafe {
+    {
         for tp in for_all_tabpages_ptr() {
             let i = diff_buf_idx(buf, &mut *tp);
             if i != DB_COUNT as c_int {
-                (*tp).tp_diffbuf[i as usize] = ptr::null_mut();
-                (*tp).tp_diff_invalid = 1;
+                tp.tp_diffbuf[i as usize] = ptr::null_mut();
+                tp.tp_diff_invalid = 1;
                 if ptr::eq(tp, g_st().curtab) {
                     g_st().need_diff_redraw = true;
                     redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
@@ -345,11 +345,11 @@ fn diff_buf_idx(buf: *mut FileBuf, tp: &mut TabPageInfo) -> c_int {
     idx as c_int
 }
 pub fn diff_invalidate(buf: *mut FileBuf) {
-    unsafe {
+    {
         for tp in for_all_tabpages_ptr() {
             let i = diff_buf_idx(buf, &mut *tp);
             if i != DB_COUNT as c_int {
-                (*tp).tp_diff_invalid = 1;
+                tp.tp_diff_invalid = 1;
                 if ptr::eq(tp, g_st().curtab) {
                     diff_redraw(true);
                 }
@@ -662,23 +662,23 @@ pub fn diff_redraw(dofold: bool) {
         let mut used_max_fill_curwin = false;
         g_st().need_diff_redraw = false;
         for wp in for_all_windows_ptr() {
-            if (*wp).w_onebuf_opt.wo_diff == 0 || !buf_valid((*wp).w_buffer) {
+            if wp.w_onebuf_opt.wo_diff == 0 || !buf_valid(wp.w_buffer) {
                 continue;
             }
-            redraw_later(wp.as_mut(), UPD_SOME_VALID);
-            if wp != curwin_ptr() {
+            redraw_later(Some(&mut *wp), UPD_SOME_VALID);
+            if !std::ptr::eq(wp, curwin_ptr()) {
                 wp_other = wp;
             }
             if dofold && foldmethod_is_diff(&mut *wp) {
                 fold_update_all(&mut *wp);
             }
-            let n = diff_check_fill(&mut *wp, (*wp).w_topline);
-            if (wp != curwin_ptr() && (*wp).w_topfill > 0) || n > 0 {
-                if (*wp).w_topfill > n {
-                    (*wp).w_topfill = n.max(0);
-                } else if n > 0 && n > (*wp).w_topfill {
-                    (*wp).w_topfill = n;
-                    if wp == curwin_ptr() {
+            let n = diff_check_fill(wp, wp.w_topline);
+            if (!std::ptr::eq(wp, curwin_ptr()) && wp.w_topfill > 0) || n > 0 {
+                if wp.w_topfill > n {
+                    wp.w_topfill = n.max(0);
+                } else if n > 0 && n > wp.w_topfill {
+                    wp.w_topfill = n;
+                    if std::ptr::eq(wp, curwin_ptr()) {
                         used_max_fill_curwin = true;
                     } else if !wp_other.is_null() {
                         used_max_fill_other = true;
@@ -1508,63 +1508,63 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
     }
 }
 pub fn ex_diffoff(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut diffwin = false;
         for wp in for_all_windows_ptr() {
             let cond = if eap.forceit != 0 {
-                (*wp).w_onebuf_opt.wo_diff != 0
+                wp.w_onebuf_opt.wo_diff != 0
             } else {
-                wp == curwin_ptr()
+                std::ptr::eq(wp, curwin_ptr())
             };
             if cond {
                 set_diff_option(wp, false);
-                if (*wp).w_onebuf_opt.wo_diff_saved != 0 {
-                    if (*wp).w_onebuf_opt.wo_scb != 0 {
-                        (*wp).w_onebuf_opt.wo_scb = (*wp).w_onebuf_opt.wo_scb_save;
+                if wp.w_onebuf_opt.wo_diff_saved != 0 {
+                    if wp.w_onebuf_opt.wo_scb != 0 {
+                        wp.w_onebuf_opt.wo_scb = wp.w_onebuf_opt.wo_scb_save;
                     }
-                    if (*wp).w_onebuf_opt.wo_crb != 0 {
-                        (*wp).w_onebuf_opt.wo_crb = (*wp).w_onebuf_opt.wo_crb_save;
+                    if wp.w_onebuf_opt.wo_crb != 0 {
+                        wp.w_onebuf_opt.wo_crb = wp.w_onebuf_opt.wo_crb_save;
                     }
                     if (diff_st().diff_flags & DIFF_FOLLOWWRAP) == 0
-                        && (*wp).w_onebuf_opt.wo_wrap == 0
-                        && (*wp).w_onebuf_opt.wo_wrap_save != 0
+                        && wp.w_onebuf_opt.wo_wrap == 0
+                        && wp.w_onebuf_opt.wo_wrap_save != 0
                     {
-                        (*wp).w_onebuf_opt.wo_wrap = 1;
-                        (*wp).w_leftcol = 0;
+                        wp.w_onebuf_opt.wo_wrap = 1;
+                        wp.w_leftcol = 0;
                     }
-                    free_string_option((*wp).w_onebuf_opt.wo_fdm);
-                    (*wp).w_onebuf_opt.wo_fdm = alloc_string_option(
-                        if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_fdm_save) {
-                            (*wp).w_onebuf_opt.wo_fdm_save
+                    free_string_option(wp.w_onebuf_opt.wo_fdm);
+                    wp.w_onebuf_opt.wo_fdm = alloc_string_option(
+                        if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_fdm_save) {
+                            wp.w_onebuf_opt.wo_fdm_save
                         } else {
                             c"manual".as_ptr()
                         },
                     );
-                    free_string_option((*wp).w_onebuf_opt.wo_fdc);
-                    (*wp).w_onebuf_opt.wo_fdc = alloc_string_option(
-                        if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_fdc_save) {
-                            (*wp).w_onebuf_opt.wo_fdc_save
+                    free_string_option(wp.w_onebuf_opt.wo_fdc);
+                    wp.w_onebuf_opt.wo_fdc = alloc_string_option(
+                        if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_fdc_save) {
+                            wp.w_onebuf_opt.wo_fdc_save
                         } else {
                             c"0".as_ptr()
                         },
                     );
-                    if (*wp).w_onebuf_opt.wo_fdl == 0 {
-                        (*wp).w_onebuf_opt.wo_fdl = (*wp).w_onebuf_opt.wo_fdl_save;
+                    if wp.w_onebuf_opt.wo_fdl == 0 {
+                        wp.w_onebuf_opt.wo_fdl = wp.w_onebuf_opt.wo_fdl_save;
                     }
-                    if (*wp).w_onebuf_opt.wo_fen != 0 {
-                        (*wp).w_onebuf_opt.wo_fen = if foldmethod_is_manual(&mut *wp) {
+                    if wp.w_onebuf_opt.wo_fen != 0 {
+                        wp.w_onebuf_opt.wo_fen = if foldmethod_is_manual(&mut *wp) {
                             0
                         } else {
-                            (*wp).w_onebuf_opt.wo_fen_save
+                            wp.w_onebuf_opt.wo_fen_save
                         };
                     }
                     fold_update_all(&mut *wp);
                 }
-                (*wp).w_topfill = 0;
+                wp.w_topfill = 0;
                 changed_window_setting(&mut *wp);
                 diff_buf_adjust(&mut *wp);
             }
-            diffwin |= (*wp).w_onebuf_opt.wo_diff != 0;
+            diffwin |= wp.w_onebuf_opt.wo_diff != 0;
         }
         if eap.forceit != 0 {
             diff_buf_clear();
@@ -3598,10 +3598,10 @@ fn diffgetput(
     }
 }
 fn diff_fold_update(df_lnum: &[Linenr; DB_COUNT], df_count: &[Linenr; DB_COUNT], skip_idx: usize) {
-    unsafe {
+    {
         for wp in for_all_windows_ptr() {
             for i in 0..DB_COUNT {
-                if curtab_mut().tp_diffbuf[i] == (*wp).w_buffer && i != skip_idx {
+                if curtab_mut().tp_diffbuf[i] == wp.w_buffer && i != skip_idx {
                     fold_update(&mut *(wp), df_lnum[i], df_lnum[i] + df_count[i]);
                 }
             }

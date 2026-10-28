@@ -5145,18 +5145,18 @@ pub fn free_old_sub() {
 
 /// Set up for a tagpreview.
 pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
-    unsafe {
+    {
         if curwin_mut().w_onebuf_opt.wo_pvw != 0 {
             return false;
         }
 
         for wp in for_all_windows_ptr() {
-            if (*wp).w_onebuf_opt.wo_pvw != 0 {
+            if wp.w_onebuf_opt.wo_pvw != 0 {
                 if use_previewpopup {
-                    if (*wp).w_kind != K_WIN_PREVIEW {
+                    if wp.w_kind != K_WIN_PREVIEW {
                         continue;
                     }
-                } else if (*wp).w_floating {
+                } else if wp.w_floating {
                     continue;
                 }
                 if use_previewpopup {

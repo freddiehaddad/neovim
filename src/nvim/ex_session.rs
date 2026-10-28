@@ -675,14 +675,14 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
         }
 
         for buf in for_all_buffers_ptr() {
-            if !(only_save_windows && (*buf).b_nwindows == 0)
-                && !((*buf).b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
-                && !(bt_terminal(buf.as_ref())
+            if !(only_save_windows && buf.b_nwindows == 0)
+                && !(buf.b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
+                && !(bt_terminal(Some(&*buf))
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
-                && !(*buf).b_fname.is_null()
-                && (*buf).b_p_bl != 0
+                && !buf.b_fname.is_null()
+                && buf.b_p_bl != 0
             {
-                let lnum = (*buf)
+                let lnum = buf
                     .b_wininfo
                     .first()
                     .map_or(1i64, |wi| i64::from(wi.wi_mark.mark.lnum));
@@ -706,6 +706,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
 
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0 {
             for b in for_all_buffers_ptr() {
+                let b: *mut FileBuf = b;
                 let Some(ref b_localdir) = (*b).b_localdir else {
                     continue;
                 };
@@ -713,7 +714,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     || (*b).b_p_bl == 0
                     || (only_save_windows && (*b).b_nwindows == 0)
                     || ((*b).b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
-                    || (bt_terminal(b.as_ref())
+                    || (bt_terminal(Some(&*b))
                         && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 {
                     continue;
@@ -774,7 +775,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
 
         let mut restore_height_width = false;
         for tp_iter in for_all_tabpages_ptr() {
-            let mut tp = tp_iter;
+            let mut tp: *mut TabPageInfo = tp_iter;
             let mut need_tabnext = false;
             let mut cnr: c_int = 1;
             let tab_firstwin: *mut WinInfoInfo;

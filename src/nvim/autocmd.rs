@@ -2522,7 +2522,7 @@ pub fn do_doautocmd(
 }
 
 pub fn ex_doautoall(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut retval = OK;
         let mut aco: CtxSwitch = CtxSwitch::new();
         let mut arg = eap.arg;
@@ -2531,7 +2531,7 @@ pub fn ex_doautoall(eap: &mut Exarg) {
         let mut did_aucmd = false;
 
         for buf in for_all_buffers_ptr() {
-            if (*buf).b_ml.ml_mfp.is_none() || buf == g_st().curbuf {
+            if buf.b_ml.ml_mfp.is_none() || std::ptr::eq(buf, g_st().curbuf) {
                 continue;
             }
 

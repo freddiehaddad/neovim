@@ -2889,10 +2889,7 @@ fn qf_get_entry(
 fn qf_find_help_win() -> *mut WinInfoInfo {
     unsafe {
         for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
-            if bt_help(((*wp).w_buffer).as_ref())
-                && !(*wp).w_config.hide
-                && (*wp).w_config.focusable
-            {
+            if bt_help((wp.w_buffer).as_ref()) && !wp.w_config.hide && wp.w_config.focusable {
                 return wp;
             }
         }
@@ -2954,7 +2951,7 @@ fn jump_to_help_window(qi: &mut QfInfo, newwin: bool, opened_window: &mut bool) 
 fn qf_find_win_with_loclist(ll: &QfInfo) -> *mut WinInfoInfo {
     unsafe {
         for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
-            if (*wp).w_llist.cast_const() == ll && !bt_quickfix(((*wp).w_buffer).as_ref()) {
+            if wp.w_llist.cast_const() == ll && !bt_quickfix((wp.w_buffer).as_ref()) {
                 return wp;
             }
         }
@@ -2965,7 +2962,7 @@ fn qf_find_win_with_loclist(ll: &QfInfo) -> *mut WinInfoInfo {
 fn qf_find_win_with_normal_buf() -> *mut WinInfoInfo {
     unsafe {
         for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
-            if bt_normal(((*wp).w_buffer).as_ref()) {
+            if bt_normal((wp.w_buffer).as_ref()) {
                 return wp;
             }
         }
@@ -2974,7 +2971,7 @@ fn qf_find_win_with_normal_buf() -> *mut WinInfoInfo {
 }
 
 fn qf_goto_tabwin_with_file(fnum: c_int) -> bool {
-    unsafe {
+    {
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_ptr(tab_firstwin(tp)) {
                 if (*wp).buf_mut().b_fnum == fnum {
@@ -4284,7 +4281,7 @@ fn is_qf_win(win: &WinInfoInfo, qi: &QfInfo) -> bool {
 }
 
 fn qf_find_win(qi: &QfInfo) -> *mut WinInfoInfo {
-    unsafe {
+    {
         for win in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if is_qf_win(&*win, qi) {
                 return win;
@@ -4317,7 +4314,7 @@ fn qf_find_buf(qi: &mut QfInfo) -> *mut FileBuf {
 }
 
 fn qf_update_win_titlevar(qi: &mut QfInfo) {
-    unsafe {
+    {
         let qfl = qf_get_curlist(&mut *qi);
         let save_curwin = curwin_ptr();
 
@@ -6085,7 +6082,7 @@ fn load_dummy_buffer(
 }
 
 fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: *mut c_char) {
-    unsafe {
+    {
         let mut give_up = false;
         loop {
             if buf.b_nwindows <= 0 {
@@ -6095,7 +6092,7 @@ fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: *mut c_char) {
 
             if !firstwin_mut().w_next.is_null() {
                 for wp in for_all_windows_ptr() {
-                    if (*wp).w_buffer == buf {
+                    if wp.w_buffer == buf {
                         if win_close(wp, false, false) {
                             did_one = true;
                         }
@@ -6803,10 +6800,15 @@ fn qf_add_entries(
 
         let first_li = tv_list_first(list);
         for li in crate::eval::typval::list_iter_ptr(first_li) {
-            if (*li).li_tv.v_type == VarType::VarDict {
-                let d = (*li).li_tv.vval.v_dict();
+            if li.li_tv.v_type == VarType::VarDict {
+                let d = li.li_tv.vval.v_dict();
                 if !d.is_null() {
-                    retval = qf_add_entry_from_dict(qfl, &mut *d, li == first_li, &mut valid_entry);
+                    retval = qf_add_entry_from_dict(
+                        qfl,
+                        &mut *d,
+                        std::ptr::eq(li, first_li),
+                        &mut valid_entry,
+                    );
                     if retval == QF_FAIL {
                         break;
                     }
@@ -7732,11 +7734,11 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
 }
 
 pub fn free_quickfix() {
-    unsafe {
+    {
         qf_free_all(None);
         for tab in for_all_tabpages_mut() {
             for win in win_iter_ptr(tab_firstwin(tab)) {
-                qf_free_all(win.as_mut());
+                qf_free_all(Some(&mut *win));
             }
         }
 

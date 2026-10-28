@@ -327,7 +327,7 @@ pub fn get_arglist_exp(str_: *mut c_char, fnames: &mut Vec<CString>, wig: bool) 
 fn alist_check_arg_idx() {
     {
         for tp in for_all_tabpages_ptr() {
-            for win in win_iter_mut(first_win_in_tab(unsafe { &mut *tp })) {
+            for win in win_iter_mut(first_win_in_tab(&mut *tp)) {
                 if ptr::eq(win_alist(win), win_alist(curwin_mut())) {
                     check_arg_idx(win);
                 }
@@ -1043,15 +1043,13 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: c_int) {
             if aall.opened[i as usize] > 0 {
                 if curwin_mut().w_arg_idx != i {
                     for wp in for_all_windows_ptr() {
-                        if (*wp).w_arg_idx == i {
+                        if wp.w_arg_idx == i {
                             if aall.keep_tabs {
                                 aall.new_curwin = wp;
                                 aall.new_curtab = g_st().curtab;
-                            } else if (*wp).w_floating {
+                            } else if wp.w_floating {
                                 break;
-                            } else if (*(*wp).w_frame).fr_parent
-                                != (*curwin_mut().w_frame).fr_parent
-                            {
+                            } else if (*wp.w_frame).fr_parent != (*curwin_mut().w_frame).fr_parent {
                                 emsg(gettext(E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY));
                                 i = count;
                                 break;

@@ -175,9 +175,9 @@ pub fn ex_help(eap: &mut Exarg) {
             } else {
                 wp = ptr::null_mut();
                 for wp2 in for_all_windows_ptr() {
-                    if bt_help(((*wp2).w_buffer).as_ref())
-                        && !(*wp2).w_config.hide
-                        && (*wp2).w_config.focusable
+                    if bt_help((wp2.w_buffer).as_ref())
+                        && !wp2.w_config.hide
+                        && wp2.w_config.focusable
                     {
                         wp = wp2;
                         break;
@@ -260,7 +260,7 @@ pub fn ex_help(eap: &mut Exarg) {
 pub fn ex_helpclose(eap: &mut Exarg) {
     unsafe {
         for win in for_all_windows_ptr() {
-            if bt_help(((*win).w_buffer).as_ref()) {
+            if bt_help((win.w_buffer).as_ref()) {
                 win_close(win, false, eap.forceit != 0);
                 return;
             }

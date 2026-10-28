@@ -946,7 +946,7 @@ impl Iterator for BufMutIter {
 pub struct BufPtrIter(*mut FileBuf);
 
 impl Iterator for BufPtrIter {
-    type Item = *mut FileBuf;
+    type Item = &'static mut FileBuf;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -956,7 +956,7 @@ impl Iterator for BufPtrIter {
         } else {
             unsafe {
                 self.0 = (*cur).b_next;
-                Some(cur)
+                Some(&mut *cur)
             }
         }
     }
@@ -980,7 +980,7 @@ pub fn for_all_buffers_ptr() -> BufPtrIter {
 pub struct BufRevPtrIter(*mut FileBuf);
 
 impl Iterator for BufRevPtrIter {
-    type Item = *mut FileBuf;
+    type Item = &'static mut FileBuf;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -990,7 +990,7 @@ impl Iterator for BufRevPtrIter {
         } else {
             unsafe {
                 self.0 = (*cur).b_prev;
-                Some(cur)
+                Some(&mut *cur)
             }
         }
     }
@@ -1023,7 +1023,7 @@ impl Iterator for WinMutIter {
 pub struct WinPtrIter(*mut WinInfoInfo);
 
 impl Iterator for WinPtrIter {
-    type Item = *mut WinInfoInfo;
+    type Item = &'static mut WinInfoInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1033,7 +1033,7 @@ impl Iterator for WinPtrIter {
         } else {
             unsafe {
                 self.0 = (*cur).w_next;
-                Some(cur)
+                Some(&mut *cur)
             }
         }
     }
@@ -1099,7 +1099,7 @@ impl Iterator for TabMutIter {
 pub struct TabPtrIter(*mut TabPageInfo);
 
 impl Iterator for TabPtrIter {
-    type Item = *mut TabPageInfo;
+    type Item = &'static mut TabPageInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1109,7 +1109,7 @@ impl Iterator for TabPtrIter {
         } else {
             unsafe {
                 self.0 = (*cur).tp_next;
-                Some(cur)
+                Some(&mut *cur)
             }
         }
     }
@@ -1147,7 +1147,7 @@ impl Iterator for FrameMutIter {
 pub struct FramePtrIter(*mut Frame);
 
 impl Iterator for FramePtrIter {
-    type Item = *mut Frame;
+    type Item = &'static mut Frame;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1157,7 +1157,7 @@ impl Iterator for FramePtrIter {
         } else {
             unsafe {
                 self.0 = (*cur).fr_next;
-                Some(cur)
+                Some(&mut *cur)
             }
         }
     }

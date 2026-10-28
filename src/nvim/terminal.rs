@@ -1059,11 +1059,10 @@ pub fn terminal_check_size(term: &mut Terminal) {
 
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&*tp) {
-                if !is_ctx_win(wp) && !(*wp).w_buffer.is_null() && (*wp).buf_mut().terminal == term
-                {
-                    let win_width = ((*wp).w_view_width - win_col_off(wp)).max(0) as u16;
+                if !is_ctx_win(wp) && !wp.w_buffer.is_null() && (*wp).buf_mut().terminal == term {
+                    let win_width = (wp.w_view_width - win_col_off(wp)).max(0) as u16;
                     width = width.max(win_width);
-                    height = height.max((*wp).w_view_height as u16);
+                    height = height.max(wp.w_view_height as u16);
                 }
             }
         }
@@ -2393,8 +2392,8 @@ fn refresh_terminal(term: &mut Terminal) {
         if resized {
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_ptr(&*tp) {
-                    if (*wp).w_buffer == buf && (*wp).w_leftcol != 0 {
-                        (*wp).w_leftcol = 0;
+                    if wp.w_buffer == buf && wp.w_leftcol != 0 {
+                        wp.w_leftcol = 0;
                         curs_columns(&mut *wp, 1);
                     }
                 }
@@ -2624,26 +2623,23 @@ fn refresh_screen(term: &mut Terminal, buf: &mut FileBuf) {
 }
 
 fn adjust_topline_cursor(term: &mut Terminal, buf: &mut FileBuf, added: c_int) {
-    unsafe {
+    {
         let ml_end = buf.b_ml.ml_line_count;
 
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&*tp) {
-                if (*wp).w_buffer == buf {
-                    if wp == curwin_ptr() && is_focused(term) {
+                if wp.w_buffer == buf {
+                    if std::ptr::eq(wp, curwin_ptr()) && is_focused(term) {
                         terminal_check_cursor();
                         continue;
                     }
 
-                    let following = ml_end == (*wp).w_cursor.lnum + added;
+                    let following = ml_end == wp.w_cursor.lnum + added;
                     if following {
-                        (*wp).w_cursor.lnum = ml_end;
-                        set_topline(
-                            &mut *wp,
-                            ((*wp).w_cursor.lnum - (*wp).w_view_height + 1).max(1),
-                        );
+                        wp.w_cursor.lnum = ml_end;
+                        set_topline(wp, (wp.w_cursor.lnum - wp.w_view_height + 1).max(1));
                     } else {
-                        (*wp).w_cursor.lnum = (*wp).w_cursor.lnum.min(ml_end);
+                        wp.w_cursor.lnum = wp.w_cursor.lnum.min(ml_end);
                     }
                     mb_check_adjust_col(&mut *wp);
                 }

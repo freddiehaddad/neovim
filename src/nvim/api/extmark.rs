@@ -1693,15 +1693,15 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
 
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_ptr(&*tp) {
-                    if windows.contains(&wp)
-                        && (*wp).w_ns_set.insert(ns_id as u32)
+                    if windows.contains(&(&raw mut *wp))
+                        && wp.w_ns_set.insert(ns_id as u32)
                         && (*wp).buf_mut().b_extmark_ns.contains_key(&(ns_id as u32))
                     {
                         changed_window_setting(&mut *wp);
                     }
 
-                    if !windows.contains(&wp)
-                        && (*wp).w_ns_set.remove(&(ns_id as u32))
+                    if !windows.contains(&(&raw mut *wp))
+                        && wp.w_ns_set.remove(&(ns_id as u32))
                         && (*wp).buf_mut().b_extmark_ns.contains_key(&(ns_id as u32))
                     {
                         changed_window_setting(&mut *wp);

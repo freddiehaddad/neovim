@@ -456,7 +456,7 @@ fn fuzzy_match_in_list(
                 vval: TypvalVval::Number(0),
             };
 
-            let tv = &(*li).li_tv;
+            let tv = &li.li_tv;
             if tv.v_type == VarType::VarString {
                 itemstr = tv.vval.v_string();
             } else if tv.v_type == VarType::VarDict

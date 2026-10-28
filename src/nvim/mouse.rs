@@ -1995,8 +1995,8 @@ pub fn mouse_find_win_inner(
         }
 
         for wp in for_all_windows_ptr() {
-            if wp == (*fp).fr_win {
-                *rowp -= (*wp).w_winbar_height;
+            if std::ptr::eq(wp, (*fp).fr_win) {
+                *rowp -= wp.w_winbar_height;
                 return wp;
             }
         }

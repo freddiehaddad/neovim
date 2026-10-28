@@ -1543,7 +1543,7 @@ pub fn mark_adjust_buf(
             for tab in for_all_tabpages_ptr() {
                 for win in win_iter_ptr(first_win_in_tab(&mut *tab)) {
                     found_one |=
-                        qf_mark_adjust(buf, win.as_ref(), line1, line2, amount, amount_after);
+                        qf_mark_adjust(buf, Some(&*win), line1, line2, amount, amount_after);
                 }
             }
             if !found_one {
@@ -1585,10 +1585,10 @@ pub fn mark_adjust_buf(
         for tab in for_all_tabpages_ptr() {
             for win in win_iter_ptr(first_win_in_tab(&mut *tab)) {
                 if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-                    for i in 0..((*win).w_jumplistlen as usize) {
-                        if (*win).w_jumplist[i].fmark.fnum == fnum {
+                    for i in 0..(win.w_jumplistlen as usize) {
+                        if win.w_jumplist[i].fmark.fnum == fnum {
                             one_adjust_nodel(
-                                &mut (*win).w_jumplist[i].fmark.mark.lnum,
+                                &mut win.w_jumplist[i].fmark.mark.lnum,
                                 line1,
                                 line2,
                                 amount,
@@ -1598,12 +1598,12 @@ pub fn mark_adjust_buf(
                     }
                 }
 
-                if (*win).w_buffer == buf {
+                if win.w_buffer == buf {
                     if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-                        for i in 0..((*win).w_tagstacklen as usize) {
-                            if (*win).w_tagstack[i].fmark.fnum == fnum {
+                        for i in 0..(win.w_tagstacklen as usize) {
+                            if win.w_tagstack[i].fmark.fnum == fnum {
                                 one_adjust_nodel(
-                                    &mut (*win).w_tagstack[i].fmark.mark.lnum,
+                                    &mut win.w_tagstack[i].fmark.mark.lnum,
                                     line1,
                                     line2,
                                     amount,
@@ -1613,16 +1613,16 @@ pub fn mark_adjust_buf(
                         }
                     }
 
-                    if (*win).w_old_cursor_lnum != 0 {
+                    if win.w_old_cursor_lnum != 0 {
                         one_adjust_nodel(
-                            &mut (*win).w_old_cursor_lnum,
+                            &mut win.w_old_cursor_lnum,
                             line1,
                             line2,
                             amount,
                             amount_after,
                         );
                         one_adjust_nodel(
-                            &mut (*win).w_old_visual_lnum,
+                            &mut win.w_old_visual_lnum,
                             line1,
                             line2,
                             amount,
@@ -1632,36 +1632,35 @@ pub fn mark_adjust_buf(
 
                     if by_api
                         || (if by_term {
-                            (*win).w_cursor.lnum < buf.b_ml.ml_line_count
+                            win.w_cursor.lnum < buf.b_ml.ml_line_count
                         } else {
-                            win != curwin_ptr()
+                            !std::ptr::eq(win, curwin_ptr())
                         })
                     {
-                        if (*win).w_topline >= line1 && (*win).w_topline <= line2 {
+                        if win.w_topline >= line1 && win.w_topline <= line2 {
                             if amount == MAXLNUM {
                                 if !(by_api && amount_after > line1 - line2 - 1) {
-                                    (*win).w_topline = (line1 - 1).max(1);
+                                    win.w_topline = (line1 - 1).max(1);
                                 }
-                            } else if (*win).w_topline > line1 {
-                                (*win).w_topline += amount;
+                            } else if win.w_topline > line1 {
+                                win.w_topline += amount;
                             }
-                            (*win).w_topfill = 0;
+                            win.w_topfill = 0;
                         } else if amount_after != 0
-                            && (*win).w_topline
-                                > line2 + if by_api && line2 < line1 { 1 } else { 0 }
+                            && win.w_topline > line2 + if by_api && line2 < line1 { 1 } else { 0 }
                         {
-                            (*win).w_topline += amount_after;
-                            (*win).w_topfill = 0;
+                            win.w_topline += amount_after;
+                            win.w_topfill = 0;
                         }
                     }
                     if !by_api
                         && (if by_term {
-                            (*win).w_cursor.lnum < buf.b_ml.ml_line_count
+                            win.w_cursor.lnum < buf.b_ml.ml_line_count
                         } else {
-                            win != curwin_ptr()
+                            !std::ptr::eq(win, curwin_ptr())
                         })
                     {
-                        one_adjust_cursor(&mut (*win).w_cursor, line1, line2, amount, amount_after);
+                        one_adjust_cursor(&mut win.w_cursor, line1, line2, amount, amount_after);
                     }
 
                     if adjust_folds {
@@ -1836,10 +1835,10 @@ pub fn mark_col_adjust(
         );
 
         for win in win_iter_ptr(first_win_in_tab(curtab_mut())) {
-            for i in 0..((*win).w_jumplistlen as usize) {
-                if (*win).w_jumplist[i].fmark.fnum == fnum {
+            for i in 0..(win.w_jumplistlen as usize) {
+                if win.w_jumplist[i].fmark.fnum == fnum {
                     col_adjust(
-                        &mut (*win).w_jumplist[i].fmark.mark,
+                        &mut win.w_jumplist[i].fmark.mark,
                         lnum,
                         mincol,
                         lnum_amount,
@@ -1849,11 +1848,11 @@ pub fn mark_col_adjust(
                 }
             }
 
-            if (*win).w_buffer == g_st().curbuf {
-                for i in 0..((*win).w_tagstacklen as usize) {
-                    if (*win).w_tagstack[i].fmark.fnum == fnum {
+            if win.w_buffer == g_st().curbuf {
+                for i in 0..(win.w_tagstacklen as usize) {
+                    if win.w_tagstack[i].fmark.fnum == fnum {
                         col_adjust(
-                            &mut (*win).w_tagstack[i].fmark.mark,
+                            &mut win.w_tagstack[i].fmark.mark,
                             lnum,
                             mincol,
                             lnum_amount,
@@ -1863,9 +1862,9 @@ pub fn mark_col_adjust(
                     }
                 }
 
-                if win != curwin_ptr() {
+                if !std::ptr::eq(win, curwin_ptr()) {
                     col_adjust(
-                        &mut (*win).w_cursor,
+                        &mut win.w_cursor,
                         lnum,
                         mincol,
                         lnum_amount,

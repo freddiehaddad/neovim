@@ -403,7 +403,7 @@ impl Iterator for VirtTextMutIter {
 pub struct VirtTextPtrIter(*mut DecorVirtText);
 
 impl Iterator for VirtTextPtrIter {
-    type Item = *mut DecorVirtText;
+    type Item = &'static mut DecorVirtText;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -413,7 +413,7 @@ impl Iterator for VirtTextPtrIter {
         } else {
             unsafe {
                 self.0 = (*cur).next_ptr();
-                Some(cur)
+                Some(&mut *cur)
             }
         }
     }
@@ -660,12 +660,12 @@ pub fn buf_put_decor(buf: &mut FileBuf, decor: DecorInline, row: c_int, mut row2
 }
 
 fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
-    unsafe {
+    {
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
-                (*tp).tp_firstwin
+                tp.tp_firstwin
             }) {
                 if wp.w_buffer == buf
                     && wp.w_minscwidth == SCL_NUM
@@ -1807,7 +1807,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
 
         if decor.is_ext() {
             for vt in virt_text_iter_ptr(decor.data.ext().vt) {
-                if ((*vt).flags & K_VTIS_LINES) != 0 {
+                if (vt.flags & K_VTIS_LINES) != 0 {
                     virt_lines = vt;
                 } else {
                     virt_text = vt;

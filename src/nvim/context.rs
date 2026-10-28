@@ -688,7 +688,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
         if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
             let mut dirs_tab: *mut TabPageInfo = ptr::null_mut();
             for tp in for_all_tabpages_ptr() {
-                if (*tp).handle == cs.cs_dirs_tab {
+                if tp.handle == cs.cs_dirs_tab {
                     dirs_tab = tp;
                     break;
                 }
@@ -770,8 +770,8 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut WinInfoInfo {
             'win_found: {
                 for tp in for_all_tabpages_ptr() {
                     for wp in for_all_windows_in_tab_ptr(&*tp) {
-                        if wp == cwp {
-                            if tp != g_st().curtab {
+                        if std::ptr::eq(wp, cwp) {
+                            if !std::ptr::eq(tp, g_st().curtab) {
                                 goto_tabpage_tp(tp, true, true);
                             }
                             win_goto(cwp);
@@ -838,7 +838,7 @@ pub fn ctx_switch(
                 wp = curwin_ptr();
             } else {
                 for wp2 in for_all_windows_ptr() {
-                    if (*wp2).w_buffer == buf {
+                    if wp2.w_buffer == buf {
                         wp = wp2;
                         break;
                     }

@@ -563,7 +563,7 @@ pub fn pum_display(
 
             let mut pvwin: *mut WinInfoInfo = ptr::null_mut();
             for wp in win_iter_ptr(first_win_in_tab(curtab_mut())) {
-                if (*wp).w_onebuf_opt.wo_pvw != 0 {
+                if wp.w_onebuf_opt.wo_pvw != 0 {
                     pvwin = wp;
                     break;
                 }

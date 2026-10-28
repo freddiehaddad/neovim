@@ -2084,12 +2084,12 @@ pub fn spell_free_all() {
     }
 }
 pub fn spell_reload() {
-    unsafe {
+    {
         init_spell_chartab();
         spell_free_all();
         for wp in for_all_windows_ptr() {
             let w_s = (*wp).w_s_ptr();
-            if !crate::memory::cstr_is_empty(w_s.b_p_spl) && (*wp).w_onebuf_opt.wo_spell != 0 {
+            if !crate::memory::cstr_is_empty(w_s.b_p_spl) && wp.w_onebuf_opt.wo_spell != 0 {
                 let _ = parse_spelllang(&mut *wp);
                 break;
             }
@@ -3355,10 +3355,10 @@ pub fn valid_spellfile(val: impl crate::strings::IntoCCharPtr) -> bool {
     }
 }
 pub fn did_set_spell_option() -> *const c_char {
-    unsafe {
+    {
         let mut errmsg: *const c_char = std::ptr::null();
         for wp in for_all_windows_ptr() {
-            if (*wp).w_buffer == g_st().curbuf && (*wp).w_onebuf_opt.wo_spell != 0 {
+            if wp.w_buffer == g_st().curbuf && wp.w_onebuf_opt.wo_spell != 0 {
                 errmsg = parse_spelllang(&mut *wp);
                 break;
             }

@@ -611,7 +611,7 @@ pub fn changed_window_setting(wp: &mut WinInfoInfo) {
 pub fn changed_window_setting_all() {
     {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
+            for wp in for_all_windows_in_tab_mut(&*tp) {
                 changed_window_setting(wp);
             }
         }

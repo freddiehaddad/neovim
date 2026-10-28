@@ -1058,7 +1058,7 @@ fn set_option_default(opt_idx: OptIndex, opt_flags: c_int) {
 
 /// Set all options (except terminal options) to their default value.
 fn set_options_default(opt_flags: c_int) {
-    unsafe {
+    {
         for opt_idx in 0..K_OPT_COUNT {
             if (get_option(opt_idx).flags & K_OPT_FLAG_NO_DEFAULT) == 0 {
                 set_option_default(opt_idx, opt_flags);
@@ -2949,8 +2949,11 @@ pub fn did_set_foldenable(args: &mut Optset) -> *const c_char {
             && (*win).w_onebuf_opt.wo_scb != 0
         {
             for wp in for_all_windows_ptr() {
-                if wp != win && foldmethod_is_diff(&mut *wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
-                    (*wp).w_onebuf_opt.wo_fen = (*win).w_onebuf_opt.wo_fen;
+                if !std::ptr::eq(wp, win)
+                    && foldmethod_is_diff(&mut *wp)
+                    && wp.w_onebuf_opt.wo_scb != 0
+                {
+                    wp.w_onebuf_opt.wo_fen = (*win).w_onebuf_opt.wo_fen;
                     changed_window_setting(&mut *wp);
                 }
             }
@@ -3280,7 +3283,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> *const c_char {
             win_find_tabpage(win)
         };
         for wp in for_all_windows_in_tab_ptr(&*tab) {
-            if wp != win && (*wp).w_onebuf_opt.wo_pvw != 0 {
+            if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw != 0 {
                 return E_PREVIEW_WINDOW_ALREADY_EXISTS;
             }
         }
@@ -3405,8 +3408,8 @@ pub fn did_set_swapfile(args: &mut Optset) -> *const c_char {
 pub fn did_set_textwidth(_args: &mut Optset) -> *const c_char {
     {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(unsafe { &*tp }) {
-                check_colorcolumn(ptr::null_mut(), unsafe { wp.as_mut() });
+            for wp in for_all_windows_in_tab_ptr(&*tp) {
+                check_colorcolumn(ptr::null_mut(), Some(&mut *wp));
             }
         }
         ptr::null()
@@ -3444,10 +3447,10 @@ pub fn did_set_undofile(args: &mut Optset) -> *const c_char {
         for bp in for_all_buffers_ptr() {
             if (buf == bp || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
                 && !buf_is_changed_fn(&mut *bp)
-                && (*bp).b_ml.ml_mfp.is_some()
+                && bp.b_ml.ml_mfp.is_some()
             {
                 u_compute_hash(&mut *bp, hash.as_mut_ptr());
-                u_read_undo(ptr::null_mut(), hash.as_ptr(), (*bp).b_fname);
+                u_read_undo(ptr::null_mut(), hash.as_ptr(), bp.b_fname);
             }
         }
 

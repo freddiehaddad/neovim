@@ -158,7 +158,7 @@ pub fn win_id2wp_tp(id: c_int, tpp: *mut *mut TabPageInfo) -> *mut WinInfoInfo {
     unsafe {
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
-                if (*wp).handle == id {
+                if wp.handle == id {
                     if !tpp.is_null() {
                         *tpp = tp;
                     }
@@ -194,7 +194,7 @@ pub fn win_findbuf(argvars: &mut [TypVal], list: &mut TvList) {
         let bufnr = tv_get_number(&argvars[0]) as c_int;
 
         for tp in for_all_tabpages_ptr() {
-            for wp in win_iter_mut(first_win_in_tab(unsafe { &mut *tp })) {
+            for wp in win_iter_mut(first_win_in_tab(&mut *tp)) {
                 if wp.buf_mut().b_fnum == bufnr {
                     tv_list_append_number(list, wp.handle as Varnumber);
                 }
@@ -222,7 +222,7 @@ pub fn find_win_by_nr(vp: &TypVal, mut tp: *mut TabPageInfo) -> *mut WinInfoInfo
 
         if nr >= LOWEST_WIN_ID {
             for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
-                if (*wp).handle == nr {
+                if wp.handle == nr {
                     return wp;
                 }
             }
@@ -302,7 +302,7 @@ fn get_framelayout(fr: Option<&Frame>, l: &mut TvList, outer: bool) {
             let win_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
             tv_list_append_list(&mut *fr_list, win_list);
             for child in frame_iter_ptr(fr.unwrap().fr_child) {
-                get_framelayout(child.as_ref(), &mut *win_list, false);
+                get_framelayout(Some(&*child), &mut *win_list, false);
             }
         }
     }
@@ -487,7 +487,7 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let mut tpnr: c_int = 0;
         for tp in for_all_tabpages_ptr() {
             tpnr += 1;
-            if !tparg.is_null() && tp != tparg {
+            if !tparg.is_null() && !std::ptr::eq(tp, tparg) {
                 continue;
             }
             let d = get_tabpage_info(&mut *tp, tpnr);
@@ -520,7 +520,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
                 let has_winnr = win_has_winnr(&mut *wp, &mut *tp);
                 winnr = winnr.wrapping_add(i16::from(has_winnr));
-                if !wparg.is_null() && wp != wparg {
+                if !wparg.is_null() && !std::ptr::eq(wp, wparg) {
                     continue;
                 }
                 let d = get_win_info(&mut *wp, tabnr, if has_winnr { winnr } else { 0 });
@@ -629,7 +629,7 @@ pub fn f_win_getid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// `win_gotoid()` function (`f_win_gotoid`).
 pub fn f_win_gotoid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let id = tv_get_number(&argvars[0]) as c_int;
         if curwin_mut().handle == id {
             rettv.vval = crate::eval::typval::TypvalVval::Number(1);
@@ -641,8 +641,8 @@ pub fn f_win_gotoid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
-                if (*wp).handle == id {
-                    if g_st().visual_global.active && (*wp).w_buffer != g_st().curbuf {
+                if wp.handle == id {
+                    if g_st().visual_global.active && wp.w_buffer != g_st().curbuf {
                         end_visual_mode();
                     }
                     goto_tabpage_win(&mut *tp, wp);

@@ -675,7 +675,7 @@ pub fn ml_close(buf: &mut FileBuf, del_file: c_int) {
 pub fn ml_close_all(del_file: bool) {
     {
         for buf in for_all_buffers_ptr() {
-            ml_close(unsafe { &mut *buf }, c_int::from(del_file));
+            ml_close(&mut *buf, c_int::from(del_file));
         }
         spell_delete_wordlist();
         vim_deltempdir();
@@ -684,7 +684,7 @@ pub fn ml_close_all(del_file: bool) {
 
 /// Close all memfiles for not modified buffers.
 pub fn ml_close_notmod() {
-    unsafe {
+    {
         for buf in for_all_buffers_ptr() {
             if !buf_is_changed_fn(&mut *buf) {
                 ml_close(&mut *buf, 1);
@@ -1915,7 +1915,7 @@ fn recov_file_names(
 pub fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
     unsafe {
         for buf in for_all_buffers_ptr() {
-            let mfp = (*buf).b_ml.mfp_ptr();
+            let mfp = buf.b_ml.mfp_ptr();
             if mfp.is_null() || (*mfp).mf_fname.is_none() {
                 continue;
             }
@@ -1924,13 +1924,13 @@ pub fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
             if buf_is_changed_fn(&mut *buf)
                 && check_file != 0
                 && mf_need_trans(&mut *mfp)
-                && !(*buf).b_ffname.is_null()
+                && !buf.b_ffname.is_null()
             {
                 let mut file_info = FileInfo::new();
-                if !os_fileinfo((*buf).b_ffname, &mut file_info)
-                    || (*buf).b_mtime_read != file_info.stat.st_mtim.tv_sec as _
-                    || (*buf).b_mtime_read_ns != file_info.stat.st_mtim.tv_nsec as _
-                    || os_fileinfo_size(&file_info) != (*buf).b_orig_size
+                if !os_fileinfo(buf.b_ffname, &mut file_info)
+                    || buf.b_mtime_read != file_info.stat.st_mtim.tv_sec as _
+                    || buf.b_mtime_read_ns != file_info.stat.st_mtim.tv_nsec as _
+                    || os_fileinfo_size(&file_info) != buf.b_orig_size
                 {
                     ml_preserve(&mut *buf, false, do_fsync);
                     g_st().did_check_timestamps = false;

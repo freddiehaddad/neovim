@@ -745,7 +745,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         if params.diff_mode != 0 {
             for wp in win_iter_ptr(curtab_mut().tp_firstwin) {
-                if !(*wp).w_arg_idx_invalid {
+                if !wp.w_arg_idx_invalid {
                     diff_win_options(&mut *wp, true);
                 }
             }
@@ -974,10 +974,10 @@ pub fn getout(mut exitval: c_int) -> ! {
             }
 
             for buf in for_all_buffers_ptr() {
-                if (*buf).b_ml.ml_mfp.is_some() {
+                if buf.b_ml.ml_mfp.is_some() {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf);
-                    apply_autocmds(EVENT_BUFUNLOAD, (*buf).b_fname, (*buf).b_fname, false, buf);
+                    apply_autocmds(EVENT_BUFUNLOAD, buf.b_fname, buf.b_fname, false, buf);
                     if !bufref_valid(Some(&bufref)) {
                         break;
                     }

@@ -2299,7 +2299,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
 }
 
 fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
-    unsafe {
+    {
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_UNDO) != 0 && g_st().key_typed {
             fold_open_cursor();
         }
@@ -2354,8 +2354,8 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         }
 
         for wp in for_all_windows_ptr() {
-            if (*wp).w_buffer == g_st().curbuf && (*wp).w_onebuf_opt.wo_cole > 0 {
-                redraw_later(wp.as_mut(), UPD_NOT_VALID);
+            if wp.w_buffer == g_st().curbuf && wp.w_onebuf_opt.wo_cole > 0 {
+                redraw_later(Some(&mut *wp), UPD_NOT_VALID);
             }
         }
 

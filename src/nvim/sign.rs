@@ -793,7 +793,7 @@ fn sign_unplace(
         } else {
             let mut retval = true;
             for cbuf in for_all_buffers_ptr() {
-                if !sign_unplace_inner(unsafe { &mut *cbuf }, id, group, atlnum) {
+                if !sign_unplace_inner(&mut *cbuf, id, group, atlnum) {
                     retval = false;
                 }
             }
@@ -1278,7 +1278,7 @@ fn sign_get_placed(
     retlist: &mut TvList,
 ) {
     let group = group.into_c_char_ptr();
-    unsafe {
+    {
         if let Some(buf) = buf {
             sign_get_placed_in_buf(buf, lnum, id, group, retlist);
         } else {

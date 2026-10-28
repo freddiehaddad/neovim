@@ -5600,7 +5600,7 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: c_int) -
 }
 
 fn current_win_nr(win: *const WinInfoInfo, cmdarg: Option<&Exarg>) -> c_int {
-    unsafe {
+    {
         let nonnr = cmdarg.is_some() && cmdarg.unwrap().cmdidx != Cmdidx::CmdQuit as c_int;
         let mut nr = 0;
 
@@ -5623,7 +5623,7 @@ fn current_tab_nr(tab: *mut TabPageInfo) -> c_int {
         let mut nr = 0;
         for tp in for_all_tabpages_ptr() {
             nr += 1;
-            if tp == tab {
+            if std::ptr::eq(tp, tab) {
                 break;
             }
         }
@@ -9770,7 +9770,7 @@ fn ex_tabonly(eap: &mut Exarg) {
         let mut done: c_int = 0;
         while done < 1000 {
             for tp in for_all_tabpages_ptr() {
-                if (*tp).tp_topframe != g_st().topframe.cast() {
+                if tp.tp_topframe != g_st().topframe.cast() {
                     tabpage_close_other(&mut *tp, eap.forceit);
                     if valid_tabpage(tp) {
                         done = 1000;
@@ -10354,14 +10354,14 @@ fn ex_tabs(_eap: &mut Exarg) {
                 if g_st().got_int {
                     break;
                 }
-                if !(*wp).w_config.focusable || (*wp).w_config.hide {
+                if !wp.w_config.focusable || wp.w_config.hide {
                     continue;
                 }
 
                 msg_putchar(b'\n' as c_int);
-                msg_putchar(if wp == curwin_ptr() {
+                msg_putchar(if std::ptr::eq(wp, curwin_ptr()) {
                     b'>' as c_int
-                } else if wp == lastused_win {
+                } else if std::ptr::eq(wp, lastused_win) {
                     b'#' as c_int
                 } else {
                     b' ' as c_int
@@ -10373,12 +10373,12 @@ fn ex_tabs(_eap: &mut Exarg) {
                     b' ' as c_int
                 });
                 msg_putchar(b' ' as c_int);
-                let spname = buf_spname(&*((*wp).w_buffer));
+                let spname = buf_spname(&*(wp.w_buffer));
                 if !spname.is_null() {
                     xstrlcpy(g_st().iobuff.as_mut_ptr(), spname, IOSIZE);
                 } else {
                     home_replace(
-                        ((*wp).w_buffer).as_ref(),
+                        (wp.w_buffer).as_ref(),
                         (*wp).buf_mut().b_fname,
                         g_st().iobuff.as_mut_ptr(),
                         IOSIZE,
@@ -10744,15 +10744,15 @@ fn ex_swapname(_eap: &mut Exarg) {
 }
 
 fn ex_syncbind(_eap: &mut Exarg) {
-    unsafe {
+    {
         let old_linenr = curwin_mut().w_cursor.lnum;
         setpcmark();
 
         let vtopline = if curwin_mut().w_onebuf_opt.wo_scb != 0 {
             let mut vt = get_vtopline(curwin_mut());
             for wp in for_all_windows_ptr() {
-                if (*wp).w_onebuf_opt.wo_scb != 0 && !(*wp).w_buffer.is_null() {
-                    let y = plines_m_win_fill(&mut *wp, 1, (*wp).buf_mut().b_ml.ml_line_count)
+                if wp.w_onebuf_opt.wo_scb != 0 && !wp.w_buffer.is_null() {
+                    let y = plines_m_win_fill(wp, 1, wp.buf_mut().b_ml.ml_line_count)
                         - (get_scrolloff_value(curwin_mut()) as c_int);
                     vt = vt.min(y);
                 }
@@ -10763,17 +10763,17 @@ fn ex_syncbind(_eap: &mut Exarg) {
         };
 
         for wp in for_all_windows_ptr() {
-            if (*wp).w_onebuf_opt.wo_scb != 0 {
+            if wp.w_onebuf_opt.wo_scb != 0 {
                 let y = vtopline - get_vtopline(&mut *wp);
                 if y > 0 {
                     scrollup(&mut *wp, y, true);
                 } else {
                     scrolldown(&mut *wp, -y, c_int::from(true));
                 }
-                (*wp).w_scbind_pos = vtopline;
-                redraw_later(wp.as_mut(), UPD_VALID);
+                wp.w_scbind_pos = vtopline;
+                redraw_later(Some(&mut *wp), UPD_VALID);
                 cursor_correct(&mut *wp);
-                (*wp).w_redr_status = true;
+                wp.w_redr_status = true;
             }
         }
 

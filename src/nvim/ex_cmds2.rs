@@ -336,7 +336,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         }
 
         for tp in for_all_tabpages_ptr() {
-            if tp != g_st().curtab {
+            if !std::ptr::eq(tp, g_st().curtab) {
                 for wp2 in win_iter_mut(first_win_in_tab(&mut *tp)) {
                     add_bufnum(&mut bufnrs, wp2.buf_mut().b_fnum);
                 }
@@ -406,7 +406,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 let mut tp = g_st().first_tabpage;
                 while !tp.is_null() && !found {
                     for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
-                        if (*wp).w_buffer == buf {
+                        if wp.w_buffer == buf {
                             let mut bufref: Bufref = Bufref::new();
                             set_bufref(&mut bufref, buf);
                             goto_tabpage_win(&mut *tp, wp);
@@ -841,7 +841,7 @@ pub fn ex_drop(eap: &mut Exarg) {
 
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
-                if (*wp).w_buffer == buf {
+                if wp.w_buffer == buf {
                     goto_tabpage_win(&mut *tp, wp);
                     curwin_mut().w_arg_idx = 0;
                     if !buf_is_changed_fn(curbuf_mut()) {

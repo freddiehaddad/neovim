@@ -419,16 +419,16 @@ pub fn fold_open_cursor() {
 
 /// Set new foldlevel for current window.
 pub fn new_fold_level() {
-    unsafe {
+    {
         new_fold_level_win(curwin_mut());
 
         if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
             for wp in for_all_windows_ptr() {
                 if !ptr::eq(wp, curwin_ptr())
                     && foldmethod_is_diff(&mut *wp)
-                    && (*wp).w_onebuf_opt.wo_scb != 0
+                    && wp.w_onebuf_opt.wo_scb != 0
                 {
-                    (*wp).w_onebuf_opt.wo_fdl = curwin_mut().w_onebuf_opt.wo_fdl;
+                    wp.w_onebuf_opt.wo_fdl = curwin_mut().w_onebuf_opt.wo_fdl;
                     new_fold_level_win(&mut *wp);
                 }
             }
@@ -987,12 +987,12 @@ fn set_manual_fold(
     recurse: bool,
     donep: Option<&mut c_int>,
 ) -> Linenr {
-    unsafe {
+    {
         if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
             for wp in for_all_windows_ptr() {
                 if !ptr::eq(wp, curwin_ptr())
                     && foldmethod_is_diff(&mut *wp)
-                    && (*wp).w_onebuf_opt.wo_scb != 0
+                    && wp.w_onebuf_opt.wo_scb != 0
                 {
                     let dlnum = diff_lnum_win(curwin_mut().w_cursor.lnum, &mut *wp);
                     if dlnum != 0 {
