@@ -303,8 +303,8 @@ pub fn get_unname_register() -> c_int {
     }
 }
 
-pub fn get_y_register(reg: c_int) -> *mut Yankreg {
-    unsafe { (&raw mut reg_st().y_regs).cast::<Yankreg>().add(reg as usize) }
+pub fn get_y_register(reg: c_int) -> &'static mut Yankreg {
+    &mut reg_st().y_regs[reg as usize]
 }
 
 pub fn get_y_previous() -> *mut Yankreg {
@@ -419,8 +419,8 @@ pub fn reg_max_ts(clipboard: bool) -> Timestamp {
             }
         }
         if clipboard {
-            max_ts = max_ts.max((*get_y_register(op_reg_index(c_int::from(b'*')))).timestamp);
-            max_ts = max_ts.max((*get_y_register(op_reg_index(c_int::from(b'+')))).timestamp);
+            max_ts = max_ts.max(get_y_register(op_reg_index(c_int::from(b'*'))).timestamp);
+            max_ts = max_ts.max(get_y_register(op_reg_index(c_int::from(b'+'))).timestamp);
         }
         max_ts
     }
@@ -570,7 +570,7 @@ fn stuff_yank(regname: c_int, p: impl crate::strings::IntoCCharPtr) -> bool { le
 }
 
 pub fn do_record(c: c_int) -> bool {
-    unsafe {
+     {
         let retval: bool;
 
         if g_st().reg_recording == 0 {

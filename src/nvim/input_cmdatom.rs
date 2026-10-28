@@ -417,11 +417,9 @@ fn cur_frame_ptr() -> *mut CmdFrame {
 }
 
 #[inline]
-fn root_frame() -> *mut CmdFrame {
-     {
-        assert!(!atom_st().cmd_frames.is_empty());
-        atom_st().cmd_frames.as_mut_ptr()
-    }
+fn root_frame() -> &'static mut CmdFrame {
+    assert!(!atom_st().cmd_frames.is_empty());
+    &mut atom_st().cmd_frames[0]
 }
 
 #[inline]
@@ -595,10 +593,10 @@ fn atom_from_cmdline(
 }
 
 fn atom_from_frame(ca: &mut Cmdarg, frame: &mut CmdFrame) -> CmdAtom {
-    unsafe {
+     {
         let root = root_frame();
         let mut atom = CmdAtom::default();
-        if let Some(ref cmdline) = (*root).cmdline
+        if let Some(ref cmdline) = root.cmdline
             && (ca.cmdchar == b':' as c_int || ca.cmdchar == K_COMMAND)
         {
             atom = atom_from_cmdline(K_AEXCMD, ca, cmdline.as_ptr(), frame.visual.active);
@@ -1099,7 +1097,7 @@ pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
 }
 
 pub fn atom_cmdline_set(firstc: c_int, line: impl crate::strings::IntoCCharPtr, len: usize) { let line = line.into_c_char_ptr();
-    unsafe {
+     {
         let cur_frame = cur_frame_ptr();
         if cur_frame.is_null()
             || !atom_is_user_cmd()
@@ -1108,9 +1106,9 @@ pub fn atom_cmdline_set(firstc: c_int, line: impl crate::strings::IntoCCharPtr, 
             return;
         }
         let root = root_frame();
-        if (*root).cmdline.is_none() {
+        if root.cmdline.is_none() {
             let slice = crate::memory::cstr_slice(line, len);
-            (*root).cmdline = Some(std::ffi::CString::new(slice).unwrap());
+            root.cmdline = Some(std::ffi::CString::new(slice).unwrap());
         }
     }
 }
@@ -1230,14 +1228,14 @@ pub fn atom_redo_prepped() {
     unsafe {
         if atom_is_user_cmd() {
             let cur_id = (*cur_frame_ptr()).id;
-            (*root_frame()).redo_frame = cur_id;
+            root_frame().redo_frame = cur_id;
         }
     }
 }
 
 pub fn atom_redo_cancel() {
-    unsafe {
-        (*root_frame()).redo_frame = 0;
+     {
+        root_frame().redo_frame = 0;
     }
 }
 
@@ -1674,7 +1672,7 @@ pub fn atom_ins_start(
         mc_ins_cascade_start(
             session.typed && count <= 1 && !repl && !vblock && reexec,
             session.origin,
-            (*root_frame()).id,
+            root_frame().id,
             session.vsel.clone(),
         );
 
@@ -1811,11 +1809,11 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
         if opaque
             && unchanged
             && !(atom_visual_pending() && atom_st().frame_id > old.id)
-            && (*root).redo_frame != old.id
+            && root.redo_frame != old.id
         {
             return false;
         }
-        let ins_cascaded = user && mc_ins_cascaded((*root).id);
+        let ins_cascaded = user && mc_ins_cascaded(root.id);
         let mapped = user && !old.keytyped && !synthetic;
         if mapped
             && atom_st().global_ops == old.global_ops
@@ -1905,7 +1903,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
             let failed = g_st().did_beep != old.beeps && !atom_origin_moved(old.origin);
             let follow = (mc_following() || mapped) && motion && !failed;
 
-            if (*root).redo_frame == old.id && !mouse_cmd {
+            if root.redo_frame == old.id && !mouse_cmd {
                 let mut atom = atom_from_redo(K_AOPERATOR);
                 atom_payload_append(&mut atom,  old);
 
@@ -1925,7 +1923,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
                     atom_from_cmdline(K_AMOTION, ca, ca.searchbuf_ptr(), old.visual.active);
                 atom.origin = old.origin;
                 atom_push(false, &mut atom);
-            } else if ((*root).cmdline.is_some()
+            } else if (root.cmdline.is_some()
                 && (ca.cmdchar == b':' as c_int || ca.cmdchar == K_COMMAND))
                 || (vis && ca.cmdchar == K_LUA)
             {

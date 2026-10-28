@@ -630,13 +630,13 @@ fn compl_list_mut() -> &'static mut Vec<Compl> {
 }
 
 #[inline]
-fn compl_at(idx: usize) -> *mut Compl {
-    &raw mut compl_list_mut()[idx]
+fn compl_at(idx: usize) -> &'static mut Compl {
+    &mut compl_list_mut()[idx]
 }
 
 #[inline]
 fn compl_opt(idx: Option<usize>) -> *mut Compl {
-    idx.map_or(ptr::null_mut(), compl_at)
+    idx.map_or(ptr::null_mut(), |i| &raw mut *compl_at(i))
 }
 
 #[inline]
@@ -917,7 +917,7 @@ fn find_original_text_match_idx() -> Option<usize> {
 }
 
 fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
-    unsafe {
+     {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
 
@@ -1336,7 +1336,7 @@ fn ins_compl_add(
 
         let match_ptr = compl_at(insert_idx);
         if !match_at_original_text(&*match_ptr) {
-            compl_strings_add((*match_ptr).cp_str.data, (*match_ptr).cp_str.size);
+            compl_strings_add(match_ptr.cp_str.data, match_ptr.cp_str.size);
         }
 
         if insexp().compl_get_longest
@@ -1646,7 +1646,7 @@ fn ins_compl_dict_alloc(match_: *mut Compl) -> *mut TvDict {
 
 fn trigger_complete_changed_event(cur: c_int) {
     static RECURSIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    unsafe {
+     {
         if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) {
             return;
         }
@@ -2331,7 +2331,7 @@ fn ins_compl_files(
                             if insexp().compl_get_longest
                                 && ctrl_x_mode_normal()
                                 && let Some(next_i) = compl_next_idx(0)
-                                && score == (*compl_at(next_i)).cp_score
+                                && score == compl_at(next_i).cp_score
                             {
                                 insexp().compl_num_bests += 1;
                             }
@@ -2722,13 +2722,13 @@ fn ins_compl_restart() {
 }
 
 fn ins_compl_set_original_text(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) { let str_ptr = str_ptr.into_c_char_ptr();
-    unsafe {
+     {
         let Some(orig_idx) = find_original_text_match_idx() else {
             return;
         };
         let match_ = compl_at(orig_idx);
-        api_clear_string(&mut (*match_).cp_str);
-        (*match_).cp_str = cbuf_to_string(str_ptr, len);
+        api_clear_string(&mut match_.cp_str);
+        match_.cp_str = cbuf_to_string(str_ptr, len);
     }
 }
 
@@ -2737,8 +2737,8 @@ pub fn ins_compl_addfrommatch() {
         let len = curwin_mut().w_cursor.col - insexp().compl_col;
         let shown_idx = insexp().compl_shown_idx.unwrap();
         let shown = compl_at(shown_idx);
-        let mut p = (*shown).cp_str.data;
-        if ((*shown).cp_str.size as c_int) <= len {
+        let mut p = shown.cp_str.data;
+        if (shown.cp_str.size as c_int) <= len {
             if !match_at_original_text(&*shown) {
                 return;
             }
@@ -2753,8 +2753,8 @@ pub fn ins_compl_addfrommatch() {
                 if insexp().compl_leader.data.is_null()
                     || ins_compl_equal(&mut *cp, insexp().compl_leader.data, insexp().compl_leader.size)
                 {
-                    p = (*cp).cp_str.data;
-                    plen = (*cp).cp_str.size;
+                    p = cp.cp_str.data;
+                    plen = cp.cp_str.size;
                     break;
                 }
                 cp_idx = compl_next_idx(ci);
@@ -3656,7 +3656,7 @@ fn ins_compl_mode() -> NvimString {
 }
 
 fn ins_compl_update_sequence_numbers() {
-    unsafe {
+     {
         let mut number: c_int = 0;
         let Some(curr_idx) = insexp().compl_curr_idx else {
             return;
@@ -3668,8 +3668,8 @@ fn ins_compl_update_sequence_numbers() {
                 && mi != 0
             {
                 let m = compl_at(mi);
-                if (*m).cp_number != -1 {
-                    number = (*m).cp_number;
+                if m.cp_number != -1 {
+                    number = m.cp_number;
                     break;
                 }
                 match_idx = compl_prev_idx(mi);
@@ -3678,11 +3678,11 @@ fn ins_compl_update_sequence_numbers() {
                 match_idx = compl_next_idx(mi);
                 while let Some(cur_mi) = match_idx {
                     let m = compl_at(cur_mi);
-                    if (*m).cp_number != -1 {
+                    if m.cp_number != -1 {
                         break;
                     }
                     number += 1;
-                    (*m).cp_number = number;
+                    m.cp_number = number;
                     match_idx = compl_next_idx(cur_mi);
                 }
             }
@@ -3693,8 +3693,8 @@ fn ins_compl_update_sequence_numbers() {
                 && mi != 0
             {
                 let m = compl_at(mi);
-                if (*m).cp_number != -1 {
-                    number = (*m).cp_number;
+                if m.cp_number != -1 {
+                    number = m.cp_number;
                     break;
                 }
                 match_idx = compl_next_idx(mi);
@@ -3703,11 +3703,11 @@ fn ins_compl_update_sequence_numbers() {
                 match_idx = compl_prev_idx(mi);
                 while let Some(cur_mi) = match_idx {
                     let m = compl_at(cur_mi);
-                    if (*m).cp_number != -1 {
+                    if m.cp_number != -1 {
                         break;
                     }
                     number += 1;
-                    (*m).cp_number = number;
+                    m.cp_number = number;
                     match_idx = compl_prev_idx(cur_mi);
                 }
             }
@@ -3885,7 +3885,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
             if ret
                 && (what_flag & CI_WHAT_SELECTED) != 0
                 && let Some(ci) = insexp().compl_curr_idx
-                && (*compl_at(ci)).cp_number == -1
+                && compl_at(ci).cp_number == -1
             {
                 ins_compl_update_sequence_numbers();
             }
@@ -4263,7 +4263,7 @@ fn fuzzy_longest_match() {
         };
         if insexp().compl_num_bests == 1 {
             if !more_candidates && let Some(ci) = compl_idx {
-                ins_compl_longest_insert((*compl_at(ci)).cp_str.data);
+                ins_compl_longest_insert(compl_at(ci).cp_str.data);
                 insexp().compl_num_bests = 0;
             }
             insexp().compl_num_bests = 0;
@@ -4284,11 +4284,11 @@ fn fuzzy_longest_match() {
             i += 1;
         }
 
-        let prefix = (*compl_best_matches[0]).cp_str.data;
-        let mut prefix_len = (*compl_best_matches[0]).cp_str.size as c_int;
+        let prefix = compl_best_matches[0].cp_str.data;
+        let mut prefix_len = compl_best_matches[0].cp_str.size as c_int;
 
-        for &best in &compl_best_matches[1..] {
-            let match_str = (*best).cp_str.data;
+        for best in &compl_best_matches[1..] {
+            let match_str = best.cp_str.data;
             let mut prefix_ptr = prefix;
             let mut match_ptr = match_str;
             let mut j: c_int = 0;
@@ -4742,7 +4742,7 @@ fn get_next_default_completion(
             {
                 if in_fuzzy_collect
                     && let Some(next_i) = compl_next_idx(0)
-                    && score == (*compl_at(next_i)).cp_score
+                    && score == compl_at(next_i).cp_score
                 {
                     insexp().compl_num_bests += 1;
                 }
@@ -5268,7 +5268,7 @@ fn ins_compl_update_shown_match() {
         let Some(mut shown_idx) = insexp().compl_shown_idx else {
             return;
         };
-        let mut leader = get_leader_for_startcol(compl_at(shown_idx).as_ref(), true);
+        let mut leader = get_leader_for_startcol(Some(&*compl_at(shown_idx)), true);
 
         while !ins_compl_equal(&mut *compl_at(shown_idx), (*leader).data, (*leader).size)
             && let Some(next_i) = compl_next_idx(shown_idx)
@@ -5276,7 +5276,7 @@ fn ins_compl_update_shown_match() {
         {
             shown_idx = next_i;
             insexp().compl_shown_idx = Some(shown_idx);
-            leader = get_leader_for_startcol(compl_at(shown_idx).as_ref(), true);
+            leader = get_leader_for_startcol(Some(&*compl_at(shown_idx)), true);
         }
 
         if compl_shows_dir_backward()
@@ -5289,7 +5289,7 @@ fn ins_compl_update_shown_match() {
             {
                 shown_idx = prev_i;
                 insexp().compl_shown_idx = Some(shown_idx);
-                leader = get_leader_for_startcol(compl_at(shown_idx).as_ref(), true);
+                leader = get_leader_for_startcol(Some(&*compl_at(shown_idx)), true);
             }
         }
     }
@@ -5597,7 +5597,7 @@ fn ins_compl_show_filename() {
 }
 
 fn find_next_match_in_menu() -> Option<usize> {
-    unsafe {
+     {
         let is_forward = compl_shows_dir_forward();
         let mut match_idx = insexp().compl_shown_idx?;
 
@@ -5613,7 +5613,7 @@ fn find_next_match_in_menu() -> Option<usize> {
             match_idx = ni;
             let m = compl_at(match_idx);
             if compl_next_idx(match_idx).is_none()
-                || (*m).cp_in_match_array
+                || m.cp_in_match_array
                 || match_at_original_text(&*m)
             {
                 break;
@@ -6460,7 +6460,7 @@ fn ins_compl_start() -> bool {
 }
 
 fn ins_compl_show_statusmsg() {
-    unsafe {
+     {
         if compl_next_idx(0) == Some(0) {
             g_st().edit_submode_extra = if compl_status_adding() && insexp().compl_length > 1 {
                 gettext(c"Hit end of paragraph")
@@ -6482,21 +6482,21 @@ fn ins_compl_show_statusmsg() {
             } else if compl_next_idx(curr_idx) == compl_prev_idx(curr_idx) {
                 g_st().edit_submode_extra = gettext(c"The only match");
                 g_st().edit_submode_highl = HLF_COUNT;
-                (*curr).cp_number = 1;
+                curr.cp_number = 1;
             } else {
-                if (*curr).cp_number == -1 {
+                if curr.cp_number == -1 {
                     ins_compl_update_sequence_numbers();
                 }
 
                 let curr = compl_at(curr_idx);
-                if (*curr).cp_number != -1 {
+                if curr.cp_number != -1 {
                     let match_ref_ptr = insexp().match_ref.as_mut_ptr();
                     if insexp().compl_matches > 0 {
                         vim_snprintf!(
                             match_ref_ptr,
                             81,
                             gettext(c"match %d of %d"),
-                            (*curr).cp_number,
+                            curr.cp_number,
                             insexp().compl_matches,
                         );
                     } else {
@@ -6504,7 +6504,7 @@ fn ins_compl_show_statusmsg() {
                             match_ref_ptr,
                             81,
                             gettext(c"match %d"),
-                            (*curr).cp_number,
+                            curr.cp_number,
                         );
                     }
                     g_st().edit_submode_extra = match_ref_ptr;

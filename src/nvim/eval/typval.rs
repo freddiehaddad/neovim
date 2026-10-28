@@ -703,8 +703,8 @@ pub fn nlua_clear_ref(r: &mut LuaRef) {
 }
 
 #[inline]
-pub fn tv_dict_hi2di(hi: *const Hashitem) -> *mut Dictitem {
-    unsafe { (*hi).hi_di }
+pub fn tv_dict_hi2di(hi: *const Hashitem) -> &'static mut Dictitem {
+    unsafe { &mut *(*hi).hi_di }
 }
 
 #[inline]
@@ -2983,9 +2983,9 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
                 if !hashitem_empty(&*hi) {
                     todo -= 1;
                     let var = tv_dict_hi2di(hi);
-                    let str_ = tv_get_string(&(*var).di_tv);
+                    let str_ = tv_get_string(&var.di_tv);
                     debug_assert!(!str_.is_null());
-                    let key_bytes = crate::memory::cstr_as_bytes((*var).di_key.as_ptr());
+                    let key_bytes = crate::memory::cstr_as_bytes(var.di_key.as_ptr());
                     let val_bytes = crate::memory::cstr_as_bytes(str_);
                     let mut entry = Vec::with_capacity(key_bytes.len() + 1 + val_bytes.len());
                     entry.extend_from_slice(key_bytes);
@@ -3321,7 +3321,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
             if !hashitem_empty(&*hi2) {
                 todo -= 1;
                 let di2 = tv_dict_hi2di(hi2);
-                let key2 = (*di2).di_key.as_ptr();
+                let key2 = di2.di_key.as_ptr();
                 let di1 = tv_dict_find(Some(d1), key2, -1);
                 if d1.dv_scope != VAR_NO_SCOPE && !valid_varname(key2) {
                     break;
@@ -3333,8 +3333,8 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                             hash_remove(&mut d2.dv_hashtab,  &mut *hi2);
                             tv_dict_watcher_notify(
                                 d1,
-                                (*new_di).di_key.as_ptr(),
-                                Some(&(*new_di).di_tv),
+                                new_di.di_key.as_ptr(),
+                                Some(&new_di.di_tv),
                                 None,
                             );
                         }
@@ -3354,13 +3354,13 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                 } else if crate::memory::cstr_first_byte(action) == b'e' {
                     semsg!(tr(c"E737: Key already exists: %s"), key2);
                     break;
-                } else if crate::memory::cstr_first_byte(action) == b'f' && di2 != di1 {
+                } else if crate::memory::cstr_first_byte(action) == b'f' && !ptr::eq(di2, di1) {
                     if value_check_lock((*di1).di_tv.v_lock, arg_errmsg, arg_errmsg_len)
                         || var_check_ro(c_int::from((*di1).di_flags), arg_errmsg, arg_errmsg_len)
                     {
                         break;
                     }
-                    if tv_dict_wrong_func_name(&mut *d1, &mut (*di2).di_tv, key2) != 0 {
+                    if tv_dict_wrong_func_name(&mut *d1, &mut di2.di_tv, key2) != 0 {
                         break;
                     }
 
@@ -3370,7 +3370,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                     }
 
                     tv_clear(&mut (*di1).di_tv);
-                    tv_copy(&(*di2).di_tv, &mut (*di1).di_tv);
+                    tv_copy(&di2.di_tv, &mut (*di1).di_tv);
 
                     if watched {
                         tv_dict_watcher_notify(
@@ -3414,12 +3414,12 @@ pub fn tv_dict_equal(d1: Option<&TvDict>, d2: Option<&TvDict>, ic: bool) -> bool
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di1 = tv_dict_hi2di(hi);
-                let key1 = (*di1).di_key.as_ptr();
+                let key1 = di1.di_key.as_ptr();
                 let di2 = tv_dict_find(Some(d2), key1, -1);
                 if di2.is_null() {
                     return false;
                 }
-                if !tv_equal(&(*di1).di_tv, &(*di2).di_tv, ic) {
+                if !tv_equal(&di1.di_tv, &(*di2).di_tv, ic) {
                     return false;
                 }
             }
@@ -3455,7 +3455,7 @@ pub fn tv_dict_copy(
                     break;
                 }
                 let di = tv_dict_hi2di(hi);
-                let key_ptr = (*di).di_key.as_mut_ptr();
+                let key_ptr = di.di_key.as_mut_ptr();
                 let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
                     let mut len = crate::memory::cstr_len(key_ptr);
                     if let Some(key) = string_convert(conv, key_ptr, Some(&mut len)) {
@@ -3469,7 +3469,7 @@ pub fn tv_dict_copy(
                 if deep {
                     if !var_item_copy(
                         conv,
-                        &mut (*di).di_tv,
+                        &mut di.di_tv,
                         &mut (*new_di).di_tv,
                         deep,
                         copy_id,
@@ -3479,7 +3479,7 @@ pub fn tv_dict_copy(
                         break;
                     }
                 } else {
-                    tv_copy(&(*di).di_tv, &mut (*new_di).di_tv);
+                    tv_copy(&di.di_tv, &mut (*new_di).di_tv);
                 }
                 if !tv_dict_add(&mut *copy, new_di) {
                     tv_dict_item_free(new_di);
@@ -3508,7 +3508,7 @@ pub fn tv_dict_set_keys_readonly(dict: &mut TvDict) {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di = tv_dict_hi2di(hi);
-                (*di).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
+                di.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             }
             hi = hi.add(1);
         }
@@ -3837,7 +3837,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di = tv_dict_hi2di(hi);
-                let key_ptr = (*di).di_key.as_ptr();
+                let key_ptr = di.di_key.as_ptr();
                 let mut tv_item = tv_initial_value();
 
                 match what {
@@ -3845,7 +3845,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
                         tv_set_string(&mut tv_item, key_ptr);
                     }
                     DictListType::Values => {
-                        tv_copy(&(*di).di_tv, &mut tv_item);
+                        tv_copy(&di.di_tv, &mut tv_item);
                     }
                     DictListType::Items => {
                         let sub_l = tv_list_alloc(2);
@@ -3853,7 +3853,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
                         tv_item.vval = crate::eval::typval::TypvalVval::List(sub_l);
                         tv_list_ref_inline(sub_l.as_mut());
                         tv_list_append_string( &mut *sub_l, key_ptr, -1);
-                        tv_list_append_tv( &mut *sub_l, &mut (*di).di_tv);
+                        tv_list_append_tv( &mut *sub_l, &mut di.di_tv);
                     }
                 }
 
@@ -4231,7 +4231,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                     let di = tv_dict_hi2di(*hi);
                     *todo -= 1;
                     *hi = (*hi).add(1);
-                    &raw mut (*di).di_tv
+                    &raw mut di.di_tv
                 }
                 MPConvStackData::List { list, ref mut li } => {
                     let cur_li = *li;
@@ -4450,7 +4450,7 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: c_int, lock: bool, check_refcount: bo
                             if !hashitem_empty(&*hi) {
                                 todo -= 1;
                                 let di = tv_dict_hi2di(hi);
-                                tv_item_lock(&mut (*di).di_tv, deep - 1, lock, check_refcount);
+                                tv_item_lock(&mut di.di_tv, deep - 1, lock, check_refcount);
                             }
                             hi = hi.add(1);
                         }

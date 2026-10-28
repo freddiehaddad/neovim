@@ -1161,7 +1161,7 @@ pub fn tui_stop(tui: &mut TUIData) {
         terminfo_disable(tui);
 
         let wait_start = os_hrtime();
-        let events = (*loop_queues(&mut *tui.loop_)).events;
+        let events = loop_queues(&mut *tui.loop_).events;
         let rs = &mut (*input).read_stream;
         let mut remaining: i64 = EXIT_TIMEOUT_MS;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };

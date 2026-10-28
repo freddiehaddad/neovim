@@ -10072,7 +10072,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
             if eap.cmdidx == Cmdidx::CmdSfind as c_int
                 || eap.cmdidx == Cmdidx::CmdTabfind as c_int
             {
-                if (*get_findfunc()).cb_type() != K_CALLBACK_NONE_CONST {
+                if get_findfunc().cb_type() != K_CALLBACK_NONE_CONST {
                     fname = findfunc_find_file(
                         eap.arg,
                         crate::memory::cstr_len(eap.arg),
@@ -10433,13 +10433,13 @@ fn ex_resize(eap: &mut Exarg) {
 }
 
 fn ex_find(eap: &mut Exarg) {
-    unsafe {
+     {
         if !check_can_set_curbuf_forceit(eap.forceit) {
             return;
         }
 
         let mut fname: Option<std::ffi::CString>;
-        if (*get_findfunc()).cb_type() != K_CALLBACK_NONE_CONST {
+        if get_findfunc().cb_type() != K_CALLBACK_NONE_CONST {
                 fname = findfunc_find_file(
                     eap.arg,
                     crate::memory::cstr_len(eap.arg),
@@ -11003,7 +11003,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
 
         ui_flush();
         let main_loop_ptr = (&raw mut g_st().main_loop).cast();
-        let events = (*loop_queues(&mut *main_loop_ptr)).events;
+        let events = loop_queues(&mut *main_loop_ptr).events;
         let mut remaining = msec;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !g_st().got_int {

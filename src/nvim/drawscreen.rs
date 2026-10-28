@@ -318,10 +318,10 @@ pub fn screenclear() {
 }
 
 fn cmdline_number_prompt() -> bool {
-    unsafe {
+     {
         !ui_has(K_UIMESSAGES)
             && (g_st().state_global & MODE_CMDLINE) != 0
-            && (*get_cmdline_info()).mouse_used.is_some()
+            && get_cmdline_info().mouse_used.is_some()
     }
 }
 
@@ -412,7 +412,7 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
 
             if g_st().state_global == MODE_ASKMORE
                 || g_st().state_global == MODE_EXTERNCMD
-                || ((g_st().state_global & MODE_CMDLINE) != 0 && (*get_cmdline_info()).one_key)
+                || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key)
             {
                 if (g_st().state_global & MODE_CMDLINE) != 0 {
                     update_screen();

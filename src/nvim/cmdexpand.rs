@@ -1879,12 +1879,12 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
 
         if xp.xp_numfiles == -1 {
             cmdexp().pre_incsearch_pos = xp.xp_pre_incsearch_pos;
-            if (*ccline).input_fn != 0 && (*ccline).xp_context == EXPAND_COMMANDS {
+            if ccline.input_fn != 0 && ccline.xp_context == EXPAND_COMMANDS {
                 set_cmd_context(
                     xp,
-                    (*ccline).cmdbuff,
-                    (*ccline).cmdlen,
-                    (*ccline).cmdpos,
+                    ccline.cmdbuff,
+                    ccline.cmdlen,
+                    ccline.cmdpos,
                     false as c_int,
                 );
             } else {
@@ -1906,9 +1906,9 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
             return false;
         }
 
-        let i = xp.xp_pattern.offset_from((*ccline).cmdbuff) as c_int;
-        debug_assert!((*ccline).cmdpos >= i);
-        xp.xp_pattern_len = ((*ccline).cmdpos as usize) - (i as usize);
+        let i = xp.xp_pattern.offset_from(ccline.cmdbuff) as c_int;
+        debug_assert!(ccline.cmdpos >= i);
+        xp.xp_pattern_len = (ccline.cmdpos as usize) - (i as usize);
 
         if from_wildtrigger_func && xp.xp_context == EXPAND_COMMANDS && xp.xp_pattern_len == 0
         {
@@ -1945,7 +1945,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
                 | if escape { WILD_ESCAPE } else { 0 }
                 | if opt_vars().p_wic != 0 { WILD_ICASE } else { 0 };
             let orig = cstr_from_bytes(std::slice::from_raw_parts(
-                (*ccline).cmdbuff.add(i as usize).cast::<u8>(),
+                ccline.cmdbuff.add(i as usize).cast::<u8>(),
                 xp.xp_pattern_len,
             ));
             p = expand_one(
@@ -1960,7 +1960,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
             {
                 let mut j: usize = 0;
                 while j < xp.xp_pattern_len {
-                    let c = *(*ccline).cmdbuff.add((i as usize) + j);
+                    let c = *ccline.cmdbuff.add((i as usize) + j);
                     if c == b'*' as c_char || c == b'?' as c_char {
                         break;
                     }
@@ -1972,9 +1972,9 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
             }
         }
 
-        if !wild_navigate && !(*ccline).cmdbuff.is_null() {
+        if !wild_navigate && !ccline.cmdbuff.is_null() {
             let slice =
-                crate::memory::cstr_slice((*ccline).cmdbuff, (*ccline).cmdlen as usize);
+                crate::memory::cstr_slice(ccline.cmdbuff, ccline.cmdlen as usize);
             let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
             cmdexp().cmdline_orig = Some(slice[..len].to_vec());
         }
@@ -1985,19 +1985,19 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
         {
             let plen = p_str.to_bytes().len();
             let difflen = (plen as c_int) - (xp.xp_pattern_len as c_int);
-            if (*ccline).cmdlen + difflen + 4 > (*ccline).cmdbufflen {
-                realloc_cmdbuff((*ccline).cmdlen + difflen + 4);
-                xp.xp_pattern = (*ccline).cmdbuff.add(i as usize);
+            if ccline.cmdlen + difflen + 4 > ccline.cmdbufflen {
+                realloc_cmdbuff(ccline.cmdlen + difflen + 4);
+                xp.xp_pattern = ccline.cmdbuff.add(i as usize);
             }
-            debug_assert!((*ccline).cmdpos <= (*ccline).cmdlen);
+            debug_assert!(ccline.cmdpos <= ccline.cmdlen);
             ptr::copy(
-                (*ccline).cmdbuff.add((*ccline).cmdpos as usize),
-                (*ccline).cmdbuff.add(((*ccline).cmdpos + difflen) as usize),
-                ((*ccline).cmdlen as usize) - ((*ccline).cmdpos as usize) + 1,
+                ccline.cmdbuff.add(ccline.cmdpos as usize),
+                ccline.cmdbuff.add((ccline.cmdpos + difflen) as usize),
+                (ccline.cmdlen as usize) - (ccline.cmdpos as usize) + 1,
             );
-            ptr::copy(p_str.as_ptr(), (*ccline).cmdbuff.add(i as usize), plen);
-            (*ccline).cmdlen += difflen;
-            (*ccline).cmdpos += difflen;
+            ptr::copy(p_str.as_ptr(), ccline.cmdbuff.add(i as usize), plen);
+            ccline.cmdlen += difflen;
+            ccline.cmdpos += difflen;
         }
 
         redrawcmd();
@@ -2120,7 +2120,7 @@ pub fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
 /// Returns the current cmdline completion pattern.
 pub fn cmdline_compl_pattern() -> *mut c_char {
     unsafe {
-        let xp = (*get_cmdline_info()).xpc;
+        let xp = get_cmdline_info().xpc;
         if false {
             ptr::null_mut()
         } else {
@@ -2135,7 +2135,7 @@ pub fn cmdline_compl_pattern() -> *mut c_char {
 /// Returns true if fuzzy cmdline completion is active, false otherwise.
 pub fn cmdline_compl_is_fuzzy() -> bool {
     unsafe {
-        let xp = (*get_cmdline_info()).xpc;
+        let xp = get_cmdline_info().xpc;
         !xp.is_null() && cmdline_fuzzy_completion_supported(&*xp)
     }
 }
@@ -2379,7 +2379,7 @@ fn redraw_wildmenu(
 
 /// Get the next or prev cmdline completion match.
 fn get_next_or_prev_match(mode: c_int, xp: &mut ExpandCtx) -> Option<CString> {
-    unsafe {
+     {
         if xp.xp_numfiles <= 0 {
             return None;
         }
@@ -2787,7 +2787,7 @@ pub fn showmatches(
     display_list: bool,
     wim_flags_arg: c_int,
 ) -> c_int {
-    unsafe {
+     {
         let ccline = get_cmdline_info();
         let mut temp_matches: Vec<CString> = Vec::new();
         let showtail: bool;
@@ -2800,7 +2800,7 @@ pub fn showmatches(
             if xp.xp_context == EXPAND_LUA {
                 nlua_expand_pat(xp);
             }
-            let retval = expand_cmdline(xp, (*ccline).cmdbuff, (*ccline).cmdpos, &mut temp_matches);
+            let retval = expand_cmdline(xp, ccline.cmdbuff, ccline.cmdpos, &mut temp_matches);
             if retval != EXPAND_OK {
                 return retval;
             }
@@ -3086,28 +3086,28 @@ pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context
 
 /// Must parse the command line so far to work out what context we are in.
 pub fn set_expand_context(xp: &mut ExpandCtx) {
-    unsafe {
+     {
         let ccline = get_cmdline_info();
 
-        if ((*ccline).cmdfirstc == b'/' as c_int || (*ccline).cmdfirstc == b'?' as c_int)
+        if (ccline.cmdfirstc == b'/' as c_int || ccline.cmdfirstc == b'?' as c_int)
             && cmdexp().may_expand_pattern
         {
             xp.xp_context = EXPAND_PATTERN_IN_BUF;
-            xp.xp_search_dir = if (*ccline).cmdfirstc == b'/' as c_int {
+            xp.xp_search_dir = if ccline.cmdfirstc == b'/' as c_int {
                 FORWARD
             } else {
                 BACKWARD
             };
-            xp.xp_pattern = (*ccline).cmdbuff;
-            xp.xp_pattern_len = (*ccline).cmdpos as usize;
+            xp.xp_pattern = ccline.cmdbuff;
+            xp.xp_pattern_len = ccline.cmdpos as usize;
             g_st().search_global.first_line = 0;
             return;
         }
 
-        if (*ccline).cmdfirstc != b':' as c_int
-            && (*ccline).cmdfirstc != b'>' as c_int
-            && (*ccline).cmdfirstc != b'=' as c_int
-            && (*ccline).input_fn == 0
+        if ccline.cmdfirstc != b':' as c_int
+            && ccline.cmdfirstc != b'>' as c_int
+            && ccline.cmdfirstc != b'=' as c_int
+            && ccline.input_fn == 0
         {
             xp.xp_context = EXPAND_NOTHING;
             return;
@@ -3115,9 +3115,9 @@ pub fn set_expand_context(xp: &mut ExpandCtx) {
 
         set_cmd_context(
             xp,
-            (*ccline).cmdbuff,
-            (*ccline).cmdlen,
-            (*ccline).cmdpos,
+            ccline.cmdbuff,
+            ccline.cmdlen,
+            ccline.cmdpos,
             true as c_int,
         );
     }
@@ -3607,12 +3607,12 @@ fn set_context_with_pattern(xp: &mut ExpandCtx) {
         );
         g_st().emsg_off -= 1;
 
-        if !retval || (*ccline).cmdpos <= skiplen || (*ccline).cmdpos > skiplen + patlen {
+        if !retval || ccline.cmdpos <= skiplen || ccline.cmdpos > skiplen + patlen {
             return;
         }
 
-        xp.xp_pattern = (*ccline).cmdbuff.add(skiplen as usize);
-        xp.xp_pattern_len = ((*ccline).cmdpos - skiplen) as usize;
+        xp.xp_pattern = ccline.cmdbuff.add(skiplen as usize);
+        xp.xp_pattern_len = (ccline.cmdpos - skiplen) as usize;
         xp.xp_context = EXPAND_PATTERN_IN_BUF;
         xp.xp_search_dir = FORWARD;
     }
@@ -3632,7 +3632,7 @@ fn set_context_by_cmdname(
         match cmdidx {
             Cmdidx::CmdFind | Cmdidx::CmdSfind | Cmdidx::CmdTabfind => {
                 if xp.xp_context == EXPAND_FILES {
-                    xp.xp_context = if (*get_findfunc()).cb_type() != 0 {
+                    xp.xp_context = if get_findfunc().cb_type() != 0 {
                         EXPAND_FINDFUNC
                     } else {
                         EXPAND_FILES_IN_PATH
@@ -4235,12 +4235,12 @@ pub fn set_cmd_context(
         cmdexp().filetype_expand_what = FiletypeExpandWhat::All;
         cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
 
-        if use_ccline != 0 && (*ccline).cmdfirstc == b'=' as c_int {
+        if use_ccline != 0 && ccline.cmdfirstc == b'=' as c_int {
             set_context_for_expression(xp, str_arg, Cmdidx::CmdSize);
-        } else if use_ccline != 0 && (*ccline).input_fn != 0 {
-            xp.xp_context = (*ccline).xp_context;
-            xp.xp_pattern = (*ccline).cmdbuff;
-            xp.xp_arg = (*ccline)
+        } else if use_ccline != 0 && ccline.input_fn != 0 {
+            xp.xp_context = ccline.xp_context;
+            xp.xp_pattern = ccline.cmdbuff;
+            xp.xp_arg = ccline
                 .xp_arg
                 .as_ref()
                 .map_or(ptr::null_mut(), |a| a.as_ptr().cast_mut());
@@ -4445,7 +4445,7 @@ fn get_breakadd_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 
 /// Function given to ExpandGeneric() to obtain the possible arguments for ":scriptnames".
 fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
-    unsafe {
+     {
         if !script_id_valid(idx + 1) {
             return ptr::null_mut();
         }
@@ -5291,9 +5291,9 @@ fn call_user_expand_func<R>(
             return default;
         }
 
-        if !(*ccline).cmdbuff.is_null() {
-            keep = *(*ccline).cmdbuff.add((*ccline).cmdlen as usize);
-            *(*ccline).cmdbuff.add((*ccline).cmdlen as usize) = 0;
+        if !ccline.cmdbuff.is_null() {
+            keep = *ccline.cmdbuff.add(ccline.cmdlen as usize);
+            *ccline.cmdbuff.add(ccline.cmdlen as usize) = 0;
         }
 
         let pat = cstr_from_bytes(crate::memory::cstr_slice((*xp).xp_pattern, (*xp).xp_pattern_len,
@@ -5311,8 +5311,8 @@ fn call_user_expand_func<R>(
         let ret = user_expand_func((*xp).xp_arg, 3, args.as_mut_ptr());
 
         g_st().current_sctx = save_current_sctx;
-        if !(*ccline).cmdbuff.is_null() {
-            *(*ccline).cmdbuff.add((*ccline).cmdlen as usize) = keep;
+        if !ccline.cmdbuff.is_null() {
+            *ccline.cmdbuff.add(ccline.cmdlen as usize) = keep;
         }
 
         ret
@@ -5965,7 +5965,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal,
         let ccline = get_cmdline_info();
 
         tv_dict_alloc_ret(rettv);
-        if ccline.is_null() || (*ccline).xpc.is_null() || (*(*ccline).xpc).xp_files.capacity() == 0
+        if ccline.xpc.is_null() || (*ccline.xpc).xp_files.capacity() == 0
         {
             return;
         }
@@ -5990,15 +5990,15 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal,
             ret = tv_dict_add_nr(
                 &mut *retdict,
                 c"selected",
-                i64::from((*(*ccline).xpc).xp_selected),
+                i64::from((*ccline.xpc).xp_selected),
             );
         }
         if ret {
-            let li = tv_list_alloc((*(*ccline).xpc).xp_numfiles as isize);
+            let li = tv_list_alloc((*ccline.xpc).xp_numfiles as isize);
             ret = tv_dict_add_list(&mut *retdict, c"matches", li);
-            let files = (*(*ccline).xpc).xp_files.as_slice();
+            let files = (*ccline.xpc).xp_files.as_slice();
             let mut idx: usize = 0;
-            while ret && (idx as c_int) < (*(*ccline).xpc).xp_numfiles {
+            while ret && (idx as c_int) < (*ccline.xpc).xp_numfiles {
                 tv_list_append_string(
                      &mut *li,
                     files[idx].as_ptr(),

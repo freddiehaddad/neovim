@@ -701,7 +701,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
             let error = nlua_get_error(lstate, &mut len);
             let queues = loop_queues(&mut g_st().main_loop);
             put_event(
-                (*queues).events,
+                queues.events,
                 Event::NluaLuvError {
                     msg: (!error.is_null()).then(|| crate::memory::cstr_to_cstring(error)),
                     kind: K_CALLBACK,
@@ -904,7 +904,7 @@ unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> c_int {
         let cb = nlua_ref_global(lstate, 1);
         let queues = loop_queues(&mut g_st().main_loop);
         put_event(
-            (*queues).events,
+            queues.events,
             Event::NluaSchedule {
                 cb,
                 ns_id: g_st().ui_event_ns_id,
@@ -922,9 +922,9 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
 
         let queues = loop_queues(&mut g_st().main_loop);
         let loop_events = if fast_only {
-            (*queues).fast_events
+            queues.fast_events
         } else {
-            (*queues).events
+            queues.events
         };
         if !loop_events.is_null() && !multiqueue_empty( &*loop_events) {
             multiqueue_process_events( &mut *loop_events);
@@ -1485,7 +1485,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
             );
         } else if nlua_st().in_fast_callback != 0 {
             let queues = loop_queues(&mut g_st().main_loop);
-            put_event((*queues).events, Event::NluaPrint(msg_str));
+            put_event(queues.events, Event::NluaPrint(msg_str));
         } else {
             nlua_print_event(msg_str);
         }

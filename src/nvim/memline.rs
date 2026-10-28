@@ -378,8 +378,8 @@ fn pb_count_max(mfp: &Memfile) -> u16 {
 }
 
 #[inline]
-fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> *mut PointerEntry {
-    unsafe { (&raw mut pp.pb_pointer).cast::<PointerEntry>().add(idx) }
+fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> &'static mut PointerEntry {
+    unsafe { &mut *(&raw mut pp.pb_pointer).cast::<PointerEntry>().add(idx) }
 }
 
 #[inline]
@@ -469,10 +469,10 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         let pp = (*hp).data_ptr().cast::<PointerBlock>();
         (*pp).pb_count = 1;
         let pe0 = pb_ptr(&mut *pp, 0);
-        (*pe0).pe_bnum = 2;
-        (*pe0).pe_page_count = 1;
-        (*pe0).pe_old_lnum = 1;
-        (*pe0).pe_line_count = 1;
+        pe0.pe_bnum = 2;
+        pe0.pe_page_count = 1;
+        pe0.pe_old_lnum = 1;
+        pe0.pe_line_count = 1;
         mf_put( &mut *mfp, hp, true, false);
 
         hp = ml_new_data(&mut *mfp, false, 1);
@@ -1198,7 +1198,7 @@ pub fn ml_recover(checkext: bool) {
 
                     if idx == 0 && line_count != 0 {
                         for i in 0..((*pp).pb_count as usize) {
-                            line_count -= (*pb_ptr(&mut *pp, i)).pe_line_count;
+                            line_count -= pb_ptr(&mut *pp, i).pe_line_count;
                         }
                         if line_count != 0 {
                             error += 1;
@@ -1213,10 +1213,10 @@ pub fn ml_recover(checkext: bool) {
                         error += 1;
                     } else if idx < c_int::from((*pp).pb_count) {
                         let pe = pb_ptr(&mut *pp, idx as usize);
-                        if (*pe).pe_bnum < 0 {
+                        if pe.pe_bnum < 0 {
                             if !cannot_open {
-                                line_count = (*pe).pe_line_count;
-                                let pe_old_lnum = (*pe).pe_old_lnum;
+                                line_count = pe.pe_line_count;
+                                let pe_old_lnum = pe.pe_old_lnum;
                                 if line_count <= 0
                                     || pe_old_lnum < 1
                                     || readfile(
@@ -1250,9 +1250,9 @@ pub fn ml_recover(checkext: bool) {
                         ip.ip_bnum = bnum;
                         ip.ip_index = idx;
 
-                        bnum = (*pe).pe_bnum;
-                        line_count = (*pe).pe_line_count;
-                        page_count = (*pe).pe_page_count as c_uint;
+                        bnum = pe.pe_bnum;
+                        line_count = pe.pe_line_count;
+                        page_count = pe.pe_page_count as c_uint;
                         if page_count < 1
                             || bnum.saturating_add(i64::from(page_count))
                                 > (*mfp).mf_blocknr_max.saturating_add(1)
@@ -2449,19 +2449,19 @@ fn ml_append_int(
                     }
                     (*pp).pb_count += 1;
                     let pe_cur = pb_ptr(&mut *pp, pb_idx);
-                    (*pe_cur).pe_line_count = line_count_left;
-                    (*pe_cur).pe_bnum = bnum_left;
-                    (*pe_cur).pe_page_count = page_count_left;
+                    pe_cur.pe_line_count = line_count_left;
+                    pe_cur.pe_bnum = bnum_left;
+                    pe_cur.pe_page_count = page_count_left;
                     let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
-                    (*pe_next).pe_line_count = line_count_right;
-                    (*pe_next).pe_bnum = bnum_right;
-                    (*pe_next).pe_page_count = page_count_right;
+                    pe_next.pe_line_count = line_count_right;
+                    pe_next.pe_bnum = bnum_right;
+                    pe_next.pe_page_count = page_count_right;
 
                     if lnum_left != 0 {
-                        (*pe_cur).pe_old_lnum = lnum_left;
+                        pe_cur.pe_old_lnum = lnum_left;
                     }
                     if lnum_right != 0 {
-                        (*pe_next).pe_old_lnum = lnum_right;
+                        pe_next.pe_old_lnum = lnum_right;
                     }
 
                     mf_put( &mut *mfp, hp, true, false);
@@ -2497,10 +2497,10 @@ fn ml_append_int(
                     ptr::copy(pp.cast::<u8>(), pp_new.cast::<u8>(), page_size as usize);
                     (*pp).pb_count = 1;
                     let pe0 = pb_ptr(&mut *pp, 0);
-                    (*pe0).pe_bnum = (*hp_new).bh_bnum;
-                    (*pe0).pe_line_count = buf.b_ml.ml_line_count;
-                    (*pe0).pe_old_lnum = 1;
-                    (*pe0).pe_page_count = 1;
+                    pe0.pe_bnum = (*hp_new).bh_bnum;
+                    pe0.pe_line_count = buf.b_ml.ml_line_count;
+                    pe0.pe_old_lnum = 1;
+                    pe0.pe_page_count = 1;
                     mf_put( &mut *mfp, hp, true, false);
                     hp = hp_new;
                     pp = pp_new;
@@ -2518,37 +2518,37 @@ fn ml_append_int(
                     (*pp_new).pb_count = total_moved as u16;
                     (*pp).pb_count = (c_int::from((*pp).pb_count) - (total_moved - 1)) as u16;
                     let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
-                    (*pe_next).pe_bnum = bnum_right;
-                    (*pe_next).pe_line_count = line_count_right;
-                    (*pe_next).pe_page_count = page_count_right;
+                    pe_next.pe_bnum = bnum_right;
+                    pe_next.pe_line_count = line_count_right;
+                    pe_next.pe_page_count = page_count_right;
                     if lnum_right != 0 {
-                        (*pe_next).pe_old_lnum = lnum_right;
+                        pe_next.pe_old_lnum = lnum_right;
                     }
                 } else {
                     (*pp_new).pb_count = 1;
                     let pe_new0 = pb_ptr(&mut *pp_new, 0);
-                    (*pe_new0).pe_bnum = bnum_right;
-                    (*pe_new0).pe_line_count = line_count_right;
-                    (*pe_new0).pe_page_count = page_count_right;
-                    (*pe_new0).pe_old_lnum = lnum_right;
+                    pe_new0.pe_bnum = bnum_right;
+                    pe_new0.pe_line_count = line_count_right;
+                    pe_new0.pe_page_count = page_count_right;
+                    pe_new0.pe_old_lnum = lnum_right;
                 }
                 let pe_cur = pb_ptr(&mut *pp, pb_idx);
-                (*pe_cur).pe_bnum = bnum_left;
-                (*pe_cur).pe_line_count = line_count_left;
-                (*pe_cur).pe_page_count = page_count_left;
+                pe_cur.pe_bnum = bnum_left;
+                pe_cur.pe_line_count = line_count_left;
+                pe_cur.pe_page_count = page_count_left;
                 if lnum_left != 0 {
-                    (*pe_cur).pe_old_lnum = lnum_left;
+                    pe_cur.pe_old_lnum = lnum_left;
                 }
                 lnum_left = 0;
                 lnum_right = 0;
 
                 line_count_right = 0;
                 for i in 0..((*pp_new).pb_count as usize) {
-                    line_count_right += (*pb_ptr(&mut *pp_new, i)).pe_line_count;
+                    line_count_right += pb_ptr(&mut *pp_new, i).pe_line_count;
                 }
                 line_count_left = 0;
                 for i in 0..((*pp).pb_count as usize) {
-                    line_count_left += (*pb_ptr(&mut *pp, i)).pe_line_count;
+                    line_count_left += pb_ptr(&mut *pp, i).pe_line_count;
                 }
 
                 bnum_left = (*hp).bh_bnum;
@@ -3218,12 +3218,12 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
             let mut idx: c_int = 0;
             while idx < c_int::from((*pp).pb_count) {
                 let pe = pb_ptr(&mut *pp, idx as usize);
-                let t = (*pe).pe_line_count;
+                let t = pe.pe_line_count;
                 low += t;
                 if low > lnum {
                     ip.ip_index = idx;
-                    bnum = (*pe).pe_bnum;
-                    page_count = (*pe).pe_page_count;
+                    bnum = pe.pe_bnum;
+                    page_count = pe.pe_page_count;
                     high = low - 1;
                     low -= t;
 
@@ -3231,7 +3231,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
                         let bnum2 = mf_trans_del(&mut *mfp, bnum);
                         if bnum != bnum2 {
                             bnum = bnum2;
-                            (*pe).pe_bnum = bnum;
+                            pe.pe_bnum = bnum;
                             dirty = true;
                         }
                     }
@@ -3252,10 +3252,10 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
                 return ml_find_line_error_noblock(buf, action);
             }
             if action == ML_DELETE {
-                (*pb_ptr(&mut *pp, idx as usize)).pe_line_count -= 1;
+                pb_ptr(&mut *pp, idx as usize).pe_line_count -= 1;
                 dirty = true;
             } else if action == ML_INSERT {
-                (*pb_ptr(&mut *pp, idx as usize)).pe_line_count += 1;
+                pb_ptr(&mut *pp, idx as usize).pe_line_count += 1;
                 dirty = true;
             }
             mf_put( &mut *mfp, hp, dirty, false);
@@ -3303,7 +3303,7 @@ fn ml_lineadd(buf: &mut FileBuf, count: c_int) {
                 iemsg(tr(E_POINTER_BLOCK_ID_WRONG_TWO));
                 break;
             }
-            (*pb_ptr(&mut *pp, ip.ip_index as usize)).pe_line_count += count;
+            pb_ptr(&mut *pp, ip.ip_index as usize).pe_line_count += count;
             ip.ip_high += count;
             mf_put( &mut *mfp, hp, true, false);
             idx -= 1;

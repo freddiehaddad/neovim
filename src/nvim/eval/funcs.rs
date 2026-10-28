@@ -3707,7 +3707,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
             || error
             || g_st().got_int)
         {
-            let events = (*loop_queues(&mut *main_loop_ptr)).events;
+            let events = loop_queues(&mut *main_loop_ptr).events;
             if !events.is_null() && !multiqueue_empty( &*events) {
                 multiqueue_process_events( &mut *events);
             } else {
@@ -4541,7 +4541,7 @@ pub fn create_environment(
                         if !crate::hashtab::hashitem_empty(&*hi) {
                             todo -= 1;
                             let var = tv_dict_hi2di(hi);
-                            let mut name = (*var).di_key.as_ptr();
+                            let mut name = var.di_key.as_ptr();
                             let mut namelen = crate::memory::cstr_len(name);
                             if namelen < MAXPATHL / MB_MAXBYTES {
                                 let namebuff = g_st().name_buff.as_mut_ptr();
@@ -4555,7 +4555,7 @@ pub fn create_environment(
                             tv_dict_add_str(
                                 &mut *env,
                                 name,
-                                tv_get_string(&(*var).di_tv),
+                                tv_get_string(&var.di_tv),
                             );
                         }
                         hi = hi.add(1);
@@ -5004,7 +5004,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             }
             let events = (*job).events;
             multiqueue_process_events( &mut *events);
-            multiqueue_replace_parent(&mut *events, &mut *(*loop_queues(&mut *main_loop_ptr)).events);
+            multiqueue_replace_parent(&mut *events, &mut *loop_queues(&mut *main_loop_ptr).events);
 
             let status = (*job).uv.proc_.status;
             tv_list_append_number( &mut *rv, Varnumber::from(status));
@@ -5747,7 +5747,7 @@ fn max_min(tv: &TypVal, rettv: &mut TypVal, domax: bool) {
                 if !crate::hashtab::hashitem_empty(&*hi) {
                     todo -= 1;
                     let di = tv_dict_hi2di(hi);
-                    let i = tv_get_number_chk(&(*di).di_tv, Some(&mut error));
+                    let i = tv_get_number_chk(&di.di_tv, Some(&mut error));
                     if error {
                         return;
                     }

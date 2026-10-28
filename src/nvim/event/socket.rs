@@ -133,7 +133,7 @@ fn connect_req_handle(req: *mut uv_connect_t) -> *mut uv_stream_t {
 
 #[inline]
 fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
-    unsafe {
+     {
         let mut remaining = timeout;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !cond() {

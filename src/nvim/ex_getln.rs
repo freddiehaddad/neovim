@@ -1223,7 +1223,7 @@ fn command_line_enter(
                     g_st().curbuf,
                 );
                 try_leave(&tstate, &mut err);
-                if tv_dict_get_number(dict.as_ref(), c"abort") != 0 {
+                if tv_dict_get_number(Some(&*dict), c"abort") != 0 {
                     (*s).gotesc = true;
                 }
                 restore_v_event(&mut *dict, &mut save_v_event);
@@ -3217,7 +3217,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
 
 /// Trigger `CmdlineChanged` autocommands.
 fn do_autocmd_cmdlinechanged(firstc: c_int) {
-    unsafe {
+     {
         if has_event(EVENT_CMDLINECHANGED) {
             let mut err = error_init();
             let mut save_v_event: SaveVEvent = SaveVEvent::new();
@@ -3741,7 +3741,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     try_enter(&mut tstate);
                     err_errmsg = c"E5408: Unable to get g:Nvim_color_cmdline callback: %s".as_ptr();
                     dgc_ret = tv_dict_get_callback(
-                        get_globvar_dict().as_mut(),
+                        Some(&mut *get_globvar_dict()),
                         c"Nvim_color_cmdline",
                         18,
                         &mut color_cb,
@@ -4664,8 +4664,8 @@ pub fn tilde_replace(orig_pat: impl crate::strings::IntoCCharPtr, files: &mut [s
 }
 
 /// Get a pointer to the current command line info.
-pub fn get_cmdline_info() -> *mut CmdlineInfo {
-    &raw mut getln_st().ccline
+pub fn get_cmdline_info() -> &'static mut CmdlineInfo {
+    &mut getln_st().ccline
 }
 
 pub fn get_cmdline_last_prompt_id() -> c_uint {

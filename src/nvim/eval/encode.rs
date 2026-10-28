@@ -1531,13 +1531,13 @@ fn encode_vim_with_backend(
                     {
                         *hi_ref = hi.add(1);
                     }
-                    let key_ptr = (*di).di_key.as_ptr();
+                    let key_ptr = di.di_key.as_ptr();
                     let key_len = crate::memory::cstr_len(key_ptr);
                     if !backend.conv_str_string(key_ptr, key_len) {
                         return false;
                     }
                     backend.conv_dict_after_key();
-                    &mut (*di).di_tv
+                    &mut di.di_tv
                 }
                 MPConvStackData::List { list, ref mut li } => {
                     let cur_li = *li;

@@ -2818,7 +2818,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                         }
 
                         if (g_st().state_global & MODE_CMDLINE) != 0
-                            && !(*get_cmdline_info()).cmdbuff.is_null()
+                            && !get_cmdline_info().cmdbuff.is_null()
                             && g_st().cmdline_star == 0
                         {
                             let p = tb_buf_ptr()
@@ -2862,7 +2862,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                         if (g_st().state_global & MODE_INSERT) != 0 {
                             edit_unputchar();
                         }
-                        if (g_st().state_global & MODE_CMDLINE) != 0 && !(*get_cmdline_info()).cmdbuff.is_null() {
+                        if (g_st().state_global & MODE_CMDLINE) != 0 && !get_cmdline_info().cmdbuff.is_null() {
                             unputcmdline();
                         } else {
                             setcursor();

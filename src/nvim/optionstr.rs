@@ -1230,7 +1230,7 @@ pub fn check_illegal_path_names(val: impl crate::strings::IntoCCharPtr, flags: u
 }
 
 fn opt_values(idx: OptIndex) -> &'static [&'static CStr] {
-    unsafe {
+     {
         let idx1 = if idx == K_OPT_VIEWOPTIONS {
             K_OPT_SESSIONOPTIONS
         } else if idx == K_OPT_FILEFORMATS {
@@ -1239,7 +1239,7 @@ fn opt_values(idx: OptIndex) -> &'static [&'static CStr] {
             idx
         };
 
-        (*get_option(idx1)).values
+        get_option(idx1).values
     }
 }
 
@@ -1251,11 +1251,11 @@ fn check_str_opt(
     unsafe {
         let opt = get_option(idx);
         if varp.is_null() {
-            varp = (*opt).var.cast::<*mut c_char>();
+            varp = opt.var.cast::<*mut c_char>();
         }
-        let list = ((*opt).flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
+        let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
         let values = opt_values(idx);
-        opt_strings_flags(*varp, values, (*opt).flags_var, list, errbuf)
+        opt_strings_flags(*varp, values, opt.flags_var, list, errbuf)
     }
 }
 
@@ -1278,14 +1278,14 @@ pub fn did_set_str_generic(args: &mut Optset) -> *const c_char {
 
 /// Validate named string values without updating derived flags.
 pub fn validate_str_generic(args: &mut Optset) -> *const c_char {
-    unsafe {
+     {
         let opt = get_option(args.os_idx);
         let value = args.os_newval.data.string().data;
         opt_strings_flags(
             value,
             opt_values(args.os_idx),
             ptr::null_mut(),
-            ((*opt).flags & K_OPT_FLAG_COMMA) != 0,
+            (opt.flags & K_OPT_FLAG_COMMA) != 0,
             args.os_errbuf,
         )
     }

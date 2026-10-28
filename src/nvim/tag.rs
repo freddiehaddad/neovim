@@ -1369,7 +1369,7 @@ fn find_tagfunc_tags(
                         todo -= 1;
                         let di = crate::eval::typval::tv_dict_hi2di(hi);
                         let dict_key = (&*hi).key_ptr();
-                        let tv = &raw mut (*di).di_tv;
+                        let tv = &raw mut di.di_tv;
 
                         if (*tv).v_type == VarType::VarString && !(*tv).vval.v_string().is_null() {
                             len += crate::memory::cstr_len((*tv).vval.v_string()) + 1;
@@ -1464,7 +1464,7 @@ fn find_tagfunc_tags(
                                 todo -= 1;
                                 let di = crate::eval::typval::tv_dict_hi2di(hi);
                                 let dict_key = (&*hi).key_ptr();
-                                let tv = &mut (*di).di_tv;
+                                let tv = &mut di.di_tv;
                                 if tv.v_type == VarType::VarString
                                     && !tv.vval.v_string().is_null()
                                     && crate::memory::cstr_as_bytes(dict_key) != b"name"

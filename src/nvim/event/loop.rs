@@ -515,13 +515,14 @@ unsafe extern "C" {
 }
 
 #[inline]
-pub fn loop_queues(loop_: &mut Loop) -> *mut Loop {
-    loop_
+pub fn loop_queues(loop_: &mut Loop) -> &'static mut Loop {
+    let p: *mut Loop = loop_;
+    unsafe { &mut *p }
 }
 
 #[inline]
-pub fn main_loop_ptr() -> *mut Loop {
-    &raw mut crate::globals::g_st().main_loop
+pub fn main_loop_ptr() -> &'static mut Loop {
+    &mut crate::globals::g_st().main_loop
 }
 
 #[inline]
@@ -725,10 +726,10 @@ pub fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
             }
         }
         let qc = loop_queues(loop_);
-        multiqueue_free((*qc).fast_events);
-        multiqueue_free((*qc).thread_events);
-        multiqueue_free((*qc).events);
-        (*qc).children = Vec::new();
+        multiqueue_free(qc.fast_events);
+        multiqueue_free(qc.thread_events);
+        multiqueue_free(qc.events);
+        qc.children = Vec::new();
         rv
     }
 }
@@ -738,8 +739,8 @@ pub fn loop_purge(loop_: &mut Loop) {
         let mutex = loop_mutex(loop_);
         let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
-        multiqueue_purge_events( &mut *(*qc).thread_events);
-        multiqueue_purge_events( &mut *(*qc).fast_events);
+        multiqueue_purge_events( &mut *qc.thread_events);
+        multiqueue_purge_events( &mut *qc.fast_events);
         uv_mutex_unlock(mutex);
     }
 }
@@ -749,7 +750,7 @@ pub fn loop_size(loop_: &mut Loop) -> usize {
         let mutex = loop_mutex(loop_);
         let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
-        let rv = multiqueue_size( &*(*qc).thread_events);
+        let rv = multiqueue_size( &*qc.thread_events);
         uv_mutex_unlock(mutex);
         rv
     }
@@ -762,7 +763,7 @@ unsafe extern "C" fn async_cb(handle: *mut uv_async_t) {
         let mutex = loop_mutex(&mut *l);
         let qc = loop_queues(&mut *l);
         uv_mutex_lock(mutex);
-        multiqueue_move_events(&mut *(*qc).fast_events, &mut *(*qc).thread_events);
+        multiqueue_move_events(&mut *qc.fast_events, &mut *qc.thread_events);
         uv_mutex_unlock(mutex);
     }
 }

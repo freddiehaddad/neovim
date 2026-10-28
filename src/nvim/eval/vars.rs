@@ -546,13 +546,13 @@ pub fn tv_list_locked(l: Option<&TvList>) -> VarLockStatus {
 }
 
 #[inline]
-fn script_sv(id: Scid) -> *mut Scriptvar {
-    unsafe { &raw mut *(*script_item(id)).sn_vars }
+fn script_sv(id: Scid) -> &'static mut Scriptvar {
+    &mut script_item(id).sn_vars
 }
 
 #[inline]
-fn script_vars_ht(id: Scid) -> *mut Hashtab {
-    unsafe { &raw mut (*script_sv(id)).sv_dict.dv_hashtab }
+fn script_vars_ht(id: Scid) -> &'static mut Hashtab {
+    &mut script_sv(id).sv_dict.dv_hashtab
 }
 
 #[inline]
@@ -942,7 +942,7 @@ fn list_vim_vars(first: &mut c_int) {
 
 /// List script-local variables, if there is a script.
 fn list_script_vars(first: &mut c_int) {
-    unsafe {
+     {
         if crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
             list_hashtable_vars(
                 &mut *script_vars_ht(g_st().current_sctx.sc_sid),
@@ -1487,15 +1487,15 @@ pub fn list_hashtable_vars(
                 let mut buf = [0 as c_char; IOSIZE];
 
                 xstrlcpy(buf.as_mut_ptr(), prefix.as_ptr(), IOSIZE);
-                { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), (*di).di_key.as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), di.di_key.as_ptr(), _dsize - _dlen); };
                 if message_filtered(buf.as_ptr()) {
                     hi = hi.add(1);
                     continue;
                 }
 
                 if empty != 0
-                    || (*di).di_tv.v_type != VarType::VarString
-                    || !(*di).di_tv.vval.v_string().is_null()
+                    || di.di_tv.v_type != VarType::VarString
+                    || !di.di_tv.vval.v_string().is_null()
                 {
                     list_one_var(&mut *di, prefix.as_ptr(), first);
                 }
@@ -2145,8 +2145,8 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
             }
             if !hi.is_null() && !hashitem_empty(&*hi) {
                 let di = tv_dict_hi2di(hi);
-                if var_check_fixed(c_int::from((*di).di_flags), name, TV_CSTRING)
-                    || var_check_ro(c_int::from((*di).di_flags), name, TV_CSTRING)
+                if var_check_fixed(c_int::from(di.di_flags), name, TV_CSTRING)
+                    || var_check_ro(c_int::from(di.di_flags), name, TV_CSTRING)
                     || value_check_lock((*d).dv_lock, name, TV_CSTRING)
                 {
                     return false;
@@ -2160,7 +2160,7 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
                 let watched = tv_dict_is_watched(dict.as_ref());
 
                 if watched {
-                    tv_copy(&(*di).di_tv, &mut oldtv);
+                    tv_copy(&di.di_tv, &mut oldtv);
                 }
 
                 delete_var(&mut *ht,  &mut *hi);
@@ -2254,12 +2254,12 @@ pub fn del_menutrans_vars() {
     }
 }
 
-pub fn get_globvar_dict() -> *mut TvDict {
-    &raw mut vars_st().globvardict
+pub fn get_globvar_dict() -> &'static mut TvDict {
+    &mut vars_st().globvardict
 }
 
-pub fn get_globvar_ht() -> *mut Hashtab {
-    &raw mut vars_st().globvardict.dv_hashtab
+pub fn get_globvar_ht() -> &'static mut Hashtab {
+    &mut vars_st().globvardict.dv_hashtab
 }
 
 pub fn get_vimvar_dict() -> *mut TvDict {
@@ -2332,7 +2332,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 
         if vars_st().gdone < vars_st().globvardict.dv_hashtab.ht_used {
             if vars_st().gdone == 0 {
-                vars_st().hi = (&*get_globvar_ht()).array_ptr();
+                vars_st().hi = get_globvar_ht().array_ptr();
             } else {
                 vars_st().hi = vars_st().hi.add(1);
             }
@@ -2717,7 +2717,7 @@ pub fn find_var_in_ht(
     unsafe {
         if varname_len == 0 {
             return match htname as u8 {
-                b's' => (&raw mut (*script_sv(g_st().current_sctx.sc_sid)).sv_var).cast::<Dictitem>(),
+                b's' => (&raw mut script_sv(g_st().current_sctx.sc_sid).sv_var).cast::<Dictitem>(),
                 b'g' => (&raw mut vars_st().globvars_var).cast::<Dictitem>(),
                 b'v' => (&raw mut vars_st().vimvars_var).cast::<Dictitem>(),
                 b'b' => (&raw mut (*g_st().curbuf).b_bufvar).cast::<Dictitem>(),
@@ -2810,7 +2810,7 @@ fn find_var_ht_dict(
             if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
                 new_script_item(None, &mut g_st().current_sctx.sc_sid);
             }
-            *d = &raw mut (*script_sv(g_st().current_sctx.sc_sid)).sv_dict;
+            *d = &raw mut script_sv(g_st().current_sctx.sc_sid).sv_dict;
         }
 
         if !(*d).is_null() {
@@ -2887,12 +2887,12 @@ pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
 
                 let v = tv_dict_hi2di(hi);
                 if !free_val {
-                    (*v).di_tv.v_type = VarType::VarUnknown;
+                    v.di_tv.v_type = VarType::VarUnknown;
                 }
-                if ((*v).di_flags & DI_FLAGS_ALLOC) != 0 {
+                if (v.di_flags & DI_FLAGS_ALLOC) != 0 {
                     drop(Box::from_raw(v));
                 } else if free_val {
-                    tv_clear(&mut (*v).di_tv);
+                    tv_clear(&mut v.di_tv);
                 }
             }
             hi = hi.add(1);
@@ -3393,7 +3393,7 @@ fn opt_from_tv(tv: &mut TypVal,
     option: impl crate::strings::IntoCCharPtr,
     error: &mut bool,
 ) -> Object { let option = option.into_c_char_ptr();
-    unsafe {
+     {
         let mut value = nil_obj();
         let mut nbuf = [0 as c_char; NUMBUFLEN];
         let mut err = false;
@@ -3404,7 +3404,7 @@ fn opt_from_tv(tv: &mut TypVal,
             !is_tty_opt && option_has_type(opt_idx, ObjectType::ObjectTypeInteger);
         let option_has_str = is_tty_opt || option_has_type(opt_idx, ObjectType::ObjectTypeString);
 
-        if !is_tty_opt && ((*get_option(opt_idx)).flags & K_OPT_FLAG_FUNC) != 0 && tv_is_func(tv) {
+        if !is_tty_opt && (get_option(opt_idx).flags & K_OPT_FLAG_FUNC) != 0 && tv_is_func(tv) {
             let strval = encode_tv2string(tv, None);
             value = crate::api::private::helpers::cstr_to_obj(strval.as_ptr());
         } else if option_has_bool || option_has_num {

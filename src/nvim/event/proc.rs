@@ -252,7 +252,7 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c_int {
         proc_.refcount += 1;
 
         let qc = loop_queues(&mut *proc_.loop_);
-        (*qc).children.push(proc_);
+        qc.children.push(proc_);
 
         0
     }
@@ -262,10 +262,10 @@ pub fn proc_teardown(loop_: &mut Loop) {
     unsafe {
         proc_st().proc_is_tearing_down = true;
         let qc = loop_queues(loop_);
-        for &proc_ in &(*qc).children {
+        for &proc_ in &qc.children {
             if (*proc_).detach || (*proc_).r#type == K_PROC_TYPE_PTY {
-                if !(*qc).events.is_null() {
-                    multiqueue_put_event( &mut *(*qc).events, Event::ProcCloseHandles(proc_));
+                if !qc.events.is_null() {
+                    multiqueue_put_event( &mut *qc.events, Event::ProcCloseHandles(proc_));
                 } else {
                     proc_close_handles(&mut *proc_);
                 }
@@ -274,8 +274,8 @@ pub fn proc_teardown(loop_: &mut Loop) {
             }
         }
 
-        loop_process_events_until(loop_, (*qc).events, -1, || {
-            (*qc).children.is_empty() && multiqueue_empty( &*(*qc).events)
+        loop_process_events_until(loop_, qc.events, -1, || {
+            qc.children.is_empty() && multiqueue_empty( &*qc.events)
         });
         pty_proc_teardown(loop_);
     }
@@ -367,7 +367,7 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
         let loop_ = *uv_loop.cast::<*mut Loop>();
         let qc = loop_queues(&mut *loop_);
 
-        for &proc_ in &(*qc).children {
+        for &proc_ in &qc.children {
             let exited = (*proc_).status >= 0;
             if exited || (*proc_).stopped_time == 0 {
                 continue;
@@ -410,8 +410,8 @@ pub(crate) fn proc_decref(proc_: &mut Proc) {
 
         let loop_ = proc_.loop_;
         let qc = loop_queues(&mut *loop_);
-        let idx = (*qc).children.iter().position(|&p| p == proc_).unwrap();
-        (*qc).children.remove(idx);
+        let idx = qc.children.iter().position(|&p| p == proc_).unwrap();
+        qc.children.remove(idx);
         if !proc_.events.is_null() {
             multiqueue_put_event( &mut *proc_.events, Event::ProcClose(&raw mut *proc_));
         } else {
@@ -511,7 +511,7 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
         uv_timer_stop(exit_timer);
         let qc = loop_queues(&mut *mloop);
         let status = proc_st().exit_delay_status;
-        multiqueue_put_event( &mut *(*qc).fast_events, Event::ProcExit(status));
+        multiqueue_put_event( &mut *qc.fast_events, Event::ProcExit(status));
     }
 }
 
@@ -541,7 +541,7 @@ pub fn exit_event(status: c_int) {
 pub fn exit_on_closed_chan(status: c_int) {
     unsafe {
         let qc = loop_queues(&mut *main_loop_ptr());
-        multiqueue_put_event( &mut *(*qc).fast_events, Event::ProcExit(status));
+        multiqueue_put_event( &mut *qc.fast_events, Event::ProcExit(status));
     }
 }
 
@@ -551,7 +551,7 @@ pub(crate) fn on_proc_exit(proc_: &mut Proc) {
         let queue = if !proc_.events.is_null() {
             proc_.events
         } else {
-            (*qc).events
+            qc.events
         };
         if !queue.is_null() {
             multiqueue_put_event( &mut *queue, Event::ProcCloseHandles(&raw mut *proc_));

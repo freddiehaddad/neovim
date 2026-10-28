@@ -550,7 +550,7 @@ fn schedule_termrequest(term: &mut Terminal) {
         });
 
         multiqueue_put_event(
-            &mut *(*loop_queues(&mut g_st().main_loop)).events,
+            &mut *loop_queues(&mut g_st().main_loop).events,
             Event::TermRequest(req),
         );
     }
@@ -708,7 +708,7 @@ pub fn terminal_init() {
             &mut *timer,
             TimeWatcherData::TerminalRefresh,
         );
-        (*timer).events = multiqueue_new_child((*loop_queues(&mut g_st().main_loop)).events);
+        (*timer).events = multiqueue_new_child(loop_queues(&mut g_st().main_loop).events);
     }
 }
 
@@ -1630,7 +1630,7 @@ pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCha
             term.invalid_start = 0;
             term.invalid_end = height;
             multiqueue_put_event(
-                &mut *(*loop_queues(&mut g_st().main_loop)).events,
+                &mut *loop_queues(&mut g_st().main_loop).events,
                 Event::TermSyncFlush(term.buf_handle),
             );
         }
@@ -2087,7 +2087,7 @@ fn term_selection_set(
             );
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             let data = std::ffi::CString::new(&bytes[..end]).unwrap();
-            multiqueue_put_event(&mut *(*loop_queues(&mut g_st().main_loop)).events,
+            multiqueue_put_event(&mut *loop_queues(&mut g_st().main_loop).events,
                 Event::TermClipboardSet { mask, data },
             );
         }
@@ -2424,7 +2424,7 @@ fn refresh_terminal(term: &mut Terminal) {
         }
 
         multiqueue_move_events(
-            &mut *(*loop_queues(&mut g_st().main_loop)).events,
+            &mut *loop_queues(&mut g_st().main_loop).events,
             &mut *term.pending.events,
         );
     }
@@ -2710,7 +2710,7 @@ fn get_config_string(buf: &mut FileBuf, key: *mut c_char) -> *mut c_char {
         let mut obj = dict_get_value(unsafe { buf.b_vars().as_ref() }, key_str, None, &mut err);
         api_clear_error(&mut err);
         if obj.obj_type == ObjectType::ObjectTypeNil {
-            obj = dict_get_value(unsafe { get_globvar_dict().as_ref() }, key_str, None, &mut err);
+            obj = dict_get_value( Some(&*get_globvar_dict()), key_str, None, &mut err);
             api_clear_error(&mut err);
         }
         if obj.obj_type == ObjectType::ObjectTypeString {

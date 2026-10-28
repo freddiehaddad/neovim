@@ -306,11 +306,11 @@ fn strnicmp_ascii(a: impl crate::strings::IntoCCharPtr, b: &[u8]) -> bool { let 
 }
 
 pub fn event_init() {
-    unsafe {
+     {
         loop_init(&mut g_st().main_loop);
         env_init();
         let queues = loop_queues(&mut g_st().main_loop);
-        g_st().resize_events = multiqueue_new_child((*queues).events);
+        g_st().resize_events = multiqueue_new_child(queues.events);
 
         autocmd_init();
         signal_init();
@@ -324,11 +324,11 @@ pub fn event_init() {
 fn event_teardown() -> bool {
     unsafe {
         let queues = loop_queues(&mut g_st().main_loop);
-        if (*queues).events.is_null() {
+        if queues.events.is_null() {
             return true;
         }
 
-        multiqueue_process_events( &mut *(*queues).events);
+        multiqueue_process_events( &mut *queues.events);
         loop_poll_events(&mut g_st().main_loop, 0);
         server_teardown();
         channel_teardown();

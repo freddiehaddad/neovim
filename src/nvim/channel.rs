@@ -345,7 +345,7 @@ pub fn channel_init() {
 
 /// Allocates a channel.
 pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
-    unsafe {
+     {
         let id = if r#type == K_CHANNEL_STREAM_STDIO {
             CHAN_STDIO
         } else if r#type == K_CHANNEL_STREAM_STDERR {
@@ -361,7 +361,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         let chan = Box::into_raw(Box::new(Channel {
             id,
             refcount: 1,
-            events: multiqueue_new_child((*qc).events),
+            events: multiqueue_new_child(qc.events),
             streamtype: r#type,
             uv: crate::event::proc::LibuvProc::new(),
             socket: RStream::new(),
@@ -411,7 +411,7 @@ pub fn channel_decref(chan: &mut Channel) {
         chan.refcount -= 1;
         if chan.refcount == 0 {
             let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event( &mut *(*qc).events, Event::ChannelFree(&raw mut *chan));
+            multiqueue_put_event( &mut *qc.events, Event::ChannelFree(&raw mut *chan));
         }
     }
 }
@@ -442,7 +442,7 @@ fn channel_destroy_early(chan: &mut Channel) {
         }
 
         let qc = loop_queues(&mut g_st().main_loop);
-        multiqueue_put_event( &mut *(*qc).events, Event::ChannelFree(&raw mut *chan));
+        multiqueue_put_event( &mut *qc.events, Event::ChannelFree(&raw mut *chan));
     }
 }
 
@@ -1151,13 +1151,13 @@ pub fn channel_event(chan: &mut Channel, event: AuEvent) {
         if has_event(event) {
             channel_incref(chan);
             let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event( &mut *(*qc).events, Event::ChannelSetInfo { chan: &raw mut *chan, event });
+            multiqueue_put_event( &mut *qc.events, Event::ChannelSetInfo { chan: &raw mut *chan, event });
         }
     }
 }
 
 pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
-    unsafe {
+     {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let dict = get_v_event(&mut save_v_event);
         let mut arena = Arena {

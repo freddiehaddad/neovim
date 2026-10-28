@@ -1253,8 +1253,8 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                                 if !hashitem_empty(&*hi) {
                                     todo -= 1;
                                     let d = crate::eval::typval::tv_dict_hi2di(hi);
-                                    (*d).di_tv.v_type = VarType::VarSpecial;
-                                    (*d).di_tv.vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
+                                    d.di_tv.v_type = VarType::VarSpecial;
+                                    d.di_tv.vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                                 }
                                 hi = hi.add(1);
                             }

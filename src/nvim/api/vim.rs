@@ -1102,7 +1102,7 @@ pub fn nvim_get_var(
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let mut di = tv_dict_find(get_globvar_dict().as_ref(), name.data, name.size as isize);
+        let mut di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
         if di.is_null() {
             let found = script_autoload(name.data, name.size, false) && !aborting();
             if !found {
@@ -1114,7 +1114,7 @@ pub fn nvim_get_var(
                 );
                 return nil_obj();
             }
-            di = tv_dict_find(get_globvar_dict().as_ref(), name.data, name.size as isize);
+            di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
         }
         if di.is_null() {
             api_set_error!(
@@ -1136,7 +1136,7 @@ pub fn nvim_get_var(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_var(String name, Object value, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
-    unsafe {
+     {
         dict_set_var(
             &mut *get_globvar_dict(),
             name,
@@ -1155,7 +1155,7 @@ pub fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_del_var(String name, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_del_var(name: NvimString, err: &mut Error) {
-    unsafe {
+     {
         dict_set_var(
             &mut *get_globvar_dict(),
             name,

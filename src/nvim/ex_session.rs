@@ -533,20 +533,20 @@ fn put_view(
 fn store_session_globals(fd: *mut FILE) -> bool {
     unsafe {
         let d = get_globvar_dict();
-        let ht = &mut (*d).dv_hashtab;
+        let ht = &mut d.dv_hashtab;
         let mut todo = ht.ht_used;
         let mut hi = (ht).array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let this_var = crate::eval::typval::tv_dict_hi2di(hi);
-                let key_ptr = (*this_var).di_key.as_mut_ptr();
-                if ((*this_var).di_tv.v_type == VarType::VarNumber
-                    || (*this_var).di_tv.v_type == VarType::VarString)
+                let key_ptr = this_var.di_key.as_mut_ptr();
+                if (this_var.di_tv.v_type == VarType::VarNumber
+                    || this_var.di_tv.v_type == VarType::VarString)
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
                     let p = vim_strsave_escaped(
-                        tv_get_string(&(*this_var).di_tv),
+                        tv_get_string(&this_var.di_tv),
                         c"\\\"\n\r",
                     );
                     let mut p_vec: Vec<c_char> = p
@@ -563,7 +563,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                         }
                         t = t.add(1);
                     }
-                    let quote = if (*this_var).di_tv.v_type == VarType::VarString {
+                    let quote = if this_var.di_tv.v_type == VarType::VarString {
                         '"'
                     } else {
                         ' '
@@ -579,10 +579,10 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                     {
                         return false;
                     }
-                } else if (*this_var).di_tv.v_type == VarType::VarFloat
+                } else if this_var.di_tv.v_type == VarType::VarFloat
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
-                    let mut f = (*this_var).di_tv.vval.v_float();
+                    let mut f = this_var.di_tv.vval.v_float();
                     let sign = if f < 0.0 {
                         f = -f;
                         '-'

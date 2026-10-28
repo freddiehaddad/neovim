@@ -333,7 +333,7 @@ pub fn vim_to_object(
                     *todo -= 1;
 
                     let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
-                    let key_ptr = (*di).di_key.as_ptr();
+                    let key_ptr = di.di_key.as_ptr();
                     let key_len = crate::memory::cstr_len(key_ptr);
                     let key_obj =
                         cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_ptr, key_len);
@@ -343,7 +343,7 @@ pub fn vim_to_object(
                     let d = dict_obj.data.dict_mut();
                     (*d.items.add(d.size)).key = key_obj.data.string();
 
-                    &mut (*di).di_tv
+                    &mut di.di_tv
                 }
             };
 

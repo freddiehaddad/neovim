@@ -385,13 +385,13 @@ fn tv_list_item_next(li: &Listitem) -> *mut Listitem {
      li.li_next
 }
 
-pub fn get_v_event(sve: &mut SaveVEvent) -> *mut TvDict {
+pub fn get_v_event(sve: &mut SaveVEvent) -> &'static mut TvDict {
     unsafe {
-        let v_event = get_vim_var_dict(VV_EVENT);
+        let v_event = &mut *get_vim_var_dict(VV_EVENT);
 
-        if (*v_event).dv_hashtab.ht_used > 0 {
+        if v_event.dv_hashtab.ht_used > 0 {
             sve.sve_did_save = true;
-            sve.sve_hashtab = std::mem::take(&mut (*v_event).dv_hashtab);
+            sve.sve_hashtab = std::mem::take(&mut v_event.dv_hashtab);
         } else {
             sve.sve_did_save = false;
         }
@@ -4492,7 +4492,7 @@ pub fn set_ref_in_ht(
                         let di = tv_dict_hi2di(hi);
                         abort = abort
                             || set_ref_in_item(
-                                &mut (*di).di_tv,
+                                &mut di.di_tv,
                                 copy_id,
                                 &raw mut ht_stack,
                                 list_stack,
@@ -5429,7 +5429,7 @@ pub fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback) -> u64
                 &mut (*timer).watcher,
                 TimeWatcherData::EvalTimer(timer),
             );
-            (*timer).watcher.events = multiqueue_new_child((*loop_queues(&mut *main_loop_ptr)).events);
+            (*timer).watcher.events = multiqueue_new_child(loop_queues(&mut *main_loop_ptr).events);
             (*timer).watcher.blockable = true;
             time_watcher_start(&mut (*timer).watcher, timeout as u64, timeout as u64);
         }

@@ -291,7 +291,7 @@ pub fn os_char_avail() -> bool {
 
 /// Poll for fast events. `got_int` will be set to `true` if CTRL-C was typed.
 pub fn os_breakcheck() {
-    unsafe {
+     {
         if g_st().got_int {
             return;
         }

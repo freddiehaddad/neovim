@@ -467,9 +467,9 @@ pub fn prof_input_end() {
 
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
 pub fn prof_def_func() -> bool {
-    unsafe {
+     {
         if g_st().current_sctx.sc_sid > 0 {
-            (*script_item(g_st().current_sctx.sc_sid)).sn_pr_force
+            script_item(g_st().current_sctx.sc_sid).sn_pr_force
         } else {
             false
         }
@@ -730,7 +730,7 @@ pub fn profile_init(si: *mut Scriptitem) {
 
 /// Save time when starting to invoke another script or function (`script_prof_save`).
 pub fn script_prof_save(tm: &mut Proftime) {
-    unsafe {
+     {
         if script_id_valid(g_st().current_sctx.sc_sid) {
             let si = &mut *script_item(g_st().current_sctx.sc_sid);
             if si.sn_prof_on {
@@ -749,7 +749,7 @@ pub fn script_prof_save(tm: &mut Proftime) {
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
 pub fn script_prof_restore(tm: &Proftime) {
-    unsafe {
+     {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
@@ -772,22 +772,22 @@ fn script_dump_profile(fd: *mut FILE) {
         let mut iobuf = [0 as c_char; IOSIZE];
         for id in 1..=crate::runtime::script_items_len() {
             let si = script_item(id);
-            if (*si).sn_prof_on {
+            if si.sn_prof_on {
                 fprintf!(fd, c"SCRIPT  %s\n", (*si).name_ptr());
-                if (*si).sn_pr_count == 1 {
+                if si.sn_pr_count == 1 {
                     fprintf!(fd, c"Sourced 1 time\n");
                 } else {
-                    fprintf!(fd, c"Sourced %d times\n", (*si).sn_pr_count);
+                    fprintf!(fd, c"Sourced %d times\n", si.sn_pr_count);
                 }
                 fprintf!(
                     fd,
                     c"Total time: %s\n",
-                    profile_msg((*si).sn_pr_total),
+                    profile_msg(si.sn_pr_total),
                 );
                 fprintf!(
                     fd,
                     c" Self time: %s\n",
-                    profile_msg((*si).sn_pr_self),
+                    profile_msg(si.sn_pr_self),
                 );
                 fprintf!(fd, c"\n");
                 fprintf!(fd, c"count  total (s)   self (s)\n");
@@ -809,8 +809,8 @@ fn script_dump_profile(fd: *mut FILE) {
                             iobuf[n] = NL;
                             iobuf[n + 1] = 0;
                         }
-                        if (i as usize) < (*si).sn_prl_ga.len() {
-                            let pp = &(&(*si).sn_prl_ga)[i as usize];
+                        if (i as usize) < si.sn_prl_ga.len() {
+                            let pp = &(&si.sn_prl_ga)[i as usize];
                             if pp.snp_count > 0 {
                                 fprintf!(fd, c"%5d ", pp.snp_count);
                                 if profile_equal(pp.sn_prl_total, pp.sn_prl_self) {
@@ -856,16 +856,16 @@ pub fn profile_dump() {
 
 /// Called when starting to read a script line (`script_line_start`).
 pub fn script_line_start() {
-    unsafe {
+     {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
         let si = script_item(g_st().current_sctx.sc_sid);
         let slnum = sourcing_lnum();
-        if (*si).sn_prof_on && slnum >= 1 {
-            (*si).sn_prl_idx = slnum - 1;
-            if (*si).sn_prl_ga.len() < slnum as usize {
-                (*si).sn_prl_ga.resize(
+        if si.sn_prof_on && slnum >= 1 {
+            si.sn_prl_idx = slnum - 1;
+            if si.sn_prl_ga.len() < slnum as usize {
+                si.sn_prl_ga.resize(
                     slnum as usize,
                     SnPrl {
                         snp_count: 0,
@@ -874,17 +874,17 @@ pub fn script_line_start() {
                     },
                 );
             }
-            (*si).sn_prl_execed = 0;
-            (*si).sn_prl_start = profile_start();
-            (*si).sn_prl_children = profile_zero();
-            (*si).sn_prl_wait = profile_get_wait();
+            si.sn_prl_execed = 0;
+            si.sn_prl_start = profile_start();
+            si.sn_prl_children = profile_zero();
+            si.sn_prl_wait = profile_get_wait();
         }
     }
 }
 
 /// Called when actually executing a script line (`script_line_exec`).
 pub fn script_line_exec() {
-    unsafe {
+     {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
@@ -897,26 +897,26 @@ pub fn script_line_exec() {
 
 /// Called when done with a script line (`script_line_end`).
 pub fn script_line_end() {
-    unsafe {
+     {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
         let si = script_item(g_st().current_sctx.sc_sid);
-        if (*si).sn_prof_on
-            && (*si).sn_prl_idx >= 0
-            && ((*si).sn_prl_idx as usize) < (*si).sn_prl_ga.len()
+        if si.sn_prof_on
+            && si.sn_prl_idx >= 0
+            && (si.sn_prl_idx as usize) < si.sn_prl_ga.len()
         {
-            if (*si).sn_prl_execed != 0 {
-                let prl_idx = (*si).sn_prl_idx as usize;
-                let pp = &mut (&mut (*si).sn_prl_ga)[prl_idx];
+            if si.sn_prl_execed != 0 {
+                let prl_idx = si.sn_prl_idx as usize;
+                let pp = &mut (&mut si.sn_prl_ga)[prl_idx];
                 pp.snp_count += 1;
-                (*si).sn_prl_start =
-                    profile_sub_wait((*si).sn_prl_wait, profile_end((*si).sn_prl_start));
-                pp.sn_prl_total = profile_add(pp.sn_prl_total, (*si).sn_prl_start);
+                si.sn_prl_start =
+                    profile_sub_wait(si.sn_prl_wait, profile_end(si.sn_prl_start));
+                pp.sn_prl_total = profile_add(pp.sn_prl_total, si.sn_prl_start);
                 pp.sn_prl_self =
-                    profile_self(pp.sn_prl_self, (*si).sn_prl_start, (*si).sn_prl_children);
+                    profile_self(pp.sn_prl_self, si.sn_prl_start, si.sn_prl_children);
             }
-            (*si).sn_prl_idx = -1;
+            si.sn_prl_idx = -1;
         }
     }
 }

@@ -221,7 +221,7 @@ pub fn get_mode(buf: *mut c_char) {
         if g_st().state_global == MODE_HITRETURN
             || g_st().state_global == MODE_ASKMORE
             || g_st().state_global == MODE_SETWSIZE
-            || ((g_st().state_global & MODE_CMDLINE) != 0 && (*get_cmdline_info()).one_key)
+            || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key)
         {
             *buf.add(i) = b'r' as c_char;
             i += 1;
@@ -312,7 +312,7 @@ pub fn get_mode(buf: *mut c_char) {
 }
 
 pub fn may_trigger_modechanged() {
-    unsafe {
+     {
         if !has_event(EVENT_MODECHANGED) || g_st().got_int {
             return;
         }

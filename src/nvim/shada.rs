@@ -1209,8 +1209,8 @@ fn var_shada_iter(
 ) -> Option<usize> {
     unsafe {
         let globvarht = get_globvar_ht();
-        let hinum = (*globvarht).ht_mask + 1;
-        let harray = std::slice::from_raw_parts((&*globvarht).array_ptr(), hinum);
+        let hinum = globvarht.ht_mask + 1;
+        let harray = std::slice::from_raw_parts(globvarht.array_ptr(), hinum);
         *name = ptr::null();
         let mut idx = if let Some(i) = iter {
             i
@@ -1228,8 +1228,8 @@ fn var_shada_iter(
             i
         };
         let di = tv_dict_hi2di(&raw const harray[idx]);
-        *name = (*di).di_key.as_ptr();
-        tv_copy(&(*di).di_tv, rettv);
+        *name = di.di_key.as_ptr();
+        tv_copy(&di.di_tv, rettv);
         idx += 1;
         while idx < hinum {
             if !hashitem_empty(&harray[idx])

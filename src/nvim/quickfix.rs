@@ -642,7 +642,7 @@ fn qf_st() -> &'static mut QuickfixState {
 
 #[inline]
 fn ql_info_ptr() -> *mut QfInfo {
-    unsafe { &raw mut (*QF_STATE.as_ptr()).ql_info_actual }
+    &raw mut qf_st().ql_info_actual
 }
 
 
@@ -2138,8 +2138,8 @@ fn locstack_queue_delreq(qi: &mut QfInfo) {
 }
 
 pub fn qf_stack_get_bufnr() -> c_int {
-    unsafe {
-        (*ql_info_ptr()).qf_bufnr
+     {
+        qf_st().ql_info_actual.qf_bufnr
     }
 }
 

@@ -229,9 +229,9 @@ fn unpacker_closed(p: &Unpacker) -> bool {
 }
 
 pub fn rpc_init() {
-    unsafe {
+     {
         let qc = loop_queues(&mut g_st().main_loop);
-        g_st().ch_before_blocking_events = multiqueue_new_child((*qc).events);
+        g_st().ch_before_blocking_events = multiqueue_new_child(qc.events);
     }
 }
 
@@ -757,7 +757,7 @@ pub fn rpc_close(channel: &mut Channel) {
 
         {
             let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event( &mut *(*qc).fast_events, Event::RpcClose(&raw mut *channel));
+            multiqueue_put_event( &mut *qc.fast_events, Event::RpcClose(&raw mut *channel));
         }
     }
 }

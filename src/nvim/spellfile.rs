@@ -782,8 +782,8 @@ pub fn suggest_load_files() {
         let mut ga: Vec<u8> = Vec::new();
 
         let mut lpi: usize = 0;
-        while lpi < (*win_s(curwin_mut())).b_langp.len() {
-            let lp = &(&(*win_s(curwin_mut())).b_langp)[lpi];
+        while lpi < win_s(curwin_mut()).b_langp.len() {
+            let lp = &(&win_s(curwin_mut()).b_langp)[lpi];
             let slang = lp.lp_slang;
             if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
                 (*slang).sl_sugloaded = true;
@@ -5238,18 +5238,18 @@ pub fn spell_add_word(
                 .as_ptr()
                 .cast_mut()
         } else {
-            if *(*win_s(curwin_mut())).b_p_spf == NUL {
+            if *win_s(curwin_mut()).b_p_spf == NUL {
                 init_spellfile();
                 new_spf = true;
             }
 
-            if *(*win_s(curwin_mut())).b_p_spf == NUL {
+            if *win_s(curwin_mut()).b_p_spf == NUL {
                 semsg!(gettext(E_NOTSET), c"spellfile");
                 return;
             }
             let fnamebuf = fnamebuf_arr.as_mut_ptr();
 
-            let mut spf = (*win_s(curwin_mut())).b_p_spf;
+            let mut spf = win_s(curwin_mut()).b_p_spf;
             let mut i: c_int = 1;
             while !crate::memory::cstr_is_empty(spf) {
                 copy_option_part(&raw mut spf, fnamebuf, MAXPATHL, c",");
@@ -5403,11 +5403,11 @@ fn init_spellfile() {
         let mut aspath = false;
         let mut lstart = curbuf_mut().b_s.b_p_spl;
 
-        if *(*win_s(curwin_mut())).b_p_spl == NUL || (*win_s(curwin_mut())).b_langp.is_empty() {
+        if *win_s(curwin_mut()).b_p_spl == NUL || win_s(curwin_mut()).b_langp.is_empty() {
             return;
         }
 
-        let mut lend = (*win_s(curwin_mut())).b_p_spl;
+        let mut lend = win_s(curwin_mut()).b_p_spl;
         while !crate::memory::cstr_is_empty(lend) && vim_strchr(c",._", crate::memory::cstr_first_byte(lend) as c_int).is_null() {
             if vim_ispathsep(crate::memory::cstr_first_char(lend)) {
                 aspath = true;
@@ -5447,7 +5447,7 @@ fn init_spellfile() {
             lstart,
         );
 
-        let fname = (*(&(*win_s(curwin_mut())).b_langp)[0].lp_slang)
+        let fname = (*(&win_s(curwin_mut()).b_langp)[0].lp_slang)
             .sl_fname
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr());

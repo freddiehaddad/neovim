@@ -753,7 +753,7 @@ pub fn vim_set_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe { dict_set_var(&mut *get_globvar_dict(), name, value, false, true, Some(arena), err) }
+     dict_set_var(&mut *get_globvar_dict(), name, value, false, true, Some(arena), err)
 }
 
 /// @deprecated
@@ -761,7 +761,7 @@ pub fn vim_set_var(
 // DLLEXPORT Object vim_del_var(String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn vim_del_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    unsafe { dict_set_var(&mut *get_globvar_dict(), name, OBJECT_NIL, true, true, Some(arena), err) }
+     dict_set_var(&mut *get_globvar_dict(), name, OBJECT_NIL, true, true, Some(arena), err)
 }
 
 #[inline]

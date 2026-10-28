@@ -1661,7 +1661,7 @@ pub fn do_autocmd_dirchanged(
     cause: CdCause,
     pre: bool,
 ) { let new_dir = new_dir.into_c_char_ptr();
-    unsafe {
+     {
         static RECURSIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
         let event = if pre {

@@ -128,12 +128,12 @@ fn filter_map_dict(
                 todo -= 1;
                 let di = crate::eval::typval::tv_dict_hi2di(hi);
                 if filtermap == FilterMap::Map
-                    && (value_check_lock((*di).di_tv.v_lock, arg_errmsg, TV_TRANSLATE)
-                        || var_check_ro((*di).di_flags as c_int, arg_errmsg, TV_TRANSLATE))
+                    && (value_check_lock(di.di_tv.v_lock, arg_errmsg, TV_TRANSLATE)
+                        || var_check_ro(di.di_flags as c_int, arg_errmsg, TV_TRANSLATE))
                 {
                     break;
                 }
-                let key_ptr = (*di).di_key.as_ptr();
+                let key_ptr = di.di_key.as_ptr();
                 set_vim_var_string(VV_KEY, key_ptr, -1);
                 let mut newtv = TypVal {
                     v_type: VarType::VarUnknown,
@@ -141,16 +141,16 @@ fn filter_map_dict(
                     vval: TypvalVval::Number(0),
                 };
                 let mut rem = false;
-                let r = filter_map_one(&mut (*di).di_tv, expr, filtermap, &mut newtv, &mut rem);
+                let r = filter_map_one(&mut di.di_tv, expr, filtermap, &mut newtv, &mut rem);
                 tv_clear(get_vim_var_tv(VV_KEY));
                 if !r || g_st().did_emsg != 0 {
                     tv_clear(&mut newtv);
                     break;
                 }
                 if filtermap == FilterMap::Map {
-                    tv_clear(&mut (*di).di_tv);
+                    tv_clear(&mut di.di_tv);
                     newtv.v_lock = VAR_UNLOCKED;
-                    (*di).di_tv = newtv;
+                    di.di_tv = newtv;
                 } else if filtermap == FilterMap::MapNew {
                     let key_len = crate::memory::cstr_len(key_ptr);
                     let add_res = tv_dict_add_tv(&mut *d_ret, key_ptr, key_len, &mut newtv);
@@ -159,8 +159,8 @@ fn filter_map_dict(
                         break;
                     }
                 } else if filtermap == FilterMap::Filter && rem {
-                    if var_check_fixed((*di).di_flags as c_int, arg_errmsg, TV_TRANSLATE)
-                        || var_check_ro((*di).di_flags as c_int, arg_errmsg, TV_TRANSLATE)
+                    if var_check_fixed(di.di_flags as c_int, arg_errmsg, TV_TRANSLATE)
+                        || var_check_ro(di.di_flags as c_int, arg_errmsg, TV_TRANSLATE)
                     {
                         break;
                     }
@@ -574,7 +574,7 @@ fn count_dict(d: Option<&TvDict>, needle: &TypVal, ic: bool) -> i64 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di = crate::eval::typval::tv_dict_hi2di(hi);
-                if tv_equal(&(*di).di_tv, needle, ic) {
+                if tv_equal(&di.di_tv, needle, ic) {
                     n += 1;
                 }
             }

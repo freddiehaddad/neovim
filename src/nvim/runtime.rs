@@ -345,10 +345,8 @@ use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
-pub fn script_item(id: Scid) -> *mut Scriptitem {
-     {
-        &raw mut rt_st().script_items.as_mut_slice()[(id - 1) as usize]
-    }
+pub fn script_item(id: Scid) -> &'static mut Scriptitem {
+    &mut rt_st().script_items[(id - 1) as usize]
 }
 
 #[inline]
@@ -456,7 +454,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
                         entry.es_info.aucmd_sctx()
                     };
                     return if def_ctx.sc_sid > 0 {
-                        Some(cstr_to_cstring((*script_item(def_ctx.sc_sid)).name_ptr()))
+                        Some(cstr_to_cstring(script_item(def_ctx.sc_sid).name_ptr()))
                     } else {
                         None
                     };
@@ -2591,7 +2589,7 @@ pub fn new_script_item(
     name: Option<std::ffi::CString>,
     sid_out: &mut Scid,
 ) -> *mut Scriptitem {
-    unsafe {
+     {
         rt_st().last_current_sid += 1;
         let sid = rt_st().last_current_sid;
         {
@@ -2620,7 +2618,7 @@ pub fn new_script_item(
             });
         }
         let item = script_item(sid);
-        (*item).sn_name = name;
+        item.sn_name = name;
         item
     }
 }
@@ -3081,24 +3079,24 @@ pub fn do_source(
 
 /// Checks if the script with the given script ID is a Lua script.
 pub fn script_is_lua(sid: Scid) -> bool {
-    unsafe {
+     {
         if sid == SID_LUA {
             return true;
         }
         if !script_id_valid(sid) {
             return false;
         }
-        (*script_item(sid)).sn_lua
+        script_item(sid).sn_lua
     }
 }
 
 /// Find an already loaded script "name".
 pub fn find_script_by_name(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
-    unsafe {
+     {
         let mut sid = script_items_len();
         while sid > 0 {
             let si = script_item(sid);
-            if let Some(ref sn) = (*si).sn_name
+            if let Some(ref sn) = si.sn_name
                 && path_equal(sn.as_ptr().cast_mut(), name, K_PATH_CMP_LITERAL)
             {
                 return sid;
@@ -3111,7 +3109,7 @@ pub fn find_script_by_name(name: impl crate::strings::IntoCCharPtr) -> c_int { l
 
 /// ":scriptnames"
 pub fn ex_scriptnames(eap: &mut Exarg) {
-    unsafe {
+     {
         let namebuff = g_st().name_buff.as_mut_ptr();
         let iobuff = g_st().iobuff.as_mut_ptr();
         if eap.addr_count > 0 || !crate::memory::cstr_is_empty(eap.arg) {
@@ -3119,7 +3117,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                 emsg(gettext(E_INVARG));
             } else {
                 if eap.addr_count > 0 {
-                    eap.arg = (*script_item(eap.line2)).name_ptr();
+                    eap.arg = script_item(eap.line2).name_ptr();
                 } else {
                     expand_env(eap.arg, namebuff, MAXPATHL as c_int);
                     eap.arg = namebuff;
@@ -3134,7 +3132,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
         let mut i = 1;
         while i <= script_items_len() && !g_st().got_int {
             let si = script_item(i);
-            if let Some(ref sn) = (*si).sn_name {
+            if let Some(ref sn) = si.sn_name {
                 home_replace(None, sn.as_ptr(), namebuff, MAXPATHL, true);
                 vim_snprintf!(iobuff, IOSIZE, c"%3d: %s", i, namebuff);
                 if !message_filtered(iobuff) {
@@ -3177,7 +3175,7 @@ pub fn get_scriptname(
             }
             SID_STR => gettext(c"anonymous :source"),
             _ => {
-                let sname = (*script_item(script_ctx.sc_sid)).name_ptr();
+                let sname = script_item(script_ctx.sc_sid).name_ptr();
                 if sname.is_null() {
                     vim_snprintf!(
                         iobuff,
@@ -3288,7 +3286,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         while (i == sid || sid <= 0) && i <= Varnumber::from(script_items_len()) {
             let si = script_item(i as Scid);
 
-            if let Some(ref sn) = (*si).sn_name
+            if let Some(ref sn) = si.sn_name
                 && (!filterpat || vim_regexec(&mut regmatch, sn.as_ptr(), 0))
             {
                 let d = tv_dict_alloc();
@@ -3300,7 +3298,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
                 if sid > 0 {
                     let var_dict =
-                        tv_dict_copy(None, Some(&mut (*si).sn_vars.sv_dict), true, get_copy_id());
+                        tv_dict_copy(None, Some(&mut si.sn_vars.sv_dict), true, get_copy_id());
                     tv_dict_add_dict(&mut *d, c"variables", var_dict);
                     tv_dict_add_list(
                         &mut *d,

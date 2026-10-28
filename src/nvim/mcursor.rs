@@ -1070,7 +1070,7 @@ fn mc_reg_gather() {
             } else {
                 op_reg_index(r)
             };
-            if idx >= 0 && (*get_y_register(idx)).timestamp >= mc_st().mc_start.time {
+            if idx >= 0 && get_y_register(idx).timestamp >= mc_st().mc_start.time {
                 gather[i] = true;
                 any = true;
             }

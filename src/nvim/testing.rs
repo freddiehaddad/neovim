@@ -200,10 +200,10 @@ fn fill_assert_error(
                         let hi_key = (&*hi).key_ptr();
                         let item2 = tv_dict_find(got_d.as_ref(), hi_key, -1);
                         if item2.is_null()
-                            || !tv_equal(&(*di1).di_tv, &(*item2).di_tv, false)
+                            || !tv_equal(&di1.di_tv, &(*item2).di_tv, false)
                         {
                             let key_len = crate::memory::cstr_len(hi_key);
-                            tv_dict_add_tv(&mut *new_exp_d, hi_key, key_len, &mut (*di1).di_tv);
+                            tv_dict_add_tv(&mut *new_exp_d, hi_key, key_len, &mut di1.di_tv);
                             if !item2.is_null() {
                                 tv_dict_add_tv(
                                     &mut *new_got_d,
@@ -229,7 +229,7 @@ fn fill_assert_error(
                         if item2.is_null() {
                             let di2 = crate::eval::typval::tv_dict_hi2di(hi);
                             let key_len = crate::memory::cstr_len(hi_key);
-                            tv_dict_add_tv(&mut *new_got_d, hi_key, key_len, &mut (*di2).di_tv);
+                            tv_dict_add_tv(&mut *new_got_d, hi_key, key_len, &mut di2.di_tv);
                         }
                         todo -= 1;
                     }

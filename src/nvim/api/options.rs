@@ -473,8 +473,8 @@ pub fn nvim_option_to_object(
         }
 
         let option = get_option(opt_idx);
-        let flags = (*option).flags;
-        let schema = (*option).schema;
+        let flags = option.flags;
+        let schema = option.schema;
 
         let str_ptr = if !value.data.string().data.is_null() {
             value.data.string().data

@@ -1036,7 +1036,8 @@ fn cleanup_function_call(fc: &mut Funccall) {
                     if !hashitem_empty(&*hi) {
                         todo -= 1;
                         let di = tv_dict_hi2di(hi);
-                        tv_copy(&(*di).di_tv, &mut (*di).di_tv);
+                        let tv_val = di.di_tv;
+                        tv_copy(&tv_val, &mut di.di_tv);
                     }
                     hi = hi.add(1);
                 }
