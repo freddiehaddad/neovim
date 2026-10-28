@@ -462,7 +462,12 @@ fn score_wordcount_adj(
         newscore.max(0)
     }
 }
-fn badword_captype(word: *mut c_char, end: *mut c_char) -> c_int {
+fn badword_captype(
+    word: impl crate::strings::IntoCCharPtr,
+    end: impl crate::strings::IntoCCharPtr,
+) -> c_int {
+    let word = word.into_c_char_ptr().cast_mut();
+    let end = end.into_c_char_ptr().cast_mut();
     let mut flags = captype(word, end);
     if (flags & WF_KEEPCAP) == 0 {
         return flags;
@@ -863,7 +868,7 @@ pub fn spell_suggest_list(
     }
 }
 fn spell_find_suggest(
-    badptr: *mut c_char,
+    badptr: impl crate::strings::IntoCCharPtr,
     badlen: c_int,
     su: &mut Suginfo,
     maxcount: c_int,
@@ -871,6 +876,7 @@ fn spell_find_suggest(
     need_cap: bool,
     interactive: bool,
 ) {
+    let badptr = badptr.into_c_char_ptr().cast_mut();
     unsafe {
         let mut attr: Hlf = HLF_COUNT;
         let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];

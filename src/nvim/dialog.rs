@@ -127,11 +127,12 @@ fn console_dialog_alloc(
 }
 
 fn copy_confirm_hotkeys(
-    buttons: *const c_char,
+    buttons: impl crate::strings::IntoCCharPtr,
     mut default_button_idx: c_int,
     has_hotkey: &[bool; HAS_HOTKEY_LEN],
     mut hotkeys_ptr: *mut c_char,
 ) {
+    let buttons = buttons.into_c_char_ptr();
     unsafe {
         let first_len = copy_char(buttons, hotkeys_ptr, true);
         *hotkeys_ptr.add(first_len) = 0;

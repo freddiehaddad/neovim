@@ -3469,9 +3469,10 @@ fn shada_free_shada_entry(entry: &mut ShadaEntry) {
 
 fn fread_len(
     sd_reader: *mut FileDescriptor,
-    buffer: *mut c_char,
+    buffer: impl crate::strings::IntoCCharPtr,
     length: usize,
 ) -> ShaDaReadResult {
+    let buffer = buffer.into_c_char_ptr().cast_mut();
     unsafe {
         let read_bytes = file_read(sd_reader, buffer, length);
         if read_bytes < 0 {

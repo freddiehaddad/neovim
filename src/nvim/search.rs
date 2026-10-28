@@ -2875,12 +2875,13 @@ fn cmdline_search_stat(
     pos: &mut CursorPos,
     cursor_pos: &mut CursorPos,
     show_top_bot_msg: bool,
-    msgbuf: *mut c_char,
+    msgbuf: impl crate::strings::IntoCCharPtr,
     msgbuflen: usize,
     recompute: bool,
     maxcount: c_int,
     timeout: c_int,
 ) {
+    let msgbuf = msgbuf.into_c_char_ptr().cast_mut();
     unsafe {
         let mut stat = Searchstat::default();
 
@@ -3953,7 +3954,7 @@ pub fn find_pattern_in_path(
 }
 
 fn show_pat_in_path(
-    mut line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     type_: c_int,
     did_show: bool,
     action: c_int,
@@ -3961,6 +3962,7 @@ fn show_pat_in_path(
     lnum: *mut Linenr,
     count: c_int,
 ) {
+    let mut line = line.into_c_char_ptr().cast_mut();
     unsafe {
         if did_show {
             msg_putchar(b'\n' as c_int);

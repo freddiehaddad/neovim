@@ -10018,7 +10018,8 @@ fn ex_wrongmodifier(eap: &mut Exarg) {
     eap.errmsg = gettext(E_INVCMD);
 }
 
-fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut TvList {
+fn call_findfunc(pat: impl crate::strings::IntoCCharPtr, cmdcomplete: BoolVarValue) -> *mut TvList {
+    let pat = pat.into_c_char_ptr().cast_mut();
     unsafe {
         let saved_sctx = g_st().current_sctx;
 

@@ -893,7 +893,8 @@ fn do_path_expand(
     }
 }
 
-fn find_previous_pathsep(path: *mut c_char, psep: *mut *mut c_char) -> bool {
+fn find_previous_pathsep(path: impl crate::strings::IntoCCharPtr, psep: *mut *mut c_char) -> bool {
+    let path = path.into_c_char_ptr().cast_mut();
     unsafe {
         if *psep > path && vim_ispathsep(**psep as c_int) {
             *psep = (*psep).sub(1);

@@ -419,7 +419,13 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
     }
 }
 
-fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool) -> bool {
+fn do_arglist(
+    str_: impl crate::strings::IntoCCharPtr,
+    what: c_int,
+    after: c_int,
+    will_edit: bool,
+) -> bool {
+    let mut str_ = str_.into_c_char_ptr().cast_mut();
     {
         let mut new_ga: Vec<*mut c_char> = Vec::new();
         let mut exp_files: Vec<CString> = Vec::new();

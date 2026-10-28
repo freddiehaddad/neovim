@@ -546,13 +546,14 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: *mut Schar, text: *mut c_cha
 fn sign_define_by_name(
     name: impl crate::strings::IntoCCharPtr,
     icon: impl crate::strings::IntoCCharPtr,
-    text: *mut c_char,
+    text: impl crate::strings::IntoCCharPtr,
     linehl: impl crate::strings::IntoCCharPtr,
     texthl: impl crate::strings::IntoCCharPtr,
     culhl: impl crate::strings::IntoCCharPtr,
     numhl: impl crate::strings::IntoCCharPtr,
     prio: c_int,
 ) -> bool {
+    let text = text.into_c_char_ptr().cast_mut();
     let name = name.into_c_char_ptr();
     let icon = icon.into_c_char_ptr();
     let linehl = linehl.into_c_char_ptr();

@@ -1218,9 +1218,10 @@ fn stl_truncate(
     stl_items: &mut [StlItem],
     startitem: c_int,
     curitem: &mut c_int,
-    start_p: *mut c_char,
+    start_p: impl crate::strings::IntoCCharPtr,
     out_p: *mut *mut c_char,
 ) {
+    let start_p = start_p.into_c_char_ptr().cast_mut();
     unsafe {
         minwid = minwid.min(maxwid);
 

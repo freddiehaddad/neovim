@@ -792,10 +792,11 @@ pub fn vterm_screen_get_attrs_extent(
 
 pub fn vterm_screen_get_text(
     screen: &VTermScreen,
-    buffer: *mut c_char,
+    buffer: impl crate::strings::IntoCCharPtr,
     len: usize,
     rect: VTermRect,
 ) -> usize {
+    let buffer = buffer.into_c_char_ptr().cast_mut();
     let mut outpos = 0usize;
     let mut padding = 0usize;
 

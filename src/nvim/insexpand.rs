@@ -2134,11 +2134,13 @@ pub fn compl_match_curr_select(selected: c_int) -> bool {
 }
 
 fn ins_compl_dictionaries(
-    dict_start: *mut c_char,
-    pat: *mut c_char,
+    dict_start: impl crate::strings::IntoCCharPtr,
+    pat: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     thesaurus: bool,
 ) {
+    let dict_start = dict_start.into_c_char_ptr().cast_mut();
+    let pat = pat.into_c_char_ptr().cast_mut();
     unsafe {
         let mut dict = dict_start;
         let mut regmatch: Regmatch = Regmatch::new();
@@ -2232,11 +2234,12 @@ fn ins_compl_dictionaries(
 }
 
 fn thesaurus_add_words_in_line(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     buf_arg: *mut *mut c_char,
     dir: c_int,
     skip_word: impl crate::strings::IntoCCharPtr,
 ) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     let skip_word = skip_word.into_c_char_ptr();
     unsafe {
         let mut status = true;
@@ -3203,7 +3206,8 @@ fn ins_compl_next_buf(mut buf: *mut FileBuf, flag: c_int) -> *mut FileBuf {
     }
 }
 
-fn get_cpt_sources_count(cpt: *mut c_char) -> c_int {
+fn get_cpt_sources_count(cpt: impl crate::strings::IntoCCharPtr) -> c_int {
+    let cpt = cpt.into_c_char_ptr().cast_mut();
     unsafe {
         let mut dummy: [c_char; LSIZE] = [0; LSIZE];
         let mut count: c_int = 0;
@@ -3372,7 +3376,12 @@ fn get_insert_callback(type_: c_int) -> &'static mut Callback {
     }
 }
 
-fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
+fn expand_by_function(
+    type_: c_int,
+    base: impl crate::strings::IntoCCharPtr,
+    mut cb: *mut Callback,
+) {
+    let base = base.into_c_char_ptr().cast_mut();
     unsafe {
         let mut matchlist: *mut TvList = ptr::null_mut();
         let mut matchdict: *mut TvDict = ptr::null_mut();
@@ -4181,7 +4190,12 @@ fn get_next_include_file_completion(compl_type: c_int) {
     );
 }
 
-fn get_next_dict_tsr_completion(compl_type: c_int, dict: *mut c_char, dict_f: c_int) {
+fn get_next_dict_tsr_completion(
+    compl_type: c_int,
+    dict: impl crate::strings::IntoCCharPtr,
+    dict_f: c_int,
+) {
+    let dict = dict.into_c_char_ptr().cast_mut();
     {
         if thesaurus_func_complete(compl_type) {
             expand_by_function(compl_type, compl_pattern_ptr(), ptr::null_mut());
@@ -6060,7 +6074,12 @@ fn ins_compl_use_match(c: c_int) -> bool {
     }
 }
 
-fn get_normal_compl_info(line: *mut c_char, mut startcol: c_int, curs_col: Colnr) -> bool {
+fn get_normal_compl_info(
+    line: impl crate::strings::IntoCCharPtr,
+    mut startcol: c_int,
+    curs_col: Colnr,
+) -> bool {
+    let line = line.into_c_char_ptr().cast_mut();
     unsafe {
         if (insexp().compl_cont_status & CONT_SOL) != 0 || ctrl_x_mode_path_defines() {
             if !compl_status_adding() {
@@ -6206,7 +6225,12 @@ fn get_wholeline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: C
     }
 }
 
-fn get_filename_compl_info(line: *mut c_char, mut startcol: c_int, curs_col: Colnr) -> bool {
+fn get_filename_compl_info(
+    line: impl crate::strings::IntoCCharPtr,
+    mut startcol: c_int,
+    curs_col: Colnr,
+) -> bool {
+    let line = line.into_c_char_ptr().cast_mut();
     unsafe {
         if startcol > 0 {
             let mut p = line.add(startcol as usize);
@@ -6419,11 +6443,12 @@ fn get_spell_compl_info(startcol: c_int, curs_col: Colnr) -> bool {
 }
 
 fn compl_get_info(
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     startcol: c_int,
     curs_col: Colnr,
     line_invalid: &mut bool,
 ) -> bool {
+    let line = line.into_c_char_ptr().cast_mut();
     {
         if ctrl_x_mode_normal()
             || ctrl_x_mode_register()

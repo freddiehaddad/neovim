@@ -2919,7 +2919,8 @@ fn command_line_not_changed(s: &mut CommandLineState) -> c_int {
 }
 
 /// Guess that the pattern matches everything.
-fn empty_pattern(p: *mut c_char, len: usize, delim: c_int) -> bool {
+fn empty_pattern(p: impl crate::strings::IntoCCharPtr, len: usize, delim: c_int) -> bool {
+    let p = p.into_c_char_ptr().cast_mut();
     let mut magic_val: RegMagic = MAGIC_ON;
 
     if len > 0 {
@@ -5179,9 +5180,10 @@ pub fn did_set_cedit(_args: &mut Optset) -> *const c_char {
 fn cmdwin_invoke(
     action: impl crate::strings::IntoCCharPtr,
     firstc: c_int,
-    content: *mut c_char,
+    content: impl crate::strings::IntoCCharPtr,
     pos: c_int,
 ) {
+    let content = content.into_c_char_ptr().cast_mut();
     let action = action.into_c_char_ptr();
     unsafe {
         let mut fc: [c_char; 2] = [firstc as c_char, 0];

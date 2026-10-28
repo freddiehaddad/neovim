@@ -2643,10 +2643,11 @@ fn spell_info_item(s: impl crate::strings::IntoCCharPtr) -> bool {
 
 fn affitem2flag(
     flagtype: c_int,
-    item: *mut c_char,
+    item: impl crate::strings::IntoCCharPtr,
     fname: impl crate::strings::IntoCCharPtr,
     lnum: c_int,
 ) -> c_uint {
+    let item = item.into_c_char_ptr().cast_mut();
     let fname = fname.into_c_char_ptr();
     {
         let mut p = item;
@@ -2709,7 +2710,12 @@ fn get_affitem(flagtype: c_int, pp: *mut *mut c_char) -> c_uint {
     }
 }
 
-fn process_compflags(spin: &mut Spellinfo, aff: &mut Afffile, compflags: *mut c_char) {
+fn process_compflags(
+    spin: &mut Spellinfo,
+    aff: &mut Afffile,
+    compflags: impl crate::strings::IntoCCharPtr,
+) {
+    let compflags = compflags.into_c_char_ptr().cast_mut();
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
 
@@ -2790,7 +2796,12 @@ fn store_afflist_add(store_afflist: *mut c_char, cntp: &mut c_int, id: c_int) ->
     }
 }
 
-fn flag_in_afflist(flagtype: c_int, afflist: *mut c_char, flag: c_uint) -> bool {
+fn flag_in_afflist(
+    flagtype: c_int,
+    afflist: impl crate::strings::IntoCCharPtr,
+    flag: c_uint,
+) -> bool {
+    let afflist = afflist.into_c_char_ptr().cast_mut();
     unsafe {
         match flagtype {
             AFT_CHAR => !vim_strchr(afflist, flag as c_int).is_null(),
@@ -3119,7 +3130,8 @@ fn spell_read_dic(
     }
 }
 
-fn get_affix_flags(affile: &Afffile, afflist: *mut c_char) -> c_int {
+fn get_affix_flags(affile: &Afffile, afflist: impl crate::strings::IntoCCharPtr) -> c_int {
+    let afflist = afflist.into_c_char_ptr().cast_mut();
     let mut flags: c_int = 0;
 
     if affile.af_keepcase != 0 && flag_in_afflist(affile.af_flagtype, afflist, affile.af_keepcase) {
@@ -3146,10 +3158,12 @@ fn get_affix_flags(affile: &Afffile, afflist: *mut c_char) -> c_int {
 
 fn get_pfxlist(
     affile: &Afffile,
-    afflist: *mut c_char,
-    store_afflist: *mut c_char,
+    afflist: impl crate::strings::IntoCCharPtr,
+    store_afflist: impl crate::strings::IntoCCharPtr,
     cntp: &mut c_int,
 ) -> bool {
+    let afflist = afflist.into_c_char_ptr().cast_mut();
+    let store_afflist = store_afflist.into_c_char_ptr().cast_mut();
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
 
@@ -3176,10 +3190,12 @@ fn get_pfxlist(
 
 fn get_compflags(
     affile: &Afffile,
-    afflist: *mut c_char,
-    store_afflist: *mut c_char,
+    afflist: impl crate::strings::IntoCCharPtr,
+    store_afflist: impl crate::strings::IntoCCharPtr,
     cntp: &mut c_int,
 ) -> bool {
+    let afflist = afflist.into_c_char_ptr().cast_mut();
+    let store_afflist = store_afflist.into_c_char_ptr().cast_mut();
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
 

@@ -616,10 +616,11 @@ fn add_menu_path(
 /// Set the (sub)menu with the given name to enabled or disabled (`menu_enable_recurse`).
 fn menu_enable_recurse(
     menus: &mut [Vimmenu],
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     modes: c_int,
     enable: bool,
 ) -> bool {
+    let name = name.into_c_char_ptr().cast_mut();
     {
         if menus.is_empty() {
             return true;
@@ -1906,7 +1907,8 @@ fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
 }
 
 /// Unescape the name in the translate dictionary table (`menu_unescape_name`).
-fn menu_unescape_name(name: *mut c_char) {
+fn menu_unescape_name(name: impl crate::strings::IntoCCharPtr) {
+    let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = name;
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' {

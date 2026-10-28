@@ -1728,7 +1728,8 @@ pub fn skip_regexp_ex(
     }
 }
 
-pub(super) fn initchr(str_: *mut c_char) {
+pub(super) fn initchr(str_: impl crate::strings::IntoCCharPtr) {
+    let str_ = str_.into_c_char_ptr().cast_mut();
     re_st().regparse = str_;
     re_st().prevchr_len = 0;
     re_st().nextchr = -1;

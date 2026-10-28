@@ -736,7 +736,7 @@ fn emit_err(e: &mut BwError, msg_id: impl crate::strings::IntoCCharPtr) {
 
 #[cfg(not(windows))]
 fn get_fileinfo_os(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     file_info_old: &mut FileInfo,
     _overwriting: bool,
     perm: *mut c_int,
@@ -744,6 +744,7 @@ fn get_fileinfo_os(
     newfile: *mut bool,
     err: *mut BwError,
 ) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         *perm = -1;
         if !os_fileinfo(fname, file_info_old) {
@@ -774,7 +775,7 @@ fn get_fileinfo_os(
 
 #[cfg(windows)]
 fn get_fileinfo_os(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     file_info_old: &mut FileInfo,
     overwriting: bool,
     perm: *mut c_int,
@@ -782,6 +783,7 @@ fn get_fileinfo_os(
     newfile: *mut bool,
     err: *mut BwError,
 ) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         let nodetype = if fname.is_null() {
             NODE_OTHER
@@ -818,7 +820,7 @@ fn get_fileinfo_os(
 
 fn get_fileinfo(
     buf: &mut FileBuf,
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     overwriting: bool,
     forceit: bool,
     file_info_old: &mut FileInfo,
@@ -828,6 +830,7 @@ fn get_fileinfo(
     readonly: &mut bool,
     err: &mut BwError,
 ) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     {
         if !get_fileinfo_os(
             fname,

@@ -2749,11 +2749,12 @@ pub fn ml_replace_buf(
 pub fn ml_replace_buf_len(
     buf: &mut FileBuf,
     lnum: Linenr,
-    line_arg: *mut c_char,
+    line_arg: impl crate::strings::IntoCCharPtr,
     len_arg: usize,
     copy: bool,
     noalloc: bool,
 ) -> bool {
+    let line_arg = line_arg.into_c_char_ptr().cast_mut();
     unsafe {
         let mut line = line_arg;
         if line.is_null() {

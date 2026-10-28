@@ -981,8 +981,9 @@ fn efm_to_regpat(
     efm: impl crate::strings::IntoCCharPtr,
     len: c_int,
     fmt_ptr: &mut Efm,
-    regpat: *mut c_char,
+    regpat: impl crate::strings::IntoCCharPtr,
 ) -> bool {
+    let regpat = regpat.into_c_char_ptr().cast_mut();
     let efm = efm.into_c_char_ptr();
     unsafe {
         let mut ptr = regpat;
@@ -1158,7 +1159,8 @@ fn qf_grow_linebuf(state: &mut Qfstate, newsz: usize) -> *mut c_char {
     }
 }
 
-fn qf_get_next_str_line(state: &mut Qfstate, mut p_str: *mut c_char) -> c_int {
+fn qf_get_next_str_line(state: &mut Qfstate, p_str: impl crate::strings::IntoCCharPtr) -> c_int {
+    let mut p_str = p_str.into_c_char_ptr().cast_mut();
     unsafe {
         if crate::memory::cstr_is_empty(p_str) {
             return QF_END_OF_INPUT;
@@ -2625,7 +2627,13 @@ pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
     }
 }
 
-fn qf_get_fnum(qfl: &mut QfList, mut directory: *mut c_char, fname: *mut c_char) -> c_int {
+fn qf_get_fnum(
+    qfl: &mut QfList,
+    directory: impl crate::strings::IntoCCharPtr,
+    fname: impl crate::strings::IntoCCharPtr,
+) -> c_int {
+    let mut directory = directory.into_c_char_ptr().cast_mut();
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         let mut ptr_cstr: Option<std::ffi::CString> = None;
         if crate::memory::cstr_is_empty(fname) {
@@ -3263,7 +3271,13 @@ fn qf_screen_col_to_idx(vcol: Colnr) -> c_int {
     }
 }
 
-fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: c_int, qf_viscol: c_char, qf_pattern: *mut c_char) {
+fn qf_jump_goto_line(
+    qf_lnum: Linenr,
+    qf_col: c_int,
+    qf_viscol: c_char,
+    qf_pattern: impl crate::strings::IntoCCharPtr,
+) {
+    let qf_pattern = qf_pattern.into_c_char_ptr().cast_mut();
     {
         if qf_pattern.is_null() {
             let mut i = qf_lnum;
@@ -4447,10 +4461,11 @@ fn qf_buf_add_line(
     buf: &mut FileBuf,
     lnum: Linenr,
     qfp: &Qfline,
-    dirname: *mut c_char,
+    dirname: impl crate::strings::IntoCCharPtr,
     qftf_str: impl crate::strings::IntoCCharPtr,
     first_bufline: bool,
 ) -> bool {
+    let dirname = dirname.into_c_char_ptr().cast_mut();
     let qftf_str = qftf_str.into_c_char_ptr();
     unsafe {
         let gap = qfga_get();
@@ -5521,10 +5536,13 @@ fn vgr_display_fname(fname: impl crate::strings::IntoCCharPtr) {
 }
 
 fn vgr_load_dummy_buf(
-    fname: *mut c_char,
-    dirname_start: *mut c_char,
-    dirname_now: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    dirname_start: impl crate::strings::IntoCCharPtr,
+    dirname_now: impl crate::strings::IntoCCharPtr,
 ) -> *mut FileBuf {
+    let fname = fname.into_c_char_ptr().cast_mut();
+    let dirname_start = dirname_start.into_c_char_ptr().cast_mut();
+    let dirname_now = dirname_now.into_c_char_ptr().cast_mut();
     let save_ei = au_event_disable(c",Filetype");
 
     let save_mls = opt_vars().p_mls;
@@ -5562,7 +5580,7 @@ fn vgr_qflist_valid(
 
 fn vgr_match_buflines(
     qfl: &mut QfList,
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     buf: &mut FileBuf,
     spat: impl crate::strings::IntoCCharPtr,
     regmatch: &mut Regmmatch,
@@ -5570,6 +5588,7 @@ fn vgr_match_buflines(
     duplicate_name: c_int,
     flags: c_int,
 ) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     let spat = spat.into_c_char_ptr();
     unsafe {
         let mut found_match = false;
@@ -5690,8 +5709,9 @@ fn vgr_jump_to_match(
     forceit: c_int,
     redraw_for_dummy: &mut bool,
     first_match_buf: &mut FileBuf,
-    target_dir: *mut c_char,
+    target_dir: impl crate::strings::IntoCCharPtr,
 ) {
+    let target_dir = target_dir.into_c_char_ptr().cast_mut();
     let buf = g_st().curbuf;
     qf_jump(&raw mut *qi, 0, 0, forceit);
     if buf != g_st().curbuf {
@@ -5996,7 +6016,8 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
     }
 }
 
-fn restore_start_dir(dirname_start: *mut c_char) {
+fn restore_start_dir(dirname_start: impl crate::strings::IntoCCharPtr) {
+    let dirname_start = dirname_start.into_c_char_ptr().cast_mut();
     {
         let mut dirname_now = vec![0 as c_char; MAXPATHL];
 
@@ -6017,10 +6038,13 @@ fn restore_start_dir(dirname_start: *mut c_char) {
 }
 
 fn load_dummy_buffer(
-    fname: *mut c_char,
-    dirname_start: *mut c_char,
-    resulting_dir: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    dirname_start: impl crate::strings::IntoCCharPtr,
+    resulting_dir: impl crate::strings::IntoCCharPtr,
 ) -> *mut FileBuf {
+    let fname = fname.into_c_char_ptr().cast_mut();
+    let dirname_start = dirname_start.into_c_char_ptr().cast_mut();
+    let resulting_dir = resulting_dir.into_c_char_ptr().cast_mut();
     unsafe {
         let mut newbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
         if newbuf.is_null() {
@@ -6087,7 +6111,8 @@ fn load_dummy_buffer(
     }
 }
 
-fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: *mut c_char) {
+fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: impl crate::strings::IntoCCharPtr) {
+    let dirname_start = dirname_start.into_c_char_ptr().cast_mut();
     {
         let mut give_up = false;
         loop {
@@ -6128,7 +6153,8 @@ fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: *mut c_char) {
     }
 }
 
-fn unload_dummy_buffer(buf: *mut FileBuf, dirname_start: *mut c_char) {
+fn unload_dummy_buffer(buf: *mut FileBuf, dirname_start: impl crate::strings::IntoCCharPtr) {
+    let dirname_start = dirname_start.into_c_char_ptr().cast_mut();
     if g_st().curbuf == buf {
         return;
     }
@@ -7544,7 +7570,12 @@ fn hgr_get_ll(new_ll: &mut bool) -> *mut QfInfo {
     }
 }
 
-fn hgr_search_file(qfl: &mut QfList, fname: *mut c_char, p_regmatch: &mut Regmatch) {
+fn hgr_search_file(
+    qfl: &mut QfList,
+    fname: impl crate::strings::IntoCCharPtr,
+    p_regmatch: &mut Regmatch,
+) {
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         let fd = os_fopen(fname, c"r").cast::<FILE>();
         if fd.is_null() {
@@ -7595,10 +7626,11 @@ fn hgr_search_file(qfl: &mut QfList, fname: *mut c_char, p_regmatch: &mut Regmat
 
 fn hgr_search_files_in_dir(
     qfl: &mut QfList,
-    mut dirname: *mut c_char,
+    dirname: impl crate::strings::IntoCCharPtr,
     p_regmatch: &mut Regmatch,
     lang: impl crate::strings::IntoCCharPtr,
 ) {
+    let mut dirname = dirname.into_c_char_ptr().cast_mut();
     let lang = lang.into_c_char_ptr();
     unsafe {
         let mut fnames: Vec<std::ffi::CString> = Vec::new();

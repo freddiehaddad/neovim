@@ -3608,10 +3608,11 @@ fn ex_call_inner(
     eap: &mut Exarg,
     name: impl crate::strings::IntoCCharPtr,
     arg: *mut *mut c_char,
-    startarg: *mut c_char,
+    startarg: impl crate::strings::IntoCCharPtr,
     funcexe_init: &Funcexe,
     evalarg: &mut Evalarg,
 ) -> bool {
+    let startarg = startarg.into_c_char_ptr().cast_mut();
     let name = name.into_c_char_ptr();
     unsafe {
         let mut failed = false;

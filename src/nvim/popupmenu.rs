@@ -1212,10 +1212,11 @@ pub fn pum_redraw() {
 /// Set the informational text in the preview buffer (`pum_preview_set_text`).
 fn pum_preview_set_text(
     win: &mut WinInfoInfo,
-    info: *mut c_char,
+    info: impl crate::strings::IntoCCharPtr,
     lnum: &mut Linenr,
     max_width: &mut c_int,
 ) {
+    let info = info.into_c_char_ptr().cast_mut();
     unsafe {
         let mut err = Error::new();
         let mut arena = Arena {

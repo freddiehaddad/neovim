@@ -2033,11 +2033,12 @@ pub fn ex_lockvar(eap: &mut Exarg) {
 /// Common parsing logic for :unlet, :lockvar and :unlockvar.
 fn ex_unletlock(
     eap: &mut Exarg,
-    argstart: *mut c_char,
+    argstart: impl crate::strings::IntoCCharPtr,
     deep: c_int,
     glv_flags: c_int,
     callback: ExUnletlockCallback,
 ) {
+    let argstart = argstart.into_c_char_ptr().cast_mut();
     unsafe {
         let mut arg = argstart;
         let mut name_end: *mut c_char;

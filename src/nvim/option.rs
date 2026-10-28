@@ -1500,11 +1500,13 @@ fn remove_comma_item(
 
 /// Remove all items matching "key" (with ':') from comma-separated string "str" in-place.
 fn remove_key_item(
-    str_arg: *mut c_char,
-    key: *mut c_char,
+    str_arg: impl crate::strings::IntoCCharPtr,
+    key: impl crate::strings::IntoCCharPtr,
     keylen: isize,
     skip: impl crate::strings::IntoCCharPtr,
 ) {
+    let str_arg = str_arg.into_c_char_ptr().cast_mut();
+    let key = key.into_c_char_ptr().cast_mut();
     let skip = skip.into_c_char_ptr();
     unsafe {
         let mut itemlen: isize = 0;
@@ -1651,7 +1653,8 @@ fn stropt_handle_keymatch(
 }
 
 /// Remove flags that appear twice in the string option value 'newval'.
-fn stropt_remove_dupflags(newval: *mut c_char, flags: u32) {
+fn stropt_remove_dupflags(newval: impl crate::strings::IntoCCharPtr, flags: u32) {
+    let newval = newval.into_c_char_ptr().cast_mut();
     unsafe {
         let mut s = newval;
         while !crate::memory::cstr_is_empty(s) {

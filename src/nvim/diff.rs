@@ -3733,7 +3733,8 @@ pub fn diff_lnum_win(lnum: Linenr, wp: &mut WinInfoInfo) -> Linenr {
         n.min(dp.df_lnum[u_i] + dp.df_count[u_i])
     }
 }
-fn parse_diff_ed(line: *mut c_char, hunk: &mut Diffhunk) -> bool {
+fn parse_diff_ed(line: impl crate::strings::IntoCCharPtr, hunk: &mut Diffhunk) -> bool {
+    let line = line.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = line;
         let f1 = getdigits_int32(&raw mut p, true, 0);
@@ -3778,7 +3779,8 @@ fn parse_diff_ed(line: *mut c_char, hunk: &mut Diffhunk) -> bool {
         true
     }
 }
-fn parse_diff_unified(line: *mut c_char, hunk: &mut Diffhunk) -> bool {
+fn parse_diff_unified(line: impl crate::strings::IntoCCharPtr, hunk: &mut Diffhunk) -> bool {
+    let line = line.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = line;
         if crate::memory::cstr_first_byte(p) == b'@'

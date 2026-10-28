@@ -2015,7 +2015,8 @@ fn write_blob(fp: &mut FileDescriptor, blob: &TvBlob) -> bool {
     )
 }
 
-fn write_string(fp: &mut FileDescriptor, data: *const c_char) -> bool {
+fn write_string(fp: &mut FileDescriptor, data: impl crate::strings::IntoCCharPtr) -> bool {
+    let data = data.into_c_char_ptr();
     write_data(fp, data, crate::memory::cstr_len(data))
 }
 

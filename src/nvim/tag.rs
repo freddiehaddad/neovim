@@ -1278,7 +1278,8 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
     }
 }
 
-fn tagfunc_cmd_kind(cmd: *mut c_char) -> Tagcmd {
+fn tagfunc_cmd_kind(cmd: impl crate::strings::IntoCCharPtr) -> Tagcmd {
+    let cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
         if ascii_isdigit(*cmd) {
             return if *skipdigits(cmd) == NUL {
@@ -1581,7 +1582,13 @@ impl FindtagsState {
     }
 }
 
-fn findtags_state_init(st: &mut FindtagsState, pat: *mut c_char, flags: c_int, mincount: c_int) {
+fn findtags_state_init(
+    st: &mut FindtagsState,
+    pat: impl crate::strings::IntoCCharPtr,
+    flags: c_int,
+    mincount: c_int,
+) {
+    let pat = pat.into_c_char_ptr().cast_mut();
     {
         st.tag_fname = vec![0 as c_char; MAXPATHL + 1];
         st.fp = None;
@@ -1695,9 +1702,10 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
 
 fn findtags_apply_tfu(
     st: &mut FindtagsState,
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     buf_ffname: impl crate::strings::IntoCCharPtr,
 ) -> c_int {
+    let pat = pat.into_c_char_ptr().cast_mut();
     let buf_ffname = buf_ffname.into_c_char_ptr();
     {
         let use_tfu = (st.flags & TAG_NO_TAGFUNC) == 0;
@@ -2626,7 +2634,8 @@ pub fn get_tagfname(tnp: &mut Tagname, first: c_int, buf: *mut c_char) -> bool {
     }
 }
 
-fn parse_tag_line(lbuf: *mut c_char, tagp: &mut Tagptrs) -> bool {
+fn parse_tag_line(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> bool {
+    let lbuf = lbuf.into_c_char_ptr().cast_mut();
     unsafe {
         tagp.tagname = lbuf;
         let mut p = vim_strchr(lbuf, TAB as c_int);
@@ -2683,7 +2692,8 @@ fn matching_line_len(lbuf: impl crate::strings::IntoCCharPtr) -> usize {
     }
 }
 
-fn parse_match(mut lbuf: *mut c_char, tagp: &mut Tagptrs) -> bool {
+fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> bool {
+    let mut lbuf = lbuf.into_c_char_ptr().cast_mut();
     unsafe {
         tagp.tag_fname = lbuf.add(1);
         lbuf = lbuf.add(crate::memory::cstr_len(tagp.tag_fname) + 2);
@@ -3091,9 +3101,10 @@ fn jumpto_tag(
 
 fn expand_tag_fname(
     fname_arg: impl crate::strings::IntoCCharPtr,
-    tag_fname: *mut c_char,
+    tag_fname: impl crate::strings::IntoCCharPtr,
     expand: bool,
 ) -> std::ffi::CString {
+    let tag_fname = tag_fname.into_c_char_ptr().cast_mut();
     let fname_arg = fname_arg.into_c_char_ptr();
     unsafe {
         let mut xpc: ExpandCtx = ExpandCtx::new();
@@ -3133,11 +3144,13 @@ fn expand_tag_fname(
 }
 
 fn test_for_current(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     fname_end: *mut c_char,
-    tag_fname: *mut c_char,
+    tag_fname: impl crate::strings::IntoCCharPtr,
     buf_ffname: impl crate::strings::IntoCCharPtr,
 ) -> c_int {
+    let fname = fname.into_c_char_ptr().cast_mut();
+    let tag_fname = tag_fname.into_c_char_ptr().cast_mut();
     let buf_ffname = buf_ffname.into_c_char_ptr();
     unsafe {
         let mut retval = false;

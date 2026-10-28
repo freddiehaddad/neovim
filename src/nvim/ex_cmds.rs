@@ -2240,7 +2240,8 @@ fn check_writable(fname: impl crate::strings::IntoCCharPtr) -> bool {
     true
 }
 
-fn handle_mkdir_p_arg(eap: &mut Exarg, fname: *mut c_char) -> bool {
+fn handle_mkdir_p_arg(eap: &mut Exarg, fname: impl crate::strings::IntoCCharPtr) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     if eap.mkdir_p != 0 && os_file_mkdir(fname, 0o755) < 0 {
         return false;
     }

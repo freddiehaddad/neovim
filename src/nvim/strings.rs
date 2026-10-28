@@ -884,7 +884,8 @@ fn adjust_types(ap_types: &mut Vec<*const c_char>, arg: c_int, type_: *const c_c
     }
 }
 
-pub fn format_overflow_error(pstart: *const c_char) {
+pub fn format_overflow_error(pstart: impl crate::strings::IntoCCharPtr) {
+    let pstart = pstart.into_c_char_ptr();
     unsafe {
         let mut p = pstart;
         while ascii_isdigit(*p) {
@@ -899,11 +900,12 @@ pub fn format_overflow_error(pstart: *const c_char) {
 }
 
 pub fn get_unsigned_int(
-    pstart: *const c_char,
+    pstart: impl crate::strings::IntoCCharPtr,
     p: *mut *const c_char,
     uj: &mut c_uint,
     overflow_err: bool,
 ) -> bool {
+    let pstart = pstart.into_c_char_ptr();
     unsafe {
         *uj = ((**p as u8) - b'0') as c_uint;
         *p = (*p).add(1);
@@ -925,7 +927,12 @@ pub fn get_unsigned_int(
     }
 }
 
-pub fn parse_fmt_types(num_posarg: &mut c_int, fmt: *const c_char, tvs: *mut TypVal) -> bool {
+pub fn parse_fmt_types(
+    num_posarg: &mut c_int,
+    fmt: impl crate::strings::IntoCCharPtr,
+    tvs: *mut TypVal,
+) -> bool {
+    let fmt = fmt.into_c_char_ptr();
     unsafe {
         if fmt.is_null() {
             return true;
@@ -1304,12 +1311,14 @@ fn fmt_arg_val(args: &[FmtVal], arg_idx: &mut c_int) -> FmtVal {
 }
 
 fn vim_vsnprintf_typval_inner(
-    str_out: *mut c_char,
+    str_out: impl crate::strings::IntoCCharPtr,
     str_m: usize,
-    fmt: *const c_char,
+    fmt: impl crate::strings::IntoCCharPtr,
     tvs: *mut TypVal,
     fmt_args: &[FmtVal],
 ) -> c_int {
+    let str_out = str_out.into_c_char_ptr().cast_mut();
+    let fmt = fmt.into_c_char_ptr();
     unsafe {
         let mut str_l: usize = 0;
         let mut str_avail = str_l < str_m;
@@ -2121,20 +2130,24 @@ fn vim_vsnprintf_typval_inner(
 }
 
 pub fn vim_snprintf_fmt(
-    str_out: *mut c_char,
+    str_out: impl crate::strings::IntoCCharPtr,
     str_m: usize,
-    fmt: *const c_char,
+    fmt: impl crate::strings::IntoCCharPtr,
     args: &[FmtVal],
 ) -> c_int {
+    let str_out = str_out.into_c_char_ptr().cast_mut();
+    let fmt = fmt.into_c_char_ptr();
     vim_vsnprintf_typval_inner(str_out, str_m, fmt, ptr::null_mut(), args)
 }
 
 pub fn vim_snprintf_add_fmt(
-    str_out: *mut c_char,
+    str_out: impl crate::strings::IntoCCharPtr,
     str_m: usize,
-    fmt: *const c_char,
+    fmt: impl crate::strings::IntoCCharPtr,
     args: &[FmtVal],
 ) -> c_int {
+    let str_out = str_out.into_c_char_ptr().cast_mut();
+    let fmt = fmt.into_c_char_ptr();
     unsafe {
         let len = crate::memory::cstr_len(str_out);
         let space = str_m.saturating_sub(len);
@@ -2145,9 +2158,10 @@ pub fn vim_snprintf_add_fmt(
 pub fn vim_snprintf_safelen_fmt(
     str_out: *mut c_char,
     str_m: usize,
-    fmt: *const c_char,
+    fmt: impl crate::strings::IntoCCharPtr,
     args: &[FmtVal],
 ) -> usize {
+    let fmt = fmt.into_c_char_ptr();
     unsafe {
         if str_m == 0 {
             return 0;

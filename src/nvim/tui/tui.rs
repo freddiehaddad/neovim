@@ -2991,7 +2991,12 @@ fn flush_buf(tui: &mut TUIData, finish: FlushBufFinish) {
     flush_buf_raw(tui, finish, ptr::null_mut());
 }
 
-fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: *mut c_char) {
+fn flush_buf_raw(
+    tui: &mut TUIData,
+    finish: FlushBufFinish,
+    buf_to_flush: impl crate::strings::IntoCCharPtr,
+) {
+    let buf_to_flush = buf_to_flush.into_c_char_ptr().cast_mut();
     unsafe {
         let should_be_invisible = should_invisible(tui);
 

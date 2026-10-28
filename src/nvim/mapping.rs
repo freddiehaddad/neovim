@@ -1188,11 +1188,12 @@ fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> c_int {
 }
 
 fn do_mapclear(
-    mut cmdp: *mut c_char,
+    cmdp: impl crate::strings::IntoCCharPtr,
     arg: impl crate::strings::IntoCCharPtr,
     forceit: c_int,
     abbr: c_int,
 ) {
+    let mut cmdp = cmdp.into_c_char_ptr().cast_mut();
     let arg = arg.into_c_char_ptr();
     {
         let local = crate::memory::cstr_as_bytes(arg) == b"<buffer>";

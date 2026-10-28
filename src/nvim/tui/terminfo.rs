@@ -2962,11 +2962,13 @@ fn onum(
 }
 
 pub fn terminfo_fmt(
-    buf_start: *mut c_char,
-    buf_end: *mut c_char,
+    buf_start: impl crate::strings::IntoCCharPtr,
+    buf_end: impl crate::strings::IntoCCharPtr,
     str_: impl crate::strings::IntoCCharPtr,
     params: *mut TPVAR,
 ) -> usize {
+    let buf_start = buf_start.into_c_char_ptr().cast_mut();
+    let buf_end = buf_end.into_c_char_ptr().cast_mut();
     let mut str_ = str_.into_c_char_ptr();
     unsafe {
         let mut fmt = [0 as c_char; 64];
