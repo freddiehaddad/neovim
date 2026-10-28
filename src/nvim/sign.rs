@@ -525,15 +525,15 @@ pub fn init_sign_text(sp: Option<&sign_T>, sign_text: *mut schar_T, text: *mut c
 }
 
 fn sign_define_by_name(
-    name: *mut c_char,
-    icon: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
+    icon: impl crate::strings::IntoCCharPtr,
     text: *mut c_char,
-    linehl: *mut c_char,
-    texthl: *mut c_char,
-    culhl: *mut c_char,
-    numhl: *mut c_char,
+    linehl: impl crate::strings::IntoCCharPtr,
+    texthl: impl crate::strings::IntoCCharPtr,
+    culhl: impl crate::strings::IntoCCharPtr,
+    numhl: impl crate::strings::IntoCCharPtr,
     prio: c_int,
-) -> bool {
+) -> bool { let name = name.into_c_char_ptr(); let icon = icon.into_c_char_ptr(); let linehl = linehl.into_c_char_ptr(); let texthl = texthl.into_c_char_ptr(); let culhl = culhl.into_c_char_ptr(); let numhl = numhl.into_c_char_ptr();
     unsafe {
         let existing = pmap_get_sign(name);
         let new_sign = existing.is_null();
@@ -809,7 +809,7 @@ fn sign_jump(id: c_int, group: impl crate::strings::IntoCCharPtr, buf: &mut buf_
     }
 }
 
-fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
+fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_char) { let name = name.into_c_char_ptr();
     unsafe {
         let mut icon: *mut c_char = ptr::null_mut();
         let mut text: *mut c_char = ptr::null_mut();
@@ -1386,7 +1386,7 @@ pub fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
     }
 }
 
-fn sign_define_from_dict(mut name: *mut c_char, dict: Option<&dict_T>) -> c_int {
+fn sign_define_from_dict(name: impl crate::strings::IntoCCharPtr, dict: Option<&dict_T>) -> c_int { let mut name = name.into_c_char_ptr();
      {
         if name.is_null() {
             name = tv_dict_get_string(dict, c"name");

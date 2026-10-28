@@ -1129,10 +1129,10 @@ pub fn find_file_in_path(
     len: usize,
     options: c_int,
     first: c_int,
-    rel_fname: *mut c_char,
+    rel_fname: impl crate::strings::IntoCCharPtr,
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<ff_search_ctx_T>,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let rel_fname = rel_fname.into_c_char_ptr();
      {
         find_file_in_path_option(
             ptr,
@@ -1160,10 +1160,10 @@ pub fn find_directory_in_path(
     ptr: *mut c_char,
     len: usize,
     options: c_int,
-    rel_fname: *mut c_char,
+    rel_fname: impl crate::strings::IntoCCharPtr,
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<ff_search_ctx_T>,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let rel_fname = rel_fname.into_c_char_ptr();
     find_file_in_path_option(
             ptr,
             len,
@@ -1185,11 +1185,11 @@ pub fn find_file_in_path_option(
     first: c_int,
     path_option: *mut c_char,
     find_what: c_int,
-    mut rel_fname: *mut c_char,
+    rel_fname: impl crate::strings::IntoCCharPtr,
     suffixes: impl crate::strings::IntoCCharPtr,
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<ff_search_ctx_T>,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let mut rel_fname = rel_fname.into_c_char_ptr();
     let suffixes = suffixes.into_c_char_ptr().cast_mut();
     unsafe {
         struct FindFilePathOptState {
@@ -1440,8 +1440,8 @@ pub fn file_name_in_line(
     col: c_int,
     options: c_int,
     count: c_int,
-    rel_fname: *mut c_char,file_lnum: Option<&mut linenr_T>,
-) -> Option<std::ffi::CString> {
+    rel_fname: impl crate::strings::IntoCCharPtr,file_lnum: Option<&mut linenr_T>,
+) -> Option<std::ffi::CString> { let rel_fname = rel_fname.into_c_char_ptr();
     unsafe {
         let mut ptr = line.add(col as usize);
         while !crate::memory::cstr_is_empty(ptr) && !vim_isfilec(c_int::from(crate::memory::cstr_first_byte(ptr))) {
@@ -1558,8 +1558,8 @@ pub fn find_file_name_in_path(
     mut len: usize,
     options: c_int,
     mut count: c_long,
-    rel_fname: *mut c_char,
-) -> Option<std::ffi::CString> {
+    rel_fname: impl crate::strings::IntoCCharPtr,
+) -> Option<std::ffi::CString> { let rel_fname = rel_fname.into_c_char_ptr();
     unsafe {
         let mut tofree: Option<std::ffi::CString> = None;
 

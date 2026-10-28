@@ -1350,13 +1350,13 @@ pub fn msg_progress(
 /// Shows message `s` with `id`: replaces the message with the same `id`, if any.
 pub fn msg_with_id(
     mut s: *mut c_char,
-    id: *mut c_char,
+    id: impl crate::strings::IntoCCharPtr,
     kind: &std::ffi::CStr,data: Option<&mut MessageData>,
     hl_id: c_int,
     hist: bool,
     trunc: bool,
     err: bool,
-) -> *mut c_char {
+) -> *mut c_char { let id = id.into_c_char_ptr();
     let mut clear = false;
         let mut chunks = HlMessage::new();
         if !s.is_null() {

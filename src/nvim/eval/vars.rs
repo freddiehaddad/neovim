@@ -956,10 +956,10 @@ fn list_script_vars(first: &mut c_int) {
 
 /// Evaluate one Vim expression {expr} in string "p" and append the resulting string to "gap".
 pub fn eval_one_expr_in_str(
-    p: *mut c_char,
+    p: impl crate::strings::IntoCCharPtr,
     gap: &mut Vec<c_char>,
     evaluate: bool,
-) -> *mut c_char {
+) -> *mut c_char { let p = p.into_c_char_ptr();
     unsafe {
         let block_start = skipwhite(p.add(1));
         let mut block_end = block_start;
@@ -997,7 +997,7 @@ pub fn eval_one_expr_in_str(
 }
 
 /// Evaluate all the Vim expressions {expr} in "str" and return the resulting string as an owned `CString`.
-fn eval_all_expr_in_str(str_arg: *mut c_char) -> Option<std::ffi::CString> {
+fn eval_all_expr_in_str(str_arg: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> { let str_arg = str_arg.into_c_char_ptr();
     unsafe {
         let mut buf: Vec<c_char> = Vec::with_capacity(80);
         let mut p = str_arg;
@@ -1709,11 +1709,11 @@ fn ex_let_env(
 
 /// Set an option, part of ex_let_one().
 fn ex_let_option(
-    arg: *mut c_char,tv: &mut typval_T,
+    arg: impl crate::strings::IntoCCharPtr,tv: &mut typval_T,
     is_const: bool,
     endchars: impl crate::strings::IntoCCharPtr,
     op: impl crate::strings::IntoCCharPtr,
-) -> *mut c_char { let endchars = endchars.into_c_char_ptr(); let op = op.into_c_char_ptr();
+) -> *mut c_char { let arg = arg.into_c_char_ptr(); let endchars = endchars.into_c_char_ptr(); let op = op.into_c_char_ptr();
     unsafe {
         if is_const {
             emsg(gettext(c"E996: Cannot lock an option"));

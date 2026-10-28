@@ -453,9 +453,9 @@ pub fn vim_dialog_yesno(
 pub fn vim_dialog_yesnocancel(
     dlg_type: c_int,
     title: *mut c_char,
-    message: *mut c_char,
+    message: impl crate::strings::IntoCCharPtr,
     dflt: c_int,
-) -> c_int {
+) -> c_int { let message = message.into_c_char_ptr();
     let t = if title.is_null() {
         c"Question".as_ptr()
     } else {
@@ -480,9 +480,9 @@ pub fn vim_dialog_yesnocancel(
 pub fn vim_dialog_yesnoallcancel(
     dlg_type: c_int,
     title: *mut c_char,
-    message: *mut c_char,
+    message: impl crate::strings::IntoCCharPtr,
     dflt: c_int,
-) -> c_int {
+) -> c_int { let message = message.into_c_char_ptr();
     let t = if title.is_null() {
         c"Question".as_ptr()
     } else {

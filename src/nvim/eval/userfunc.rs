@@ -3530,12 +3530,12 @@ pub fn ex_return(eap: &mut exarg_T) {
 
 fn ex_call_inner(
     eap: &mut exarg_T,
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     arg: *mut *mut c_char,
     startarg: *mut c_char,
     funcexe_init: &funcexe_T,
     evalarg: &mut evalarg_T,
-) -> bool {
+) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut failed = false;
 

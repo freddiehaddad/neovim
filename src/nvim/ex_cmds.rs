@@ -2355,10 +2355,10 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
 pub fn check_overwrite(
     eap: &mut exarg_T,
     buf: &mut buf_T,
-    fname: *mut c_char,
-    ffname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    ffname: impl crate::strings::IntoCCharPtr,
     other: bool,
-) -> bool {
+) -> bool { let fname = fname.into_c_char_ptr(); let ffname = ffname.into_c_char_ptr();
      {
         if (other
             || (!bt_nofilename(Some(&*buf))

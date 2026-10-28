@@ -732,7 +732,7 @@ mod win_iconv {
         }
     }
 
-    pub fn open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
+    pub fn open(tocode: impl crate::strings::IntoCCharPtr, fromcode: impl crate::strings::IntoCCharPtr) -> *mut c_void { let tocode = tocode.into_c_char_ptr(); let fromcode = fromcode.into_c_char_ptr();
         if tocode.is_null() || fromcode.is_null() {
             unsafe { *errno_ptr() = EINVAL };
             return usize::MAX as *mut c_void;

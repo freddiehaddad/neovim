@@ -269,7 +269,7 @@ pub fn path_tail(fname: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     }
 }
 
-pub fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char {
+pub fn path_tail_with_sep(fname: impl crate::strings::IntoCCharPtr) -> *mut c_char { let fname = fname.into_c_char_ptr();
     unsafe {
         let past_head = get_past_head(fname);
         let mut tail = path_tail(fname);
@@ -983,9 +983,9 @@ fn get_path_cutoff(fname: *mut c_char, gap: &[std::ffi::CString]) -> *mut c_char
 
 fn uniquefy_paths(
     gap: &mut Vec<std::ffi::CString>,
-    pattern: *mut c_char,
+    pattern: impl crate::strings::IntoCCharPtr,
     path_option: *mut c_char,
-) {
+) { let pattern = pattern.into_c_char_ptr();
     unsafe {
         let mut sort_again = false;
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
@@ -1920,7 +1920,7 @@ pub fn after_pathsep(b: impl crate::strings::IntoCCharPtr, p: impl crate::string
     }
 }
 
-pub fn same_directory(f1: *mut c_char, f2: *mut c_char) -> bool {
+pub fn same_directory(f1: impl crate::strings::IntoCCharPtr, f2: impl crate::strings::IntoCCharPtr) -> bool { let f1 = f1.into_c_char_ptr(); let f2 = f2.into_c_char_ptr();
     unsafe {
         if f1.is_null() || f2.is_null() {
             return false;

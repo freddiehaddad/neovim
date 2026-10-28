@@ -1711,7 +1711,7 @@ pub fn spell_check_msm(value: *mut c_char, apply: bool) -> bool {
     }
 }
 
-fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_T> {
+fn spell_read_aff(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr) -> Option<afffile_T> { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut rline = [0 as c_char; MAXLINELEN];
         let mut pc_vec: Vec<c_char>;
@@ -2687,9 +2687,9 @@ fn spell_info_item(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.int
 fn affitem2flag(
     flagtype: c_int,
     item: *mut c_char,
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     lnum: c_int,
-) -> c_uint {
+) -> c_uint { let fname = fname.into_c_char_ptr();
      {
         let mut p = item;
         let res = get_affitem(flagtype, &raw mut p);

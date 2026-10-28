@@ -1414,10 +1414,10 @@ fn stropt_remove_val(
 /// Find a comma-separated item in "src" that matches the key part of "key".
 fn find_key_item(
     src: *mut c_char,
-    key: *mut c_char,
+    key: impl crate::strings::IntoCCharPtr,
     keylen: isize,
     itemlenp: &mut isize,
-) -> *mut c_char {
+) -> *mut c_char { let key = key.into_c_char_ptr();
     unsafe {
         let mut p = src;
 
@@ -7861,13 +7861,13 @@ pub fn set_context_in_set_cmd(xp: &mut expand_T, mut arg: *mut c_char, opt_flags
 }
 
 fn match_str(
-    str_arg: *mut c_char,
+    str_arg: impl crate::strings::IntoCCharPtr,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
     fuzzy: bool,
-    fuzzystr: *const c_char,
+    fuzzystr: impl crate::strings::IntoCCharPtr,
     fuzmatch: &mut Vec<fuzmatch_str_T>,
-) -> bool {
+) -> bool { let str_arg = str_arg.into_c_char_ptr(); let fuzzystr = fuzzystr.into_c_char_ptr();
      {
         if !fuzzy {
             if vim_regexec(regmatch, str_arg, 0) {

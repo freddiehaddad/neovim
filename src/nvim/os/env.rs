@@ -1036,11 +1036,11 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
 /// Replace home directory by `"~"` in each space or comma separated file name in `src`.
 pub fn home_replace(
     buf: Option<&buf_T>,
-    mut src: *const c_char,
+    src: impl crate::strings::IntoCCharPtr,
     dst: *mut c_char,
     mut dstlen: usize,
     one: bool,
-) -> usize {
+) -> usize { let mut src = src.into_c_char_ptr();
     unsafe {
         if src.is_null() {
             *dst = NUL;

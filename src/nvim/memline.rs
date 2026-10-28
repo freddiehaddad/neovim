@@ -3363,9 +3363,9 @@ pub fn resolve_symlink(fname: impl crate::strings::IntoCCharPtr, buf: *mut c_cha
 
 /// Make swapfile name out of the file name and a directory name.
 pub fn makeswapname(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     dir_name: *mut c_char,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let fname = fname.into_c_char_ptr();
     unsafe {
         #[cfg(unix)]
         let mut fname_res = fname;

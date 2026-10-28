@@ -882,10 +882,10 @@ pub fn call_vim_function(
 
 /// Call Vim script function and return the result as a string.
 pub fn call_func_retstr(
-    func: *const c_char,
+    func: impl crate::strings::IntoCCharPtr,
     argc: c_int,
     argv: *mut typval_T,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let func = func.into_c_char_ptr();
     let mut rettv = tv_initial_value();
         if !call_vim_function(func, argc, argv, &mut rettv) {
             return None;
@@ -898,10 +898,10 @@ pub fn call_func_retstr(
 
 /// Call Vim script function and return the result as a List.
 pub fn call_func_retlist(
-    func: *const c_char,
+    func: impl crate::strings::IntoCCharPtr,
     argc: c_int,
     argv: *mut typval_T,
-) -> *mut list_T {
+) -> *mut list_T { let func = func.into_c_char_ptr();
     let mut rettv = tv_initial_value();
 
         if !call_vim_function(func, argc, argv, &mut rettv) {
@@ -1256,10 +1256,10 @@ fn get_lval_list(
 
 fn get_lval_subscript(lp: &mut lval_T,
     mut p: *mut c_char,
-    name: *mut c_char,mut rettv: Option<&mut typval_T>,
+    name: impl crate::strings::IntoCCharPtr,mut rettv: Option<&mut typval_T>,
     unlet: bool,
     flags: c_int,
-) -> *mut c_char {
+) -> *mut c_char { let name = name.into_c_char_ptr();
     unsafe {
         let quiet = (flags & GLV_QUIET) != 0;
         let mut var1 = tv_initial_value();
@@ -1445,13 +1445,13 @@ fn get_lval_subscript(lp: &mut lval_T,
 
 /// Get an lvalue
 pub fn get_lval(
-    name: *mut c_char,rettv: Option<&mut typval_T>,
+    name: impl crate::strings::IntoCCharPtr,rettv: Option<&mut typval_T>,
     lp: &mut lval_T,
     unlet: bool,
     skip: bool,
     flags: c_int,
     fne_flags: c_int,
-) -> *mut c_char {
+) -> *mut c_char { let name = name.into_c_char_ptr();
     unsafe {
         let quiet = (flags & GLV_QUIET) != 0;
 

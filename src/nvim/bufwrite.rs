@@ -827,8 +827,8 @@ pub fn buf_get_backup_name(
     fname: *mut c_char,
     dirp: *mut *mut c_char,
     no_prepend_dot: bool,
-    backup_ext: *mut c_char,
-) -> Option<std::ffi::CString> {
+    backup_ext: impl crate::strings::IntoCCharPtr,
+) -> Option<std::ffi::CString> { let backup_ext = backup_ext.into_c_char_ptr();
     unsafe {
         let mut backup: Option<std::ffi::CString> = None;
         let iobuf = g_st().IObuff.as_mut_ptr();

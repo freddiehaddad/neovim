@@ -2816,10 +2816,10 @@ pub fn ex_spelldump(eap: &mut exarg_T) {
     }
 }
 pub fn spell_dump_compl(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     ic: c_int,mut dir: Option<&mut Direction>,
     dumpflags_arg: c_int,
-) {
+) { let pat = pat.into_c_char_ptr();
     unsafe {
         let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
         let mut curi: [c_int; MAXWLEN] = [0; MAXWLEN];
@@ -2979,11 +2979,11 @@ pub fn spell_dump_compl(
 fn dump_word(
     slang: &mut slang_T,
     word: *mut c_char,
-    pat: *mut c_char,mut dir: Option<&mut Direction>,
+    pat: impl crate::strings::IntoCCharPtr,mut dir: Option<&mut Direction>,
     dumpflags: c_int,
     wordflags: c_int,
     lnum: linenr_T,
-) {
+) { let pat = pat.into_c_char_ptr();
     unsafe {
         let mut keepcap = false;
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -3070,12 +3070,12 @@ fn dump_word(
 }
 fn dump_prefixes(
     slang: &mut slang_T,
-    word: *mut c_char,
-    pat: *mut c_char,mut dir: Option<&mut Direction>,
+    word: impl crate::strings::IntoCCharPtr,
+    pat: impl crate::strings::IntoCCharPtr,mut dir: Option<&mut Direction>,
     dumpflags: c_int,
     flags: c_int,
     startlnum: linenr_T,
-) -> linenr_T {
+) -> linenr_T { let word = word.into_c_char_ptr(); let pat = pat.into_c_char_ptr();
     unsafe {
         let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
         let mut curi: [c_int; MAXWLEN] = [0; MAXWLEN];

@@ -8348,9 +8348,9 @@ fn repl_cmdline(
     eap: &mut exarg_T,
     mut src: *mut c_char,
     srclen: usize,
-    repl: *mut c_char,
+    repl: impl crate::strings::IntoCCharPtr,
     cmdlinep: *mut *mut c_char,
-) -> *mut c_char {
+) -> *mut c_char { let repl = repl.into_c_char_ptr();
     unsafe {
         let len = crate::memory::cstr_len(repl);
         let offset = (src as usize) - ((*cmdlinep) as usize);
@@ -8870,7 +8870,7 @@ pub fn find_nextcmd(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let m
     }
 }
 
-pub fn check_nextcmd(p: *mut c_char) -> *mut c_char {
+pub fn check_nextcmd(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let p = p.into_c_char_ptr();
     unsafe {
         let s = skipwhite(p);
         if crate::memory::cstr_first_byte(s) == b'|' || crate::memory::cstr_first_byte(s) == b'\n' {

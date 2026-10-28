@@ -2020,7 +2020,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
 
 /// Check the string "keys" against the lhs of all mappings.
 pub fn check_map(
-    keys: *mut c_char,
+    keys: impl crate::strings::IntoCCharPtr,
     mode: c_int,
     exact: c_int,
     ign_mod: c_int,
@@ -2028,7 +2028,7 @@ pub fn check_map(
     mut mp_out: Option<&mut Option<&'static mapblock_T>>,
     local_ptr: &mut c_int,
     rhs_lua: &mut c_int,
-) -> *mut c_char {
+) -> *mut c_char { let keys = keys.into_c_char_ptr();
     unsafe {
         *rhs_lua = LUA_NOREF;
 

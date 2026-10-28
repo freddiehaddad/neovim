@@ -2167,8 +2167,8 @@ fn add_mark<S: crate::strings::IntoCCharPtr>(
     mname: S,
     pos: &pos_T,
     bufnr: c_int,
-    fname: *const c_char,
-) -> bool {
+    fname: impl crate::strings::IntoCCharPtr,
+) -> bool { let fname = fname.into_c_char_ptr();
     let mname = mname.into_c_char_ptr();
     unsafe {
         if pos.lnum <= 0 {

@@ -343,8 +343,8 @@ fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
 fn conv_error(
     msg: &std::ffi::CStr,
     mpstack: &[MPConvStackVal],
-    objname: *const c_char,
-) -> c_int {
+    objname: impl crate::strings::IntoCCharPtr,
+) -> c_int { let objname = objname.into_c_char_ptr();
     unsafe {
         let mut msg_ga: Vec<u8> = Vec::with_capacity(80);
         let mut iobuf = [0 as c_char; 1025];

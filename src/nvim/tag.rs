@@ -1245,8 +1245,8 @@ fn find_tagfunc_tags(
     ga: &mut Vec<Vec<c_char>>,
     match_count: &mut c_int,
     flags: c_int,
-    buf_ffname: *mut c_char,
-) -> c_int {
+    buf_ffname: impl crate::strings::IntoCCharPtr,
+) -> c_int { let buf_ffname = buf_ffname.into_c_char_ptr();
     unsafe {
         let mut ntags: c_int = 0;
         let mut args = [typval_T {
@@ -1629,8 +1629,8 @@ fn findtags_in_help_init(st: &mut findtags_state_T) -> bool {
 fn findtags_apply_tfu(
     st: &mut findtags_state_T,
     pat: *mut c_char,
-    buf_ffname: *mut c_char,
-) -> c_int {
+    buf_ffname: impl crate::strings::IntoCCharPtr,
+) -> c_int { let buf_ffname = buf_ffname.into_c_char_ptr();
      {
         let use_tfu = (st.flags & TAG_NO_TAGFUNC) == 0;
 
@@ -1998,8 +1998,8 @@ fn findtags_add_match(
     st: &mut findtags_state_T,
     tagpp: &mut tagptrs_T,
     margs: &findtags_match_args_T,
-    buf_ffname: *mut c_char,
-) {
+    buf_ffname: impl crate::strings::IntoCCharPtr,
+) { let buf_ffname = buf_ffname.into_c_char_ptr();
     unsafe {
         let name_only = (st.flags & TAG_NAMES) != 0;
         let tag_fname_ptr = st.tag_fname.as_mut_ptr();
@@ -2105,8 +2105,8 @@ fn findtags_add_match(
 fn findtags_get_all_tags(
     st: &mut findtags_state_T,
     margs: &mut findtags_match_args_T,
-    buf_ffname: *mut c_char,
-) {
+    buf_ffname: impl crate::strings::IntoCCharPtr,
+) { let buf_ffname = buf_ffname.into_c_char_ptr();
     unsafe {
         let mut tagp = tagptrs_T::default();
         let mut search_info = tagsearch_info_T::default();
@@ -2191,7 +2191,7 @@ fn findtags_get_all_tags(
     }
 }
 
-fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname: *mut c_char) {
+fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname: impl crate::strings::IntoCCharPtr) { let buf_ffname = buf_ffname.into_c_char_ptr();
      {
         let mut margs = findtags_match_args_T::default();
 
@@ -2283,8 +2283,8 @@ pub fn find_tags(
     matches: &mut Vec<Vec<c_char>>,
     flags: c_int,
     mincount: c_int,
-    buf_ffname: *mut c_char,
-) -> c_int {
+    buf_ffname: impl crate::strings::IntoCCharPtr,
+) -> c_int { let buf_ffname = buf_ffname.into_c_char_ptr();
     unsafe {
         let mut st = findtags_state_T::new();
         let mut retval: c_int;
@@ -2999,10 +2999,10 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
 }
 
 fn expand_tag_fname(
-    fname_arg: *mut c_char,
+    fname_arg: impl crate::strings::IntoCCharPtr,
     tag_fname: *mut c_char,
     expand: bool,
-) -> std::ffi::CString {
+) -> std::ffi::CString { let fname_arg = fname_arg.into_c_char_ptr();
     unsafe {
         let mut xpc: expand_T = expand_T::new();
 
@@ -3044,8 +3044,8 @@ fn test_for_current(
     fname: *mut c_char,
     fname_end: *mut c_char,
     tag_fname: *mut c_char,
-    buf_ffname: *mut c_char,
-) -> c_int {
+    buf_ffname: impl crate::strings::IntoCCharPtr,
+) -> c_int { let buf_ffname = buf_ffname.into_c_char_ptr();
     unsafe {
         let mut retval = false;
         if !buf_ffname.is_null() {
@@ -3219,7 +3219,7 @@ fn add_tag_field(
 
 /// Add the tags matching the specified pattern `pat` to the list `list`
 /// as a dictionary. Use `buf_fname` for priority, unless NULL.
-pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> bool {
+pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: impl crate::strings::IntoCCharPtr) -> bool { let buf_fname = buf_fname.into_c_char_ptr();
     unsafe {
         let mut matches: Vec<Vec<c_char>> = Vec::new();
         let mut tp = tagptrs_T::default();

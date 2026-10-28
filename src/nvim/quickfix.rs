@@ -2233,20 +2233,20 @@ fn qf_add_entry(
     qfl: &mut qf_list_T,
     dir: *mut c_char,
     fname: *mut c_char,
-    module: *mut c_char,
+    module: impl crate::strings::IntoCCharPtr,
     bufnum: c_int,
-    mesg: *mut c_char,
+    mesg: impl crate::strings::IntoCCharPtr,
     lnum: linenr_T,
     end_lnum: linenr_T,
     col: c_int,
     end_col: c_int,
     vis_col: c_char,
-    pattern: *mut c_char,
+    pattern: impl crate::strings::IntoCCharPtr,
     nr: c_int,
     mut type_: c_char,
     user_data: Option<&typval_T>,
     valid: c_char,
-) -> c_int {
+) -> c_int { let module = module.into_c_char_ptr(); let mesg = mesg.into_c_char_ptr(); let pattern = pattern.into_c_char_ptr();
     unsafe {
         let buf: *mut buf_T;
         let mut qfp = qfline_T::new();
@@ -2659,7 +2659,7 @@ fn qf_pop_dir(stack: &mut Vec<std::ffi::CString>) {
     stack.pop();
 }
 
-fn qf_guess_filepath(qfl: &mut qf_list_T, filename: *mut c_char) -> *mut c_char {
+fn qf_guess_filepath(qfl: &mut qf_list_T, filename: impl crate::strings::IntoCCharPtr) -> *mut c_char { let filename = filename.into_c_char_ptr();
     let stack = &mut qfl.qf_dir_stack;
         if stack.is_empty() {
             return ptr::null_mut();
@@ -4379,9 +4379,9 @@ fn qf_buf_add_line(
     lnum: linenr_T,
     qfp: &qfline_T,
     dirname: *mut c_char,
-    qftf_str: *mut c_char,
+    qftf_str: impl crate::strings::IntoCCharPtr,
     first_bufline: bool,
-) -> bool {
+) -> bool { let qftf_str = qftf_str.into_c_char_ptr();
     unsafe {
         let gap = qfga_get();
 
@@ -5496,12 +5496,12 @@ fn vgr_match_buflines(
     qfl: &mut qf_list_T,
     fname: *mut c_char,
     buf: &mut buf_T,
-    spat: *mut c_char,
+    spat: impl crate::strings::IntoCCharPtr,
     regmatch: &mut regmmatch_T,
     tomatch: &mut c_int,
     duplicate_name: c_int,
     flags: c_int,
-) -> bool {
+) -> bool { let spat = spat.into_c_char_ptr();
     unsafe {
         let mut found_match = false;
         let pat_len = crate::memory::cstr_len(spat).min(FUZZY_MATCH_MAX_LEN);

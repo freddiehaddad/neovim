@@ -3635,7 +3635,7 @@ fn add_keyword(
     }
 }
 
-fn get_group_name(arg: *mut c_char, name_end: *mut *mut c_char) -> *mut c_char {
+fn get_group_name(arg: impl crate::strings::IntoCCharPtr, name_end: *mut *mut c_char) -> *mut c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         *name_end = skiptowhite(arg);
         let rest = skipwhite(*name_end);

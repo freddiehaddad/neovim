@@ -1391,7 +1391,7 @@ pub fn utf_iscomposing(c1: c_int, c2: c_int, state: &mut GraphemeState) -> bool 
     !utf8proc_grapheme_break_stateful(c1, c2, Some(state)) || arabic_combine(c1, c2)
 }
 
-pub fn utf_ptr2len(p_in: *const c_char) -> c_int {
+pub fn utf_ptr2len(p_in: impl crate::strings::IntoCCharPtr) -> c_int { let p_in = p_in.into_c_char_ptr();
     unsafe {
         let p = p_in.cast::<u8>();
         if *p == 0 {
@@ -1428,7 +1428,7 @@ pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: c_int) -> c_i
     }
 }
 
-pub fn utfc_ptr2len(p: *const c_char) -> c_int {
+pub fn utfc_ptr2len(p: impl crate::strings::IntoCCharPtr) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         let b0 = *p.cast::<u8>();
         if b0 == 0 {
