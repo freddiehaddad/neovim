@@ -2933,7 +2933,7 @@ fn cmdline_search_stat(
     timeout: i32,
 ) {
     let msgbuf = msgbuf.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut stat = Searchstat::default();
 
         update_search_stat(
@@ -2976,16 +2976,20 @@ fn cmdline_search_stat(
         }
 
         if show_top_bot_msg && len + 2 < SEARCH_STAT_BUF_LEN {
-            ptr::copy(t_ptr, t_ptr.wrapping_add(2), len);
-            *t_ptr.wrapping_add(0) = b'W' as c_char;
-            *t_ptr.wrapping_add(1) = b' ' as c_char;
+            unsafe { ptr::copy(t_ptr, t_ptr.wrapping_add(2), len) };
+            unsafe {
+                *t_ptr.wrapping_add(0) = b'W' as c_char;
+            }
+            unsafe {
+                *t_ptr.wrapping_add(1) = b' ' as c_char;
+            }
             len += 2;
         }
 
         if len > msgbuflen {
             len = msgbuflen;
         }
-        ptr::copy(t_ptr, msgbuf.wrapping_add(msgbuflen - len), len);
+        unsafe { ptr::copy(t_ptr, msgbuf.wrapping_add(msgbuflen - len), len) };
 
         g_st().msg_ext_overwrite = true;
         msg_ext_set_kind(c"search_count");

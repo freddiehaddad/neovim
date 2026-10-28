@@ -988,7 +988,7 @@ impl EncodeBackend<'_> {
     ) -> i32 {
         let fun = fun.into_c_char_ptr();
         let objname = objname.into_c_char_ptr();
-        unsafe {
+        {
             match self {
                 Self::Text {
                     gap,
@@ -1004,13 +1004,17 @@ impl EncodeBackend<'_> {
                         let fun_len = crate::memory::cstr_len(fun);
                         convert_to_single_quoted_string(gap, fun, fun_len);
                         let data = gap.as_mut_ptr();
-                        *data.wrapping_add(name_off) = b'\'';
+                        unsafe {
+                            *data.wrapping_add(name_off) = b'\'';
+                        }
                         if !prefix.is_empty() {
-                            std::ptr::copy_nonoverlapping(
-                                prefix.as_ptr(),
-                                data.wrapping_add(name_off + 1),
-                                prefix.len(),
-                            );
+                            unsafe {
+                                std::ptr::copy_nonoverlapping(
+                                    prefix.as_ptr(),
+                                    data.wrapping_add(name_off + 1),
+                                    prefix.len(),
+                                )
+                            };
                         }
                     }
                     OK

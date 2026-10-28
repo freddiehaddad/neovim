@@ -272,11 +272,11 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
 
 /// Parses the `'guicursor'` option (`parse_shape_opt`).
 pub fn parse_shape_opt(what: i32) -> *const c_char {
-    unsafe {
+    {
         let mut p: *const c_char = std::ptr::null();
         let mut idx: usize = 0;
         let mut found_ve = false;
-        let tbl = &mut *std::ptr::addr_of_mut!((*shape_table_mut()));
+        let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
 
         for round in 1..=2 {
             if round == 2 || crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
@@ -287,7 +287,7 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                 }
             }
             let mut modep: *const c_char = opt_vars().p_guicursor;
-            while !modep.is_null() && *modep != 0 {
+            while !modep.is_null() && unsafe { *modep } != 0 {
                 let colonp = crate::memory::cstr_as_bytes(modep)
                     .iter()
                     .position(|&b| b == b':')
@@ -351,7 +351,7 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                     }
 
                     p = colonp.wrapping_add(1);
-                    while *p != 0 && crate::memory::cstr_first_byte(p) != b',' {
+                    while unsafe { *p } != 0 && crate::memory::cstr_first_byte(p) != b',' {
                         let first_byte = crate::memory::cstr_first_byte(p);
                         let len = if crate::memory::cstr_prefix_bytes(p, 3)
                             .eq_ignore_ascii_case(b"ver")

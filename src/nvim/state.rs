@@ -167,12 +167,12 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
 }
 
 pub fn state_handle_k_event() {
-    unsafe {
+    {
         loop {
             let events = main_loop_events();
-            multiqueue_get(&mut *events).dispatch();
+            multiqueue_get(unsafe { &mut *events }).dispatch();
 
-            if multiqueue_empty(&*main_loop_events()) {
+            if multiqueue_empty(unsafe { &*main_loop_events() }) {
                 return;
             }
 

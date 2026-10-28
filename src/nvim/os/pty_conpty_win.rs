@@ -510,12 +510,14 @@ pub fn os_conpty_spawn(
 pub fn os_conpty_set_size(conpty_object: &Conpty, width: u16, height: u16) {
     assert!(width <= i16::MAX as u16);
     assert!(height <= i16::MAX as u16);
-    unsafe {
+    {
         let size = COORD {
             X: width as i16,
             Y: height as i16,
         };
-        if (conpty_st().pResizePseudoConsole.unwrap_unchecked())(conpty_object.pty, size) != S_OK {
+        if unsafe { (conpty_st().pResizePseudoConsole.unwrap_unchecked())(conpty_object.pty, size) }
+            != S_OK
+        {
             logmsg!(
                 LOGLVL_ERR,
                 std::ptr::null(),
@@ -523,7 +525,7 @@ pub fn os_conpty_set_size(conpty_object: &Conpty, width: u16, height: u16) {
                 177,
                 true,
                 c"ResizePseudoConsole failed: error code: %d",
-                uv_translate_sys_error(GetLastError() as i32),
+                unsafe { uv_translate_sys_error(GetLastError() as i32) },
             );
         }
     }
@@ -532,14 +534,14 @@ pub fn os_conpty_set_size(conpty_object: &Conpty, width: u16, height: u16) {
 #[cfg(windows)]
 impl Drop for Conpty {
     fn drop(&mut self) {
-        unsafe {
+        {
             if !self.si_ex.lpAttributeList.is_null() {
-                DeleteProcThreadAttributeList(self.si_ex.lpAttributeList);
+                unsafe { DeleteProcThreadAttributeList(self.si_ex.lpAttributeList) };
             }
             if !self.pty.is_null()
                 && let Some(close_fn) = conpty_st().pClosePseudoConsole
             {
-                close_fn(self.pty);
+                unsafe { close_fn(self.pty) };
             }
         }
     }

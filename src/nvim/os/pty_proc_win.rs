@@ -414,25 +414,25 @@ mod win_impl {
     pub fn pty_proc_flush_master(_ptyproc: &mut PtyProc) {}
 
     pub fn pty_proc_close(ptyproc: &mut PtyProc) {
-        unsafe {
+        {
             let proc_: *mut Proc = ptyproc;
             let proc_t = proc_;
             let ptail = pty_proc_win_tail(ptyproc);
-            let ptail = { &mut *ptail };
+            let ptail = { unsafe { &mut *ptail } };
 
             pty_proc_close_master(ptyproc);
 
             if !ptail.finish_wait.is_null() {
-                UnregisterWaitEx(ptail.finish_wait, ptr::null_mut());
+                unsafe { UnregisterWaitEx(ptail.finish_wait, ptr::null_mut()) };
                 ptail.finish_wait = ptr::null_mut();
             }
             if !ptail.proc_handle.is_null() {
-                CloseHandle(ptail.proc_handle);
+                unsafe { CloseHandle(ptail.proc_handle) };
                 ptail.proc_handle = ptr::null_mut();
             }
 
             let _ = proc_t;
-            crate::event::proc::proc_decref(&mut *proc_);
+            crate::event::proc::proc_decref(unsafe { &mut *proc_ });
         }
     }
 

@@ -468,9 +468,11 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
 
 fn sign_cmd_idx(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut c_char) -> i32 {
     let begin_cmd = begin_cmd.into_c_char_ptr();
-    unsafe {
-        let save = *end_cmd;
-        *end_cmd = NUL;
+    {
+        let save = unsafe { *end_cmd };
+        unsafe {
+            *end_cmd = NUL;
+        }
         let mut idx: usize = 0;
         loop {
             let cmd = CMDS[idx];
@@ -481,7 +483,9 @@ fn sign_cmd_idx(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut c_ch
             }
             idx += 1;
         }
-        *end_cmd = save;
+        unsafe {
+            *end_cmd = save;
+        }
         idx as i32
     }
 }
@@ -502,13 +506,13 @@ pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut Schar) -> usize {
 }
 
 pub fn init_sign_text(sp: Option<&Sign>, sign_text: *mut Schar, text: *mut c_char) -> bool {
-    unsafe {
+    {
         let mut endp = text.wrapping_add(crate::memory::cstr_len(text));
         let mut s = if sp.is_some() { text } else { endp };
         while s.wrapping_add(1) < endp {
             if crate::memory::cstr_first_byte(s) == b'\\' {
                 let tail_len = crate::memory::cstr_as_bytes(s)[1..].len() + 1;
-                ptr::copy(s.wrapping_add(1), s, tail_len);
+                unsafe { ptr::copy(s.wrapping_add(1), s, tail_len) };
                 endp = endp.wrapping_sub(1);
             }
             s = s.wrapping_add(1);
@@ -524,19 +528,27 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: *mut Schar, text: *mut c_cha
                 }
                 return false;
             }
-            *sign_text.wrapping_add(cells) = schar_from_cluster(ci, cli);
+            unsafe {
+                *sign_text.wrapping_add(cells) = schar_from_cluster(ci, cli);
+            }
             debug_assert!(cli.cells <= 2);
             if cli.cells == 2 {
-                *sign_text.wrapping_add(cells + 1) = 0;
+                unsafe {
+                    *sign_text.wrapping_add(cells + 1) = 0;
+                }
             }
             cells += cli.cells as usize;
             ci = cli.next;
         }
 
         if cells < 1 {
-            *sign_text = 0;
+            unsafe {
+                *sign_text = 0;
+            }
         } else if cells == 1 {
-            *sign_text.wrapping_add(1) = schar_from_ascii(b' ');
+            unsafe {
+                *sign_text.wrapping_add(1) = schar_from_ascii(b' ');
+            }
         }
 
         true
@@ -1084,7 +1096,7 @@ fn parse_sign_cmd_args(
 }
 
 pub fn ex_sign(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut arg = eap.arg;
 
         let mut p = skiptowhite(arg);
@@ -1105,7 +1117,9 @@ pub fn ex_sign(eap: &mut Exarg) {
             } else {
                 p = skiptowhite(arg);
                 if !crate::memory::cstr_is_empty(p) {
-                    *p = NUL;
+                    unsafe {
+                        *p = NUL;
+                    }
                     p = p.wrapping_add(1);
                 }
                 while crate::memory::cstr_first_byte(arg) == b'0'
@@ -1148,7 +1162,7 @@ pub fn ex_sign(eap: &mut Exarg) {
             } else if idx == SIGNCMD_UNPLACE {
                 sign_unplace_cmd(buf, lnum, name, id, group);
             } else if idx == SIGNCMD_JUMP {
-                sign_jump_cmd(buf.as_mut(), lnum, name, id, group);
+                sign_jump_cmd(unsafe { buf.as_mut() }, lnum, name, id, group);
             }
         }
     }
@@ -1767,7 +1781,7 @@ pub fn f_sign_place(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 }
 
 pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
         if argvars[0].v_type != VarType::VarList {
@@ -1777,16 +1791,12 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 
         let l = argvars[0].vval.v_list();
         if !l.is_null() {
-            for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
+            for li in crate::eval::typval::list_iter_mut(unsafe { (*l).lv_first }) {
                 let mut sign_id: i32 = -1;
                 if li.li_tv.v_type == VarType::VarDict {
-                    sign_id = sign_place_from_dict(
-                        None,
-                        None,
-                        None,
-                        None,
-                        li.li_tv.vval.v_dict().as_ref(),
-                    );
+                    sign_id = sign_place_from_dict(None, None, None, None, unsafe {
+                        li.li_tv.vval.v_dict().as_ref()
+                    });
                 } else {
                     emsg(gettext(E_DICTREQ));
                 }
@@ -1840,7 +1850,7 @@ pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 }
 
 fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i32 {
-    unsafe {
+    {
         let mut id: i32 = 0;
         let mut buf: *mut FileBuf = ptr::null_mut();
         let mut group = if let Some(group_tv) = group_tv {
@@ -1855,7 +1865,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
         if dict.is_some() {
             let di_buf = tv_dict_find(dict, c"buffer", -1);
             if !di_buf.is_null() {
-                buf = get_buf_arg(&mut (*di_buf).di_tv);
+                buf = get_buf_arg(unsafe { &mut (*di_buf).di_tv });
                 if buf.is_null() {
                     return -1;
                 }
@@ -1869,7 +1879,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
             }
         }
 
-        if sign_unplace(buf.as_mut(), id, group, 0) {
+        if sign_unplace(unsafe { buf.as_mut() }, id, group, 0) {
             0
         } else {
             -1
@@ -1897,7 +1907,7 @@ pub fn f_sign_unplace(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 }
 
 pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
         if argvars[0].v_type != VarType::VarList {
@@ -1907,10 +1917,11 @@ pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 
         let l = argvars[0].vval.v_list();
         if !l.is_null() {
-            for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
+            for li in crate::eval::typval::list_iter_mut(unsafe { (*l).lv_first }) {
                 let mut retval: i32 = -1;
                 if li.li_tv.v_type == VarType::VarDict {
-                    retval = sign_unplace_from_dict(None, li.li_tv.vval.v_dict().as_ref());
+                    retval =
+                        sign_unplace_from_dict(None, unsafe { li.li_tv.vval.v_dict().as_ref() });
                 } else {
                     emsg(gettext(E_DICTREQ));
                 }

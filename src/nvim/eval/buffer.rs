@@ -785,7 +785,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
 
 /// `getbufinfo()` function (`f_getbufinfo`).
 pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut argbuf: *mut FileBuf = ptr::null_mut();
         let mut filtered = false;
         let mut sel_buflisted = false;
@@ -798,9 +798,10 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             let sel_d = argvars[0].vval.v_dict();
             if !sel_d.is_null() {
                 filtered = true;
-                sel_buflisted = tv_dict_get_bool(sel_d.as_ref(), c"buflisted", 0) != 0;
-                sel_bufloaded = tv_dict_get_bool(sel_d.as_ref(), c"bufloaded", 0) != 0;
-                sel_bufmodified = tv_dict_get_bool(sel_d.as_ref(), c"bufmodified", 0) != 0;
+                sel_buflisted = tv_dict_get_bool(unsafe { sel_d.as_ref() }, c"buflisted", 0) != 0;
+                sel_bufloaded = tv_dict_get_bool(unsafe { sel_d.as_ref() }, c"bufloaded", 0) != 0;
+                sel_bufmodified =
+                    tv_dict_get_bool(unsafe { sel_d.as_ref() }, c"bufmodified", 0) != 0;
             }
         } else if argvars[0].v_type != VarType::VarUnknown {
             argbuf = tv_get_buf_from_arg(&mut argvars[0]);
@@ -1000,31 +1001,31 @@ pub fn f_prompt_setinterrupt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr:
 
 /// `prompt_getprompt({buffer})` function (`f_prompt_getprompt`).
 pub fn f_prompt_getprompt(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_set_string(rettv, ptr::null());
 
         let buf = tv_get_buf_from_arg(&mut argvars[0]);
-        if buf.is_null() || !bt_prompt(buf.as_ref()) {
+        if buf.is_null() || !bt_prompt(unsafe { buf.as_ref() }) {
             return;
         }
 
-        tv_set_string(rettv, buf_prompt_text(&*buf));
+        tv_set_string(rettv, buf_prompt_text(unsafe { &*buf }));
     }
 }
 
 /// `prompt_getinput({buffer})` function (`f_prompt_getinput`).
 pub fn f_prompt_getinput(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_set_string(rettv, ptr::null());
 
         let buf = tv_get_buf_from_arg(&mut argvars[0]);
-        if buf.is_null() || !bt_prompt(buf.as_ref()) {
+        if buf.is_null() || !bt_prompt(unsafe { buf.as_ref() }) {
             return;
         }
 
         tv_set_string(
             rettv,
-            prompt_get_input(&mut *buf)
+            prompt_get_input(unsafe { &mut *buf })
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );
@@ -1033,7 +1034,7 @@ pub fn f_prompt_getinput(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
 /// `prompt_setprompt({buffer}, {text})` function (`f_prompt_setprompt`).
 pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         if check_secure() {
             return;
         }
@@ -1041,7 +1042,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         if buf.is_null() {
             return;
         }
-        let buf = { &mut *buf };
+        let buf = { unsafe { &mut *buf } };
 
         let new_prompt = tv_get_string(&argvars[1]);
         let new_prompt_len = crate::memory::cstr_len(new_prompt) as i32;
@@ -1071,12 +1072,14 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             let mark_col = buf.b_prompt_start.mark.col;
             let prefix_matches = mark_col >= old_prompt_len
                 && mark_col <= old_line_len
-                && std::slice::from_raw_parts(
-                    old_line
-                        .wrapping_add((mark_col - old_prompt_len) as usize)
-                        .cast::<u8>(),
-                    old_prompt_bytes.len(),
-                ) == old_prompt_bytes;
+                && unsafe {
+                    std::slice::from_raw_parts(
+                        old_line
+                            .wrapping_add((mark_col - old_prompt_len) as usize)
+                            .cast::<u8>(),
+                        old_prompt_bytes.len(),
+                    )
+                } == old_prompt_bytes;
 
             if !prefix_matches {
                 ml_replace_buf(&mut *buf, prompt_lno, new_prompt.cast_mut(), true, false);

@@ -130,7 +130,7 @@ fn libuv_proc_stdio(
     win_create_pipe: bool,
     to_close: &mut [i32; 3],
 ) {
-    unsafe {
+    {
         let ltail = uvproc;
         #[cfg(windows)]
         if win_create_pipe {
@@ -159,19 +159,21 @@ fn libuv_proc_stdio(
         let child_flags = 0;
 
         let mut pipe_pair = [-1_i32; 2];
-        uv_pipe(
-            pipe_pair.as_mut_ptr(),
-            if child_readable {
-                child_flags
-            } else {
-                UV_NONBLOCK_PIPE
-            },
-            if child_readable {
-                UV_NONBLOCK_PIPE
-            } else {
-                child_flags
-            },
-        );
+        unsafe {
+            uv_pipe(
+                pipe_pair.as_mut_ptr(),
+                if child_readable {
+                    child_flags
+                } else {
+                    UV_NONBLOCK_PIPE
+                },
+                if child_readable {
+                    UV_NONBLOCK_PIPE
+                } else {
+                    child_flags
+                },
+            )
+        };
 
         let child_fd = if child_readable {
             pipe_pair[0]
@@ -186,15 +188,15 @@ fn libuv_proc_stdio(
         ltail.uvstdio[idx].flags = UV_INHERIT_FD;
         ltail.uvstdio[idx].data.fd = child_fd;
         to_close[idx] = child_fd;
-        uv_pipe_open(parent_pipe, parent_fd);
+        unsafe { uv_pipe_open(parent_pipe, parent_fd) };
     }
 }
 
 /// @returns zero on success, or negative error code
 pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
-    unsafe {
+    {
         let proc_: *mut Proc = &raw mut uvproc.proc_;
-        let proc_ = &mut *proc_;
+        let proc_ = unsafe { &mut *proc_ };
         let uv: *mut uv_handle_t = (&raw mut uvproc.uv).cast();
 
         #[cfg(windows)]
@@ -237,10 +239,12 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
             uvproc.uvstdio[3].data.fd = 0;
             uvproc.uvstdio[3].flags = UV_INHERIT_FD;
         }
-        *uv.cast::<*mut Proc>() = proc_;
+        unsafe {
+            *uv.cast::<*mut Proc>() = proc_;
+        }
 
         if !proc_.env.is_null() {
-            uvproc.env_vec = tv_dict_to_env((proc_.env).as_ref());
+            uvproc.env_vec = tv_dict_to_env(unsafe { (proc_.env).as_ref() });
             uvproc.env_ptrs = uvproc
                 .env_vec
                 .iter()
@@ -293,13 +297,13 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
             uvproc.uvstdio[2].data.fd = STDERR_FILENO;
         }
 
-        let status = uv_spawn(proc_.loop_.cast(), uv.cast(), &raw const uvproc.uvopts);
+        let status = unsafe { uv_spawn(proc_.loop_.cast(), uv.cast(), &raw const uvproc.uvopts) };
         if status != 0 {
             uvproc.env_ptrs.clear();
             uvproc.env_vec.clear();
             uvproc.uvopts.env = ptr::null_mut();
         } else {
-            proc_.pid = uv_process_get_pid(uv.cast());
+            proc_.pid = unsafe { uv_process_get_pid(uv.cast()) };
         }
 
         for fd in to_close {

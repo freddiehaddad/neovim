@@ -72,22 +72,24 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
 pub fn get_appname(namelike: bool) -> *const c_char {
-    unsafe {
+    {
         let name_buff = g_st().name_buff.as_mut_ptr().cast::<u8>();
         let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff.cast(), MAXPATHL);
         if env_val.is_null() {
-            name_buff.copy_from_nonoverlapping(c"nvim".as_ptr().cast::<u8>(), 5);
+            unsafe { name_buff.copy_from_nonoverlapping(c"nvim".as_ptr().cast::<u8>(), 5) };
         }
         #[cfg(windows)]
         path_to_slash(name_buff.cast::<c_char>());
         if namelike {
             for i in 0..MAXPATHL {
-                let b = *name_buff.wrapping_add(i);
+                let b = unsafe { *name_buff.wrapping_add(i) };
                 if b == 0 {
                     break;
                 }
                 if b == b'/' || b == b'\\' {
-                    *name_buff.wrapping_add(i) = b'-';
+                    unsafe {
+                        *name_buff.wrapping_add(i) = b'-';
+                    }
                 }
             }
         }

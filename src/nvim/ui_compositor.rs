@@ -179,7 +179,7 @@ pub fn ui_comp_put_grid(
     valid: bool,
     on_top: bool,
 ) -> bool {
-    unsafe {
+    {
         let moved: bool;
         grid.pending_comp_index_update = true;
 
@@ -226,21 +226,25 @@ pub fn ui_comp_put_grid(
             debug_assert!(!l.contains(&grid_ptr));
 
             let mut insert_at = l.len();
-            while insert_at > 0 && (*l[insert_at - 1]).zindex > grid.zindex {
+            while insert_at > 0 && unsafe { (*l[insert_at - 1]).zindex } > grid.zindex {
                 insert_at -= 1;
             }
 
             if !(curwin_ptr()).is_null()
                 && l[insert_at - 1] == &raw mut curwin_mut().w_grid_alloc
-                && (*l[insert_at - 1]).zindex == grid.zindex
+                && unsafe { (*l[insert_at - 1]).zindex } == grid.zindex
                 && !on_top
             {
                 insert_at -= 1;
             }
             l.insert(insert_at, grid);
             for (idx, &g) in l.iter().enumerate().skip(insert_at + 1) {
-                (*g).comp_index = idx;
-                (*g).pending_comp_index_update = true;
+                unsafe {
+                    (*g).comp_index = idx;
+                }
+                unsafe {
+                    (*g).pending_comp_index_update = true;
+                }
             }
 
             grid.comp_row = row;
@@ -264,7 +268,7 @@ pub fn ui_comp_put_grid(
 }
 
 pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
-    unsafe {
+    {
         debug_assert!(!ptr::eq(grid, &raw const g_st().default_grid));
         if grid.comp_index == 0 {
             return;
@@ -278,8 +282,12 @@ pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
         let removed_idx = grid.comp_index;
         l.remove(removed_idx);
         for (idx, &g) in l.iter().enumerate().skip(removed_idx) {
-            (*g).comp_index = idx;
-            (*g).pending_comp_index_update = true;
+            unsafe {
+                (*g).comp_index = idx;
+            }
+            unsafe {
+                (*g).pending_comp_index_update = true;
+            }
         }
         grid.comp_index = 0;
         grid.pending_comp_index_update = true;

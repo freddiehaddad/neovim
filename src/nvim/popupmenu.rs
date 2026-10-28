@@ -1217,7 +1217,7 @@ fn pum_preview_set_text(
     max_width: &mut i32,
 ) {
     let info = info.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut err = Error::new();
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -1230,7 +1230,7 @@ fn pum_preview_set_text(
             capacity: 0,
         };
         let buf = win.w_buffer;
-        let buf = { &mut *buf };
+        let buf = { unsafe { &mut *buf } };
         buf.b_p_ma = 1;
 
         let mut curr = info;
@@ -1240,7 +1240,9 @@ fn pum_preview_set_text(
                 .position(|&b| b == b'\n')
                 .map_or(ptr::null_mut(), |i| curr.wrapping_add(i));
             if !next.is_null() {
-                *next = NUL;
+                unsafe {
+                    *next = NUL;
+                }
             }
             if crate::memory::cstr_is_empty(curr) && next.is_null() {
                 break;
@@ -1254,7 +1256,9 @@ fn pum_preview_set_text(
             *lnum += 1;
 
             if !next.is_null() {
-                *next = b'\n' as c_char;
+                unsafe {
+                    *next = b'\n' as c_char;
+                }
                 curr = next.wrapping_add(1);
             } else {
                 curr = ptr::null_mut();
@@ -1327,7 +1331,7 @@ fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
 
 /// Used for `nvim__complete_set` (`pum_set_info`).
 pub fn pum_set_info(selected: i32, info: *mut c_char) -> *mut WinInfoInfo {
-    unsafe {
+    {
         if !pum().is_visible || !compl_match_curr_select(selected) {
             return ptr::null_mut();
         }
@@ -1340,17 +1344,21 @@ pub fn pum_set_info(selected: i32, info: *mut c_char) -> *mut WinInfoInfo {
             if wp.is_null() {
                 return ptr::null_mut();
             }
-            (*wp).w_topline = 1;
-            (*wp).w_onebuf_opt.wo_wfb = 1;
+            unsafe {
+                (*wp).w_topline = 1;
+            }
+            unsafe {
+                (*wp).w_onebuf_opt.wo_wfb = 1;
+            }
         }
         let mut lnum: Linenr = 0;
         let mut max_info_width: i32 = 0;
-        pum_preview_set_text(&mut *wp, info, &mut lnum, &mut max_info_width);
+        pum_preview_set_text(unsafe { &mut *wp }, info, &mut lnum, &mut max_info_width);
         g_st().no_u_sync -= 1;
         g_st().redrawing_disabled -= 1;
-        redraw_later(wp.as_mut(), UPD_NOT_VALID);
+        redraw_later(unsafe { wp.as_mut() }, UPD_NOT_VALID);
 
-        if !pum_adjust_info_position(&mut *wp, max_info_width) {
+        if !pum_adjust_info_position(unsafe { &mut *wp }, max_info_width) {
             wp = ptr::null_mut();
         }
         unblock_autocmds();
@@ -1960,7 +1968,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
 
 pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_pos: i32) {
     let path_name = path_name.into_c_char_ptr();
-    unsafe {
+    {
         if use_mouse_pos == 0 {
             g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;
             g_st().mouse_col = curwin_mut().w_grid.col_offset
@@ -1970,7 +1978,7 @@ pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_po
                     curwin_mut().w_wcol
                 };
             if ui_has(K_UIMULTIGRID) {
-                g_st().mouse_grid = (*curwin_mut().w_grid.target).handle;
+                g_st().mouse_grid = unsafe { (*curwin_mut().w_grid.target).handle };
             } else if !ptr::eq(curwin_mut().w_grid.target, &raw const g_st().default_grid) {
                 g_st().mouse_grid = 0;
                 g_st().mouse_row += curwin_mut().w_winrow;
@@ -1980,7 +1988,7 @@ pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_po
 
         let menu = menu_find(path_name);
         if !menu.is_null() {
-            pum_show_popupmenu(&mut *menu);
+            pum_show_popupmenu(unsafe { &mut *menu });
         }
     }
 }

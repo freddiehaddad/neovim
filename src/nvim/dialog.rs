@@ -75,14 +75,14 @@ fn console_dialog_alloc(
 ) -> Vec<c_char> {
     let message = message.into_c_char_ptr();
     let buttons = buttons.into_c_char_ptr();
-    unsafe {
+    {
         let mut lenhotkey = HOTK_LEN;
         has_hotkey[0] = false;
 
         let mut button_len = 0usize;
         let mut idx = 0usize;
         let mut r = buttons;
-        while *r != 0 {
+        while unsafe { *r } != 0 {
             let b = crate::memory::cstr_first_byte(r);
             if b == DLG_BUTTON_SEP {
                 button_len += 3;
@@ -98,7 +98,7 @@ fn console_dialog_alloc(
                     has_hotkey[idx] = true;
                 }
             }
-            if *r == 0 {
+            if unsafe { *r } == 0 {
                 break;
             }
             r = r.wrapping_add(utf_ptr2len(r) as usize);
@@ -343,7 +343,7 @@ pub fn do_dialog(
 ) -> i32 {
     let message = message.into_c_char_ptr();
     let buttons = buttons.into_c_char_ptr();
-    unsafe {
+    {
         if g_st().silent_mode {
             return dfltbutton;
         }
@@ -388,14 +388,14 @@ pub fn do_dialog(
                     c = mb_tolower(c);
                     let mut candidate = 1_i32;
                     let mut i = 0usize;
-                    while *hotkeys.wrapping_add(i) != 0 {
+                    while unsafe { *hotkeys.wrapping_add(i) } != 0 {
                         if utf_ptr2char(hotkeys.wrapping_add(i)) == c {
                             break;
                         }
                         i += utfc_ptr2len(hotkeys.wrapping_add(i)) as usize;
                         candidate += 1;
                     }
-                    if *hotkeys.wrapping_add(i) != 0 {
+                    if unsafe { *hotkeys.wrapping_add(i) } != 0 {
                         retval = candidate;
                         break;
                     }

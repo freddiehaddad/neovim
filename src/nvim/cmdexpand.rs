@@ -186,27 +186,33 @@ impl LineGetter {
     }
 
     pub fn call(self, c: i32, indent: i32, do_concat: bool) -> Option<std::ffi::CString> {
-        unsafe {
+        {
             match self {
                 Self::None => None,
                 Self::ExLine => crate::ex_getln::getexline(c, indent, do_concat),
                 Self::CmdKeyCmd => crate::input::getcmdkeycmd(c, indent, do_concat),
                 Self::AutoCmd(cookie) => crate::autocmd::getnextac(c, cookie, indent, do_concat),
-                Self::Func(cookie) => {
-                    crate::eval::userfunc::get_func_line(c, &mut *cookie, indent, do_concat)
-                }
+                Self::Func(cookie) => crate::eval::userfunc::get_func_line(
+                    c,
+                    unsafe { &mut *cookie },
+                    indent,
+                    do_concat,
+                ),
                 Self::Source(cookie) => {
-                    crate::runtime::getsourceline(c, &mut *cookie, indent, do_concat)
+                    crate::runtime::getsourceline(c, unsafe { &mut *cookie }, indent, do_concat)
                 }
                 Self::Loop(cookie) => {
-                    crate::ex_docmd::get_loop_line(c, &mut *cookie, indent, do_concat)
+                    crate::ex_docmd::get_loop_line(c, unsafe { &mut *cookie }, indent, do_concat)
                 }
                 Self::List(cookie) => {
-                    crate::eval::funcs::get_list_line(c, &mut *cookie, indent, do_concat)
+                    crate::eval::funcs::get_list_line(c, unsafe { &mut *cookie }, indent, do_concat)
                 }
-                Self::LuaEx(cookie) => {
-                    crate::lua::executor::nlua_ex_getline(c, &mut *cookie, indent, do_concat)
-                }
+                Self::LuaEx(cookie) => crate::lua::executor::nlua_ex_getline(
+                    c,
+                    unsafe { &mut *cookie },
+                    indent,
+                    do_concat,
+                ),
             }
         }
     }
@@ -1871,7 +1877,7 @@ fn expand_escape(
 /// Return FAIL if this is not an appropriate context in which to do
 /// completion of anything, return OK if it is (even if there are no matches).
 pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -> bool {
-    unsafe {
+    {
         let ccline = get_cmdline_info();
         let mut p: Option<CString>;
         let from_wildtrigger_func = (options & WILD_FUNC_TRIGGER) != 0;
@@ -1933,10 +1939,9 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
             let tmp = if cmdline_fuzzy_completion_supported(xp)
                 || xp.xp_context == EXPAND_PATTERN_IN_BUF
             {
-                cstr_from_bytes(std::slice::from_raw_parts(
-                    xp.xp_pattern.cast::<u8>(),
-                    xp.xp_pattern_len,
-                ))
+                cstr_from_bytes(unsafe {
+                    std::slice::from_raw_parts(xp.xp_pattern.cast::<u8>(), xp.xp_pattern_len)
+                })
             } else {
                 addstar(xp.xp_pattern, xp.xp_pattern_len, xp.xp_context)
             };
@@ -1947,10 +1952,12 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
                 | WILD_SILENT
                 | if escape { WILD_ESCAPE } else { 0 }
                 | if opt_vars().p_wic != 0 { WILD_ICASE } else { 0 };
-            let orig = cstr_from_bytes(std::slice::from_raw_parts(
-                ccline.cmdbuff.wrapping_add(i as usize).cast::<u8>(),
-                xp.xp_pattern_len,
-            ));
+            let orig = cstr_from_bytes(unsafe {
+                std::slice::from_raw_parts(
+                    ccline.cmdbuff.wrapping_add(i as usize).cast::<u8>(),
+                    xp.xp_pattern_len,
+                )
+            });
             p = expand_one(
                 xp,
                 tmp.as_ptr().cast_mut(),
@@ -1963,7 +1970,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
             {
                 let mut j: usize = 0;
                 while j < xp.xp_pattern_len {
-                    let c = *ccline.cmdbuff.wrapping_add((i as usize) + j);
+                    let c = unsafe { *ccline.cmdbuff.wrapping_add((i as usize) + j) };
                     if c == b'*' as c_char || c == b'?' as c_char {
                         break;
                     }
@@ -1992,18 +1999,22 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
                 xp.xp_pattern = ccline.cmdbuff.wrapping_add(i as usize);
             }
             debug_assert!(ccline.cmdpos <= ccline.cmdlen);
-            ptr::copy(
-                ccline.cmdbuff.wrapping_add(ccline.cmdpos as usize),
-                ccline
-                    .cmdbuff
-                    .wrapping_add((ccline.cmdpos + difflen) as usize),
-                (ccline.cmdlen as usize) - (ccline.cmdpos as usize) + 1,
-            );
-            ptr::copy(
-                p_str.as_ptr(),
-                ccline.cmdbuff.wrapping_add(i as usize),
-                plen,
-            );
+            unsafe {
+                ptr::copy(
+                    ccline.cmdbuff.wrapping_add(ccline.cmdpos as usize),
+                    ccline
+                        .cmdbuff
+                        .wrapping_add((ccline.cmdpos + difflen) as usize),
+                    (ccline.cmdlen as usize) - (ccline.cmdpos as usize) + 1,
+                )
+            };
+            unsafe {
+                ptr::copy(
+                    p_str.as_ptr(),
+                    ccline.cmdbuff.wrapping_add(i as usize),
+                    plen,
+                )
+            };
             ccline.cmdlen += difflen;
             ccline.cmdpos += difflen;
         }
@@ -2982,7 +2993,7 @@ fn expand_showtail(xp: &mut ExpandCtx) -> bool {
 /// Prepare a string for expansion.
 pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context: i32) -> CString {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         if context != EXPAND_FILES
             && context != EXPAND_FILES_IN_PATH
             && context != EXPAND_SHELLCMD
@@ -3012,7 +3023,7 @@ pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context
             } else {
                 let mut new_len = len + 2;
                 for i in 0..len {
-                    let ch = *fname.wrapping_add(i);
+                    let ch = unsafe { *fname.wrapping_add(i) };
                     if ch == b'*' as c_char || ch == b'~' as c_char {
                         new_len += 1;
                     }
@@ -3097,12 +3108,16 @@ pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context
                 && !crate::strings::vim_haschr(tail, b'$' as i32)
                 && !crate::strings::vim_haschr(retval, b'`' as i32)
             {
-                *retval.wrapping_add(len) = b'*' as c_char;
+                unsafe {
+                    *retval.wrapping_add(len) = b'*' as c_char;
+                }
                 len += 1;
             } else if len > 0 && crate::memory::cstr_byte_at(retval, len - 1) == b'$' {
                 len -= 1;
             }
-            *retval.wrapping_add(len) = NUL;
+            unsafe {
+                *retval.wrapping_add(len) = NUL;
+            }
             cstr_from_bytes(crate::memory::cstr_slice(retval, len))
         }
     }
@@ -3155,7 +3170,7 @@ fn set_cmd_index(
     complp: &mut i32,
 ) -> *const c_char {
     let cmd = cmd.into_c_char_ptr();
-    unsafe {
+    {
         let mut p: *const c_char;
         let fuzzy = cmdline_fuzzy_complete(cmd);
 
@@ -3209,7 +3224,7 @@ fn set_cmd_index(
 
             eap.cmdidx = excmd_get_cmdidx(cmd, len) as i32;
 
-            if (*cmd >= b'A' as c_char && *cmd <= b'Z' as c_char)
+            if (unsafe { *cmd } >= b'A' as c_char && unsafe { *cmd } <= b'Z' as c_char)
                 || (fuzzy
                     && eap.cmdidx != Cmdidx::CmdBang as i32
                     && !crate::memory::cstr_is_empty(p))
@@ -3222,7 +3237,7 @@ fn set_cmd_index(
             }
         }
 
-        if crate::memory::cstr_is_empty(p) && ascii_isalnum(*p.wrapping_sub(1)) {
+        if crate::memory::cstr_is_empty(p) && ascii_isalnum(unsafe { *p.wrapping_sub(1) }) {
             return ptr::null();
         }
 
@@ -3232,7 +3247,7 @@ fn set_cmd_index(
             {
                 eap.cmdidx = Cmdidx::CmdSubstitute as i32;
                 p = cmd.wrapping_add(1);
-            } else if *cmd >= b'A' as c_char && *cmd <= b'Z' as c_char {
+            } else if unsafe { *cmd } >= b'A' as c_char && unsafe { *cmd } <= b'Z' as c_char {
                 eap.cmd = cmd.cast_mut();
                 p = find_ucmd(eap, p.cast_mut(), None, Some(&mut *xp), Some(&mut *complp));
                 if p.is_null() {
@@ -4346,13 +4361,15 @@ pub fn set_cmd_context(
     col: i32,
     use_ccline: i32,
 ) {
-    unsafe {
+    {
         let ccline = get_cmdline_info();
         let mut old_char: c_char = NUL;
 
         if col < len {
-            old_char = *str_arg.wrapping_add(col as usize);
-            *str_arg.wrapping_add(col as usize) = NUL;
+            old_char = unsafe { *str_arg.wrapping_add(col as usize) };
+            unsafe {
+                *str_arg.wrapping_add(col as usize) = NUL;
+            }
         }
         let mut nextcomm: *const c_char = str_arg;
 
@@ -4382,7 +4399,9 @@ pub fn set_cmd_context(
         xp.xp_col = col;
 
         if col < len {
-            *str_arg.wrapping_add(col as usize) = old_char;
+            unsafe {
+                *str_arg.wrapping_add(col as usize) = old_char;
+            }
         }
     }
 }
@@ -4439,7 +4458,7 @@ fn expand_files_and_dirs(
     options: i32,
 ) -> bool {
     let mut pat = pat.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut pat_owned: Option<Vec<c_char>> = None;
 
         if xp.xp_backslash != XP_BS_NONE {
@@ -4459,42 +4478,51 @@ fn expand_files_and_dirs(
                         && crate::memory::cstr_byte_at(p, 3) == b' '
                     {
                         let from = p.wrapping_add(3);
-                        ptr::copy(
-                            from,
-                            p,
-                            (crate::memory::ptr_offset_from(pat_end, from) as usize) + 1,
-                        );
+                        unsafe {
+                            ptr::copy(
+                                from,
+                                p,
+                                (crate::memory::ptr_offset_from(pat_end, from) as usize) + 1,
+                            )
+                        };
                         pat_end = pat_end.wrapping_sub(3);
                     } else if (xp.xp_backslash & XP_BS_ONE) != 0
                         && crate::memory::cstr_byte_at(p, 1) == b' '
                     {
                         let from = p.wrapping_add(1);
-                        ptr::copy(
-                            from,
-                            p,
-                            (crate::memory::ptr_offset_from(pat_end, from) as usize) + 1,
-                        );
+                        unsafe {
+                            ptr::copy(
+                                from,
+                                p,
+                                (crate::memory::ptr_offset_from(pat_end, from) as usize) + 1,
+                            )
+                        };
                         pat_end = pat_end.wrapping_sub(1);
                     } else if (xp.xp_backslash & XP_BS_COMMA) != 0 {
                         if crate::memory::cstr_byte_at(p, 1) == b'\\'
                             && crate::memory::cstr_byte_at(p, 2) == b','
                         {
                             let from = p.wrapping_add(2);
-                            ptr::copy(
-                                from,
-                                p,
-                                (crate::memory::ptr_offset_from(pat_end, from) as usize) + 1,
-                            );
+                            unsafe {
+                                ptr::copy(
+                                    from,
+                                    p,
+                                    (crate::memory::ptr_offset_from(pat_end, from) as usize) + 1,
+                                )
+                            };
                             pat_end = pat_end.wrapping_sub(2);
                         } else {
                             #[cfg(windows)]
                             if crate::memory::cstr_byte_at(p, 1) == b',' {
                                 let from = p.wrapping_add(1);
-                                ptr::copy(
-                                    from,
-                                    p,
-                                    (crate::memory::ptr_offset_from(pat_end, from) as usize) + 1,
-                                );
+                                unsafe {
+                                    ptr::copy(
+                                        from,
+                                        p,
+                                        (crate::memory::ptr_offset_from(pat_end, from) as usize)
+                                            + 1,
+                                    )
+                                };
                                 pat_end = pat_end.wrapping_sub(1);
                             }
                         }
@@ -5500,7 +5528,7 @@ fn expand_user_defined(
     matches: &mut Vec<CString>,
 ) -> bool {
     let pat = pat.into_c_char_ptr();
-    unsafe {
+    {
         let fuzzy = cmdline_fuzzy_complete(pat);
         matches.clear();
 
@@ -5519,8 +5547,10 @@ fn expand_user_defined(
             if e.is_null() {
                 e = s.wrapping_add(crate::memory::cstr_len(s));
             }
-            let keep = *e;
-            *e = NUL;
+            let keep = unsafe { *e };
+            unsafe {
+                *e = NUL;
+            }
 
             let match_ok: bool;
             let mut score: i32 = 0;
@@ -5535,7 +5565,9 @@ fn expand_user_defined(
                 match_ok = true;
             }
 
-            *e = keep;
+            unsafe {
+                *e = keep;
+            }
 
             if match_ok {
                 let p = cstr_from_bytes(crate::memory::cstr_slice(
@@ -5578,7 +5610,7 @@ pub fn expand_process_user_list(
     matches: &mut Vec<CString>,
     xp: &mut ExpandCtx,
 ) {
-    unsafe {
+    {
         matches.clear();
         let mut ga_abbr: Vec<Option<std::ffi::CString>> = Vec::new();
         let mut ga_kind: Vec<Option<std::ffi::CString>> = Vec::new();
@@ -5602,15 +5634,15 @@ pub fn expand_process_user_list(
                     p = cstr_to_cstring(tv.vval.v_string());
                 } else if tv.v_type == VarType::VarDict && !tv.vval.v_dict().is_null() {
                     let d = tv.vval.v_dict();
-                    let word = tv_dict_get_string(d.as_ref(), c"word");
+                    let word = tv_dict_get_string(unsafe { d.as_ref() }, c"word");
                     if word.is_null() {
                         continue;
                     }
                     p = cstr_to_cstring(word);
-                    abbr = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"abbr");
-                    kind = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"kind");
-                    menu = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"menu");
-                    info = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"info");
+                    abbr = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"abbr");
+                    kind = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"kind");
+                    menu = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"menu");
+                    info = crate::eval::typval::tv_dict_get_cstring(unsafe { d.as_ref() }, c"info");
                     if abbr.is_some() || kind.is_some() || menu.is_some() || info.is_some() {
                         have_extra = true;
                     }
@@ -5723,7 +5755,7 @@ pub fn wildmenu_translate_key(
     xp: &mut ExpandCtx,
     did_wild_list: bool,
 ) -> i32 {
-    unsafe {
+    {
         let mut c = key;
 
         if cmdline_pum_active() || did_wild_list || g_st().wild_menu_showing != 0 {
@@ -5736,8 +5768,8 @@ pub fn wildmenu_translate_key(
 
         if xp.xp_context == EXPAND_MENUNAMES
             && cclp.cmdpos > 1
-            && *cclp.cmdbuff.wrapping_add((cclp.cmdpos - 1) as usize) == b'.' as c_char
-            && *cclp.cmdbuff.wrapping_add((cclp.cmdpos - 2) as usize) != b'\\' as c_char
+            && unsafe { *cclp.cmdbuff.wrapping_add((cclp.cmdpos - 1) as usize) } == b'.' as c_char
+            && unsafe { *cclp.cmdbuff.wrapping_add((cclp.cmdpos - 2) as usize) } != b'\\' as c_char
             && (c == b'\n' as i32 || c == b'\r' as i32 || c == K_KENTER)
         {
             c = K_DOWN;
@@ -5765,10 +5797,10 @@ fn cmdline_del(cclp: &mut CmdlineInfo, from: i32) {
 
 /// Handle a key pressed when the wild menu for the menu names (EXPAND_MENUNAMES) is displayed.
 fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut ExpandCtx) -> i32 {
-    unsafe {
+    {
         if key == K_DOWN
             && cclp.cmdpos > 0
-            && *cclp.cmdbuff.wrapping_add((cclp.cmdpos - 1) as usize) == b'.' as c_char
+            && unsafe { *cclp.cmdbuff.wrapping_add((cclp.cmdpos - 1) as usize) } == b'.' as c_char
         {
             key = opt_vars().p_wc as i32;
             g_st().key_typed = true;
@@ -5782,13 +5814,13 @@ fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
                 j > 0
             } {
                 if crate::memory::cstr_byte_at(cclp.cmdbuff, j as usize) == b' '
-                    && *cclp.cmdbuff.wrapping_add((j - 1) as usize) != b'\\' as c_char
+                    && unsafe { *cclp.cmdbuff.wrapping_add((j - 1) as usize) } != b'\\' as c_char
                 {
                     i = j + 1;
                     break;
                 }
                 if crate::memory::cstr_byte_at(cclp.cmdbuff, j as usize) == b'.'
-                    && *cclp.cmdbuff.wrapping_add((j - 1) as usize) != b'\\' as c_char
+                    && unsafe { *cclp.cmdbuff.wrapping_add((j - 1) as usize) } != b'\\' as c_char
                 {
                     if found {
                         i = j + 1;
@@ -5812,7 +5844,7 @@ fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
 
 /// Handle a key pressed when the wild menu for file/dir/shellcmd names is displayed.
 fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut ExpandCtx) -> i32 {
-    unsafe {
+    {
         let upseg: [c_char; 5] = [
             PATHSEP as c_char,
             b'.' as c_char,
@@ -5823,7 +5855,8 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
 
         if key == K_DOWN
             && cclp.cmdpos > 0
-            && *cclp.cmdbuff.wrapping_add((cclp.cmdpos - 1) as usize) == PATHSEP as c_char
+            && unsafe { *cclp.cmdbuff.wrapping_add((cclp.cmdpos - 1) as usize) }
+                == PATHSEP as c_char
             && (cclp.cmdpos < 3
                 || crate::memory::cstr_first_byte(
                     cclp.cmdbuff.wrapping_add((cclp.cmdpos - 2) as usize),
@@ -5853,9 +5886,9 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
                 }
             }
             if found
-                && *cclp.cmdbuff.wrapping_add((j - 1) as usize) == b'.' as c_char
-                && *cclp.cmdbuff.wrapping_add((j - 2) as usize) == b'.' as c_char
-                && (vim_ispathsep(*cclp.cmdbuff.wrapping_add((j - 3) as usize) as i32)
+                && unsafe { *cclp.cmdbuff.wrapping_add((j - 1) as usize) } == b'.' as c_char
+                && unsafe { *cclp.cmdbuff.wrapping_add((j - 2) as usize) } == b'.' as c_char
+                && (vim_ispathsep(unsafe { *cclp.cmdbuff.wrapping_add((j - 3) as usize) } as i32)
                     || j == i + 2)
             {
                 cmdline_del(cclp, j - 2);
@@ -5874,10 +5907,10 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
                 j -= utf_head_off(cclp.cmdbuff, cclp.cmdbuff.wrapping_add(j as usize));
                 #[cfg(windows)]
                 let is_sep = vim_ispathsep(crate::memory::cstr_char_at(cclp.cmdbuff, j as usize))
-                    && !crate::strings::vim_haschr(
-                        c" *?[{`$%#",
-                        *cclp.cmdbuff.wrapping_add((j + 1) as usize) as u8 as i32,
-                    );
+                    && !crate::strings::vim_haschr(c" *?[{`$%#", unsafe {
+                        *cclp.cmdbuff.wrapping_add((j + 1) as usize)
+                    } as u8
+                        as i32);
                 #[cfg(not(windows))]
                 let is_sep = vim_ispathsep(crate::memory::cstr_char_at(cclp.cmdbuff, j as usize));
 
@@ -6195,7 +6228,7 @@ fn copy_substring_from_pos(
     end: &mut CursorPos,
     match_end: &mut CursorPos,
 ) -> Option<CString> {
-    unsafe {
+    {
         let exacttext = (opt_vars().wop_flags & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
 
         if start.lnum > end.lnum || (start.lnum == end.lnum && start.col >= end.col) {
@@ -6213,10 +6246,9 @@ fn copy_substring_from_pos(
         } else {
             ml_get_len(start.lnum) - start.col
         };
-        ga.extend_from_slice(std::slice::from_raw_parts(
-            start_ptr.cast::<u8>(),
-            segment_len as usize,
-        ));
+        ga.extend_from_slice(unsafe {
+            std::slice::from_raw_parts(start_ptr.cast::<u8>(), segment_len as usize)
+        });
         if !is_single_line {
             if exacttext {
                 ga.extend_from_slice(b"\\n");
@@ -6230,10 +6262,9 @@ fn copy_substring_from_pos(
             while lnum < end.lnum {
                 let line = ml_get(lnum);
                 let linelen = ml_get_len(lnum);
-                ga.extend_from_slice(std::slice::from_raw_parts(
-                    line.cast::<u8>(),
-                    linelen as usize,
-                ));
+                ga.extend_from_slice(unsafe {
+                    std::slice::from_raw_parts(line.cast::<u8>(), linelen as usize)
+                });
                 if exacttext {
                     ga.extend_from_slice(b"\\n");
                 } else {
@@ -6247,10 +6278,12 @@ fn copy_substring_from_pos(
         let word_end = find_word_end(end_line.wrapping_add(end.col as usize));
         segment_len = crate::memory::ptr_offset_from(word_end, end_line) as i32;
         let start_off = if is_single_line { end.col } else { 0 };
-        ga.extend_from_slice(std::slice::from_raw_parts(
-            end_line.wrapping_add(start_off as usize).cast::<u8>(),
-            (segment_len - start_off) as usize,
-        ));
+        ga.extend_from_slice(unsafe {
+            std::slice::from_raw_parts(
+                end_line.wrapping_add(start_off as usize).cast::<u8>(),
+                (segment_len - start_off) as usize,
+            )
+        });
 
         match_end.lnum = end.lnum;
         match_end.col = segment_len;
@@ -6306,22 +6339,23 @@ fn concat_pattern_with_buffer_match(
     lowercase: bool,
 ) -> CString {
     let pat = pat.into_c_char_ptr();
-    unsafe {
+    {
         let line = ml_get(end_match_pos.lnum);
         let word_end = find_word_end(line.wrapping_add(end_match_pos.col as usize));
         let match_len =
             crate::memory::ptr_offset_from(word_end, line.wrapping_add(end_match_pos.col as usize))
                 as i32;
         let mut out = Vec::with_capacity((match_len as usize) + (pat_len as usize));
-        out.extend_from_slice(std::slice::from_raw_parts(
-            pat.cast::<u8>(),
-            pat_len as usize,
-        ));
+        out.extend_from_slice(unsafe {
+            std::slice::from_raw_parts(pat.cast::<u8>(), pat_len as usize)
+        });
         if match_len > 0 {
-            let match_slice = std::slice::from_raw_parts(
-                line.wrapping_add(end_match_pos.col as usize).cast::<u8>(),
-                match_len as usize,
-            );
+            let match_slice = unsafe {
+                std::slice::from_raw_parts(
+                    line.wrapping_add(end_match_pos.col as usize).cast::<u8>(),
+                    match_len as usize,
+                )
+            };
             if lowercase {
                 let mword = cstr_from_bytes(match_slice);
                 let lower = strcase_save(&mword, false);

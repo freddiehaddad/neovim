@@ -575,9 +575,9 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> i32 {
 }
 
 fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) -> bool {
-    unsafe {
+    {
         if one_window(
-            &mut *wp,
+            unsafe { &mut *wp },
             if &raw mut *tp == g_st().curtab {
                 ptr::null_mut()
             } else {
@@ -591,7 +591,7 @@ fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) 
             );
             return false;
         }
-        if win_locked(&mut *wp) != 0 {
+        if win_locked(unsafe { &mut *wp }) != 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -1456,7 +1456,7 @@ fn parse_bordertext_pos(
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);
 pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &mut Error) {
-    unsafe {
+    {
         const DEFAULTS_CHARS: [[&str; 8]; 6] = [
             ["╔", "═", "╗", "║", "╝", "═", "╚", "║"],
             ["┌", "─", "┐", "│", "┘", "─", "└", "│"],
@@ -1518,7 +1518,7 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
                 }
                 let len = string.size.min(MAX_SCHAR_SIZE - 1);
                 if len > 0 {
-                    ptr::copy_nonoverlapping(string.data, chars[i].as_mut_ptr(), len);
+                    unsafe { ptr::copy_nonoverlapping(string.data, chars[i].as_mut_ptr(), len) };
                 }
                 chars[i][len] = NUL;
                 hl_ids[i] = hl_id;
@@ -1560,11 +1560,13 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
                     *chars = [[0; MAX_SCHAR_SIZE]; 8];
                     for (slot, piece) in chars.iter_mut().zip(DEFAULTS_CHARS[i].iter()) {
                         let bytes = piece.as_bytes();
-                        ptr::copy_nonoverlapping(
-                            bytes.as_ptr().cast::<c_char>(),
-                            slot.as_mut_ptr(),
-                            bytes.len(),
-                        );
+                        unsafe {
+                            ptr::copy_nonoverlapping(
+                                bytes.as_ptr().cast::<c_char>(),
+                                slot.as_mut_ptr(),
+                                bytes.len(),
+                            )
+                        };
                     }
                     *hl_ids = [0; 8];
                     if DEFAULTS_SHADOW[i] {

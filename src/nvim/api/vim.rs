@@ -1377,19 +1377,19 @@ pub fn nvim_echo(
 /// @return List of buffer ids
 // DLLEXPORT ArrayOf(Buffer) nvim_list_bufs(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_bufs(arena: &mut Arena) -> Array {
-    unsafe {
+    {
         let mut n = 0usize;
         let mut b = g_st().firstbuf;
         while !b.is_null() {
             n += 1;
-            b = (*b).b_next;
+            b = unsafe { (*b).b_next };
         }
 
         let mut rv = arena_array(arena, n);
         b = g_st().firstbuf;
         while !b.is_null() {
-            add_c(&mut rv, buffer_obj((*b).b_fnum));
-            b = (*b).b_next;
+            add_c(&mut rv, buffer_obj(unsafe { (*b).b_fnum }));
+            b = unsafe { (*b).b_next };
         }
         rv
     }
@@ -1425,23 +1425,23 @@ pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
 /// @return List of |window-ID|s
 // DLLEXPORT ArrayOf(Window) nvim_list_wins(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_wins(arena: &mut Arena) -> Array {
-    unsafe {
+    {
         let mut n = 0usize;
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for _wp in for_all_windows_in_tab_mut(&*tp) {
+            for _wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
                 n += 1;
             }
-            tp = (*tp).tp_next;
+            tp = unsafe { (*tp).tp_next };
         }
 
         let mut rv = arena_array(arena, n);
         tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
+            for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
                 add_c(&mut rv, window_obj(wp.handle));
             }
-            tp = (*tp).tp_next;
+            tp = unsafe { (*tp).tp_next };
         }
         rv
     }
@@ -1487,7 +1487,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
 /// @return Buffer id, or 0 on error
 // DLLEXPORT Buffer nvim_create_buf(Boolean listed, Boolean scratch, Error *err) FUNC_API_SINCE(6);
 pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Buffer {
-    unsafe {
+    {
         let mut ret: Buffer = 0;
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
@@ -1503,7 +1503,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                 unblock_autocmds();
                 break 'create;
             }
-            let buf = { &mut *buf };
+            let buf = { unsafe { &mut *buf } };
             if !ml_open(&mut *buf) {
                 unblock_autocmds();
                 break 'create;
@@ -1530,7 +1530,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                     0,
                     OptTarget::Buf(buf),
                 );
-                assert!((*buf.b_ml.mfp_ptr()).mf_fd < 0);
+                assert!(unsafe { (*buf.b_ml.mfp_ptr()).mf_fd } < 0);
                 buf.b_p_swf = 0;
                 buf.b_p_ml = 0;
             }
@@ -1711,19 +1711,19 @@ pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
 /// @return List of |tab-ID|s
 // DLLEXPORT ArrayOf(Tabpage) nvim_list_tabpages(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_tabpages(arena: &mut Arena) -> Array {
-    unsafe {
+    {
         let mut n = 0usize;
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             n += 1;
-            tp = (*tp).tp_next;
+            tp = unsafe { (*tp).tp_next };
         }
 
         let mut rv = arena_array(arena, n);
         tp = g_st().first_tabpage;
         while !tp.is_null() {
-            add_c(&mut rv, tabpage_obj((*tp).handle));
-            tp = (*tp).tp_next;
+            add_c(&mut rv, tabpage_obj(unsafe { (*tp).handle }));
+            tp = unsafe { (*tp).tp_next };
         }
         rv
     }
@@ -2280,7 +2280,7 @@ pub fn nvim_chan_set(
     config: &mut KeyDict_chan_set,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         if chan == 0 && !is_internal_call(channel_id) {
             chan = channel_id as Integer;
         }
@@ -2289,8 +2289,10 @@ pub fn nvim_chan_set(
             return;
         }
         if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
-            (*channel).detach = config.detach;
-            channel_event(&mut *channel, EVENT_CHANINFO);
+            unsafe {
+                (*channel).detach = config.detach;
+            }
+            channel_event(unsafe { &mut *channel }, EVENT_CHANINFO);
         }
     }
 }

@@ -995,7 +995,7 @@ pub fn utf_ptr2_str_char_info_len(
 
 #[inline]
 pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
-    unsafe {
+    {
         if crate::memory::cstr_is_empty(cur.ptr) {
             return ClusterInfo {
                 next: cur,
@@ -1004,12 +1004,12 @@ pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
             };
         }
         let next = cur.ptr.wrapping_add(cur.chr.len as usize).cast::<u8>();
-        if *next < 0x80 {
+        if unsafe { *next } < 0x80 {
             return ClusterInfo {
                 next: StrCharInfo {
                     ptr: next.cast::<c_char>(),
                     chr: CharInfo {
-                        value: i32::from(*next),
+                        value: i32::from(unsafe { *next }),
                         len: 1,
                     },
                 },
@@ -1349,12 +1349,12 @@ pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> i32 {
-    unsafe {
+    {
         if *n == 0 {
             return 0;
         }
 
-        let b0 = *(*s).cast::<u8>();
+        let b0 = unsafe { *(*s).cast::<u8>() };
         let k = usize::from(UTF8LEN_TAB_ZERO[b0 as usize]);
         if k == 1 {
             *n -= 1;
@@ -1364,7 +1364,9 @@ fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> i32 {
 
         if k <= *n {
             let c = utf_ptr2char(*s);
-            if c != i32::from(b0) || (c == 0xC3 && *(*s).wrapping_add(1).cast::<u8>() == 0x83) {
+            if c != i32::from(b0)
+                || (c == 0xC3 && unsafe { *(*s).wrapping_add(1).cast::<u8>() } == 0x83)
+            {
                 *s = (*s).wrapping_add(k);
                 *n -= k;
                 return c;
@@ -1421,14 +1423,14 @@ pub fn utf_iscomposing(c1: i32, c2: i32, state: &mut GraphemeState) -> bool {
 
 pub fn utf_ptr2len(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     let p_in = p_in.into_c_char_ptr();
-    unsafe {
+    {
         let p = p_in.cast::<u8>();
-        if *p == 0 {
+        if unsafe { *p } == 0 {
             return 0;
         }
-        let len = i32::from(UTF8LEN_TAB[*p as usize]);
+        let len = i32::from(UTF8LEN_TAB[unsafe { *p } as usize]);
         for i in 1..len as usize {
-            if (*p.wrapping_add(i) & 0xc0) != 0x80 {
+            if (unsafe { *p.wrapping_add(i) } & 0xc0) != 0x80 {
                 return 1;
             }
         }
@@ -1442,15 +1444,15 @@ pub fn utf_byte2len(b: i32) -> i32 {
 
 pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
     let p = p.into_c_char_ptr();
-    unsafe {
+    {
         let bytes = p.cast::<u8>();
-        let len = i32::from(UTF8LEN_TAB[*bytes as usize]);
+        let len = i32::from(UTF8LEN_TAB[unsafe { *bytes } as usize]);
         if len == 1 {
             return 1;
         }
         let m = len.min(size);
         for i in 1..m as usize {
-            if (*bytes.wrapping_add(i) & 0xc0) != 0x80 {
+            if (unsafe { *bytes.wrapping_add(i) } & 0xc0) != 0x80 {
                 return 1;
             }
         }
@@ -1460,12 +1462,12 @@ pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
 
 pub fn utfc_ptr2len(p: impl crate::strings::IntoCCharPtr) -> i32 {
     let p = p.into_c_char_ptr();
-    unsafe {
-        let b0 = *p.cast::<u8>();
+    {
+        let b0 = unsafe { *p.cast::<u8>() };
         if b0 == 0 {
             return 0;
         }
-        if b0 < 0x80 && *p.wrapping_add(1).cast::<u8>() < 0x80 {
+        if b0 < 0x80 && unsafe { *p.wrapping_add(1).cast::<u8>() } < 0x80 {
             return 1;
         }
 
@@ -1478,7 +1480,7 @@ pub fn utfc_ptr2len(p: impl crate::strings::IntoCCharPtr) -> i32 {
         let mut state: GraphemeState = GRAPHEME_STATE_INIT;
         loop {
             let next_ptr = p.wrapping_add(len as usize);
-            if *next_ptr.cast::<u8>() < 0x80
+            if unsafe { *next_ptr.cast::<u8>() } < 0x80
                 || !utf_composinglike(p.wrapping_add(prevlen), next_ptr, Some(&mut state))
             {
                 return len;
@@ -1491,12 +1493,12 @@ pub fn utfc_ptr2len(p: impl crate::strings::IntoCCharPtr) -> i32 {
 
 pub fn utfc_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
     let p = p.into_c_char_ptr();
-    unsafe {
+    {
         if size < 1 || crate::memory::cstr_is_empty(p) {
             return 0;
         }
-        let b0 = *p.cast::<u8>();
-        if b0 < 0x80 && (size == 1 || *p.wrapping_add(1).cast::<u8>() < 0x80) {
+        let b0 = unsafe { *p.cast::<u8>() };
+        if b0 < 0x80 && (size == 1 || unsafe { *p.wrapping_add(1).cast::<u8>() } < 0x80) {
             return 1;
         }
 
@@ -1509,7 +1511,7 @@ pub fn utfc_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 
         let mut state: GraphemeState = GRAPHEME_STATE_INIT;
         while len < size {
             let next_ptr = p.wrapping_add(len as usize);
-            if *next_ptr.cast::<u8>() < 0x80 {
+            if unsafe { *next_ptr.cast::<u8>() } < 0x80 {
                 break;
             }
             let len_next_char = utf_ptr2len_len(next_ptr, size - len);
@@ -2133,7 +2135,7 @@ pub fn utf_strnicmp(
 ) -> i32 {
     let mut s1 = s1.into_c_char_ptr();
     let mut s2 = s2.into_c_char_ptr();
-    unsafe {
+    {
         let mut c1: i32;
         let mut c2: i32;
         let mut buffer = [0 as c_char; 6];
@@ -2173,7 +2175,8 @@ pub fn utf_strnicmp(
             && !crate::memory::cstr_is_empty(s1)
             && !crate::memory::cstr_is_empty(s2)
         {
-            let cdiff = i32::from(*s1.cast::<u8>()) - i32::from(*s2.cast::<u8>());
+            let cdiff =
+                i32::from(unsafe { *s1.cast::<u8>() }) - i32::from(unsafe { *s2.cast::<u8>() });
             if cdiff != 0 {
                 return cdiff;
             }
@@ -2348,7 +2351,7 @@ pub fn mb_stricmp(
 }
 
 pub fn show_utf8() {
-    unsafe {
+    {
         let line = get_cursor_pos_ptr();
         let len = utfc_ptr2len(line);
         if len == 0 {
@@ -2365,7 +2368,7 @@ pub fn show_utf8() {
                 }
                 clen = utf_ptr2len(line.wrapping_add(i));
             }
-            let b = *line.wrapping_add(i);
+            let b = unsafe { *line.wrapping_add(i) };
             let byte_val: u8 = if b == NL { 0 } else { b as u8 };
             use std::fmt::Write as _;
             let _ = write!(out, "{byte_val:02x} ");
@@ -2377,8 +2380,10 @@ pub fn show_utf8() {
 
         let copy_len = out.len().min(IOSIZE - 1);
         let io_ptr = g_st().iobuff.as_mut_ptr();
-        ptr::copy_nonoverlapping(out.as_ptr().cast::<c_char>(), io_ptr, copy_len);
-        *io_ptr.wrapping_add(copy_len) = NUL;
+        unsafe { ptr::copy_nonoverlapping(out.as_ptr().cast::<c_char>(), io_ptr, copy_len) };
+        unsafe {
+            *io_ptr.wrapping_add(copy_len) = NUL;
+        }
         msg(io_ptr, 0);
     }
 }
@@ -2491,13 +2496,13 @@ pub fn utf_head_off(
 }
 
 pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInfo {
-    unsafe {
+    {
         let mut cells = basechar_cells_impl(base.chr);
         let first_compose = utf_iscomposing_first(base.chr.value);
         let mut prev_code = base.chr.value;
         let mut next = base.ptr.wrapping_add(base.chr.len as usize).cast::<u8>();
         let mut state: GraphemeState = GRAPHEME_STATE_INIT;
-        assert!(*next >= 0x80 && *max_len > 0);
+        assert!(unsafe { *next } >= 0x80 && *max_len > 0);
         let mut cluster_len = base.chr.len;
 
         let mut check_emoji = cells == 1
@@ -2505,7 +2510,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
             && prop_is_emojilike(utf8proc_get_property(base.chr.value));
 
         loop {
-            let next_len = UTF8LEN_TAB[*next as usize];
+            let next_len = UTF8LEN_TAB[unsafe { *next } as usize];
             if i32::from(next_len) > *max_len {
                 return ClusterInfo {
                     next: StrCharInfo {
@@ -2557,12 +2562,12 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
             prev_code = next_code;
             next = next.wrapping_add(usize::from(next_len));
             *max_len -= i32::from(next_len);
-            if *max_len > 0 && *next < 0x80 {
+            if *max_len > 0 && unsafe { *next } < 0x80 {
                 return ClusterInfo {
                     next: StrCharInfo {
                         ptr: next.cast::<c_char>(),
                         chr: CharInfo {
-                            value: i32::from(*next),
+                            value: i32::from(unsafe { *next }),
                             len: 1,
                         },
                     },
@@ -2696,11 +2701,11 @@ pub fn utf_cp_bounds_len(
 ) -> CharBoundsOff {
     let base = base.into_c_char_ptr();
     let p_in = p_in.into_c_char_ptr();
-    unsafe {
+    {
         assert!(base <= p_in && p_len > 0);
         let b = base.cast::<u8>();
         let p = p_in.cast::<u8>();
-        if *p < 0x80 {
+        if unsafe { *p } < 0x80 {
             return CharBoundsOff {
                 begin_off: 0,
                 end_off: 1,
@@ -2709,7 +2714,7 @@ pub fn utf_cp_bounds_len(
 
         let max_first_off = -((crate::memory::ptr_offset_from(p, b) as i32).min(MB_MAXCHAR - 1));
         let mut first_off: i32 = 0;
-        while utf_is_trail_byte(*p.wrapping_offset(first_off as isize)) {
+        while utf_is_trail_byte(unsafe { *p.wrapping_offset(first_off as isize) }) {
             if first_off == max_first_off {
                 return CharBoundsOff {
                     begin_off: 0,
@@ -2719,7 +2724,7 @@ pub fn utf_cp_bounds_len(
             first_off -= 1;
         }
 
-        let lead = *p.wrapping_offset(first_off as isize);
+        let lead = unsafe { *p.wrapping_offset(first_off as isize) };
         let max_end_off = i32::from(UTF8LEN_TAB[lead as usize]) + first_off;
         if max_end_off <= 0 || max_end_off > p_len {
             return CharBoundsOff {
@@ -2729,7 +2734,7 @@ pub fn utf_cp_bounds_len(
         }
 
         for end_off in 1..max_end_off {
-            if !utf_is_trail_byte(*p.wrapping_offset(end_off as isize)) {
+            if !utf_is_trail_byte(unsafe { *p.wrapping_offset(end_off as isize) }) {
                 return CharBoundsOff {
                     begin_off: 0,
                     end_off: 1,
@@ -3056,7 +3061,7 @@ pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString
 }
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
-    unsafe {
+    {
         #[cfg(unix)]
         let mut s: *const c_char = nl_langinfo(CODESET);
         #[cfg(not(unix))]
@@ -3064,7 +3069,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
 
         let mut env_buf = [0 as c_char; 64];
         if crate::memory::cstr_is_empty(s) {
-            s = setlocale(LC_CTYPE, ptr::null());
+            s = unsafe { setlocale(LC_CTYPE, ptr::null()) };
             if crate::memory::cstr_is_empty(s) {
                 s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr(), env_buf.len());
                 if s.is_null() {
@@ -3087,11 +3092,13 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
                 && crate::memory::cstr_slice(p, (1) + (3))[1..].eq_ignore_ascii_case(b"EUC")
                 && !(crate::memory::cstr_byte_at(p, 4)).is_ascii_alphanumeric()
                 && crate::memory::cstr_byte_at(p, 4) != b'-'
-                && *p.wrapping_sub(3) == b'_' as c_char
+                && unsafe { *p.wrapping_sub(3) } == b'_' as c_char
             {
-                ptr::copy_nonoverlapping(b"euc-".as_ptr().cast::<c_char>(), buf.as_mut_ptr(), 4);
-                let c2 = *p.wrapping_sub(2) as u8;
-                let c1 = *p.wrapping_sub(1) as u8;
+                unsafe {
+                    ptr::copy_nonoverlapping(b"euc-".as_ptr().cast::<c_char>(), buf.as_mut_ptr(), 4)
+                };
+                let c2 = unsafe { *p.wrapping_sub(2) } as u8;
+                let c1 = unsafe { *p.wrapping_sub(1) } as u8;
                 buf[4] = if c2.is_ascii_alphanumeric() {
                     tolower_asc(i32::from(c2)) as u8 as c_char
                 } else {
@@ -3167,7 +3174,7 @@ fn iconv_string(
     mut resultlenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut to: *mut c_char;
         let mut len = 0usize;
         let mut done = 0usize;
@@ -3193,22 +3200,30 @@ fn iconv_string(
                 &raw mut tolen,
             ) != usize::MAX
             {
-                *to = NUL;
+                unsafe {
+                    *to = NUL;
+                }
                 done = crate::memory::ptr_offset_from(to, result) as usize;
                 break;
             }
 
             let err = os_errno();
             if !vcp.vc_fail && unconvlenp.is_some() && err == ICONV_EINVAL {
-                *to = NUL;
+                unsafe {
+                    *to = NUL;
+                }
                 *unconvlenp.as_deref_mut().unwrap() = fromlen;
                 done = crate::memory::ptr_offset_from(to, result) as usize;
                 break;
             } else if !vcp.vc_fail && (err == ICONV_EILSEQ || err == ICONV_EINVAL) {
-                *to = b'?' as c_char;
+                unsafe {
+                    *to = b'?' as c_char;
+                }
                 to = to.wrapping_add(1);
                 if utf_ptr2cells(from) > 1 {
-                    *to = b'?' as c_char;
+                    unsafe {
+                        *to = b'?' as c_char;
+                    }
                     to = to.wrapping_add(1);
                 }
                 let l = utfc_ptr2len_len(from, fromlen as i32) as usize;
@@ -3356,7 +3371,7 @@ pub fn string_convert_ext(
     mut unconvlenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> {
     let ptr = ptr.into_c_char_ptr();
-    unsafe {
+    {
         let len = if lenp.is_none() {
             crate::memory::cstr_len(ptr)
         } else {
@@ -3370,7 +3385,7 @@ pub fn string_convert_ext(
             CONV_TO_UTF8 => {
                 let mut out: Vec<u8> = Vec::with_capacity(len * 2 + 1);
                 for i in 0..len {
-                    let c = *ptr.wrapping_add(i).cast::<u8>();
+                    let c = unsafe { *ptr.wrapping_add(i).cast::<u8>() };
                     if c < 0x80 {
                         out.push(c);
                     } else {
@@ -3388,7 +3403,7 @@ pub fn string_convert_ext(
                 let mut out: Vec<u8> = Vec::with_capacity(len * 3 + 1);
                 let mut ch_buf = [0 as c_char; MB_MAXCHAR as usize];
                 for i in 0..len {
-                    let c = match *ptr.wrapping_add(i).cast::<u8>() {
+                    let c = match unsafe { *ptr.wrapping_add(i).cast::<u8>() } {
                         0xa4 => 0x20ac,
                         0xa6 => 0x0160,
                         0xa8 => 0x0161,
@@ -3400,10 +3415,9 @@ pub fn string_convert_ext(
                         b => i32::from(b),
                     };
                     let n = utf_char2bytes(c, ch_buf.as_mut_ptr()) as usize;
-                    out.extend_from_slice(std::slice::from_raw_parts(
-                        ch_buf.as_ptr().cast::<u8>(),
-                        n,
-                    ));
+                    out.extend_from_slice(unsafe {
+                        std::slice::from_raw_parts(ch_buf.as_ptr().cast::<u8>(), n)
+                    });
                 }
                 if let Some(ref mut p) = lenp {
                     **p = out.len();
@@ -3419,7 +3433,7 @@ pub fn string_convert_ext(
                     if l == 0 {
                         out.push(0);
                     } else if l == 1 {
-                        let b = *ptr.wrapping_add(i).cast::<u8>();
+                        let b = unsafe { *ptr.wrapping_add(i).cast::<u8>() };
                         let l_w = usize::from(UTF8LEN_TAB_ZERO[b as usize]);
                         if l_w == 0 {
                             return None;

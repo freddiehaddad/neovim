@@ -733,7 +733,7 @@ pub fn free_all_mem() {
     use crate::usercmd::ex_comclear;
     use crate::window::{free_tabpage, win_free_all};
 
-    unsafe {
+    {
         if mem_st().entered_free_all_mem {
             nlua_free_all_mem();
             return;
@@ -810,10 +810,12 @@ pub fn free_all_mem() {
                 br_buf_free_count: 0,
             };
             set_bufref(&mut bufref, buf);
-            let nextbuf = (*buf).b_next;
-            (*buf).b_nwindows = 0;
+            let nextbuf = unsafe { (*buf).b_next };
+            unsafe {
+                (*buf).b_nwindows = 0;
+            }
 
-            buf_free_callbacks(&mut *buf);
+            buf_free_callbacks(unsafe { &mut *buf });
             close_buffer(std::ptr::null_mut(), buf, DOBUF_WIPE, false, false, false);
             buf = if bufref_valid(Some(&bufref)) {
                 nextbuf

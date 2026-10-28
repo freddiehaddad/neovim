@@ -823,8 +823,8 @@ fn savecursor(state: &mut VTermStateFull, save: i32) {
 }
 
 fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 {
-    unsafe {
-        let state = &mut *state;
+    {
+        let state = unsafe { &mut *state };
         match crate::memory::cstr_first_byte(bytes) {
             b' ' => {
                 if len != 2 {
@@ -893,7 +893,9 @@ fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i3
                 }
                 let setnum = ((crate::memory::cstr_first_byte(bytes)) - 0x28) as usize;
                 if let Some(newenc) =
-                    vterm_lookup_encoding(VTermEncodingType::EncSingle94, *bytes.wrapping_add(1))
+                    vterm_lookup_encoding(VTermEncodingType::EncSingle94, unsafe {
+                        *bytes.wrapping_add(1)
+                    })
                 {
                     state.encoding[setnum].init(newenc);
                 }

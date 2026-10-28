@@ -302,9 +302,9 @@ pub fn stream_may_close(stream: &mut Stream) {
 }
 
 pub fn stream_close_handle(stream: &mut Stream) {
-    unsafe {
+    {
         let handle: *mut uv_handle_t = if stream.has_uvstream {
-            let queued = uv_stream_get_write_queue_size(stream.uvstream_ptr());
+            let queued = unsafe { uv_stream_get_write_queue_size(stream.uvstream_ptr()) };
             if queued > 0 {
                 logmsg!(
                     LOGLVL_WRN,
@@ -330,8 +330,8 @@ pub fn stream_close_handle(stream: &mut Stream) {
             crate::os::pty_proc_win::pty_proc_close_console(stream);
             stream.pending_reqs -= 1;
         }
-        if uv_is_closing(handle) == 0 {
-            uv_close(handle, Some(close_cb));
+        if unsafe { uv_is_closing(handle) } == 0 {
+            unsafe { uv_close(handle, Some(close_cb)) };
         }
     }
 }

@@ -559,7 +559,7 @@ fn fmt_check_par(
     leader_flags: *mut *mut c_char,
     do_comments: bool,
 ) -> bool {
-    unsafe {
+    {
         let mut flags: *mut c_char = ptr::null_mut();
         let ptr = ml_get(lnum);
         if do_comments {
@@ -569,17 +569,17 @@ fn fmt_check_par(
         }
 
         if *leader_len > 0 {
-            flags = *leader_flags;
+            flags = unsafe { *leader_flags };
             while !crate::memory::cstr_is_empty(flags)
                 && crate::memory::cstr_first_byte(flags) != b':'
-                && *flags != COM_END
+                && unsafe { *flags } != COM_END
             {
                 flags = flags.wrapping_add(1);
             }
         }
 
         crate::memory::cstr_is_empty(skipwhite(ptr.wrapping_add(*leader_len as usize)))
-            || (*leader_len > 0 && *flags == COM_END)
+            || (*leader_len > 0 && unsafe { *flags } == COM_END)
             || start_ps(lnum, 0, false)
     }
 }
@@ -722,7 +722,7 @@ fn paragraph_start(lnum: Linenr) -> bool {
 
 /// Auto-format from the current line until the end of the paragraph (`auto_format`).
 pub fn auto_format(trailblank: bool, prev_line: bool) {
-    unsafe {
+    {
         if !has_format_option(K_FO_AUTO) {
             return;
         }
@@ -755,7 +755,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             && (g_st().state_global & MODE_INSERT) != 0
         {
             let line = get_cursor_line_ptr();
-            if whitechar(*line.wrapping_add((pos.col - 1) as usize) as i32) {
+            if whitechar(unsafe { *line.wrapping_add((pos.col - 1) as usize) } as i32) {
                 curwin_mut().w_cursor = pos;
                 return;
             }
@@ -792,7 +792,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             let len = get_cursor_line_len();
             if curwin_mut().w_cursor.col == len {
                 let mut pline = Vec::with_capacity(len as usize + 2);
-                pline.extend_from_slice(std::slice::from_raw_parts(linep, len as usize));
+                pline.extend_from_slice(unsafe { std::slice::from_raw_parts(linep, len as usize) });
                 pline.push(b' ' as c_char);
                 pline.push(NUL);
                 ml_replace(curwin_mut().w_cursor.lnum, pline.as_mut_ptr(), true);

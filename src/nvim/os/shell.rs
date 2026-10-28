@@ -1083,7 +1083,7 @@ fn out_data_decide_throttle(size: usize) -> bool {
 
 fn out_data_ring(output: impl crate::strings::IntoCCharPtr, size: usize) {
     let output = output.into_c_char_ptr();
-    unsafe {
+    {
         debug_assert!(!output.is_null() || size == 0 || size == usize::MAX);
 
         if output.is_null() && size == 0 {
@@ -1099,15 +1099,17 @@ fn out_data_ring(output: impl crate::strings::IntoCCharPtr, size: usize) {
 
         if size >= MAX_CHUNK_SIZE {
             let start = size - MAX_CHUNK_SIZE;
-            ptr::copy_nonoverlapping(output.wrapping_add(start), ring_ptr, MAX_CHUNK_SIZE);
+            unsafe {
+                ptr::copy_nonoverlapping(output.wrapping_add(start), ring_ptr, MAX_CHUNK_SIZE)
+            };
             sh_st().last_skipped_len = MAX_CHUNK_SIZE;
         } else if size > 0 {
             let keep_len = sh_st().last_skipped_len.min(MAX_CHUNK_SIZE - size);
             let keep_start = sh_st().last_skipped_len - keep_len;
             if keep_start != 0 {
-                ptr::copy(ring_ptr.wrapping_add(keep_start), ring_ptr, keep_len);
+                unsafe { ptr::copy(ring_ptr.wrapping_add(keep_start), ring_ptr, keep_len) };
             }
-            ptr::copy_nonoverlapping(output, ring_ptr.wrapping_add(keep_len), size);
+            unsafe { ptr::copy_nonoverlapping(output, ring_ptr.wrapping_add(keep_len), size) };
             sh_st().last_skipped_len = keep_len + size;
         }
     }
@@ -1139,7 +1141,7 @@ fn out_data_append_to_screen(
     eof: bool,
 ) {
     let output = output.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = output;
         let end = output.wrapping_add(*count);
         while (p as usize) < (end as usize) {
@@ -1160,10 +1162,13 @@ fn out_data_append_to_screen(
             p = p.wrapping_add(i as usize);
         }
 
-        let str_copy = std::slice::from_raw_parts(output, *count).to_vec();
+        let str_copy = unsafe { std::slice::from_raw_parts(output, *count) }.to_vec();
         if ui_has(K_UIMESSAGES) {
             let qc = loop_queues(&mut *main_loop_ptr());
-            multiqueue_put_event(&mut *qc.fast_events, Event::ShellOutData { str_copy, fd });
+            multiqueue_put_event(
+                unsafe { &mut *qc.fast_events },
+                Event::ShellOutData { str_copy, fd },
+            );
         } else {
             out_data_event(str_copy, fd);
         }

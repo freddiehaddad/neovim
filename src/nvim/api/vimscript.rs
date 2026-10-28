@@ -356,7 +356,7 @@ pub fn nvim_call_dict_function(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let mut rv = nil_obj();
         let mut rettv: TypVal = TypVal::new();
         let mut mustfree = false;
@@ -400,7 +400,11 @@ pub fn nvim_call_dict_function(
                 && fn_name.size > 0
                 && dict.obj_type != ObjectType::ObjectTypeDict
             {
-                let di = tv_dict_find(self_dict.as_ref(), fn_name.data, fn_name.size as isize);
+                let di = tv_dict_find(
+                    unsafe { self_dict.as_ref() },
+                    fn_name.data,
+                    fn_name.size as isize,
+                );
                 if di.is_null() {
                     api_set_error!(
                         err,
@@ -410,7 +414,7 @@ pub fn nvim_call_dict_function(
                     );
                     break 'body;
                 }
-                let di = { &mut *di };
+                let di = { unsafe { &mut *di } };
                 if di.di_tv.v_type == VarType::VarPartial {
                     api_set_error!(
                         err,

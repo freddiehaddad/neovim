@@ -145,12 +145,14 @@ pub fn win_chartabsize(
     col: Colnr,
 ) -> i32 {
     let p = p.into_c_char_ptr();
-    unsafe {
+    {
         let buf = wp.w_buffer;
         if crate::memory::cstr_first_char(p) == TAB
             && (wp.w_onebuf_opt.wo_list == 0 || wp.w_p_lcs_chars.tab1 != 0)
         {
-            return tabstop_padding(col, (*buf).b_p_ts, &(*buf).b_p_vts_array);
+            return tabstop_padding(col, unsafe { (*buf).b_p_ts }, unsafe {
+                &(*buf).b_p_vts_array
+            });
         }
         ptr2cells(p)
     }
@@ -250,11 +252,11 @@ fn inline_virt_text_width(
     row: i32,
     col: i32,
 ) -> i32 {
-    unsafe {
+    {
         let buf = wp.w_buffer;
         let mut width: i32 = 0;
         loop {
-            let mark = marktree_itr_current(&(*buf).b_marktree, iter);
+            let mark = marktree_itr_current(unsafe { &(*buf).b_marktree }, iter);
             if mark.pos.row != row || mark.pos.col > col {
                 break;
             } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
@@ -269,7 +271,13 @@ fn inline_virt_text_width(
                     }
                 }
             }
-            marktree_itr_next_filter(&(*buf).b_marktree, iter, row + 1, 0, &INLINE_FILTER);
+            marktree_itr_next_filter(
+                unsafe { &(*buf).b_marktree },
+                iter,
+                row + 1,
+                0,
+                &INLINE_FILTER,
+            );
         }
         width
     }
@@ -283,13 +291,13 @@ pub fn charsize_regular(
     mb_width: i32,
 ) -> CharSize {
     let cur = cur.into_c_char_ptr();
-    unsafe {
+    {
         csarg.cur_text_width_left = 0;
         csarg.cur_text_width_right = 0;
 
-        let wp = &mut *csarg.win;
+        let wp = unsafe { &mut *csarg.win };
         let buf = wp.w_buffer;
-        let buf = { &mut *buf };
+        let buf = { unsafe { &mut *buf } };
         let line = csarg.line;
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;

@@ -98,7 +98,7 @@ fn filter_map_dict(
     rettv: &mut TypVal,
 ) {
     let arg_errmsg = arg_errmsg.into_c_char_ptr();
-    unsafe {
+    {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VarDict;
             rettv.vval = crate::eval::typval::TypvalVval::Dict(std::ptr::null_mut());
@@ -125,7 +125,7 @@ fn filter_map_dict(
         let mut todo = d.as_deref_mut().unwrap().dv_hashtab.ht_used;
         let mut hi = d.as_deref_mut().unwrap().dv_hashtab.array_ptr();
         while todo > 0 {
-            if !hashitem_empty(&*hi) {
+            if !hashitem_empty(unsafe { &*hi }) {
                 todo -= 1;
                 let di = crate::eval::typval::tv_dict_hi2di(hi);
                 if filtermap == FilterMap::Map
@@ -154,7 +154,8 @@ fn filter_map_dict(
                     di.di_tv = newtv;
                 } else if filtermap == FilterMap::MapNew {
                     let key_len = crate::memory::cstr_len(key_ptr);
-                    let add_res = tv_dict_add_tv(&mut *d_ret, key_ptr, key_len, &mut newtv);
+                    let add_res =
+                        tv_dict_add_tv(unsafe { &mut *d_ret }, key_ptr, key_len, &mut newtv);
                     tv_clear(&mut newtv);
                     if !add_res {
                         break;
@@ -494,22 +495,28 @@ pub fn f_foreach(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// `"add(list, item)"` function (`f_add`).
 pub fn f_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         let arg0 = &argvars[0];
         if arg0.v_type == VarType::VarList {
             let l = arg0.vval.v_list();
-            if !value_check_lock(tv_list_locked(l.as_ref()), c"add() argument", TV_TRANSLATE) {
-                tv_list_append_tv(&mut *l, &mut argvars[1]);
+            if !value_check_lock(
+                tv_list_locked(unsafe { l.as_ref() }),
+                c"add() argument",
+                TV_TRANSLATE,
+            ) {
+                tv_list_append_tv(unsafe { &mut *l }, &mut argvars[1]);
                 tv_copy(&argvars[0], rettv);
             }
         } else if arg0.v_type == VarType::VarBlob {
             let b = arg0.vval.v_blob();
-            if !b.is_null() && !value_check_lock((*b).bv_lock, c"add() argument", TV_TRANSLATE) {
+            if !b.is_null()
+                && !value_check_lock(unsafe { (*b).bv_lock }, c"add() argument", TV_TRANSLATE)
+            {
                 let mut error = false;
                 let n = tv_get_number_chk(&argvars[1], Some(&mut error));
                 if !error {
-                    let bv = &mut (*b).bv_ga;
+                    let bv = unsafe { &mut (*b).bv_ga };
                     bv.push(n as u8);
                     tv_copy(&argvars[0], rettv);
                 }
@@ -527,8 +534,8 @@ fn count_string(
 ) -> i64 {
     let haystack = haystack.into_c_char_ptr();
     let needle = needle.into_c_char_ptr();
-    unsafe {
-        if haystack.is_null() || needle.is_null() || *needle == 0 {
+    {
+        if haystack.is_null() || needle.is_null() || unsafe { *needle } == 0 {
             return 0;
         }
         let needle_bytes = crate::memory::cstr_as_bytes(needle);
@@ -537,7 +544,7 @@ fn count_string(
         let mut p = haystack;
 
         if ic {
-            while *p != 0 {
+            while unsafe { *p } != 0 {
                 if mb_strnicmp(p, needle, needlelen) == 0 {
                     n += 1;
                     p = p.wrapping_add(needlelen);
@@ -565,7 +572,7 @@ fn count_string(
 }
 
 fn count_list(l: Option<&mut TvList>, needle: &TypVal, idx: i64, ic: bool) -> i64 {
-    unsafe {
+    {
         if tv_list_len(l.as_deref()) == 0 {
             return 0;
         }
@@ -576,10 +583,10 @@ fn count_list(l: Option<&mut TvList>, needle: &TypVal, idx: i64, ic: bool) -> i6
         }
         let mut n: i64 = 0;
         while !li.is_null() {
-            if tv_equal(&(*li).li_tv, needle, ic) {
+            if tv_equal(unsafe { &(*li).li_tv }, needle, ic) {
                 n += 1;
             }
-            li = (*li).li_next;
+            li = unsafe { (*li).li_next };
         }
         n
     }
@@ -657,7 +664,7 @@ fn extend_dict(
     rettv: &mut TypVal,
 ) {
     let arg_errmsg = arg_errmsg.into_c_char_ptr();
-    unsafe {
+    {
         let mut d1 = argvars[0].vval.v_dict();
         if d1.is_null() {
             let locked = value_check_lock(VAR_FIXED, arg_errmsg, TV_TRANSLATE);
@@ -665,12 +672,12 @@ fn extend_dict(
             return;
         }
 
-        if !is_new && value_check_lock((*d1).dv_lock, arg_errmsg, TV_TRANSLATE) {
+        if !is_new && value_check_lock(unsafe { (*d1).dv_lock }, arg_errmsg, TV_TRANSLATE) {
             return;
         }
 
         if is_new {
-            d1 = tv_dict_copy(None, d1.as_mut(), false, get_copy_id());
+            d1 = tv_dict_copy(None, unsafe { d1.as_mut() }, false, get_copy_id());
             if d1.is_null() {
                 return;
             }
@@ -697,7 +704,7 @@ fn extend_dict(
                     return;
                 }
             }
-            tv_dict_extend(&mut *d1, &mut *d2, action);
+            tv_dict_extend(unsafe { &mut *d1 }, unsafe { &mut *d2 }, action);
         }
 
         if is_new {

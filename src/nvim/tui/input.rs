@@ -225,7 +225,7 @@ const fn kitty_key_name(key: i32) -> Option<&'static str> {
 }
 
 pub fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) {
-    unsafe {
+    {
         assert!(input.loop_.is_null());
         input.loop_ = loop_;
 
@@ -244,28 +244,32 @@ pub fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) 
         );
         termkey_set_buffer_size(input.tk_mut(), INPUT_BUFFER_SIZE);
         let tk_ptr: *mut TermKey = input.tk_mut();
-        termkey_start(&mut *tk_ptr, Some(ti), Some(&mut *input));
+        termkey_start(unsafe { &mut *tk_ptr }, Some(ti), Some(&mut *input));
 
         let curflags = termkey_get_canonflags(input.tk_mut());
         termkey_set_canonflags(input.tk_mut(), curflags | TERMKEY_CANON_DELBS);
 
         {
             let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
-            uv_timer_init(loop_.cast(), th);
-            *th.cast::<*mut TermInput>() = input;
+            unsafe { uv_timer_init(loop_.cast(), th) };
+            unsafe {
+                *th.cast::<*mut TermInput>() = input;
+            }
 
             let bg_th: *mut uv_timer_t = (&raw mut input.bg_query_timer).cast();
-            uv_timer_init(loop_.cast(), bg_th);
-            *bg_th.cast::<*mut TermInput>() = input;
+            unsafe { uv_timer_init(loop_.cast(), bg_th) };
+            unsafe {
+                *bg_th.cast::<*mut TermInput>() = input;
+            }
         }
     }
 }
 
 pub fn tinput_destroy(input: &mut TermInput) {
-    unsafe {
+    {
         {
-            uv_close((&raw mut input.timer_handle).cast(), None);
-            uv_close((&raw mut input.bg_query_timer).cast(), None);
+            unsafe { uv_close((&raw mut input.timer_handle).cast(), None) };
+            unsafe { uv_close((&raw mut input.bg_query_timer).cast(), None) };
         }
         rstream_may_close(&mut input.read_stream);
         input.tk = None;
@@ -409,13 +413,15 @@ fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
 }
 
 fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
-    unsafe {
+    {
         let mut buf = [0 as c_char; 64];
         let mut len: usize;
 
         if key.r#type == TERMKEY_TYPE_KEYSYM && key.code.sym == TERMKEY_SYM_SUSPEND {
             let s = b"<C-Z>\0";
-            ptr::copy_nonoverlapping(s.as_ptr().cast::<c_char>(), buf.as_mut_ptr(), s.len());
+            unsafe {
+                ptr::copy_nonoverlapping(s.as_ptr().cast::<c_char>(), buf.as_mut_ptr(), s.len())
+            };
             len = 5;
         } else if key.r#type != TERMKEY_TYPE_UNICODE {
             len = termkey_strfkey(
@@ -444,11 +450,13 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
                 && (b'A' as i32..=b'Z' as i32).contains(&cp)
             {
                 assert!(len + 2 < buf.len());
-                ptr::copy(
-                    buf.as_ptr().wrapping_add(1),
-                    buf.as_mut_ptr().wrapping_add(3),
-                    len - 1,
-                );
+                unsafe {
+                    ptr::copy(
+                        buf.as_ptr().wrapping_add(1),
+                        buf.as_mut_ptr().wrapping_add(3),
+                        len - 1,
+                    )
+                };
                 buf[1] = b'S' as c_char;
                 buf[2] = b'-' as c_char;
                 len += 2;
@@ -460,16 +468,20 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
         let more_len = more_str.len();
         if more_len > 0 {
             assert!(len + more_len < buf.len());
-            ptr::copy(
-                buf.as_ptr().wrapping_add(1),
-                buf.as_mut_ptr().wrapping_add(1 + more_len),
-                len - 1,
-            );
-            ptr::copy_nonoverlapping(
-                more_str.as_ptr().cast::<c_char>(),
-                buf.as_mut_ptr().wrapping_add(1),
-                more_len,
-            );
+            unsafe {
+                ptr::copy(
+                    buf.as_ptr().wrapping_add(1),
+                    buf.as_mut_ptr().wrapping_add(1 + more_len),
+                    len - 1,
+                )
+            };
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    more_str.as_ptr().cast::<c_char>(),
+                    buf.as_mut_ptr().wrapping_add(1),
+                    more_len,
+                )
+            };
             len += more_len;
         }
 
@@ -553,7 +565,7 @@ fn tk_getkey(tk: &mut TermKey, key: &mut TermKeyKey, force: bool) -> TermKeyResu
 }
 
 fn tk_getkeys(input: &mut TermInput, force: bool) {
-    unsafe {
+    {
         let mut key = TermKeyKey::new();
         let mut result: TermKeyResult;
 
@@ -595,8 +607,8 @@ fn tk_getkeys(input: &mut TermInput, force: bool) {
         if input.ttimeout && input.ttimeoutlen >= 0 {
             {
                 let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
-                uv_timer_stop(th);
-                uv_timer_start(th, Some(tinput_timer_cb), input.ttimeoutlen as u64, 0);
+                unsafe { uv_timer_stop(th) };
+                unsafe { uv_timer_start(th, Some(tinput_timer_cb), input.ttimeoutlen as u64, 0) };
             }
         } else {
             tk_getkeys(input, true);
@@ -778,7 +790,7 @@ fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
 }
 
 fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
-    unsafe {
+    {
         let mut params = [TermKeyCsiParam::new(); 16];
         let mut nparams: usize = 16;
         let mut cmd: u32 = 0;
@@ -838,7 +850,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                     if args[0] == 48 {
                         let height_chars = args[1];
                         let width_chars = args[2];
-                        tui_set_size(&mut *input.tui_data, width_chars, height_chars);
+                        tui_set_size(unsafe { &mut *input.tui_data }, width_chars, height_chars);
                     }
                 }
             }
@@ -865,10 +877,10 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                     if args[0] == 997 {
                         {
                             let bg_th: *mut uv_timer_t = (&raw mut input.bg_query_timer).cast();
-                            if uv_timer_get_due_in(bg_th) > 0 {
+                            if unsafe { uv_timer_get_due_in(bg_th) } > 0 {
                                 return;
                             }
-                            uv_timer_start(bg_th, Some(bg_query_timer_cb), 100, 0);
+                            unsafe { uv_timer_start(bg_th, Some(bg_query_timer_cb), 100, 0) };
                         }
                     }
                 }
@@ -979,7 +991,7 @@ pub(crate) fn tinput_read_cb(
     eof: bool,
 ) -> usize {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         let consumed = handle_raw_buffer(input, false, buf, count_);
         tinput_flush(input);
 
@@ -996,8 +1008,8 @@ pub(crate) fn tinput_read_cb(
             };
             {
                 let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
-                uv_timer_stop(th);
-                uv_timer_start(th, Some(tinput_timer_cb), u64::from(ms as u32), 0);
+                unsafe { uv_timer_stop(th) };
+                unsafe { uv_timer_start(th, Some(tinput_timer_cb), u64::from(ms as u32), 0) };
             }
         }
 

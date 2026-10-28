@@ -1484,7 +1484,7 @@ pub(super) fn get_char_class(pp: *mut *mut c_char) -> i32 {
 }
 
 pub(super) fn init_class_tab() {
-    unsafe {
+    {
         if re_st().init_class_tab_done {
             return;
         }
@@ -1507,10 +1507,16 @@ pub(super) fn init_class_tab() {
             } else {
                 0
             };
-            *tab.wrapping_add(i) = val;
+            unsafe {
+                *tab.wrapping_add(i) = val;
+            }
         }
-        *tab.wrapping_add(b' ' as usize) |= RI_WHITE;
-        *tab.wrapping_add(b'\t' as usize) |= RI_WHITE;
+        unsafe {
+            *tab.wrapping_add(b' ' as usize) |= RI_WHITE;
+        }
+        unsafe {
+            *tab.wrapping_add(b'\t' as usize) |= RI_WHITE;
+        }
         re_st().init_class_tab_done = true;
     }
 }
@@ -1669,7 +1675,7 @@ pub fn skip_regexp_ex(
     mut dropped: Option<&mut i32>,
     mut magic_val: Option<&mut RegMagic>,
 ) -> *mut c_char {
-    unsafe {
+    {
         let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
         let mut p = startp;
         let mut startplen: usize = 0;
@@ -1699,19 +1705,23 @@ pub fn skip_regexp_ex(
                     if let Some(buf) = copy_buf.as_deref_mut()
                         && buf.is_empty()
                     {
-                        let off = p.offset_from(startp) as usize;
-                        buf.extend_from_slice(std::slice::from_raw_parts(startp, startplen + 1));
+                        let off = unsafe { p.offset_from(startp) } as usize;
+                        buf.extend_from_slice(unsafe {
+                            std::slice::from_raw_parts(startp, startplen + 1)
+                        });
                         startp = buf.as_mut_ptr();
                         p = startp.wrapping_add(off);
                     }
                     if let Some(ref mut p) = dropped {
                         **p += 1;
                     }
-                    ptr::copy(
-                        p.wrapping_add(1),
-                        p,
-                        startplen - (p.wrapping_add(1).offset_from(startp) as usize) + 1,
-                    );
+                    unsafe {
+                        ptr::copy(
+                            p.wrapping_add(1),
+                            p,
+                            startplen - (p.wrapping_add(1).offset_from(startp) as usize) + 1,
+                        )
+                    };
                 } else {
                     p = p.wrapping_add(1);
                 }
@@ -1879,14 +1889,17 @@ pub(super) fn peekchr() -> i32 {
 }
 
 pub(super) fn skipchr() {
-    unsafe {
+    {
         if crate::memory::cstr_first_byte(re_st().regparse) == b'\\' {
             re_st().prevchr_len = 1;
         } else {
             re_st().prevchr_len = 0;
         }
-        if *re_st().regparse.wrapping_add(re_st().prevchr_len as usize) != NUL as c_char {
-            if (*re_st().regparse.wrapping_add(re_st().prevchr_len as usize) as u8) < 0x80 {
+        if unsafe { *re_st().regparse.wrapping_add(re_st().prevchr_len as usize) } != NUL as c_char
+        {
+            if (unsafe { *re_st().regparse.wrapping_add(re_st().prevchr_len as usize) } as u8)
+                < 0x80
+            {
                 re_st().prevchr_len += 1;
             } else {
                 re_st().prevchr_len +=
@@ -2046,7 +2059,7 @@ fn reg_getline_common(
     line: *mut *mut c_char,
     length: Option<&mut Colnr>,
 ) {
-    unsafe {
+    {
         let get_line = (flags & RGLF_LINE) != 0;
         let get_length = (flags & RGLF_LENGTH) != 0;
         let (firstlnum, maxline) = if (flags & RGLF_SUBMATCH) != 0 {
@@ -2057,7 +2070,9 @@ fn reg_getline_common(
 
         if firstlnum < 1 {
             if get_line {
-                *line = ptr::null_mut();
+                unsafe {
+                    *line = ptr::null_mut();
+                }
             }
             if get_length && let Some(length) = length {
                 *length = 0;
@@ -2067,7 +2082,9 @@ fn reg_getline_common(
 
         if lnum > maxline {
             if get_line {
-                *line = c"".as_ptr().cast_mut();
+                unsafe {
+                    *line = c"".as_ptr().cast_mut();
+                }
             }
             if get_length && let Some(length) = length {
                 *length = 0;
@@ -2076,10 +2093,12 @@ fn reg_getline_common(
         }
 
         if get_line {
-            *line = ml_get_buf(&mut *re_st().rex.reg_buf, firstlnum);
+            unsafe {
+                *line = ml_get_buf(&mut *re_st().rex.reg_buf, firstlnum);
+            }
         }
         if get_length && let Some(length) = length {
-            *length = ml_get_buf_len(&mut *re_st().rex.reg_buf, firstlnum);
+            *length = ml_get_buf_len(unsafe { &mut *re_st().rex.reg_buf }, firstlnum);
         }
     }
 }
@@ -2108,13 +2127,13 @@ pub(super) fn reg_prev_class() -> i32 {
 }
 
 pub(super) fn reg_match_visual() -> bool {
-    unsafe {
+    {
         let wp = if re_st().rex.reg_win.is_null() {
             curwin_ptr()
         } else {
             re_st().rex.reg_win
         };
-        let wp = { &mut *wp };
+        let wp = { unsafe { &mut *wp } };
         let wp = { &mut *wp };
         if re_st().rex.reg_buf != g_st().curbuf
             || g_st().visual_global.start.lnum == 0
@@ -2152,7 +2171,7 @@ pub(super) fn reg_match_visual() -> bool {
             return false;
         }
 
-        let col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
+        let col = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as Colnr;
         if mode == b'v' as i32 {
             if (lnum == top.lnum && col < top.col)
                 || (lnum == bot.lnum
@@ -2373,7 +2392,7 @@ pub(super) fn cstrncmp(
 ) -> i32 {
     let s1 = s1.into_c_char_ptr();
     let s2 = s2.into_c_char_ptr();
-    unsafe {
+    {
         let mut result = if !re_st().rex.reg_ic {
             crate::memory::cstr_prefix_bytes(s1, *n as usize)
                 .cmp(crate::memory::cstr_prefix_bytes(s2, *n as usize)) as i32
@@ -2391,7 +2410,7 @@ pub(super) fn cstrncmp(
                 n2 -= 1;
                 mb_ptr_adv(&raw mut p);
             }
-            n2 = p.offset_from(s2) as i32;
+            n2 = unsafe { p.offset_from(s2) } as i32;
             let r = utf_strnicmp(s1, s2, *n as usize, n2 as usize);
             if r == 0 {
                 *n = n2;
@@ -2409,7 +2428,7 @@ pub(super) fn cstrncmp(
             let mut junk: i32 = 0;
             let mut junk2: i32 = 0;
 
-            while (str1.offset_from(s1) as i32) < *n {
+            while (unsafe { str1.offset_from(s1) } as i32) < *n {
                 c1 = mb_ptr2char_adv(&raw mut str1);
                 c2 = mb_ptr2char_adv(&raw mut str2);
 
@@ -2425,7 +2444,7 @@ pub(super) fn cstrncmp(
             }
             result = c2 - c1;
             if result == 0 {
-                *n = str2.offset_from(s2) as i32;
+                *n = unsafe { str2.offset_from(s2) } as i32;
             }
         }
 
@@ -2477,7 +2496,7 @@ pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: i32) -> *mut c_ch
 /// Replace tildes in the pattern by the old pattern.
 /// Returns `Some(CString)` if a new string was allocated, or `None` if `source` was modified in place.
 pub fn regtilde(source: *mut c_char, magic: i32, preview: bool) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         let mut newsub_vec: Option<Vec<c_char>> = None;
         let mut newsub = source;
         let mut newsublen: usize = 0;
@@ -2497,7 +2516,7 @@ pub fn regtilde(source: *mut c_char, magic: i32, preview: bool) -> Option<std::f
             if crate::memory::cstr_prefix_bytes(p, tildelen)
                 == crate::memory::cstr_prefix_bytes(tilde.as_ptr(), tildelen)
             {
-                let prefixlen = p.offset_from(newsub) as usize;
+                let prefixlen = unsafe { p.offset_from(newsub) } as usize;
                 let postfix = p.wrapping_add(tildelen);
                 if newsublen == 0 {
                     newsublen = crate::memory::cstr_len(newsub);
@@ -2519,12 +2538,14 @@ pub fn regtilde(source: *mut c_char, magic: i32, preview: bool) -> Option<std::f
 
                     let mut tmpsub_vec: Vec<c_char> = vec![0; tmpsublen + 1];
                     let tmpsub = tmpsub_vec.as_mut_ptr();
-                    ptr::copy_nonoverlapping(newsub, tmpsub, prefixlen);
-                    ptr::copy_nonoverlapping(
-                        prev_sub.as_ptr(),
-                        tmpsub.wrapping_add(prefixlen),
-                        reg_prev_sublen,
-                    );
+                    unsafe { ptr::copy_nonoverlapping(newsub, tmpsub, prefixlen) };
+                    unsafe {
+                        ptr::copy_nonoverlapping(
+                            prev_sub.as_ptr(),
+                            tmpsub.wrapping_add(prefixlen),
+                            reg_prev_sublen,
+                        )
+                    };
                     crate::memory::cstr_cpy(
                         tmpsub.wrapping_add(prefixlen + reg_prev_sublen),
                         postfix,
@@ -2535,7 +2556,7 @@ pub fn regtilde(source: *mut c_char, magic: i32, preview: bool) -> Option<std::f
                     newsublen = tmpsublen;
                     p = newsub.wrapping_add(prefixlen + reg_prev_sublen);
                 } else {
-                    ptr::copy(postfix, p, postfixlen + 1);
+                    unsafe { ptr::copy(postfix, p, postfixlen + 1) };
                 }
                 continue;
             } else {
@@ -2553,7 +2574,7 @@ pub fn regtilde(source: *mut c_char, magic: i32, preview: bool) -> Option<std::f
         }
 
         if !preview {
-            newsublen = p.offset_from(newsub) as usize;
+            newsublen = unsafe { p.offset_from(newsub) } as usize;
             re_st().reg_prev_sub = if newsublen == 0 {
                 None
             } else {

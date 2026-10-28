@@ -504,12 +504,12 @@ fn prof_sort_list(
     title: &std::ffi::CStr,
     prefer_self: bool,
 ) {
-    unsafe {
+    {
         fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n", title.as_ptr());
         fprintf!(fd, c"count  total (s)   self (s)  function\n");
         let limit = st_len.min(20);
         for i in 0..limit {
-            let fp = &**sorttab.wrapping_add(i as usize);
+            let fp = unsafe { &**sorttab.wrapping_add(i as usize) };
             prof_func_line(
                 fd,
                 fp.uf_tm_count,
@@ -972,9 +972,9 @@ pub fn time_init(
 ) {
     let fname = fname.into_c_char_ptr();
     let proc_name = proc_name.into_c_char_ptr();
-    unsafe {
+    {
         const BUFSIZE: usize = 8192;
-        g_st().time_fd = crate::os::fs::CFile::from_raw(fopen(fname, c"a".as_ptr()));
+        g_st().time_fd = crate::os::fs::CFile::from_raw(unsafe { fopen(fname, c"a".as_ptr()) });
         let Some(ref tf) = g_st().time_fd else {
             let fname_str = crate::memory::cstr_lossy(fname);
             eprint!("E484: Can't open file {fname_str}");
@@ -982,16 +982,18 @@ pub fn time_init(
         };
         let fp = tf.as_ptr();
         prof_st().startuptime_buf = vec![0; BUFSIZE + 1];
-        let r = setvbuf(
-            fp,
-            prof_st().startuptime_buf.as_mut_ptr(),
-            IOFBF,
-            BUFSIZE + 1,
-        );
+        let r = unsafe {
+            setvbuf(
+                fp,
+                prof_st().startuptime_buf.as_mut_ptr(),
+                IOFBF,
+                BUFSIZE + 1,
+            )
+        };
         if r != 0 {
             prof_st().startuptime_buf = Vec::new();
             g_st().time_fd = None;
-            let err_str = crate::memory::cstr_lossy(uv_err_name(r));
+            let err_str = crate::memory::cstr_lossy(unsafe { uv_err_name(r) });
             eprint!("time_init: setvbuf failed: {r} {err_str}");
             return;
         }

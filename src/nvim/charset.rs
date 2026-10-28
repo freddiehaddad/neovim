@@ -360,7 +360,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
 }
 
 pub fn trans_characters(mut buf: *mut c_char, bufsize: i32) {
-    unsafe {
+    {
         let mut len = crate::memory::cstr_len(buf) as i32;
         let mut room = bufsize - len;
 
@@ -377,13 +377,15 @@ pub fn trans_characters(mut buf: *mut c_char, bufsize: i32) {
                     if room <= 0 {
                         return;
                     }
-                    ptr::copy(
-                        buf.wrapping_add(1),
-                        buf.wrapping_add(trs_len as usize),
-                        len as usize,
-                    );
+                    unsafe {
+                        ptr::copy(
+                            buf.wrapping_add(1),
+                            buf.wrapping_add(trs_len as usize),
+                            len as usize,
+                        )
+                    };
                 }
-                ptr::copy(trs, buf, trs_len as usize);
+                unsafe { ptr::copy(trs, buf, trs_len as usize) };
                 len -= 1;
             }
             buf = buf.wrapping_add(trs_len as usize);
@@ -530,20 +532,22 @@ pub fn str_foldcase(
     buflen: i32,
 ) -> Option<CString> {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut vec: Vec<c_char> = Vec::new();
         let mut len = orglen;
 
         if buf.is_null() {
             vec.reserve_exact((len as usize) + 1);
-            vec.extend_from_slice(std::slice::from_raw_parts(str_, len as usize));
+            vec.extend_from_slice(unsafe { std::slice::from_raw_parts(str_, len as usize) });
             vec.push(NUL);
         } else {
             if len >= buflen {
                 len = buflen - 1;
             }
-            ptr::copy(str_, buf, len as usize);
-            *buf.wrapping_add(len as usize) = NUL;
+            unsafe { ptr::copy(str_, buf, len as usize) };
+            unsafe {
+                *buf.wrapping_add(len as usize) = NUL;
+            }
         }
 
         let str_ptr = |vec_ref: &mut Vec<c_char>, idx: usize| -> *mut c_char {
@@ -578,7 +582,7 @@ pub fn str_foldcase(
                         let src = base.wrapping_add(olen as usize);
                         let dst = base.wrapping_add(nlen as usize);
                         let tail_len = crate::memory::cstr_len(src) + 1;
-                        ptr::copy(src, dst, tail_len);
+                        unsafe { ptr::copy(src, dst, tail_len) };
                         if buf.is_null() {
                             if nlen < olen {
                                 vec.truncate(vec.len() - (olen - nlen) as usize);
@@ -596,10 +600,9 @@ pub fn str_foldcase(
 
         if buf.is_null() {
             let out_len = crate::memory::cstr_len(vec.as_ptr());
-            Some(cstr_from_bytes(std::slice::from_raw_parts(
-                vec.as_ptr().cast::<u8>(),
-                out_len,
-            )))
+            Some(cstr_from_bytes(unsafe {
+                std::slice::from_raw_parts(vec.as_ptr().cast::<u8>(), out_len)
+            }))
         } else {
             None
         }
@@ -611,19 +614,27 @@ pub fn transchar(c: i32) -> *mut c_char {
 }
 
 pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> *mut c_char {
-    unsafe {
+    {
         let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
         let mut i: usize = 0;
         if is_special(c) {
-            *charbuf_ptr = b'~';
-            *charbuf_ptr.wrapping_add(1) = b'@';
+            unsafe {
+                *charbuf_ptr = b'~';
+            }
+            unsafe {
+                *charbuf_ptr.wrapping_add(1) = b'@';
+            }
             i = 2;
             c = i32::from(k_second(c));
         }
 
         if c <= 0xFF && vim_isprintc(c) {
-            *charbuf_ptr.wrapping_add(i) = c as u8;
-            *charbuf_ptr.wrapping_add(i + 1) = 0;
+            unsafe {
+                *charbuf_ptr.wrapping_add(i) = c as u8;
+            }
+            unsafe {
+                *charbuf_ptr.wrapping_add(i + 1) = 0;
+            }
         } else if c <= 0xFF {
             transchar_nonprint(buf, charbuf_ptr.wrapping_add(i).cast::<c_char>(), c);
         } else {
@@ -647,7 +658,7 @@ pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> *mut c_char {
 }
 
 pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: i32) {
-    unsafe {
+    {
         if c == i32::from(NL) {
             c = 0;
         } else if buf.is_some() && c == CAR && get_fileformat(buf.unwrap()) == EOL_MAC {
@@ -658,9 +669,15 @@ pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: i3
         if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 || c > 0x7f {
             transchar_hex(charbuf, c);
         } else {
-            *charbuf = b'^' as c_char;
-            *charbuf.wrapping_add(1) = ((c as u8) ^ 0x40) as c_char;
-            *charbuf.wrapping_add(2) = NUL;
+            unsafe {
+                *charbuf = b'^' as c_char;
+            }
+            unsafe {
+                *charbuf.wrapping_add(1) = ((c as u8) ^ 0x40) as c_char;
+            }
+            unsafe {
+                *charbuf.wrapping_add(2) = NUL;
+            }
         }
     }
 }

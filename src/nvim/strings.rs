@@ -374,7 +374,7 @@ pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
     cc: c_char,
     bsl: bool,
 ) -> std::ffi::CString {
-    unsafe {
+    {
         let string = string.into_c_char_ptr();
         let esc_chars = esc_chars.into_c_char_ptr();
         let mut length: usize = 0;
@@ -386,7 +386,9 @@ pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
                 p = p.wrapping_add(l);
                 continue;
             }
-            if !vim_strchr(esc_chars, (*p as u8) as i32).is_null() || (bsl && rem_backslash(p)) {
+            if !vim_strchr(esc_chars, (unsafe { *p } as u8) as i32).is_null()
+                || (bsl && rem_backslash(p))
+            {
                 length += 1;
             }
             length += 1;
@@ -398,14 +400,16 @@ pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
         while !crate::memory::cstr_is_empty(p) {
             let l = utfc_ptr2len(p) as usize;
             if l > 1 {
-                escaped.extend_from_slice(std::slice::from_raw_parts(p.cast::<u8>(), l));
+                escaped.extend_from_slice(unsafe { std::slice::from_raw_parts(p.cast::<u8>(), l) });
                 p = p.wrapping_add(l);
                 continue;
             }
-            if !vim_strchr(esc_chars, (*p as u8) as i32).is_null() || (bsl && rem_backslash(p)) {
+            if !vim_strchr(esc_chars, (unsafe { *p } as u8) as i32).is_null()
+                || (bsl && rem_backslash(p))
+            {
                 escaped.push(cc as u8);
             }
-            escaped.push(*p as u8);
+            escaped.push(unsafe { *p } as u8);
             p = p.wrapping_add(1);
         }
 
@@ -559,26 +563,28 @@ pub fn vim_strsave_shellescape<S: IntoCCharPtr>(
 
 #[cfg(windows)]
 pub fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
-    unsafe {
+    {
         let mut i: usize = 0;
         let mut p = src;
         while !crate::memory::cstr_is_empty(p) {
             let ci = utf_ptr2_str_char_info(p).chr;
             let c = if ci.value < 0 {
-                (*p as u8) as i32
+                (unsafe { *p } as u8) as i32
             } else {
                 ci.value
             };
             i += utf_char2bytes(mb_toupper(c), dst.wrapping_add(i)) as usize;
             p = p.wrapping_add(ci.len as usize);
         }
-        *dst.wrapping_add(i) = NUL;
+        unsafe {
+            *dst.wrapping_add(i) = NUL;
+        }
         i
     }
 }
 
 pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString {
-    unsafe {
+    {
         let mut p = orig.into_c_char_ptr();
         let orig_len = crate::memory::cstr_len(p);
         let mut res = Vec::<c_char>::with_capacity(orig_len + 1);
@@ -586,7 +592,7 @@ pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString 
         while !crate::memory::cstr_is_empty(p) {
             let char_info = utf_ptr2_str_char_info(p).chr;
             let c = if char_info.value < 0 {
-                (*p as u8) as i32
+                (unsafe { *p } as u8) as i32
             } else {
                 char_info.value
             };
@@ -597,15 +603,14 @@ pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString 
             p = p.wrapping_add(char_info.len as usize);
         }
 
-        crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-            res.as_ptr().cast::<u8>(),
-            res.len(),
-        ))
+        crate::memory::cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts(res.as_ptr().cast::<u8>(), res.len())
+        })
     }
 }
 
 pub fn del_trailing_spaces(ptr: *mut c_char) {
-    unsafe {
+    {
         let len = crate::memory::cstr_len(ptr);
         let mut q = ptr.wrapping_add(len);
         while q > ptr {
@@ -613,11 +618,13 @@ pub fn del_trailing_spaces(ptr: *mut c_char) {
             if q <= ptr {
                 break;
             }
-            if ascii_iswhite(*q)
-                && *q.wrapping_sub(1) != b'\\' as c_char
-                && *q.wrapping_sub(1) != CTRL_V
+            if ascii_iswhite(unsafe { *q })
+                && unsafe { *q.wrapping_sub(1) } != b'\\' as c_char
+                && unsafe { *q.wrapping_sub(1) } != CTRL_V
             {
-                *q = NUL;
+                unsafe {
+                    *q = NUL;
+                }
             } else {
                 break;
             }
@@ -632,13 +639,13 @@ pub fn vim_haschr<S: IntoCCharPtr>(string: S, c: i32) -> bool {
 
 pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: i32) -> *mut c_char {
     let string = string.into_c_char_ptr();
-    unsafe {
+    {
         if string.is_null() || c <= 0 {
             ptr::null_mut()
         } else if c < 0x80 {
             let mut p = string;
             while !crate::memory::cstr_is_empty(p) {
-                if (*p as u8) as i32 == c {
+                if (unsafe { *p } as u8) as i32 == c {
                     return p.cast_mut();
                 }
                 p = p.wrapping_add(1);
@@ -647,7 +654,7 @@ pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: i32) -> *mut c_char {
         } else {
             let mut u8char = [0 as c_char; MB_MAXBYTES + 1];
             let len = utf_char2bytes(c, u8char.as_mut_ptr()) as usize;
-            let needle = std::slice::from_raw_parts(u8char.as_ptr().cast::<u8>(), len);
+            let needle = unsafe { std::slice::from_raw_parts(u8char.as_ptr().cast::<u8>(), len) };
             let hay = crate::memory::cstr_as_bytes(string);
             if let Some(pos) = hay.windows(len).position(|w| w == needle) {
                 string.wrapping_add(pos).cast_mut()
@@ -674,15 +681,15 @@ pub fn concat_str<S1: IntoCCharPtr, S2: IntoCCharPtr>(str1: S1, str2: S2) -> std
 }
 
 pub fn tv_nr(tvs: *mut TypVal, idxp: &mut i32) -> Varnumber {
-    unsafe {
+    {
         let idx = (*idxp - 1) as usize;
         let mut n: Varnumber = 0;
-        if (*tvs.wrapping_add(idx)).v_type == VarType::VarUnknown {
+        if unsafe { (*tvs.wrapping_add(idx)).v_type } == VarType::VarUnknown {
             emsg(gettext(E_PRINTF));
         } else {
             *idxp += 1;
             let mut err = false;
-            n = tv_get_number_chk(&*tvs.wrapping_add(idx), Some(&mut err));
+            n = tv_get_number_chk(unsafe { &*tvs.wrapping_add(idx) }, Some(&mut err));
             if err {
                 n = 0;
             }
@@ -730,15 +737,15 @@ pub fn tv_ptr(tvs: *const TypVal, idxp: &mut i32) -> *const c_void {
 }
 
 pub fn tv_float(tvs: *mut TypVal, idxp: &mut i32) -> TvFloat {
-    unsafe {
+    {
         let idx = (*idxp - 1) as usize;
         let mut f: TvFloat = 0.0;
-        if (*tvs.wrapping_add(idx)).v_type == VarType::VarUnknown {
+        if unsafe { (*tvs.wrapping_add(idx)).v_type } == VarType::VarUnknown {
             emsg(gettext(E_PRINTF));
         } else {
             *idxp += 1;
             let tv = tvs.wrapping_add(idx);
-            let tv = { &mut *tv };
+            let tv = { unsafe { &mut *tv } };
             if tv.v_type == VarType::VarFloat {
                 f = tv.vval.v_float();
             } else if tv.v_type == VarType::VarNumber {
@@ -773,18 +780,18 @@ pub fn infinity_str(
 
 pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> i32 {
     let mut type_ = type_.into_c_char_ptr();
-    unsafe {
+    {
         let mut length_modifier: u8 = 0;
-        let first = *type_ as u8;
+        let first = unsafe { *type_ } as u8;
         if matches!(first, b'h' | b'l' | b'z') {
             length_modifier = first;
             type_ = type_.wrapping_add(1);
-            if length_modifier == b'l' && (*type_ as u8) == b'l' {
+            if length_modifier == b'l' && (unsafe { *type_ } as u8) == b'l' {
                 length_modifier = b'L';
                 type_ = type_.wrapping_add(1);
             }
         }
-        let mut fmt_spec = *type_ as u8;
+        let mut fmt_spec = unsafe { *type_ } as u8;
         match fmt_spec {
             b'i' => fmt_spec = b'd',
             b'*' => {
@@ -2944,7 +2951,7 @@ pub fn f_toupper(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut buf = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
 
@@ -2968,8 +2975,8 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             let mut p = fromstr;
             while !crate::memory::cstr_is_empty(p) {
                 let fromlen = utfc_ptr2len(p) as usize;
-                let in_slice = std::slice::from_raw_parts(in_str.cast::<u8>(), inlen);
-                let p_slice = std::slice::from_raw_parts(p.cast::<u8>(), fromlen);
+                let in_slice = unsafe { std::slice::from_raw_parts(in_str.cast::<u8>(), inlen) };
+                let p_slice = unsafe { std::slice::from_raw_parts(p.cast::<u8>(), fromlen) };
                 if fromlen == inlen && in_slice == p_slice {
                     let mut tp = tostr;
                     while !crate::memory::cstr_is_empty(tp) {
@@ -3007,7 +3014,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 }
             }
 
-            out.extend_from_slice(std::slice::from_raw_parts(cpstr, cplen));
+            out.extend_from_slice(unsafe { std::slice::from_raw_parts(cpstr, cplen) });
 
             in_str = in_str.wrapping_add(inlen);
         }

@@ -337,7 +337,7 @@ fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
 }
 
 fn mc_sandbox_leave(sb: &mut McSandbox) {
-    unsafe {
+    {
         if !sb.primary.regs.is_empty() {
             ctx_load(&mut sb.primary, K_CTX_REGS, 0);
         }
@@ -350,15 +350,19 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
         let mut topline_valid = false;
         if !buf.is_null() {
             extmark_get_pos(
-                &mut *buf,
+                unsafe { &mut *buf },
                 mc_session_ns(),
                 sb.cursor_mark,
                 &mut sb.primary.pos,
             );
-            extmark_del_id(&mut *buf, mc_session_ns(), sb.cursor_mark);
-            topline_valid =
-                extmark_get_pos(&mut *buf, mc_session_ns(), sb.topline_mark, &mut topline);
-            extmark_del_id(&mut *buf, mc_session_ns(), sb.topline_mark);
+            extmark_del_id(unsafe { &mut *buf }, mc_session_ns(), sb.cursor_mark);
+            topline_valid = extmark_get_pos(
+                unsafe { &mut *buf },
+                mc_session_ns(),
+                sb.topline_mark,
+                &mut topline,
+            );
+            extmark_del_id(unsafe { &mut *buf }, mc_session_ns(), sb.topline_mark);
         }
         if buf == g_st().curbuf {
             restore_viewstate(curwin_mut(), &sb.view);
@@ -608,14 +612,15 @@ pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
 }
 
 fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
-    unsafe {
+    {
         let had_cursors = !cursors().is_empty();
         let mut n = 0;
         for i in 0..cursors().len() {
             let mut ctx = cursors()[i].clone();
             let buf = handle_get_buffer(ctx.buf);
             if buf.is_null()
-                || (ctx.mark != 0 && !extmark_get_pos(&mut *buf, mc_ns(), ctx.mark, &mut ctx.pos))
+                || (ctx.mark != 0
+                    && !extmark_get_pos(unsafe { &mut *buf }, mc_ns(), ctx.mark, &mut ctx.pos))
             {
                 ctx_free(&mut ctx);
                 continue;
@@ -626,9 +631,9 @@ fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
                     && buf == g_st().curbuf
                     && primary.is_some_and(|p| equalpos(ctx.pos, *p))
                     && ctx.mark != keep_mark)
-                    || mc_mark_at(&mut *buf, ctx.pos, 0) != ctx.mark);
+                    || mc_mark_at(unsafe { &mut *buf }, ctx.pos, 0) != ctx.mark);
             if dup {
-                extmark_del_id(&mut *buf, mc_ns(), ctx.mark);
+                extmark_del_id(unsafe { &mut *buf }, mc_ns(), ctx.mark);
                 ctx_free(&mut ctx);
             } else {
                 cursors_mut()[n] = ctx;
@@ -1041,7 +1046,7 @@ pub fn mc_ins_cascade() {
 }
 
 fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
-    unsafe {
+    {
         let empty = NvimString {
             data: ptr::null_mut(),
             size: 0,
@@ -1056,21 +1061,25 @@ fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
         let mut keys: Vec<c_char> = Vec::with_capacity(dlen + 2);
         keys.push(b'i' as c_char);
         if dlen > 0 {
-            keys.extend_from_slice(std::slice::from_raw_parts(
-                ins.data.wrapping_add(mc_st().mc_ins_span.done_len),
-                dlen,
-            ));
+            keys.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(
+                    ins.data.wrapping_add(mc_st().mc_ins_span.done_len),
+                    dlen,
+                )
+            });
         }
         if !commit {
             keys.push(ESC);
         }
         let text = if commit && dlen > 1 {
-            let text_slice = std::slice::from_raw_parts(
-                ins.data
-                    .wrapping_add(mc_st().mc_ins_span.done_len)
-                    .cast::<u8>(),
-                dlen - 1,
-            );
+            let text_slice = unsafe {
+                std::slice::from_raw_parts(
+                    ins.data
+                        .wrapping_add(mc_st().mc_ins_span.done_len)
+                        .cast::<u8>(),
+                    dlen - 1,
+                )
+            };
             Some(std::ffi::CString::new(text_slice).unwrap())
         } else {
             None
@@ -1096,7 +1105,7 @@ fn mc_reg_read(reg: i32) -> std::ffi::CString {
 }
 
 fn mc_reg_gather() {
-    unsafe {
+    {
         if cursors().is_empty() || g_st().exiting {
             return;
         }
@@ -1135,8 +1144,8 @@ fn mc_reg_gather() {
             return;
         }
         order.sort_by(|&a, &b| {
-            let ca = &*a;
-            let cb = &*b;
+            let ca = unsafe { &*a };
+            let cb = unsafe { &*b };
             ca.pos
                 .lnum
                 .cmp(&cb.pos.lnum)
@@ -1148,7 +1157,7 @@ fn mc_reg_gather() {
 
         let mut joined: [Vec<c_char>; MC_REGS.len()] = [const { Vec::new() }; MC_REGS.len()];
         for &ctx_ptr in &order {
-            ctx_load(&mut *ctx_ptr, K_CTX_REGS, 0);
+            ctx_load(unsafe { &mut *ctx_ptr }, K_CTX_REGS, 0);
             let mut idx = 0;
             while MC_REGS[idx] != 0 {
                 if gather[idx] {
@@ -1158,10 +1167,9 @@ fn mc_reg_gather() {
                         if !joined[idx].is_empty() {
                             joined[idx].push(NL as c_char);
                         }
-                        joined[idx].extend_from_slice(std::slice::from_raw_parts(
-                            text.as_ptr(),
-                            text_bytes.len(),
-                        ));
+                        joined[idx].extend_from_slice(unsafe {
+                            std::slice::from_raw_parts(text.as_ptr(), text_bytes.len())
+                        });
                     }
                 }
                 idx += 1;
@@ -1184,7 +1192,7 @@ fn mc_reg_gather() {
                     0,
                 );
                 if r == b'"' as i32 {
-                    set_clipboard(NUL, &*get_y_previous());
+                    set_clipboard(NUL, unsafe { &*get_y_previous() });
                 }
             }
             idx += 1;
@@ -1513,9 +1521,9 @@ fn mc_zq_first(
     step: &mut CursorPos,
 ) -> bool {
     let keys = keys.into_c_char_ptr();
-    unsafe {
-        let start = *bounds;
-        let end_bound = *bounds.wrapping_add(1);
+    {
+        let start = unsafe { *bounds };
+        let end_bound = unsafe { *bounds.wrapping_add(1) };
         let curswant = curwin_mut().w_curswant;
         let mut before = start;
         let bof = dec(&mut before) == -1;
@@ -1624,7 +1632,7 @@ pub fn mc_zq_start(cap: &mut Cmdarg) {
 }
 
 pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
-    unsafe {
+    {
         atom_did_global_op();
         if mc_replaying()
             || oap.motion_type == MT_UNKNOWN
@@ -1650,8 +1658,8 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
             },
         ];
         if oap.from_visual {
-            bounds[0] = (*mark_get_visual(curbuf_mut(), b'<' as i32)).mark;
-            bounds[1] = (*mark_get_visual(curbuf_mut(), b'>' as i32)).mark;
+            bounds[0] = unsafe { (*mark_get_visual(curbuf_mut(), b'<' as i32)).mark };
+            bounds[1] = unsafe { (*mark_get_visual(curbuf_mut(), b'>' as i32)).mark };
         }
 
         let lines = oap.motion_type == MT_LINE_WISE;

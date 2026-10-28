@@ -230,14 +230,14 @@ pub fn multiqueue_free(this: *mut MultiQueue) {
 
 fn multiqueue_remove(this: &mut MultiQueue) -> Event {
     assert!(!multiqueue_empty(this));
-    unsafe {
+    {
         let q = this;
         let entry = q.items.pop_front().unwrap();
         q.size = q.size.wrapping_sub(1);
         match entry {
             QueueEntry::Child(linked) => {
                 assert!(q.parent.is_null());
-                let linked_ref = &mut *linked;
+                let linked_ref = unsafe { &mut *linked };
                 assert!(!multiqueue_empty(linked_ref));
                 match linked_ref.items.pop_front().unwrap() {
                     QueueEntry::Event(ev) => ev,
@@ -247,7 +247,7 @@ fn multiqueue_remove(this: &mut MultiQueue) -> Event {
             QueueEntry::Event(ev) => {
                 let q_ptr: *mut MultiQueue = &raw mut *q;
                 if !q.parent.is_null() {
-                    let parent = &mut *q.parent;
+                    let parent = unsafe { &mut *q.parent };
                     if let Some(pos) = parent
                         .items
                         .iter()

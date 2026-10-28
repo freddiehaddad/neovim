@@ -454,13 +454,15 @@ fn load_terminfo(
     ti: Option<&TerminfoEntry>,
     mut input: Option<&mut crate::tui::input::TermInput>,
 ) {
-    unsafe {
+    {
         let mut root = TrieNode::new_arr(0, 0xff);
 
         for entry in FUNCS {
             let mut name_buf = [0 as c_char; 16];
             let s = format!("key_{}", entry.funcname);
-            std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len());
+            unsafe {
+                std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len())
+            };
             name_buf[s.len()] = 0;
 
             let info = TiKeyInfo {
@@ -483,11 +485,13 @@ fn load_terminfo(
             }
 
             let s_shift = format!("key_s{}", entry.funcname);
-            std::ptr::copy_nonoverlapping(
-                s_shift.as_ptr().cast(),
-                name_buf.as_mut_ptr(),
-                s_shift.len(),
-            );
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    s_shift.as_ptr().cast(),
+                    name_buf.as_mut_ptr(),
+                    s_shift.len(),
+                )
+            };
             name_buf[s_shift.len()] = 0;
 
             let shift_info = TiKeyInfo {
@@ -511,7 +515,9 @@ fn load_terminfo(
         for i in 1..=K_TERMINFO_FUNC_KEY_MAX {
             let mut name_buf = [0 as c_char; 16];
             let s = format!("key_f{i}");
-            std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len());
+            unsafe {
+                std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len())
+            };
             name_buf[s.len()] = 0;
 
             let fn_info = TiKeyInfo {

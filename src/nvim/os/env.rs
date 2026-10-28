@@ -247,16 +247,16 @@ pub fn env_name_len(p: impl crate::strings::IntoCCharPtr) -> usize {
 /// Like `getenv()`, but returns `None` if the variable is empty, without C heap allocations.
 pub fn os_getenv_cstr<S: crate::strings::IntoCCharPtr>(name: S) -> Option<std::ffi::CString> {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if !env_name_valid(name) {
             return None;
         }
         let mut size = INIT_SIZE;
         let mut buf = [0 as c_char; INIT_SIZE];
-        let mut r = uv_os_getenv(name, buf.as_mut_ptr(), &mut size);
+        let mut r = unsafe { uv_os_getenv(name, buf.as_mut_ptr(), &mut size) };
         let res = if r == UV_ENOBUFS {
             let mut vec_buf = vec![0 as c_char; size + 1];
-            r = uv_os_getenv(name, vec_buf.as_mut_ptr(), &mut size);
+            r = unsafe { uv_os_getenv(name, vec_buf.as_mut_ptr(), &mut size) };
             if r != 0 || size == 0 || vec_buf[0] == NUL {
                 None
             } else {
@@ -281,16 +281,16 @@ pub fn os_getenv_buf<S: crate::strings::IntoCCharPtr>(
     bufsize: usize,
 ) -> *mut c_char {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if !env_name_valid(name) {
             return ptr::null_mut();
         }
         {
             let mut size = bufsize;
-            let mut r = uv_os_getenv(name, buf, &mut size);
+            let mut r = unsafe { uv_os_getenv(name, buf, &mut size) };
             if r == UV_ENOBUFS {
                 let mut e = vec![0 as c_char; size];
-                r = uv_os_getenv(name, e.as_mut_ptr(), &mut size);
+                r = unsafe { uv_os_getenv(name, e.as_mut_ptr(), &mut size) };
                 if r == 0 && size != 0 && e[0] != NUL {
                     crate::memory::cstr_ncpy(buf, e.as_ptr(), bufsize.min(size) - 1);
                 }
@@ -330,7 +330,7 @@ pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCChar
 ) -> i32 {
     let name = name.into_c_char_ptr();
     let value = value.into_c_char_ptr();
-    unsafe {
+    {
         if !env_name_valid(name) {
             return -1;
         }
@@ -356,10 +356,10 @@ pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCChar
                 || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"LANG")
                 || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"LC_MESSAGES")
             {
-                let r = _putenv_s(name, value);
+                let r = unsafe { _putenv_s(name, value) };
                 assert_eq!(r, 0);
             }
-            let r = uv_os_setenv(name, value);
+            let r = unsafe { uv_os_setenv(name, value) };
             assert_ne!(r, UV_EINVAL);
             if r == 0 { 0 } else { -1 }
         }
@@ -383,8 +383,8 @@ pub fn os_unsetenv(name: impl crate::strings::IntoCCharPtr) -> i32 {
 /// Copy name of the environment variable at `index` in the current environment variables block.
 pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
     #[cfg(windows)]
-    unsafe {
-        let envstrings = GetEnvironmentStringsW();
+    {
+        let envstrings = unsafe { GetEnvironmentStringsW() };
         if envstrings.is_null() {
             return None;
         }
@@ -394,7 +394,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
         loop {
             let l = {
                 let mut n = 0usize;
-                while *p.wrapping_add(n) != 0 {
+                while unsafe { *p.wrapping_add(n) } != 0 {
                     n += 1;
                 }
                 n
@@ -403,7 +403,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
                 break;
             }
             if i == index {
-                let slice = std::slice::from_raw_parts(p, l);
+                let slice = unsafe { std::slice::from_raw_parts(p, l) };
                 let Ok(utf8_str) = String::from_utf16(slice) else {
                     semsg!(c"utf16_to_utf8 failed: %d", 1);
                     break;
@@ -420,7 +420,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
             p = p.wrapping_add(l + 1);
             i += 1;
         }
-        FreeEnvironmentStringsW(envstrings);
+        unsafe { FreeEnvironmentStringsW(envstrings) };
         name
     }
     #[cfg(not(windows))]
@@ -460,12 +460,14 @@ pub fn os_get_hostname(hostname: *mut c_char, size: usize) {
         }
     }
     #[cfg(windows)]
-    unsafe {
+    {
         let mut host_utf16 = [0u16; 16];
         let mut host_wsize = host_utf16.len() as u32;
-        if GetComputerNameW(host_utf16.as_mut_ptr(), &mut host_wsize) == 0 {
-            *hostname = NUL;
-            let err = GetLastError();
+        if unsafe { GetComputerNameW(host_utf16.as_mut_ptr(), &mut host_wsize) } == 0 {
+            unsafe {
+                *hostname = NUL;
+            }
+            let err = unsafe { GetLastError() };
             semsg!(c"GetComputerNameW failed: %d", err);
             return;
         }
@@ -951,7 +953,7 @@ pub fn vim_env_iter_rev(
 ) -> *const c_char {
     let val = val.into_c_char_ptr();
     let iter = iter.into_c_char_ptr();
-    unsafe {
+    {
         let varend = if iter.is_null() {
             val.wrapping_add(crate::memory::cstr_len(val))
                 .wrapping_sub(1)
@@ -965,7 +967,7 @@ pub fn vim_env_iter_rev(
             if _sz == 0 {
                 std::ptr::null_mut::<std::ffi::c_void>()
             } else {
-                std::slice::from_raw_parts(_s, _sz)
+                unsafe { std::slice::from_raw_parts(_s, _sz) }
                     .iter()
                     .rposition(|&_b| _b == delim as u8)
                     .map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| {
@@ -976,10 +978,14 @@ pub fn vim_env_iter_rev(
         .cast::<c_char>();
         if colon.is_null() {
             *len = varlen;
-            *dir = val;
+            unsafe {
+                *dir = val;
+            }
             return ptr::null();
         }
-        *dir = colon.wrapping_add(1);
+        unsafe {
+            *dir = colon.wrapping_add(1);
+        }
         *len = (varend as usize) - (colon as usize);
         colon.wrapping_sub(1)
     }

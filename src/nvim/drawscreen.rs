@@ -1202,7 +1202,7 @@ fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
 }
 
 fn hsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
-    unsafe {
+    {
         let before = corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft;
         let sep_row = if corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight {
             wp.w_winrow - 1
@@ -1212,7 +1212,7 @@ fn hsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
         let mut fr = wp.frame_mut();
 
         while !fr.fr_parent.is_null() {
-            if (*fr.fr_parent).fr_layout == FR_ROW
+            if unsafe { (*fr.fr_parent).fr_layout } == FR_ROW
                 && !(if before { fr.fr_prev } else { fr.fr_next }).is_null()
             {
                 fr = if before { fr.prev_mut() } else { fr.next_mut() };
@@ -1225,7 +1225,7 @@ fn hsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
         }
         while fr.fr_layout != FR_LEAF {
             fr = fr.child_mut();
-            if (*fr.fr_parent).fr_layout == FR_ROW && before {
+            if unsafe { (*fr.fr_parent).fr_layout } == FR_ROW && before {
                 while !fr.fr_next.is_null() {
                     fr = fr.next_mut();
                 }
@@ -1236,12 +1236,13 @@ fn hsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
             }
         }
 
-        sep_row == (*fr.fr_win).w_winrow - 1 || sep_row == w_endrow(&*fr.fr_win)
+        sep_row == unsafe { (*fr.fr_win).w_winrow } - 1
+            || sep_row == w_endrow(unsafe { &*fr.fr_win })
     }
 }
 
 fn vsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
-    unsafe {
+    {
         let before = corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight;
         let sep_col = if corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft {
             wp.w_wincol - 1
@@ -1251,7 +1252,7 @@ fn vsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
         let mut fr = wp.frame_mut();
 
         while !fr.fr_parent.is_null() {
-            if (*fr.fr_parent).fr_layout == FR_COL
+            if unsafe { (*fr.fr_parent).fr_layout } == FR_COL
                 && !(if before { fr.fr_prev } else { fr.fr_next }).is_null()
             {
                 fr = if before { fr.prev_mut() } else { fr.next_mut() };
@@ -1264,7 +1265,7 @@ fn vsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
         }
         while fr.fr_layout != FR_LEAF {
             fr = fr.child_mut();
-            if (*fr.fr_parent).fr_layout == FR_COL && before {
+            if unsafe { (*fr.fr_parent).fr_layout } == FR_COL && before {
                 while !fr.fr_next.is_null() {
                     fr = fr.next_mut();
                 }
@@ -1275,7 +1276,8 @@ fn vsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
             }
         }
 
-        sep_col == (*fr.fr_win).w_wincol - 1 || sep_col == w_endcol(&*fr.fr_win)
+        sep_col == unsafe { (*fr.fr_win).w_wincol } - 1
+            || sep_col == w_endcol(unsafe { &*fr.fr_win })
     }
 }
 
@@ -2435,7 +2437,7 @@ fn win_update(wp: &mut WinInfoInfo) {
 }
 
 pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
-    unsafe {
+    {
         if !redrawing() || line_count == 0 {
             return;
         }
@@ -2444,8 +2446,8 @@ pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
         let mut row_off: i32 = 0;
         let grid = grid_adjust(&mut wp.w_grid, &mut row_off, &mut col);
 
-        let checked_width = ((*grid).cols - col).min(wp.w_view_width);
-        let checked_height = ((*grid).rows - row_off).min(wp.w_view_height);
+        let checked_width = (unsafe { (*grid).cols } - col).min(wp.w_view_width);
+        let checked_height = (unsafe { (*grid).rows } - row_off).min(wp.w_view_height);
 
         if row + line_count.abs() >= checked_height {
             return;
@@ -2453,7 +2455,7 @@ pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
 
         if line_count < 0 {
             grid_del_lines(
-                &mut *grid,
+                unsafe { &mut *grid },
                 row + row_off,
                 -line_count,
                 checked_height + row_off,
@@ -2462,7 +2464,7 @@ pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
             );
         } else {
             grid_ins_lines(
-                &mut *grid,
+                unsafe { &mut *grid },
                 row + row_off,
                 line_count,
                 checked_height + row_off,

@@ -685,7 +685,7 @@ pub fn fill_foldcolumn(
     out_vcol: *mut Colnr,
     out_buffer: *mut Schar,
 ) {
-    unsafe {
+    {
         let closed = foldinfo.fi_level != 0 && foldinfo.fi_lines > 0;
         let level = foldinfo.fi_level;
 
@@ -722,14 +722,20 @@ pub fn fill_foldcolumn(
                 -3
             };
             if !out_buffer.is_null() {
-                *out_vcol.wrapping_add(i as usize) = vcol;
-                *out_buffer.wrapping_add(i as usize) = symbol;
+                unsafe {
+                    *out_vcol.wrapping_add(i as usize) = vcol;
+                }
+                unsafe {
+                    *out_buffer.wrapping_add(i as usize) = symbol;
+                }
             } else {
-                let off = *wlv_off as usize;
+                let off = unsafe { *wlv_off } as usize;
                 g_st().linebuf_vcol[off] = vcol;
                 g_st().linebuf_attr[off] = attr;
                 g_st().linebuf_char[off] = symbol;
-                *wlv_off += 1;
+                unsafe {
+                    *wlv_off += 1;
+                }
             }
         }
     }
@@ -1171,7 +1177,7 @@ fn set_line_attr_for_diff(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
 }
 
 fn has_more_inline_virt(wlv: &Winlinevars, v: isize) -> bool {
-    unsafe {
+    {
         if wlv.virt_inline_i < wlv.virt_inline.len() {
             return true;
         }
@@ -1189,8 +1195,8 @@ fn has_more_inline_virt(wlv: &Winlinevars, v: isize) -> bool {
                 let item = (&g_st().decor_state.slots)[slot_idx].range();
                 if item.start_row != g_st().decor_state.row
                     || !item.data.is_vt()
-                    || (*item.data.vt()).pos != K_VPOS_INLINE
-                    || (*item.data.vt()).width == 0
+                    || unsafe { (*item.data.vt()).pos } != K_VPOS_INLINE
+                    || unsafe { (*item.data.vt()).width } == 0
                 {
                     continue;
                 }
@@ -3678,9 +3684,9 @@ fn wlv_put_linebuf(
     bg_attr: i32,
     mut flags: i32,
 ) {
-    unsafe {
+    {
         let grid: *mut GridView = &raw mut wp.w_grid;
-        let grid = &mut *grid;
+        let grid = unsafe { &mut *grid };
 
         let mut startcol: i32 = 0;
         let mut clear_width = if clear_end { wp.w_view_width } else { endcol };
@@ -3698,7 +3704,7 @@ fn wlv_put_linebuf(
 
         if wlv.row == 0
             && wp.w_skipcol > 0
-            && *get_showbreak_value(&mut *wp) == NUL
+            && unsafe { *get_showbreak_value(&mut *wp) } == NUL
             && !(wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.prec != 0)
         {
             let mut off: i32 = 0;
@@ -3727,7 +3733,7 @@ fn wlv_put_linebuf(
         let mut coloff: i32 = 0;
         let g = grid_adjust(&mut *grid, &mut row, &mut coloff);
         grid_put_linebuf(
-            &mut *g,
+            unsafe { &mut *g },
             row,
             coloff,
             startcol,

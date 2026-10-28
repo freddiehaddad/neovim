@@ -219,7 +219,7 @@ fn is_menus_locked() -> bool {
 
 /// Do the `:menu` command and relatives (`ex_menu`).
 pub fn ex_menu(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut noremap: i32 = 0;
         let mut silent = false;
         let mut unmenu = false;
@@ -262,7 +262,9 @@ pub fn ex_menu(eap: &mut Exarg) {
                 arg = arg.wrapping_add(utfc_ptr2len(arg) as usize);
             }
             if !crate::memory::cstr_is_empty(arg) {
-                *arg = NUL;
+                unsafe {
+                    *arg = NUL;
+                }
                 arg = skipwhite(arg.wrapping_add(1));
             }
         }
@@ -347,7 +349,7 @@ pub fn ex_menu(eap: &mut Exarg) {
                     if (modes & (1 << idx)) != 0 {
                         let p = popup_mode_name(menu_path, idx as usize);
                         menu_enable_recurse(
-                            &mut *root_menu_ptr,
+                            unsafe { &mut *root_menu_ptr },
                             p.as_ptr().cast_mut(),
                             MENU_ALL_MODES,
                             enable != 0,
@@ -355,7 +357,12 @@ pub fn ex_menu(eap: &mut Exarg) {
                     }
                 }
             }
-            menu_enable_recurse(&mut *root_menu_ptr, menu_path, modes, enable != 0);
+            menu_enable_recurse(
+                unsafe { &mut *root_menu_ptr },
+                menu_path,
+                modes,
+                enable != 0,
+            );
         } else if unmenu {
             if is_menus_locked() {
                 return;
@@ -370,7 +377,7 @@ pub fn ex_menu(eap: &mut Exarg) {
                     if (modes & (1 << idx)) != 0 {
                         let p = popup_mode_name(menu_path, idx as usize);
                         remove_menu(
-                            &mut *root_menu_ptr,
+                            unsafe { &mut *root_menu_ptr },
                             p.as_ptr().cast_mut(),
                             MENU_ALL_MODES,
                             true,
@@ -379,7 +386,7 @@ pub fn ex_menu(eap: &mut Exarg) {
                 }
             }
 
-            remove_menu(&mut *root_menu_ptr, menu_path, modes, false);
+            remove_menu(unsafe { &mut *root_menu_ptr }, menu_path, modes, false);
         } else {
             if is_menus_locked() {
                 return;
@@ -849,22 +856,22 @@ pub fn menu_get(
     list: &mut TvList,
 ) -> bool {
     let path_name = path_name.into_c_char_ptr();
-    unsafe {
+    {
         let root = get_root_menu(path_name);
         if !crate::memory::cstr_is_empty(path_name) {
-            let menu = find_menu(&mut *root, path_name, modes);
+            let menu = find_menu(unsafe { &mut *root }, path_name, modes);
             if menu.is_null() {
                 return false;
             }
-            let d = menu_get_recursive(menu.as_ref(), modes);
-            if !d.is_null() && tv_dict_len(d.as_ref()) > 0 {
+            let d = menu_get_recursive(unsafe { menu.as_ref() }, modes);
+            if !d.is_null() && tv_dict_len(unsafe { d.as_ref() }) > 0 {
                 tv_list_append_dict(list, d);
             }
             return true;
         }
-        for menu in &*root {
+        for menu in unsafe { &*root } {
             let d = menu_get_recursive(Some(menu), modes);
-            if !d.is_null() && tv_dict_len(d.as_ref()) > 0 {
+            if !d.is_null() && tv_dict_len(unsafe { d.as_ref() }) > 0 {
                 tv_list_append_dict(list, d);
             }
         }
@@ -920,10 +927,10 @@ fn find_menu(
 /// Show the mapping associated with a menu item or hierarchy in a sub-menu (`show_menus`).
 fn show_menus(path_name: impl crate::strings::IntoCCharPtr, modes: i32) -> bool {
     let path_name = path_name.into_c_char_ptr();
-    unsafe {
+    {
         let mut menu: *mut Vimmenu = ptr::null_mut();
         if !crate::memory::cstr_is_empty(path_name) {
-            menu = find_menu(&mut *get_root_menu(path_name), path_name, modes);
+            menu = find_menu(unsafe { &mut *get_root_menu(path_name) }, path_name, modes);
             if menu.is_null() {
                 return false;
             }
@@ -931,7 +938,7 @@ fn show_menus(path_name: impl crate::strings::IntoCCharPtr, modes: i32) -> bool 
 
         menu_st().menus_locked += 1;
         msg_puts_title(gettext(c"\n--- Menus ---"));
-        show_menus_recursive(menu.as_mut(), modes, 0);
+        show_menus_recursive(unsafe { menu.as_mut() }, modes, 0);
         menu_st().menus_locked -= 1;
         true
     }
@@ -1277,10 +1284,10 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
 /// Skip over this element of the menu path and return the start of the next element (`menu_name_skip`).
 fn menu_name_skip(name: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     let name = name.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut p = name;
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' {
-            if crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST {
+            if crate::memory::cstr_first_byte(p) == b'\\' || unsafe { *p } == CTRL_V_CONST {
                 crate::memory::cstr_move(p, p.wrapping_add(1));
                 if crate::memory::cstr_is_empty(p) {
                     break;
@@ -1289,7 +1296,9 @@ fn menu_name_skip(name: impl crate::strings::IntoCCharPtr) -> *mut c_char {
             p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
         if !crate::memory::cstr_is_empty(p) {
-            *p = NUL;
+            unsafe {
+                *p = NUL;
+            }
             p = p.wrapping_add(1);
         }
         p
@@ -1821,12 +1830,12 @@ pub fn menu_find(path_name: impl crate::strings::IntoCCharPtr) -> *mut Vimmenu {
 
 /// `:menutrans` (`ex_menutranslate`).
 pub fn ex_menutranslate(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut arg = eap.arg;
         let menutrans = &mut menu_st().menutrans_ga;
 
         if (crate::memory::cstr_prefix_bytes(arg, 5) == &b"clear"[..5])
-            && ends_excmd(i32::from(*skipwhite(arg.wrapping_add(5)) as u8)) != 0
+            && ends_excmd(i32::from(unsafe { *skipwhite(arg.wrapping_add(5)) } as u8)) != 0
         {
             menutrans.clear();
             del_menutrans_vars();
@@ -1834,7 +1843,9 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
             let from_arg = arg;
             arg = menu_skip_part(arg);
             let to_arg = skipwhite(arg);
-            *arg = NUL;
+            unsafe {
+                *arg = NUL;
+            }
             arg = menu_skip_part(to_arg);
             if arg == to_arg {
                 emsg(gettext(E_INVARG));
@@ -1844,7 +1855,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
                 let from_noamp_cstr = menu_text(from, None, None);
                 let to_len = crate::memory::ptr_offset_from(arg, to_arg) as usize;
                 let mut to_vec: Vec<c_char> = Vec::with_capacity(to_len + 1);
-                to_vec.extend_from_slice(std::slice::from_raw_parts(to_arg, to_len));
+                to_vec.extend_from_slice(unsafe { std::slice::from_raw_parts(to_arg, to_len) });
                 to_vec.push(0);
                 let to = to_vec.as_mut_ptr();
                 menu_translate_tab_and_shift(from);
@@ -1884,7 +1895,7 @@ fn menu_skip_part(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
 
 /// Lookup part of a menu name in the translations (`menutrans_lookup`).
 fn menutrans_lookup(name: *mut c_char, len: i32) -> *mut c_char {
-    unsafe {
+    {
         let menutrans = &menu_st().menutrans_ga;
         let u_len = len as usize;
 
@@ -1898,10 +1909,14 @@ fn menutrans_lookup(name: *mut c_char, len: i32) -> *mut c_char {
             }
         }
 
-        let c = *name.wrapping_add(u_len);
-        *name.wrapping_add(u_len) = NUL;
+        let c = unsafe { *name.wrapping_add(u_len) };
+        unsafe {
+            *name.wrapping_add(u_len) = NUL;
+        }
         let dname = menu_text(name, None, None);
-        *name.wrapping_add(u_len) = c;
+        unsafe {
+            *name.wrapping_add(u_len) = c;
+        }
         for entry in menutrans {
             if crate::memory::cstr_as_bytes(dname.as_ptr())
                 .eq_ignore_ascii_case(crate::memory::cstr_as_bytes(entry.from_noamp.as_ptr()))
@@ -1931,24 +1946,28 @@ fn menu_unescape_name(name: impl crate::strings::IntoCCharPtr) {
 /// Isolate the menu name (`menu_translate_tab_and_shift`).
 fn menu_translate_tab_and_shift(arg_start: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     let arg_start = arg_start.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut arg = arg_start;
 
         while !crate::memory::cstr_is_empty(arg)
             && !ascii_iswhite(crate::memory::cstr_first_char(arg))
         {
-            if (crate::memory::cstr_first_byte(arg) == b'\\' || *arg == CTRL_V_CONST)
+            if (crate::memory::cstr_first_byte(arg) == b'\\' || unsafe { *arg } == CTRL_V_CONST)
                 && crate::memory::cstr_byte_at(arg, 1) != 0
             {
                 arg = arg.wrapping_add(1);
             } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"<TAB>") {
-                *arg = TAB;
+                unsafe {
+                    *arg = TAB;
+                }
                 crate::memory::cstr_move(arg.wrapping_add(1), arg.wrapping_add(5));
             }
             arg = arg.wrapping_add(1);
         }
         if !crate::memory::cstr_is_empty(arg) {
-            *arg = NUL;
+            unsafe {
+                *arg = NUL;
+            }
             arg = arg.wrapping_add(1);
         }
         skipwhite(arg)

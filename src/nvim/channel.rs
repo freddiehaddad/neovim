@@ -831,9 +831,9 @@ fn on_channel_output(
     is_stderr: bool,
 ) -> usize {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         if !chan.term.is_null() {
-            terminal_receive(&mut *chan.term, buf, count);
+            terminal_receive(unsafe { &mut *chan.term }, buf, count);
         }
 
         let reader = if is_stderr {
@@ -856,7 +856,7 @@ fn on_channel_output(
             if !buf.is_null() && count > 0 {
                 reader
                     .buffer
-                    .extend_from_slice(std::slice::from_raw_parts(buf, count));
+                    .extend_from_slice(unsafe { std::slice::from_raw_parts(buf, count) });
             }
             schedule_channel_event(chan);
         }
@@ -1065,7 +1065,7 @@ pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
 
 pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, chan: &mut Channel) {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
             let internal = &mut chan.internal;
             let cb = internal.cb;
@@ -1074,9 +1074,9 @@ pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, c
             }
             let mut args_items = [
                 crate::api::private::helpers::integer_obj(chan.id as Integer),
-                crate::api::private::helpers::buffer_obj(crate::terminal::terminal_buf(
-                    &*chan.term,
-                )),
+                crate::api::private::helpers::buffer_obj(crate::terminal::terminal_buf(unsafe {
+                    &*chan.term
+                })),
                 crate::api::private::helpers::string_obj(NvimString {
                     data: buf.cast_mut(),
                     size,
@@ -1106,7 +1106,7 @@ pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, c
         let data = if size == 0 {
             Vec::new()
         } else {
-            std::slice::from_raw_parts(buf, size).to_vec()
+            unsafe { std::slice::from_raw_parts(buf, size) }.to_vec()
         };
         let wbuf = wstream_new_vec_buffer(data);
         let _ = wstream_write(in_stream, wbuf);
@@ -1211,15 +1211,15 @@ pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
 }
 
 pub fn channel_job_running(id: u64) -> bool {
-    unsafe {
+    {
         let chan = find_channel(id);
         if chan.is_null() {
             return false;
         }
-        if (*chan).streamtype != K_CHANNEL_STREAM_PROC {
+        if unsafe { (*chan).streamtype } != K_CHANNEL_STREAM_PROC {
             return false;
         }
-        let ph = &mut (*chan).uv.proc_;
+        let ph = unsafe { &mut (*chan).uv.proc_ };
         !(ph.status >= 0 || ph.stopped_time != 0)
     }
 }

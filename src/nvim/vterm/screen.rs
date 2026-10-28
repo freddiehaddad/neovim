@@ -502,14 +502,14 @@ fn damagescreen(screen: &mut VTermScreen) {
 }
 
 fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) -> i32 {
-    unsafe {
-        let screen = &mut *screen;
+    {
+        let screen = unsafe { &mut *screen };
         let cell = getcell(screen, pos.row, pos.col);
 
         if cell.is_null() {
             return 0;
         }
-        let cell = { &mut *cell };
+        let cell = { unsafe { &mut *cell } };
 
         cell.schar = info.schar;
         if info.schar != 0 {
@@ -521,7 +521,9 @@ fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) 
             if onecell.is_null() {
                 break;
             }
-            (*onecell).schar = u32::MAX;
+            unsafe {
+                (*onecell).schar = u32::MAX;
+            }
         }
 
         let rect = VTermRect {
@@ -559,8 +561,8 @@ fn sb_pushline_from_row(screen: &mut VTermScreen, row: i32) {
 }
 
 fn moverect_internal(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> i32 {
-    unsafe {
-        let screen = &mut *screen;
+    {
+        let screen = unsafe { &mut *screen };
         if screen
             .callbacks
             .is_some_and(|cbs| cbs.sb_pushline.is_some())
@@ -585,11 +587,13 @@ fn moverect_internal(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) 
 
         let mut row = init_row;
         while row != test_row {
-            ptr::copy(
-                getcell(screen, row + downward, src.start_col),
-                getcell(screen, row, dest.start_col),
-                cols,
-            );
+            unsafe {
+                ptr::copy(
+                    getcell(screen, row + downward, src.start_col),
+                    getcell(screen, row, dest.start_col),
+                    cols,
+                )
+            };
             row += inc_row;
         }
 
@@ -619,16 +623,16 @@ fn moverect_user(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> i
 }
 
 fn erase_internal(rect: VTermRect, selective: i32, screen: *mut VTermScreen) -> i32 {
-    unsafe {
-        let screen = &mut *screen;
+    {
+        let screen = unsafe { &mut *screen };
         let mut row = rect.start_row;
         let state = screen.state_ptr();
-        while row < (*state).rows && row < rect.end_row {
-            let info = vterm_state_get_lineinfo(&*state, row);
+        while row < unsafe { (*state).rows } && row < rect.end_row {
+            let info = vterm_state_get_lineinfo(unsafe { &*state }, row);
 
             for col in rect.start_col..rect.end_col {
                 let cell = getcell(screen, row, col);
-                let cell = { &mut *cell };
+                let cell = { unsafe { &mut *cell } };
 
                 if selective != 0 && cell.pen.protected_cell() != 0 {
                     continue;
@@ -1371,12 +1375,12 @@ pub fn vterm_screen_get_cell(
     pos: VTermPos,
     cell: &mut VTermScreenCell,
 ) -> i32 {
-    unsafe {
+    {
         let intcell = getcell(screen, pos.row, pos.col);
         if intcell.is_null() {
             return 0;
         }
-        let intcell = { &mut *intcell };
+        let intcell = { unsafe { &mut *intcell } };
 
         cell.schar = if intcell.schar == u32::MAX {
             0
@@ -1405,7 +1409,8 @@ pub fn vterm_screen_get_cell(
         cell.bg = intcell.pen.bg;
         cell.uri = intcell.pen.uri;
 
-        if pos.col < (screen.cols - 1) && (*getcell(screen, pos.row, pos.col + 1)).schar == u32::MAX
+        if pos.col < (screen.cols - 1)
+            && unsafe { (*getcell(screen, pos.row, pos.col + 1)).schar } == u32::MAX
         {
             cell.width = 2;
         } else {
@@ -1417,15 +1422,15 @@ pub fn vterm_screen_get_cell(
 }
 
 pub fn vterm_obtain_screen(vt: &mut VTerm) -> &'static mut VTermScreen {
-    unsafe {
+    {
         if vt.screen.is_none() {
             vt.screen = screen_new(vt);
             let screen_ptr = vt.screen_mut_ptr();
             if !screen_ptr.is_null() {
-                vterm_state_set_callbacks(&mut *vt.state_mut_ptr(), Some(&STATE_CBS));
+                vterm_state_set_callbacks(unsafe { &mut *vt.state_mut_ptr() }, Some(&STATE_CBS));
             }
         }
-        &mut *vt.screen_mut_ptr()
+        unsafe { &mut *vt.screen_mut_ptr() }
     }
 }
 

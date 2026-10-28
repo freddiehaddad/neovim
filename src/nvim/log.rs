@@ -163,16 +163,16 @@ pub use logmsg;
 
 fn log_try_create(fname: impl crate::strings::IntoCCharPtr) -> bool {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_is_empty(fname) {
             return false;
         }
         {
-            let log_file = fopen(fname, c"a".as_ptr());
+            let log_file = unsafe { fopen(fname, c"a".as_ptr()) };
             if log_file.is_null() {
                 return false;
             }
-            fclose(log_file);
+            unsafe { fclose(log_file) };
             true
         }
     }
@@ -180,7 +180,7 @@ fn log_try_create(fname: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// Initializes the log file path and sets `$NVIM_LOG_FILE` if empty.
 fn log_path_init() {
-    unsafe {
+    {
         let size = MAXPATHL + 1;
         let path_ptr = (&raw mut log_st().log_file_path).cast::<c_char>();
         expand_env(c"$NVIM_LOG_FILE", path_ptr, (size - 1) as i32);
@@ -215,12 +215,14 @@ fn log_path_init() {
                 len = xstrlcpy(path_ptr, c"nvim.log", size);
             }
             if len >= size || !log_try_create(path_ptr) {
-                *path_ptr = NUL;
+                unsafe {
+                    *path_ptr = NUL;
+                }
                 return;
             }
             os_setenv(c"NVIM_LOG_FILE", path_ptr, 1);
             if log_dir_failure != 0 {
-                let err_str = uv_strerror(log_dir_failure);
+                let err_str = unsafe { uv_strerror(log_dir_failure) };
                 let failed_s = match failed_dir {
                     None => "(null)",
                     Some(ref d) => d.to_str().unwrap_or(""),
@@ -343,12 +345,12 @@ pub fn logmsg_str(
 }
 
 pub fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
-    unsafe {
+    {
         log_lock();
         let log_file = open_log_file();
-        uv_print_all_handles(loop_, log_file);
+        unsafe { uv_print_all_handles(loop_, log_file) };
         if !log_is_std_stream(log_file) {
-            fclose(log_file);
+            unsafe { fclose(log_file) };
         }
         log_unlock();
     }
@@ -358,11 +360,11 @@ pub fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
 ///
 /// @return Log file, or `stderr` on failure
 pub fn open_log_file() -> *mut FILE {
-    unsafe {
+    {
         let path_ptr = (&raw const log_st().log_file_path).cast::<c_char>();
         let mut errnum: i32 = 0;
         if !crate::memory::cstr_is_empty(path_ptr) {
-            let f = fopen(path_ptr, c"a".as_ptr());
+            let f = unsafe { fopen(path_ptr, c"a".as_ptr()) };
             if !f.is_null() {
                 return f;
             }
@@ -370,7 +372,7 @@ pub fn open_log_file() -> *mut FILE {
         }
 
         let stderr = log_get_stderr();
-        let err_ptr = strerror(errnum);
+        let err_ptr = unsafe { strerror(errnum) };
         let err_s = if err_ptr.is_null() {
             ""
         } else {

@@ -2443,12 +2443,12 @@ pub fn find_special_key(
     flags: i32,
     did_simplify: Option<&mut bool>,
 ) -> i32 {
-    unsafe {
+    {
         if src_len == 0 {
             return 0;
         }
 
-        let mut src = *srcp;
+        let mut src = unsafe { *srcp };
         if crate::memory::cstr_first_byte(src) != b'<' {
             return 0;
         }
@@ -2617,7 +2617,9 @@ pub fn find_special_key(
                     }
 
                     *modp = modifiers;
-                    *srcp = end_of_name;
+                    unsafe {
+                        *srcp = end_of_name;
+                    }
                     return key;
                 }
             }
@@ -2639,11 +2641,11 @@ pub fn find_special_key_in_table(c: i32) -> i32 {
 /// Find the special key with the given name (`get_special_key_code`).
 pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_first_byte(name) == b't'
             && crate::memory::cstr_byte_at(name, 1) == b'_'
-            && *name.wrapping_add(2) != 0
-            && *name.wrapping_add(3) != 0
+            && unsafe { *name.wrapping_add(2) } != 0
+            && unsafe { *name.wrapping_add(3) } != 0
         {
             return termcap2key(
                 i32::from(crate::memory::cstr_byte_at(name, 2)),
@@ -2848,21 +2850,29 @@ pub fn replace_termcodes(
 
 /// Add character `c` to buffer `s`, escaping `K_SPECIAL` (`add_char2buf`).
 pub fn add_char2buf(c: i32, s: *mut c_char) -> *mut c_char {
-    unsafe {
+    {
         let mut s = s;
         let mut temp = [0 as c_char; MB_MAXBYTES + 1];
         let len = utf_char2bytes(c, temp.as_mut_ptr()) as usize;
         for &byte in &temp[..len] {
             let b = byte as u8;
             if b == K_SPECIAL {
-                *s = K_SPECIAL as c_char;
+                unsafe {
+                    *s = K_SPECIAL as c_char;
+                }
                 s = s.wrapping_add(1);
-                *s = KS_SPECIAL as c_char;
+                unsafe {
+                    *s = KS_SPECIAL as c_char;
+                }
                 s = s.wrapping_add(1);
-                *s = KE_FILLER as c_char;
+                unsafe {
+                    *s = KE_FILLER as c_char;
+                }
                 s = s.wrapping_add(1);
             } else {
-                *s = byte;
+                unsafe {
+                    *s = byte;
+                }
                 s = s.wrapping_add(1);
             }
         }

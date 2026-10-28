@@ -96,22 +96,28 @@ fn regex_match(
     str_: impl crate::strings::IntoCCharPtr,
 ) -> i32 {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut rm: Regmatch = Regmatch::new();
-        rm.regprog = *prog;
+        rm.regprog = unsafe { *prog };
         rm.rm_ic = false;
         let matched = vim_regexec(&mut rm, str_, 0);
-        *prog = rm.regprog;
+        unsafe {
+            *prog = rm.regprog;
+        }
 
         if matched {
-            lua_pushinteger(
-                lstate,
-                ((rm.startp[0] as isize) - (str_ as isize)) as lua_Integer,
-            );
-            lua_pushinteger(
-                lstate,
-                ((rm.endp[0] as isize) - (str_ as isize)) as lua_Integer,
-            );
+            unsafe {
+                lua_pushinteger(
+                    lstate,
+                    ((rm.startp[0] as isize) - (str_ as isize)) as lua_Integer,
+                )
+            };
+            unsafe {
+                lua_pushinteger(
+                    lstate,
+                    ((rm.endp[0] as isize) - (str_ as isize)) as lua_Integer,
+                )
+            };
             return 2;
         }
         0
@@ -242,17 +248,17 @@ pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> i32
 }
 
 unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> i32 {
-    unsafe {
+    {
         let mut s1_len: usize = 0;
-        let s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
+        let s1 = unsafe { luaL_checklstring(lstate, 1, &raw mut s1_len) };
         lua_newtable(lstate);
 
         let mut idx: i32 = 1;
         let mut i: usize = 0;
         while i < s1_len && crate::memory::cstr_byte_at(s1, i) != 0 {
             let clen = utf_ptr2len_len(s1.wrapping_add(i), (s1_len - i) as i32) as usize;
-            lua_pushinteger(lstate, (i as lua_Integer) + 1);
-            lua_rawseti(lstate, -2, idx);
+            unsafe { lua_pushinteger(lstate, (i as lua_Integer) + 1) };
+            unsafe { lua_rawseti(lstate, -2, idx) };
             idx += 1;
             i += clen;
         }
@@ -503,14 +509,14 @@ pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
 }
 
 unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
-    unsafe {
+    {
         let mut s1_len: usize = 0;
         let mut s2_len: usize = 0;
-        let mut s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
-        let mut s2 = luaL_checklstring(lstate, 2, &raw mut s2_len);
+        let mut s1 = unsafe { luaL_checklstring(lstate, 1, &raw mut s1_len) };
+        let mut s2 = unsafe { luaL_checklstring(lstate, 2, &raw mut s2_len) };
         let mut ret: i32;
-        assert_eq!(*s1.wrapping_add(s1_len), NUL);
-        assert_eq!(*s2.wrapping_add(s2_len), NUL);
+        assert_eq!(unsafe { *s1.wrapping_add(s1_len) }, NUL);
+        assert_eq!(unsafe { *s2.wrapping_add(s2_len) }, NUL);
 
         loop {
             let slice1 = crate::memory::cstr_slice(s1, s1_len);
@@ -537,7 +543,7 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
         }
 
         lua_pop(lstate, 2);
-        lua_pushnumber(lstate, f64::from(i32::from(ret > 0) - i32::from(ret < 0)));
+        unsafe { lua_pushnumber(lstate, f64::from(i32::from(ret > 0) - i32::from(ret < 0))) };
         1
     }
 }

@@ -112,13 +112,13 @@ fn convert_one_value(
         }
         VarType::VarFunc => {
             let fun = tv.vval.v_string();
-            let obj = unsafe {
+            let obj = {
                 if !fun.is_null() {
                     let fp = find_func(fun);
-                    if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
+                    if !fp.is_null() && (unsafe { (*fp).uf_flags } & FC_LUAREF) != 0 {
                         Object {
                             obj_type: ObjectType::ObjectTypeLuaRef,
-                            data: ObjectData::LuaRef(api_new_luaref((*fp).uf_luaref)),
+                            data: ObjectData::LuaRef(api_new_luaref(unsafe { (*fp).uf_luaref })),
                         }
                     } else {
                         nil_obj()
@@ -136,13 +136,13 @@ fn convert_one_value(
             } else {
                 partial_name(unsafe { pt.as_ref() })
             };
-            let obj = unsafe {
+            let obj = {
                 if !fun.is_null() {
                     let fp = find_func(fun);
-                    if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
+                    if !fp.is_null() && (unsafe { (*fp).uf_flags } & FC_LUAREF) != 0 {
                         Object {
                             obj_type: ObjectType::ObjectTypeLuaRef,
-                            data: ObjectData::LuaRef(api_new_luaref((*fp).uf_luaref)),
+                            data: ObjectData::LuaRef(api_new_luaref(unsafe { (*fp).uf_luaref })),
                         }
                     } else {
                         nil_obj()
@@ -171,16 +171,18 @@ fn convert_one_value(
                 stack.push(nil_obj());
                 return;
             }
-            unsafe {
-                (*list).lv_copy_id = copy_id;
-                let arr = arena_array_opt(arena, (*list).lv_len as usize);
+            {
+                unsafe {
+                    (*list).lv_copy_id = copy_id;
+                }
+                let arr = arena_array_opt(arena, unsafe { (*list).lv_len } as usize);
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(arr),
                 });
                 mpstack.push(ConvStackEntry::List {
                     list,
-                    li: (*list).lv_first,
+                    li: unsafe { (*list).lv_first },
                     saved_copy_id,
                     first: true,
                 });
@@ -269,7 +271,7 @@ pub fn vim_to_object(
     mut arena: Option<&mut Arena>,
     reuse_strdata: bool,
 ) -> Object {
-    unsafe {
+    {
         let copy_id = get_copy_id();
         let mut stack: Vec<Object> = Vec::with_capacity(4);
         let mut mpstack: Vec<ConvStackEntry> = Vec::new();
@@ -295,7 +297,9 @@ pub fn vim_to_object(
                         let list_ptr = *list;
                         let saved = *saved_copy_id;
                         mpstack.pop();
-                        (*list_ptr).lv_copy_id = saved;
+                        unsafe {
+                            (*list_ptr).lv_copy_id = saved;
+                        }
                         pop_into_parent_list(&mut stack);
                         continue;
                     }
@@ -304,8 +308,8 @@ pub fn vim_to_object(
                     }
                     *first = false;
                     let cur_li = *li;
-                    *li = (*cur_li).li_next;
-                    &mut (*cur_li).li_tv
+                    *li = unsafe { (*cur_li).li_next };
+                    unsafe { &mut (*cur_li).li_tv }
                 }
                 ConvStackEntry::Dict {
                     dict,
@@ -318,7 +322,9 @@ pub fn vim_to_object(
                         let dict_ptr = *dict;
                         let saved = *saved_copy_id;
                         mpstack.pop();
-                        (*dict_ptr).dv_copy_id = saved;
+                        unsafe {
+                            (*dict_ptr).dv_copy_id = saved;
+                        }
                         pop_into_parent_dict(&mut stack);
                         continue;
                     }
@@ -326,7 +332,7 @@ pub fn vim_to_object(
                         pop_into_parent_dict(&mut stack);
                     }
                     *first = false;
-                    while hashitem_empty(&**hi) {
+                    while hashitem_empty(unsafe { &**hi }) {
                         *hi = (*hi).wrapping_add(1);
                     }
                     let cur_hi = *hi;

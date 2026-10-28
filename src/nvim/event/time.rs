@@ -118,15 +118,18 @@ pub fn close_event(watcher: &mut TimeWatcher) {
 }
 
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
-    unsafe {
-        let watcher = *handle.cast::<*mut TimeWatcher>();
-        let watcher = { &mut *watcher };
+    {
+        let watcher = unsafe { *handle.cast::<*mut TimeWatcher>() };
+        let watcher = { unsafe { &mut *watcher } };
         if matches!(
             watcher.data,
             TimeWatcherData::EvalTimer(_) | TimeWatcherData::WaitDummy
         ) {
             if !watcher.events.is_null() {
-                multiqueue_put_event(&mut *watcher.events, Event::TimeWatcherClose(watcher));
+                multiqueue_put_event(
+                    unsafe { &mut *watcher.events },
+                    Event::TimeWatcherClose(watcher),
+                );
             } else {
                 close_event(&mut *watcher);
             }

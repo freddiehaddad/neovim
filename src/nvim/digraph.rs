@@ -1884,7 +1884,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
 }
 
 fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
-    unsafe {
+    {
         let mut buf = [0 as c_char; 30];
         let list_width: i32 = 13;
 
@@ -1897,7 +1897,7 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
                 let Some(header) = HEADER_TABLE[i].dg_header else {
                     break;
                 };
-                if *previous < HEADER_TABLE[i].dg_start
+                if unsafe { *previous } < HEADER_TABLE[i].dg_start
                     && dp.result >= HEADER_TABLE[i].dg_start
                     && dp.result < HEADER_TABLE[i + 1].dg_start
                 {
@@ -1905,7 +1905,9 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
                     break;
                 }
             }
-            *previous = dp.result;
+            unsafe {
+                *previous = dp.result;
+            }
         }
         if g_st().msg_col > g_st().columns_global - list_width {
             msg_putchar(b'\n' as i32);
@@ -1923,16 +1925,22 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
 
         let mut p = buf.as_mut_ptr();
         if utf_iscomposing_first(dp.result) {
-            *p = b' ' as c_char;
+            unsafe {
+                *p = b' ' as c_char;
+            }
             p = p.wrapping_add(1);
         }
         p = p.wrapping_add(utf_char2bytes(dp.result, p) as usize);
-        *p = NUL;
+        unsafe {
+            *p = NUL;
+        }
         msg_outtrans(buf.as_ptr(), HLF_8, false);
 
         p = buf.as_mut_ptr();
         if char2cells(dp.result) == 1 {
-            *p = b' ' as c_char;
+            unsafe {
+                *p = b' ' as c_char;
+            }
             p = p.wrapping_add(1);
         }
         let used = crate::memory::ptr_offset_from(p, buf.as_ptr()) as usize;

@@ -179,9 +179,9 @@ fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: i32) -> bool {
 }
 
 fn buf_write_convert_with_iconv(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut i32) -> i32 {
-    unsafe {
+    {
         let len = *lenp;
-        let mut from: *const c_char = *bufp;
+        let mut from: *const c_char = unsafe { *bufp };
         let mut fromlen = len as usize;
         let mut tolen = ip.bw_conv_buf.len();
         let conv_buf = ip.bw_conv_buf.as_mut_ptr();
@@ -216,7 +216,9 @@ fn buf_write_convert_with_iconv(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &
             return -1;
         }
 
-        *bufp = conv_buf;
+        unsafe {
+            *bufp = conv_buf;
+        }
         *lenp = ((to as usize) - (conv_buf as usize)) as i32;
 
         len - (fromlen as i32)
@@ -341,7 +343,7 @@ fn check_mtime(buf: &mut FileBuf, file_info: &FileInfo) -> bool {
 
 fn make_bom(buf_in: *mut c_char, name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let buf = buf_in.cast::<u8>();
         let flags = get_fio_flags(name);
 
@@ -349,9 +351,15 @@ fn make_bom(buf_in: *mut c_char, name: impl crate::strings::IntoCCharPtr) -> i32
             return 0;
         }
         if flags == FIO_UTF8 {
-            *buf = 0xef;
-            *buf.wrapping_add(1) = 0xbb;
-            *buf.wrapping_add(2) = 0xbf;
+            unsafe {
+                *buf = 0xef;
+            }
+            unsafe {
+                *buf.wrapping_add(1) = 0xbb;
+            }
+            unsafe {
+                *buf.wrapping_add(2) = 0xbf;
+            }
             return 3;
         }
         let mut p = buf_in;
@@ -682,7 +690,7 @@ fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: i32) -> BwError {
 
 fn emit_err(e: &mut BwError, msg_id: impl crate::strings::IntoCCharPtr) {
     let msg_id = msg_id.into_c_char_ptr();
-    unsafe {
+    {
         let mut errmsg = [0 as c_char; IOSIZE];
         let msg_ptr = e.msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());
         if let Some(num) = e.num {
@@ -694,7 +702,7 @@ fn emit_err(e: &mut BwError, msg_id: impl crate::strings::IntoCCharPtr) {
                     num.as_ptr(),
                     g_st().iobuff.as_ptr(),
                     msg_ptr,
-                    uv_strerror(e.arg),
+                    unsafe { uv_strerror(e.arg) },
                 );
             } else {
                 let _ = vim_snprintf!(
@@ -707,7 +715,9 @@ fn emit_err(e: &mut BwError, msg_id: impl crate::strings::IntoCCharPtr) {
                 );
             }
         } else if e.arg != 0 {
-            let _ = vim_snprintf!(errmsg.as_mut_ptr(), IOSIZE, msg_ptr, uv_strerror(e.arg));
+            let _ = vim_snprintf!(errmsg.as_mut_ptr(), IOSIZE, msg_ptr, unsafe {
+                uv_strerror(e.arg)
+            });
         } else {
             xstrlcpy(errmsg.as_mut_ptr(), msg_ptr, IOSIZE);
         }
@@ -873,25 +883,25 @@ pub fn buf_get_backup_name(
 ) -> Option<std::ffi::CString> {
     let fname = fname.into_c_char_ptr().cast_mut();
     let backup_ext = backup_ext.into_c_char_ptr();
-    unsafe {
+    {
         let mut backup: Option<std::ffi::CString> = None;
         let iobuf = g_st().iobuff.as_mut_ptr();
         let dir_len = copy_option_part(dirp, iobuf, IOSIZE, c",");
         let p = iobuf.wrapping_add(dir_len);
-        if **dirp == NUL && !os_isdir(iobuf) {
+        if unsafe { **dirp } == NUL && !os_isdir(iobuf) {
             let mut failed_dir: Option<std::ffi::CString> = None;
             let ret = os_mkdir_recurse(iobuf, 0o755, &mut failed_dir, None);
             if ret != 0 {
                 let _ = semsg!(
                     gettext(c"E303: Unable to create directory \"%s\" for backup file: %s",),
                     failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                    uv_strerror(ret),
+                    unsafe { uv_strerror(ret) },
                 );
             }
         }
         if dir_len > 1
             && after_pathsep(iobuf, p) != 0
-            && *p.wrapping_sub(1) == *p.wrapping_sub(2)
+            && unsafe { *p.wrapping_sub(1) } == unsafe { *p.wrapping_sub(2) }
             && let Some(swname) = make_percent_swname(iobuf, p, fname)
         {
             backup = modname(swname.as_ptr(), backup_ext, no_prepend_dot);

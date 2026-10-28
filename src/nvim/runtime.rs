@@ -430,7 +430,7 @@ pub fn estack_pop() {
 
 /// Get the current value for <sfile> as an owned `CString`.
 pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         let last_entry = rt_st().exestack.last().unwrap();
         if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
             return last_entry.es_name.clone();
@@ -440,7 +440,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
             for entry in rt_st().exestack.iter().rev() {
                 if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
                     let def_ctx = if entry.es_type == ETYPE_UFUNC {
-                        (*entry.es_info.ufunc()).uf_script_ctx
+                        unsafe { (*entry.es_info.ufunc()).uf_script_ctx }
                     } else {
                         entry.es_info.aucmd_sctx()
                     };
@@ -482,13 +482,14 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
                 };
 
                 if !type_name.data.is_null() && type_name.size > 0 {
-                    buf.extend_from_slice(std::slice::from_raw_parts(
-                        type_name.data,
-                        type_name.size,
-                    ));
+                    buf.extend_from_slice(unsafe {
+                        std::slice::from_raw_parts(type_name.data, type_name.size)
+                    });
                 }
                 if !es_name.data.is_null() && es_name.size > 0 {
-                    buf.extend_from_slice(std::slice::from_raw_parts(es_name.data, es_name.size));
+                    buf.extend_from_slice(unsafe {
+                        std::slice::from_raw_parts(es_name.data, es_name.size)
+                    });
                 }
                 if lnum != 0 {
                     let mut lnum_buf = [0 as c_char; 32];
@@ -501,7 +502,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
                     buf.extend_from_slice(&lnum_buf[..n]);
                 }
                 if idx != es_len - 1 {
-                    buf.extend_from_slice(std::slice::from_raw_parts(c"..".as_ptr(), 2));
+                    buf.extend_from_slice(unsafe { std::slice::from_raw_parts(c"..".as_ptr(), 2) });
                 }
             }
         }
@@ -545,7 +546,7 @@ fn stacktrace_push_item(
 
 /// Create the stacktrace from rt_st().exestack.
 pub fn stacktrace_create() -> &'static mut TvList {
-    unsafe {
+    {
         let l = tv_list_alloc(rt_st().exestack.len() as isize);
 
         for entry in &rt_st().exestack {
@@ -555,14 +556,20 @@ pub fn stacktrace_create() -> &'static mut TvList {
                 stacktrace_push_item(&mut *l, None, ptr::null(), lnum, entry.name_ptr());
             } else if entry.es_type == ETYPE_UFUNC {
                 let fp = entry.es_info.ufunc();
-                let sctx = (*fp).uf_script_ctx;
+                let sctx = unsafe { (*fp).uf_script_ctx };
                 let filepath = if sctx.sc_sid > 0 {
                     get_scriptname(sctx, false)
                 } else {
                     std::borrow::Cow::Borrowed(c"")
                 };
                 lnum += sctx.sc_lnum;
-                stacktrace_push_item(&mut *l, fp.as_mut(), ptr::null(), lnum, filepath.as_ptr());
+                stacktrace_push_item(
+                    &mut *l,
+                    unsafe { fp.as_mut() },
+                    ptr::null(),
+                    lnum,
+                    filepath.as_ptr(),
+                );
             } else if entry.es_type == ETYPE_AUCMD {
                 let sctx = entry.es_info.aucmd_sctx();
                 let filepath = if sctx.sc_sid > 0 {
@@ -587,26 +594,34 @@ pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 }
 
 fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> i32 {
-    unsafe {
-        let arg = *argp;
+    {
+        let arg = unsafe { *argp };
         if where_len == 0 {
             return 0;
         }
         let slice = crate::memory::cstr_slice(arg, where_len);
         if b"START".starts_with(slice) {
-            *argp = skipwhite(arg.wrapping_add(where_len));
+            unsafe {
+                *argp = skipwhite(arg.wrapping_add(where_len));
+            }
             return DIP_START + DIP_NORTP;
         }
         if b"OPT".starts_with(slice) {
-            *argp = skipwhite(arg.wrapping_add(where_len));
+            unsafe {
+                *argp = skipwhite(arg.wrapping_add(where_len));
+            }
             return DIP_OPT + DIP_NORTP;
         }
         if b"PACK".starts_with(slice) {
-            *argp = skipwhite(arg.wrapping_add(where_len));
+            unsafe {
+                *argp = skipwhite(arg.wrapping_add(where_len));
+            }
             return DIP_START + DIP_OPT + DIP_NORTP;
         }
         if b"ALL".starts_with(slice) {
-            *argp = skipwhite(arg.wrapping_add(where_len));
+            unsafe {
+                *argp = skipwhite(arg.wrapping_add(where_len));
+            }
             return DIP_START + DIP_OPT;
         }
         0
@@ -845,7 +860,7 @@ fn do_in_cached_path(
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
     let name = name.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut did_one = false;
         let mut buf = [0 as c_char; MAXPATHL];
 
@@ -855,7 +870,7 @@ fn do_in_cached_path(
             verbose_leave();
         }
 
-        let path = &*runtime_search_path_get_cached();
+        let path = unsafe { &*runtime_search_path_get_cached() };
 
         let do_all = (flags & DIP_ALL) != 0;
 
@@ -873,7 +888,7 @@ fn do_in_cached_path(
             if name.is_null() {
                 callback.invoke(std::slice::from_ref(&item.path), do_all);
             } else if buflen + crate::memory::cstr_len(name) + 2 < MAXPATHL {
-                ptr::copy_nonoverlapping(item_path, buf.as_mut_ptr(), buflen + 1);
+                unsafe { ptr::copy_nonoverlapping(item_path, buf.as_mut_ptr(), buflen + 1) };
                 add_pathsep(buf.as_mut_ptr());
                 let tail = buf
                     .as_mut_ptr()
@@ -3269,7 +3284,7 @@ fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
 
 /// "getscriptinfo()" function
 pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_list_alloc_ret(rettv, script_items_len() as isize);
 
         if !tv_check_for_opt_dict_arg(argvars, 0) {
@@ -3286,9 +3301,9 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         let mut pat_owned: Option<std::ffi::CString> = None;
         if argvars[0].v_type == VarType::VarDict {
             let arg_dict = argvars[0].vval.v_dict();
-            let sid_di = tv_dict_find(arg_dict.as_ref(), c"sid", 3);
+            let sid_di = tv_dict_find(unsafe { arg_dict.as_ref() }, c"sid", 3);
             if !sid_di.is_null() {
-                let sid_di = { &mut *sid_di };
+                let sid_di = { unsafe { &mut *sid_di } };
                 let mut error = false;
                 sid = tv_get_number_chk(&sid_di.di_tv, Some(&mut error));
                 if error {
@@ -3299,7 +3314,8 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                     return;
                 }
             } else {
-                pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict.as_ref(), c"name");
+                pat_owned =
+                    crate::eval::typval::tv_dict_get_cstring(unsafe { arg_dict.as_ref() }, c"name");
                 if let Some(ref pat) = pat_owned {
                     regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC + RE_STRING);
                 }
@@ -3317,7 +3333,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 && (!filterpat || vim_regexec(&mut regmatch, sn.as_ptr(), 0))
             {
                 let d = tv_dict_alloc();
-                tv_list_append_dict(&mut *l, d);
+                tv_list_append_dict(unsafe { &mut *l }, d);
                 tv_dict_add_str(&mut *d, c"name", sn.as_ptr());
                 tv_dict_add_nr(&mut *d, c"sid", i);
                 tv_dict_add_nr(&mut *d, c"version", 1);
@@ -3587,10 +3603,12 @@ pub fn ex_finish(eap: &mut Exarg) {
 
 /// Mark a sourced file as finished.
 pub fn do_finish(eap: &mut Exarg, reanimate: bool) {
-    unsafe {
+    {
         let sp = eap.ea_getline.as_source().unwrap();
         if reanimate {
-            (*sp).finished = false;
+            unsafe {
+                (*sp).finished = false;
+            }
         }
 
         let cstack = eap.cstack_mut();
@@ -3599,7 +3617,9 @@ pub fn do_finish(eap: &mut Exarg, reanimate: bool) {
             cstack.cs_pending[idx as usize] = CSTP_FINISH as c_char;
             report_make_pending(CSTP_FINISH, PendingVal::None);
         } else {
-            (*sp).finished = true;
+            unsafe {
+                (*sp).finished = true;
+            }
         }
     }
 }

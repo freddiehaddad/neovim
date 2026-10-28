@@ -387,7 +387,7 @@ pub fn nvim_get_option_value(
     opts: &mut KeyDict_option,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let mut opt_idx: OptIndex = 0;
         let mut opt_flags: i32 = 0;
         let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
@@ -416,7 +416,7 @@ pub fn nvim_get_option_value(
         if error_set(err) {
             ctx_restore(&mut aco);
             if !ftbuf.is_null() {
-                wipe_ft_buf(&mut *ftbuf);
+                wipe_ft_buf(unsafe { &mut *ftbuf });
             }
             return OBJECT_NIL;
         }
@@ -430,7 +430,7 @@ pub fn nvim_get_option_value(
 
         ctx_restore(&mut aco);
         if !ftbuf.is_null() {
-            wipe_ft_buf(&mut *ftbuf);
+            wipe_ft_buf(unsafe { &mut *ftbuf });
         }
 
         if error_set(err) {
@@ -587,7 +587,7 @@ pub fn nvim_set_option_value(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let mut opt_idx: OptIndex = 0;
         let mut opt_flags: i32 = 0;
         let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
@@ -634,7 +634,7 @@ pub fn nvim_set_option_value(
         } else {
             curwin_ptr()
         };
-        let varp = get_varp_from(&mut *option, &mut *buf, &mut *win);
+        let varp = get_varp_from(&mut *option, unsafe { &mut *buf }, unsafe { &mut *win });
 
         let nitems = if is_array {
             value.data.array().size

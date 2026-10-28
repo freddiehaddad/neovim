@@ -415,9 +415,9 @@ pub fn mpack_object_inner(
     let mut stack: Vec<ContainerStackItem> = Vec::with_capacity(2);
 
     loop {
-        unsafe {
+        {
             mpack_check_buffer(packer);
-            let cur = &mut *current;
+            let cur = unsafe { &mut *current };
             match cur.obj_type {
                 ObjectType::ObjectTypeLuaRef => {
                     let cs = nlua_funcref_str(cur.data.luaref(), true);
@@ -485,7 +485,7 @@ pub fn mpack_object_inner(
                 }
             }
 
-            let cont = &mut *container;
+            let cont = unsafe { &mut *container };
             if cont.obj_type == ObjectType::ObjectTypeArray {
                 let arr = cont.data.array();
                 current = arr.items.wrapping_add(container_idx);

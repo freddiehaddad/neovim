@@ -397,7 +397,7 @@ fn call_click_def_func(click_defs: *mut StlClickDefinition, col: i32, which_butt
 /// Translate window coordinates to buffer position without any side effects.
 /// Returns IN_BUFFER and sets `mpos` (0-based column) when in buffer text.
 fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> i32 {
-    unsafe {
+    {
         let mut grid = g_st().mouse_grid;
         let mut row = g_st().mouse_row;
         let mut col = g_st().mouse_col;
@@ -410,9 +410,11 @@ fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> i32 {
         if wp.is_null() {
             return IN_UNKNOWN;
         }
-        let wp = { &mut *wp };
+        let wp = { unsafe { &mut *wp } };
         if !wpp.is_null() {
-            *wpp = wp;
+            unsafe {
+                *wpp = wp;
+            }
         }
         let winrow = row;
         let wincol = col;
@@ -1336,7 +1338,7 @@ pub fn ins_mousescroll(dir: i32) {
 /// pointer is on top of it.
 /// Returns true when the info popup was scrolled.
 pub fn cmdline_mousescroll(dir: i32) -> bool {
-    unsafe {
+    {
         let mut cap = Cmdarg::new();
         let mut oa = Oparg::new();
         cap.oap = &raw mut oa;
@@ -1359,14 +1361,14 @@ pub fn cmdline_mousescroll(dir: i32) -> bool {
         let mut col = g_st().mouse_col;
 
         let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-        if wp.is_null() || (*wp).w_kind != K_WIN_INFO {
+        if wp.is_null() || unsafe { (*wp).w_kind } != K_WIN_INFO {
             return false;
         }
 
         let old_curwin = curwin_ptr();
 
         set_curwin(wp);
-        g_st().curbuf = (*wp).w_buffer;
+        g_st().curbuf = unsafe { (*wp).w_buffer };
         do_mousescroll(&mut cap);
         set_curwin(old_curwin);
         g_st().curbuf = curwin_mut().w_buffer;

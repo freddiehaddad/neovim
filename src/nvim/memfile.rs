@@ -241,7 +241,7 @@ pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> *mut Bhdr {
 
 /// Get existing block `nr` with `page_count` pages.
 pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> *mut Bhdr {
-    unsafe {
+    {
         if nr >= mfp.mf_blocknr_max || nr <= mfp.mf_blocknr_min {
             return ptr::null_mut();
         }
@@ -254,12 +254,14 @@ pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> *mut Bhdr {
 
             let mut boxed = mf_alloc_bhdr(mfp, nr, page_count, BH_LOCKED);
             hp = &raw mut *boxed;
-            if !mf_read(mfp, &mut *hp) {
+            if !mf_read(mfp, unsafe { &mut *hp }) {
                 return ptr::null_mut();
             }
             mfp.mf_hash.insert(nr, boxed);
         } else {
-            (*hp).bh_flags |= BH_LOCKED;
+            unsafe {
+                (*hp).bh_flags |= BH_LOCKED;
+            }
         }
 
         hp
@@ -268,8 +270,8 @@ pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> *mut Bhdr {
 
 /// Release the block `*hp`.
 pub fn mf_put(mfp: &mut Memfile, hp: *mut Bhdr, dirty: bool, infile: bool) {
-    unsafe {
-        let mut flags = (*hp).bh_flags;
+    {
+        let mut flags = unsafe { (*hp).bh_flags };
 
         if (flags & BH_LOCKED) == 0 {
             iemsg(gettext(c"E293: Block was not locked"));
@@ -281,9 +283,11 @@ pub fn mf_put(mfp: &mut Memfile, hp: *mut Bhdr, dirty: bool, infile: bool) {
                 mfp.mf_dirty = MF_DIRTY_YES;
             }
         }
-        (*hp).bh_flags = flags;
+        unsafe {
+            (*hp).bh_flags = flags;
+        }
         if infile {
-            let _ = mf_trans_add(mfp, &mut *hp);
+            let _ = mf_trans_add(mfp, unsafe { &mut *hp });
         }
     }
 }
@@ -650,21 +654,21 @@ mod tests {
 
     #[test]
     fn memory_only_memfile_allocates_gets_puts_and_frees_blocks() {
-        unsafe {
+        {
             let mut mfp_box = mf_open(None, 0).expect("mf_open failed");
             let mfp = &mut *mfp_box;
             assert_eq!(mfp.mf_page_size, 4096);
 
             let hp1 = mf_new(mfp, true, 1);
             assert!(!hp1.is_null());
-            assert_eq!((*hp1).bh_bnum, -1);
+            assert_eq!(unsafe { (*hp1).bh_bnum }, -1);
             mf_put(&mut *mfp, hp1, true, true);
             assert_eq!(mf_trans_del(mfp, -1), 0);
 
             let hp2 = mf_get(mfp, 0, 1);
             assert_eq!(hp2, hp1);
             mf_put(&mut *mfp, hp2, false, false);
-            mf_free(mfp, &mut *hp2);
+            mf_free(mfp, unsafe { &mut *hp2 });
 
             mf_close(Some(mfp_box), false);
         }
@@ -677,7 +681,7 @@ mod tests {
             (i as Blocknr) ^ 15167
         }
 
-        unsafe {
+        {
             let mut ht: std::collections::HashMap<i64, Box<Bhdr>> =
                 std::collections::HashMap::new();
             let mut items: Vec<*mut Bhdr> = Vec::with_capacity(TEST_COUNT);
@@ -703,7 +707,7 @@ mod tests {
                 let key = index_to_key(i);
                 let item = pmap_get_bhdr(&ht, key);
                 assert!(!item.is_null());
-                assert_eq!((*item).bh_bnum, key);
+                assert_eq!(unsafe { (*item).bh_bnum }, key);
             }
 
             for i in 0..TEST_COUNT {
@@ -711,7 +715,7 @@ mod tests {
                     let key = index_to_key(i);
                     let item = pmap_get_bhdr(&ht, key);
                     assert!(!item.is_null());
-                    assert_eq!((*item).bh_bnum, key);
+                    assert_eq!(unsafe { (*item).bh_bnum }, key);
 
                     let removed = ht.remove(&key).unwrap();
                     assert!(pmap_get_bhdr(&ht, key).is_null());
@@ -731,7 +735,7 @@ mod tests {
                     assert!(item.is_null());
                 } else {
                     assert!(!item.is_null());
-                    assert_eq!((*item).bh_bnum, key);
+                    assert_eq!(unsafe { (*item).bh_bnum }, key);
                 }
             }
         }

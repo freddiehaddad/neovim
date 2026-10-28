@@ -778,7 +778,7 @@ fn atom_emit(atom: &CmdAtom) {
 }
 
 pub fn atom_push_raw(cascade: bool, atom: &mut CmdAtom) {
-    unsafe {
+    {
         assert!(atom.keys.is_some());
         if !atom.origin.buf.br_buf.is_null() {
             atom.changed = atom_origin_changed(atom.origin);
@@ -787,7 +787,7 @@ pub fn atom_push_raw(cascade: bool, atom: &mut CmdAtom) {
         }
         let cur_frame = cur_frame_ptr();
         let collect = atom_st().composite.active
-            && (cur_frame.is_null() || (*cur_frame).id != atom_st().composite.frame);
+            && (cur_frame.is_null() || unsafe { (*cur_frame).id } != atom_st().composite.frame);
         if atom_visual_pending() {
             if (atom_st().vatom.state & K_VATOM_TYPED) != 0 {
                 atom_st().atom_captures += 1;
@@ -797,7 +797,7 @@ pub fn atom_push_raw(cascade: bool, atom: &mut CmdAtom) {
             }
             atom_st().vatom.atoms.push(std::mem::take(atom));
             atom_st().vatom.frame = if !cur_frame.is_null() {
-                (*cur_frame).id
+                unsafe { (*cur_frame).id }
             } else {
                 0
             };
@@ -852,17 +852,21 @@ fn atom_push(cascade: bool, atom: &mut CmdAtom) {
 }
 
 fn atom_stage_set(atom: &mut CmdAtom) {
-    unsafe {
+    {
         let cur_frame = cur_frame_ptr();
         assert!(!cur_frame.is_null());
         assert!(!atom_staged());
-        (*cur_frame).staged = CmdAtom::new();
+        unsafe {
+            (*cur_frame).staged = CmdAtom::new();
+        }
         if atom_blocked() {
             *atom = CmdAtom::new();
             return;
         }
         assert!(atom.keys.is_some());
-        (*cur_frame).staged = std::mem::take(&mut *atom);
+        unsafe {
+            (*cur_frame).staged = std::mem::take(&mut *atom);
+        }
     }
 }
 
@@ -1158,14 +1162,16 @@ pub fn atom_payload_start() {
 }
 
 pub fn atom_payload_end() {
-    unsafe {
+    {
         let cur_frame = cur_frame_ptr();
         if g_st().expr_map_lock == 0
             && !cur_frame.is_null()
-            && (*cur_frame).payload_start != usize::MAX
+            && unsafe { (*cur_frame).payload_start } != usize::MAX
             && !mc_replaying()
         {
-            (*cur_frame).payload_end = atom_st().typed.keys.len();
+            unsafe {
+                (*cur_frame).payload_end = atom_st().typed.keys.len();
+            }
         }
     }
 }
@@ -1191,16 +1197,16 @@ fn atom_payload_append(atom: &mut CmdAtom, frame: &mut CmdFrame) {
 }
 
 pub fn atom_typed_add(chars: *const u8, len: usize) {
-    unsafe {
+    {
         if mc_replaying() || !atom_typed_collecting() || g_st().cmdline_star > 0 {
             return;
         }
         if len == 3
-            && *chars == K_SPECIAL
+            && unsafe { *chars } == K_SPECIAL
             && (atom_key_class(
                 termcap2key(
-                    i32::from(*chars.wrapping_add(1)),
-                    i32::from(*chars.wrapping_add(2)),
+                    i32::from(unsafe { *chars.wrapping_add(1) }),
+                    i32::from(unsafe { *chars.wrapping_add(2) }),
                 ),
                 NUL,
                 NUL,
@@ -1213,7 +1219,7 @@ pub fn atom_typed_add(chars: *const u8, len: usize) {
             atom_st()
                 .typed
                 .keys
-                .extend_from_slice(std::slice::from_raw_parts(chars, len));
+                .extend_from_slice(unsafe { std::slice::from_raw_parts(chars, len) });
         }
     }
 }
@@ -1285,7 +1291,7 @@ pub fn atom_stuff_start(cap: &Cmdarg) {
 
 pub fn atom_map_start(lhs: impl crate::strings::IntoCCharPtr, len: usize, peeked: bool) {
     let lhs = lhs.into_c_char_ptr();
-    unsafe {
+    {
         if mc_replaying() || g_st().reg_executing != 0 || g_st().ex_normal_busy != 0 {
             return;
         }
@@ -1301,8 +1307,8 @@ pub fn atom_map_start(lhs: impl crate::strings::IntoCCharPtr, len: usize, peeked
             atom_composite_end();
         }
         let op = get_vim_var_str(VV_OP);
-        if get_real_state() == MODE_OP_PENDING && *op != 0 {
-            assert!(*lhs.wrapping_add(len) == 0);
+        if get_real_state() == MODE_OP_PENDING && unsafe { *op } != 0 {
+            assert!(unsafe { *lhs.wrapping_add(len) } == 0);
             let mut full_bytes = Vec::from(crate::memory::cstr_as_bytes(op));
             full_bytes.extend_from_slice(crate::memory::cstr_slice(lhs, len));
             let full = cstr_from_bytes(&full_bytes);
@@ -1313,7 +1319,7 @@ pub fn atom_map_start(lhs: impl crate::strings::IntoCCharPtr, len: usize, peeked
         atom_composite_start(lhs, len);
         let cur_frame = cur_frame_ptr();
         if peeked && !cur_frame.is_null() {
-            atom_st().composite.frame = (*cur_frame).id;
+            atom_st().composite.frame = unsafe { (*cur_frame).id };
         }
         atom_st().typed.map_start = atom_st().typed.keys.len();
     }
@@ -1668,7 +1674,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
 }
 
 pub fn atom_ins_start(cmd: i32, count: i64, vis: VisualIns, vblock: bool) -> InsSession {
-    unsafe {
+    {
         let cur_frame = cur_frame_ptr();
         let mut session = InsSession {
             typed: atom_is_user_input(),
@@ -1676,7 +1682,7 @@ pub fn atom_ins_start(cmd: i32, count: i64, vis: VisualIns, vblock: bool) -> Ins
             origin: if vis == K_VINS_KEYS {
                 atom_st().vatom.origin
             } else {
-                (*cur_frame).origin
+                unsafe { (*cur_frame).origin }
             },
             vsel: None,
         };
@@ -1697,7 +1703,7 @@ pub fn atom_ins_start(cmd: i32, count: i64, vis: VisualIns, vblock: bool) -> Ins
         let reexec = vis == K_VINS_NONE
             || vis == K_VINS_KEYS
             || session.vsel.is_some()
-            || (vis == K_VINS_MOTION && (*cur_frame).payload_start == usize::MAX);
+            || (vis == K_VINS_MOTION && unsafe { (*cur_frame).payload_start } == usize::MAX);
         mc_ins_cascade_start(
             session.typed && count <= 1 && !repl && !vblock && reexec,
             session.origin,
@@ -1821,7 +1827,7 @@ pub fn atom_cmd_start(cmdchar: i32) {
 }
 
 fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool {
-    unsafe {
+    {
         if mc_replaying() || atom_st().atom_suppressed {
             return false;
         }
@@ -1899,13 +1905,13 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
         if (vis
             && atom_st().vatom.frame <= old.id
             && atom_st().atom_captures == old.captures
-            && (*ca.oap).op_type == OP_NOP)
+            && unsafe { (*ca.oap).op_type } == OP_NOP)
             || (!g_st().visual_global.active
                 && !old.visual.active
                 && atom_capturable(old.consumers, old.keytyped)
                 && atom_st().atom_captures == old.captures
                 && !atom_staged()
-                && (*ca.oap).op_type == OP_NOP
+                && unsafe { (*ca.oap).op_type } == OP_NOP
                 && stuff_empty()
                 && !ins_cascaded)
         {
@@ -2004,10 +2010,10 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
 }
 
 pub fn atom_cmd_end(ca: &mut Cmdarg) {
-    unsafe {
+    {
         let is_root = atom_st().cmd_frames.len() == 1;
         let old = cur_frame_ptr();
-        let old = { &mut *old };
+        let old = { unsafe { &mut *old } };
         if atom_st().composite.follow == K_NONE
             && !mc_replaying()
             && (atom_origin_moved(old.origin) || nv_is(ca.cmdchar, NV_MOTION))
@@ -2033,7 +2039,7 @@ pub fn atom_cmd_end(ca: &mut Cmdarg) {
             );
 
             atom_st().map_edit = false;
-            if (*ca.oap).op_type == OP_NOP
+            if unsafe { (*ca.oap).op_type } == OP_NOP
                 && !g_st().visual_global.active
                 && g_st().restart_edit == 0
             {

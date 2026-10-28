@@ -58,13 +58,13 @@ fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
 
 pub fn server_init(listen_addr: impl crate::strings::IntoCCharPtr) -> bool {
     let mut listen_addr = listen_addr.into_c_char_ptr();
-    unsafe {
+    {
         let mut ok = true;
         let mut owned_addr: Option<std::ffi::CString> = None;
         let mut user_arg: TriState = K_TRUE;
         srv_st().watchers = Vec::new();
 
-        if listen_addr.is_null() || *listen_addr == 0 {
+        if listen_addr.is_null() || unsafe { *listen_addr } == 0 {
             if os_env_exists(ENV_LISTEN, true) {
                 user_arg = K_FALSE;
                 let raw = os_getenv_cstr(ENV_LISTEN);
@@ -96,7 +96,7 @@ pub fn server_init(listen_addr: impl crate::strings::IntoCCharPtr) -> bool {
                 c"Failed $NVIM_LISTEN_ADDRESS: %s: \"%s\"".as_ptr()
             };
             let reason = if rv < 0 {
-                uv_strerror(rv)
+                unsafe { uv_strerror(rv) }
             } else if rv == 1 {
                 c"empty address".as_ptr()
             } else {
@@ -347,7 +347,7 @@ pub fn server_address_list() -> Vec<std::ffi::CString> {
 }
 
 pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: i32) {
-    unsafe {
+    {
         if result != 0 {
             logmsg!(
                 LOGLVL_ERR,
@@ -356,11 +356,11 @@ pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: i32) {
                 276,
                 true,
                 c"Failed to accept connection: %s",
-                uv_strerror(result),
+                unsafe { uv_strerror(result) },
             );
             return;
         }
 
-        channel_from_connection(&mut *watcher);
+        channel_from_connection(unsafe { &mut *watcher });
     }
 }

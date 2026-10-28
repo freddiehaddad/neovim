@@ -640,7 +640,7 @@ pub fn mark_get(
 
 /// Get a global mark `{A-Z0-9}` (`mark_get_global`).
 pub fn mark_get_global(resolve: bool, mut name: i32) -> *mut Xfmark {
-    unsafe {
+    {
         if ascii_isdigit(name) {
             name = name - b'0' as i32 + NMARKS as i32;
         } else if ascii_isupper(name) {
@@ -649,8 +649,8 @@ pub fn mark_get_global(resolve: bool, mut name: i32) -> *mut Xfmark {
             debug_assert!(false);
         }
         let mark = &raw mut g_st().namedfm[name as usize];
-        if resolve && (*mark).fmark.fnum == 0 {
-            fname2fnum(&mut *mark);
+        if resolve && unsafe { (*mark).fmark.fnum } == 0 {
+            fname2fnum(unsafe { &mut *mark });
         }
         mark
     }
@@ -733,7 +733,7 @@ pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *
 
 /// Get visual marks `'<'`, `'>'` (`mark_get_visual`).
 pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> *mut Fmark {
-    unsafe {
+    {
         let mut mark: *mut Fmark = ptr::null_mut();
         if name == b'<' as i32 || name == b'>' as i32 {
             let startp = buf.b_visual.vi_start;
@@ -747,8 +747,12 @@ pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> *mut Fmark {
             };
 
             if buf.b_visual.vi_mode == b'V' as i32 {
-                (*mark).mark.col = if name == b'<' as i32 { 0 } else { MAXCOL };
-                (*mark).mark.coladd = 0;
+                unsafe {
+                    (*mark).mark.col = if name == b'<' as i32 { 0 } else { MAXCOL };
+                }
+                unsafe {
+                    (*mark).mark.coladd = 0;
+                }
             }
         }
         mark
@@ -863,7 +867,7 @@ pub fn mark_view_make(wp: &WinInfoInfo, pos: CursorPos) -> Fmarkv {
 
 /// Search for the next named mark in the current file from a start position (`getnextmark`).
 pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> *mut Fmark {
-    unsafe {
+    {
         let mut result: *mut Fmark = ptr::null_mut();
         let mut pos = *startpos;
 
@@ -876,12 +880,14 @@ pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> *mut 
         for i in 0..NMARKS {
             if curbuf_mut().b_namedm[i].mark.lnum > 0 {
                 if dir == FORWARD {
-                    if (result.is_null() || lt(curbuf_mut().b_namedm[i].mark, (*result).mark))
+                    if (result.is_null()
+                        || lt(curbuf_mut().b_namedm[i].mark, unsafe { (*result).mark }))
                         && lt(pos, curbuf_mut().b_namedm[i].mark)
                     {
                         result = &raw mut curbuf_mut().b_namedm[i];
                     }
-                } else if (result.is_null() || lt((*result).mark, curbuf_mut().b_namedm[i].mark))
+                } else if (result.is_null()
+                    || lt(unsafe { (*result).mark }, curbuf_mut().b_namedm[i].mark))
                     && lt(curbuf_mut().b_namedm[i].mark, pos)
                 {
                     result = &raw mut curbuf_mut().b_namedm[i];
@@ -962,13 +968,17 @@ fn fmarks_check_one(fm: &mut Xfmark, name: impl crate::strings::IntoCCharPtr, bu
 
 /// Check the position in `fm` is valid (`mark_check`).
 pub fn mark_check(mut fm: Option<&mut Fmark>, errormsg: *mut *const c_char) -> bool {
-    unsafe {
+    {
         if fm.is_none() {
-            *errormsg = gettext(E_UMARK);
+            unsafe {
+                *errormsg = gettext(E_UMARK);
+            }
             return false;
         } else if fm.as_deref_mut().unwrap().mark.lnum <= 0 {
             if fm.as_deref_mut().unwrap().mark.lnum == 0 {
-                *errormsg = gettext(E_MARKNOTSET);
+                unsafe {
+                    *errormsg = gettext(E_MARKNOTSET);
+                }
             }
             return false;
         }
@@ -1436,7 +1446,7 @@ pub fn mark_adjust_buf(
     mode: MarkAdjustMode,
     op: ExtmarkOp,
 ) {
-    unsafe {
+    {
         let fnum = buf.b_fnum;
         const INITPOS: CursorPos = CursorPos {
             lnum: 1,
@@ -1462,16 +1472,16 @@ pub fn mark_adjust_buf(
                     amount_after,
                 );
                 let fm = fm_base.wrapping_add(i);
-                let fm = { &mut *fm };
+                let fm = { unsafe { &mut *fm } };
                 if fm.fmark.fnum == fnum {
                     one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
                 }
             }
             for i in NMARKS..NGLOBALMARKS {
                 let fm = fm_base.wrapping_add(i);
-                if (*fm).fmark.fnum == fnum {
+                if unsafe { (*fm).fmark.fnum } == fnum {
                     one_adjust_nodel(
-                        &mut (*fm).fmark.mark.lnum,
+                        unsafe { &mut (*fm).fmark.mark.lnum },
                         line1,
                         line2,
                         amount,
@@ -1715,7 +1725,7 @@ pub fn mark_col_adjust(
     col_amount: Colnr,
     spaces_removed: i32,
 ) {
-    unsafe {
+    {
         let fnum = curbuf_mut().b_fnum;
 
         if (col_amount == 0 && lnum_amount == 0) || (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0
@@ -1734,7 +1744,7 @@ pub fn mark_col_adjust(
                 spaces_removed,
             );
             let fm = fm_base.wrapping_add(i);
-            let fm = { &mut *fm };
+            let fm = { unsafe { &mut *fm } };
             if fm.fmark.fnum == fnum {
                 col_adjust(
                     &mut fm.fmark.mark,
@@ -1748,9 +1758,9 @@ pub fn mark_col_adjust(
         }
         for i in NMARKS..NGLOBALMARKS {
             let fm = fm_base.wrapping_add(i);
-            if (*fm).fmark.fnum == fnum {
+            if unsafe { (*fm).fmark.fnum } == fnum {
                 col_adjust(
-                    &mut (*fm).fmark.mark,
+                    unsafe { &mut (*fm).fmark.mark },
                     lnum,
                     mincol,
                     lnum_amount,
@@ -2072,7 +2082,7 @@ pub fn mark_set_global(name: c_char, fm: Xfmark, update: bool) -> bool {
 
 /// Set local mark (`mark_set_local`).
 pub fn mark_set_local(name: c_char, buf: &mut FileBuf, fm: Fmark, update: bool) -> bool {
-    unsafe {
+    {
         let ch = i32::from(name as u8);
         let fm_tgt = if ascii_islower(ch) {
             &raw mut buf.b_namedm[(ch - b'a' as i32) as usize]
@@ -2087,10 +2097,12 @@ pub fn mark_set_local(name: c_char, buf: &mut FileBuf, fm: Fmark, update: bool) 
         } else {
             return false;
         };
-        if update && fm.timestamp <= (*fm_tgt).timestamp {
+        if update && fm.timestamp <= unsafe { (*fm_tgt).timestamp } {
             return false;
         }
-        *fm_tgt = fm;
+        unsafe {
+            *fm_tgt = fm;
+        }
         true
     }
 }
@@ -2131,17 +2143,19 @@ pub fn free_all_marks() {
 
 /// Adjust position to point to the first byte of a multi-byte character (`mark_mb_adjustpos`).
 pub fn mark_mb_adjustpos(buf: *mut FileBuf, lp: &mut CursorPos) {
-    unsafe {
+    {
         if lp.col > 0 || lp.coladd > 1 {
-            let p = ml_get_buf(&mut *buf, lp.lnum);
-            if crate::memory::cstr_is_empty(p) || ml_get_buf_len(&mut *buf, lp.lnum) < lp.col {
+            let p = ml_get_buf(unsafe { &mut *buf }, lp.lnum);
+            if crate::memory::cstr_is_empty(p)
+                || ml_get_buf_len(unsafe { &mut *buf }, lp.lnum) < lp.col
+            {
                 lp.col = 0;
             } else {
                 lp.col -= utf_head_off(p, p.wrapping_add(lp.col as usize));
             }
             let p_at = p.wrapping_add(lp.col as usize);
             if lp.coladd == 1
-                && *p_at != TAB
+                && unsafe { *p_at } != TAB
                 && vim_isprintc(utf_ptr2char(p_at))
                 && ptr2cells(p_at) > 1
             {

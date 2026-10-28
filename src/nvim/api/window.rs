@@ -533,14 +533,14 @@ pub fn nvim_win_text_height(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+    {
         let mut rv = arena_dict(arena, 4);
 
         let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
             return rv;
         };
         let buf = w.w_buffer;
-        let line_count = (*buf).b_ml.ml_line_count;
+        let line_count = unsafe { (*buf).b_ml.ml_line_count };
 
         let mut start_lnum: Linenr = 1;
         let mut end_lnum: Linenr = line_count;
@@ -551,11 +551,13 @@ pub fn nvim_win_text_height(
         let mask = opts.is_set_win_text_height;
 
         if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_ROW) {
-            start_lnum = normalize_index(&mut *buf, opts.start_row, false, &mut oob) as Linenr;
+            start_lnum =
+                normalize_index(unsafe { &mut *buf }, opts.start_row, false, &mut oob) as Linenr;
         }
 
         if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
-            end_lnum = normalize_index(&mut *buf, opts.end_row, false, &mut oob) as Linenr;
+            end_lnum =
+                normalize_index(unsafe { &mut *buf }, opts.end_row, false, &mut oob) as Linenr;
         }
 
         if oob {

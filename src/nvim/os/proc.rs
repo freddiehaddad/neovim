@@ -200,25 +200,25 @@ pub fn os_proc_info(pid: i32, arena: &mut Arena) -> Dict {
         items: std::ptr::null_mut(),
     };
 
-    unsafe {
-        let h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    {
+        let h = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
         if h == INVALID_HANDLE_VALUE {
             return pinfo;
         }
         let mut pe = ProcessEntry32::new();
-        if Process32First(h, &mut pe) == 0 {
-            CloseHandle(h);
+        if unsafe { Process32First(h, &mut pe) } == 0 {
+            unsafe { CloseHandle(h) };
             return pinfo;
         }
         loop {
             if pe.th32_process_id == pid as u32 {
                 break;
             }
-            if Process32Next(h, &mut pe) == 0 {
+            if unsafe { Process32Next(h, &mut pe) } == 0 {
                 break;
             }
         }
-        CloseHandle(h);
+        unsafe { CloseHandle(h) };
 
         if pe.th32_process_id == pid as u32 {
             pinfo = arena_dict(arena, 3);

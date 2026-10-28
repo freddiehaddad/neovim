@@ -664,7 +664,7 @@ pub fn syn_set_timeout(tm: Option<Proftime>) {
 
 /// Start the syntax recognition for a line.
 pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
-    unsafe {
+    {
         let mut last_valid: Option<usize> = None;
         let mut last_min_valid: Option<usize> = None;
         let mut prev: Option<usize> = None;
@@ -673,13 +673,13 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
 
         if syn_st().syn_block != win_s(wp)
             || syn_st().syn_buf != wp.w_buffer
-            || syn_st().changedtick_last != buf_get_changedtick(&*syn_st().syn_buf)
+            || syn_st().changedtick_last != buf_get_changedtick(unsafe { &*syn_st().syn_buf })
         {
             invalidate_current_state();
             syn_st().syn_buf = wp.w_buffer;
             syn_st().syn_block = win_s(wp);
         }
-        syn_st().changedtick_last = buf_get_changedtick(&*syn_st().syn_buf);
+        syn_st().changedtick_last = buf_get_changedtick(unsafe { &*syn_st().syn_buf });
         syn_st().syn_win = (&raw mut *wp);
 
         syn_stack_alloc();
@@ -813,7 +813,7 @@ fn clear_current_state() {
 }
 
 fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Synstate) {
-    unsafe {
+    {
         let mut found_flags: i32 = 0;
         let mut found_match_idx: i32 = 0;
         let mut found_current_lnum: Linenr = 0;
@@ -854,7 +854,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
             while start_lnum > 1 {
                 let l = ml_get(start_lnum - 1);
                 if crate::memory::cstr_is_empty(l)
-                    || *l.wrapping_offset((ml_get_len(start_lnum - 1) - 1) as isize)
+                    || unsafe { *l.wrapping_offset((ml_get_len(start_lnum - 1) - 1) as isize) }
                         != b'\\' as c_char
                 {
                     break;
@@ -907,8 +907,8 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
                     break;
                 }
 
-                if !last_valid.is_null() && lnum == (*last_valid).sst_lnum {
-                    load_current_state(&*(last_valid));
+                if !last_valid.is_null() && lnum == unsafe { (*last_valid).sst_lnum } {
+                    load_current_state(unsafe { &*(last_valid) });
                     break;
                 }
 
@@ -1008,33 +1008,39 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
 }
 
 fn save_chartab(chartab: *mut c_char) {
-    unsafe {
+    {
         if syn_block_mut().b_syn_isk.is_none() {
             return;
         }
 
-        ptr::copy(
-            (&raw const syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
-            chartab.cast::<u8>(),
-            32,
-        );
-        ptr::copy(
-            (&raw const win_s(&mut *syn_st().syn_win).b_syn_chartab).cast::<u8>(),
-            (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
-            32,
-        );
+        unsafe {
+            ptr::copy(
+                (&raw const syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
+                chartab.cast::<u8>(),
+                32,
+            )
+        };
+        unsafe {
+            ptr::copy(
+                (&raw const win_s(&mut *syn_st().syn_win).b_syn_chartab).cast::<u8>(),
+                (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
+                32,
+            )
+        };
     }
 }
 
 fn restore_chartab(chartab: impl crate::strings::IntoCCharPtr) {
     let chartab = chartab.into_c_char_ptr();
-    unsafe {
-        if win_s(&mut *syn_st().syn_win).b_syn_isk.is_some() {
-            ptr::copy(
-                chartab.cast::<u8>(),
-                (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
-                32,
-            );
+    {
+        if win_s(unsafe { &mut *syn_st().syn_win }).b_syn_isk.is_some() {
+            unsafe {
+                ptr::copy(
+                    chartab.cast::<u8>(),
+                    (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
+                    32,
+                )
+            };
         }
     }
 }
@@ -2147,7 +2153,7 @@ fn push_next_match() -> &'static mut Stateitem {
 }
 
 fn check_state_ends() {
-    unsafe {
+    {
         let mut cur_si = cur_state_at(cur_state_len() - 1);
         loop {
             if cur_si.si_ends != 0
@@ -2181,7 +2187,8 @@ fn check_state_ends() {
                 syn_st().current_next_list = cur_si.si_next_list.clone();
                 syn_st().current_next_flags = cur_si.si_flags;
                 if (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
-                    && *syn_getcurline().wrapping_offset(syn_st().current_col as isize) == NUL
+                    && unsafe { *syn_getcurline().wrapping_offset(syn_st().current_col as isize) }
+                        == NUL
                 {
                     syn_st().current_next_list = None;
                 }
@@ -2211,7 +2218,9 @@ fn check_state_ends() {
                     check_keepend();
                     if (syn_st().current_next_flags & HL_HAS_EOL) != 0
                         && syn_st().keepend_level < 0
-                        && *syn_getcurline().wrapping_offset(syn_st().current_col as isize) == NUL
+                        && unsafe {
+                            *syn_getcurline().wrapping_offset(syn_st().current_col as isize)
+                        } == NUL
                     {
                         break;
                     }
@@ -2656,7 +2665,7 @@ fn syn_getcurline_len() -> Colnr {
 }
 
 fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) -> bool {
-    unsafe {
+    {
         let mut timed_out: i32 = 0;
         let mut pt: Proftime = 0;
         let l_syn_time_on = syn_st().syn_time_on;
@@ -2691,8 +2700,8 @@ fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) 
                 st.match_ += 1;
             }
         }
-        if timed_out != 0 && !win_s(&mut *syn_st().syn_win).b_syn_slow {
-            win_s(&mut *syn_st().syn_win).b_syn_slow = true;
+        if timed_out != 0 && !win_s(unsafe { &mut *syn_st().syn_win }).b_syn_slow {
+            win_s(unsafe { &mut *syn_st().syn_win }).b_syn_slow = true;
             msg(
                 gettext(c"'redrawtime' exceeded, syntax highlighting disabled"),
                 0,
@@ -3700,9 +3709,11 @@ fn get_group_name(
     name_end: *mut *mut c_char,
 ) -> *mut c_char {
     let arg = arg.into_c_char_ptr();
-    unsafe {
-        *name_end = skiptowhite(arg);
-        let rest = skipwhite(*name_end);
+    {
+        unsafe {
+            *name_end = skiptowhite(arg);
+        }
+        let rest = skipwhite(unsafe { *name_end });
         if ends_excmd(crate::memory::cstr_first_char(arg)) != 0
             || crate::memory::cstr_is_empty(rest)
         {
@@ -3957,7 +3968,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
 }
 
 fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
-    unsafe {
+    {
         let arg = eap.arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
         let mut conceal_char: i32 = NUL as i32;
@@ -4001,11 +4012,15 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         {
                             rest = rest.wrapping_add(1);
                         }
-                        *p = *rest;
+                        unsafe {
+                            *p = *rest;
+                        }
                         p = p.wrapping_add(1);
                         rest = rest.wrapping_add(1);
                     }
-                    *p = NUL;
+                    unsafe {
+                        *p = NUL;
+                    }
                     p = p.wrapping_add(1);
                     cnt += 1;
                     rest = skipwhite(rest);
@@ -4023,7 +4038,9 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                             if p.is_null() {
                                 kwlen = crate::memory::cstr_len(kw);
                             } else {
-                                *p = NUL;
+                                unsafe {
+                                    *p = NUL;
+                                }
                                 kwlen = crate::memory::ptr_offset_from(p, kw) as usize;
                             }
                             add_keyword(
@@ -4056,7 +4073,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                                 break;
                             }
                             let l = utfc_ptr2len(p.wrapping_add(1)) as usize;
-                            ptr::copy(p.wrapping_add(1), p, l);
+                            unsafe { ptr::copy(p.wrapping_add(1), p, l) };
                             p = p.wrapping_add(l);
                         }
                         kw = kw.wrapping_add(kwlen + 1);
@@ -4637,7 +4654,7 @@ fn get_syn_pattern(arg: impl crate::strings::IntoCCharPtr, ci: &mut Synpat) -> *
 }
 
 fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
-    unsafe {
+    {
         let mut arg_start = eap.arg;
         let mut key_owned: Option<std::ffi::CString>;
         let mut illegal = false;
@@ -4726,16 +4743,18 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                     crate::memory::cstr_first_char(next_arg),
                     1,
                 );
-                if *arg_end != *next_arg {
+                if unsafe { *arg_end } != unsafe { *next_arg } {
                     illegal = true;
                     break;
                 }
 
                 if eap.skip == 0 {
-                    let pat_slice = std::slice::from_raw_parts(
-                        next_arg.wrapping_add(1).cast::<u8>(),
-                        crate::memory::ptr_offset_from(arg_end, next_arg) as usize - 1,
-                    );
+                    let pat_slice = unsafe {
+                        std::slice::from_raw_parts(
+                            next_arg.wrapping_add(1).cast::<u8>(),
+                            crate::memory::ptr_offset_from(arg_end, next_arg) as usize - 1,
+                        )
+                    };
                     let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
                     win_s(curwin_mut()).b_syn_linecont_ic = win_s(curwin_mut()).b_syn_ic;
 

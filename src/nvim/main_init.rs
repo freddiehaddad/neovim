@@ -1146,9 +1146,11 @@ fn server_connect(
     errmsg: *mut *const c_char,
 ) -> u64 {
     let server_addr = server_addr.into_c_char_ptr();
-    unsafe {
+    {
         if server_addr.is_null() {
-            *errmsg = c"no address specified".as_ptr();
+            unsafe {
+                *errmsg = c"no address specified".as_ptr();
+            }
             return 0;
         }
         let on_data = CallbackReader::none();
@@ -1156,7 +1158,9 @@ fn server_connect(
         let is_tcp = !socket_address_tcp_host_end(server_addr).is_null();
         let chan = channel_connect(is_tcp, server_addr, true, on_data, 500, &mut error);
         if !error.is_null() {
-            *errmsg = error;
+            unsafe {
+                *errmsg = error;
+            }
             return 0;
         }
         chan
@@ -1172,9 +1176,10 @@ fn remote_request(
     ui_only: bool,
 ) {
     let server_addr = server_addr.into_c_char_ptr();
-    unsafe {
-        let is_ui = crate::memory::cstr_as_opt_bytes(*argv.wrapping_add(remote_args as usize))
-            == Some(b"--remote-ui");
+    {
+        let is_ui =
+            crate::memory::cstr_as_opt_bytes(unsafe { *argv.wrapping_add(remote_args as usize) })
+                == Some(b"--remote-ui");
         if ui_only && !is_ui {
             return;
         }
@@ -1187,7 +1192,7 @@ fn remote_request(
             if chan == 0 {
                 #[cfg(windows)]
                 {
-                    dup2(STDOUT_FILENO, STDERR_FILENO);
+                    unsafe { dup2(STDOUT_FILENO, STDERR_FILENO) };
                 }
                 fprintf!(stderr, c"Remote ui failed to start: %s\n", connect_error,);
                 os_exit(1);
@@ -1213,7 +1218,7 @@ fn remote_request(
 
         let count = (argc - remote_args).max(0) as usize;
         let mut args_vec: Vec<Object> = (remote_args..argc)
-            .map(|t_argc| cstr_as_obj(*argv.wrapping_add(t_argc as usize)))
+            .map(|t_argc| cstr_as_obj(unsafe { *argv.wrapping_add(t_argc as usize) }))
             .collect();
         let args = Array {
             items: if count > 0 {
@@ -1849,10 +1854,10 @@ fn init_params(paramp: &mut Mparm, argc: i32, argv: *mut *mut c_char) {
 }
 
 fn init_startuptime(paramp: &mut Mparm) {
-    unsafe {
+    {
         let mut is_embed = false;
         for i in 1..(paramp.argc - 1) {
-            if crate::memory::cstr_as_opt_bytes(*paramp.argv.wrapping_add(i as usize))
+            if crate::memory::cstr_as_opt_bytes(unsafe { *paramp.argv.wrapping_add(i as usize) })
                 .is_some_and(|b| b.eq_ignore_ascii_case(b"--embed"))
             {
                 is_embed = true;
@@ -1860,11 +1865,11 @@ fn init_startuptime(paramp: &mut Mparm) {
             }
         }
         for i in 1..(paramp.argc - 1) {
-            if crate::memory::cstr_as_opt_bytes(*paramp.argv.wrapping_add(i as usize))
+            if crate::memory::cstr_as_opt_bytes(unsafe { *paramp.argv.wrapping_add(i as usize) })
                 .is_some_and(|b| b.eq_ignore_ascii_case(b"--startuptime"))
             {
                 time_init(
-                    *paramp.argv.wrapping_add((i + 1) as usize),
+                    unsafe { *paramp.argv.wrapping_add((i + 1) as usize) },
                     if is_embed {
                         c"Embedded".as_ptr()
                     } else {
@@ -2130,7 +2135,7 @@ fn create_windows(parmp: &mut Mparm) {
 }
 
 fn edit_buffers(parmp: &mut Mparm) {
-    unsafe {
+    {
         let mut advance = true;
         let mut p_shm_save: Option<std::ffi::CString> = None;
 
@@ -2176,7 +2181,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                 curwin_mut().w_arg_idx = arg_idx;
                 g_st().swap_exists_did_quit = false;
                 let fname = if arg_idx < gargcount() {
-                    alist_name(&*garglist().wrapping_add(arg_idx as usize))
+                    alist_name(unsafe { &*garglist().wrapping_add(arg_idx as usize) })
                 } else {
                     ptr::null_mut()
                 };
@@ -2224,8 +2229,8 @@ fn edit_buffers(parmp: &mut Mparm) {
         } else {
             curwin_ptr()
         };
-        while (*win).w_onebuf_opt.wo_pvw != 0 {
-            win = (*win).w_next;
+        while unsafe { (*win).w_onebuf_opt.wo_pvw } != 0 {
+            win = unsafe { (*win).w_next };
             if win.is_null() {
                 win = g_st().firstwin;
                 break;

@@ -29,7 +29,7 @@ const fn callback_reader_init() -> CallbackReader {
 
 /// `"rpcstart()"` function (`f_rpcstart`).
 pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
@@ -50,11 +50,15 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let mut argsl: i32 = 0;
         if arg1.v_type == VarType::VarList {
             args = arg1.vval.v_list();
-            argsl = if args.is_null() { 0 } else { (*args).lv_len };
+            argsl = if args.is_null() {
+                0
+            } else {
+                unsafe { (*args).lv_len }
+            };
             for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(if args.is_null() {
                 std::ptr::null_mut()
             } else {
-                (*args).lv_first
+                unsafe { (*args).lv_first }
             })) {
                 if li.li_tv.v_type != VarType::VarString {
                     semsg!(
@@ -67,7 +71,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
 
         let prog = arg0.vval.v_string();
-        if prog.is_null() || *prog == 0 {
+        if prog.is_null() || unsafe { *prog } == 0 {
             emsg(E_API_SPAWN_FAILED);
             return;
         }
@@ -76,7 +80,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         argv.push(crate::memory::cstr_to_cstring(prog));
 
         if argsl > 0 && !args.is_null() {
-            for li in crate::eval::typval::list_iter_mut((*args).lv_first) {
+            for li in crate::eval::typval::list_iter_mut(unsafe { (*args).lv_first }) {
                 argv.push(crate::memory::cstr_to_cstring(tv_get_string(&li.li_tv)));
             }
         }
@@ -99,7 +103,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             rettv.vval.v_number_mut(),
         );
         if !chan.is_null() {
-            channel_create_event(&mut *chan, std::ptr::null());
+            channel_create_event(unsafe { &mut *chan }, std::ptr::null());
         }
     }
 }

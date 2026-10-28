@@ -320,7 +320,7 @@ pub fn ctx_free(ctx: &mut Context) {
 }
 
 pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
-    unsafe {
+    {
         assert!(ctx.buf == 0 || ctx.buf == curbuf_mut().b_fnum);
         ctx.buf = curbuf_mut().b_fnum;
         ctx.pos = curwin_mut().w_cursor;
@@ -349,14 +349,14 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
                 if pos_ptr.is_null() {
                     continue;
                 }
-                if (*pos_ptr).lnum == 0 {
+                if unsafe { (*pos_ptr).lnum } == 0 {
                     if ctx.pos_marks[i] != 0 {
                         extmark_del_id(curbuf_mut(), ctx_marks_ns(), ctx.pos_marks[i]);
                         ctx.pos_marks[i] = 0;
                     }
                     continue;
                 }
-                let mut p = *pos_ptr;
+                let mut p = unsafe { *pos_ptr };
                 check_pos(curbuf_mut(), &mut p);
                 extmark_set_pos(
                     curbuf_mut(),

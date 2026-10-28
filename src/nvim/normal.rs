@@ -1589,20 +1589,24 @@ static E_CMDLINE_WINDOW_ALREADY_OPEN: &CStr = c"E1292: Command-line window is al
 
 /// Initialize the norm_st().nv_cmd_idx[] table.
 pub fn init_normal_cmds() {
-    unsafe {
+    {
         assert!(NV_CMDS_SIZE <= i16::MAX as usize);
         let idx_ptr = (&raw mut norm_st().nv_cmd_idx).cast::<i16>();
 
         for i in 0..(NV_CMDS_SIZE as i16) {
-            *idx_ptr.wrapping_add(i as usize) = i;
+            unsafe {
+                *idx_ptr.wrapping_add(i as usize) = i;
+            }
         }
 
-        let slice = std::slice::from_raw_parts_mut(idx_ptr, NV_CMDS_SIZE);
+        let slice = unsafe { std::slice::from_raw_parts_mut(idx_ptr, NV_CMDS_SIZE) };
         slice.sort_unstable_by_key(|&s| NV_CMDS[s as usize].cmd_char.abs());
 
         let mut i: i16 = 0;
         while (i as usize) < NV_CMDS_SIZE {
-            if i32::from(i) != NV_CMDS[*idx_ptr.wrapping_add(i as usize) as usize].cmd_char {
+            if i32::from(i)
+                != NV_CMDS[unsafe { *idx_ptr.wrapping_add(i as usize) } as usize].cmd_char
+            {
                 break;
             }
             i += 1;
@@ -1618,7 +1622,7 @@ pub fn nv_is(cmdchar: i32, flags: u16) -> bool {
 }
 
 fn find_command(mut cmdchar: i32) -> i32 {
-    unsafe {
+    {
         if cmdchar >= 0x100 {
             return -1;
         }
@@ -1628,7 +1632,7 @@ fn find_command(mut cmdchar: i32) -> i32 {
         assert!(norm_st().nv_max_linear < NV_CMDS_SIZE as i32);
         let idx_ptr = (&raw const norm_st().nv_cmd_idx).cast::<i16>();
         if cmdchar <= norm_st().nv_max_linear {
-            return i32::from(*idx_ptr.wrapping_add(cmdchar as usize));
+            return i32::from(unsafe { *idx_ptr.wrapping_add(cmdchar as usize) });
         }
 
         let mut bot = norm_st().nv_max_linear + 1;
@@ -1636,12 +1640,12 @@ fn find_command(mut cmdchar: i32) -> i32 {
         let mut idx = -1;
         while bot <= top {
             let i = (top + bot) / 2;
-            let mut c = NV_CMDS[*idx_ptr.wrapping_add(i as usize) as usize].cmd_char;
+            let mut c = NV_CMDS[unsafe { *idx_ptr.wrapping_add(i as usize) } as usize].cmd_char;
             if c < 0 {
                 c = -c;
             }
             if cmdchar == c {
-                idx = i32::from(*idx_ptr.wrapping_add(i as usize));
+                idx = i32::from(unsafe { *idx_ptr.wrapping_add(i as usize) });
                 break;
             }
             if cmdchar > c {
@@ -2638,7 +2642,7 @@ pub fn find_ident_at_pos(
     textcol: *mut i32,
     find_type: i32,
 ) -> usize {
-    unsafe {
+    {
         let mut col: i32 = 0;
         let mut this_class: i32 = 0;
         let mut prev_class: i32;
@@ -2706,9 +2710,13 @@ pub fn find_ident_at_pos(
             return 0;
         }
         ptr = ptr.wrapping_add(col as usize);
-        *text = ptr;
+        unsafe {
+            *text = ptr;
+        }
         if !textcol.is_null() {
-            *textcol = col;
+            unsafe {
+                *textcol = col;
+            }
         }
 
         bn = 0;
@@ -2795,7 +2803,7 @@ pub fn may_clear_cmdline() {
 }
 
 pub fn clear_showcmd() {
-    unsafe {
+    {
         if opt_vars().p_sc == 0 {
             return;
         }
@@ -2886,10 +2894,14 @@ pub fn clear_showcmd() {
             } else {
                 SHOWCMD_COLS
             };
-            *sc_buf.wrapping_add(limit) = NUL;
+            unsafe {
+                *sc_buf.wrapping_add(limit) = NUL;
+            }
             norm_st().showcmd_visual = true;
         } else {
-            *sc_buf = NUL;
+            unsafe {
+                *sc_buf = NUL;
+            }
             norm_st().showcmd_visual = false;
 
             if norm_st().showcmd_is_clear {
@@ -2902,7 +2914,7 @@ pub fn clear_showcmd() {
 }
 
 pub fn add_to_showcmd(c: i32) -> bool {
-    unsafe {
+    {
         const IGNORE: &[i32] = &[
             K_IGNORE,
             K_LEFTMOUSE,
@@ -2941,7 +2953,9 @@ pub fn add_to_showcmd(c: i32) -> bool {
         let sc_buf = (&raw mut g_st().showcmd_buf).cast::<c_char>();
 
         if norm_st().showcmd_visual {
-            *sc_buf = NUL;
+            unsafe {
+                *sc_buf = NUL;
+            }
             norm_st().showcmd_visual = false;
         }
 
@@ -2971,11 +2985,13 @@ pub fn add_to_showcmd(c: i32) -> bool {
         };
         if old_len + extra_len > limit {
             let overflow = old_len + extra_len - limit;
-            ptr::copy(
-                sc_buf.wrapping_add(overflow),
-                sc_buf,
-                old_len - overflow + 1,
-            );
+            unsafe {
+                ptr::copy(
+                    sc_buf.wrapping_add(overflow),
+                    sc_buf,
+                    old_len - overflow + 1,
+                )
+            };
         }
         crate::memory::cstr_cat(sc_buf, p);
 
@@ -3170,14 +3186,14 @@ pub fn do_check_scrollbind(check: bool) {
 }
 
 pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
-    unsafe {
+    {
         let old_curwin = curwin_ptr();
         let old_curbuf = g_st().curbuf;
         let old_visual_select = g_st().visual_global.select;
         let old_visual_active = g_st().visual_global.active;
         let tgt_leftcol = curwin_mut().w_leftcol;
 
-        let want_ver = (*old_curwin).w_onebuf_opt.wo_diff != 0
+        let want_ver = unsafe { (*old_curwin).w_onebuf_opt.wo_diff } != 0
             || (crate::strings::vim_haschr(opt_vars().p_sbo, b'v' as i32) && vtopline_diff != 0);
         let want_hor = crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as i32)
             && (leftcol_diff != 0 || vtopline_diff != 0);
@@ -3189,10 +3205,10 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
             g_st().curbuf = curwin_mut().w_buffer;
             if !ptr::eq(curwin_ptr(), old_curwin) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
                 if want_ver {
-                    if (*old_curwin).w_onebuf_opt.wo_diff != 0
+                    if unsafe { (*old_curwin).w_onebuf_opt.wo_diff } != 0
                         && curwin_mut().w_onebuf_opt.wo_diff != 0
                     {
-                        diff_set_topline(&mut *old_curwin, curwin_mut());
+                        diff_set_topline(unsafe { &mut *old_curwin }, curwin_mut());
                     } else {
                         curwin_mut().w_scbind_pos += vtopline_diff;
                         let curr_vtopline = get_vtopline(curwin_mut());
@@ -3350,7 +3366,7 @@ pub fn find_decl(
     flags_arg: i32,
 ) -> bool {
     let ptr = ptr.into_c_char_ptr();
-    unsafe {
+    {
         let par_pos: CursorPos;
         let mut found_pos: CursorPos = CursorPos {
             lnum: 0,
@@ -3391,7 +3407,9 @@ pub fn find_decl(
             par_pos = curwin_mut().w_cursor;
         } else {
             par_pos = curwin_mut().w_cursor;
-            while curwin_mut().w_cursor.lnum > 1 && *skipwhite(get_cursor_line_ptr()) != NUL {
+            while curwin_mut().w_cursor.lnum > 1
+                && unsafe { *skipwhite(get_cursor_line_ptr()) } != NUL
+            {
                 curwin_mut().w_cursor.lnum -= 1;
             }
         }
@@ -3421,8 +3439,8 @@ pub fn find_decl(
                 let maxtravel = i64::from(old_pos.lnum - curwin_mut().w_cursor.lnum + 1);
                 let pos = findmatchlimit(None, b'}' as i32, FM_FORWARD, maxtravel);
 
-                if !pos.is_null() && (*pos).lnum < old_pos.lnum {
-                    curwin_mut().w_cursor = *pos;
+                if !pos.is_null() && unsafe { (*pos).lnum } < old_pos.lnum {
+                    curwin_mut().w_cursor = unsafe { *pos };
                     continue;
                 }
             }
@@ -4303,7 +4321,7 @@ fn nv_k_getcmd(
     buflen: &mut usize,
 ) -> usize {
     let kp = kp.into_c_char_ptr();
-    unsafe {
+    {
         if kp_help {
             crate::memory::cstr_cpy(buf, c"help! ");
             *buflen = 6;
@@ -4323,7 +4341,7 @@ fn nv_k_getcmd(
             return n;
         }
 
-        let mut ptr = *ptr_arg;
+        let mut ptr = unsafe { *ptr_arg };
 
         while crate::memory::cstr_first_byte(ptr) == b'-' && n > 0 {
             ptr = ptr.wrapping_add(1);
@@ -4331,7 +4349,9 @@ fn nv_k_getcmd(
         }
         if n == 0 {
             emsg(tr(E_NOIDENT));
-            *ptr_arg = ptr;
+            unsafe {
+                *ptr_arg = ptr;
+            }
             return 0;
         }
 
@@ -4360,7 +4380,9 @@ fn nv_k_getcmd(
             ) as usize;
         }
 
-        *ptr_arg = ptr;
+        unsafe {
+            *ptr_arg = ptr;
+        }
         n
     }
 }
@@ -5152,7 +5174,7 @@ fn nv_csearch(cap: &mut Cmdarg) {
 }
 
 fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
-    unsafe {
+    {
         let mut new_pos = CursorPos {
             lnum: 0,
             col: 0,
@@ -5203,8 +5225,8 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
                 break;
             }
             prev_pos = new_pos;
-            curwin_mut().w_cursor = *pos;
-            new_pos = *pos;
+            curwin_mut().w_cursor = unsafe { *pos };
+            new_pos = unsafe { *pos };
             n -= 1;
         }
         curwin_mut().w_cursor = *old_pos;
@@ -5259,7 +5281,7 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
                             if pos.is_null() {
                                 n = 0;
                             } else {
-                                curwin_mut().w_cursor = *pos;
+                                curwin_mut().w_cursor = unsafe { *pos };
                             }
                         }
                         break;
@@ -5274,7 +5296,7 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
         }
         if !pos.is_null() {
             setpcmark();
-            curwin_mut().w_cursor = *pos;
+            curwin_mut().w_cursor = unsafe { *pos };
             curwin_mut().w_set_curswant = true;
             if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
                 && g_st().key_typed
@@ -5287,7 +5309,7 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
 }
 
 fn nv_brackets(cap: &mut Cmdarg) {
-    unsafe {
+    {
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().inclusive = false;
         let old_pos = curwin_mut().w_cursor;
@@ -5302,7 +5324,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
                 clearop(cap.oap_mut());
             } else {
                 let mut ptr_vec = Vec::with_capacity(len + 1);
-                ptr_vec.extend_from_slice(std::slice::from_raw_parts(ptr, len));
+                ptr_vec.extend_from_slice(unsafe { std::slice::from_raw_parts(ptr, len) });
                 ptr_vec.push(NUL);
                 let is_upper = (cap.nchar as u8).is_ascii_uppercase();
                 let is_lower = (cap.nchar as u8).is_ascii_lowercase();
@@ -5375,7 +5397,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
             while n > 0 {
                 prev_fm = fm;
                 fm = getnextmark(
-                    &mut (*fm).mark,
+                    unsafe { &mut (*fm).mark },
                     if cap.cmdchar == b'[' as i32 {
                         BACKWARD
                     } else {
@@ -5395,7 +5417,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
             if cap.nchar == b'\'' as i32 {
                 flags |= K_MARK_BEGIN_LINE;
             }
-            nv_mark_move_to(cap, flags, &mut *fm);
+            nv_mark_move_to(cap, flags, unsafe { &mut *fm });
         } else if cap.nchar >= K_RIGHTRELEASE && cap.nchar <= K_LEFTMOUSE {
             do_mouse(
                 Some(cap.oap_mut()),
@@ -6460,7 +6482,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
 }
 
 fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
-    unsafe {
+    {
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().inclusive = true;
         curwin_mut().w_curswant = MAXCOL;
@@ -6472,15 +6494,15 @@ fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
         let ptr = get_cursor_line_ptr();
 
         if curwin_mut().w_cursor.col > 0
-            && *ptr.wrapping_add(curwin_mut().w_cursor.col as usize) == NUL
+            && unsafe { *ptr.wrapping_add(curwin_mut().w_cursor.col as usize) } == NUL
         {
             curwin_mut().w_cursor.col -= 1;
         }
 
         while curwin_mut().w_cursor.col > 0
-            && ascii_iswhite(i32::from(
-                *ptr.wrapping_add(curwin_mut().w_cursor.col as usize) as u8,
-            ))
+            && ascii_iswhite(i32::from(unsafe {
+                *ptr.wrapping_add(curwin_mut().w_cursor.col as usize)
+            } as u8))
         {
             curwin_mut().w_cursor.col -= 1;
         }

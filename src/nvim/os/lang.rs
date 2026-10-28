@@ -454,12 +454,12 @@ fn locale_candidates(locale: &str) -> Vec<String> {
 }
 
 fn current_message_locale() -> Option<String> {
-    unsafe {
+    {
         let mut buf = [0 as c_char; 256];
         for var in [c"LANGUAGE", c"LC_ALL", c"LC_MESSAGES", c"LANG"] {
             let p = os_getenv_buf(var.as_ptr(), buf.as_mut_ptr(), buf.len());
             if !p.is_null()
-                && *p != 0
+                && unsafe { *p } != 0
                 && let Ok(s) = crate::memory::cstr_from_ptr(p).to_str()
             {
                 return Some(s.to_string());
@@ -470,7 +470,7 @@ fn current_message_locale() -> Option<String> {
         #[cfg(windows)]
         let p = get_locale_val(LC_CTYPE);
         if !p.is_null()
-            && *p != 0
+            && unsafe { *p } != 0
             && let Ok(s) = crate::memory::cstr_from_ptr(p).to_str()
         {
             return Some(s.to_string());
@@ -656,9 +656,9 @@ pub fn set_lang_var() {
 
 /// Setup to use the current locale.
 pub fn init_locale() {
-    unsafe {
-        let _ = setlocale(LC_ALL, c"".as_ptr());
-        let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
+    {
+        let _ = unsafe { setlocale(LC_ALL, c"".as_ptr()) };
+        let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr()) };
 
         let mut localepath = [0 as c_char; MAXPATHL];
         xstrlcpy(
@@ -667,7 +667,9 @@ pub fn init_locale() {
             MAXPATHL,
         );
         let mut tail = path_tail_with_sep(localepath.as_mut_ptr());
-        *tail = NUL;
+        unsafe {
+            *tail = NUL;
+        }
         tail = path_tail(localepath.as_ptr());
         let offset = (tail as usize) - (localepath.as_ptr() as usize);
         xstrlcpy(tail, c"share/locale", MAXPATHL - offset);
@@ -688,7 +690,7 @@ pub fn init_locale() {
 
 /// `":language"`: Set the language (locale).
 pub fn ex_language(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut what = LC_ALL;
         let mut whatstr: *const c_char = c"".as_ptr();
         let mut name = eap.arg;
@@ -723,7 +725,7 @@ pub fn ex_language(eap: &mut Exarg) {
             let mut p_val = if what == VIM_LC_MESSAGES {
                 get_mess_env(&mut mess_buf)
             } else {
-                setlocale(what, ptr::null())
+                unsafe { setlocale(what, ptr::null()) }
             };
             if crate::memory::cstr_is_empty(p_val) {
                 p_val = c"Unknown".as_ptr().cast_mut();
@@ -734,8 +736,8 @@ pub fn ex_language(eap: &mut Exarg) {
             let loc = if what == VIM_LC_MESSAGES {
                 c"".as_ptr().cast_mut()
             } else {
-                let l = setlocale(what, name);
-                let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
+                let l = unsafe { setlocale(what, name) };
+                let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr()) };
                 l
             };
             #[cfg(not(windows))]

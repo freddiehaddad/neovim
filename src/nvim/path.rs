@@ -494,16 +494,18 @@ fn do_concat_fnames(
     len: &mut usize,
 ) -> *mut c_char {
     let fname2 = fname2.into_c_char_ptr();
-    unsafe {
+    {
         if sep
             && !crate::memory::cstr_is_empty(fname1)
             && after_pathsep(fname1, fname1.wrapping_add(len1)) == 0
         {
-            *fname1.wrapping_add(len1) = PATHSEP;
-            ptr::copy(fname2, fname1.wrapping_add(len1 + 1), len2 + 1);
+            unsafe {
+                *fname1.wrapping_add(len1) = PATHSEP;
+            }
+            unsafe { ptr::copy(fname2, fname1.wrapping_add(len1 + 1), len2 + 1) };
             *len = len1 + 1 + len2;
         } else {
-            ptr::copy(fname2, fname1.wrapping_add(len1), len2 + 1);
+            unsafe { ptr::copy(fname2, fname1.wrapping_add(len1), len2 + 1) };
             *len = len1 + len2;
         }
         fname1
@@ -1016,7 +1018,7 @@ fn get_path_cutoff(
     gap: &[std::ffi::CString],
 ) -> *mut c_char {
     let fname = fname.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut maxlen: i32 = 0;
         let mut cutoff: *mut c_char = ptr::null_mut();
 
@@ -1025,8 +1027,8 @@ fn get_path_cutoff(
             let mut j: usize = 0;
 
             while {
-                let fc = *fname.wrapping_add(j);
-                let pc = *part.wrapping_add(j);
+                let fc = unsafe { *fname.wrapping_add(j) };
+                let pc = unsafe { *part.wrapping_add(j) };
                 #[cfg(windows)]
                 let eq = fc == pc || (vim_ispathsep(fc as i32) && vim_ispathsep(pc as i32));
                 #[cfg(not(windows))]
@@ -1516,11 +1518,11 @@ fn expand_backtick(
     flags: i32,
 ) -> i32 {
     let pat = pat.into_c_char_ptr();
-    unsafe {
+    {
         let mut cnt: i32 = 0;
         let pat_len = crate::memory::cstr_len(pat);
         let mut cmd_vec: Vec<c_char> =
-            std::slice::from_raw_parts(pat.wrapping_add(1), pat_len - 2).to_vec();
+            unsafe { std::slice::from_raw_parts(pat.wrapping_add(1), pat_len - 2) }.to_vec();
         cmd_vec.push(NUL);
         let cmd_ptr = cmd_vec.as_mut_ptr();
 
@@ -1559,10 +1561,14 @@ fn expand_backtick(
                 p = p.wrapping_add(1);
             }
             if p > cmd {
-                let saved = *p;
-                *p = NUL;
+                let saved = unsafe { *p };
+                unsafe {
+                    *p = NUL;
+                }
                 addfile(gap, cmd, flags);
-                *p = saved;
+                unsafe {
+                    *p = saved;
+                }
                 cnt += 1;
             }
             cmd = p;
@@ -2006,7 +2012,7 @@ pub fn fix_fname(fname: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
 }
 
 pub fn path_fix_case(name: *mut c_char) {
-    unsafe {
+    {
         let mut file_info: FileInfo = FileInfo::new();
         if !os_fileinfo_link(name, &mut file_info) {
             return;
@@ -2017,9 +2023,13 @@ pub fn path_fix_case(name: *mut c_char) {
         let mut dir = Directory::new();
         let (ok, tail) = if let Some(pos) = slash_pos {
             let slash = name.wrapping_add(pos);
-            *slash = NUL;
+            unsafe {
+                *slash = NUL;
+            }
             let ok = os_scandir(&mut dir, name);
-            *slash = b'/' as c_char;
+            unsafe {
+                *slash = b'/' as c_char;
+            }
             (ok, slash.wrapping_add(1))
         } else {
             let ok = os_scandir(&mut dir, c".");
@@ -2052,7 +2062,7 @@ pub fn path_fix_case(name: *mut c_char) {
                 if os_fileinfo_link(newname.as_ptr(), &mut file_info_new)
                     && os_fileinfo_id_equal(&file_info, &file_info_new)
                 {
-                    ptr::copy_nonoverlapping(entry, tail, taillen + 1);
+                    unsafe { ptr::copy_nonoverlapping(entry, tail, taillen + 1) };
                     break;
                 }
             }
@@ -2122,7 +2132,7 @@ pub fn path_cmp<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharP
 ) -> i32 {
     let mut p = p.into_c_char_ptr();
     let mut q = q.into_c_char_ptr();
-    unsafe {
+    {
         let mut c1: i32 = NUL as i32;
         let mut c2: i32 = NUL as i32;
         let mut len: usize = 0;
@@ -2134,7 +2144,7 @@ pub fn path_cmp<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharP
                 && crate::memory::cstr_byte_at(q, 1) == b':'
             {
                 if (crate::memory::cstr_first_byte(q)).to_ascii_lowercase() as i32
-                    == _getdrive() + (b'a' as i32) - 1
+                    == unsafe { _getdrive() } + (b'a' as i32) - 1
                 {
                     q = q.wrapping_add(2);
                 }
@@ -2142,7 +2152,7 @@ pub fn path_cmp<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharP
                 && (crate::memory::cstr_first_byte(p)).is_ascii_alphabetic()
                 && crate::memory::cstr_byte_at(p, 1) == b':'
                 && (crate::memory::cstr_first_byte(p)).to_ascii_lowercase() as i32
-                    == _getdrive() + (b'a' as i32) - 1
+                    == unsafe { _getdrive() } + (b'a' as i32) - 1
             {
                 p = p.wrapping_add(2);
             }
@@ -2179,7 +2189,7 @@ pub fn path_cmp<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharP
         if vim_ispathsep_nocolon(crate::memory::cstr_first_char(s))
             && crate::memory::cstr_byte_at(s, 1) == 0
             && len > 0
-            && !vim_ispathsep(*s.wrapping_sub(1) as i32)
+            && !vim_ispathsep(unsafe { *s.wrapping_sub(1) } as i32)
         {
             return 0;
         }
@@ -2406,8 +2416,10 @@ fn path_to_absolute(
     force: i32,
 ) -> bool {
     let fname = fname.into_c_char_ptr();
-    unsafe {
-        *buf = NUL;
+    {
+        unsafe {
+            *buf = NUL;
+        }
         let mut rel_dir_vec = vec![0 as c_char; len];
         let relative_directory = rel_dir_vec.as_mut_ptr();
         let mut end_of_path = fname;
@@ -2454,15 +2466,19 @@ fn path_to_absolute(
                 }
                 debug_assert!(p >= fname);
                 let copy_len = crate::memory::ptr_offset_from(p, fname) as usize + 1;
-                ptr::copy_nonoverlapping(fname, relative_directory, copy_len);
-                *relative_directory.wrapping_add(copy_len) = NUL;
+                unsafe { ptr::copy_nonoverlapping(fname, relative_directory, copy_len) };
+                unsafe {
+                    *relative_directory.wrapping_add(copy_len) = NUL;
+                }
                 end_of_path = if vim_ispathsep(crate::memory::cstr_first_char(p)) {
                     p.wrapping_add(1)
                 } else {
                     p
                 };
             } else {
-                *relative_directory = NUL;
+                unsafe {
+                    *relative_directory = NUL;
+                }
             }
 
             if !path_full_dir_name(relative_directory, buf, len) {

@@ -260,13 +260,13 @@ pub fn rpc_start(channel: &mut Channel) {
 
 #[inline]
 fn find_rpc_channel(id: u64) -> *mut Channel {
-    unsafe {
+    {
         let chan = find_channel(id);
         if chan.is_null() {
             return ptr::null_mut();
         }
         let ct = chan;
-        if !(*ct).is_rpc || (*ct).rpc.closed {
+        if !unsafe { (*ct).is_rpc } || unsafe { (*ct).rpc.closed } {
             return ptr::null_mut();
         }
         chan
@@ -587,19 +587,24 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
 }
 
 pub fn request_event(mut e: RequestEvent) {
-    unsafe {
+    {
         let channel = e.channel;
         let handler = e.handler;
         let mut error = Error::new();
 
-        if !(*channel).rpc.closed {
+        if !unsafe { (*channel).rpc.closed } {
             let fn_call = handler.r#fn.unwrap();
-            let mut result = fn_call((*channel).id, e.args, &mut e.used_mem, &mut error);
+            let mut result = fn_call(
+                unsafe { (*channel).id },
+                e.args,
+                &mut e.used_mem,
+                &mut error,
+            );
             if e.r#type == MessageType::MessageTypeRequest
                 || error.err_type != ErrorType::ErrorTypeNone
             {
                 serialize_response(
-                    &mut *channel,
+                    unsafe { &mut *channel },
                     e.handler,
                     e.r#type,
                     e.request_id,
@@ -629,7 +634,7 @@ pub fn rpc_write_raw(id: u64, buffer: std::rc::Rc<WBuffer>) -> bool {
 }
 
 fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
-    unsafe {
+    {
         let mut err: i32 = 0;
 
         if channel.rpc.closed {
@@ -640,7 +645,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
             channel_incref(&mut *channel);
             if !channel.events.is_null() {
                 multiqueue_put_event(
-                    &mut *channel.events,
+                    unsafe { &mut *channel.events },
                     Event::RpcInternalRead {
                         channel: &raw mut *channel,
                         buffer,
@@ -651,11 +656,11 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
             }
         } else {
             let in_stream = channel_instream(channel);
-            err = wstream_write(&mut *in_stream, buffer);
+            err = wstream_write(unsafe { &mut *in_stream }, buffer);
         }
 
         if err != 0 {
-            let err_str = crate::memory::cstr_lossy(uv_strerror(err));
+            let err_str = crate::memory::cstr_lossy(unsafe { uv_strerror(err) });
             let msg = format!(
                 "ch {}: stream write failed: {err_str}. RPC canceled; closing channel\0",
                 channel.id
@@ -912,12 +917,12 @@ pub fn serialize_response(
 }
 
 fn packer_buffer_init_channels(chans: *mut *mut Channel, nchans: usize, packer: &mut PackerBuffer) {
-    unsafe {
+    {
         for i in 0..nchans {
-            let chan = *chans.wrapping_add(i);
+            let chan = unsafe { *chans.wrapping_add(i) };
             let ct = chan;
-            if (*ct).rpc.has_ui {
-                remote_ui_flush_if_incomplete((*ct).id);
+            if unsafe { (*ct).rpc.has_ui } {
+                remote_ui_flush_if_incomplete(unsafe { (*ct).id });
             }
         }
         packer.owned_buf = vec![0; ARENA_BLOCK_SIZE];
@@ -930,7 +935,7 @@ fn packer_buffer_init_channels(chans: *mut *mut Channel, nchans: usize, packer: 
 }
 
 fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
-    unsafe {
+    {
         let len = (packer.ptr as usize) - (packer.startptr as usize);
         let mut vec = std::mem::take(&mut packer.owned_buf);
         packer.startptr = ptr::null_mut();
@@ -941,7 +946,10 @@ fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
             let buf = wstream_new_vec_buffer(vec);
             let chans = packer.anydata.as_chans();
             for i in 0..(packer.anyint as usize) {
-                let _ = channel_write(&mut **chans.wrapping_add(i), std::rc::Rc::clone(&buf));
+                let _ = channel_write(
+                    unsafe { &mut **chans.wrapping_add(i) },
+                    std::rc::Rc::clone(&buf),
+                );
             }
         }
     }

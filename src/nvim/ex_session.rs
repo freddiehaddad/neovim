@@ -151,7 +151,7 @@ fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInf
 }
 
 fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
-    unsafe {
+    {
         let mut count: i32 = 0;
 
         if fr.fr_layout == FR_LEAF {
@@ -161,7 +161,7 @@ fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
         let mut frc = ses_skipframe(fr.fr_child);
         if !frc.is_null() {
             loop {
-                frc = ses_skipframe((*frc).fr_next);
+                frc = ses_skipframe(unsafe { (*frc).fr_next });
                 if frc.is_null() {
                     break;
                 }
@@ -190,8 +190,8 @@ fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
 
         frc = ses_skipframe(fr.fr_child);
         while !frc.is_null() {
-            ses_win_rec(fd, &mut *frc);
-            frc = ses_skipframe((*frc).fr_next);
+            ses_win_rec(fd, unsafe { &mut *frc });
+            frc = ses_skipframe(unsafe { (*frc).fr_next });
             if !frc.is_null() && !put_line(fd, c"wincmd w") {
                 return false;
             }
@@ -202,13 +202,13 @@ fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
 }
 
 fn ses_skipframe(fr: *mut Frame) -> *mut Frame {
-    unsafe {
+    {
         let mut frc = fr;
         while !frc.is_null() {
-            if ses_do_frame(&*frc) {
+            if ses_do_frame(unsafe { &*frc }) {
                 break;
             }
-            frc = (*frc).fr_next;
+            frc = unsafe { (*frc).fr_next };
         }
         frc
     }
@@ -536,13 +536,13 @@ fn put_view(
 }
 
 fn store_session_globals(fd: *mut FILE) -> bool {
-    unsafe {
+    {
         let d = get_globvar_dict();
         let ht = &mut d.dv_hashtab;
         let mut todo = ht.ht_used;
         let mut hi = (ht).array_ptr();
         while todo > 0 {
-            if !hashitem_empty(&*hi) {
+            if !hashitem_empty(unsafe { &*hi }) {
                 todo -= 1;
                 let this_var = crate::eval::typval::tv_dict_hi2di(hi);
                 let key_ptr = this_var.di_key.as_mut_ptr();
@@ -559,9 +559,13 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                     let mut t = p_vec.as_mut_ptr();
                     while !crate::memory::cstr_is_empty(t) {
                         if crate::memory::cstr_first_byte(t) == b'\n' {
-                            *t = b'n' as c_char;
+                            unsafe {
+                                *t = b'n' as c_char;
+                            }
                         } else if crate::memory::cstr_first_byte(t) == b'\r' {
-                            *t = b'r' as c_char;
+                            unsafe {
+                                *t = b'r' as c_char;
+                            }
                         }
                         t = t.wrapping_add(1);
                     }

@@ -1777,7 +1777,7 @@ fn shada_pack_entry(
     entry: &ShadaEntry,
     max_kbyte: usize,
 ) -> ShaDaWriteResult {
-    unsafe {
+    {
         let mut ret = ShaDaWriteResult::SDWriteFailed;
         let mut sbuf = packer_string_buffer();
         let def = sd_default_value(entry.entry_type);
@@ -1820,17 +1820,21 @@ fn shada_pack_entry(
                 mpack_bin(varname, &mut sbuf);
                 let mut vardesc = [0 as c_char; 256];
                 let prefix = b"variable g:";
-                ptr::copy_nonoverlapping(
-                    prefix.as_ptr().cast::<c_char>(),
-                    vardesc.as_mut_ptr(),
-                    prefix.len(),
-                );
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        prefix.as_ptr().cast::<c_char>(),
+                        vardesc.as_mut_ptr(),
+                        prefix.len(),
+                    )
+                };
                 let copy_len = varname.size.min(vardesc.len() - prefix.len() - 1);
-                ptr::copy_nonoverlapping(
-                    varname.data,
-                    vardesc.as_mut_ptr().wrapping_add(prefix.len()),
-                    copy_len,
-                );
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        varname.data,
+                        vardesc.as_mut_ptr().wrapping_add(prefix.len()),
+                        copy_len,
+                    )
+                };
                 vardesc[prefix.len() + copy_len] = 0;
                 if !encode_vim_to_msgpack(&mut sbuf, &mut gv_val, vardesc.as_ptr()) {
                     ret = ShaDaWriteResult::SDWriteIgnError;
@@ -2544,7 +2548,7 @@ fn shada_initialize_registers(wms: &mut WriteMergerState, max_reg_lines: i32, sc
 
 #[inline]
 fn replace_numbered_mark(wms: &mut WriteMergerState, idx: usize, entry: ShadaEntry) {
-    unsafe {
+    {
         shada_free_shada_entry(&mut wms.numbered_marks[EXTRA_MARKS - 1]);
         for i in idx..(EXTRA_MARKS - 1) {
             if wms.numbered_marks[i].entry_type == ShadaEntryType::SDItemGlobalMark {
@@ -2552,12 +2556,14 @@ fn replace_numbered_mark(wms: &mut WriteMergerState, idx: usize, entry: ShadaEnt
             }
         }
         let base = (&raw mut wms.numbered_marks).cast::<ShadaEntry>();
-        ptr::copy(
-            base.wrapping_add(idx),
-            base.wrapping_add(idx + 1),
-            EXTRA_MARKS - 1 - idx,
-        );
-        ptr::write(base.wrapping_add(idx), entry);
+        unsafe {
+            ptr::copy(
+                base.wrapping_add(idx),
+                base.wrapping_add(idx + 1),
+                EXTRA_MARKS - 1 - idx,
+            )
+        };
+        unsafe { ptr::write(base.wrapping_add(idx), entry) };
         wms.numbered_marks[idx].data.filemark_mut().name = (b'0' + (idx as u8)) as c_char;
     }
 }
@@ -3566,7 +3572,7 @@ fn shada_read_next_item(
     flags: u32,
     max_kbyte: usize,
 ) -> ShaDaReadResult {
-    unsafe {
+    {
         let mut ret = ShaDaReadResult::SDReadStatusMalformed;
         loop {
             *entry = MISSING_ENTRY;
@@ -3677,7 +3683,7 @@ fn shada_read_next_item(
                 let contents = if !owned_buf.is_empty() {
                     owned_buf
                 } else {
-                    std::slice::from_raw_parts(buf, length).to_vec()
+                    unsafe { std::slice::from_raw_parts(buf, length) }.to_vec()
                 };
                 entry.data = ShadaEntryData::UnknownItem(ShadaUnknownItem {
                     item_type: type_u64,
@@ -3954,10 +3960,9 @@ fn shada_read_next_item(
                             hi.sep = sep_type as c_char;
                         }
                         hi.string = Some(
-                            std::ffi::CString::new(std::slice::from_raw_parts(
-                                item.data.cast::<u8>(),
-                                item.size,
-                            ))
+                            std::ffi::CString::new(unsafe {
+                                std::slice::from_raw_parts(item.data.cast::<u8>(), item.size)
+                            })
                             .unwrap_or_default(),
                         );
                         read_additional_array_elements =
@@ -3986,10 +3991,9 @@ fn shada_read_next_item(
                         }
                         let gv = entry.data.global_var_mut();
                         gv.name = Some(
-                            std::ffi::CString::new(std::slice::from_raw_parts(
-                                name.data.cast::<u8>(),
-                                name.size,
-                            ))
+                            std::ffi::CString::new(unsafe {
+                                std::slice::from_raw_parts(name.data.cast::<u8>(), name.size)
+                            })
                             .unwrap_or_default(),
                         );
                         let binval = unpack_string(&mut read_ptr, &mut read_size);
@@ -4048,10 +4052,9 @@ fn shada_read_next_item(
                             break 'parse_item false;
                         }
                         entry.data.sub_string_mut().sub = Some(
-                            std::ffi::CString::new(std::slice::from_raw_parts(
-                                sub.data.cast::<u8>(),
-                                sub.size,
-                            ))
+                            std::ffi::CString::new(unsafe {
+                                std::slice::from_raw_parts(sub.data.cast::<u8>(), sub.size)
+                            })
                             .unwrap_or_default(),
                         );
                         read_additional_array_elements = (len as u32) - 1;
@@ -4112,10 +4115,12 @@ fn shada_read_next_item(
                                     & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_F))
                                     != 0
                                 {
-                                    let mut bytes = std::slice::from_raw_parts(
-                                        it.f.data.cast::<u8>(),
-                                        it.f.size,
-                                    )
+                                    let mut bytes = unsafe {
+                                        std::slice::from_raw_parts(
+                                            it.f.data.cast::<u8>(),
+                                            it.f.size,
+                                        )
+                                    }
                                     .to_vec();
                                     bytes.push(0);
                                     #[cfg(windows)]
@@ -4440,13 +4445,13 @@ pub fn get_shada_parameter(param_type: i32) -> i32 {
 
 /// Find the parameter represented by the given character in 'shada' (`find_shada_parameter`).
 pub fn find_shada_parameter(param_type: i32) -> *mut c_char {
-    unsafe {
+    {
         let mut p = opt_vars().p_shada;
-        while *p != 0 {
+        while unsafe { *p } != 0 {
             if i32::from(crate::memory::cstr_first_byte(p)) == param_type {
                 return p.wrapping_add(1);
             }
-            if *p == (b'n' as c_char) {
+            if unsafe { *p } == (b'n' as c_char) {
                 break;
             }
             p = vim_strchr(p, b',' as i32);

@@ -1169,7 +1169,7 @@ pub fn typval_parser_error_free(p: &mut MpackParser) {
 }
 
 fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
-    unsafe {
+    {
         let node = &mut *node;
         let result = node.data[0].typval();
         match node.tok.r#type {
@@ -1211,7 +1211,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                     let key = &pair[0];
                     key.v_type == VarType::VarString
                         && !key.vval.v_string().is_null()
-                        && *key.vval.v_string() != 0
+                        && unsafe { *key.vval.v_string() } != 0
                 });
 
                 if can_be_dict {
@@ -1230,7 +1230,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                             let mut todo = dict.dv_hashtab.ht_used;
                             let mut hi = dict.dv_hashtab.array_ptr();
                             while todo > 0 {
-                                if !hashitem_empty(&*hi) {
+                                if !hashitem_empty(unsafe { &*hi }) {
                                     todo -= 1;
                                     let d = crate::eval::typval::tv_dict_hi2di(hi);
                                     d.di_tv.v_type = VarType::VarSpecial;

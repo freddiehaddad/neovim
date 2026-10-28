@@ -224,7 +224,7 @@ pub fn win_border_width(wp: &mut WinInfoInfo) -> i32 {
 }
 
 pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
-    unsafe {
+    {
         // Process statusline changes before applying new height from config
         let show_stl = !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
             && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
@@ -252,7 +252,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
                 fconfig.relative = K_FLOAT_RELATIVE_WINDOW;
                 fconfig.row += row as f64;
                 fconfig.col += col as f64;
-                fconfig.window = (*mouse_win).handle;
+                fconfig.window = unsafe { (*mouse_win).handle };
             }
         }
 
@@ -299,7 +299,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
             let mut dummy = error_init();
             let parent = find_window_by_handle(wp.w_config.window, &mut dummy);
             if !parent.is_null() {
-                let parent = { &mut *parent };
+                let parent = { unsafe { &mut *parent } };
                 let parent = { &mut *parent };
                 row += parent.w_winrow;
                 col += parent.w_wincol;
@@ -345,17 +345,18 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 }
 
 pub fn win_float_remove(bang: bool, mut count: i32) {
-    unsafe {
+    {
         let mut float_win_arr: Vec<*mut WinInfoInfo> = Vec::new();
         let mut wp = g_st().lastwin;
-        while !wp.is_null() && (*wp).w_floating {
-            if !(*wp).w_config.hide && (*wp).w_onebuf_opt.wo_wp == 0 {
+        while !wp.is_null() && unsafe { (*wp).w_floating } {
+            if !unsafe { (*wp).w_config.hide } && unsafe { (*wp).w_onebuf_opt.wo_wp } == 0 {
                 float_win_arr.push(wp);
             }
-            wp = (*wp).w_prev;
+            wp = unsafe { (*wp).w_prev };
         }
         if !float_win_arr.is_empty() {
-            float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse((*w).w_config.zindex));
+            float_win_arr
+                .sort_unstable_by_key(|&w| std::cmp::Reverse(unsafe { (*w).w_config.zindex }));
         }
         for w in float_win_arr {
             if win_valid(w) && !win_close(w, false, false) {
@@ -436,13 +437,13 @@ pub fn win_float_find(kind: WinKind) -> *mut WinInfoInfo {
 
 /// Select an alternative window to `win` (assumed floating) in tabpage `tp` (`win_float_find_altwin`).
 pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mut WinInfoInfo {
-    unsafe {
+    {
         let mut wp = g_st().prevwin;
         let Some(tp) = tp else {
             return if win_valid(wp)
                 && !ptr::eq(wp, win)
-                && (*wp).w_config.focusable
-                && !(*wp).w_config.hide
+                && unsafe { (*wp).w_config.focusable }
+                && !unsafe { (*wp).w_config.hide }
             {
                 wp
             } else {
@@ -456,7 +457,10 @@ pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mu
         } else {
             tp.tp_firstwin
         };
-        if !ptr::eq(wp, win) && (*wp).w_config.focusable && !(*wp).w_config.hide {
+        if !ptr::eq(wp, win)
+            && unsafe { (*wp).w_config.focusable }
+            && !unsafe { (*wp).w_config.hide }
+        {
             wp
         } else {
             tp.tp_firstwin

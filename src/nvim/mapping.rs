@@ -294,15 +294,15 @@ pub fn get_buf_maphash_list(state: i32, c: i32) -> &'static [Mapblock] {
 
 #[inline]
 fn get_map_buckets(buf: *const FileBuf, is_abbrev: bool) -> &'static [Vec<Mapblock>] {
-    unsafe {
+    {
         if is_abbrev {
             if !buf.is_null() {
-                std::slice::from_ref(&(*buf).b_first_abbr)
+                std::slice::from_ref(unsafe { &(*buf).b_first_abbr })
             } else {
                 std::slice::from_ref(&map_st().first_abbr)
             }
         } else if !buf.is_null() {
-            &(*buf).b_maphash
+            unsafe { &(*buf).b_maphash }
         } else {
             &map_st().maphash
         }
@@ -1152,8 +1152,8 @@ pub fn do_map(
 
 /// Get the mapping mode from the command name.
 fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> i32 {
-    unsafe {
-        let mut p = *cmdp;
+    {
+        let mut p = unsafe { *cmdp };
         let modec = crate::memory::cstr_first_byte(p);
         p = p.wrapping_add(1);
         let mode = if modec == b'i' {
@@ -1183,7 +1183,9 @@ fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> i32 {
             }
         };
 
-        *cmdp = p;
+        unsafe {
+            *cmdp = p;
+        }
         mode
     }
 }
@@ -1816,7 +1818,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
 
 /// Write map commands for the current mappings to an .exrc file.
 pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
-    unsafe {
+    {
         let mut did_cpo = false;
 
         for abbr in 0..2 {
@@ -1947,7 +1949,7 @@ pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
                                 return false;
                             }
                         }
-                        if c1 != NUL && fputc(c1 as u8 as i32, fd) < 0 {
+                        if c1 != NUL && unsafe { fputc(c1 as u8 as i32, fd) } < 0 {
                             return false;
                         }
                         if mp.m_noremap != REMAP_YES && fputs(c"nore", fd) < 0 {
@@ -1969,9 +1971,9 @@ pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
                             return false;
                         }
 
-                        if fputc(b' ' as i32, fd) < 0
+                        if unsafe { fputc(b' ' as i32, fd) } < 0
                             || !put_escstr(fd, mp.m_keys.as_ptr(), 0)
-                            || fputc(b' ' as i32, fd) < 0
+                            || unsafe { fputc(b' ' as i32, fd) } < 0
                             || !put_escstr(fd, mp.m_str.as_ptr(), 1)
                             || !put_eol(fd)
                         {

@@ -37,7 +37,7 @@ pub struct KeyDict_tabpage_config {
 // DLLEXPORT ArrayOf(Window) nvim_tabpage_list_wins(Tabpage tabpage, Arena *arena,
 //                                                  Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Error) -> Array {
-    unsafe {
+    {
         let mut rv = Array {
             items: std::ptr::null_mut(),
             size: 0,
@@ -52,21 +52,21 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
         let first = if tab == g_st().curtab {
             g_st().firstwin
         } else {
-            (*tab).tp_firstwin
+            unsafe { (*tab).tp_firstwin }
         };
         let mut n = 0usize;
         let mut wp = first;
         while !wp.is_null() {
             n += 1;
-            wp = (*wp).w_next;
+            wp = unsafe { (*wp).w_next };
         }
 
         rv = arena_array(arena, n);
         wp = first;
         while !wp.is_null() {
-            *rv.next_slot_mut() = window_obj((*wp).handle);
+            *rv.next_slot_mut() = window_obj(unsafe { (*wp).handle });
             rv.size += 1;
-            wp = (*wp).w_next;
+            wp = unsafe { (*wp).w_next };
         }
 
         rv
@@ -134,7 +134,7 @@ pub fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error)
 /// @return |window-ID|
 // DLLEXPORT Window nvim_tabpage_get_win(Tabpage tabpage, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
-    unsafe {
+    {
         let tab = find_tab_by_handle(tabpage, err);
         if tab.is_null() || !valid_tabpage(tab) {
             return 0;
@@ -142,8 +142,8 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
         if tab == g_st().curtab {
             return nvim_get_current_win();
         }
-        for wp in win_iter_ptr((*tab).tp_firstwin) {
-            if std::ptr::eq(wp, (*tab).tp_curwin) {
+        for wp in win_iter_ptr(unsafe { (*tab).tp_firstwin }) {
+            if std::ptr::eq(wp, unsafe { (*tab).tp_curwin }) {
                 return wp.handle;
             }
         }
@@ -231,7 +231,7 @@ pub fn nvim_open_tabpage(
     config: &mut KeyDict_tabpage_config,
     err: &mut Error,
 ) -> Tabpage {
-    unsafe {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return 0;
         };
@@ -271,13 +271,13 @@ pub fn nvim_open_tabpage(
             return 0;
         }
 
-        if tabpage_win_valid(tp, wp) && (*wp).w_buffer != (&raw mut *b) {
+        if tabpage_win_valid(tp, wp) && unsafe { (*wp).w_buffer } != (&raw mut *b) {
             let au_no_enter_leave = curwin_ptr() != wp;
             if au_no_enter_leave {
                 g_st().autocmd_no_enter += 1;
                 g_st().autocmd_no_leave += 1;
             }
-            win_set_buf(&mut *wp, b, err);
+            win_set_buf(unsafe { &mut *wp }, b, err);
             if au_no_enter_leave {
                 g_st().autocmd_no_enter -= 1;
                 g_st().autocmd_no_leave -= 1;
@@ -293,7 +293,7 @@ pub fn nvim_open_tabpage(
             }
         }
 
-        (*tp).handle
+        unsafe { (*tp).handle }
     }
 }
 

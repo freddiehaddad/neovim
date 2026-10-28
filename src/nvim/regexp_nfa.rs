@@ -811,7 +811,7 @@ fn nfa_emit_equi_class(c: i32) {
 }
 
 fn nfa_regatom() -> bool {
-    unsafe {
+    {
         let mut old_regparse = re_st().regparse.cast::<u8>();
         let mut extra: i32 = 0;
         let mut startc: i32 = -1;
@@ -873,7 +873,7 @@ fn nfa_regatom() -> bool {
                     c = getchr();
                     goto_multibyte = true;
                 } else {
-                    let idx = p.offset_from(CLASSCHARS.as_ptr()) as usize;
+                    let idx = unsafe { p.offset_from(CLASSCHARS.as_ptr()) } as usize;
                     emit_fn(NFA_CLASSCODES[idx]);
                     if extra == NFA_ADD_NL {
                         emit_fn(NFA_NEWL);
@@ -930,7 +930,7 @@ fn nfa_regatom() -> bool {
                     old_regparse = re_st().regparse.cast();
                     c = getchr();
                 } else {
-                    let idx = p.offset_from(CLASSCHARS.as_ptr()) as usize;
+                    let idx = unsafe { p.offset_from(CLASSCHARS.as_ptr()) } as usize;
                     emit_fn(NFA_CLASSCODES[idx]);
                     if extra == NFA_ADD_NL {
                         emit_fn(NFA_NEWL);
@@ -971,7 +971,7 @@ fn nfa_regatom() -> bool {
                 };
                 let start_ptr = prev_sub.as_ptr().cast::<u8>();
                 let mut lp = start_ptr;
-                while *lp != NUL {
+                while unsafe { *lp } != NUL {
                     emit_fn(utf_ptr2char(lp.cast()));
                     if lp != start_ptr {
                         emit_fn(NFA_CONCAT);
@@ -2971,7 +2971,7 @@ fn addstate_here(
     pim: *mut NfaPim,
     ip: &mut i32,
 ) -> *mut Regsubs {
-    unsafe {
+    {
         let tlen = l.n;
         let listidx = *ip;
 
@@ -2996,7 +2996,9 @@ fn addstate_here(
         }
         if count == 1 {
             let tp = l.t.as_mut_ptr();
-            *tp.wrapping_add(listidx as usize) = *tp.wrapping_add((l.n - 1) as usize);
+            unsafe {
+                *tp.wrapping_add(listidx as usize) = *tp.wrapping_add((l.n - 1) as usize);
+            }
         } else if count > 1 {
             if (l.n + count) as usize > l.t.len() {
                 let newlen = l.t.len() * 3 / 2 + 50;
@@ -3008,16 +3010,20 @@ fn addstate_here(
                 l.t.resize(newlen, NfaThread::new());
             }
             let tp = l.t.as_mut_ptr();
-            ptr::copy(
-                tp.wrapping_add(listidx as usize + 1),
-                tp.wrapping_add((listidx + count) as usize),
-                (l.n - listidx - 1) as usize,
-            );
-            ptr::copy(
-                tp.wrapping_add((l.n - 1) as usize),
-                tp.wrapping_add(listidx as usize),
-                count as usize,
-            );
+            unsafe {
+                ptr::copy(
+                    tp.wrapping_add(listidx as usize + 1),
+                    tp.wrapping_add((listidx + count) as usize),
+                    (l.n - listidx - 1) as usize,
+                )
+            };
+            unsafe {
+                ptr::copy(
+                    tp.wrapping_add((l.n - 1) as usize),
+                    tp.wrapping_add(listidx as usize),
+                    count as usize,
+                )
+            };
         }
         l.n -= 1;
         *ip = listidx - 1;
@@ -3255,8 +3261,8 @@ fn recursive_regmatch(
     m: &mut Regsubs,
     listids: &mut Vec<i32>,
 ) -> i32 {
-    unsafe {
-        let save_reginput_col = re_st().rex.input.offset_from(re_st().rex.line) as usize;
+    {
+        let save_reginput_col = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as usize;
         let save_reglnum = re_st().rex.lnum;
         let save_nfa_match = nfa_st().nfa_match;
         let save_nfa_listid = re_st().rex.nfa_listid;
@@ -3283,7 +3289,7 @@ fn recursive_regmatch(
                 endpos.se_u = pim.end;
             } else if reg_multi() {
                 endpos.se_u = crate::regexp::RegPos::Pos(Lpos {
-                    col: re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
+                    col: unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as Colnr,
                     lnum: re_st().rex.lnum,
                 });
             } else {
@@ -3302,7 +3308,8 @@ fn recursive_regmatch(
                 }
                 re_st().rex.input = re_st().rex.line;
             } else {
-                if reg_multi() && (re_st().rex.input.offset_from(re_st().rex.line) as i32) < st.val
+                if reg_multi()
+                    && (unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as i32) < st.val
                 {
                     re_st().rex.lnum -= 1;
                     re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
@@ -3317,7 +3324,7 @@ fn recursive_regmatch(
                             .wrapping_add(reg_getline_len(re_st().rex.lnum) as usize);
                     }
                 }
-                if (re_st().rex.input.offset_from(re_st().rex.line) as i32) >= st.val {
+                if (unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as i32) >= st.val {
                     re_st().rex.input = re_st().rex.input.wrapping_sub(st.val as usize);
                     re_st().rex.input = re_st().rex.input.wrapping_sub(utf_head_off(
                         re_st().rex.line.cast(),

@@ -140,9 +140,9 @@ fn get_linematch_results(
     count_b: i32,
     iwhite: bool,
 ) {
-    unsafe {
-        let ma0 = fastforward_buf_to_lnum(*ma, start_a + 1);
-        let mb0 = fastforward_buf_to_lnum(*mb, start_b + 1);
+    {
+        let ma0 = fastforward_buf_to_lnum(unsafe { *ma }, start_a + 1);
+        let mb0 = fastforward_buf_to_lnum(unsafe { *mb }, start_b + 1);
 
         let decisions = linematch_nbuffers(&[&ma0, &mb0], &[count_a, count_b], iwhite);
 
@@ -271,12 +271,12 @@ pub(crate) fn call_on_hunk_cb(
 }
 
 fn get_string_arg(lstate: *mut lua_State, idx: i32) -> Mmfile {
-    unsafe {
-        if lua_type(lstate, idx) != LUA_TSTRING {
+    {
+        if unsafe { lua_type(lstate, idx) } != LUA_TSTRING {
             luaL_argerror(lstate, idx, c"expected string");
         }
         let mut size: usize = 0;
-        let ptr = lua_tolstring(lstate, idx, &mut size).cast_mut();
+        let ptr = unsafe { lua_tolstring(lstate, idx, &mut size) }.cast_mut();
         if size > (i32::MAX as usize) {
             luaL_argerror(lstate, idx, c"string too long");
         }

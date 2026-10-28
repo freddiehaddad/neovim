@@ -1240,7 +1240,7 @@ fn build_cmdline_str(
     eap: &mut Exarg,
     args: Array,
 ) {
-    unsafe {
+    {
         cmdline_buf.clear();
         cmdline_buf.reserve(32);
 
@@ -1264,12 +1264,15 @@ fn build_cmdline_str(
             let s = args[i].data.string();
             cmdline_buf.push(b' ' as c_char);
             if s.size > 0 {
-                cmdline_buf.extend_from_slice(std::slice::from_raw_parts(s.data, s.size));
+                cmdline_buf
+                    .extend_from_slice(unsafe { std::slice::from_raw_parts(s.data, s.size) });
             }
         }
         cmdline_buf.push(NUL);
 
-        *cmdlinep = cmdline_buf.as_mut_ptr();
+        unsafe {
+            *cmdlinep = cmdline_buf.as_mut_ptr();
+        }
     }
 }
 

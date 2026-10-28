@@ -657,7 +657,7 @@ fn diff_check_sanity(tp: &TabPageInfo, dp: &DiffBlock) -> bool {
     }
 }
 pub fn diff_redraw(dofold: bool) {
-    unsafe {
+    {
         let mut wp_other: *mut WinInfoInfo = ptr::null_mut();
         let mut used_max_fill_other = false;
         let mut used_max_fill_curwin = false;
@@ -690,9 +690,9 @@ pub fn diff_redraw(dofold: bool) {
         }
         if !wp_other.is_null() && curwin_mut().w_onebuf_opt.wo_scb != 0 {
             if used_max_fill_curwin {
-                diff_set_topline(&mut *wp_other, curwin_mut());
+                diff_set_topline(unsafe { &mut *wp_other }, curwin_mut());
             } else if used_max_fill_other {
-                diff_set_topline(curwin_mut(), &mut *wp_other);
+                diff_set_topline(curwin_mut(), unsafe { &mut *wp_other });
             }
         }
     }
@@ -1037,7 +1037,7 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
     }
 }
 fn check_external_diff(diffio: &mut Diffio) -> bool {
-    unsafe {
+    {
         let mut io_error = false;
         let mut ok: TriState;
         let orig_fname = diffio.dio_orig.din_fname.as_ref().unwrap().as_ptr();
@@ -1049,18 +1049,18 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             if fd.is_null() {
                 io_error = true;
             } else {
-                if fwrite(c"line1\n".as_ptr().cast(), 6, 1, fd) != 1 {
+                if unsafe { fwrite(c"line1\n".as_ptr().cast(), 6, 1, fd) } != 1 {
                     io_error = true;
                 }
-                fclose(fd);
+                unsafe { fclose(fd) };
                 fd = os_fopen(new_fname, c"w");
                 if fd.is_null() {
                     io_error = true;
                 } else {
-                    if fwrite(c"line2\n".as_ptr().cast(), 6, 1, fd) != 1 {
+                    if unsafe { fwrite(c"line2\n".as_ptr().cast(), 6, 1, fd) } != 1 {
                         io_error = true;
                     }
-                    fclose(fd);
+                    unsafe { fclose(fd) };
                     fd = if diff_file(diffio) {
                         os_fopen(diff_fname, c"r")
                     } else {
@@ -1084,7 +1084,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                                 ok = K_TRUE;
                             }
                         }
-                        fclose(fd);
+                        unsafe { fclose(fd) };
                     }
                     let _ = os_remove(diff_fname);
                     let _ = os_remove(new_fname);
@@ -1394,7 +1394,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
     }
 }
 pub fn ex_diffsplit(eap: &mut Exarg) {
-    unsafe {
+    {
         let old_curwin = curwin_ptr();
         let mut old_curbuf = Bufref {
             br_buf: ptr::null_mut(),
@@ -1423,12 +1423,12 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         }
         diff_win_options(curwin_mut(), true);
         if win_valid(old_curwin) {
-            diff_win_options(&mut *old_curwin, true);
+            diff_win_options(unsafe { &mut *old_curwin }, true);
             if bufref_valid(Some(&old_curbuf)) {
-                curwin_mut().w_cursor.lnum = diff_get_corresponding_line(
-                    old_curbuf.br_buf.cast(),
-                    (*old_curwin).w_cursor.lnum,
-                );
+                curwin_mut().w_cursor.lnum =
+                    diff_get_corresponding_line(old_curbuf.br_buf.cast(), unsafe {
+                        (*old_curwin).w_cursor.lnum
+                    });
             }
         }
         scroll_to_fraction(curwin_mut(), curwin_mut().w_height);
@@ -2176,7 +2176,7 @@ fn diff_equal_char(
 ) -> bool {
     let p1 = p1.into_c_char_ptr();
     let p2 = p2.into_c_char_ptr();
-    unsafe {
+    {
         let l = utfc_ptr2len(p1);
         if l != utfc_ptr2len(p2) {
             return false;
@@ -2191,7 +2191,7 @@ fn diff_equal_char(
             }
             *len = l;
         } else {
-            if *p1 != *p2
+            if unsafe { *p1 } != unsafe { *p2 }
                 && ((diff_st().diff_flags & DIFF_ICASE) == 0
                     || !(crate::memory::cstr_first_byte(p1))
                         .eq_ignore_ascii_case(&(crate::memory::cstr_first_byte(p2))))
@@ -2313,7 +2313,7 @@ fn parse_diffanchors(
     anchors: *mut Linenr,
     num_anchors: Option<&mut i32>,
 ) -> bool {
-    unsafe {
+    {
         let mut dia = if crate::memory::cstr_is_empty(buf.b_p_dia) {
             opt_vars().p_dia
         } else {
@@ -2326,10 +2326,12 @@ fn parse_diffanchors(
         } else {
             let mut bw = g_st().firstwin;
             while !bw.is_null() {
-                if ptr::eq((*bw).w_buffer, buf) && (*bw).w_onebuf_opt.wo_diff != 0 {
+                if ptr::eq(unsafe { (*bw).w_buffer }, buf)
+                    && unsafe { (*bw).w_onebuf_opt.wo_diff } != 0
+                {
                     break;
                 }
-                bw = (*bw).w_next;
+                bw = unsafe { (*bw).w_next };
             }
             if bw.is_null() && !crate::memory::cstr_is_empty(dia) {
                 emsg(gettext(E_DIFF_ANCHORS_WITH_HIDDEN_WINDOWS));
@@ -2371,7 +2373,9 @@ fn parse_diffanchors(
                 return false;
             }
             if !anchors.is_null() {
-                *anchors.wrapping_add(i) = lnum;
+                unsafe {
+                    *anchors.wrapping_add(i) = lnum;
+                }
             }
             if crate::memory::cstr_first_byte(dia) == b',' {
                 dia = dia.wrapping_add(1);
@@ -3267,7 +3271,7 @@ fn valid_diff(df_id: Option<u64>) -> Option<usize> {
     }
 }
 pub fn ex_diffgetput(eap: &mut Exarg) {
-    unsafe {
+    {
         let idx_other: usize;
         let idx_cur_i = diff_buf_idx(g_st().curbuf, curtab_mut());
         if idx_cur_i == DB_COUNT as i32 {
@@ -3282,7 +3286,9 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 if curtab_mut().tp_diffbuf[idx] != g_st().curbuf
                     && !curtab_mut().tp_diffbuf[idx].is_null()
                 {
-                    if eap.cmdidx != CMD_DIFFPUT || modifiable(&*curtab_mut().tp_diffbuf[idx]) {
+                    if eap.cmdidx != CMD_DIFFPUT
+                        || modifiable(unsafe { &*curtab_mut().tp_diffbuf[idx] })
+                    {
                         break;
                     }
                     found_not_ma = true;
@@ -3301,7 +3307,8 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             for i in (idx_other + 1)..DB_COUNT {
                 if curtab_mut().tp_diffbuf[i] != g_st().curbuf
                     && !curtab_mut().tp_diffbuf[i].is_null()
-                    && (eap.cmdidx != CMD_DIFFPUT || modifiable(&*curtab_mut().tp_diffbuf[i]))
+                    && (eap.cmdidx != CMD_DIFFPUT
+                        || modifiable(unsafe { &*curtab_mut().tp_diffbuf[i] }))
                 {
                     emsg(gettext(
                         c"E101: More than two buffers in diff mode, don't know which one to use",
@@ -3311,7 +3318,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             }
         } else {
             let mut p = eap.arg.wrapping_add(crate::memory::cstr_len(eap.arg));
-            while p > eap.arg && ascii_iswhite(*p.wrapping_sub(1)) {
+            while p > eap.arg && ascii_iswhite(unsafe { *p.wrapping_sub(1) }) {
                 p = p.wrapping_sub(1);
             }
             let mut i: usize = 0;
@@ -3447,7 +3454,7 @@ fn diffgetput(
     line1: Linenr,
     line2: Linenr,
 ) {
-    unsafe {
+    {
         let mut off: Linenr = 0;
         let mut dp_idx: usize = 0;
         while dp_idx < curtab_mut().tp_diffs.len() {
@@ -3525,11 +3532,11 @@ fn diffgetput(
                 let from_lnum = (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_from];
                 for i in 0..copy_count {
                     let nr = from_lnum + start_skip + i;
-                    if nr > (*curtab_mut().tp_diffbuf[idx_from]).b_ml.ml_line_count {
+                    if nr > unsafe { (*curtab_mut().tp_diffbuf[idx_from]).b_ml.ml_line_count } {
                         break;
                     }
                     let p = crate::memory::cstr_to_cstring(ml_get_buf(
-                        &mut *curtab_mut().tp_diffbuf[idx_from],
+                        unsafe { &mut *curtab_mut().tp_diffbuf[idx_from] },
                         nr,
                     ));
                     let _ = ml_append(lnum + i - 1, p.as_ptr().cast_mut(), 0, false);

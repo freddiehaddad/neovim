@@ -149,10 +149,10 @@ pub fn wstream_new_vec_buffer(buf: Vec<c_char>) -> std::rc::Rc<WBuffer> {
 }
 
 unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: i32) {
-    unsafe {
-        let data = Box::from_raw(*req.cast::<*mut WRequest>());
+    {
+        let data = unsafe { Box::from_raw(*req.cast::<*mut WRequest>()) };
         let stream = data.stream;
-        let stream = { &mut *stream };
+        let stream = { unsafe { &mut *stream } };
 
         stream.curmem -= data.buffer.size();
         drop(data);

@@ -93,12 +93,14 @@ pub fn ui_client_start_server(
     argv: *mut *mut c_char,
 ) -> u64 {
     let exepath = exepath.into_c_char_ptr();
-    unsafe {
+    {
         let mut args = Vec::with_capacity(1 + argc);
-        args.push(crate::memory::cstr_to_cstring(*argv));
+        args.push(crate::memory::cstr_to_cstring(unsafe { *argv }));
         args.push(c"--embed".to_owned());
         for i in 1..argc {
-            args.push(crate::memory::cstr_to_cstring(*argv.wrapping_add(i)));
+            args.push(crate::memory::cstr_to_cstring(unsafe {
+                *argv.wrapping_add(i)
+            }));
         }
 
         let on_stdout = CallbackReader::none();
@@ -129,7 +131,7 @@ pub fn ui_client_start_server(
         }
 
         if g_st().ui_client_forward_stdin {
-            close(0);
+            unsafe { close(0) };
             #[cfg(windows)]
             {
                 os_open_conin_fd();
@@ -140,7 +142,7 @@ pub fn ui_client_start_server(
             }
         }
 
-        *(channel.cast::<u64>())
+        unsafe { *(channel.cast::<u64>()) }
     }
 }
 
@@ -268,7 +270,7 @@ pub fn ui_client_detach() {
 }
 
 pub fn ui_client_run() -> ! {
-    unsafe {
+    {
         tui_start(
             &raw mut uic_st().tui,
             &mut uic_st().tui_width,
@@ -298,11 +300,11 @@ pub fn ui_client_run() -> ! {
 
         loop {
             let events = loop_queues(&mut g_st().main_loop).events;
-            if !multiqueue_empty(&*events) {
-                multiqueue_process_events(&mut *events);
+            if !multiqueue_empty(unsafe { &*events }) {
+                multiqueue_process_events(unsafe { &mut *events });
             } else {
                 loop_poll_events(&mut g_st().main_loop, -1);
-                multiqueue_process_events(&mut *events);
+                multiqueue_process_events(unsafe { &mut *events });
             }
         }
     }

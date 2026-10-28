@@ -388,12 +388,12 @@ fn put_event(mq: *mut MultiQueue, ev: Event) {
 }
 
 fn push_all_typvals(lstate: *mut lua_State, args: *mut TypVal, argcount: i32, special: bool) {
-    unsafe {
+    {
         let flags = if special { K_NLUA_PUSH_SPECIAL } else { 0 };
         for i in 0..(argcount as usize) {
             let arg = args.wrapping_add(i);
-            if (*arg).v_type == VarType::VarUnknown {
-                lua_pushnil(lstate);
+            if unsafe { (*arg).v_type } == VarType::VarUnknown {
+                unsafe { lua_pushnil(lstate) };
             } else {
                 nlua_push_typval(lstate, arg, flags);
             }
@@ -636,10 +636,10 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
     mut nresult: i32,
     flags: i32,
 ) -> i32 {
-    unsafe {
+    {
         nlua_st().in_fast_callback += 1;
 
-        let top = lua_gettop(lstate);
+        let top = unsafe { lua_gettop(lstate) };
         let status = nlua_pcall(lstate, nargs, nresult);
         let retval = if status != 0 {
             if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
@@ -660,7 +660,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
             -status
         } else {
             if nresult == LUA_MULTRET {
-                nresult = lua_gettop(lstate) - top + nargs + 1;
+                nresult = unsafe { lua_gettop(lstate) } - top + nargs + 1;
             }
             nresult
         };
@@ -708,9 +708,9 @@ fn nlua_luv_thread_common_cfpcall(
     flags: i32,
     is_callback: bool,
 ) -> i32 {
-    unsafe {
-        let top = lua_gettop(lstate);
-        let status = lua_pcall(lstate, nargs, nresult, 0);
+    {
+        let top = unsafe { lua_gettop(lstate) };
+        let status = unsafe { lua_pcall(lstate, nargs, nresult, 0) };
         if status != 0 {
             if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
                 fprintf!(
@@ -718,10 +718,10 @@ fn nlua_luv_thread_common_cfpcall(
                     c"%s\n",
                     (&raw const E_OUTOFMEM).cast::<c_char>(),
                 );
-                lua_close(lstate);
+                unsafe { lua_close(lstate) };
                 #[cfg(windows)]
                 {
-                    ExitThread(0);
+                    unsafe { ExitThread(0) };
                 }
                 #[cfg(not(windows))]
                 {
@@ -747,7 +747,7 @@ fn nlua_luv_thread_common_cfpcall(
             -status
         } else {
             if nresult == LUA_MULTRET {
-                nresult = lua_gettop(lstate) - top + nargs + 1;
+                nresult = unsafe { lua_gettop(lstate) } - top + nargs + 1;
             }
             nresult
         }
@@ -792,17 +792,21 @@ unsafe extern "C-unwind" fn nlua_thr_api_nvim_get_runtime(lstate: *mut lua_State
 }
 
 fn nlua_init_argv(lstate: *mut lua_State, argv: *mut *mut c_char, argc: i32, lua_arg0: i32) -> i32 {
-    unsafe {
+    {
         let mut i: i32 = 0;
         lua_newtable(lstate);
 
         if lua_arg0 > 0 {
-            lua_pushstring(lstate, *argv.wrapping_add((lua_arg0 - 1) as usize));
-            lua_rawseti(lstate, -2, 0);
+            lua_pushstring(lstate, unsafe {
+                *argv.wrapping_add((lua_arg0 - 1) as usize)
+            });
+            unsafe { lua_rawseti(lstate, -2, 0) };
 
             while i + lua_arg0 < argc {
-                lua_pushstring(lstate, *argv.wrapping_add((i + lua_arg0) as usize));
-                lua_rawseti(lstate, -2, i + 1);
+                lua_pushstring(lstate, unsafe {
+                    *argv.wrapping_add((i + lua_arg0) as usize)
+                });
+                unsafe { lua_rawseti(lstate, -2, i + 1) };
                 i += 1;
             }
         }
@@ -860,9 +864,9 @@ unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> i32 {
 }
 
 unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        let timeout = luaL_checkinteger(lstate, 1) as i64;
-        let fast_only = lua_toboolean(lstate, 2) != 0;
+    {
+        let timeout = unsafe { luaL_checkinteger(lstate, 1) } as i64;
+        let fast_only = unsafe { lua_toboolean(lstate, 2) } != 0;
 
         let queues = loop_queues(&mut g_st().main_loop);
         let loop_events = if fast_only {
@@ -870,8 +874,8 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> i32 {
         } else {
             queues.events
         };
-        if !loop_events.is_null() && !multiqueue_empty(&*loop_events) {
-            multiqueue_process_events(&mut *loop_events);
+        if !loop_events.is_null() && !multiqueue_empty(unsafe { &*loop_events }) {
+            multiqueue_process_events(unsafe { &mut *loop_events });
         } else {
             loop_poll_events(&mut g_st().main_loop, timeout);
         }
@@ -925,8 +929,8 @@ pub fn nlua_ex_getline(
 }
 
 unsafe extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        luaL_checktype(lstate, 1, LUA_TFUNCTION);
+    {
+        unsafe { luaL_checktype(lstate, 1, LUA_TFUNCTION) };
         let mut cookie = ExDocmdCookie {
             getline: nlua_ref_global(lstate, 1),
             got_line: false,
@@ -941,7 +945,7 @@ unsafe extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> i32 {
         );
         g_st().no_wait_return -= 1;
         nlua_unref_global(lstate, cookie.getline);
-        lua_pushboolean(lstate, i32::from(cookie.got_line));
+        unsafe { lua_pushboolean(lstate, i32::from(cookie.got_line)) };
         1
     }
 }
@@ -1059,8 +1063,8 @@ fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
 }
 
 unsafe extern "C-unwind" fn nlua_module_preloader(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        let i = lua_tointeger(lstate, lua_upvalueindex(1)) as usize;
+    {
+        let i = unsafe { lua_tointeger(lstate, lua_upvalueindex(1)) } as usize;
         let def = BUILTIN_MODULES[i];
         if luaL_loadbuffer(
             lstate,
@@ -1069,20 +1073,20 @@ unsafe extern "C-unwind" fn nlua_module_preloader(lstate: *mut lua_State) -> i32
             def.chunk_name.as_ptr(),
         ) != 0
         {
-            return lua_error(lstate);
+            return unsafe { lua_error(lstate) };
         }
-        lua_call(lstate, 0, 1);
+        unsafe { lua_call(lstate, 0, 1) };
         1
     }
 }
 
 fn nlua_init_packages(lstate: *mut lua_State) -> bool {
-    unsafe {
+    {
         lua_getglobal(lstate, c"package");
         lua_getfield(lstate, -1, c"preload");
         for (i, def) in BUILTIN_MODULES.iter().enumerate() {
-            lua_pushinteger(lstate, i as lua_Integer);
-            lua_pushcclosure(lstate, Some(nlua_module_preloader), 1);
+            unsafe { lua_pushinteger(lstate, i as lua_Integer) };
+            unsafe { lua_pushcclosure(lstate, Some(nlua_module_preloader), 1) };
             lua_setfield(lstate, -2, def.name.as_ptr());
 
             if g_st().nlua_disable_preload && def.name == c"vim.inspect" {
@@ -1258,8 +1262,8 @@ fn nlua_state_init(lstate: *mut lua_State) -> bool {
 }
 
 pub fn nlua_init(argv: *mut *mut c_char, argc: i32, lua_arg0: i32) {
-    unsafe {
-        let lstate = luaL_newstate();
+    {
+        let lstate = unsafe { luaL_newstate() };
         if lstate.is_null() {
             fprintf!(
                 log_get_stderr(),
@@ -1267,22 +1271,22 @@ pub fn nlua_init(argv: *mut *mut c_char, argc: i32, lua_arg0: i32) {
             );
             os_exit(1);
         }
-        luaL_openlibs(lstate);
+        unsafe { luaL_openlibs(lstate) };
         if !nlua_state_init(lstate) {
             fprintf!(
                 log_get_stderr(),
                 gettext(c"E970: Failed to initialize builtin Lua modules\n"),
             );
             if MAIN_EXITFREE {
-                nlua_common_free_all_mem(lstate);
+                unsafe { nlua_common_free_all_mem(lstate) };
             }
             os_exit(1);
         }
 
-        luv_set_thread_cb(Some(nlua_thread_acquire_vm), Some(nlua_common_free_all_mem));
+        unsafe { luv_set_thread_cb(Some(nlua_thread_acquire_vm), Some(nlua_common_free_all_mem)) };
         nlua_st().global_lstate = lstate;
         nlua_st().active_lstate = lstate;
-        nlua_st().main_thread = uv_thread_self();
+        nlua_st().main_thread = unsafe { uv_thread_self() };
         nlua_init_argv(lstate, argv, argc, lua_arg0);
     }
 }
@@ -1662,11 +1666,11 @@ unsafe extern "C-unwind" fn nlua_rpcnotify(lstate: *mut lua_State) -> i32 {
 }
 
 fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
-    unsafe {
+    {
         let mut name_len: usize = 0;
-        let chan_id = luaL_checkinteger(lstate, 1) as u64;
-        let name = luaL_checklstring(lstate, 2, &raw mut name_len);
-        let nargs = lua_gettop(lstate) - 2;
+        let chan_id = unsafe { luaL_checkinteger(lstate, 1) } as u64;
+        let name = unsafe { luaL_checklstring(lstate, 2, &raw mut name_len) };
+        let nargs = unsafe { lua_gettop(lstate) } - 2;
         let mut err = Error::new();
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -1676,7 +1680,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
 
         let mut args = arena_array(&mut arena, nargs.max(0) as usize);
         for i in 0..nargs {
-            lua_pushvalue(lstate, i + 3);
+            unsafe { lua_pushvalue(lstate, i + 3) };
             let obj = nlua_pop_object(lstate, false, &mut arena, &mut err);
             *args.next_slot_mut() = obj;
             args.size += 1;
@@ -1710,7 +1714,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
         if error_set(&err) {
             lua_pushstring(lstate, err.msg_ptr());
             api_clear_error(&mut err);
-            return lua_error(lstate);
+            return unsafe { lua_error(lstate) };
         }
 
         if request { 1 } else { 0 }
@@ -1977,9 +1981,9 @@ pub fn nlua_exec(
     err: &mut Error,
 ) -> Object {
     let chunkname = chunkname.into_c_char_ptr();
-    unsafe {
+    {
         let lstate = nlua_st().global_lstate;
-        let top = lua_gettop(lstate);
+        let top = unsafe { lua_gettop(lstate) };
         let name = if !crate::memory::cstr_is_empty(chunkname) {
             chunkname
         } else {
@@ -1987,7 +1991,7 @@ pub fn nlua_exec(
         };
         if luaL_loadbuffer(lstate, str_.data, str_.size, name) != 0 {
             let mut len: usize = 0;
-            let errstr = lua_tolstring(lstate, -1, &raw mut len);
+            let errstr = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -2004,7 +2008,7 @@ pub fn nlua_exec(
 
         if nlua_pcall(lstate, args.size as i32, 1) != 0 {
             let mut len: usize = 0;
-            let errstr = lua_tolstring(lstate, -1, &raw mut len);
+            let errstr = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -2061,16 +2065,16 @@ pub fn nlua_call_excmd(
     cmod: &Cmdmod,
     extra: Option<&mut TypVal>,
 ) -> bool {
-    unsafe {
+    {
         let lstate = nlua_st().global_lstate;
         lua_getglobal(lstate, c"require");
         lua_pushstring(lstate, module.as_ptr());
-        if lua_pcall(lstate, 1, 1, 0) != 0 {
+        if unsafe { lua_pcall(lstate, 1, 1, 0) } != 0 {
             nlua_error(lstate, c"E5108: %s");
             return false;
         }
         lua_getfield(lstate, -1, func.as_ptr());
-        lua_remove(lstate, -2);
+        unsafe { lua_remove(lstate, -2) };
 
         lua_newtable(lstate);
         nlua_push_eap(lstate, eap, cmod);
@@ -2131,9 +2135,9 @@ pub fn nlua_call_ref_ctx(
     err: Option<&mut Error>,
 ) -> Object {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let lstate = nlua_st().active_lstate;
-        let top = lua_gettop(lstate);
+        let top = unsafe { lua_gettop(lstate) };
         nlua_pushref(lstate, ref_);
         let mut nargs = args.size as i32;
         if !name.is_null() {
@@ -2145,7 +2149,7 @@ pub fn nlua_call_ref_ctx(
         }
 
         if fast {
-            if nlua_fast_cfpcall(lstate, nargs, mode_ret(mode), -1) < 0 {
+            if unsafe { nlua_fast_cfpcall(lstate, nargs, mode_ret(mode), -1) } < 0 {
                 if let Some(err) = err {
                     api_set_error!(err, ErrorType::ErrorTypeException, c"fast context failure",);
                 }
@@ -2154,7 +2158,7 @@ pub fn nlua_call_ref_ctx(
         } else if nlua_pcall(lstate, nargs, mode_ret(mode)) != 0 {
             if let Some(err) = err {
                 let mut len: usize = 0;
-                let errstr = lua_tolstring(lstate, -1, &raw mut len);
+                let errstr = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -2443,19 +2447,19 @@ pub fn nlua_exec_file(path: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
-    unsafe {
+    {
         let lstate = nlua_st().global_lstate;
         let mut status = FAIL;
 
         lua_getglobal(lstate, c"vim");
         lua_getfield(lstate, -1, c"_expand_pat");
-        luaL_checktype(lstate, -1, LUA_TFUNCTION);
+        unsafe { luaL_checktype(lstate, -1, LUA_TFUNCTION) };
 
         let pat = xp.xp_pattern;
         let line_end = xp.xp_line.wrapping_add(xp.xp_col as usize);
         assert!(line_end >= pat);
         let patlen = crate::memory::ptr_offset_from(line_end, pat);
-        lua_pushlstring(lstate, pat, patlen as usize);
+        unsafe { lua_pushlstring(lstate, pat, patlen as usize) };
 
         if nlua_pcall(lstate, 1, 2) != 0 {
             nlua_error(lstate, gettext(c"vim._expand_pat: %.*s"));
@@ -2613,7 +2617,7 @@ pub fn nlua_exec_on_key(c: i32, typed_buf: *mut c_char) -> bool {
 }
 
 pub fn nlua_set_sctx(current: &mut Sctx) {
-    unsafe {
+    {
         if !script_is_lua(current.sc_sid) {
             return;
         }
@@ -2629,7 +2633,7 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
         let mut level: i32 = 1;
         let mut found = false;
         loop {
-            if lua_getstack(lstate, level, &raw mut info) != 1 {
+            if unsafe { lua_getstack(lstate, level, &raw mut info) } != 1 {
                 break;
             }
             if lua_getinfo(lstate, c"nSl", &raw mut info) == 0 {
@@ -2648,7 +2652,9 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
             let mut sid = find_script_by_name(source_path.as_ptr().cast_mut());
             if sid <= 0 {
                 let si: *mut Scriptitem = new_script_item(Some(source_path), &mut sid);
-                (*si).sn_lua = true;
+                unsafe {
+                    (*si).sn_lua = true;
+                }
             }
             current.sc_sid = sid;
             current.sc_seq = -1;

@@ -372,7 +372,7 @@ pub fn u_savecommon(
     newbot: Linenr,
     reload: bool,
 ) -> bool {
-    unsafe {
+    {
         if !reload {
             if !undo_allowed(buf) {
                 return false;
@@ -477,7 +477,7 @@ pub fn u_savecommon(
                     0
                 });
 
-            zero_fmark_additional_data(&mut *(&raw mut buf.b_namedm).cast::<Fmark>());
+            zero_fmark_additional_data(unsafe { &mut *(&raw mut buf.b_namedm).cast::<Fmark>() });
             uhp_mut(buf, uhp).uh_namedm = buf.b_namedm.clone();
             uhp_mut(buf, uhp).uh_visual = buf.b_visual;
 
@@ -499,7 +499,7 @@ pub fn u_savecommon(
                     for i in 0..limit {
                         let uep: *mut UEntry =
                             &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[i];
-                        let uep = { &mut *uep };
+                        let uep = { unsafe { &mut *uep } };
 
                         if u_entry_resized(buf, &*uep)
                             || ((*uep).ue_size() > 1
@@ -713,11 +713,11 @@ fn corruption_error(mesg: &std::ffi::CStr, file_name: impl crate::strings::IntoC
 }
 
 fn serialize_header(bi: &mut Bufinfo, hash: *mut u8) -> bool {
-    unsafe {
-        let buf = &mut *bi.bi_buf;
+    {
+        let buf = unsafe { &mut *bi.bi_buf };
         let fp = bi.bi_fp.as_ptr();
 
-        if fwrite(UF_START_MAGIC.as_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) != 1 {
+        if unsafe { fwrite(UF_START_MAGIC.as_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) } != 1 {
             return false;
         }
 
@@ -1043,7 +1043,7 @@ pub fn u_write_undo(
     hash: *mut u8,
 ) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let f_owned: Option<std::ffi::CString>;
         let file_name = if name.is_null() {
             f_owned = u_get_undo_file_name(buf.b_ffname, false);
@@ -1156,7 +1156,8 @@ pub fn u_write_undo(
                 }
             }
 
-            let Some(bi_fp) = crate::os::fs::CFile::from_raw(fdopen(fd, c"w".as_ptr())) else {
+            let Some(bi_fp) = crate::os::fs::CFile::from_raw(unsafe { fdopen(fd, c"w".as_ptr()) })
+            else {
                 semsg!(gettext(E_NOT_OPEN), file_name);
                 os_close(fd);
                 os_remove(file_name);
@@ -1221,7 +1222,7 @@ pub fn u_write_undo(
                 } else {
                     opt_vars().p_fs != 0
                 };
-                if do_fsync && fflush(bi.bi_fp.as_ptr()) == 0 && os_fsync(fd) != 0 {
+                if do_fsync && unsafe { fflush(bi.bi_fp.as_ptr()) } == 0 && os_fsync(fd) != 0 {
                     write_ok = false;
                 }
             }
@@ -1266,7 +1267,7 @@ pub fn u_read_undo(
 ) {
     let name = name.into_c_char_ptr();
     let orig_name = orig_name.into_c_char_ptr();
-    unsafe {
+    {
         #[cfg(not(unix))]
         let _ = orig_name;
         let mut uhp_table: Vec<(UHeader, [i32; 4])> = Vec::new();
@@ -1324,7 +1325,7 @@ pub fn u_read_undo(
                 let fp = bi_fp.as_ptr();
 
                 let mut file_info = FileInfo::new();
-                let fsize = if os_fileinfo_fd(fileno(fp), &mut file_info) {
+                let fsize = if os_fileinfo_fd(unsafe { fileno(fp) }, &mut file_info) {
                     os_fileinfo_size(&file_info) as Off
                 } else {
                     0
@@ -1336,7 +1337,7 @@ pub fn u_read_undo(
                 };
 
                 let mut magic_buf = [0u8; UF_START_MAGIC_LEN];
-                if fread(magic_buf.as_mut_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) != 1
+                if unsafe { fread(magic_buf.as_mut_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) } != 1
                     || magic_buf != UF_START_MAGIC[..UF_START_MAGIC_LEN]
                 {
                     semsg!(gettext(c"E823: Not an undo file: %s"), file_name);
@@ -1354,7 +1355,7 @@ pub fn u_read_undo(
                     break 'error;
                 }
                 let line_count = undo_read_4c(&mut bi) as Linenr;
-                if std::slice::from_raw_parts(hash, UNDO_HASH_SIZE) != read_hash
+                if unsafe { std::slice::from_raw_parts(hash, UNDO_HASH_SIZE) } != read_hash
                     || line_count != curbuf_mut().b_ml.ml_line_count
                 {
                     if opt_vars().p_verbose > 0 || !name.is_null() {
@@ -1569,12 +1570,19 @@ fn undo_read_len(
     file_name: impl crate::strings::IntoCCharPtr,
 ) -> i32 {
     let file_name = file_name.into_c_char_ptr();
-    unsafe {
+    {
         let len = undo_read_4c(bi);
         let fp = bi.bi_fp.as_ptr();
-        let pos = vim_ftell(fp);
+        let pos = unsafe { vim_ftell(fp) };
         if len < 0 || (bi.bi_fsize > 0 && (pos < 0 || (len as Off) > bi.bi_fsize - pos)) {
-            corruption_error(if feof(fp) != 0 { c"truncated" } else { what }, file_name);
+            corruption_error(
+                if unsafe { feof(fp) } != 0 {
+                    c"truncated"
+                } else {
+                    what
+                },
+                file_name,
+            );
             return -1;
         }
         len
@@ -2386,23 +2394,27 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
 
 /// Put the timestamp of an undo header in `buf[buflen]` in a nice format.
 pub fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
-    unsafe {
+    {
         let now = os_time() as time_t;
         if now - tt >= 100 {
             let mut curtime = Tm { _fields: [0; 16] };
             os_localtime_r(&tt, &raw mut curtime);
             let n = if (os_time() as time_t) - tt < 60 * 60 * 12 {
-                strftime(buf, buflen, c"%H:%M:%S".as_ptr(), &raw const curtime)
+                unsafe { strftime(buf, buflen, c"%H:%M:%S".as_ptr(), &raw const curtime) }
             } else {
-                strftime(
-                    buf,
-                    buflen,
-                    c"%Y/%m/%d %H:%M:%S".as_ptr(),
-                    &raw const curtime,
-                )
+                unsafe {
+                    strftime(
+                        buf,
+                        buflen,
+                        c"%Y/%m/%d %H:%M:%S".as_ptr(),
+                        &raw const curtime,
+                    )
+                }
             };
             if n == 0 {
-                *buf = NUL;
+                unsafe {
+                    *buf = NUL;
+                }
             }
         } else {
             let seconds = now - tt;

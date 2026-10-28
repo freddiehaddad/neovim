@@ -1445,18 +1445,18 @@ pub fn msg_with_id(
 /// @param[in]  len  Length of s or -1.
 fn msg_hist_add(s: impl crate::strings::IntoCCharPtr, len: i32, hl_id: i32) {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut size = if len < 0 {
             crate::memory::cstr_len(s)
         } else {
             len as usize
         };
         // Remove leading and trailing newlines.
-        while size > 0 && *s == NL as c_char {
+        while size > 0 && unsafe { *s } == NL as c_char {
             size -= 1;
             s = s.wrapping_add(1);
         }
-        while size > 0 && *s.wrapping_add(size - 1) == NL as c_char {
+        while size > 0 && unsafe { *s.wrapping_add(size - 1) } == NL as c_char {
             size -= 1;
         }
         if size == 0 {
@@ -2446,7 +2446,7 @@ pub fn str2special_arena(
     arena: &mut Arena,
 ) -> *mut c_char {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = str_;
         let mut len = 0usize;
         while !crate::memory::cstr_is_empty(p) {
@@ -2460,10 +2460,12 @@ pub fn str2special_arena(
         while !crate::memory::cstr_is_empty(p) {
             let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             let s_len = crate::memory::cstr_len(s);
-            ptr::copy_nonoverlapping(s, buf.wrapping_add(pos), s_len);
+            unsafe { ptr::copy_nonoverlapping(s, buf.wrapping_add(pos), s_len) };
             pos += s_len;
         }
-        *buf.wrapping_add(pos) = NUL;
+        unsafe {
+            *buf.wrapping_add(pos) = NUL;
+        }
         buf
     }
 }
@@ -2580,7 +2582,7 @@ pub fn str2special(
 /// print line for :print or :list command
 pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut sc: Schar;
         let mut col = 0;
         let mut n_extra = 0;
@@ -2601,7 +2603,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
             // find start of trailing whitespace
             if curwin_mut().w_p_lcs_chars.trail != 0 {
                 trail = s.wrapping_add(crate::memory::cstr_len(s));
-                while trail > s && ascii_iswhite(*trail.wrapping_sub(1) as i32) {
+                while trail > s && ascii_iswhite(unsafe { *trail.wrapping_sub(1) } as i32) {
                     trail = trail.wrapping_sub(1);
                 }
             }
@@ -2650,7 +2652,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                     {
                         schar_get(buf.as_mut_ptr(), curwin_mut().w_p_lcs_chars.nbsp);
                     } else {
-                        ptr::copy(s, buf.as_mut_ptr(), l as usize);
+                        unsafe { ptr::copy(s, buf.as_mut_ptr(), l as usize) };
                         buf[l as usize] = NUL;
                     }
                     msg_puts(buf.as_ptr());
@@ -2670,7 +2672,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                     if list {
                         in_multispace = c == b' ' as i32
                             && (crate::memory::cstr_first_byte(s) == b' '
-                                || (col > 0 && *s.wrapping_sub(2) == b' ' as c_char));
+                                || (col > 0 && unsafe { *s.wrapping_sub(2) } == b' ' as c_char));
                         if !in_multispace {
                             multispace_pos = 0;
                         }
@@ -2926,7 +2928,7 @@ fn msg_puts_display(
     recurse: i32,
 ) {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut s = str_;
         let mut sb_str = str_;
         let mut sb_col = g_st().msg_col;
@@ -2948,7 +2950,7 @@ fn msg_puts_display(
             if len > 0 {
                 msg_st()
                     .msg_ext_last_chunk
-                    .extend_from_slice(std::slice::from_raw_parts(str_, len));
+                    .extend_from_slice(unsafe { std::slice::from_raw_parts(str_, len) });
             }
 
             let lastline = {
@@ -2957,7 +2959,7 @@ fn msg_puts_display(
                 if _sz == 0 {
                     std::ptr::null_mut::<std::ffi::c_void>()
                 } else {
-                    std::slice::from_raw_parts(_s, _sz)
+                    unsafe { std::slice::from_raw_parts(_s, _sz) }
                         .iter()
                         .rposition(|&_b| _b == b'\n')
                         .map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| {
@@ -3052,7 +3054,7 @@ fn msg_puts_display(
             }
 
             if g_st().msg_row != msg_row_pending
-                && (crate::memory::cstr_first_byte(s) >= 0x20 || *s == TAB as c_char)
+                && (crate::memory::cstr_first_byte(s) >= 0x20 || unsafe { *s } == TAB as c_char)
             {
                 if msg_row_pending >= 0 {
                     msg_line_flush();
@@ -3083,7 +3085,7 @@ fn msg_puts_display(
                 g_st().msg_didout = true;
                 g_st().msg_col += cw;
             } else {
-                let c = *s;
+                let c = unsafe { *s };
                 s = s.wrapping_add(1);
                 if c == NL as c_char {
                     g_st().msg_didout = false;

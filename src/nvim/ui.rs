@@ -229,7 +229,7 @@ pub fn ui_active() -> usize {
 }
 
 pub fn ui_refresh() {
-    unsafe {
+    {
         if g_st().ui_client_channel_id != 0 {
             std::process::abort();
         }
@@ -241,7 +241,7 @@ pub fn ui_refresh() {
         let inclusive = ui_override();
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
-            let ui = &mut *ui_ptr;
+            let ui = unsafe { &mut *ui_ptr };
             width = width.min(ui.width);
             height = height.min(ui.height);
             for (j, widget) in ext_widgets.iter_mut().enumerate().take(K_UIEXT_COUNT) {
@@ -255,17 +255,19 @@ pub fn ui_refresh() {
 
         let ui_ext_ptr = (&raw mut ui_state().ui_ext).cast::<bool>();
         let ui_cb_ext_ptr = (&raw const ui_state().ui_cb_ext).cast::<bool>();
-        let had_message = *ui_ext_ptr.wrapping_add(K_UIMESSAGES);
+        let had_message = unsafe { *ui_ext_ptr.wrapping_add(K_UIMESSAGES) };
 
         for (i, &widget) in ext_widgets.iter().enumerate().take(K_UIEXT_COUNT) {
-            let val = widget | *ui_cb_ext_ptr.wrapping_add(i);
-            *ui_ext_ptr.wrapping_add(i) = val;
+            let val = widget | unsafe { *ui_cb_ext_ptr.wrapping_add(i) };
+            unsafe {
+                *ui_ext_ptr.wrapping_add(i) = val;
+            }
             if i < K_UIGLOBAL_COUNT {
                 ui_call_option_set(cstr_as_string(UI_EXT_NAMES[i].as_ptr()), boolean_obj(val));
             }
         }
 
-        if had_message != *ui_ext_ptr.wrapping_add(K_UIMESSAGES) {
+        if had_message != unsafe { *ui_ext_ptr.wrapping_add(K_UIMESSAGES) } {
             if g_st().ui_refresh_cmdheight {
                 set_option_value(
                     K_OPT_CMDHEIGHT,
@@ -1072,22 +1074,20 @@ const fn tab_obj(t: ObjHandle) -> Object {
 }
 
 macro_rules! ui_call_loop {
-    ($cond:expr, $funname:literal, |$ui:ident| $call:expr) => {
-        unsafe {
-            let mut any_call = false;
-            let uis_ptr = &raw const ui_state().uis;
-            for &_ui_ptr in &*uis_ptr {
-                let $ui = &mut *_ui_ptr;
-                if $cond {
-                    $call;
-                    any_call = true;
-                }
-            }
-            if any_call {
-                ui_log($funname);
+    ($cond:expr, $funname:literal, |$ui:ident| $call:expr) => {{
+        let mut any_call = false;
+        let uis_ptr = &raw const ui_state().uis;
+        for &_ui_ptr in unsafe { &*uis_ptr } {
+            let $ui = unsafe { &mut *_ui_ptr };
+            if $cond {
+                $call;
+                any_call = true;
             }
         }
-    };
+        if any_call {
+            ui_log($funname);
+        }
+    }};
 }
 
 macro_rules! ui_call_event_guarded {

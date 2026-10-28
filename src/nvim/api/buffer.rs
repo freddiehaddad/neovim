@@ -1482,7 +1482,7 @@ pub fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
 // DLLEXPORT Boolean nvim_buf_del_mark(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(8);
 pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Boolean {
-    unsafe {
+    {
         let mut res = false;
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return res;
@@ -1504,13 +1504,13 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
             curwin_mut(),
             None,
             K_MARK_ALL_NO_RESOLVE,
-            i32::from(*name.data.cast::<u8>()),
+            i32::from(unsafe { *name.data.cast::<u8>() }),
         );
         if fm.is_null() {
             api_err_invalid(err, c"mark name", name.data, 0, true);
             return res;
         }
-        let fm = { &mut *fm };
+        let fm = { unsafe { &mut *fm } };
 
         if fm.mark.lnum != 0 && fm.fnum == b.b_fnum {
             res = set_mark((&raw mut *b), name, 0, 0, err);
@@ -1586,7 +1586,7 @@ pub fn nvim_buf_get_mark(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+    {
         let mut rv = Array::new();
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
@@ -1603,17 +1603,17 @@ pub fn nvim_buf_get_mark(
             return rv;
         }
 
-        let mark = i32::from(*name.data.cast::<u8>());
+        let mark = i32::from(unsafe { *name.data.cast::<u8>() });
         let fm = mark_get(b, curwin_mut(), None, K_MARK_ALL_NO_RESOLVE, mark);
         if fm.is_null() {
             api_err_invalid(err, c"mark name", name.data, 0, true);
             return rv;
         }
 
-        let (lnum, col) = if (*fm).fnum != b.b_fnum {
+        let (lnum, col) = if unsafe { (*fm).fnum } != b.b_fnum {
             (0, 0)
         } else {
-            ((*fm).mark.lnum, (*fm).mark.col)
+            (unsafe { (*fm).mark.lnum }, unsafe { (*fm).mark.col })
         };
 
         rv = arena_array(arena, 2);

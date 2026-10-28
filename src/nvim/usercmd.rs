@@ -241,7 +241,7 @@ pub fn find_ucmd(
     mut xp: Option<&mut ExpandCtx>,
     mut complp: Option<&mut i32>,
 ) -> *mut c_char {
-    unsafe {
+    {
         let len = crate::memory::ptr_offset_from(p, eap.cmd) as i32;
         let mut matchlen: i32 = 0;
         let mut found = false;
@@ -249,7 +249,7 @@ pub fn find_ucmd(
         let mut amb_local = false;
 
         let mut is_global = false;
-        let mut gap: &[Ucmd] = &(*prevwin_curwin().w_buffer).b_ucmds;
+        let mut gap: &[Ucmd] = unsafe { &(*prevwin_curwin().w_buffer).b_ucmds };
         loop {
             let mut j: i32 = 0;
             while (j as usize) < gap.len() {
@@ -258,8 +258,8 @@ pub fn find_ucmd(
                 let mut np = uc.uc_name.as_ptr();
                 let mut k: i32 = 0;
                 while k < len && !crate::memory::cstr_is_empty(np) && {
-                    let c1 = *cp;
-                    let c2 = *np;
+                    let c1 = unsafe { *cp };
+                    let c2 = unsafe { *np };
                     cp = cp.wrapping_add(1);
                     np = np.wrapping_add(1);
                     c1 == c2
@@ -624,12 +624,12 @@ pub fn cmdcomplete_str_to_type(complete_str: impl crate::strings::IntoCCharPtr) 
 
 fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut found = false;
 
         msg_ext_set_kind(c"list_cmd");
         let mut is_global = false;
-        let mut gap: &[Ucmd] = &(*prevwin_curwin().w_buffer).b_ucmds;
+        let mut gap: &[Ucmd] = unsafe { &(*prevwin_curwin().w_buffer).b_ucmds };
         loop {
             let mut i: i32 = 0;
             while (i as usize) < gap.len() {
@@ -731,11 +731,13 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                         let s = format!("{}c", cmd.uc_def);
                         let bytes = s.as_bytes();
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
-                        ptr::copy_nonoverlapping(
-                            bytes.as_ptr().cast::<c_char>(),
-                            (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
-                            copy_len,
-                        );
+                        unsafe {
+                            ptr::copy_nonoverlapping(
+                                bytes.as_ptr().cast::<c_char>(),
+                                (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
+                                copy_len,
+                            )
+                        };
                         len += copy_len;
                     } else if (a & EX_DFLALL) != 0 {
                         g_st().iobuff[len] = b'%' as c_char;
@@ -744,11 +746,13 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                         let s = format!("{}", cmd.uc_def);
                         let bytes = s.as_bytes();
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
-                        ptr::copy_nonoverlapping(
-                            bytes.as_ptr().cast::<c_char>(),
-                            (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
-                            copy_len,
-                        );
+                        unsafe {
+                            ptr::copy_nonoverlapping(
+                                bytes.as_ptr().cast::<c_char>(),
+                                (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
+                                copy_len,
+                            )
+                        };
                         len += copy_len;
                     } else {
                         g_st().iobuff[len] = b'.' as c_char;
@@ -772,11 +776,13 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                         if let Some(short) = entry.shortname {
                             let bytes = short.to_bytes();
                             let copy_len = bytes.len().min(IOSIZE - 1 - len);
-                            ptr::copy_nonoverlapping(
-                                bytes.as_ptr().cast::<c_char>(),
-                                (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
-                                copy_len,
-                            );
+                            unsafe {
+                                ptr::copy_nonoverlapping(
+                                    bytes.as_ptr().cast::<c_char>(),
+                                    (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
+                                    copy_len,
+                                )
+                            };
                             len += copy_len;
                         }
                         break;
@@ -795,11 +801,13 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                 if !cmd_compl.is_null() {
                     let bytes = crate::memory::cstr_as_bytes(cmd_compl);
                     let copy_len = bytes.len().min(IOSIZE - 1 - len);
-                    ptr::copy_nonoverlapping(
-                        bytes.as_ptr().cast::<c_char>(),
-                        (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
-                        copy_len,
-                    );
+                    unsafe {
+                        ptr::copy_nonoverlapping(
+                            bytes.as_ptr().cast::<c_char>(),
+                            (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
+                            copy_len,
+                        )
+                    };
                     len += copy_len;
                 }
 
@@ -968,7 +976,7 @@ fn uc_scan_attr(
     compl_arg: &mut Option<CString>,
     addr_type_arg: &mut CmdAddr,
 ) -> bool {
-    unsafe {
+    {
         if len == 0 {
             emsg(gettext(c"E175: No attribute specified"));
             return false;
@@ -1104,10 +1112,14 @@ fn uc_scan_attr(
                     *argt |= EX_ZEROR;
                 }
             } else {
-                let ch = *attr.wrapping_add(len);
-                *attr.wrapping_add(len) = NUL;
+                let ch = unsafe { *attr.wrapping_add(len) };
+                unsafe {
+                    *attr.wrapping_add(len) = NUL;
+                }
                 semsg!(gettext(c"E181: Invalid attribute: %s"), attr);
-                *attr.wrapping_add(len) = ch;
+                unsafe {
+                    *attr.wrapping_add(len) = ch;
+                }
                 return false;
             }
         }
@@ -1658,7 +1670,7 @@ pub fn add_win_cmd_modifiers(buf: *mut c_char, cmod: &Cmdmod, multi_mods: &mut b
 
 /// Generate text for the `cmod` command modifiers (`uc_mods`).
 pub fn uc_mods(mut buf: *mut c_char, cmod: &Cmdmod, quote: bool) -> usize {
-    unsafe {
+    {
         let mut multi_mods = false;
 
         const MOD_ENTRIES: [(i32, &CStr); 12] = [
@@ -1679,10 +1691,14 @@ pub fn uc_mods(mut buf: *mut c_char, cmod: &Cmdmod, quote: bool) -> usize {
         let mut result: usize = if quote { 2 } else { 0 };
         if !buf.is_null() {
             if quote {
-                *buf = b'"' as c_char;
+                unsafe {
+                    *buf = b'"' as c_char;
+                }
                 buf = buf.wrapping_add(1);
             }
-            *buf = NUL;
+            unsafe {
+                *buf = NUL;
+            }
         }
 
         for &(flag, name) in &MOD_ENTRIES {
@@ -1714,7 +1730,9 @@ pub fn uc_mods(mut buf: *mut c_char, cmod: &Cmdmod, quote: bool) -> usize {
 
         if quote && !buf.is_null() {
             buf = buf.wrapping_add(result - 2);
-            *buf = b'"' as c_char;
+            unsafe {
+                *buf = b'"' as c_char;
+            }
         }
         result
     }

@@ -359,18 +359,18 @@ fn input_space() -> usize {
 
 pub fn input_enqueue_raw(data: impl crate::strings::IntoCCharPtr, size: usize) {
     let data = data.into_c_char_ptr();
-    unsafe {
+    {
         ensure_input_ptrs_init();
         let buf_start = input_buf_ptr();
         if (osi_st().input_read_pos as usize) > (buf_start as usize) {
             let available = input_available();
-            ptr::copy(osi_st().input_read_pos, buf_start, available);
+            unsafe { ptr::copy(osi_st().input_read_pos, buf_start, available) };
             osi_st().input_read_pos = buf_start;
             osi_st().input_write_pos = buf_start.wrapping_add(available);
         }
 
         let to_write = size.min(input_space());
-        ptr::copy_nonoverlapping(data, osi_st().input_write_pos, to_write);
+        unsafe { ptr::copy_nonoverlapping(data, osi_st().input_write_pos, to_write) };
         osi_st().input_write_pos = osi_st().input_write_pos.wrapping_add(to_write);
     }
 }
@@ -685,7 +685,7 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
 }
 
 fn process_ctrl_c() {
-    unsafe {
+    {
         if !g_st().ctrl_c_interrupts {
             return;
         }
@@ -693,15 +693,21 @@ fn process_ctrl_c() {
         let available = input_available();
         let mut i = available as isize - 1;
         while i >= 0 {
-            let c = *osi_st().input_read_pos.wrapping_offset(i) as u8;
+            let c = unsafe { *osi_st().input_read_pos.wrapping_offset(i) } as u8;
             if c == CTRL_C_CONST_CONST_CONST
                 || (c == b'C'
                     && i >= 3
-                    && *osi_st().input_read_pos.wrapping_offset(i - 3) as u8 == K_SPECIAL
-                    && *osi_st().input_read_pos.wrapping_offset(i - 2) as u8 == KS_MODIFIER
-                    && *osi_st().input_read_pos.wrapping_offset(i - 1) as u8 == MOD_MASK_CTRL)
+                    && unsafe { *osi_st().input_read_pos.wrapping_offset(i - 3) } as u8
+                        == K_SPECIAL
+                    && unsafe { *osi_st().input_read_pos.wrapping_offset(i - 2) } as u8
+                        == KS_MODIFIER
+                    && unsafe { *osi_st().input_read_pos.wrapping_offset(i - 1) } as u8
+                        == MOD_MASK_CTRL)
             {
-                *osi_st().input_read_pos.wrapping_offset(i) = CTRL_C_CONST_CONST_CONST as c_char;
+                unsafe {
+                    *osi_st().input_read_pos.wrapping_offset(i) =
+                        CTRL_C_CONST_CONST_CONST as c_char;
+                }
                 g_st().got_int = true;
                 break;
             }

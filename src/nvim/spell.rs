@@ -891,20 +891,22 @@ pub fn can_compound(
     flags: *const u8,
 ) -> bool {
     let word = word.into_c_char_ptr();
-    unsafe {
+    {
         let mut uflags: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         if slang.sl_compprog.is_none() {
             return false;
         }
         let mut p = (&raw mut uflags).cast::<c_char>();
         let mut i = 0usize;
-        while *flags.wrapping_add(i) != 0 {
+        while unsafe { *flags.wrapping_add(i) } != 0 {
             p = p.wrapping_add(
                 utf_char2bytes(crate::memory::cstr_char_at(flags.cast(), i), p) as usize,
             );
             i += 1;
         }
-        *p = NUL;
+        unsafe {
+            *p = NUL;
+        }
         p = (&raw mut uflags).cast();
         if !vim_regexec_prog(slang.sl_compprog.as_deref(), false, p, 0) {
             return false;
@@ -997,10 +999,10 @@ pub fn valid_word_prefix(
     0
 }
 fn find_prefix(mip: &mut Matchinf, mode: i32) {
-    unsafe {
+    {
         let mut arridx: Idx = 0;
         let mut wlen: i32 = 0;
-        let slang = &mut *mip.mi_lp.lp_slang;
+        let slang = unsafe { &mut *mip.mi_lp.lp_slang };
         if slang.sl_pbyts.is_empty() {
             return;
         }
@@ -1018,10 +1020,10 @@ fn find_prefix(mip: &mut Matchinf, mode: i32) {
             }
             let mut len = crate::memory::cstr_char_at(byts.cast(), arridx as usize);
             arridx += 1;
-            if *byts.wrapping_add(arridx as usize) == 0 {
+            if unsafe { *byts.wrapping_add(arridx as usize) } == 0 {
                 mip.mi_prefarridx = arridx;
                 mip.mi_prefcnt = len;
-                while len > 0 && *byts.wrapping_add(arridx as usize) == 0 {
+                while len > 0 && unsafe { *byts.wrapping_add(arridx as usize) } == 0 {
                     arridx += 1;
                     len -= 1;
                 }
@@ -1061,19 +1063,19 @@ fn find_prefix(mip: &mut Matchinf, mode: i32) {
             if hi < lo || crate::memory::cstr_char_at(byts.cast(), lo as usize) != c {
                 break;
             }
-            arridx = *idxs.wrapping_add(lo as usize);
+            arridx = unsafe { *idxs.wrapping_add(lo as usize) };
             wlen += 1;
             flen -= 1;
         }
     }
 }
 fn fold_more(mip: &mut Matchinf) -> i32 {
-    unsafe {
+    {
         let p = mip.mi_fend;
         loop {
             mb_ptr_adv(&mut mip.mi_fend);
             if crate::memory::cstr_is_empty(mip.mi_fend)
-                || !spell_iswordp(mip.mi_fend, &*mip.mi_win)
+                || !spell_iswordp(mip.mi_fend, unsafe { &*mip.mi_win })
             {
                 break;
             }
@@ -1085,7 +1087,7 @@ fn fold_more(mip: &mut Matchinf) -> i32 {
             .cast::<c_char>()
             .wrapping_add(mip.mi_fwordlen as usize);
         spell_casefold(
-            &*mip.mi_win,
+            unsafe { &*mip.mi_win },
             p,
             crate::memory::ptr_offset_from(mip.mi_fend, p) as i32,
             dst,
@@ -1556,7 +1558,7 @@ pub fn slang_clear_sug(lp: &mut Slang) {
     lp.sl_sugtime = 0;
 }
 pub fn spell_load_cb(fnames: &[std::ffi::CString], all: bool, slp: &mut Spelload) -> bool {
-    unsafe {
+    {
         for fname in fnames {
             let slang = spell_load_file(
                 fname.as_ptr().cast_mut(),
@@ -1567,9 +1569,11 @@ pub fn spell_load_cb(fnames: &[std::ffi::CString], all: bool, slp: &mut Spelload
             if slang.is_null() {
                 continue;
             }
-            if slp.sl_nobreak != 0 && (*slang).sl_add {
-                (*slang).sl_nobreak = true;
-            } else if (*slang).sl_nobreak {
+            if slp.sl_nobreak != 0 && unsafe { (*slang).sl_add } {
+                unsafe {
+                    (*slang).sl_nobreak = true;
+                }
+            } else if unsafe { (*slang).sl_nobreak } {
                 slp.sl_nobreak = 1;
             }
             slp.sl_loaded = true;
@@ -1607,10 +1611,10 @@ pub fn byte_in_str(str_: *const u8, n: i32) -> bool {
     if str_.is_null() {
         return false;
     }
-    unsafe {
+    {
         let mut p = str_;
-        while *p != 0 {
-            if *p as i32 == n {
+        while unsafe { *p } != 0 {
+            if unsafe { *p } as i32 == n {
                 return true;
             }
             p = p.wrapping_add(1);
@@ -2243,9 +2247,11 @@ pub fn spell_casefold(
     buflen: i32,
 ) -> bool {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         if len >= buflen {
-            *buf = NUL;
+            unsafe {
+                *buf = NUL;
+            }
             return false;
         }
         let mut outi: i32 = 0;
@@ -2253,7 +2259,9 @@ pub fn spell_casefold(
         let end = str_.wrapping_add(len as usize);
         while p < end {
             if outi + MB_MAXBYTES as i32 > buflen {
-                *buf.wrapping_add(outi as usize) = NUL;
+                unsafe {
+                    *buf.wrapping_add(outi as usize) = NUL;
+                }
                 return false;
             }
             let mut c = mb_cptr2char_adv(&raw mut p);
@@ -2268,7 +2276,9 @@ pub fn spell_casefold(
             }
             outi += utf_char2bytes(c, buf.wrapping_add(outi as usize));
         }
-        *buf.wrapping_add(outi as usize) = NUL;
+        unsafe {
+            *buf.wrapping_add(outi as usize) = NUL;
+        }
         true
     }
 }
@@ -2427,7 +2437,7 @@ pub fn onecap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut c_char, 
 }
 pub fn allcap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut c_char) {
     let word = word.into_c_char_ptr();
-    unsafe {
+    {
         let mut d = wcopy;
         let mut s = word;
         while !crate::memory::cstr_is_empty(s) {
@@ -2437,7 +2447,9 @@ pub fn allcap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut c_char) 
                 if crate::memory::ptr_offset_from(d, wcopy) as usize >= MAXWLEN - 1 {
                     break;
                 }
-                *d = c as c_char;
+                unsafe {
+                    *d = c as c_char;
+                }
                 d = d.wrapping_add(1);
             } else {
                 c = spell_toupper(c);
@@ -2447,7 +2459,9 @@ pub fn allcap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut c_char) 
             }
             d = d.wrapping_add(utf_char2bytes(c, d) as usize);
         }
-        *d = NUL;
+        unsafe {
+            *d = NUL;
+        }
     }
 }
 pub fn nofold_len(
@@ -3204,7 +3218,7 @@ fn dump_prefixes(
 ) -> Linenr {
     let word = word.into_c_char_ptr();
     let pat = pat.into_c_char_ptr();
-    unsafe {
+    {
         let mut arridx: [Idx; MAXWLEN] = [0; MAXWLEN];
         let mut curi: [i32; MAXWLEN] = [0; MAXWLEN];
         let mut prefix: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -3236,7 +3250,7 @@ fn dump_prefixes(
                     if c == 0 {
                         let mut i: i32 = 1;
                         while i < len {
-                            if *byts.wrapping_add((n + i) as usize) != 0 {
+                            if unsafe { *byts.wrapping_add((n + i) as usize) } != 0 {
                                 break;
                             }
                             i += 1;
@@ -3302,7 +3316,7 @@ fn dump_prefixes(
                     } else if udepth < MAXWLEN - 1 {
                         prefix[udepth] = c as c_char;
                         depth += 1;
-                        arridx[depth as usize] = *idxs.wrapping_add(n as usize);
+                        arridx[depth as usize] = unsafe { *idxs.wrapping_add(n as usize) };
                         curi[depth as usize] = 1;
                     }
                 }

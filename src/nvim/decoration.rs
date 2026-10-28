@@ -731,7 +731,7 @@ pub fn buf_remove_decor_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: &DecorSi
 }
 
 pub fn decor_free(decor: DecorInline) {
-    unsafe {
+    {
         if !decor.is_ext() {
             return;
         }
@@ -741,7 +741,7 @@ pub fn decor_free(decor: DecorInline) {
 
         if g_st().decor_state.running_decor_provider {
             if !vt.is_null() {
-                decor_st().to_free_virt.push(*Box::from_raw(vt));
+                decor_st().to_free_virt.push(*unsafe { Box::from_raw(vt) });
             }
             while idx != DECOR_ID_INVALID {
                 let sh = &mut (&mut g_st().decor_items)[idx as usize];
@@ -754,7 +754,7 @@ pub fn decor_free(decor: DecorInline) {
             }
         } else {
             if !vt.is_null() {
-                drop(Box::from_raw(vt));
+                drop(unsafe { Box::from_raw(vt) });
             }
             decor_free_sh(idx);
         }
@@ -892,17 +892,17 @@ pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
 }
 
 pub fn decor_redraw_start(wp: &mut WinInfoInfo, top_row: i32, state: &mut DecorState) -> bool {
-    unsafe {
+    {
         let buf = wp.w_buffer;
         state.top_row = top_row;
         state.itr_valid = true;
 
-        if !marktree_itr_get_overlap(&(*buf).b_marktree, top_row, 0, &mut state.itr) {
+        if !marktree_itr_get_overlap(unsafe { &(*buf).b_marktree }, top_row, 0, &mut state.itr) {
             return false;
         }
         let mut pair: MTPair = MTPair::new();
 
-        while marktree_itr_step_overlap(&(*buf).b_marktree, &mut state.itr, &mut pair) {
+        while marktree_itr_step_overlap(unsafe { &(*buf).b_marktree }, &mut state.itr, &mut pair) {
             let m = pair.start;
             if mt_invalid(m) || !mt_decor_any(m) {
                 continue;
@@ -1057,15 +1057,15 @@ pub fn decor_range_add_virt(
     vt: *mut DecorVirtText,
     owned: bool,
 ) {
-    unsafe {
-        let is_lines = ((*vt).flags & K_VTIS_LINES) != 0;
+    {
+        let is_lines = (unsafe { (*vt).flags } & K_VTIS_LINES) != 0;
         let range = DecorRange {
             start_row,
             start_col,
             end_row,
             end_col,
             ordering: 0,
-            priority_internal: DecorPriorityInternal::from((*vt).priority) << 16,
+            priority_internal: DecorPriorityInternal::from(unsafe { (*vt).priority }) << 16,
             owned,
             data: if is_lines {
                 DecorRangeData::VirtLines(vt)
@@ -1453,9 +1453,9 @@ pub fn decor_redraw_signs(
     mut cul_id: Option<&mut i32>,
     mut num_id: Option<&mut i32>,
 ) {
-    unsafe {
-        let wp = &mut *wp;
-        let buf = &mut *buf;
+    {
+        let wp = unsafe { &mut *wp };
+        let buf = unsafe { &mut *buf };
         if !buf_has_signs(&*buf) {
             return;
         }
@@ -1514,8 +1514,12 @@ pub fn decor_redraw_signs(
             for item in &signs {
                 let sh = item.sh;
                 if !sattrs.is_null() && (idx as i32) < len && sh.text[0] != 0 {
-                    (*sattrs.wrapping_add(idx)).text = sh.text;
-                    (*sattrs.wrapping_add(idx)).hl_id = sh.hl_id;
+                    unsafe {
+                        (*sattrs.wrapping_add(idx)).text = sh.text;
+                    }
+                    unsafe {
+                        (*sattrs.wrapping_add(idx)).hl_id = sh.hl_id;
+                    }
                     idx += 1;
                 }
                 if num_id.is_some() && *num_id.as_deref_mut().unwrap() <= 0 {
@@ -1664,7 +1668,7 @@ pub fn decor_virt_line_rows(
     target_row: i32,
     mut skip_cells: Option<&mut i32>,
 ) -> i32 {
-    unsafe {
+    {
         if let Some(ref mut p) = skip_cells {
             **p = 0;
         }
@@ -1692,8 +1696,10 @@ pub fn decor_virt_line_rows(
             let mut virt_str: *const c_char = text.as_ptr();
             while !crate::memory::cstr_is_empty(virt_str) {
                 let bytes_to_next_char = utfc_ptr2len(virt_str);
-                let cells = if *virt_str == TAB {
-                    tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array)
+                let cells = if unsafe { *virt_str } == TAB {
+                    tabstop_padding(vcol, unsafe { (*buf).b_p_ts }, unsafe {
+                        &(*buf).b_p_vts_array
+                    })
                 } else {
                     utf_ptr2cells(virt_str)
                 };

@@ -152,31 +152,33 @@ fn collect_usernames() -> Vec<CString> {
     }
 
     #[cfg(target_os = "windows")]
-    unsafe {
+    {
         let mut nusers: u32 = 0;
         let mut ntotal: u32 = 0;
         let mut uinfo: *mut UserInfo0 = std::ptr::null_mut();
 
-        if NetUserEnum(
-            std::ptr::null(),
-            0,
-            0,
-            &mut uinfo,
-            u32::MAX,
-            &mut nusers,
-            &mut ntotal,
-            std::ptr::null_mut(),
-        ) == 0
+        if unsafe {
+            NetUserEnum(
+                std::ptr::null(),
+                0,
+                0,
+                &mut uinfo,
+                u32::MAX,
+                &mut nusers,
+                &mut ntotal,
+                std::ptr::null_mut(),
+            )
+        } == 0
         {
             for i in 0..nusers as usize {
-                let name_ptr = (*uinfo.wrapping_add(i)).usri0_name;
+                let name_ptr = unsafe { (*uinfo.wrapping_add(i)).usri0_name };
                 if !name_ptr.is_null() {
                     let mut len = 0usize;
-                    while *name_ptr.wrapping_add(len) != 0 {
+                    while unsafe { *name_ptr.wrapping_add(len) } != 0 {
                         len += 1;
                     }
                     if len > 0 {
-                        let slice = std::slice::from_raw_parts(name_ptr, len);
+                        let slice = unsafe { std::slice::from_raw_parts(name_ptr, len) };
                         if let Ok(s) = String::from_utf16(slice)
                             && let Ok(cstr) = CString::new(s)
                         {
@@ -185,7 +187,7 @@ fn collect_usernames() -> Vec<CString> {
                     }
                 }
             }
-            NetApiBufferFree(uinfo.cast::<c_void>());
+            unsafe { NetApiBufferFree(uinfo.cast::<c_void>()) };
         }
     }
 

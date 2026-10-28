@@ -441,7 +441,7 @@ pub fn indent_size_no_ts(ptr: impl crate::strings::IntoCCharPtr) -> i32 {
 /// Compute the size of the indent (in window cells) in line `ptr`, using tabstops (`indent_size_ts`).
 pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &[Colnr]) -> i32 {
     let mut ptr = ptr.into_c_char_ptr();
-    unsafe {
+    {
         debug_assert!(char2cells(b' ' as i32) == 1);
 
         let mut vcol: i32 = 0;
@@ -455,7 +455,7 @@ pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &
                 debug_assert!(cur_vcol < vcol);
 
                 loop {
-                    let c = *ptr;
+                    let c = unsafe { *ptr };
                     ptr = ptr.wrapping_add(1);
                     if c == b' ' as c_char {
                         cur_vcol += 1;
@@ -479,7 +479,7 @@ pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &
 
         debug_assert!(tabstop_width != 0);
         loop {
-            let c = *ptr;
+            let c = unsafe { *ptr };
             ptr = ptr.wrapping_add(1);
             if c == b' ' as c_char {
                 vcol += 1;
@@ -814,12 +814,12 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
 pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::IntoCCharPtr) -> i32 {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         let eff_wwidth = wp.w_view_width - win_col_off(&raw mut *wp) + win_col_off2(wp);
         let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
 
         let buf = wp.w_buffer;
-        let buf = { &mut *buf };
+        let buf = { unsafe { &mut *buf } };
         let flp_val = crate::memory::cstr_from_ptr(get_flp_value(&mut *buf));
         let line_cstr = crate::memory::cstr_from_ptr(line);
         if ind_st().prev_fnum != buf.b_fnum
@@ -851,8 +851,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
             ind_st().prev_flp = Some(flp_val.to_owned());
 
             if wp.w_briopt_list != 0 && wp.w_briopt_vcol == 0 {
-                let flp_ptr = (&raw const ind_st().prev_flp)
-                    .as_ref()
+                let flp_ptr = unsafe { (&raw const ind_st().prev_flp).as_ref() }
                     .unwrap()
                     .as_ref()
                     .unwrap()
@@ -928,7 +927,7 @@ pub fn inindent(extra: i32) -> bool {
 
 /// Handle reindenting a block of lines (`op_reindent`).
 pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
-    unsafe {
+    {
         let mut i: i32 = 0;
         let mut first_changed: Linenr = 0;
         let mut last_changed: Linenr = 0;
@@ -957,11 +956,13 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                     let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
                     let bytes = msg_str.as_bytes();
                     let copy_len = bytes.len().min(IOSIZE - 1);
-                    ptr::copy_nonoverlapping(
-                        bytes.as_ptr().cast::<c_char>(),
-                        g_st().iobuff.as_mut_ptr(),
-                        copy_len,
-                    );
+                    unsafe {
+                        ptr::copy_nonoverlapping(
+                            bytes.as_ptr().cast::<c_char>(),
+                            g_st().iobuff.as_mut_ptr(),
+                            copy_len,
+                        )
+                    };
                     g_st().iobuff[copy_len] = NUL;
 
                     let save_lnum = curwin_mut().w_cursor.lnum;
@@ -1029,11 +1030,13 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
             let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
             let bytes = msg_str.as_bytes();
             let copy_len = bytes.len().min(IOSIZE - 1);
-            ptr::copy_nonoverlapping(
-                bytes.as_ptr().cast::<c_char>(),
-                g_st().iobuff.as_mut_ptr(),
-                copy_len,
-            );
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    bytes.as_ptr().cast::<c_char>(),
+                    g_st().iobuff.as_mut_ptr(),
+                    copy_len,
+                )
+            };
             g_st().iobuff[copy_len] = NUL;
             msg_progress(
                 g_st().iobuff.as_mut_ptr(),
@@ -1075,7 +1078,7 @@ pub fn may_do_si() -> bool {
 
 /// Try to do some very smart auto-indenting (`ins_try_si`).
 pub fn ins_try_si(c: i32) {
-    unsafe {
+    {
         if ((g_st().ins_global.did_si || g_st().ins_global.can_si_back) && c == b'{' as i32)
             || (g_st().ins_global.can_si && c == b'}' as i32 && inindent(0))
         {
@@ -1085,7 +1088,7 @@ pub fn ins_try_si(c: i32) {
                 ptr::null_mut()
             };
             if !pos.is_null() {
-                let pos = { &mut *pos };
+                let pos = { unsafe { &mut *pos } };
                 let old_pos = curwin_mut().w_cursor;
                 let ptr = ml_get(pos.lnum);
                 let mut i = pos.col;
@@ -1100,7 +1103,7 @@ pub fn ins_try_si(c: i32) {
                 if crate::memory::cstr_byte_at(ptr, i as usize) == b')' {
                     let p2 = findmatch(None, b'(' as i32);
                     if !p2.is_null() {
-                        curwin_mut().w_cursor = *p2;
+                        curwin_mut().w_cursor = unsafe { *p2 };
                     }
                 }
                 let ind = get_indent();
@@ -1153,15 +1156,17 @@ pub fn ins_try_si(c: i32) {
 
 /// Insert an indent (for `<Tab>` or `CTRL-T`) or delete an indent (for `CTRL-D`) (`change_indent`).
 pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bool) {
-    unsafe {
+    {
         let mut orig_col: Colnr = 0;
         let mut orig_line: Vec<c_char> = Vec::new();
 
         if (g_st().state_global & VREPLACE_FLAG) != 0 {
-            orig_line = std::slice::from_raw_parts(
-                get_cursor_line_ptr(),
-                get_cursor_line_len() as usize + 1,
-            )
+            orig_line = unsafe {
+                std::slice::from_raw_parts(
+                    get_cursor_line_ptr(),
+                    get_cursor_line_len() as usize + 1,
+                )
+            }
             .to_vec();
             orig_col = curwin_mut().w_cursor.col;
         }
@@ -1288,7 +1293,8 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         if (g_st().state_global & VREPLACE_FLAG) != 0 {
             let new_col = curwin_mut().w_cursor.col;
             let mut new_line =
-                std::slice::from_raw_parts(get_cursor_line_ptr(), new_col as usize).to_vec();
+                unsafe { std::slice::from_raw_parts(get_cursor_line_ptr(), new_col as usize) }
+                    .to_vec();
             new_line.push(NUL);
 
             ml_replace(curwin_mut().w_cursor.lnum, orig_line.as_mut_ptr(), true);
@@ -1685,7 +1691,7 @@ pub fn get_expr_indent() -> i32 {
 
 /// Compute Lisp indent for the current line (`get_lisp_indent`).
 pub fn get_lisp_indent() -> i32 {
-    unsafe {
+    {
         let mut paren: CursorPos;
         let mut amount: i32;
 
@@ -1696,15 +1702,15 @@ pub fn get_lisp_indent() -> i32 {
         if pos.is_null() {
             pos = findmatch(None, b'[' as i32);
         } else {
-            paren = *pos;
+            paren = unsafe { *pos };
             pos = findmatch(None, b'[' as i32);
-            if pos.is_null() || lt(*pos, paren) {
+            if pos.is_null() || lt(unsafe { *pos }, paren) {
                 pos = &raw mut paren;
             }
         }
 
         if !pos.is_null() {
-            let pos = { &mut *pos };
+            let pos = { unsafe { &mut *pos } };
             let pos = { &mut *pos };
             let pos = { &mut *pos };
             amount = -1;

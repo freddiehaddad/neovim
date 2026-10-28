@@ -620,7 +620,7 @@ pub fn f_histnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
 /// `:history` command (`ex_history`).
 pub fn ex_history(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut histype1 = HIST_CMD;
         let mut histype2 = HIST_CMD;
         let mut hisidx1: i32 = 1;
@@ -662,8 +662,8 @@ pub fn ex_history(eap: &mut Exarg) {
             }
         }
 
-        if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || *end != 0 {
-            if *end != 0 {
+        if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || unsafe { *end } != 0 {
+            if unsafe { *end } != 0 {
                 semsg!(E_TRAILING_ARG, end);
             } else {
                 semsg!(E_VAL_TOO_LARGE, arg);
@@ -712,11 +712,13 @@ pub fn ex_history(eap: &mut Exarg) {
                         let marker = if i == idx { '>' } else { ' ' };
                         let prefix = format!("{marker}{:6}  ", entry.hisnum);
                         let prefix_bytes = prefix.as_bytes();
-                        std::ptr::copy_nonoverlapping(
-                            prefix_bytes.as_ptr(),
-                            iobuf.as_mut_ptr().cast::<u8>(),
-                            prefix_bytes.len(),
-                        );
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                prefix_bytes.as_ptr(),
+                                iobuf.as_mut_ptr().cast::<u8>(),
+                                prefix_bytes.len(),
+                            )
+                        };
                         let len = prefix_bytes.len();
                         if vim_strsize(entry_ptr) > g_st().columns_global - 10 {
                             trunc_string(

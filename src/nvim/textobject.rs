@@ -273,14 +273,18 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
 fn inmacro(opt: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoCCharPtr) -> bool {
     let opt = opt.into_c_char_ptr();
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut macro_p = opt;
-        let s0 = *s;
-        let s1 = if s0 == NUL { NUL } else { *s.wrapping_add(1) };
+        let s0 = unsafe { *s };
+        let s1 = if s0 == NUL {
+            NUL
+        } else {
+            unsafe { *s.wrapping_add(1) }
+        };
 
         while !crate::memory::cstr_is_empty(macro_p) {
-            let m0 = *macro_p;
-            let m1 = *macro_p.wrapping_add(1);
+            let m0 = unsafe { *macro_p };
+            let m1 = unsafe { *macro_p.wrapping_add(1) };
             if (m0 == s0 || (m0 == b' ' as c_char && (s0 == NUL || s0 == b' ' as c_char)))
                 && (m1 == s1
                     || ((m1 == NUL || m1 == b' ' as c_char)

@@ -120,19 +120,19 @@ fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: 
 
 fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCCharPtr) {
     let str_ptr = str_ptr.into_c_char_ptr();
-    unsafe {
+    {
         if str_ptr.is_null() {
             ga_concat_literal(gap, b"NULL");
             return;
         }
 
         let mut p = str_ptr;
-        while *p != 0 {
+        while unsafe { *p } != 0 {
             let mut same_len: i32 = 1;
             let mut s = p;
             let c = mb_cptr2char_adv(&mut s);
             let clen = (s as usize) - (p as usize);
-            while *s != 0 && c == utf_ptr2char(s) {
+            while unsafe { *s } != 0 && c == utf_ptr2char(s) {
                 same_len += 1;
                 s = s.wrapping_add(clen);
             }
@@ -414,7 +414,7 @@ pub fn f_assert_equal(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 }
 
 fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
-    unsafe {
+    {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
         let fname1 = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr());
@@ -437,7 +437,7 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
         } else {
             let fd2 = os_fopen(fname2, c"rb");
             if fd2.is_null() {
-                fclose(fd1);
+                unsafe { fclose(fd1) };
                 iobuflen = vim_snprintf_safelen!(
                     iobuf.as_mut_ptr(),
                     IOSIZE,
@@ -448,8 +448,8 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
                 let mut linecount: i64 = 1;
                 let mut count: i64 = 0;
                 loop {
-                    let c1 = fgetc(fd1);
-                    let c2 = fgetc(fd2);
+                    let c1 = unsafe { fgetc(fd1) };
+                    let c2 = unsafe { fgetc(fd2) };
                     if c1 == EOF_VAL {
                         if c2 != EOF_VAL {
                             iobuflen =
@@ -480,8 +480,8 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
                     }
                     count += 1;
                 }
-                fclose(fd1);
-                fclose(fd2);
+                unsafe { fclose(fd1) };
+                unsafe { fclose(fd2) };
             }
         }
 

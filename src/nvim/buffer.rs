@@ -1777,15 +1777,15 @@ impl Drop for FileBuf {
 }
 
 fn free_buffer(buf: *mut FileBuf) {
-    unsafe {
-        let buf = &mut *buf;
+    {
+        let buf = unsafe { &mut *buf };
         g_st().buffer_handles.remove(&buf.b_fnum);
         buf_st().buf_free_count += 1;
         free_buffer_stuff(&mut *buf, K_BFF_CLEAR_WIN_INFO);
         if (*buf).b_vars().dv_refcount > DO_NOT_FREE_CNT {
             tv_dict_add(
                 &mut *(*buf).b_vars(),
-                tv_dict_item_copy(&mut *(&raw mut buf.changedtick_di).cast()),
+                tv_dict_item_copy(unsafe { &mut *(&raw mut buf.changedtick_di).cast() }),
             );
         }
         unref_var_dict(&mut *(*buf).b_vars());
@@ -1802,9 +1802,11 @@ fn free_buffer(buf: *mut FileBuf) {
             buf.b_changelistlen = 0;
             buf.b_namedm.fill(Fmark::new());
             buf.b_changelist.fill(Fmark::new());
-            g_st().au_pending_free_buf.push(Box::from_raw(buf));
+            g_st()
+                .au_pending_free_buf
+                .push(unsafe { Box::from_raw(buf) });
         } else {
-            drop(Box::from_raw(buf));
+            drop(unsafe { Box::from_raw(buf) });
             if g_st().curbuf == buf {
                 g_st().curbuf = ptr::null_mut();
             }
@@ -2073,7 +2075,7 @@ pub fn do_bufdel(
 }
 
 fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
-    unsafe {
+    {
         let buf = g_st().curbuf;
 
         if action == DOBUF_UNLOAD {
@@ -2089,12 +2091,12 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
             if curwin_mut().w_floating {
                 can_close_all_others = false;
                 let mut wp = g_st().firstwin;
-                while !(*wp).w_floating {
-                    if (*wp).w_buffer != g_st().curbuf {
+                while !unsafe { (*wp).w_floating } {
+                    if unsafe { (*wp).w_buffer } != g_st().curbuf {
                         can_close_all_others = true;
                         break;
                     }
-                    wp = (*wp).w_next;
+                    wp = unsafe { (*wp).w_next };
                 }
             }
             close_windows(buf, can_close_all_others);
@@ -2111,7 +2113,8 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
             curwin_ptr(),
         );
 
-        if buf != g_st().curbuf && bufref_valid(Some(&bufref)) && (*buf).b_nwindows == 0 {
+        if buf != g_st().curbuf && bufref_valid(Some(&bufref)) && unsafe { (*buf).b_nwindows } == 0
+        {
             close_buffer(ptr::null_mut(), buf, action, false, false, false);
         }
 
@@ -2602,7 +2605,7 @@ pub fn set_curbuf(buf: *mut FileBuf, action: i32, update_jumplist: bool) {
 
 /// Enter a new current buffer.
 fn enter_buffer(buf: *mut FileBuf) {
-    unsafe {
+    {
         if g_st().visual_global.active && !mem_st().entered_free_all_mem {
             end_visual_mode();
         }
@@ -2615,9 +2618,9 @@ fn enter_buffer(buf: *mut FileBuf) {
         g_st().curbuf = buf;
         curbuf_mut().b_nwindows += 1;
 
-        buf_copy_options(&mut *buf, BCO_ENTER | BCO_NOHELP);
-        if !(*buf).b_help {
-            get_winopts(&mut *buf);
+        buf_copy_options(unsafe { &mut *buf }, BCO_ENTER | BCO_NOHELP);
+        if !unsafe { (*buf).b_help } {
+            get_winopts(unsafe { &mut *buf });
         } else {
             clear_folding(curwin_mut());
         }
@@ -2684,7 +2687,7 @@ fn enter_buffer(buf: *mut FileBuf) {
         }
         if !curbuf_mut().b_help
             && curwin_mut().w_onebuf_opt.wo_spell != 0
-            && *curwin_mut().w_s_ptr().b_p_spl != NUL
+            && unsafe { *curwin_mut().w_s_ptr().b_p_spl } != NUL
         {
             parse_spelllang(curwin_mut());
         }
@@ -3028,7 +3031,7 @@ pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
 
 /// Get alternate file `n`.
 pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> bool {
-    unsafe {
+    {
         let mut fm: *mut Fmark = ptr::null_mut();
 
         let buf = buflist_findnr(n);
@@ -3052,9 +3055,9 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
         let col: Colnr;
         let mut restore_view = false;
         if lnum == 0 {
-            fm = buflist_findfmark(&mut *buf);
-            lnum = (*fm).mark.lnum;
-            col = (*fm).mark.col;
+            fm = buflist_findfmark(unsafe { &mut *buf });
+            lnum = unsafe { (*fm).mark.lnum };
+            col = unsafe { (*fm).mark.col };
             restore_view = true;
         } else {
             col = 0;
@@ -3087,7 +3090,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
 
         g_st().redrawing_disabled += 1;
         if getfile(
-            (*buf).b_fnum,
+            unsafe { (*buf).b_fnum },
             ptr::null_mut(),
             ptr::null_mut(),
             (options & GETF_SETMARK) != 0,
@@ -3104,7 +3107,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
                 curwin_mut().w_set_curswant = true;
             }
             if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 && restore_view {
-                mark_view_restore(fm.as_ref());
+                mark_view_restore(unsafe { fm.as_ref() });
             }
             return true;
         }
@@ -3291,7 +3294,7 @@ pub fn expand_bufnames(
     options: i32,
 ) -> bool {
     let pat = pat.into_c_char_ptr();
-    unsafe {
+    {
         let mut matches: Vec<Bufmatch> = Vec::new();
 
         file.clear();
@@ -3390,7 +3393,9 @@ pub fn expand_bufnames(
         if !fuzzy {
             if use_matches && !matches.is_empty() {
                 if matches.len() > 1 {
-                    matches.sort_unstable_by(|a, b| buf_time_compare(&*a.buf, &*b.buf));
+                    matches.sort_unstable_by(|a, b| {
+                        buf_time_compare(unsafe { &*a.buf }, unsafe { &*b.buf })
+                    });
                 }
 
                 file.reserve_exact(matches.len());
@@ -3488,7 +3493,7 @@ pub fn buflist_setfpos(
     col: Colnr,
     copy_options: bool,
 ) {
-    unsafe {
+    {
         let mut wip = if let Some(i) = buf.b_wininfo.iter().position(|w| w.wi_win == win) {
             let mut wip = buf.b_wininfo.remove(i);
             if copy_options && wip.wi_optset {
@@ -3509,16 +3514,16 @@ pub fn buflist_setfpos(
             wip.wi_mark.mark.lnum = lnum;
             wip.wi_mark.mark.col = col;
             if !win.is_null() {
-                wip.wi_mark.view = mark_view_make(&*win, wip.wi_mark.mark);
+                wip.wi_mark.view = mark_view_make(unsafe { &*win }, wip.wi_mark.mark);
             }
         }
         if !win.is_null() {
-            wip.wi_changelistidx = (*win).w_changelistidx;
+            wip.wi_changelistidx = unsafe { (*win).w_changelistidx };
         }
         if copy_options && !win.is_null() {
-            copy_winopt(&mut (*win).w_onebuf_opt, &mut wip.wi_opt);
-            wip.wi_fold_manual = (*win).w_fold_manual;
-            wip.wi_folds.clone_from(&(*win).w_folds);
+            copy_winopt(unsafe { &mut (*win).w_onebuf_opt }, &mut wip.wi_opt);
+            wip.wi_fold_manual = unsafe { (*win).w_fold_manual };
+            wip.wi_folds.clone_from(unsafe { &(*win).w_folds });
             wip.wi_optset = true;
         }
 
@@ -4031,7 +4036,7 @@ fn buf_same_file_id(buf: &mut FileBuf, file_id: *mut FileID) -> bool {
 
 /// Print info about the current buffer.
 pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
-    unsafe {
+    {
         let mut buffer_vec = vec![0 as c_char; IOSIZE];
         let buffer = buffer_vec.as_mut_ptr();
         let mut bufferlen = 0usize;
@@ -4040,10 +4045,12 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             bufferlen = vim_snprintf_safelen!(buffer, IOSIZE, c"buf %d: ", curbuf_mut().b_fnum);
         }
 
-        *buffer.wrapping_add(bufferlen) = b'"' as c_char;
+        unsafe {
+            *buffer.wrapping_add(bufferlen) = b'"' as c_char;
+        }
         bufferlen += 1;
 
-        let mut name = buf_spname(&*(g_st().curbuf));
+        let mut name = buf_spname(unsafe { &*(g_st().curbuf) });
         if !name.is_null() {
             bufferlen += vim_snprintf_safelen!(
                 buffer.wrapping_add(bufferlen),
@@ -4058,12 +4065,14 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
                 curbuf_mut().b_ffname
             };
             bufferlen += home_replace(
-                (if shorthelp != 0 {
-                    g_st().curbuf
-                } else {
-                    ptr::null_mut()
-                })
-                .as_ref(),
+                unsafe {
+                    (if shorthelp != 0 {
+                        g_st().curbuf
+                    } else {
+                        ptr::null_mut()
+                    })
+                    .as_ref()
+                },
                 name,
                 buffer.wrapping_add(bufferlen),
                 IOSIZE - bufferlen,
@@ -4350,14 +4359,12 @@ fn value_change(
 
 /// Set current window title.
 pub fn resettitle() {
-    unsafe {
-        let icon_ptr = (&raw const buf_st().lasticon)
-            .as_ref()
+    {
+        let icon_ptr = unsafe { (&raw const buf_st().lasticon).as_ref() }
             .unwrap()
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr());
-        let title_ptr = (&raw const buf_st().lasttitle)
-            .as_ref()
+        let title_ptr = unsafe { (&raw const buf_st().lasttitle).as_ref() }
             .unwrap()
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr());
@@ -4710,7 +4717,7 @@ pub fn do_modelines(flags: i32) {
 }
 
 fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
-    unsafe {
+    {
         let mut e: *mut c_char;
         let mut retval = true;
 
@@ -4729,7 +4736,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                     && crate::memory::cstr_byte_at(s, 1) == b'i'
                     && crate::memory::cstr_byte_at(s, 2) == b'm'
                 {
-                    let s3 = *s.wrapping_add(3);
+                    let s3 = unsafe { *s.wrapping_add(3) };
                     if s3 == b'<' as c_char || s3 == b'=' as c_char || s3 == b'>' as c_char {
                         e = s.wrapping_add(4);
                     } else {
@@ -4796,11 +4803,14 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                 if crate::memory::cstr_first_byte(e) == b'\\'
                     && crate::memory::cstr_byte_at(e, 1) == b':'
                 {
-                    ptr::copy(
-                        e.wrapping_add(1),
-                        e,
-                        crate::memory::ptr_offset_from(line_end, e.wrapping_add(1)) as usize + 1,
-                    );
+                    unsafe {
+                        ptr::copy(
+                            e.wrapping_add(1),
+                            e,
+                            crate::memory::ptr_offset_from(line_end, e.wrapping_add(1)) as usize
+                                + 1,
+                        )
+                    };
                     line_end = line_end.wrapping_sub(1);
                 }
                 e = e.wrapping_add(1);
@@ -4822,7 +4832,9 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                     4
                 });
             }
-            *e = NUL;
+            unsafe {
+                *e = NUL;
+            }
 
             if !crate::memory::cstr_is_empty(s) {
                 let secure_save = g_st().secure;
@@ -5079,14 +5091,14 @@ pub fn buf_inc_changedtick(buf: &mut FileBuf) {
 
 /// Set `b:changedtick`, also checking `b:` for consistency in debug build.
 pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
-    unsafe {
+    {
         let old_val = buf.changedtick_di.di_tv;
 
         let changedtick_di = tv_dict_find(Some(&*buf.b_vars()), c"changedtick", 11);
         debug_assert!(!changedtick_di.is_null());
-        debug_assert!((*changedtick_di).di_tv.v_type == VarType::VarNumber);
-        debug_assert!((*changedtick_di).di_tv.v_lock == VAR_FIXED);
-        debug_assert!((*changedtick_di).di_flags == (DI_FLAGS_RO | DI_FLAGS_FIX));
+        debug_assert!(unsafe { (*changedtick_di).di_tv.v_type } == VarType::VarNumber);
+        debug_assert!(unsafe { (*changedtick_di).di_tv.v_lock } == VAR_FIXED);
+        debug_assert!(unsafe { (*changedtick_di).di_flags } == (DI_FLAGS_RO | DI_FLAGS_FIX));
         debug_assert!(changedtick_di == (&raw mut buf.changedtick_di).cast());
         let _ = changedtick_di;
 
@@ -5112,7 +5124,7 @@ pub fn read_buffer_into(
     end: Linenr,
     sb: &mut Vec<c_char>,
 ) {
-    unsafe {
+    {
         debug_assert!(buf.is_some());
 
         if (buf.as_deref_mut().unwrap().b_ml.ml_flags & ML_EMPTY) != 0 {
@@ -5128,7 +5140,7 @@ pub fn read_buffer_into(
         loop {
             if lplen == 0 {
                 len = 0;
-            } else if *lp.wrapping_add(written) == NL {
+            } else if unsafe { *lp.wrapping_add(written) } == NL {
                 len = 1;
                 sb.push(NUL);
             } else {
@@ -5139,7 +5151,9 @@ pub fn read_buffer_into(
                     crate::memory::ptr_offset_from(s, lp.wrapping_add(written)) as usize
                 };
                 if len > 0 {
-                    sb.extend_from_slice(std::slice::from_raw_parts(lp.wrapping_add(written), len));
+                    sb.extend_from_slice(unsafe {
+                        std::slice::from_raw_parts(lp.wrapping_add(written), len)
+                    });
                 }
             }
 

@@ -1285,7 +1285,7 @@ pub fn f_isdirectory(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// "mkdir()" function
 pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut prot: i32 = 0o755;
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(FAIL));
@@ -1301,7 +1301,9 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
         if crate::memory::cstr_is_empty(path_tail(dir)) {
             // Remove trailing slashes.
-            *path_tail_with_sep(dir.cast_mut()) = NUL;
+            unsafe {
+                *path_tail_with_sep(dir.cast_mut()) = NUL;
+            }
         }
 
         let mut defer = false;
@@ -1333,7 +1335,7 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                     semsg!(
                         gettext(E_MKDIR),
                         failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                        uv_strerror(ret),
+                        unsafe { uv_strerror(ret) },
                     );
                     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(FAIL));
                     return;
@@ -1456,10 +1458,10 @@ pub fn f_readdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// Read blob from file "fd".
 /// Caller has allocated a blob in "rettv".
 fn read_blob(fd: *mut FILE, rettv: &mut TypVal, mut offset: Off, size_arg: Off) -> bool {
-    unsafe {
+    {
         let blob = rettv.vval.v_blob();
         let mut file_info = FileInfo::new();
-        if !os_fileinfo_fd(fileno(fd), &mut file_info) {
+        if !os_fileinfo_fd(unsafe { fileno(fd) }, &mut file_info) {
             return false; // can't read the file, error
         }
 
@@ -1487,13 +1489,13 @@ fn read_blob(fd: *mut FILE, rettv: &mut TypVal, mut offset: Off, size_arg: Off) 
         if size <= 0 {
             return true;
         }
-        if offset != 0 && vim_fseek(fd, offset, whence) != 0 {
+        if offset != 0 && unsafe { vim_fseek(fd, offset, whence) } != 0 {
             return true;
         }
 
-        let bv = &mut (*blob).bv_ga;
+        let bv = unsafe { &mut (*blob).bv_ga };
         bv.resize(size as usize, 0);
-        if fread(bv.as_mut_ptr().cast(), 1, bv.len(), fd) < bv.len() {
+        if unsafe { fread(bv.as_mut_ptr().cast(), 1, bv.len(), fd) } < bv.len() {
             // An empty blob is returned on error.
             crate::eval::typval::tv_blob_unref(rettv.vval.v_blob());
             rettv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
@@ -1991,18 +1993,22 @@ fn write_data(
     len: usize,
 ) -> bool {
     let data = data.into_c_char_ptr();
-    unsafe {
+    {
         if len > 0 {
             let written = file_write(fp, data, len);
             if written < len as isize {
                 let error = written as i32;
-                semsg!(gettext(E_ERROR_WHILE_WRITING_STR), uv_strerror(error),);
+                semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {
+                    uv_strerror(error)
+                },);
                 return false;
             }
         }
         let error = file_flush(&raw mut *fp);
         if error != 0 {
-            semsg!(gettext(E_ERROR_WHILE_WRITING_STR), uv_strerror(error),);
+            semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {
+                uv_strerror(error)
+            },);
             return false;
         }
         true
@@ -2024,7 +2030,7 @@ fn write_string(fp: &mut FileDescriptor, data: impl crate::strings::IntoCCharPtr
 
 /// "writefile()" function
 pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if check_secure() {
@@ -2032,9 +2038,9 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
 
         if argvars[0].v_type == VarType::VarList {
-            for li in
-                crate::eval::typval::list_iter_mut(tv_list_first(argvars[0].vval.v_list().as_ref()))
-            {
+            for li in crate::eval::typval::list_iter_mut(tv_list_first(unsafe {
+                argvars[0].vval.v_list().as_ref()
+            })) {
                 if !tv_check_str_or_nr(&li.li_tv) {
                     return;
                 }
@@ -2107,7 +2113,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                 semsg!(
                     gettext(c"E482: Can't open file %s for writing: %s"),
                     fname,
-                    uv_strerror(error),
+                    unsafe { uv_strerror(error) },
                 );
             } else {
                 if defer {
@@ -2122,11 +2128,15 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
                 let write_ok = if argvars[0].v_type == VarType::VarBlob {
                     argvars[0].vval.v_blob().is_null()
-                        || write_blob(&mut fp, &*argvars[0].vval.v_blob())
+                        || write_blob(&mut fp, unsafe { &*argvars[0].vval.v_blob() })
                 } else if argvars[0].v_type == VarType::VarString {
                     write_string(&mut fp, argvars[0].vval.v_string())
                 } else {
-                    write_list(&mut fp, argvars[0].vval.v_list().as_ref(), binary)
+                    write_list(
+                        &mut fp,
+                        unsafe { argvars[0].vval.v_list().as_ref() },
+                        binary,
+                    )
                 };
                 if write_ok {
                     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -2136,7 +2146,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                     semsg!(
                         gettext(c"E80: Error when closing file %s: %s"),
                         fname,
-                        uv_strerror(error),
+                        unsafe { uv_strerror(error) },
                     );
                 }
             }

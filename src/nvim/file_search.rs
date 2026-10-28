@@ -1631,7 +1631,7 @@ pub fn find_file_name_in_path(
     rel_fname: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
     let rel_fname = rel_fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut tofree: Option<std::ffi::CString> = None;
 
         if len == 0 {
@@ -1695,10 +1695,14 @@ pub fn find_file_name_in_path(
                 }
             }
             if file_name.is_none() && (options & FNAME_MESS) != 0 {
-                let c = *ptr.wrapping_add(len);
-                *ptr.wrapping_add(len) = NUL;
+                let c = unsafe { *ptr.wrapping_add(len) };
+                unsafe {
+                    *ptr.wrapping_add(len) = NUL;
+                }
                 semsg!(tr(c"E447: Can't find file \"%s\" in path"), ptr);
-                *ptr.wrapping_add(len) = c;
+                unsafe {
+                    *ptr.wrapping_add(len) = c;
+                }
             }
 
             while file_name.is_some() && {
@@ -1793,15 +1797,19 @@ pub fn do_autocmd_dirchanged(
 /// Change to a file's directory.
 pub fn vim_chdirfile(fname: impl crate::strings::IntoCCharPtr, cause: CdCause) -> bool {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut dir: [c_char; MAXPATHL] = [0; MAXPATHL];
         let name_buff = g_st().name_buff.as_mut_ptr();
 
         xstrlcpy(dir.as_mut_ptr(), fname, MAXPATHL);
-        *path_tail_with_sep(dir.as_mut_ptr()) = NUL;
+        unsafe {
+            *path_tail_with_sep(dir.as_mut_ptr()) = NUL;
+        }
 
         if !os_dirname(name_buff, MAXPATHL) {
-            *name_buff = NUL;
+            unsafe {
+                *name_buff = NUL;
+            }
         }
 
         if path_equal(dir.as_ptr(), name_buff, K_PATH_CMP_LITERAL) {

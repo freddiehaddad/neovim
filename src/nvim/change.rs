@@ -713,7 +713,7 @@ pub fn ins_char(c: i32) {
 
 pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
             coladvance_force(getviscol());
         }
@@ -744,7 +744,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
                 let new_vcol = vcol + win_chartabsize(curwin_mut(), buf, vcol);
                 while crate::memory::cstr_byte_at(oldp, col + oldlen) != 0 && vcol < new_vcol {
                     vcol += win_chartabsize(curwin_mut(), oldp.wrapping_add(col + oldlen), vcol);
-                    if vcol > new_vcol && *oldp.wrapping_add(col + oldlen) == TAB {
+                    if vcol > new_vcol && unsafe { *oldp.wrapping_add(col + oldlen) } == TAB {
                         break;
                     }
                     oldlen += utfc_ptr2len(oldp.wrapping_add(col + oldlen)) as usize;
@@ -765,22 +765,26 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
         let newp = newp_vec.as_mut_ptr();
 
         if col > 0 {
-            ptr::copy_nonoverlapping(oldp, newp, col);
+            unsafe { ptr::copy_nonoverlapping(oldp, newp, col) };
         }
 
         let p = newp.wrapping_add(col);
         if linelen > col + oldlen {
-            ptr::copy_nonoverlapping(
-                oldp.wrapping_add(col + oldlen),
-                p.wrapping_add(newlen),
-                linelen - col - oldlen,
-            );
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    oldp.wrapping_add(col + oldlen),
+                    p.wrapping_add(newlen),
+                    linelen - col - oldlen,
+                )
+            };
         }
 
-        ptr::copy_nonoverlapping(buf, p, charlen);
+        unsafe { ptr::copy_nonoverlapping(buf, p, charlen) };
 
         for i in charlen..newlen {
-            *p.wrapping_add(i) = b' ' as c_char;
+            unsafe {
+                *p.wrapping_add(i) = b' ' as c_char;
+            }
         }
 
         ml_replace(lnum, newp, true);
@@ -804,7 +808,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
 /// Insert a string at the cursor position.
 pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
     let s = s.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let lnum = curwin_mut().w_cursor.lnum;
 
         if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
@@ -818,16 +822,18 @@ pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
         let mut newp_vec = vec![0 as c_char; oldlen as usize + slen + 1];
         let newp = newp_vec.as_mut_ptr();
         if col > 0 {
-            ptr::copy_nonoverlapping(oldp, newp, col as usize);
+            unsafe { ptr::copy_nonoverlapping(oldp, newp, col as usize) };
         }
-        ptr::copy_nonoverlapping(s, newp.wrapping_add(col as usize), slen);
+        unsafe { ptr::copy_nonoverlapping(s, newp.wrapping_add(col as usize), slen) };
         let bytes = oldlen - col + 1;
         debug_assert!(bytes >= 0);
-        ptr::copy_nonoverlapping(
-            oldp.wrapping_add(col as usize),
-            newp.wrapping_add(col as usize + slen),
-            bytes as usize,
-        );
+        unsafe {
+            ptr::copy_nonoverlapping(
+                oldp.wrapping_add(col as usize),
+                newp.wrapping_add(col as usize + slen),
+                bytes as usize,
+            )
+        };
         ml_replace(lnum, newp, true);
         drop(newp_vec);
         inserted_bytes(lnum, col, 0, slen as i32);
@@ -864,7 +870,7 @@ pub fn del_chars(count: i32, fixpos: i32) -> bool {
 
 /// Delete `count` bytes under the cursor.
 pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bool {
-    unsafe {
+    {
         let lnum = curwin_mut().w_cursor.lnum;
         let mut col = curwin_mut().w_cursor.col;
         let mut fixpos = fixpos_arg;
@@ -938,14 +944,16 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         } else {
             newp_vec = vec![0 as c_char; newlen as usize + 1];
             let p = newp_vec.as_mut_ptr();
-            ptr::copy_nonoverlapping(oldp, p, col as usize);
+            unsafe { ptr::copy_nonoverlapping(oldp, p, col as usize) };
             p
         };
-        ptr::copy(
-            oldp.wrapping_add((col + count) as usize),
-            newp.wrapping_add(col as usize),
-            movelen as usize,
-        );
+        unsafe {
+            ptr::copy(
+                oldp.wrapping_add((col + count) as usize),
+                newp.wrapping_add(col as usize),
+                movelen as usize,
+            )
+        };
         if alloc_newp {
             ml_replace(lnum, newp, true);
         } else {
@@ -1940,7 +1948,7 @@ pub fn get_leader_len(
     include_space: bool,
 ) -> i32 {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         let mut got_com = false;
         let mut part_buf: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
         let mut middle_match_len: usize = 0;
@@ -1957,7 +1965,9 @@ pub fn get_leader_len(
             let mut list = curbuf_mut().b_p_com;
             while !crate::memory::cstr_is_empty(list) {
                 if !got_com && !flags.is_null() {
-                    *flags = list;
+                    unsafe {
+                        *flags = list;
+                    }
                 }
                 let prev_list = list;
                 copy_option_part(&raw mut list, part_buf.as_mut_ptr(), COM_MAX_LEN, c",");
@@ -1965,7 +1975,9 @@ pub fn get_leader_len(
                 if string.is_null() {
                     continue;
                 }
-                *string = NUL;
+                unsafe {
+                    *string = NUL;
+                }
                 string = string.wrapping_add(1);
 
                 if middle_match_len != 0
@@ -1997,7 +2009,7 @@ pub fn get_leader_len(
                 }
                 let mut j: usize = 0;
                 while crate::memory::cstr_byte_at(string, j) != 0
-                    && *string.wrapping_add(j) == *line.wrapping_add(i + j)
+                    && unsafe { *string.wrapping_add(j) } == unsafe { *line.wrapping_add(i + j) }
                 {
                     j += 1;
                 }
@@ -2032,7 +2044,9 @@ pub fn get_leader_len(
 
             if middle_match_len != 0 {
                 if !got_com && !flags.is_null() {
-                    *flags = saved_flags;
+                    unsafe {
+                        *flags = saved_flags;
+                    }
                 }
                 i += middle_match_len;
                 found_one = true;

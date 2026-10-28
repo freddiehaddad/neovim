@@ -2904,10 +2904,12 @@ fn push(num: i64, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> i32 {
 }
 
 fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> i32 {
-    unsafe {
+    {
         if stack.offset == 0 {
             if !num.is_null() {
-                *num = 0;
+                unsafe {
+                    *num = 0;
+                }
             }
             if let Some(s) = string {
                 *s = None;
@@ -2916,7 +2918,9 @@ fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPST
         }
         stack.offset -= 1;
         if !num.is_null() {
-            *num = stack.nums[stack.offset];
+            unsafe {
+                *num = stack.nums[stack.offset];
+            }
         }
         if let Some(s) = string {
             *s = stack.strings[stack.offset];

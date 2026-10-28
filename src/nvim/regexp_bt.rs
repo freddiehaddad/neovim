@@ -2622,14 +2622,18 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
 }
 
 fn regstack_pop(scan: *mut *mut u8) {
-    unsafe {
-        let rp = &mut *re_st()
-            .regstack
-            .as_mut_ptr()
-            .wrapping_add(re_st().regstack.len())
-            .cast::<Regitem>()
-            .wrapping_sub(1);
-        *scan = rp.rs_scan;
+    {
+        let rp = unsafe {
+            &mut *re_st()
+                .regstack
+                .as_mut_ptr()
+                .wrapping_add(re_st().regstack.len())
+                .cast::<Regitem>()
+                .wrapping_sub(1)
+        };
+        unsafe {
+            *scan = rp.rs_scan;
+        }
         re_st()
             .regstack
             .truncate(re_st().regstack.len() - size_of::<Regitem>() / 8);
@@ -2637,22 +2641,23 @@ fn regstack_pop(scan: *mut *mut u8) {
 }
 
 fn save_subexpr(bp: &mut Regbehind) {
-    unsafe {
+    {
         bp.save_need_clear_subexpr = re_st().rex.need_clear_subexpr;
         if re_st().rex.need_clear_subexpr != 0 {
             return;
         }
         for i in 0..NSUBEXP {
             if reg_multi() {
-                bp.save_start[i].se_u =
-                    crate::regexp::RegPos::Pos(*re_st().rex.reg_startpos.wrapping_add(i));
+                bp.save_start[i].se_u = crate::regexp::RegPos::Pos(unsafe {
+                    *re_st().rex.reg_startpos.wrapping_add(i)
+                });
                 bp.save_end[i].se_u =
-                    crate::regexp::RegPos::Pos(*re_st().rex.reg_endpos.wrapping_add(i));
+                    crate::regexp::RegPos::Pos(unsafe { *re_st().rex.reg_endpos.wrapping_add(i) });
             } else {
                 bp.save_start[i].se_u =
-                    crate::regexp::RegPos::Ptr(*re_st().rex.reg_startp.wrapping_add(i));
+                    crate::regexp::RegPos::Ptr(unsafe { *re_st().rex.reg_startp.wrapping_add(i) });
                 bp.save_end[i].se_u =
-                    crate::regexp::RegPos::Ptr(*re_st().rex.reg_endp.wrapping_add(i));
+                    crate::regexp::RegPos::Ptr(unsafe { *re_st().rex.reg_endp.wrapping_add(i) });
             }
         }
     }

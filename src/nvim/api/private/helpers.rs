@@ -1500,7 +1500,7 @@ pub fn set_mark(
     mut col: Integer,
     err: &mut Error,
 ) -> bool {
-    unsafe {
+    {
         if buf.is_null() {
             buf = g_st().curbuf;
         }
@@ -1517,7 +1517,7 @@ pub fn set_mark(
                 );
                 return false;
             }
-            if line < 1 || line > i64::from((*buf).b_ml.ml_line_count) {
+            if line < 1 || line > i64::from(unsafe { (*buf).b_ml.ml_line_count }) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
@@ -1534,7 +1534,7 @@ pub fn set_mark(
         let res = setmark_pos(
             crate::memory::cstr_first_char(name.data),
             &mut pos,
-            (*buf).b_fnum,
+            unsafe { (*buf).b_fnum },
             None,
         );
         if !res {

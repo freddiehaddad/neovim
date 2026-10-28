@@ -298,10 +298,14 @@ pub fn proc_close_streams(proc_: &mut Proc) {
 
 /// Synchronously wait for a process to finish
 pub fn proc_wait(proc_: &mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 {
-    unsafe {
+    {
         if proc_.refcount == 0 {
             let status = proc_.status;
-            loop_process_events(&mut *proc_.loop_, proc_.events.as_mut(), 0);
+            loop_process_events(
+                unsafe { &mut *proc_.loop_ },
+                unsafe { proc_.events.as_mut() },
+                0,
+            );
             return status;
         }
 
@@ -320,7 +324,7 @@ pub fn proc_wait(proc_: &mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 
             if ms == -1 {
                 loop_process_events_until(proc_.loop_, events, -1, || proc_.refcount == 1);
             } else {
-                loop_process_events(&mut *proc_.loop_, events.as_mut(), 0);
+                loop_process_events(unsafe { &mut *proc_.loop_ }, unsafe { events.as_mut() }, 0);
             }
 
             proc_.status = -2;
@@ -329,7 +333,7 @@ pub fn proc_wait(proc_: &mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 
         if proc_.refcount == 1 {
             proc_decref(proc_);
             if !proc_.events.is_null() {
-                multiqueue_process_events(&mut *proc_.events);
+                multiqueue_process_events(unsafe { &mut *proc_.events });
             }
         } else {
             proc_.refcount -= 1;
@@ -341,7 +345,7 @@ pub fn proc_wait(proc_: &mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 
 
 /// Ask a process to terminate and eventually kill if it doesn't respond
 pub fn proc_stop(proc_: &mut Proc) {
-    unsafe {
+    {
         let exited = proc_.status >= 0;
         if exited || proc_.stopped_time != 0 {
             return;
@@ -356,17 +360,19 @@ pub fn proc_stop(proc_: &mut Proc) {
             K_PROC_TYPE_PTY => {
                 proc_.exit_signal = SIGHUP as u8;
                 proc_close_streams(proc_);
-                pty_proc_close_master(&mut *(&raw mut *proc_).cast());
+                pty_proc_close_master(unsafe { &mut *(&raw mut *proc_).cast() });
             }
             _ => unreachable!(),
         }
 
-        uv_timer_start(
-            loop_children_kill_timer(&mut *proc_.loop_),
-            Some(children_kill_cb),
-            KILL_TIMEOUT_MS,
-            0,
-        );
+        unsafe {
+            uv_timer_start(
+                loop_children_kill_timer(&mut *proc_.loop_),
+                Some(children_kill_cb),
+                KILL_TIMEOUT_MS,
+                0,
+            )
+        };
     }
 }
 
@@ -411,18 +417,21 @@ pub fn proc_close_event(proc_: &mut Proc) {
 }
 
 pub(crate) fn proc_decref(proc_: &mut Proc) {
-    unsafe {
+    {
         proc_.refcount -= 1;
         if proc_.refcount != 0 {
             return;
         }
 
         let loop_ = proc_.loop_;
-        let qc = loop_queues(&mut *loop_);
+        let qc = loop_queues(unsafe { &mut *loop_ });
         let idx = qc.children.iter().position(|&p| p == proc_).unwrap();
         qc.children.remove(idx);
         if !proc_.events.is_null() {
-            multiqueue_put_event(&mut *proc_.events, Event::ProcClose(&raw mut *proc_));
+            multiqueue_put_event(
+                unsafe { &mut *proc_.events },
+                Event::ProcClose(&raw mut *proc_),
+            );
         } else {
             proc_close_event(proc_);
         }
@@ -430,7 +439,7 @@ pub(crate) fn proc_decref(proc_: &mut Proc) {
 }
 
 fn proc_close(proc_: &mut Proc) {
-    unsafe {
+    {
         if proc_st().proc_is_tearing_down
             && proc_.closed
             && (proc_.detach || proc_.r#type == K_PROC_TYPE_PTY)
@@ -441,12 +450,12 @@ fn proc_close(proc_: &mut Proc) {
         proc_.closed = true;
 
         if proc_.detach && proc_.r#type == K_PROC_TYPE_UV {
-            uv_unref(libuv_proc_uv(proc_));
+            unsafe { uv_unref(libuv_proc_uv(proc_)) };
         }
 
         match proc_.r#type {
-            K_PROC_TYPE_UV => libuv_proc_close(&mut *(&raw mut *proc_).cast()),
-            K_PROC_TYPE_PTY => pty_proc_close(&mut *(&raw mut *proc_).cast()),
+            K_PROC_TYPE_UV => libuv_proc_close(unsafe { &mut *(&raw mut *proc_).cast() }),
+            K_PROC_TYPE_PTY => pty_proc_close(unsafe { &mut *(&raw mut *proc_).cast() }),
             _ => unreachable!(),
         }
     }
@@ -552,15 +561,18 @@ pub fn exit_on_closed_chan(status: i32) {
 }
 
 pub(crate) fn on_proc_exit(proc_: &mut Proc) {
-    unsafe {
-        let qc = loop_queues(&mut *proc_.loop_);
+    {
+        let qc = loop_queues(unsafe { &mut *proc_.loop_ });
         let queue = if !proc_.events.is_null() {
             proc_.events
         } else {
             qc.events
         };
         if !queue.is_null() {
-            multiqueue_put_event(&mut *queue, Event::ProcCloseHandles(&raw mut *proc_));
+            multiqueue_put_event(
+                unsafe { &mut *queue },
+                Event::ProcCloseHandles(&raw mut *proc_),
+            );
         } else {
             proc_close_handles(proc_);
         }

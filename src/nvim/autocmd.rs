@@ -2444,7 +2444,7 @@ pub fn aucmd_span_pattern(
     start: *mut *const c_char,
 ) -> usize {
     let mut pat = pat.into_c_char_ptr();
-    unsafe {
+    {
         while crate::memory::cstr_first_byte(pat) == b',' {
             pat = pat.wrapping_add(1);
         }
@@ -2454,7 +2454,7 @@ pub fn aucmd_span_pattern(
         while !crate::memory::cstr_is_empty(p)
             && (crate::memory::cstr_first_byte(p) != b','
                 || brace_level != 0
-                || (p > pat && *p.wrapping_sub(1) == b'\\' as c_char))
+                || (p > pat && unsafe { *p.wrapping_sub(1) } == b'\\' as c_char))
         {
             if crate::memory::cstr_first_byte(p) == b'{' {
                 brace_level += 1;
@@ -2464,7 +2464,9 @@ pub fn aucmd_span_pattern(
             p = p.wrapping_add(1);
         }
 
-        *start = pat;
+        unsafe {
+            *start = pat;
+        }
         crate::memory::ptr_offset_from(p, pat) as usize
     }
 }
@@ -3573,16 +3575,16 @@ pub fn aucmd_set_expand_context(
     mut arg: *mut c_char,
     doautocmd: bool,
 ) -> *mut c_char {
-    unsafe {
+    {
         let xp_pref = (&raw mut *xp).cast::<ExpandPrefix>();
-        let xp_pref = { &mut *xp_pref };
+        let xp_pref = { unsafe { &mut *xp_pref } };
         au_st().autocmd_include_groups = false;
         let mut p = arg;
         let mut group = arg_augroup_get(&raw mut arg);
 
         if crate::memory::cstr_is_empty(arg)
             && group != AUGROUP_ALL
-            && !ascii_iswhite(*arg.wrapping_sub(1))
+            && !ascii_iswhite(unsafe { *arg.wrapping_sub(1) })
         {
             arg = p;
             group = AUGROUP_ALL;
@@ -3692,7 +3694,7 @@ pub fn autocmd_supported(event: impl crate::strings::IntoCCharPtr) -> bool {
 
 pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool {
     let arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         let mut buflocal_buf: *mut FileBuf = ptr::null_mut();
         let mut retval = false;
 
@@ -3700,7 +3702,9 @@ pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool {
         let arg_save = arg_save_vec.as_mut_ptr();
         let mut p = vim_strchr(arg_save, b'#' as i32);
         if !p.is_null() {
-            *p = NUL;
+            unsafe {
+                *p = NUL;
+            }
             p = p.wrapping_add(1);
         }
 
@@ -3715,7 +3719,9 @@ pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool {
             let ev_name = p;
             p = vim_strchr(ev_name, b'#' as i32);
             if !p.is_null() {
-                *p = NUL;
+                unsafe {
+                    *p = NUL;
+                }
                 p = p.wrapping_add(1);
             }
             ev_name
@@ -3741,7 +3747,7 @@ pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool {
                         } else if buflocal_buf.is_null() {
                             mb_strcmp_ic(opt_vars().p_fic != 0, ap.pat.as_ptr(), pattern) == 0
                         } else {
-                            ap.buflocal_nr == (*buflocal_buf).b_fnum
+                            ap.buflocal_nr == unsafe { (*buflocal_buf).b_fnum }
                         };
                         if pat_match {
                             retval = true;
@@ -3799,7 +3805,7 @@ pub fn aupat_normalize_buflocal_pat(
     mut buflocal_nr: i32,
 ) {
     let pat = pat.into_c_char_ptr();
-    unsafe {
+    {
         assert!(aupat_is_buflocal(pat, patlen));
 
         if buflocal_nr == 0 {
@@ -3808,8 +3814,10 @@ pub fn aupat_normalize_buflocal_pat(
 
         let s = format!("<buffer={buflocal_nr}>");
         let copy_len = s.len().min(BUFLOCAL_PAT_LEN - 1);
-        ptr::copy_nonoverlapping(s.as_ptr().cast::<c_char>(), dest, copy_len);
-        *dest.wrapping_add(copy_len) = NUL;
+        unsafe { ptr::copy_nonoverlapping(s.as_ptr().cast::<c_char>(), dest, copy_len) };
+        unsafe {
+            *dest.wrapping_add(copy_len) = NUL;
+        }
     }
 }
 
@@ -3874,8 +3882,8 @@ fn arg_event_skip(arg: impl crate::strings::IntoCCharPtr, have_group: bool) -> *
 }
 
 fn arg_augroup_get(argp: *mut *mut c_char) -> i32 {
-    unsafe {
-        let arg = *argp;
+    {
+        let arg = unsafe { *argp };
         let mut p = arg;
         while !crate::memory::cstr_is_empty(p)
             && !ascii_iswhite(crate::memory::cstr_first_char(p))
@@ -3893,7 +3901,9 @@ fn arg_augroup_get(argp: *mut *mut c_char) -> i32 {
         if group == AUGROUP_ERROR {
             group = AUGROUP_ALL;
         } else {
-            *argp = skipwhite(p);
+            unsafe {
+                *argp = skipwhite(p);
+            }
         }
         group
     }

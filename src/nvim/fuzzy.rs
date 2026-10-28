@@ -76,20 +76,20 @@ fn has_match(
 ) -> bool {
     let needle = needle.into_c_char_ptr();
     let haystack = haystack.into_c_char_ptr();
-    unsafe {
-        if needle.is_null() || haystack.is_null() || *needle == 0 {
+    {
+        if needle.is_null() || haystack.is_null() || unsafe { *needle } == 0 {
             return false;
         }
 
         let mut n_ptr = needle;
         let mut h_ptr = haystack;
 
-        while *n_ptr != 0 {
+        while unsafe { *n_ptr } != 0 {
             let n_char = utf_ptr2char(n_ptr);
             let n_upper = mb_toupper(n_char);
             let mut found = false;
 
-            while *h_ptr != 0 {
+            while unsafe { *h_ptr } != 0 {
                 let h_char = utf_ptr2char(h_ptr);
                 if h_char == n_char || h_char == n_upper {
                     found = true;
@@ -135,10 +135,10 @@ fn setup_match_struct(
 ) {
     let needle = needle.into_c_char_ptr();
     let haystack = haystack.into_c_char_ptr();
-    unsafe {
+    {
         let mut i = 0usize;
         let mut p = needle;
-        while *p != 0 && i < MATCH_MAX_LEN {
+        while unsafe { *p } != 0 && i < MATCH_MAX_LEN {
             let c = utf_ptr2char(p);
             match_st.lower_needle[i] = mb_tolower(c);
             i += 1;
@@ -149,7 +149,7 @@ fn setup_match_struct(
         i = 0;
         p = haystack;
         let mut prev_c = b'/' as i32;
-        while *p != 0 && i < MATCH_MAX_LEN {
+        while unsafe { *p } != 0 && i < MATCH_MAX_LEN {
             let c = utf_ptr2char(p);
             match_st.lower_haystack[i] = mb_tolower(c);
             match_st.match_bonus[i] = compute_bonus_codepoint(prev_c, c);
@@ -308,7 +308,7 @@ pub fn fuzzy_match(
 ) -> bool {
     let str_ptr = str_ptr.into_c_char_ptr();
     let pat_arg = pat_arg.into_c_char_ptr();
-    unsafe {
+    {
         let mut complete = false;
         let mut num_matches: i32 = 0;
 
@@ -323,17 +323,19 @@ pub fn fuzzy_match(
                 complete = true;
             } else {
                 p = skipwhite(p);
-                if *p == 0 {
+                if unsafe { *p } == 0 {
                     break;
                 }
                 pat = p;
-                while *p != 0 && !ascii_iswhite(utf_ptr2char(p)) {
+                while unsafe { *p } != 0 && !ascii_iswhite(utf_ptr2char(p)) {
                     p = p.wrapping_add(utf_ptr2len(p) as usize);
                 }
-                if *p == 0 {
+                if unsafe { *p } == 0 {
                     complete = true;
                 }
-                *p = 0;
+                unsafe {
+                    *p = 0;
+                }
             }
 
             let mut pat_chars = mb_charlen(pat);

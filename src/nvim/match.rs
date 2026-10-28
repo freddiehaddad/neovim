@@ -1155,7 +1155,7 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// `matchaddpos()` function (`f_matchaddpos`).
 pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let mut buf = [0 as c_char; NUMBUFLEN];
@@ -1170,7 +1170,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
 
         let l = argvars[1].vval.v_list();
-        if tv_list_len(l.as_ref()) == 0 {
+        if tv_list_len(unsafe { l.as_ref() }) == 0 {
             return;
         }
 
@@ -1201,12 +1201,12 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
-            &mut *win,
+            unsafe { &mut *win },
             group,
             ptr::null(),
             prio,
             id,
-            l.as_ref(),
+            unsafe { l.as_ref() },
             conceal_char,
         ) as Varnumber);
     }

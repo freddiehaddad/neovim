@@ -961,7 +961,7 @@ fn select_tag_match(
     name: impl crate::strings::IntoCCharPtr,
 ) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let tagstackidx = curwin_mut().w_tagstackidx;
 
         let mut items_tv = TypVal {
@@ -994,7 +994,7 @@ fn select_tag_match(
                 tagp.tagname,
                 crate::memory::ptr_offset_from(tagp.tagname_end, tagp.tagname) as i32,
             );
-            let pri_idx = (*m as usize) & MT_MASK;
+            let pri_idx = (unsafe { *m } as usize) & MT_MASK;
             tv_dict_add_str(&mut *d, c"pri", MT_NAMES[pri_idx].as_ptr());
             if !tagp.tagkind.is_null() {
                 tv_dict_add_str_len(
@@ -1021,12 +1021,14 @@ fn select_tag_match(
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict(d),
             };
-            tv_list_append_tv(&mut *items_tv.vval.v_list(), &mut item);
+            tv_list_append_tv(unsafe { &mut *items_tv.vval.v_list() }, &mut item);
         }
 
         let extra_d = tv_dict_alloc();
         tv_dict_add_list(&mut *extra_d, c"items", items_tv.vval.v_list());
-        (*items_tv.vval.v_list()).lv_refcount += 1;
+        unsafe {
+            (*items_tv.vval.v_list()).lv_refcount += 1;
+        }
         tv_dict_add_str(&mut *extra_d, c"tagname", name);
         let mut extra_tv = TypVal {
             v_type: VarType::VarDict,
@@ -1284,8 +1286,8 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
 
 fn tagfunc_cmd_kind(cmd: impl crate::strings::IntoCCharPtr) -> Tagcmd {
     let cmd = cmd.into_c_char_ptr().cast_mut();
-    unsafe {
-        if ascii_isdigit(*cmd) {
+    {
+        if ascii_isdigit(unsafe { *cmd }) {
             return if crate::memory::cstr_is_empty(skipdigits(cmd)) {
                 Tagcmd::TagcmdAddress
             } else {
@@ -1295,8 +1297,9 @@ fn tagfunc_cmd_kind(cmd: impl crate::strings::IntoCCharPtr) -> Tagcmd {
         if crate::memory::cstr_first_byte(cmd) == b'/'
             || crate::memory::cstr_first_byte(cmd) == b'?'
         {
-            let end = skip_regexp(cmd.wrapping_add(1), *cmd as i32, 0);
-            return if *end == *cmd && crate::memory::cstr_byte_at(end, 1) == 0 {
+            let end = skip_regexp(cmd.wrapping_add(1), unsafe { *cmd } as i32, 0);
+            return if unsafe { *end } == unsafe { *cmd } && crate::memory::cstr_byte_at(end, 1) == 0
+            {
                 Tagcmd::TagcmdAddress
             } else {
                 Tagcmd::TagcmdInvalid
@@ -1638,13 +1641,13 @@ impl Drop for FindtagsState {
 }
 
 fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
-    unsafe {
+    {
         let tag_fname = st.tag_fname.as_ptr();
         if st.is_txt {
             crate::memory::cstr_cpy(st.help_lang.as_mut_ptr(), c"en");
         } else {
             let i = crate::memory::cstr_len(tag_fname) as i32;
-            if i > 3 && *tag_fname.wrapping_add((i - 3) as usize) == b'-' as c_char {
+            if i > 3 && unsafe { *tag_fname.wrapping_add((i - 3) as usize) } == b'-' as c_char {
                 crate::memory::cstr_ncpy(
                     st.help_lang.as_mut_ptr(),
                     tag_fname.wrapping_add((i - 2) as usize),
@@ -1670,8 +1673,10 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
             && st.help_lang_find.is_none()
             && !curbuf_mut().b_fname.is_null()
             && fname_len > 4
-            && *curbuf_mut().b_fname.wrapping_add((fname_len - 1) as usize) == b'x' as c_char
-            && *curbuf_mut().b_fname.wrapping_add((fname_len - 4) as usize) == b'.' as c_char
+            && unsafe { *curbuf_mut().b_fname.wrapping_add((fname_len - 1) as usize) }
+                == b'x' as c_char
+            && unsafe { *curbuf_mut().b_fname.wrapping_add((fname_len - 4) as usize) }
+                == b'.' as c_char
             && mb_strnicmp(
                 curbuf_mut().b_fname.wrapping_add((fname_len - 3) as usize),
                 st.help_lang.as_ptr(),
@@ -1830,7 +1835,7 @@ fn findtags_start_state_handler(
     sortic: &mut bool,
     sinfo_p: &mut TagsearchInfo,
 ) -> bool {
-    unsafe {
+    {
         let noic = (st.flags & TAG_NOIC) != 0;
         let lbuf = st.lbuf.as_ptr();
 
@@ -1860,11 +1865,11 @@ fn findtags_start_state_handler(
 
         if st.state == TagsearchState::TsBinary {
             let fp = st.fp_ptr();
-            if vim_fseek(fp, 0, SEEK_END) != 0 {
+            if unsafe { vim_fseek(fp, 0, SEEK_END) } != 0 {
                 st.state = TagsearchState::TsLinear;
             } else {
-                let filesize = vim_ftell(fp);
-                g_st().vim_ignored = vim_fseek(fp, 0, SEEK_SET);
+                let filesize = unsafe { vim_ftell(fp) };
+                g_st().vim_ignored = unsafe { vim_fseek(fp, 0, SEEK_SET) };
 
                 sinfo_p.low_offset = 0;
                 sinfo_p.low_char = 0;
@@ -1885,7 +1890,7 @@ fn findtags_parse_line(
     margs: &mut FindtagsMatchArgs,
     sinfo_p: &mut TagsearchInfo,
 ) -> TagmatchStatus {
-    unsafe {
+    {
         let status: bool;
         let lbuf = st.lbuf.as_mut_ptr();
 
@@ -1939,7 +1944,7 @@ fn findtags_parse_line(
                     return TagmatchStatus::TagMatchNext;
                 }
                 if tagcmp < 0 {
-                    sinfo_p.curr_offset = vim_ftell(st.fp_ptr());
+                    sinfo_p.curr_offset = unsafe { vim_ftell(st.fp_ptr()) };
                     if sinfo_p.curr_offset < sinfo_p.high_offset {
                         sinfo_p.low_offset = sinfo_p.curr_offset;
                         if margs.sortic {
@@ -1975,7 +1980,7 @@ fn findtags_parse_line(
             } else if st.state == TagsearchState::TsStepForward {
                 assert!(cmplen >= 0);
                 if mb_strnicmp(tagpp.tagname, st.orgpat.head, cmplen as usize) != 0 {
-                    return if vim_ftell(st.fp_ptr()) > sinfo_p.match_offset {
+                    return if unsafe { vim_ftell(st.fp_ptr()) } > sinfo_p.match_offset {
                         TagmatchStatus::TagMatchStop
                     } else {
                         TagmatchStatus::TagMatchNext
@@ -2022,7 +2027,7 @@ fn findtags_match_tag(
     tagpp: &mut Tagptrs,
     margs: &mut FindtagsMatchArgs,
 ) -> bool {
-    unsafe {
+    {
         let mut match_: bool;
 
         let mut cmplen = crate::memory::ptr_offset_from(tagpp.tagname_end, tagpp.tagname) as i32;
@@ -2046,8 +2051,10 @@ fn findtags_match_tag(
 
         margs.match_re = false;
         if !match_ && !st.orgpat.regmatch.regprog.is_null() {
-            let cc = *tagpp.tagname_end;
-            *tagpp.tagname_end = NUL;
+            let cc = unsafe { *tagpp.tagname_end };
+            unsafe {
+                *tagpp.tagname_end = NUL;
+            }
             match_ = vim_regexec(&mut st.orgpat.regmatch, tagpp.tagname, 0);
             if match_ {
                 margs.matchoff =
@@ -2059,7 +2066,9 @@ fn findtags_match_tag(
                     st.orgpat.regmatch.rm_ic = true;
                 }
             }
-            *tagpp.tagname_end = cc;
+            unsafe {
+                *tagpp.tagname_end = cc;
+            }
             margs.match_re = true;
         }
 
@@ -2088,7 +2097,7 @@ fn findtags_add_match(
     buf_ffname: impl crate::strings::IntoCCharPtr,
 ) {
     let buf_ffname = buf_ffname.into_c_char_ptr();
-    unsafe {
+    {
         let name_only = (st.flags & TAG_NAMES) != 0;
         let tag_fname_ptr = st.tag_fname.as_mut_ptr();
         let lbuf_ptr = st.lbuf.as_ptr();
@@ -2115,13 +2124,17 @@ fn findtags_add_match(
         let mut mfp_vec: Option<Vec<c_char>> = None;
 
         if st.help_only {
-            *tagpp.tagname_end = NUL;
+            unsafe {
+                *tagpp.tagname_end = NUL;
+            }
             let len = crate::memory::ptr_offset_from(tagpp.tagname_end, tagpp.tagname) as usize;
             let mfp_size = 1 + len + 10 + ML_EXTRA + 1;
             let mut v = vec![0 as c_char; mfp_size];
             let p = v.as_mut_ptr();
             crate::memory::cstr_cpy(p, tagpp.tagname);
-            *p.wrapping_add(len) = b'@' as c_char;
+            unsafe {
+                *p.wrapping_add(len) = b'@' as c_char;
+            }
             crate::memory::cstr_cpy(p.wrapping_add(len + 1), st.help_lang.as_ptr());
             let heur = help_heuristic(
                 tagpp.tagname,
@@ -2136,7 +2149,9 @@ fn findtags_add_match(
             );
             mfp_vec = Some(v);
 
-            *tagpp.tagname_end = TAB;
+            unsafe {
+                *tagpp.tagname_end = TAB;
+            }
         } else if name_only {
             if st.get_searchpat {
                 let mut temp_end = tagpp.command;
@@ -2174,9 +2189,13 @@ fn findtags_add_match(
             let len = tag_fname_len + crate::memory::cstr_len(lbuf_ptr) + 3;
             let mut v = vec![0 as c_char; 1 + len + 1];
             let p = v.as_mut_ptr();
-            *p = (mtt + 1) as c_char;
+            unsafe {
+                *p = (mtt + 1) as c_char;
+            }
             crate::memory::cstr_cpy(p.wrapping_add(1), tag_fname_ptr);
-            *p.wrapping_add(tag_fname_len + 1) = TAG_SEP;
+            unsafe {
+                *p.wrapping_add(tag_fname_len + 1) = TAG_SEP;
+            }
             let s = p.wrapping_add(1 + tag_fname_len + 1);
             crate::memory::cstr_cpy(s, lbuf_ptr);
             mfp_vec = Some(v);
@@ -2198,7 +2217,7 @@ fn findtags_get_all_tags(
     buf_ffname: impl crate::strings::IntoCCharPtr,
 ) {
     let buf_ffname = buf_ffname.into_c_char_ptr();
-    unsafe {
+    {
         let mut tagp = Tagptrs::default();
         let mut search_info = TagsearchInfo::default();
 
@@ -2248,7 +2267,7 @@ fn findtags_get_all_tags(
                     || st_ref.state == TagsearchState::TsLinear
                 {
                     g_st().vim_ignored =
-                        vim_fseek(st_ref.fp_ptr(), search_info.curr_offset, SEEK_SET);
+                        unsafe { vim_fseek(st_ref.fp_ptr(), search_info.curr_offset, SEEK_SET) };
                 }
                 search_info.curr_offset = 0;
                 continue;
@@ -2266,7 +2285,10 @@ fn findtags_get_all_tags(
                     gettext(c"E431: Format error in tags file \"%s\""),
                     st.tag_fname.as_ptr(),
                 );
-                semsg!(gettext(c"Before byte %lld"), vim_ftell(st.fp_ptr()) as i64,);
+                semsg!(
+                    gettext(c"Before byte %lld"),
+                    unsafe { vim_ftell(st.fp_ptr()) } as i64,
+                );
                 st.stop_searching = true;
                 return;
             }
@@ -2331,7 +2353,7 @@ fn findtags_in_file(
 }
 
 fn findtags_copy_matches(st: &mut FindtagsState, matches: &mut Vec<Vec<c_char>>) {
-    unsafe {
+    {
         let name_only = (st.flags & TAG_NAMES) != 0;
         let keep = st.match_count > 0;
         matches.clear();
@@ -2345,11 +2367,15 @@ fn findtags_copy_matches(st: &mut FindtagsState, matches: &mut Vec<Vec<c_char>>)
                 if keep {
                     if !name_only {
                         let mfp = mfp_vec.as_mut_ptr();
-                        *mfp -= 1;
+                        unsafe {
+                            *mfp -= 1;
+                        }
                         let mut p = mfp.wrapping_add(1);
                         while !crate::memory::cstr_is_empty(p) {
-                            if *p == TAG_SEP {
-                                *p = NUL;
+                            if unsafe { *p } == TAG_SEP {
+                                unsafe {
+                                    *p = NUL;
+                                }
                             }
                             p = p.wrapping_add(1);
                         }
@@ -2374,7 +2400,7 @@ pub fn find_tags(
     buf_ffname: impl crate::strings::IntoCCharPtr,
 ) -> i32 {
     let buf_ffname = buf_ffname.into_c_char_ptr();
-    unsafe {
+    {
         let mut st = FindtagsState::new();
         let mut retval: i32;
         let mut saved_pat: Option<std::ffi::CString> = None;
@@ -2408,15 +2434,15 @@ pub fn find_tags(
 
         if curbuf_mut().b_help
             && st.orgpat.len > 3
-            && *pat.wrapping_add((st.orgpat.len - 3) as usize) == b'@' as c_char
-            && ascii_isalpha(*pat.wrapping_add((st.orgpat.len - 2) as usize))
-            && ascii_isalpha(*pat.wrapping_add((st.orgpat.len - 1) as usize))
+            && unsafe { *pat.wrapping_add((st.orgpat.len - 3) as usize) } == b'@' as c_char
+            && ascii_isalpha(unsafe { *pat.wrapping_add((st.orgpat.len - 2) as usize) })
+            && ascii_isalpha(unsafe { *pat.wrapping_add((st.orgpat.len - 1) as usize) })
         {
             let keep = (st.orgpat.len - 3) as usize;
             let cstr = std::ffi::CString::new(crate::memory::cstr_slice(pat, keep)).unwrap();
             st.help_lang_find = Some([
-                *pat.wrapping_add((st.orgpat.len - 2) as usize),
-                *pat.wrapping_add((st.orgpat.len - 1) as usize),
+                unsafe { *pat.wrapping_add((st.orgpat.len - 2) as usize) },
+                unsafe { *pat.wrapping_add((st.orgpat.len - 1) as usize) },
                 NUL,
             ]);
             st.orgpat.pat = cstr.as_ptr().cast_mut();
@@ -2536,7 +2562,7 @@ pub fn free_tag_stuff() {
 
 /// Get the next name of a tag file from the tag file list.
 pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: *mut c_char) -> bool {
-    unsafe {
+    {
         let mut fname: Option<std::ffi::CString>;
 
         if first != 0 {
@@ -2605,25 +2631,33 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: *mut c_char) -> bool {
                     return false;
                 }
 
-                *buf = NUL;
+                unsafe {
+                    *buf = NUL;
+                }
                 copy_option_part(&raw mut tnp.tn_np, buf, MAXPATHL - 1, c" ,");
 
                 let mut r_ptr = vim_findfile_stopdir(buf);
                 let mut filename = path_tail(buf);
                 if !r_ptr.is_null() {
-                    ptr::copy(
-                        r_ptr,
-                        r_ptr.wrapping_add(1),
-                        crate::memory::cstr_len(r_ptr) + 1,
-                    );
+                    unsafe {
+                        ptr::copy(
+                            r_ptr,
+                            r_ptr.wrapping_add(1),
+                            crate::memory::cstr_len(r_ptr) + 1,
+                        )
+                    };
                     r_ptr = r_ptr.wrapping_add(1);
                 }
-                ptr::copy(
-                    filename,
-                    filename.wrapping_add(1),
-                    crate::memory::cstr_len(filename) + 1,
-                );
-                *filename = NUL;
+                unsafe {
+                    ptr::copy(
+                        filename,
+                        filename.wrapping_add(1),
+                        crate::memory::cstr_len(filename) + 1,
+                    )
+                };
+                unsafe {
+                    *filename = NUL;
+                }
                 filename = filename.wrapping_add(1);
 
                 tnp.tn_search_ctx = vim_findfile_init(
@@ -2709,7 +2743,7 @@ fn matching_line_len(lbuf: impl crate::strings::IntoCCharPtr) -> usize {
 
 fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> bool {
     let mut lbuf = lbuf.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         tagp.tag_fname = lbuf.wrapping_add(1);
         lbuf = lbuf.wrapping_add(crate::memory::cstr_len(tagp.tag_fname) + 2);
 
@@ -2727,13 +2761,13 @@ fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> b
         let mut p = tagp.command;
         if find_extra(&raw mut p) {
             tagp.command_end = p;
-            if p > tagp.command && *p.wrapping_sub(1) == b'|' as c_char {
+            if p > tagp.command && unsafe { *p.wrapping_sub(1) } == b'|' as c_char {
                 tagp.command_end = p.wrapping_sub(1);
             }
             p = p.wrapping_add(2);
-            if *p == TAB {
+            if unsafe { *p } == TAB {
                 p = p.wrapping_add(1);
-                while ascii_isalpha(*p) || utfc_ptr2len(p) > 1 {
+                while ascii_isalpha(unsafe { *p }) || utfc_ptr2len(p) > 1 {
                     if crate::memory::cstr_prefix_bytes(p, 5) == &b"kind:"[..5] {
                         tagp.tagkind = p.wrapping_add(5);
                     } else if crate::memory::cstr_prefix_bytes(p, 10) == &b"user_data:"[..10] {
@@ -3167,18 +3201,22 @@ fn test_for_current(
     let fname = fname.into_c_char_ptr().cast_mut();
     let tag_fname = tag_fname.into_c_char_ptr().cast_mut();
     let buf_ffname = buf_ffname.into_c_char_ptr();
-    unsafe {
+    {
         let mut retval = false;
         if !buf_ffname.is_null() {
-            let c = *fname_end;
-            *fname_end = NUL;
+            let c = unsafe { *fname_end };
+            unsafe {
+                *fname_end = NUL;
+            }
             let fullname = expand_tag_fname(fname, tag_fname, true);
             retval = path_equal(
                 fullname.as_ptr(),
                 buf_ffname,
                 (K_PATH_CMP_EXPAND | K_PATH_CMP_FULL) as PathCmpFlags,
             );
-            *fname_end = c;
+            unsafe {
+                *fname_end = c;
+            }
         }
         i32::from(retval)
     }
@@ -3251,7 +3289,7 @@ pub fn tag_listfiles_extra(idx: usize) -> Option<(*const c_char, *const c_char)>
 }
 
 pub fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> bool {
-    unsafe {
+    {
         let extra_flag = if tagnames { TAG_NAMES } else { 0 };
         let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
         let ret = if crate::memory::cstr_first_byte(pat) == b'/' {
@@ -3287,21 +3325,19 @@ pub fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<std::ffi::CS
                     let mut t_p = Tagptrs::default();
                     parse_match(m.as_mut_ptr(), &mut t_p);
                     let len = crate::memory::ptr_offset_from(t_p.tagname_end, t_p.tagname) as usize;
-                    file.push(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-                        t_p.tagname.cast::<u8>(),
-                        len,
-                    )));
+                    file.push(crate::memory::cstr_from_bytes(unsafe {
+                        std::slice::from_raw_parts(t_p.tagname.cast::<u8>(), len)
+                    }));
                     let kind_c = if !crate::memory::cstr_is_empty(t_p.tagkind) {
-                        *t_p.tagkind
+                        unsafe { *t_p.tagkind }
                     } else {
                         b'f' as c_char
                     };
                     let fname_len =
                         crate::memory::ptr_offset_from(t_p.fname_end, t_p.fname) as usize;
-                    let fname_cstr = crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-                        t_p.fname.cast::<u8>(),
-                        fname_len,
-                    ));
+                    let fname_cstr = crate::memory::cstr_from_bytes(unsafe {
+                        std::slice::from_raw_parts(t_p.fname.cast::<u8>(), fname_len)
+                    });
                     tag_st().tag_listfiles_extra.push(([kind_c, 0], fname_cstr));
                 }
             }
@@ -3359,7 +3395,7 @@ pub fn get_tags(
     buf_fname: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let buf_fname = buf_fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut matches: Vec<Vec<c_char>> = Vec::new();
         let mut tp = Tagptrs::default();
 
@@ -3421,7 +3457,7 @@ pub fn get_tags(
                         p = tp.tagkind_end.wrapping_sub(1);
                     } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"file:"[..5] {
                         p = p.wrapping_add(4);
-                    } else if !ascii_iswhite(*p) {
+                    } else if !ascii_iswhite(unsafe { *p }) {
                         let n = p;
                         while !crate::memory::cstr_is_empty(p)
                             && (crate::memory::cstr_first_byte(p)) >= b' '
@@ -3439,11 +3475,15 @@ pub fn get_tags(
                             {
                                 p = p.wrapping_add(1);
                             }
-                            *n.wrapping_add(len as usize) = NUL;
+                            unsafe {
+                                *n.wrapping_add(len as usize) = NUL;
+                            }
                             if !add_tag_field(Some(&mut *dict), n, s, p) {
                                 ret = false;
                             }
-                            *n.wrapping_add(len as usize) = b':' as c_char;
+                            unsafe {
+                                *n.wrapping_add(len as usize) = b':' as c_char;
+                            }
                         } else {
                             while !crate::memory::cstr_is_empty(p)
                                 && (crate::memory::cstr_first_byte(p)) >= b' '
@@ -3609,7 +3649,7 @@ fn tagstack_set_curidx(wp: &mut WinInfoInfo, curidx: i32) {
 
 /// Set the tag stack entries of the specified window.
 pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bool {
-    unsafe {
+    {
         if tag_st().tfu_in_use {
             emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC));
             return false;
@@ -3619,7 +3659,7 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bo
 
         let di_items = tv_dict_find(d, c"items", -1);
         if !di_items.is_null() {
-            let di_items = { &mut *di_items };
+            let di_items = { unsafe { &mut *di_items } };
             if di_items.di_tv.v_type != VarType::VarList {
                 emsg(gettext(E_LISTREQ));
                 return false;
@@ -3629,7 +3669,7 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bo
 
         let di_curidx = tv_dict_find(d, c"curidx", -1);
         if !di_curidx.is_null() {
-            tagstack_set_curidx(wp, tv_get_number(&(*di_curidx).di_tv) as i32 - 1);
+            tagstack_set_curidx(wp, tv_get_number(unsafe { &(*di_curidx).di_tv }) as i32 - 1);
         }
 
         if action == b't' as i32 {
@@ -3648,7 +3688,7 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bo
                 tagstack_clear(wp);
             }
 
-            tagstack_push_items(&mut *wp, l.as_ref());
+            tagstack_push_items(&mut *wp, unsafe { l.as_ref() });
             wp.w_tagstackidx = wp.w_tagstacklen;
         }
 

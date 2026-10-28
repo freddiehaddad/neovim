@@ -673,7 +673,7 @@ pub fn eval_to_string_skip(
 
 /// Skip over an expression at "*pp".
 pub fn skip_expr(pp: *mut *mut c_char, mut evalarg: Option<&mut Evalarg>) -> bool {
-    unsafe {
+    {
         let save_flags = if evalarg.is_none() {
             0
         } else {
@@ -684,7 +684,9 @@ pub fn skip_expr(pp: *mut *mut c_char, mut evalarg: Option<&mut Evalarg>) -> boo
             evalarg.as_deref_mut().unwrap().eval_flags &= !EVAL_EVALUATE;
         }
 
-        *pp = skipwhite(*pp);
+        unsafe {
+            *pp = skipwhite(*pp);
+        }
         let mut rettv = tv_initial_value();
         let res = eval1(pp, &mut rettv, None);
 
@@ -698,12 +700,12 @@ pub fn skip_expr(pp: *mut *mut c_char, mut evalarg: Option<&mut Evalarg>) -> boo
 
 /// Convert "tv" to a string.
 fn typval2string(tv: &mut TypVal, join_list: bool) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         if join_list && tv.v_type == VarType::VarList {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
             if !tv.vval.v_list().is_null() {
-                tv_list_join(&mut out, tv.vval.v_list().as_mut(), c"\n");
-                if tv_list_len(tv.vval.v_list().as_ref()) > 0 {
+                tv_list_join(&mut out, unsafe { tv.vval.v_list().as_mut() }, c"\n");
+                if tv_list_len(unsafe { tv.vval.v_list().as_ref() }) > 0 {
                     out.push(NL as c_char);
                 }
             }
@@ -1250,7 +1252,7 @@ fn get_lval_list(
     _flags: i32,
     quiet: bool,
 ) -> bool {
-    unsafe {
+    {
         if empty1 {
             lp.ll_n1 = 0;
         } else {
@@ -1259,7 +1261,8 @@ fn get_lval_list(
 
         lp.ll_dict = ptr::null_mut();
         lp.ll_list = lp.tv_mut().vval.v_list();
-        lp.ll_li = tv_list_check_range_index_one(lp.ll_list.as_mut(), &mut lp.ll_n1, quiet);
+        lp.ll_li =
+            tv_list_check_range_index_one(unsafe { lp.ll_list.as_mut() }, &mut lp.ll_n1, quiet);
         if lp.ll_li.is_null() {
             return false;
         }
@@ -1267,7 +1270,7 @@ fn get_lval_list(
         if lp.ll_range && !lp.ll_empty2 {
             lp.ll_n2 = tv_get_number(&*var2) as i32;
             if !tv_list_check_range_index_two(
-                lp.ll_list.as_mut(),
+                unsafe { lp.ll_list.as_mut() },
                 &mut lp.ll_n1,
                 lp.ll_li,
                 &mut lp.ll_n2,
@@ -1277,7 +1280,7 @@ fn get_lval_list(
             }
         }
 
-        lp.ll_tv = tv_list_item_tv(&mut *lp.ll_li);
+        lp.ll_tv = tv_list_item_tv(unsafe { &mut *lp.ll_li });
 
         true
     }
@@ -1293,7 +1296,7 @@ fn get_lval_subscript(
 ) -> *mut c_char {
     let mut p = p.into_c_char_ptr().cast_mut();
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let quiet = (flags & GLV_QUIET) != 0;
         let mut var1 = tv_initial_value();
         let mut var2 = tv_initial_value();
@@ -1321,10 +1324,10 @@ fn get_lval_subscript(
             }
 
             if lp.tv_mut().v_type == VarType::VarList && lp.tv_mut().vval.v_list().is_null() {
-                tv_list_alloc_ret(&mut *lp.ll_tv, K_LIST_LEN_UNKNOWN_CONST);
+                tv_list_alloc_ret(unsafe { &mut *lp.ll_tv }, K_LIST_LEN_UNKNOWN_CONST);
             } else if lp.tv_mut().v_type == VarType::VarBlob && lp.tv_mut().vval.v_blob().is_null()
             {
-                tv_blob_alloc_ret(&mut *lp.ll_tv);
+                tv_blob_alloc_ret(unsafe { &mut *lp.ll_tv });
             }
 
             if lp.ll_range {
@@ -1363,7 +1366,7 @@ fn get_lval_subscript(
                     if !eval1(
                         &raw mut p,
                         &mut var1,
-                        (!evalarg_ptr.is_null()).then(|| &mut *evalarg_ptr),
+                        (!evalarg_ptr.is_null()).then(|| unsafe { &mut *evalarg_ptr }),
                     ) {
                         tv_clear(&mut var1);
                         tv_clear(&mut var2);
@@ -1408,7 +1411,7 @@ fn get_lval_subscript(
                         if !eval1(
                             &raw mut p,
                             &mut var2,
-                            (!evalarg_ptr.is_null()).then(|| &mut *evalarg_ptr),
+                            (!evalarg_ptr.is_null()).then(|| unsafe { &mut *evalarg_ptr }),
                         ) || !tv_check_str(&var2)
                         {
                             tv_clear(&mut var1);
@@ -1851,7 +1854,7 @@ pub fn eval_for_line(
 
 /// Use the first item in a ":for" list. Advance to the next.
 pub fn next_for_item(fi: &mut Forinfo, arg: *mut c_char) -> bool {
-    unsafe {
+    {
         match &mut fi.fi_source {
             ForSource::None => false,
             ForSource::Blob { bytes, idx } => {
@@ -1905,10 +1908,10 @@ pub fn next_for_item(fi: &mut Forinfo, arg: *mut c_char) -> bool {
                 if item.is_null() {
                     return false;
                 }
-                lw.lw_item.set(tv_list_item_next(&*item));
+                lw.lw_item.set(tv_list_item_next(unsafe { &*item }));
                 ex_let_vars(
                     arg,
-                    &mut *tv_list_item_tv(&mut *item),
+                    &mut *tv_list_item_tv(unsafe { &mut *item }),
                     1,
                     fi.fi_semicolon,
                     fi.fi_varcount,
@@ -2094,7 +2097,7 @@ fn eval_func(
     basetv: Option<&mut TypVal>,
 ) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let evaluate = (flags & EVAL_EVALUATE) != 0;
         let mut s = name;
         let mut len = name_len;
@@ -2137,7 +2140,7 @@ fn eval_func(
 
         drop(s_vec);
 
-        if rettv.v_type == VarType::VarUnknown && !evaluate && **arg == b'(' as c_char {
+        if rettv.v_type == VarType::VarUnknown && !evaluate && unsafe { **arg } == b'(' as c_char {
             rettv.vval = crate::eval::typval::TypvalVval::String(TV_EMPTY_STRING.cast_mut());
             rettv.v_type = VarType::VarFunc;
         }
@@ -2476,7 +2479,7 @@ fn eval3(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
 
 /// Handle third level expression (comparisons).
 fn eval4(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
-    unsafe {
+    {
         let mut var2 = tv_initial_value();
         let mut expr_type: Exprtype = EXPR_UNKNOWN;
         let mut len: usize = 2;
@@ -2485,7 +2488,7 @@ fn eval4(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
             return false;
         }
 
-        let p = *arg;
+        let p = unsafe { *arg };
         match crate::memory::cstr_first_byte(p) {
             b'=' => {
                 if crate::memory::cstr_byte_at(p, 1) == b'=' {
@@ -2524,7 +2527,7 @@ fn eval4(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
                 {
                     len = 5;
                 }
-                let next_c = *p.wrapping_add(len);
+                let next_c = unsafe { *p.wrapping_add(len) };
                 if !ascii_isalnum(next_c) && next_c != b'_' as c_char {
                     expr_type = if len == 2 { EXPR_IS } else { EXPR_ISNOT };
                 }
@@ -2546,7 +2549,9 @@ fn eval4(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
                 }
             }
 
-            *arg = skipwhite(p.wrapping_add(len));
+            unsafe {
+                *arg = skipwhite(p.wrapping_add(len));
+            }
             if !eval5(arg, &mut var2, evalarg.as_deref_mut()) {
                 tv_clear(rettv);
                 return false;
@@ -2567,23 +2572,23 @@ fn eval4(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
 
 /// Make a copy of blob "tv1" and append blob "tv2".
 fn eval_addblob(tv1: &mut TypVal, tv2: &mut TypVal) {
-    unsafe {
+    {
         let b1 = tv1.vval.v_blob();
         let b2 = tv2.vval.v_blob();
         let b = tv_blob_alloc();
 
-        let len1 = i64::from(tv_blob_len(b1.as_ref()));
-        let len2 = i64::from(tv_blob_len(b2.as_ref()));
+        let len1 = i64::from(tv_blob_len(unsafe { b1.as_ref() }));
+        let len2 = i64::from(tv_blob_len(unsafe { b2.as_ref() }));
         let totallen = len1 + len2;
 
         if totallen >= 0 && totallen <= i64::from(i32::MAX) {
             let bv = &mut b.bv_ga;
             bv.reserve(totallen as usize);
             if !b1.is_null() {
-                bv.extend_from_slice(&(*b1).bv_ga);
+                bv.extend_from_slice(unsafe { &(*b1).bv_ga });
             }
             if !b2.is_null() {
-                bv.extend_from_slice(&(*b2).bv_ga);
+                bv.extend_from_slice(unsafe { &(*b2).bv_ga });
             }
         }
 
@@ -3076,8 +3081,8 @@ fn eval7_leader(
     end_leaderp: *mut *const c_char,
 ) -> bool {
     let start_leader = start_leader.into_c_char_ptr();
-    unsafe {
-        let mut end_leader = *end_leaderp;
+    {
+        let mut end_leader = unsafe { *end_leaderp };
         let mut ret = true;
         let mut error = false;
         let mut val: Varnumber = 0;
@@ -3127,7 +3132,9 @@ fn eval7_leader(
             }
         }
 
-        *end_leaderp = end_leader;
+        unsafe {
+            *end_leaderp = end_leader;
+        }
         ret
     }
 }
@@ -3143,7 +3150,7 @@ fn call_func_rettv(
     lua_funcname: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let lua_funcname = lua_funcname.into_c_char_ptr();
-    unsafe {
+    {
         let mut pt: *mut TvPartial = ptr::null_mut();
         let mut functv = tv_initial_value();
         let funcname: *const c_char;
@@ -3159,7 +3166,7 @@ fn call_func_rettv(
                 funcname = if is_lua {
                     lua_funcname
                 } else {
-                    partial_name(pt.as_ref())
+                    partial_name(unsafe { pt.as_ref() })
                 };
             } else {
                 funcname = functv.vval.v_string();
@@ -3188,7 +3195,7 @@ fn call_func_rettv(
         let ret = get_func_tv(
             funcname,
             if is_lua {
-                ((*arg as usize).wrapping_sub(funcname as usize)) as i32
+                ((unsafe { *arg } as usize).wrapping_sub(funcname as usize)) as i32
             } else {
                 -1
             },
@@ -3585,7 +3592,7 @@ fn eval_index_inner(
     verbose: bool,
 ) -> bool {
     let mut key = key.into_c_char_ptr();
-    unsafe {
+    {
         let mut n1: Varnumber = 0;
         let mut n2: Varnumber = 0;
         if let Some(var1) = var1
@@ -3639,18 +3646,19 @@ fn eval_index_inner(
                     if n1 >= len || n2 < 0 || n1 > n2 {
                         None
                     } else {
-                        Some(cstr_from_bytes(std::slice::from_raw_parts(
-                            s.wrapping_add(n1 as usize).cast::<u8>(),
-                            (n2 - n1 + 1) as usize,
-                        )))
+                        Some(cstr_from_bytes(unsafe {
+                            std::slice::from_raw_parts(
+                                s.wrapping_add(n1 as usize).cast::<u8>(),
+                                (n2 - n1 + 1) as usize,
+                            )
+                        }))
                     }
                 } else if n1 >= len || n1 < 0 {
                     None
                 } else {
-                    Some(cstr_from_bytes(std::slice::from_raw_parts(
-                        s.wrapping_add(n1 as usize).cast::<u8>(),
-                        1,
-                    )))
+                    Some(cstr_from_bytes(unsafe {
+                        std::slice::from_raw_parts(s.wrapping_add(n1 as usize).cast::<u8>(), 1)
+                    }))
                 };
                 tv_clear(rettv);
                 if let Some(ref c) = v {
@@ -3682,7 +3690,7 @@ fn eval_index_inner(
                     }
                 }
 
-                let item = tv_dict_find(rettv.vval.v_dict().as_ref(), key, keylen);
+                let item = tv_dict_find(unsafe { rettv.vval.v_dict().as_ref() }, key, keylen);
 
                 if item.is_null() && verbose {
                     if keylen > 0 {
@@ -3691,12 +3699,12 @@ fn eval_index_inner(
                         semsg!(gettext(E_DICTKEY), key);
                     }
                 }
-                if item.is_null() || tv_is_luafunc(&mut (*item).di_tv) {
+                if item.is_null() || tv_is_luafunc(unsafe { &mut (*item).di_tv }) {
                     return false;
                 }
 
                 let mut tmp = tv_initial_value();
-                tv_copy(&(*item).di_tv, &mut tmp);
+                tv_copy(unsafe { &(*item).di_tv }, &mut tmp);
                 tv_clear(rettv);
                 *rettv = tmp;
             }
@@ -4396,7 +4404,7 @@ pub fn get_copy_id() -> i32 {
 
 /// Do garbage collection for lists and dicts.
 pub fn garbage_collect(testing: bool) -> bool {
-    unsafe {
+    {
         let mut abort = false;
 
         if !testing {
@@ -4504,7 +4512,7 @@ pub fn garbage_collect(testing: bool) -> bool {
                 if !cw_win.is_null() {
                     abort = abort
                         || set_ref_in_item(
-                            &mut (*cw_win).w_winvar.di_tv,
+                            unsafe { &mut (*cw_win).w_winvar.di_tv },
                             copy_id,
                             ptr::null_mut(),
                             ptr::null_mut(),
@@ -4532,10 +4540,10 @@ pub fn garbage_collect(testing: bool) -> bool {
         {
             for &data in g_st().channels.values() {
                 let ct = data;
-                set_ref_in_callback_reader(&mut (*ct).on_data, copy_id, None, None);
-                set_ref_in_callback_reader(&mut (*ct).on_stderr, copy_id, None, None);
+                set_ref_in_callback_reader(unsafe { &mut (*ct).on_data }, copy_id, None, None);
+                set_ref_in_callback_reader(unsafe { &mut (*ct).on_stderr }, copy_id, None, None);
                 set_ref_in_callback(
-                    &mut (*ct).on_exit,
+                    unsafe { &mut (*ct).on_exit },
                     copy_id,
                     ptr::null_mut(),
                     ptr::null_mut(),
@@ -4545,7 +4553,7 @@ pub fn garbage_collect(testing: bool) -> bool {
 
         for &timer in eval_st().timers.values() {
             set_ref_in_callback(
-                &mut (*timer).callback,
+                unsafe { &mut (*timer).callback },
                 copy_id,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -4623,17 +4631,17 @@ fn free_unref_items(copy_id: i32) -> i32 {
 
 /// Mark all lists and dicts referenced through hashtab "ht" with "copyID".
 pub fn set_ref_in_ht(ht: *mut Hashtab, copy_id: i32, list_stack: *mut ListStack) -> bool {
-    unsafe {
+    {
         let mut abort = false;
         let mut ht_stack: HtStack = Vec::new();
 
         let mut cur_ht = ht;
         loop {
             if !abort {
-                let mut todo = (*cur_ht).ht_used;
-                let mut hi = (&*cur_ht).array_ptr();
+                let mut todo = unsafe { (*cur_ht).ht_used };
+                let mut hi = (unsafe { &*cur_ht }).array_ptr();
                 while todo > 0 {
-                    if !hashitem_empty(&*hi) {
+                    if !hashitem_empty(unsafe { &*hi }) {
                         todo -= 1;
                         let di = tv_dict_hi2di(hi);
                         abort = abort
@@ -4726,12 +4734,14 @@ fn set_ref_in_item_list(
     ht_stack: *mut HtStack,
     list_stack: Option<&mut ListStack>,
 ) -> bool {
-    unsafe {
-        if ll.is_null() || (*ll).lv_copy_id == copy_id {
+    {
+        if ll.is_null() || unsafe { (*ll).lv_copy_id } == copy_id {
             return false;
         }
 
-        (*ll).lv_copy_id = copy_id;
+        unsafe {
+            (*ll).lv_copy_id = copy_id;
+        }
         if let Some(list_stack) = list_stack {
             list_stack.push(ll);
             false
@@ -4975,7 +4985,7 @@ fn eval_lit_dict(arg: *mut *mut c_char, rettv: &mut TypVal, evalarg: Option<&mut
 /// Convert the string to a floating point number.
 pub fn string2float(text: impl crate::strings::IntoCCharPtr, ret_value: *mut TvFloat) -> usize {
     let text = text.into_c_char_ptr();
-    unsafe {
+    {
         let b0 = (crate::memory::cstr_first_byte(text)).to_ascii_lowercase();
         let b1 = if b0 != 0 {
             (crate::memory::cstr_byte_at(text, 1)).to_ascii_lowercase()
@@ -4988,22 +4998,30 @@ pub fn string2float(text: impl crate::strings::IntoCCharPtr, ret_value: *mut TvF
             0
         };
         if b0 == b'i' && b1 == b'n' && b2 == b'f' {
-            *ret_value = f64::INFINITY;
+            unsafe {
+                *ret_value = f64::INFINITY;
+            }
             return 3;
         }
         if b0 == b'-' && b1 == b'i' && b2 == b'n' {
             let b3 = (crate::memory::cstr_byte_at(text, 3)).to_ascii_lowercase();
             if b3 == b'f' {
-                *ret_value = f64::NEG_INFINITY;
+                unsafe {
+                    *ret_value = f64::NEG_INFINITY;
+                }
                 return 4;
             }
         }
         if b0 == b'n' && b1 == b'a' && b2 == b'n' {
-            *ret_value = f64::NAN;
+            unsafe {
+                *ret_value = f64::NAN;
+            }
             return 3;
         }
         let mut s: *mut c_char = ptr::null_mut();
-        *ret_value = strtod(text, &raw mut s);
+        unsafe {
+            *ret_value = strtod(text, &raw mut s);
+        }
         (s as usize).wrapping_sub(text as usize)
     }
 }
@@ -5048,7 +5066,7 @@ pub fn tv_to_argv(
     cmd: Option<&mut std::ffi::CString>,
     executable: Option<&mut bool>,
 ) -> Vec<std::ffi::CString> {
-    unsafe {
+    {
         if cmd_tv.v_type == VarType::VarString {
             let cmd_str = tv_get_string(&*cmd_tv);
             if let Some(cmd_out) = cmd {
@@ -5063,13 +5081,15 @@ pub fn tv_to_argv(
         }
 
         let argl = cmd_tv.vval.v_list();
-        let argc = tv_list_len(argl.as_ref());
+        let argc = tv_list_len(unsafe { argl.as_ref() });
         if argc == 0 {
             emsg(gettext(E_INVARG));
             return Vec::new();
         }
 
-        let arg0 = tv_get_string_chk(&*tv_list_item_tv(&mut *tv_list_first(argl.as_ref())));
+        let arg0 = tv_get_string_chk(&*tv_list_item_tv(unsafe {
+            &mut *tv_list_first(argl.as_ref())
+        }));
         let mut exe_resolved: Option<std::ffi::CString> = None;
         if arg0.is_null() || !os_can_exe(arg0, Some(&mut exe_resolved), true) {
             if !arg0.is_null()
@@ -5088,7 +5108,7 @@ pub fn tv_to_argv(
         for (i, arg) in crate::eval::typval::list_iter_mut(if argl.is_null() {
             ptr::null_mut()
         } else {
-            (*argl).lv_first
+            unsafe { (*argl).lv_first }
         })
         .enumerate()
         {
@@ -5127,7 +5147,7 @@ fn string_to_list(
 }
 
 fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlist: bool) {
-    unsafe {
+    {
         let mut wait_time: Proftime = 0;
         let profiling = g_st().do_profiling == PROF_YES;
 
@@ -5203,7 +5223,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
                 res.len(),
                 keepempty != 0,
             ));
-            tv_list_ref(rettv.vval.v_list().as_mut());
+            tv_list_ref(unsafe { rettv.vval.v_list().as_mut() });
             rettv.v_type = VarType::VarList;
         } else {
             let nread = res.len();
@@ -5213,7 +5233,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
                 if _sz > 0 {
                     let _c = (NUL) as u8;
                     let _x = 1_u8;
-                    for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                    for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
                         if *_b == _c {
                             *_b = _x;
                         }
@@ -5557,7 +5577,7 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
 }
 
 pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
-    unsafe {
+    {
         let id = eval_st().last_timer_id;
         eval_st().last_timer_id += 1;
         let timer = Box::leak(Box::new(VimTimer {
@@ -5576,11 +5596,12 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
             let main_loop_ptr = (&raw mut g_st().main_loop).cast();
             let timer_ptr: *mut VimTimer = timer;
             time_watcher_init(
-                &mut *main_loop_ptr,
+                unsafe { &mut *main_loop_ptr },
                 &mut timer.watcher,
                 TimeWatcherData::EvalTimer(timer_ptr),
             );
-            timer.watcher.events = multiqueue_new_child(loop_queues(&mut *main_loop_ptr).events);
+            timer.watcher.events =
+                multiqueue_new_child(loop_queues(unsafe { &mut *main_loop_ptr }).events);
             timer.watcher.blockable = true;
             time_watcher_start(&mut timer.watcher, timeout as u64, timeout as u64);
         }
@@ -6935,7 +6956,7 @@ pub fn do_string_sub(
     flags: impl crate::strings::IntoCCharPtr,
 ) -> std::ffi::CString {
     let flags = flags.into_c_char_ptr();
-    unsafe {
+    {
         let mut regmatch: Regmatch = Regmatch::new();
         let mut out: Option<Vec<c_char>> = None;
 
@@ -6959,7 +6980,7 @@ pub fn do_string_sub(
                     if zero_width == regmatch.startp[0] {
                         let i = utfc_ptr2len(tail) as usize;
                         if let Some(buf) = &mut out {
-                            buf.extend_from_slice(std::slice::from_raw_parts(tail, i));
+                            buf.extend_from_slice(unsafe { std::slice::from_raw_parts(tail, i) });
                         }
                         tail = tail.wrapping_add(i);
                         continue;
@@ -6976,7 +6997,7 @@ pub fn do_string_sub(
 
                 let i = (regmatch.startp[0] as usize).wrapping_sub(tail as usize);
                 if i > 0 {
-                    buf.extend_from_slice(std::slice::from_raw_parts(tail, i));
+                    buf.extend_from_slice(unsafe { std::slice::from_raw_parts(tail, i) });
                 }
                 let cur_len = buf.len();
                 buf.resize(cur_len + (sublen as usize), 0);
@@ -7001,7 +7022,7 @@ pub fn do_string_sub(
             if let Some(buf) = &mut out {
                 let rem = (end as usize).wrapping_sub(tail as usize);
                 if rem > 0 {
-                    buf.extend_from_slice(std::slice::from_raw_parts(tail, rem));
+                    buf.extend_from_slice(unsafe { std::slice::from_raw_parts(tail, rem) });
                 }
             }
 
@@ -7064,17 +7085,18 @@ pub fn common_job_callbacks(
 }
 
 pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
-    unsafe {
+    {
         let data = find_channel(id);
-        let is_stopped = if !data.is_null() && (*data).streamtype == K_CHANNEL_STREAM_PROC {
-            let hdr = &(*data).uv.proc_;
-            hdr.status >= 0 || hdr.stopped_time != 0
-        } else {
-            true
-        };
-        if data.is_null() || (*data).streamtype != K_CHANNEL_STREAM_PROC || is_stopped {
+        let is_stopped =
+            if !data.is_null() && unsafe { (*data).streamtype } == K_CHANNEL_STREAM_PROC {
+                let hdr = unsafe { &(*data).uv.proc_ };
+                hdr.status >= 0 || hdr.stopped_time != 0
+            } else {
+                true
+            };
+        if data.is_null() || unsafe { (*data).streamtype } != K_CHANNEL_STREAM_PROC || is_stopped {
             if show_error {
-                if !data.is_null() && (*data).streamtype != K_CHANNEL_STREAM_PROC {
+                if !data.is_null() && unsafe { (*data).streamtype } != K_CHANNEL_STREAM_PROC {
                     emsg(gettext(E_INVCHANJOB));
                 } else {
                     emsg(gettext(E_INVCHAN));

@@ -1173,7 +1173,7 @@ pub fn ex_try(eap: &mut Exarg) {
 }
 
 pub fn ex_catch(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut idx: i32 = 0;
         let mut give_up = false;
         let mut skip = false;
@@ -1230,7 +1230,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 && (cstack.cs_flags[u_idx] & CSF_CAUGHT) == 0
             {
                 if !crate::memory::cstr_is_empty(end)
-                    && ends_excmd(i32::from(*skipwhite(end.wrapping_add(1)) as u8)) == 0
+                    && ends_excmd(i32::from(unsafe { *skipwhite(end.wrapping_add(1)) } as u8)) == 0
                 {
                     semsg!(gettext(E_TRAILING_ARG), end);
                     return;
@@ -1239,8 +1239,10 @@ pub fn ex_catch(eap: &mut Exarg) {
                 if !dbg_check_skipped(eap) || !do_intthrow(cstack) {
                     let mut save_char: c_char = 0;
                     if !end.is_null() {
-                        save_char = *end;
-                        *end = NUL;
+                        save_char = unsafe { *end };
+                        unsafe {
+                            *end = NUL;
+                        }
                     }
                     let save_cpo = opt_vars().p_cpo;
                     opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
@@ -1250,7 +1252,9 @@ pub fn ex_catch(eap: &mut Exarg) {
                     g_st().emsg_off -= 1;
                     regmatch.rm_ic = false;
                     if !end.is_null() {
-                        *end = save_char;
+                        unsafe {
+                            *end = save_char;
+                        }
                     }
                     opt_vars().p_cpo = save_cpo;
                     if regmatch.regprog.is_null() {

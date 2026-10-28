@@ -1011,7 +1011,7 @@ fn ins_compl_infercase_gettext(
     tofree: &mut Vec<c_char>,
 ) -> *mut c_char {
     let str_ptr = str_ptr.into_c_char_ptr();
-    unsafe {
+    {
         let mut has_lower = false;
 
         let mut wca = vec![0_i32; char_len as usize];
@@ -1082,7 +1082,7 @@ fn ins_compl_infercase_gettext(
             } else if (crate::memory::ptr_offset_from(p, iobuff_ptr) as usize) + 6 >= IOSIZE {
                 let cur_len = crate::memory::ptr_offset_from(p, iobuff_ptr) as usize;
                 gap.reserve(IOSIZE);
-                gap.extend_from_slice(std::slice::from_raw_parts(iobuff_ptr, cur_len));
+                gap.extend_from_slice(unsafe { std::slice::from_raw_parts(iobuff_ptr, cur_len) });
             } else {
                 p = p.wrapping_add(utf_char2bytes(wca[i as usize], p) as usize);
                 i += 1;
@@ -1095,7 +1095,9 @@ fn ins_compl_infercase_gettext(
             return tofree.as_mut_ptr();
         }
 
-        *p = NUL;
+        unsafe {
+            *p = NUL;
+        }
         iobuff_ptr
     }
 }
@@ -1733,23 +1735,27 @@ fn cp_compare_nearest(a: &Compl, b: &Compl) -> i32 {
 }
 
 fn prepend_startcol_text(dest: &mut NvimString, src: &NvimString, startcol: i32) {
-    unsafe {
+    {
         let prepend_len = insexp().compl_col - startcol;
         let new_length = (prepend_len + src.size as i32) as usize;
         let mut buf: Vec<c_char> = vec![0; new_length + 1];
 
         let line = ml_get(curwin_mut().w_cursor.lnum);
 
-        ptr::copy(
-            line.wrapping_add(startcol as usize),
-            buf.as_mut_ptr(),
-            prepend_len as usize,
-        );
-        ptr::copy(
-            src.data,
-            buf.as_mut_ptr().wrapping_add(prepend_len as usize),
-            src.size,
-        );
+        unsafe {
+            ptr::copy(
+                line.wrapping_add(startcol as usize),
+                buf.as_mut_ptr(),
+                prepend_len as usize,
+            )
+        };
+        unsafe {
+            ptr::copy(
+                src.data,
+                buf.as_mut_ptr().wrapping_add(prepend_len as usize),
+                src.size,
+            )
+        };
         *dest = cbuf_to_string(buf.as_ptr(), new_length);
     }
 }
@@ -1900,7 +1906,7 @@ fn get_user_highlight_attr(hl_id: i32) -> i32 {
 }
 
 fn ins_compl_build_pum() -> i32 {
-    unsafe {
+    {
         if ins_compl_need_restart() {
             api_clear_string(&mut insexp().compl_leader);
         }
@@ -1913,7 +1919,8 @@ fn ins_compl_build_pum() -> i32 {
         let is_cpt_completion = !cpt_sources.is_empty();
 
         let list = &mut insexp().compl_list;
-        let mut shown_match_ok = match_at_original_text(&*compl_opt(insexp().compl_shown_idx));
+        let mut shown_match_ok =
+            match_at_original_text(unsafe { &*compl_opt(insexp().compl_shown_idx) });
 
         if (crate::memory::cstr_as_opt_bytes(insexp().compl_leader.data)
             == crate::memory::cstr_as_opt_bytes(insexp().compl_orig_text.data))
@@ -1945,7 +1952,7 @@ fn ins_compl_build_pum() -> i32 {
             comp.cp_in_match_array = false;
 
             let leader = get_leader_for_startcol(Some(&*comp), true);
-            let leader = { &mut *leader };
+            let leader = { unsafe { &mut *leader } };
 
             if ctrl_x_mode_normal()
                 && opt_vars().p_inf == 0
@@ -2242,13 +2249,13 @@ fn thesaurus_add_words_in_line(
 ) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
     let skip_word = skip_word.into_c_char_ptr();
-    unsafe {
+    {
         let mut status = true;
-        let mut ptr = *buf_arg;
+        let mut ptr = unsafe { *buf_arg };
 
         while !g_st().got_int {
             ptr = find_word_start(ptr);
-            if crate::memory::cstr_is_empty(ptr) || *ptr == NL as c_char {
+            if crate::memory::cstr_is_empty(ptr) || unsafe { *ptr } == NL as c_char {
                 break;
             }
             let wstart = ptr;
@@ -2277,7 +2284,9 @@ fn thesaurus_add_words_in_line(
             }
         }
 
-        *buf_arg = ptr;
+        unsafe {
+            *buf_arg = ptr;
+        }
         status
     }
 }
@@ -3143,7 +3152,7 @@ pub fn ins_compl_prep(c: i32) -> bool {
 
 fn ins_compl_fix_redo_buf_for_leader(ptr_arg: impl crate::strings::IntoCCharPtr) {
     let ptr_arg = ptr_arg.into_c_char_ptr();
-    unsafe {
+    {
         let mut len: usize = 0;
         let mut ptr = ptr_arg;
 
@@ -3157,7 +3166,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: impl crate::strings::IntoCCharPtr)
         if !insexp().compl_orig_text.data.is_null() {
             let mut p = insexp().compl_orig_text.data.cast_const();
             while crate::memory::cstr_byte_at(p, len) != 0
-                && *p.wrapping_add(len) == *ptr.wrapping_add(len)
+                && unsafe { *p.wrapping_add(len) } == unsafe { *ptr.wrapping_add(len) }
             {
                 len += 1;
             }
@@ -3864,7 +3873,7 @@ fn fill_complete_info_dict(di: &mut TvDict, match_: &mut Compl, add_match: bool)
 }
 
 fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
-    unsafe {
+    {
         let mut what_flag: i32;
 
         if let Some(what_list) = what_list {
@@ -3960,10 +3969,10 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                     if !match_at_original_text(match_) {
                         if has_items || (has_matches && match_.cp_in_match_array) {
                             let di = tv_dict_alloc();
-                            tv_list_append_dict(&mut *li, di);
+                            tv_list_append_dict(unsafe { &mut *li }, di);
                             fill_complete_info_dict(&mut *di, match_, has_matches && has_items);
                         }
-                        if !curr.is_null() && (*curr).cp_number == match_.cp_number {
+                        if !curr.is_null() && unsafe { (*curr).cp_number } == match_.cp_number {
                             selected_idx = list_idx;
                         }
                         if !has_matches || match_.cp_in_match_array {
@@ -3976,7 +3985,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                 ret = tv_dict_add_nr(retdict, c"selected", Varnumber::from(selected_idx));
                 let wp = win_float_find(K_WIN_INFO);
                 if !wp.is_null() {
-                    let wp = { &mut *wp };
+                    let wp = { unsafe { &mut *wp } };
                     tv_dict_add_nr(retdict, c"preview_winid", Varnumber::from(wp.handle));
                     tv_dict_add_nr(
                         retdict,
@@ -3989,7 +3998,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                 let di = tv_dict_alloc();
                 fill_complete_info_dict(
                     &mut *di,
-                    &mut *(compl_opt(insexp().compl_curr_idx)),
+                    unsafe { &mut *(compl_opt(insexp().compl_curr_idx)) },
                     false,
                 );
                 let _ = tv_dict_add_dict(retdict, c"completed", di);
@@ -5082,7 +5091,7 @@ fn get_next_bufname_token() {
 }
 
 fn strip_caret_numbers_in_place(str_ptr: *mut c_char) {
-    unsafe {
+    {
         if str_ptr.is_null() {
             return;
         }
@@ -5102,17 +5111,23 @@ fn strip_caret_numbers_in_place(str_ptr: *mut c_char) {
                     read = p;
                     continue;
                 } else {
-                    *write = *read;
+                    unsafe {
+                        *write = *read;
+                    }
                     write = write.wrapping_add(1);
                     read = read.wrapping_add(1);
                 }
             } else {
-                *write = *read;
+                unsafe {
+                    *write = *read;
+                }
                 write = write.wrapping_add(1);
                 read = read.wrapping_add(1);
             }
         }
-        *write = NUL;
+        unsafe {
+            *write = NUL;
+        }
     }
 }
 
@@ -5183,7 +5198,7 @@ fn advance_cpt_sources_index_safe() -> bool {
 }
 
 fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
-    unsafe {
+    {
         let st = &mut insexp().next_state;
         let mut found_new_match: i32;
         let mut type_ = insexp().ctrl_x_mode;
@@ -5252,7 +5267,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
                 && (!insexp().compl_started || st.found_all)
             {
                 let status = process_next_cpt_value(
-                    &mut *ptr::from_mut(st),
+                    unsafe { &mut *ptr::from_mut(st) },
                     &mut type_,
                     &mut start_pos,
                     cot_fuzzy(),
@@ -5287,7 +5302,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
 
             found_new_match = i32::from(get_next_completion_match(
                 type_,
-                &mut *ptr::from_mut(st),
+                unsafe { &mut *ptr::from_mut(st) },
                 &mut start_pos,
             ));
 
@@ -5319,7 +5334,9 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
                 insexp().compl_started = !insexp().compl_time_slice_expired;
             } else {
                 if buf_valid(st.ins_buf) && (type_ == 0 || type_ == CTRL_X_PATH_PATTERNS) {
-                    (*st.ins_buf).b_scanned = true;
+                    unsafe {
+                        (*st.ins_buf).b_scanned = true;
+                    }
                 }
 
                 insexp().compl_started = false;
@@ -5628,11 +5645,11 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
 }
 
 pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
-    unsafe {
+    {
         let compl_len = get_compl_len();
         let preinsert = ins_compl_has_preinsert();
         let shown = compl_opt(insexp().compl_shown_idx);
-        let shown = { &mut *shown };
+        let shown = { unsafe { &mut *shown } };
         let mut cp_str = shown.cp_str.data;
         let mut cp_str_len = shown.cp_str.size;
         let leader_len = ins_compl_leader_len();
@@ -5645,7 +5662,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
                 cp_str = find_common_prefix(&mut cp_str_len, true);
                 if cp_str.is_null() {
                     let shown = compl_opt(insexp().compl_shown_idx);
-                    let shown = { &mut *shown };
+                    let shown = { unsafe { &mut *shown } };
                     cp_str = shown.cp_str.data;
                     cp_str_len = shown.cp_str.size;
                 }
@@ -5683,7 +5700,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         }
         let shown = compl_opt(insexp().compl_shown_idx);
         insexp().compl_used_match =
-            !(match_at_original_text(&*shown) || (preinsert && !insert_prefix));
+            !(match_at_original_text(unsafe { &*shown }) || (preinsert && !insert_prefix));
 
         let dict = ins_compl_dict_alloc(shown);
         set_vim_var_dict(VV_COMPLETED_ITEM, dict);
@@ -5775,7 +5792,7 @@ fn find_next_completion_match(
     advance: bool,
     num_matches: &mut i32,
 ) -> i32 {
-    unsafe {
+    {
         let mut found_end: bool;
         let mut found_compl: Option<usize> = None;
         let cur_cot_flags = get_cot_flags();
@@ -5851,13 +5868,13 @@ fn find_next_completion_match(
             }
 
             let shown = compl_opt(insexp().compl_shown_idx);
-            let leader = get_leader_for_startcol(shown.as_ref(), false);
-            let leader = { &mut *leader };
+            let leader = get_leader_for_startcol(unsafe { shown.as_ref() }, false);
+            let leader = { unsafe { &mut *leader } };
 
-            if !match_at_original_text(&*shown)
+            if !match_at_original_text(unsafe { &*shown })
                 && !leader.data.is_null()
-                && !ins_compl_equal(&mut *shown, leader.data, leader.size)
-                && !(cot_fuzzy() && (*shown).cp_score != FUZZY_SCORE_NONE)
+                && !ins_compl_equal(unsafe { &mut *shown }, leader.data, leader.size)
+                && !(cot_fuzzy() && unsafe { (*shown).cp_score } != FUZZY_SCORE_NONE)
             {
                 todo += 1;
             } else {

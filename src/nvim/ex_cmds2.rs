@@ -821,7 +821,7 @@ fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
 
 /// `:drop` (`ex_drop`).
 pub fn ex_drop(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut split = false;
 
         set_arglist(eap.arg);
@@ -837,7 +837,7 @@ pub fn ex_drop(eap: &mut Exarg) {
             return;
         }
 
-        let buf = buflist_findnr((*curwin_arglist()).ae_fnum);
+        let buf = buflist_findnr(unsafe { (*curwin_arglist()).ae_fnum });
 
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
@@ -878,7 +878,9 @@ pub fn ex_drop(eap: &mut Exarg) {
 
         if split {
             eap.cmdidx = CMD_SFIRST;
-            *eap.cmd = b's' as c_char;
+            unsafe {
+                *eap.cmd = b's' as c_char;
+            }
         } else {
             eap.cmdidx = CMD_FIRST;
         }

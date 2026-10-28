@@ -434,7 +434,7 @@ pub fn ns_hl_def(
     link_id: i32,
     dict: Option<&KeyDict_highlight>,
 ) {
-    unsafe {
+    {
         if ns_id == 0 {
             let dict = dict.expect("ns_hl_def with ns_id == 0 requires dict");
             set_hl_group(hl_id, attrs, dict, link_id);
@@ -456,17 +456,19 @@ pub fn ns_hl_def(
         let it = ColorItem {
             attr_id,
             link_id,
-            version: (*p).hl_valid,
+            version: unsafe { (*p).hl_valid },
             is_default: (attrs.rgb_ae_attr & HL_DEFAULT) != 0,
             link_global: (attrs.rgb_ae_attr & HL_GLOBAL) != 0,
         };
         hl_st().ns_hls.insert(key, it);
-        (*p).hl_cached = false;
+        unsafe {
+            (*p).hl_cached = false;
+        }
     }
 }
 
 pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32 {
-    unsafe {
+    {
         if *ns_hl == 0 {
             return -1;
         }
@@ -491,9 +493,9 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
             is_default: false,
             link_global: false,
         });
-        let mut valid_item = it.version >= (*p).hl_valid;
+        let mut valid_item = it.version >= unsafe { (*p).hl_valid };
 
-        if !valid_item && (*p).hl_def != LUA_NOREF && hl_st().ns_get_hl_recursive == 0 {
+        if !valid_item && unsafe { (*p).hl_def } != LUA_NOREF && hl_st().ns_get_hl_recursive == 0 {
             let mut args_storage = [Object {
                 obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
@@ -510,7 +512,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
             let mut err = Error::new();
             hl_st().ns_get_hl_recursive += 1;
             let ret = nlua_call_ref(
-                (*p).hl_def,
+                unsafe { (*p).hl_def },
                 c"hl_def",
                 args,
                 K_RET_OBJECT,
@@ -549,7 +551,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
             } else {
                 hl_get_syn_attr(ns_id, hl_id, attrs)
             };
-            it.version = (*p).hl_valid - i32::from(tmp);
+            it.version = unsafe { (*p).hl_valid } - i32::from(tmp);
             it.is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
             it.link_global = (attrs.rgb_ae_attr & HL_GLOBAL) != 0;
             hl_st().ns_hls.insert(key, it);
@@ -752,12 +754,12 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
 }
 
 pub fn update_ns_hl(ns_id: i32) {
-    unsafe {
+    {
         if ns_id <= 0 {
             return;
         }
         let mut p = get_decor_provider(ns_id, true);
-        if (*p).hl_cached {
+        if unsafe { (*p).hl_cached } {
             return;
         }
 
@@ -778,7 +780,9 @@ pub fn update_ns_hl(ns_id: i32) {
         alloc[HLF_NONE].set(hl_get_ui_attr(ns_id, -1, normality, true));
 
         p = get_decor_provider(ns_id, true);
-        (*p).hl_cached = true;
+        unsafe {
+            (*p).hl_cached = true;
+        }
     }
 }
 

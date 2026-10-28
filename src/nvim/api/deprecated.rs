@@ -1207,13 +1207,13 @@ fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
 }
 
 fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
-    unsafe {
+    {
         let line_buf_ptr = if to_err {
             &raw mut api_dep_st().err_line_buf
         } else {
             &raw mut api_dep_st().out_line_buf
         };
-        let line_buf = &mut *line_buf_ptr;
+        let line_buf = unsafe { &mut *line_buf_ptr };
 
         msg_ext_no_fast();
         g_st().no_wait_return += 1;
@@ -1221,7 +1221,7 @@ fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
             if g_st().got_int {
                 break;
             }
-            push_char(line_buf, *message.data.wrapping_add(i), to_err);
+            push_char(line_buf, unsafe { *message.data.wrapping_add(i) }, to_err);
         }
         if writeln {
             push_char(line_buf, NL, to_err);

@@ -505,10 +505,10 @@ pub fn os_chdir(path: impl crate::strings::IntoCCharPtr) -> i32 {
 
 /// Get the name of current directory.
 pub fn os_dirname(buf: *mut c_char, mut len: usize) -> bool {
-    unsafe {
-        let error_number = uv_cwd(buf, &mut len);
+    {
+        let error_number = unsafe { uv_cwd(buf, &mut len) };
         if error_number != 0 {
-            xstrlcpy(buf, uv_strerror(error_number), len);
+            xstrlcpy(buf, unsafe { uv_strerror(error_number) }, len);
             return false;
         }
         to_slash(buf);
@@ -562,7 +562,7 @@ pub fn os_nodetype(name: impl crate::strings::IntoCCharPtr) -> i32 {
         NODE_WRITABLE
     }
     #[cfg(windows)]
-    unsafe {
+    {
         let bytes = crate::memory::cstr_as_bytes(name);
         if bytes.starts_with(b"\\\\.\\") {
             return NODE_WRITABLE;
@@ -571,8 +571,8 @@ pub fn os_nodetype(name: impl crate::strings::IntoCCharPtr) -> i32 {
         if fd < 0 {
             return NODE_NORMAL;
         }
-        let guess = uv_guess_handle(fd);
-        let _ = close(fd);
+        let guess = unsafe { uv_guess_handle(fd) };
+        let _ = unsafe { close(fd) };
         match guess {
             UV_TTY => NODE_WRITABLE,
             UV_FILE => NODE_NORMAL,
@@ -640,7 +640,7 @@ fn is_executable_ext(
     mut abspath: Option<&mut Option<std::ffi::CString>>,
 ) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let sh_tail = crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh));
         let has_sub =
             |haystack: &[u8], needle: &[u8]| haystack.windows(needle.len()).any(|w| w == needle);
@@ -666,7 +666,7 @@ fn is_executable_ext(
             pathext = c".com;.exe;.bat;.cmd".as_ptr();
         }
         let mut ext = pathext;
-        while *ext != 0 {
+        while unsafe { *ext } != 0 {
             if crate::memory::cstr_first_byte(ext) == b'.'
                 && (crate::memory::cstr_byte_at(ext, 1) == 0
                     || (crate::memory::cstr_byte_at(ext, 1)) == ENV_SEPCHAR)
@@ -675,7 +675,7 @@ fn is_executable_ext(
                     return true;
                 }
                 ext = ext.wrapping_add(1);
-                if *ext != 0 {
+                if unsafe { *ext } != 0 {
                     ext = ext.wrapping_add(1);
                 }
                 continue;
@@ -778,17 +778,19 @@ pub fn os_open(path: impl crate::strings::IntoCCharPtr, flags: i32, mode: i32) -
     if path.is_null() {
         return UV_EINVAL;
     }
-    unsafe {
+    {
         let mut req: uv_fs_buf_t = [0; 80];
-        let r = uv_fs_open(
-            ptr::null_mut(),
-            &raw mut req,
-            path,
-            flags,
-            mode,
-            ptr::null(),
-        );
-        uv_fs_req_cleanup((&raw mut req).cast());
+        let r = unsafe {
+            uv_fs_open(
+                ptr::null_mut(),
+                &raw mut req,
+                path,
+                flags,
+                mode,
+                ptr::null(),
+            )
+        };
+        unsafe { uv_fs_req_cleanup((&raw mut req).cast()) };
         r
     }
 }
@@ -965,7 +967,7 @@ pub fn os_read(
     size: usize,
     non_blocking: bool,
 ) -> isize {
-    unsafe {
+    {
         *ret_eof = false;
         if ret_buf.is_null() {
             assert_eq!(size, 0);
@@ -976,11 +978,13 @@ pub fn os_read(
             while read_bytes != size {
                 assert!(size >= read_bytes);
                 #[cfg(windows)]
-                let cur_read_bytes = _read(
-                    fd,
-                    ret_buf.wrapping_add(read_bytes).cast(),
-                    (size - read_bytes) as u32,
-                ) as isize;
+                let cur_read_bytes = unsafe {
+                    _read(
+                        fd,
+                        ret_buf.wrapping_add(read_bytes).cast(),
+                        (size - read_bytes) as u32,
+                    )
+                } as isize;
                 #[cfg(not(windows))]
                 let cur_read_bytes = read(fd, ret_buf.add(read_bytes).cast(), size - read_bytes);
 
@@ -988,9 +992,11 @@ pub fn os_read(
                     read_bytes += cur_read_bytes as usize;
                 }
                 if cur_read_bytes < 0 {
-                    let ep = errno_ptr();
-                    let error = uv_translate_sys_error(*ep);
-                    *ep = 0;
+                    let ep = unsafe { errno_ptr() };
+                    let error = unsafe { uv_translate_sys_error(*ep) };
+                    unsafe {
+                        *ep = 0;
+                    }
                     if non_blocking && error == UV_EAGAIN {
                         break;
                     } else if error == UV_EINTR || error == UV_EAGAIN {
@@ -1086,16 +1092,18 @@ pub fn os_write(
         assert_eq!(size, 0);
         return 0;
     }
-    unsafe {
+    {
         let mut written_bytes: usize = 0;
         while written_bytes != size {
             assert!(size >= written_bytes);
             #[cfg(windows)]
-            let cur_written_bytes = _write(
-                fd,
-                buf.wrapping_add(written_bytes).cast(),
-                (size - written_bytes) as u32,
-            ) as isize;
+            let cur_written_bytes = unsafe {
+                _write(
+                    fd,
+                    buf.wrapping_add(written_bytes).cast(),
+                    (size - written_bytes) as u32,
+                )
+            } as isize;
             #[cfg(not(windows))]
             let cur_written_bytes = write(fd, buf.add(written_bytes).cast(), size - written_bytes);
 
@@ -1103,9 +1111,11 @@ pub fn os_write(
                 written_bytes += cur_written_bytes as usize;
             }
             if cur_written_bytes < 0 {
-                let ep = errno_ptr();
-                let error = uv_translate_sys_error(*ep);
-                *ep = 0;
+                let ep = unsafe { errno_ptr() };
+                let error = unsafe { uv_translate_sys_error(*ep) };
+                unsafe {
+                    *ep = 0;
+                }
                 if non_blocking && error == UV_EAGAIN {
                     break;
                 } else if error == UV_EINTR || error == UV_EAGAIN {
@@ -1130,17 +1140,19 @@ pub fn os_copy(
 ) -> i32 {
     let path = path.into_c_char_ptr();
     let new_path = new_path.into_c_char_ptr();
-    unsafe {
+    {
         let mut req: uv_fs_buf_t = [0; 80];
-        let r = uv_fs_copyfile(
-            ptr::null_mut(),
-            &raw mut req,
-            path,
-            new_path,
-            flags,
-            ptr::null(),
-        );
-        uv_fs_req_cleanup((&raw mut req).cast());
+        let r = unsafe {
+            uv_fs_copyfile(
+                ptr::null_mut(),
+                &raw mut req,
+                path,
+                new_path,
+                flags,
+                ptr::null(),
+            )
+        };
+        unsafe { uv_fs_req_cleanup((&raw mut req).cast()) };
         r
     }
 }
@@ -1393,10 +1405,10 @@ pub fn os_file_is_readable(name: impl crate::strings::IntoCCharPtr) -> bool {
 /// Check if a file is writable (`0` = not writable, `1` = writable file, `2` = writable dir).
 pub fn os_file_is_writable(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut req: uv_fs_buf_t = [0; 80];
-        let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, W_OK, ptr::null());
-        uv_fs_req_cleanup((&raw mut req).cast());
+        let r = unsafe { uv_fs_access(ptr::null_mut(), &raw mut req, name, W_OK, ptr::null()) };
+        unsafe { uv_fs_req_cleanup((&raw mut req).cast()) };
         if r == 0 {
             if os_isdir(name) { 2 } else { 1 }
         } else {
@@ -1495,7 +1507,7 @@ pub fn os_mkdir_recurse(
 
 /// Create the parent directory of a file if it does not exist.
 pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> i32 {
-    unsafe {
+    {
         if !dir_of_file_exists(fname) {
             let tail = path_tail_with_sep(fname);
             let last_char = tail
@@ -1505,18 +1517,22 @@ pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> i32 {
                 emsg(gettext(E_NONAME));
                 return -1;
             }
-            let c = *tail;
-            *tail = NUL;
+            let c = unsafe { *tail };
+            unsafe {
+                *tail = NUL;
+            }
             let mut failed_dir: Option<std::ffi::CString> = None;
             let r = os_mkdir_recurse(fname, mode, &mut failed_dir, None);
             if r < 0 {
                 let _ = semsg!(
                     gettext(E_MKDIR),
                     failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                    uv_strerror(r),
+                    unsafe { uv_strerror(r) },
                 );
             }
-            *tail = c;
+            unsafe {
+                *tail = c;
+            }
             return r;
         }
         0
@@ -1526,18 +1542,19 @@ pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> i32 {
 /// Create a unique temporary directory.
 pub fn os_mkdtemp(templ: impl crate::strings::IntoCCharPtr, path: *mut c_char) -> i32 {
     let templ = templ.into_c_char_ptr();
-    unsafe {
+    {
         let mut request: uv_fs_buf_t = [0; 80];
-        let result = uv_fs_mkdtemp(ptr::null_mut(), &raw mut request, templ, ptr::null());
+        let result =
+            unsafe { uv_fs_mkdtemp(ptr::null_mut(), &raw mut request, templ, ptr::null()) };
         if result == 0 {
             xstrlcpy(
                 path,
-                uv_fs_get_path(&raw const request),
+                unsafe { uv_fs_get_path(&raw const request) },
                 TEMP_FILE_PATH_MAXLEN,
             );
             to_slash(path);
         }
-        uv_fs_req_cleanup((&raw mut request).cast());
+        unsafe { uv_fs_req_cleanup((&raw mut request).cast()) };
         result
     }
 }
@@ -1556,10 +1573,12 @@ pub fn os_rmdir(path: impl crate::strings::IntoCCharPtr) -> i32 {
 /// Opens a directory.
 pub fn os_scandir(dir: &mut Directory, path: impl crate::strings::IntoCCharPtr) -> bool {
     let path = path.into_c_char_ptr();
-    unsafe {
-        debug_assert!(uv_req_size(UV_FS) + size_of::<uv_dirent_t>() <= size_of::<Directory>());
+    {
+        debug_assert!(
+            unsafe { uv_req_size(UV_FS) } + size_of::<uv_dirent_t>() <= size_of::<Directory>()
+        );
         let req = (&raw mut *dir).cast::<uv_fs_buf_t>();
-        let r = uv_fs_scandir(ptr::null_mut(), req, path, 0, ptr::null());
+        let r = unsafe { uv_fs_scandir(ptr::null_mut(), req, path, 0, ptr::null()) };
         if r < 0 {
             os_closedir(dir);
         }
@@ -1569,15 +1588,15 @@ pub fn os_scandir(dir: &mut Directory, path: impl crate::strings::IntoCCharPtr) 
 
 /// Increments the directory pointer.
 pub fn os_scandir_next(dir: *mut Directory) -> *const c_char {
-    unsafe {
+    {
         let req = dir.cast::<uv_fs_buf_t>();
         let ent = dir
             .cast::<u8>()
-            .wrapping_add(uv_req_size(UV_FS))
+            .wrapping_add(unsafe { uv_req_size(UV_FS) })
             .cast::<uv_dirent_t>();
-        let err = uv_fs_scandir_next(req, ent);
+        let err = unsafe { uv_fs_scandir_next(req, ent) };
         if err != UV_EOF {
-            (*ent).name
+            unsafe { (*ent).name }
         } else {
             ptr::null()
         }
@@ -1707,20 +1726,22 @@ pub fn os_fileinfo_link(path: impl crate::strings::IntoCCharPtr, file_info: &mut
 
 /// Get the file information for a given file descriptor.
 pub fn os_fileinfo_fd(file_descriptor: i32, file_info: &mut FileInfo) -> bool {
-    unsafe {
+    {
         *file_info = FileInfo::new();
         {
             let mut request: uv_fs_buf_t = [0; 80];
-            let ok = uv_fs_fstat(
-                ptr::null_mut(),
-                &raw mut request,
-                file_descriptor,
-                ptr::null(),
-            ) == 0;
+            let ok = unsafe {
+                uv_fs_fstat(
+                    ptr::null_mut(),
+                    &raw mut request,
+                    file_descriptor,
+                    ptr::null(),
+                )
+            } == 0;
             if ok {
-                file_info.stat = *uv_fs_get_statbuf(&raw mut request);
+                file_info.stat = unsafe { *uv_fs_get_statbuf(&raw mut request) };
             }
-            uv_fs_req_cleanup((&raw mut request).cast());
+            unsafe { uv_fs_req_cleanup((&raw mut request).cast()) };
             ok
         }
     }

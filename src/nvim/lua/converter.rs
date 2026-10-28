@@ -975,16 +975,16 @@ fn lua_conv_nil(lstate: *mut lua_State) {
 
 #[inline]
 fn lua_conv_empty_dict(lstate: *mut lua_State) {
-    unsafe {
+    {
         if luaconv_st().typval_conv_special {
             nlua_create_typed_table(lstate, 0, 0, ObjectType::ObjectTypeDict);
         } else {
-            lua_createtable(lstate, 0, 0);
+            unsafe { lua_createtable(lstate, 0, 0) };
             nlua_pushref(
                 lstate,
                 crate::globals::nlua_global_refs_mut().empty_dict_ref,
             );
-            lua_setmetatable(lstate, -2);
+            unsafe { lua_setmetatable(lstate, -2) };
         }
     }
 }
@@ -1554,19 +1554,19 @@ pub fn nlua_push_boolean(lstate: *mut lua_State, b: Boolean, _flags: i32) {
 
 /// Convert given `Dict` to Lua table (`nlua_push_Dict`).
 pub fn nlua_push_dict(lstate: *mut lua_State, mut dict: Dict, flags: i32) {
-    unsafe {
-        lua_createtable(lstate, 0, dict.size as i32);
+    {
+        unsafe { lua_createtable(lstate, 0, dict.size as i32) };
         if dict.size == 0 {
             nlua_pushref(
                 lstate,
                 crate::globals::nlua_global_refs_mut().empty_dict_ref,
             );
-            lua_setmetatable(lstate, -2);
+            unsafe { lua_setmetatable(lstate, -2) };
         }
         for item in dict.as_mut_slice() {
             nlua_push_string(lstate, item.key, flags);
             nlua_push_object(lstate, &mut item.value, flags);
-            lua_rawset(lstate, -3);
+            unsafe { lua_rawset(lstate, -3) };
         }
     }
 }
@@ -1591,12 +1591,12 @@ pub fn nlua_push_handle(lstate: *mut lua_State, item: ObjHandle, _flags: i32) {
 
 /// Convert given `Object` to Lua value (`nlua_push_Object`).
 pub fn nlua_push_object(lstate: *mut lua_State, obj: *mut Object, flags: i32) {
-    unsafe {
-        let obj = &mut *obj;
+    {
+        let obj = unsafe { &mut *obj };
         match obj.obj_type {
             ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
                 if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
-                    lua_pushnil(lstate);
+                    unsafe { lua_pushnil(lstate) };
                 } else {
                     nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
                 }
@@ -1633,8 +1633,8 @@ pub fn nlua_pop_string_opt(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> NvimString {
-    unsafe {
-        if lua_type(lstate, -1) != LUA_TSTRING {
+    {
+        if unsafe { lua_type(lstate, -1) } != LUA_TSTRING {
             lua_pop(lstate, 1);
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"Expected Lua string",);
             return NvimString {
@@ -1643,7 +1643,7 @@ pub fn nlua_pop_string_opt(
             };
         }
         let mut size = 0usize;
-        let data = lua_tolstring(lstate, -1, &mut size);
+        let data = unsafe { lua_tolstring(lstate, -1, &mut size) };
         assert!(!data.is_null());
         let dup = arena_memdupz_opt(arena, data, size);
         lua_pop(lstate, 1);
@@ -1653,13 +1653,13 @@ pub fn nlua_pop_string_opt(
 
 /// Convert Lua value to `Integer` (`nlua_pop_Integer`).
 pub fn nlua_pop_integer(lstate: *mut lua_State, _arena: &mut Arena, err: &mut Error) -> Integer {
-    unsafe {
-        if lua_type(lstate, -1) != LUA_TNUMBER {
+    {
+        if unsafe { lua_type(lstate, -1) } != LUA_TNUMBER {
             lua_pop(lstate, 1);
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"Expected Lua number",);
             return 0;
         }
-        let n = lua_tonumber(lstate, -1);
+        let n = unsafe { lua_tonumber(lstate, -1) };
         lua_pop(lstate, 1);
         if n > (Integer::MAX as lua_Number)
             || n < (Integer::MIN as lua_Number)
@@ -1687,14 +1687,14 @@ pub fn nlua_pop_boolean(lstate: *mut lua_State, _arena: &mut Arena, _err: &mut E
 
 /// Convert Lua value to `Boolean` strictly (`nlua_pop_Boolean_strict`).
 pub fn nlua_pop_boolean_strict(lstate: *mut lua_State, err: &mut Error) -> Boolean {
-    unsafe {
+    {
         let mut ret = false;
-        match lua_type(lstate, -1) {
+        match unsafe { lua_type(lstate, -1) } {
             LUA_TBOOLEAN => {
-                ret = lua_toboolean(lstate, -1) != 0;
+                ret = unsafe { lua_toboolean(lstate, -1) } != 0;
             }
             LUA_TNUMBER => {
-                ret = lua_tonumber(lstate, -1) != 0.0;
+                ret = unsafe { lua_tonumber(lstate, -1) } != 0.0;
             }
             LUA_TNIL => {
                 ret = false;
@@ -1837,18 +1837,18 @@ fn nlua_pop_dict_unchecked(
     mut arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+    {
         let mut ret = arena_dict_opt(arena.as_deref_mut(), table_props.string_keys_num);
         if table_props.string_keys_num == 0 {
             lua_pop(lstate, 1);
             return ret;
         }
 
-        lua_pushnil(lstate);
+        unsafe { lua_pushnil(lstate) };
         let mut i = 0usize;
-        while lua_next(lstate, -2) != 0 && i < table_props.string_keys_num {
-            if lua_type(lstate, -2) == LUA_TSTRING {
-                lua_pushvalue(lstate, -2);
+        while unsafe { lua_next(lstate, -2) } != 0 && i < table_props.string_keys_num {
+            if unsafe { lua_type(lstate, -2) } == LUA_TSTRING {
+                unsafe { lua_pushvalue(lstate, -2) };
                 let key = nlua_pop_string_opt(lstate, arena.as_deref_mut(), err);
                 if !error_set(err) {
                     let value = nlua_pop_object_opt(lstate, ref_, arena.as_deref_mut(), err);

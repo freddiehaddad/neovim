@@ -411,7 +411,7 @@ fn was_banned(su: &mut Suginfo, word: impl crate::strings::IntoCCharPtr) -> bool
 }
 
 fn can_be_compound(sp: &Trystate, slang: &mut Slang, compflags: *mut u8, flag: i32) -> bool {
-    unsafe {
+    {
         let flags_cstr = if sp.ts_complen == sp.ts_compsplit {
             &slang.sl_compstartflags
         } else {
@@ -427,10 +427,16 @@ fn can_be_compound(sp: &Trystate, slang: &mut Slang, compflags: *mut u8, flag: i
         }
         if slang.sl_comprules.is_some() && sp.ts_complen > sp.ts_compsplit {
             let complen = sp.ts_complen as usize;
-            *compflags.wrapping_add(complen) = flag as u8;
-            *compflags.wrapping_add(complen + 1) = 0;
+            unsafe {
+                *compflags.wrapping_add(complen) = flag as u8;
+            }
+            unsafe {
+                *compflags.wrapping_add(complen + 1) = 0;
+            }
             let v = match_compoundrule(slang, compflags.wrapping_add(sp.ts_compsplit as usize));
-            *compflags.wrapping_add(complen) = 0;
+            unsafe {
+                *compflags.wrapping_add(complen) = 0;
+            }
             return v;
         }
         true
@@ -607,7 +613,7 @@ pub fn spell_apply_sps(flags: i32, limit: i32) {
     sps_st().sps_limit = limit;
 }
 fn select_spell_suggestion(sug: &mut Suginfo) {
-    unsafe {
+    {
         let mut items_tv = TypVal {
             v_type: VarType::VarUnknown,
             v_lock: 0,
@@ -620,12 +626,16 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
             if el > 0 {
                 let mut word_vec: Vec<c_char> = vec![0; (stp.st_wordlen + el + 1) as usize];
                 let word = word_vec.as_mut_ptr();
-                ptr::copy_nonoverlapping(stp.st_word.as_ptr(), word, stp.st_wordlen as usize);
-                ptr::copy_nonoverlapping(
-                    sug.su_badptr.wrapping_add(stp.st_orglen as usize),
-                    word.wrapping_add(stp.st_wordlen as usize),
-                    el as usize,
-                );
+                unsafe {
+                    ptr::copy_nonoverlapping(stp.st_word.as_ptr(), word, stp.st_wordlen as usize)
+                };
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        sug.su_badptr.wrapping_add(stp.st_orglen as usize),
+                        word.wrapping_add(stp.st_wordlen as usize),
+                        el as usize,
+                    )
+                };
                 tv_dict_add_str(&mut *d, c"word", word);
             } else {
                 tv_dict_add_str(&mut *d, c"word", stp.st_word.as_ptr());
@@ -651,12 +661,11 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
                 v_lock: 0,
                 vval: TypvalVval::Dict(d),
             };
-            tv_list_append_tv(&mut *items_tv.vval.v_list(), &mut item);
+            tv_list_append_tv(unsafe { &mut *items_tv.vval.v_list() }, &mut item);
         }
-        let bad_cstr = CString::new(std::slice::from_raw_parts(
-            sug.su_badptr.cast::<u8>(),
-            sug.su_badlen as usize,
-        ))
+        let bad_cstr = CString::new(unsafe {
+            std::slice::from_raw_parts(sug.su_badptr.cast::<u8>(), sug.su_badlen as usize)
+        })
         .unwrap_or_default();
         let mut bad_tv = TypVal {
             v_type: VarType::VarUnknown,
@@ -685,7 +694,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
 }
 /// "z=": Find badly spelled word under or after the cursor.
 pub fn spell_suggest(count: i32) {
-    unsafe {
+    {
         let mut badlen: i32 = 0;
         let msg_scroll_save = g_st().msg_scroll;
         let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
@@ -738,10 +747,12 @@ pub fn spell_suggest(count: i32) {
                 curwin_mut().w_cursor.lnum,
                 curwin_mut().w_cursor.col,
             );
-            let mut line_vec: Vec<c_char> = std::slice::from_raw_parts(
-                get_cursor_line_ptr(),
-                get_cursor_line_len() as usize + 1,
-            )
+            let mut line_vec: Vec<c_char> = unsafe {
+                std::slice::from_raw_parts(
+                    get_cursor_line_ptr(),
+                    get_cursor_line_len() as usize + 1,
+                )
+            }
             .to_vec();
             line_vec[get_cursor_line_len() as usize] = NUL;
             let line = line_vec.as_mut_ptr();
@@ -778,10 +789,12 @@ pub fn spell_suggest(count: i32) {
                 let stp = &sug.su_ga[(selected - 1) as usize];
                 if sug.su_badlen > stp.st_orglen {
                     spell_priv_st().repl_from = Some(
-                        CString::new(std::slice::from_raw_parts(
-                            sug.su_badptr.cast::<u8>(),
-                            sug.su_badlen as usize,
-                        ))
+                        CString::new(unsafe {
+                            std::slice::from_raw_parts(
+                                sug.su_badptr.cast::<u8>(),
+                                sug.su_badlen as usize,
+                            )
+                        })
                         .unwrap_or_default(),
                     );
                     vim_snprintf!(
@@ -796,10 +809,12 @@ pub fn spell_suggest(count: i32) {
                         Some(crate::memory::cstr_to_cstring(g_st().iobuff.as_ptr()));
                 } else {
                     spell_priv_st().repl_from = Some(
-                        CString::new(std::slice::from_raw_parts(
-                            sug.su_badptr.cast::<u8>(),
-                            stp.st_orglen as usize,
-                        ))
+                        CString::new(unsafe {
+                            std::slice::from_raw_parts(
+                                sug.su_badptr.cast::<u8>(),
+                                stp.st_orglen as usize,
+                            )
+                        })
                         .unwrap_or_default(),
                     );
                     spell_priv_st().repl_to =
@@ -814,7 +829,7 @@ pub fn spell_suggest(count: i32) {
                 ];
                 let p = p_vec.as_mut_ptr();
                 let c = crate::memory::ptr_offset_from(sug.su_badptr, line) as i32;
-                ptr::copy(line, p, c as usize);
+                unsafe { ptr::copy(line, p, c as usize) };
                 crate::memory::cstr_cpy(p.wrapping_add(c as usize), stp.st_word.as_ptr());
                 crate::memory::cstr_cat(p, sug.su_badptr.wrapping_add(stp.st_orglen as usize));
                 prep_redo(
@@ -986,13 +1001,13 @@ fn spell_find_suggest(
 }
 fn spell_suggest_expr(su: &mut Suginfo, expr: impl crate::strings::IntoCCharPtr) {
     let expr = expr.into_c_char_ptr();
-    unsafe {
+    {
         let mut p: *const c_char = ptr::null();
         let list = eval_spell_expr((&raw mut su.su_badword).cast(), expr);
         if !list.is_null() {
-            for li in crate::eval::typval::list_iter_mut((*list).lv_first) {
+            for li in crate::eval::typval::list_iter_mut(unsafe { (*list).lv_first }) {
                 if li.li_tv.v_type == VarType::VarList {
-                    let score = get_spellword(&mut *li.li_tv.vval.v_list(), &raw mut p);
+                    let score = get_spellword(unsafe { &mut *li.li_tv.vval.v_list() }, &raw mut p);
                     if score >= 0 && score <= su.su_maxscore {
                         add_suggestion(
                             su,
@@ -1016,7 +1031,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: impl crate::strings::IntoCCharPtr)
 }
 fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr) {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut line: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let fd = os_fopen(fname, c"r");
@@ -1030,14 +1045,18 @@ fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr
             if p.is_null() {
                 continue;
             }
-            *p = NUL;
+            unsafe {
+                *p = NUL;
+            }
             p = p.wrapping_add(1);
             if mb_stricmp((&raw const su.su_badword).cast(), (&raw const line).cast()) == 0 {
                 let mut len: usize = 0;
                 while (crate::memory::cstr_byte_at(p, len)) >= b' ' {
                     len += 1;
                 }
-                *p.wrapping_add(len) = NUL;
+                unsafe {
+                    *p.wrapping_add(len) = NUL;
+                }
                 if captype(p, ptr::null()) == 0 {
                     make_case_word(p, (&raw mut cword).cast(), su.su_badflags);
                     p = (&raw mut cword).cast();
@@ -1055,7 +1074,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr
                 );
             }
         }
-        fclose(fd);
+        unsafe { fclose(fd) };
         check_suggestions(su, false);
         cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
     }

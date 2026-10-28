@@ -484,11 +484,11 @@ pub fn update_yankreg_width(reg: &mut Yankreg) {
 }
 
 pub fn get_yank_register(regname: i32, mode: i32) -> &'static mut Yankreg {
-    unsafe {
+    {
         let mut reg: *mut Yankreg = ptr::null_mut();
 
         if (mode == YREG_PASTE || mode == YREG_PUT) && get_clipboard(regname, &raw mut reg, false) {
-            return &mut *reg;
+            return unsafe { &mut *reg };
         } else if mode == YREG_PUT && (regname == i32::from(b'*') || regname == i32::from(b'+')) {
             return &mut reg_st().empty_reg;
         } else if mode != YREG_YANK
@@ -498,7 +498,7 @@ pub fn get_yank_register(regname: i32, mode: i32) -> &'static mut Yankreg {
                 || regname == i32::from(b'+'))
             && !reg_st().y_previous.is_null()
         {
-            return &mut *reg_st().y_previous;
+            return unsafe { &mut *reg_st().y_previous };
         }
 
         let mut i = op_reg_index(regname);
@@ -512,7 +512,7 @@ pub fn get_yank_register(regname: i32, mode: i32) -> &'static mut Yankreg {
         if mode == YREG_YANK {
             reg_st().y_previous = reg;
         }
-        &mut *reg
+        unsafe { &mut *reg }
     }
 }
 
@@ -547,7 +547,7 @@ pub fn copy_register(name: i32) -> Yankreg {
 
 fn stuff_yank(regname: i32, p: impl crate::strings::IntoCCharPtr) -> bool {
     let p = p.into_c_char_ptr();
-    unsafe {
+    {
         if regname != 0 && !valid_yank_reg(regname, true) {
             return false;
         }
@@ -561,8 +561,8 @@ fn stuff_yank(regname: i32, p: impl crate::strings::IntoCCharPtr) -> bool {
             let pp = reg.y_array.last_mut().unwrap();
             let tmplen = pp.size + plen;
             let mut tmp = vec![0 as c_char; tmplen + 1];
-            ptr::copy_nonoverlapping(pp.data, tmp.as_mut_ptr(), pp.size);
-            ptr::copy_nonoverlapping(p, tmp.as_mut_ptr().wrapping_add(pp.size), plen);
+            unsafe { ptr::copy_nonoverlapping(pp.data, tmp.as_mut_ptr(), pp.size) };
+            unsafe { ptr::copy_nonoverlapping(p, tmp.as_mut_ptr().wrapping_add(pp.size), plen) };
             api_clear_string(pp);
             *pp = cbuf_to_string(tmp.as_ptr(), tmplen);
         } else {
@@ -1099,7 +1099,7 @@ fn yank_copy_line(
     y_idx: usize,
     exclude_trailing_space: bool,
 ) {
-    unsafe {
+    {
         if exclude_trailing_space {
             bd.endspaces = 0;
         }
@@ -1107,20 +1107,24 @@ fn yank_copy_line(
         assert!(size >= 0);
         let mut buf_vec = vec![0 as c_char; (size as usize) + 1];
         let mut pnew = buf_vec.as_mut_ptr();
-        ptr::write_bytes(pnew.cast::<u8>(), b' ', bd.startspaces as usize);
+        unsafe { ptr::write_bytes(pnew.cast::<u8>(), b' ', bd.startspaces as usize) };
         pnew = pnew.wrapping_add(bd.startspaces as usize);
-        ptr::copy(bd.textstart, pnew, bd.textlen as usize);
+        unsafe { ptr::copy(bd.textstart, pnew, bd.textlen as usize) };
         pnew = pnew.wrapping_add(bd.textlen as usize);
-        ptr::write_bytes(pnew.cast::<u8>(), b' ', bd.endspaces as usize);
+        unsafe { ptr::write_bytes(pnew.cast::<u8>(), b' ', bd.endspaces as usize) };
         pnew = pnew.wrapping_add(bd.endspaces as usize);
         if exclude_trailing_space {
             let mut s = bd.textlen + bd.endspaces;
-            while s > 0 && ascii_iswhite(*bd.textstart.wrapping_add((s - 1) as usize) as u8) {
+            while s > 0
+                && ascii_iswhite(unsafe { *bd.textstart.wrapping_add((s - 1) as usize) } as u8)
+            {
                 s = s - utf_head_off(bd.textstart, bd.textstart.wrapping_add((s - 1) as usize)) - 1;
                 pnew = pnew.wrapping_sub(1);
             }
         }
-        *pnew = NUL;
+        unsafe {
+            *pnew = NUL;
+        }
         let out_size = (pnew as usize) - (buf_vec.as_ptr() as usize);
         (reg).y_array[y_idx] = cbuf_to_string(buf_vec.as_ptr(), out_size);
     }
@@ -1319,24 +1323,34 @@ pub fn format_reg_type(
     buf: *mut c_char,
     bufsize: usize,
 ) -> usize {
-    unsafe {
+    {
         assert!(bufsize > 1);
         match reg_type {
             MotionType::MtLineWise => {
-                *buf = b'V' as c_char;
-                *buf.wrapping_add(1) = NUL;
+                unsafe {
+                    *buf = b'V' as c_char;
+                }
+                unsafe {
+                    *buf.wrapping_add(1) = NUL;
+                }
                 1
             }
             MotionType::MtCharWise => {
-                *buf = b'v' as c_char;
-                *buf.wrapping_add(1) = NUL;
+                unsafe {
+                    *buf = b'v' as c_char;
+                }
+                unsafe {
+                    *buf.wrapping_add(1) = NUL;
+                }
                 1
             }
             MotionType::MtBlockWise => {
                 vim_snprintf_safelen!(buf, bufsize, c"\x16%d", reg_width + 1)
             }
             MotionType::MtUnknown => {
-                *buf = NUL;
+                unsafe {
+                    *buf = NUL;
+                }
                 0
             }
         }
@@ -3018,7 +3032,7 @@ pub fn write_reg_contents_ex(
     block_len: Colnr,
 ) {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         if len < 0 {
             len = crate::memory::cstr_len(str_) as isize;
         }
@@ -3054,7 +3068,7 @@ pub fn write_reg_contents_ex(
             if buf.is_null() {
                 return;
             }
-            curwin_mut().w_alt_fnum = (*buf).b_fnum;
+            curwin_mut().w_alt_fnum = unsafe { (*buf).b_fnum };
             return;
         }
 
@@ -3079,8 +3093,15 @@ pub fn write_reg_contents_ex(
         if reg.is_null() {
             return;
         }
-        str_to_reg(&mut *reg, yank_type, str_, len as usize, block_len, false);
-        finish_write_reg(name, &mut *reg, old_y_previous);
+        str_to_reg(
+            unsafe { &mut *reg },
+            yank_type,
+            str_,
+            len as usize,
+            block_len,
+            false,
+        );
+        finish_write_reg(name, unsafe { &mut *reg }, old_y_previous);
     }
 }
 

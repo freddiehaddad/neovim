@@ -1307,7 +1307,7 @@ pub fn grid_draw_border(
     hl_attr: Option<&crate::highlight::NSHlAttr>,
     win_hl_attr_normal: i32,
 ) {
-    unsafe {
+    {
         let mut default_adj: [i32; 4] = [1, 1, 1, 1];
         if adj.is_null() {
             adj = default_adj.as_mut_ptr();
@@ -1320,10 +1320,10 @@ pub fn grid_draw_border(
             border_attrs[i] = hl_combine_attr(win_hl_attr_normal, config.border_attr[i]);
         }
 
-        let adj0 = *adj;
-        let adj1 = *adj.wrapping_add(1);
-        let adj2 = *adj.wrapping_add(2);
-        let adj3 = *adj.wrapping_add(3);
+        let adj0 = unsafe { *adj };
+        let adj1 = unsafe { *adj.wrapping_add(1) };
+        let adj2 = unsafe { *adj.wrapping_add(2) };
+        let adj3 = unsafe { *adj.wrapping_add(3) };
 
         let irow = grid.rows - adj0 - adj2;
         let icol = grid.cols - adj1 - adj3;
@@ -1458,11 +1458,11 @@ pub fn schar_from_cluster_impl(
     first_compose: bool,
 ) -> Schar {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         let maxlen = MAX_SCHAR_SIZE - 1 - usize::from(first_compose);
         if len > maxlen {
             len = maxlen;
-            while (*buf.wrapping_add(len).cast::<u8>() & 0xC0) != 0xC0 {
+            while (unsafe { *buf.wrapping_add(len).cast::<u8>() } & 0xC0) != 0xC0 {
                 len -= 1;
             }
         }
@@ -1470,7 +1470,7 @@ pub fn schar_from_cluster_impl(
         if first_compose {
             let mut cbuf = [0 as c_char; MAX_SCHAR_SIZE];
             cbuf[0] = b' ' as c_char;
-            ptr::copy_nonoverlapping(buf, cbuf.as_mut_ptr().wrapping_add(1), len);
+            unsafe { ptr::copy_nonoverlapping(buf, cbuf.as_mut_ptr().wrapping_add(1), len) };
             schar_from_buf(cbuf.as_ptr(), len + 1)
         } else {
             schar_from_buf(buf, len)

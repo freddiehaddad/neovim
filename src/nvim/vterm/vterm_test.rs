@@ -186,18 +186,18 @@ pub fn parser_csi<T>(
 ) -> i32 {
     let mut out = Vec::new();
     let _ = write!(out, "csi {:02x}", command as u8);
-    unsafe {
-        if !leader.is_null() && *leader != 0 {
+    {
+        if !leader.is_null() && unsafe { *leader } != 0 {
             out.extend_from_slice(b" L=");
             let mut i = 0usize;
-            while *leader.wrapping_add(i) != 0 {
+            while unsafe { *leader.wrapping_add(i) } != 0 {
                 let _ = write!(out, "{:02x}", crate::memory::cstr_byte_at(leader, i));
                 i += 1;
             }
         }
         for i in 0..(argcount as usize) {
             let sep = if i > 0 { ',' } else { ' ' };
-            let a = *args.wrapping_add(i);
+            let a = unsafe { *args.wrapping_add(i) };
             if a == CSI_ARG_MISSING {
                 let _ = write!(out, "{sep}*");
             } else {
@@ -210,10 +210,10 @@ pub fn parser_csi<T>(
                 let _ = write!(out, "{sep}{val}{more}");
             }
         }
-        if !intermed.is_null() && *intermed != 0 {
+        if !intermed.is_null() && unsafe { *intermed } != 0 {
             out.extend_from_slice(b" I=");
             let mut i = 0usize;
-            while *intermed.wrapping_add(i) != 0 {
+            while unsafe { *intermed.wrapping_add(i) } != 0 {
                 let _ = write!(out, "{:02x}", crate::memory::cstr_byte_at(intermed, i));
                 i += 1;
             }

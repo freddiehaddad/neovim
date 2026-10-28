@@ -203,7 +203,7 @@ pub fn api_extmark_free_all_mem() {
 // DLLEXPORT Integer nvim_create_namespace(String name)
 //   FUNC_API_SINCE(5);
 pub fn nvim_create_namespace(name: NvimString) -> Integer {
-    unsafe {
+    {
         let name_bytes = if name.size == 0 || name.data.is_null() {
             &[][..]
         } else {
@@ -221,7 +221,7 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
         g_st().next_namespace_id += 1;
         if !name_bytes.is_empty() {
             g_st().namespace_ids.push((
-                std::ffi::CString::from_vec_unchecked(name_bytes.to_vec()),
+                unsafe { std::ffi::CString::from_vec_unchecked(name_bytes.to_vec()) },
                 id,
             ));
         }
@@ -1466,8 +1466,8 @@ pub fn nvim_set_decoration_provider(
     opts: &mut KeyDict_set_decoration_provider,
     _err: &mut Error,
 ) {
-    unsafe {
-        let p = &mut *get_decor_provider(ns_id as NS, true);
+    {
+        let p = unsafe { &mut *get_decor_provider(ns_id as NS, true) };
         decor_provider_clear(Some(&mut *p));
 
         redraw_all_later(UPD_NOT_VALID);
@@ -1485,9 +1485,13 @@ pub fn nvim_set_decoration_provider(
         ];
 
         for (src, dst) in pairs {
-            if *src > 0 {
-                *dst = *src;
-                *src = LUA_NOREF;
+            if unsafe { *src } > 0 {
+                unsafe {
+                    *dst = *src;
+                }
+                unsafe {
+                    *src = LUA_NOREF;
+                }
             }
         }
 
@@ -1732,7 +1736,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
 /// @return  Map defining the namespace properties, see |nvim__ns_set()|
 // DLLEXPORT Dict(ns_opts) nvim__ns_get(Integer ns_id, Arena *arena, Error *err);
 pub fn nvim_ns_get(ns_id: Integer, arena: &mut Arena, err: &mut Error) -> KeyDict_ns_opts {
-    unsafe {
+    {
         let mut opts = KeyDict_ns_opts {
             is_set_ns_opts: 1u64 << KEYSET_OPTIDX_NS_OPTS_WINS,
             wins: Array::new(),
@@ -1750,24 +1754,24 @@ pub fn nvim_ns_get(ns_id: Integer, arena: &mut Arena, err: &mut Error) -> KeyDic
         let mut count = 0usize;
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
+            for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
                 if wp.w_ns_set.contains(&(ns_id as u32)) {
                     count += 1;
                 }
             }
-            tp = (*tp).tp_next;
+            tp = unsafe { (*tp).tp_next };
         }
 
         let mut windows = arena_array(arena, count);
 
         tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
+            for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
                 if wp.w_ns_set.contains(&(ns_id as u32)) {
                     windows.push(integer_obj(i64::from(wp.handle)));
                 }
             }
-            tp = (*tp).tp_next;
+            tp = unsafe { (*tp).tp_next };
         }
 
         opts.wins = windows;

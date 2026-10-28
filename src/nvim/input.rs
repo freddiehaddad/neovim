@@ -896,16 +896,17 @@ pub fn stuffnum_readbuff(n: i32) {
 /// Stuff a string into the typeahead buffer.
 pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
     let mut arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         while !crate::memory::cstr_is_empty(arg) {
             let start = arg;
-            while (*arg >= b' ' as c_char && (crate::memory::cstr_first_byte(arg)) < DEL as u8)
+            while (unsafe { *arg } >= b' ' as c_char
+                && (crate::memory::cstr_first_byte(arg)) < DEL as u8)
                 || (crate::memory::cstr_first_byte(arg) == K_SPECIAL && !literally)
             {
                 arg = arg.wrapping_add(1);
             }
             if arg > start {
-                stuff_readbuff_len(start, arg.offset_from(start));
+                stuff_readbuff_len(start, unsafe { arg.offset_from(start) });
             }
 
             if !crate::memory::cstr_is_empty(arg) {
@@ -962,7 +963,7 @@ pub fn start_redo(count: i32, old_redo: bool) -> bool {
 
 /// Repeats the last insert (`R`, `o`, `O`, `a`, `A`, `i` or `I` command).
 pub fn start_redo_ins() -> bool {
-    unsafe {
+    {
         if inp_st().redobuff.cur.body.is_empty() {
             return false;
         }
@@ -971,7 +972,8 @@ pub fn start_redo_ins() -> bool {
         let mut p = inp_st().redobuff.cur.body.as_ptr();
         let end = p.wrapping_add(inp_st().redobuff.cur.body.len());
         while p < end {
-            if crate::memory::cstr_first_byte(p) == K_SPECIAL && end.offset_from(p) >= 3 {
+            if crate::memory::cstr_first_byte(p) == K_SPECIAL && unsafe { end.offset_from(p) } >= 3
+            {
                 p = p.wrapping_add(3);
                 continue;
             }
@@ -987,7 +989,7 @@ pub fn start_redo_ins() -> bool {
             p = p.wrapping_add(1);
         }
 
-        add_buff(&mut inp_st().readbuf2, p, end.offset_from(p));
+        add_buff(&mut inp_st().readbuf2, p, unsafe { end.offset_from(p) });
         inp_st().block_redo = true;
         true
     }
@@ -1173,7 +1175,7 @@ pub fn typebuf_maplen() -> i32 {
 
 /// Remove `len` characters from `typebuf.tb_buf[typebuf.tb_off + offset]`.
 pub fn del_typebuf(len: i32, offset: i32) {
-    unsafe {
+    {
         if len == 0 {
             return;
         }
@@ -1188,30 +1190,38 @@ pub fn del_typebuf(len: i32, offset: i32) {
         } else {
             let i = g_st().typebuf.tb_off + offset;
             if g_st().typebuf.tb_off > MAXMAPLEN as i32 {
-                ptr::copy(
-                    tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                    tb_buf_ptr().wrapping_add(MAXMAPLEN),
-                    offset as usize,
-                );
-                ptr::copy(
-                    tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                    tb_noremap_ptr().wrapping_add(MAXMAPLEN),
-                    offset as usize,
-                );
+                unsafe {
+                    ptr::copy(
+                        tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
+                        tb_buf_ptr().wrapping_add(MAXMAPLEN),
+                        offset as usize,
+                    )
+                };
+                unsafe {
+                    ptr::copy(
+                        tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
+                        tb_noremap_ptr().wrapping_add(MAXMAPLEN),
+                        offset as usize,
+                    )
+                };
                 g_st().typebuf.tb_off = MAXMAPLEN as i32;
             }
             let bytes = g_st().typebuf.tb_len - offset + 1;
             assert!(bytes > 0);
-            ptr::copy(
-                tb_buf_ptr().wrapping_add((i + len) as usize),
-                tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-                bytes as usize,
-            );
-            ptr::copy(
-                tb_noremap_ptr().wrapping_add((i + len) as usize),
-                tb_noremap_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-                (g_st().typebuf.tb_len - offset) as usize,
-            );
+            unsafe {
+                ptr::copy(
+                    tb_buf_ptr().wrapping_add((i + len) as usize),
+                    tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
+                    bytes as usize,
+                )
+            };
+            unsafe {
+                ptr::copy(
+                    tb_noremap_ptr().wrapping_add((i + len) as usize),
+                    tb_noremap_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
+                    (g_st().typebuf.tb_len - offset) as usize,
+                )
+            };
         }
 
         if g_st().typebuf.tb_maplen > offset {
@@ -1289,13 +1299,13 @@ fn gotchars_add_byte(state: &mut GotcharsState, byte: u8) -> bool {
 }
 
 fn gotchars(chars: *const u8, len: usize) {
-    unsafe {
+    {
         let mut s = chars;
         let mut todo = len;
 
         while todo > 0 {
             todo -= 1;
-            let b = *s;
+            let b = unsafe { *s };
             s = s.wrapping_add(1);
             if !gotchars_add_byte(&mut inp_st().gotchars_state, b) {
                 continue;
@@ -1310,24 +1320,21 @@ fn gotchars(chars: *const u8, len: usize) {
                 let start_ptr = (&raw const inp_st().gotchars_state.buf)
                     .cast::<c_char>()
                     .wrapping_add(inp_st().on_key_ignore_len);
-                inp_st()
-                    .on_key_buf
-                    .extend_from_slice(std::slice::from_raw_parts(
-                        start_ptr,
-                        buflen - inp_st().on_key_ignore_len,
-                    ));
+                inp_st().on_key_buf.extend_from_slice(unsafe {
+                    std::slice::from_raw_parts(start_ptr, buflen - inp_st().on_key_ignore_len)
+                });
                 inp_st().on_key_ignore_len = 0;
             } else {
                 inp_st().on_key_ignore_len -= buflen;
             }
 
             if g_st().reg_recording != 0 {
-                inp_st()
-                    .recordbuff
-                    .extend_from_slice(std::slice::from_raw_parts(
+                inp_st().recordbuff.extend_from_slice(unsafe {
+                    std::slice::from_raw_parts(
                         (&raw const inp_st().gotchars_state.buf).cast::<c_char>(),
                         buflen,
-                    ));
+                    )
+                });
                 inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_add(buflen);
             }
 
@@ -1448,7 +1455,7 @@ pub fn restore_typeahead(tp: &mut Tasave) {
 /// Open a new script file for the `":source!"` command.
 pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if inp_st().curscript + 1 == NSCRIPT as i32 {
             emsg(gettext(E_NESTING));
             return;
@@ -1468,9 +1475,14 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) {
         let scriptin_ptr = (&raw mut inp_st().scriptin)
             .cast::<FileDescriptor>()
             .wrapping_add(inp_st().curscript as usize);
-        let error = file_open(&mut *scriptin_ptr, namebuff_ptr, K_FILE_READ_ONLY, 0);
+        let error = file_open(
+            unsafe { &mut *scriptin_ptr },
+            namebuff_ptr,
+            K_FILE_READ_ONLY,
+            0,
+        );
         if error != 0 {
-            semsg!(gettext(E_NOTOPEN_2), name, uv_strerror(error),);
+            semsg!(gettext(E_NOTOPEN_2), name, unsafe { uv_strerror(error) },);
             inp_st().curscript -= 1;
             return;
         }
@@ -1531,16 +1543,16 @@ pub fn close_all_scripts() {
 
 pub fn open_scriptin(scriptin_name: impl crate::strings::IntoCCharPtr) -> bool {
     let scriptin_name = scriptin_name.into_c_char_ptr();
-    unsafe {
+    {
         assert!(inp_st().curscript == -1);
         inp_st().curscript += 1;
 
         let scriptin0 = (&raw mut inp_st().scriptin).cast::<FileDescriptor>();
         let error = if crate::memory::cstr_as_bytes(scriptin_name) == b"-" {
-            file_open_stdin(&mut *scriptin0)
+            file_open_stdin(unsafe { &mut *scriptin0 })
         } else {
             file_open(
-                &mut *scriptin0,
+                unsafe { &mut *scriptin0 },
                 scriptin_name,
                 K_FILE_READ_ONLY | K_FILE_NON_BLOCKING,
                 0,
@@ -1553,7 +1565,7 @@ pub fn open_scriptin(scriptin_name: impl crate::strings::IntoCCharPtr) -> bool {
                 errbuf.len(),
                 gettext(c"Cannot open for reading: \"%s\": %s\n"),
                 scriptin_name,
-                uv_strerror(error),
+                unsafe { uv_strerror(error) },
             );
             if n > 0 {
                 let slice =
@@ -2075,9 +2087,11 @@ pub fn f_getcharmod(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 fn put_string_in_typebuf(offset: i32, slen: i32, string: *mut u8, new_slen: i32) -> bool {
-    unsafe {
+    {
         let extra = new_slen - slen;
-        *string.wrapping_add(new_slen as usize) = NUL as u8;
+        unsafe {
+            *string.wrapping_add(new_slen as usize) = NUL as u8;
+        }
         if extra < 0 {
             del_typebuf(-extra, offset);
         } else if extra > 0
@@ -2091,11 +2105,13 @@ fn put_string_in_typebuf(offset: i32, slen: i32, string: *mut u8, new_slen: i32)
         {
             return false;
         }
-        ptr::copy(
-            string,
-            tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-            new_slen as usize,
-        );
+        unsafe {
+            ptr::copy(
+                string,
+                tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
+                new_slen as usize,
+            )
+        };
         true
     }
 }
@@ -2119,7 +2135,7 @@ fn at_ins_compl_key() -> bool {
 }
 
 fn check_simplify_modifier(max_offset: i32) -> i32 {
-    unsafe {
+    {
         if (g_st().state_global & MODE_TERMINAL) != 0 || inp_st().no_reduce_keys > 0 {
             return 0;
         }
@@ -2129,7 +2145,7 @@ fn check_simplify_modifier(max_offset: i32) -> i32 {
                 break;
             }
             let tp = tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize);
-            if *tp == K_SPECIAL && *tp.wrapping_add(1) == KS_MODIFIER {
+            if unsafe { *tp } == K_SPECIAL && unsafe { *tp.wrapping_add(1) } == KS_MODIFIER {
                 let mut modifier = crate::memory::cstr_char_at(tp.cast(), 2);
                 let c = crate::memory::cstr_char_at(tp.cast(), 3);
                 let new_c = merge_modifiers(c, &mut modifier);
@@ -2153,7 +2169,9 @@ fn check_simplify_modifier(max_offset: i32) -> i32 {
                             return -1;
                         }
                     } else {
-                        *tp.wrapping_add(2) = modifier as u8;
+                        unsafe {
+                            *tp.wrapping_add(2) = modifier as u8;
+                        }
                         if !put_string_in_typebuf(offset + 3, 1, new_string.as_mut_ptr(), len) {
                             return -1;
                         }
@@ -3316,7 +3334,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
 
 /// Wraps pasted text stream with `K_PASTE_START` and `K_PASTE_END`.
 pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: bool) {
-    unsafe {
+    {
         if (g_st().state_global & MODE_CMDLINE) != 0 {
             return;
         }
@@ -3354,15 +3372,15 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
             while s < str_end
                 && crate::memory::cstr_first_byte(s) != K_SPECIAL
                 && !crate::memory::cstr_is_empty(s)
-                && *s != NL as c_char
-                && !(crlf && *s == CAR as c_char)
+                && unsafe { *s } != NL as c_char
+                && !(crlf && unsafe { *s } == CAR as c_char)
             {
                 s = s.wrapping_add(1);
             }
 
             if s > start {
-                let n = s.offset_from(start) as usize;
-                let slice = std::slice::from_raw_parts(start, n);
+                let n = unsafe { s.offset_from(start) } as usize;
+                let slice = unsafe { std::slice::from_raw_parts(start, n) };
                 if need_redo {
                     inp_st().redobuff.cur.body.extend_from_slice(slice);
                 }
@@ -3375,7 +3393,7 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
                 let mut c = crate::memory::cstr_first_byte(s) as i32;
                 s = s.wrapping_add(1);
                 if crlf && c == CAR {
-                    if s < str_end && *s == NL as c_char {
+                    if s < str_end && unsafe { *s } == NL as c_char {
                         s = s.wrapping_add(1);
                     }
                     c = NL;

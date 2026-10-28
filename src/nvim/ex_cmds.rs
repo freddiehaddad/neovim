@@ -339,7 +339,7 @@ use crate::undo::{buf_is_changed_fn, curbuf_is_changed_fn};
 
 /// `":ascii"` and `"ga"` implementation.
 pub fn do_ascii(_eap: &mut Exarg) {
-    unsafe {
+    {
         let data = get_cursor_pos_ptr();
         let len = utfc_ptr2len(data) as usize;
 
@@ -413,13 +413,19 @@ pub fn do_ascii(_eap: &mut Exarg) {
 
             let mut iobuff_len: usize = 0;
             if off > 0 {
-                *iobuff_ptr.wrapping_add(iobuff_len) = b' ' as c_char;
+                unsafe {
+                    *iobuff_ptr.wrapping_add(iobuff_len) = b' ' as c_char;
+                }
                 iobuff_len += 1;
             }
-            *iobuff_ptr.wrapping_add(iobuff_len) = b'<' as c_char;
+            unsafe {
+                *iobuff_ptr.wrapping_add(iobuff_len) = b'<' as c_char;
+            }
             iobuff_len += 1;
             if utf_iscomposing_first(c) {
-                *iobuff_ptr.wrapping_add(iobuff_len) = b' ' as c_char;
+                unsafe {
+                    *iobuff_ptr.wrapping_add(iobuff_len) = b' ' as c_char;
+                }
                 iobuff_len += 1;
             }
             iobuff_len += utf_char2bytes(c, iobuff_ptr.wrapping_add(iobuff_len)) as usize;
@@ -558,7 +564,7 @@ pub fn ex_align(eap: &mut Exarg) {
 
 /// @return the length of the current line, excluding trailing white space.
 fn linelen(has_tab: *mut i32) -> i32 {
-    unsafe {
+    {
         let line = get_cursor_line_ptr();
         if crate::memory::cstr_is_empty(line) {
             return 0;
@@ -566,16 +572,22 @@ fn linelen(has_tab: *mut i32) -> i32 {
         let first = skipwhite(line);
 
         let mut last = first.wrapping_add(crate::memory::cstr_len(first));
-        while last > first && ascii_iswhite(*last.wrapping_sub(1) as i32) {
+        while last > first && ascii_iswhite(unsafe { *last.wrapping_sub(1) } as i32) {
             last = last.wrapping_sub(1);
         }
-        let save = *last;
-        *last = NUL;
+        let save = unsafe { *last };
+        unsafe {
+            *last = NUL;
+        }
         let len = linetabsize_col(0, line);
         if !has_tab.is_null() {
-            *has_tab = i32::from(crate::strings::vim_haschr(first, TAB));
+            unsafe {
+                *has_tab = i32::from(crate::strings::vim_haschr(first, TAB));
+            }
         }
-        *last = save;
+        unsafe {
+            *last = save;
+        }
 
         len
     }
@@ -607,7 +619,7 @@ fn string_compare(
 }
 
 fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: *mut c_char, sortbuf2: *mut c_char) -> i32 {
-    unsafe {
+    {
         let l1 = *l1;
         let l2 = *l2;
         let result: i32;
@@ -661,20 +673,28 @@ fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: *mut c_char, sortbuf2: *mut c_
                 },
             ) => {
                 let len1 = (e1 - s1) as usize;
-                ptr::copy_nonoverlapping(
-                    ml_get(l1.lnum).wrapping_add(s1 as usize),
-                    sortbuf1,
-                    len1 + 1,
-                );
-                *sortbuf1.wrapping_add(len1) = NUL;
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        ml_get(l1.lnum).wrapping_add(s1 as usize),
+                        sortbuf1,
+                        len1 + 1,
+                    )
+                };
+                unsafe {
+                    *sortbuf1.wrapping_add(len1) = NUL;
+                }
 
                 let len2 = (e2 - s2) as usize;
-                ptr::copy_nonoverlapping(
-                    ml_get(l2.lnum).wrapping_add(s2 as usize),
-                    sortbuf2,
-                    len2 + 1,
-                );
-                *sortbuf2.wrapping_add(len2) = NUL;
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        ml_get(l2.lnum).wrapping_add(s2 as usize),
+                        sortbuf2,
+                        len2 + 1,
+                    )
+                };
+                unsafe {
+                    *sortbuf2.wrapping_add(len2) = NUL;
+                }
 
                 result = string_compare(sortbuf1, sortbuf2);
             }
@@ -690,7 +710,7 @@ fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: *mut c_char, sortbuf2: *mut c_
 
 /// `":sort"`.
 pub fn ex_sort(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut regmatch: Regmatch = Regmatch::new();
         let mut maxlen: i32 = 0;
         let mut count = (eap.line2 - eap.line1) as usize + 1;
@@ -761,7 +781,9 @@ pub fn ex_sort(eap: &mut Exarg) {
                     if s.is_null() {
                         break 'sortend;
                     }
-                    *s = NUL;
+                    unsafe {
+                        *s = NUL;
+                    }
                     if s == p.wrapping_add(1) {
                         if last_search_pat().is_null() {
                             emsg(gettext(E_NOPREVRE));
@@ -810,8 +832,10 @@ pub fn ex_sort(eap: &mut Exarg) {
 
                 let st_u = if excmds_st().sort_nr != 0 || excmds_st().sort_flt {
                     let s2 = s.wrapping_add(end_col as usize);
-                    let c = *s2;
-                    *s2 = NUL;
+                    let c = unsafe { *s2 };
+                    unsafe {
+                        *s2 = NUL;
+                    }
                     let p = s.wrapping_add(start_col as usize);
                     let key = if excmds_st().sort_nr != 0 {
                         if (sort_what & STR2NR_HEX) != 0 {
@@ -821,7 +845,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                         } else {
                             s = skiptodigit(p);
                         }
-                        if s > p && *s.wrapping_sub(1) == b'-' as c_char {
+                        if s > p && unsafe { *s.wrapping_sub(1) } == b'-' as c_char {
                             s = s.wrapping_sub(1);
                         }
                         if crate::memory::cstr_is_empty(s) {
@@ -859,7 +883,9 @@ pub fn ex_sort(eap: &mut Exarg) {
                             SortKey::Float(strtod(s, ptr::null_mut()))
                         }
                     };
-                    *s2 = c;
+                    unsafe {
+                        *s2 = c;
+                    }
                     key
                 } else {
                     SortKey::Line {
@@ -970,7 +996,7 @@ pub fn ex_sort(eap: &mut Exarg) {
 
 /// `":uniq"`.
 pub fn ex_uniq(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut regmatch: Regmatch = Regmatch::new();
         let mut maxlen: i32 = 0;
         let mut count = eap.line2 - eap.line1 + 1;
@@ -1026,7 +1052,9 @@ pub fn ex_uniq(eap: &mut Exarg) {
                     if s.is_null() {
                         break 'uniqend;
                     }
-                    *s = NUL;
+                    unsafe {
+                        *s = NUL;
+                    }
                     if s == p.wrapping_add(1) {
                         if last_search_pat().is_null() {
                             emsg(gettext(E_NOPREVRE));
@@ -1086,8 +1114,10 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 }
                 let mut save_c: c_char = NUL;
                 if end_col > 0 {
-                    save_c = *s.wrapping_add(end_col as usize);
-                    *s.wrapping_add(end_col as usize) = NUL;
+                    save_c = unsafe { *s.wrapping_add(end_col as usize) };
+                    unsafe {
+                        *s.wrapping_add(end_col as usize) = NUL;
+                    }
                 }
 
                 let mut is_match = if i > 0 {
@@ -1138,7 +1168,9 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 }
 
                 if end_col > 0 {
-                    *s.wrapping_add(end_col as usize) = save_c;
+                    unsafe {
+                        *s.wrapping_add(end_col as usize) = save_c;
+                    }
                 }
 
                 if delete_lnum > 0 {
@@ -1406,7 +1438,7 @@ fn prevcmd_is_set() -> bool {
 
 /// Handle the `":!cmd"` command.
 pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_out: bool) {
-    unsafe {
+    {
         let arg = eap.arg;
         let line1 = eap.line1;
         let line2 = eap.line2;
@@ -1435,8 +1467,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
                 if !prevcmd_is_set() {
                     return;
                 }
-                len += (&raw const excmds_st().prevcmd)
-                    .as_ref()
+                len += unsafe { (&raw const excmds_st().prevcmd).as_ref() }
                     .unwrap()
                     .as_ref()
                     .unwrap()
@@ -1450,8 +1481,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
             if ins_prevcmd {
                 crate::memory::cstr_cat(
                     t.as_mut_ptr(),
-                    (&raw const excmds_st().prevcmd)
-                        .as_ref()
+                    unsafe { (&raw const excmds_st().prevcmd).as_ref() }
                         .unwrap()
                         .as_ref()
                         .unwrap()
@@ -1485,10 +1515,9 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
             newcmd.truncate(off);
             let rem_bytes = rem_cstr.to_bytes_with_nul();
             let start = newcmd.len();
-            newcmd.extend_from_slice(std::slice::from_raw_parts(
-                rem_bytes.as_ptr().cast::<c_char>(),
-                rem_bytes.len(),
-            ));
+            newcmd.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(rem_bytes.as_ptr().cast::<c_char>(), rem_bytes.len())
+            });
             trailarg = newcmd.as_mut_ptr().wrapping_add(start);
         }
 
@@ -1502,8 +1531,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
                     break 'theend;
                 }
 
-                let prev_ptr = (&raw const excmds_st().prevcmd)
-                    .as_ref()
+                let prev_ptr = unsafe { (&raw const excmds_st().prevcmd).as_ref() }
                     .unwrap()
                     .as_ref()
                     .unwrap()
@@ -1514,8 +1542,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
                 g_st().bangredo = false;
             }
             if !crate::memory::cstr_is_empty(opt_vars().p_shq) {
-                let prev_ptr = (&raw const excmds_st().prevcmd)
-                    .as_ref()
+                let prev_ptr = unsafe { (&raw const excmds_st().prevcmd).as_ref() }
                     .unwrap()
                     .as_ref()
                     .map_or(c"".as_ptr(), |s| s.as_ptr());
@@ -3384,14 +3411,16 @@ fn delbuf_msg(name: Option<std::ffi::CString>) {
 
 /// Get the next line of text for `":append"`, `":insert"` and `":change"`.
 fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<c_char>> {
-    unsafe {
+    {
         if crate::memory::cstr_first_byte(eap.arg) == b'|' {
             let theline = cstr_to_cstring(eap.arg.wrapping_add(1))
                 .into_bytes_with_nul()
                 .into_iter()
                 .map(|b| b as c_char)
                 .collect();
-            *eap.arg = NUL;
+            unsafe {
+                *eap.arg = NUL;
+            }
             Some(theline)
         } else if eap.ea_getline.is_none() {
             if eap.nextcmd.is_null() {
@@ -3406,7 +3435,7 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<c_char>> {
             let len = crate::memory::ptr_offset_from(p, eap.nextcmd) as usize;
             let mut theline = vec![0 as c_char; len + 1];
             if len > 0 {
-                ptr::copy_nonoverlapping(eap.nextcmd, theline.as_mut_ptr(), len);
+                unsafe { ptr::copy_nonoverlapping(eap.nextcmd, theline.as_mut_ptr(), len) };
             }
             if !crate::memory::cstr_is_empty(p) {
                 p = p.wrapping_add(1);
@@ -3441,7 +3470,7 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<c_char>> {
 
 /// `":insert"` and `":append"`, also used by `":change"`.
 pub fn ex_append(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut did_undo = false;
         let mut lnum = eap.line2;
         let mut indent: i32 = 0;
@@ -3501,7 +3530,7 @@ pub fn ex_append(eap: &mut Exarg) {
             while indent > vcol {
                 if crate::memory::cstr_first_byte(p) == b' ' {
                     vcol += 1;
-                } else if *p == TAB as c_char {
+                } else if unsafe { *p } == TAB as c_char {
                     vcol += 8 - vcol % 8;
                 } else {
                     break;
@@ -3515,7 +3544,9 @@ pub fn ex_append(eap: &mut Exarg) {
             }
 
             if crate::memory::cstr_is_empty(p) {
-                *theline = NUL;
+                unsafe {
+                    *theline = NUL;
+                }
             }
 
             did_undo = true;
@@ -3603,7 +3634,7 @@ pub fn ex_change(eap: &mut Exarg) {
 }
 
 pub fn ex_z(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut bigness: i64;
         let mut minus: i32 = 0;
         let mut start: Linenr;
@@ -3635,7 +3666,7 @@ pub fn ex_z(eap: &mut Exarg) {
             x = x.wrapping_add(1);
         }
 
-        if *x != 0 {
+        if unsafe { *x } != 0 {
             if !ascii_isdigit(crate::memory::cstr_first_char(x)) {
                 emsg(gettext(E_NON_NUMERIC_ARGUMENT_TO_Z));
                 return;
@@ -3656,7 +3687,7 @@ pub fn ex_z(eap: &mut Exarg) {
             || crate::memory::cstr_first_byte(kind) == b'+'
         {
             x = kind.wrapping_add(1);
-            while *x == *kind {
+            while unsafe { *x } == unsafe { *kind } {
                 x = x.wrapping_add(1);
             }
         }
@@ -3955,15 +3986,17 @@ fn sub_parse_flags(
 /// character.
 fn skip_substitute(start: impl crate::strings::IntoCCharPtr, delimiter: i32) -> *mut c_char {
     let start = start.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut p = start;
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_char(p) == delimiter {
-                *p = NUL;
+                unsafe {
+                    *p = NUL;
+                }
                 p = p.wrapping_add(1);
                 break;
             }
-            if crate::memory::cstr_first_byte(p) == b'\\' && *p.wrapping_add(1) != 0 {
+            if crate::memory::cstr_first_byte(p) == b'\\' && unsafe { *p.wrapping_add(1) } != 0 {
                 p = p.wrapping_add(1);
             }
             p = p.wrapping_add(utfc_ptr2len(p) as usize);
@@ -4994,7 +5027,7 @@ fn global_exe_one(cmd: impl crate::strings::IntoCCharPtr, lnum: Linenr) {
 
 /// Execute a global command (`:g` / `:v`).
 pub fn ex_global(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut lnum: Linenr;
         let mut cmd: *mut c_char;
         let delim: c_char;
@@ -5037,7 +5070,7 @@ pub fn ex_global(eap: &mut Exarg) {
         } else if !check_regexp_delim((crate::memory::cstr_first_byte(cmd)) as i32) {
             return;
         } else {
-            delim = *cmd;
+            delim = unsafe { *cmd };
             cmd = cmd.wrapping_add(1);
             pat = cmd;
             cmd = skip_regexp_ex(
@@ -5049,8 +5082,10 @@ pub fn ex_global(eap: &mut Exarg) {
                 None,
                 None,
             );
-            if *cmd == delim {
-                *cmd = NUL;
+            if unsafe { *cmd } == delim {
+                unsafe {
+                    *cmd = NUL;
+                }
                 cmd = cmd.wrapping_add(1);
             }
             patlen = crate::memory::cstr_len(pat);
@@ -5405,19 +5440,25 @@ pub fn skip_vimgrep_pat(
     s: *mut *mut c_char,
     mut flags: Option<&mut i32>,
 ) -> *mut c_char {
-    unsafe {
+    {
         if vim_is_idc((crate::memory::cstr_first_byte(p)) as i32) {
             if !s.is_null() {
-                *s = p;
+                unsafe {
+                    *s = p;
+                }
             }
             p = skiptowhite(p);
             if !s.is_null() && !crate::memory::cstr_is_empty(p) {
-                *p = NUL;
+                unsafe {
+                    *p = NUL;
+                }
                 p = p.wrapping_add(1);
             }
         } else {
             if !s.is_null() {
-                *s = p.wrapping_add(1);
+                unsafe {
+                    *s = p.wrapping_add(1);
+                }
             }
             let c = (crate::memory::cstr_first_byte(p)) as i32;
             p = skip_regexp(p.wrapping_add(1), c, 1);
@@ -5426,7 +5467,9 @@ pub fn skip_vimgrep_pat(
             }
 
             if !s.is_null() {
-                *p = NUL;
+                unsafe {
+                    *p = NUL;
+                }
             }
             p = p.wrapping_add(1);
 

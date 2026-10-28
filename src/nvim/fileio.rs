@@ -989,9 +989,11 @@ fn readfile_progress(
     let s = s.into_c_char_ptr();
     let msg_id = msg_id.into_c_char_ptr();
     let status = status.into_c_char_ptr();
-    unsafe {
+    {
         let buf = g_st().curbuf;
-        (*buf).b_locked += 1;
+        unsafe {
+            (*buf).b_locked += 1;
+        }
         let rv = msg_progress(
             s.cast_mut(),
             msg_id.cast_mut(),
@@ -1002,7 +1004,9 @@ fn readfile_progress(
             !s.is_null(),
             false,
         );
-        (*buf).b_locked -= 1;
+        unsafe {
+            (*buf).b_locked -= 1;
+        }
         rv
     }
 }
@@ -3119,15 +3123,17 @@ pub fn add_quoted_fname(
     fname: impl crate::strings::IntoCCharPtr,
 ) {
     let mut fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         if fname.is_null() {
             fname = c"-stdin-".as_ptr();
         }
         let mut len: usize = 0;
-        *ret_buf.wrapping_add(len) = b'"' as c_char;
+        unsafe {
+            *ret_buf.wrapping_add(len) = b'"' as c_char;
+        }
         len += 1;
         len += home_replace(
-            buf.cast_mut().as_ref(),
+            unsafe { buf.cast_mut().as_ref() },
             fname,
             ret_buf.wrapping_add(len),
             bufsize - 4,
@@ -3552,12 +3558,12 @@ pub fn vim_fgets(buf: *mut c_char, size: i32, fp: *mut FILE) -> bool {
 
 /// Read 2 bytes from "fd" and turn them into an int, MSB first.
 pub fn get2c(fd: *mut FILE) -> i32 {
-    unsafe {
-        let n = fgetc(fd);
+    {
+        let n = unsafe { fgetc(fd) };
         if n == EOF {
             return -1;
         }
-        let c = fgetc(fd);
+        let c = unsafe { fgetc(fd) };
         if c == EOF {
             return -1;
         }
@@ -3567,17 +3573,17 @@ pub fn get2c(fd: *mut FILE) -> i32 {
 
 /// Read 3 bytes from "fd" and turn them into an int, MSB first.
 pub fn get3c(fd: *mut FILE) -> i32 {
-    unsafe {
-        let mut n = fgetc(fd);
+    {
+        let mut n = unsafe { fgetc(fd) };
         if n == EOF {
             return -1;
         }
-        let mut c = fgetc(fd);
+        let mut c = unsafe { fgetc(fd) };
         if c == EOF {
             return -1;
         }
         n = (n << 8) + c;
-        c = fgetc(fd);
+        c = unsafe { fgetc(fd) };
         if c == EOF {
             return -1;
         }
@@ -3587,23 +3593,23 @@ pub fn get3c(fd: *mut FILE) -> i32 {
 
 /// Read 4 bytes from "fd" and turn them into an int, MSB first.
 pub fn get4c(fd: *mut FILE) -> i32 {
-    unsafe {
-        let mut c = fgetc(fd);
+    {
+        let mut c = unsafe { fgetc(fd) };
         if c == EOF {
             return -1;
         }
         let mut n = c as u32;
-        c = fgetc(fd);
+        c = unsafe { fgetc(fd) };
         if c == EOF {
             return -1;
         }
         n = (n << 8) + (c as u32);
-        c = fgetc(fd);
+        c = unsafe { fgetc(fd) };
         if c == EOF {
             return -1;
         }
         n = (n << 8) + (c as u32);
-        c = fgetc(fd);
+        c = unsafe { fgetc(fd) };
         if c == EOF {
             return -1;
         }
@@ -3802,7 +3808,7 @@ pub fn vim_copyfile(
 
 /// Check if any not hidden buffer has been changed.
 pub fn check_timestamps(focus: i32) -> i32 {
-    unsafe {
+    {
         if g_st().no_check_timestamps > 0 {
             return 0;
         }
@@ -3828,17 +3834,17 @@ pub fn check_timestamps(focus: i32) -> i32 {
             fio_st().already_warned = false;
             let mut buf = g_st().firstbuf;
             while !buf.is_null() {
-                if (*buf).b_nwindows > 0 {
+                if unsafe { (*buf).b_nwindows } > 0 {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf);
-                    let n = buf_check_timestamp(&mut *buf);
+                    let n = buf_check_timestamp(unsafe { &mut *buf });
                     didit = didit.max(n);
                     if n > 0 && !bufref_valid(Some(&bufref)) {
                         buf = g_st().firstbuf;
                         continue;
                     }
                 }
-                buf = (*buf).b_next;
+                buf = unsafe { (*buf).b_next };
             }
             g_st().no_wait_return -= 1;
             g_st().need_check_timestamps = false;
@@ -4273,7 +4279,7 @@ pub fn write_lnum_adjust(offset: Linenr) {
 
 /// Creates a directory for private use by this instance of Nvim.
 fn vim_mktempdir() {
-    unsafe {
+    {
         #[cfg(windows)]
         const TEMP_DIRS: [&CStr; 5] = [c"$TMPDIR", c"$TMP", c"$TEMP", c"$USERPROFILE", c""];
         #[cfg(not(windows))]
@@ -4290,7 +4296,7 @@ fn vim_mktempdir() {
             if _sz > 0 {
                 let _c = (b'/' as c_char) as u8;
                 let _x = (b'_' as c_char) as u8;
-                for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
                     if *_b == _c {
                         *_b = _x;
                     }
@@ -4303,7 +4309,7 @@ fn vim_mktempdir() {
             if _sz > 0 {
                 let _c = (b'\\' as c_char) as u8;
                 let _x = (b'_' as c_char) as u8;
-                for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
                     if *_b == _c {
                         *_b = _x;
                     }
@@ -4435,7 +4441,7 @@ fn vim_mktempdir() {
                     0,
                     true,
                     c"tempdir create failed: %s: %s",
-                    uv_strerror(r),
+                    unsafe { uv_strerror(r) },
                     tmp.as_ptr(),
                 );
                 continue;
@@ -4594,9 +4600,8 @@ pub fn vim_deltempdir() {
 
 /// Gets path to Nvim's own temp dir (ending with slash).
 pub fn vim_gettempdir() -> *mut c_char {
-    unsafe {
-        let current_td = (&raw const fio_st().vim_tempdir)
-            .as_ref()
+    {
+        let current_td = unsafe { (&raw const fio_st().vim_tempdir).as_ref() }
             .unwrap()
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr());
@@ -4624,8 +4629,7 @@ pub fn vim_gettempdir() -> *mut c_char {
             }
             vim_mktempdir();
         }
-        (&raw const fio_st().vim_tempdir)
-            .as_ref()
+        unsafe { (&raw const fio_st().vim_tempdir).as_ref() }
             .unwrap()
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -5009,13 +5013,15 @@ pub fn vim_fprintf_fmt(
     args: &[crate::strings::FmtVal],
 ) -> i32 {
     let fmt = fmt.into_c_char_ptr();
-    unsafe {
+    {
         if args.is_empty() && !crate::memory::cstr_as_bytes(fmt).contains(&b'%') {
             let bytes = crate::memory::cstr_as_bytes(fmt);
             if bytes.is_empty() {
                 return 0;
             }
-            return if fwrite(bytes.as_ptr().cast(), 1, bytes.len(), stream) == bytes.len() {
+            return if unsafe { fwrite(bytes.as_ptr().cast(), 1, bytes.len(), stream) }
+                == bytes.len()
+            {
                 bytes.len() as i32
             } else {
                 -1
@@ -5029,7 +5035,7 @@ pub fn vim_fprintf_fmt(
         }
         let len = needed as usize;
         if len < stack_buf.len() {
-            if len == 0 || fwrite(stack_buf.as_ptr().cast(), 1, len, stream) == len {
+            if len == 0 || unsafe { fwrite(stack_buf.as_ptr().cast(), 1, len, stream) } == len {
                 needed
             } else {
                 -1
@@ -5042,7 +5048,7 @@ pub fn vim_fprintf_fmt(
                 return -1;
             }
             let alen = actual as usize;
-            if alen == 0 || fwrite(heap_buf.as_ptr().cast(), 1, alen, stream) == alen {
+            if alen == 0 || unsafe { fwrite(heap_buf.as_ptr().cast(), 1, alen, stream) } == alen {
                 actual
             } else {
                 -1

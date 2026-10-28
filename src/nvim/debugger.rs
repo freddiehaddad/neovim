@@ -161,7 +161,7 @@ fn do_setdebugtracelevel(arg: impl crate::strings::IntoCCharPtr) {
 
 fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) {
     let cmd = cmd.into_c_char_ptr();
-    unsafe {
+    {
         let sname_cstr = estack_sfile(ESTACK_NONE);
         let max =
             get_maxbacktrace_level(sname_cstr.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()));
@@ -177,7 +177,9 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) {
                 let cur_bytes = crate::memory::cstr_as_bytes(cur);
                 let next_off = cur_bytes.windows(2).position(|w| w == b"..");
                 if let Some(off) = next_off {
-                    *cur.wrapping_add(off) = 0;
+                    unsafe {
+                        *cur.wrapping_add(off) = 0;
+                    }
                 }
                 if i == max - g_st().debug_backtrace_level {
                     smsg!(0, c"->%d %s", max - i, cur);
@@ -186,7 +188,9 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) {
                 }
                 i += 1;
                 if let Some(off) = next_off {
-                    *cur.wrapping_add(off) = b'.' as c_char;
+                    unsafe {
+                        *cur.wrapping_add(off) = b'.' as c_char;
+                    }
                     cur = cur.wrapping_add(off + 2);
                 } else {
                     break;
@@ -207,7 +211,7 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) {
 /// Interactive debug mode loop (`do_debug`).
 pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
     let cmd = cmd.into_c_char_ptr();
-    unsafe {
+    {
         let save_msg_scroll = g_st().msg_scroll;
         let save_state = g_st().state_global;
         let save_did_emsg = g_st().did_emsg;
@@ -292,7 +296,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
             msg_starthere();
             if !cmdline.is_null() {
                 let mut p = skipwhite(cmdline);
-                if *p != 0 {
+                if unsafe { *p } != 0 {
                     let b0 = crate::memory::cstr_first_byte(p);
                     let b1 = crate::memory::cstr_byte_at(p, 1);
                     let (mut lcmd, mut tail): (i32, &[u8]) = match b0 {
@@ -323,7 +327,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
 
                     if lcmd != 0 {
                         p = p.wrapping_add(1);
-                        while *p != 0
+                        while unsafe { *p } != 0
                             && !tail.is_empty()
                             && (crate::memory::cstr_first_byte(p)) == tail[0]
                         {
@@ -368,7 +372,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
                             continue;
                         }
                         CMD_FRAME => {
-                            if *p == 0 {
+                            if unsafe { *p } == 0 {
                                 do_showbacktrace(cmd);
                             } else {
                                 p = skipwhite(p);
