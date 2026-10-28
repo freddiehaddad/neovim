@@ -2657,8 +2657,7 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
     unsafe {
         let ml_end = buf.b_ml.ml_line_count;
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(tp) {
                 if (*wp).w_buffer == buf {
                     if wp == curwin_ptr() && is_focused(term) {
@@ -2676,7 +2675,6 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
                     mb_check_adjust_col(&mut *wp);
                 }
             }
-            tp = (*tp).tp_next;
         }
 
         if ml_end == buf.b_last_cursor.mark.lnum + added {

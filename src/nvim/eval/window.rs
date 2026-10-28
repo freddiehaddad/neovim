@@ -536,8 +536,7 @@ pub fn f_getwininfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         }
 
         let mut tabnr: i16 = 0;
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             tabnr = tabnr.wrapping_add(1);
             let mut winnr: i16 = 0;
             for wp in win_iter_ptr(first_win_in_tab(tp)) {
@@ -552,7 +551,6 @@ pub fn f_getwininfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                     return;
                 }
             }
-            tp = (*tp).tp_next;
         }
     }
 }

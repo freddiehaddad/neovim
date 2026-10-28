@@ -3015,8 +3015,7 @@ fn win_equal_rec(
                     room = 0;
                 } else {
                     next_curwin_size = -1;
-                    let mut fr = topfr.fr_child;
-                    while !fr.is_null() {
+                    for fr in frame_iter_ptr(topfr.fr_child) {
                         if frame_fixed_width(fr) {
                             n = frame_minwidth(&mut *fr, nowin());
                             let mut new_size = (*fr).fr_width;
@@ -3038,7 +3037,6 @@ fn win_equal_rec(
                             }
                             (*fr).fr_newwidth = new_size;
                         }
-                        fr = (*fr).fr_next;
                     }
                     if next_curwin_size == -1 {
                         if !has_next_curwin {
@@ -3064,8 +3062,7 @@ fn win_equal_rec(
                 }
             }
 
-            let mut fr = topfr.fr_child;
-            while !fr.is_null() {
+            for fr in frame_iter_ptr(topfr.fr_child) {
                 let mut wincount: c_int = 1;
                 let new_size: c_int;
                 if (*fr).fr_next.is_null() {
@@ -3114,7 +3111,6 @@ fn win_equal_rec(
                 col += new_size;
                 width -= new_size;
                 totwincount -= wincount;
-                fr = (*fr).fr_next;
             }
         } else {
             topfr.fr_width = width;
@@ -3139,8 +3135,7 @@ fn win_equal_rec(
                     room = 0;
                 } else {
                     next_curwin_size = -1;
-                    let mut fr = topfr.fr_child;
-                    while !fr.is_null() {
+                    for fr in frame_iter_ptr(topfr.fr_child) {
                         if frame_fixed_height(fr) {
                             n = frame_minheight(&mut *fr, nowin());
                             let mut new_size = (*fr).fr_height;
@@ -3165,7 +3160,6 @@ fn win_equal_rec(
                             }
                             (*fr).fr_newheight = new_size;
                         }
-                        fr = (*fr).fr_next;
                     }
                     if next_curwin_size == -1 {
                         if !has_next_curwin {
@@ -3191,8 +3185,7 @@ fn win_equal_rec(
                 }
             }
 
-            let mut fr = topfr.fr_child;
-            while !fr.is_null() {
+            for fr in frame_iter_ptr(topfr.fr_child) {
                 let mut wincount: c_int = 1;
                 let new_size: c_int;
                 if (*fr).fr_next.is_null() {
@@ -3242,7 +3235,6 @@ fn win_equal_rec(
                 row += new_size;
                 height -= new_size;
                 totwincount -= wincount;
-                fr = (*fr).fr_next;
             }
         }
     }
@@ -5630,13 +5622,11 @@ pub fn tabpage_move(nr: c_int) {
             g_st().first_tabpage = curtab_mut().tp_next;
         } else {
             tp = ptr::null_mut();
-            let mut tp2 = g_st().first_tabpage;
-            while !tp2.is_null() {
+            for tp2 in for_all_tabpages_ptr() {
                 if ptr::eq((*tp2).tp_next, g_st().curtab) {
                     tp = tp2;
                     break;
                 }
-                tp2 = (*tp2).tp_next;
             }
             if tp.is_null() {
                 return;

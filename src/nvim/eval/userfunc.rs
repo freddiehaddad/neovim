@@ -3766,21 +3766,53 @@ fn handle_defer_one(funccal: &mut funccall_T) {
         funccal.fc_defer.clear();
 }
 
-pub fn invoke_all_defer() {
-    unsafe {
-        let mut fc = uf_st().current_funccal;
-        while !fc.is_null() {
-            handle_defer_one(&mut *fc);
-            fc = (*fc).fc_caller;
-        }
+pub struct FunccalCallerMutIter(*mut funccall_T);
 
-        let stack = &raw const uf_st().funccal_stack;
-        for &top in (*stack).iter().rev() {
-            let mut fc2 = top;
-            while !fc2.is_null() {
-                handle_defer_one(&mut *fc2);
-                fc2 = (*fc2).fc_caller;
+impl Iterator for FunccalCallerMutIter {
+    type Item = &'static mut funccall_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).fc_caller;
+                Some(&mut *cur)
             }
+        }
+    }
+}
+
+pub struct FunccalScopedMutIter(*mut funccall_T);
+
+impl Iterator for FunccalScopedMutIter {
+    type Item = &'static mut funccall_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*(*cur).fc_func).uf_scoped;
+                Some(&mut *cur)
+            }
+        }
+    }
+}
+
+pub fn invoke_all_defer() {
+    for fc in FunccalCallerMutIter(uf_st().current_funccal) {
+        handle_defer_one(fc);
+    }
+
+    let stack = &raw const uf_st().funccal_stack;
+    for &top in unsafe { (*stack).iter().rev() } {
+        for fc2 in FunccalCallerMutIter(top) {
+            handle_defer_one(fc2);
         }
     }
 }
@@ -4373,28 +4405,22 @@ fn set_ref_in_funccal(fc: &mut funccall_T, copyID: c_int) -> bool {
 }
 
 pub fn set_ref_in_call_stack(copyID: c_int) -> bool {
-    unsafe {
-        let mut fc = uf_st().current_funccal;
-        while !fc.is_null() {
-            if set_ref_in_funccal(&mut *fc, copyID) {
+    for fc in FunccalCallerMutIter(uf_st().current_funccal) {
+        if set_ref_in_funccal(fc, copyID) {
+            return true;
+        }
+    }
+
+    let stack = &raw const uf_st().funccal_stack;
+    for &top in unsafe { (*stack).iter().rev() } {
+        for fc2 in FunccalCallerMutIter(top) {
+            if set_ref_in_funccal(fc2, copyID) {
                 return true;
             }
-            fc = (*fc).fc_caller;
         }
-
-        let stack = &raw const uf_st().funccal_stack;
-        for &top in (*stack).iter().rev() {
-            let mut fc2 = top;
-            while !fc2.is_null() {
-                if set_ref_in_funccal(&mut *fc2, copyID) {
-                    return true;
-                }
-                fc2 = (*fc2).fc_caller;
-            }
-        }
-
-        false
     }
+
+    false
 }
 
 pub fn set_ref_in_functions(copyID: c_int) -> bool {
@@ -4445,10 +4471,8 @@ pub fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_int) ->
             fp = find_func(fname);
         }
         if !fp.is_null() {
-            let mut fc = (*fp).uf_scoped;
-            while !fc.is_null() {
-                abort = abort || set_ref_in_funccal(&mut *fc, copyID);
-                fc = (*(*fc).fc_func).uf_scoped;
+            for fc in FunccalScopedMutIter((*fp).uf_scoped) {
+                abort = abort || set_ref_in_funccal(fc, copyID);
             }
         }
         drop(tofree);

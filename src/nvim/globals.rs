@@ -976,6 +976,30 @@ pub fn for_all_buffers_ptr() -> BufPtrIter {
     BufPtrIter(g_st().firstbuf)
 }
 
+pub struct BufRevPtrIter(*mut buf_T);
+
+impl Iterator for BufRevPtrIter {
+    type Item = *mut buf_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).b_prev;
+                Some(cur)
+            }
+        }
+    }
+}
+
+#[inline]
+pub fn for_all_buffers_rev_ptr() -> BufRevPtrIter {
+    BufRevPtrIter(g_st().lastbuf)
+}
+
 pub struct WinMutIter(*mut win_T);
 
 impl Iterator for WinMutIter {

@@ -1288,13 +1288,9 @@ pub fn buf_valid(buf: *mut buf_T) -> bool {
     if buf.is_null() {
         return false;
     }
-    unsafe {
-        let mut bp = g_st().lastbuf;
-        while !bp.is_null() {
-            if bp == buf {
-                return true;
-            }
-            bp = (*bp).b_prev;
+    for bp in for_all_buffers_rev_ptr() {
+        if bp == buf {
+            return true;
         }
     }
     false
@@ -3130,14 +3126,12 @@ fn buflist_findname_file_id(
     file_id_valid: bool,
 ) -> *mut buf_T {
     unsafe {
-        let mut buf = g_st().lastbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_rev_ptr() {
             if ((*buf).b_flags & BF_DUMMY) == 0
                 && !otherfile_buf(&mut *buf, ffname, file_id, file_id_valid)
             {
                 return buf;
             }
-            buf = (*buf).b_prev;
         }
         ptr::null_mut()
     }
@@ -3194,8 +3188,7 @@ pub fn buflist_findpat(
                     let mut regmatch: regmatch_T = regmatch_T::new();
                     regmatch.regprog = vim_regcomp(p, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
 
-                    let mut buf = g_st().lastbuf;
-                    while !buf.is_null() {
+                    for buf in for_all_buffers_rev_ptr() {
                         if regmatch.regprog.is_null() {
                             return -1;
                         }
@@ -3212,7 +3205,6 @@ pub fn buflist_findpat(
                                     }
                                 }
                                 if !found_window {
-                                    buf = (*buf).b_prev;
                                     continue;
                                 }
                             }
@@ -3222,7 +3214,6 @@ pub fn buflist_findpat(
                             }
                             match_fnum = (*buf).b_fnum;
                         }
-                        buf = (*buf).b_prev;
                     }
 
                     vim_regfree(regmatch.regprog);

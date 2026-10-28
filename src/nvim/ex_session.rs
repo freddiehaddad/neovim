@@ -781,8 +781,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
         }
 
         let mut restore_height_width = false;
-        let mut tp_iter = g_st().first_tabpage;
-        while !tp_iter.is_null() {
+        for tp_iter in for_all_tabpages_ptr() {
             let mut tp = tp_iter;
             let mut need_tabnext = false;
             let mut cnr: c_int = 1;
@@ -954,7 +953,6 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
             if (opt_vars().ssop_flags & kOptSsopFlagTabpages) == 0 {
                 break;
             }
-            tp_iter = (*tp_iter).tp_next;
         }
 
         if (opt_vars().ssop_flags & kOptSsopFlagTabpages) != 0

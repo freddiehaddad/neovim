@@ -383,6 +383,54 @@ impl DecorVirtText {
     }
 }
 
+pub struct VirtTextMutIter(*mut DecorVirtText);
+
+impl Iterator for VirtTextMutIter {
+    type Item = &'static mut DecorVirtText;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).next_ptr();
+                Some(&mut *cur)
+            }
+        }
+    }
+}
+
+pub struct VirtTextPtrIter(*mut DecorVirtText);
+
+impl Iterator for VirtTextPtrIter {
+    type Item = *mut DecorVirtText;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).next_ptr();
+                Some(cur)
+            }
+        }
+    }
+}
+
+#[inline]
+pub fn virt_text_iter_mut(start: *mut DecorVirtText) -> VirtTextMutIter {
+    VirtTextMutIter(start)
+}
+
+#[inline]
+pub fn virt_text_iter_ptr(start: *mut DecorVirtText) -> VirtTextPtrIter {
+    VirtTextPtrIter(start)
+}
+
 use crate::extmark::{
     kExtmarkHighlight, kExtmarkNone, kExtmarkSign, kExtmarkVirtLines, kExtmarkVirtText,
 };
@@ -513,20 +561,18 @@ pub fn decor_redraw(buf: &mut buf_T,
 ) {
     unsafe {
         if decor.is_ext() {
-            let mut vt = decor.data.ext().vt;
-            while !vt.is_null() {
-                let below = ((*vt).flags & kVTIsLines) != 0 && ((*vt).flags & kVTLinesAbove) == 0;
+            for vt in virt_text_iter_mut(decor.data.ext().vt) {
+                let below = (vt.flags & kVTIsLines) != 0 && (vt.flags & kVTLinesAbove) == 0;
                 let vt_lnum = row1 + 1 + c_int::from(below);
                 redraw_buf_line_later(buf, vt_lnum, true);
-                if ((*vt).flags & kVTIsLines) != 0 || (*vt).pos == kVPosInline {
-                    let vt_col = if ((*vt).flags & kVTIsLines) != 0 {
+                if (vt.flags & kVTIsLines) != 0 || vt.pos == kVPosInline {
+                    let vt_col = if (vt.flags & kVTIsLines) != 0 {
                         0
                     } else {
                         col1
                     };
                     changed_lines_invalidate_buf(buf, vt_lnum, vt_col, vt_lnum + 1, 0);
                 }
-                vt = (*vt).next_ptr();
             }
 
             let items = &raw const g_st().decor_items;
@@ -965,10 +1011,8 @@ fn decor_range_add_from_inline(
 ) {
     unsafe {
         if decor.is_ext() {
-            let mut vt = decor.data.ext().vt;
-            while !vt.is_null() {
+            for vt in virt_text_iter_ptr(decor.data.ext().vt) {
                 decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
-                vt = (*vt).next_ptr();
             }
             let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
@@ -1787,14 +1831,12 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
         let mut priority: i32 = -1;
 
         if decor.is_ext() {
-            let mut vt = decor.data.ext().vt;
-            while !vt.is_null() {
+            for vt in virt_text_iter_ptr(decor.data.ext().vt) {
                 if ((*vt).flags & kVTIsLines) != 0 {
                     virt_lines = vt;
                 } else {
                     virt_text = vt;
                 }
-                vt = (*vt).next_ptr();
             }
 
             let items = &raw const g_st().decor_items;
@@ -1976,14 +2018,12 @@ pub fn decor_type_flags(decor: DecorInline) -> u16 {
     unsafe {
         if decor.is_ext() {
             let mut type_flags: u16 = kExtmarkNone;
-            let mut vt = decor.data.ext().vt;
-            while !vt.is_null() {
-                type_flags |= if ((*vt).flags & kVTIsLines) != 0 {
+            for vt in virt_text_iter_mut(decor.data.ext().vt) {
+                type_flags |= if (vt.flags & kVTIsLines) != 0 {
                     kExtmarkVirtLines
                 } else {
                     kExtmarkVirtText
                 };
-                vt = (*vt).next_ptr();
             }
             let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;

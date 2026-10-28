@@ -256,16 +256,14 @@ fn inline_virt_text_width(
                 break;
             } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &raw mut *wp) {
                 let decor = mt_decor(mark);
-                let mut vt = if decor.is_ext() {
+                for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
                     decor.data.ext().vt
                 } else {
                     ptr::null_mut()
-                };
-                while !vt.is_null() {
-                    if ((*vt).flags & kVTIsLines) == 0 && (*vt).pos == kVPosInline {
-                        width += (*vt).width;
+                }) {
+                    if (vt.flags & kVTIsLines) == 0 && vt.pos == kVPosInline {
+                        width += vt.width;
                     }
-                    vt = (*vt).next_ptr();
                 }
             }
             marktree_itr_next_filter(&(*buf).b_marktree, iter, row + 1, 0, &INLINE_FILTER);
@@ -314,19 +312,18 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                     let decor = mt_decor(mark);
-                    let mut vt = if decor.is_ext() {
+                    for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
                         decor.data.ext().vt
                     } else {
                         ptr::null_mut()
-                    };
-                    while !vt.is_null() {
-                        if ((*vt).flags & kVTIsLines) == 0 && (*vt).pos == kVPosInline {
+                    }) {
+                        if (vt.flags & kVTIsLines) == 0 && vt.pos == kVPosInline {
                             if mt_right(mark) {
-                                csarg.cur_text_width_right += (*vt).width;
+                                csarg.cur_text_width_right += vt.width;
                             } else {
-                                csarg.cur_text_width_left += (*vt).width;
+                                csarg.cur_text_width_left += vt.width;
                             }
-                            size += (*vt).width;
+                            size += vt.width;
                             if use_tabstop {
                                 size -= tab_size;
                                 tab_size = tabstop_padding(
@@ -337,7 +334,6 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
                                 size += tab_size;
                             }
                         }
-                        vt = (*vt).next_ptr();
                     }
                 }
                 marktree_itr_next_filter(
