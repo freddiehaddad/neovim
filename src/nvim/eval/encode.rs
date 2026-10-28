@@ -378,7 +378,8 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
 }
 
 #[inline]
-fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
+fn buf_concat_cstr(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
+    let s = s.into_c_char_ptr();
     {
         if !s.is_null() {
             gap.extend_from_slice(crate::memory::cstr_as_bytes(s));
@@ -387,7 +388,8 @@ fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
 }
 
 #[inline]
-fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
+fn buf_concat_len(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, len: usize) {
+    let s = s.into_c_char_ptr();
     {
         if !s.is_null() && len > 0 {
             gap.extend_from_slice(crate::memory::cstr_slice(s, len));
@@ -1233,8 +1235,9 @@ fn convert_one_value(
     mpstack: &mut Vec<MPConvStackVal>,
     tv: *mut TypVal,
     copy_id: c_int,
-    objname: *const c_char,
+    objname: impl crate::strings::IntoCCharPtr,
 ) -> c_int {
+    let objname = objname.into_c_char_ptr();
     unsafe {
         backend.check_before();
         let tv_ref = &mut *tv;

@@ -2297,8 +2297,8 @@ pub fn check_quickfix_busy() {
 
 fn qf_add_entry(
     qfl: &mut QfList,
-    dir: *mut c_char,
-    fname: *mut c_char,
+    dir: impl crate::strings::IntoCCharPtr,
+    fname: impl crate::strings::IntoCCharPtr,
     module: impl crate::strings::IntoCCharPtr,
     bufnum: c_int,
     mesg: impl crate::strings::IntoCCharPtr,
@@ -2313,6 +2313,8 @@ fn qf_add_entry(
     user_data: Option<&TypVal>,
     valid: c_char,
 ) -> c_int {
+    let dir = dir.into_c_char_ptr().cast_mut();
+    let fname = fname.into_c_char_ptr().cast_mut();
     let module = module.into_c_char_ptr();
     let mesg = mesg.into_c_char_ptr();
     let pattern = pattern.into_c_char_ptr();
@@ -2690,7 +2692,12 @@ fn qf_get_fnum(
     }
 }
 
-fn qf_push_dir(dirbuf: *mut c_char, stack: &mut Vec<std::ffi::CString>, is_file_stack: bool) {
+fn qf_push_dir(
+    dirbuf: impl crate::strings::IntoCCharPtr,
+    stack: &mut Vec<std::ffi::CString>,
+    is_file_stack: bool,
+) {
+    let dirbuf = dirbuf.into_c_char_ptr().cast_mut();
     {
         if vim_isAbsName(dirbuf) || stack.is_empty() || is_file_stack {
             stack.push(crate::memory::cstr_to_cstring(dirbuf));

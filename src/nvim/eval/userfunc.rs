@@ -329,10 +329,11 @@ pub fn func_tbl_get() -> &'static mut std::collections::BTreeMap<Vec<u8>, *mut U
 /// Return a pointer to after the type.
 /// When something is wrong return "arg".
 fn one_function_arg(
-    arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     newargs: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
 ) -> *mut c_char {
+    let arg = arg.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = arg;
 
@@ -2628,9 +2629,10 @@ fn list_one_function(
 fn get_function_body(
     eap: &mut Exarg,
     newlines: &mut Vec<Option<std::ffi::CString>>,
-    line_arg_in: *mut c_char,
+    line_arg_in: impl crate::strings::IntoCCharPtr,
     show_block: bool,
 ) -> bool {
+    let line_arg_in = line_arg_in.into_c_char_ptr().cast_mut();
     unsafe {
         let mut saved_wait_return = g_st().need_wait_return;
         let mut line_arg = line_arg_in;

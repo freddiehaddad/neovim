@@ -1187,13 +1187,14 @@ pub fn free_findfile() {}
 
 /// Find the directory name `ptr[len]` in the path.
 pub fn find_directory_in_path(
-    ptr: *mut c_char,
+    ptr: impl crate::strings::IntoCCharPtr,
     len: usize,
     options: c_int,
     rel_fname: impl crate::strings::IntoCCharPtr,
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<FfSearchCtx>,
 ) -> Option<std::ffi::CString> {
+    let ptr = ptr.into_c_char_ptr().cast_mut();
     let rel_fname = rel_fname.into_c_char_ptr();
     find_file_in_path_option(
         ptr,

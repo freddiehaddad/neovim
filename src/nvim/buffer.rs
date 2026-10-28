@@ -3410,7 +3410,12 @@ fn buflist_match(rmp: &mut Regmatch, buf: &mut FileBuf, ignore_case: bool) -> *m
     match_
 }
 
-fn fname_match(rmp: &mut Regmatch, name: *mut c_char, ignore_case: bool) -> *mut c_char {
+fn fname_match(
+    rmp: &mut Regmatch,
+    name: impl crate::strings::IntoCCharPtr,
+    ignore_case: bool,
+) -> *mut c_char {
+    let name = name.into_c_char_ptr().cast_mut();
     let mut match_: *mut c_char = ptr::null_mut();
 
     if name.is_null() || rmp.regprog.is_null() {

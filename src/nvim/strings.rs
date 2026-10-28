@@ -822,7 +822,8 @@ pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> c_int {
     }
 }
 
-fn format_typename(type_: *const c_char) -> *const c_char {
+fn format_typename(type_: impl crate::strings::IntoCCharPtr) -> *const c_char {
+    let type_ = type_.into_c_char_ptr();
     match format_typeof(type_) {
         TYPE_INT => c"int".as_ptr(),
         TYPE_LONGINT => c"long int".as_ptr(),
@@ -841,7 +842,12 @@ fn format_typename(type_: *const c_char) -> *const c_char {
     }
 }
 
-fn adjust_types(ap_types: &mut Vec<*const c_char>, arg: c_int, type_: *const c_char) -> bool {
+fn adjust_types(
+    ap_types: &mut Vec<*const c_char>,
+    arg: c_int,
+    type_: impl crate::strings::IntoCCharPtr,
+) -> bool {
+    let type_ = type_.into_c_char_ptr();
     unsafe {
         if arg <= 0 {
             semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), type_);

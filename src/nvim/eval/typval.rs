@@ -3964,7 +3964,8 @@ pub fn tv_blob_copy(from: Option<&TvBlob>, to: &mut TypVal) {
 }
 
 #[inline]
-fn nothing_conv_func_start(tv: &mut TypVal, fun: *mut c_char) -> c_int {
+fn nothing_conv_func_start(tv: &mut TypVal, fun: impl crate::strings::IntoCCharPtr) -> c_int {
+    let fun = fun.into_c_char_ptr().cast_mut();
     unsafe {
         tv.v_lock = VAR_UNLOCKED;
         if tv.v_type == VarType::VarPartial {

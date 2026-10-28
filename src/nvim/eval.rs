@@ -1283,12 +1283,13 @@ fn get_lval_list(
 
 fn get_lval_subscript(
     lp: &mut Lval,
-    mut p: *mut c_char,
+    p: impl crate::strings::IntoCCharPtr,
     name: impl crate::strings::IntoCCharPtr,
     mut rettv: Option<&mut TypVal>,
     unlet: bool,
     flags: c_int,
 ) -> *mut c_char {
+    let mut p = p.into_c_char_ptr().cast_mut();
     let name = name.into_c_char_ptr();
     unsafe {
         let quiet = (flags & GLV_QUIET) != 0;

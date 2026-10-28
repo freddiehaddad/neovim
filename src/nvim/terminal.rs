@@ -2683,7 +2683,8 @@ fn is_focused(term: &mut Terminal) -> bool {
     (g_st().state_global & MODE_TERMINAL) != 0 && curbuf_mut().terminal == term
 }
 
-fn get_config_string(buf: &mut FileBuf, key: *mut c_char) -> *mut c_char {
+fn get_config_string(buf: &mut FileBuf, key: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let key = key.into_c_char_ptr().cast_mut();
     {
         let mut err = Error::new();
         let key_str = NvimString {

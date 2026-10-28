@@ -5041,11 +5041,12 @@ fn nv_next(cap: &mut Cmdarg) {
 fn normal_search(
     cap: &mut Cmdarg,
     dir: c_int,
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     patlen: usize,
     opt: c_int,
     wrapped: Option<&mut c_int>,
 ) -> c_int {
+    let pat = pat.into_c_char_ptr().cast_mut();
     {
         let mut sia = SearchitArg::new();
         let prev_cursor = curwin_mut().w_cursor;

@@ -431,10 +431,11 @@ fn get_char_type(c: c_int) -> c_int {
     CHAR_OTHER
 }
 fn advance_camelcase_word(
-    str_: *mut c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     wp: &mut WinInfoInfo,
     is_camel_case: &mut bool,
 ) -> *mut c_char {
+    let str_ = str_.into_c_char_ptr().cast_mut();
     {
         let mut end = str_;
         *is_camel_case = false;
@@ -3070,13 +3071,14 @@ pub fn spell_dump_compl(
 }
 fn dump_word(
     slang: &mut Slang,
-    word: *mut c_char,
+    word: impl crate::strings::IntoCCharPtr,
     pat: impl crate::strings::IntoCCharPtr,
     mut dir: Option<&mut Direction>,
     dumpflags: c_int,
     wordflags: c_int,
     lnum: Linenr,
 ) {
+    let word = word.into_c_char_ptr().cast_mut();
     let pat = pat.into_c_char_ptr();
     unsafe {
         let mut keepcap = false;

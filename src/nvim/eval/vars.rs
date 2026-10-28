@@ -1704,12 +1704,13 @@ fn list_arg_vars(
 
 /// Set an environment variable, part of ex_let_one().
 fn ex_let_env(
-    mut arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     tv: &mut TypVal,
     is_const: bool,
     endchars: impl crate::strings::IntoCCharPtr,
     op: impl crate::strings::IntoCCharPtr,
 ) -> *mut c_char {
+    let mut arg = arg.into_c_char_ptr().cast_mut();
     let endchars = endchars.into_c_char_ptr();
     let op = op.into_c_char_ptr();
     unsafe {
@@ -1896,12 +1897,13 @@ fn ex_let_option(
 
 /// Set a register, part of ex_let_one().
 fn ex_let_register(
-    mut arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     tv: &mut TypVal,
     is_const: bool,
     endchars: impl crate::strings::IntoCCharPtr,
     op: impl crate::strings::IntoCCharPtr,
 ) -> *mut c_char {
+    let mut arg = arg.into_c_char_ptr().cast_mut();
     let endchars = endchars.into_c_char_ptr();
     let op = op.into_c_char_ptr();
     unsafe {
@@ -1959,13 +1961,14 @@ fn ex_let_register(
 
 /// Set one item of `:let var = expr` or `:let [v1, v2] = list` to its value.
 fn ex_let_one(
-    arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     tv: &mut TypVal,
     copy: bool,
     is_const: bool,
     endchars: impl crate::strings::IntoCCharPtr,
     op: impl crate::strings::IntoCCharPtr,
 ) -> *mut c_char {
+    let arg = arg.into_c_char_ptr().cast_mut();
     let op = op.into_c_char_ptr();
     let endchars = endchars.into_c_char_ptr();
     unsafe {

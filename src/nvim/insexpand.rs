@@ -1198,9 +1198,9 @@ pub fn ins_compl_preinsert_longest() -> bool {
 
 /// Add a match to the list of matches.
 fn ins_compl_add(
-    str_ptr: *mut c_char,
+    str_ptr: impl crate::strings::IntoCCharPtr,
     mut len: c_int,
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     cptext: [Option<std::ffi::CString>; CPT_COUNT],
     user_data: Option<&mut TypVal>,
     cdir: Direction,
@@ -1211,6 +1211,8 @@ fn ins_compl_add(
     preselect: bool,
     commit_chars: Option<std::ffi::CString>,
 ) -> c_int {
+    let str_ptr = str_ptr.into_c_char_ptr().cast_mut();
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         let dir = if cdir == K_DIRECTION_NOT_SET {
             insexp().compl_direction
@@ -3262,7 +3264,8 @@ pub fn set_buflocal_cpt_callbacks(buf: Option<&mut FileBuf>) {
     }
 }
 
-fn parse_cpt_callbacks(cpt: *mut c_char, cbp: &mut Vec<Callback>) {
+fn parse_cpt_callbacks(cpt: impl crate::strings::IntoCCharPtr, cbp: &mut Vec<Callback>) {
+    let cpt = cpt.into_c_char_ptr().cast_mut();
     unsafe {
         clear_cpt_callbacks(cbp);
 

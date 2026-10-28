@@ -637,9 +637,10 @@ fn is_executable(
 
 #[cfg(windows)]
 fn is_executable_ext(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     mut abspath: Option<&mut Option<std::ffi::CString>>,
 ) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         let sh_tail = crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh));
         let has_sub =
@@ -700,7 +701,11 @@ fn is_executable_ext(
 
 #[cfg(not(windows))]
 #[inline]
-fn is_executable_ext(name: *const c_char, abspath: Option<&mut Option<std::ffi::CString>>) -> bool {
+fn is_executable_ext(
+    name: impl crate::strings::IntoCCharPtr,
+    abspath: Option<&mut Option<std::ffi::CString>>,
+) -> bool {
+    let name = name.into_c_char_ptr();
     is_executable(name, abspath)
 }
 

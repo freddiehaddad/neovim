@@ -833,7 +833,12 @@ fn runtime_search_path_unref() {
     }
 }
 
-fn do_in_cached_path(name: *mut c_char, flags: c_int, callback: &mut RuntimeCallback<'_>) -> bool {
+fn do_in_cached_path(
+    name: impl crate::strings::IntoCCharPtr,
+    flags: c_int,
+    callback: &mut RuntimeCallback<'_>,
+) -> bool {
+    let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let mut did_one = false;
         let mut buf = [0 as c_char; MAXPATHL];
@@ -1102,10 +1107,11 @@ fn push_path(
 fn expand_rtp_entry(
     search_path: &mut RuntimeSearchPath,
     rtp_used: &mut std::collections::HashSet<Vec<u8>>,
-    entry: *mut c_char,
+    entry: impl crate::strings::IntoCCharPtr,
     after: bool,
     pos_in_rtp: usize,
 ) {
+    let entry = entry.into_c_char_ptr().cast_mut();
     {
         if rtp_used.contains(crate::memory::cstr_as_bytes(entry)) {
             return;

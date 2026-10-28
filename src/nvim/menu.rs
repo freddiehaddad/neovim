@@ -668,7 +668,13 @@ fn menu_enable_recurse(
 }
 
 /// Remove the (sub)menu with the given name from the menu hierarchy (`remove_menu`).
-fn remove_menu(menup: &mut Vec<Vimmenu>, name: *mut c_char, modes: c_int, silent: bool) -> bool {
+fn remove_menu(
+    menup: &mut Vec<Vimmenu>,
+    name: impl crate::strings::IntoCCharPtr,
+    modes: c_int,
+    silent: bool,
+) -> bool {
+    let name = name.into_c_char_ptr().cast_mut();
     {
         if menup.is_empty() {
             return true;
@@ -1269,7 +1275,8 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 }
 
 /// Skip over this element of the menu path and return the start of the next element (`menu_name_skip`).
-fn menu_name_skip(name: *mut c_char) -> *mut c_char {
+fn menu_name_skip(name: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = name;
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' {
@@ -1857,7 +1864,8 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
 }
 
 /// Find the character just after one part of a menu name (`menu_skip_part`).
-fn menu_skip_part(mut p: *mut c_char) -> *mut c_char {
+fn menu_skip_part(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let mut p = p.into_c_char_ptr().cast_mut();
     unsafe {
         while !crate::memory::cstr_is_empty(p)
             && crate::memory::cstr_first_byte(p) != b'.'
@@ -1921,7 +1929,8 @@ fn menu_unescape_name(name: impl crate::strings::IntoCCharPtr) {
 }
 
 /// Isolate the menu name (`menu_translate_tab_and_shift`).
-fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
+fn menu_translate_tab_and_shift(arg_start: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let arg_start = arg_start.into_c_char_ptr().cast_mut();
     unsafe {
         let mut arg = arg_start;
 

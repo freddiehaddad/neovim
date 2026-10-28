@@ -1599,7 +1599,8 @@ pub(super) fn get_cpo_flags() {
 }
 
 /// Skip over a `[]` range.
-pub(super) fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
+pub(super) fn skip_anyof(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let mut p = p.into_c_char_ptr().cast_mut();
     unsafe {
         if crate::memory::cstr_first_byte(p) == b'^' {
             p = p.add(1);

@@ -943,9 +943,10 @@ fn is_unique(
 
 fn expand_path_option(
     curdir: impl crate::strings::IntoCCharPtr,
-    mut path_option: *mut c_char,
+    path_option: impl crate::strings::IntoCCharPtr,
     gap: &mut Vec<std::ffi::CString>,
 ) {
+    let mut path_option = path_option.into_c_char_ptr().cast_mut();
     let curdir = curdir.into_c_char_ptr();
     unsafe {
         let mut buf_arr = [0 as c_char; MAXPATHL];
@@ -1007,7 +1008,11 @@ fn expand_path_option(
     }
 }
 
-fn get_path_cutoff(fname: *mut c_char, gap: &[std::ffi::CString]) -> *mut c_char {
+fn get_path_cutoff(
+    fname: impl crate::strings::IntoCCharPtr,
+    gap: &[std::ffi::CString],
+) -> *mut c_char {
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         let mut maxlen: c_int = 0;
         let mut cutoff: *mut c_char = ptr::null_mut();
@@ -1044,8 +1049,9 @@ fn get_path_cutoff(fname: *mut c_char, gap: &[std::ffi::CString]) -> *mut c_char
 fn uniquefy_paths(
     gap: &mut Vec<std::ffi::CString>,
     pattern: impl crate::strings::IntoCCharPtr,
-    path_option: *mut c_char,
+    path_option: impl crate::strings::IntoCCharPtr,
 ) {
+    let path_option = path_option.into_c_char_ptr().cast_mut();
     let pattern = pattern.into_c_char_ptr();
     unsafe {
         let mut sort_again = false;

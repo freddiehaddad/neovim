@@ -1309,12 +1309,13 @@ fn tagfunc_cmd_kind(cmd: impl crate::strings::IntoCCharPtr) -> Tagcmd {
 }
 
 fn find_tagfunc_tags(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     ga: &mut Vec<Vec<c_char>>,
     match_count: &mut c_int,
     flags: c_int,
     buf_ffname: impl crate::strings::IntoCCharPtr,
 ) -> c_int {
+    let pat = pat.into_c_char_ptr().cast_mut();
     let buf_ffname = buf_ffname.into_c_char_ptr();
     unsafe {
         let mut ntags: c_int = 0;

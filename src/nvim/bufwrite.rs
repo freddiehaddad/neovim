@@ -870,11 +870,12 @@ fn get_fileinfo(
 }
 
 pub fn buf_get_backup_name(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     dirp: *mut *mut c_char,
     no_prepend_dot: bool,
     backup_ext: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
+    let fname = fname.into_c_char_ptr().cast_mut();
     let backup_ext = backup_ext.into_c_char_ptr();
     unsafe {
         let mut backup: Option<std::ffi::CString> = None;
@@ -909,7 +910,7 @@ pub fn buf_get_backup_name(
 }
 
 fn buf_write_make_backup(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     append: bool,
     file_info_old: &mut FileInfo,
     acl: VimAcl,
@@ -921,6 +922,7 @@ fn buf_write_make_backup(
     backupp: &mut Option<std::ffi::CString>,
     err: &mut BwError,
 ) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         let mut file_info = FileInfo::new();
         let no_prepend_dot = false;

@@ -256,7 +256,8 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: c_int) {
 }
 
 /// Isolate one argument, taking backticks (`do_one_arg`).
-fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
+fn do_one_arg(str_: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let mut str_ = str_.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = str_;
         let mut inbacktick = false;
@@ -286,7 +287,8 @@ fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
 }
 
 /// Separate the arguments in `str` and return a list of pointers in `gap` (`get_arglist`).
-fn get_arglist(gap: &mut Vec<*mut c_char>, mut str_: *mut c_char, escaped: bool) {
+fn get_arglist(gap: &mut Vec<*mut c_char>, str_: impl crate::strings::IntoCCharPtr, escaped: bool) {
+    let mut str_ = str_.into_c_char_ptr().cast_mut();
     {
         gap.clear();
         gap.reserve(20);

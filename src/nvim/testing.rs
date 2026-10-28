@@ -50,7 +50,8 @@ pub fn ga_concat_literal(gap: &mut Vec<u8>, s: &[u8]) {
 }
 
 #[inline]
-fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
+fn buf_concat_cstr(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
+    let s = s.into_c_char_ptr();
     {
         if !s.is_null() {
             gap.extend_from_slice(crate::memory::cstr_as_bytes(s));
@@ -59,7 +60,8 @@ fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
 }
 
 #[inline]
-fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
+fn buf_concat_len(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, len: usize) {
+    let s = s.into_c_char_ptr();
     {
         if !s.is_null() && len > 0 {
             gap.extend_from_slice(crate::memory::cstr_slice(s, len));

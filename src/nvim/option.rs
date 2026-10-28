@@ -1451,11 +1451,12 @@ fn stropt_remove_val(
 
 /// Find a comma-separated item in "src" that matches the key part of "key".
 fn find_key_item(
-    src: *mut c_char,
+    src: impl crate::strings::IntoCCharPtr,
     key: impl crate::strings::IntoCCharPtr,
     keylen: isize,
     itemlenp: &mut isize,
 ) -> *mut c_char {
+    let src = src.into_c_char_ptr().cast_mut();
     let key = key.into_c_char_ptr();
     unsafe {
         let mut p = src;

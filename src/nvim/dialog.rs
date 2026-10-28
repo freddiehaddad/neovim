@@ -69,10 +69,12 @@ fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> usize {
 }
 
 fn console_dialog_alloc(
-    message: *const c_char,
-    buttons: *const c_char,
+    message: impl crate::strings::IntoCCharPtr,
+    buttons: impl crate::strings::IntoCCharPtr,
     has_hotkey: &mut [bool; HAS_HOTKEY_LEN],
 ) -> Vec<c_char> {
+    let message = message.into_c_char_ptr();
+    let buttons = buttons.into_c_char_ptr();
     unsafe {
         let mut lenhotkey = HOTK_LEN;
         has_hotkey[0] = false;

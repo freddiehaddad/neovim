@@ -8444,11 +8444,12 @@ pub fn expand_filename(
 
 fn repl_cmdline(
     eap: &mut Exarg,
-    mut src: *mut c_char,
+    src: impl crate::strings::IntoCCharPtr,
     srclen: usize,
     repl: impl crate::strings::IntoCCharPtr,
     cmdlinep: *mut *mut c_char,
 ) -> *mut c_char {
+    let mut src = src.into_c_char_ptr().cast_mut();
     let repl = repl.into_c_char_ptr();
     unsafe {
         let len = crate::memory::cstr_len(repl);

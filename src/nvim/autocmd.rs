@@ -3833,7 +3833,8 @@ pub fn aucmd_handler_to_string(ac: &mut AutoCmd) -> CString {
     }
 }
 
-fn arg_event_skip(arg: *mut c_char, have_group: bool) -> *mut c_char {
+fn arg_event_skip(arg: impl crate::strings::IntoCCharPtr, have_group: bool) -> *mut c_char {
+    let arg = arg.into_c_char_ptr().cast_mut();
     unsafe {
         let mut pat: *mut c_char;
         let mut p: *mut c_char = ptr::null_mut();

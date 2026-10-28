@@ -3864,10 +3864,11 @@ fn sub_grow_buf(new_start: &mut SubBuf, new_start_size: &mut usize, mut needed_s
 
 /// Parse `cmd` string for `:substitute`'s `{flags}` and update `subflags_arg` accordingly.
 fn sub_parse_flags(
-    mut cmd: *mut c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     subflags_arg: &mut Subflags,
     which_pat: &mut c_int,
 ) -> *mut c_char {
+    let mut cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
         if crate::memory::cstr_first_byte(cmd) == b'&' {
             cmd = cmd.add(1);
@@ -3919,7 +3920,8 @@ fn sub_parse_flags(
 
 /// Skip over the `"sub"` part in `:s/pat/sub/` where `"delimiter"` is the separating
 /// character.
-fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
+fn skip_substitute(start: impl crate::strings::IntoCCharPtr, delimiter: c_int) -> *mut c_char {
+    let start = start.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = start;
         while !crate::memory::cstr_is_empty(p) {

@@ -2472,9 +2472,10 @@ fn get_next_or_prev_match(mode: c_int, xp: &mut ExpandCtx) -> Option<CString> {
 fn expand_one_start(
     mode: c_int,
     xp: &mut ExpandCtx,
-    str_arg: *mut c_char,
+    str_arg: impl crate::strings::IntoCCharPtr,
     options: c_int,
 ) -> Option<CString> {
+    let str_arg = str_arg.into_c_char_ptr().cast_mut();
     let mut ss: Option<CString> = None;
 
     let mut xp_files = std::mem::take(&mut xp.xp_files);
@@ -2915,7 +2916,8 @@ pub fn showmatches(
 }
 
 /// path_tail() version for showmatches() and redraw_wildmenu().
-fn showmatches_gettail(s: *mut c_char, eager: bool) -> *mut c_char {
+fn showmatches_gettail(s: impl crate::strings::IntoCCharPtr, eager: bool) -> *mut c_char {
+    let s = s.into_c_char_ptr().cast_mut();
     unsafe {
         let mut t = s;
         let mut had_sep = false;
@@ -4422,11 +4424,12 @@ pub fn expand_cmdline(
 /// Expand file or directory names.
 fn expand_files_and_dirs(
     xp: &mut ExpandCtx,
-    mut pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     matches: &mut Vec<CString>,
     mut flags: c_int,
     options: c_int,
 ) -> bool {
+    let mut pat = pat.into_c_char_ptr().cast_mut();
     unsafe {
         let mut pat_owned: Option<Vec<c_char>> = None;
 
@@ -5011,10 +5014,11 @@ fn map_wildopts_to_ewflags(options: c_int) -> c_int {
 /// Do the expansion based on xp->xp_context and "pat".
 fn expand_from_context(
     xp: &mut ExpandCtx,
-    mut pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     matches: &mut Vec<CString>,
     options: c_int,
 ) -> bool {
+    let mut pat = pat.into_c_char_ptr().cast_mut();
     unsafe {
         let mut regmatch: Regmatch = Regmatch::new();
         let flags = map_wildopts_to_ewflags(options);
@@ -5268,12 +5272,13 @@ pub fn expand_generic(
 
 /// Expand shell command matches in one directory of $PATH.
 fn expand_shellcmd_onedir(
-    mut pathed_pattern: *mut c_char,
+    pathed_pattern: impl crate::strings::IntoCCharPtr,
     pathlen: usize,
     flags: c_int,
     found_ht: &mut std::collections::HashSet<Vec<u8>>,
     gap: &mut Vec<CString>,
 ) {
+    let mut pathed_pattern = pathed_pattern.into_c_char_ptr().cast_mut();
     let mut dir_matches: Vec<std::ffi::CString> = Vec::new();
     if !expand_wildcards_vec(1, &raw mut pathed_pattern, &mut dir_matches, flags) {
         return;

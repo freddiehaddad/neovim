@@ -489,7 +489,8 @@ fn eval_expr_no_emsg(name: impl crate::strings::IntoCCharPtr) -> Option<TypVal> 
     tv
 }
 
-fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<Debuggy> {
+fn dbg_parsearg(arg: impl crate::strings::IntoCCharPtr, is_prof: bool) -> Option<Debuggy> {
+    let arg = arg.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = arg;
         let mut here = false;

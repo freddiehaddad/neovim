@@ -3685,11 +3685,12 @@ fn get_group_name(
 }
 
 fn get_syn_options(
-    mut arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     opt: &mut SynOptArg,
     conceal_char: &mut c_int,
     skip: c_int,
 ) -> *mut c_char {
+    let mut arg = arg.into_c_char_ptr().cast_mut();
     unsafe {
         const FLAGTAB: &[(&[u8], c_int, c_int)] = &[
             (b"cCoOnNtTaAiInNeEdD\0", 0, HL_CONTAINED),
@@ -4493,7 +4494,8 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: c_int) {
     }
 }
 
-fn get_syn_pattern(arg: *mut c_char, ci: &mut Synpat) -> *mut c_char {
+fn get_syn_pattern(arg: impl crate::strings::IntoCCharPtr, ci: &mut Synpat) -> *mut c_char {
+    let arg = arg.into_c_char_ptr().cast_mut();
     unsafe {
         if crate::memory::cstr_is_empty(arg)
             || crate::memory::cstr_byte_at(arg, 1) == 0

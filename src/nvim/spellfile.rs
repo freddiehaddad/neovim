@@ -3221,16 +3221,19 @@ fn get_compflags(
 
 fn store_aff_word(
     spin: &mut Spellinfo,
-    word: *mut c_char,
-    afflist: *mut c_char,
+    word: impl crate::strings::IntoCCharPtr,
+    afflist: impl crate::strings::IntoCCharPtr,
     affile: &Afffile,
     ht: &std::collections::BTreeMap<Vec<u8>, Affheader>,
     xht: Option<&std::collections::BTreeMap<Vec<u8>, Affheader>>,
     condit: c_int,
     flags: c_int,
-    pfxlist: *mut c_char,
+    pfxlist: impl crate::strings::IntoCCharPtr,
     pfxlen: c_int,
 ) -> bool {
+    let word = word.into_c_char_ptr().cast_mut();
+    let afflist = afflist.into_c_char_ptr().cast_mut();
+    let pfxlist = pfxlist.into_c_char_ptr().cast_mut();
     unsafe {
         let mut newword = [0 as c_char; MAXWLEN];
         let mut retval = true;
