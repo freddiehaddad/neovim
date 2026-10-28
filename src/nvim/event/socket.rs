@@ -177,14 +177,14 @@ pub fn socket_address_tcp_host_end(address: impl crate::strings::IntoCCharPtr) -
 
 pub fn socket_watcher_init(
     loop_: &mut Loop,
-    watcher: *mut SocketWatcher,
+    watcher: &mut SocketWatcher,
     endpoint: *const c_char,
 ) -> c_int {
     unsafe {
-        let addr = (*watcher).addr.as_mut_ptr();
+        let addr = watcher.addr.as_mut_ptr();
         xstrlcpy(addr, endpoint, ADDRESS_MAX_SIZE);
         let host_end = socket_address_tcp_host_end(addr);
-        let uv_ptr: *mut c_void = (&raw mut (*watcher).uv).cast();
+        let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
 
         if !host_end.is_null() {
             *host_end = NUL;
@@ -242,7 +242,7 @@ pub fn socket_watcher_init(
                 );
                 return retval;
             }
-            (*watcher).tcp_addrinfo = *getaddrinfo_req_addrinfo_ptr((&raw mut request).cast());
+            watcher.tcp_addrinfo = *getaddrinfo_req_addrinfo_ptr((&raw mut request).cast());
 
             uv_tcp_init((&raw mut loop_.uv).cast(), uv_ptr.cast());
             uv_tcp_nodelay(uv_ptr.cast(), 1);
@@ -250,8 +250,8 @@ pub fn socket_watcher_init(
             uv_pipe_init((&raw mut loop_.uv).cast(), uv_ptr.cast(), 0);
         }
 
-        *(*watcher).stream_ptr().cast::<*mut SocketWatcher>() = watcher;
-        (*watcher).events = ptr::null_mut();
+        *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
+        watcher.events = ptr::null_mut();
 
         0
     }
@@ -286,14 +286,14 @@ unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
     }
 }
 
-pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_int {
+pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: c_int) -> c_int {
     unsafe {
-        let addr = (*watcher).addr.as_mut_ptr();
-        let uv_ptr: *mut c_void = (&raw mut (*watcher).uv).cast();
+        let addr = watcher.addr.as_mut_ptr();
+        let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
         let mut result: c_int = UV_EINVAL;
 
-        if uv_handle_get_type((*watcher).stream_ptr().cast()) == UV_TCP {
-            let mut ai = (*watcher).tcp_addrinfo;
+        if uv_handle_get_type(watcher.stream_ptr().cast()) == UV_TCP {
+            let mut ai = watcher.tcp_addrinfo;
 
             while !ai.is_null() {
                 result = uv_tcp_bind(uv_ptr.cast(), (*ai).ai_addr, 0);
@@ -301,7 +301,7 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
                     ai = (*ai).ai_next;
                     continue;
                 }
-                result = uv_listen((*watcher).stream_ptr(), backlog, Some(connection_cb));
+                result = uv_listen(watcher.stream_ptr(), backlog, Some(connection_cb));
                 if result == 0 {
                     let mut sas = SockaddrStorage { bytes: [0; 128] };
                     let mut sas_len = size_of::<SockaddrStorage>() as c_int;
@@ -318,13 +318,13 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
                 }
                 ai = (*ai).ai_next;
             }
-            uv_freeaddrinfo((*watcher).tcp_addrinfo.cast());
+            uv_freeaddrinfo(watcher.tcp_addrinfo.cast());
         } else {
             result = uv_pipe_bind2(uv_ptr.cast(), addr, crate::memory::cstr_len(addr), UV_PIPE_NO_TRUNCATE);
 
             // If bind failed with EACCES/EADDRINUSE, check if socket is stale
             if result == UV_EACCES || result == UV_EADDRINUSE {
-                let uv_loop = uv_handle_get_loop((*watcher).stream_ptr().cast());
+                let uv_loop = uv_handle_get_loop(watcher.stream_ptr().cast());
                 let loop_ = *uv_loop.cast::<*mut Loop>();
 
                 if !socket_alive(&mut *loop_, addr) {
@@ -351,7 +351,7 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
                         poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
 
                         uv_pipe_init(uv_loop, uv_ptr.cast(), 0);
-                        *(*watcher).stream_ptr().cast::<*mut SocketWatcher>() = watcher;
+                        *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
 
                         // Retry bind with fresh handle
                         result =
@@ -371,7 +371,7 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
             }
 
             if result == 0 {
-                result = uv_listen((*watcher).stream_ptr(), backlog, Some(connection_cb));
+                result = uv_listen(watcher.stream_ptr(), backlog, Some(connection_cb));
             }
         }
 
@@ -390,12 +390,12 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
     }
 }
 
-pub fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: &mut RStream) -> c_int {
+pub fn socket_watcher_accept(watcher: &mut SocketWatcher, stream: &mut RStream) -> c_int {
     unsafe {
-        let uv_ptr: *mut c_void = (&raw mut (*watcher).uv).cast();
+        let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
         let client: *mut uv_stream_t = (&raw mut stream.s.uv).cast();
 
-        if uv_handle_get_type((*watcher).stream_ptr().cast()) == UV_TCP {
+        if uv_handle_get_type(watcher.stream_ptr().cast()) == UV_TCP {
             let uv_loop = uv_handle_get_loop(uv_ptr.cast());
             uv_tcp_init(uv_loop, client.cast());
             uv_tcp_nodelay(client.cast(), 1);
@@ -404,7 +404,7 @@ pub fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: &mut RStream) 
             uv_pipe_init(uv_loop, client.cast(), 0);
         }
 
-        let result = uv_accept((*watcher).stream_ptr(), client);
+        let result = uv_accept(watcher.stream_ptr(), client);
 
         if result != 0 {
             uv_close(client.cast(), None);

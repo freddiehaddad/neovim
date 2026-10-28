@@ -324,7 +324,7 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
             }
             match (*stream).internal_data {
                 StreamInternalData::None => {}
-                StreamInternalData::Channel(chan) => crate::channel::channel_decref(chan),
+                StreamInternalData::Channel(chan) => crate::channel::channel_decref( &mut *chan),
                 StreamInternalData::Proc(proc_) => crate::event::proc::proc_decref(&mut *proc_),
                 StreamInternalData::Closed(closed_ptr) => *closed_ptr = true,
             }

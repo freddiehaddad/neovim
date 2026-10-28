@@ -1638,7 +1638,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                         curwin_mut().w_topfill = 0;
                     }
                 }
-                check_topfill(curwin_ptr(), false);
+                check_topfill(curwin_mut(), false);
                 curwin_mut().w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP);
                 redraw_later(curwin_ptr(), UPD_VALID);
                 row = 0;
@@ -1673,7 +1673,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                         curwin_mut().w_topfill = win_get_fill(curwin_ptr(), curwin_mut().w_topline);
                     }
                 }
-                check_topfill(curwin_ptr(), false);
+                check_topfill(curwin_mut(), false);
                 redraw_later(curwin_ptr(), UPD_VALID);
                 curwin_mut().w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP);
                 row = curwin_mut().w_view_height - 1;
@@ -1828,7 +1828,7 @@ pub fn mouse_comp_pos(
 
                 if width1 > 0 {
                     let skip_lines = if win.w_skipcol > width1 {
-                        (win.w_skipcol - width1) / (width1 + win_col_off2(&raw mut *win)) + 1
+                        (win.w_skipcol - width1) / (width1 + win_col_off2(win)) + 1
                     } else if win.w_skipcol > 0 {
                         1
                     } else {
@@ -1899,7 +1899,7 @@ pub fn mouse_comp_pos(
         }
 
         if !retval {
-            let off = win_col_off(&raw mut *win) - win_col_off2(&raw mut *win);
+            let off = win_col_off(&raw mut *win) - win_col_off2(win);
             col = col.max(off);
             col += row * (win.w_view_width - off);
 
@@ -2044,7 +2044,7 @@ pub fn vcol2col(
     unsafe {
         let line = ml_get_buf(wp.w_buffer, lnum);
         let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(&mut csarg, &raw mut *wp, lnum, line);
+        let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut cur_vcol: c_int = 0;
         while cur_vcol < vcol && *ci.ptr != NUL {

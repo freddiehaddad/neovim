@@ -246,7 +246,7 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
                 buf.clear_fnames();
             }
         } else if ret == VIM_NO {
-            unchanged(&raw mut *buf, true, false);
+            unchanged(buf, true, false);
         } else if ret == VIM_ALL {
             let mut buf2 = g_st().firstbuf;
             while !buf2.is_null() {
@@ -274,7 +274,7 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
             }
         } else if ret == VIM_DISCARDALL {
             for buf2 in for_all_buffers_ptr() {
-                unchanged(buf2, true, false);
+                unchanged( &mut *buf2, true, false);
             }
         }
     }
@@ -336,7 +336,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
         for tp in for_all_tabpages_ptr() {
             if tp != g_st().curtab {
-                for wp2 in win_iter_mut(first_win_in_tab(tp)) {
+                for wp2 in win_iter_mut(first_win_in_tab( &mut *tp)) {
                     add_bufnum(&mut bufnrs, wp2.buf_mut().b_fnum);
                 }
             }
@@ -403,7 +403,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 let mut found = false;
                 let mut tp = g_st().first_tabpage;
                 while !tp.is_null() && !found {
-                    for wp in win_iter_ptr(first_win_in_tab(tp)) {
+                    for wp in win_iter_ptr(first_win_in_tab( &mut *tp)) {
                         if (*wp).w_buffer == buf {
                             let mut bufref: bufref_T = bufref_T::new();
                             set_bufref(&mut bufref, buf);
@@ -661,7 +661,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                 }
 
                 if eap.cmdidx == CMD_windo && execute {
-                    validate_cursor(curwin_ptr());
+                    validate_cursor(curwin_mut());
                     if curwin_mut().w_onebuf_opt.wo_scb != 0 {
                         do_check_scrollbind(true);
                     }
@@ -852,7 +852,7 @@ pub fn ex_drop(eap: &mut exarg_T) {
         let buf = buflist_findnr((*curwin_arglist()).ae_fnum);
 
         for tp in for_all_tabpages_ptr() {
-            for wp in win_iter_ptr(first_win_in_tab(tp)) {
+            for wp in win_iter_ptr(first_win_in_tab( &mut *tp)) {
                 if (*wp).w_buffer == buf {
                     goto_tabpage_win(&mut *tp, wp);
                     curwin_mut().w_arg_idx = 0;

@@ -633,7 +633,7 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
     }
 }
 
-fn ctx_dirs_save(cs: &mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *mut buf_T) {
+fn ctx_dirs_save(cs: &mut CtxSwitch, wp: &mut win_T, tp: *mut tabpage_T, buf: *mut buf_T) {
     unsafe {
         if (cs.cs_flags & (kCtxKeepCwd | kCtxKeepDirs)) == 0 {
             return;
@@ -642,15 +642,15 @@ fn ctx_dirs_save(cs: &mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *m
         cs.cs_globaldir = g_st().globaldir.clone();
 
         if (cs.cs_flags & kCtxKeepDirs) != 0 {
-            let target_buf = if !buf.is_null() { buf } else { (*wp).w_buffer };
+            let target_buf = if !buf.is_null() { buf } else { wp.w_buffer };
             cs.cs_dirs_tab = (*tp).handle;
-            cs.cs_w_localdir = (*wp).w_localdir.clone();
+            cs.cs_w_localdir = wp.w_localdir.clone();
             cs.cs_b_localdir = (*target_buf).b_localdir.clone();
             cs.cs_tp_localdir = (*tp).tp_localdir.clone();
         }
 
         let mut cwd = [0 as c_char; MAXPATHL];
-        if ((cs.cs_flags & kCtxKeepDirs) != 0 || curwin_ptr() != wp)
+        if ((cs.cs_flags & kCtxKeepDirs) != 0 || curwin_ptr() != (&raw mut *wp))
             && os_dirname(cwd.as_mut_ptr(), MAXPATHL)
         {
             cs.cs_cwd = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
@@ -713,7 +713,7 @@ pub fn is_ctx_win(win: *mut win_T) -> bool {
     }
 }
 
-fn ctx_win_prep(cs: &mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
+fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut buf_T) -> *mut win_T {
     unsafe {
         let mut need_append = true;
         let vec = &raw mut g_st().ctx_win_vec;
@@ -737,11 +737,11 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
         (*vec).as_mut_slice()[idx].cw_used = true;
         cs.cs_ctxwin_idx = idx as c_int;
 
-        (*cw_win).w_buffer = buf;
-        (*buf).b_nwindows += 1;
+        (*cw_win).w_buffer = (&raw mut *buf);
+        buf.b_nwindows += 1;
         win_init_empty(&mut *cw_win);
 
-        ctx_win_dirs_save(cs, &mut *cw_win, &mut *buf);
+        ctx_win_dirs_save(cs, &mut *cw_win, buf);
 
         if need_append {
             win_append(g_st().lastwin, cw_win, ptr::null_mut());
@@ -763,7 +763,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
         if curwin_ptr() != cwp {
             'win_found: {
                 for tp in for_all_tabpages_ptr() {
-                    for wp in for_all_windows_in_tab_ptr(tp) {
+                    for wp in for_all_windows_in_tab_ptr( &*tp) {
                         if wp == cwp {
                             if tp != g_st().curtab {
                                 goto_tabpage_tp(tp, true, true);
@@ -843,7 +843,7 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             cs.cs_target_old_pos = (*wp).w_cursor;
         }
         if !wp.is_null() {
-            ctx_dirs_save(cs, wp, if tp.is_null() { g_st().curtab } else { tp }, buf);
+            ctx_dirs_save(cs,  &mut *wp, if tp.is_null() { g_st().curtab } else { tp }, buf);
         }
 
         cs.cs_curwin = curwin_mut().handle;
@@ -877,9 +877,9 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
 
         if !buf.is_null() {
             if wp.is_null() {
-                wp = ctx_win_prep(cs, buf);
+                wp = ctx_win_prep(cs,  &mut *buf);
                 leaving_window(curwin_mut());
-                buf_copy_options(buf, BCO_ENTER | BCO_NOHELP);
+                buf_copy_options( &mut *buf, BCO_ENTER | BCO_NOHELP);
                 g_st().prevwin = curwin_ptr();
             }
             assert!(wp == curwin_ptr() || win_valid(wp));

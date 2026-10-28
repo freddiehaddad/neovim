@@ -1146,15 +1146,15 @@ fn func_clear_items(fp: &mut ufunc_T) {
         fp.uf_tml_self.clear();
 }
 
-fn func_clear(fp: *mut ufunc_T, force: bool) {
-    unsafe {
-        if (*fp).uf_cleared {
+fn func_clear(fp: &mut ufunc_T, force: bool) {
+     {
+        if fp.uf_cleared {
             return;
         }
-        (*fp).uf_cleared = true;
+        fp.uf_cleared = true;
 
-        func_clear_items(&mut *fp);
-        funccal_unref((*fp).uf_scoped, fp, force);
+        func_clear_items(fp);
+        funccal_unref(fp.uf_scoped, (&raw mut *fp), force);
     }
 }
 
@@ -1172,7 +1172,7 @@ impl Drop for ufunc_T {
 
 fn func_clear_free(fp: *mut ufunc_T, force: bool) {
     unsafe {
-        func_clear(fp, force);
+        func_clear( &mut *fp, force);
         drop(Box::from_raw(fp));
     }
 }
@@ -1367,7 +1367,7 @@ pub fn call_user_func(
                 let li = listitems_ptr.add(ai as usize);
                 (*li).li_tv = *argvars.add(i as usize);
                 (*li).li_tv.v_lock = VAR_FIXED;
-                tv_list_append(&raw mut (*fc).fc_l_varlist, li);
+                tv_list_append(&raw mut (*fc).fc_l_varlist,  &mut *li);
             }
         }
 
@@ -1589,34 +1589,34 @@ fn check_user_func_argcount(fp: &mut ufunc_T, argcount: c_int) -> c_int {
 }
 
 fn call_user_func_check(
-    fp: *mut ufunc_T,
+    fp: &mut ufunc_T,
     argcount: c_int,
     argvars: *mut typval_T,rettv: &mut typval_T,funcexe: &mut funcexe_T,
     selfdict: *mut dict_T,
 ) -> c_int {
-    unsafe {
-        if ((*fp).uf_flags & FC_LUAREF) != 0 {
-            return nlua_exec_typval_callable((*fp).uf_luaref, argcount, argvars, rettv);
+     {
+        if (fp.uf_flags & FC_LUAREF) != 0 {
+            return nlua_exec_typval_callable(fp.uf_luaref, argcount, argvars, rettv);
         }
 
-        if ((*fp).uf_flags & FC_RANGE) != 0 {
+        if (fp.uf_flags & FC_RANGE) != 0 {
             funcexe.fe_doesrange = true;
         }
-        let mut error = check_user_func_argcount(&mut *fp, argcount);
+        let mut error = check_user_func_argcount(fp, argcount);
         if error != FCERR_UNKNOWN {
             return error;
         }
-        if ((*fp).uf_flags & FC_DICT) != 0 && selfdict.is_null() {
+        if (fp.uf_flags & FC_DICT) != 0 && selfdict.is_null() {
             error = FCERR_DICT;
         } else {
             call_user_func(
-                fp,
+                (&raw mut *fp),
                 argcount,
                 argvars,
                 rettv,
                 funcexe.fe_firstline,
                 funcexe.fe_lastline,
-                if ((*fp).uf_flags & FC_DICT) != 0 {
+                if (fp.uf_flags & FC_DICT) != 0 {
                     selfdict
                 } else {
                     ptr::null_mut()
@@ -1675,7 +1675,7 @@ pub fn free_all_functions() {
             for fp in funcs {
                 if !func_name_refcount(uf2hikey(&*fp)) {
                     let changed = uf_st().func_hashtab_changed;
-                    func_clear(fp, true);
+                    func_clear( &mut *fp, true);
                     if changed != uf_st().func_hashtab_changed {
                         restarted = true;
                         break;
@@ -1982,7 +1982,7 @@ pub fn call_func(
                         &mut argv_base,
                     );
 
-                    error = call_user_func_check(fp, argcount, argvars, rettv, &mut *funcexe, selfdict);
+                    error = call_user_func_check( &mut *fp, argcount, argvars, rettv, &mut *funcexe, selfdict);
                 }
             } else if !funcexe.fe_basetv.is_null() {
                 error = call_internal_method(fname, argcount, argvars, rettv, funcexe.fe_basetv);
@@ -2063,7 +2063,7 @@ pub fn call_simple_func(funcname: *const c_char, len: usize, rettv: &mut typval_
             funcexe.fe_evaluate = true;
 
             error = call_user_func_check(
-                fp,
+                 &mut *fp,
                 0,
                 argvars.as_mut_ptr(),
                 &mut *rettv,
@@ -3422,7 +3422,7 @@ pub fn ex_delfunction(eap: &mut exarg_T) {
             }
 
             if !fudi.fd_dict.is_null() {
-                tv_dict_item_remove(&mut *fudi.fd_dict, fudi.fd_di);
+                tv_dict_item_remove(&mut *fudi.fd_dict,  &mut *fudi.fd_di);
             } else {
                 let threshold = if func_name_refcount(uf2hikey(&*fp)) {
                     0
@@ -4055,7 +4055,7 @@ pub fn func_has_abort(fcp: &mut funccall_T) -> c_int {
 }
 
 /// Turn `dict.Func` into a partial for `Func` bound to `dict`.
-pub fn make_partial(selfdict: *mut dict_T,rettv: &mut typval_T) {
+pub fn make_partial(selfdict: &mut dict_T,rettv: &mut typval_T) {
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
@@ -4096,8 +4096,8 @@ pub fn make_partial(selfdict: *mut dict_T,rettv: &mut typval_T) {
         if !fp.is_null() && ((*fp).uf_flags & FC_DICT) != 0 {
             let pt = Box::into_raw(Box::new(partial_T::default()));
             (*pt).pt_refcount = 1;
-            (*pt).pt_dict = selfdict;
-            (*selfdict).dv_refcount += 1;
+            (*pt).pt_dict = (&raw mut *selfdict);
+            selfdict.dv_refcount += 1;
             (*pt).pt_auto = true;
             if rettv.v_type == VarType::VAR_FUNC || rettv.v_type == VarType::VAR_STRING {
                 (*pt).pt_name = crate::eval::typval::tv_take_string(rettv.vval.v_string());

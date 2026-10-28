@@ -562,7 +562,7 @@ pub fn nvim_buf_set_lines(
                 }
 
                 let line_ptr = *lines.add(i);
-                if !ml_append_buf(b, lnum as linenr_T, line_ptr, 0, false) {
+                if !ml_append_buf( &mut *b, lnum as linenr_T, line_ptr, 0, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -617,7 +617,7 @@ pub fn nvim_buf_set_lines(
             );
 
             for tp in for_all_tabpages_ptr() {
-                for win in for_all_windows_in_tab_mut(tp) {
+                for win in for_all_windows_in_tab_mut( &*tp) {
                     if win.w_buffer == b {
                         fix_cursor(win, start as linenr_T, end as linenr_T, extra as linenr_T);
                     }
@@ -879,7 +879,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_append_buf(b, lnum as linenr_T, *lines.add(i), 0, false) {
+                if !ml_append_buf( &mut *b, lnum as linenr_T, *lines.add(i), 0, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -948,7 +948,7 @@ pub fn nvim_buf_set_text(
             );
 
             for tp in for_all_tabpages_ptr() {
-                for win in for_all_windows_in_tab_mut(tp) {
+                for win in for_all_windows_in_tab_mut( &*tp) {
                     if win.w_buffer == b {
                         if i64::from(win.w_cursor.lnum) >= start_row
                             && i64::from(win.w_cursor.lnum) <= end_row
@@ -1755,7 +1755,7 @@ fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
             check_cursor_col(&mut *win);
             changed_cline_bef_curs(win);
             win.w_valid &= !VALID_BOTLINE_AP;
-            update_topline(&raw mut *win);
+            update_topline(win);
         } else {
             invalidate_botline_win(&mut *win);
         }

@@ -217,7 +217,7 @@ fn coladvance2(
             }
 
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, wp, pos.lnum, line);
+            let cstype: CSType = init_charsize_arg(&mut csarg,  &mut *wp, pos.lnum, line);
             let mut ci = utf_ptr2StrCharInfo(line);
             col = 0;
             while col <= wcol && *ci.ptr != NUL {
@@ -490,7 +490,7 @@ pub fn set_leftcol(leftcol: colnr_T) -> bool {
         let lastcol = i64::from(curwin_mut().w_leftcol) + i64::from(curwin_mut().w_view_width)
             - i64::from(win_col_off(curwin_ptr()))
             - 1;
-        validate_virtcol(curwin_ptr());
+        validate_virtcol(curwin_mut());
 
         let mut retval = false;
         let siso = get_sidescrolloff_value(curwin_mut());

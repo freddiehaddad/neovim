@@ -238,7 +238,7 @@ fn buf_set_sign(
 }
 
 fn buf_mod_sign(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     id: &mut u32,
     group: *mut c_char,
     prio: c_int,
@@ -250,9 +250,9 @@ fn buf_mod_sign(
             return 0;
         }
 
-        let mark = marktree_lookup_ns(&(*buf).b_marktree, ns as u32, *id, false, None);
+        let mark = marktree_lookup_ns(&buf.b_marktree, ns as u32, *id, false, None);
         if mark.pos.row >= 0 {
-            buf_set_sign( &mut *buf, id, group, prio, mark.pos.row + 1,  &mut *sp);
+            buf_set_sign( buf, id, group, prio, mark.pos.row + 1,  &mut *sp);
         }
         mark.pos.row + 1
     }
@@ -720,7 +720,7 @@ fn sign_place(
         if lnum > 0 {
             buf_set_sign( &mut *buf, id, group, prio, lnum,  &mut *sp);
         } else {
-            lnum = buf_mod_sign(buf, &mut *id, group, prio, sp);
+            lnum = buf_mod_sign( &mut *buf, &mut *id, group, prio, sp);
         }
         if lnum <= 0 {
             semsg!(
@@ -776,20 +776,20 @@ fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: linenr_T
     }
 }
 
-fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
-    unsafe {
-        let lnum = buf_findsign( &mut *buf, id, group);
+fn sign_jump(id: c_int, group: *mut c_char, buf: &mut buf_T) -> linenr_T {
+     {
+        let lnum = buf_findsign( buf, id, group);
         if lnum <= 0 {
             semsg!(gettext(c"E157: Invalid sign ID: %d"), id);
             return -1;
         }
 
-        if !buf_jump_open_win(buf).is_null() {
+        if !buf_jump_open_win(&raw mut *buf).is_null() {
             curwin_mut().w_cursor.lnum = lnum;
             check_cursor_lnum(curwin_mut());
             beginline(BL_WHITE);
         } else {
-            if (*buf).b_fname.is_null() {
+            if buf.b_fname.is_null() {
                 emsg(gettext(
                     c"E934: Cannot jump to a buffer that does not have a name",
                 ));
@@ -797,7 +797,7 @@ fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
             }
             setpcmark();
             if !do_ecmd(
-                (*buf).b_fnum,
+                buf.b_fnum,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 None,
@@ -928,7 +928,7 @@ fn sign_jump_cmd(
             return;
         }
 
-        sign_jump(id, group, buf);
+        sign_jump(id, group,  &mut *buf);
     }
 }
 
@@ -1168,7 +1168,7 @@ pub fn get_buffer_signs(buf: &mut buf_T) -> *mut list_T {
 }
 
 fn sign_get_placed_in_buf(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     lnum: linenr_T,
     sign_id: c_int,
     group: *const c_char,
@@ -1178,19 +1178,19 @@ fn sign_get_placed_in_buf(
         let d = tv_dict_alloc();
         tv_list_append_dict(retlist, d);
 
-        tv_dict_add_nr(d, c"bufnr", i64::from((*buf).b_fnum));
+        tv_dict_add_nr(d, c"bufnr", i64::from(buf.b_fnum));
 
         let l = tv_list_alloc(kListLenMayKnow);
         tv_dict_add_list(d, c"signs", l);
 
         let ns = group_get_ns(group);
-        if !buf_has_signs( &*buf) || ns < 0 {
+        if !buf_has_signs( buf) || ns < 0 {
             return;
         }
 
         let mut itr = MarkTreeIter::new();
         let mut signs: Vec<MTKey> = Vec::new();
-        let b = &(*buf).b_marktree;
+        let b = &buf.b_marktree;
         marktree_itr_get(b, if lnum != 0 { lnum - 1 } else { 0 }, 0, &mut itr);
 
         while itr.x.is_some() {
@@ -1229,11 +1229,11 @@ fn sign_get_placed(
 ) {
     unsafe {
         if !buf.is_null() {
-            sign_get_placed_in_buf(buf, lnum, id, group, &mut *retlist);
+            sign_get_placed_in_buf( &mut *buf, lnum, id, group, &mut *retlist);
         } else {
             for cbuf in for_all_buffers_ptr() {
                 if buf_has_signs( &*cbuf) {
-                    sign_get_placed_in_buf(cbuf, 0, id, group, &mut *retlist);
+                    sign_get_placed_in_buf( &mut *cbuf, 0, id, group, &mut *retlist);
                 }
             }
         }
@@ -1578,7 +1578,7 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             return;
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_jump(id, group, buf)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_jump(id, group,  &mut *buf)));
     }
 }
 

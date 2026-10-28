@@ -518,7 +518,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
             let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(
                 &mut csarg,
-                curwin_ptr(),
+                curwin_mut(),
                 curwin_mut().w_cursor.lnum,
                 bd.textstart,
             );
@@ -590,7 +590,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
             let mut csarg = CharsizeArg::new();
             let mut cstype: CSType = init_charsize_arg(
                 &mut csarg,
-                curwin_ptr(),
+                curwin_mut(),
                 curwin_mut().w_cursor.lnum,
                 bd.textstart,
             );
@@ -618,7 +618,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
             if bd.startspaces != 0 {
                 verbatim_copy_width -= bd.start_char_vcols;
             }
-            cstype = init_charsize_arg(&mut csarg, curwin_ptr(), 0, bd.textstart);
+            cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, bd.textstart);
             let mut ci = utf_ptr2StrCharInfo(verbatim_copy_end);
             while verbatim_copy_width < destination_col {
                 let cli = utf_ClusterInfo(ci);
@@ -2192,7 +2192,7 @@ pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del
         let mut prev_pstart = line;
 
         let mut csarg = CharsizeArg::new();
-        let mut cstype = init_charsize_arg(&mut csarg, curwin_ptr(), lnum, line);
+        let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut vcol = bdp.start_vcol;
         while vcol < oap.start_vcol && *ci.ptr != NUL {
@@ -2250,7 +2250,7 @@ pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del
                     }
                 }
             } else {
-                cstype = init_charsize_arg(&mut csarg, curwin_ptr(), lnum, line);
+                cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
                 ci = utf_ptr2StrCharInfo(pend);
                 vcol = bdp.end_vcol;
                 let mut prev_pend = pend;
@@ -3290,7 +3290,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                     }
                 } else {
                     let p = get_cursor_line_ptr();
-                    validate_virtcol(curwin_ptr());
+                    validate_virtcol(curwin_mut());
                     col_print(
                         buf1_ptr,
                         buf1.len(),

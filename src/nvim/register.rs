@@ -1254,7 +1254,7 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
                     );
                 }
 
-                update_topline(curwin_ptr());
+                update_topline(curwin_mut());
                 if g_st().must_redraw != 0 {
                     update_screen();
                 }
@@ -1787,7 +1787,7 @@ pub fn do_put(
                     nr_lines += 1;
                     dir = FORWARD;
 
-                    buf_updates_send_changes(g_st().curbuf, curwin_mut().w_cursor.lnum, 1, 1);
+                    buf_updates_send_changes(curbuf_mut(), curwin_mut().w_cursor.lnum, 1, 1);
                 }
                 if (flags & PUT_LINE_FORWARD) != 0 {
                     curwin_mut().w_cursor = curbuf_mut().b_visual.vi_end;
@@ -1956,7 +1956,7 @@ pub fn do_put(
 
                     let mut csarg = CharsizeArg::new();
                     let mut cstype: CSType =
-                        init_charsize_arg(&mut csarg, curwin_ptr(), curwin_mut().w_cursor.lnum, oldp);
+                        init_charsize_arg(&mut csarg, curwin_mut(), curwin_mut().w_cursor.lnum, oldp);
                     let mut ci = utf_ptr2StrCharInfo(oldp);
                     vcol = 0;
                     while vcol < col && *ci.ptr != NUL {
@@ -1998,7 +1998,7 @@ pub fn do_put(
                         spaces = y_width + 1;
 
                         cstype =
-                            init_charsize_arg(&mut csarg, curwin_ptr(), 0, (*y_array.add(i)).data);
+                            init_charsize_arg(&mut csarg, curwin_mut(), 0, (*y_array.add(i)).data);
                         ci = utf_ptr2StrCharInfo((*y_array.add(i)).data);
                         while *ci.ptr != NUL {
                             let cli = utf_ClusterInfo(ci);

@@ -1453,7 +1453,7 @@ pub fn nvim_list_wins(arena: &mut Arena) -> Array {
         let mut n = 0usize;
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for _wp in for_all_windows_in_tab_mut(tp) {
+            for _wp in for_all_windows_in_tab_mut( &*tp) {
                 n += 1;
             }
             tp = (*tp).tp_next;
@@ -1462,7 +1462,7 @@ pub fn nvim_list_wins(arena: &mut Arena) -> Array {
         let mut rv = arena_array(arena, n);
         tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for wp in for_all_windows_in_tab_mut(tp) {
+            for wp in for_all_windows_in_tab_mut( &*tp) {
                 add_c(&mut rv, window_obj(wp.handle));
             }
             tp = (*tp).tp_next;
@@ -1538,7 +1538,7 @@ pub fn nvim_create_buf(
             (*buf).b_last_changedtick_i = tick;
             (*buf).b_last_changedtick_pum = tick;
 
-            buf_copy_options(buf, BCO_ENTER | BCO_NOHELP);
+            buf_copy_options( &mut *buf, BCO_ENTER | BCO_NOHELP);
 
             if scratch {
                 set_option_direct_for(
@@ -1691,7 +1691,7 @@ pub fn nvim_open_term(
         if !(*tail).term.is_null() {
             terminal_check_size(&mut *(*tail).term.cast());
         }
-        channel_decref(chan);
+        channel_decref( &mut *chan);
 
         if !contents.is_empty() {
             let mut error: *const c_char = ptr::null();
@@ -2992,7 +2992,7 @@ pub fn nvim_eval_statusline(
                 fillchar = (*wp).w_p_fcs_chars.wbr;
             } else {
                 let mut group: hlf_T = 0;
-                fillchar = fillchar_status(&mut group, wp);
+                fillchar = fillchar_status(&mut group,  &mut *wp);
             }
         }
 
@@ -3354,8 +3354,8 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         }
 
         if opts.flush && !g_st().cmdpreview {
-            validate_cursor(curwin_ptr());
-            update_topline(curwin_ptr());
+            validate_cursor(curwin_mut());
+            update_topline(curwin_mut());
             update_screen();
         }
 

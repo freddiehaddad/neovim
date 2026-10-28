@@ -694,7 +694,7 @@ pub fn last_pat_prog(regmatch: &mut regmmatch_T) {
 
 pub fn searchit(
     win: *mut win_T,
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     pos: *mut pos_T,
     mut end_pos: Option<&mut pos_T>,
     dir: Direction,
@@ -756,11 +756,11 @@ pub fn searchit(
             if (*pos).col == MAXCOL {
                 start_char_len = 0;
             } else if (*pos).lnum >= 1
-                && (*pos).lnum <= (*buf).b_ml.ml_line_count
+                && (*pos).lnum <= buf.b_ml.ml_line_count
                 && (*pos).col < MAXCOL - 2
             {
-                ptr_line = ml_get_buf(buf, (*pos).lnum);
-                if ml_get_buf_len(buf, (*pos).lnum) <= (*pos).col {
+                ptr_line = ml_get_buf((&raw mut *buf), (*pos).lnum);
+                if ml_get_buf_len((&raw mut *buf), (*pos).lnum) <= (*pos).col {
                     start_char_len = 1;
                 } else {
                     start_char_len = utfc_ptr2len(ptr_line.add((*pos).col as usize));
@@ -799,7 +799,7 @@ pub fn searchit(
             }
 
             for loop_idx in 0..=1 {
-                while lnum > 0 && lnum <= (*buf).b_ml.ml_line_count {
+                while lnum > 0 && lnum <= buf.b_ml.ml_line_count {
                     if stop_lnum != 0
                         && (if dir == FORWARD {
                             lnum > stop_lnum
@@ -821,7 +821,7 @@ pub fn searchit(
                     nmatched = vim_regexec_multi(
                         &mut regmatch,
                         win,
-                        buf,
+                        (&raw mut *buf),
                         lnum,
                         col,
                         tm,
@@ -839,10 +839,10 @@ pub fn searchit(
                         matchpos = regmatch.startpos[0];
                         endpos = regmatch.endpos[0];
                         submatch = first_submatch(&regmatch);
-                        if lnum + matchpos.lnum > (*buf).b_ml.ml_line_count {
+                        if lnum + matchpos.lnum > buf.b_ml.ml_line_count {
                             ptr_line = c"".as_ptr().cast_mut();
                         } else {
-                            ptr_line = ml_get_buf(buf, lnum + matchpos.lnum);
+                            ptr_line = ml_get_buf((&raw mut *buf), lnum + matchpos.lnum);
                         }
 
                         if dir == FORWARD && at_first_line {
@@ -881,7 +881,7 @@ pub fn searchit(
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
                                         win,
-                                        buf,
+                                        (&raw mut *buf),
                                         lnum,
                                         matchcol,
                                         tm,
@@ -902,7 +902,7 @@ pub fn searchit(
                                 if matchpos.lnum != 0 {
                                     break;
                                 }
-                                ptr_line = ml_get_buf(buf, lnum);
+                                ptr_line = ml_get_buf((&raw mut *buf), lnum);
                             }
                             if !match_ok {
                                 lnum += dir;
@@ -957,7 +957,7 @@ pub fn searchit(
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
                                         win,
-                                        buf,
+                                        (&raw mut *buf),
                                         lnum + matchpos.lnum,
                                         matchcol,
                                         tm,
@@ -973,7 +973,7 @@ pub fn searchit(
                                 if regmatch.regprog.is_null() {
                                     break;
                                 }
-                                ptr_line = ml_get_buf(buf, lnum + matchpos.lnum);
+                                ptr_line = ml_get_buf((&raw mut *buf), lnum + matchpos.lnum);
                             }
 
                             if !match_ok {
@@ -992,12 +992,12 @@ pub fn searchit(
                             if endpos.col == 0 {
                                 if (*pos).lnum > 1 {
                                     (*pos).lnum -= 1;
-                                    (*pos).col = ml_get_buf_len(buf, (*pos).lnum);
+                                    (*pos).col = ml_get_buf_len((&raw mut *buf), (*pos).lnum);
                                 }
                             } else {
                                 (*pos).col -= 1;
-                                if (*pos).lnum <= (*buf).b_ml.ml_line_count {
-                                    ptr_line = ml_get_buf(buf, (*pos).lnum);
+                                if (*pos).lnum <= buf.b_ml.ml_line_count {
+                                    ptr_line = ml_get_buf((&raw mut *buf), (*pos).lnum);
                                     (*pos).col -=
                                         utf_head_off(ptr_line, ptr_line.add((*pos).col as usize));
                                 }
@@ -1064,7 +1064,7 @@ pub fn searchit(
                 }
 
                 lnum = if dir == BACKWARD {
-                    (*buf).b_ml.ml_line_count
+                    buf.b_ml.ml_line_count
                 } else {
                     1
                 };
@@ -1122,9 +1122,9 @@ pub fn searchit(
             return FAIL;
         }
 
-        if (*pos).lnum > (*buf).b_ml.ml_line_count {
-            (*pos).lnum = (*buf).b_ml.ml_line_count;
-            (*pos).col = ml_get_buf_len(buf, (*pos).lnum);
+        if (*pos).lnum > buf.b_ml.ml_line_count {
+            (*pos).lnum = buf.b_ml.ml_line_count;
+            (*pos).col = ml_get_buf_len((&raw mut *buf), (*pos).lnum);
             if (*pos).col > 0 {
                 (*pos).col -= 1;
             }
@@ -1500,7 +1500,7 @@ pub fn do_search(
 
             c = i64::from(searchit(
                 curwin_ptr(),
-                g_st().curbuf,
+                curbuf_mut(),
                 &raw mut pos,
                 None,
                 if dirc == b'/' as c_int {
@@ -2614,7 +2614,7 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
 
             result = searchit(
                 curwin_ptr(),
-                g_st().curbuf,
+                curbuf_mut(),
                 &raw mut pos,
                 Some(&mut end_pos),
                 if dir { FORWARD } else { BACKWARD },
@@ -2731,7 +2731,7 @@ fn is_zero_width(
         }
         if searchit(
             curwin_ptr(),
-            g_st().curbuf,
+            curbuf_mut(),
             &raw mut pos,
             None,
             direction,
@@ -2977,7 +2977,7 @@ fn update_search_stat(
             while !g_st().got_int
                 && searchit(
                     curwin_ptr(),
-                    g_st().curbuf,
+                    curbuf_mut(),
                     &raw mut srch().stat_lastpos,
                     Some(&mut endpos),
                     FORWARD,
@@ -3784,7 +3784,7 @@ pub fn find_pattern_in_path(
                                     && curwin_ptr() != curwin_save
                                     && win_valid(curwin_save)
                                 {
-                                    validate_cursor(curwin_ptr());
+                                    validate_cursor(curwin_mut());
                                     redraw_later(curwin_ptr(), UPD_VALID);
                                     win_enter(curwin_save, true);
                                 }

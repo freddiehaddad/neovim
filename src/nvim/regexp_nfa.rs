@@ -2634,16 +2634,16 @@ fn match_follows(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int
 
 fn state_in_list(
     states: &[nfa_state_T],
-    l: *mut nfa_list_T,
+    l: &mut nfa_list_T,
     state: Option<usize>,subs: &mut regsubs_T,
 ) -> bool {
-    unsafe {
+     {
         let Some(state_idx) = state else {
             return false;
         };
-        if states[state_idx].lastlist[re_st().nfa_ll_index] == (*l).id
+        if states[state_idx].lastlist[re_st().nfa_ll_index] == l.id
             && (re_st().rex.nfa_has_backref == 0
-                || has_state_with_pos( &mut *l, state_idx,  &mut *subs, ptr::null_mut()))
+                || has_state_with_pos( l, state_idx,  &mut *subs, ptr::null_mut()))
         {
             return true;
         }
@@ -2667,13 +2667,13 @@ fn addstate(
         }
         return subs_ptr;
     };
-    addstate_idx(states.as_mut_ptr(), l, state_idx, subs_ptr, pim, off_arg, depth)
+    addstate_idx(states.as_mut_ptr(), unsafe { &mut *l }, state_idx, subs_ptr, pim, off_arg, depth)
 }
 
 #[inline(always)]
 fn addstate_idx(
     states: *mut nfa_state_T,
-    l: *mut nfa_list_T,
+    l: &mut nfa_list_T,
     state_idx: usize,
     subs_arg: *mut regsubs_T,
     pim: *mut nfa_pim_T,
@@ -2689,12 +2689,12 @@ fn addstate_idx(
         let st_c = (*st_ptr).c;
         match st_c {
             NFA_NCLOSE | NFA_MOPEN | NFA_ZEND | NFA_SPLIT | NFA_EMPTY => {
-                addstate_eps(states, l, state_idx, st_c, subs_arg, pim, off_arg, depth)
+                addstate_eps(states, (&raw mut *l), state_idx, st_c, subs_arg, pim, off_arg, depth)
             }
             c if (NFA_MCLOSE..=NFA_MCLOSE9).contains(&c)
                 || (NFA_ZCLOSE1..=NFA_ZCLOSE9).contains(&c) =>
             {
-                addstate_eps(states, l, state_idx, st_c, subs_arg, pim, off_arg, depth)
+                addstate_eps(states, (&raw mut *l), state_idx, st_c, subs_arg, pim, off_arg, depth)
             }
             c => {
                 if (c == NFA_BOL || c == NFA_BOF)
@@ -2708,16 +2708,16 @@ fn addstate_idx(
                 }
 
                 let ll_idx = re_st().nfa_ll_index;
-                if (*st_ptr).lastlist[ll_idx] == (*l).id && st_c != NFA_SKIP {
+                if (*st_ptr).lastlist[ll_idx] == l.id && st_c != NFA_SKIP {
                     if re_st().rex.nfa_has_backref == 0
                         && pim.is_null()
-                        && (*l).has_pim == 0
+                        && l.has_pim == 0
                         && st_c != NFA_MATCH
                     {
                         if off_arg <= -ADDSTATE_HERE_OFFSET {
                             let listindex = -(off_arg + ADDSTATE_HERE_OFFSET);
-                            let tp = (*l).t.as_ptr();
-                            let limit = (*l).n.min(listindex) as usize;
+                            let tp = l.t.as_ptr();
+                            let limit = l.n.min(listindex) as usize;
                             let mut found = false;
                             for k in 0..limit {
                                 if (*tp.add(k)).state == Some(state_idx) {
@@ -2731,14 +2731,14 @@ fn addstate_idx(
                         } else {
                             return subs_arg;
                         }
-                    } else if has_state_with_pos( &mut *l, state_idx,  &mut *subs_arg, pim) {
+                    } else if has_state_with_pos( l, state_idx,  &mut *subs_arg, pim) {
                         return subs_arg;
                     }
                 }
 
                 let mut subs = subs_arg;
-                if (*l).n as usize == (*l).t.capacity() {
-                    let newlen = (*l).t.capacity() * 3 / 2 + 50;
+                if l.n as usize == l.t.capacity() {
+                    let newlen = l.t.capacity() * 3 / 2 + 50;
                     let newsize = newlen * size_of::<nfa_thread_T>();
                     if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
                         emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
@@ -2751,22 +2751,22 @@ fn addstate_idx(
                         }
                         subs = &raw mut nfa_st().temp_subs;
                     }
-                    (*l).t.reserve(newlen - (*l).t.len());
+                    l.t.reserve(newlen - l.t.len());
                 }
 
-                (*st_ptr).lastlist[ll_idx] = (*l).id;
-                let thread_idx = (*l).n as usize;
-                (*l).n += 1;
-                if thread_idx == (*l).t.len() {
-                    (*l).t.push(nfa_thread_T::new());
+                (*st_ptr).lastlist[ll_idx] = l.id;
+                let thread_idx = l.n as usize;
+                l.n += 1;
+                if thread_idx == l.t.len() {
+                    l.t.push(nfa_thread_T::new());
                 }
-                let thread = &mut *(*l).t.as_mut_ptr().add(thread_idx);
+                let thread = &mut *l.t.as_mut_ptr().add(thread_idx);
                 thread.state = Some(state_idx);
                 if pim.is_null() {
                     thread.pim.result = NFA_PIM_UNUSED;
                 } else {
                     copy_pim(&mut thread.pim,  &mut *pim);
-                    (*l).has_pim = 1;
+                    l.has_pim = 1;
                 }
                 copy_sub(&mut thread.subs.norm, &mut (*subs).norm);
                 if re_st().rex.nfa_has_zsubexpr != 0 {
@@ -2779,7 +2779,7 @@ fn addstate_idx(
                     || (NFA_MOPEN1..=NFA_MOPEN9).contains(&st_c)
                     || (NFA_ZOPEN..=NFA_ZOPEN9).contains(&st_c)
                 {
-                    return addstate_eps(states, l, state_idx, st_c, subs, pim, off_arg, depth);
+                    return addstate_eps(states, (&raw mut *l), state_idx, st_c, subs, pim, off_arg, depth);
                 }
                 subs
             }
@@ -2809,15 +2809,15 @@ fn addstate_eps(
             NFA_MATCH => {}
             NFA_SPLIT => {
                 if let Some(o) = st_out {
-                    subs = addstate_idx(states, l, o, subs, pim, off_arg, depth + 1);
+                    subs = addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1);
                 }
                 if let Some(o1) = st_out1 {
-                    subs = addstate_idx(states, l, o1, subs, pim, off_arg, depth + 1);
+                    subs = addstate_idx(states,  &mut *l, o1, subs, pim, off_arg, depth + 1);
                 }
             }
             NFA_EMPTY | NFA_NOPEN | NFA_NCLOSE => {
                 if let Some(o) = st_out {
-                    subs = addstate_idx(states, l, o, subs, pim, off_arg, depth + 1);
+                    subs = addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1);
                 }
             }
             c if (NFA_MOPEN..=NFA_MOPEN9).contains(&c)
@@ -2875,7 +2875,7 @@ fn addstate_eps(
                 }
 
                 subs = if let Some(o) = st_out {
-                    addstate_idx(states, l, o, subs, pim, off_arg, depth + 1)
+                    addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1)
                 } else {
                     subs
                 };
@@ -2909,7 +2909,7 @@ fn addstate_eps(
                     }
                 {
                     if let Some(o) = st_out {
-                        subs = addstate_idx(states, l, o, subs, pim, off_arg, depth + 1);
+                        subs = addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1);
                     }
                 } else {
                     let (subidx, mut sub) = if c == NFA_ZEND {
@@ -2944,7 +2944,7 @@ fn addstate_eps(
                     }
 
                     subs = if let Some(o) = st_out {
-                        addstate_idx(states, l, o, subs, pim, off_arg, depth + 1)
+                        addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1)
                     } else {
                         subs
                     };
@@ -2972,18 +2972,18 @@ fn addstate_eps(
 
 fn addstate_here(
     states: &mut [nfa_state_T],
-    l: *mut nfa_list_T,
+    l: &mut nfa_list_T,
     state: Option<usize>,subs: &mut regsubs_T,
     pim: *mut nfa_pim_T,
     ip: &mut c_int,
 ) -> *mut regsubs_T {
     unsafe {
-        let tlen = (*l).n;
+        let tlen = l.n;
         let listidx = *ip;
 
         let r = addstate(
             states,
-            l,
+            (&raw mut *l),
             state,
             Some(subs),
             pim,
@@ -2996,36 +2996,36 @@ fn addstate_here(
         if listidx + 1 == tlen {
             return r;
         }
-        let count = (*l).n - tlen;
+        let count = l.n - tlen;
         if count == 0 {
             return r;
         }
         if count == 1 {
-            let tp = (*l).t.as_mut_ptr();
-            *tp.add(listidx as usize) = *tp.add(((*l).n - 1) as usize);
+            let tp = l.t.as_mut_ptr();
+            *tp.add(listidx as usize) = *tp.add((l.n - 1) as usize);
         } else if count > 1 {
-            if ((*l).n + count) as usize > (*l).t.len() {
-                let newlen = (*l).t.len() * 3 / 2 + 50;
+            if (l.n + count) as usize > l.t.len() {
+                let newlen = l.t.len() * 3 / 2 + 50;
                 let newsize = newlen * size_of::<nfa_thread_T>();
                 if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
                     emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
                     return ptr::null_mut();
                 }
-                (*l).t.resize(newlen, nfa_thread_T::new());
+                l.t.resize(newlen, nfa_thread_T::new());
             }
-            let tp = (*l).t.as_mut_ptr();
+            let tp = l.t.as_mut_ptr();
             ptr::copy(
                 tp.add(listidx as usize + 1),
                 tp.add((listidx + count) as usize),
-                ((*l).n - listidx - 1) as usize,
+                (l.n - listidx - 1) as usize,
             );
             ptr::copy(
-                tp.add(((*l).n - 1) as usize),
+                tp.add((l.n - 1) as usize),
                 tp.add(listidx as usize),
                 count as usize,
             );
         }
-        (*l).n -= 1;
+        l.n -= 1;
         *ip = listidx - 1;
         r
     }
@@ -3799,7 +3799,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             }
                             if addstate_here(
                                 &mut prog.state,
-                                thislist,
+                                 &mut *thislist,
                                 out1_out,
                                 &mut (*t).subs,
                                 &raw mut pim,
@@ -3817,19 +3817,19 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                         let out1_out_out = out1_out.and_then(|oo| (&prog.state)[oo].out);
                         let skip = if state_in_list(
                             &prog.state,
-                            nextlist,
+                             &mut *nextlist,
                             out1_out,
                             &mut (*t).subs,
                         ) {
                             out1_out
                         } else if state_in_list(
                             &prog.state,
-                            nextlist,
+                             &mut *nextlist,
                             out1_out_out,
                             &mut (*t).subs,
                         ) || state_in_list(
                             &prog.state,
-                            thislist,
+                             &mut *thislist,
                             out1_out_out,
                             &mut (*t).subs,
                         ) {
@@ -4462,7 +4462,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     let r = if add_here {
                         addstate_here(
                             &mut prog.state,
-                            thislist,
+                             &mut *thislist,
                             add_state,
                             &mut (*t).subs,
                             pim,
@@ -4471,7 +4471,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     } else {
                         let r = addstate_idx(
                             prog.state.as_mut_ptr(),
-                            nextlist,
+                             &mut *nextlist,
                             add_state_idx,
                             &raw mut (*t).subs,
                             pim,
@@ -4572,7 +4572,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
 
                     let r = addstate_idx(
                         prog.state.as_mut_ptr(),
-                        nextlist,
+                         &mut *nextlist,
                         start_idx,
                         m,
                         ptr::null_mut(),

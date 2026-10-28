@@ -564,7 +564,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         win_init_size();
         if params.diff_mode != 0 {
-            diff_win_options(g_st().firstwin, false);
+            diff_win_options(firstwin_mut(), false);
         }
 
         assert!(
@@ -742,7 +742,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         if params.diff_mode != 0 {
             for wp in win_iter_ptr(curtab_mut().tp_firstwin) {
                 if !(*wp).w_arg_idx_invalid {
-                    diff_win_options(wp, true);
+                    diff_win_options( &mut *wp, true);
                 }
             }
         }
@@ -788,7 +788,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         set_reg_var(get_default_register_name());
 
         if curwin_mut().w_onebuf_opt.wo_diff != 0 && curwin_mut().w_onebuf_opt.wo_scb != 0 {
-            update_topline(curwin_ptr());
+            update_topline(curwin_mut());
             check_scrollbind(0, 0);
             time_msg_if_enabled(c"diff scrollbinding");
         }
@@ -2093,7 +2093,7 @@ fn create_windows(parmp: &mut mparm_T) {
                             ui_call_error_exit(1);
                             getout(1);
                         }
-                        setfname(g_st().curbuf, ptr::null_mut(), ptr::null_mut(), false);
+                        setfname(curbuf_mut(), ptr::null_mut(), ptr::null_mut(), false);
                         curwin_mut().w_arg_idx = -1;
                         g_st().swap_exists_action = SEA_NONE;
                     } else {

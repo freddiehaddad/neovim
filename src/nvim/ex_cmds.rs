@@ -1222,7 +1222,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
         if dest >= line2 {
             mark_adjust_nofold(line2 + 1, dest, -num_lines, 0, kExtmarkNOOP);
             for tab in for_all_tabpages_ptr() {
-                for win in for_all_windows_in_tab_mut(tab) {
+                for win in for_all_windows_in_tab_mut( &*tab) {
                     if win.w_buffer == g_st().curbuf {
                         foldMoveRange(&mut win.w_folds, line1, line2, dest);
                     }
@@ -1237,7 +1237,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
         } else {
             mark_adjust_nofold(dest + 1, line1 - 1, num_lines, 0, kExtmarkNOOP);
             for tab in for_all_tabpages_ptr() {
-                for win in for_all_windows_in_tab_mut(tab) {
+                for win in for_all_windows_in_tab_mut( &*tab) {
                     if win.w_buffer == g_st().curbuf {
                         foldMoveRange(&mut win.w_folds, dest + 1, line1 - 1, line2);
                     }
@@ -1271,7 +1271,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
         );
         g_st().disable_fold_update -= 1;
 
-        buf_updates_send_changes(g_st().curbuf, dest + 1, num_lines as i64, 0);
+        buf_updates_send_changes(curbuf_mut(), dest + 1, num_lines as i64, 0);
 
         if !u_save(line1 + extra - 1, line2 + extra + 1) {
             return false;
@@ -1321,7 +1321,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
             changed_lines(g_st().curbuf, dest + 1, 0, line1 + num_lines, 0, false);
         }
 
-        buf_updates_send_changes(g_st().curbuf, line1 + extra, 0, num_lines as i64);
+        buf_updates_send_changes(curbuf_mut(), line1 + extra, 0, num_lines as i64);
 
         true
     }
@@ -2068,7 +2068,7 @@ pub fn rename_buffer(new_fname: impl crate::strings::IntoCCharPtr) -> bool {
         let fname = fname_cstr
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        if !setfname(g_st().curbuf, new_fname, ptr::null_mut(), true) {
+        if !setfname(curbuf_mut(), new_fname, ptr::null_mut(), true) {
             curbuf_mut().restore_fnames(fname_cstr, sfname_cstr);
             return false;
         }
@@ -2272,7 +2272,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
                     }
 
                     (*alt_buf).swap_fnames(curbuf_mut());
-                    buf_name_changed(g_st().curbuf);
+                    buf_name_changed(curbuf_mut());
                     apply_autocmds(
                         EVENT_BUFFILEPOST,
                         ptr::null_mut(),
@@ -2924,7 +2924,7 @@ pub fn do_ecmd(
                         (*buf).b_locked += 1;
 
                         if g_st().curbuf == old_curbuf.br_buf {
-                            buf_copy_options(buf, BCO_ENTER);
+                            buf_copy_options( &mut *buf, BCO_ENTER);
                         }
 
                         u_sync(false);
@@ -3034,15 +3034,15 @@ pub fn do_ecmd(
                     && (opt_vars().p_ur < 0 || (curbuf_mut().b_ml.ml_line_count as OptInt) <= opt_vars().p_ur)
                 {
                     u_sync(false);
-                    if !u_savecommon(g_st().curbuf, 0, curbuf_mut().b_ml.ml_line_count + 1, 0, true) {
+                    if !u_savecommon(curbuf_mut(), 0, curbuf_mut().b_ml.ml_line_count + 1, 0, true) {
                         break 'theend;
                     }
                     u_unchanged(curbuf_mut());
-                    buf_freeall(g_st().curbuf, BFA_KEEP_UNDO);
+                    buf_freeall(curbuf_mut(), BFA_KEEP_UNDO);
 
                     readfile_flags = READ_KEEP_UNDO;
                 } else {
-                    buf_freeall(g_st().curbuf, 0);
+                    buf_freeall(curbuf_mut(), 0);
                 }
                 if !bufref_valid(Some(&bufref)) {
                     delbuf_msg(new_name.take());
@@ -3073,7 +3073,7 @@ pub fn do_ecmd(
                 curwin_init();
 
                 for tp in for_all_tabpages_ptr() {
-                    for win in for_all_windows_in_tab_mut(tp) {
+                    for win in for_all_windows_in_tab_mut( &*tp) {
                         if win.w_buffer == g_st().curbuf {
                             foldUpdateAll(win);
                         }
@@ -3156,7 +3156,7 @@ pub fn do_ecmd(
                 && curwin_mut().w_onebuf_opt.wo_spell != 0
                 && *(*curwin_mut().w_s_ptr()).b_p_spl != NUL
             {
-                parse_spelllang(curwin_ptr());
+                parse_spelllang(curwin_mut());
             }
 
             if command.is_null() {
@@ -3220,7 +3220,7 @@ pub fn do_ecmd(
                 if topline == 0 && command.is_null() {
                     *so_ptr = 999;
                 }
-                update_topline(curwin_ptr());
+                update_topline(curwin_mut());
                 curwin_mut().w_scbind_pos = plines_m_win_fill(curwin_ptr(), 1, curwin_mut().w_topline);
                 *so_ptr = n;
                 redraw_curbuf_later(UPD_NOT_VALID);
@@ -4242,8 +4242,8 @@ fn do_sub(
                                 }
                                 g_st().Search.hl_match = true;
 
-                                update_topline(curwin_ptr());
-                                validate_cursor(curwin_ptr());
+                                update_topline(curwin_mut());
+                                validate_cursor(curwin_mut());
                                 redraw_later(curwin_ptr(), UPD_SOME_VALID);
                                 show_cursor_info_later(true);
                                 update_screen();
@@ -4683,7 +4683,7 @@ fn do_sub(
 
             let num_added = (last_line - first_line) as i64;
             let num_removed = num_added - i as i64;
-            buf_updates_send_changes(g_st().curbuf, first_line, num_added, num_removed);
+            buf_updates_send_changes(curbuf_mut(), first_line, num_added, num_removed);
         }
 
         drop(sub_firstline);
@@ -5125,7 +5125,7 @@ fn show_sub(
             }
         }
 
-        update_topline(curwin_ptr());
+        update_topline(curwin_mut());
 
         let mut col_width: c_int = 0;
         let preview = (crate::memory::cstr_first_byte(opt_vars().p_icm) == b's')
@@ -5202,7 +5202,7 @@ fn show_sub(
                     if linenr_preview == 0 {
                         ml_replace_buf(cmdpreview_buf, 1, str, true, false);
                     } else {
-                        ml_append_buf(cmdpreview_buf, linenr_preview, str, line_size, false);
+                        ml_append_buf( &mut *cmdpreview_buf, linenr_preview, str, line_size, false);
                     }
                     linenr_preview += 1;
                     next_linenr += 1;

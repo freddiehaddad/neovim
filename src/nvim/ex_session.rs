@@ -460,7 +460,7 @@ fn put_view(
         if (*flagp & kOptSsopFlagFolds) != 0
             && !(*wp).buf_mut().b_ffname.is_null()
             && (bt_normal((*wp).w_buffer) || bt_help((*wp).w_buffer))
-            && !put_folds(fd, wp)
+            && !put_folds(fd,  &mut *wp)
         {
             return false;
         }

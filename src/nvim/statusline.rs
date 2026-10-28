@@ -366,7 +366,7 @@ pub fn win_redr_status(wp: &mut win_T) {
         let mut group: hlf_T = HLF_C;
         if wp.w_vsep_width != 0 && wp.w_status_height != 0 && redrawing() {
             let fillchar = if stl_connected(wp) {
-                fillchar_status(&mut group, &raw mut *wp)
+                fillchar_status(&mut group, wp)
             } else {
                 wp.w_p_fcs_chars.vert
             };
@@ -379,14 +379,14 @@ pub fn win_redr_status(wp: &mut win_T) {
     }
 }
 
-pub fn get_trans_bufname(buf: *mut buf_T) {
-    unsafe {
+pub fn get_trans_bufname(buf: &mut buf_T) {
+     {
         let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
-        let sp = buf_spname(buf);
+        let sp = buf_spname(&raw mut *buf);
         if !sp.is_null() {
             xstrlcpy(name_buff, sp, MAXPATHL);
         } else {
-            home_replace(buf, (*buf).b_fname, name_buff, MAXPATHL, true);
+            home_replace((&raw mut *buf), buf.b_fname, name_buff, MAXPATHL, true);
         }
         trans_characters(name_buff, MAXPATHL as c_int);
     }
@@ -632,7 +632,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
                 col = (*wp).w_wincol;
                 maxwidth = (*wp).w_width;
             }
-            fillchar = fillchar_status(&mut group, wp);
+            fillchar = fillchar_status(&mut group,  &mut *wp);
             attr = win_hl_attr( &mut *wp, group);
             stl_clear_click_defs(&mut (*wp).w_status_click_defs);
             click_defs = stl_alloc_click_defs(&mut (*wp).w_status_click_defs, maxwidth);
@@ -675,7 +675,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             let start_col = col;
 
             if !ui_event {
-                screengrid_line_start(grid, row, 0);
+                screengrid_line_start( &mut *grid, row, 0);
             }
 
             let mut p = buf.as_mut_ptr();
@@ -832,14 +832,14 @@ pub fn redraw_ruler() {
 }
 
 /// Get the character to use in a status line. Get its attributes in `*group`.
-pub fn fillchar_status(group: &mut hlf_T, wp: *mut win_T) -> schar_T {
-    unsafe {
-        if wp == curwin_ptr() {
+pub fn fillchar_status(group: &mut hlf_T, wp: &mut win_T) -> schar_T {
+     {
+        if (&raw mut *wp) == curwin_ptr() {
             *group = HLF_S;
-            (*wp).w_p_fcs_chars.stl
+            wp.w_p_fcs_chars.stl
         } else {
             *group = HLF_SNC;
-            (*wp).w_p_fcs_chars.stlnc
+            wp.w_p_fcs_chars.stlnc
         }
     }
 }
@@ -878,7 +878,7 @@ fn ui_ext_tabline_update() {
             } else {
                 (*tp).tp_curwin
             };
-            get_trans_bufname((*cwp).w_buffer);
+            get_trans_bufname((*cwp).buf_mut());
             put_c(
                 &mut tab_info,
                 c"name",
@@ -921,7 +921,7 @@ fn ui_ext_tabline_update() {
                     },
                 );
 
-                get_trans_bufname(buf);
+                get_trans_bufname( &mut *buf);
                 put_c(
                     &mut buffer_info,
                     c"name",
@@ -1059,7 +1059,7 @@ pub fn draw_tabline() {
 
                 let room = scol - col + tabwidth - 1;
                 if room > 0 {
-                    get_trans_bufname((*cwp).w_buffer);
+                    get_trans_bufname((*cwp).buf_mut());
                     shorten_dir(name_buff);
                     let mut len = vim_strsize(name_buff);
                     let mut p = name_buff;
@@ -2049,7 +2049,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_KEYMAP => {
                     fillable = false;
                     if get_keymap_str(
-                        wp,
+                         &mut *wp,
                         c"<%s>",
                         buf_tmp.as_mut_ptr(),
                         TMPLEN as c_int,
@@ -2198,7 +2198,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
             if handle_stcsign && !stcp.is_null() {
                 let fdc = if opt == STL_FOLDCOL {
-                    compute_foldcolumn(wp, 0)
+                    compute_foldcolumn( &mut *wp, 0)
                 } else {
                     0
                 };
@@ -2217,7 +2217,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     if fdc > 0 {
                         let mut fold_buf: [schar_T; 9] = [0; 9];
                         fill_foldcolumn(
-                            wp,
+                             &mut *wp,
                             (*stcp).foldinfo,
                             (*stcp).lnum,
                             0,
@@ -2595,9 +2595,9 @@ mod tests {
                          exp_cells: Option<c_int>| {
                 if let Some(fname) = file_name {
                     let mut fn_c = CString::new(fname).unwrap().into_bytes_with_nul();
-                    setfname(g_st().curbuf, fn_c.as_mut_ptr().cast(), ptr::null_mut(), true);
+                    setfname(curbuf_mut(), fn_c.as_mut_ptr().cast(), ptr::null_mut(), true);
                 } else {
-                    setfname(g_st().curbuf, ptr::null_mut(), ptr::null_mut(), true);
+                    setfname(curbuf_mut(), ptr::null_mut(), ptr::null_mut(), true);
                 }
                 curwin_mut().w_cursor.lnum = 0;
 

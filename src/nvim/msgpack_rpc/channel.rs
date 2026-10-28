@@ -115,7 +115,7 @@ pub struct RequestEvent {
 impl Drop for RequestEvent {
     fn drop(&mut self) {
         arena_mem_free(arena_finish(&mut self.used_mem));
-            channel_decref(self.channel);
+            channel_decref(unsafe { &mut *self.channel });
     }
 }
 
@@ -347,7 +347,7 @@ pub fn rpc_send_call(
                     c"Invalid channel: %llu",
                     id,
                 );
-                channel_decref(channel);
+                channel_decref( &mut *channel);
             }
             return OBJECT_NIL;
         }
@@ -399,7 +399,7 @@ pub fn rpc_send_call(
             frame.result_mem.set(ptr::null_mut());
         }
 
-        channel_decref(channel);
+        channel_decref( &mut *channel);
 
         *result_mem = frame.result_mem.get();
 
@@ -439,7 +439,7 @@ pub(crate) fn receive_msgpack(
             chan_close_on_err(channel, msg.as_ptr().cast::<c_char>(), LOGLVL_INF);
         }
 
-        channel_decref(&raw mut *channel);
+        channel_decref(channel);
 
         consumed
     }
@@ -696,7 +696,7 @@ pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) 
             }
         }
 
-        channel_decref(&raw mut *channel);
+        channel_decref(channel);
     }
 }
 
@@ -770,7 +770,7 @@ pub fn rpc_close_event(channel: *mut Channel) {
     unsafe {
         assert!(!channel.is_null());
 
-        channel_decref(channel);
+        channel_decref( &mut *channel);
 
         #[cfg(windows)]
         let ui_closed = (*channel).rpc.has_ui;

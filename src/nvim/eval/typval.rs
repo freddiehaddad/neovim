@@ -1199,19 +1199,19 @@ pub fn tv_list_remove_items(l: *mut list_T, item: *mut listitem_T, item2: *mut l
 /// Move items "item" to "item2" from list "l" to the end of the list "tgt_l".
 pub fn tv_list_move_items(
     l: &mut list_T,
-    item: *mut listitem_T,
+    item: &mut listitem_T,
     item2: &mut listitem_T,
     tgt_l: &mut list_T,
     cnt: c_int,
 ) {
     unsafe {
-        tv_list_drop_items( &mut *l, item,  &mut *item2);
-        (*item).li_prev = tgt_l.lv_last;
+        tv_list_drop_items( &mut *l, (&raw mut *item),  item2);
+        item.li_prev = tgt_l.lv_last;
         item2.li_next = ptr::null_mut();
         if tgt_l.lv_last.is_null() {
-            tgt_l.lv_first = item;
+            tgt_l.lv_first = (&raw mut *item);
         } else {
-            (*tgt_l.lv_last).li_next = item;
+            (*tgt_l.lv_last).li_next = (&raw mut *item);
         }
         tgt_l.lv_last = item2;
         tgt_l.lv_len += cnt;
@@ -1219,22 +1219,22 @@ pub fn tv_list_move_items(
 }
 
 /// Insert list item.
-pub fn tv_list_insert(l: *mut list_T, ni: *mut listitem_T, item: *mut listitem_T) {
+pub fn tv_list_insert(l: &mut list_T, ni: &mut listitem_T, item: *mut listitem_T) {
     unsafe {
         if item.is_null() {
-            tv_list_append(l, ni);
+            tv_list_append((&raw mut *l), ni);
         } else {
-            (*ni).li_prev = (*item).li_prev;
-            (*ni).li_next = item;
+            ni.li_prev = (*item).li_prev;
+            ni.li_next = item;
             if (*item).li_prev.is_null() {
-                (*l).lv_first = ni;
-                (*l).lv_idx += 1;
+                l.lv_first = (&raw mut *ni);
+                l.lv_idx += 1;
             } else {
-                (*(*item).li_prev).li_next = ni;
-                (*l).lv_idx_item = ptr::null_mut();
+                (*(*item).li_prev).li_next = (&raw mut *ni);
+                l.lv_idx_item = ptr::null_mut();
             }
-            (*item).li_prev = ni;
-            (*l).lv_len += 1;
+            (*item).li_prev = (&raw mut *ni);
+            l.lv_len += 1;
         }
     }
 }
@@ -1244,24 +1244,24 @@ pub fn tv_list_insert_tv(l: *mut list_T,tv: &mut typval_T, item: *mut listitem_T
     unsafe {
         let ni = tv_list_item_alloc();
         tv_copy(&*tv, &mut (*ni).li_tv);
-        tv_list_insert(l, ni, item);
+        tv_list_insert( &mut *l,  &mut *ni, item);
     }
 }
 
 /// Append item to the end of list.
-pub fn tv_list_append(l: *mut list_T, item: *mut listitem_T) {
+pub fn tv_list_append(l: *mut list_T, item: &mut listitem_T) {
     unsafe {
         if (*l).lv_last.is_null() {
-            (*l).lv_first = item;
-            (*l).lv_last = item;
-            (*item).li_prev = ptr::null_mut();
+            (*l).lv_first = (&raw mut *item);
+            (*l).lv_last = (&raw mut *item);
+            item.li_prev = ptr::null_mut();
         } else {
-            (*(*l).lv_last).li_next = item;
-            (*item).li_prev = (*l).lv_last;
-            (*l).lv_last = item;
+            (*(*l).lv_last).li_next = (&raw mut *item);
+            item.li_prev = (*l).lv_last;
+            (*l).lv_last = (&raw mut *item);
         }
         (*l).lv_len += 1;
-        (*item).li_next = ptr::null_mut();
+        item.li_next = ptr::null_mut();
     }
 }
 
@@ -1270,7 +1270,7 @@ pub fn tv_list_append_tv(l: *mut list_T,tv: &mut typval_T) {
     unsafe {
         let li = tv_list_item_alloc();
         tv_copy(&*tv, &mut (*li).li_tv);
-        tv_list_append(l, li);
+        tv_list_append(l,  &mut *li);
     }
 }
 
@@ -1279,7 +1279,7 @@ pub fn tv_list_append_owned_tv(l: *mut list_T, tv: typval_T) -> *mut typval_T {
     unsafe {
         let li = tv_list_item_alloc();
         (*li).li_tv = tv;
-        tv_list_append(l, li);
+        tv_list_append(l,  &mut *li);
         &raw mut (*li).li_tv
     }
 }
@@ -1391,7 +1391,7 @@ pub fn tv_list_copy(
             } else {
                 tv_copy(&item.li_tv, &mut (*ni).li_tv);
             }
-            tv_list_append(copy, ni);
+            tv_list_append(copy,  &mut *ni);
         }
 
         copy
@@ -1916,7 +1916,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
                     emsg(tr(e_invrange));
                 } else {
                     let tgt = tv_list_alloc_ret(rettv, cnt as isize);
-                    tv_list_move_items(&mut *l, item, &mut *item2, &mut *tgt, cnt);
+                    tv_list_move_items(&mut *l,  &mut *item, &mut *item2, &mut *tgt, cnt);
                 }
             }
         }
@@ -2164,12 +2164,12 @@ fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut sortinfo_T) {
     }
 }
 
-fn do_sort(l: *mut list_T, info: &mut sortinfo_T) {
-    unsafe {
-        let len = tv_list_len_inline(l);
+fn do_sort(l: &mut list_T, info: &mut sortinfo_T) {
+     {
+        let len = tv_list_len_inline(&raw mut *l);
         let mut ptrs = Vec::with_capacity(len.max(0) as usize);
 
-        for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr((*l).lv_first)) {
+        for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(l.lv_first)) {
             ptrs.push(ListSortItem {
                 item: li,
                 idx: i,
@@ -2195,12 +2195,12 @@ fn do_sort(l: *mut list_T, info: &mut sortinfo_T) {
             ptrs.sort_by(|a, b| item_compare2(a, b, false, info).cmp(&0));
         }
         if !info.item_compare_func_err {
-            (*l).lv_first = ptr::null_mut();
-            (*l).lv_last = ptr::null_mut();
-            (*l).lv_idx_item = ptr::null_mut();
-            (*l).lv_len = 0;
+            l.lv_first = ptr::null_mut();
+            l.lv_last = ptr::null_mut();
+            l.lv_idx_item = ptr::null_mut();
+            l.lv_len = 0;
             for si in &ptrs {
-                tv_list_append(l, si.item);
+                tv_list_append((&raw mut *l), unsafe { &mut *si.item });
             }
         }
         if info.item_compare_func_err {
@@ -2358,7 +2358,7 @@ fn do_sort_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, sort: bool) {
             let len = tv_list_len_inline(l);
             if len > 1 && parse_sort_uniq_args(argvars, &mut info) {
                 if sort {
-                    do_sort(l, &mut info);
+                    do_sort(unsafe { &mut *l }, &mut info);
                 } else {
                     do_uniq(l, &mut info);
                 }
@@ -2408,18 +2408,18 @@ pub fn tv_list_equal(l1: *mut list_T, l2: *mut list_T, ic: bool) -> bool {
 }
 
 /// Reverse list in-place.
-pub fn tv_list_reverse(l: *mut list_T) {
+pub fn tv_list_reverse(l: &mut list_T) {
     unsafe {
-        if tv_list_len_inline(l) <= 1 {
+        if tv_list_len_inline(&raw mut *l) <= 1 {
             return;
         }
-        std::mem::swap(&mut (*l).lv_first, &mut (*l).lv_last);
-        let mut li = (*l).lv_first;
+        std::mem::swap(&mut l.lv_first, &mut l.lv_last);
+        let mut li = l.lv_first;
         while !li.is_null() {
             std::mem::swap(&mut (*li).li_next, &mut (*li).li_prev);
             li = (*li).li_next;
         }
-        (*l).lv_idx = (*l).lv_len - (*l).lv_idx - 1;
+        l.lv_idx = l.lv_len - l.lv_idx - 1;
     }
 }
 
@@ -2854,16 +2854,16 @@ pub fn tv_dict_item_copy(di: &mut dictitem_T) -> *mut dictitem_T {
 }
 
 /// Remove item from dictionary and free it.
-pub fn tv_dict_item_remove(dict: &mut dict_T, item: *mut dictitem_T) {
+pub fn tv_dict_item_remove(dict: &mut dict_T, item: &mut dictitem_T) {
     unsafe {
-        let key_ptr = (*item).di_key.as_ptr();
+        let key_ptr = item.di_key.as_ptr();
         let hi = hash_find(&dict.dv_hashtab, key_ptr);
         if hashitem_empty(&*hi) {
             semsg!(tr(e_intern2), c"tv_dict_item_remove()");
         } else {
             hash_remove(&mut dict.dv_hashtab,  &mut *hi);
         }
-        tv_dict_item_free(item);
+        tv_dict_item_free(&raw mut *item);
     }
 }
 
@@ -3979,7 +3979,7 @@ pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
                     ) {
                         *rettv = (*di).di_tv;
                         (*di).di_tv = tv_initial_value();
-                        tv_dict_item_remove(&mut *d, di);
+                        tv_dict_item_remove(&mut *d,  &mut *di);
                         if tv_dict_is_watched_inline(d) {
                             tv_dict_watcher_notify(&mut *d, key, ptr::null_mut(), Some(&*rettv));
                         }
@@ -5251,7 +5251,7 @@ mod tests {
             assert_eq!(tv_list_find_nr(l, 10, Some(&mut err)), -1);
             assert!(err);
 
-            tv_list_reverse(l);
+            tv_list_reverse( &mut *l);
             let first = tv_list_find(l, 0);
             assert_eq!((*first).li_tv.vval.v_number(), 30);
 

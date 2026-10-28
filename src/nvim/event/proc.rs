@@ -443,7 +443,7 @@ fn proc_close(proc_: &mut Proc) {
     }
 }
 
-fn flush_stream(proc_: *mut Proc, stream: &mut RStream) {
+fn flush_stream(proc_: &mut Proc, stream: &mut RStream) {
     unsafe {
         if stream.s.closed {
             return;
@@ -453,7 +453,7 @@ fn flush_stream(proc_: *mut Proc, stream: &mut RStream) {
         let limit_bytes = if cfg!(windows) {
             true
         } else {
-            (*proc_).r#type != kProcTypePty || proc_st().proc_is_tearing_down
+            proc_.r#type != kProcTypePty || proc_st().proc_is_tearing_down
         };
         if limit_bytes {
             let mut system_buffer_size: c_int = 0;
@@ -472,10 +472,10 @@ fn flush_stream(proc_: *mut Proc, stream: &mut RStream) {
         {
             let num_bytes = stream.num_bytes;
 
-            if (*proc_).r#type == kProcTypePty && !stream.did_eof {
+            if proc_.r#type == kProcTypePty && !stream.did_eof {
                 pty_proc_flush_master(&mut *(&raw mut *proc_).cast());
             }
-            loop_poll_events(&mut *(*proc_).loop_, 0);
+            loop_poll_events(&mut *proc_.loop_, 0);
             if !stream.s.events.is_null() {
                 multiqueue_process_events(stream.s.events);
             }
@@ -496,8 +496,8 @@ fn flush_stream(proc_: *mut Proc, stream: &mut RStream) {
 pub fn proc_close_handles(proc_: &mut Proc) {
     proc_st().exit_need_delay += 1;
     let p = &raw mut *proc_;
-    flush_stream(p, &mut proc_.out);
-    flush_stream(p, &mut proc_.err);
+    flush_stream(unsafe { &mut *p }, &mut proc_.out);
+    flush_stream(unsafe { &mut *p }, &mut proc_.err);
 
     proc_close_streams(proc_);
     proc_close(proc_);

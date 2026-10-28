@@ -4123,7 +4123,7 @@ pub fn may_show_intro() -> bool {
             && curbuf_mut().b_fname.is_null()
             && curbuf_mut().b_fnum == 1
             && curwin_mut().handle == LOWEST_WIN_ID
-            && one_window(curwin_ptr(), ptr::null_mut())
+            && one_window(curwin_mut(), ptr::null_mut())
             && vim_strchr(opt_vars().p_shm, kShmIntro).is_null()
     }
 }

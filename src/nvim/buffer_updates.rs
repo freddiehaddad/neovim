@@ -198,30 +198,30 @@ pub fn buf_updates_unload(buf: &mut buf_T, can_reload: bool) {
 }
 
 pub fn buf_updates_send_changes(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     firstline: linenr_T,
     num_added: i64,
     num_removed: i64,
 ) {
-    unsafe {
+     {
         let mut deleted_codepoints: usize = 0;
         let mut deleted_codeunits: usize = 0;
         let deleted_bytes =
-            ml_flush_deleted_bytes(&mut *buf, &mut deleted_codepoints, &mut deleted_codeunits);
+            ml_flush_deleted_bytes(buf, &mut deleted_codepoints, &mut deleted_codeunits);
 
-        if !buf_updates_active(&mut *buf) {
+        if !buf_updates_active(buf) {
             return;
         }
 
-        let send_tick = !(g_st().cmdpreview && buf == g_st().curbuf);
+        let send_tick = !(g_st().cmdpreview && (&raw mut *buf) == g_st().curbuf);
         let mut badchannelid: u64 = 0;
 
         let mut arena = ARENA_EMPTY;
         let mut linedata = Array::new();
-        if num_added > 0 && !(*buf).update_channels.is_empty() {
+        if num_added > 0 && !buf.update_channels.is_empty() {
             linedata = arena_array(&mut arena, num_added as usize);
             buf_collect_lines(
-                buf,
+                (&raw mut *buf),
                 num_added as usize,
                 firstline,
                 0,
@@ -232,11 +232,11 @@ pub fn buf_updates_send_changes(
             );
         }
 
-        for &channelid in &(*buf).update_channels {
+        for &channelid in &buf.update_channels {
             let mut items = [
-                buffer_obj((*buf).b_fnum),
+                buffer_obj(buf.b_fnum),
                 if send_tick {
-                    integer_obj(buf_get_changedtick(&*buf))
+                    integer_obj(buf_get_changedtick(buf))
                 } else {
                     OBJECT_NIL
                 },
@@ -265,22 +265,22 @@ pub fn buf_updates_send_changes(
                 c"Disabling buffer updates for dead channel %llu",
                 badchannelid,
             );
-            buf_updates_unregister(&mut *buf, badchannelid);
+            buf_updates_unregister(buf, badchannelid);
         }
 
         arena_mem_free(arena_finish(&mut arena));
 
         let mut i = 0usize;
-        while i < (*buf).update_callbacks.len() {
-            let on_lines = (*buf).update_callbacks.as_slice()[i].on_lines;
-            let preview = (*buf).update_callbacks.as_slice()[i].preview;
-            let utf_sizes = (*buf).update_callbacks.as_slice()[i].utf_sizes;
+        while i < buf.update_callbacks.len() {
+            let on_lines = buf.update_callbacks.as_slice()[i].on_lines;
+            let preview = buf.update_callbacks.as_slice()[i].preview;
+            let utf_sizes = buf.update_callbacks.as_slice()[i].utf_sizes;
             let mut keep = true;
             if on_lines != LUA_NOREF && (preview || !g_st().cmdpreview) {
                 let mut items = [
-                    buffer_obj((*buf).b_fnum),
+                    buffer_obj(buf.b_fnum),
                     if send_tick {
-                        integer_obj(buf_get_changedtick(&*buf))
+                        integer_obj(buf_get_changedtick(buf))
                     } else {
                         OBJECT_NIL
                     },
@@ -316,7 +316,7 @@ pub fn buf_updates_send_changes(
             if keep {
                 i += 1;
             } else {
-                (*buf).update_callbacks.remove(i);
+                buf.update_callbacks.remove(i);
             }
         }
     }

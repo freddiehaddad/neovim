@@ -261,7 +261,7 @@ fn mb_cptr_adv(p: &mut *const c_char) {
 }
 /// Main spell-checking function.
 pub fn spell_check(
-    wp: *mut win_T,
+    wp: &mut win_T,
     ptr: *mut c_char,attrp: &mut hlf_T,mut capcol: Option<&mut c_int>,
     docount: bool,
 ) -> usize {
@@ -269,7 +269,7 @@ pub fn spell_check(
         if (*ptr as u8) <= b' ' {
             return 1;
         }
-        let w_s = (*wp).w_s_ptr();
+        let w_s = wp.w_s_ptr();
         if (*w_s).b_langp.is_empty() {
             return 1;
         }
@@ -295,13 +295,13 @@ pub fn spell_check(
         }
         mi.mi_word = ptr;
         mi.mi_fend = ptr;
-        if spell_iswordp(mi.mi_fend, &*wp) {
+        if spell_iswordp(mi.mi_fend, wp) {
             if use_camel_case {
-                mi.mi_fend = advance_camelcase_word(ptr,  &mut *wp, &mut is_camel_case);
+                mi.mi_fend = advance_camelcase_word(ptr,  wp, &mut is_camel_case);
             } else {
                 loop {
                     mb_ptr_adv(&mut mi.mi_fend);
-                    if *mi.mi_fend == NUL || !spell_iswordp(mi.mi_fend, &*wp) {
+                    if *mi.mi_fend == NUL || !spell_iswordp(mi.mi_fend, wp) {
                         break;
                     }
                 }
@@ -319,12 +319,12 @@ pub fn spell_check(
         mi.mi_end = mi.mi_fend;
         mi.mi_capflags = 0;
         mi.mi_cend = ptr::null_mut();
-        mi.mi_win = wp;
+        mi.mi_win = (&raw mut *wp);
         if *mi.mi_fend != NUL {
             mb_ptr_adv(&mut mi.mi_fend);
         }
         spell_casefold(
-             &*wp,
+             wp,
             ptr,
             mi.mi_fend.offset_from(ptr) as c_int,
             (&raw mut mi.mi_fword).cast(),
@@ -366,7 +366,7 @@ pub fn spell_check(
                 if mi.mi_result == SP_BAD || mi.mi_result == SP_BANNED {
                     return nrlen;
                 }
-            } else if !spell_iswordp_nmw(ptr,  &mut *wp) {
+            } else if !spell_iswordp_nmw(ptr,  wp) {
                 if let Some(capcol) = capcol
                     && (*w_s).b_cap_prog.is_some()
                 {
@@ -1096,7 +1096,7 @@ fn decor_spell_nav_col(wp: &mut win_T,
 #[inline]
 fn can_syn_spell(wp: &mut win_T, lnum: linenr_T, col: c_int) -> bool {
     let mut can_spell = false;
-        let _ = syn_get_id(wp, lnum, col, 0, Some(&mut can_spell), 0);
+        let _ = syn_get_id( &mut *wp, lnum, col, 0, Some(&mut can_spell), 0);
         can_spell
 }
 pub fn spell_move_to(
@@ -1171,7 +1171,7 @@ pub fn spell_move_to(
                         break;
                     }
                     attr = HLF_COUNT;
-                    len = spell_check(&raw mut *wp, p, &mut attr, Some(&mut capcol), false);
+                    len = spell_check(wp, p, &mut attr, Some(&mut capcol), false);
                     if attr != HLF_COUNT
                         && (behaviour == SMT_ALL
                             || (behaviour == SMT_BAD && attr == HLF_SPB)
@@ -1633,7 +1633,7 @@ fn count_syllables(slang: &mut slang_T, word: *const c_char) -> c_int {
         cnt
     }
 }
-pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
+pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
     unsafe {
         let mut region_cp: [c_char; 3] = [0; 3];
         let mut lang: [c_char; MAXWLEN + 1] = [0; MAXWLEN + 1];
@@ -1647,14 +1647,14 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
             br_fnum: 0,
             br_buf_free_count: 0,
         };
-        set_bufref(&mut bufref, (*wp).w_buffer);
+        set_bufref(&mut bufref, wp.w_buffer);
         if spell_priv_st().parse_spelllang_recursive {
             return ptr::null_mut();
         }
         spell_priv_st().parse_spelllang_recursive = true;
         let mut ga: Vec<langp_T> = Vec::with_capacity(2);
-        clear_midword(&mut *wp);
-        let w_s = (*wp).w_s_ptr();
+        clear_midword(wp);
+        let w_s = wp.w_s_ptr();
         let spl_copy = crate::memory::cstr_to_cstring((*w_s).b_p_spl);
         (*w_s).b_cjk = 0;
         'theend: {
@@ -1738,7 +1738,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                         let _ = spell_load_file(lang_ptr, lang_ptr, ptr::null_mut(), false);
                     } else {
                         spell_load_lang(lang_ptr);
-                        if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(wp) {
+                        if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(&raw mut *wp) {
                             ret_msg = c"E797: SpellFileMissing autocommand deleted buffer"
                                 .as_ptr()
                                 .cast_mut();
@@ -1786,7 +1786,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                                 lp_replang: ptr::null_mut(),
                                 lp_region: region_mask,
                             });
-                            use_midword(slang,  &mut *wp);
+                            use_midword(slang,  wp);
                             if slang.sl_nobreak {
                                 nobreak = true;
                             }
@@ -1866,7 +1866,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                             lp_replang: ptr::null_mut(),
                             lp_region: region_mask,
                         });
-                        use_midword(slang,  &mut *wp);
+                        use_midword(slang,  wp);
                     }
                 }
             }
@@ -1907,7 +1907,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 }
             }
             (*w_s).b_langp = ga;
-            redraw_later(wp, UPD_NOT_VALID);
+            redraw_later((&raw mut *wp), UPD_NOT_VALID);
         }
         spell_priv_st().parse_spelllang_recursive = false;
         ret_msg
@@ -2024,7 +2024,7 @@ pub fn spell_reload() {
         for wp in for_all_windows_ptr() {
             let w_s = (*wp).w_s_ptr();
             if *(*w_s).b_p_spl != NUL && (*wp).w_onebuf_opt.wo_spell != 0 {
-                let _ = parse_spelllang(wp);
+                let _ = parse_spelllang( &mut *wp);
                 break;
             }
         }
@@ -3268,7 +3268,7 @@ pub fn did_set_spell_option() -> *const c_char {
         let mut errmsg: *const c_char = std::ptr::null();
         for wp in for_all_windows_ptr() {
             if (*wp).w_buffer == g_st().curbuf && (*wp).w_onebuf_opt.wo_spell != 0 {
-                errmsg = parse_spelllang(wp);
+                errmsg = parse_spelllang( &mut *wp);
                 break;
             }
         }

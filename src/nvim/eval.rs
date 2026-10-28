@@ -1019,13 +1019,13 @@ pub fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
 }
 
 /// Evaluate 'foldtext', returning an Array or a String (NULL_STRING on failure).
-pub fn eval_foldtext(wp: *mut win_T) -> Object {
+pub fn eval_foldtext(wp: &mut win_T) -> Object {
     unsafe {
-        let use_sandbox = was_set_insecurely(wp, kOptFoldtext, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely((&raw mut *wp), kOptFoldtext, OPT_LOCAL) != 0;
         let mut tv = tv_initial_value();
         let retval: Object;
         if !eval_expr_option_tv(
-            &mut *(&raw mut (*wp).w_onebuf_opt.wo_fdt).cast(),
+            &mut *(&raw mut wp.w_onebuf_opt.wo_fdt).cast(),
             use_sandbox,
             &mut tv,
         ) {
@@ -4326,7 +4326,7 @@ pub fn garbage_collect(testing: bool) -> bool {
 
         {
             for tp in for_all_tabpages_ptr() {
-                for wp in for_all_windows_in_tab_mut(tp) {
+                for wp in for_all_windows_in_tab_mut( &*tp) {
                     abort = abort
                         || set_ref_in_item(
                             &mut wp.w_winvar.di_tv,
@@ -5751,11 +5751,11 @@ pub fn var2fpos(
         eval_st().VAR2FPOS_POS.coladd = 0;
 
         if *name == b'w' as c_char && dollar_lnum {
-            check_cursor_moved(&raw mut *wp);
+            check_cursor_moved(wp);
 
             eval_st().VAR2FPOS_POS.col = 0;
             if *name.add(1) == b'0' as c_char {
-                update_topline(&raw mut *wp);
+                update_topline(wp);
                 eval_st().VAR2FPOS_POS.lnum = if wp.w_topline > 0 {
                     wp.w_topline
                 } else {
@@ -6388,7 +6388,7 @@ pub fn set_selfdict(rettv: &mut typval_T, selfdict: *mut dict_T) {
         {
             return;
         }
-        make_partial(selfdict, rettv);
+        make_partial( &mut *selfdict, rettv);
     }
 }
 
@@ -6829,25 +6829,25 @@ pub fn do_string_sub(
 
 /// Common code for getting job callbacks for `jobstart`.
 pub fn common_job_callbacks(
-    vopts: *mut dict_T,
+    vopts: &mut dict_T,
     on_stdout: &mut CallbackReader,
     on_stderr: &mut CallbackReader,
     on_exit: &mut Callback,
 ) -> bool {
-    unsafe {
-        if tv_dict_get_callback(vopts, c"on_stdout", 9, &mut on_stdout.cb)
-            && tv_dict_get_callback(vopts, c"on_stderr", 9, &mut on_stderr.cb)
-            && tv_dict_get_callback(vopts, c"on_exit", 7, on_exit)
+     {
+        if tv_dict_get_callback((&raw mut *vopts), c"on_stdout", 9, &mut on_stdout.cb)
+            && tv_dict_get_callback((&raw mut *vopts), c"on_stderr", 9, &mut on_stderr.cb)
+            && tv_dict_get_callback((&raw mut *vopts), c"on_exit", 7, on_exit)
         {
-            on_stdout.buffered = tv_dict_get_number(vopts, c"stdout_buffered") != 0;
-            on_stderr.buffered = tv_dict_get_number(vopts, c"stderr_buffered") != 0;
+            on_stdout.buffered = tv_dict_get_number((&raw mut *vopts), c"stdout_buffered") != 0;
+            on_stderr.buffered = tv_dict_get_number((&raw mut *vopts), c"stderr_buffered") != 0;
             if on_stdout.buffered && on_stdout.cb.cb_type() == kCallbackNone {
-                on_stdout.self_dict = vopts;
+                on_stdout.self_dict = (&raw mut *vopts);
             }
             if on_stderr.buffered && on_stderr.cb.cb_type() == kCallbackNone {
-                on_stderr.self_dict = vopts;
+                on_stderr.self_dict = (&raw mut *vopts);
             }
-            (*vopts).dv_refcount += 1;
+            vopts.dv_refcount += 1;
             return true;
         }
 

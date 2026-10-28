@@ -48,17 +48,17 @@ fn cs_disjoint(cs1: &Charset, cs2: &Charset) -> bool {
     true
 }
 
-fn callrecursive(tree: *mut TTree, f: fn(*mut TTree) -> c_int, def: c_int) -> c_int {
+fn callrecursive(tree: &mut TTree, f: fn(*mut TTree) -> c_int, def: c_int) -> c_int {
     unsafe {
-        let key = (*tree).key;
-        debug_assert_eq!((*tree).tag, TCall);
-        debug_assert_eq!((*sib2(tree)).tag, TRule);
+        let key = tree.key;
+        debug_assert_eq!(tree.tag, TCall);
+        debug_assert_eq!((*sib2(&raw mut *tree)).tag, TRule);
         if key == 0 {
             def
         } else {
-            (*tree).key = 0;
-            let result = f(sib2(tree));
-            (*tree).key = key;
+            tree.key = 0;
+            let result = f(sib2(&raw mut *tree));
+            tree.key = key;
             result
         }
     }
@@ -69,7 +69,7 @@ pub fn hascaptures(mut tree: *mut TTree) -> c_int {
         loop {
             match (*tree).tag {
                 TCapture | TRunTime => return 1,
-                TCall => return callrecursive(tree, hascaptures, 0),
+                TCall => return callrecursive( &mut *tree, hascaptures, 0),
                 TRule => {
                     tree = sib1(tree);
                 }
@@ -164,7 +164,7 @@ pub fn fixedlen(mut tree: *mut TTree) -> c_int {
                     tree = sib1(tree);
                 }
                 TCall => {
-                    let n1 = callrecursive(tree, fixedlen, -1);
+                    let n1 = callrecursive( &mut *tree, fixedlen, -1);
                     return if n1 < 0 { -1 } else { len + n1 };
                 }
                 TSeq => {
@@ -407,12 +407,12 @@ fn setoffset(compst: &mut CompileState, instruction: c_int, offset: c_int) {
     }
 }
 
-fn codeutfr(compst: &mut CompileState, tree: *mut TTree) {
+fn codeutfr(compst: &mut CompileState, tree: &mut TTree) {
     unsafe {
         let i = addoffsetinst(compst, IUTFR);
-        let to = (*sib1(tree)).u.n;
-        debug_assert_eq!((*sib1(tree)).tag, TXInfo);
-        (*getinstr(compst, i + 1)).offset = (*tree).u.n;
+        let to = (*sib1(&raw mut *tree)).u.n;
+        debug_assert_eq!((*sib1(&raw mut *tree)).tag, TXInfo);
+        (*getinstr(compst, i + 1)).offset = tree.u.n;
         let inst = getinstr(compst, i);
         (*inst).i.aux1 = (to & 0xff) as byte;
         (*inst).i.aux2.key = (to >> 8) as c_short;
@@ -505,7 +505,7 @@ fn cs_equal(p: *const Instruction, info: &charsetinfo) -> bool {
 
 fn codecharset(compst: &mut CompileState, tree: *mut TTree, tt: c_int) {
     let mut info = charsetinfo::new();
-    tree2cset(tree, &mut info);
+    tree2cset(unsafe { &mut *tree }, &mut info);
     if tt >= 0 && cs_equal(getinstr(compst, tt), &info) {
         addinstruction(compst, IAny, 0);
     } else {
@@ -553,12 +553,12 @@ fn finallabel(code: *const Instruction, i: c_int) -> c_int {
     finaltarget(code, target(code, i))
 }
 
-fn codebehind(compst: &mut CompileState, tree: *mut TTree) {
+fn codebehind(compst: &mut CompileState, tree: &mut TTree) {
     unsafe {
-        if (*tree).u.n > 0 {
-            addinstruction(compst, IBehind, (*tree).u.n);
+        if tree.u.n > 0 {
+            addinstruction(compst, IBehind, tree.u.n);
         }
-        codegen(compst, sib1(tree), false, NOINST, &FULLSET);
+        codegen(compst, sib1(&raw mut *tree), false, NOINST, &FULLSET);
     }
 }
 
@@ -623,42 +623,42 @@ fn codeand(compst: &mut CompileState, tree: *mut TTree, tt: c_int) {
     }
 }
 
-fn codecapture(compst: &mut CompileState, tree: *mut TTree, tt: c_int, fl: &Charset) {
-    unsafe {
-        let len = fixedlen(sib1(tree));
-        if (0..=MAXOFF).contains(&len) && hascaptures(sib1(tree)) == 0 {
-            codegen(compst, sib1(tree), false, tt, fl);
+fn codecapture(compst: &mut CompileState, tree: &mut TTree, tt: c_int, fl: &Charset) {
+     {
+        let len = fixedlen(sib1(&raw mut *tree));
+        if (0..=MAXOFF).contains(&len) && hascaptures(sib1(&raw mut *tree)) == 0 {
+            codegen(compst, sib1(&raw mut *tree), false, tt, fl);
             addinstcap(
                 compst,
                 IFullCapture,
-                c_int::from((*tree).cap),
-                c_int::from((*tree).key),
+                c_int::from(tree.cap),
+                c_int::from(tree.key),
                 len,
             );
         } else {
             addinstcap(
                 compst,
                 IOpenCapture,
-                c_int::from((*tree).cap),
-                c_int::from((*tree).key),
+                c_int::from(tree.cap),
+                c_int::from(tree.key),
                 0,
             );
-            codegen(compst, sib1(tree), false, tt, fl);
+            codegen(compst, sib1(&raw mut *tree), false, tt, fl);
             addinstcap(compst, ICloseCapture, c_int::from(Cclose), 0, 0);
         }
     }
 }
 
-fn coderuntime(compst: &mut CompileState, tree: *mut TTree, tt: c_int) {
-    unsafe {
+fn coderuntime(compst: &mut CompileState, tree: &mut TTree, tt: c_int) {
+     {
         addinstcap(
             compst,
             IOpenCapture,
             c_int::from(Cgroup),
-            c_int::from((*tree).key),
+            c_int::from(tree.key),
             0,
         );
-        codegen(compst, sib1(tree), false, tt, &FULLSET);
+        codegen(compst, sib1(&raw mut *tree), false, tt, &FULLSET);
         addinstcap(compst, ICloseRunTime, c_int::from(Cclose), 0, 0);
     }
 }
@@ -669,9 +669,9 @@ fn closeloop(compst: &mut CompileState, test: c_int) {
     jumptothere(compst, jmp, test);
 }
 
-fn coderepcharset(compst: &mut CompileState, tree: *mut TTree) -> bool {
+fn coderepcharset(compst: &mut CompileState, tree: &mut TTree) -> bool {
     unsafe {
-        match (*tree).tag {
+        match tree.tag {
             TFalse => true,
             TAny => {
                 let test = addoffsetinst(compst, ITestAny);
@@ -681,7 +681,7 @@ fn coderepcharset(compst: &mut CompileState, tree: *mut TTree) -> bool {
             }
             TChar => {
                 let test = addoffsetinst(compst, ITestChar);
-                (*getinstr(compst, test)).i.aux1 = (*tree).u.n as byte;
+                (*getinstr(compst, test)).i.aux1 = tree.u.n as byte;
                 addinstruction(compst, IAny, 0);
                 closeloop(compst, test);
                 true
@@ -699,7 +699,7 @@ fn coderepcharset(compst: &mut CompileState, tree: *mut TTree) -> bool {
 }
 
 fn coderep(compst: &mut CompileState, tree: *mut TTree, opt: bool, fl: &Charset) {
-    if !coderepcharset(compst, tree) {
+    if !coderepcharset(compst, unsafe { &mut *tree }) {
         let mut st = Charset::new();
         let e1 = getfirst(tree, &FULLSET, &mut st);
         if headfail(tree) || (e1 == 0 && cs_disjoint(&st, fl)) {
@@ -841,7 +841,7 @@ fn codegen(
                     return;
                 }
                 TUTFR => {
-                    codeutfr(compst, tree);
+                    codeutfr(compst,  &mut *tree);
                     return;
                 }
                 TChoice => {
@@ -853,7 +853,7 @@ fn codegen(
                     return;
                 }
                 TBehind => {
-                    codebehind(compst, tree);
+                    codebehind(compst,  &mut *tree);
                     return;
                 }
                 TNot => {
@@ -865,11 +865,11 @@ fn codegen(
                     return;
                 }
                 TCapture => {
-                    codecapture(compst, tree, tt, fl);
+                    codecapture(compst,  &mut *tree, tt, fl);
                     return;
                 }
                 TRunTime => {
-                    coderuntime(compst, tree, tt);
+                    coderuntime(compst,  &mut *tree, tt);
                     return;
                 }
                 TGrammar => {

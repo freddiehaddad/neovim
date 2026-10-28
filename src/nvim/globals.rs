@@ -1049,11 +1049,11 @@ pub fn win_iter_mut(start: *mut win_T) -> WinMutIter {
 }
 
 #[inline]
-pub fn for_all_windows_in_tab_mut(tp: *const tabpage_T) -> WinMutIter {
-    WinMutIter(if ptr::eq(tp, g_st().curtab) {
+pub fn for_all_windows_in_tab_mut(tp: &tabpage_T) -> WinMutIter {
+    WinMutIter(if ptr::eq((&raw const *tp), g_st().curtab) {
         g_st().firstwin
     } else {
-        unsafe { (*tp).tp_firstwin }
+         tp.tp_firstwin
     })
 }
 
@@ -1068,11 +1068,11 @@ pub fn win_iter_ptr(start: *mut win_T) -> WinPtrIter {
 }
 
 #[inline]
-pub fn for_all_windows_in_tab_ptr(tp: *const tabpage_T) -> WinPtrIter {
-    WinPtrIter(if ptr::eq(tp, g_st().curtab) {
+pub fn for_all_windows_in_tab_ptr(tp: &tabpage_T) -> WinPtrIter {
+    WinPtrIter(if ptr::eq((&raw const *tp), g_st().curtab) {
         g_st().firstwin
     } else {
-        unsafe { (*tp).tp_firstwin }
+         tp.tp_firstwin
     })
 }
 

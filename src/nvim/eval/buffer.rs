@@ -241,7 +241,7 @@ fn set_buffer_lines(
             appended_lines_mark(append_lnum, added);
 
             for tp in for_all_tabpages_ptr() {
-                for wp in win_iter_ptr(first_win_in_tab(tp)) {
+                for wp in win_iter_ptr(first_win_in_tab( &mut *tp)) {
                     if (*wp).w_buffer == buf
                         && ((*wp).w_buffer != g_st().curbuf || wp == curwin_ptr())
                         && (*wp).w_cursor.lnum > append_lnum
@@ -251,7 +251,7 @@ fn set_buffer_lines(
                 }
             }
             check_cursor_col(curwin_mut());
-            update_topline(curwin_ptr());
+            update_topline(curwin_mut());
         }
 
         if !is_curbuf {
@@ -318,7 +318,7 @@ fn prompt_trim_scrollback(buf: &mut buf_T) {
         deleted_lines_buf(&raw mut *buf, 1, to_delete);
 
         for tp in for_all_tabpages_ptr() {
-            for wp in win_iter_mut(first_win_in_tab(tp)) {
+            for wp in win_iter_mut(first_win_in_tab(unsafe { &mut *tp })) {
                 if wp.w_buffer == buf {
                     wp.w_cursor.lnum = if wp.w_cursor.lnum <= to_delete {
                         1
@@ -610,8 +610,8 @@ fn buf_win_common(argvars: &mut [typval_T], rettv: &mut typval_T, get_nr: bool) 
         let mut winid: c_int = 0;
         let mut found_buf = false;
         for wp in for_all_windows_mut() {
-            winnr += c_int::from(win_has_winnr(wp, g_st().curtab));
-            if ptr::eq(wp.w_buffer, buf) && (!get_nr || win_has_winnr(wp, g_st().curtab)) {
+            winnr += c_int::from(win_has_winnr(wp, curtab_mut()));
+            if ptr::eq(wp.w_buffer, buf) && (!get_nr || win_has_winnr(wp, curtab_mut())) {
                 found_buf = true;
                 winid = wp.handle;
                 break;
@@ -686,7 +686,7 @@ pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             }
 
             for tp in for_all_tabpages_ptr() {
-                for wp in win_iter_mut(first_win_in_tab(tp)) {
+                for wp in win_iter_mut(first_win_in_tab( &mut *tp)) {
                     if wp.w_buffer == buf {
                         if wp.w_cursor.lnum > last {
                             wp.w_cursor.lnum -= count as linenr_T;
@@ -763,7 +763,7 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
 
         let windows = tv_list_alloc(kListLenMayKnow);
         for tp in for_all_tabpages_ptr() {
-            for wp in win_iter_mut(first_win_in_tab(tp)) {
+            for wp in win_iter_mut(first_win_in_tab( &mut *tp)) {
                 if wp.w_buffer == buf {
                     tv_list_append_number(windows, wp.handle as varnumber_T);
                 }

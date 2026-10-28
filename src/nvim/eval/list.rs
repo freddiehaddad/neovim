@@ -164,7 +164,7 @@ fn filter_map_dict(
                     {
                         break;
                     }
-                    tv_dict_item_remove(&mut *d, di);
+                    tv_dict_item_remove(&mut *d,  &mut *di);
                 }
             }
             hi = hi.add(1);
@@ -910,7 +910,7 @@ pub fn f_reverse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 c"reverse() argument",
                 TV_TRANSLATE,
             ) {
-                tv_list_reverse(l);
+                tv_list_reverse( &mut *l);
                 tv_list_set_ret(rettv, l);
             }
         }

@@ -500,7 +500,7 @@ fn insert_enter(s: &mut InsertState) {
             };
             g_st().restart_edit = 0;
 
-            validate_virtcol(curwin_ptr());
+            validate_virtcol(curwin_mut());
             update_curswant();
             if (g_st().ins_at_eol && curwin_mut().w_cursor.lnum == g_st().Ins.o_lnum)
                 || curwin_mut().w_curswant > curwin_mut().w_virtcol
@@ -536,7 +536,7 @@ fn insert_enter(s: &mut InsertState) {
         }
 
         if g_st().Ins.did_restart_edit == 0 {
-            change_warning(g_st().curbuf, if s.i == 0 { 0 } else { s.i + 1 });
+            change_warning(curbuf_mut(), if s.i == 0 { 0 } else { s.i + 1 });
         }
 
         ui_cursor_shape();
@@ -666,13 +666,13 @@ fn insert_check(s: &mut InsertState) -> c_int {
         }
 
         if s.count <= 1 {
-            update_topline(curwin_ptr());
+            update_topline(curwin_mut());
         }
 
         s.did_backspace = false;
 
         if s.count <= 1 {
-            validate_cursor(curwin_ptr());
+            validate_cursor(curwin_mut());
         }
 
         ins_redraw(true);
@@ -1510,8 +1510,8 @@ pub fn edit_putchar(c: c_int, highlight: bool) {
             return;
         }
 
-        update_topline(curwin_ptr());
-        validate_cursor(curwin_ptr());
+        update_topline(curwin_mut());
+        validate_cursor(curwin_mut());
         let attr = if highlight {
             crate::highlight::hl_attr(HLF_8 as c_int)
         } else {
@@ -1676,7 +1676,7 @@ pub fn display_dollar(col_arg: colnr_T) {
 
         let p = get_cursor_line_ptr();
         curwin_mut().w_cursor.col -= utf_head_off(p, p.offset(col as isize));
-        curs_columns(curwin_ptr(), 0);
+        curs_columns(curwin_mut(), 0);
         if curwin_mut().w_wcol < curwin_mut().w_view_width {
             edit_putchar(b'$' as c_int, false);
             g_st().dollar_vcol = curwin_mut().w_virtcol;
@@ -2388,7 +2388,7 @@ pub fn cursor_up(n: linenr_T, upd_topline: bool) -> bool {
         cursor_up_inner(curwin_mut(), n, false);
         coladvance(curwin_mut(), curwin_mut().w_curswant);
         if upd_topline {
-            update_topline(curwin_ptr());
+            update_topline(curwin_mut());
         }
         true
     }
@@ -2407,7 +2407,7 @@ pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
             while n > 0 {
                 n -= 1;
                 if hasFoldingWin(
-                    &raw mut *wp,
+                    wp,
                     lnum,
                     None,
                     &raw mut last,
@@ -2438,7 +2438,7 @@ pub fn cursor_down(n: c_int, upd_topline: bool) -> bool {
      {
         let mut lnum = curwin_mut().w_cursor.lnum;
         hasFoldingWin(
-            curwin_ptr(),
+            curwin_mut(),
             lnum,
             None,
             &raw mut lnum,
@@ -2451,7 +2451,7 @@ pub fn cursor_down(n: c_int, upd_topline: bool) -> bool {
         cursor_down_inner(curwin_mut(), n, false);
         coladvance(curwin_mut(), curwin_mut().w_curswant);
         if upd_topline {
-            update_topline(curwin_ptr());
+            update_topline(curwin_mut());
         }
         true
     }
@@ -3742,7 +3742,7 @@ fn ins_tab() -> bool {
             let tab = c"\t".as_ptr().cast_mut();
             let tab_v = b'\t' as i32;
             let mut csarg = CharsizeArg::new();
-            let mut cstype = init_charsize_arg(&mut csarg, curwin_ptr(), 0, tab);
+            let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, tab);
 
             while ascii_iswhite(*ptr as u8 as c_int) {
                 let i = win_charsize(cstype, vcol, tab, tab_v, &mut csarg, 1).width;
@@ -3765,7 +3765,7 @@ fn ins_tab() -> bool {
 
             if change_col >= 0 {
                 let mut repl_off: c_int = 0;
-                cstype = init_charsize_arg(&mut csarg, curwin_ptr(), 0, ptr);
+                cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, ptr);
                 while vcol < want_vcol && *ptr == b' ' as c_char {
                     vcol += win_charsize(cstype, vcol, ptr, b' ' as i32, &mut csarg, 1).width;
                     ptr = ptr.add(1);
@@ -3931,12 +3931,12 @@ pub fn ins_copychar(lnum: linenr_T) -> c_int {
             return NUL as c_int;
         }
 
-        validate_virtcol(curwin_ptr());
+        validate_virtcol(curwin_mut());
         let end_vcol = curwin_mut().w_virtcol;
         let line = ml_get(lnum);
 
         let mut csarg = CharsizeArg::new();
-        let cstype = init_charsize_arg(&mut csarg, curwin_ptr(), lnum, line);
+        let cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut vcol: c_int = 0;
         while vcol < end_vcol && *ci.ptr != NUL {
@@ -4010,7 +4010,7 @@ pub fn get_nolist_virtcol() -> colnr_T {
         if curwin_mut().w_onebuf_opt.wo_list != 0 && vim_strchr(opt_vars().p_cpo, kCpoListwm).is_null() {
             return getvcol_nolist(&mut curwin_mut().w_cursor);
         }
-        validate_virtcol(curwin_ptr());
+        validate_virtcol(curwin_mut());
         curwin_mut().w_virtcol
     }
 }

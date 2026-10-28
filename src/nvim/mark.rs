@@ -624,7 +624,7 @@ pub fn mark_get(
                 );
             }
         } else if name > 0 && name < NMARK_LOCAL_MAX {
-            fm = mark_get_local(buf, win, name);
+            fm = mark_get_local(buf,  &mut *win, name);
         }
         if let Some(fmp) = fmp
             && !fm.is_null()
@@ -655,7 +655,7 @@ pub fn mark_get_global(resolve: bool, mut name: c_int) -> *mut xfmark_T {
 }
 
 /// Get a local mark (`mark_get_local`).
-pub fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
+pub fn mark_get_local(buf: &mut buf_T, win: &mut win_T, name: c_int) -> *mut fmark_T {
     unsafe {
         let mark = if ascii_islower(name) {
             &raw mut buf.b_namedm[(name - b'a' as c_int) as usize]
@@ -666,7 +666,7 @@ pub fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fma
         } else if name == b'<' as c_int || name == b'>' as c_int {
             mark_get_visual(buf, name)
         } else if name == b'\'' as c_int || name == b'`' as c_int {
-            pos_to_mark(curbuf_mut(), None, (*win).w_pcmark)
+            pos_to_mark(curbuf_mut(), None, win.w_pcmark)
         } else if name == b'"' as c_int {
             &raw mut buf.b_last_cursor
         } else if name == b'^' as c_int {
@@ -676,7 +676,7 @@ pub fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fma
         } else if name == b':' as c_int && bt_prompt(&raw mut *buf) {
             &raw mut buf.b_prompt_start
         } else {
-            mark_get_motion(&mut *buf,  &mut *win, name)
+            mark_get_motion(&mut *buf,  win, name)
         };
 
         if !mark.is_null() {
@@ -928,7 +928,7 @@ pub fn fmarks_check_names(buf: &mut buf_T) {
             fmarks_check_one(&mut *(&raw mut g_st().namedfm).cast::<xfmark_T>().add(i), name, buf);
         }
 
-        for wp in win_iter_mut(first_win_in_tab(g_st().curtab)) {
+        for wp in win_iter_mut(first_win_in_tab(curtab_mut())) {
             for i in 0..(wp.w_jumplistlen as usize) {
                 fmarks_check_one(&mut wp.w_jumplist[i], name, buf);
             }
@@ -1546,7 +1546,7 @@ pub fn mark_adjust_buf(
             }
             let mut found_one = false;
             for tab in for_all_tabpages_ptr() {
-                for win in win_iter_ptr(first_win_in_tab(tab)) {
+                for win in win_iter_ptr(first_win_in_tab( &mut *tab)) {
                     found_one |= qf_mark_adjust(buf, win, line1, line2, amount, amount_after);
                 }
             }
@@ -1587,7 +1587,7 @@ pub fn mark_adjust_buf(
         }
 
         for tab in for_all_tabpages_ptr() {
-            for win in win_iter_ptr(first_win_in_tab(tab)) {
+            for win in win_iter_ptr(first_win_in_tab( &mut *tab)) {
                 if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                     for i in 0..((*win).w_jumplistlen as usize) {
                         if (*win).w_jumplist[i].fmark.fnum == fnum {
@@ -1850,7 +1850,7 @@ pub fn mark_col_adjust(
             spaces_removed,
         );
 
-        for win in win_iter_ptr(first_win_in_tab(g_st().curtab)) {
+        for win in win_iter_ptr(first_win_in_tab(curtab_mut())) {
             for i in 0..((*win).w_jumplistlen as usize) {
                 if (*win).w_jumplist[i].fmark.fnum == fnum {
                     col_adjust(

@@ -173,12 +173,12 @@ pub fn isopencap(cap: &Capture) -> bool {
 }
 
 #[inline]
-pub fn capinside(c1: *const Capture, c2: *const Capture) -> bool {
+pub fn capinside(c1: &Capture, c2: *const Capture) -> bool {
     unsafe {
-        if isopencap( &*c1) {
+        if isopencap( c1) {
             !isclosecap(c2)
         } else {
-            (*c2).index < (*c1).index + Index_t::from((*c1).siz) - 1
+            (*c2).index < c1.index + Index_t::from(c1.siz) - 1
         }
     }
 }

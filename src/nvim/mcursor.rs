@@ -346,7 +346,7 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
             check_cursor(curwin_mut());
             if topline_valid {
                 set_topline(curwin_mut(), topline.lnum.min(curbuf_mut().b_ml.ml_line_count));
-                update_topline(curwin_ptr());
+                update_topline(curwin_mut());
             }
         }
         ctx_free(&mut sb.primary);
@@ -1161,8 +1161,8 @@ fn mc_reg_gather() {
 pub fn mc_vsel_clear() {
     let buf = handle_get_buffer(mc_st().mc_vsel_buf);
         if !buf.is_null() {
-            extmark_clear(buf, mc_vsel_ns(), 0, 0, MAXLNUM, MAXCOL);
-            extmark_clear(buf, mc_vcur_ns(), 0, 0, MAXLNUM, MAXCOL);
+            extmark_clear(unsafe { &mut *buf }, mc_vsel_ns(), 0, 0, MAXLNUM, MAXCOL);
+            extmark_clear(unsafe { &mut *buf }, mc_vcur_ns(), 0, 0, MAXLNUM, MAXCOL);
         }
         mc_st().mc_vsel_buf = 0;
 }
@@ -1294,7 +1294,7 @@ pub fn mc_vsel_refresh() {
 
 pub fn mc_undo_time() {
     atom_did_global_op();
-        extmark_clear(g_st().curbuf, mc_ns(), 0, 0, MAXLNUM, MAXCOL);
+        extmark_clear(curbuf_mut(), mc_ns(), 0, 0, MAXLNUM, MAXCOL);
 }
 
 pub fn mc_ins_commit() -> bool {
@@ -1549,7 +1549,7 @@ fn mc_zq_run(
         let mut step = first;
         let curswant = curwin_mut().w_curswant;
         while !g_st().got_int {
-            mc_zq_target(step, search, motion_type, mc_add(g_st().curbuf, step));
+            mc_zq_target(step, search, motion_type, mc_add(curbuf_mut(), step));
             placed += 1;
             let prev = step;
             let mut from = prev;
@@ -1785,24 +1785,24 @@ pub fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
             extmark_del_id(&mut *buf, mc_ns(), mark);
             mc_cleanup(false, None, 0);
         } else if mark == 0 && on != kFalse {
-            mc_add(buf, pos);
+            mc_add( &mut *buf, pos);
         }
     }
 }
 
-pub fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
-    unsafe {
-        let existing = mc_mark_at( &mut *buf, pos, 0);
+pub fn mc_add(buf: &mut buf_T, pos: pos_T) -> *mut Context {
+     {
+        let existing = mc_mark_at( buf, pos, 0);
         if existing != 0 {
             for ctx in cursors_mut().iter_mut() {
-                if ctx.buf == (*buf).b_fnum && ctx.mark == existing {
+                if ctx.buf == buf.b_fnum && ctx.mark == existing {
                     return ctx;
                 }
             }
         }
         let count = cursors().len();
         let mut mark: u32 = 0;
-        mc_mark_upd(buf, &mut mark, pos);
+        mc_mark_upd((&raw mut *buf), &mut mark, pos);
         if cursors().len() > count {
             cursors_mut()
                 .last_mut()
@@ -1845,8 +1845,8 @@ pub fn mc_buf_clear(buf: *mut buf_T) {
     if mc_replaying() {
             return;
         }
-        extmark_clear(buf, mc_ns(), 0, 0, MAXLNUM, MAXCOL);
-        extmark_clear(buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
+        extmark_clear(unsafe { &mut *buf }, mc_ns(), 0, 0, MAXLNUM, MAXCOL);
+        extmark_clear(unsafe { &mut *buf }, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
 }
 
 pub fn mc_buf_free(buf: &mut buf_T) {
@@ -1861,8 +1861,8 @@ pub fn mc_buf_free(buf: &mut buf_T) {
     }
 }
 
-pub fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
-    unsafe {
+pub fn mc_ns_clearing(buf: &mut buf_T, ns_id: u32) {
+     {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() {
             return;
         }
@@ -1871,24 +1871,24 @@ pub fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
                 let ctx = &cursors()[i];
                 (ctx.buf, ctx.mark, ctx.pos)
             };
-            if ctx_buf == (*buf).b_fnum && ctx_mark != 0 {
-                extmark_get_pos( &mut *buf, mc_ns(), ctx_mark, &mut pos);
+            if ctx_buf == buf.b_fnum && ctx_mark != 0 {
+                extmark_get_pos( buf, mc_ns(), ctx_mark, &mut pos);
                 cursors_mut()[i].pos = pos;
             }
         }
     }
 }
 
-pub fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
-    unsafe {
-        if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() || !mc_buf_has_cursors(&mut *buf) {
+pub fn mc_ns_cleared(buf: &mut buf_T, ns_id: u32) {
+     {
+        if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() || !mc_buf_has_cursors(buf) {
             return;
         }
 
         let others = cursors().iter().any(|ctx| {
             let mut pos = INIT_POS;
-            ctx.buf != (*buf).b_fnum
-                || (ctx.mark != 0 && extmark_get_pos( &mut *buf, mc_ns(), ctx.mark, &mut pos))
+            ctx.buf != buf.b_fnum
+                || (ctx.mark != 0 && extmark_get_pos( buf, mc_ns(), ctx.mark, &mut pos))
         });
         if !others {
             mc_reg_gather();
@@ -1896,10 +1896,10 @@ pub fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
 
         if !g_st().exiting {
             extmark_clear(buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
-            if g_st().curbuf == buf {
+            if g_st().curbuf == (&raw mut *buf) {
                 let mut primary: u32 = 1;
                 extmark_set_pos(
-                     &mut *buf,
+                     buf,
                     mc_last_ns(),
                     &mut primary,
                     curwin_mut().w_cursor,
@@ -1913,11 +1913,11 @@ pub fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
                     let ctx = &cursors()[idx];
                     (ctx.buf, ctx.pos)
                 };
-                if ctx_buf != (*buf).b_fnum {
+                if ctx_buf != buf.b_fnum {
                     continue;
                 }
                 let mut mark: u32 = 0;
-                extmark_set_pos( &mut *buf, mc_last_ns(), &mut mark, ctx_pos, true, false, false);
+                extmark_set_pos( buf, mc_last_ns(), &mut mark, ctx_pos, true, false, false);
             }
         }
         mc_cleanup(false, None, 0);

@@ -4507,7 +4507,7 @@ pub fn create_environment(
                 for &ignored in PTY_IGNORED_ENV_VARS {
                     let dv = tv_dict_find(env, ignored.as_ptr(), -1);
                     if !dv.is_null() {
-                        tv_dict_item_remove(&mut *env, dv);
+                        tv_dict_item_remove(&mut *env,  &mut *dv);
                     }
                 }
                 if opt_vars().p_tgc != 0 {
@@ -4519,7 +4519,7 @@ pub fn create_environment(
         if pty {
             let dv = tv_dict_find(env, c"TERM", 4);
             if !dv.is_null() {
-                tv_dict_item_remove(&mut *env, dv);
+                tv_dict_item_remove(&mut *env,  &mut *dv);
             }
             tv_dict_add_str(env, c"TERM", pty_term_name);
         }
@@ -4529,7 +4529,7 @@ pub fn create_environment(
             if *nvim_addr != NUL {
                 let dv = tv_dict_find(env, c"NVIM", 4);
                 if !dv.is_null() {
-                    tv_dict_item_remove(&mut *env, dv);
+                    tv_dict_item_remove(&mut *env,  &mut *dv);
                 }
                 tv_dict_add_str(env, c"NVIM", nvim_addr);
             }
@@ -4556,7 +4556,7 @@ pub fn create_environment(
                             }
                             let dv = tv_dict_find(env, name, namelen as isize);
                             if !dv.is_null() {
-                                tv_dict_item_remove(&mut *env, dv);
+                                tv_dict_item_remove(&mut *env,  &mut *dv);
                             }
                             tv_dict_add_str(
                                 env,
@@ -4696,7 +4696,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             }
 
             if !common_job_callbacks(
-                job_opts,
+                 &mut *job_opts,
                 &mut on_stdout,
                 &mut on_stderr,
                 &mut on_exit,
@@ -4788,7 +4788,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             (*buf).b_p_swf = 0;
             if (*buf).b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
                 proc_stop(&mut (*chan).uv.proc_);
-                channel_decref(chan);
+                channel_decref( &mut *chan);
                 return;
             }
 
@@ -4833,7 +4833,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                     cmd.as_ptr(),
                 );
 
-                setfname(buf, namebuff, ptr::null_mut(), true);
+                setfname( &mut *buf, namebuff, ptr::null_mut(), true);
                 apply_autocmds(
                     EVENT_BUFFILEPOST,
                     ptr::null_mut(),
@@ -4884,7 +4884,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 terminal_open(&raw mut (*ct).term, &mut *buf);
             }
             channel_create_event(&mut *chan, ptr::null());
-            channel_decref(chan);
+            channel_decref( &mut *chan);
         }
     }
 }
@@ -5014,7 +5014,7 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
             let status = (*job).uv.proc_.status;
             tv_list_append_number(rv, varnumber_T::from(status));
-            channel_decref(job);
+            channel_decref( &mut *job);
         }
 
         multiqueue_free(waiting_jobs);
@@ -6894,7 +6894,7 @@ fn search_cmn(argvars: &mut [typval_T], match_pos: Option<&mut pos_T>, flagsp: &
             loop {
                 subpatnum = searchit(
                     curwin_ptr(),
-                    g_st().curbuf,
+                    curbuf_mut(),
                     pos.cast(),
                     None,
                     dir,
@@ -7514,7 +7514,7 @@ pub fn do_searchpair(
 
             let n = searchit(
                 curwin_ptr(),
-                g_st().curbuf,
+                curbuf_mut(),
                 pos.cast(),
                 None,
                 dir,
@@ -8292,7 +8292,7 @@ pub fn f_spellbadword(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
 
         if curwin_mut().w_onebuf_opt.wo_spell == 0 {
-            parse_spelllang(curwin_ptr());
+            parse_spelllang(curwin_mut());
             curwin_mut().w_onebuf_opt.wo_spell = 1;
         }
 
@@ -8318,7 +8318,7 @@ pub fn f_spellbadword(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
             if !str_.is_null() {
                 while *str_ != NUL {
                     len = spell_check(
-                        curwin_ptr(),
+                        curwin_mut(),
                         str_.cast_mut(),
                         &mut attr,
                         Some(&mut capcol),
@@ -8357,7 +8357,7 @@ pub fn f_spellsuggest(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
 
         if curwin_mut().w_onebuf_opt.wo_spell == 0 {
-            parse_spelllang(curwin_ptr());
+            parse_spelllang(curwin_mut());
             curwin_mut().w_onebuf_opt.wo_spell = 1;
         }
 
@@ -8783,7 +8783,7 @@ pub fn f_synID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
             && col >= 0
             && col < ml_get_len(lnum)
         {
-            id = syn_get_id(curwin_ptr(), lnum, col, trans, None, 0);
+            id = syn_get_id(curwin_mut(), lnum, col, trans, None, 0);
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(id));
     }
@@ -8906,7 +8906,7 @@ pub fn f_synconcealed(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
             && col <= ml_get_len(lnum)
             && curwin_mut().w_onebuf_opt.wo_cole > 0
         {
-            syn_get_id(curwin_ptr(), lnum, col, 0, None, 0);
+            syn_get_id(curwin_mut(), lnum, col, 0, None, 0);
             syntax_flags = get_syntax_info(&mut matchid);
 
             if (syntax_flags & HL_CONCEAL) != 0 && curwin_mut().w_onebuf_opt.wo_cole < 3 {
@@ -8946,7 +8946,7 @@ pub fn f_synstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count && col >= 0 && col <= ml_get_len(lnum)
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
-            syn_get_id(curwin_ptr(), lnum, col, 0, None, 1);
+            syn_get_id(curwin_mut(), lnum, col, 0, None, 1);
 
             let mut i: c_int = 0;
             loop {

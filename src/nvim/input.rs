@@ -2693,7 +2693,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                             unshowmode(true);
                             mode_deleted = true;
                         }
-                        validate_cursor(curwin_ptr());
+                        validate_cursor(curwin_mut());
                         let old_wcol = curwin_mut().w_wcol;
                         let old_wrow = curwin_mut().w_wrow;
 
@@ -2712,7 +2712,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                                     let mut csarg = CharsizeArg::new();
                                     let cstype: CSType = init_charsize_arg(
                                         &mut csarg,
-                                        curwin_ptr(),
+                                        curwin_mut(),
                                         curwin_mut().w_cursor.lnum,
                                         ptr,
                                     );

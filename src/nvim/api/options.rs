@@ -633,7 +633,7 @@ pub fn nvim_set_option_value(
         } else {
             curwin_ptr()
         };
-        let varp = get_varp_from(option, buf, win);
+        let varp = get_varp_from( &mut *option,  &mut *buf,  &mut *win);
 
         let nitems = if is_array {
             value.data.array().size

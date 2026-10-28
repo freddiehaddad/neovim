@@ -283,7 +283,7 @@ fn margin_columns_win(wp: &mut win_T, left_col: &mut c_int, right_col: &mut c_in
     unsafe {
         let cur_col_off = win_col_off(wp);
         let width1 = wp.w_view_width - cur_col_off;
-        let width2 = width1 + win_col_off2(wp);
+        let width2 = width1 + win_col_off2( &mut *wp);
 
         if dl_st().saved_w_virtcol == wp.w_virtcol
             && dl_st().margin_prev_wp == wp
@@ -624,7 +624,7 @@ pub fn use_cursor_line_highlight(wp: &mut win_T, lnum: linenr_T) -> bool {
 /// Setup for drawing the 'foldcolumn', if there is one.
 fn draw_foldcolumn(wp: &mut win_T, wlv: &mut winlinevars_T) {
      {
-        let fdc = compute_foldcolumn(wp, 0);
+        let fdc = compute_foldcolumn( &mut *wp, 0);
         if fdc > 0 {
             let hlf = if use_cursor_line_highlight(wp, wlv.lnum) {
                 HLF_CLF
@@ -634,7 +634,7 @@ fn draw_foldcolumn(wp: &mut win_T, wlv: &mut winlinevars_T) {
             let attr = win_hl_attr(wp, hlf);
             let is_virt = wlv.filler_todo > 0;
             fill_foldcolumn(
-                wp,
+                 &mut *wp,
                 wlv.foldinfo,
                 wlv.lnum,
                 attr,
@@ -665,7 +665,7 @@ fn foldcolumn_sep_char(first_level: c_int, i: c_int, wp: &mut win_T) -> schar_T 
 
 /// Draw the foldcolumn or fill "out_buffer". Assume monocell characters.
 pub fn fill_foldcolumn(
-    wp: *mut win_T,
+    wp: &mut win_T,
     foldinfo: foldinfo_T,
     lnum: linenr_T,
     attr: c_int,
@@ -687,11 +687,11 @@ pub fn fill_foldcolumn(
             if i >= level {
                 symbol = schar_from_ascii(b' ');
             } else if i == closedcol - 1 && closed {
-                symbol = (*wp).w_p_fcs_chars.foldclosed;
+                symbol = wp.w_p_fcs_chars.foldclosed;
             } else if foldinfo.fi_lnum == lnum && first_level + i >= foldinfo.fi_low_level {
-                symbol = (*wp).w_p_fcs_chars.foldopen;
+                symbol = wp.w_p_fcs_chars.foldopen;
             } else {
-                symbol = foldcolumn_sep_char(first_level, i,  &mut *wp);
+                symbol = foldcolumn_sep_char(first_level, i,  wp);
             }
 
             if is_virt && foldinfo.fi_level != 0 && foldinfo.fi_lnum == lnum {
@@ -700,7 +700,7 @@ pub fn fill_foldcolumn(
                 if i >= outer_level {
                     symbol = schar_from_ascii(b' ');
                 } else {
-                    symbol = foldcolumn_sep_char(outer_first_level, i,  &mut *wp);
+                    symbol = foldcolumn_sep_char(outer_first_level, i,  wp);
                 }
             }
 
@@ -1044,7 +1044,7 @@ fn handle_breakindent(wp: &mut win_T, wlv: &mut winlinevars_T, gap_decor_attr: c
             }
             let mut num = get_breakindent_win(wp, ml_get_buf(wp.w_buffer, wlv.lnum));
             if wlv.row == wlv.startrow {
-                num -= win_col_off2(&raw mut *wp);
+                num -= win_col_off2(wp);
                 if wlv.n_extra < 0 {
                     num = 0;
                 }
@@ -1487,7 +1487,7 @@ pub fn win_line(
             if syntax_present(&mut *wp) && !(*w_s).b_syn_error && !(*w_s).b_syn_slow && !has_foldtext {
                 let save_did_emsg = g_st().did_emsg;
                 g_st().did_emsg = 0;
-                syntax_start(&raw mut *wp, lnum);
+                syntax_start(wp, lnum);
                 if g_st().did_emsg != 0 {
                     (*w_s).b_syn_error = true;
                 } else {
@@ -1846,7 +1846,7 @@ pub fn win_line(
             let mut cs = CharSize::default();
 
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, &raw mut *wp, lnum, line);
+            let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
             csarg.max_head_vcol = start_vcol;
             let mut vcol = wlv.vcol;
             let mut ci = utf_ptr2StrCharInfo(ptr);
@@ -1948,7 +1948,7 @@ pub fn win_line(
                 wp.w_cursor = pos;
 
                 if has_syntax {
-                    syntax_start(&raw mut *wp, lnum);
+                    syntax_start(wp, lnum);
                 }
             }
         }
@@ -2346,7 +2346,7 @@ pub fn win_line(
                     let v = ptr.offset_from(line) as c_int;
                     let lnume = lnum + foldinfo.fi_lines - 1;
                     debug_assert!(foldtext_free.is_none());
-                    let fdt = get_foldtext(&raw mut *wp, lnum, lnume, foldinfo, &mut fold_vt);
+                    let fdt = get_foldtext(wp, lnum, lnume, foldinfo, &mut fold_vt);
                     wlv.n_extra = fdt.to_bytes().len() as c_int;
                     foldtext_free = Some(fdt);
                     wlv.p_extra = foldtext_free.as_ref().unwrap().as_ptr().cast_mut();
@@ -2606,7 +2606,7 @@ pub fn win_line(
                                     };
                                 spv.spv_cap_col -= prev_ptr.offset_from(line) as c_int;
                                 let tmplen = spell_check(
-                                    &raw mut *wp,
+                                    wp,
                                     p,
                                     &mut spell_hlf,
                                     Some(&mut spv.spv_cap_col),
@@ -3733,7 +3733,7 @@ fn decor_providers_setup(
     unsafe {
         let rem_vcols = if wp.w_onebuf_opt.wo_wrap != 0 {
             let width = wp.w_view_width - win_col_off(&raw mut *wp);
-            let width2 = width + win_col_off2(&raw mut *wp);
+            let width2 = width + win_col_off2(wp);
 
             let first_row_width = if draw_from_line_start { width } else { width2 };
             first_row_width + (rows_to_draw - 1) * width2
@@ -3742,7 +3742,7 @@ fn decor_providers_setup(
         };
 
         decor_providers_invoke_line(wp, lnum - 1);
-        validate_virtcol(&raw mut *wp);
+        validate_virtcol(wp);
 
         invoke_range_next(wp, lnum, col, rem_vcols + 1)
     }
@@ -3763,11 +3763,11 @@ fn invoke_range_next(
             let mut end_col = begin_col + col_off;
             end_col += mb_off_next(line, line.add(end_col as usize));
             decor_providers_invoke_range(wp, lnum - 1, begin_col, lnum - 1, end_col);
-            validate_virtcol(&raw mut *wp);
+            validate_virtcol(wp);
             end_col
         } else {
             decor_providers_invoke_range(wp, lnum - 1, begin_col, lnum, 0);
-            validate_virtcol(&raw mut *wp);
+            validate_virtcol(wp);
             c_int::MAX
         }
     }

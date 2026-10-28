@@ -71,18 +71,18 @@ fn fixonecall(l: *mut lua_State, postable: c_int, g: *mut TTree, t: *mut TTree) 
     }
 }
 
-fn correctassociativity(tree: *mut TTree) {
+fn correctassociativity(tree: &mut TTree) {
     unsafe {
-        let t1 = sib1(tree);
-        debug_assert!((*tree).tag == TChoice || (*tree).tag == TSeq);
-        while (*t1).tag == (*tree).tag {
-            let n1size = (*tree).u.ps - 1;
+        let t1 = sib1(&raw mut *tree);
+        debug_assert!(tree.tag == TChoice || tree.tag == TSeq);
+        while (*t1).tag == tree.tag {
+            let n1size = tree.u.ps - 1;
             let n11size = (*t1).u.ps - 1;
             let n12size = n1size - n11size - 1;
-            ptr::copy(sib1(t1), sib1(tree), n11size as usize);
-            (*tree).u.ps = n11size + 1;
-            (*sib2(tree)).tag = (*tree).tag;
-            (*sib2(tree)).u.ps = n12size + 1;
+            ptr::copy(sib1(t1), sib1(&raw mut *tree), n11size as usize);
+            tree.u.ps = n11size + 1;
+            (*sib2(&raw mut *tree)).tag = tree.tag;
+            (*sib2(&raw mut *tree)).u.ps = n12size + 1;
         }
     }
 }
@@ -105,7 +105,7 @@ fn finalfix(l: *mut lua_State, postable: c_int, g: *mut TTree, mut t: *mut TTree
                     }
                 }
                 TSeq | TChoice => {
-                    correctassociativity(t);
+                    correctassociativity( &mut *t);
                 }
                 _ => {}
             }
@@ -347,12 +347,12 @@ fn newcharset(l: *mut lua_State, cs: &[byte; CHARSETSIZE]) -> *mut TTree {
     }
 }
 
-fn seqaux(tree: *mut TTree, sib: *const TTree, sibsize: c_int) -> *mut TTree {
+fn seqaux(tree: &mut TTree, sib: *const TTree, sibsize: c_int) -> *mut TTree {
     unsafe {
-        (*tree).tag = TSeq;
-        (*tree).u.ps = sibsize + 1;
-        ptr::copy_nonoverlapping(sib, sib1(tree), sibsize as usize);
-        sib2(tree)
+        tree.tag = TSeq;
+        tree.u.ps = sibsize + 1;
+        ptr::copy_nonoverlapping(sib, sib1(&raw mut *tree), sibsize as usize);
+        sib2(&raw mut *tree)
     }
 }
 
@@ -528,7 +528,7 @@ unsafe extern "C-unwind" fn lp_star(l: *mut lua_State) -> c_int {
             }
             while n > 0 {
                 n -= 1;
-                tree = seqaux(tree, tree1, size1);
+                tree = seqaux( &mut *tree, tree1, size1);
             }
             (*tree).tag = TRep;
             ptr::copy_nonoverlapping(tree1, sib1(tree), size1 as usize);
@@ -540,7 +540,7 @@ unsafe extern "C-unwind" fn lp_star(l: *mut lua_State) -> c_int {
                 (*tree).u.ps = n * (size1 + 3) - 2;
                 (*sib2(tree)).tag = TTrue;
                 tree = sib1(tree);
-                tree = seqaux(tree, tree1, size1);
+                tree = seqaux( &mut *tree, tree1, size1);
                 n -= 1;
             }
             (*tree).tag = TChoice;

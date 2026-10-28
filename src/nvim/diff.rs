@@ -705,7 +705,7 @@ pub fn diff_redraw(dofold: bool) {
                         used_max_fill_other = true;
                     }
                 }
-                check_topfill(wp, false);
+                check_topfill( &mut *wp, false);
             }
         }
         if !wp_other.is_null() && curwin_mut().w_onebuf_opt.wo_scb != 0 {
@@ -1378,8 +1378,8 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
                     eap.arg = tmp_new;
                     do_exedit(eap, old_curwin);
                     if curwin_ptr() != old_curwin && win_valid(old_curwin) {
-                        diff_win_options(curwin_ptr(), true);
-                        diff_win_options(old_curwin, true);
+                        diff_win_options(curwin_mut(), true);
+                        diff_win_options( &mut *old_curwin, true);
                         if !newname.is_null() {
                             eap.arg = newname;
                             ex_file(eap);
@@ -1408,7 +1408,7 @@ pub fn ex_diffsplit(eap: &mut exarg_T) {
             br_buf_free_count: 0,
         };
         set_bufref(&mut old_curbuf, g_st().curbuf);
-        validate_cursor(curwin_ptr());
+        validate_cursor(curwin_mut());
         set_fraction(curwin_mut());
         g_st().cmdmod.cmod_tab = 0;
         if !win_split(
@@ -1428,9 +1428,9 @@ pub fn ex_diffsplit(eap: &mut exarg_T) {
         if curwin_ptr() == old_curwin {
             return;
         }
-        diff_win_options(curwin_ptr(), true);
+        diff_win_options(curwin_mut(), true);
         if win_valid(old_curwin) {
-            diff_win_options(old_curwin, true);
+            diff_win_options( &mut *old_curwin, true);
             if bufref_valid(Some(&old_curbuf)) {
                 curwin_mut().w_cursor.lnum = diff_get_corresponding_line(
                     old_curbuf.br_buf.cast(),
@@ -1443,7 +1443,7 @@ pub fn ex_diffsplit(eap: &mut exarg_T) {
 }
 pub fn ex_diffthis(_eap: &mut exarg_T) {
      {
-        diff_win_options(curwin_ptr(), true);
+        diff_win_options(curwin_mut(), true);
     }
 }
 fn set_diff_option(wp: *mut win_T, value: bool) {
@@ -1458,65 +1458,65 @@ fn set_diff_option(wp: *mut win_T, value: bool) {
         g_st().curbuf = curwin_mut().w_buffer;
     }
 }
-pub fn diff_win_options(wp: *mut win_T, addbuf: bool) {
-    unsafe {
+pub fn diff_win_options(wp: &mut win_T, addbuf: bool) {
+     {
         let old_curwin = curwin_ptr();
-        set_curwin(wp);
+        set_curwin(&raw mut *wp);
         newFoldLevel();
         set_curwin(old_curwin);
-        if (*wp).w_onebuf_opt.wo_diff == 0 {
-            (*wp).w_onebuf_opt.wo_scb_save = (*wp).w_onebuf_opt.wo_scb;
+        if wp.w_onebuf_opt.wo_diff == 0 {
+            wp.w_onebuf_opt.wo_scb_save = wp.w_onebuf_opt.wo_scb;
         }
-        (*wp).w_onebuf_opt.wo_scb = 1;
-        if (*wp).w_onebuf_opt.wo_diff == 0 {
-            (*wp).w_onebuf_opt.wo_crb_save = (*wp).w_onebuf_opt.wo_crb;
+        wp.w_onebuf_opt.wo_scb = 1;
+        if wp.w_onebuf_opt.wo_diff == 0 {
+            wp.w_onebuf_opt.wo_crb_save = wp.w_onebuf_opt.wo_crb;
         }
-        (*wp).w_onebuf_opt.wo_crb = 1;
+        wp.w_onebuf_opt.wo_crb = 1;
         if (diff_st().diff_flags & DIFF_FOLLOWWRAP) == 0 {
-            if (*wp).w_onebuf_opt.wo_diff == 0 {
-                (*wp).w_onebuf_opt.wo_wrap_save = (*wp).w_onebuf_opt.wo_wrap;
+            if wp.w_onebuf_opt.wo_diff == 0 {
+                wp.w_onebuf_opt.wo_wrap_save = wp.w_onebuf_opt.wo_wrap;
             }
-            (*wp).w_onebuf_opt.wo_wrap = 0;
-            (*wp).w_skipcol = 0;
+            wp.w_onebuf_opt.wo_wrap = 0;
+            wp.w_skipcol = 0;
         }
-        if (*wp).w_onebuf_opt.wo_diff == 0 {
-            if (*wp).w_onebuf_opt.wo_diff_saved != 0 {
-                free_string_option((*wp).w_onebuf_opt.wo_fdm_save);
+        if wp.w_onebuf_opt.wo_diff == 0 {
+            if wp.w_onebuf_opt.wo_diff_saved != 0 {
+                free_string_option(wp.w_onebuf_opt.wo_fdm_save);
             }
-            (*wp).w_onebuf_opt.wo_fdm_save = alloc_string_option((*wp).w_onebuf_opt.wo_fdm);
+            wp.w_onebuf_opt.wo_fdm_save = alloc_string_option(wp.w_onebuf_opt.wo_fdm);
         }
         set_option_direct_for(
             kOptFoldmethod,
             static_cstr_as_obj(c"diff"),
             OPT_LOCAL,
             0,
-            OptTarget::Win(wp),
+            OptTarget::Win(&raw mut *wp),
         );
-        if (*wp).w_onebuf_opt.wo_diff == 0 {
-            (*wp).w_onebuf_opt.wo_fen_save = (*wp).w_onebuf_opt.wo_fen;
-            (*wp).w_onebuf_opt.wo_fdl_save = (*wp).w_onebuf_opt.wo_fdl;
-            if (*wp).w_onebuf_opt.wo_diff_saved != 0 {
-                free_string_option((*wp).w_onebuf_opt.wo_fdc_save);
+        if wp.w_onebuf_opt.wo_diff == 0 {
+            wp.w_onebuf_opt.wo_fen_save = wp.w_onebuf_opt.wo_fen;
+            wp.w_onebuf_opt.wo_fdl_save = wp.w_onebuf_opt.wo_fdl;
+            if wp.w_onebuf_opt.wo_diff_saved != 0 {
+                free_string_option(wp.w_onebuf_opt.wo_fdc_save);
             }
-            (*wp).w_onebuf_opt.wo_fdc_save = alloc_string_option((*wp).w_onebuf_opt.wo_fdc);
+            wp.w_onebuf_opt.wo_fdc_save = alloc_string_option(wp.w_onebuf_opt.wo_fdc);
         }
-        free_string_option((*wp).w_onebuf_opt.wo_fdc);
+        free_string_option(wp.w_onebuf_opt.wo_fdc);
         debug_assert!(g_st().diff_foldcolumn >= 0 && g_st().diff_foldcolumn <= 9);
         let fdc_buf = [b'0' as c_char + (g_st().diff_foldcolumn as c_char), NUL];
-        (*wp).w_onebuf_opt.wo_fdc = alloc_string_option(fdc_buf.as_ptr());
-        (*wp).w_onebuf_opt.wo_fen = 1;
-        (*wp).w_onebuf_opt.wo_fdl = 0;
-        foldUpdateAll(&mut *wp);
-        changed_window_setting(&mut *wp);
+        wp.w_onebuf_opt.wo_fdc = alloc_string_option(fdc_buf.as_ptr());
+        wp.w_onebuf_opt.wo_fen = 1;
+        wp.w_onebuf_opt.wo_fdl = 0;
+        foldUpdateAll(wp);
+        changed_window_setting(wp);
         if vim_strchr(opt_vars().p_sbo, b'h' as c_int).is_null() {
             do_cmdline_cmd(c"set sbo+=hor");
         }
-        (*wp).w_onebuf_opt.wo_diff_saved = 1;
-        set_diff_option(wp, true);
+        wp.w_onebuf_opt.wo_diff_saved = 1;
+        set_diff_option((&raw mut *wp), true);
         if addbuf {
-            diff_buf_add((*wp).w_buffer);
+            diff_buf_add(wp.w_buffer);
         }
-        redraw_later(wp, UPD_NOT_VALID);
+        redraw_later((&raw mut *wp), UPD_NOT_VALID);
     }
 }
 pub fn ex_diffoff(eap: &mut exarg_T) {
@@ -2291,7 +2291,7 @@ pub fn diff_set_topline(fromwin: &mut win_T, towin: &mut win_T) {
         }
         invalidate_botline_win(&mut *towin);
         changed_line_abv_curs_win(&mut *towin);
-        check_topfill(&raw mut *towin, false);
+        check_topfill(towin, false);
         hasFolding(
             &raw mut *towin,
             towin.w_topline,
@@ -3339,7 +3339,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         };
         'theend: {
             if curbuf_mut().b_changed == 0 {
-                change_warning(g_st().curbuf, 0);
+                change_warning(curbuf_mut(), 0);
                 if diff_buf_idx(g_st().curbuf, curtab_mut()) != idx_to as c_int {
                     emsg(gettext(e_buffer_changed_unexpectedly));
                     ctx_restore(&mut aco);

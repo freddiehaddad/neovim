@@ -305,7 +305,7 @@ fn pum_compute_vertical_placement(
             if (g_st().State & MODE_CMDLINE) != 0 && target_win.is_null() {
                 context_lines = 0;
             } else {
-                validate_cheight(target_win);
+                validate_cheight( &mut *target_win);
                 let cline_visible_offset =
                     (*target_win).w_cline_row + (*target_win).w_cline_height - (*target_win).w_wrow;
                 context_lines = 3.min(cline_visible_offset);
@@ -544,7 +544,7 @@ pub fn pum_display(
             }
 
             let mut pvwin: *mut win_T = ptr::null_mut();
-            for wp in win_iter_ptr(first_win_in_tab(g_st().curtab)) {
+            for wp in win_iter_ptr(first_win_in_tab(curtab_mut())) {
                 if (*wp).w_onebuf_opt.wo_pvw != 0 {
                     pvwin = wp;
                     break;
@@ -923,7 +923,7 @@ pub fn pum_redraw() {
             let mut attr = win_hl_attr(curwin_mut(), hlf);
             attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), attr);
 
-            screengrid_line_start(&raw mut g_st().pum_grid, row, 0);
+            screengrid_line_start(&mut g_st().pum_grid, row, 0);
 
             if extra_space {
                 if pum().rl {
@@ -1497,14 +1497,14 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                                 curwin_mut().w_redr_status = false;
                             }
 
-                            validate_cursor(curwin_ptr());
+                            validate_cursor(curwin_mut());
                             redraw_later(curwin_ptr(), UPD_SOME_VALID);
 
                             if resized && win_valid(curwin_save) {
                                 g_st().no_u_sync += 1;
                                 win_enter(curwin_save, true);
                                 g_st().no_u_sync -= 1;
-                                update_topline(curwin_ptr());
+                                update_topline(curwin_mut());
                             }
 
                             let save_pum_is_drawn = pum().is_drawn;

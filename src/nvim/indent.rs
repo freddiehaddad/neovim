@@ -797,7 +797,7 @@ pub fn briopt_check(wp: *mut win_T) {
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
 pub fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
     unsafe {
-        let eff_wwidth = wp.w_view_width - win_col_off(&raw mut *wp) + win_col_off2(&raw mut *wp);
+        let eff_wwidth = wp.w_view_width - win_col_off(&raw mut *wp) + win_col_off2(wp);
         let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
 
         let buf = wp.w_buffer;
@@ -875,7 +875,7 @@ pub fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
             ind_st().PREV_INDENT + wp.w_briopt_shift
         };
 
-        bri += win_col_off2(&raw mut *wp);
+        bri += win_col_off2(wp);
 
         if wp.w_briopt_list > 0 {
             bri += ind_st().PREV_LIST;
@@ -922,7 +922,7 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
         }
 
         if u_savecommon(
-            g_st().curbuf,
+            curbuf_mut(),
             start_lnum - 1,
             start_lnum + oap.line_count,
             start_lnum + oap.line_count,
@@ -1194,7 +1194,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
             vcol = 0;
             if *line != NUL {
                 let mut csarg = CharsizeArg::new();
-                let cstype: CSType = init_charsize_arg(&mut csarg, curwin_ptr(), 0, line);
+                let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), 0, line);
                 let mut ci: StrCharInfo = utf_ptr2StrCharInfo(line);
                 loop {
                     let cli: ClusterInfo = utf_ClusterInfo(ci);
@@ -1739,7 +1739,7 @@ pub fn get_lisp_indent() -> c_int {
 
                 let line = get_cursor_line_ptr();
                 let mut csarg = CharsizeArg::new();
-                let cstype: CSType = init_charsize_arg(&mut csarg, curwin_ptr(), (*pos).lnum, line);
+                let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), (*pos).lnum, line);
 
                 let mut sci: StrCharInfo = utf_ptr2StrCharInfo(line);
                 amount = 0;

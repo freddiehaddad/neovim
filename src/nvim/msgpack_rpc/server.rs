@@ -235,7 +235,7 @@ pub fn server_start(addr: *const c_char) -> c_int {
         let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
         let endpoint = addr_gen.as_ref().map_or(addr, |s| s.as_ptr());
         let mut result =
-            socket_watcher_init(&mut *ptr::addr_of_mut!(g_st().main_loop).cast(), watcher, endpoint);
+            socket_watcher_init(&mut *ptr::addr_of_mut!(g_st().main_loop).cast(),  &mut *watcher, endpoint);
         drop(addr_gen);
         if result < 0 {
             let _ = Box::from_raw(watcher);
@@ -262,7 +262,7 @@ pub fn server_start(addr: *const c_char) -> c_int {
             }
         }
 
-        result = socket_watcher_start(watcher, MAX_CONNECTIONS);
+        result = socket_watcher_start( &mut *watcher, MAX_CONNECTIONS);
         if result < 0 {
             logmsg!(
                 LOGLVL_WRN,
@@ -347,6 +347,6 @@ pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
             return;
         }
 
-        channel_from_connection(watcher);
+        channel_from_connection( &mut *watcher);
     }
 }

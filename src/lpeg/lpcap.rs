@@ -54,20 +54,20 @@ fn skipclose(cs: &mut CapState, head: *const Capture) {
 }
 
 #[inline]
-fn capsize(cap: *const Capture, close: *const Capture) -> Index_t {
+fn capsize(cap: &Capture, close: *const Capture) -> Index_t {
     unsafe {
-        if isopencap( &*cap) {
+        if isopencap( cap) {
             debug_assert!(isclosecap(close));
-            (*close).index - (*cap).index
+            (*close).index - cap.index
         } else {
-            Index_t::from((*cap).siz) - 1
+            Index_t::from(cap.siz) - 1
         }
     }
 }
 
 #[inline]
 fn closesize(cs: &CapState, head: *const Capture) -> Index_t {
-    capsize(head, cs.cap)
+    capsize(unsafe { &*head }, cs.cap)
 }
 
 fn updatecache(cs: &mut CapState, v: c_int) -> c_int {
@@ -118,7 +118,7 @@ fn nextcap(cs: &mut CapState) {
             cs.cap = cap.add(1);
         } else {
             let mut next = cap.add(1);
-            while capinside(cap, next) {
+            while capinside( &*cap, next) {
                 next = next.add(1);
             }
             cs.cap = next;
@@ -131,7 +131,7 @@ fn pushnestedvalues(cs: &mut CapState, addextra: bool) -> c_int {
         let head = cs.cap;
         cs.cap = cs.cap.add(1);
         let mut n: c_int = 0;
-        while capinside(head, cs.cap) {
+        while capinside( &*head, cs.cap) {
             n += pushcapture(cs);
         }
         if addextra || n == 0 {
@@ -154,8 +154,8 @@ fn pushonenestedvalue(cs: &mut CapState) {
     }
 }
 
-fn capvisible(cs: &CapState, grp: *const Capture, r#ref: *const Capture) -> bool {
-    let mut cap = grp;
+fn capvisible(cs: &CapState, grp: &Capture, r#ref: *const Capture) -> bool {
+    let mut cap = (&raw const *grp);
     let mut i = MAXLOP;
     unsafe {
         while i > 0 {
@@ -164,10 +164,10 @@ fn capvisible(cs: &CapState, grp: *const Capture, r#ref: *const Capture) -> bool
             if cap <= cs.ocap {
                 break;
             }
-            if isclosecap(cap) || (*grp).index - (*cap).index >= Index_t::from(u8::MAX) {
+            if isclosecap(cap) || grp.index - (*cap).index >= Index_t::from(u8::MAX) {
                 return true;
-            } else if capinside(cap, grp) {
-                return capinside(cap, r#ref);
+            } else if capinside( &*cap, (&raw const *grp)) {
+                return capinside( &*cap, r#ref);
             }
         }
     }
@@ -182,10 +182,10 @@ fn findback(cs: &mut CapState, r#ref: *mut Capture) -> *mut Capture {
             cap = cap.sub(1);
             if isclosecap(cap) {
                 cap = findopen(cap);
-            } else if capinside(cap, r#ref) {
+            } else if capinside( &*cap, r#ref) {
                 continue;
             }
-            if captype(cap) == Cgroup && capvisible(cs, cap, r#ref) {
+            if captype(cap) == Cgroup && capvisible(cs,  &*cap, r#ref) {
                 getfromktable(cs, c_int::from((*cap).idx));
                 if lua_equal(l, -2, -1) != 0 {
                     lua_pop(l, 2);
@@ -222,7 +222,7 @@ fn tablecap(cs: &mut CapState) -> c_int {
         cs.cap = cs.cap.add(1);
         let mut n: c_int = 0;
         lua_newtable(l);
-        while capinside(head, cs.cap) {
+        while capinside( &*head, cs.cap) {
             if captype(cs.cap) == Cgroup && (*cs.cap).idx != 0 {
                 pushluaval(cs);
                 pushonenestedvalue(cs);
@@ -273,7 +273,7 @@ fn foldcap(cs: &mut CapState) -> c_int {
         if n > 1 {
             lua_pop(l, n - 1);
         }
-        while capinside(head, cs.cap) {
+        while capinside( &*head, cs.cap) {
             let cache_idx = updatecache(cs, idx);
             lua_pushvalue(l, cache_idx);
             lua_insert(l, -2);
@@ -400,7 +400,7 @@ fn getstrcaps(cs: &mut CapState, cps: &mut [StrAux; MAXSTRCAPS], mut n: c_int) -
         let head = cs.cap;
         let head_idx = (*head).index;
         cs.cap = cs.cap.add(1);
-        while capinside(head, cs.cap) {
+        while capinside( &*head, cs.cap) {
             if (n as usize) >= MAXSTRCAPS {
                 nextcap(cs);
             } else if captype(cs.cap) == Csimple {
@@ -473,12 +473,12 @@ fn substcap(b: &mut luaL_Buffer, cs: &mut CapState) {
         let mut curr = cs.s.add((*cs.cap).index as usize);
         let head = cs.cap;
         cs.cap = cs.cap.add(1);
-        while capinside(head, cs.cap) {
+        while capinside( &*head, cs.cap) {
             let cap = cs.cap;
             let caps = cs.s.add((*cap).index as usize);
             luaL_addlstring(b, curr, caps.offset_from(curr) as usize);
             if addonestring(b, cs, c"replacement") != 0 {
-                curr = caps.add(capsize(cap, cs.cap.sub(1)) as usize);
+                curr = caps.add(capsize( &*cap, cs.cap.sub(1)) as usize);
             } else {
                 curr = caps;
             }

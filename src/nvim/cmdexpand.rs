@@ -2262,7 +2262,7 @@ fn redraw_wildmenu(
         }
 
         let mut group: hlf_T = 0;
-        let fillchar = fillchar_status(&mut group, curwin_ptr());
+        let fillchar = fillchar_status(&mut group, curwin_mut());
         let attr = win_hl_attr(curwin_mut(), group);
 
         let mut len: usize;
@@ -6203,7 +6203,7 @@ fn expand_pattern_in_buf(
             g_st().msg_silent += 1;
             let found_new_match = searchit(
                 ptr::null_mut(),
-                g_st().curbuf,
+                curbuf_mut(),
                 &raw mut cur_match_pos,
                 Some(&mut end_match_pos),
                 dir,

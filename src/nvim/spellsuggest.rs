@@ -698,7 +698,7 @@ pub fn spell_suggest(count: c_int) {
         let msg_scroll_save = g_st().msg_scroll;
         let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
         if curwin_mut().w_onebuf_opt.wo_spell == 0 {
-            parse_spelllang(curwin_ptr());
+            parse_spelllang(curwin_mut());
             curwin_mut().w_onebuf_opt.wo_spell = 1;
         }
         check_cursor(curwin_mut());
@@ -899,7 +899,7 @@ fn spell_find_suggest(
             su.su_badlen = badlen;
         } else {
             let tmplen = spell_check(
-                curwin_ptr(),
+                curwin_mut(),
                 su.su_badptr,
                 &mut attr,
                 None,
@@ -2853,7 +2853,7 @@ fn check_suggestions(su: &mut suginfo_T, use_sga: bool) {
             );
             let mut attr: hlf_T = HLF_COUNT;
             let _ = spell_check(
-                curwin_ptr(),
+                curwin_mut(),
                 (&raw mut longword).cast(),
                 &mut attr,
                 None,

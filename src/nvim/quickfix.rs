@@ -808,7 +808,7 @@ pub fn qf_init(
         let qi = if wp.is_null() {
             ql_info_ptr()
         } else {
-            ll_get_or_alloc_list(wp)
+            ll_get_or_alloc_list( &mut *wp)
         };
         assert!(!qi.is_null());
 
@@ -2349,7 +2349,7 @@ pub fn ll_resize_stack(wp: *mut win_T, n: c_int) {
             qf_sync_win_to_llw(&mut *wp);
         }
 
-        let qi = ll_get_or_alloc_list(wp);
+        let qi = ll_get_or_alloc_list( &mut *wp);
         qf_resize_stack_base(&mut *qi, n);
     }
 }
@@ -2422,19 +2422,19 @@ fn qf_alloc_stack(qfltype: qfltype_T, n: c_int) -> *mut qf_info_T {
     }
 }
 
-fn ll_get_or_alloc_list(wp: *mut win_T) -> *mut qf_info_T {
-    unsafe {
-        if is_ll_window(&*wp) {
-            return (*wp).w_llist_ref;
+fn ll_get_or_alloc_list(wp: &mut win_T) -> *mut qf_info_T {
+     {
+        if is_ll_window(wp) {
+            return wp.w_llist_ref;
         }
 
-        ll_free_all(&raw mut (*wp).w_llist_ref);
+        ll_free_all(&raw mut wp.w_llist_ref);
 
-        if (*wp).w_llist.is_null() {
-            (*wp).w_llist = qf_alloc_stack(QFLT_LOCATION, (*wp).w_onebuf_opt.wo_lhi as c_int);
+        if wp.w_llist.is_null() {
+            wp.w_llist = qf_alloc_stack(QFLT_LOCATION, wp.w_onebuf_opt.wo_lhi as c_int);
         }
 
-        (*wp).w_llist
+        wp.w_llist
     }
 }
 
@@ -2461,7 +2461,7 @@ fn qf_cmd_get_or_alloc_stack(eap: &exarg_T, pwinp: *mut *mut win_T) -> *mut qf_i
     unsafe {
         let mut qi = ql_info_ptr();
         if is_loclist_cmd(eap.cmdidx) {
-            qi = ll_get_or_alloc_list(curwin_ptr());
+            qi = ll_get_or_alloc_list(curwin_mut());
             *pwinp = curwin_ptr();
         }
         qi
@@ -3271,7 +3271,7 @@ fn qf_jump_print_msg(
         let gap = qfga_get();
 
         if g_st().msg_scrolled == 0 {
-            update_topline(curwin_ptr());
+            update_topline(curwin_mut());
             if g_st().must_redraw != 0 {
                 update_screen();
             }
@@ -4151,7 +4151,7 @@ pub fn ex_copen(eap: &mut exarg_T) {
         curwin_mut().w_cursor.lnum = lnum;
         curwin_mut().w_cursor.col = 0;
         check_cursor(curwin_mut());
-        update_topline(curwin_ptr());
+        update_topline(curwin_mut());
     }
 }
 
@@ -4165,7 +4165,7 @@ fn qf_win_goto(win: *mut win_T, lnum: linenr_T) {
         curwin_mut().w_cursor.col = 0;
         curwin_mut().w_cursor.coladd = 0;
         curwin_mut().w_curswant = 0;
-        update_topline(curwin_ptr());
+        update_topline(curwin_mut());
         redraw_later(curwin_ptr(), UPD_VALID);
         curwin_mut().w_redr_status = true;
         set_curwin(old_curwin);
@@ -4443,7 +4443,7 @@ fn qf_buf_add_line(
         }
 
         gap.push(NUL);
-        if !ml_append_buf(buf, lnum, gap.as_mut_ptr(), gap.len() as colnr_T, false) {
+        if !ml_append_buf( &mut *buf, lnum, gap.as_mut_ptr(), gap.len() as colnr_T, false) {
             return false;
         }
 
@@ -5973,14 +5973,14 @@ fn load_dummy_buffer(
         let mut newbufref: bufref_T = bufref_T::new();
         set_bufref(&mut newbufref, newbuf);
 
-        buf_copy_options(newbuf, BCO_ENTER | BCO_NOHELP);
+        buf_copy_options( &mut *newbuf, BCO_ENTER | BCO_NOHELP);
 
         if ml_open(&mut *newbuf) {
             (*newbuf).b_locked += 1;
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
 
-            setfname(g_st().curbuf, fname, ptr::null_mut(), false);
+            setfname(curbuf_mut(), fname, ptr::null_mut(), false);
             check_need_swap(true);
             curbuf_mut().b_flags &= !BF_DUMMY;
 
@@ -7138,7 +7138,7 @@ pub fn set_errorlist(
 ) -> bool {
     unsafe {
         let qi = if !wp.is_null() {
-            ll_get_or_alloc_list(wp)
+            ll_get_or_alloc_list( &mut *wp)
         } else {
             ql_info_ptr()
         };

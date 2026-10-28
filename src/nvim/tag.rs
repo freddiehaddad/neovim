@@ -2982,7 +2982,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                 }
 
                 if l_g_do_tagpreview != 0 && curwin_ptr() != curwin_save && win_valid(curwin_save) {
-                    validate_cursor(curwin_ptr());
+                    validate_cursor(curwin_mut());
                     redraw_later(curwin_ptr(), UPD_VALID);
                     win_enter(curwin_save, true);
                 }

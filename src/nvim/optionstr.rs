@@ -1732,7 +1732,7 @@ fn did_set_global_chars_option(
         }
 
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(tp) {
+            for wp in for_all_windows_in_tab_ptr( &*tp) {
                 let opt = if what == CharsOption::kListchars {
                     (*wp).w_onebuf_opt.wo_lcs
                 } else {
@@ -2992,7 +2992,7 @@ pub fn did_set_spellsuggest(args: &mut optset_T) -> *const c_char {
 pub fn did_set_splitkeep(_args: &mut optset_T) -> *const c_char {
      {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(tp) {
+            for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
                 wp.w_prev_height = wp.w_height;
                 wp.w_prev_winrow = wp.w_winrow;
             }
@@ -3217,7 +3217,7 @@ pub fn did_set_virtualedit(args: &mut optset_T) -> *const c_char {
             if !errmsg.is_null() {
                 return errmsg;
             } else if crate::memory::cstr_as_bytes(ve) != crate::memory::cstr_as_bytes(args.os_oldval.data.string().data) {
-                validate_virtcol(win);
+                validate_virtcol( &mut *win);
                 coladvance(&mut *win, (*win).w_virtcol);
             }
         }
@@ -4202,7 +4202,7 @@ pub fn check_chars_options() -> *const c_char {
             return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
         }
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(tp) {
+            for wp in for_all_windows_in_tab_ptr( &*tp) {
                 if !set_chars_option(
                      &mut *wp,
                     (*wp).w_onebuf_opt.wo_lcs,

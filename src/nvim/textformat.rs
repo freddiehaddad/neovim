@@ -540,7 +540,7 @@ pub fn internal_format(
         curwin_mut().w_onebuf_opt.wo_lbr = has_lbr;
 
         if !format_only && haveto_redraw {
-            update_topline(curwin_ptr());
+            update_topline(curwin_mut());
             redraw_curbuf_later(UPD_VALID);
         }
     }

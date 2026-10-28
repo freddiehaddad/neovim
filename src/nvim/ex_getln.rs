@@ -810,13 +810,13 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
         // positioned in the same way as the actual search command
         restore_viewstate(curwin_mut(), &s.old_viewstate);
         changed_cline_bef_curs(curwin_mut());
-        update_topline(curwin_ptr());
+        update_topline(curwin_mut());
 
         let mut end_pos = curwin_mut().w_cursor;
         if found != 0 {
             s.match_start = curwin_mut().w_cursor;
             set_search_match(&mut curwin_mut().w_cursor);
-            validate_cursor(curwin_ptr());
+            validate_cursor(curwin_mut());
             s.match_end = curwin_mut().w_cursor;
             curwin_mut().w_cursor = end_pos;
             end_pos = s.match_end;
@@ -839,7 +839,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
             *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
         }
 
-        validate_cursor(curwin_ptr());
+        validate_cursor(curwin_mut());
 
         // May redraw the status line to show the cursor position.
         if opt_vars().p_ru != 0 && (curwin_mut().w_status_height > 0 || global_stl_height() > 0) {
@@ -964,7 +964,7 @@ fn finish_incsearch_highlighting(
         g_st().Search.first_line = 0;
         g_st().Search.last_line = MAXLNUM;
 
-        validate_cursor(curwin_ptr()); // needed for TAB
+        validate_cursor(curwin_mut()); // needed for TAB
         status_redraw_all();
         redraw_all_later(UPD_SOME_VALID);
         if call_update_screen {
@@ -2011,7 +2011,7 @@ fn may_do_command_line_next_incsearch(
         g_st().emsg_off += 1;
         let found = searchit(
             curwin_ptr(),
-            g_st().curbuf,
+            curbuf_mut(),
             &raw mut t,
             None,
             if next_match { FORWARD } else { BACKWARD },
@@ -2073,8 +2073,8 @@ fn may_do_command_line_next_incsearch(
             set_search_match(&mut s.match_end);
             curwin_mut().w_cursor = s.match_start;
             changed_cline_bef_curs(curwin_mut());
-            update_topline(curwin_ptr());
-            validate_cursor(curwin_ptr());
+            update_topline(curwin_mut());
+            validate_cursor(curwin_mut());
             g_st().Search.hl_match = true;
             save_viewstate(curwin_mut(), &mut s.old_viewstate);
             redraw_later(curwin_ptr(), UPD_NOT_VALID);
@@ -3085,7 +3085,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 
             (*buf).b_changed = cp_bufinfo.save_b_changed;
 
-            extmark_clear(buf, getln_st().cmdpreview_ns as u32, 0, 0, MAXLNUM, MAXCOL);
+            extmark_clear( &mut *buf, getln_st().cmdpreview_ns as u32, 0, 0, MAXLNUM, MAXCOL);
 
             u_rollback(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
 
@@ -3103,7 +3103,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
             (*win).w_onebuf_opt.wo_cul = cp_wininfo.save_w_p_cul;
             (*win).w_onebuf_opt.wo_cuc = cp_wininfo.save_w_p_cuc;
 
-            update_topline(win);
+            update_topline( &mut *win);
         }
 
         g_st().cmdmod = std::mem::take(&mut cpinfo.save_cmdmod);

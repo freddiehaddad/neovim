@@ -3362,7 +3362,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
 
         curwin_mut().w_cursor = pos;
         check_cursor(curwin_mut());
-        validate_cursor(curwin_ptr());
+        validate_cursor(curwin_mut());
         if !equalpos(curwin_mut().w_cursor, pos) {
             emsg(gettext(E_COMPLDEL));
         } else if !matchlist.is_null() {
@@ -4657,7 +4657,7 @@ fn get_next_default_completion(
             } else {
                 found_new_match = searchit(
                     ptr::null_mut(),
-                    st.ins_buf,
+                     &mut *st.ins_buf,
                     st.cur_match_pos_ptr(),
                     None,
                     insexp().compl_direction,
@@ -6201,7 +6201,7 @@ fn get_userdefined_compl_info(
         g_st().State = save_State;
         curwin_mut().w_cursor = pos;
         check_cursor(curwin_mut());
-        validate_cursor(curwin_ptr());
+        validate_cursor(curwin_mut());
         if !equalpos(curwin_mut().w_cursor, pos) {
             emsg(gettext(E_COMPLDEL));
             return false;
@@ -6510,7 +6510,7 @@ fn ins_compl_show_statusmsg() {
                     g_st().edit_submode_extra = match_ref_ptr;
                     g_st().edit_submode_highl = HLF_R;
                     if g_st().dollar_vcol >= 0 {
-                        curs_columns(curwin_ptr(), 0);
+                        curs_columns(curwin_mut(), 0);
                     }
                 }
             }

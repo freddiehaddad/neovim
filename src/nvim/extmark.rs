@@ -400,22 +400,22 @@ pub fn extmark_del(buf: &mut buf_T, itr: &mut MarkTreeIter, mut key: MTKey, rest
 
 /// Free extmarks in a ns between lines (`extmark_clear`).
 pub fn extmark_clear(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     ns_id: u32,
     l_row: c_int,
     l_col: colnr_T,
     u_row: c_int,
     u_col: colnr_T,
 ) -> bool {
-    unsafe {
-        if (*buf).b_extmark_ns.is_empty() {
+     {
+        if buf.b_extmark_ns.is_empty() {
             return false;
         }
 
         mc_ns_clearing(buf, ns_id);
 
         let all_ns = ns_id == 0;
-        if !all_ns && !(*buf).b_extmark_ns.contains_key(&ns_id) {
+        if !all_ns && !buf.b_extmark_ns.contains_key(&ns_id) {
             return false;
         }
 
@@ -423,9 +423,9 @@ pub fn extmark_clear(
         let mut marks_cleared_all = l_row == 0 && l_col == 0;
 
         let mut itr = MarkTreeIter::new();
-        marktree_itr_get(&(*buf).b_marktree, l_row, l_col, &mut itr);
+        marktree_itr_get(&buf.b_marktree, l_row, l_col, &mut itr);
         loop {
-            let mark = marktree_itr_current(&(*buf).b_marktree, &itr);
+            let mark = marktree_itr_current(&buf.b_marktree, &itr);
             if mark.pos.row < 0
                 || mark.pos.row > u_row
                 || (mark.pos.row == u_row && mark.pos.col > u_col)
@@ -437,22 +437,22 @@ pub fn extmark_clear(
             }
             if mark.ns == ns_id || all_ns {
                 marks_cleared_any = true;
-                extmark_del(&mut *buf, &mut itr, mark, true);
+                extmark_del(buf, &mut itr, mark, true);
             } else {
-                marktree_itr_next(&(*buf).b_marktree, &mut itr);
+                marktree_itr_next(&buf.b_marktree, &mut itr);
             }
         }
 
         if marks_cleared_all {
             if all_ns {
-                (*buf).b_extmark_ns.clear();
+                buf.b_extmark_ns.clear();
             } else {
-                (*buf).b_extmark_ns.remove(&ns_id);
+                buf.b_extmark_ns.remove(&ns_id);
             }
         }
 
         if marks_cleared_any {
-            decor_state_invalidate(buf);
+            decor_state_invalidate(&raw mut *buf);
             mc_ns_cleared(buf, ns_id);
         }
 

@@ -223,7 +223,7 @@ pub fn conceal_check_cursor_line() {
         if decor_conceal_line(curwin_ptr(), curwin_mut().w_cursor.lnum - 1, true) {
             changed_window_setting(curwin_mut());
         }
-        curs_columns(curwin_ptr(), 1);
+        curs_columns(curwin_mut(), 1);
     }
 }
 
@@ -435,7 +435,7 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
                         cmdline_pum_display(false);
                     }
                 } else {
-                    update_topline(curwin_ptr());
+                    update_topline(curwin_mut());
                     if pum_drawn() {
                         ds_st().redraw_popupmenu = false;
                         ins_compl_show_pum();
@@ -797,7 +797,7 @@ pub fn setcursor() {
 pub fn setcursor_mayforce(wp: &mut win_T, force: bool) {
     unsafe {
         if force || redrawing() {
-            validate_cursor(&raw mut *wp);
+            validate_cursor(wp);
 
             let mut row = wp.w_wrow;
             let mut col = wp.w_wcol;
@@ -834,7 +834,7 @@ pub fn show_cursor_info_later(force: bool) {
                 && *ml_get_buf(curwin_mut().w_buffer, curwin_mut().w_cursor.lnum) == NUL,
         );
 
-        validate_virtcol(curwin_ptr());
+        validate_virtcol(curwin_mut());
         if force
             || curwin_mut().w_cursor.lnum != curwin_mut().w_stl_cursor.lnum
             || curwin_mut().w_cursor.col != curwin_mut().w_stl_cursor.col
@@ -984,7 +984,7 @@ pub fn showmode() -> c_int {
                         if curwin_mut().w_onebuf_opt.wo_arab != 0 {
                             msg_puts_hl(gettext(c" Arabic"), hl_id, false);
                         } else if get_keymap_str(
-                            curwin_ptr(),
+                            curwin_mut(),
                             c" (%s)",
                             (&raw mut g_st().NameBuff).cast::<c_char>(),
                             MAXPATHL as c_int,
@@ -1449,7 +1449,7 @@ fn win_update(wp: &mut win_T) {
         }
         (*buf).b_signcols.last_max = (*buf).b_signcols.max;
 
-        validate_virtcol(&raw mut *wp);
+        validate_virtcol(wp);
         type_ = wp.w_redr_type;
 
         init_search_hl(wp, &mut g_st().screen_search_hl);
@@ -1457,7 +1457,7 @@ fn win_update(wp: &mut win_T) {
         if wp.w_skipcol > 0 && wp.w_view_width > win_col_off(&raw mut *wp) {
             let mut w: c_int = 0;
             let width1 = wp.w_view_width - win_col_off(&raw mut *wp);
-            let width2 = width1 + win_col_off2(&raw mut *wp);
+            let width2 = width1 + win_col_off2(wp);
             let mut add = width1;
 
             while w < wp.w_skipcol {
@@ -1535,7 +1535,7 @@ fn win_update(wp: &mut win_T) {
                         }
                         if lnumb == MAXLNUM && wl.wl_lnum >= mod_bot {
                             lnumb = wl.wl_lnum;
-                            if compute_foldcolumn(&raw mut *wp, 0) > 0 {
+                            if compute_foldcolumn(wp, 0) > 0 {
                                 lnumb += 1;
                             }
                         }
@@ -1632,7 +1632,7 @@ fn win_update(wp: &mut win_T) {
                         i += win_get_fill(&raw mut *wp, wl0.wl_lnum) - wp.w_old_topfill;
                     }
                     if i != 0 && i < wp.w_view_height - 2 {
-                        win_scroll_lines(&raw mut *wp, 0, i);
+                        win_scroll_lines(wp, 0, i);
                         bot_scroll_start = 0;
                         if wp.w_lines_valid != 0 {
                             top_end = i;
@@ -1679,7 +1679,7 @@ fn win_update(wp: &mut win_T) {
                     }
                     row -= wp.w_topfill;
                     if row > 0 {
-                        win_scroll_lines(&raw mut *wp, 0, -row);
+                        win_scroll_lines(wp, 0, -row);
                         bot_start = wp.w_view_height - row;
                         bot_scroll_start = bot_start;
                     }
@@ -2042,7 +2042,7 @@ fn win_update(wp: &mut win_T) {
                                 if row - xtra_rows >= wp.w_view_height - 2 {
                                     mod_bot = MAXLNUM;
                                 } else {
-                                    win_scroll_lines(&raw mut *wp, row, xtra_rows);
+                                    win_scroll_lines(wp, row, xtra_rows);
                                     bot_start = wp.w_view_height + xtra_rows;
                                     bot_scroll_start = bot_start;
                                 }
@@ -2050,7 +2050,7 @@ fn win_update(wp: &mut win_T) {
                                 if row + xtra_rows >= wp.w_view_height - 2 {
                                     mod_bot = MAXLNUM;
                                 } else {
-                                    win_scroll_lines(&raw mut *wp, row + old_rows, xtra_rows);
+                                    win_scroll_lines(wp, row + old_rows, xtra_rows);
                                     bot_scroll_start = 0;
                                     if top_end > row + old_rows {
                                         top_end += xtra_rows;
@@ -2403,11 +2403,11 @@ fn win_update(wp: &mut win_T) {
                 if ptr::eq(wp, curwin_ptr()) && wp.w_botline != old_botline && !ds_st().win_update_recursive {
                     ds_st().win_update_recursive = true;
                     curwin_mut().w_valid &= !VALID_TOPLINE;
-                    update_topline(curwin_ptr());
+                    update_topline(curwin_mut());
                     if g_st().must_redraw != 0 {
                         let mod_set = curbuf_mut().b_mod_set;
                         curbuf_mut().b_mod_set = false;
-                        curs_columns(curwin_ptr(), 1);
+                        curs_columns(curwin_mut(), 1);
                         win_update(curwin_mut());
                         g_st().must_redraw = 0;
                         curbuf_mut().b_mod_set = mod_set;
@@ -2428,7 +2428,7 @@ fn win_update(wp: &mut win_T) {
     }
 }
 
-pub fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int) {
+pub fn win_scroll_lines(wp: &mut win_T, row: c_int, line_count: c_int) {
     unsafe {
         if !redrawing() || line_count == 0 {
             return;
@@ -2436,10 +2436,10 @@ pub fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int) {
 
         let mut col: c_int = 0;
         let mut row_off: c_int = 0;
-        let grid = grid_adjust(&raw mut (*wp).w_grid, &mut row_off, &mut col);
+        let grid = grid_adjust(&raw mut wp.w_grid, &mut row_off, &mut col);
 
-        let checked_width = ((*grid).cols - col).min((*wp).w_view_width);
-        let checked_height = ((*grid).rows - row_off).min((*wp).w_view_height);
+        let checked_width = ((*grid).cols - col).min(wp.w_view_width);
+        let checked_height = ((*grid).rows - row_off).min(wp.w_view_height);
 
         if row + line_count.abs() >= checked_height {
             return;
@@ -2477,7 +2477,7 @@ pub fn win_draw_end(
 ) {
     assert!((0..HLF_COUNT).contains(&hl));
         let view_width = wp.w_view_width;
-        let fdc = compute_foldcolumn(&raw mut *wp, 0);
+        let fdc = compute_foldcolumn(wp, 0);
         let scwidth = wp.w_scwidth;
 
         for row in startrow..endrow {
@@ -2532,15 +2532,15 @@ pub fn win_draw_end(
         }
 }
 
-pub fn compute_foldcolumn(wp: *mut win_T, col: c_int) -> c_int {
-    unsafe {
-        let fdc = win_fdccol_count(&mut *wp);
-        let wmw = if ptr::eq(wp, curwin_ptr()) && opt_vars().p_wmw == 0 {
+pub fn compute_foldcolumn(wp: &mut win_T, col: c_int) -> c_int {
+     {
+        let fdc = win_fdccol_count(wp);
+        let wmw = if ptr::eq((&raw mut *wp), curwin_ptr()) && opt_vars().p_wmw == 0 {
             1
         } else {
             opt_vars().p_wmw as c_int
         };
-        let n = (*wp).w_view_width - (col + wmw);
+        let n = wp.w_view_width - (col + wmw);
         fdc.min(n)
     }
 }
@@ -2653,29 +2653,29 @@ pub fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool) {
     }
 }
 
-pub fn redraw_win_range_later(wp: *mut win_T, first: linenr_T, last: linenr_T) {
-    unsafe {
-        if last >= (*wp).w_topline && first < (*wp).w_botline {
-            if (*wp).w_redraw_top == 0 || (*wp).w_redraw_top > first {
-                (*wp).w_redraw_top = first;
+pub fn redraw_win_range_later(wp: &mut win_T, first: linenr_T, last: linenr_T) {
+     {
+        if last >= wp.w_topline && first < wp.w_botline {
+            if wp.w_redraw_top == 0 || wp.w_redraw_top > first {
+                wp.w_redraw_top = first;
             }
-            if (*wp).w_redraw_bot == 0 || (*wp).w_redraw_bot < last {
-                (*wp).w_redraw_bot = last;
+            if wp.w_redraw_bot == 0 || wp.w_redraw_bot < last {
+                wp.w_redraw_bot = last;
             }
-            redraw_later(wp, UPD_VALID);
+            redraw_later((&raw mut *wp), UPD_VALID);
         }
     }
 }
 
 pub fn redrawWinline(wp: *mut win_T, lnum: linenr_T) {
-    redraw_win_range_later(wp, lnum, lnum);
+    redraw_win_range_later(unsafe { &mut *wp }, lnum, lnum);
 }
 
 pub fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T) {
     unsafe {
         for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
-                redraw_win_range_later(wp, first, last);
+                redraw_win_range_later( &mut *wp, first, last);
             }
         }
     }

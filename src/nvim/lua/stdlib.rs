@@ -430,7 +430,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
             if watched {
                 tv_dict_watcher_notify(&mut *dict, key.data, ptr::null_mut(), Some(&(*di).di_tv));
             }
-            tv_dict_item_remove(&mut *dict, di);
+            tv_dict_item_remove(&mut *dict,  &mut *di);
         } else {
             let mut tv: typval_T = typval_T::new();
 

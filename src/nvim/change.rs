@@ -118,7 +118,7 @@ pub const fn replace_normal(s: c_int) -> bool {
 fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
      {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(tp) {
+            for wp in for_all_windows_in_tab_ptr(unsafe { &*tp }) {
                 f(wp);
             }
         }
@@ -126,21 +126,21 @@ fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
 }
 
 /// If the file is readonly, give a warning message with the first change.
-pub fn change_warning(buf: *mut buf_T, col: c_int) {
-    unsafe {
+pub fn change_warning(buf: &mut buf_T, col: c_int) {
+     {
         const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
-        if !(*buf).b_did_warn && !curbufIsChanged() && !g_st().autocmd_busy && (*buf).b_p_ro != 0 {
-            (*buf).b_ro_locked += 1;
+        if !buf.b_did_warn && !curbufIsChanged() && !g_st().autocmd_busy && buf.b_p_ro != 0 {
+            buf.b_ro_locked += 1;
             apply_autocmds(
                 EVENT_FILECHANGEDRO,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 false,
-                buf,
+                (&raw mut *buf),
             );
-            (*buf).b_ro_locked -= 1;
-            if (*buf).b_p_ro == 0 {
+            buf.b_ro_locked -= 1;
+            if buf.b_p_ro == 0 {
                 return;
             }
             msg_start();
@@ -156,7 +156,7 @@ pub fn change_warning(buf: *mut buf_T, col: c_int) {
             if g_st().msg_silent == 0 && !g_st().silent_mode && ui_active() != 0 {
                 msg_delay(1002, true);
             }
-            (*buf).b_did_warn = true;
+            buf.b_did_warn = true;
             g_st().redraw_cmdline = false;
             if g_st().msg_row < g_st().Rows - 1 {
                 showmode();
@@ -171,7 +171,7 @@ pub fn changed(buf: *mut buf_T) {
         if (*buf).b_changed == 0 {
             let save_msg_scroll = g_st().msg_scroll;
 
-            change_warning(buf, 0);
+            change_warning( &mut *buf, 0);
 
             if (*buf).b_may_swap && !bt_dontwrite(buf) {
                 let save_need_wait_return = g_st().need_wait_return;
@@ -207,7 +207,7 @@ pub fn changed_internal(buf: &mut buf_T) {
         g_st().redraw_tabline = true;
         g_st().need_maketitle = true;
         if !was_changed {
-            aucmd_defer_modified(buf, true);
+            aucmd_defer_modified( &mut *buf, true);
         }
 }
 
@@ -285,17 +285,17 @@ pub fn changed_lines_invalidate_buf(buf: &mut buf_T,
 
 /// Common code for when a change was made.
 fn changed_common(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     mut lnum: linenr_T,
     col: colnr_T,
     lnume: linenr_T,
     xtra: linenr_T,
 ) {
     unsafe {
-        changed(buf);
+        changed(&raw mut *buf);
 
         for win in for_all_windows_mut() {
-            if win.w_buffer == buf {
+            if win.w_buffer == (&raw mut *buf) {
                 if win.w_onebuf_opt.wo_diff != 0 && diff_internal() != 0 {
                     curtab_mut().tp_diff_update = 1;
                     diff_update_line(lnum);
@@ -309,31 +309,31 @@ fn changed_common(
 
         if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 {
             let mut view = INIT_FMARKV;
-            if curwin_mut().w_buffer == buf
+            if curwin_mut().w_buffer == (&raw mut *buf)
                 && lnum >= curwin_mut().w_topline
                 && lnum <= curwin_mut().w_botline
             {
                 view = mark_view_make(curwin_mut(), curwin_mut().w_cursor);
             }
             reset_fmark(
-                &mut (*buf).b_last_change,
+                &mut buf.b_last_change,
                 pos_T {
                     lnum,
                     col,
                     coladd: 0,
                 },
-                (*buf).b_fnum,
+                buf.b_fnum,
                 view,
             );
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 && !mc_replaying() {
-            if (*buf).b_new_change || (*buf).b_changelistlen == 0 {
-                let add = if (*buf).b_changelistlen == 0 {
+            if buf.b_new_change || buf.b_changelistlen == 0 {
+                let add = if buf.b_changelistlen == 0 {
                     true
                 } else {
                     let p =
-                        &raw const (*buf).b_changelist[((*buf).b_changelistlen - 1) as usize].mark;
+                        &raw const buf.b_changelist[(buf.b_changelistlen - 1) as usize].mark;
                     if (*p).lnum != lnum {
                         true
                     } else {
@@ -345,43 +345,43 @@ fn changed_common(
                     }
                 };
                 if add {
-                    (*buf).b_new_change = false;
+                    buf.b_new_change = false;
 
-                    if (*buf).b_changelistlen == JUMPLISTSIZE {
-                        (*buf).b_changelistlen = JUMPLISTSIZE - 1;
+                    if buf.b_changelistlen == JUMPLISTSIZE {
+                        buf.b_changelistlen = JUMPLISTSIZE - 1;
                         ptr::copy(
-                            (*buf).b_changelist.as_ptr().add(1),
-                            (*buf).b_changelist.as_mut_ptr(),
+                            buf.b_changelist.as_ptr().add(1),
+                            buf.b_changelist.as_mut_ptr(),
                             (JUMPLISTSIZE - 1) as usize,
                         );
                         for_all_tab_windows(|wp| {
-                            if (*wp).w_buffer == buf && (*wp).w_changelistidx > 0 {
+                            if (*wp).w_buffer == (&raw mut *buf) && (*wp).w_changelistidx > 0 {
                                 (*wp).w_changelistidx -= 1;
                             }
                         });
                     }
                     for_all_tab_windows(|wp| {
-                        if (*wp).w_buffer == buf && (*wp).w_changelistidx == (*buf).b_changelistlen
+                        if (*wp).w_buffer == (&raw mut *buf) && (*wp).w_changelistidx == buf.b_changelistlen
                         {
                             (*wp).w_changelistidx += 1;
                         }
                     });
-                    (*buf).b_changelistlen += 1;
+                    buf.b_changelistlen += 1;
                 }
             }
-            (*buf).b_changelist[((*buf).b_changelistlen - 1) as usize] =
-                (*buf).b_last_change.clone();
-            if curwin_mut().w_buffer == buf {
-                curwin_mut().w_changelistidx = (*buf).b_changelistlen;
+            buf.b_changelist[(buf.b_changelistlen - 1) as usize] =
+                buf.b_last_change.clone();
+            if curwin_mut().w_buffer == (&raw mut *buf) {
+                curwin_mut().w_changelistidx = buf.b_changelistlen;
             }
         }
 
-        if curwin_mut().w_buffer == buf && g_st().Visual.active {
+        if curwin_mut().w_buffer == (&raw mut *buf) && g_st().Visual.active {
             check_visual_pos();
         }
 
         for_all_tab_windows(|wp| {
-            if (*wp).w_buffer == buf {
+            if (*wp).w_buffer == (&raw mut *buf) {
                 if !g_st().redraw_not_allowed && (*wp).w_redr_type < UPD_VALID {
                     (*wp).w_redr_type = UPD_VALID;
                 }
@@ -405,7 +405,7 @@ fn changed_common(
                 foldUpdate(wp, lnum, last);
 
                 let mut folded = hasFoldingWin(
-                    wp,
+                     &mut *wp,
                     lnum,
                     Some(&mut lnum),
                     ptr::null_mut(),
@@ -416,7 +416,7 @@ fn changed_common(
                     (*wp).w_cline_folded = folded;
                 }
                 folded = hasFoldingWin(
-                    wp,
+                     &mut *wp,
                     last,
                     None,
                     &raw mut last,
@@ -454,7 +454,7 @@ fn changed_common(
         set_must_redraw(UPD_VALID);
 
         if g_st().last_cursormoved_win == curwin_ptr()
-            && curwin_mut().w_buffer == buf
+            && curwin_mut().w_buffer == (&raw mut *buf)
             && lnum <= curwin_mut().w_cursor.lnum
             && lnume + xtra.abs() > curwin_mut().w_cursor.lnum
         {
@@ -467,14 +467,14 @@ fn changed_common(
 pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
     unsafe {
         changed_lines_redraw_buf(curbuf_mut(), lnum, lnum + 1, 0);
-        changed_common(g_st().curbuf, lnum, col, lnum + 1, 0);
+        changed_common(curbuf_mut(), lnum, col, lnum + 1, 0);
         if spell_check_window(curwin_mut())
             && lnum < curbuf_mut().b_ml.ml_line_count
             && vim_strchr(opt_vars().p_cpo, kCpoDollar).is_null()
         {
             redrawWinline(curwin_ptr(), lnum + 1);
         }
-        buf_updates_send_changes(g_st().curbuf, lnum, 1, 1);
+        buf_updates_send_changes(curbuf_mut(), lnum, 1, 1);
 
         if curwin_mut().w_onebuf_opt.wo_diff != 0 {
             for wp in for_all_windows_ptr() {
@@ -600,35 +600,35 @@ pub fn changed_lines(
             }
         }
 
-        changed_common(buf, lnum, col, lnume, xtra);
+        changed_common( &mut *buf, lnum, col, lnume, xtra);
 
         if do_buf_event {
             let num_added = i64::from(lnume + xtra - lnum);
             let num_removed = i64::from(lnume - lnum);
-            buf_updates_send_changes(buf, lnum, num_added, num_removed);
+            buf_updates_send_changes( &mut *buf, lnum, num_added, num_removed);
         }
     }
 }
 
 /// Called when the changed flag must be reset for buffer `buf`.
-pub fn unchanged(buf: *mut buf_T, ff: bool, always_inc_changedtick: bool) {
-    unsafe {
-        if (*buf).b_changed != 0 || (ff && file_ff_differs(buf, false)) {
-            let was_changed = (*buf).b_changed != 0;
-            (*buf).b_changed = 0;
-            ml_setflags( &mut *buf);
+pub fn unchanged(buf: &mut buf_T, ff: bool, always_inc_changedtick: bool) {
+     {
+        if buf.b_changed != 0 || (ff && file_ff_differs((&raw mut *buf), false)) {
+            let was_changed = buf.b_changed != 0;
+            buf.b_changed = 0;
+            ml_setflags( buf);
             if ff {
-                save_file_ff(&mut *buf);
+                save_file_ff(buf);
             }
-            redraw_buf_status_later(buf);
+            redraw_buf_status_later(&raw mut *buf);
             g_st().redraw_tabline = true;
             g_st().need_maketitle = true;
-            buf_inc_changedtick( &mut *buf);
+            buf_inc_changedtick( buf);
             if was_changed {
                 aucmd_defer_modified(buf, false);
             }
         } else if always_inc_changedtick {
-            buf_inc_changedtick( &mut *buf);
+            buf_inc_changedtick( buf);
         }
     }
 }

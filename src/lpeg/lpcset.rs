@@ -103,12 +103,12 @@ pub fn tocharset(tree: *mut TTree, cs: &mut Charset) -> c_int {
     }
 }
 
-pub fn tree2cset(tree: *mut TTree, info: &mut charsetinfo) {
+pub fn tree2cset(tree: &mut TTree, info: &mut charsetinfo) {
     unsafe {
-        debug_assert_eq!((*tree).tag, TSet);
-        info.offset = c_int::from((*tree).u.set.offset);
-        info.size = c_int::from((*tree).u.set.size);
-        info.deflt = c_int::from((*tree).u.set.deflt);
-        info.cs = treebuffer(tree);
+        debug_assert_eq!(tree.tag, TSet);
+        info.offset = c_int::from(tree.u.set.offset);
+        info.size = c_int::from(tree.u.set.size);
+        info.deflt = c_int::from(tree.u.set.deflt);
+        info.cs = treebuffer(&raw mut *tree);
     }
 }

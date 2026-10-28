@@ -296,7 +296,7 @@ fn match_add(
             }
 
             if toplnum != 0 {
-                redraw_win_range_later(&raw mut *wp, toplnum, botlnum);
+                redraw_win_range_later(wp, toplnum, botlnum);
                 m.mit_toplnum = toplnum;
                 m.mit_botlnum = botlnum;
                 rtype = UPD_VALID;
@@ -338,7 +338,7 @@ fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
         };
         let cur = wp.w_match_head.remove(idx);
         if cur.mit_toplnum != 0 {
-            redraw_win_range_later(&raw mut *wp, cur.mit_toplnum, cur.mit_botlnum);
+            redraw_win_range_later(wp, cur.mit_toplnum, cur.mit_botlnum);
             rtype = UPD_VALID;
         }
         redraw_later(&raw mut *wp, rtype);

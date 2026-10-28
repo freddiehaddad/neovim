@@ -490,21 +490,21 @@ pub fn grid_getchar(
 pub fn grid_line_start(view: *mut GridView, mut row: c_int) {
     let mut col: c_int = 0;
         let grid = grid_adjust(view, &mut row, &mut col);
-        screengrid_line_start(grid, row, col);
+        screengrid_line_start(unsafe { &mut *grid }, row, col);
 }
 
-pub fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int, col: c_int) {
+pub fn screengrid_line_start(grid: &mut ScreenGrid, row: c_int, col: c_int) {
     unsafe {
         let lbuf_char_ptr = &raw mut g_st().linebuf_char;
         let lbuf_attr_ptr = &raw mut g_st().linebuf_attr;
         let linebuf_size = (*lbuf_char_ptr).len();
-        grid_st().grid_line_maxcol = (*grid).cols;
+        grid_st().grid_line_maxcol = grid.cols;
         assert!(grid_st().grid_line_grid.is_null());
         grid_st().grid_line_row = row;
-        grid_st().grid_line_grid = grid;
+        grid_st().grid_line_grid = (&raw mut *grid);
         grid_st().grid_line_coloff = col;
         grid_st().grid_line_first = linebuf_size as c_int;
-        grid_st().grid_line_maxcol = grid_st().grid_line_maxcol.min((*grid).cols - grid_st().grid_line_coloff);
+        grid_st().grid_line_maxcol = grid_st().grid_line_maxcol.min(grid.cols - grid_st().grid_line_coloff);
         grid_st().grid_line_last = 0;
         grid_st().grid_line_clear_to = 0;
         grid_st().grid_line_bg_attr = 0;
@@ -1368,7 +1368,7 @@ pub fn grid_draw_border(
         let icol = grid.cols - adj1 - adj3;
 
         if adj0 != 0 {
-            screengrid_line_start(&raw mut *grid, 0, 0);
+            screengrid_line_start(grid, 0, 0);
             if adj3 != 0 {
                 grid_line_put_schar(0, chars[0], border_attrs[0]);
             }
@@ -1398,7 +1398,7 @@ pub fn grid_draw_border(
 
         for i in 0..irow {
             if adj3 != 0 {
-                screengrid_line_start(&raw mut *grid, i + adj0, 0);
+                screengrid_line_start(grid, i + adj0, 0);
                 grid_line_put_schar(0, chars[7], border_attrs[7]);
                 grid_line_flush();
             }
@@ -1408,14 +1408,14 @@ pub fn grid_draw_border(
                 } else {
                     3
                 };
-                screengrid_line_start(&raw mut *grid, i + adj0, 0);
+                screengrid_line_start(grid, i + adj0, 0);
                 grid_line_put_schar(icol + adj3, chars[ic], border_attrs[ic]);
                 grid_line_flush();
             }
         }
 
         if adj2 != 0 {
-            screengrid_line_start(&raw mut *grid, irow + adj0, 0);
+            screengrid_line_start(grid, irow + adj0, 0);
             if adj3 != 0 {
                 grid_line_put_schar(0, chars[6], border_attrs[6]);
             }

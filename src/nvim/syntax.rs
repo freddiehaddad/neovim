@@ -661,7 +661,7 @@ pub fn syn_set_timeout(tm: Option<proftime_T>) {
 }
 
 /// Start the syntax recognition for a line.
-pub fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
+pub fn syntax_start(wp: &mut win_T, lnum: linenr_T) {
     unsafe {
         let mut last_valid: Option<usize> = None;
         let mut last_min_valid: Option<usize> = None;
@@ -669,16 +669,16 @@ pub fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
 
         syn_st().current_sub_char = NUL as c_int;
 
-        if syn_st().syn_block != win_s(&mut *wp)
-            || syn_st().syn_buf != (*wp).w_buffer
+        if syn_st().syn_block != win_s(wp)
+            || syn_st().syn_buf != wp.w_buffer
             || syn_st().changedtick_last != buf_get_changedtick(&*syn_st().syn_buf)
         {
             invalidate_current_state();
-            syn_st().syn_buf = (*wp).w_buffer;
-            syn_st().syn_block = win_s(&mut *wp);
+            syn_st().syn_buf = wp.w_buffer;
+            syn_st().syn_block = win_s(wp);
         }
         syn_st().changedtick_last = buf_get_changedtick(&*syn_st().syn_buf);
-        syn_st().syn_win = wp;
+        syn_st().syn_win = (&raw mut *wp);
 
         syn_stack_alloc();
         if (*syn_st().syn_block).b_sst_max == 0 {
@@ -803,7 +803,7 @@ fn clear_current_state() {
     }
 }
 
-fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const synstate_T) {
+fn syn_sync(wp: &mut win_T, mut start_lnum: linenr_T, last_valid: *const synstate_T) {
     unsafe {
         let mut found_flags: c_int = 0;
         let mut found_match_idx: c_int = 0;
@@ -836,7 +836,7 @@ fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const synstat
 
         if ((*syn_st().syn_block).b_syn_sync_flags & SF_CCOMMENT) != 0 {
             let curwin_save = curwin_ptr();
-            set_curwin(wp);
+            set_curwin(&raw mut *wp);
             let curbuf_save = g_st().curbuf;
             g_st().curbuf = syn_st().syn_buf;
 
@@ -851,9 +851,9 @@ fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const synstat
             }
             syn_st().current_lnum = start_lnum;
 
-            let cursor_save: pos_T = (*wp).w_cursor;
-            (*wp).w_cursor.lnum = start_lnum;
-            (*wp).w_cursor.col = 0;
+            let cursor_save: pos_T = wp.w_cursor;
+            wp.w_cursor.lnum = start_lnum;
+            wp.w_cursor.col = 0;
 
             if !find_start_comment((*syn_st().syn_block).b_syn_sync_maxlines).is_null() {
                 let mut idx = (*syn_st().syn_block).b_syn_patterns.len() as c_int - 1;
@@ -871,7 +871,7 @@ fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const synstat
                 }
             }
 
-            (*wp).w_cursor = cursor_save;
+            wp.w_cursor = cursor_save;
             set_curwin(curwin_save);
             g_st().curbuf = curbuf_save;
         } else if ((*syn_st().syn_block).b_syn_sync_flags & SF_MATCH) != 0 {
@@ -1117,19 +1117,19 @@ fn syn_update_ends(startofline: bool) {
     }
 }
 
-fn syn_stack_free_block(block: *mut synblock_T) {
-    unsafe {
-        idl_cache_clear( &mut *block);
-        (&mut *block).b_sst_array = Vec::new();
-        (*block).b_sst_max = 0;
-        (*block).b_sst_search = 0;
+fn syn_stack_free_block(block: &mut synblock_T) {
+     {
+        idl_cache_clear( block);
+        (block).b_sst_array = Vec::new();
+        block.b_sst_max = 0;
+        block.b_sst_search = 0;
     }
 }
 
 /// Free b_sst_array[] for buffer "buf".
 pub fn syn_stack_free_all(block: *mut synblock_T) {
      {
-        syn_stack_free_block(block);
+        syn_stack_free_block(unsafe { &mut *block });
 
         if !g_st().curtab.is_null() {
             for wp in for_all_windows_mut() {
@@ -5280,14 +5280,14 @@ pub fn get_syntax_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 /// Function called for expression evaluation: get syntax ID at file position.
 pub fn syn_get_id(
-    wp: *mut win_T,
+    wp: &mut win_T,
     lnum: linenr_T,
     col: colnr_T,
     trans: c_int,spellp: Option<&mut bool>,
     keep_state: c_int,
 ) -> c_int {
-    unsafe {
-        if wp != syn_st().syn_win || (*wp).w_buffer != syn_st().syn_buf || lnum != syn_st().current_lnum || col < syn_st().current_col {
+     {
+        if (&raw mut *wp) != syn_st().syn_win || wp.w_buffer != syn_st().syn_buf || lnum != syn_st().current_lnum || col < syn_st().current_col {
             syntax_start(wp, lnum);
         } else if col > syn_st().current_col {
             syn_st().next_match_idx = -1;
@@ -5347,7 +5347,7 @@ pub fn syn_get_foldlevel(wp: &mut win_T, lnum: linenr_T) -> c_int {
             && !(*win_s(&mut *wp)).b_syn_error
             && !(*win_s(&mut *wp)).b_syn_slow
         {
-            syntax_start(&raw mut *wp, lnum);
+            syntax_start(wp, lnum);
 
             level = syn_cur_foldlevel();
 

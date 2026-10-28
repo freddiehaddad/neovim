@@ -332,7 +332,7 @@ pub fn get_arglist_exp(
 fn alist_check_arg_idx() {
      {
         for tp in for_all_tabpages_ptr() {
-            for win in win_iter_mut(first_win_in_tab(tp)) {
+            for win in win_iter_mut(first_win_in_tab(unsafe { &mut *tp })) {
                 if win_alist(win) == win_alist(curwin_mut()) {
                     check_arg_idx(win);
                 }

@@ -2239,21 +2239,21 @@ fn keymap_unload() {
 
 /// Get the value to show for the language mappings, active `'keymap'` (`get_keymap_str`).
 pub fn get_keymap_str(
-    wp: *mut win_T,
+    wp: &mut win_T,
     fmt: &std::ffi::CStr,
     buf: *mut c_char,
     len: c_int,
 ) -> c_int {
     unsafe {
-        if (*wp).buf_mut().b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
+        if wp.buf_mut().b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
             return 0;
         }
 
         let old_curbuf = g_st().curbuf;
         let old_curwin = curwin_ptr();
 
-        g_st().curbuf = (*wp).w_buffer;
-        set_curwin(wp);
+        g_st().curbuf = wp.w_buffer;
+        set_curwin(&raw mut *wp);
         g_st().emsg_skip += 1;
         let s = eval_to_string(
             c"b:keymap_name",
@@ -2265,8 +2265,8 @@ pub fn get_keymap_str(
         g_st().curbuf = old_curbuf;
         set_curwin(old_curwin);
         if p.is_null() || *p == NUL {
-            if ((*wp).buf_mut().b_kmap_state & KEYMAP_LOADED) != 0 {
-                p = (*wp).buf_mut().b_p_keymap;
+            if (wp.buf_mut().b_kmap_state & KEYMAP_LOADED) != 0 {
+                p = wp.buf_mut().b_p_keymap;
             } else {
                 p = c"lang".as_ptr();
             }

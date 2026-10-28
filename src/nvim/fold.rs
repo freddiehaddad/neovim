@@ -163,12 +163,12 @@ pub fn hasFolding(
     lnum: linenr_T,firstp: Option<&mut linenr_T>,
     lastp: *mut linenr_T,
 ) -> bool {
-    hasFoldingWin(win, lnum, firstp, lastp, true, None)
+    hasFoldingWin(unsafe { &mut *win }, lnum, firstp, lastp, true, None)
 }
 
 /// Search folds starting at lnum.
 pub fn hasFoldingWin(
-    win: *mut win_T,
+    win: &mut win_T,
     lnum: linenr_T,mut firstp: Option<&mut linenr_T>,
     lastp: *mut linenr_T,
     cache: bool,
@@ -177,7 +177,7 @@ pub fn hasFoldingWin(
     unsafe {
         checkupdate(win);
 
-        if hasAnyFolding(&mut *win) == 0 {
+        if hasAnyFolding(win) == 0 {
             if let Some(infop) = infop.as_deref_mut() {
                 infop.fi_level = 0;
             }
@@ -189,9 +189,9 @@ pub fn hasFoldingWin(
         let mut last: linenr_T = 0;
 
         if cache {
-            let x = find_wl_entry(&mut *win, lnum);
+            let x = find_wl_entry(win, lnum);
             if x >= 0 {
-                let wl = &(&(*win).w_lines)[x as usize];
+                let wl = &(&win.w_lines)[x as usize];
                 first = wl.wl_lnum;
                 last = wl.wl_foldend;
                 had_folded = wl.wl_folded;
@@ -205,9 +205,9 @@ pub fn hasFoldingWin(
         let mut use_level = false;
 
         if first == 0 {
-            let mut gap = &mut (*win).w_folds;
-            while let (true, idx) = foldFind(gap, lnum_rel) {
-                let fp = &mut gap[idx];
+            let mut gap = &raw mut win.w_folds;
+            while let (true, idx) = foldFind(&*gap, lnum_rel) {
+                let fp = &mut (&mut *gap)[idx];
                 if lnum_rel == fp.fd_top && low_level == 0 {
                     low_level = level + 1;
                 }
@@ -229,7 +229,7 @@ pub fn hasFoldingWin(
                 }
 
                 lnum_rel -= fp.fd_top;
-                gap = &mut fp.fd_nested;
+                gap = &raw mut fp.fd_nested;
                 level += 1;
             }
         }
@@ -243,7 +243,7 @@ pub fn hasFoldingWin(
             return false;
         }
 
-        last = last.min((*win).buf_mut().b_ml.ml_line_count);
+        last = last.min(win.buf_mut().b_ml.ml_line_count);
         if !lastp.is_null() {
             *lastp = last;
         }
@@ -262,7 +262,7 @@ pub fn hasFoldingWin(
 fn foldLevel(lnum: linenr_T) -> c_int {
      {
         if fold_st().invalid_top == 0 {
-            checkupdate(curwin_ptr());
+            checkupdate(curwin_mut());
         } else if lnum == fold_st().prev_lnum && fold_st().prev_lnum_lvl >= 0 {
             return fold_st().prev_lnum_lvl;
         } else if lnum >= fold_st().invalid_top && lnum <= fold_st().invalid_bot {
@@ -292,7 +292,7 @@ pub fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T {
         };
         let mut last: linenr_T = 0;
 
-        if hasFoldingWin(win, lnum, None, &mut last, false, Some(&mut info)) {
+        if hasFoldingWin(unsafe { &mut *win }, lnum, None, &mut last, false, Some(&mut info)) {
             info.fi_lines = last - lnum + 1;
         } else {
             info.fi_lines = 0;
@@ -402,7 +402,7 @@ pub fn openFoldRecurse(pos: pos_T) {
 /// Open folds until the cursor line is not in a closed fold.
 pub fn foldOpenCursor() {
      {
-        checkupdate(curwin_ptr());
+        checkupdate(curwin_mut());
         if hasAnyFolding(curwin_mut()) != 0 {
             loop {
                 let mut done = DONE_NOTHING;
@@ -432,7 +432,7 @@ pub fn newFoldLevel() {
 }
 
 fn newFoldLevelWin(wp: &mut win_T) {
-    checkupdate(&raw mut *wp);
+    checkupdate(wp);
         if wp.w_fold_manual {
             for entry in &mut wp.w_folds {
                 entry.fd_flags = FD_LEVEL;
@@ -449,7 +449,7 @@ pub fn foldCheckClose() {
             return;
         }
 
-        checkupdate(curwin_ptr());
+        checkupdate(curwin_mut());
         if checkCloseRec(
             &mut curwin_mut().w_folds,
             curwin_mut().w_cursor.lnum,
@@ -514,7 +514,7 @@ pub fn foldCreate(wp: &mut win_T, mut start: pos_T, mut end: pos_T) {
             return;
         }
 
-        checkupdate(&raw mut *wp);
+        checkupdate(wp);
 
         let mut i_usize: usize = 0;
         let mut gap = &mut wp.w_folds;
@@ -604,7 +604,7 @@ pub fn deleteFold(
         let mut first_lnum = MAXLNUM;
         let mut last_lnum: linenr_T = 0;
 
-        checkupdate(&raw mut *wp);
+        checkupdate(wp);
 
         while lnum <= end {
             let mut gap = &raw mut wp.w_folds;
@@ -617,7 +617,7 @@ pub fn deleteFold(
                 found_fp = fp;
                 found_off = lnum_off;
 
-                if check_closed(&raw mut *wp, &mut *fp, &mut use_level, level, &mut maybe_small, lnum_off) {
+                if check_closed(wp, &mut *fp, &mut use_level, level, &mut maybe_small, lnum_off) {
                     break;
                 }
 
@@ -659,7 +659,7 @@ pub fn deleteFold(
             changed_lines(wp.w_buffer, first_lnum, 0, last_lnum, 0, false);
 
             let num_changed = i64::from(last_lnum - first_lnum);
-            buf_updates_send_changes(wp.w_buffer, first_lnum, num_changed, num_changed);
+            buf_updates_send_changes(wp.buf_mut(), first_lnum, num_changed, num_changed);
         }
     }
 }
@@ -701,7 +701,7 @@ pub fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T) {
         {
             let save_got_int = g_st().got_int;
             g_st().got_int = false;
-            foldUpdateIEMS(wp, top, bot);
+            foldUpdateIEMS( &mut *wp, top, bot);
             g_st().got_int |= save_got_int;
         }
     }
@@ -729,7 +729,7 @@ pub fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> bool {
      {
         let mut retval = false;
 
-        checkupdate(curwin_ptr());
+        checkupdate(curwin_mut());
 
         for _ in 0..count {
             let mut lnum_off: linenr_T = 0;
@@ -771,7 +771,7 @@ pub fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> bool {
 
                 if !last {
                     if check_closed(
-                        curwin_ptr(),
+                        curwin_mut(),
                         &mut gap[idx],
                         &mut use_level,
                         level,
@@ -934,14 +934,14 @@ fn foldLevelWin(wp: &mut win_T, lnum: linenr_T) -> c_int {
         level
 }
 
-fn checkupdate(wp: *mut win_T) {
-    unsafe {
-        if !(*wp).w_foldinvalid {
+fn checkupdate(wp: &mut win_T) {
+     {
+        if !wp.w_foldinvalid {
             return;
         }
 
-        foldUpdate(wp, 1, MAXLNUM);
-        (*wp).w_foldinvalid = false;
+        foldUpdate((&raw mut *wp), 1, MAXLNUM);
+        wp.w_foldinvalid = false;
     }
 }
 
@@ -990,7 +990,7 @@ fn setManualFoldWin(
         let mut off: linenr_T = 0;
         let mut done: c_int = 0;
 
-        checkupdate(&raw mut *wp);
+        checkupdate(wp);
 
         let mut gap = &mut wp.w_folds;
         loop {
@@ -1200,7 +1200,7 @@ fn foldMarkAdjustRecurse(
 /// Get the lowest 'foldlevel' value that makes the deepest nested fold in
 /// window `wp`.
 pub fn getDeepestNesting(wp: &mut win_T) -> c_int {
-    checkupdate(wp);
+    checkupdate( &mut *wp);
         getDeepestNestingRecurse(&wp.w_folds)
 }
 
@@ -1214,19 +1214,19 @@ fn getDeepestNestingRecurse(gap: &[fold_T]) -> c_int {
 }
 
 fn check_closed(
-    wp: *mut win_T,
+    wp: &mut win_T,
     fp: &mut fold_T,
     use_levelp: &mut bool,
     level: c_int,
     maybe_smallp: &mut bool,
     lnum_off: linenr_T,
 ) -> bool {
-    unsafe {
+     {
         let mut closed = false;
 
         if *use_levelp || fp.fd_flags == FD_LEVEL {
             *use_levelp = true;
-            if i64::from(level) >= (*wp).w_onebuf_opt.wo_fdl {
+            if i64::from(level) >= wp.w_onebuf_opt.wo_fdl {
                 closed = true;
             }
         } else if fp.fd_flags == FD_CLOSED {
@@ -1240,7 +1240,7 @@ fn check_closed(
             if *maybe_smallp {
                 fp.fd_small = kNone;
             }
-            checkSmall( &mut *wp, fp, lnum_off);
+            checkSmall( wp, fp, lnum_off);
             if fp.fd_small == kTrue {
                 closed = false;
             }
@@ -1294,7 +1294,7 @@ fn foldCreateMarkers(wp: &mut win_T, start: pos_T, end: pos_T) {
         changed_lines(buf, start.lnum, 0, end.lnum, 0, false);
 
         let num_changed = 1 + i64::from(end.lnum - start.lnum);
-        buf_updates_send_changes(buf, start.lnum, num_changed, num_changed);
+        buf_updates_send_changes( &mut *buf, start.lnum, num_changed, num_changed);
     }
 }
 
@@ -1434,7 +1434,7 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
 
 /// Generates text to display.
 pub fn get_foldtext(
-    wp: *mut win_T,
+    wp: &mut win_T,
     lnum: linenr_T,
     lnume: linenr_T,
     foldinfo: foldinfo_T,
@@ -1444,7 +1444,7 @@ pub fn get_foldtext(
         let mut text: Option<std::ffi::CString> = None;
         let save_did_emsg = g_st().did_emsg;
 
-        if fold_st().last_wp.is_null() || !ptr::eq(fold_st().last_wp, wp) || fold_st().fdt_last_lnum > lnum || fold_st().fdt_last_lnum == 0
+        if fold_st().last_wp.is_null() || !ptr::eq(fold_st().last_wp, (&raw mut *wp)) || fold_st().fdt_last_lnum > lnum || fold_st().fdt_last_lnum == 0
         {
             fold_st().got_fdt_error = false;
         }
@@ -1453,7 +1453,7 @@ pub fn get_foldtext(
             g_st().did_emsg = 0;
         }
 
-        if (*wp).w_onebuf_opt.wo_fdt.cb_type() != kCallbackNone {
+        if wp.w_onebuf_opt.wo_fdt.cb_type() != kCallbackNone {
             let mut dashes = [0 as c_char; (MAX_LEVEL as usize) + 2];
 
             set_vim_var_nr(VV_FOLDSTART, varnumber_T::from(lnum));
@@ -1469,9 +1469,9 @@ pub fn get_foldtext(
                 let save_curwin = curwin_ptr();
                 let saved_sctx = g_st().current_sctx;
 
-                set_curwin(wp);
-                g_st().curbuf = (*wp).w_buffer;
-                g_st().current_sctx = (*wp).w_onebuf_opt.wo_script_ctx[kWinOptFoldtext];
+                set_curwin(&raw mut *wp);
+                g_st().curbuf = wp.w_buffer;
+                g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[kWinOptFoldtext];
 
                 g_st().emsg_off += 1;
 
@@ -1500,7 +1500,7 @@ pub fn get_foldtext(
                 g_st().current_sctx = saved_sctx;
             }
             fold_st().fdt_last_lnum = lnum;
-            fold_st().last_wp = wp;
+            fold_st().last_wp = (&raw mut *wp);
             set_vim_var_string(VV_FOLDDASHES, ptr::null(), -1);
 
             if g_st().did_emsg == 0 && save_did_emsg != 0 {
@@ -1648,21 +1648,21 @@ fn call_getlevel(kind: LevelGetterKind, flp: &mut fline_T) {
         }
 }
 
-fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
-    unsafe {
+fn foldUpdateIEMS(wp: &mut win_T, mut top: linenr_T, mut bot: linenr_T) {
+     {
         if fold_st().invalid_top != 0 {
             return;
         }
 
-        if (*wp).w_foldinvalid {
+        if wp.w_foldinvalid {
             top = 1;
-            bot = (*wp).buf_mut().b_ml.ml_line_count;
-            (*wp).w_foldinvalid = false;
+            bot = wp.buf_mut().b_ml.ml_line_count;
+            wp.w_foldinvalid = false;
 
-            setSmallMaybe(&mut (*wp).w_folds);
+            setSmallMaybe(&mut wp.w_folds);
         }
 
-        if foldmethodIsDiff(&mut *wp) {
+        if foldmethodIsDiff(wp) {
             if top > g_st().diff_context {
                 top -= g_st().diff_context;
             } else {
@@ -1671,11 +1671,11 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
             bot += g_st().diff_context;
         }
 
-        top = top.min((*wp).buf_mut().b_ml.ml_line_count);
+        top = top.min(wp.buf_mut().b_ml.ml_line_count);
 
         fold_st().fold_changed = false;
         let mut fline = fline_T {
-            wp,
+            wp: &raw mut *wp,
             lnum: 0,
             off: 0,
             lnum_save: 0,
@@ -1691,13 +1691,13 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
 
         let getlevel: LevelGetterKind;
 
-        if foldmethodIsMarker(&mut *wp) {
+        if foldmethodIsMarker(wp) {
             getlevel = LevelGetterKind::Marker;
 
-            parseMarker(&mut *wp);
+            parseMarker(wp);
 
             if top > 1 {
-                let level = foldLevelWin(&mut *wp, top - 1);
+                let level = foldLevelWin(wp, top - 1);
 
                 fline.lnum = top - 1;
                 fline.lvl = level;
@@ -1713,14 +1713,14 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
             call_getlevel(getlevel, &mut fline);
         } else {
             fline.lnum = top;
-            if foldmethodIsExpr(&mut *wp) {
+            if foldmethodIsExpr(wp) {
                 getlevel = LevelGetterKind::Expr;
                 if top > 1 {
                     fline.lnum -= 1;
                 }
-            } else if foldmethodIsSyntax(&mut *wp) {
+            } else if foldmethodIsSyntax(wp) {
                 getlevel = LevelGetterKind::Syntax;
-            } else if foldmethodIsDiff(&mut *wp) {
+            } else if foldmethodIsDiff(wp) {
                 getlevel = LevelGetterKind::Diff;
             } else {
                 getlevel = LevelGetterKind::Indent;
@@ -1741,7 +1741,7 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
         }
 
         if getlevel == LevelGetterKind::Syntax {
-            let mut gap: &[fold_T] = &(*wp).w_folds;
+            let mut gap: &[fold_T] = &wp.w_folds;
             let mut fpn: Option<&fold_T> = None;
             let mut current_fdl: c_int = 0;
             let mut fold_start_lnum: linenr_T = 0;
@@ -1770,12 +1770,12 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
 
         let mut start = fline.lnum;
         let mut end = bot;
-        if start > end && end < (*wp).buf_mut().b_ml.ml_line_count {
+        if start > end && end < wp.buf_mut().b_ml.ml_line_count {
             end = start;
         }
 
         while !g_st().got_int {
-            if fline.lnum > (*wp).buf_mut().b_ml.ml_line_count {
+            if fline.lnum > wp.buf_mut().b_ml.ml_line_count {
                 break;
             }
             if fline.lnum > end {
@@ -1785,7 +1785,7 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
                 {
                     break;
                 }
-                let folds = &(*wp).w_folds;
+                let folds = &wp.w_folds;
                 if start <= end
                     && let (true, idx) = foldFind(folds, end)
                     && folds[idx].fd_top + folds[idx].fd_len - 1 > end
@@ -1797,7 +1797,7 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
                 {
                     end = folds[idx].fd_top + folds[idx].fd_len - 1;
                 } else if getlevel == LevelGetterKind::Syntax
-                    && foldLevelWin(&mut *wp, fline.lnum) != fline.lvl
+                    && foldLevelWin(wp, fline.lnum) != fline.lvl
                 {
                     end = fline.lnum;
                 } else {
@@ -1809,7 +1809,7 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
                 fold_st().invalid_top = fline.lnum;
                 fold_st().invalid_bot = end;
                 end = foldUpdateIEMSRecurse(
-                    &mut (*wp).w_folds,
+                    &mut wp.w_folds,
                     1,
                     start,
                     &mut fline,
@@ -1819,7 +1819,7 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
                 );
                 start = fline.lnum;
             } else {
-                if fline.lnum == (*wp).buf_mut().b_ml.ml_line_count {
+                if fline.lnum == wp.buf_mut().b_ml.ml_line_count {
                     break;
                 }
                 fline.lnum += 1;
@@ -1828,10 +1828,10 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
             }
         }
 
-        foldRemove(&mut (*wp).w_folds, start, end);
+        foldRemove(&mut wp.w_folds, start, end);
 
-        if fold_st().fold_changed && (*wp).w_onebuf_opt.wo_fen != 0 {
-            changed_window_setting(&mut *wp);
+        if fold_st().fold_changed && wp.w_onebuf_opt.wo_fen != 0 {
+            changed_window_setting(wp);
         }
 
         if end != bot {
@@ -2574,18 +2574,18 @@ fn foldlevelSyntax(flp: &mut fline_T) {
 }
 
 /// Write commands to "fd" to restore the manual folds in window "wp".
-pub fn put_folds(fd: *mut FILE, wp: *mut win_T) -> bool {
-    unsafe {
-        if foldmethodIsManual(&mut *wp)
+pub fn put_folds(fd: *mut FILE, wp: &mut win_T) -> bool {
+     {
+        if foldmethodIsManual(wp)
             && (!put_line(fd, c"silent! normal! zE")
-                || !put_folds_recurse(fd, &(*wp).w_folds, 0)
+                || !put_folds_recurse(fd, &wp.w_folds, 0)
                 || !put_line(fd, c"let &fdl = &fdl"))
         {
             return false;
         }
 
-        if (*wp).w_fold_manual {
-            return put_foldopen_recurse(fd, wp, &(*wp).w_folds, 0);
+        if wp.w_fold_manual {
+            return put_foldopen_recurse(fd, (&raw mut *wp), &wp.w_folds, 0);
         }
 
         true
@@ -2689,7 +2689,7 @@ fn foldclosed_both(argvars: &mut [typval_T], rettv: &mut typval_T, end: bool) {
         if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
             let mut first: linenr_T = 0;
             let mut last: linenr_T = 0;
-            if hasFoldingWin(curwin_ptr(), lnum, Some(&mut first), &mut last, false, None) {
+            if hasFoldingWin(curwin_mut(), lnum, Some(&mut first), &mut last, false, None) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(if end { last } else { first }));
                 return;
             }
@@ -2786,7 +2786,7 @@ pub fn f_foldtextresult(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
         if info.fi_lines > 0 {
             let mut vt: VirtText = Vec::new();
             let mut text_bytes =
-                get_foldtext(curwin_ptr(), lnum, lnum + info.fi_lines - 1, info, &mut vt).into_bytes();
+                get_foldtext(curwin_mut(), lnum, lnum + info.fi_lines - 1, info, &mut vt).into_bytes();
             if !vt.is_empty() {
                 debug_assert!(text_bytes.is_empty());
                 let mut i: usize = 0;

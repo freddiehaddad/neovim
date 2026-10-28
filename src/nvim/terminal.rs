@@ -1063,7 +1063,7 @@ pub fn terminal_check_size(term: &mut Terminal) {
         let mut height: u16 = 0;
 
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(tp) {
+            for wp in for_all_windows_in_tab_ptr( &*tp) {
                 if !is_ctx_win(wp)
                     && !(*wp).w_buffer.is_null()
                     && (*wp).buf_mut().terminal == term
@@ -1345,7 +1345,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
         terminal_check_refresh();
 
         terminal_check_cursor();
-        validate_cursor(curwin_ptr());
+        validate_cursor(curwin_mut());
 
         (*s.term).refcount += 1;
         if has_event(EVENT_TEXTCHANGEDT)
@@ -1370,7 +1370,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
             return 0;
         }
         terminal_check_cursor();
-        validate_cursor(curwin_ptr());
+        validate_cursor(curwin_mut());
 
         show_cursor_info_later(false);
         if g_st().must_redraw != 0 {
@@ -2421,10 +2421,10 @@ fn refresh_terminal(term: &mut Terminal) {
 
         if resized {
             for tp in for_all_tabpages_ptr() {
-                for wp in for_all_windows_in_tab_ptr(tp) {
+                for wp in for_all_windows_in_tab_ptr( &*tp) {
                     if (*wp).w_buffer == buf && (*wp).w_leftcol != 0 {
                         (*wp).w_leftcol = 0;
-                        curs_columns(wp, 1);
+                        curs_columns( &mut *wp, 1);
                     }
                 }
             }
@@ -2594,7 +2594,7 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
         while term.sb_pending > 0 {
             fetch_row(term, -term.sb_pending, width);
             let buf_index = buf.b_ml.ml_line_count - old_height;
-            ml_append_buf(&raw mut *buf, buf_index, textbuf_ptr, 0, false);
+            ml_append_buf(buf, buf_index, textbuf_ptr, 0, false);
             appended_lines_buf(&raw mut *buf, buf_index, 1);
             term.sb_pending -= 1;
         }
@@ -2638,7 +2638,7 @@ fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
                 ml_replace_buf(&raw mut *buf, linenr, textbuf_ptr, true, false);
                 changed += 1;
             } else {
-                ml_append_buf(&raw mut *buf, linenr - 1, textbuf_ptr, 0, false);
+                ml_append_buf(buf, linenr - 1, textbuf_ptr, 0, false);
                 added += 1;
             }
             r += 1;
@@ -2658,7 +2658,7 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
         let ml_end = buf.b_ml.ml_line_count;
 
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(tp) {
+            for wp in for_all_windows_in_tab_ptr( &*tp) {
                 if (*wp).w_buffer == buf {
                     if wp == curwin_ptr() && is_focused(term) {
                         terminal_check_cursor();

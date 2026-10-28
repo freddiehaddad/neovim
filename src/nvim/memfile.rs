@@ -267,7 +267,7 @@ pub fn mf_get(mfp: &mut memfile_T, nr: blocknr_T, page_count: c_uint) -> *mut bh
 }
 
 /// Release the block `*hp`.
-pub fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
+pub fn mf_put(mfp: &mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
     unsafe {
         let mut flags = (*hp).bh_flags;
 
@@ -277,13 +277,13 @@ pub fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
         flags &= !BH_LOCKED;
         if dirty {
             flags |= BH_DIRTY;
-            if (*mfp).mf_dirty != MF_DIRTY_YES_NOSYNC {
-                (*mfp).mf_dirty = MF_DIRTY_YES;
+            if mfp.mf_dirty != MF_DIRTY_YES_NOSYNC {
+                mfp.mf_dirty = MF_DIRTY_YES;
             }
         }
         (*hp).bh_flags = flags;
         if infile {
-            let _ = mf_trans_add( &mut *mfp,  &mut *hp);
+            let _ = mf_trans_add( mfp,  &mut *hp);
         }
     }
 }
@@ -335,7 +335,7 @@ pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> bool {
                 if (flags & MFS_ZERO) != 0 && (*hp).bh_bnum != 0 {
                     continue;
                 }
-                if !mf_write(mfp, hp) {
+                if !mf_write(mfp,  &mut *hp) {
                     if !status {
                         completed_all = false;
                         break;
@@ -404,7 +404,7 @@ pub fn mf_release_all() -> bool {
                         .collect();
                     for hp in blocks {
                         if ((*hp).bh_flags & BH_LOCKED) == 0
-                            && (((*hp).bh_flags & BH_DIRTY) == 0 || mf_write(&mut *mfp, hp))
+                            && (((*hp).bh_flags & BH_DIRTY) == 0 || mf_write(&mut *mfp,  &mut *hp))
                         {
                             let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
                             retval = true;
@@ -456,25 +456,25 @@ fn mf_read(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
     }
 }
 
-fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
+fn mf_write(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
     unsafe {
         if mfp.mf_fd < 0 && !mfp.mf_reopen {
             return false;
         }
 
-        if (*hp).bh_bnum < 0 && !mf_trans_add(&mut *mfp,  &mut *hp) {
+        if hp.bh_bnum < 0 && !mf_trans_add(&mut *mfp,  hp) {
             return false;
         }
 
         let page_size = mfp.mf_page_size;
 
         loop {
-            let mut nr = (*hp).bh_bnum;
+            let mut nr = hp.bh_bnum;
             let hp2: *mut bhdr_T = if nr > mfp.mf_infile_count {
                 nr = mfp.mf_infile_count;
                 pmap_get_bhdr(&mfp.mf_hash, nr)
             } else {
-                hp
+                (&raw mut *hp)
             };
 
             let offset = i64::from(page_size).wrapping_mul(nr);
@@ -492,7 +492,7 @@ fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
                         return false;
                     }
                     let data = if hp2.is_null() {
-                        (*hp).data_ptr()
+                        hp.data_ptr()
                     } else {
                         (*hp2).data_ptr()
                     };
@@ -535,7 +535,7 @@ fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
             if nr + i64::from(page_count) > mfp.mf_infile_count {
                 mfp.mf_infile_count = nr + i64::from(page_count);
             }
-            if nr == (*hp).bh_bnum {
+            if nr == hp.bh_bnum {
                 break;
             }
         }
@@ -663,12 +663,12 @@ mod tests {
             let hp1 = mf_new(mfp, true, 1);
             assert!(!hp1.is_null());
             assert_eq!((*hp1).bh_bnum, -1);
-            mf_put(mfp, hp1, true, true);
+            mf_put( &mut *mfp, hp1, true, true);
             assert_eq!(mf_trans_del(mfp, -1), 0);
 
             let hp2 = mf_get(mfp, 0, 1);
             assert_eq!(hp2, hp1);
-            mf_put(mfp, hp2, false, false);
+            mf_put( &mut *mfp, hp2, false, false);
             mf_free(mfp, &mut *hp2);
 
             mf_close(Some(mfp_box), false);

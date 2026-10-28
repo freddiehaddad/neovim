@@ -311,7 +311,7 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                     if !g_st().exiting {
                         redirect_stderr_to_null();
                     }
-                    channel_decref(chan);
+                    channel_decref( &mut *chan);
                 }
             }
             kChannelStreamInternal => {
@@ -329,7 +329,7 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                     terminal_close(&raw mut (*chan).term, 0);
                     (*chan).exit_status = 0;
                 } else {
-                    channel_decref(chan);
+                    channel_decref( &mut *chan);
                 }
             }
             _ => {}
@@ -404,17 +404,17 @@ pub fn channel_incref(chan: &mut Channel) {
     chan.refcount += 1;
 }
 
-pub fn channel_decref(chan: *mut Channel) {
+pub fn channel_decref(chan: &mut Channel) {
     unsafe {
-        if (*chan).refcount == 1 && !(*chan).did_close_event {
-            (*chan).did_close_event = true;
-            channel_event(chan, EVENT_CHANCLOSE);
+        if chan.refcount == 1 && !chan.did_close_event {
+            chan.did_close_event = true;
+            channel_event((&raw mut *chan), EVENT_CHANCLOSE);
         }
 
-        (*chan).refcount -= 1;
-        if (*chan).refcount == 0 {
+        chan.refcount -= 1;
+        if chan.refcount == 0 {
             let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
-            multiqueue_put_event((*qc).events, Event::ChannelFree(chan));
+            multiqueue_put_event((*qc).events, Event::ChannelFree(&raw mut *chan));
         }
     }
 }
@@ -639,7 +639,7 @@ pub fn channel_connect(
         );
 
         if !connected {
-            channel_decref(channel);
+            channel_decref( &mut *channel);
             return 0;
         }
 
@@ -661,7 +661,7 @@ pub fn channel_connect(
 }
 
 /// Creates an RPC channel from a tcp/pipe socket connection.
-pub fn channel_from_connection(watcher: *mut SocketWatcher) {
+pub fn channel_from_connection(watcher: &mut SocketWatcher) {
     unsafe {
         let channel = channel_alloc(kChannelStreamSocket);
         let socket_stream = &raw mut (*channel).socket;
@@ -674,7 +674,7 @@ pub fn channel_from_connection(watcher: *mut SocketWatcher) {
         wstream_init(&mut (*socket_stream).s, 0);
         rstream_init(&mut *socket_stream);
         rpc_start(&mut *channel);
-        channel_create_event(&mut *channel, (*watcher).addr.as_ptr());
+        channel_create_event(&mut *channel, watcher.addr.as_ptr());
     }
 }
 
@@ -892,7 +892,7 @@ pub fn on_channel_event(chan: &mut Channel) {
             channel_incref(chan);
         }
 
-        channel_decref(&raw mut *chan);
+        channel_decref(chan);
     }
 }
 
@@ -967,7 +967,7 @@ pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan: &mut C
             chan.exit_status = status;
         }
 
-        channel_decref(&raw mut *chan);
+        channel_decref(chan);
     }
 }
 
@@ -1132,7 +1132,7 @@ pub fn term_delayed_free(chan: &mut Channel) {
         if !chan.term.is_null() {
             terminal_destroy(&raw mut chan.term);
         }
-        channel_decref(&raw mut *chan);
+        channel_decref(chan);
     }
 }
 
@@ -1143,7 +1143,7 @@ pub fn channel_term_close(chan: &mut Channel) {
             terminal_destroy(&raw mut chan.term);
             crate::lua::executor::api_free_luaref((*internal).cb);
             (*internal).cb = LUA_NOREF;
-            channel_decref(&raw mut *chan);
+            channel_decref(chan);
             return;
         }
         proc_stop(&mut chan.uv.proc_);
@@ -1188,7 +1188,7 @@ pub fn set_info_event(chan: &mut Channel, event: event_T) {
 
         restore_v_event(&mut *dict, &mut save_v_event);
         arena_mem_free(arena_finish(&mut arena));
-        channel_decref(&raw mut *chan);
+        channel_decref(chan);
     }
 }
 

@@ -576,7 +576,7 @@ pub fn dict_set_var(
                 if retval {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
                 }
-                tv_dict_item_remove(&mut *dict, di);
+                tv_dict_item_remove(&mut *dict,  &mut *di);
             }
         } else {
             let mut tv: typval_T = typval_T::new();

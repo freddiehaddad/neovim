@@ -1924,7 +1924,7 @@ pub fn buf_write(
                         && (overwriting || !vim_strchr(opt_vars().p_cpo, kCpoPlus).is_null())
                         && buf_get_changedtick(&*buf) == write_tick
                     {
-                        unchanged(buf, true, false);
+                        unchanged( &mut *buf, true, false);
                         let changedtick = buf_get_changedtick(&*buf);
                         if (*buf).b_last_changedtick + 1 == changedtick {
                             (*buf).b_last_changedtick = changedtick;
@@ -2072,7 +2072,7 @@ pub fn buf_write(
         if retval == OK && write_undo_file {
             let mut hash = [0u8; UNDO_HASH_SIZE];
             sha_ctx.finish_into(&mut hash);
-            u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
+            u_write_undo(ptr::null(), false,  &mut *buf, hash.as_mut_ptr());
         }
 
         if !should_abort(retval) {

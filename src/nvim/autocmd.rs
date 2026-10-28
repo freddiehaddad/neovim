@@ -2646,10 +2646,10 @@ pub fn deferred_optionset_modified(bufnr: c_int, new_val: bool) {
         }
 }
 
-pub fn aucmd_defer_modified(buf: *mut buf_T, new_val: bool) {
+pub fn aucmd_defer_modified(buf: &mut buf_T, new_val: bool) {
     unsafe {
         if !has_event(EVENT_OPTIONSET)
-            || (bt_nofile(buf) && (*buf).b_p_bl == 0)
+            || (bt_nofile(&raw mut *buf) && buf.b_p_bl == 0)
             || *get_vim_var_str(VV_OPTION_TYPE) != NUL
         {
             return;
@@ -2657,7 +2657,7 @@ pub fn aucmd_defer_modified(buf: *mut buf_T, new_val: bool) {
         multiqueue_put_event(
             g_st().deferred_events,
             Event::AutoCmdOptionSetModified {
-                bufnr: (*buf).b_fnum,
+                bufnr: buf.b_fnum,
                 new_val,
             },
         );
@@ -2846,7 +2846,7 @@ pub fn apply_autocmds_group(
             {
                 win_ignore = true;
                 for tp in for_all_tabpages_ptr() {
-                    for wp in for_all_windows_in_tab_mut(tp) {
+                    for wp in for_all_windows_in_tab_mut( &*tp) {
                         if wp.w_buffer == buf && !event_ignored(event, wp.w_onebuf_opt.wo_eiw)
                         {
                             win_ignore = false;

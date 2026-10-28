@@ -1401,7 +1401,7 @@ pub fn nvim_buf_clear_namespace(
             line_end = MAXLNUM;
         }
         extmark_clear(
-            b,
+            unsafe { &mut *b },
             if ns_id < 0 { 0 } else { ns_id as u32 },
             line_start as c_int,
             0,
@@ -1730,7 +1730,7 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
             }
 
             for tp in for_all_tabpages_ptr() {
-                for wp in for_all_windows_in_tab_ptr(tp) {
+                for wp in for_all_windows_in_tab_ptr( &*tp) {
                     if windows.contains(&wp)
                         && (*wp).w_ns_set.insert(ns_id as u32)
                         && (*wp).buf_mut().b_extmark_ns.contains_key(&(ns_id as u32))
@@ -1753,7 +1753,7 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
             || (!set_scoped && (*local_ptr).remove(&(ns_id as u32)))
         {
             for tp in for_all_tabpages_ptr() {
-                for wp in for_all_windows_in_tab_mut(tp) {
+                for wp in for_all_windows_in_tab_mut( &*tp) {
                     if wp.buf_mut().b_extmark_ns.contains_key(&(ns_id as u32)) {
                         changed_window_setting(wp);
                     }
@@ -1792,7 +1792,7 @@ pub fn nvim__ns_get(
         let mut count = 0usize;
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for wp in for_all_windows_in_tab_mut(tp) {
+            for wp in for_all_windows_in_tab_mut( &*tp) {
                 if wp.w_ns_set.contains(&(ns_id as u32)) {
                     count += 1;
                 }
@@ -1804,7 +1804,7 @@ pub fn nvim__ns_get(
 
         tp = g_st().first_tabpage;
         while !tp.is_null() {
-            for wp in for_all_windows_in_tab_mut(tp) {
+            for wp in for_all_windows_in_tab_mut( &*tp) {
                 if wp.w_ns_set.contains(&(ns_id as u32)) {
                     windows.push(integer_obj(i64::from(wp.handle)));
                 }

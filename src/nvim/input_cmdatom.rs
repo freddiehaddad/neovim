@@ -600,14 +600,14 @@ fn atom_from_cmdline(
     }
 }
 
-fn atom_from_frame(ca: &mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
+fn atom_from_frame(ca: &mut cmdarg_T, frame: &mut CmdFrame) -> CmdAtom {
     unsafe {
         let root = root_frame();
         let mut atom = CmdAtom::default();
         if let Some(ref cmdline) = (*root).cmdline
             && (ca.cmdchar == b':' as c_int || ca.cmdchar == K_COMMAND)
         {
-            atom = atom_from_cmdline(kAExcmd, ca, cmdline.as_ptr(), (*frame).visual.active);
+            atom = atom_from_cmdline(kAExcmd, ca, cmdline.as_ptr(), frame.visual.active);
         } else if ca.cmdchar == K_LUA {
             let mut lua_id = [0 as c_char; NUMBUFLEN];
             vim_snprintf!(
@@ -616,9 +616,9 @@ fn atom_from_frame(ca: &mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
                 c"%d",
                 g_st().repeat_luamap,
             );
-            atom = atom_from_cmdline(kANormal, ca, lua_id.as_ptr(), (*frame).visual.active);
+            atom = atom_from_cmdline(kANormal, ca, lua_id.as_ptr(), frame.visual.active);
         }
-        atom_payload_append(&mut atom,  &mut *frame);
+        atom_payload_append(&mut atom,  frame);
         atom
     }
 }
@@ -1817,7 +1817,7 @@ pub fn atom_cmd_start(cmdchar: c_int) {
     }
 }
 
-fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> bool {
+fn atom_capture_cmd(ca: &mut cmdarg_T, old: &mut CmdFrame, is_root: bool) -> bool {
     unsafe {
         if mc_replaying() || atom_st().atom_suppressed {
             return false;
@@ -1828,26 +1828,26 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
         let keycls = atom_key_class(ca.cmdchar, ca.nchar, ca.extra_char);
         let opaque = (keycls & kKeyOpaque) != 0;
         let synthetic = (keycls & kKeySynthetic) != 0;
-        let unchanged = g_st().curbuf == (*old).origin.buf.br_buf
-            && ptr::eq((curwin_ptr()).cast_const(), (*old).origin.win)
-            && !atom_origin_moved((*old).origin)
-            && !atom_origin_changed((*old).origin)
-            && g_st().Visual.active == (*old).visual.active
+        let unchanged = g_st().curbuf == old.origin.buf.br_buf
+            && ptr::eq((curwin_ptr()).cast_const(), old.origin.win)
+            && !atom_origin_moved(old.origin)
+            && !atom_origin_changed(old.origin)
+            && g_st().Visual.active == old.visual.active
             && (!g_st().Visual.active
-                || (equalpos((*old).visual.start, g_st().Visual.start)
-                    && (*old).visual.mode == g_st().Visual.mode));
+                || (equalpos(old.visual.start, g_st().Visual.start)
+                    && old.visual.mode == g_st().Visual.mode));
         if opaque
             && unchanged
-            && !(atom_visual_pending() && atom_st().frame_id > (*old).id)
-            && (*root).redo_frame != (*old).id
+            && !(atom_visual_pending() && atom_st().frame_id > old.id)
+            && (*root).redo_frame != old.id
         {
             return false;
         }
         let ins_cascaded = user && mc_ins_cascaded((*root).id);
-        let mapped = user && !(*old).keytyped && !synthetic;
+        let mapped = user && !old.keytyped && !synthetic;
         if mapped
-            && atom_st().global_ops == (*old).global_ops
-            && ((g_st().curbuf == (*old).origin.buf.br_buf && atom_origin_changed((*old).origin))
+            && atom_st().global_ops == old.global_ops
+            && ((g_st().curbuf == old.origin.buf.br_buf && atom_origin_changed(old.origin))
                 || ins_cascaded)
         {
             atom_st().map_edit = true;
@@ -1856,15 +1856,15 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
         let child = is_child_frame();
         let mut vis = false;
         if g_st().Visual.active && !child {
-            if !(*old).visual.active && atom_st().vatom.frame <= (*old).id {
+            if !old.visual.active && atom_st().vatom.frame <= old.id {
                 atom_visual_reset();
                 atom_st().vatom.state = kVatomFed;
-                atom_st().vatom.origin = (*old).origin;
+                atom_st().vatom.origin = old.origin;
             }
             if atom_visual_pending()
                 && user
                 && !synthetic
-                && ((*old).keytyped || atom_composite_active())
+                && (old.keytyped || atom_composite_active())
             {
                 atom_st().vatom.state = (atom_st().vatom.state & kVatomVoid) | kVatomTyped;
             }
@@ -1878,7 +1878,7 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
             {
                 atom_st().vatom.state |= kVatomVoid;
             }
-        } else if (*old).visual.active && !child {
+        } else if old.visual.active && !child {
             let mut own = if atom_visual_pending() {
                 atom_from_frame(ca, old)
             } else {
@@ -1902,13 +1902,13 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
 
         let v_atoms = &raw const atom_st().vatom.atoms;
         if (vis
-            && atom_st().vatom.frame <= (*old).id
-            && atom_st().atom_captures == (*old).captures
+            && atom_st().vatom.frame <= old.id
+            && atom_st().atom_captures == old.captures
             && (*ca.oap).op_type == OP_NOP)
             || (!g_st().Visual.active
-                && !(*old).visual.active
-                && atom_capturable((*old).consumers, (*old).keytyped)
-                && atom_st().atom_captures == (*old).captures
+                && !old.visual.active
+                && atom_capturable(old.consumers, old.keytyped)
+                && atom_st().atom_captures == old.captures
                 && !atom_staged()
                 && (*ca.oap).op_type == OP_NOP
                 && stuff_empty()
@@ -1927,24 +1927,24 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
                 && ca.cmdchar != b'@' as c_int
                 && !scroll_cmd)
                 || special_motion;
-            let changed = atom_origin_changed((*old).origin);
+            let changed = atom_origin_changed(old.origin);
             let motion = (nv_is(ca.cmdchar, NV_MOTION) || special_motion)
                 && !changed
                 && !g_st().finish_op
                 && !jump_cmd;
-            let failed = g_st().did_beep != (*old).beeps && !atom_origin_moved((*old).origin);
+            let failed = g_st().did_beep != old.beeps && !atom_origin_moved(old.origin);
             let follow = (mc_following() || mapped) && motion && !failed;
 
-            if (*root).redo_frame == (*old).id && !mouse_cmd {
+            if (*root).redo_frame == old.id && !mouse_cmd {
                 let mut atom = atom_from_redo(kAOperator);
-                atom_payload_append(&mut atom,  &mut *old);
+                atom_payload_append(&mut atom,  old);
 
                 let effect = (changed
-                    || reg_max_ts(true) > (*old).reg_ts
-                    || (mc_following() && atom_origin_moved((*old).origin)))
-                    && atom_st().global_ops == (*old).global_ops;
+                    || reg_max_ts(true) > old.reg_ts
+                    || (mc_following() && atom_origin_moved(old.origin)))
+                    && atom_st().global_ops == old.global_ops;
                 if atom.keys.as_ref().is_some_and(|k| !k.as_bytes().is_empty()) {
-                    atom.origin = (*old).origin;
+                    atom.origin = old.origin;
                     atom_push(effect, &mut atom);
                 }
             } else if ca.searchbuf.is_some()
@@ -1952,15 +1952,15 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
                 && !(vis && unchanged)
             {
                 let mut atom =
-                    atom_from_cmdline(kAMotion, ca, ca.searchbuf_ptr(), (*old).visual.active);
-                atom.origin = (*old).origin;
+                    atom_from_cmdline(kAMotion, ca, ca.searchbuf_ptr(), old.visual.active);
+                atom.origin = old.origin;
                 atom_push(false, &mut atom);
             } else if ((*root).cmdline.is_some()
                 && (ca.cmdchar == b':' as c_int || ca.cmdchar == K_COMMAND))
                 || (vis && ca.cmdchar == K_LUA)
             {
                 let mut atom = atom_from_frame(ca, old);
-                atom.origin = (*old).origin;
+                atom.origin = old.origin;
                 atom_push(false, &mut atom);
             } else if replayable && (!vis || ((keycls & kKeyPayload) == 0 && !failed)) {
                 let mut spec = atom_cmd_spec(ca);
@@ -1977,7 +1977,7 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
                     },
                     spec,
                 );
-                atom.origin = (*old).origin;
+                atom.origin = old.origin;
                 atom_push(follow, &mut atom);
                 if jump_cmd && atom_composite_active() {
                     atom_st().composite.queued = true;
@@ -1988,7 +1988,7 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
                     spec.count = 0;
                 }
                 let mut atom = atom_from_spec(if scroll_cmd { kAScroll } else { kAMouse }, spec);
-                atom.origin = (*old).origin;
+                atom.origin = old.origin;
                 atom_push(false, &mut atom);
             }
             if vis && (*v_atoms).len() == collected && !unchanged {
@@ -1997,8 +1997,8 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
         }
 
         if vis
-            && (g_st().curbuf != (*old).origin.buf.br_buf
-                || (atom_origin_changed((*old).origin) && atom_st().vatom.frame != (*old).id))
+            && (g_st().curbuf != old.origin.buf.br_buf
+                || (atom_origin_changed(old.origin) && atom_st().vatom.frame != old.id))
         {
             atom_st().vatom.state |= kVatomVoid;
         }
@@ -2019,7 +2019,7 @@ pub fn atom_cmd_end(ca: &mut cmdarg_T) {
         {
             atom_st().composite.follow = if (*old).follow { kTrue } else { kFalse };
         }
-        let refresh_visual = atom_capture_cmd(ca, old, is_root);
+        let refresh_visual = atom_capture_cmd(ca,  &mut *old, is_root);
         atom_stage_flush(&mut *old);
         if atom_composite_active()
             && (*old).payload_start != usize::MAX

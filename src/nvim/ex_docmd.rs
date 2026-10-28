@@ -5608,7 +5608,7 @@ fn current_win_nr(win: *const win_T,cmdarg: Option<&exarg_T>) -> c_int {
         let mut nr = 0;
 
         for wp in for_all_windows_ptr() {
-            let include_this = nonnr || win_has_winnr(&mut *wp, g_st().curtab);
+            let include_this = nonnr || win_has_winnr(&mut *wp, curtab_mut());
             nr += c_int::from(include_this);
             if ptr::eq(wp, win) {
                 if !include_this {
@@ -7893,7 +7893,7 @@ pub fn get_address(
                             };
                             if searchit(
                                 curwin_ptr(),
-                                g_st().curbuf,
+                                curbuf_mut(),
                                 &raw mut pos,
                                 None,
                                 if *cmd == b'?' as c_char {
@@ -8979,7 +8979,7 @@ pub fn not_exiting(save_exiting: bool) {
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
 }
 
-pub fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bool {
+pub fn before_quit_autocmds(wp: &mut win_T, quit_all: bool, forceit: bool) -> bool {
     unsafe {
         if *get_vim_var_str(VV_EXITREASON) == NUL {
             set_vim_var_string(VV_EXITREASON, c"quit", 4);
@@ -8989,13 +8989,13 @@ pub fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bo
             ptr::null_mut(),
             ptr::null_mut(),
             false,
-            (*wp).w_buffer,
-            wp,
+            wp.w_buffer,
+            (&raw mut *wp),
         );
 
-        if !win_valid(wp)
+        if !win_valid(&raw mut *wp)
             || curbuf_locked()
-            || ((*wp).buf_mut().b_nwindows == 1 && (*wp).buf_mut().b_locked > 0)
+            || (wp.buf_mut().b_nwindows == 1 && wp.buf_mut().b_locked > 0)
         {
             set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
             return true;
@@ -9009,7 +9009,7 @@ pub fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bo
                 false,
                 g_st().curbuf,
             );
-            if !win_valid(wp)
+            if !win_valid(&raw mut *wp)
                 || curbuf_locked()
                 || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
             {
@@ -9048,7 +9048,7 @@ fn ex_quit(eap: &mut exarg_T) {
             return;
         }
 
-        if before_quit_autocmds(wp, false, eap.forceit != 0) {
+        if before_quit_autocmds( &mut *wp, false, eap.forceit != 0) {
             return;
         }
 
@@ -9097,7 +9097,7 @@ pub fn before_quit_all(eap: &mut exarg_T) -> bool {
             text_locked_msg();
             return false;
         }
-        if before_quit_autocmds(curwin_ptr(), true, eap.forceit != 0) {
+        if before_quit_autocmds(curwin_mut(), true, eap.forceit != 0) {
             return false;
         }
         true
@@ -9846,7 +9846,7 @@ fn ex_exit(eap: &mut exarg_T) {
         }
         if ((eap.cmdidx == cmdidx_T::CMD_wq as c_int || curbufIsChanged())
             && !do_write(eap))
-            || before_quit_autocmds(curwin_ptr(), false, eap.forceit != 0)
+            || before_quit_autocmds(curwin_mut(), false, eap.forceit != 0)
             || !check_more(true, eap.forceit != 0)
             || (only_one_window() && check_changed_any(eap.forceit != 0, false))
         {
@@ -9906,7 +9906,7 @@ fn ex_recover(eap: &mut exarg_T) {
                 | CCGD_MULTWIN
                 | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
                 | CCGD_EXCMD,
-        ) && (*eap.arg == NUL || setfname(g_st().curbuf, eap.arg, ptr::null_mut(), true))
+        ) && (*eap.arg == NUL || setfname(curbuf_mut(), eap.arg, ptr::null_mut(), true))
         {
             ml_recover(true);
         }
@@ -11351,7 +11351,7 @@ fn ex_wundo(eap: &mut exarg_T) {
      {
         let mut hash = [0u8; UNDO_HASH_SIZE];
         u_compute_hash(curbuf_mut(), hash.as_mut_ptr());
-        u_write_undo(eap.arg, eap.forceit != 0, g_st().curbuf, hash.as_mut_ptr());
+        u_write_undo(eap.arg, eap.forceit != 0, curbuf_mut(), hash.as_mut_ptr());
     }
 }
 
@@ -11501,8 +11501,8 @@ fn ex_redraw(eap: &mut exarg_T) {
 
         g_st().RedrawingDisabled = 0;
         opt_vars().p_lz = 0;
-        validate_cursor(curwin_ptr());
-        update_topline(curwin_ptr());
+        validate_cursor(curwin_mut());
+        update_topline(curwin_mut());
         if eap.forceit != 0 {
             redraw_all_later(UPD_NOT_VALID);
             g_st().redraw_cmdline = true;
@@ -11637,9 +11637,9 @@ fn ex_mark(eap: &mut exarg_T) {
 pub fn update_topline_cursor() {
      {
         check_cursor(curwin_mut());
-        update_topline(curwin_ptr());
+        update_topline(curwin_mut());
         if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-            validate_cursor(curwin_ptr());
+            validate_cursor(curwin_mut());
         }
         update_curswant();
     }
@@ -11756,7 +11756,7 @@ fn ex_normal(eap: &mut exarg_T) {
                 curwin_mut().w_cursor.lnum = eap.line1;
                 eap.line1 += 1;
                 curwin_mut().w_cursor.col = 0;
-                check_cursor_moved(curwin_ptr());
+                check_cursor_moved(curwin_mut());
             }
 
             exec_normal_cmd(
@@ -11973,7 +11973,7 @@ fn prepare_preview_window() {
 fn back_to_current_window(curwin_save: *mut win_T) {
      {
         if curwin_ptr() != curwin_save && win_valid(curwin_save) {
-            validate_cursor(curwin_ptr());
+            validate_cursor(curwin_mut());
             redraw_later(curwin_ptr(), UPD_VALID);
             win_enter(curwin_save, true);
         }

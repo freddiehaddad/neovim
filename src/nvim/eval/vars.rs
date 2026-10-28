@@ -2082,7 +2082,7 @@ fn do_unlet_var(
                 key = Some(cstr_to_cstring((*di).di_key.as_ptr()));
             }
 
-            tv_dict_item_remove(&mut *d, di);
+            tv_dict_item_remove(&mut *d,  &mut *di);
 
             if let Some(ref k) = key {
                 tv_dict_watcher_notify(&mut *d, k.as_ptr(), ptr::null_mut(), Some(&oldtv));

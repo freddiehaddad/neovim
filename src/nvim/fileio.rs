@@ -2982,7 +2982,7 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> bool {
             return false;
         }
 
-        if setfname(g_st().curbuf, fname, sfname, false) {
+        if setfname(curbuf_mut(), fname, sfname, false) {
             curbuf_mut().b_flags |= BF_NOTEDITED;
         }
 
@@ -3719,14 +3719,14 @@ pub fn check_timestamps(focus: c_int) -> c_int {
 }
 
 /// Move all the lines from buffer "frombuf" to buffer "tobuf".
-fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> bool {
-    unsafe {
+fn move_lines(frombuf: &mut buf_T, tobuf: *mut buf_T) -> bool {
+     {
         let tbuf = g_st().curbuf;
         let mut retval = true;
 
         g_st().curbuf = tobuf;
-        for lnum in 1..=(*frombuf).b_ml.ml_line_count {
-            let p = crate::memory::cstr_to_cstring(ml_get_buf(frombuf, lnum));
+        for lnum in 1..=frombuf.b_ml.ml_line_count {
+            let p = crate::memory::cstr_to_cstring(ml_get_buf((&raw mut *frombuf), lnum));
             if !ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) {
                 retval = false;
                 break;
@@ -3734,7 +3734,7 @@ fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> bool {
         }
 
         if retval {
-            g_st().curbuf = frombuf;
+            g_st().curbuf = (&raw mut *frombuf);
             let mut lnum = curbuf_mut().b_ml.ml_line_count;
             while lnum > 0 {
                 if !ml_delete(lnum) {
@@ -3967,7 +3967,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
             if bufref_valid(Some(&bufref)) && buf.b_p_udf != 0 && !buf.b_ffname.is_null() {
                 let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
                 u_compute_hash(buf, hash.as_mut_ptr());
-                u_write_undo(ptr::null(), false, &raw mut *buf, hash.as_mut_ptr());
+                u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
             }
         }
 
@@ -4010,7 +4010,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
 
         if opt_vars().p_ur < 0 || i64::from(curbuf_mut().b_ml.ml_line_count) <= opt_vars().p_ur {
             u_sync(false);
-            saved = if u_savecommon(g_st().curbuf, 0, curbuf_mut().b_ml.ml_line_count + 1, 0, true) { OK } else { FAIL };
+            saved = if u_savecommon(curbuf_mut(), 0, curbuf_mut().b_ml.ml_line_count + 1, 0, true) { OK } else { FAIL };
             flags |= READ_KEEP_UNDO;
         }
 
@@ -4029,7 +4029,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
             if savebuf.is_null()
                 || saved == FAIL
                 || buf != g_st().curbuf
-                || !move_lines(buf, savebuf)
+                || !move_lines( &mut *buf, savebuf)
             {
                 semsg!(
                     tr(c"E462: Could not prepare for reloading \"%s\""),
@@ -4065,10 +4065,10 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
                             break;
                         }
                     }
-                    move_lines(savebuf, buf);
+                    move_lines( &mut *savebuf, buf);
                 }
             } else if buf == g_st().curbuf {
-                unchanged(buf, true, true);
+                unchanged( &mut *buf, true, true);
                 if (flags & READ_KEEP_UNDO) == 0 {
                     u_clearallandblockfree(&mut *buf);
                 } else {
@@ -4089,11 +4089,11 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
         curwin_mut().w_topline = old_topline.min(curbuf_mut().b_ml.ml_line_count);
         curwin_mut().w_cursor = old_cursor;
         check_cursor(curwin_mut());
-        update_topline(curwin_ptr());
+        update_topline(curwin_mut());
         curbuf_mut().b_keep_filetype = false;
 
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(tp) {
+            for wp in for_all_windows_in_tab_mut( &*tp) {
                 if wp.w_buffer == curwin_mut().w_buffer && !foldmethodIsManual(wp) {
                     foldUpdateAll(wp);
                 }

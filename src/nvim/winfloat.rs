@@ -108,7 +108,7 @@ pub fn win_new_float(
                 win_tp
             };
             let mut dir: c_int = 0;
-            winframe_remove(wp, &mut dir, tp, ptr::null_mut());
+            winframe_remove( &mut *wp, &mut dir, tp, ptr::null_mut());
             if !(*wp).w_frame.is_null() {
                 drop(Box::from_raw((*wp).w_frame));
             }
@@ -231,7 +231,7 @@ pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
         wp.w_height = fconfig.height.max(1);
 
         if fconfig.relative == kFloatRelativeCursor {
-            validate_cursor(curwin_ptr());
+            validate_cursor(curwin_mut());
             fconfig.relative = kFloatRelativeWindow;
             fconfig.row += curwin_mut().w_wrow as f64;
             fconfig.col += curwin_mut().w_wcol as f64;
