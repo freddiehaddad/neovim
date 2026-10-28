@@ -1422,7 +1422,7 @@ pub fn utf_ptr2len(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn utf_byte2len(b: i32) -> i32 {
-    i32::from(UTF8LEN_TAB[b as usize])
+    i32::from(UTF8LEN_TAB[(b as u8) as usize])
 }
 
 pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
@@ -3054,7 +3054,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     let p = vim_strchr(s, b'.' as i32);
     if !p.is_null() {
         if p.cast_const() > s.wrapping_add(2)
-            && crate::memory::cstr_slice(p, (1) + (3))[1..].eq_ignore_ascii_case(b"EUC")
+            && crate::memory::cstr_prefix_bytes(p.wrapping_add(1), 3).eq_ignore_ascii_case(b"EUC")
             && !(crate::memory::cstr_byte_at(p, 4)).is_ascii_alphanumeric()
             && crate::memory::cstr_byte_at(p, 4) != b'-'
             && unsafe { *p.wrapping_sub(3) } == b'_' as c_char

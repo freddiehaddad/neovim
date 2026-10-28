@@ -1607,7 +1607,7 @@ fn add_byte_to_showcmd(byte: u8) {
         && unsafe { *ptr.wrapping_add(1) } == KS_MODIFIER
         && crate::memory::cstr_byte_at(ptr.cast(), 2) != 0_u8
     {
-        modifiers = crate::memory::cstr_char_at(ptr.cast(), 2);
+        modifiers = i32::from(crate::memory::cstr_byte_at(ptr.cast(), 2));
         ptr = ptr.wrapping_add(3);
     }
 
@@ -2089,14 +2089,14 @@ fn check_simplify_modifier(max_offset: i32) -> i32 {
         }
         let tp = tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize);
         if unsafe { *tp } == K_SPECIAL && unsafe { *tp.wrapping_add(1) } == KS_MODIFIER {
-            let mut modifier = crate::memory::cstr_char_at(tp.cast(), 2);
-            let c = crate::memory::cstr_char_at(tp.cast(), 3);
+            let mut modifier = i32::from(crate::memory::cstr_byte_at(tp.cast(), 2));
+            let c = i32::from(crate::memory::cstr_byte_at(tp.cast(), 3));
             let new_c = merge_modifiers(c, &mut modifier);
 
             if new_c != c {
                 if offset == 0 {
                     g_st().vgetc_char = c;
-                    g_st().vgetc_mod_mask = crate::memory::cstr_char_at(tp.cast(), 2);
+                    g_st().vgetc_mod_mask = i32::from(crate::memory::cstr_byte_at(tp.cast(), 2));
                 }
                 let mut new_string = [0u8; MB_MAXBYTES + 1];
                 let len = if is_special(new_c) {

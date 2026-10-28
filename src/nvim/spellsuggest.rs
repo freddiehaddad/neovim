@@ -861,7 +861,8 @@ pub fn spell_suggest_list(
         let word_bytes = unsafe {
             std::slice::from_raw_parts(stp.st_word.as_ptr().cast::<u8>(), stp.st_wordlen as usize)
         };
-        let tail_bytes = &crate::memory::cstr_as_bytes(sug.su_badptr)[stp.st_orglen as usize..];
+        let tail_bytes =
+            crate::memory::cstr_as_bytes(sug.su_badptr.wrapping_add(stp.st_orglen as usize));
         let mut bytes = Vec::with_capacity(word_bytes.len() + tail_bytes.len());
         bytes.extend_from_slice(word_bytes);
         bytes.extend_from_slice(tail_bytes);
@@ -968,9 +969,9 @@ fn spell_find_suggest(
             } else if crate::memory::cstr_prefix_bytes(buf_ptr, 5) == &b"file:"[..5] {
                 spell_suggest_file(su, buf_ptr.wrapping_add(5));
             } else if crate::memory::cstr_prefix_bytes(buf_ptr, 8) == &b"timeout:"[..8] {
-                sps_st().spell_suggest_timeout =
-                    crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(buf_ptr)[8..])
-                        as i32 as i64;
+                sps_st().spell_suggest_timeout = crate::charset::parse_i64_prefix(
+                    crate::memory::cstr_as_bytes(buf_ptr.wrapping_add(8)),
+                ) as i32 as i64;
             } else if !did_intern {
                 spell_suggest_intern(su, interactive);
                 if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
@@ -1224,7 +1225,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
             match state {
                 SugState::StateStart | SugState::StateNoprefix => {
                     arridx = stack[udepth].ts_arridx;
-                    let mut len = crate::memory::cstr_char_at(byts.cast(), arridx as usize);
+                    let mut len =
+                        i32::from(crate::memory::cstr_byte_at(byts.cast(), arridx as usize));
                     arridx += stack[udepth].ts_curi as Idx;
                     if stack[udepth].ts_prefixdepth == PFD_PREFIXTREE {
                         n = 0;
@@ -1301,7 +1303,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         && !pbyts.is_null()
                     {
                         n = stack[stack[udepth].ts_prefixdepth as usize].ts_arridx;
-                        len = crate::memory::cstr_char_at(pbyts.cast(), n as usize);
+                        len = i32::from(crate::memory::cstr_byte_at(pbyts.cast(), n as usize));
                         n += 1;
                         c = 0;
                         while c < len && *pbyts.wrapping_add((n + c) as usize) == 0 {
@@ -1758,7 +1760,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                     if !goto_del {
                         arridx = stack[udepth].ts_arridx;
                         if stack[udepth].ts_curi as i32
-                            > crate::memory::cstr_char_at(byts.cast(), arridx as usize)
+                            > i32::from(crate::memory::cstr_byte_at(byts.cast(), arridx as usize))
                         {
                             stack[udepth].ts_state =
                                 if stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry {
@@ -1769,7 +1771,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         } else {
                             arridx += stack[udepth].ts_curi as Idx;
                             stack[udepth].ts_curi += 1;
-                            c = crate::memory::cstr_char_at(byts.cast(), arridx as usize);
+                            c = i32::from(crate::memory::cstr_byte_at(
+                                byts.cast(),
+                                arridx as usize,
+                            ));
                             let newscore = if c
                                 == crate::memory::cstr_byte_at(
                                     fword,
@@ -1926,7 +1931,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             n = stack[udepth].ts_arridx;
                             loop {
                                 if stack[udepth].ts_curi as i32
-                                    > crate::memory::cstr_char_at(byts.cast(), n as usize)
+                                    > i32::from(crate::memory::cstr_byte_at(
+                                        byts.cast(),
+                                        n as usize,
+                                    ))
                                 {
                                     stack[udepth].ts_state = SugState::StateSwap;
                                     break;
@@ -1945,7 +1953,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                 SugState::StateIns => {
                     n = stack[udepth].ts_arridx;
                     if stack[udepth].ts_curi as i32
-                        > crate::memory::cstr_char_at(byts.cast(), n as usize)
+                        > i32::from(crate::memory::cstr_byte_at(byts.cast(), n as usize))
                     {
                         stack[udepth].ts_state = SugState::StateSwap;
                         continue;
@@ -1956,7 +1964,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                         g_st().got_int = true;
                         continue;
                     }
-                    c = crate::memory::cstr_char_at(byts.cast(), n as usize);
+                    c = i32::from(crate::memory::cstr_byte_at(byts.cast(), n as usize));
                     let newscore =
                         if soundfold && stack[udepth].ts_twordlen == 0 && c == b'*' as i32 {
                             2 * SCORE_INS / 3
@@ -2320,7 +2328,8 @@ fn find_keepcap_word(
                     };
                     let mut tryidx = arridx[udepth];
                     while l > 0 {
-                        let len = crate::memory::cstr_char_at(byts.cast(), tryidx as usize);
+                        let len =
+                            i32::from(crate::memory::cstr_byte_at(byts.cast(), tryidx as usize));
                         tryidx += 1;
                         let c = crate::memory::cstr_first_byte(p) as i32;
                         p = p.wrapping_add(1);
@@ -2328,9 +2337,14 @@ fn find_keepcap_word(
                         let mut hi = tryidx + len - 1;
                         while lo < hi {
                             let m = (lo + hi) / 2;
-                            if (crate::memory::cstr_char_at(byts.cast(), m as usize)) > c {
+                            if (i32::from(crate::memory::cstr_byte_at(byts.cast(), m as usize))) > c
+                            {
                                 hi = m - 1;
-                            } else if (crate::memory::cstr_char_at(byts.cast(), m as usize)) < c {
+                            } else if (i32::from(crate::memory::cstr_byte_at(
+                                byts.cast(),
+                                m as usize,
+                            ))) < c
+                            {
                                 lo = m + 1;
                             } else {
                                 lo = m;
@@ -2338,7 +2352,9 @@ fn find_keepcap_word(
                                 break;
                             }
                         }
-                        if hi < lo || crate::memory::cstr_char_at(byts.cast(), lo as usize) != c {
+                        if hi < lo
+                            || i32::from(crate::memory::cstr_byte_at(byts.cast(), lo as usize)) != c
+                        {
                             break;
                         }
                         tryidx = unsafe { *idxs.wrapping_add(lo as usize) };
@@ -2638,7 +2654,7 @@ fn add_sound_suggest(
                         wordcount += 1;
                     }
                     while unsafe { *byts.wrapping_add((n + i) as usize) } == 0 {
-                        if i > crate::memory::cstr_char_at(byts.cast(), n as usize) {
+                        if i > i32::from(crate::memory::cstr_byte_at(byts.cast(), n as usize)) {
                             crate::memory::cstr_cpy(
                                 (&raw mut theword).cast::<c_char>().wrapping_add(wlen),
                                 c"BAD",
@@ -2648,7 +2664,7 @@ fn add_sound_suggest(
                         }
                         i += 1;
                     }
-                    while i < crate::memory::cstr_char_at(byts.cast(), n as usize) {
+                    while i < i32::from(crate::memory::cstr_byte_at(byts.cast(), n as usize)) {
                         let wc = unsafe {
                             *idxs.wrapping_add(*idxs.wrapping_add((n + i) as usize) as usize)
                         };
@@ -2664,7 +2680,7 @@ fn add_sound_suggest(
                 }
             }
             theword[wlen] = NUL;
-            while i <= crate::memory::cstr_char_at(byts.cast(), n as usize)
+            while i <= i32::from(crate::memory::cstr_byte_at(byts.cast(), n as usize))
                 && unsafe { *byts.wrapping_add((n + i) as usize) } == 0
             {
                 let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2752,7 +2768,7 @@ fn soundfold_find(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr) ->
         let byts = slang.sl_sbyts.as_mut_ptr();
         let idxs = slang.sl_sidxs.as_mut_ptr();
         loop {
-            let mut len = crate::memory::cstr_char_at(byts.cast(), arridx as usize);
+            let mut len = i32::from(crate::memory::cstr_byte_at(byts.cast(), arridx as usize));
             arridx += 1;
             let mut c = unsafe { *ptr.wrapping_add(wlen) };
             if unsafe { *byts.wrapping_add(arridx as usize) } == 0 {
@@ -3083,7 +3099,9 @@ fn soundalike_score(
                     pl = pl.wrapping_add(1);
                     ps = ps.wrapping_add(1);
                 }
-                if (&crate::memory::cstr_as_bytes(pl)[1..]) == crate::memory::cstr_as_bytes(ps) {
+                if crate::memory::cstr_as_bytes(pl.wrapping_add(1))
+                    == crate::memory::cstr_as_bytes(ps)
+                {
                     return score + SCORE_DEL * 2;
                 }
             }
@@ -3099,12 +3117,13 @@ fn soundalike_score(
                 }
                 if *pl2 == *ps2.wrapping_add(1)
                     && *pl2.wrapping_add(1) == *ps2
-                    && (crate::memory::cstr_as_bytes(pl2)[2..]
-                        == crate::memory::cstr_as_bytes(ps2)[2..])
+                    && (crate::memory::cstr_as_bytes(pl2.wrapping_add(2))
+                        == crate::memory::cstr_as_bytes(ps2.wrapping_add(2)))
                 {
                     return score + SCORE_DEL + SCORE_SWAP;
                 }
-                if crate::memory::cstr_as_bytes(pl2)[1..] == crate::memory::cstr_as_bytes(ps2)[1..]
+                if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
+                    == crate::memory::cstr_as_bytes(ps2.wrapping_add(1))
                 {
                     return score + SCORE_DEL + SCORE_SUBST;
                 }
@@ -3115,7 +3134,7 @@ fn soundalike_score(
                         pl2 = pl2.wrapping_add(1);
                         ps2 = ps2.wrapping_add(1);
                     }
-                    if (&crate::memory::cstr_as_bytes(pl2)[1..])
+                    if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
                         == crate::memory::cstr_as_bytes(ps2)
                     {
                         return score + SCORE_SWAP + SCORE_DEL;
@@ -3127,7 +3146,9 @@ fn soundalike_score(
                     pl2 = pl2.wrapping_add(1);
                     ps2 = ps2.wrapping_add(1);
                 }
-                if (&crate::memory::cstr_as_bytes(pl2)[1..]) == crate::memory::cstr_as_bytes(ps2) {
+                if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
+                    == crate::memory::cstr_as_bytes(ps2)
+                {
                     return score + SCORE_SUBST + SCORE_DEL;
                 }
             }
@@ -3147,13 +3168,13 @@ fn soundalike_score(
                     }
                     if *pl2 == *ps2.wrapping_add(1)
                         && *pl2.wrapping_add(1) == *ps2
-                        && (crate::memory::cstr_as_bytes(pl2)[2..]
-                            == crate::memory::cstr_as_bytes(ps2)[2..])
+                        && (crate::memory::cstr_as_bytes(pl2.wrapping_add(2))
+                            == crate::memory::cstr_as_bytes(ps2.wrapping_add(2)))
                     {
                         return score + SCORE_SWAP + SCORE_SWAP;
                     }
-                    if crate::memory::cstr_as_bytes(pl2)[1..]
-                        == crate::memory::cstr_as_bytes(ps2)[1..]
+                    if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
+                        == crate::memory::cstr_as_bytes(ps2.wrapping_add(1))
                     {
                         return score + SCORE_SWAP + SCORE_SUBST;
                     }
@@ -3169,12 +3190,13 @@ fn soundalike_score(
                 }
                 if *pl2 == *ps2.wrapping_add(1)
                     && *pl2.wrapping_add(1) == *ps2
-                    && (crate::memory::cstr_as_bytes(pl2)[2..]
-                        == crate::memory::cstr_as_bytes(ps2)[2..])
+                    && (crate::memory::cstr_as_bytes(pl2.wrapping_add(2))
+                        == crate::memory::cstr_as_bytes(ps2.wrapping_add(2)))
                 {
                     return score + SCORE_SUBST + SCORE_SWAP;
                 }
-                if crate::memory::cstr_as_bytes(pl2)[1..] == crate::memory::cstr_as_bytes(ps2)[1..]
+                if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
+                    == crate::memory::cstr_as_bytes(ps2.wrapping_add(1))
                 {
                     return score + SCORE_SUBST + SCORE_SUBST;
                 }
@@ -3184,7 +3206,9 @@ fn soundalike_score(
                     pl2 = pl2.wrapping_add(1);
                     ps2 = ps2.wrapping_add(1);
                 }
-                if (&crate::memory::cstr_as_bytes(pl2)[1..]) == crate::memory::cstr_as_bytes(ps2) {
+                if crate::memory::cstr_as_bytes(pl2.wrapping_add(1))
+                    == crate::memory::cstr_as_bytes(ps2)
+                {
                     return score + SCORE_INS + SCORE_DEL;
                 }
                 pl2 = pl.wrapping_add(1);
@@ -3193,7 +3217,9 @@ fn soundalike_score(
                     pl2 = pl2.wrapping_add(1);
                     ps2 = ps2.wrapping_add(1);
                 }
-                if crate::memory::cstr_as_bytes(pl2) == (&crate::memory::cstr_as_bytes(ps2)[1..]) {
+                if crate::memory::cstr_as_bytes(pl2)
+                    == crate::memory::cstr_as_bytes(ps2.wrapping_add(1))
+                {
                     return score + SCORE_INS + SCORE_DEL;
                 }
             }

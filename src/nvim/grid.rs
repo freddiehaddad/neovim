@@ -289,7 +289,7 @@ pub fn schar_len(sc: Schar) -> usize {
     if schar_high(sc) {
         let idx = schar_idx(sc) as usize;
         assert!(idx < grid_st().glyph_cache_keys.len());
-        crate::memory::cstr_as_bytes(grid_st().glyph_cache_keys.as_ptr())[idx..].len()
+        crate::memory::cstr_len(grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx))
     } else {
         strnlen_4((&raw const sc).cast::<u8>())
     }
@@ -389,7 +389,7 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
                 }
 
                 let off = (utf_char2len(c0) + if c1 != 0 { utf_char2len(c1) } else { 0 }) as usize;
-                let mut rest = crate::memory::cstr_as_bytes(scbuf.as_ptr())[off..].len();
+                let mut rest = crate::memory::cstr_len(scbuf.as_ptr().wrapping_add(off));
                 if rest + len + 1 > MAX_SCHAR_SIZE {
                     let bounds = utf_cp_bounds(
                         scbuf.as_ptr().wrapping_add(off),

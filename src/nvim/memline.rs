@@ -774,7 +774,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         let mut file_info = FileInfo::new();
         if os_fileinfo(buf.b_ffname, &mut file_info) {
             long_to_char(
-                file_info.stat.st_mtim.tv_sec,
+                i64::from(file_info.stat.st_mtim.tv_sec),
                 (&raw mut b0p.b0_mtime).cast(),
             );
             long_to_char(
@@ -867,7 +867,7 @@ pub fn ml_recover(checkext: bool) {
         let len = crate::memory::cstr_len(fname);
         if checkext
             && len >= 4
-            && crate::memory::cstr_slice(fname, (len - 4) + (2))[len - 4..]
+            && crate::memory::cstr_prefix_bytes(fname.wrapping_add(len - 4), 2)
                 .eq_ignore_ascii_case(b".s")
             && crate::strings::vim_haschr(
                 c"abcdefghijklmnopqrstuvw",

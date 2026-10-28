@@ -1129,7 +1129,10 @@ pub fn syn_stack_free_all(block: *mut Synblock) {
 
     if !g_st().curtab.is_null() {
         for wp in for_all_windows_mut() {
-            if ptr::eq(win_s(wp), block) && foldmethod_is_syntax(wp) {
+            if (!wp.w_buffer.is_null() || wp.w_s_owned.is_some())
+                && ptr::eq(win_s(wp), block)
+                && foldmethod_is_syntax(wp)
+            {
                 fold_update_all(wp);
             }
         }
@@ -4725,10 +4728,10 @@ fn get_id_list(arg: *mut *mut c_char, keylen: i32, list: &mut SynIdList, skip: b
                     crate::memory::ptr_offset_from(end, p) as usize,
                 );
                 let mut id: i32;
-                if ((&crate::memory::cstr_as_bytes(name)[1..]) == b"ALLBUT")
-                    || ((&crate::memory::cstr_as_bytes(name)[1..]) == b"ALL")
-                    || ((&crate::memory::cstr_as_bytes(name)[1..]) == b"TOP")
-                    || ((&crate::memory::cstr_as_bytes(name)[1..]) == b"CONTAINED")
+                if (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"ALLBUT")
+                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"ALL")
+                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"TOP")
+                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"CONTAINED")
                 {
                     if !(**arg as u8).eq_ignore_ascii_case(&b'C') {
                         semsg!(gettext(c"E407: %s not allowed here"), name.wrapping_add(1));
@@ -4760,7 +4763,7 @@ fn get_id_list(arg: *mut *mut c_char, keylen: i32, list: &mut SynIdList, skip: b
                             crate::memory::ptr_offset_from(end, p) as i32 - 1,
                         );
                     }
-                } else if !crate::memory::cstr_as_bytes(name)[1..]
+                } else if !crate::memory::cstr_as_bytes(name.wrapping_add(1))
                     .iter()
                     .any(|b| b"\\.*^$~[".contains(b))
                 {

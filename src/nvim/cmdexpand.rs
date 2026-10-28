@@ -2290,7 +2290,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
         let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
         if emenu && menu_is_separator(s) {
             crate::memory::cstr_cpy(buf.wrapping_add(len), transchar(b'|' as i32));
-            let l = crate::memory::cstr_as_bytes(buf)[len..].len();
+            let l = crate::memory::cstr_len(buf.wrapping_add(len));
             len += l;
             clen += l as i32;
         } else {
@@ -2307,7 +2307,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
                         buf.wrapping_add(len),
                         transchar_byte(i32::from(crate::memory::cstr_first_byte(s))),
                     );
-                    len += crate::memory::cstr_as_bytes(buf)[len..].len();
+                    len += crate::memory::cstr_len(buf.wrapping_add(len));
                 }
                 s = s.wrapping_add(1);
             }
@@ -5830,7 +5830,7 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
         key = opt_vars().p_wc as i32;
         g_st().key_typed = true;
     } else if (crate::memory::cstr_prefix_bytes(xp.xp_pattern, 3)
-        == (&crate::memory::cstr_slice(upseg.as_ptr(), (1) + (3))[1..]))
+        == crate::memory::cstr_prefix_bytes(upseg.as_ptr().wrapping_add(1), 3))
         && key == K_DOWN
     {
         let mut found = false;
@@ -5887,12 +5887,12 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
 
         if !found {
             j = i;
-        } else if (&crate::memory::cstr_slice(cclp.cmdbuff, (j as usize) + (4))[j as usize..])
+        } else if crate::memory::cstr_prefix_bytes(cclp.cmdbuff.wrapping_add(j as usize), 4)
             == crate::memory::cstr_prefix_bytes(upseg.as_ptr(), 4)
         {
             j += 4;
-        } else if (crate::memory::cstr_slice(cclp.cmdbuff, (j as usize) + (3))[j as usize..]
-            == crate::memory::cstr_slice(upseg.as_ptr(), (1) + (3))[1..])
+        } else if crate::memory::cstr_prefix_bytes(cclp.cmdbuff.wrapping_add(j as usize), 3)
+            == crate::memory::cstr_prefix_bytes(upseg.as_ptr().wrapping_add(1), 3)
             && j == i
         {
             j += 3;

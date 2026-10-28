@@ -161,7 +161,6 @@ fn fill_assert_error(
     let exp_str = exp_str.into_c_char_ptr();
     unsafe {
         let exp_tv = exp_tv_arg;
-        let exp_tv = { &mut *exp_tv };
         let got_tv = got_tv_arg;
         let mut did_copy = false;
         let mut omitted: i32 = 0;
@@ -184,6 +183,7 @@ fn fill_assert_error(
         }
 
         if exp_str.is_null() {
+            let exp_tv = &mut *exp_tv;
             if atype != AssertType::NotEqual
                 && exp_tv.v_type == VarType::VarDict
                 && got_tv.v_type == VarType::VarDict

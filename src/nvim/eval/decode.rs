@@ -1189,9 +1189,9 @@ pub fn typval_parser_error_free(p: &mut MpackParser) {
 
 fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
     let node = &mut *node;
-    let result = node.data[0].typval();
     match node.tok.r#type {
         MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
+            let result = node.data[0].typval();
             let bytes = node.data[1].take_owned_bytes();
             *result = decode_string(
                 bytes.as_ptr().cast::<c_char>(),
@@ -1201,6 +1201,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
             );
         }
         MpackTokenType::MpackTokenExt => {
+            let result = node.data[0].typval();
             let bytes = node.data[1].take_owned_bytes();
             let list = tv_list_alloc(2);
             tv_list_ref(Some(&mut *list));
@@ -1223,6 +1224,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
             );
         }
         MpackTokenType::MpackTokenMap => {
+            let result = node.data[0].typval();
             let mut items = node.data[1].take_map_pairs();
             let len = node.tok.length as usize;
             let mut can_be_dict = items[..len].iter().all(|pair| {

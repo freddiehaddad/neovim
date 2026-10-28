@@ -2747,9 +2747,9 @@ fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> b
                     } else if crate::memory::cstr_prefix_bytes(p, 10) == &b"user_data:"[..10] {
                         tagp.user_data = p.wrapping_add(10);
                     } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"line:"[..5] {
-                        tagp.tagline =
-                            crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(p)[5..])
-                                as i32;
+                        tagp.tagline = crate::charset::parse_i64_prefix(
+                            crate::memory::cstr_as_bytes(p.wrapping_add(5)),
+                        ) as i32;
                     }
                     if !tagp.tagkind.is_null() && !tagp.user_data.is_null() {
                         break;

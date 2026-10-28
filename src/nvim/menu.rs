@@ -1591,7 +1591,7 @@ pub fn show_popupmenu() {
         let mut menu: *mut Vimmenu = ptr::null_mut();
         for m in &mut g_st().root_menu {
             if (b"PopUp" == crate::memory::cstr_prefix_bytes(m.name.as_ptr(), 5))
-                && ((&crate::memory::cstr_slice(m.name.as_ptr(), (5) + (mode_len))[5..])
+                && (crate::memory::cstr_prefix_bytes(m.name.as_ptr().wrapping_add(5), mode_len)
                     == crate::memory::cstr_prefix_bytes(mode, mode_len))
             {
                 menu = m;

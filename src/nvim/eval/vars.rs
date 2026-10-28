@@ -1204,7 +1204,7 @@ pub fn heredoc_get(
                 mi = marker_indent_len;
             }
             if crate::memory::cstr_as_bytes(marker)
-                == (&crate::memory::cstr_as_bytes(theline)[mi as usize..])
+                == crate::memory::cstr_as_bytes(theline.wrapping_add(mi as usize))
             {
                 break;
             }

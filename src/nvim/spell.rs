@@ -509,7 +509,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
             if flen <= 0 && !crate::memory::cstr_is_empty(mip.mi_fend) {
                 flen = fold_more(mip);
             }
-            let mut len = crate::memory::cstr_char_at(byts.cast(), arridx as usize);
+            let mut len = i32::from(crate::memory::cstr_byte_at(byts.cast(), arridx as usize));
             arridx += 1;
             if *byts.wrapping_add(arridx as usize) == 0 {
                 if endidxcnt == MAXWLEN {
@@ -540,9 +540,9 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
             let mut hi = arridx + len - 1;
             while lo < hi {
                 let m = (lo + hi) / 2;
-                if (crate::memory::cstr_char_at(byts.cast(), m as usize)) > c {
+                if (i32::from(crate::memory::cstr_byte_at(byts.cast(), m as usize))) > c {
                     hi = m - 1;
-                } else if (crate::memory::cstr_char_at(byts.cast(), m as usize)) < c {
+                } else if (i32::from(crate::memory::cstr_byte_at(byts.cast(), m as usize))) < c {
                     lo = m + 1;
                 } else {
                     lo = m;
@@ -550,7 +550,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                     break;
                 }
             }
-            if hi < lo || crate::memory::cstr_char_at(byts.cast(), lo as usize) != c {
+            if hi < lo || i32::from(crate::memory::cstr_byte_at(byts.cast(), lo as usize)) != c {
                 break;
             }
             arridx = *idxs.wrapping_add(lo as usize);
@@ -897,9 +897,10 @@ pub fn can_compound(
         let mut p = (&raw mut uflags).cast::<c_char>();
         let mut i = 0usize;
         while unsafe { *flags.wrapping_add(i) } != 0 {
-            p = p.wrapping_add(
-                utf_char2bytes(crate::memory::cstr_char_at(flags.cast(), i), p) as usize,
-            );
+            p = p.wrapping_add(utf_char2bytes(
+                i32::from(crate::memory::cstr_byte_at(flags.cast(), i)),
+                p,
+            ) as usize);
             i += 1;
         }
         unsafe {
@@ -1012,7 +1013,7 @@ fn find_prefix(mip: &mut Matchinf, mode: i32) {
         if flen == 0 && !crate::memory::cstr_is_empty(mip.mi_fend) {
             flen = fold_more(mip);
         }
-        let mut len = crate::memory::cstr_char_at(byts.cast(), arridx as usize);
+        let mut len = i32::from(crate::memory::cstr_byte_at(byts.cast(), arridx as usize));
         arridx += 1;
         if unsafe { *byts.wrapping_add(arridx as usize) } == 0 {
             mip.mi_prefarridx = arridx;
@@ -1044,9 +1045,9 @@ fn find_prefix(mip: &mut Matchinf, mode: i32) {
         let mut hi = arridx + len - 1;
         while lo < hi {
             let m = (lo + hi) / 2;
-            if (crate::memory::cstr_char_at(byts.cast(), m as usize)) > c {
+            if (i32::from(crate::memory::cstr_byte_at(byts.cast(), m as usize))) > c {
                 hi = m - 1;
-            } else if (crate::memory::cstr_char_at(byts.cast(), m as usize)) < c {
+            } else if (i32::from(crate::memory::cstr_byte_at(byts.cast(), m as usize))) < c {
                 lo = m + 1;
             } else {
                 lo = m;
@@ -1054,7 +1055,7 @@ fn find_prefix(mip: &mut Matchinf, mode: i32) {
                 break;
             }
         }
-        if hi < lo || crate::memory::cstr_char_at(byts.cast(), lo as usize) != c {
+        if hi < lo || i32::from(crate::memory::cstr_byte_at(byts.cast(), lo as usize)) != c {
             break;
         }
         arridx = unsafe { *idxs.wrapping_add(lo as usize) };
@@ -2997,7 +2998,10 @@ pub fn spell_dump_compl(
                 while depth >= 0 && !g_st().got_int && (pat.is_null() || !ins_compl_interrupted()) {
                     let udepth = depth as usize;
                     if curi[udepth]
-                        > crate::memory::cstr_char_at(byts.cast(), arridx[udepth] as usize)
+                        > i32::from(crate::memory::cstr_byte_at(
+                            byts.cast(),
+                            arridx[udepth] as usize,
+                        ))
                     {
                         depth -= 1;
                         line_breakcheck();
@@ -3005,7 +3009,7 @@ pub fn spell_dump_compl(
                     } else {
                         let n = arridx[udepth] + curi[udepth];
                         curi[udepth] += 1;
-                        let mut c = crate::memory::cstr_char_at(byts.cast(), n as usize);
+                        let mut c = i32::from(crate::memory::cstr_byte_at(byts.cast(), n as usize));
                         if c == 0 || udepth >= MAXWLEN - 1 {
                             let mut flags = *idxs.wrapping_add(n as usize);
                             if (round == 2 || (flags & WF_KEEPCAP) == 0)
@@ -3191,14 +3195,14 @@ fn dump_prefixes(
             while depth >= 0 && !g_st().got_int {
                 let udepth = depth as usize;
                 let mut n = arridx[udepth];
-                let len = crate::memory::cstr_char_at(byts.cast(), n as usize);
+                let len = i32::from(crate::memory::cstr_byte_at(byts.cast(), n as usize));
                 if curi[udepth] > len {
                     depth -= 1;
                     line_breakcheck();
                 } else {
                     n += curi[udepth];
                     curi[udepth] += 1;
-                    c = crate::memory::cstr_char_at(byts.cast(), n as usize);
+                    c = i32::from(crate::memory::cstr_byte_at(byts.cast(), n as usize));
                     if c == 0 {
                         let mut i: i32 = 1;
                         while i < len {
@@ -3327,7 +3331,7 @@ pub fn valid_spellfile(val: impl crate::strings::IntoCCharPtr) -> bool {
             let l = copy_option_part(&raw mut spf, (&raw mut spf_name).cast(), MAXPATHL, c",");
             let spf_ptr = (&raw mut spf_name).cast::<c_char>();
             if !(4..(MAXPATHL - 4)).contains(&l)
-                || ((&crate::memory::cstr_as_bytes(spf_ptr)[l - 4..]) != b".add")
+                || (crate::memory::cstr_as_bytes(spf_ptr.wrapping_add(l - 4)) != b".add")
             {
                 return false;
             }

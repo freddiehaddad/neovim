@@ -1349,7 +1349,7 @@ fn fold_add_marker(
             unsafe {
                 ptr::copy_nonoverlapping(marker, newline.wrapping_add(line_len + p_off), markerlen)
             };
-            let tail_len = crate::memory::cstr_as_bytes(p)[2..].len();
+            let tail_len = crate::memory::cstr_len(p.wrapping_add(2));
             unsafe {
                 ptr::copy_nonoverlapping(
                     p.wrapping_add(2),
@@ -1440,7 +1440,7 @@ fn fold_del_marker(
                                 prefix_len,
                             )
                         } == crate::memory::cstr_slice(cms, prefix_len)
-                        && crate::memory::cstr_as_bytes(p)[len..]
+                        && crate::memory::cstr_as_bytes(p.wrapping_add(len))
                             .starts_with(crate::memory::cstr_slice(suffix, suffix_len))
                     {
                         p = p.wrapping_sub(prefix_len);
@@ -1676,7 +1676,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
             while ascii_iswhite(crate::memory::cstr_byte_at(s, len) as i32) {
                 len += 1;
             }
-            let rem = crate::memory::cstr_as_bytes(s)[len..].len() + 1;
+            let rem = crate::memory::cstr_len(s.wrapping_add(len)) + 1;
             unsafe { ptr::copy(s.wrapping_add(len), s, rem) };
         } else {
             s = s.wrapping_add(utfc_ptr2len(s) as usize);
@@ -2557,7 +2557,7 @@ fn foldlevel_marker(flp: &mut Fline) {
 
     let mut s = ml_get_buf(flp.wp_mut().buf_mut(), flp.lnum + flp.off);
     while !crate::memory::cstr_is_empty(s) {
-        let rem_bytes = &crate::memory::cstr_as_bytes(s)[1..];
+        let rem_bytes = crate::memory::cstr_as_bytes(s.wrapping_add(1));
         if unsafe { *s } == cstart && rem_bytes.starts_with(start_rest) {
             s = s.wrapping_add(fold_st().foldstartmarkerlen);
             if ascii_isdigit(crate::memory::cstr_first_byte(s) as i32) {

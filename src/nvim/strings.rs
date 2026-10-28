@@ -722,7 +722,7 @@ pub fn tv_ptr(tvs: *const TypVal, idxp: &mut i32) -> *const c_void {
             return ptr::null();
         }
         *idxp += 1;
-        (*tvs.wrapping_add(idx)).vval.v_string().cast()
+        (*tvs.wrapping_add(idx)).vval.v_any_ptr()
     }
 }
 
@@ -1368,7 +1368,7 @@ fn vim_vsnprintf_typval_inner(
 
         'fmt_loop: while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) != b'%' {
-                let rem = &crate::memory::cstr_as_bytes(p)[1..];
+                let rem = crate::memory::cstr_as_bytes(p.wrapping_add(1));
                 let n = 1 + rem.iter().position(|&b| b == b'%').unwrap_or(rem.len());
                 if str_avail {
                     let avail = str_m - str_l;
@@ -1999,7 +1999,7 @@ fn vim_vsnprintf_typval_inner(
                                     if !tp.is_null() {
                                         if crate::memory::cstr_byte_at(tp, 1) == b'+' {
                                             let rem_len =
-                                                crate::memory::cstr_as_bytes(tp)[2..].len() + 1;
+                                                crate::memory::cstr_len(tp.wrapping_add(2)) + 1;
                                             ptr::copy(
                                                 tp.wrapping_add(2),
                                                 tp.wrapping_add(1),
@@ -2014,7 +2014,7 @@ fn vim_vsnprintf_typval_inner(
                                         };
                                         while crate::memory::cstr_byte_at(tp, i) == b'0' {
                                             let rem_len =
-                                                crate::memory::cstr_as_bytes(tp)[i + 1..].len() + 1;
+                                                crate::memory::cstr_len(tp.wrapping_add(i + 1)) + 1;
                                             ptr::copy(
                                                 tp.wrapping_add(i + 1),
                                                 tp.wrapping_add(i),
@@ -2032,7 +2032,7 @@ fn vim_vsnprintf_typval_inner(
                                         && *tp.wrapping_sub(1) != b'.' as c_char
                                     {
                                         let rem_len =
-                                            crate::memory::cstr_as_bytes(tp)[1..].len() + 1;
+                                            crate::memory::cstr_len(tp.wrapping_add(1)) + 1;
                                         ptr::copy(tp.wrapping_add(1), tp, rem_len);
                                         tp = tp.wrapping_sub(1);
                                         str_arg_l -= 1;
@@ -2054,7 +2054,7 @@ fn vim_vsnprintf_typval_inner(
                                     && ascii_isdigit(crate::memory::cstr_char_at(tp, 3))
                                     && ascii_isdigit(crate::memory::cstr_char_at(tp, 4))
                                 {
-                                    let rem_len = crate::memory::cstr_as_bytes(tp)[3..].len() + 1;
+                                    let rem_len = crate::memory::cstr_len(tp.wrapping_add(3)) + 1;
                                     ptr::copy(tp.wrapping_add(3), tp.wrapping_add(2), rem_len);
                                     str_arg_l -= 1;
                                 }

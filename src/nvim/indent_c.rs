@@ -269,7 +269,7 @@ fn skip_string(p: impl crate::strings::IntoCCharPtr) -> *const c_char {
                     p = p.wrapping_add(3);
                     while !crate::memory::cstr_is_empty(p) {
                         if crate::memory::cstr_first_byte(p) == b')'
-                            && ((&crate::memory::cstr_slice(p, (1) + (delim_len))[1..])
+                            && (crate::memory::cstr_prefix_bytes(p.wrapping_add(1), delim_len)
                                 == crate::memory::cstr_prefix_bytes(delim, delim_len))
                             && crate::memory::cstr_byte_at(p, delim_len + 1) == b'"'
                         {
@@ -1112,19 +1112,18 @@ fn cin_is_if_for_while_before_offset(
         }
         offset -= 1;
         let mut probably_found = false;
-        if crate::memory::cstr_slice(line, (offset as usize) + (2))[offset as usize..] == b"if"[..2]
-        {
+        if crate::memory::cstr_prefix_bytes(line.wrapping_add(offset as usize), 2) == &b"if"[..2] {
             probably_found = true;
         } else if offset >= 1 {
             offset -= 1;
-            if crate::memory::cstr_slice(line, (offset as usize) + (3))[offset as usize..]
-                == b"for"[..3]
+            if crate::memory::cstr_prefix_bytes(line.wrapping_add(offset as usize), 3)
+                == &b"for"[..3]
             {
                 probably_found = true;
             } else if offset >= 2 {
                 offset -= 2;
-                if crate::memory::cstr_slice(line, (offset as usize) + (5))[offset as usize..]
-                    == b"while"[..5]
+                if crate::memory::cstr_prefix_bytes(line.wrapping_add(offset as usize), 5)
+                    == &b"while"[..5]
                 {
                     probably_found = true;
                 }

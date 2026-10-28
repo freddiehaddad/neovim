@@ -2005,23 +2005,25 @@ fn mouse_find_grid_win(gridp: &mut i32, rowp: &mut i32, colp: &mut i32) -> *mut 
             }
         } else if *gridp == 0 {
             let grid = ui_comp_mouse_focus(*rowp, *colp);
-            let grid = { &mut *grid };
-            if ptr::eq(grid, &raw const g_st().pum_grid) {
-                *gridp = grid.handle;
-                *rowp -= grid.comp_row;
-                *colp -= grid.comp_col;
-                return ptr::null_mut();
-            } else {
-                let mut wp = g_st().firstwin;
-                while !wp.is_null() {
-                    if !ptr::eq(&raw const (*wp).w_grid_alloc, grid) {
-                        wp = (*wp).w_next;
-                        continue;
-                    }
+            if !grid.is_null() {
+                let grid = &mut *grid;
+                if ptr::eq(grid, &raw const g_st().pum_grid) {
                     *gridp = grid.handle;
-                    *rowp -= (*wp).w_winrow + (*wp).w_grid.row_offset;
-                    *colp -= (*wp).w_wincol + (*wp).w_grid.col_offset;
-                    return wp;
+                    *rowp -= grid.comp_row;
+                    *colp -= grid.comp_col;
+                    return ptr::null_mut();
+                } else {
+                    let mut wp = g_st().firstwin;
+                    while !wp.is_null() {
+                        if !ptr::eq(&raw const (*wp).w_grid_alloc, grid) {
+                            wp = (*wp).w_next;
+                            continue;
+                        }
+                        *gridp = grid.handle;
+                        *rowp -= (*wp).w_winrow + (*wp).w_grid.row_offset;
+                        *colp -= (*wp).w_wincol + (*wp).w_grid.col_offset;
+                        return wp;
+                    }
                 }
             }
 

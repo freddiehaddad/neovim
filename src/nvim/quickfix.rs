@@ -1302,7 +1302,7 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> i32 {
                 break;
             }
             state.linelen =
-                crate::memory::cstr_as_bytes(state.growbuf.as_ptr())[growbuflen..].len();
+                crate::memory::cstr_len(state.growbuf.as_ptr().wrapping_add(growbuflen));
             growbuflen += state.linelen;
             if state.growbuf[growbuflen - 1] == NL {
                 break;
@@ -5605,7 +5605,7 @@ fn vgr_jump_to_match(
     qi: &mut QfInfo,
     forceit: i32,
     redraw_for_dummy: &mut bool,
-    first_match_buf: &mut FileBuf,
+    first_match_buf: *mut FileBuf,
     target_dir: impl crate::strings::IntoCCharPtr,
 ) {
     let target_dir = target_dir.into_c_char_ptr().cast_mut();
@@ -5615,7 +5615,7 @@ fn vgr_jump_to_match(
         *redraw_for_dummy = false;
     }
 
-    if std::ptr::eq(g_st().curbuf, first_match_buf) && !target_dir.is_null() {
+    if g_st().curbuf == first_match_buf && !target_dir.is_null() {
         let mut ea: Exarg = Exarg::new();
         ea.arg = target_dir;
         ea.cmdidx = CMD_LCD;
@@ -5884,7 +5884,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
                             unsafe { &mut *qi },
                             eap.forceit,
                             &mut redraw_for_dummy,
-                            unsafe { &mut *first_match_buf },
+                            first_match_buf,
                             target_dir
                                 .as_ref()
                                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
@@ -7517,7 +7517,7 @@ fn hgr_search_files_in_dir(
                 if !lang.is_null()
                     && flen >= 3
                     && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(
-                        &crate::memory::cstr_slice(f, (flen - 3) + (2))[flen - 3..],
+                        crate::memory::cstr_prefix_bytes(f.wrapping_add(flen - 3), 2),
                     ))
                     && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(b"en")
                         && b"txt".eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(

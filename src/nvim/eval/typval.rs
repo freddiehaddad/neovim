@@ -360,6 +360,18 @@ impl TypvalVval {
             _ => ptr::null_mut(),
         }
     }
+
+    #[inline]
+    pub const fn v_any_ptr(self) -> *const std::ffi::c_void {
+        match self {
+            Self::String(p) => p.cast(),
+            Self::List(p) => p.cast(),
+            Self::Dict(p) => p.cast(),
+            Self::Blob(p) => p.cast(),
+            Self::Partial(p) => p.cast(),
+            _ => ptr::null(),
+        }
+    }
 }
 
 #[repr(C)]

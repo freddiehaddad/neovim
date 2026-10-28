@@ -3661,24 +3661,26 @@ pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 && crate::memory::cstr_byte_at(end, 2) == b'.'
                 && ascii_isdigit(crate::memory::cstr_char_at(end, 3))
             {
-                let minor =
-                    crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(end)[1..])
-                        as i32;
+                let minor = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+                    end.wrapping_add(1),
+                )) as i32;
                 n = has_vim_patch(
-                    crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(end)[3..])
-                        as i32,
+                    crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+                        end.wrapping_add(3),
+                    )) as i32,
                     major * 100 + minor,
                 );
             }
         } else if ascii_isdigit(crate::memory::cstr_char_at(name, 5)) {
             n = has_vim_patch(
-                crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(name)[5..]) as i32,
+                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(name.wrapping_add(5)))
+                    as i32,
                 0,
             );
         }
     } else if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(b"nvim-") {
         x = true;
-        n = has_nvim_version(&crate::memory::cstr_as_bytes(name)[5..]);
+        n = has_nvim_version(crate::memory::cstr_as_bytes(name.wrapping_add(5)));
     } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"vim_starting") {
         x = true;
         n = starting_val() != 0;

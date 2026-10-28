@@ -847,7 +847,7 @@ pub fn ctx_switch(
             } else {
                 unsafe { &mut *(tp) }
             },
-            unsafe { &mut *(buf) },
+            buf,
         );
     }
 

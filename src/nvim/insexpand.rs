@@ -6895,9 +6895,9 @@ fn setup_cpt_sources() {
             if slen > 0 {
                 let caret = vim_strchr(buf.as_mut_ptr(), b'^' as i32);
                 if !caret.is_null() {
-                    sources[idx].cs_max_matches =
-                        crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(caret)[1..])
-                            as i32;
+                    sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(
+                        crate::memory::cstr_as_bytes(caret.wrapping_add(1)),
+                    ) as i32;
                 }
             }
             idx += 1;

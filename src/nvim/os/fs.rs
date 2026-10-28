@@ -59,8 +59,8 @@ impl FileID {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct uv_timespec_t {
-    pub tv_sec: i64,
-    pub tv_nsec: i64,
+    pub tv_sec: std::ffi::c_long,
+    pub tv_nsec: std::ffi::c_long,
 }
 
 #[repr(C)]

@@ -5876,8 +5876,8 @@ fn n_swapchar(cap: &mut Cmdarg) {
     }
 }
 
-fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: &mut Fmark) -> MarkMoveRes {
-    let res = mark_move_to(&raw mut *fm, flags);
+fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: *mut Fmark) -> MarkMoveRes {
+    let res = mark_move_to(fm, flags);
     if (res & K_MARK_MOVE_FAILED) != 0 {
         clearop(cap.oap_mut());
     }
@@ -5981,7 +5981,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
     }
 
     let fm = mark_get(curbuf_mut(), curwin_mut(), None, K_MARK_ALL, name);
-    let move_res = nv_mark_move_to(cap, flags, unsafe { &mut *fm });
+    let move_res = nv_mark_move_to(cap, flags, fm);
 
     if !virtual_active(curwin_mut()) {
         curwin_mut().w_cursor.coladd = 0;

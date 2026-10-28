@@ -742,7 +742,7 @@ pub fn emsg_funcname<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoC
             && crate::memory::cstr_byte_at(name, 2) != 0
         {
             let mut bytes = Vec::from(&b"<SNR>"[..]);
-            bytes.extend_from_slice(&crate::memory::cstr_as_bytes(name)[3..]);
+            bytes.extend_from_slice(crate::memory::cstr_as_bytes(name.wrapping_add(3)));
             let joined = cstr_from_bytes(&bytes);
             p = joined.as_ptr();
             p_owned = Some(joined);
@@ -2312,7 +2312,7 @@ pub fn trans_function_name(
         if !name.is_null() {
             *pp = end.cast_mut();
             if crate::memory::cstr_prefix_bytes(name, 5) == &b"<SNR>"[..5] {
-                let tail = &crate::memory::cstr_as_bytes(name)[5..];
+                let tail = crate::memory::cstr_as_bytes(name.wrapping_add(5));
                 let mut bytes = Vec::with_capacity(3 + tail.len());
                 bytes.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
                 bytes.extend_from_slice(tail);
@@ -2454,7 +2454,7 @@ pub fn get_scriptlocal_funcname(
         } else {
             5
         };
-        let newnamesize = sid_buflen + crate::memory::cstr_as_bytes(funcname)[off..].len() + 1;
+        let newnamesize = sid_buflen + crate::memory::cstr_len(funcname.wrapping_add(off)) + 1;
         let mut newname = vec![0 as c_char; newnamesize];
         vim_snprintf!(
             newname.as_mut_ptr(),

@@ -8417,7 +8417,7 @@ fn repl_cmdline(
     {
         let len = crate::memory::cstr_len(repl);
         let offset = (src as usize) - (unsafe { *cmdlinep } as usize);
-        let tail_len = crate::memory::cstr_as_bytes(src)[srclen..].len();
+        let tail_len = crate::memory::cstr_len(src.wrapping_add(srclen));
         let nextcmd_len = if !eap.nextcmd.is_null() {
             crate::memory::cstr_len(eap.nextcmd)
         } else {

@@ -494,7 +494,7 @@ pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut Schar) -> usize {
     let mut p: usize = 0;
     for i in 0..SIGN_WIDTH {
         schar_get(buf.wrapping_add(p), unsafe { *sign_text.wrapping_add(i) });
-        let len = crate::memory::cstr_as_bytes(buf)[p..].len();
+        let len = crate::memory::cstr_len(buf.wrapping_add(p));
         if len == 0 {
             break;
         }
@@ -508,7 +508,7 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: *mut Schar, text: *mut c_cha
     let mut s = if sp.is_some() { text } else { endp };
     while s.wrapping_add(1) < endp {
         if crate::memory::cstr_first_byte(s) == b'\\' {
-            let tail_len = crate::memory::cstr_as_bytes(s)[1..].len() + 1;
+            let tail_len = crate::memory::cstr_len(s.wrapping_add(1)) + 1;
             unsafe { ptr::copy(s.wrapping_add(1), s, tail_len) };
             endp = endp.wrapping_sub(1);
         }
@@ -883,8 +883,9 @@ fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_
             } else if crate::memory::cstr_prefix_bytes(arg, 6) == &b"numhl="[..6] {
                 numhl = arg.wrapping_add(6);
             } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
-                prio = crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(arg)[9..])
-                    as i32;
+                prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
+                    arg.wrapping_add(9),
+                )) as i32;
             } else {
                 semsg!(gettext(E_INVARG2), arg);
                 return;

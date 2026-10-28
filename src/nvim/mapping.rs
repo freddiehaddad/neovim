@@ -1356,8 +1356,8 @@ fn translate_mapping(
                     && unsafe { *str_ptr.wrapping_add(2) } != 0
                 {
                     c = to_special(
-                        crate::memory::cstr_char_at(str_ptr.cast(), 1),
-                        crate::memory::cstr_char_at(str_ptr.cast(), 2),
+                        i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 1)),
+                        i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 2)),
                     );
                     if c == K_ZERO {
                         c = NUL as i32;
@@ -2010,7 +2010,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
             if c == K_SPECIAL as i32 && what != 2 {
                 let mut modifiers: i32 = 0;
                 if unsafe { *str_ptr.wrapping_add(1) } == KS_MODIFIER {
-                    modifiers = crate::memory::cstr_char_at(str_ptr.cast(), 2);
+                    modifiers = i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 2));
                     str_ptr = str_ptr.wrapping_add(3);
 
                     let mut mod_ptr = str_ptr.cast::<c_char>();
@@ -2026,8 +2026,8 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
                 }
                 if c == K_SPECIAL as i32 {
                     c = to_special(
-                        crate::memory::cstr_char_at(str_ptr.cast(), 1),
-                        crate::memory::cstr_char_at(str_ptr.cast(), 2),
+                        i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 1)),
+                        i32::from(crate::memory::cstr_byte_at(str_ptr.cast(), 2)),
                     );
                     str_ptr = str_ptr.wrapping_add(2);
                 }
@@ -2201,7 +2201,10 @@ fn mapblock_fill_dict(
     put_c(&mut dict, c"lhs", cstr_as_obj(lhs));
     put_c(&mut dict, c"lhsraw", cstr_as_obj(mp.m_keys.as_ptr()));
     if !lhsrawalt.is_null() {
-        put_c(&mut dict, c"lhsrawalt", cstr_as_obj(lhsrawalt));
+        let len = crate::memory::cstr_len(lhsrawalt);
+        let alt_arena = arena_alloc(arena, len + 1, false).cast::<c_char>();
+        crate::memory::cstr_cpy(alt_arena, lhsrawalt);
+        put_c(&mut dict, c"lhsrawalt", cstr_as_obj(alt_arena));
     }
     put_c(&mut dict, c"noremap", integer_obj(noremap_value));
     put_c(

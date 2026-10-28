@@ -5353,7 +5353,7 @@ fn leave_tabpage(new_curbuf: *mut FileBuf, trigger_leave_autocmds: bool) -> bool
 
 fn enter_tabpage(
     tp: &mut TabPageInfo,
-    old_curbuf: &mut FileBuf,
+    old_curbuf: *mut FileBuf,
     trigger_enter_autocmds: bool,
     trigger_leave_autocmds: bool,
 ) {
@@ -5520,14 +5520,14 @@ pub fn goto_tabpage_tp(
         if valid_tabpage(tp) {
             enter_tabpage(
                 unsafe { &mut *tp },
-                crate::globals::curbuf_mut(),
+                g_st().curbuf,
                 trigger_enter_autocmds,
                 trigger_leave_autocmds,
             );
         } else {
             enter_tabpage(
                 curtab_mut(),
-                crate::globals::curbuf_mut(),
+                g_st().curbuf,
                 trigger_enter_autocmds,
                 trigger_leave_autocmds,
             );

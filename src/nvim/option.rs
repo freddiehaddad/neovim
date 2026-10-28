@@ -6688,63 +6688,65 @@ pub fn get_varp_scope_from(
     p: *mut Vimoption,
     opt_flags: i32,
     buf: &mut FileBuf,
-    win: &mut WinInfoInfo,
+    win: *mut WinInfoInfo,
 ) -> *mut c_void {
-    let opt_idx = get_opt_idx(p);
+    unsafe {
+        let opt_idx = get_opt_idx(p);
 
-    if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
-        if option_is_window_local(opt_idx) {
-            return get_varp_from(unsafe { &mut *p }, buf, win)
-                .cast::<u8>()
-                .wrapping_add(std::mem::size_of::<Winopt>())
-                .cast::<c_void>();
+        if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
+            if option_is_window_local(opt_idx) {
+                return get_varp_from(&mut *p, buf, win)
+                    .cast::<u8>()
+                    .wrapping_add(std::mem::size_of::<Winopt>())
+                    .cast::<c_void>();
+            }
+            return (*p).var;
         }
-        return unsafe { (*p).var };
-    }
 
-    if (opt_flags & OPT_LOCAL) != 0 && option_is_global_local(opt_idx) {
-        let ptr: *mut c_void = match opt_idx {
-            K_OPT_FORMATPRG => (&raw mut buf.b_p_fp).cast(),
-            K_OPT_FSYNC => (&raw mut buf.b_p_fs).cast(),
-            K_OPT_FINDFUNC => (&raw mut buf.b_p_ffu).cast(),
-            K_OPT_ERRORFORMAT => (&raw mut buf.b_p_efm).cast(),
-            K_OPT_GREPFORMAT => (&raw mut buf.b_p_gefm).cast(),
-            K_OPT_GREPPRG => (&raw mut buf.b_p_gp).cast(),
-            K_OPT_MAKEPRG => (&raw mut buf.b_p_mp).cast(),
-            K_OPT_EQUALPRG => (&raw mut buf.b_p_ep).cast(),
-            K_OPT_KEYWORDPRG => (&raw mut buf.b_p_kp).cast(),
-            K_OPT_PATH => (&raw mut buf.b_p_path).cast(),
-            K_OPT_AUTOCOMPLETE => (&raw mut buf.b_p_ac).cast(),
-            K_OPT_AUTOREAD => (&raw mut buf.b_p_ar).cast(),
-            K_OPT_TAGS => (&raw mut buf.b_p_tags).cast(),
-            K_OPT_TAGCASE => (&raw mut buf.b_p_tc).cast(),
-            K_OPT_SIDESCROLLOFF => (&raw mut win.w_onebuf_opt.wo_siso).cast(),
-            K_OPT_SCROLLOFF => (&raw mut win.w_onebuf_opt.wo_so).cast(),
-            K_OPT_SCROLLOFFPAD => (&raw mut win.w_onebuf_opt.wo_sop).cast(),
-            K_OPT_DEFINE => (&raw mut buf.b_p_def).cast(),
-            K_OPT_INCLUDE => (&raw mut buf.b_p_inc).cast(),
-            K_OPT_COMPLETEOPT => (&raw mut buf.b_p_cot).cast(),
-            K_OPT_DICTIONARY => (&raw mut buf.b_p_dict).cast(),
-            K_OPT_DIFFANCHORS => (&raw mut buf.b_p_dia).cast(),
-            K_OPT_THESAURUS => (&raw mut buf.b_p_tsr).cast(),
-            K_OPT_THESAURUSFUNC => (&raw mut buf.b_p_tsrfu).cast(),
-            K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
-            K_OPT_SHOWBREAK => (&raw mut win.w_onebuf_opt.wo_sbr).cast(),
-            K_OPT_STATUSLINE => (&raw mut win.w_onebuf_opt.wo_stl).cast(),
-            K_OPT_WINBAR => (&raw mut win.w_onebuf_opt.wo_wbr).cast(),
-            K_OPT_UNDOLEVELS => (&raw mut buf.b_p_ul).cast(),
-            K_OPT_LISPWORDS => (&raw mut buf.b_p_lw).cast(),
-            K_OPT_BACKUPCOPY => (&raw mut buf.b_p_bkc).cast(),
-            K_OPT_MAKEENCODING => (&raw mut buf.b_p_menc).cast(),
-            K_OPT_FILLCHARS => (&raw mut win.w_onebuf_opt.wo_fcs).cast(),
-            K_OPT_LISTCHARS => (&raw mut win.w_onebuf_opt.wo_lcs).cast(),
-            K_OPT_VIRTUALEDIT => (&raw mut win.w_onebuf_opt.wo_ve).cast(),
-            _ => std::process::abort(),
-        };
-        return ptr;
-    }
+        if (opt_flags & OPT_LOCAL) != 0 && option_is_global_local(opt_idx) {
+            let ptr: *mut c_void = match opt_idx {
+                K_OPT_FORMATPRG => (&raw mut buf.b_p_fp).cast(),
+                K_OPT_FSYNC => (&raw mut buf.b_p_fs).cast(),
+                K_OPT_FINDFUNC => (&raw mut buf.b_p_ffu).cast(),
+                K_OPT_ERRORFORMAT => (&raw mut buf.b_p_efm).cast(),
+                K_OPT_GREPFORMAT => (&raw mut buf.b_p_gefm).cast(),
+                K_OPT_GREPPRG => (&raw mut buf.b_p_gp).cast(),
+                K_OPT_MAKEPRG => (&raw mut buf.b_p_mp).cast(),
+                K_OPT_EQUALPRG => (&raw mut buf.b_p_ep).cast(),
+                K_OPT_KEYWORDPRG => (&raw mut buf.b_p_kp).cast(),
+                K_OPT_PATH => (&raw mut buf.b_p_path).cast(),
+                K_OPT_AUTOCOMPLETE => (&raw mut buf.b_p_ac).cast(),
+                K_OPT_AUTOREAD => (&raw mut buf.b_p_ar).cast(),
+                K_OPT_TAGS => (&raw mut buf.b_p_tags).cast(),
+                K_OPT_TAGCASE => (&raw mut buf.b_p_tc).cast(),
+                K_OPT_SIDESCROLLOFF => (&raw mut (*win).w_onebuf_opt.wo_siso).cast(),
+                K_OPT_SCROLLOFF => (&raw mut (*win).w_onebuf_opt.wo_so).cast(),
+                K_OPT_SCROLLOFFPAD => (&raw mut (*win).w_onebuf_opt.wo_sop).cast(),
+                K_OPT_DEFINE => (&raw mut buf.b_p_def).cast(),
+                K_OPT_INCLUDE => (&raw mut buf.b_p_inc).cast(),
+                K_OPT_COMPLETEOPT => (&raw mut buf.b_p_cot).cast(),
+                K_OPT_DICTIONARY => (&raw mut buf.b_p_dict).cast(),
+                K_OPT_DIFFANCHORS => (&raw mut buf.b_p_dia).cast(),
+                K_OPT_THESAURUS => (&raw mut buf.b_p_tsr).cast(),
+                K_OPT_THESAURUSFUNC => (&raw mut buf.b_p_tsrfu).cast(),
+                K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
+                K_OPT_SHOWBREAK => (&raw mut (*win).w_onebuf_opt.wo_sbr).cast(),
+                K_OPT_STATUSLINE => (&raw mut (*win).w_onebuf_opt.wo_stl).cast(),
+                K_OPT_WINBAR => (&raw mut (*win).w_onebuf_opt.wo_wbr).cast(),
+                K_OPT_UNDOLEVELS => (&raw mut buf.b_p_ul).cast(),
+                K_OPT_LISPWORDS => (&raw mut buf.b_p_lw).cast(),
+                K_OPT_BACKUPCOPY => (&raw mut buf.b_p_bkc).cast(),
+                K_OPT_MAKEENCODING => (&raw mut buf.b_p_menc).cast(),
+                K_OPT_FILLCHARS => (&raw mut (*win).w_onebuf_opt.wo_fcs).cast(),
+                K_OPT_LISTCHARS => (&raw mut (*win).w_onebuf_opt.wo_lcs).cast(),
+                K_OPT_VIRTUALEDIT => (&raw mut (*win).w_onebuf_opt.wo_ve).cast(),
+                _ => std::process::abort(),
+            };
+            return ptr;
+        }
 
-    get_varp_from(unsafe { &mut *p }, buf, win)
+        get_varp_from(&mut *p, buf, win)
+    }
 }
 
 /// Get pointer to option variable, depending on local or global scope.
@@ -6759,385 +6761,403 @@ pub fn get_option_varp_scope_from(
     buf: &mut FileBuf,
     win: *mut WinInfoInfo,
 ) -> *mut c_void {
-    get_varp_scope_from(get_option(opt_idx), opt_flags, buf, unsafe { &mut *win })
+    get_varp_scope_from(get_option(opt_idx), opt_flags, buf, win)
 }
 
-pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: &mut WinInfoInfo) -> *mut c_void {
-    let opt_idx = get_opt_idx(&raw mut *p);
+pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo) -> *mut c_void {
+    unsafe {
+        let opt_idx = get_opt_idx(&raw mut *p);
 
-    if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
-        return p.var;
-    }
-
-    match opt_idx {
-        K_OPT_EQUALPRG => {
-            if !crate::memory::cstr_is_empty(buf.b_p_ep) {
-                (&raw mut buf.b_p_ep).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_KEYWORDPRG => {
-            if !crate::memory::cstr_is_empty(buf.b_p_kp) {
-                (&raw mut buf.b_p_kp).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_PATH => {
-            if !crate::memory::cstr_is_empty(buf.b_p_path) {
-                (&raw mut buf.b_p_path).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_AUTOCOMPLETE => {
-            if buf.b_p_ac >= 0 {
-                (&raw mut buf.b_p_ac).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_AUTOREAD => {
-            if buf.b_p_ar >= 0 {
-                (&raw mut buf.b_p_ar).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_TAGS => {
-            if !crate::memory::cstr_is_empty(buf.b_p_tags) {
-                (&raw mut buf.b_p_tags).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_TAGCASE => {
-            if !crate::memory::cstr_is_empty(buf.b_p_tc) {
-                (&raw mut buf.b_p_tc).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_SIDESCROLLOFF => {
-            if win.w_onebuf_opt.wo_siso >= 0 {
-                (&raw mut win.w_onebuf_opt.wo_siso).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_SCROLLOFF => {
-            if win.w_onebuf_opt.wo_so >= 0 {
-                (&raw mut win.w_onebuf_opt.wo_so).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_SCROLLOFFPAD => {
-            if win.w_onebuf_opt.wo_sop >= 0 {
-                (&raw mut win.w_onebuf_opt.wo_sop).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_BACKUPCOPY => {
-            if !crate::memory::cstr_is_empty(buf.b_p_bkc) {
-                (&raw mut buf.b_p_bkc).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_DEFINE => {
-            if !crate::memory::cstr_is_empty(buf.b_p_def) {
-                (&raw mut buf.b_p_def).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_INCLUDE => {
-            if !crate::memory::cstr_is_empty(buf.b_p_inc) {
-                (&raw mut buf.b_p_inc).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_COMPLETEOPT => {
-            if !crate::memory::cstr_is_empty(buf.b_p_cot) {
-                (&raw mut buf.b_p_cot).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_DICTIONARY => {
-            if !crate::memory::cstr_is_empty(buf.b_p_dict) {
-                (&raw mut buf.b_p_dict).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_DIFFANCHORS => {
-            if !crate::memory::cstr_is_empty(buf.b_p_dia) {
-                (&raw mut buf.b_p_dia).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_THESAURUS => {
-            if !crate::memory::cstr_is_empty(buf.b_p_tsr) {
-                (&raw mut buf.b_p_tsr).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_THESAURUSFUNC => {
-            if buf.b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
-                (&raw mut buf.b_p_tsrfu).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_FORMATPRG => {
-            if !crate::memory::cstr_is_empty(buf.b_p_fp) {
-                (&raw mut buf.b_p_fp).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_FSYNC => {
-            if buf.b_p_fs >= 0 {
-                (&raw mut buf.b_p_fs).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_FINDFUNC => {
-            if buf.b_p_ffu.cb_type() != K_CALLBACK_NONE_CONST {
-                (&raw mut buf.b_p_ffu).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_ERRORFORMAT => {
-            if !crate::memory::cstr_is_empty(buf.b_p_efm) {
-                (&raw mut buf.b_p_efm).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_GREPFORMAT => {
-            if !crate::memory::cstr_is_empty(buf.b_p_gefm) {
-                (&raw mut buf.b_p_gefm).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_GREPPRG => {
-            if !crate::memory::cstr_is_empty(buf.b_p_gp) {
-                (&raw mut buf.b_p_gp).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_MAKEPRG => {
-            if !crate::memory::cstr_is_empty(buf.b_p_mp) {
-                (&raw mut buf.b_p_mp).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_SHOWBREAK => {
-            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_sbr) {
-                (&raw mut win.w_onebuf_opt.wo_sbr).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_STATUSLINE => {
-            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_stl) {
-                (&raw mut win.w_onebuf_opt.wo_stl).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_WINBAR => {
-            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_wbr) {
-                (&raw mut win.w_onebuf_opt.wo_wbr).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_UNDOLEVELS => {
-            if buf.b_p_ul != NO_LOCAL_UNDOLEVEL {
-                (&raw mut buf.b_p_ul).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_LISPWORDS => {
-            if !crate::memory::cstr_is_empty(buf.b_p_lw) {
-                (&raw mut buf.b_p_lw).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_MAKEENCODING => {
-            if !crate::memory::cstr_is_empty(buf.b_p_menc) {
-                (&raw mut buf.b_p_menc).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_FILLCHARS => {
-            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_fcs) {
-                (&raw mut win.w_onebuf_opt.wo_fcs).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_LISTCHARS => {
-            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_lcs) {
-                (&raw mut win.w_onebuf_opt.wo_lcs).cast()
-            } else {
-                p.var
-            }
-        }
-        K_OPT_VIRTUALEDIT => {
-            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_ve) {
-                (&raw mut win.w_onebuf_opt.wo_ve).cast()
-            } else {
-                p.var
-            }
+        if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
+            return p.var;
         }
 
-        K_OPT_ARABIC => (&raw mut win.w_onebuf_opt.wo_arab).cast(),
-        K_OPT_LIST => (&raw mut win.w_onebuf_opt.wo_list).cast(),
-        K_OPT_SPELL => (&raw mut win.w_onebuf_opt.wo_spell).cast(),
-        K_OPT_CURSORCOLUMN => (&raw mut win.w_onebuf_opt.wo_cuc).cast(),
-        K_OPT_CURSORLINE => (&raw mut win.w_onebuf_opt.wo_cul).cast(),
-        K_OPT_CURSORLINEOPT => (&raw mut win.w_onebuf_opt.wo_culopt).cast(),
-        K_OPT_COLORCOLUMN => (&raw mut win.w_onebuf_opt.wo_cc).cast(),
-        K_OPT_DIFF => (&raw mut win.w_onebuf_opt.wo_diff).cast(),
-        K_OPT_EVENTIGNOREWIN => (&raw mut win.w_onebuf_opt.wo_eiw).cast(),
-        K_OPT_FOLDCOLUMN => (&raw mut win.w_onebuf_opt.wo_fdc).cast(),
-        K_OPT_FOLDENABLE => (&raw mut win.w_onebuf_opt.wo_fen).cast(),
-        K_OPT_FOLDIGNORE => (&raw mut win.w_onebuf_opt.wo_fdi).cast(),
-        K_OPT_FOLDLEVEL => (&raw mut win.w_onebuf_opt.wo_fdl).cast(),
-        K_OPT_FOLDMETHOD => (&raw mut win.w_onebuf_opt.wo_fdm).cast(),
-        K_OPT_FOLDMINLINES => (&raw mut win.w_onebuf_opt.wo_fml).cast(),
-        K_OPT_FOLDNESTMAX => (&raw mut win.w_onebuf_opt.wo_fdn).cast(),
-        K_OPT_FOLDEXPR => (&raw mut win.w_onebuf_opt.wo_fde).cast(),
-        K_OPT_FOLDTEXT => (&raw mut win.w_onebuf_opt.wo_fdt).cast(),
-        K_OPT_FOLDMARKER => (&raw mut win.w_onebuf_opt.wo_fmr).cast(),
-        K_OPT_NUMBER => (&raw mut win.w_onebuf_opt.wo_nu).cast(),
-        K_OPT_RELATIVENUMBER => (&raw mut win.w_onebuf_opt.wo_rnu).cast(),
-        K_OPT_NUMBERWIDTH => (&raw mut win.w_onebuf_opt.wo_nuw).cast(),
-        K_OPT_WINFIXBUF => (&raw mut win.w_onebuf_opt.wo_wfb).cast(),
-        K_OPT_WINFIXHEIGHT => (&raw mut win.w_onebuf_opt.wo_wfh).cast(),
-        K_OPT_WINFIXWIDTH => (&raw mut win.w_onebuf_opt.wo_wfw).cast(),
-        K_OPT_WINPINNED => (&raw mut win.w_onebuf_opt.wo_wp).cast(),
-        K_OPT_PREVIEWWINDOW => (&raw mut win.w_onebuf_opt.wo_pvw).cast(),
-        K_OPT_LHISTORY => (&raw mut win.w_onebuf_opt.wo_lhi).cast(),
-        K_OPT_RIGHTLEFT => (&raw mut win.w_onebuf_opt.wo_rl).cast(),
-        K_OPT_RIGHTLEFTCMD => (&raw mut win.w_onebuf_opt.wo_rlc).cast(),
-        K_OPT_SCROLL => (&raw mut win.w_onebuf_opt.wo_scr).cast(),
-        K_OPT_SMOOTHSCROLL => (&raw mut win.w_onebuf_opt.wo_sms).cast(),
-        K_OPT_WRAP => (&raw mut win.w_onebuf_opt.wo_wrap).cast(),
-        K_OPT_LINEBREAK => (&raw mut win.w_onebuf_opt.wo_lbr).cast(),
-        K_OPT_BREAKINDENT => (&raw mut win.w_onebuf_opt.wo_bri).cast(),
-        K_OPT_BREAKINDENTOPT => (&raw mut win.w_onebuf_opt.wo_briopt).cast(),
-        K_OPT_SCROLLBIND => (&raw mut win.w_onebuf_opt.wo_scb).cast(),
-        K_OPT_CURSORBIND => (&raw mut win.w_onebuf_opt.wo_crb).cast(),
-        K_OPT_CONCEALCURSOR => (&raw mut win.w_onebuf_opt.wo_cocu).cast(),
-        K_OPT_CONCEALLEVEL => (&raw mut win.w_onebuf_opt.wo_cole).cast(),
+        match opt_idx {
+            K_OPT_EQUALPRG => {
+                if !crate::memory::cstr_is_empty(buf.b_p_ep) {
+                    (&raw mut buf.b_p_ep).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_KEYWORDPRG => {
+                if !crate::memory::cstr_is_empty(buf.b_p_kp) {
+                    (&raw mut buf.b_p_kp).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_PATH => {
+                if !crate::memory::cstr_is_empty(buf.b_p_path) {
+                    (&raw mut buf.b_p_path).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_AUTOCOMPLETE => {
+                if buf.b_p_ac >= 0 {
+                    (&raw mut buf.b_p_ac).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_AUTOREAD => {
+                if buf.b_p_ar >= 0 {
+                    (&raw mut buf.b_p_ar).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_TAGS => {
+                if !crate::memory::cstr_is_empty(buf.b_p_tags) {
+                    (&raw mut buf.b_p_tags).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_TAGCASE => {
+                if !crate::memory::cstr_is_empty(buf.b_p_tc) {
+                    (&raw mut buf.b_p_tc).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_SIDESCROLLOFF => {
+                if (*win).w_onebuf_opt.wo_siso >= 0 {
+                    (&raw mut (*win).w_onebuf_opt.wo_siso).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_SCROLLOFF => {
+                if (*win).w_onebuf_opt.wo_so >= 0 {
+                    (&raw mut (*win).w_onebuf_opt.wo_so).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_SCROLLOFFPAD => {
+                if (*win).w_onebuf_opt.wo_sop >= 0 {
+                    (&raw mut (*win).w_onebuf_opt.wo_sop).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_BACKUPCOPY => {
+                if !crate::memory::cstr_is_empty(buf.b_p_bkc) {
+                    (&raw mut buf.b_p_bkc).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_DEFINE => {
+                if !crate::memory::cstr_is_empty(buf.b_p_def) {
+                    (&raw mut buf.b_p_def).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_INCLUDE => {
+                if !crate::memory::cstr_is_empty(buf.b_p_inc) {
+                    (&raw mut buf.b_p_inc).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_COMPLETEOPT => {
+                if !crate::memory::cstr_is_empty(buf.b_p_cot) {
+                    (&raw mut buf.b_p_cot).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_DICTIONARY => {
+                if !crate::memory::cstr_is_empty(buf.b_p_dict) {
+                    (&raw mut buf.b_p_dict).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_DIFFANCHORS => {
+                if !crate::memory::cstr_is_empty(buf.b_p_dia) {
+                    (&raw mut buf.b_p_dia).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_THESAURUS => {
+                if !crate::memory::cstr_is_empty(buf.b_p_tsr) {
+                    (&raw mut buf.b_p_tsr).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_THESAURUSFUNC => {
+                if buf.b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
+                    (&raw mut buf.b_p_tsrfu).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_FORMATPRG => {
+                if !crate::memory::cstr_is_empty(buf.b_p_fp) {
+                    (&raw mut buf.b_p_fp).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_FSYNC => {
+                if buf.b_p_fs >= 0 {
+                    (&raw mut buf.b_p_fs).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_FINDFUNC => {
+                if buf.b_p_ffu.cb_type() != K_CALLBACK_NONE_CONST {
+                    (&raw mut buf.b_p_ffu).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_ERRORFORMAT => {
+                if !crate::memory::cstr_is_empty(buf.b_p_efm) {
+                    (&raw mut buf.b_p_efm).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_GREPFORMAT => {
+                if !crate::memory::cstr_is_empty(buf.b_p_gefm) {
+                    (&raw mut buf.b_p_gefm).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_GREPPRG => {
+                if !crate::memory::cstr_is_empty(buf.b_p_gp) {
+                    (&raw mut buf.b_p_gp).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_MAKEPRG => {
+                if !crate::memory::cstr_is_empty(buf.b_p_mp) {
+                    (&raw mut buf.b_p_mp).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_SHOWBREAK => {
+                if !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_sbr) {
+                    (&raw mut (*win).w_onebuf_opt.wo_sbr).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_STATUSLINE => {
+                if !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_stl) {
+                    (&raw mut (*win).w_onebuf_opt.wo_stl).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_WINBAR => {
+                if !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_wbr) {
+                    (&raw mut (*win).w_onebuf_opt.wo_wbr).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_UNDOLEVELS => {
+                if buf.b_p_ul != NO_LOCAL_UNDOLEVEL {
+                    (&raw mut buf.b_p_ul).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_LISPWORDS => {
+                if !crate::memory::cstr_is_empty(buf.b_p_lw) {
+                    (&raw mut buf.b_p_lw).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_MAKEENCODING => {
+                if !crate::memory::cstr_is_empty(buf.b_p_menc) {
+                    (&raw mut buf.b_p_menc).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_FILLCHARS => {
+                if !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_fcs) {
+                    (&raw mut (*win).w_onebuf_opt.wo_fcs).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_LISTCHARS => {
+                if !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_lcs) {
+                    (&raw mut (*win).w_onebuf_opt.wo_lcs).cast()
+                } else {
+                    p.var
+                }
+            }
+            K_OPT_VIRTUALEDIT => {
+                if !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_ve) {
+                    (&raw mut (*win).w_onebuf_opt.wo_ve).cast()
+                } else {
+                    p.var
+                }
+            }
 
-        K_OPT_AUTOINDENT => (&raw mut buf.b_p_ai).cast(),
-        K_OPT_BINARY => (&raw mut buf.b_p_bin).cast(),
-        K_OPT_BOMB => (&raw mut buf.b_p_bomb).cast(),
-        K_OPT_BUFHIDDEN => (&raw mut buf.b_p_bh).cast(),
-        K_OPT_BUFTYPE => (&raw mut buf.b_p_bt).cast(),
-        K_OPT_BUFLISTED => (&raw mut buf.b_p_bl).cast(),
-        K_OPT_BUSY => (&raw mut buf.b_p_busy).cast(),
-        K_OPT_CHANNEL => (&raw mut buf.b_p_channel).cast(),
-        K_OPT_COPYINDENT => (&raw mut buf.b_p_ci).cast(),
-        K_OPT_CINDENT => (&raw mut buf.b_p_cin).cast(),
-        K_OPT_CINKEYS => (&raw mut buf.b_p_cink).cast(),
-        K_OPT_CINOPTIONS => (&raw mut buf.b_p_cino).cast(),
-        K_OPT_CINSCOPEDECLS => (&raw mut buf.b_p_cinsd).cast(),
-        K_OPT_CINWORDS => (&raw mut buf.b_p_cinw).cast(),
-        K_OPT_COMMENTS => (&raw mut buf.b_p_com).cast(),
-        K_OPT_COMMENTSTRING => (&raw mut buf.b_p_cms).cast(),
-        K_OPT_COMPLETE => (&raw mut buf.b_p_cpt).cast(),
-        #[cfg(windows)]
-        K_OPT_COMPLETESLASH => (&raw mut buf.b_p_csl).cast(),
-        K_OPT_COMPLETEFUNC => (&raw mut buf.b_p_cfu).cast(),
-        K_OPT_OMNIFUNC => (&raw mut buf.b_p_ofu).cast(),
-        K_OPT_ENDOFFILE => (&raw mut buf.b_p_eof).cast(),
-        K_OPT_ENDOFLINE => (&raw mut buf.b_p_eol).cast(),
-        K_OPT_FIXENDOFLINE => (&raw mut buf.b_p_fixeol).cast(),
-        K_OPT_EXPANDTAB => (&raw mut buf.b_p_et).cast(),
-        K_OPT_FILEENCODING => (&raw mut buf.b_p_fenc).cast(),
-        K_OPT_FILEFORMAT => (&raw mut buf.b_p_ff).cast(),
-        K_OPT_FILETYPE => (&raw mut buf.b_p_ft).cast(),
-        K_OPT_FOLLOW => (&raw mut buf.b_p_follow).cast(),
-        K_OPT_FORMATOPTIONS => (&raw mut buf.b_p_fo).cast(),
-        K_OPT_FORMATLISTPAT => (&raw mut buf.b_p_flp).cast(),
-        K_OPT_IMINSERT => (&raw mut buf.b_p_iminsert).cast(),
-        K_OPT_IMSEARCH => (&raw mut buf.b_p_imsearch).cast(),
-        K_OPT_INFERCASE => (&raw mut buf.b_p_inf).cast(),
-        K_OPT_ISKEYWORD => (&raw mut buf.b_p_isk).cast(),
-        K_OPT_INCLUDEEXPR => (&raw mut buf.b_p_inex).cast(),
-        K_OPT_INDENTEXPR => (&raw mut buf.b_p_inde).cast(),
-        K_OPT_INDENTKEYS => (&raw mut buf.b_p_indk).cast(),
-        K_OPT_FORMATEXPR => (&raw mut buf.b_p_fex).cast(),
-        K_OPT_LISP => (&raw mut buf.b_p_lisp).cast(),
-        K_OPT_LISPOPTIONS => (&raw mut buf.b_p_lop).cast(),
-        K_OPT_MODELINE => (&raw mut buf.b_p_ml).cast(),
-        K_OPT_MATCHPAIRS => (&raw mut buf.b_p_mps).cast(),
-        K_OPT_MODIFIABLE => (&raw mut buf.b_p_ma).cast(),
-        K_OPT_MODIFIED => (&raw mut buf.b_changed).cast(),
-        K_OPT_NRFORMATS => (&raw mut buf.b_p_nf).cast(),
-        K_OPT_PRESERVEINDENT => (&raw mut buf.b_p_pi).cast(),
-        K_OPT_QUOTEESCAPE => (&raw mut buf.b_p_qe).cast(),
-        K_OPT_READONLY => (&raw mut buf.b_p_ro).cast(),
-        K_OPT_SCROLLBACK => (&raw mut buf.b_p_scbk).cast(),
-        K_OPT_SMARTINDENT => (&raw mut buf.b_p_si).cast(),
-        K_OPT_SOFTTABSTOP => (&raw mut buf.b_p_sts).cast(),
-        K_OPT_SUFFIXESADD => (&raw mut buf.b_p_sua).cast(),
-        K_OPT_SWAPFILE => (&raw mut buf.b_p_swf).cast(),
-        K_OPT_SYNMAXCOL => (&raw mut buf.b_p_smc).cast(),
-        K_OPT_SYNTAX => (&raw mut buf.b_p_syn).cast(),
-        K_OPT_SPELLCAPCHECK => {
-            let ws = win.w_s_ptr();
-            (&raw mut ws.b_p_spc).cast()
-        }
-        K_OPT_SPELLFILE => {
-            let ws = win.w_s_ptr();
-            (&raw mut ws.b_p_spf).cast()
-        }
-        K_OPT_SPELLLANG => {
-            let ws = win.w_s_ptr();
-            (&raw mut ws.b_p_spl).cast()
-        }
-        K_OPT_SPELLOPTIONS => {
-            let ws = win.w_s_ptr();
-            (&raw mut ws.b_p_spo).cast()
-        }
-        K_OPT_SHIFTWIDTH => (&raw mut buf.b_p_sw).cast(),
-        K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
-        K_OPT_TABSTOP => (&raw mut buf.b_p_ts).cast(),
-        K_OPT_TEXTWIDTH => (&raw mut buf.b_p_tw).cast(),
-        K_OPT_UNDOFILE => (&raw mut buf.b_p_udf).cast(),
-        K_OPT_WRAPMARGIN => (&raw mut buf.b_p_wm).cast(),
-        K_OPT_VARSOFTTABSTOP => (&raw mut buf.b_p_vsts).cast(),
-        K_OPT_VARTABSTOP => (&raw mut buf.b_p_vts).cast(),
-        K_OPT_KEYMAP => (&raw mut buf.b_p_keymap).cast(),
-        K_OPT_SIGNCOLUMN => (&raw mut win.w_onebuf_opt.wo_scl).cast(),
-        K_OPT_WINHIGHLIGHT => (&raw mut win.w_onebuf_opt.wo_winhl).cast(),
-        K_OPT_WINBLEND => (&raw mut win.w_onebuf_opt.wo_winbl).cast(),
-        K_OPT_STATUSCOLUMN => (&raw mut win.w_onebuf_opt.wo_stc).cast(),
-        _ => {
-            iemsg(tr(c"E356: get_varp ERROR"));
-            (&raw mut buf.b_p_wm).cast()
+            K_OPT_ARABIC => (&raw mut (*win).w_onebuf_opt.wo_arab).cast(),
+            K_OPT_LIST => (&raw mut (*win).w_onebuf_opt.wo_list).cast(),
+            K_OPT_SPELL => (&raw mut (*win).w_onebuf_opt.wo_spell).cast(),
+            K_OPT_CURSORCOLUMN => (&raw mut (*win).w_onebuf_opt.wo_cuc).cast(),
+            K_OPT_CURSORLINE => (&raw mut (*win).w_onebuf_opt.wo_cul).cast(),
+            K_OPT_CURSORLINEOPT => (&raw mut (*win).w_onebuf_opt.wo_culopt).cast(),
+            K_OPT_COLORCOLUMN => (&raw mut (*win).w_onebuf_opt.wo_cc).cast(),
+            K_OPT_DIFF => (&raw mut (*win).w_onebuf_opt.wo_diff).cast(),
+            K_OPT_EVENTIGNOREWIN => (&raw mut (*win).w_onebuf_opt.wo_eiw).cast(),
+            K_OPT_FOLDCOLUMN => (&raw mut (*win).w_onebuf_opt.wo_fdc).cast(),
+            K_OPT_FOLDENABLE => (&raw mut (*win).w_onebuf_opt.wo_fen).cast(),
+            K_OPT_FOLDIGNORE => (&raw mut (*win).w_onebuf_opt.wo_fdi).cast(),
+            K_OPT_FOLDLEVEL => (&raw mut (*win).w_onebuf_opt.wo_fdl).cast(),
+            K_OPT_FOLDMETHOD => (&raw mut (*win).w_onebuf_opt.wo_fdm).cast(),
+            K_OPT_FOLDMINLINES => (&raw mut (*win).w_onebuf_opt.wo_fml).cast(),
+            K_OPT_FOLDNESTMAX => (&raw mut (*win).w_onebuf_opt.wo_fdn).cast(),
+            K_OPT_FOLDEXPR => (&raw mut (*win).w_onebuf_opt.wo_fde).cast(),
+            K_OPT_FOLDTEXT => (&raw mut (*win).w_onebuf_opt.wo_fdt).cast(),
+            K_OPT_FOLDMARKER => (&raw mut (*win).w_onebuf_opt.wo_fmr).cast(),
+            K_OPT_NUMBER => (&raw mut (*win).w_onebuf_opt.wo_nu).cast(),
+            K_OPT_RELATIVENUMBER => (&raw mut (*win).w_onebuf_opt.wo_rnu).cast(),
+            K_OPT_NUMBERWIDTH => (&raw mut (*win).w_onebuf_opt.wo_nuw).cast(),
+            K_OPT_WINFIXBUF => (&raw mut (*win).w_onebuf_opt.wo_wfb).cast(),
+            K_OPT_WINFIXHEIGHT => (&raw mut (*win).w_onebuf_opt.wo_wfh).cast(),
+            K_OPT_WINFIXWIDTH => (&raw mut (*win).w_onebuf_opt.wo_wfw).cast(),
+            K_OPT_WINPINNED => (&raw mut (*win).w_onebuf_opt.wo_wp).cast(),
+            K_OPT_PREVIEWWINDOW => (&raw mut (*win).w_onebuf_opt.wo_pvw).cast(),
+            K_OPT_LHISTORY => (&raw mut (*win).w_onebuf_opt.wo_lhi).cast(),
+            K_OPT_RIGHTLEFT => (&raw mut (*win).w_onebuf_opt.wo_rl).cast(),
+            K_OPT_RIGHTLEFTCMD => (&raw mut (*win).w_onebuf_opt.wo_rlc).cast(),
+            K_OPT_SCROLL => (&raw mut (*win).w_onebuf_opt.wo_scr).cast(),
+            K_OPT_SMOOTHSCROLL => (&raw mut (*win).w_onebuf_opt.wo_sms).cast(),
+            K_OPT_WRAP => (&raw mut (*win).w_onebuf_opt.wo_wrap).cast(),
+            K_OPT_LINEBREAK => (&raw mut (*win).w_onebuf_opt.wo_lbr).cast(),
+            K_OPT_BREAKINDENT => (&raw mut (*win).w_onebuf_opt.wo_bri).cast(),
+            K_OPT_BREAKINDENTOPT => (&raw mut (*win).w_onebuf_opt.wo_briopt).cast(),
+            K_OPT_SCROLLBIND => (&raw mut (*win).w_onebuf_opt.wo_scb).cast(),
+            K_OPT_CURSORBIND => (&raw mut (*win).w_onebuf_opt.wo_crb).cast(),
+            K_OPT_CONCEALCURSOR => (&raw mut (*win).w_onebuf_opt.wo_cocu).cast(),
+            K_OPT_CONCEALLEVEL => (&raw mut (*win).w_onebuf_opt.wo_cole).cast(),
+
+            K_OPT_AUTOINDENT => (&raw mut buf.b_p_ai).cast(),
+            K_OPT_BINARY => (&raw mut buf.b_p_bin).cast(),
+            K_OPT_BOMB => (&raw mut buf.b_p_bomb).cast(),
+            K_OPT_BUFHIDDEN => (&raw mut buf.b_p_bh).cast(),
+            K_OPT_BUFTYPE => (&raw mut buf.b_p_bt).cast(),
+            K_OPT_BUFLISTED => (&raw mut buf.b_p_bl).cast(),
+            K_OPT_BUSY => (&raw mut buf.b_p_busy).cast(),
+            K_OPT_CHANNEL => (&raw mut buf.b_p_channel).cast(),
+            K_OPT_COPYINDENT => (&raw mut buf.b_p_ci).cast(),
+            K_OPT_CINDENT => (&raw mut buf.b_p_cin).cast(),
+            K_OPT_CINKEYS => (&raw mut buf.b_p_cink).cast(),
+            K_OPT_CINOPTIONS => (&raw mut buf.b_p_cino).cast(),
+            K_OPT_CINSCOPEDECLS => (&raw mut buf.b_p_cinsd).cast(),
+            K_OPT_CINWORDS => (&raw mut buf.b_p_cinw).cast(),
+            K_OPT_COMMENTS => (&raw mut buf.b_p_com).cast(),
+            K_OPT_COMMENTSTRING => (&raw mut buf.b_p_cms).cast(),
+            K_OPT_COMPLETE => (&raw mut buf.b_p_cpt).cast(),
+            #[cfg(windows)]
+            K_OPT_COMPLETESLASH => (&raw mut buf.b_p_csl).cast(),
+            K_OPT_COMPLETEFUNC => (&raw mut buf.b_p_cfu).cast(),
+            K_OPT_OMNIFUNC => (&raw mut buf.b_p_ofu).cast(),
+            K_OPT_ENDOFFILE => (&raw mut buf.b_p_eof).cast(),
+            K_OPT_ENDOFLINE => (&raw mut buf.b_p_eol).cast(),
+            K_OPT_FIXENDOFLINE => (&raw mut buf.b_p_fixeol).cast(),
+            K_OPT_EXPANDTAB => (&raw mut buf.b_p_et).cast(),
+            K_OPT_FILEENCODING => (&raw mut buf.b_p_fenc).cast(),
+            K_OPT_FILEFORMAT => (&raw mut buf.b_p_ff).cast(),
+            K_OPT_FILETYPE => (&raw mut buf.b_p_ft).cast(),
+            K_OPT_FOLLOW => (&raw mut buf.b_p_follow).cast(),
+            K_OPT_FORMATOPTIONS => (&raw mut buf.b_p_fo).cast(),
+            K_OPT_FORMATLISTPAT => (&raw mut buf.b_p_flp).cast(),
+            K_OPT_IMINSERT => (&raw mut buf.b_p_iminsert).cast(),
+            K_OPT_IMSEARCH => (&raw mut buf.b_p_imsearch).cast(),
+            K_OPT_INFERCASE => (&raw mut buf.b_p_inf).cast(),
+            K_OPT_ISKEYWORD => (&raw mut buf.b_p_isk).cast(),
+            K_OPT_INCLUDEEXPR => (&raw mut buf.b_p_inex).cast(),
+            K_OPT_INDENTEXPR => (&raw mut buf.b_p_inde).cast(),
+            K_OPT_INDENTKEYS => (&raw mut buf.b_p_indk).cast(),
+            K_OPT_FORMATEXPR => (&raw mut buf.b_p_fex).cast(),
+            K_OPT_LISP => (&raw mut buf.b_p_lisp).cast(),
+            K_OPT_LISPOPTIONS => (&raw mut buf.b_p_lop).cast(),
+            K_OPT_MODELINE => (&raw mut buf.b_p_ml).cast(),
+            K_OPT_MATCHPAIRS => (&raw mut buf.b_p_mps).cast(),
+            K_OPT_MODIFIABLE => (&raw mut buf.b_p_ma).cast(),
+            K_OPT_MODIFIED => (&raw mut buf.b_changed).cast(),
+            K_OPT_NRFORMATS => (&raw mut buf.b_p_nf).cast(),
+            K_OPT_PRESERVEINDENT => (&raw mut buf.b_p_pi).cast(),
+            K_OPT_QUOTEESCAPE => (&raw mut buf.b_p_qe).cast(),
+            K_OPT_READONLY => (&raw mut buf.b_p_ro).cast(),
+            K_OPT_SCROLLBACK => (&raw mut buf.b_p_scbk).cast(),
+            K_OPT_SMARTINDENT => (&raw mut buf.b_p_si).cast(),
+            K_OPT_SOFTTABSTOP => (&raw mut buf.b_p_sts).cast(),
+            K_OPT_SUFFIXESADD => (&raw mut buf.b_p_sua).cast(),
+            K_OPT_SWAPFILE => (&raw mut buf.b_p_swf).cast(),
+            K_OPT_SYNMAXCOL => (&raw mut buf.b_p_smc).cast(),
+            K_OPT_SYNTAX => (&raw mut buf.b_p_syn).cast(),
+            K_OPT_SPELLCAPCHECK => {
+                let ws = if win.is_null() {
+                    &mut buf.b_s
+                } else {
+                    (*win).w_s_ptr()
+                };
+                (&raw mut ws.b_p_spc).cast()
+            }
+            K_OPT_SPELLFILE => {
+                let ws = if win.is_null() {
+                    &mut buf.b_s
+                } else {
+                    (*win).w_s_ptr()
+                };
+                (&raw mut ws.b_p_spf).cast()
+            }
+            K_OPT_SPELLLANG => {
+                let ws = if win.is_null() {
+                    &mut buf.b_s
+                } else {
+                    (*win).w_s_ptr()
+                };
+                (&raw mut ws.b_p_spl).cast()
+            }
+            K_OPT_SPELLOPTIONS => {
+                let ws = if win.is_null() {
+                    &mut buf.b_s
+                } else {
+                    (*win).w_s_ptr()
+                };
+                (&raw mut ws.b_p_spo).cast()
+            }
+            K_OPT_SHIFTWIDTH => (&raw mut buf.b_p_sw).cast(),
+            K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
+            K_OPT_TABSTOP => (&raw mut buf.b_p_ts).cast(),
+            K_OPT_TEXTWIDTH => (&raw mut buf.b_p_tw).cast(),
+            K_OPT_UNDOFILE => (&raw mut buf.b_p_udf).cast(),
+            K_OPT_WRAPMARGIN => (&raw mut buf.b_p_wm).cast(),
+            K_OPT_VARSOFTTABSTOP => (&raw mut buf.b_p_vsts).cast(),
+            K_OPT_VARTABSTOP => (&raw mut buf.b_p_vts).cast(),
+            K_OPT_KEYMAP => (&raw mut buf.b_p_keymap).cast(),
+            K_OPT_SIGNCOLUMN => (&raw mut (*win).w_onebuf_opt.wo_scl).cast(),
+            K_OPT_WINHIGHLIGHT => (&raw mut (*win).w_onebuf_opt.wo_winhl).cast(),
+            K_OPT_WINBLEND => (&raw mut (*win).w_onebuf_opt.wo_winbl).cast(),
+            K_OPT_STATUSCOLUMN => (&raw mut (*win).w_onebuf_opt.wo_stc).cast(),
+            _ => {
+                iemsg(tr(c"E356: get_varp ERROR"));
+                (&raw mut buf.b_p_wm).cast()
+            }
         }
     }
 }

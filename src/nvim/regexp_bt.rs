@@ -165,8 +165,8 @@ fn op_fn(p: *const u8) -> i32 {
 
 #[inline]
 fn next_fn(p: *const u8) -> i32 {
-    ((crate::memory::cstr_char_at(p.cast(), 1) & 0o377) << 8)
-        + (crate::memory::cstr_char_at(p.cast(), 2) & 0o377)
+    ((i32::from(crate::memory::cstr_byte_at(p.cast(), 1)) & 0o377) << 8)
+        + (i32::from(crate::memory::cstr_byte_at(p.cast(), 2)) & 0o377)
 }
 
 #[inline]
@@ -2584,14 +2584,12 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
             .regstack
             .resize(old_len + size_of::<Regitem>() / 8, 0);
 
-        let rp = {
-            &mut unsafe {
-                *re_st()
-                    .regstack
-                    .as_mut_ptr()
-                    .wrapping_add(old_len)
-                    .cast::<Regitem>()
-            }
+        let rp = unsafe {
+            &mut *re_st()
+                .regstack
+                .as_mut_ptr()
+                .wrapping_add(old_len)
+                .cast::<Regitem>()
         };
         rp.rs_state = state;
         rp.rs_scan = scan;

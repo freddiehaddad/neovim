@@ -980,7 +980,7 @@ pub fn trunc_string(
         } else if e + 3 < buflen {
             // set the middle and copy the last part
             unsafe { ptr::copy(c"...".as_ptr(), buf.wrapping_add(e as usize), 3) };
-            len = crate::memory::cstr_as_bytes(s)[i as usize..].len() as i32 + 1;
+            len = crate::memory::cstr_len(s.wrapping_add(i as usize)) as i32 + 1;
             if len >= buflen - e - 3 {
                 len = buflen - e - 3 - 1;
             }
@@ -3949,13 +3949,11 @@ pub fn msg_ext_ui_flush() {
                 let mut msg = HlMessage::new();
                 for i in 0..tofree.size {
                     let chunk = tofree[i].data.array().items;
-                    let text = std::mem::replace(
-                        &mut (*chunk.wrapping_add(1)).data.string(),
-                        NvimString {
-                            data: ptr::null_mut(),
-                            size: 0,
-                        },
-                    );
+                    let text = (*chunk.wrapping_add(1)).data.string();
+                    (*chunk.wrapping_add(1)).data = ObjectData::String(NvimString {
+                        data: ptr::null_mut(),
+                        size: 0,
+                    });
                     msg.push(HlMessageChunk {
                         text,
                         hl_id: (*chunk.wrapping_add(2)).data.integer() as i32,

@@ -749,7 +749,7 @@ fn do_path_expand(
         p = buf.wrapping_add(wildoff);
         while p < s {
             if rem_backslash(p) {
-                let move_len = crate::memory::cstr_as_bytes(p)[1..].len() + 1;
+                let move_len = crate::memory::cstr_len(p.wrapping_add(1)) + 1;
                 unsafe { ptr::copy(p.wrapping_add(1), p, move_len) };
                 e = e.wrapping_sub(1);
                 s = s.wrapping_sub(1);
@@ -2268,7 +2268,7 @@ pub fn expand_wildcards_eval(
         );
         g_st().emsg_off -= 1;
         if let Some(ref ep) = eval_pat {
-            let tail_bytes = &crate::memory::cstr_as_bytes(exp_pat)[usedlen..];
+            let tail_bytes = crate::memory::cstr_as_bytes(exp_pat.wrapping_add(usedlen));
             star_follows = tail_bytes == b"*";
             let mut joined = Vec::with_capacity(ep.as_bytes().len() + tail_bytes.len());
             joined.extend_from_slice(ep.as_bytes());
@@ -2456,7 +2456,7 @@ fn path_to_absolute(
             }
             if !p.is_null() {
                 if vim_ispathsep(crate::memory::cstr_first_char(p))
-                    && (&crate::memory::cstr_as_bytes(p)[1..]) == b".."
+                    && crate::memory::cstr_as_bytes(p.wrapping_add(1)) == b".."
                 {
                     p = p.wrapping_add(3);
                 }

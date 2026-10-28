@@ -1615,7 +1615,7 @@ pub fn open_line(
                 if crate::memory::cstr_as_bytes(prompt_line)
                     .starts_with(crate::memory::cstr_as_bytes(prompt))
                 {
-                    let rem_len = crate::memory::cstr_as_bytes(prompt_line)[prompt_len..].len() + 1;
+                    let rem_len = crate::memory::cstr_len(prompt_line.wrapping_add(prompt_len)) + 1;
                     ptr::copy(prompt_line.wrapping_add(prompt_len), prompt_line, rem_len);
                     g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                     ml_replace(curwin_mut().w_cursor.lnum, prompt_line, true);
