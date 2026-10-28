@@ -703,7 +703,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
         'sortend: {
             let mut p = eap.arg;
             while !crate::memory::cstr_is_empty(p) {
-                if ascii_iswhite(*p as c_int) {
+                if ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     // Skip
                 } else if crate::memory::cstr_first_byte(p) == b'i' {
                     excmds_st().sort_ic = true;
@@ -733,7 +733,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
                 } else if !check_nextcmd(p).is_null() {
                     eap.nextcmd = check_nextcmd(p);
                     break;
-                } else if !ascii_isalpha(*p as c_int) && regmatch.regprog.is_null() {
+                } else if !ascii_isalpha(crate::memory::cstr_first_char(p)) && regmatch.regprog.is_null() {
                     let s = skip_regexp_err(p.add(1), (crate::memory::cstr_first_byte(p)) as c_int, 1);
                     if s.is_null() {
                         break 'sortend;
@@ -980,7 +980,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
         'uniqend: {
             let mut p = eap.arg;
             while !crate::memory::cstr_is_empty(p) {
-                if ascii_iswhite(*p as c_int) {
+                if ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     // Skip
                 } else if crate::memory::cstr_first_byte(p) == b'i' {
                     excmds_st().sort_ic = true;
@@ -997,7 +997,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
                 } else if eap.nextcmd.is_null() && !check_nextcmd(p).is_null() {
                     eap.nextcmd = check_nextcmd(p);
                     break;
-                } else if !ascii_isalpha(*p as c_int) && regmatch.regprog.is_null() {
+                } else if !ascii_isalpha(crate::memory::cstr_first_char(p)) && regmatch.regprog.is_null() {
                     let s = skip_regexp_err(p.add(1), (crate::memory::cstr_first_byte(p)) as c_int, 1);
                     if s.is_null() {
                         break 'uniqend;
@@ -3513,7 +3513,7 @@ pub fn ex_z(eap: &mut exarg_T) {
         }
 
         if *x != 0 {
-            if !ascii_isdigit(*x as c_int) {
+            if !ascii_isdigit(crate::memory::cstr_first_char(x)) {
                 emsg(gettext(E_NON_NUMERIC_ARGUMENT_TO_Z));
                 return;
             }
@@ -3828,7 +3828,7 @@ fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
     unsafe {
         let mut p = start;
         while !crate::memory::cstr_is_empty(p) {
-            if *p as c_int == delimiter {
+            if crate::memory::cstr_first_char(p) == delimiter {
                 *p = NUL;
                 p = p.add(1);
                 break;
@@ -3922,7 +3922,7 @@ fn do_sub(
 
         if crate::memory::cstr_first_byte(eap.cmd) == b's'
             && !crate::memory::cstr_is_empty(cmd)
-            && !ascii_iswhite(*cmd as c_int)
+            && !ascii_iswhite(crate::memory::cstr_first_char(cmd))
             && vim_strchr(c"0123456789cegriIp|\"", (crate::memory::cstr_first_byte(cmd)) as c_int).is_null()
         {
             if !check_regexp_delim((crate::memory::cstr_first_byte(cmd)) as c_int) {
@@ -3960,7 +3960,7 @@ fn do_sub(
                     None,
                 );
                 pat.size = cmd.offset_from(pat.data) as usize;
-                if *cmd as c_int == delimiter {
+                if crate::memory::cstr_first_char(cmd) == delimiter {
                     *cmd = NUL;
                     cmd = cmd.add(1);
                     has_second_delim = true;
@@ -4006,7 +4006,7 @@ fn do_sub(
         let save_do_ask = excmds_st().subflags.do_ask;
 
         cmd = skipwhite(cmd);
-        if ascii_isdigit(*cmd as c_int) {
+        if ascii_isdigit(crate::memory::cstr_first_char(cmd)) {
             let count_arg = cmd;
             i = getdigits_int(&raw mut cmd, false, c_int::MAX);
             if i <= 0 && eap.skip == 0 && excmds_st().subflags.do_error {
@@ -5238,8 +5238,8 @@ pub fn ex_substitute_preview(
     cmdpreview_ns: c_int,
     cmdpreview_bufnr: handle_T,
 ) -> c_int {
-    unsafe {
-        if !crate::memory::cstr_is_empty(eap.arg) && !ascii_isalnum(*eap.arg as c_int) {
+     {
+        if !crate::memory::cstr_is_empty(eap.arg) && !ascii_isalnum(crate::memory::cstr_first_char(eap.arg)) {
             let save_eap = eap.arg;
             let retv = do_sub(
                 eap,

@@ -679,7 +679,7 @@ pub fn u_get_undo_file_name(
                         ptr::copy_nonoverlapping(ffname, munged_vec.as_mut_ptr(), ffname_len);
                         let mut p = munged_vec.as_mut_ptr();
                         while !crate::memory::cstr_is_empty(p) {
-                            if vim_ispathsep(*p as c_int) {
+                            if vim_ispathsep(crate::memory::cstr_first_char(p)) {
                                 *p = b'%' as c_char;
                             }
                             p = p.add(utfc_ptr2len(p) as usize);

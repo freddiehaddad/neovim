@@ -833,7 +833,7 @@ fn efmpat_to_regpat(
         if efminfo.addr[idx] != 0 {
             semsg!(
                 gettext(c"E372: Too many %%%c in format string"),
-                c_int::from(*efmpat),
+                crate::memory::cstr_first_char(efmpat),
             );
             return ptr::null_mut();
         }
@@ -845,7 +845,7 @@ fn efmpat_to_regpat(
         {
             semsg!(
                 gettext(c"E373: Unexpected %%%c in format string"),
-                c_int::from(*efmpat),
+                crate::memory::cstr_first_char(efmpat),
             );
             return ptr::null_mut();
         }
@@ -935,7 +935,7 @@ fn scanf_fmt_to_regpat(
         } else {
             semsg!(
                 gettext(c"E375: Unsupported %%%c in format string"),
-                c_int::from(*efmp),
+                crate::memory::cstr_first_char(efmp),
             );
             return ptr::null_mut();
         }
@@ -956,7 +956,7 @@ fn efm_analyze_prefix(efmp: impl crate::strings::IntoCCharPtr, efminfo: &mut efm
         } else {
             semsg!(
                 gettext(c"E376: Invalid %%%c in format string prefix"),
-                c_int::from(*efmp),
+                crate::memory::cstr_first_char(efmp),
             );
             return ptr::null();
         }
@@ -1015,7 +1015,7 @@ fn efm_to_regpat(
                 } else {
                     semsg!(
                         gettext(c"E377: Invalid %%%c in format string"),
-                        c_int::from(*efmp),
+                        crate::memory::cstr_first_char(efmp),
                     );
                     return false;
                 }

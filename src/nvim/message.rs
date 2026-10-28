@@ -2512,7 +2512,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) { let 
                 || curwin_mut().w_p_lcs_chars.leadtab1 != 0
             {
                 lead = s;
-                while ascii_iswhite(*lead as c_int) {
+                while ascii_iswhite(crate::memory::cstr_first_char(lead)) {
                     lead = lead.add(1);
                 }
                 if crate::memory::cstr_is_empty(lead) {
@@ -3905,10 +3905,10 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                     && g_st().capture_ga.is_null()
                     && let Some(ref rf) = g_st().redir_fd
                 {
-                    fputc(c_int::from(*s), rf.as_ptr());
+                    fputc(crate::memory::cstr_first_char(s), rf.as_ptr());
                 }
                 if let Some(ref vf) = msg_st().verbose_fd {
-                    fputc(c_int::from(*s), vf.as_ptr());
+                    fputc(crate::memory::cstr_first_char(s), vf.as_ptr());
                 }
                 if *s == CAR as c_char || *s == NL as c_char {
                     msg_st().redir_col = 0;

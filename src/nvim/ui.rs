@@ -703,22 +703,21 @@ pub fn ui_check_mouse() {
 }
 
 pub fn ui_mouse_has(mode: c_int) -> bool {
-    unsafe {
-        let mut p = opt_vars().p_mouse;
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b'a' {
+     {
+        let p = opt_vars().p_mouse;
+        for &p_byte in crate::memory::cstr_as_bytes(p) {
+            if p_byte == b'a' {
                 if !vim_strchr(MOUSE_A, mode).is_null() {
                     return true;
                 }
-            } else if *p == kMouseHelp {
+            } else if (p_byte as c_char) == kMouseHelp {
                 if mode != kMouseReturn && curbuf_mut().b_help {
                     return true;
                 }
-            } else if mode == *p as c_int {
+            } else if mode == (p_byte as c_char) as c_int {
                 return true;
             }
-            p = p.add(1);
-        }
+}
         false
     }
 }

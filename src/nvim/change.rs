@@ -665,7 +665,7 @@ pub fn file_ff_differs(buf: &mut buf_T, ignore_empty: bool) -> bool {
         {
             return false;
         }
-        if buf.b_start_ffc != c_int::from(*buf.b_p_ff) {
+        if buf.b_start_ffc != crate::memory::cstr_first_char(buf.b_p_ff) {
             return true;
         }
         if (buf.b_p_bin != 0 || buf.b_p_fixeol == 0)

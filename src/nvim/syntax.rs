@@ -3010,7 +3010,7 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
             return;
         }
 
-        if ends_excmd(*arg as c_int) != 0 {
+        if ends_excmd(crate::memory::cstr_first_char(arg)) != 0 {
             if syncing != 0 {
                 syntax_sync_clear();
             } else {
@@ -3021,7 +3021,7 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
                 do_unlet(c"w:current_syntax", 16, true);
             }
         } else {
-            while ends_excmd(*arg as c_int) == 0 {
+            while ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
                 let arg_end = skiptowhite(arg);
                 if crate::memory::cstr_first_byte(arg) == b'@' {
                     let id = syn_scl_namen2id(arg.add(1), arg_end.offset_from(arg) as c_int - 1);
@@ -3157,7 +3157,7 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
         }
 
         msg_puts_title(gettext(c"\n--- Syntax items ---"));
-        if ends_excmd(*arg as c_int) != 0 {
+        if ends_excmd(crate::memory::cstr_first_char(arg)) != 0 {
             let mut id: c_int = 1;
             while id <= highlight_num_groups() && !g_st().got_int {
                 syn_list_one(id, false, false);
@@ -3169,7 +3169,7 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
                 cid += 1;
             }
         } else {
-            while ends_excmd(*arg as c_int) == 0 && !g_st().got_int {
+            while ends_excmd(crate::memory::cstr_first_char(arg)) == 0 && !g_st().got_int {
                 let arg_end = skiptowhite(arg);
                 if crate::memory::cstr_first_byte(arg) == b'@' {
                     let id = syn_scl_namen2id(arg.add(1), arg_end.offset_from(arg) as c_int - 1);
@@ -3639,7 +3639,7 @@ fn get_group_name(arg: impl crate::strings::IntoCCharPtr, name_end: *mut *mut c_
     unsafe {
         *name_end = skiptowhite(arg);
         let rest = skipwhite(*name_end);
-        if ends_excmd(*arg as c_int) != 0 || crate::memory::cstr_is_empty(rest) {
+        if ends_excmd(crate::memory::cstr_first_char(arg)) != 0 || crate::memory::cstr_is_empty(rest) {
             return ptr::null_mut();
         }
         rest
@@ -3708,7 +3708,7 @@ fn get_syn_options(
                         || if argtype > 0 {
                             crate::memory::cstr_byte_at(arg, len) == b'='
                         } else {
-                            ends_excmd(*arg.add(len) as c_int) != 0
+                            ends_excmd(crate::memory::cstr_char_at(arg, len)) != 0
                         })
                 {
                     if opt.keyword
@@ -3911,14 +3911,14 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
 
                 let mut cnt: c_int = 0;
                 let mut p = keyword_copy;
-                while !rest.is_null() && ends_excmd(*rest as c_int) == 0 {
+                while !rest.is_null() && ends_excmd(crate::memory::cstr_first_char(rest)) == 0 {
                     rest = get_syn_options(
                         rest,
                         &mut syn_opt_arg,
                         &mut conceal_char,
                         eap.skip,
                     );
-                    if rest.is_null() || ends_excmd(*rest as c_int) != 0 {
+                    if rest.is_null() || ends_excmd(crate::memory::cstr_first_char(rest)) != 0 {
                         break;
                     }
                     while !crate::memory::cstr_is_empty(rest) && !ascii_iswhite(*rest) {
@@ -4039,7 +4039,7 @@ fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
 
         if !rest.is_null() {
             eap.nextcmd = check_nextcmd(rest);
-            if ends_excmd(*rest as c_int) == 0 || eap.skip != 0 {
+            if ends_excmd(crate::memory::cstr_first_char(rest)) == 0 || eap.skip != 0 {
                 rest = ptr::null_mut();
             } else {
                 let syn_id = syn_check_group(arg, group_name_end.offset_from(arg) as usize);
@@ -4106,14 +4106,14 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
             next_list: None,
         };
 
-        while !rest.is_null() && ends_excmd(*rest as c_int) == 0 {
+        while !rest.is_null() && ends_excmd(crate::memory::cstr_first_char(rest)) == 0 {
             rest = get_syn_options(
                 rest,
                 &mut syn_opt_arg,
                 &mut conceal_char,
                 eap.skip,
             );
-            if rest.is_null() || ends_excmd(*rest as c_int) != 0 {
+            if rest.is_null() || ends_excmd(crate::memory::cstr_first_char(rest)) != 0 {
                 break;
             }
 
@@ -4205,7 +4205,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
 
         if !rest.is_null() {
             eap.nextcmd = check_nextcmd(rest);
-            if ends_excmd(*rest as c_int) == 0 || eap.skip != 0 {
+            if ends_excmd(crate::memory::cstr_first_char(rest)) == 0 || eap.skip != 0 {
                 rest = ptr::null_mut();
             } else {
                 let syn_id = syn_check_group(arg, group_name_end.offset_from(arg) as usize);
@@ -4453,7 +4453,7 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
         if !got_clstr {
             emsg(gettext(c"E400: No cluster specified"));
         }
-        if rest.is_null() || ends_excmd(*rest as c_int) == 0 {
+        if rest.is_null() || ends_excmd(crate::memory::cstr_first_char(rest)) == 0 {
             semsg!(gettext(e_invarg2), arg);
         }
     }
@@ -4465,7 +4465,7 @@ fn get_syn_pattern(arg: *mut c_char, ci: &mut synpat_T) -> *mut c_char {
             return ptr::null_mut();
         }
 
-        let mut end = skip_regexp(arg.add(1), *arg as c_int, 1);
+        let mut end = skip_regexp(arg.add(1), crate::memory::cstr_first_char(arg), 1);
         if *end != *arg {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),
@@ -4539,7 +4539,7 @@ fn get_syn_pattern(arg: *mut c_char, ci: &mut synpat_T) -> *mut c_char {
             }
         }
 
-        if ends_excmd(*end as c_int) == 0 && !ascii_iswhite(*end) {
+        if ends_excmd(crate::memory::cstr_first_char(end)) == 0 && !ascii_iswhite(*end) {
             semsg!(gettext(c"E402: Garbage after pattern: %s"), arg);
             return ptr::null_mut();
         }
@@ -4554,12 +4554,12 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
         let mut illegal = false;
         let mut finished = false;
 
-        if ends_excmd(*arg_start as c_int) != 0 {
+        if ends_excmd(crate::memory::cstr_first_char(arg_start)) != 0 {
             syn_cmd_list(eap, 1);
             return;
         }
 
-        while ends_excmd(*arg_start as c_int) == 0 {
+        while ends_excmd(crate::memory::cstr_first_char(arg_start)) == 0 {
             let mut arg_end = skiptowhite(arg_start);
             let mut next_arg = skipwhite(arg_end);
             key_owned = Some(crate::memory::cstr_from_bytes(
@@ -4572,7 +4572,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                 if eap.skip == 0 {
                     (*win_s(curwin_mut())).b_syn_sync_flags |= SF_CCOMMENT;
                 }
-                if ends_excmd(*next_arg as c_int) == 0 {
+                if ends_excmd(crate::memory::cstr_first_char(next_arg)) == 0 {
                     arg_end = skiptowhite(next_arg);
                     if eap.skip == 0 {
                         (*win_s(curwin_mut())).b_syn_sync_id =
@@ -4627,7 +4627,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                     finished = true;
                     break;
                 }
-                arg_end = skip_regexp(next_arg.add(1), *next_arg as c_int, 1);
+                arg_end = skip_regexp(next_arg.add(1), crate::memory::cstr_first_char(next_arg), 1);
                 if *arg_end != *next_arg {
                     illegal = true;
                     break;
@@ -4703,7 +4703,7 @@ fn get_id_list(
                 break;
             }
             p = skipwhite(p.add(1));
-            if ends_excmd(*p as c_int) != 0 {
+            if ends_excmd(crate::memory::cstr_first_char(p)) != 0 {
                 semsg!(gettext(c"E406: Empty argument: %s"), *arg);
                 break;
             }
@@ -4802,7 +4802,7 @@ fn get_id_list(
                     break;
                 }
                 p = skipwhite(p.add(1));
-                if ends_excmd(*p as c_int) != 0 {
+                if ends_excmd(crate::memory::cstr_first_char(p)) != 0 {
                     break;
                 }
             }

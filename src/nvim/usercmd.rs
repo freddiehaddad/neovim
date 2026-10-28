@@ -1743,16 +1743,15 @@ fn uc_check_code(
                             if !buf.is_null() {
                                 *buf = b'"' as c_char;
                                 buf = buf.add(1);
-                                let mut scan = eap.arg;
-                                while !crate::memory::cstr_is_empty(scan) {
-                                    if crate::memory::cstr_first_byte(scan) == b'\\' || crate::memory::cstr_first_byte(scan) == b'"' {
+                                let scan = eap.arg;
+                                for &scan_byte in crate::memory::cstr_as_bytes(scan) {
+                                    if scan_byte == b'\\' || scan_byte == b'"' {
                                         *buf = b'\\' as c_char;
                                         buf = buf.add(1);
                                     }
-                                    *buf = *scan;
+                                    *buf = scan_byte as c_char;
                                     buf = buf.add(1);
-                                    scan = scan.add(1);
-                                }
+}
                                 *buf = b'"' as c_char;
                             }
                         }

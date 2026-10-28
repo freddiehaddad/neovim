@@ -356,7 +356,7 @@ fn strpncmp_camel(
 
         *strp = s;
         *strcamelp = sc;
-        c_int::from(*s) - c_int::from(*sc)
+        crate::memory::cstr_first_char(s) - crate::memory::cstr_first_char(sc)
     }
 }
 

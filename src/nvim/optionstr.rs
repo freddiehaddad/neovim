@@ -1026,7 +1026,7 @@ fn valid_filetype(val: impl crate::strings::IntoCCharPtr) -> bool { let val = va
 
 /// Handle setting 'signcolumn' for value 'val'.
 pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut win_T>) -> bool {
-    unsafe {
+     {
         let mut val = empty_string_option.as_ptr().cast::<c_char>();
         if !scl.is_null() {
             val = scl;
@@ -1059,7 +1059,7 @@ pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut win_T>) -> bool {
                 wp.as_deref_mut().unwrap().w_minscwidth = SCL_NUM;
                 wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NUM;
             } else if crate::memory::cstr_prefix_bytes(val, 4) == &b"yes:"[..4] {
-                let n = (*val.add(4) as c_int) - (b'0' as c_int);
+                let n = (crate::memory::cstr_char_at(val, 4)) - (b'0' as c_int);
                 wp.as_deref_mut().unwrap().w_minscwidth = n;
                 wp.as_deref_mut().unwrap().w_maxscwidth = n;
             } else if crate::memory::cstr_first_byte(val) == b'y' {
@@ -1067,7 +1067,7 @@ pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut win_T>) -> bool {
                 wp.as_deref_mut().unwrap().w_maxscwidth = 1;
             } else if crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5] {
                 wp.as_deref_mut().unwrap().w_minscwidth = 0;
-                wp.as_deref_mut().unwrap().w_maxscwidth = (*val.add(5) as c_int) - (b'0' as c_int);
+                wp.as_deref_mut().unwrap().w_maxscwidth = (crate::memory::cstr_char_at(val, 5)) - (b'0' as c_int);
             } else {
                 wp.as_deref_mut().unwrap().w_minscwidth = 0;
                 wp.as_deref_mut().unwrap().w_maxscwidth = 1;
@@ -1075,14 +1075,14 @@ pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut win_T>) -> bool {
         } else {
             if !(crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5])
                 || crate::memory::cstr_len(val) != 8
-                || !ascii_isdigit(*val.add(5) as c_int)
+                || !ascii_isdigit(crate::memory::cstr_char_at(val, 5))
                 || crate::memory::cstr_byte_at(val, 6) != b'-'
-                || !ascii_isdigit(*val.add(7) as c_int)
+                || !ascii_isdigit(crate::memory::cstr_char_at(val, 7))
             {
                 return false;
             }
-            let min = (*val.add(5) as c_int) - (b'0' as c_int);
-            let max = (*val.add(7) as c_int) - (b'0' as c_int);
+            let min = (crate::memory::cstr_char_at(val, 5)) - (b'0' as c_int);
+            let max = (crate::memory::cstr_char_at(val, 7)) - (b'0' as c_int);
             if min < 1 || max < 2 || min > 8 || min >= max {
                 return false;
             }
@@ -1298,14 +1298,13 @@ fn check_option_listflag(
     errbuf: Option<CharBuf>,
 ) -> *const c_char { let val = val.into_c_char_ptr();
     let flags = flags.into_c_char_ptr();
-    unsafe {
-        let mut s = val;
-        while !crate::memory::cstr_is_empty(s) {
-            if vim_strchr(flags, crate::memory::cstr_first_byte(s) as c_int).is_null() {
-                return illegal_char(errbuf, crate::memory::cstr_first_byte(s) as c_int);
+     {
+        let s = val;
+        for &s_byte in crate::memory::cstr_as_bytes(s) {
+            if vim_strchr(flags, s_byte as c_int).is_null() {
+                return illegal_char(errbuf, s_byte as c_int);
             }
-            s = s.add(1);
-        }
+}
         ptr::null()
     }
 }
@@ -1492,9 +1491,9 @@ pub fn did_set_background(args: &mut optset_T) -> *const c_char {
 
 /// Validate the 'backspace' option.
 pub fn validate_backspace(args: &mut optset_T) -> *const c_char {
-    unsafe {
+     {
         let value = args.os_newval.data.string().data;
-        if ascii_isdigit(*value as c_int) {
+        if ascii_isdigit(crate::memory::cstr_first_char(value)) {
             return if crate::memory::cstr_first_byte(value) == b'2' {
                 ptr::null()
             } else {
@@ -1597,11 +1596,10 @@ pub fn did_set_breakat(_args: &mut optset_T) -> *const c_char {
         }
 
         if !opt_vars().p_breakat.is_null() {
-            let mut p = opt_vars().p_breakat;
-            while !crate::memory::cstr_is_empty(p) {
-                *flags_ptr.add(crate::memory::cstr_first_byte(p) as usize) = 1;
-                p = p.add(1);
-            }
+            let p = opt_vars().p_breakat;
+            for &p_byte in crate::memory::cstr_as_bytes(p) {
+                *flags_ptr.add(p_byte as usize) = 1;
+}
         }
 
         ptr::null()
@@ -1840,7 +1838,7 @@ pub fn validate_comments(args: &mut optset_T) -> *const c_char {
         while !crate::memory::cstr_is_empty(s) {
             while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b':' {
                 if vim_strchr(COM_ALL, crate::memory::cstr_first_byte(s) as c_int).is_null()
-                    && !ascii_isdigit(*s as c_int)
+                    && !ascii_isdigit(crate::memory::cstr_first_char(s))
                     && crate::memory::cstr_first_byte(s) != b'-'
                 {
                     errmsg = illegal_char(args.os_errbuf, crate::memory::cstr_first_byte(s) as c_int);
@@ -1925,7 +1923,7 @@ pub fn validate_complete(args: &mut optset_T) -> *const c_char {
                         char_before = b'^';
                     } else {
                         while !crate::memory::cstr_is_empty(t) {
-                            if !ascii_isdigit(*t as c_int) {
+                            if !ascii_isdigit(crate::memory::cstr_first_char(t)) {
                                 char_before = b'^';
                                 break;
                             }
@@ -2711,7 +2709,7 @@ pub fn validate_shada(args: &mut optset_T) -> *const c_char {
             } else if crate::memory::cstr_first_byte(s) == b'%' {
                 loop {
                     s = s.add(1);
-                    if !ascii_isdigit(*s as c_int) {
+                    if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
                         break;
                     }
                 }
@@ -2720,7 +2718,7 @@ pub fn validate_shada(args: &mut optset_T) -> *const c_char {
             } else {
                 loop {
                     s = s.add(1);
-                    if !ascii_isdigit(*s as c_int) {
+                    if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
                         break;
                     }
                 }
@@ -3135,7 +3133,7 @@ pub fn validate_vartabstop(args: &mut optset_T) -> *const c_char {
         let value = args.os_newval.data.string().data;
         let mut cp = value;
         while !crate::memory::cstr_is_empty(cp) {
-            if ascii_isdigit(*cp as c_int) {
+            if ascii_isdigit(crate::memory::cstr_first_char(cp)) {
                 cp = cp.add(1);
                 continue;
             }

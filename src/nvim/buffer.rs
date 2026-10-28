@@ -1909,7 +1909,7 @@ pub fn do_bufdel(
     end_bnr: c_int,
     forceit: c_int,
 ) -> *mut c_char {
-    unsafe {
+     {
         let mut do_current = 0;
         let mut deleted: c_int = 0;
         let mut errormsg: *mut c_char = ptr::null_mut();
@@ -1944,7 +1944,7 @@ pub fn do_bufdel(
                     if crate::memory::cstr_is_empty(arg) {
                         break;
                     }
-                    if !ascii_isdigit(*arg as c_int) {
+                    if !ascii_isdigit(crate::memory::cstr_first_char(arg)) {
                         let p = skiptowhite_esc(arg);
                         bnr = buflist_findpat(arg, p, command == DOBUF_WIPE, false, false);
                         if bnr < 0 {

@@ -1098,7 +1098,7 @@ fn nfa_regatom() -> bool {
 
 #[inline(never)]
 fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
-    unsafe {
+     {
         match c as u8 {
             b'd' | b'o' | b'x' | b'u' | b'U' => {
                 let nr = match c as u8 {
@@ -1139,7 +1139,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                 {
                     semsg!(
                         tr(e_atom_engine_must_be_at_start_of_pattern),
-                        *re_st().regparse.add(1) as c_int,
+                        crate::memory::cstr_char_at(re_st().regparse, 1),
                     );
                     return false;
                 }

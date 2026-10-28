@@ -2025,7 +2025,7 @@ pub fn do_join(
                 }
             }
 
-            let space_t = c_int::from(*spaces.add(t as usize));
+            let space_t = crate::memory::cstr_char_at(spaces, t as usize);
             if t > 0 && g_st().curbuf_splice_pending == 0 {
                 let removed = curr.offset_from(curr_start) as colnr_T;
                 extmark_splice(
@@ -2063,7 +2063,7 @@ pub fn do_join(
         }
 
         if !aborted {
-            let col = sumsize - currsize - c_int::from(*spaces.add(count - 1));
+            let col = sumsize - currsize - crate::memory::cstr_char_at(spaces, count - 1);
 
             let newp_len = sumsize as usize;
             let mut newp_vec = vec![0 as c_char; newp_len + 1];
@@ -2077,7 +2077,7 @@ pub fn do_join(
                 cend = cend.sub(currsize as usize);
                 ptr::copy(curr, cend, currsize as usize);
 
-                let space_t = c_int::from(*spaces.add(t as usize));
+                let space_t = crate::memory::cstr_char_at(spaces, t as usize);
                 if space_t > 0 {
                     cend = cend.sub(space_t as usize);
                     ptr::write_bytes(cend, b' ', space_t as usize);

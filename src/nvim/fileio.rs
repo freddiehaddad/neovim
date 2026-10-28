@@ -3347,7 +3347,7 @@ pub fn modname(
 
         let mut ptr = retval.add(fnamelen);
         while ptr > retval {
-            if vim_ispathsep(c_int::from(*ptr)) {
+            if vim_ispathsep(crate::memory::cstr_first_char(ptr)) {
                 ptr = ptr.add(1);
                 break;
             }
@@ -4752,7 +4752,7 @@ pub fn file_pat_to_reg_pat(
                     }
                 }
                 _ => {
-                    if !allow_dirs.is_null() && vim_ispathsep(c_int::from(*p)) {
+                    if !allow_dirs.is_null() && vim_ispathsep(crate::memory::cstr_first_char(p)) {
                         *allow_dirs = 1;
                     }
                     *reg_pat.add(i) = *p;

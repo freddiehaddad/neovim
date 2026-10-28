@@ -1072,12 +1072,12 @@ pub fn heredoc_get(
         let mut eval_failed = false;
         loop {
             if (crate::memory::cstr_prefix_bytes(cmd, 4) == &b"trim"[..4])
-                && (crate::memory::cstr_byte_at(cmd, 4) == 0 || ascii_iswhite(*cmd.add(4) as c_int))
+                && (crate::memory::cstr_byte_at(cmd, 4) == 0 || ascii_iswhite(crate::memory::cstr_char_at(cmd, 4)))
             {
                 cmd = skipwhite(cmd.add(4));
 
                 let mut p = *eap.cmdlinep;
-                while ascii_iswhite(*p as c_int) {
+                while ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     p = p.add(1);
                     marker_indent_len += 1;
                 }
@@ -1085,7 +1085,7 @@ pub fn heredoc_get(
                 continue;
             }
             if (crate::memory::cstr_prefix_bytes(cmd, 4) == &b"eval"[..4])
-                && (crate::memory::cstr_byte_at(cmd, 4) == 0 || ascii_iswhite(*cmd.add(4) as c_int))
+                && (crate::memory::cstr_byte_at(cmd, 4) == 0 || ascii_iswhite(crate::memory::cstr_char_at(cmd, 4)))
             {
                 cmd = skipwhite(cmd.add(4));
                 evalstr = true;
@@ -1167,7 +1167,7 @@ pub fn heredoc_get(
             if text_indent_len == -1 && !crate::memory::cstr_is_empty(theline) {
                 let mut p = theline;
                 text_indent_len = 0;
-                while ascii_iswhite(*p as c_int) {
+                while ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     p = p.add(1);
                     text_indent_len += 1;
                 }
@@ -1232,7 +1232,7 @@ pub fn ex_let(eap: &mut exarg_T) {
         if !has_assign && !concat {
             if crate::memory::cstr_first_byte(arg) == b'[' {
                 emsg(gettext(e_invarg));
-            } else if ends_excmd(*arg as c_int) == 0 {
+            } else if ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
                 arg = list_arg_vars(eap, arg, &mut first).cast_mut();
             } else if eap.skip == 0 {
                 list_glob_vars(&mut first);
@@ -1557,7 +1557,7 @@ fn list_arg_vars(
         let mut error = false;
         let mut tv: typval_T = typval_T::new();
 
-        while ends_excmd(*arg as c_int) == 0 && !g_st().got_int {
+        while ends_excmd(crate::memory::cstr_first_char(arg)) == 0 && !g_st().got_int {
             if error || eap.skip != 0 {
                 arg = find_name_end(
                     arg,
@@ -1565,7 +1565,7 @@ fn list_arg_vars(
                     ptr::null_mut(),
                     FNE_INCL_BR | FNE_CHECK_START,
                 );
-                if !ascii_iswhite(*arg as c_int) && ends_excmd(*arg as c_int) == 0 {
+                if !ascii_iswhite(crate::memory::cstr_first_char(arg)) && ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
                     g_st().emsg_severe = true;
                     semsg!(gettext(e_trailing_arg), arg);
                     break;
@@ -1942,13 +1942,13 @@ pub fn ex_unlet(eap: &mut exarg_T) {
 
 /// ":lockvar" and ":unlockvar" commands.
 pub fn ex_lockvar(eap: &mut exarg_T) {
-    unsafe {
+     {
         let mut arg = eap.arg;
         let mut deep: c_int = 2;
 
         if eap.forceit != 0 {
             deep = -1;
-        } else if ascii_isdigit(*arg as c_int) {
+        } else if ascii_isdigit(crate::memory::cstr_first_char(arg)) {
             deep = getdigits_int(&raw mut arg, false, -1);
             arg = skipwhite(arg);
         }
@@ -2000,7 +2000,7 @@ fn ex_unletlock(
                     error = true;
                 }
                 if name_end.is_null()
-                    || (!ascii_iswhite(*name_end as c_int) && ends_excmd(*name_end as c_int) == 0)
+                    || (!ascii_iswhite(crate::memory::cstr_first_char(name_end)) && ends_excmd(crate::memory::cstr_first_char(name_end)) == 0)
                 {
                     if !name_end.is_null() {
                         g_st().emsg_severe = true;
@@ -2015,7 +2015,7 @@ fn ex_unletlock(
                 }
             }
             arg = skipwhite(name_end);
-            if ends_excmd(*arg as c_int) != 0 {
+            if ends_excmd(crate::memory::cstr_first_char(arg)) != 0 {
                 break;
             }
         }
@@ -2492,7 +2492,7 @@ pub fn set_vim_var_partial(idx: VimVarIndex, val: *mut partial_T) {
 }
 
 pub fn set_reg_var(c: c_int) {
-    unsafe {
+     {
         let mut regname: [c_char; 2] = [0, NUL];
         if c == 0 || c == b' ' as c_int {
             regname[0] = b'"' as c_char;
@@ -2500,7 +2500,7 @@ pub fn set_reg_var(c: c_int) {
             regname[0] = c as u8 as c_char;
         }
         let tv = get_vim_var_tv(VV_REG);
-        if tv.vval.v_string().is_null() || *tv.vval.v_string() as c_int != c {
+        if tv.vval.v_string().is_null() || crate::memory::cstr_first_char(tv.vval.v_string()) != c {
             set_vim_var_string(VV_REG, regname.as_ptr(), 1);
         }
     }
@@ -3261,7 +3261,7 @@ pub fn valid_varname(varname: impl crate::strings::IntoCCharPtr) -> bool { let v
         let mut p = varname;
         while !crate::memory::cstr_is_empty(p) {
             if !eval_isnamec1(crate::memory::cstr_first_byte(p) as c_int)
-                && (p == varname || !ascii_isdigit(*p as c_int))
+                && (p == varname || !ascii_isdigit(crate::memory::cstr_first_char(p)))
                 && *p != AUTOLOAD_CHAR
             {
                 semsg!(gettext(e_illvar), varname);

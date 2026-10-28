@@ -1998,7 +1998,7 @@ fn digraph_set_common(argchars: &typval_T,argdigraph: &typval_T) -> bool {
 /// `digraph_get()` function (`f_digraph_get`).
 pub fn f_digraph_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         let digraphs = tv_get_string_chk(&argvars[0]);
@@ -2013,7 +2013,7 @@ pub fn f_digraph_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             );
             return;
         }
-        let code = digraph_get(c_int::from(*digraphs), c_int::from(*digraphs.add(1)), false);
+        let code = digraph_get(crate::memory::cstr_first_char(digraphs), crate::memory::cstr_char_at(digraphs, 1), false);
 
         let mut buf = [0 as c_char; NUMBUFLEN];
         let len = utf_char2bytes(code, buf.as_mut_ptr()) as usize;

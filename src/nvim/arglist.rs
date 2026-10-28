@@ -1196,22 +1196,21 @@ pub fn arg_all() -> CString {
         let mut bytes: Vec<u8> = Vec::new();
         let count = argcount();
         for idx in 0..(count as usize) {
-            let mut p = alist_name(&*arglist().add(idx));
+            let p = alist_name(&*arglist().add(idx));
             if p.is_null() {
                 continue;
             }
             if !bytes.is_empty() {
                 bytes.push(b' ');
             }
-            while !crate::memory::cstr_is_empty(p) {
-                let ch = crate::memory::cstr_first_byte(p);
+            for &p_byte in crate::memory::cstr_as_bytes(p) {
+                let ch = p_byte;
                 let escape = ch == b' ' || ch == b'`' || (cfg!(not(windows)) && ch == b'\\');
                 if escape {
                     bytes.push(b'\\');
                 }
                 bytes.push(ch);
-                p = p.add(1);
-            }
+}
         }
         CString::new(bytes).unwrap_or_default()
     }

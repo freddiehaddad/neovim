@@ -1122,11 +1122,11 @@ pub fn __asan_default_options() -> *const c_char {
 
 fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut c_int, mut def: c_int) -> c_int {
     let p = p.into_c_char_ptr();
-    unsafe {
+     {
         let mut i = *idx as usize;
-        if ascii_isdigit(*p.add(i) as c_int) {
+        if ascii_isdigit(crate::memory::cstr_char_at(p, i)) {
             def = 0;
-            while ascii_isdigit(*p.add(i) as c_int) {
+            while ascii_isdigit(crate::memory::cstr_char_at(p, i)) {
                 def = def
                     .wrapping_mul(10)
                     .wrapping_add((crate::memory::cstr_byte_at(p, i) - b'0') as c_int);
@@ -1563,7 +1563,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         }
                     }
                     b'w' => {
-                        if ascii_isdigit(*arg0.add(argv_idx as usize) as c_int) {
+                        if ascii_isdigit(crate::memory::cstr_char_at(arg0, argv_idx as usize)) {
                             let n = get_number_arg(arg0, &mut argv_idx, 10);
                             set_option_value_give_err(kOptWindow, integer_obj(OptInt::from(n)), 0);
                         } else {
@@ -1706,7 +1706,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         }
                         b'U' => {}
                         b'w' | b'W' => {
-                            if c == b'w' && ascii_isdigit(*cur_arg as c_int) {
+                            if c == b'w' && ascii_isdigit(crate::memory::cstr_first_char(cur_arg)) {
                                 argv_idx = 0;
                                 let n = get_number_arg(cur_arg, &mut argv_idx, 10);
                                 set_option_value_give_err(

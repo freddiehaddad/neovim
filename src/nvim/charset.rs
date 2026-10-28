@@ -289,7 +289,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
                 p = p.add(1);
             }
 
-            let mut c = if ascii_isdigit(*p as c_int) {
+            let mut c = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
                 getdigits_int((&raw mut p).cast::<*mut c_char>(), false, 0)
             } else {
                 mb_ptr2char_adv(&raw mut p)
@@ -298,7 +298,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
 
             if crate::memory::cstr_first_byte(p) == b'-' && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
-                c2 = if ascii_isdigit(*p as c_int) {
+                c2 = if ascii_isdigit(crate::memory::cstr_first_char(p)) {
                     getdigits_int((&raw mut p).cast::<*mut c_char>(), false, 0)
                 } else {
                     mb_ptr2char_adv(&raw mut p)
@@ -777,7 +777,7 @@ pub fn vim_isprintc(c: c_int) -> bool {
 
 pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
-        while ascii_iswhite(*p as c_int) {
+        while ascii_iswhite(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
         p.cast_mut()
@@ -786,7 +786,7 @@ pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mut 
 
 pub fn skipwhite_len(p: impl crate::strings::IntoCCharPtr, mut len: usize) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
-        while len > 0 && ascii_iswhite(*p as c_int) {
+        while len > 0 && ascii_iswhite(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
             len -= 1;
         }
@@ -805,7 +805,7 @@ pub fn getwhitecols(p: impl crate::strings::IntoCCharPtr) -> isize { let p = p.i
 pub fn skipdigits(q: impl crate::strings::IntoCCharPtr) -> *mut c_char { let q = q.into_c_char_ptr();
     unsafe {
         let mut p = q;
-        while ascii_isdigit(*p as c_int) {
+        while ascii_isdigit(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
         p.cast_mut()
@@ -815,7 +815,7 @@ pub fn skipdigits(q: impl crate::strings::IntoCCharPtr) -> *mut c_char { let q =
 pub fn skipbin(q: impl crate::strings::IntoCCharPtr) -> *const c_char { let q = q.into_c_char_ptr();
     unsafe {
         let mut p = q;
-        while ascii_isbdigit(*p as c_int) {
+        while ascii_isbdigit(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
         p
@@ -825,7 +825,7 @@ pub fn skipbin(q: impl crate::strings::IntoCCharPtr) -> *const c_char { let q = 
 pub fn skiphex(q: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
-        while ascii_isxdigit(*p as c_int) {
+        while ascii_isxdigit(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
         p
@@ -835,7 +835,7 @@ pub fn skiphex(q: *mut c_char) -> *mut c_char {
 pub fn skiptodigit(q: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
-        while !crate::memory::cstr_is_empty(p) && !ascii_isdigit(*p as c_int) {
+        while !crate::memory::cstr_is_empty(p) && !ascii_isdigit(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
         p
@@ -845,7 +845,7 @@ pub fn skiptodigit(q: *mut c_char) -> *mut c_char {
 pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> *const c_char { let q = q.into_c_char_ptr();
     unsafe {
         let mut p = q;
-        while !crate::memory::cstr_is_empty(p) && !ascii_isbdigit(*p as c_int) {
+        while !crate::memory::cstr_is_empty(p) && !ascii_isbdigit(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
         p
@@ -855,7 +855,7 @@ pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> *const c_char { let q 
 pub fn skiptohex(q: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
-        while !crate::memory::cstr_is_empty(p) && !ascii_isxdigit(*p as c_int) {
+        while !crate::memory::cstr_is_empty(p) && !ascii_isxdigit(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
         p
@@ -1060,7 +1060,7 @@ pub fn vim_str2nr(
                     if !string_ended(ptr.add(2))
                         && crate::memory::cstr_first_byte(ptr) == b'0'
                         && (crate::memory::cstr_byte_at(ptr, 1) == b'x' || crate::memory::cstr_byte_at(ptr, 1) == b'X')
-                        && ascii_isxdigit(*ptr.add(2) as c_int)
+                        && ascii_isxdigit(crate::memory::cstr_char_at(ptr, 2))
                     {
                         ptr = ptr.add(2);
                     }
@@ -1070,7 +1070,7 @@ pub fn vim_str2nr(
                     if !string_ended(ptr.add(2))
                         && crate::memory::cstr_first_byte(ptr) == b'0'
                         && (crate::memory::cstr_byte_at(ptr, 1) == b'b' || crate::memory::cstr_byte_at(ptr, 1) == b'B')
-                        && ascii_isbdigit(*ptr.add(2) as c_int)
+                        && ascii_isbdigit(crate::memory::cstr_char_at(ptr, 2))
                     {
                         ptr = ptr.add(2);
                     }
@@ -1080,7 +1080,7 @@ pub fn vim_str2nr(
                     if !string_ended(ptr.add(2))
                         && crate::memory::cstr_first_byte(ptr) == b'0'
                         && (crate::memory::cstr_byte_at(ptr, 1) == b'o' || crate::memory::cstr_byte_at(ptr, 1) == b'O')
-                        && ascii_isodigit(*ptr.add(2) as c_int)
+                        && ascii_isodigit(crate::memory::cstr_char_at(ptr, 2))
                     {
                         ptr = ptr.add(2);
                     }
@@ -1101,32 +1101,32 @@ pub fn vim_str2nr(
             if (what & STR2NR_HEX) != 0
                 && !string_ended(ptr.add(2))
                 && (pre == b'X' as c_int || pre == b'x' as c_int)
-                && ascii_isxdigit(*ptr.add(2) as c_int)
+                && ascii_isxdigit(crate::memory::cstr_char_at(ptr, 2))
             {
                 ptr = ptr.add(2);
                 base = 16;
             } else if (what & STR2NR_BIN) != 0
                 && !string_ended(ptr.add(2))
                 && (pre == b'B' as c_int || pre == b'b' as c_int)
-                && ascii_isbdigit(*ptr.add(2) as c_int)
+                && ascii_isbdigit(crate::memory::cstr_char_at(ptr, 2))
             {
                 ptr = ptr.add(2);
                 base = 2;
             } else if (what & STR2NR_OOCT) != 0
                 && !string_ended(ptr.add(2))
                 && (pre == b'O' as c_int || pre == b'o' as c_int)
-                && ascii_isodigit(*ptr.add(2) as c_int)
+                && ascii_isodigit(crate::memory::cstr_char_at(ptr, 2))
             {
                 ptr = ptr.add(2);
                 base = 8;
             } else {
                 pre = 0;
-                if (what & STR2NR_OCT) == 0 || !ascii_isodigit(*ptr.add(1) as c_int) {
+                if (what & STR2NR_OCT) == 0 || !ascii_isodigit(crate::memory::cstr_char_at(ptr, 1)) {
                     base = 10;
                 } else {
                     let mut is_oct = true;
                     let mut i: usize = 2;
-                    while !string_ended(ptr.add(i)) && ascii_isdigit(*ptr.add(i) as c_int) {
+                    while !string_ended(ptr.add(i)) && ascii_isdigit(crate::memory::cstr_char_at(ptr, i)) {
                         if (crate::memory::cstr_byte_at(ptr, i)) > b'7' {
                             is_oct = false;
                             break;
@@ -1158,12 +1158,12 @@ pub fn vim_str2nr(
             };
             if (what & STR2NR_QUOTE) != 0 && ptr > after_prefix && crate::memory::cstr_first_byte(ptr) == b'\'' {
                 ptr = ptr.add(1);
-                if !string_ended(ptr) && check_cond(*ptr as c_int) {
+                if !string_ended(ptr) && check_cond(crate::memory::cstr_first_char(ptr)) {
                     continue;
                 }
                 ptr = ptr.sub(1);
             }
-            let c = *ptr as c_int;
+            let c = crate::memory::cstr_first_char(ptr);
             if !check_cond(c) {
                 break;
             }
@@ -1185,7 +1185,7 @@ pub fn vim_str2nr(
             ptr = ptr.add(1);
         }
 
-        if strict && (ptr.offset_from(start) as c_int) != maxlen && ascii_isalnum(*ptr as c_int) {
+        if strict && (ptr.offset_from(start) as c_int) != maxlen && ascii_isalnum(crate::memory::cstr_first_char(ptr)) {
             return;
         }
 
@@ -1235,11 +1235,11 @@ pub const fn hex2nr(c: c_int) -> c_int {
 }
 
 pub fn hexhex2nr(p: impl crate::strings::IntoCCharPtr) -> c_int { let p = p.into_c_char_ptr();
-    unsafe {
-        if !ascii_isxdigit(*p as c_int) || !ascii_isxdigit(*p.add(1) as c_int) {
+     {
+        if !ascii_isxdigit(crate::memory::cstr_first_char(p)) || !ascii_isxdigit(crate::memory::cstr_char_at(p, 1)) {
             return -1;
         }
-        (hex2nr(*p as c_int) << 4) + hex2nr(*p.add(1) as c_int)
+        (hex2nr(crate::memory::cstr_first_char(p)) << 4) + hex2nr(crate::memory::cstr_char_at(p, 1))
     }
 }
 

@@ -5523,11 +5523,10 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
 
             let mut ret = Vec::with_capacity(total_len);
             for lnum in 1..=(*buf).b_ml.ml_line_count {
-                let mut p = ml_get_buf(&mut *buf, lnum);
-                while !crate::memory::cstr_is_empty(p) {
-                    ret.push(if crate::memory::cstr_first_byte(p) == b'\n' { NUL } else { *p });
-                    p = p.add(1);
-                }
+                let p = ml_get_buf(&mut *buf, lnum);
+                for &p_byte in crate::memory::cstr_as_bytes(p) {
+                    ret.push(if p_byte == b'\n' { NUL } else { p_byte as c_char });
+}
                 ret.push(b'\n' as c_char);
             }
             return Some(ret);
@@ -5558,11 +5557,10 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
             (*list).lv_first
         };
         while !li.is_null() {
-            let mut s = tv_get_string(&*tv_list_item_tv(&mut *li));
-            while !crate::memory::cstr_is_empty(s) {
-                ret.push(if crate::memory::cstr_first_byte(s) == b'\n' { NUL } else { *s });
-                s = s.add(1);
-            }
+            let s = tv_get_string(&*tv_list_item_tv(&mut *li));
+            for &s_byte in crate::memory::cstr_as_bytes(s) {
+                ret.push(if s_byte == b'\n' { NUL } else { s_byte as c_char });
+}
             if endnl || !tv_list_item_next( &*li).is_null() {
                 if crlf {
                     ret.push(b'\r' as c_char);

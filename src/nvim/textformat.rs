@@ -636,7 +636,7 @@ fn same_leader(
         let line2 = ml_get(lnum + 1);
         let mut idx2: c_int = 0;
         while idx2 < leader2_len {
-            if !ascii_iswhite(*line2.add(idx2 as usize) as c_int) {
+            if !ascii_iswhite(crate::memory::cstr_char_at(line2, idx2 as usize)) {
                 let c1 = line1[idx1 as usize];
                 idx1 += 1;
                 if c1 != *line2.add(idx2 as usize) {

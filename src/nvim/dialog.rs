@@ -261,7 +261,7 @@ pub fn prompt_for_input(
     one_key: bool,mouse_used: Option<&mut bool>,
 ) -> c_int {
     let prompt = prompt.into_c_char_ptr().cast_mut();
-    unsafe {
+     {
         let mut ret = if one_key { ESC } else { 0 };
         let kmsg = g_st().keep_msg.clone();
 
@@ -296,7 +296,7 @@ pub fn prompt_for_input(
 
         if let Some(ref resp_cstr) = resp {
             if one_key {
-                ret = *resp_cstr.as_ptr() as c_int;
+                ret = crate::memory::cstr_first_char(resp_cstr.as_ptr());
             } else {
                 let s = resp_cstr.to_string_lossy();
                 let trimmed = s.trim_start();

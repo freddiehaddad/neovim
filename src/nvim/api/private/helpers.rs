@@ -1512,7 +1512,7 @@ pub fn set_mark(
             coladd: 0,
         };
         let res = setmark_pos(
-            *name.data as c_int,
+            crate::memory::cstr_first_char(name.data),
             &mut pos,
             (*buf).b_fnum,
             None,
@@ -1523,14 +1523,14 @@ pub fn set_mark(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to delete named mark: %c",
-                    *name.data as c_int,
+                    crate::memory::cstr_first_char(name.data),
                 );
             } else {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to set named mark: %c",
-                    *name.data as c_int,
+                    crate::memory::cstr_first_char(name.data),
                 );
             }
         }

@@ -339,7 +339,7 @@ fn one_function_arg(
     unsafe {
         let mut p = arg;
 
-        while ascii_isalnum(*p as c_int) || crate::memory::cstr_first_byte(p) == b'_' {
+        while ascii_isalnum(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'_' {
             p = p.add(1);
         }
         let len = p.offset_from(arg);
@@ -433,7 +433,7 @@ fn get_function_args(
                     mustend = true;
                 }
 
-                if ascii_iswhite(*p as c_int) && *skipwhite(p) == b',' as c_char {
+                if ascii_iswhite(crate::memory::cstr_first_char(p)) && *skipwhite(p) == b',' as c_char {
                     if !skip {
                         semsg!(
                             gettext(E_NO_WHITE_SPACE_ALLOWED_BEFORE_STR_STR),
@@ -844,7 +844,7 @@ pub fn get_func_tv(
 #[inline]
 fn eval_fname_sid(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe { crate::memory::cstr_first_byte(name) == b's' || toupper_asc(*name.add(2) as c_int) == b'I' as c_int }
+     crate::memory::cstr_first_byte(name) == b's' || toupper_asc(crate::memory::cstr_char_at(name, 2)) == b'I' as c_int
 }
 
 /// In a script transform script-local names into actually used names.
@@ -1697,8 +1697,8 @@ pub fn free_all_functions() {
 /// Checks if a builtin function with the given name exists.
 fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: c_int) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
-        if !ascii_islower(*name as c_int) || crate::memory::cstr_byte_at(name, 1) == b':' {
+     {
+        if !ascii_islower(crate::memory::cstr_first_char(name)) || crate::memory::cstr_byte_at(name, 1) == b':' {
             return false;
         }
 
@@ -2668,7 +2668,7 @@ fn get_function_body(
                 }
             } else {
                 p = theline;
-                while ascii_iswhite(*p as c_int) || crate::memory::cstr_first_byte(p) == b':' {
+                while ascii_iswhite(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b':' {
                     p = p.add(1);
                 }
 
@@ -2743,7 +2743,7 @@ fn get_function_body(
                     || checkforcmd(&raw mut p, c"insert", 1))
                     && (crate::memory::cstr_first_byte(p) == b'!'
                         || crate::memory::cstr_first_byte(p) == b'|'
-                        || ascii_iswhite_nl_or_nul(*p as c_int))
+                        || ascii_iswhite_nl_or_nul(crate::memory::cstr_first_char(p)))
                 {
                     skip_until = Some(c".".to_owned());
                 } else {
@@ -2773,7 +2773,7 @@ fn get_function_body(
                 if is_script_heredoc {
                     p = skipwhite(arg.add(2));
                     if (crate::memory::cstr_prefix_bytes(p, 4) == &b"trim"[..4])
-                        && (crate::memory::cstr_byte_at(p, 4) == 0 || ascii_iswhite(*p.add(4) as c_int))
+                        && (crate::memory::cstr_byte_at(p, 4) == 0 || ascii_iswhite(crate::memory::cstr_char_at(p, 4)))
                     {
                         p = skipwhite(p.add(4));
                         heredoc_trimmedlen = skipwhite(theline).offset_from(theline) as usize;
@@ -2809,14 +2809,14 @@ fn get_function_body(
                             let mut has_trim = false;
                             loop {
                                 if (crate::memory::cstr_prefix_bytes(p, 4) == &b"trim"[..4])
-                                    && (crate::memory::cstr_byte_at(p, 4) == 0 || ascii_iswhite(*p.add(4) as c_int))
+                                    && (crate::memory::cstr_byte_at(p, 4) == 0 || ascii_iswhite(crate::memory::cstr_char_at(p, 4)))
                                 {
                                     p = skipwhite(p.add(4));
                                     has_trim = true;
                                     continue;
                                 }
                                 if (crate::memory::cstr_prefix_bytes(p, 4) == &b"eval"[..4])
-                                    && (crate::memory::cstr_byte_at(p, 4) == 0 || ascii_iswhite(*p.add(4) as c_int))
+                                    && (crate::memory::cstr_byte_at(p, 4) == 0 || ascii_iswhite(crate::memory::cstr_char_at(p, 4)))
                                 {
                                     p = skipwhite(p.add(4));
                                     continue;
@@ -2879,7 +2879,7 @@ pub fn ex_function(eap: &mut exarg_T) {
         let mut ht: *mut hashtab_T = ptr::null_mut();
         let mut show_block = false;
 
-        if ends_excmd(*eap.arg as c_int) != 0 {
+        if ends_excmd(crate::memory::cstr_first_char(eap.arg)) != 0 {
             if eap.skip == 0 {
                 list_functions(None);
             }
@@ -2989,9 +2989,9 @@ pub fn ex_function(eap: &mut exarg_T) {
                     let mut i = 0usize;
                     while crate::memory::cstr_byte_at(name_base, i) != 0
                         && if i == 0 {
-                            eval_isnamec1(*name_base.add(i) as c_int)
+                            eval_isnamec1(crate::memory::cstr_char_at(name_base, i))
                         } else {
-                            eval_isnamec(*name_base.add(i) as c_int)
+                            eval_isnamec(crate::memory::cstr_char_at(name_base, i))
                         }
                     {
                         i += 1;
@@ -3870,7 +3870,7 @@ pub fn ex_call(eap: &mut exarg_T) {
         if (!aborting() || g_st().did_throw)
             && (!failed || (*eap.cstack.cast::<cstack_T>()).cs_trylevel > 0)
         {
-            if ends_excmd(*arg as c_int) == 0 {
+            if ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
                 if !failed && !aborting() {
                     g_st().emsg_severe = true;
                     semsg!(gettext(e_trailing_arg), arg);
@@ -4311,7 +4311,7 @@ pub fn find_var_in_scoped_ht(
             if !ht.is_null() && !crate::memory::cstr_is_empty(varname) {
                 v = find_var_in_ht(
                      &mut *ht,
-                    *name as c_int,
+                    crate::memory::cstr_first_char(name),
                     varname,
                     namelen - varname.offset_from(name) as usize,
                     no_autoload,

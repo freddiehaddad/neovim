@@ -874,7 +874,7 @@ pub fn ml_recover(checkext: bool) {
                 ((crate::memory::cstr_byte_at(fname, len - 2)).to_ascii_lowercase()) as c_int,
             )
             .is_null()
-            && ascii_isalpha(*fname.add(len - 1) as c_int)
+            && ascii_isalpha(crate::memory::cstr_char_at(fname, len - 1))
         {
             directly = true;
             fname_used = Some(crate::memory::cstr_to_cstring(fname));

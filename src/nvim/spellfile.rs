@@ -1674,7 +1674,7 @@ pub fn spell_check_msm(value: *mut c_char, apply: bool) -> bool {
     unsafe {
         let mut p = value;
 
-        if !ascii_isdigit(*p as c_int) {
+        if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
             return false;
         }
         let start = (getdigits_int(&raw mut p, true, 0) * 10) / ((SBLOCKSIZE / 102) as c_int);
@@ -1682,7 +1682,7 @@ pub fn spell_check_msm(value: *mut c_char, apply: bool) -> bool {
             return false;
         }
         p = p.add(1);
-        if !ascii_isdigit(*p as c_int) {
+        if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
             return false;
         }
         let incr = (getdigits_int(&raw mut p, true, 0) * 102) / ((SBLOCKSIZE / 10) as c_int);
@@ -1690,7 +1690,7 @@ pub fn spell_check_msm(value: *mut c_char, apply: bool) -> bool {
             return false;
         }
         p = p.add(1);
-        if !ascii_isdigit(*p as c_int) {
+        if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
             return false;
         }
         let added = getdigits_int(&raw mut p, true, 0) * 1024;
@@ -5409,7 +5409,7 @@ fn init_spellfile() {
 
         let mut lend = (*win_s(curwin_mut())).b_p_spl;
         while !crate::memory::cstr_is_empty(lend) && vim_strchr(c",._", crate::memory::cstr_first_byte(lend) as c_int).is_null() {
-            if vim_ispathsep(*lend as c_int) {
+            if vim_ispathsep(crate::memory::cstr_first_char(lend)) {
                 aspath = true;
                 lstart = lend.add(1);
             }

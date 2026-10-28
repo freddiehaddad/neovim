@@ -89,7 +89,7 @@ fn prepare_assert_error(gap: &mut Vec<u8>) {
 
 fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: c_int) {
     let p = p.into_c_char_ptr();
-    unsafe {
+     {
         if clen > 1 {
             buf_concat_len(gap, p, clen as usize);
             return;
@@ -106,7 +106,7 @@ fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: 
             b'\\' => ga_concat_literal(gap, b"\\\\"),
             _ => {
                 if b < b' ' || b == 0x7f {
-                    let s = format!("\\x{:02x}", *p as c_int);
+                    let s = format!("\\x{:02x}", crate::memory::cstr_first_char(p));
                     ga_concat_literal(gap, s.as_bytes());
                 } else {
                     gap.push(b);

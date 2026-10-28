@@ -2789,7 +2789,7 @@ pub fn nvim_get_mark(
             return rv;
         }
 
-        let mark = mark_get_global(false, c_int::from(*name.data));
+        let mark = mark_get_global(false, crate::memory::cstr_first_char(name.data));
         let pos = (*mark).fmark.mark;
         let mut bufnr: c_int;
         let mut filename: *mut c_char;

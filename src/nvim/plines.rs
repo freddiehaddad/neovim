@@ -144,7 +144,7 @@ pub fn win_linetabsize(
 pub fn win_chartabsize(wp: &mut win_T, p: impl crate::strings::IntoCCharPtr, col: colnr_T) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         let buf = wp.w_buffer;
-        if c_int::from(*p) == TAB
+        if crate::memory::cstr_first_char(p) == TAB
             && (wp.w_onebuf_opt.wo_list == 0 || wp.w_p_lcs_chars.tab1 != 0)
         {
             return tabstop_padding(col, (*buf).b_p_ts, &(*buf).b_p_vts_array);

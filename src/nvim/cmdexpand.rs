@@ -2908,9 +2908,9 @@ fn showmatches_gettail(s: *mut c_char, eager: bool) -> *mut c_char {
         let mut p = s;
         while !crate::memory::cstr_is_empty(p) {
             #[cfg(windows)]
-            let is_sep = vim_ispathsep(*p as c_int) && !rem_backslash(p);
+            let is_sep = vim_ispathsep(crate::memory::cstr_first_char(p)) && !rem_backslash(p);
             #[cfg(not(windows))]
-            let is_sep = vim_ispathsep(*p as c_int);
+            let is_sep = vim_ispathsep(crate::memory::cstr_first_char(p));
 
             if is_sep {
                 if eager {
@@ -3336,7 +3336,7 @@ fn set_context_in_filter_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCC
 /// Set the completion context for the :match command.
 fn set_context_in_match_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut arg = arg.into_c_char_ptr();
     unsafe {
-        if crate::memory::cstr_is_empty(arg) || ends_excmd(*arg as c_int) == 0 {
+        if crate::memory::cstr_is_empty(arg) || ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
             set_context_in_echohl_cmd(xp, arg);
             arg = skipwhite(skiptowhite(arg));
             if !crate::memory::cstr_is_empty(arg) {
@@ -3506,7 +3506,7 @@ fn set_context_in_breakadd_cmd(
             p = p.add(4);
             p = skipwhite(p);
 
-            if ascii_isdigit(*p as c_int) {
+            if ascii_isdigit(crate::memory::cstr_first_char(p)) {
                 p = skipdigits(p);
                 if crate::memory::cstr_first_byte(p) != b' ' {
                     xp.xp_context = EXPAND_NOTHING;
@@ -3530,12 +3530,12 @@ fn set_context_in_breakadd_cmd(
 }
 
 fn set_context_in_scriptnames_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg = arg.into_c_char_ptr();
-    unsafe {
+     {
         xp.xp_context = EXPAND_NOTHING;
         xp.xp_pattern = ptr::null_mut();
 
         let p = skipwhite(arg);
-        if ascii_isdigit(*p as c_int) {
+        if ascii_isdigit(crate::memory::cstr_first_char(p)) {
             return ptr::null();
         }
 
@@ -3561,12 +3561,12 @@ fn set_context_in_filetype_cmd(xp: &mut expand_T, arg: impl crate::strings::Into
         let mut val: c_int = 0;
 
         loop {
-            if (crate::memory::cstr_prefix_bytes(p, 6) == &b"plugin"[..6]) && ascii_iswhite(*p.add(6) as c_int) {
+            if (crate::memory::cstr_prefix_bytes(p, 6) == &b"plugin"[..6]) && ascii_iswhite(crate::memory::cstr_char_at(p, 6)) {
                 val |= EXPAND_FILETYPECMD_PLUGIN;
                 p = skipwhite(p.add(6));
                 continue;
             }
-            if (crate::memory::cstr_prefix_bytes(p, 6) == &b"indent"[..6]) && ascii_iswhite(*p.add(6) as c_int) {
+            if (crate::memory::cstr_prefix_bytes(p, 6) == &b"indent"[..6]) && ascii_iswhite(crate::memory::cstr_char_at(p, 6)) {
                 val |= EXPAND_FILETYPECMD_INDENT;
                 p = skipwhite(p.add(6));
                 continue;
@@ -4100,7 +4100,7 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: impl crate::strings::IntoCCharPt
         if (ea.argt & EX_ARGOPT) != 0 {
             while !crate::memory::cstr_is_empty(arg) && (crate::memory::cstr_prefix_bytes(arg, 2) == &b"++"[..2]) {
                 p = arg.add(2);
-                while !crate::memory::cstr_is_empty(p) && !ascii_isspace(*p as c_int) {
+                while !crate::memory::cstr_is_empty(p) && !ascii_isspace(crate::memory::cstr_first_char(p)) {
                     p = p.add(utfc_ptr2len(p) as usize);
                 }
 
@@ -5203,8 +5203,8 @@ fn expand_shellcmd(filepat: impl crate::strings::IntoCCharPtr, matches: &mut Vec
 
         let mut path_owned: Option<std::ffi::CString> = None;
         let path: *mut c_char = if crate::memory::cstr_first_byte(pat) == b'.'
-            && (vim_ispathsep(*pat.add(1) as c_int)
-                || (crate::memory::cstr_byte_at(pat, 1) == b'.' && vim_ispathsep(*pat.add(2) as c_int)))
+            && (vim_ispathsep(crate::memory::cstr_char_at(pat, 1))
+                || (crate::memory::cstr_byte_at(pat, 1) == b'.' && vim_ispathsep(crate::memory::cstr_char_at(pat, 2))))
         {
             c".".as_ptr().cast_mut()
         } else {
@@ -5664,7 +5664,7 @@ fn wildmenu_process_key_filenames(
                 j > i
             } {
                 j -= utf_head_off(cclp.cmdbuff, cclp.cmdbuff.add(j as usize));
-                if vim_ispathsep(*cclp.cmdbuff.add(j as usize) as c_int) {
+                if vim_ispathsep(crate::memory::cstr_char_at(cclp.cmdbuff, j as usize)) {
                     found = true;
                     break;
                 }
@@ -5689,14 +5689,14 @@ fn wildmenu_process_key_filenames(
             } {
                 j -= utf_head_off(cclp.cmdbuff, cclp.cmdbuff.add(j as usize));
                 #[cfg(windows)]
-                let is_sep = vim_ispathsep(*cclp.cmdbuff.add(j as usize) as c_int)
+                let is_sep = vim_ispathsep(crate::memory::cstr_char_at(cclp.cmdbuff, j as usize))
                     && vim_strchr(
                         c" *?[{`$%#",
                         *cclp.cmdbuff.add((j + 1) as usize) as u8 as c_int,
                     )
                     .is_null();
                 #[cfg(not(windows))]
-                let is_sep = vim_ispathsep(*cclp.cmdbuff.add(j as usize) as c_int);
+                let is_sep = vim_ispathsep(crate::memory::cstr_char_at(cclp.cmdbuff, j as usize));
 
                 if is_sep {
                     if found {

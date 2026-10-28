@@ -3063,7 +3063,7 @@ pub fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
             } else if crate::memory::cstr_first_byte(look) == b'<' {
                 if try_match {
                     if !vim_strchr(c"<>!*oOe0:", crate::memory::cstr_byte_at(look, 1) as c_int).is_null()
-                        && keytyped == *look.add(1) as c_int
+                        && keytyped == crate::memory::cstr_char_at(look, 1)
                     {
                         return true;
                     }
