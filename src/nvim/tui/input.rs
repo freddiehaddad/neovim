@@ -409,7 +409,6 @@ fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
 
 fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
     unsafe {
-        let p = &raw mut *input;
         let mut buf = [0 as c_char; 64];
         let mut len: usize;
 
@@ -419,7 +418,7 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
             len = 5;
         } else if key.r#type != TERMKEY_TYPE_UNICODE {
             len = termkey_strfkey(
-                (*p).tk(),
+                input.tk(),
                 buf.as_mut_ptr(),
                 buf.len(),
                 key,
@@ -433,7 +432,7 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
                 return;
             }
             len = termkey_strfkey(
-                (*p).tk(),
+                input.tk(),
                 buf.as_mut_ptr(),
                 buf.len(),
                 key,
@@ -475,15 +474,14 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
 }
 
 fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
-    unsafe {
-        let p = &raw mut *input;
+     {
         let mut button: c_int = 0;
         let mut row: c_int = 0;
         let mut col: c_int = 0;
         let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;
 
         termkey_interpret_mouse(
-            (*p).tk(),
+            input.tk(),
             key,
             &mut ev,
             &mut button,
@@ -558,12 +556,11 @@ fn tk_getkey(tk: &mut TermKey, key: &mut TermKeyKey, force: bool) -> TermKeyResu
 
 fn tk_getkeys(input: &mut TermInput, force: bool) {
     unsafe {
-        let p = &raw mut *input;
         let mut key = TermKeyKey::new();
         let mut result: TermKeyResult;
 
         loop {
-            result = tk_getkey((*p).tk_mut(), &mut key, force);
+            result = tk_getkey(input.tk_mut(), &mut key, force);
             if result != TERMKEY_RES_KEY {
                 break;
             }
@@ -597,11 +594,11 @@ fn tk_getkeys(input: &mut TermInput, force: bool) {
             return;
         }
 
-        if (*p).ttimeout && (*p).ttimeoutlen >= 0 {
+        if input.ttimeout && input.ttimeoutlen >= 0 {
             {
                 let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
                 uv_timer_stop(th);
-                uv_timer_start(th, Some(tinput_timer_cb), (*p).ttimeoutlen as u64, 0);
+                uv_timer_start(th, Some(tinput_timer_cb), input.ttimeoutlen as u64, 0);
             }
         } else {
             tk_getkeys(input, true);
@@ -657,25 +654,24 @@ fn handle_bracketed_paste(
     incomplete: &mut bool,
 ) -> usize {
     unsafe {
-        let p = &raw mut *input;
         let bytes = std::slice::from_raw_parts(ptr.cast::<u8>(), size);
         if size >= 6 && (&bytes[..6] == START_PASTE || &bytes[..6] == END_PASTE) {
             let enable = bytes[4] == b'0';
-            if (*p).paste != 0 && enable {
+            if input.paste != 0 && enable {
                 return 0;
             }
 
-            if ((*p).paste != 0) == enable {
+            if (input.paste != 0) == enable {
                 return 6;
             }
 
             if enable {
                 tinput_flush(input);
-                (*p).paste = 1;
-            } else if (*p).paste != 0 {
-                (*p).paste = if (*p).paste == 2 { 3 } else { -1 };
+                input.paste = 1;
+            } else if input.paste != 0 {
+                input.paste = if input.paste == 2 { 3 } else { -1 };
                 tinput_flush(input);
-                (*p).paste = 0;
+                input.paste = 0;
             }
             return 6;
         } else if size < 6 && (bytes == &START_PASTE[..size] || bytes == &END_PASTE[..size]) {
@@ -707,9 +703,8 @@ fn send_termresponse(response: &[u8]) {
 
 fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
-        let p = &raw mut *input;
         let mut str_ptr: *const c_char = ptr::null();
-        if termkey_interpret_string((*p).tk(), key, &raw mut str_ptr) == TERMKEY_RES_KEY {
+        if termkey_interpret_string(input.tk(), key, &raw mut str_ptr) == TERMKEY_RES_KEY {
             assert!(!str_ptr.is_null());
             let s_bytes = CStr::from_ptr(str_ptr).to_bytes();
 
@@ -742,8 +737,7 @@ fn handle_primary_device_attr(
     nparams: usize,
 ) {
     unsafe {
-        let p = &raw mut *input;
-        if let Some(action) = (*p).primary_device_attr.take() {
+        if let Some(action) = input.primary_device_attr.take() {
             tui_handle_primary_device_attr(&mut *input.tui_data, action);
         }
 
@@ -772,12 +766,11 @@ fn handle_primary_device_attr(
 
 fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
-        let p = &raw mut *input;
         let mut initial: c_int = 0;
         let mut mode: c_int = 0;
         let mut value: c_int = 0;
         if termkey_interpret_modereport(
-            (*p).tk(),
+            input.tk(),
             key,
             &mut initial,
             &mut mode,
@@ -791,11 +784,10 @@ fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
 
 fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
-        let p = &raw mut *input;
         let mut params = [TermKeyCsiParam::new(); 16];
         let mut nparams: usize = 16;
         let mut cmd: c_uint = 0;
-        if termkey_interpret_csi((*p).tk(), key, &mut params, &mut nparams, &mut cmd)
+        if termkey_interpret_csi(input.tk(), key, &mut params, &mut nparams, &mut cmd)
             != TERMKEY_RES_KEY
         {
             return;
@@ -830,7 +822,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
             }
             b'u' => {
                 if initial == b'?' {
-                    (*p).key_encoding = kKeyEncodingKitty;
+                    input.key_encoding = kKeyEncodingKitty;
                 }
             }
             b'c' => {
@@ -898,7 +890,6 @@ fn handle_raw_buffer(
     mut size: usize,
 ) -> usize {
     unsafe {
-        let p = &raw mut *input;
         let mut ptr = data;
 
         loop {
@@ -937,7 +928,7 @@ fn handle_raw_buffer(
                 }
             }
 
-            if (*p).paste != 0 {
+            if input.paste != 0 {
                 tinput_enqueue(input, ptr, count);
                 ptr = ptr.add(count);
                 size -= count;
@@ -948,16 +939,16 @@ fn handle_raw_buffer(
             }
 
             let to_use = count.min(size);
-            let remaining = termkey_get_buffer_remaining((*p).tk());
+            let remaining = termkey_get_buffer_remaining(input.tk());
             if to_use > remaining {
                 let delta = to_use - remaining;
-                let bufsize = termkey_get_buffer_size((*p).tk());
-                if termkey_set_buffer_size((*p).tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0 {
+                let bufsize = termkey_get_buffer_size(input.tk());
+                if termkey_set_buffer_size(input.tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0 {
                     std::process::abort();
                 }
             }
 
-            let consumed = termkey_push_bytes((*p).tk_mut(), ptr, to_use);
+            let consumed = termkey_push_bytes(input.tk_mut(), ptr, to_use);
             assert!(consumed <= to_use);
             ptr = ptr.add(consumed);
             size -= consumed;
@@ -969,12 +960,12 @@ fn handle_raw_buffer(
             }
         }
 
-        let tk_size = termkey_get_buffer_size((*p).tk());
-        let tk_remaining = termkey_get_buffer_remaining((*p).tk());
+        let tk_size = termkey_get_buffer_size(input.tk());
+        let tk_remaining = termkey_get_buffer_remaining(input.tk());
         let tk_count = tk_size - tk_remaining;
         if tk_count < INPUT_BUFFER_SIZE
             && tk_size > INPUT_BUFFER_SIZE
-            && termkey_set_buffer_size((*p).tk_mut(), INPUT_BUFFER_SIZE) == 0
+            && termkey_set_buffer_size(input.tk_mut(), INPUT_BUFFER_SIZE) == 0
         {
             std::process::abort();
         }
@@ -991,7 +982,6 @@ pub(crate) fn tinput_read_cb(
     eof: bool,
 ) -> usize {
     unsafe {
-        let p = &raw mut *input;
 
         let consumed = handle_raw_buffer(input, false, buf, count_);
         tinput_flush(input);
@@ -1002,8 +992,8 @@ pub(crate) fn tinput_read_cb(
         }
 
         if consumed < count_ {
-            let ms = if (*p).ttimeout {
-                (*p).ttimeoutlen.max(0)
+            let ms = if input.ttimeout {
+                input.ttimeoutlen.max(0)
             } else {
                 0
             };
