@@ -1128,8 +1128,10 @@ fn tui_terminal_start(tui: &mut TUIData) {
 unsafe extern "C" fn after_startup_cb(handle: *mut uv_timer_t) {
     unsafe {
         {
-            let tui = &mut **handle.cast::<*mut TUIData>();
-            tui_terminal_after_startup(tui);
+            {
+                let tui = &mut **handle.cast::<*mut TUIData>();
+                tui_terminal_after_startup(tui);
+            }
         }
     }
 }

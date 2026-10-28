@@ -171,9 +171,11 @@ mod win_impl {
     }
 
     unsafe extern "C" fn os_conpty_free_thread(arg: *mut c_void) {
-        if !arg.is_null() {
-            unsafe {
-                drop(Box::from_raw(arg.cast::<Conpty>()));
+        unsafe {
+            if !arg.is_null() {
+                {
+                    drop(Box::from_raw(arg.cast::<Conpty>()));
+                }
             }
         }
     }
@@ -441,9 +443,11 @@ mod win_impl {
     pub fn pty_proc_teardown(_loop_: &mut Loop) {}
 
     unsafe extern "C" fn pty_proc_connect_cb(req: *mut uv_connect_t, status: i32) {
-        debug_assert_eq!(status, 0);
         unsafe {
-            ptr::write_volatile(connect_req_handle_ptr(req), ptr::null_mut());
+            debug_assert_eq!(status, 0);
+            {
+                ptr::write_volatile(connect_req_handle_ptr(req), ptr::null_mut());
+            }
         }
     }
 

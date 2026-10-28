@@ -619,15 +619,17 @@ fn tk_getkeys(input: &mut TermInput, force: bool) {
 unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         {
-            let input = &mut **handle.cast::<*mut TermInput>();
-            let rs = &raw mut input.read_stream;
-            let size = rstream_available(&mut *rs);
-            if size != 0 {
-                let consumed = handle_raw_buffer(input, true, (*rs).read_ptr(), size);
-                rstream_consume(&mut *rs, consumed);
+            {
+                let input = &mut **handle.cast::<*mut TermInput>();
+                let rs = &raw mut input.read_stream;
+                let size = rstream_available(&mut *rs);
+                if size != 0 {
+                    let consumed = handle_raw_buffer(input, true, (*rs).read_ptr(), size);
+                    rstream_consume(&mut *rs, consumed);
+                }
+                tk_getkeys(input, true);
+                tinput_flush(input);
             }
-            tk_getkeys(input, true);
-            tinput_flush(input);
         }
     }
 }
@@ -635,8 +637,10 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
 unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         {
-            let input = &mut **handle.cast::<*mut TermInput>();
-            tui_query_bg_color(&mut *input.tui_data);
+            {
+                let input = &mut **handle.cast::<*mut TermInput>();
+                tui_query_bg_color(&mut *input.tui_data);
+            }
         }
     }
 }

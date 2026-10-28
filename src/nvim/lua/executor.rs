@@ -636,37 +636,39 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
     mut nresult: i32,
     flags: i32,
 ) -> i32 {
-    {
-        nlua_st().in_fast_callback += 1;
+    unsafe {
+        {
+            nlua_st().in_fast_callback += 1;
 
-        let top = unsafe { lua_gettop(lstate) };
-        let status = nlua_pcall(lstate, nargs, nresult);
-        let retval = if status != 0 {
-            if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
-                preserve_exit(E_OUTOFMEM);
-            }
+            let top = { lua_gettop(lstate) };
+            let status = nlua_pcall(lstate, nargs, nresult);
+            let retval = if status != 0 {
+                if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
+                    preserve_exit(E_OUTOFMEM);
+                }
 
-            let mut len: usize = 0;
-            let error = nlua_get_error(lstate, &mut len);
-            let queues = loop_queues(&mut g_st().main_loop);
-            put_event(
-                queues.events,
-                Event::NluaLuvError {
-                    msg: (!error.is_null()).then(|| crate::memory::cstr_to_cstring(error)),
-                    kind: K_CALLBACK,
-                },
-            );
-            lua_pop(lstate, 1);
-            -status
-        } else {
-            if nresult == LUA_MULTRET {
-                nresult = unsafe { lua_gettop(lstate) } - top + nargs + 1;
-            }
-            nresult
-        };
+                let mut len: usize = 0;
+                let error = nlua_get_error(lstate, &mut len);
+                let queues = loop_queues(&mut g_st().main_loop);
+                put_event(
+                    queues.events,
+                    Event::NluaLuvError {
+                        msg: (!error.is_null()).then(|| crate::memory::cstr_to_cstring(error)),
+                        kind: K_CALLBACK,
+                    },
+                );
+                lua_pop(lstate, 1);
+                -status
+            } else {
+                if nresult == LUA_MULTRET {
+                    nresult = { lua_gettop(lstate) } - top + nargs + 1;
+                }
+                nresult
+            };
 
-        nlua_st().in_fast_callback -= 1;
-        retval
+            nlua_st().in_fast_callback -= 1;
+            retval
+        }
     }
 }
 
@@ -696,9 +698,11 @@ unsafe extern "C-unwind" fn nlua_luv_thread_cfcpcall(
 ) -> i32 {
     unsafe {
         {
-            lua_pushcfunction(lstate, func);
-            lua_pushlightuserdata(lstate, ud);
-            nlua_luv_thread_cfpcall(lstate, 1, 0, flags)
+            {
+                lua_pushcfunction(lstate, func);
+                lua_pushlightuserdata(lstate, ud);
+                nlua_luv_thread_cfpcall(lstate, 1, 0, flags)
+            }
         }
     }
 }
@@ -759,38 +763,40 @@ fn nlua_luv_thread_common_cfpcall(
 unsafe extern "C-unwind" fn nlua_thr_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            if lua_gettop(lstate) != 3 {
-                return luaL_error(lstate, c"Expected 3 arguments".as_ptr());
+            {
+                if lua_gettop(lstate) != 3 {
+                    return luaL_error(lstate, c"Expected 3 arguments".as_ptr());
+                }
+
+                luaL_checktype(lstate, -1, LUA_TTABLE);
+                lua_getfield(lstate, -1, c"is_lua");
+                if !lua_isboolean(lstate, -1) {
+                    return luaL_error(lstate, c"is_lua is not a boolean".as_ptr());
+                }
+                let is_lua = lua_toboolean(lstate, -1) != 0;
+                lua_pop(lstate, 2);
+
+                luaL_checktype(lstate, -1, LUA_TBOOLEAN);
+                let all = lua_toboolean(lstate, -1) != 0;
+                lua_pop(lstate, 1);
+
+                let mut err = Error::new();
+                let pat = nlua_pop_array_opt(lstate, None, &mut err);
+                if error_set(&err) {
+                    luaL_where(lstate, 1);
+                    lua_pushstring(lstate, err.msg_ptr());
+                    api_clear_error(&mut err);
+                    lua_concat(lstate, 2);
+                    return lua_error(lstate);
+                }
+
+                let ret = runtime_get_named_thread(is_lua, pat, all);
+                nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL);
+                api_free_array(ret);
+                api_free_array(pat);
+
+                1
             }
-
-            luaL_checktype(lstate, -1, LUA_TTABLE);
-            lua_getfield(lstate, -1, c"is_lua");
-            if !lua_isboolean(lstate, -1) {
-                return luaL_error(lstate, c"is_lua is not a boolean".as_ptr());
-            }
-            let is_lua = lua_toboolean(lstate, -1) != 0;
-            lua_pop(lstate, 2);
-
-            luaL_checktype(lstate, -1, LUA_TBOOLEAN);
-            let all = lua_toboolean(lstate, -1) != 0;
-            lua_pop(lstate, 1);
-
-            let mut err = Error::new();
-            let pat = nlua_pop_array_opt(lstate, None, &mut err);
-            if error_set(&err) {
-                luaL_where(lstate, 1);
-                lua_pushstring(lstate, err.msg_ptr());
-                api_clear_error(&mut err);
-                lua_concat(lstate, 2);
-                return lua_error(lstate);
-            }
-
-            let ret = runtime_get_named_thread(is_lua, pat, all);
-            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL);
-            api_free_array(ret);
-            api_free_array(pat);
-
-            1
         }
     }
 }
@@ -843,50 +849,54 @@ pub fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
 unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            if lua_type(lstate, 1) != LUA_TFUNCTION {
-                lua_pushlstring(lstate, c"vim.schedule: expected function".as_ptr(), 31);
-                return lua_error(lstate);
-            }
+            {
+                if lua_type(lstate, 1) != LUA_TFUNCTION {
+                    lua_pushlstring(lstate, c"vim.schedule: expected function".as_ptr(), 31);
+                    return lua_error(lstate);
+                }
 
-            lua_pushnil(lstate);
-            if *loop_closing_ptr(&mut g_st().main_loop) {
-                lua_pushlstring(lstate, c"main loop is closing".as_ptr(), 20);
-                return 2;
-            }
+                lua_pushnil(lstate);
+                if *loop_closing_ptr(&mut g_st().main_loop) {
+                    lua_pushlstring(lstate, c"main loop is closing".as_ptr(), 20);
+                    return 2;
+                }
 
-            let cb = nlua_ref_global(lstate, 1);
-            let queues = loop_queues(&mut g_st().main_loop);
-            put_event(
-                queues.events,
-                Event::NluaSchedule {
-                    cb,
-                    ns_id: g_st().ui_event_ns_id,
-                },
-            );
-            lua_pushnil(lstate);
-            2
+                let cb = nlua_ref_global(lstate, 1);
+                let queues = loop_queues(&mut g_st().main_loop);
+                put_event(
+                    queues.events,
+                    Event::NluaSchedule {
+                        cb,
+                        ns_id: g_st().ui_event_ns_id,
+                    },
+                );
+                lua_pushnil(lstate);
+                2
+            }
         }
     }
 }
 
 unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> i32 {
-    {
-        let timeout = unsafe { luaL_checkinteger(lstate, 1) } as i64;
-        let fast_only = unsafe { lua_toboolean(lstate, 2) } != 0;
+    unsafe {
+        {
+            let timeout = { luaL_checkinteger(lstate, 1) } as i64;
+            let fast_only = { lua_toboolean(lstate, 2) } != 0;
 
-        let queues = loop_queues(&mut g_st().main_loop);
-        let loop_events = if fast_only {
-            queues.fast_events
-        } else {
-            queues.events
-        };
-        if !loop_events.is_null() && !multiqueue_empty(unsafe { &*loop_events }) {
-            multiqueue_process_events(unsafe { &mut *loop_events });
-        } else {
-            loop_poll_events(&mut g_st().main_loop, timeout);
+            let queues = loop_queues(&mut g_st().main_loop);
+            let loop_events = if fast_only {
+                queues.fast_events
+            } else {
+                queues.events
+            };
+            if !loop_events.is_null() && !multiqueue_empty(&*loop_events) {
+                multiqueue_process_events(&mut *loop_events);
+            } else {
+                loop_poll_events(&mut g_st().main_loop, timeout);
+            }
+
+            0
         }
-
-        0
     }
 }
 
@@ -896,14 +906,16 @@ unsafe extern "C-unwind" fn nlua_ui_flush(_lstate: *mut lua_State) -> i32 {
 }
 
 unsafe extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> i32 {
-    {
-        let interrupted = g_st().got_int;
-        if g_st().got_int {
-            g_st().got_int = false;
-            vgetc();
+    unsafe {
+        {
+            let interrupted = g_st().got_int;
+            if g_st().got_int {
+                g_st().got_int = false;
+                vgetc();
+            }
+            lua_pushboolean(lstate, i32::from(interrupted));
+            1
         }
-        unsafe { lua_pushboolean(lstate, i32::from(interrupted)) };
-        1
     }
 }
 
@@ -935,43 +947,47 @@ pub fn nlua_ex_getline(
 }
 
 unsafe extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> i32 {
-    {
-        unsafe { luaL_checktype(lstate, 1, LUA_TFUNCTION) };
-        let mut cookie = ExDocmdCookie {
-            getline: nlua_ref_global(lstate, 1),
-            got_line: false,
-        };
-        g_st().msg_scroll = 1;
-        g_st().need_wait_return = false;
-        g_st().no_wait_return += 1;
-        do_cmdline(
-            ptr::null_mut(),
-            crate::cmdexpand::LineGetter::LuaEx(&raw mut cookie),
-            0,
-        );
-        g_st().no_wait_return -= 1;
-        nlua_unref_global(lstate, cookie.getline);
-        unsafe { lua_pushboolean(lstate, i32::from(cookie.got_line)) };
-        1
+    unsafe {
+        {
+            luaL_checktype(lstate, 1, LUA_TFUNCTION);
+            let mut cookie = ExDocmdCookie {
+                getline: nlua_ref_global(lstate, 1),
+                got_line: false,
+            };
+            g_st().msg_scroll = 1;
+            g_st().need_wait_return = false;
+            g_st().no_wait_return += 1;
+            do_cmdline(
+                ptr::null_mut(),
+                crate::cmdexpand::LineGetter::LuaEx(&raw mut cookie),
+                0,
+            );
+            g_st().no_wait_return -= 1;
+            nlua_unref_global(lstate, cookie.getline);
+            lua_pushboolean(lstate, i32::from(cookie.got_line));
+            1
+        }
     }
 }
 
 unsafe extern "C-unwind" fn nlua_os_exit(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            if nlua_st().in_fast_callback > 0 {
-                return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"os.exit");
-            }
+            {
+                if nlua_st().in_fast_callback > 0 {
+                    return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"os.exit");
+                }
 
-            let mut status: i32 = 0;
-            if lua_gettop(lstate) >= 1 && !lua_isnil(lstate, 1) {
-                status = if lua_isboolean(lstate, 1) {
-                    if lua_toboolean(lstate, 1) != 0 { 0 } else { 1 }
-                } else {
-                    luaL_checkinteger(lstate, 1) as i32
-                };
+                let mut status: i32 = 0;
+                if lua_gettop(lstate) >= 1 && !lua_isnil(lstate, 1) {
+                    status = if lua_isboolean(lstate, 1) {
+                        if lua_toboolean(lstate, 1) != 0 { 0 } else { 1 }
+                    } else {
+                        luaL_checkinteger(lstate, 1) as i32
+                    };
+                }
+                getout(status);
             }
-            getout(status);
         }
     }
 }
@@ -1071,20 +1087,22 @@ fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
 }
 
 unsafe extern "C-unwind" fn nlua_module_preloader(lstate: *mut lua_State) -> i32 {
-    {
-        let i = unsafe { lua_tointeger(lstate, lua_upvalueindex(1)) } as usize;
-        let def = BUILTIN_MODULES[i];
-        if luaL_loadbuffer(
-            lstate,
-            def.data.as_ptr().cast(),
-            def.data.len(),
-            def.chunk_name.as_ptr(),
-        ) != 0
+    unsafe {
         {
-            return unsafe { lua_error(lstate) };
+            let i = { lua_tointeger(lstate, lua_upvalueindex(1)) } as usize;
+            let def = BUILTIN_MODULES[i];
+            if luaL_loadbuffer(
+                lstate,
+                def.data.as_ptr().cast(),
+                def.data.len(),
+                def.chunk_name.as_ptr(),
+            ) != 0
+            {
+                return lua_error(lstate);
+            }
+            lua_call(lstate, 0, 1);
+            1
         }
-        unsafe { lua_call(lstate, 0, 1) };
-        1
     }
 }
 
@@ -1118,64 +1136,66 @@ fn nlua_init_packages(lstate: *mut lua_State) -> bool {
 unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            let ns_id = luaL_checkinteger(lstate, 1) as u32;
+            {
+                let ns_id = luaL_checkinteger(lstate, 1) as u32;
 
-            if !ns_initialized(ns_id) {
-                return luaL_error(lstate, c"invalid ns_id".as_ptr());
-            }
-            if !lua_istable(lstate, 2) {
-                return luaL_error(lstate, c"opts must be a table".as_ptr());
-            }
-            if !lua_isfunction(lstate, 3) {
-                return luaL_error(lstate, c"callback must be a Lua function".as_ptr());
-            }
+                if !ns_initialized(ns_id) {
+                    return luaL_error(lstate, c"invalid ns_id".as_ptr());
+                }
+                if !lua_istable(lstate, 2) {
+                    return luaL_error(lstate, c"opts must be a table".as_ptr());
+                }
+                if !lua_isfunction(lstate, 3) {
+                    return luaL_error(lstate, c"callback must be a Lua function".as_ptr());
+                }
 
-            let mut ext_widgets = [false; K_UIGLOBAL_COUNT];
-            let mut tbl_has_true_val = false;
+                let mut ext_widgets = [false; K_UIGLOBAL_COUNT];
+                let mut tbl_has_true_val = false;
 
-            lua_pushvalue(lstate, 2);
-            lua_pushnil(lstate);
-            while lua_next(lstate, -2) != 0 {
-                let mut len: usize = 0;
-                let s = lua_tolstring(lstate, -2, &raw mut len);
-                let val = lua_toboolean(lstate, -1) != 0;
+                lua_pushvalue(lstate, 2);
+                lua_pushnil(lstate);
+                while lua_next(lstate, -2) != 0 {
+                    let mut len: usize = 0;
+                    let s = lua_tolstring(lstate, -2, &raw mut len);
+                    let val = lua_toboolean(lstate, -1) != 0;
 
-                let mut matched = false;
-                if crate::memory::cstr_as_opt_bytes(s) == Some(b"set_cmdheight") {
-                    g_st().ui_refresh_cmdheight = val;
-                    matched = true;
-                } else {
-                    for (i, slot) in ext_widgets.iter_mut().enumerate() {
-                        if crate::memory::cstr_as_opt_bytes(s)
-                            == crate::memory::cstr_as_opt_bytes(UI_EXT_NAMES[i].as_ptr())
-                        {
-                            if val {
-                                tbl_has_true_val = true;
+                    let mut matched = false;
+                    if crate::memory::cstr_as_opt_bytes(s) == Some(b"set_cmdheight") {
+                        g_st().ui_refresh_cmdheight = val;
+                        matched = true;
+                    } else {
+                        for (i, slot) in ext_widgets.iter_mut().enumerate() {
+                            if crate::memory::cstr_as_opt_bytes(s)
+                                == crate::memory::cstr_as_opt_bytes(UI_EXT_NAMES[i].as_ptr())
+                            {
+                                if val {
+                                    tbl_has_true_val = true;
+                                }
+                                *slot = val;
+                                matched = true;
+                                break;
                             }
-                            *slot = val;
-                            matched = true;
-                            break;
                         }
                     }
+
+                    if !matched {
+                        return luaL_error(lstate, c"Unexpected key: %s".as_ptr(), s);
+                    }
+                    lua_pop(lstate, 1);
                 }
 
-                if !matched {
-                    return luaL_error(lstate, c"Unexpected key: %s".as_ptr(), s);
+                if !tbl_has_true_val {
+                    return luaL_error(
+                        lstate,
+                        c"opts table must contain at least one 'true' ext_widget".as_ptr(),
+                    );
                 }
-                lua_pop(lstate, 1);
-            }
 
-            if !tbl_has_true_val {
-                return luaL_error(
-                    lstate,
-                    c"opts table must contain at least one 'true' ext_widget".as_ptr(),
-                );
+                let ui_event_cb = nlua_ref_global(lstate, 3);
+                ui_add_cb(ns_id, ui_event_cb, &ext_widgets);
+                g_st().ui_refresh_cmdheight = true;
+                0
             }
-
-            let ui_event_cb = nlua_ref_global(lstate, 3);
-            ui_add_cb(ns_id, ui_event_cb, &ext_widgets);
-            g_st().ui_refresh_cmdheight = true;
-            0
         }
     }
 }
@@ -1183,12 +1203,14 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn nlua_ui_detach(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            let ns_id = luaL_checkinteger(lstate, 1) as u32;
-            if !ns_initialized(ns_id) {
-                return luaL_error(lstate, c"invalid ns_id".as_ptr());
+            {
+                let ns_id = luaL_checkinteger(lstate, 1) as u32;
+                if !ns_initialized(ns_id) {
+                    return luaL_error(lstate, c"invalid ns_id".as_ptr());
+                }
+                ui_remove_cb(ns_id, false);
+                0
             }
-            ui_remove_cb(ns_id, false);
-            0
         }
     }
 }
@@ -1360,11 +1382,13 @@ pub fn nlua_free_all_mem() {
 }
 
 unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
-    {
-        let ref_state = nlua_get_ref_state(lstate);
-        nlua_unref(lstate, ref_state, ref_state.nil_ref);
-        nlua_unref(lstate, ref_state, ref_state.empty_dict_ref);
-        unsafe { lua_close(lstate) };
+    unsafe {
+        {
+            let ref_state = nlua_get_ref_state(lstate);
+            nlua_unref(lstate, ref_state, ref_state.nil_ref);
+            nlua_unref(lstate, ref_state, ref_state.empty_dict_ref);
+            lua_close(lstate);
+        }
     }
 }
 
@@ -1391,59 +1415,61 @@ pub fn nlua_print_event(text: NvimString) {
 unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            let nargs = lua_gettop(lstate);
-            lua_getglobal(lstate, c"tostring");
-            let mut errmsg_len: usize = 0;
-            let mut msg_vec: Vec<c_char> = Vec::with_capacity(80);
-            let mut curargidx: i32 = 1;
-            while curargidx <= nargs {
-                lua_pushvalue(lstate, -1);
-                lua_pushvalue(lstate, curargidx);
-                if lua_pcall(lstate, 1, 1, 0) != 0 || lua_type(lstate, -1) != LUA_TSTRING {
-                    let errmsg = nlua_get_error(lstate, &mut errmsg_len);
-                    drop(msg_vec);
-                    let mut buff = [0 as c_char; IOSIZE];
-                    let fmt = gettext(c"E5114: Converting print argument #%i: %.*s");
-                    let len = vim_snprintf!(
-                        buff.as_mut_ptr(),
-                        IOSIZE,
-                        fmt,
-                        curargidx,
-                        errmsg_len as i32,
-                        errmsg,
-                    ) as usize;
-                    lua_pushlstring(lstate, buff.as_ptr(), len);
-                    return lua_error(lstate);
-                }
+            {
+                let nargs = lua_gettop(lstate);
+                lua_getglobal(lstate, c"tostring");
+                let mut errmsg_len: usize = 0;
+                let mut msg_vec: Vec<c_char> = Vec::with_capacity(80);
+                let mut curargidx: i32 = 1;
+                while curargidx <= nargs {
+                    lua_pushvalue(lstate, -1);
+                    lua_pushvalue(lstate, curargidx);
+                    if lua_pcall(lstate, 1, 1, 0) != 0 || lua_type(lstate, -1) != LUA_TSTRING {
+                        let errmsg = nlua_get_error(lstate, &mut errmsg_len);
+                        drop(msg_vec);
+                        let mut buff = [0 as c_char; IOSIZE];
+                        let fmt = gettext(c"E5114: Converting print argument #%i: %.*s");
+                        let len = vim_snprintf!(
+                            buff.as_mut_ptr(),
+                            IOSIZE,
+                            fmt,
+                            curargidx,
+                            errmsg_len as i32,
+                            errmsg,
+                        ) as usize;
+                        lua_pushlstring(lstate, buff.as_ptr(), len);
+                        return lua_error(lstate);
+                    }
 
-                let mut len: usize = 0;
-                let s = lua_tolstring(lstate, -1, &raw mut len);
-                if !s.is_null() && len > 0 {
-                    msg_vec.extend_from_slice(std::slice::from_raw_parts(s, len));
+                    let mut len: usize = 0;
+                    let s = lua_tolstring(lstate, -1, &raw mut len);
+                    if !s.is_null() && len > 0 {
+                        msg_vec.extend_from_slice(std::slice::from_raw_parts(s, len));
+                    }
+                    if curargidx < nargs {
+                        msg_vec.push(b' ' as c_char);
+                    }
+                    lua_pop(lstate, 1);
+                    curargidx += 1;
                 }
-                if curargidx < nargs {
-                    msg_vec.push(b' ' as c_char);
-                }
+                let msg_str =
+                    crate::api::private::helpers::cbuf_to_string(msg_vec.as_ptr(), msg_vec.len());
+                drop(msg_vec);
+
+                lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
+                let is_thread = lua_toboolean(lstate, -1) != 0;
                 lua_pop(lstate, 1);
-                curargidx += 1;
-            }
-            let msg_str =
-                crate::api::private::helpers::cbuf_to_string(msg_vec.as_ptr(), msg_vec.len());
-            drop(msg_vec);
 
-            lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
-            let is_thread = lua_toboolean(lstate, -1) != 0;
-            lua_pop(lstate, 1);
-
-            if is_thread {
-                loop_schedule_deferred(&mut g_st().main_loop, Event::NluaPrint(msg_str));
-            } else if nlua_st().in_fast_callback != 0 {
-                let queues = loop_queues(&mut g_st().main_loop);
-                put_event(queues.events, Event::NluaPrint(msg_str));
-            } else {
-                nlua_print_event(msg_str);
+                if is_thread {
+                    loop_schedule_deferred(&mut g_st().main_loop, Event::NluaPrint(msg_str));
+                } else if nlua_st().in_fast_callback != 0 {
+                    let queues = loop_queues(&mut g_st().main_loop);
+                    put_event(queues.events, Event::NluaPrint(msg_str));
+                } else {
+                    nlua_print_event(msg_str);
+                }
+                0
             }
-            0
         }
     }
 }
@@ -1451,102 +1477,106 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            let name = luaL_checklstring(lstate, 1, ptr::null_mut());
-            lua_settop(lstate, 1);
+            {
+                let name = luaL_checklstring(lstate, 1, ptr::null_mut());
+                lua_settop(lstate, 1);
 
-            lua_getfield(lstate, LUA_REGISTRYINDEX, c"_LOADED");
-            lua_getfield(lstate, 2, name);
-            if lua_toboolean(lstate, -1) != 0 {
-                return 1;
-            }
-            lua_pop(lstate, 2);
-
-            nlua_pushref(lstate, nlua_st().require_ref);
-            lua_insert(lstate, 1);
-
-            if !has_time_fd() {
-                lua_getglobal(lstate, c"require");
-                if lua_iscfunction(lstate, -1) != 0
-                    && lua_tocfunction(lstate, -1).is_some_and(|f| {
-                        std::ptr::fn_addr_eq(
-                            f,
-                            nlua_require as unsafe extern "C-unwind" fn(*mut lua_State) -> i32,
-                        )
-                    })
-                {
-                    lua_pushvalue(lstate, 1);
-                    lua_setglobal(lstate, c"require");
+                lua_getfield(lstate, LUA_REGISTRYINDEX, c"_LOADED");
+                lua_getfield(lstate, 2, name);
+                if lua_toboolean(lstate, -1) != 0 {
+                    return 1;
                 }
-                lua_pop(lstate, 1);
-                lua_call(lstate, 1, 1);
-                return 1;
-            }
+                lua_pop(lstate, 2);
 
-            let mut rel_time: Proftime = 0;
-            let mut start_time: Proftime = 0;
-            time_push(&mut rel_time, &mut start_time);
-            let status = lua_pcall(lstate, 1, 1, 0);
-            if status == 0 {
-                vim_snprintf!(g_st().iobuff.as_mut_ptr(), IOSIZE, c"require('%s')", name,);
-                time_msg(g_st().iobuff.as_ptr(), Some(&start_time));
-            }
-            time_pop(rel_time);
+                nlua_pushref(lstate, nlua_st().require_ref);
+                lua_insert(lstate, 1);
 
-            if status == 0 { 1 } else { lua_error(lstate) }
+                if !has_time_fd() {
+                    lua_getglobal(lstate, c"require");
+                    if lua_iscfunction(lstate, -1) != 0
+                        && lua_tocfunction(lstate, -1).is_some_and(|f| {
+                            std::ptr::fn_addr_eq(
+                                f,
+                                nlua_require as unsafe extern "C-unwind" fn(*mut lua_State) -> i32,
+                            )
+                        })
+                    {
+                        lua_pushvalue(lstate, 1);
+                        lua_setglobal(lstate, c"require");
+                    }
+                    lua_pop(lstate, 1);
+                    lua_call(lstate, 1, 1);
+                    return 1;
+                }
+
+                let mut rel_time: Proftime = 0;
+                let mut start_time: Proftime = 0;
+                time_push(&mut rel_time, &mut start_time);
+                let status = lua_pcall(lstate, 1, 1, 0);
+                if status == 0 {
+                    vim_snprintf!(g_st().iobuff.as_mut_ptr(), IOSIZE, c"require('%s')", name,);
+                    time_msg(g_st().iobuff.as_ptr(), Some(&start_time));
+                }
+                time_pop(rel_time);
+
+                if status == 0 { 1 } else { lua_error(lstate) }
+            }
         }
     }
 }
 
 unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
-    {
-        let input_args: [TypVal; 2] = [
-            TypVal {
-                v_type: VarType::VarString,
-                v_lock: VAR_FIXED,
-                vval: TypvalVval::String(c"lua_debug> ".as_ptr().cast_mut()),
-            },
-            TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: 0,
-                vval: TypvalVval::Number(0),
-            },
-        ];
-        loop {
-            unsafe { lua_settop(lstate, 0) };
-            let mut input: TypVal = TypVal::new();
-            get_user_input(&input_args, &mut input, false, false);
+    unsafe {
+        {
+            let input_args: [TypVal; 2] = [
+                TypVal {
+                    v_type: VarType::VarString,
+                    v_lock: VAR_FIXED,
+                    vval: TypvalVval::String(c"lua_debug> ".as_ptr().cast_mut()),
+                },
+                TypVal {
+                    v_type: VarType::VarUnknown,
+                    v_lock: 0,
+                    vval: TypvalVval::Number(0),
+                },
+            ];
+            loop {
+                lua_settop(lstate, 0);
+                let mut input: TypVal = TypVal::new();
+                get_user_input(&input_args, &mut input, false, false);
 
-            if ui_has(K_UICMDLINE) {
-                vim_snprintf!(
-                    g_st().iobuff.as_mut_ptr(),
-                    IOSIZE,
-                    c"lua_debug> %s",
-                    input.vval.v_string(),
-                );
-                ui_ext_cmdline_block_append(0, g_st().iobuff.as_ptr());
-            } else {
-                msg_putchar(b'\n' as i32);
-            }
-
-            if input.v_type != VarType::VarString
-                || input.vval.v_string().is_null()
-                || crate::memory::cstr_is_empty(input.vval.v_string())
-                || crate::memory::cstr_as_bytes(input.vval.v_string()) == b"cont"
-            {
-                tv_clear(&mut input);
                 if ui_has(K_UICMDLINE) {
-                    ui_ext_cmdline_block_leave();
+                    vim_snprintf!(
+                        g_st().iobuff.as_mut_ptr(),
+                        IOSIZE,
+                        c"lua_debug> %s",
+                        input.vval.v_string(),
+                    );
+                    ui_ext_cmdline_block_append(0, g_st().iobuff.as_ptr());
+                } else {
+                    msg_putchar(b'\n' as i32);
                 }
-                return 0;
-            }
 
-            let len = crate::memory::cstr_len(input.vval.v_string());
-            if luaL_loadbuffer(lstate, input.vval.v_string(), len, c"=(debug command)") != 0 {
-                nlua_error(lstate, gettext(c"E5115: Loading Lua debug string: %.*s"));
-            } else if nlua_pcall(lstate, 0, 0) != 0 {
-                nlua_error(lstate, gettext(c"E5116: Calling Lua debug string: %.*s"));
+                if input.v_type != VarType::VarString
+                    || input.vval.v_string().is_null()
+                    || crate::memory::cstr_is_empty(input.vval.v_string())
+                    || crate::memory::cstr_as_bytes(input.vval.v_string()) == b"cont"
+                {
+                    tv_clear(&mut input);
+                    if ui_has(K_UICMDLINE) {
+                        ui_ext_cmdline_block_leave();
+                    }
+                    return 0;
+                }
+
+                let len = crate::memory::cstr_len(input.vval.v_string());
+                if luaL_loadbuffer(lstate, input.vval.v_string(), len, c"=(debug command)") != 0 {
+                    nlua_error(lstate, gettext(c"E5115: Loading Lua debug string: %.*s"));
+                } else if nlua_pcall(lstate, 0, 0) != 0 {
+                    nlua_error(lstate, gettext(c"E5116: Calling Lua debug string: %.*s"));
+                }
+                tv_clear(&mut input);
             }
-            tv_clear(&mut input);
         }
     }
 }
@@ -1554,8 +1584,10 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
 pub unsafe extern "C-unwind" fn nlua_in_fast_event(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            lua_pushboolean(lstate, i32::from(nlua_st().in_fast_callback > 0));
-            1
+            {
+                lua_pushboolean(lstate, i32::from(nlua_st().in_fast_callback > 0));
+                1
+            }
         }
     }
 }
@@ -1571,114 +1603,122 @@ fn viml_func_is_fast(name: impl crate::strings::IntoCCharPtr) -> bool {
 pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            let mut err = Error::new();
-            let mut name_len: usize = 0;
-            let name = luaL_checklstring(lstate, 1, &raw mut name_len);
-            if !nlua_is_deferred_safe() && !viml_func_is_fast(name) {
-                let length = name_len.min(100) + 22;
-                vim_snprintf!(
-                    g_st().iobuff.as_mut_ptr(),
-                    length,
-                    c"Vimscript function \"%s\"",
-                    name,
-                );
-                return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), g_st().iobuff.as_ptr());
-            }
-
-            let nargs = lua_gettop(lstate) - 1;
-            if nargs > MAX_FUNC_ARGS {
-                return luaL_error(lstate, c"Function called with too many arguments".as_ptr());
-            }
-
-            let func_lua = find_internal_func_lua(name);
-            if !func_lua.is_null() {
-                lua_getglobal(lstate, c"require");
-                lua_pushlstring(lstate, c"vim._core.vimfn".as_ptr(), 15);
-                if lua_pcall(lstate, 1, 1, 0) != 0 {
-                    return lua_error(lstate);
-                }
-                lua_getfield(lstate, -1, func_lua);
-                lua_remove(lstate, -2);
-                for j in 0..nargs {
-                    lua_pushvalue(lstate, j + 2);
-                }
-                if lua_pcall(lstate, nargs, 1, 0) != 0 {
-                    return lua_error(lstate);
-                }
-                return 1;
-            }
-
-            let mut vim_args: [TypVal; (MAX_FUNC_ARGS + 1) as usize] =
-                [TypVal::new(); (MAX_FUNC_ARGS + 1) as usize];
-            let mut i: usize = 0;
-            let mut conv_failed = false;
-            while (i as i32) < nargs {
-                lua_pushvalue(lstate, (i as i32) + 2);
-                if !nlua_pop_typval(lstate, &raw mut vim_args[i]) {
-                    api_set_error!(
-                        &mut err,
-                        ErrorType::ErrorTypeException,
-                        c"error converting argument %d",
-                        (i + 1) as i32,
+            {
+                let mut err = Error::new();
+                let mut name_len: usize = 0;
+                let name = luaL_checklstring(lstate, 1, &raw mut name_len);
+                if !nlua_is_deferred_safe() && !viml_func_is_fast(name) {
+                    let length = name_len.min(100) + 22;
+                    vim_snprintf!(
+                        g_st().iobuff.as_mut_ptr(),
+                        length,
+                        c"Vimscript function \"%s\"",
+                        name,
                     );
-                    conv_failed = true;
-                    break;
+                    return luaL_error(
+                        lstate,
+                        E_FAST_API_DISABLED.as_ptr(),
+                        g_st().iobuff.as_ptr(),
+                    );
                 }
-                i += 1;
-            }
 
-            if !conv_failed {
-                g_st().force_abort = false;
-                g_st().suppress_errthrow = false;
-                g_st().did_throw = false;
-                g_st().did_emsg = 0;
-
-                let mut rettv: TypVal = TypVal::new();
-                let mut funcexe: Funcexe = Funcexe::new();
-                funcexe.fe_firstline = curwin_mut().w_cursor.lnum;
-                funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
-                funcexe.fe_evaluate = true;
-                let save_current_sctx = api_set_sctx(LUA_INTERNAL_CALL);
-
-                let mut tstate = TryState::new();
-                try_enter(&mut tstate);
-                let _ = call_func(
-                    name,
-                    name_len as i32,
-                    &mut rettv,
-                    nargs,
-                    vim_args.as_mut_ptr(),
-                    &mut funcexe,
-                );
-                try_leave(&tstate, &mut err);
-                g_st().current_sctx = save_current_sctx;
-
-                if !error_set(&err) {
-                    nlua_push_typval(lstate, &raw mut rettv, 0);
+                let nargs = lua_gettop(lstate) - 1;
+                if nargs > MAX_FUNC_ARGS {
+                    return luaL_error(lstate, c"Function called with too many arguments".as_ptr());
                 }
-                tv_clear(&mut rettv);
-            }
 
-            while i > 0 {
-                i -= 1;
-                tv_clear(&mut vim_args[i]);
+                let func_lua = find_internal_func_lua(name);
+                if !func_lua.is_null() {
+                    lua_getglobal(lstate, c"require");
+                    lua_pushlstring(lstate, c"vim._core.vimfn".as_ptr(), 15);
+                    if lua_pcall(lstate, 1, 1, 0) != 0 {
+                        return lua_error(lstate);
+                    }
+                    lua_getfield(lstate, -1, func_lua);
+                    lua_remove(lstate, -2);
+                    for j in 0..nargs {
+                        lua_pushvalue(lstate, j + 2);
+                    }
+                    if lua_pcall(lstate, nargs, 1, 0) != 0 {
+                        return lua_error(lstate);
+                    }
+                    return 1;
+                }
+
+                let mut vim_args: [TypVal; (MAX_FUNC_ARGS + 1) as usize] =
+                    [TypVal::new(); (MAX_FUNC_ARGS + 1) as usize];
+                let mut i: usize = 0;
+                let mut conv_failed = false;
+                while (i as i32) < nargs {
+                    lua_pushvalue(lstate, (i as i32) + 2);
+                    if !nlua_pop_typval(lstate, &raw mut vim_args[i]) {
+                        api_set_error!(
+                            &mut err,
+                            ErrorType::ErrorTypeException,
+                            c"error converting argument %d",
+                            (i + 1) as i32,
+                        );
+                        conv_failed = true;
+                        break;
+                    }
+                    i += 1;
+                }
+
+                if !conv_failed {
+                    g_st().force_abort = false;
+                    g_st().suppress_errthrow = false;
+                    g_st().did_throw = false;
+                    g_st().did_emsg = 0;
+
+                    let mut rettv: TypVal = TypVal::new();
+                    let mut funcexe: Funcexe = Funcexe::new();
+                    funcexe.fe_firstline = curwin_mut().w_cursor.lnum;
+                    funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
+                    funcexe.fe_evaluate = true;
+                    let save_current_sctx = api_set_sctx(LUA_INTERNAL_CALL);
+
+                    let mut tstate = TryState::new();
+                    try_enter(&mut tstate);
+                    let _ = call_func(
+                        name,
+                        name_len as i32,
+                        &mut rettv,
+                        nargs,
+                        vim_args.as_mut_ptr(),
+                        &mut funcexe,
+                    );
+                    try_leave(&tstate, &mut err);
+                    g_st().current_sctx = save_current_sctx;
+
+                    if !error_set(&err) {
+                        nlua_push_typval(lstate, &raw mut rettv, 0);
+                    }
+                    tv_clear(&mut rettv);
+                }
+
+                while i > 0 {
+                    i -= 1;
+                    tv_clear(&mut vim_args[i]);
+                }
+                if error_set(&err) {
+                    lua_pushstring(lstate, err.msg_ptr());
+                    api_clear_error(&mut err);
+                    return lua_error(lstate);
+                }
+                1
             }
-            if error_set(&err) {
-                lua_pushstring(lstate, err.msg_ptr());
-                api_clear_error(&mut err);
-                return lua_error(lstate);
-            }
-            1
         }
     }
 }
 
 unsafe extern "C-unwind" fn nlua_rpcrequest(lstate: *mut lua_State) -> i32 {
-    {
-        if !nlua_is_deferred_safe() {
-            return unsafe { luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"rpcrequest") };
+    unsafe {
+        {
+            if !nlua_is_deferred_safe() {
+                return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"rpcrequest");
+            }
+            nlua_rpc(lstate, true)
         }
-        nlua_rpc(lstate, true)
     }
 }
 
@@ -1762,11 +1802,13 @@ unsafe extern "C-unwind" fn nlua_empty_dict_tostring(lstate: *mut lua_State) -> 
 
 #[cfg(windows)]
 unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> i32 {
-    {
-        let name = unsafe { luaL_checklstring(lstate, 1, ptr::null_mut()) };
-        let val = os_getenv_cstr(name);
-        lua_pushstring(lstate, val.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
-        1
+    unsafe {
+        {
+            let name = { luaL_checklstring(lstate, 1, ptr::null_mut()) };
+            let val = os_getenv_cstr(name);
+            lua_pushstring(lstate, val.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
+            1
+        }
     }
 }
 

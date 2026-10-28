@@ -289,8 +289,10 @@ fn socket_alive(loop_: &mut Loop, addr: impl crate::strings::IntoCCharPtr) -> bo
 unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
     unsafe {
         {
-            let closed = *handle.cast::<*mut bool>();
-            *closed = true;
+            {
+                let closed = *handle.cast::<*mut bool>();
+                *closed = true;
+            }
         }
     }
 }
@@ -447,14 +449,16 @@ pub fn connection_event(watcher: *mut SocketWatcher, status: i32) {
 unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: i32) {
     unsafe {
         {
-            let watcher = *handle.cast::<*mut SocketWatcher>();
-            if !(*watcher).events.is_null() {
-                multiqueue_put_event(
-                    &mut *(*watcher).events,
-                    Event::SocketConnection { watcher, status },
-                );
-            } else {
-                connection_event(watcher, status);
+            {
+                let watcher = *handle.cast::<*mut SocketWatcher>();
+                if !(*watcher).events.is_null() {
+                    multiqueue_put_event(
+                        &mut *(*watcher).events,
+                        Event::SocketConnection { watcher, status },
+                    );
+                } else {
+                    connection_event(watcher, status);
+                }
             }
         }
     }
@@ -463,8 +467,10 @@ unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: i32) {
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         {
-            let watcher = *handle.cast::<*mut SocketWatcher>();
-            drop(Box::from_raw(watcher));
+            {
+                let watcher = *handle.cast::<*mut SocketWatcher>();
+                drop(Box::from_raw(watcher));
+            }
         }
     }
 }
@@ -472,12 +478,14 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
 unsafe extern "C" fn connect_cb(req: *mut uv_connect_t, status: i32) {
     unsafe {
         {
-            let ret_status = *req.cast::<*mut i32>();
-            *ret_status = status;
-            let handle = connect_req_handle(req);
-            if status != 0 {
-                let stream = *handle.cast::<*mut Stream>();
-                stream_may_close(&mut *stream);
+            {
+                let ret_status = *req.cast::<*mut i32>();
+                *ret_status = status;
+                let handle = connect_req_handle(req);
+                if status != 0 {
+                    let stream = *handle.cast::<*mut Stream>();
+                    stream_may_close(&mut *stream);
+                }
             }
         }
     }

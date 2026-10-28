@@ -428,75 +428,82 @@ fn process_xdl_diff_opts(
 pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            if lua_gettop(lstate) < 2 {
-                return luaL_error(lstate, c"Expected at least 2 arguments".as_ptr());
-            }
-            let mut ma = get_string_arg(lstate, 1);
-            let mut mb = get_string_arg(lstate, 2);
-
-            let mut err = Error::new();
-
-            let mut cfg = Xdemitconf::default();
-            let mut params = Xpparam::default();
-            let mut linematch: i64 = 0;
-            let mut mode = NluaXdiffMode::Unified;
-
-            if lua_gettop(lstate) == 3 {
-                if lua_type(lstate, 3) != LUA_TTABLE {
-                    return luaL_argerror(lstate, 3, c"expected table");
+            {
+                if lua_gettop(lstate) < 2 {
+                    return luaL_error(lstate, c"Expected at least 2 arguments".as_ptr());
                 }
-                mode =
-                    process_xdl_diff_opts(lstate, &mut cfg, &mut params, &mut linematch, &mut err);
-            }
+                let mut ma = get_string_arg(lstate, 1);
+                let mut mb = get_string_arg(lstate, 2);
 
-            let mut unified_buf: Vec<u8> = Vec::new();
-            let mut priv_state = HunkPriv {
-                lstate,
-                err,
-                ma: &mut ma,
-                mb: &mut mb,
-                linematch,
-                iwhite: (params.flags & XDF_IGNORE_WHITESPACE) != 0,
-            };
+                let mut err = Error::new();
 
-            if priv_state.err.err_type == ErrorType::ErrorTypeNone {
-                let mut ecb = match mode {
-                    NluaXdiffMode::Unified => Xdemitcb::Unified(&raw mut unified_buf),
-                    NluaXdiffMode::OnHunkCb => Xdemitcb::OnHunk(&raw mut priv_state),
-                    NluaXdiffMode::Locations => {
-                        lua_createtable(lstate, 0, 0);
-                        Xdemitcb::Locations(&raw mut priv_state)
+                let mut cfg = Xdemitconf::default();
+                let mut params = Xpparam::default();
+                let mut linematch: i64 = 0;
+                let mut mode = NluaXdiffMode::Unified;
+
+                if lua_gettop(lstate) == 3 {
+                    if lua_type(lstate, 3) != LUA_TTABLE {
+                        return luaL_argerror(lstate, 3, c"expected table");
                     }
-                };
-
-                if xdl_diff(&mut ma, &mut mb, &params, &cfg, &mut ecb) == -1
-                    && priv_state.err.err_type == ErrorType::ErrorTypeNone
-                {
-                    api_set_error!(
-                        &mut priv_state.err,
-                        ErrorType::ErrorTypeException,
-                        c"diff operation failed",
+                    mode = process_xdl_diff_opts(
+                        lstate,
+                        &mut cfg,
+                        &mut params,
+                        &mut linematch,
+                        &mut err,
                     );
                 }
-            }
 
-            if priv_state.err.err_type != ErrorType::ErrorTypeNone {
-                luaL_where(lstate, 1);
-                lua_pushstring(lstate, priv_state.err.msg_ptr());
-                api_clear_error(&mut priv_state.err);
-                lua_concat(lstate, 2);
-                return lua_error(lstate);
-            } else if mode == NluaXdiffMode::Unified {
-                lua_pushlstring(
+                let mut unified_buf: Vec<u8> = Vec::new();
+                let mut priv_state = HunkPriv {
                     lstate,
-                    unified_buf.as_ptr().cast::<c_char>(),
-                    unified_buf.len(),
-                );
-                return 1;
-            } else if mode == NluaXdiffMode::Locations {
-                return 1;
+                    err,
+                    ma: &mut ma,
+                    mb: &mut mb,
+                    linematch,
+                    iwhite: (params.flags & XDF_IGNORE_WHITESPACE) != 0,
+                };
+
+                if priv_state.err.err_type == ErrorType::ErrorTypeNone {
+                    let mut ecb = match mode {
+                        NluaXdiffMode::Unified => Xdemitcb::Unified(&raw mut unified_buf),
+                        NluaXdiffMode::OnHunkCb => Xdemitcb::OnHunk(&raw mut priv_state),
+                        NluaXdiffMode::Locations => {
+                            lua_createtable(lstate, 0, 0);
+                            Xdemitcb::Locations(&raw mut priv_state)
+                        }
+                    };
+
+                    if xdl_diff(&mut ma, &mut mb, &params, &cfg, &mut ecb) == -1
+                        && priv_state.err.err_type == ErrorType::ErrorTypeNone
+                    {
+                        api_set_error!(
+                            &mut priv_state.err,
+                            ErrorType::ErrorTypeException,
+                            c"diff operation failed",
+                        );
+                    }
+                }
+
+                if priv_state.err.err_type != ErrorType::ErrorTypeNone {
+                    luaL_where(lstate, 1);
+                    lua_pushstring(lstate, priv_state.err.msg_ptr());
+                    api_clear_error(&mut priv_state.err);
+                    lua_concat(lstate, 2);
+                    return lua_error(lstate);
+                } else if mode == NluaXdiffMode::Unified {
+                    lua_pushlstring(
+                        lstate,
+                        unified_buf.as_ptr().cast::<c_char>(),
+                        unified_buf.len(),
+                    );
+                    return 1;
+                } else if mode == NluaXdiffMode::Locations {
+                    return 1;
+                }
+                0
             }
-            0
         }
     }
 }

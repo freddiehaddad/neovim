@@ -10,24 +10,26 @@ use std::ffi::c_char;
 unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            if lua_gettop(lstate) < 1 {
-                return luaL_error(lstate, c"Expected 1 argument".as_ptr());
-            }
-            if lua_type(lstate, 1) != LUA_TSTRING {
-                luaL_argerror(lstate, 1, c"expected string");
-            }
+            {
+                if lua_gettop(lstate) < 1 {
+                    return luaL_error(lstate, c"Expected 1 argument".as_ptr());
+                }
+                if lua_type(lstate, 1) != LUA_TSTRING {
+                    luaL_argerror(lstate, 1, c"expected string");
+                }
 
-            let mut src_len: usize = 0;
-            let src = lua_tolstring(lstate, 1, &mut src_len);
-            let slice = if src_len == 0 || src.is_null() {
-                &[]
-            } else {
-                crate::memory::cstr_slice(src, src_len)
-            };
+                let mut src_len: usize = 0;
+                let src = lua_tolstring(lstate, 1, &mut src_len);
+                let slice = if src_len == 0 || src.is_null() {
+                    &[]
+                } else {
+                    crate::memory::cstr_slice(src, src_len)
+                };
 
-            let encoded = encode_bytes(slice);
-            lua_pushlstring(lstate, encoded.as_ptr().cast::<c_char>(), encoded.len());
-            1
+                let encoded = encode_bytes(slice);
+                lua_pushlstring(lstate, encoded.as_ptr().cast::<c_char>(), encoded.len());
+                1
+            }
         }
     }
 }
@@ -35,27 +37,29 @@ unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn nlua_base64_decode(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            if lua_gettop(lstate) < 1 {
-                return luaL_error(lstate, c"Expected 1 argument".as_ptr());
+            {
+                if lua_gettop(lstate) < 1 {
+                    return luaL_error(lstate, c"Expected 1 argument".as_ptr());
+                }
+                if lua_type(lstate, 1) != LUA_TSTRING {
+                    luaL_argerror(lstate, 1, c"expected string");
+                }
+
+                let mut src_len: usize = 0;
+                let src = lua_tolstring(lstate, 1, &mut src_len);
+                let slice = if src_len == 0 || src.is_null() {
+                    &[]
+                } else {
+                    crate::memory::cstr_slice(src, src_len)
+                };
+
+                let Some(decoded) = decode_bytes(slice) else {
+                    return luaL_error(lstate, c"Invalid input".as_ptr());
+                };
+
+                lua_pushlstring(lstate, decoded.as_ptr().cast::<c_char>(), decoded.len());
+                1
             }
-            if lua_type(lstate, 1) != LUA_TSTRING {
-                luaL_argerror(lstate, 1, c"expected string");
-            }
-
-            let mut src_len: usize = 0;
-            let src = lua_tolstring(lstate, 1, &mut src_len);
-            let slice = if src_len == 0 || src.is_null() {
-                &[]
-            } else {
-                crate::memory::cstr_slice(src, src_len)
-            };
-
-            let Some(decoded) = decode_bytes(slice) else {
-                return luaL_error(lstate, c"Invalid input".as_ptr());
-            };
-
-            lua_pushlstring(lstate, decoded.as_ptr().cast::<c_char>(), decoded.len());
-            1
         }
     }
 }
@@ -83,9 +87,11 @@ static BASE64_FUNCTIONS: [luaL_Reg; 3] = [
 pub unsafe extern "C" fn luaopen_base64(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
-            lua_createtable(lstate, 0, 0);
-            luaL_register(lstate, std::ptr::null(), BASE64_FUNCTIONS.as_ptr());
+            {
+                lua_createtable(lstate, 0, 0);
+                luaL_register(lstate, std::ptr::null(), BASE64_FUNCTIONS.as_ptr());
+            }
+            1
         }
-        1
     }
 }

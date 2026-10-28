@@ -637,7 +637,7 @@ mod unix_impl {
 
             for &proc_ in &(*qc).children {
                 let hdr = proc_;
-                let hdr = unsafe { &mut *hdr };
+                let hdr = { &mut *hdr };
                 let proc_t = proc_;
 
                 let mut pid: i32;
