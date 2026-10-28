@@ -676,7 +676,7 @@ pub fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fma
         } else if name == b':' as c_int && bt_prompt(&raw mut *buf) {
             &raw mut buf.b_prompt_start
         } else {
-            mark_get_motion(&raw mut *buf, win, name)
+            mark_get_motion(&mut *buf, win, name)
         };
 
         if !mark.is_null() {
@@ -688,7 +688,8 @@ pub fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fma
 }
 
 /// Get marks that are actually motions (`mark_get_motion`).
-pub fn mark_get_motion(buf: *mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
+pub fn mark_get_motion(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         let mut mark: *mut fmark_T = ptr::null_mut();
         let pos = (**curwin.as_ptr()).w_cursor;

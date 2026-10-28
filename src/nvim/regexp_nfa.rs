@@ -3171,7 +3171,7 @@ fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: &mut c_int) -> bool
                 mpos.start_col,
                 mpos.end_lnum,
                 mpos.end_col,
-                &raw mut *bytelen,
+                &mut *bytelen,
             ) == RA_MATCH
             {
                 return true;

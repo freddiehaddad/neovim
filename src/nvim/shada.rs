@@ -2456,13 +2456,13 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_T>) -> 
 }
 
 #[inline]
-fn add_search_pattern(
-    ret_pse: *mut ShadaEntry,
+fn add_search_pattern(ret_pse: &mut ShadaEntry,
     get_pattern: fn(&mut SearchPattern),
     is_substitute_pattern: bool,
     search_last_used: bool,
     search_highlighted: bool,
 ) {
+    let ret_pse: *mut ShadaEntry = &raw mut *ret_pse;
     unsafe {
         let mut pat = SearchPattern::new();
         get_pattern(&mut pat);

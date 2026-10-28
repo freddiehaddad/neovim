@@ -2253,9 +2253,9 @@ pub(super) fn match_with_backref(
     start_lnum: linenr_T,
     start_col: colnr_T,
     end_lnum: linenr_T,
-    end_col: colnr_T,
-    bytelen: *mut c_int,
+    end_col: colnr_T,bytelen: &mut c_int,
 ) -> c_int {
+    let bytelen: *mut c_int = &raw mut *bytelen;
     unsafe {
         let mut clnum = start_lnum;
         let mut ccol = start_col;

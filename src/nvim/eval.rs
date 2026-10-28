@@ -4445,16 +4445,16 @@ pub fn garbage_collect(testing: bool) -> bool {
             for &data in (*chans_ptr).values() {
                 let ct = data;
                 set_ref_in_callback_reader(
-                    &raw mut (*ct).on_data,
+                    &mut (*ct).on_data,
                     copyID,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
+                    None,
+                    None,
                 );
                 set_ref_in_callback_reader(
-                    &raw mut (*ct).on_stderr,
+                    &mut (*ct).on_stderr,
                     copyID,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
+                    None,
+                    None,
                 );
                 set_ref_in_callback(
                     &mut (*ct).on_exit,
@@ -5359,12 +5359,12 @@ pub fn set_ref_in_callback(
         false
 }
 
-fn set_ref_in_callback_reader(
-    reader: *mut CallbackReader,
-    copyID: c_int,
-    ht_stack: *mut ht_stack_T,
-    list_stack: *mut list_stack_T,
+fn set_ref_in_callback_reader(reader: &mut CallbackReader,
+    copyID: c_int,ht_stack: Option<&mut ht_stack_T>,list_stack: Option<&mut list_stack_T>,
 ) -> bool {
+    let reader: *mut CallbackReader = &raw mut *reader;
+    let ht_stack: *mut ht_stack_T = ht_stack.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let list_stack: *mut list_stack_T = list_stack.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if set_ref_in_callback(&mut (*reader).cb, copyID, ht_stack, list_stack) {
             return true;

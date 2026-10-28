@@ -1593,19 +1593,23 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 }
 
 fn sign_place_from_dict(
-    mut id_tv: *mut typval_T,
-    mut group_tv: *mut typval_T,
-    mut name_tv: *mut typval_T,
-    mut buf_tv: *mut typval_T,
+    id_tv: Option<&typval_T>,
+    group_tv: Option<&typval_T>,
+    name_tv: Option<&typval_T>,
+    buf_tv: Option<&mut typval_T>,
     dict: *mut dict_T,
 ) -> c_int {
+    let mut id_tv: *const typval_T = id_tv.map_or(ptr::null(), |p| &raw const *p);
+    let mut group_tv: *const typval_T = group_tv.map_or(ptr::null(), |p| &raw const *p);
+    let mut name_tv: *const typval_T = name_tv.map_or(ptr::null(), |p| &raw const *p);
+    let mut buf_tv: *mut typval_T = buf_tv.map_or(ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut id: c_int = 0;
         let mut notanum = false;
         if id_tv.is_null() {
             let di = tv_dict_find(dict, c"id".as_ptr(), -1);
             if !di.is_null() {
-                id_tv = &raw mut (*di).di_tv;
+                id_tv = &raw const (*di).di_tv;
             }
         }
         if !id_tv.is_null() {
@@ -1623,7 +1627,7 @@ fn sign_place_from_dict(
         if group_tv.is_null() {
             let di = tv_dict_find(dict, c"group".as_ptr(), -1);
             if !di.is_null() {
-                group_tv = &raw mut (*di).di_tv;
+                group_tv = &raw const (*di).di_tv;
             }
         }
         if !group_tv.is_null() {
@@ -1639,7 +1643,7 @@ fn sign_place_from_dict(
         if name_tv.is_null() {
             let di = tv_dict_find(dict, c"name".as_ptr(), -1);
             if !di.is_null() {
-                name_tv = &raw mut (*di).di_tv;
+                name_tv = &raw const (*di).di_tv;
             }
         }
         if name_tv.is_null() {
@@ -1692,32 +1696,31 @@ fn sign_place_from_dict(
     }
 }
 
-pub fn f_sign_place(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_sign_place(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+    let mut dict: *mut dict_T = ptr::null_mut();
 
-     {
-        let mut dict: *mut dict_T = ptr::null_mut();
+    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-
-        if argvars[4].v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_nonnull_dict_arg(argvars, 4) == FAIL {
-                return;
-            }
-            dict = argvars[4].vval.v_dict().cast::<dict_T>();
+    if argvars[4].v_type != VarType::VAR_UNKNOWN {
+        if tv_check_for_nonnull_dict_arg(argvars, 4) == FAIL {
+            return;
         }
-
-        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_place_from_dict(
-            (&raw mut argvars[0]),
-            (&raw mut argvars[1]),
-            (&raw mut argvars[2]),
-            (&raw mut argvars[3]),
-            dict,
-        )));
+        dict = argvars[4].vval.v_dict().cast::<dict_T>();
     }
+
+    let [arg0, arg1, arg2, arg3, ..] = argvars else {
+        unreachable!()
+    };
+    rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_place_from_dict(
+        Some(arg0),
+        Some(arg1),
+        Some(arg2),
+        Some(arg3),
+        dict,
+    )));
 }
 
-pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-
+pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
@@ -1733,10 +1736,10 @@ pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
                 let mut sign_id: c_int = -1;
                 if (*li).li_tv.v_type == VarType::VAR_DICT {
                     sign_id = sign_place_from_dict(
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        None,
+                        None,
+                        None,
+                        None,
                         (*li).li_tv.vval.v_dict().cast::<dict_T>(),
                     );
                 } else {
@@ -1795,12 +1798,12 @@ pub fn f_sign_undefine(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
     }
 }
 
-fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> c_int {
+fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: *mut dict_T) -> c_int {
     unsafe {
         let mut id: c_int = 0;
         let mut buf: *mut buf_T = ptr::null_mut();
-        let mut group = if !group_tv.is_null() {
-            tv_get_string(&*group_tv).cast_mut()
+        let mut group = if let Some(group_tv) = group_tv {
+            tv_get_string(group_tv).cast_mut()
         } else {
             tv_dict_get_string(dict, c"group".as_ptr())
         };
@@ -1829,25 +1832,25 @@ fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> c_int {
     }
 }
 
-pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+    let mut dict: *mut dict_T = ptr::null_mut();
 
-     {
-        let mut dict: *mut dict_T = ptr::null_mut();
+    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-
-        if tv_check_for_string_arg(argvars, 0) == FAIL
-            || tv_check_for_opt_dict_arg(argvars, 1) == FAIL
-        {
-            return;
-        }
-
-        if argvars[1].v_type != VarType::VAR_UNKNOWN {
-            dict = argvars[1].vval.v_dict().cast::<dict_T>();
-        }
-
-        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_unplace_from_dict((&raw mut argvars[0]), dict)));
+    if tv_check_for_string_arg(argvars, 0) == FAIL
+        || tv_check_for_opt_dict_arg(argvars, 1) == FAIL
+    {
+        return;
     }
+
+    if argvars[1].v_type != VarType::VAR_UNKNOWN {
+        dict = argvars[1].vval.v_dict().cast::<dict_T>();
+    }
+
+    rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_unplace_from_dict(
+        Some(&argvars[0]),
+        dict,
+    )));
 }
 
 pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
@@ -1868,7 +1871,7 @@ pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
                 let mut retval: c_int = -1;
                 if (*li).li_tv.v_type == VarType::VAR_DICT {
                     retval = sign_unplace_from_dict(
-                        ptr::null_mut(),
+                        None,
                         (*li).li_tv.vval.v_dict().cast::<dict_T>(),
                     );
                 } else {

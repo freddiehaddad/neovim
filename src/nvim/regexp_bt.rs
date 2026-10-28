@@ -3260,7 +3260,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_int) ->
                                             spos.col,
                                             epos.lnum,
                                             epos.col,
-                                            &raw mut len,
+                                            &mut len,
                                         );
                                         if r != RA_MATCH {
                                             status = r;

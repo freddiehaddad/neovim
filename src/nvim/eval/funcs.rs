@@ -7934,10 +7934,10 @@ pub fn f_setpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 }
 
 fn get_yank_type(
-    pp: *mut *mut c_char,
-    yank_type: *mut crate::register::MotionType,
+    pp: *mut *mut c_char,yank_type: &mut crate::register::MotionType,
     block_len: &mut c_int,
 ) -> c_int {
+    let yank_type: *mut crate::register::MotionType = &raw mut *yank_type;
     unsafe {
         let mut stropt = *pp;
         match *stropt {
@@ -8004,7 +8004,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
             let mut stropt = tv_dict_get_string(d, c"regtype".as_ptr());
             if !stropt.is_null() {
-                let ret = get_yank_type(&raw mut stropt, &raw mut yank_type, &mut block_len);
+                let ret = get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
                 stropt = stropt.add(1);
                 if ret == FAIL || *stropt != NUL {
                     semsg!(gettext(e_invargval.as_ptr()), c"value".as_ptr());
@@ -8041,7 +8041,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                     b'a' | b'A' => append = true,
                     b'u' | b'"' => set_unnamed = true,
                     _ => {
-                        get_yank_type(&raw mut stropt, &raw mut yank_type, &mut block_len);
+                        get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
                     }
                 }
                 stropt = stropt.add(1);

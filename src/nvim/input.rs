@@ -462,7 +462,8 @@ pub fn redo_spec() -> CmdSpec {
     }
 }
 
-fn add_buff(buf: *mut StuffBuf, s: *const c_char, mut slen: isize) {
+fn add_buff(buf: &mut StuffBuf, s: *const c_char, mut slen: isize) {
+    let buf: *mut StuffBuf = &raw mut *buf;
     unsafe {
         if slen < 0 {
             slen = std::ffi::CStr::from_ptr(s).to_bytes().len() as isize;
@@ -481,7 +482,7 @@ fn add_buff(buf: *mut StuffBuf, s: *const c_char, mut slen: isize) {
 fn add_num_buff(buf: &mut StuffBuf, n: c_int) {
     let mut number = [0 as c_char; 32];
         let numberlen = vim_snprintf!(number.as_mut_ptr(), number.len(), c"%d".as_ptr(), n);
-        add_buff(buf, number.as_ptr(), numberlen as isize);
+        add_buff(&mut *buf, number.as_ptr(), numberlen as isize);
 }
 
 fn key_byte_encode(c: c_int, temp: &mut [c_char; 4]) -> isize {
@@ -517,10 +518,10 @@ fn key_char_encode(c: c_int, buf: *mut c_char) -> usize {
     }
 }
 
-fn add_char_buff(buf: *mut StuffBuf, c: c_int) {
+fn add_char_buff(buf: &mut StuffBuf, c: c_int) {
     let mut temp = [0 as c_char; MB_MAXBYTES * 3 + 1];
-        let len = key_char_encode(c, temp.as_mut_ptr());
-        add_buff(buf, temp.as_ptr(), len as isize);
+    let len = key_char_encode(c, temp.as_mut_ptr());
+    add_buff(buf, temp.as_ptr(), len as isize);
 }
 
 fn sb_add_byte(sb: &mut Vec<c_char>, c: c_int) {
@@ -851,12 +852,12 @@ pub fn redo_append_char(c: c_int) {
 
 /// Appends string `s` (must be typeahead encoding) to the stuff buffer.
 pub fn stuffReadbuff(s: *const c_char) {
-    add_buff(&raw mut inp_st().readbuf1, s, -1);
+    add_buff(&mut inp_st().readbuf1, s, -1);
 }
 
 /// Appends string `s` (must be typeahead encoding) to the redo stuff buffer.
 pub fn stuffRedoReadbuff(s: *const c_char) {
-    add_buff(&raw mut inp_st().readbuf2, s, -1);
+    add_buff(&mut inp_st().readbuf2, s, -1);
 }
 
 pub fn stuffReadbuffLen(s: *const c_char, len: isize) {
@@ -865,7 +866,7 @@ pub fn stuffReadbuffLen(s: *const c_char, len: isize) {
             let last_ins = &raw mut g_st().last_insert_ga;
             (*last_ins).extend_from_slice(std::slice::from_raw_parts(s, len as usize));
         }
-        add_buff(&raw mut inp_st().readbuf1, s, len);
+        add_buff(&mut inp_st().readbuf1, s, len);
     }
 }
 
@@ -889,7 +890,7 @@ pub fn stuffReadbuffSpecial(mut s: *const c_char) {
 
 /// Appends character `c` to the stuff buffer, translated to typeahead encoding.
 pub fn stuffcharReadbuff(c: c_int) {
-    add_char_buff(&raw mut inp_st().readbuf1, c);
+    add_char_buff(&mut inp_st().readbuf1, c);
 }
 
 /// Append a number to the stuff buffer.
@@ -943,14 +944,14 @@ pub fn start_redo(count: c_int, old_redo: bool) -> c_int {
         }
         let mut prefix: Vec<c_char> = Vec::new();
         redo_prefix(&raw const spec, &mut prefix, true);
-        add_buff(&raw mut inp_st().readbuf2, prefix.as_ptr(), prefix.len() as isize);
+        add_buff(&mut inp_st().readbuf2, prefix.as_ptr(), prefix.len() as isize);
         drop(prefix);
         if spec.regname == b'=' as c_int {
             g_st().cmd_silent = true;
         }
 
         add_buff(
-            &raw mut inp_st().readbuf2,
+            &mut inp_st().readbuf2,
             (*rd).body.as_ptr(),
             (*rd).body.len() as isize,
         );
@@ -976,7 +977,7 @@ pub fn start_redo_ins() -> c_int {
             }
             if !vim_strchr(c"AaIiRrOo".as_ptr(), *p as u8 as c_int).is_null() {
                 if *p == b'O' as c_char || *p == b'o' as c_char {
-                    add_buff(&raw mut inp_st().readbuf2, NL_STR.as_ptr(), -1);
+                    add_buff(&mut inp_st().readbuf2, NL_STR.as_ptr(), -1);
                 }
                 p = p.add(1);
                 break;
@@ -984,7 +985,7 @@ pub fn start_redo_ins() -> c_int {
             p = p.add(1);
         }
 
-        add_buff(&raw mut inp_st().readbuf2, p, end.offset_from(p));
+        add_buff(&mut inp_st().readbuf2, p, end.offset_from(p));
         inp_st().block_redo = true;
         OK
     }

@@ -789,7 +789,7 @@ fn qf_init_process_nextline(
             fields.pattern.as_mut_ptr(),
             fields.enr,
             fields.type_,
-            ptr::null_mut(),
+            None,
             c_char::from(fields.valid),
         )
     }
@@ -2253,9 +2253,10 @@ fn qf_add_entry(
     pattern: *mut c_char,
     nr: c_int,
     mut type_: c_char,
-    user_data: *mut typval_T,
+    user_data: Option<&typval_T>,
     valid: c_char,
 ) -> c_int {
+    let user_data: *const typval_T = user_data.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let buf: *mut buf_T;
         let mut qfp = qfline_T::new();
@@ -2494,7 +2495,7 @@ fn copy_loclist_entries(from_qfl: &qf_list_T, to_qfl: &mut qf_list_T) -> c_int {
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                 from_qfp.qf_nr,
                 0,
-                (&raw const from_qfp.qf_user_data).cast_mut(),
+                Some(&from_qfp.qf_user_data),
                 from_qfp.qf_valid,
             ) == QF_FAIL
             {
@@ -5564,7 +5565,7 @@ fn vgr_match_buflines(
                         ptr::null_mut(),
                         0,
                         0,
-                        ptr::null_mut(),
+                        None,
                         1,
                     ) == QF_FAIL
                     {
@@ -5618,7 +5619,7 @@ fn vgr_match_buflines(
                         ptr::null_mut(),
                         0,
                         0,
-                        ptr::null_mut(),
+                        None,
                         1,
                     ) == QF_FAIL
                     {
@@ -6689,7 +6690,7 @@ fn qf_add_entry_from_dict(
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
             nr,
             if type_.is_null() { NUL } else { *type_ },
-            &raw mut user_data,
+            Some(&user_data),
             c_char::from(valid),
         );
 
@@ -7598,7 +7599,7 @@ fn hgr_search_file(qfl: &mut qf_list_T, fname: *mut c_char, p_regmatch: &mut reg
                     ptr::null_mut(),
                     0,
                     1,
-                    ptr::null_mut(),
+                    None,
                     1,
                 ) == QF_FAIL
                 {

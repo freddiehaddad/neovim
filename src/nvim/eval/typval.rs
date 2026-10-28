@@ -4020,7 +4020,8 @@ fn nothing_conv_func_end(tv: &mut typval_T, copy_id: c_int) {
 }
 
 #[inline]
-fn nothing_conv_empty_dict(tv: *mut typval_T, dictp: *mut *mut dict_T) {
+fn nothing_conv_empty_dict(tv: Option<&mut typval_T>, dictp: *mut *mut dict_T) {
+    let tv: *mut typval_T = tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         tv_dict_unref(*dictp);
         *dictp = ptr::null_mut();
@@ -4031,10 +4032,10 @@ fn nothing_conv_empty_dict(tv: *mut typval_T, dictp: *mut *mut dict_T) {
 }
 
 #[inline]
-fn nothing_conv_real_list_after_start(
-    tv: *mut typval_T,
+fn nothing_conv_real_list_after_start(tv: &mut typval_T,
     mpsv: &mut MPConvStackVal,
 ) -> c_int {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         debug_assert!(!tv.is_null());
         (*tv).v_lock = VAR_UNLOCKED;
@@ -4065,11 +4066,11 @@ fn nothing_conv_list_end(tv: *mut typval_T) {
 }
 
 #[inline]
-fn nothing_conv_real_dict_after_start(
-    tv: *mut typval_T,
+fn nothing_conv_real_dict_after_start(tv: Option<&mut typval_T>,
     dictp: *mut *mut dict_T,
     mpsv: &mut MPConvStackVal,
 ) -> c_int {
+    let tv: *mut typval_T = tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if !tv.is_null() {
             (*tv).v_lock = VAR_UNLOCKED;
@@ -4164,7 +4165,7 @@ fn nothing_convert_one_value(
                         li: tv_list_first_inline(list),
                     },
                 };
-                let _ = nothing_conv_real_list_after_start(tv, &mut mpsv);
+                let _ = nothing_conv_real_list_after_start(&mut *tv, &mut mpsv);
                 mpstack.push(mpsv);
             }
             VarType::VAR_BOOL => {
@@ -4179,7 +4180,7 @@ fn nothing_convert_one_value(
                 let dict = (*tv).vval.v_dict();
                 let dictp = (*tv).vval.v_dict_mut();
                 if dict.is_null() || (*dict).dv_hashtab.ht_used == 0 {
-                    nothing_conv_empty_dict(tv, dictp);
+                    nothing_conv_empty_dict(Some(&mut *tv), dictp);
                     return OK;
                 }
                 let saved_copy_id = (*dict).dv_copyID;
@@ -4197,7 +4198,7 @@ fn nothing_convert_one_value(
                         todo: (*dict).dv_hashtab.ht_used,
                     },
                 };
-                let _ = nothing_conv_real_dict_after_start(tv, dictp, &mut mpsv);
+                let _ = nothing_conv_real_dict_after_start(Some(&mut *tv), dictp, &mut mpsv);
                 mpstack.push(mpsv);
             }
             VarType::VAR_UNKNOWN => {
@@ -4293,7 +4294,7 @@ fn encode_vim_to_nothing(top_tv: &mut typval_T) -> c_int {
                             if !dict.is_null() {
                                 let dictp = (&raw mut (*pt).pt_dict).cast::<*mut dict_T>();
                                 if (*dict).dv_hashtab.ht_used == 0 {
-                                    nothing_conv_empty_dict(ptr::null_mut(), dictp);
+                                    nothing_conv_empty_dict(None, dictp);
                                     continue;
                                 }
                                 let saved_copy_id = (*dict).dv_copyID;
@@ -4312,7 +4313,7 @@ fn encode_vim_to_nothing(top_tv: &mut typval_T) -> c_int {
                                     },
                                 };
                                 let _ = nothing_conv_real_dict_after_start(
-                                    ptr::null_mut(),
+                                    None,
                                     dictp,
                                     &mut mpsv,
                                 );
