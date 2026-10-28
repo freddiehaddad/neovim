@@ -4395,14 +4395,14 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
 }
 
 fn qf_buf_add_line(
-    _qfl: &qf_list_T,
-    buf: *mut buf_T,
+    _qfl: &qf_list_T,buf: &mut buf_T,
     lnum: linenr_T,
     qfp: &qfline_T,
     dirname: *mut c_char,
     qftf_str: *mut c_char,
     first_bufline: bool,
 ) -> c_int {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         let gap = qfga_get();
 
@@ -4579,7 +4579,7 @@ fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize, qf_win
                 let qfp_fnum = (*qfp).qf_fnum;
                 if qf_buf_add_line(
                     &*qfl,
-                    &raw mut *buf,
+                    &mut *buf,
                     lnum,
                     &*qfp,
                     dirname.as_mut_ptr(),

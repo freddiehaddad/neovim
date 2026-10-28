@@ -1079,12 +1079,12 @@ pub fn no_spell_checking(wp: &mut win_T) -> bool {
         false
     }
 }
-fn decor_spell_nav_col(
-    wp: *mut win_T,
+fn decor_spell_nav_col(wp: &mut win_T,
     lnum: linenr_T,
     decor_lnum: &mut linenr_T,
     col: c_int,
 ) -> TriState {
+    let wp: *mut win_T = &raw mut *wp;
     if *decor_lnum != lnum {
             decor_redraw_reset(wp, &mut g_st().decor_state);
             decor_providers_invoke_spell(wp, lnum - 1, col, lnum - 1, -1);
@@ -1095,7 +1095,8 @@ fn decor_spell_nav_col(
         g_st().decor_state.spell
 }
 #[inline]
-fn can_syn_spell(wp: *mut win_T, lnum: linenr_T, col: c_int) -> bool {
+fn can_syn_spell(wp: &mut win_T, lnum: linenr_T, col: c_int) -> bool {
+    let wp: *mut win_T = &raw mut *wp;
     let mut can_spell = false;
         let _ = syn_get_id(wp, lnum, col, 0, &raw mut can_spell, 0);
         can_spell
@@ -1193,11 +1194,11 @@ pub fn spell_move_to(
                             let no_plain_buffer =
                                 ((*w_s).b_p_spo_flags & kOptSpoFlagNoplainbuffer) != 0;
                             let mut can_spell = !no_plain_buffer;
-                            match decor_spell_nav_col(&raw mut *wp, lnum, &mut decor_lnum, col) {
+                            match decor_spell_nav_col(&mut *wp, lnum, &mut decor_lnum, col) {
                                 kTrue => can_spell = true,
                                 kFalse => can_spell = false,
                                 kNone if has_syntax => {
-                                    can_spell = can_syn_spell(&raw mut *wp, lnum, col);
+                                    can_spell = can_syn_spell(&mut *wp, lnum, col);
                                 }
                                 _ => {}
                             }

@@ -417,7 +417,7 @@ fn get_function_args(
                     p = skipwhite(p).add(1);
                     p = skipwhite(p);
                     let expr = p;
-                    if eval1(&raw mut p, &raw mut rettv, ptr::null_mut()) != FAIL {
+                    if eval1(&raw mut p, &mut rettv, ptr::null_mut()) != FAIL {
                         while p > expr && ascii_iswhite(*p.sub(1) as c_int) {
                             p = p.sub(1);
                         }
@@ -763,7 +763,7 @@ fn get_func_arguments(
             if *argp == b')' as c_char || *argp == b',' as c_char || *argp == NUL {
                 break;
             }
-            if eval1(&raw mut argp, argvars.add(*argcount as usize), evalarg) == FAIL {
+            if eval1(&raw mut argp, &mut *argvars.add(*argcount as usize), evalarg) == FAIL {
                 ret = FAIL;
                 break;
             }
@@ -1329,7 +1329,7 @@ pub fn call_user_func(
                         .cast_mut();
                     if eval1(
                         &raw mut default_expr,
-                        &raw mut def_rettv,
+                        &mut def_rettv,
                         &raw mut g_st().EVALARG_EVALUATE,
                     ) == FAIL
                     {
@@ -1467,7 +1467,7 @@ pub fn call_user_func(
                 .add(7)
                 .cast_mut();
             g_st().ex_nesting_level += 1;
-            eval1(&raw mut p, rettv, &raw mut g_st().EVALARG_EVALUATE);
+            eval1(&raw mut p, &mut *rettv, &raw mut g_st().EVALARG_EVALUATE);
             g_st().ex_nesting_level -= 1;
         } else {
             do_cmdline(
@@ -1598,8 +1598,7 @@ fn call_user_func_check(
     fp: *mut ufunc_T,
     argcount: c_int,
     argvars: *mut typval_T,
-    rettv: *mut typval_T,
-    funcexe: *mut funcexe_T,
+    rettv: *mut typval_T,funcexe: &mut funcexe_T,
     selfdict: *mut dict_T,
 ) -> c_int {
     unsafe {
@@ -1608,7 +1607,7 @@ fn call_user_func_check(
         }
 
         if ((*fp).uf_flags & FC_RANGE) != 0 {
-            (*funcexe).fe_doesrange = true;
+            funcexe.fe_doesrange = true;
         }
         let mut error = check_user_func_argcount(&mut *fp, argcount);
         if error != FCERR_UNKNOWN {
@@ -1622,8 +1621,8 @@ fn call_user_func_check(
                 argcount,
                 argvars,
                 rettv,
-                (*funcexe).fe_firstline,
-                (*funcexe).fe_lastline,
+                funcexe.fe_firstline,
+                funcexe.fe_lastline,
                 if ((*fp).uf_flags & FC_DICT) != 0 {
                     selfdict
                 } else {
@@ -1993,7 +1992,7 @@ pub fn call_func(
                         &mut argv_base,
                     );
 
-                    error = call_user_func_check(fp, argcount, argvars, rettv, &raw mut *funcexe, selfdict);
+                    error = call_user_func_check(fp, argcount, argvars, rettv, &mut *funcexe, selfdict);
                 }
             } else if !funcexe.fe_basetv.is_null() {
                 error = call_internal_method(fname, argcount, argvars, rettv, funcexe.fe_basetv);
@@ -2078,7 +2077,7 @@ pub fn call_simple_func(funcname: *const c_char, len: usize, rettv: &mut typval_
                 0,
                 argvars.as_mut_ptr(),
                 rettv,
-                &raw mut funcexe,
+                &mut funcexe,
                 ptr::null_mut(),
             );
             if error == FCERR_NONE {
@@ -3544,7 +3543,7 @@ pub fn ex_return(eap: &mut exarg_T) {
 
         eap.nextcmd = ptr::null_mut();
         if (*arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char)
-            && eval0(arg, &raw mut rettv, eap, &raw mut evalarg) != FAIL
+            && eval0(arg, &mut rettv, eap, &raw mut evalarg) != FAIL
         {
             if eap.skip == 0 {
                 returning = do_return(eap, false, true, Some(rettv));
@@ -3809,7 +3808,7 @@ pub fn ex_call(eap: &mut exarg_T) {
         if eap.skip != 0 {
             let mut rettv: typval_T = typval_T::new();
             g_st().emsg_skip += 1;
-            if eval0(eap.arg, &raw mut rettv, eap, &raw mut evalarg) != FAIL {
+            if eval0(eap.arg, &mut rettv, eap, &raw mut evalarg) != FAIL {
                 tv_clear(&raw mut rettv);
             }
             g_st().emsg_skip -= 1;

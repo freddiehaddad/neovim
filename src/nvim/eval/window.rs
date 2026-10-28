@@ -142,18 +142,16 @@ fn win_getid(argvars: *mut typval_T) -> c_int {
     }
 }
 
-fn win_id2tabwin(argvars: *mut typval_T, rettv: *mut typval_T) {
-    unsafe {
-        let id = tv_get_number(argvars) as handle_T;
+fn win_id2tabwin(argvars: *mut typval_T, rettv: &mut typval_T) {
+    let id = tv_get_number(argvars) as handle_T;
 
-        let mut winnr: c_int = 1;
-        let mut tabnr: c_int = 1;
-        win_get_tabwin(id, &mut tabnr, &mut winnr);
+    let mut winnr: c_int = 1;
+    let mut tabnr: c_int = 1;
+    win_get_tabwin(id, &mut tabnr, &mut winnr);
 
-        let list = tv_list_alloc_ret(&mut *rettv, 2);
-        tv_list_append_number(list, tabnr as varnumber_T);
-        tv_list_append_number(list, winnr as varnumber_T);
-    }
+    let list = tv_list_alloc_ret(rettv, 2);
+    tv_list_append_number(list, tabnr as varnumber_T);
+    tv_list_append_number(list, winnr as varnumber_T);
 }
 
 pub fn win_id2wp(id: c_int) -> *mut win_T {
@@ -740,7 +738,7 @@ pub fn f_win_gotoid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 pub fn f_win_id2tabwin(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    win_id2tabwin(argvars, rettv);
+    win_id2tabwin(argvars, &mut *rettv);
 }
 
 /// `win_id2win()` function (`f_win_id2win`).

@@ -447,8 +447,7 @@ fn next_search_hl_pos(
 }
 
 /// Search for a next `'hlsearch'` or match (`next_search_hl`).
-fn next_search_hl(
-    win: *mut win_T,
+fn next_search_hl(win: &mut win_T,
     search_hl: &mut match_T,
     shl: &mut match_T,
     lnum: linenr_T,
@@ -588,7 +587,7 @@ pub fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: linenr_T
                     && (!(*shl).rm.regprog.is_null() || (!cur.is_null() && pos_inprogress))
                 {
                     next_search_hl(
-                        &raw mut *wp,
+                        &mut *wp,
                         &mut *search_hl_ptr,
                         &mut *shl,
                         (*shl).first_lnum,
@@ -667,7 +666,7 @@ pub fn prepare_search_hl_line(
                 (*cur).mit_pos_cur = 0;
             }
             next_search_hl(
-                &raw mut *wp,
+                &mut *wp,
                 &mut *search_hl_ptr,
                 &mut *shl,
                 lnum,
@@ -785,7 +784,7 @@ pub fn update_search_hl(
                     (*shl).attr_cur = 0;
 
                     next_search_hl(
-                        &raw mut *wp,
+                        &mut *wp,
                         &mut *search_hl_ptr,
                         &mut *shl,
                         lnum,

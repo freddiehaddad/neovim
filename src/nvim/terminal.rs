@@ -1099,7 +1099,8 @@ pub fn terminal_check_size(term: &mut Terminal) {
     }
 }
 
-fn set_terminal_winopts(s: *mut TerminalState) {
+fn set_terminal_winopts(s: &mut TerminalState) {
+    let s: *mut TerminalState = &raw mut *s;
     unsafe {
         debug_assert!((*s).save_curwin_handle == 0);
 
@@ -1139,7 +1140,8 @@ fn set_terminal_winopts(s: *mut TerminalState) {
     }
 }
 
-fn unset_terminal_winopts(s: *mut TerminalState) {
+fn unset_terminal_winopts(s: &mut TerminalState) {
+    let s: *mut TerminalState = &raw mut *s;
     unsafe {
         debug_assert!((*s).save_curwin_handle != 0);
 
@@ -1312,15 +1314,16 @@ fn terminal_check_cursor() {
     }
 }
 
-fn terminal_check_focus(s: *mut TerminalState) -> bool {
+fn terminal_check_focus(s: &mut TerminalState) -> bool {
+    let s: *mut TerminalState = &raw mut *s;
     unsafe {
         if (*g_st().curbuf).terminal.is_null() {
             return false;
         }
 
         if (*s).save_curwin_handle != (**curwin.as_ptr()).handle {
-            unset_terminal_winopts(s);
-            set_terminal_winopts(s);
+            unset_terminal_winopts(&mut *s);
+            set_terminal_winopts(&mut *s);
         }
         let cur_term = &mut *(*g_st().curbuf).terminal;
         if !std::ptr::eq((*s).term, cur_term) {
@@ -1348,7 +1351,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
                     && s.term != (*g_st().curbuf).terminal)
         );
 
-        if g_st().Ins.stop_insert_mode || !terminal_check_focus(&raw mut *s) {
+        if g_st().Ins.stop_insert_mode || !terminal_check_focus(&mut *s) {
             return 0;
         }
 
@@ -1376,7 +1379,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
             s.close = true;
         }
 
-        if !terminal_check_focus(&raw mut *s) {
+        if !terminal_check_focus(&mut *s) {
             return 0;
         }
         terminal_check_cursor();

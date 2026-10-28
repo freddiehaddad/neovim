@@ -2640,8 +2640,7 @@ fn match_follows(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int
 fn state_in_list(
     states: &[nfa_state_T],
     l: *mut nfa_list_T,
-    state: Option<usize>,
-    subs: *mut regsubs_T,
+    state: Option<usize>,subs: &mut regsubs_T,
 ) -> bool {
     unsafe {
         let Some(state_idx) = state else {
@@ -2979,8 +2978,7 @@ fn addstate_eps(
 fn addstate_here(
     states: &mut [nfa_state_T],
     l: *mut nfa_list_T,
-    state: Option<usize>,
-    subs: *mut regsubs_T,
+    state: Option<usize>,subs: &mut regsubs_T,
     pim: *mut nfa_pim_T,
     ip: &mut c_int,
 ) -> *mut regsubs_T {
@@ -3258,10 +3256,7 @@ fn nfa_re_num_cmp(val: u64, op: c_int, pos: u64) -> bool {
 
 fn recursive_regmatch(
     state: usize,
-    pim: *mut nfa_pim_T,
-    prog: *mut nfa_regprog_T,
-    submatch: *mut regsubs_T,
-    m: *mut regsubs_T,
+    pim: *mut nfa_pim_T,prog: &mut nfa_regprog_T,submatch: &mut regsubs_T,m: &mut regsubs_T,
     listids: &mut Vec<c_int>,
 ) -> c_int {
     unsafe {
@@ -3282,7 +3277,7 @@ fn recursive_regmatch(
             }
         }
 
-        let st = (&(*prog).state)[state];
+        let st = (&prog.state)[state];
         if st.c == NFA_START_INVISIBLE_BEFORE
             || st.c == NFA_START_INVISIBLE_BEFORE_FIRST
             || st.c == NFA_START_INVISIBLE_BEFORE_NEG
@@ -3338,7 +3333,7 @@ fn recursive_regmatch(
         }
 
         if re_st().nfa_ll_index == 1 {
-            let nstate_len = (*prog).nstate as usize;
+            let nstate_len = prog.nstate as usize;
             if listids.len() < nstate_len {
                 listids.resize(nstate_len, 0);
             }
@@ -3352,7 +3347,7 @@ fn recursive_regmatch(
         }
 
         re_st().nfa_endp = endposp;
-        let result = nfa_regmatch(prog, st.out, submatch, m);
+        let result = nfa_regmatch(&mut *prog, st.out, &mut *submatch, &mut *m);
 
         if need_restore {
             nfa_restore_listids(&mut *prog, listids.as_ptr());
@@ -3550,12 +3545,10 @@ fn nfa_did_time_out() -> bool {
     }
 }
 
-fn nfa_regmatch(
-    prog: *mut nfa_regprog_T,
-    start: Option<usize>,
-    submatch: *mut regsubs_T,
-    m: *mut regsubs_T,
+fn nfa_regmatch(prog: &mut nfa_regprog_T,
+    start: Option<usize>,submatch: &mut regsubs_T,m: &mut regsubs_T,
 ) -> c_int {
+    let m: *mut regsubs_T = &raw mut *m;
     unsafe {
         let Some(start_idx) = start else {
             return 0;
@@ -3563,7 +3556,7 @@ fn nfa_regmatch(
         let mut flag: usize = 0;
         let mut go_to_nextline = false;
         let mut listids: Vec<c_int> = Vec::new();
-        let toplevel = (&(*prog).state)[start_idx].c == NFA_MOPEN;
+        let toplevel = (&prog.state)[start_idx].c == NFA_MOPEN;
 
         reg_breakcheck();
         if g_st().got_int || nfa_did_time_out() {
@@ -3572,11 +3565,11 @@ fn nfa_regmatch(
 
         nfa_st().nfa_match = 0;
 
-        let init_len = (*prog).nstate as usize + 1;
-        let (mut t0, mut t1) = if toplevel && (*prog).listbuf[0].capacity() > 0 {
+        let init_len = prog.nstate as usize + 1;
+        let (mut t0, mut t1) = if toplevel && prog.listbuf[0].capacity() > 0 {
             (
-                std::mem::take(&mut (*prog).listbuf[0]),
-                std::mem::take(&mut (*prog).listbuf[1]),
+                std::mem::take(&mut prog.listbuf[0]),
+                std::mem::take(&mut prog.listbuf[1]),
             )
         } else if let Some([b0, b1]) = nfa_st().rec_listbuf.pop() {
             (b0, b1)
@@ -3617,9 +3610,9 @@ fn nfa_regmatch(
                 (*m).norm.list.line_mut()[0].start = re_st().rex.input;
             }
             (*m).norm.in_use = 1;
-            let start_out = (&(*prog).state)[start_idx].out;
+            let start_out = (&prog.state)[start_idx].out;
             addstate(
-                &mut (*prog).state,
+                &mut prog.state,
                 &raw mut list[0],
                 start_out,
                 m,
@@ -3629,7 +3622,7 @@ fn nfa_regmatch(
             )
         } else {
             addstate(
-                &mut (*prog).state,
+                &mut prog.state,
                 &raw mut list[0],
                 start,
                 m,
@@ -3640,7 +3633,7 @@ fn nfa_regmatch(
         };
         if r.is_null() {
             nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-            return finish_nfa_regmatch(prog, toplevel, &mut list);
+            return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
         }
 
         loop {
@@ -3666,9 +3659,9 @@ fn nfa_regmatch(
             (*nextlist).n = 0;
             (*nextlist).has_pim = 0;
             re_st().rex.nfa_listid += 1;
-            if (*prog).re_engine == AUTOMATIC_ENGINE as c_uint && re_st().rex.nfa_listid >= NFA_MAX_STATES {
+            if prog.re_engine == AUTOMATIC_ENGINE as c_uint && re_st().rex.nfa_listid >= NFA_MAX_STATES {
                 nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                return finish_nfa_regmatch(prog, toplevel, &mut list);
+                return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
             }
 
             (*thislist).id = re_st().rex.nfa_listid;
@@ -3696,7 +3689,7 @@ fn nfa_regmatch(
                 }
                 let t = (*thislist).t.as_mut_ptr().add(listidx as usize);
                 let t_state_idx = (*t).state.unwrap_unchecked();
-                let t_st = &*(*prog).state.as_ptr().add(t_state_idx);
+                let t_st = &*prog.state.as_ptr().add(t_state_idx);
 
                 let mut add_state: Option<usize> = None;
                 let mut add_here = false;
@@ -3713,9 +3706,9 @@ fn nfa_regmatch(
                             continue;
                         }
                         nfa_st().nfa_match = 1;
-                        copy_sub(&mut (*submatch).norm, &mut (*t).subs.norm);
+                        copy_sub(&mut submatch.norm, &mut (*t).subs.norm);
                         if re_st().rex.nfa_has_zsubexpr != 0 {
-                            copy_sub(&mut (*submatch).synt, &mut (*t).subs.synt);
+                            copy_sub(&mut submatch.synt, &mut (*t).subs.synt);
                         }
                         if (*nextlist).n == 0 {
                             clen = 0;
@@ -3758,7 +3751,7 @@ fn nfa_regmatch(
                     | NFA_START_INVISIBLE_BEFORE_NEG
                     | NFA_START_INVISIBLE_BEFORE_NEG_FIRST => {
                         let st_c = t_st.c;
-                        let out1_out = t_st.out1.and_then(|o1| (&(*prog).state)[o1].out);
+                        let out1_out = t_st.out1.and_then(|o1| (&prog.state)[o1].out);
                         if (*t).pim.result != NFA_PIM_UNUSED
                             || st_c == NFA_START_INVISIBLE_FIRST
                             || st_c == NFA_START_INVISIBLE_NEG_FIRST
@@ -3773,14 +3766,14 @@ fn nfa_regmatch(
                             let res = recursive_regmatch(
                                 t_state_idx,
                                 ptr::null_mut(),
-                                prog,
-                                submatch,
-                                m,
+                                &mut *prog,
+                                &mut *submatch,
+                                &mut *m,
                                 &mut listids,
                             );
                             if res == NFA_TOO_EXPENSIVE {
                                 nfa_st().nfa_match = res;
-                                return finish_nfa_regmatch(prog, toplevel, &mut list);
+                                return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
                             }
                             let is_neg = st_c == NFA_START_INVISIBLE_NEG
                                 || st_c == NFA_START_INVISIBLE_NEG_FIRST
@@ -3811,40 +3804,40 @@ fn nfa_regmatch(
                                 pim.end = crate::regexp::RegPos::Ptr(re_st().rex.input);
                             }
                             if addstate_here(
-                                &mut (*prog).state,
+                                &mut prog.state,
                                 thislist,
                                 out1_out,
-                                &raw mut (*t).subs,
+                                &mut (*t).subs,
                                 &raw mut pim,
                                 &mut listidx,
                             )
                             .is_null()
                             {
                                 nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                                return finish_nfa_regmatch(prog, toplevel, &mut list);
+                                return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
                             }
                         }
                     }
                     NFA_START_PATTERN => {
-                        let out1_out = t_st.out1.and_then(|o1| (&(*prog).state)[o1].out);
-                        let out1_out_out = out1_out.and_then(|oo| (&(*prog).state)[oo].out);
+                        let out1_out = t_st.out1.and_then(|o1| (&prog.state)[o1].out);
+                        let out1_out_out = out1_out.and_then(|oo| (&prog.state)[oo].out);
                         let skip = if state_in_list(
-                            &(*prog).state,
+                            &prog.state,
                             nextlist,
                             out1_out,
-                            &raw mut (*t).subs,
+                            &mut (*t).subs,
                         ) {
                             out1_out
                         } else if state_in_list(
-                            &(*prog).state,
+                            &prog.state,
                             nextlist,
                             out1_out_out,
-                            &raw mut (*t).subs,
+                            &mut (*t).subs,
                         ) || state_in_list(
-                            &(*prog).state,
+                            &prog.state,
                             thislist,
                             out1_out_out,
-                            &raw mut (*t).subs,
+                            &mut (*t).subs,
                         ) {
                             out1_out_out
                         } else {
@@ -3858,14 +3851,14 @@ fn nfa_regmatch(
                             let res = recursive_regmatch(
                                 t_state_idx,
                                 ptr::null_mut(),
-                                prog,
-                                submatch,
-                                m,
+                                &mut *prog,
+                                &mut *submatch,
+                                &mut *m,
                                 &mut listids,
                             );
                             if res == NFA_TOO_EXPENSIVE {
                                 nfa_st().nfa_match = res;
-                                return finish_nfa_regmatch(prog, toplevel, &mut list);
+                                return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
                             }
                             if res != 0 {
                                 copy_sub_off(&mut (*t).subs.norm, &mut (*m).norm);
@@ -3945,8 +3938,8 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_COMPOSING => {
-                        if match_composing(&(*prog).state, t_st.out, curc, clen) {
-                            add_state = t_st.out1.and_then(|o1| (&(*prog).state)[o1].out);
+                        if match_composing(&prog.state, t_st.out, curc, clen) {
+                            add_state = t_st.out1.and_then(|o1| (&prog.state)[o1].out);
                             add_off = clen;
                         }
                     }
@@ -3970,21 +3963,21 @@ fn nfa_regmatch(
                             let result_if_matched = t_st.c == NFA_START_COLL;
                             let mut matched = false;
                             while let Some(s_idx) = state {
-                                let st = (&(*prog).state)[s_idx];
+                                let st = (&prog.state)[s_idx];
                                 if st.c == NFA_COMPOSING {
                                     let t_out = t_st.out.unwrap();
-                                    let t_out_st = (&(*prog).state)[t_out];
+                                    let t_out_st = (&prog.state)[t_out];
                                     matched = match_composing(
-                                        &(*prog).state,
+                                        &prog.state,
                                         t_out_st.out,
                                         curc,
                                         clen,
                                     );
                                     if matched
                                         && let Some(end_idx) = t_out_st.out1
-                                        && (&(*prog).state)[end_idx].c == NFA_END_COMPOSING
+                                        && (&prog.state)[end_idx].c == NFA_END_COMPOSING
                                     {
-                                        add_state = (&(*prog).state)[end_idx].out;
+                                        add_state = (&prog.state)[end_idx].out;
                                         add_off = clen;
                                     }
                                     break;
@@ -3996,7 +3989,7 @@ fn nfa_regmatch(
                                 if st.c == NFA_RANGE_MIN {
                                     let mut c1 = st.val;
                                     let next_idx = st.out.unwrap();
-                                    let next_st = (&(*prog).state)[next_idx];
+                                    let next_st = (&prog.state)[next_idx];
                                     let c2 = next_st.val;
                                     if curc >= c1 && curc <= c2 {
                                         matched = result_if_matched;
@@ -4030,7 +4023,7 @@ fn nfa_regmatch(
                                 state = st.out;
                             }
                             if matched {
-                                add_state = t_st.out1.and_then(|o1| (&(*prog).state)[o1].out);
+                                add_state = t_st.out1.and_then(|o1| (&prog.state)[o1].out);
                                 add_off = clen;
                             }
                         }
@@ -4244,7 +4237,7 @@ fn nfa_regmatch(
                             match_zref(subidx, &mut bytelen)
                         };
                         if matched {
-                            let out_out = t_st.out.and_then(|o| (&(*prog).state)[o].out);
+                            let out_out = t_st.out.and_then(|o| (&prog.state)[o].out);
                             if bytelen == 0 {
                                 add_here = true;
                                 add_state = out_out;
@@ -4421,10 +4414,10 @@ fn nfa_regmatch(
                     };
                     let mut pim_copy: nfa_pim_T;
 
-                    if !pim.is_null() && (clen == 0 || match_follows(&(*prog).state, add_state, 0))
+                    if !pim.is_null() && (clen == 0 || match_follows(&prog.state, add_state, 0))
                     {
                         let pim_state_idx = (*pim).state.unwrap();
-                        let pim_c = (&(*prog).state)[pim_state_idx].c;
+                        let pim_c = (&prog.state)[pim_state_idx].c;
                         let is_neg = pim_c == NFA_START_INVISIBLE_NEG
                             || pim_c == NFA_START_INVISIBLE_NEG_FIRST
                             || pim_c == NFA_START_INVISIBLE_BEFORE_NEG
@@ -4433,9 +4426,9 @@ fn nfa_regmatch(
                             let r = recursive_regmatch(
                                 pim_state_idx,
                                 pim,
-                                prog,
-                                submatch,
-                                m,
+                                &mut *prog,
+                                &mut *submatch,
+                                &mut *m,
                                 &mut listids,
                             );
                             (*pim).result = if r != 0 {
@@ -4474,16 +4467,16 @@ fn nfa_regmatch(
 
                     let r = if add_here {
                         addstate_here(
-                            &mut (*prog).state,
+                            &mut prog.state,
                             thislist,
                             add_state,
-                            &raw mut (*t).subs,
+                            &mut (*t).subs,
                             pim,
                             &mut listidx,
                         )
                     } else {
                         let r = addstate_idx(
-                            (*prog).state.as_mut_ptr(),
+                            prog.state.as_mut_ptr(),
                             nextlist,
                             add_state_idx,
                             &raw mut (*t).subs,
@@ -4499,7 +4492,7 @@ fn nfa_regmatch(
                     };
                     if r.is_null() {
                         nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                        return finish_nfa_regmatch(prog, toplevel, &mut list);
+                        return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
                     }
                 }
 
@@ -4525,17 +4518,17 @@ fn nfa_regmatch(
             {
                 if toplevel {
                     let mut add = true;
-                    if (*prog).regstart != NUL as c_int && clen != 0 {
+                    if prog.regstart != NUL as c_int && clen != 0 {
                         if (*nextlist).n == 0 {
                             let mut col = (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) + clen;
-                            if skip_to_start((*prog).regstart, &mut col) == FAIL {
+                            if skip_to_start(prog.regstart, &mut col) == FAIL {
                                 break;
                             }
                             re_st().rex.input = re_st().rex.line.add((col - clen) as usize);
                         } else {
                             let c = utf_ptr2char(re_st().rex.input.add(clen as usize).cast());
-                            if c != (*prog).regstart
-                                && (!re_st().rex.reg_ic || utf_fold(c) != utf_fold((*prog).regstart))
+                            if c != prog.regstart
+                                && (!re_st().rex.reg_ic || utf_fold(c) != utf_fold(prog.regstart))
                             {
                                 add = false;
                             }
@@ -4549,9 +4542,9 @@ fn nfa_regmatch(
                         } else {
                             (*m).norm.list.line_mut()[0].start = re_st().rex.input.add(clen as usize);
                         }
-                        let start_out = (&(*prog).state)[start_idx].out;
+                        let start_out = (&prog.state)[start_idx].out;
                         if addstate(
-                            &mut (*prog).state,
+                            &mut prog.state,
                             nextlist,
                             start_out,
                             m,
@@ -4562,7 +4555,7 @@ fn nfa_regmatch(
                         .is_null()
                         {
                             nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                            return finish_nfa_regmatch(prog, toplevel, &mut list);
+                            return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
                         }
                     }
                 } else {
@@ -4584,7 +4577,7 @@ fn nfa_regmatch(
                     }
 
                     let r = addstate_idx(
-                        (*prog).state.as_mut_ptr(),
+                        prog.state.as_mut_ptr(),
                         nextlist,
                         start_idx,
                         m,
@@ -4599,7 +4592,7 @@ fn nfa_regmatch(
 
                     if r.is_null() {
                         nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                        return finish_nfa_regmatch(prog, toplevel, &mut list);
+                        return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
                     }
                 }
             }
@@ -4629,15 +4622,15 @@ fn nfa_regmatch(
             }
         }
 
-        finish_nfa_regmatch(prog, toplevel, &mut list)
+        finish_nfa_regmatch(&mut *prog, toplevel, &mut list)
     }
 }
 
-fn finish_nfa_regmatch(
-    prog: *mut nfa_regprog_T,
+fn finish_nfa_regmatch(prog: &mut nfa_regprog_T,
     toplevel: bool,
     list: &mut [nfa_list_T; 2],
 ) -> c_int {
+    let prog: *mut nfa_regprog_T = &raw mut *prog;
     unsafe {
         if toplevel
             && (*prog).listbuf[0].capacity() == 0
@@ -4676,7 +4669,7 @@ fn nfa_regtry(
         clear_sub(&mut subs.synt);
         clear_sub(&mut m.synt);
 
-        let result = nfa_regmatch(&raw mut *prog, start, &raw mut subs, &raw mut m);
+        let result = nfa_regmatch(&mut *prog, start, &mut subs, &mut m);
         if result == 0 {
             return 0;
         } else if result == NFA_TOO_EXPENSIVE {

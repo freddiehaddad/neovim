@@ -714,7 +714,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
             &mut magic,
         ) {
             restore_last_search_pattern();
-            finish_incsearch_highlighting(false, s, true);
+            finish_incsearch_highlighting(false, &mut *s, true);
             return;
         }
 
@@ -943,10 +943,10 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_
 }
 
 fn finish_incsearch_highlighting(
-    gotesc: bool,
-    s: *mut incsearch_state_T,
+    gotesc: bool,s: &mut incsearch_state_T,
     call_update_screen: bool,
 ) {
+    let s: *mut incsearch_state_T = &raw mut *s;
     unsafe {
         if !(*s).did_incsearch {
             return;
@@ -1254,7 +1254,7 @@ fn command_line_enter(
             getln_st().ccline.xpc = ptr::null_mut();
             clear_cmdline_orig();
 
-            finish_incsearch_highlighting((*s).gotesc, &raw mut (*s).is_state, false);
+            finish_incsearch_highlighting((*s).gotesc, &mut (*s).is_state, false);
 
             if !getln_st().ccline.cmdbuff.is_null() {
                 if (*s).histype != HIST_INVALID

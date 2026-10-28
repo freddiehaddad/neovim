@@ -2192,7 +2192,7 @@ pub fn f_eval(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             s = skipwhite(s);
         }
         let expr_start = s;
-        if s.is_null() || eval1(&raw mut s, rettv, &raw mut g_st().EVALARG_EVALUATE) == FAIL {
+        if s.is_null() || eval1(&raw mut s, &mut *rettv, &raw mut g_st().EVALARG_EVALUATE) == FAIL {
             if !expr_start.is_null() && !aborting() {
                 semsg!(gettext(e_invexpr2.as_ptr()), expr_start);
             }
@@ -3296,12 +3296,9 @@ fn block_def2str(bd: &block_def) -> Vec<c_char> {
 }
 
 fn getregionpos(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    argvars: *mut typval_T,rettv: &mut typval_T,
     p1: &mut pos_T,
-    p2: &mut pos_T,
-    inclusive: *mut bool,
-    region_type: *mut c_int,
+    p2: &mut pos_T,inclusive: &mut bool,region_type: &mut c_int,
     oap: &mut oparg_T,
 ) -> c_int {
     unsafe {
@@ -3445,11 +3442,11 @@ pub fn f_getregion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
         if getregionpos(
             argvars,
-            rettv,
+            &mut *rettv,
             &mut p1,
             &mut p2,
-            &raw mut inclusive,
-            &raw mut region_type,
+            &mut inclusive,
+            &mut region_type,
             &mut oa,
         ) == FAIL
         {
@@ -3545,11 +3542,11 @@ pub fn f_getregionpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
         if getregionpos(
             argvars,
-            rettv,
+            &mut *rettv,
             &mut p1,
             &mut p2,
-            &raw mut inclusive,
-            &raw mut region_type,
+            &mut inclusive,
+            &mut region_type,
             &mut oa,
         ) == FAIL
         {

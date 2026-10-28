@@ -773,7 +773,9 @@ fn mc_ins_region_first() -> MTPair {
 }
 
 #[inline]
-fn mc_region_range(p: MTPair, start: *mut pos_T, end: *mut pos_T) {
+fn mc_region_range(p: MTPair,start: &mut pos_T,end: &mut pos_T) {
+    let start: *mut pos_T = &raw mut *start;
+    let end: *mut pos_T = &raw mut *end;
     unsafe {
         *start = pos_T {
             lnum: p.start.pos.row + 1,
@@ -794,7 +796,7 @@ fn mc_region_mark_range(mark: u32, start: &mut pos_T, end: &mut pos_T) -> bool {
         if p.start.id == 0 {
             return false;
         }
-        mc_region_range(p, &raw mut *start, &raw mut *end);
+        mc_region_range(p, &mut *start, &mut *end);
         true
     }
 }

@@ -495,12 +495,13 @@ fn flush_stream(proc_: *mut Proc, stream: &mut RStream) {
 
 pub fn proc_close_handles(proc_: &mut Proc) {
     proc_st().exit_need_delay += 1;
-        flush_stream(&raw mut *proc_, &mut proc_.out);
-        flush_stream(&raw mut *proc_, &mut proc_.err);
+    let p = &raw mut *proc_;
+    flush_stream(p, &mut proc_.out);
+    flush_stream(p, &mut proc_.err);
 
-        proc_close_streams(proc_);
-        proc_close(proc_);
-        proc_st().exit_need_delay -= 1;
+    proc_close_streams(proc_);
+    proc_close(proc_);
+    proc_st().exit_need_delay -= 1;
 }
 
 unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {

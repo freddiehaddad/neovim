@@ -338,7 +338,8 @@ pub fn linetabsize_str(s: *mut c_char) -> c_int {
 use crate::mbyte::utf_byte2len;
 
 #[inline]
-fn trigger_autocomplete(s: *mut InsertState) -> bool {
+fn trigger_autocomplete(s: &mut InsertState) -> bool {
+    let s: *mut InsertState = &raw mut *s;
     unsafe {
         mc_ins_cascade();
         redraw_later(*curwin.as_ptr(), UPD_VALID);
@@ -347,7 +348,7 @@ fn trigger_autocomplete(s: *mut InsertState) -> bool {
         ins_compl_enable_autocomplete();
         ins_compl_arm_autostart();
         if !ins_compl_arm_autocomplete_delay() {
-            insert_do_complete(s);
+            insert_do_complete(&mut *s);
             return true;
         }
         false
@@ -360,7 +361,7 @@ fn may_trigger_autocomplete(s: &mut InsertState) {
         if ins_compl_has_autocomplete() && !char_avail() && (**curwin.as_ptr()).w_cursor.col > 0 {
             s.c = char_before_cursor();
             if vim_isprintc(s.c) {
-                let _ = trigger_autocomplete(&raw mut *s);
+                let _ = trigger_autocomplete(&mut *s);
             }
         }
     }
@@ -711,7 +712,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
                     ins_compl_arm_autostart();
                     ins_compl_init_get_longest();
                     if !ins_compl_arm_autocomplete_delay() {
-                        insert_do_complete(&raw mut *s);
+                        insert_do_complete(&mut *s);
                         insert_handle_key_post(s);
                         return 1;
                     }
@@ -835,7 +836,7 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
         }
 
         if (s.c == Ctrl_V || s.c == Ctrl_Q) && ctrl_x_mode_cmdline() {
-            insert_do_complete(&raw mut *s);
+            insert_do_complete(&mut *s);
             insert_handle_key_post(s);
             return 1;
         }
@@ -910,7 +911,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             }
             Ctrl_O => {
                 if ctrl_x_mode_omni() {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 } else if !echeck_abbr(Ctrl_O + ABBR_OFF) {
                     ins_ctrl_o();
                     if (get_ve_flags(*curwin.as_ptr()) & kOptVeFlagOnemore) != 0 {
@@ -942,7 +943,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             }
             Ctrl_R => {
                 if ctrl_x_mode_register() && !ins_compl_active() {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 } else {
                     ins_reg();
                     auto_format(false, true);
@@ -964,7 +965,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             }
             Ctrl_D => {
                 if ctrl_x_mode_path_defines() {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 } else {
                     ins_shift(s.c, s.lastc);
                     auto_format(false, true);
@@ -974,7 +975,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             Ctrl_T => {
                 if ctrl_x_mode_thesaurus() {
                     if check_compl_option(false) {
-                        insert_do_complete(&raw mut *s);
+                        insert_do_complete(&mut *s);
                     }
                 } else {
                     ins_shift(s.c, s.lastc);
@@ -1009,7 +1010,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             }
             Ctrl_U => {
                 if ctrl_x_mode_function() {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 } else {
                     s.did_backspace =
                         ins_bs(s.c, BACKSPACE_LINE, &mut s.inserted_space);
@@ -1063,7 +1064,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 if g_st().pum_want.active {
                     if pum_visible() {
                         g_st().edit_submode_extra = ptr::null_mut();
-                        insert_do_complete(&raw mut *s);
+                        insert_do_complete(&mut *s);
                         if g_st().pum_want.finish {
                             ins_compl_prep(Ctrl_Y);
                         }
@@ -1092,7 +1093,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     if vim_isprintc(s.c) {
                         ins_compl_enable_autocomplete();
                         ins_compl_arm_autostart();
-                        insert_do_complete(&raw mut *s);
+                        insert_do_complete(&mut *s);
                     }
                 }
             }
@@ -1124,7 +1125,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             }
             K_UP => {
                 if pum_visible() {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
                     ins_pageup();
                 } else {
@@ -1133,14 +1134,14 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             }
             K_S_UP | K_PAGEUP | K_KPAGEUP => {
                 if pum_visible() {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 } else {
                     ins_pageup();
                 }
             }
             K_DOWN => {
                 if pum_visible() {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
                     ins_pagedown();
                 } else {
@@ -1149,7 +1150,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             }
             K_S_DOWN | K_PAGEDOWN | K_KPAGEDOWN => {
                 if pum_visible() {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 } else {
                     ins_pagedown();
                 }
@@ -1159,7 +1160,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     s.c = TAB;
                 }
                 if ctrl_x_mode_path_patterns() {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 } else {
                     s.inserted_space = 0;
                     if ins_tab() {
@@ -1198,7 +1199,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             Ctrl_K => {
                 if ctrl_x_mode_dictionary() {
                     if check_compl_option(true) {
-                        insert_do_complete(&raw mut *s);
+                        insert_do_complete(&mut *s);
                     }
                 } else {
                     s.c = ins_digraph();
@@ -1214,21 +1215,21 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 if !ctrl_x_mode_tags() {
                     goto_normalchar = true;
                 } else {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 }
             }
             Ctrl_F => {
                 if !ctrl_x_mode_files() {
                     goto_normalchar = true;
                 } else {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 }
             }
             c if c == b's' as c_int || c == Ctrl_S => {
                 if !ctrl_x_mode_spell() {
                     goto_normalchar = true;
                 } else {
-                    insert_do_complete(&raw mut *s);
+                    insert_do_complete(&mut *s);
                 }
             }
             Ctrl_L => {
@@ -1256,7 +1257,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             {
                 goto_normalchar = true;
             } else {
-                insert_do_complete(&raw mut *s);
+                insert_do_complete(&mut *s);
             }
         }
 
@@ -1313,7 +1314,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 auto_format(false, true);
                 foldOpenCursor();
                 if ins_compl_has_autocomplete() && !char_avail() && vim_isprintc(s.c) {
-                    let _ = trigger_autocomplete(&raw mut *s);
+                    let _ = trigger_autocomplete(&mut *s);
                 }
             }
         }
@@ -1323,7 +1324,8 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
     }
 }
 
-fn insert_do_complete(s: *mut InsertState) {
+fn insert_do_complete(s: &mut InsertState) {
+    let s: *mut InsertState = &raw mut *s;
     unsafe {
         ins_compl_clear_autocomplete_delay();
         ins_st().compl_busy = true;

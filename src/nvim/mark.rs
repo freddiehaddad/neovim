@@ -248,16 +248,14 @@ pub fn reset_fmark(fmarkp: &mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_
 
 #[inline]
 fn set_xfmark(
-    xfmarkp: *mut xfmark_T,
+    xfmarkp: &mut xfmark_T,
     mark: pos_T,
     fnum: c_int,
     view: fmarkv_T,
     fname: Option<std::ffi::CString>,
 ) {
-    unsafe {
-        (*xfmarkp).fname = fname;
-        set_fmark(&mut (*xfmarkp).fmark, mark, fnum, view);
-    }
+    xfmarkp.fname = fname;
+    set_fmark(&mut xfmarkp.fmark, mark, fnum, view);
 }
 
 #[inline]
@@ -270,7 +268,7 @@ fn reset_xfmark(
 ) {
     {
         free_xfmark(&mut *xfmarkp);
-        set_xfmark(xfmarkp, mark, fnum, view, fname);
+        set_xfmark(&mut *xfmarkp, mark, fnum, view, fname);
     }
 }
 
@@ -519,7 +517,7 @@ pub fn setpcmark() {
         let fm = &raw mut (**curwin.as_ptr()).w_jumplist[((**curwin.as_ptr()).w_jumplistlen - 1) as usize];
 
         let view = mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_pcmark);
-        set_xfmark(fm, (**curwin.as_ptr()).w_pcmark, (*g_st().curbuf).b_fnum, view, None);
+        set_xfmark(&mut *fm, (**curwin.as_ptr()).w_pcmark, (*g_st().curbuf).b_fnum, view, None);
     }
 }
 

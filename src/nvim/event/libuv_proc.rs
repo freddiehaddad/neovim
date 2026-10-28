@@ -119,8 +119,7 @@ pub fn proc_get_exepath(proc_: &mut Proc) -> *const c_char {
             .map_or_else(|| proc_.argv.as_slice()[0].as_ptr(), |s| s.as_ptr())
 }
 
-fn libuv_proc_stdio(
-    uvproc: *mut LibuvProc,
+fn libuv_proc_stdio(uvproc: &mut LibuvProc,
     idx: usize,
     parent_pipe: *mut uv_pipe_t,
     child_readable: bool,
@@ -128,6 +127,7 @@ fn libuv_proc_stdio(
     win_create_pipe: bool,
     to_close: &mut [c_int; 3],
 ) {
+    let uvproc: *mut LibuvProc = &raw mut *uvproc;
     unsafe {
         let ltail = uvproc;
         #[cfg(windows)]
@@ -253,7 +253,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
 
         if !(*proc_).r#in.closed {
             libuv_proc_stdio(
-                &raw mut *uvproc,
+                &mut *uvproc,
                 0,
                 (&raw mut (*proc_).r#in.uv).cast(),
                 true,
@@ -265,7 +265,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
 
         if !(*proc_).out.s.closed {
             libuv_proc_stdio(
-                &raw mut *uvproc,
+                &mut *uvproc,
                 1,
                 (&raw mut (*proc_).out.s.uv).cast(),
                 false,
@@ -277,7 +277,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
 
         if !(*proc_).err.s.closed {
             libuv_proc_stdio(
-                &raw mut *uvproc,
+                &mut *uvproc,
                 2,
                 (&raw mut (*proc_).err.s.uv).cast(),
                 false,

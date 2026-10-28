@@ -3458,7 +3458,8 @@ fn tagstack_push_item(
     }
 }
 
-fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
+fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
+    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         let mut li = if l.is_null() {
             ptr::null_mut()
@@ -3556,7 +3557,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> c_int {
                 tagstack_clear(wp);
             }
 
-            tagstack_push_items(&raw mut *wp, l);
+            tagstack_push_items(&mut *wp, l);
             wp.w_tagstackidx = wp.w_tagstacklen;
         }
 

@@ -258,7 +258,8 @@ fn ctx_marks_ns() -> u32 {
     }
 }
 
-fn ctx_positions(ctx: *mut Context, flags: CtxStateFlags) -> [*mut pos_T; 6] {
+fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [*mut pos_T; 6] {
+    let ctx: *mut Context = &raw mut *ctx;
     unsafe {
         let visual = (flags & kCtxVisual) != 0;
         let marks = (flags & kCtxMarks) != 0;
@@ -337,7 +338,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
             ctx.last_insert = (*g_st().curbuf).b_last_insert.clone();
         }
         if (flags & (kCtxVisual | kCtxMarks)) != 0 {
-            let pos = ctx_positions(ctx, flags);
+            let pos = ctx_positions(&mut *ctx, flags);
             for (i, &pos_ptr) in pos.iter().enumerate() {
                 if pos_ptr.is_null() {
                     continue;
@@ -427,7 +428,7 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
 
         let buf = handle_get_buffer(ctx.buf);
         if (flags & (kCtxVisual | kCtxMarks)) != 0 && !buf.is_null() {
-            let pos = ctx_positions(&raw mut *ctx, flags);
+            let pos = ctx_positions(&mut *ctx, flags);
             for (i, &pos_ptr) in pos.iter().enumerate() {
                 if pos_ptr.is_null() || ctx.pos_marks[i] == 0 {
                     continue;
@@ -588,12 +589,12 @@ fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut win_T, buf: &mut buf_T) {
     }
 }
 
-fn ctx_localdirs_restore(
-    cs: *mut CtxSwitch,
+fn ctx_localdirs_restore(cs: &mut CtxSwitch,
     cwp: *mut win_T,
     tp: *mut tabpage_T,
     persist: bool,
 ) {
+    let cs: *mut CtxSwitch = &raw mut *cs;
     unsafe {
         let did_chdir = ctx_st().CTX_DID_CHDIR;
         ctx_st().CTX_DID_CHDIR = persist && did_chdir;
@@ -688,7 +689,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
                 }
                 tp = (*tp).tp_next;
             }
-            ctx_localdirs_restore(&raw mut *cs, ptr::null_mut(), dirs_tab, false);
+            ctx_localdirs_restore(&mut *cs, ptr::null_mut(), dirs_tab, false);
         } else if cs.cs_cwd.is_some() && !ctx_st().CTX_DID_CHDIR {
             g_st().globaldir = cs.cs_globaldir.take();
         }
@@ -965,7 +966,8 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
 
             vars_clear(&mut (*(*cwp).w_vars()).dv_hashtab);
 
-            ctx_localdirs_restore(&raw mut *cs, cwp, g_st().curtab, (cs.cs_flags & kCtxKeepDirs) == 0);
+            let free_dirs = (cs.cs_flags & kCtxKeepDirs) == 0;
+            ctx_localdirs_restore(&mut *cs, cwp, g_st().curtab, free_dirs);
 
             if (**curwin.as_ptr()).w_topline > (*g_st().curbuf).b_ml.ml_line_count {
                 (**curwin.as_ptr()).w_topline = (*g_st().curbuf).b_ml.ml_line_count;

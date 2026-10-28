@@ -1102,8 +1102,7 @@ pub fn set_hl_group(
 fn set_gui_color(
     idx: c_int,
     init: bool,
-    arg: *const c_char,
-    color: *mut RgbValue,
+    arg: *const c_char,color: &mut RgbValue,
     color_idx: &mut c_int,
 ) -> bool {
     unsafe {
@@ -1523,7 +1522,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                         idx,
                         init,
                         arg.as_ptr(),
-                        &raw mut (*g).sg_rgb_fg,
+                        &mut (*g).sg_rgb_fg,
                         &mut (*g).sg_rgb_fg_idx,
                     );
                     if is_normal_group {
@@ -1535,7 +1534,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                         idx,
                         init,
                         arg.as_ptr(),
-                        &raw mut (*g).sg_rgb_bg,
+                        &mut (*g).sg_rgb_bg,
                         &mut (*g).sg_rgb_bg_idx,
                     );
                     if is_normal_group {
@@ -1547,7 +1546,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                         idx,
                         init,
                         arg.as_ptr(),
-                        &raw mut (*g).sg_rgb_sp,
+                        &mut (*g).sg_rgb_sp,
                         &mut (*g).sg_rgb_sp_idx,
                     );
                     if is_normal_group {

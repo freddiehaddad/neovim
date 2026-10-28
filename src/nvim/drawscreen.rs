@@ -208,8 +208,8 @@ pub fn w_endrow(wp: &win_T) -> c_int {
 }
 
 #[inline]
-fn w_lines_at(wp: *mut win_T, idx: usize) -> &'static mut wline_T {
-    unsafe { &mut (&mut *wp).w_lines[idx] }
+fn w_lines_at(wp: &mut win_T, idx: usize) -> &mut wline_T {
+    &mut wp.w_lines[idx]
 }
 
 pub fn conceal_check_cursor_line() {
@@ -1539,7 +1539,7 @@ fn win_update(wp: &mut win_T) {
                 let mut lnumt = wp.w_topline;
                 let mut lnumb = MAXLNUM;
                 for i in 0..wp.w_lines_valid {
-                    let wl = *w_lines_at(&raw mut *wp, i as usize);
+                    let wl = *w_lines_at(&mut *wp, i as usize);
                     if wl.wl_valid {
                         if wl.wl_lastlnum < mod_top {
                             lnumt = wl.wl_lastlnum + 1;
@@ -1578,7 +1578,7 @@ fn win_update(wp: &mut win_T) {
         if type_ == UPD_REDRAW_TOP {
             let mut j: c_int = 0;
             for i in 0..wp.w_lines_valid {
-                j += c_int::from(w_lines_at(&raw mut *wp, i as usize).wl_size);
+                j += c_int::from(w_lines_at(&mut *wp, i as usize).wl_size);
                 if j >= wp.w_upd_rows {
                     top_end = j;
                     break;
@@ -1611,7 +1611,7 @@ fn win_update(wp: &mut win_T) {
             && !wp.w_botfill
             && !wp.w_old_botfill
         {
-            let wl0 = *w_lines_at(&raw mut *wp, 0);
+            let wl0 = *w_lines_at(&mut *wp, 0);
             if mod_top != 0
                 && wp.w_topline == mod_top
                 && (!wl0.wl_valid || topline_conceal == wl0.wl_lnum)
@@ -1655,11 +1655,11 @@ fn win_update(wp: &mut win_T) {
                             }
                             let mut idx = wp.w_lines_valid;
                             while idx - j >= 0 {
-                                *w_lines_at(&raw mut *wp, idx as usize) = *w_lines_at(&raw mut *wp, (idx - j) as usize);
+                                *w_lines_at(&mut *wp, idx as usize) = *w_lines_at(&mut *wp, (idx - j) as usize);
                                 idx -= 1;
                             }
                             while idx >= 0 {
-                                w_lines_at(&raw mut *wp, idx as usize).wl_valid = false;
+                                w_lines_at(&mut *wp, idx as usize).wl_valid = false;
                                 idx -= 1;
                             }
                         }
@@ -1673,7 +1673,7 @@ fn win_update(wp: &mut win_T) {
                 let mut j: c_int = -1;
                 let mut row: c_int = 0;
                 for i in 0..wp.w_lines_valid {
-                    let wl = *w_lines_at(&raw mut *wp, i as usize);
+                    let wl = *w_lines_at(&mut *wp, i as usize);
                     if wl.wl_valid && wl.wl_lnum == wp.w_topline {
                         j = i;
                         break;
@@ -1698,8 +1698,8 @@ fn win_update(wp: &mut win_T) {
                         bot_start = 0;
                         let mut idx: c_int = 0;
                         loop {
-                            let wlj = *w_lines_at(&raw mut *wp, j as usize);
-                            *w_lines_at(&raw mut *wp, idx as usize) = wlj;
+                            let wlj = *w_lines_at(&mut *wp, j as usize);
+                            *w_lines_at(&mut *wp, idx as usize) = wlj;
                             if row > 0
                                 && bot_start + row + c_int::from(wlj.wl_size) > wp.w_view_height
                             {
@@ -1717,7 +1717,7 @@ fn win_update(wp: &mut win_T) {
                         }
 
                         if win_may_fill(&mut *wp) && bot_start > 0 {
-                            w_lines_at(&raw mut *wp, 0).wl_size = plines_correct_topline(
+                            w_lines_at(&mut *wp, 0).wl_size = plines_correct_topline(
                                 &raw mut *wp,
                                 wp.w_topline,
                                 ptr::null_mut(),
@@ -1860,15 +1860,15 @@ fn win_update(wp: &mut win_T) {
                 let mut srow: c_int = 0;
                 mid_start = if scrolled_down { top_end } else { 0 };
                 while lnum < from && idx < wp.w_lines_valid {
-                    let wl = *w_lines_at(&raw mut *wp, idx as usize);
+                    let wl = *w_lines_at(&mut *wp, idx as usize);
                     if wl.wl_valid {
                         mid_start += c_int::from(wl.wl_size);
                     } else if !scrolled_down {
                         srow += c_int::from(wl.wl_size);
                     }
                     idx += 1;
-                    if idx < wp.w_lines_valid && w_lines_at(&raw mut *wp, idx as usize).wl_valid {
-                        lnum = w_lines_at(&raw mut *wp, idx as usize).wl_lnum;
+                    if idx < wp.w_lines_valid && w_lines_at(&mut *wp, idx as usize).wl_valid {
+                        lnum = w_lines_at(&mut *wp, idx as usize).wl_lnum;
                     } else {
                         lnum += 1;
                     }
@@ -1876,7 +1876,7 @@ fn win_update(wp: &mut win_T) {
                 srow += mid_start;
                 mid_end = wp.w_view_height;
                 while idx < wp.w_lines_valid {
-                    let wl = *w_lines_at(&raw mut *wp, idx as usize);
+                    let wl = *w_lines_at(&mut *wp, idx as usize);
                     if wl.wl_valid && wl.wl_lnum > to {
                         mid_end = srow;
                         break;
@@ -1940,7 +1940,7 @@ fn win_update(wp: &mut win_T) {
                     || (row >= mid_start && row < mid_end)
                     || top_to_mod
                     || idx >= wp.w_lines_valid
-                    || (row + c_int::from(w_lines_at(&raw mut *wp, idx as usize).wl_size) > bot_start)
+                    || (row + c_int::from(w_lines_at(&mut *wp, idx as usize).wl_size) > bot_start)
                     || (mod_top != 0
                         && (lnum == mod_top
                             || (lnum >= mod_top
@@ -1995,7 +1995,7 @@ fn win_update(wp: &mut win_T) {
                         let mut i = idx;
 
                         while i < wp.w_lines_valid {
-                            let wli = *w_lines_at(&raw mut *wp, i as usize);
+                            let wli = *w_lines_at(&mut *wp, i as usize);
                             if wli.wl_valid && wli.wl_lnum == mod_bot {
                                 break;
                             }
@@ -2006,9 +2006,9 @@ fn win_update(wp: &mut win_T) {
                             if wli.wl_valid && wli.wl_lastlnum + 1 == mod_bot {
                                 i += 1;
                                 while i < wp.w_lines_valid
-                                    && !w_lines_at(&raw mut *wp, i as usize).wl_valid
+                                    && !w_lines_at(&mut *wp, i as usize).wl_valid
                                 {
-                                    old_rows += c_int::from(w_lines_at(&raw mut *wp, i as usize).wl_size);
+                                    old_rows += c_int::from(w_lines_at(&mut *wp, i as usize).wl_size);
                                     i += 1;
                                 }
                                 break;
@@ -2077,8 +2077,8 @@ fn win_update(wp: &mut win_T) {
                                             wp.w_lines_valid = j;
                                             break;
                                         }
-                                        let wli = *w_lines_at(&raw mut *wp, i as usize);
-                                        *w_lines_at(&raw mut *wp, j as usize) = wli;
+                                        let wli = *w_lines_at(&mut *wp, i as usize);
+                                        *w_lines_at(&mut *wp, j as usize) = wli;
                                         if x + c_int::from(wli.wl_size) > wp.w_view_height {
                                             wp.w_lines_valid = j + 1;
                                             break;
@@ -2095,13 +2095,13 @@ fn win_update(wp: &mut win_T) {
                                         wp.w_lines_valid.min(wp.w_view_height);
                                     i = wp.w_lines_valid;
                                     while i - j >= idx {
-                                        *w_lines_at(&raw mut *wp, i as usize) =
-                                            *w_lines_at(&raw mut *wp, (i - j) as usize);
+                                        *w_lines_at(&mut *wp, i as usize) =
+                                            *w_lines_at(&mut *wp, (i - j) as usize);
                                         i -= 1;
                                     }
                                     while i >= idx {
-                                        w_lines_at(&raw mut *wp, i as usize).wl_size = 0;
-                                        w_lines_at(&raw mut *wp, i as usize).wl_valid = false;
+                                        w_lines_at(&mut *wp, i as usize).wl_size = 0;
+                                        w_lines_at(&mut *wp, i as usize).wl_valid = false;
                                         i -= 1;
                                     }
                                 }
@@ -2109,7 +2109,7 @@ fn win_update(wp: &mut win_T) {
                         }
                     }
 
-                    let wl_cur = *w_lines_at(&raw mut *wp, idx as usize);
+                    let wl_cur = *w_lines_at(&mut *wp, idx as usize);
                     if foldinfo.fi_lines == 0
                         && idx < wp.w_lines_valid
                         && wl_cur.wl_valid
@@ -2157,7 +2157,7 @@ fn win_update(wp: &mut win_T) {
 
                         let lastlnum =
                             lnum + foldinfo.fi_lines - linenr_T::from(foldinfo.fi_lines > 0);
-                        let wl_ptr = w_lines_at(&raw mut *wp, idx as usize);
+                        let wl_ptr = w_lines_at(&mut *wp, idx as usize);
                         wl_ptr.wl_folded = foldinfo.fi_lines > 0;
                         wl_ptr.wl_foldend = lastlnum;
                         wl_ptr.wl_lastlnum = lastlnum;
@@ -2176,37 +2176,37 @@ fn win_update(wp: &mut win_T) {
                             true,
                         ) > 0;
                         while !virt_below
-                            && w_lines_at(&raw mut *wp, idx as usize).wl_lastlnum < (*buf).b_ml.ml_line_count
+                            && w_lines_at(&mut *wp, idx as usize).wl_lastlnum < (*buf).b_ml.ml_line_count
                             && decor_conceal_line(
                                 &raw mut *wp,
-                                w_lines_at(&raw mut *wp, idx as usize).wl_lastlnum,
+                                w_lines_at(&mut *wp, idx as usize).wl_lastlnum,
                                 false,
                             )
                         {
                             virt_below = false;
-                            w_lines_at(&raw mut *wp, idx as usize).wl_lastlnum += 1;
-                            let last_ptr = &raw mut w_lines_at(&raw mut *wp, idx as usize).wl_lastlnum;
+                            w_lines_at(&mut *wp, idx as usize).wl_lastlnum += 1;
+                            let last_ptr = &raw mut w_lines_at(&mut *wp, idx as usize).wl_lastlnum;
                             hasFolding(&raw mut *wp, *last_ptr, ptr::null_mut(), last_ptr);
                         }
                     }
 
-                    w_lines_at(&raw mut *wp, idx as usize).wl_lnum = lnum;
-                    w_lines_at(&raw mut *wp, idx as usize).wl_valid = true;
+                    w_lines_at(&mut *wp, idx as usize).wl_lnum = lnum;
+                    w_lines_at(&mut *wp, idx as usize).wl_valid = true;
 
                     let is_curline = ptr::eq(wp, *curwin.as_ptr()) && lnum == wp.w_cursor.lnum;
 
                     if row > wp.w_view_height {
                         if g_st().dollar_vcol == -1 || !is_curline {
-                            w_lines_at(&raw mut *wp, idx as usize).wl_size =
+                            w_lines_at(&mut *wp, idx as usize).wl_size =
                                 plines_win(&raw mut *wp, lnum, true) as u16;
                         }
                         idx += 1;
                         break;
                     }
                     if g_st().dollar_vcol == -1 || !is_curline {
-                        w_lines_at(&raw mut *wp, idx as usize).wl_size = (row - srow) as u16;
+                        w_lines_at(&mut *wp, idx as usize).wl_size = (row - srow) as u16;
                     }
-                    lnum = w_lines_at(&raw mut *wp, idx as usize).wl_lastlnum + 1;
+                    lnum = w_lines_at(&mut *wp, idx as usize).wl_lastlnum + 1;
                     idx += 1;
                 } else {
                     if (wp.w_onebuf_opt.wo_nu != 0
@@ -2224,7 +2224,7 @@ fn win_update(wp: &mut win_T) {
                             fold_info(&raw mut *wp, lnum)
                         };
                         let view_height = wp.w_view_height;
-                        let wl_size = c_int::from(w_lines_at(&raw mut *wp, idx as usize).wl_size);
+                        let wl_size = c_int::from(w_lines_at(&mut *wp, idx as usize).wl_size);
                         win_line(
                             wp,
                             lnum,
@@ -2237,12 +2237,12 @@ fn win_update(wp: &mut win_T) {
                         );
                     }
 
-                    row += c_int::from(w_lines_at(&raw mut *wp, idx as usize).wl_size);
+                    row += c_int::from(w_lines_at(&mut *wp, idx as usize).wl_size);
                     idx += 1;
                     if row > wp.w_view_height {
                         break;
                     }
-                    lnum = w_lines_at(&raw mut *wp, (idx - 1) as usize).wl_lastlnum + 1;
+                    lnum = w_lines_at(&mut *wp, (idx - 1) as usize).wl_lastlnum + 1;
                     did_update = DidUpdate::None;
                     spv.spv_capcol_lnum = 0;
                 }

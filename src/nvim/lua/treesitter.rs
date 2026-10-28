@@ -645,11 +645,10 @@ unsafe extern "C" {
         start_point: TSPoint,
         end_point: TSPoint,
     ) -> bool;
-    fn ts_query_cursor_next_match(self_: *mut TSQueryCursor, match_: *mut TSQueryMatch) -> bool;
+    fn ts_query_cursor_next_match(self_: *mut TSQueryCursor,match_: &mut TSQueryMatch) -> bool;
     fn ts_query_cursor_remove_match(self_: *mut TSQueryCursor, match_id: u32);
     fn ts_query_cursor_next_capture(
-        self_: *mut TSQueryCursor,
-        match_: *mut TSQueryMatch,
+        self_: *mut TSQueryCursor,match_: &mut TSQueryMatch,
         capture_index: &mut u32,
     ) -> bool;
     fn ts_query_cursor_set_max_start_depth(self_: *mut TSQueryCursor, max_start_depth: u32);
@@ -1575,7 +1574,7 @@ fn push_node(L: *mut lua_State, node: TSNode, uindex: c_int) {
     }
 }
 
-fn node_check_opt(L: *mut lua_State, index: c_int, res: *mut TSNode) -> bool {
+fn node_check_opt(L: *mut lua_State, index: c_int,res: &mut TSNode) -> bool {
     unsafe {
         let ud = luaL_checkudata(L, index, TS_META_NODE).cast::<TSNode>();
         if !ud.is_null() {
@@ -2161,7 +2160,7 @@ unsafe extern "C-unwind" fn querycursor_gc(L: *mut lua_State) -> c_int {
     }
 }
 
-fn push_querymatch(L: *mut lua_State, match_: *const TSQueryMatch, uindex: c_int) {
+fn push_querymatch(L: *mut lua_State,match_: &TSQueryMatch, uindex: c_int) {
     unsafe {
         let ud = lua_newuserdata(L, size_of::<TSQueryMatch>()).cast::<TSQueryMatch>();
         *ud = *match_;

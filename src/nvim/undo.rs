@@ -2575,8 +2575,9 @@ pub fn ex_undojoin(_eap: &mut exarg_T) {
 
 /// Called after writing or reloading the file and setting `b_changed` to false.
 pub fn u_unchanged(buf: &mut buf_T) {
-    u_unch_branch(buf, buf.b_u_oldhead);
-        buf.b_did_warn = false;
+    let oldhead = buf.b_u_oldhead;
+    u_unch_branch(buf, oldhead);
+    buf.b_did_warn = false;
 }
 
 /// After reloading a buffer which was saved for `'undoreload'`: Find the first
@@ -2628,7 +2629,8 @@ pub fn u_update_save_nr(buf: &mut buf_T) {
         }
 }
 
-fn u_unch_branch(buf: *mut buf_T, uhp: Option<usize>) {
+fn u_unch_branch(buf: &mut buf_T, uhp: Option<usize>) {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         let mut uh = uhp;
         while let Some(u) = uh {
@@ -2636,7 +2638,7 @@ fn u_unch_branch(buf: *mut buf_T, uhp: Option<usize>) {
             let alt_next = uhp_ref(&*buf, u).uh_alt_next;
             let prev = uhp_ref(&*buf, u).uh_prev;
             if alt_next.is_some() {
-                u_unch_branch(buf, alt_next);
+                u_unch_branch(&mut *buf, alt_next);
             }
             uh = prev;
         }

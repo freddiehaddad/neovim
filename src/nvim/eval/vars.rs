@@ -862,7 +862,7 @@ pub fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
 
         let mut r = may_call_simple_func(p, &raw mut rettv);
         if r == NOTDONE {
-            r = eval1(&raw mut p, &raw mut rettv, &raw mut g_st().EVALARG_EVALUATE);
+            r = eval1(&raw mut p, &mut rettv, &raw mut g_st().EVALARG_EVALUATE);
         }
         if r == OK {
             if rettv.v_type != VarType::VAR_LIST {
@@ -1296,7 +1296,7 @@ pub fn ex_let(eap: &mut exarg_T) {
         }
         let mut evalarg = evalarg_T::new();
         fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
-        let eval_res = eval0(expr, &raw mut rettv, eap, &raw mut evalarg);
+        let eval_res = eval0(expr, &mut rettv, eap, &raw mut evalarg);
         if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         }

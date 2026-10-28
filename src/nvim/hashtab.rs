@@ -192,7 +192,7 @@ pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) ->
             );
         return FAIL;
     }
-    hash_add_item(ht, hi, key, &raw mut *di, hash);
+    hash_add_item(ht, hi, key, &mut *di, hash);
     OK
 }
 
@@ -203,10 +203,10 @@ pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) ->
 pub fn hash_add_item(
     ht: &mut hashtab_T,
     mut hi: *mut hashitem_T,
-    _key: *mut c_char,
-    di: *mut crate::eval::typval::dictitem_T,
+    _key: *mut c_char,di: &mut crate::eval::typval::dictitem_T,
     hash: hash_T,
 ) {
+    let di: *mut crate::eval::typval::dictitem_T = &raw mut *di;
     let ht_ref = &mut *ht;
     if ht_ref.ht_array.is_empty() {
         let offset = unsafe { hi.offset_from(empty_hasharray_ptr()) as usize };

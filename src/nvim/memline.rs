@@ -447,7 +447,7 @@ pub fn ml_open(buf: &mut buf_T) -> c_int {
         if !buf.b_spell {
             (*b0p).set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
             (*b0p).set_flags((get_fileformat(&*buf) + 1) as u8);
-            set_b0_fname(&mut *b0p, &raw mut *buf);
+            set_b0_fname(&mut *b0p, &mut *buf);
             os_get_username((&raw mut (*b0p).b0_uname).cast(), B0_UNAME_SIZE);
             (*b0p).b0_uname[B0_UNAME_SIZE - 1] = NUL;
             os_get_hostname((&raw mut (*b0p).b0_hname).cast(), B0_HNAME_SIZE);
@@ -746,7 +746,7 @@ fn ml_upd_block0(buf: &mut buf_T, what: upd_block0_T) {
         if !ml_check_b0_id(&*b0p) {
             iemsg(tr(c"E304: ml_upd_block0(): Didn't get block 0??"));
         } else if what == upd_block0_T::UB_FNAME {
-            set_b0_fname(&mut *b0p, buf);
+            set_b0_fname(&mut *b0p, &mut *buf);
         } else {
             set_b0_dir_flag(&mut *b0p, buf);
         }
@@ -754,7 +754,8 @@ fn ml_upd_block0(buf: &mut buf_T, what: upd_block0_T) {
     }
 }
 
-fn set_b0_fname(b0p: &mut ZeroBlock, buf: *mut buf_T) {
+fn set_b0_fname(b0p: &mut ZeroBlock,buf: &mut buf_T) {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         if (*buf).b_ffname.is_null() {
             b0p.b0_fname[0] = NUL;

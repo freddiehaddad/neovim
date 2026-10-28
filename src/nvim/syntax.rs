@@ -1042,7 +1042,7 @@ fn syn_match_linecont(lnum: linenr_T) -> c_int {
             &mut regmatch,
             lnum,
             0,
-            &raw mut (*syn_st().syn_block).b_syn_linecont_time,
+            &mut (*syn_st().syn_block).b_syn_linecont_time,
         );
 
         restore_chartab(buf_chartab.as_ptr());
@@ -1749,7 +1749,7 @@ fn syn_current_attr(
                                     in_id_list(
                                         ptr::null_mut(),
                                         cur_next_list,
-                                        &raw mut (*spp).sp_syn,
+                                        &mut (*spp).sp_syn,
                                         0,
                                     ) != 0
                                 } else if cur_si.is_null() {
@@ -1758,7 +1758,7 @@ fn syn_current_attr(
                                     in_id_list(
                                         cur_si,
                                         &(*cur_si).si_cont_list,
-                                        &raw mut (*spp).sp_syn,
+                                        &mut (*spp).sp_syn,
                                         (*spp).sp_flags,
                                     ) != 0
                                 }
@@ -1782,7 +1782,7 @@ fn syn_current_attr(
                                     &mut regmatch,
                                     syn_st().current_lnum,
                                     lc_col,
-                                    &raw mut (*spp).sp_time,
+                                    &mut (*spp).sp_time,
                                 );
                                 if !r {
                                     (*spp).sp_startcol = MAXCOL;
@@ -1992,17 +1992,17 @@ fn syn_current_attr(
                         *can_spell = (*syn_st().syn_block).b_syn_spell != SYNSPL_NOTOP;
                     } else {
                         sps.id = (*syn_st().syn_block).b_nospell_cluster_id as i16;
-                        *can_spell = in_id_list(sip, &(*sip).si_cont_list, &raw mut sps, 0) == 0;
+                        *can_spell = in_id_list(sip, &(*sip).si_cont_list, &mut sps, 0) == 0;
                     }
                 } else if syn_st().current_trans_id == 0 {
                     *can_spell = (*syn_st().syn_block).b_syn_spell == SYNSPL_TOP;
                 } else {
                     sps.id = (*syn_st().syn_block).b_spell_cluster_id as i16;
-                    *can_spell = in_id_list(sip, &(*sip).si_cont_list, &raw mut sps, 0) != 0;
+                    *can_spell = in_id_list(sip, &(*sip).si_cont_list, &mut sps, 0) != 0;
 
                     if (*syn_st().syn_block).b_nospell_cluster_id != 0 {
                         sps.id = (*syn_st().syn_block).b_nospell_cluster_id as i16;
-                        if in_id_list(sip, &(*sip).si_cont_list, &raw mut sps, 0) != 0 {
+                        if in_id_list(sip, &(*sip).si_cont_list, &mut sps, 0) != 0 {
                             *can_spell = false;
                         }
                     }
@@ -2432,7 +2432,7 @@ fn find_endpos(
                     &mut regmatch,
                     startpos.lnum,
                     lc_col,
-                    &raw mut (*spp).sp_time,
+                    &mut (*spp).sp_time,
                 );
                 if r && (best_idx == -1 || regmatch.startpos[0].col < best_regmatch.startpos[0].col)
                 {
@@ -2458,7 +2458,7 @@ fn find_endpos(
                     &mut regmatch,
                     startpos.lnum,
                     lc_col,
-                    &raw mut (*spp_skip).sp_time,
+                    &mut (*spp_skip).sp_time,
                 );
                 if r && regmatch.startpos[0].col <= best_regmatch.startpos[0].col {
                     syn_add_end_off(&mut pos, &mut regmatch, &mut *spp_skip, SPO_ME_OFF, 1);
@@ -2653,9 +2653,9 @@ fn syn_getcurline_len() -> colnr_T {
 fn syn_regexec(
     rmp: &mut regmmatch_T,
     lnum: linenr_T,
-    col: colnr_T,
-    st: *mut syn_time_T,
+    col: colnr_T,st: &mut syn_time_T,
 ) -> bool {
+    let st: *mut syn_time_T = &raw mut *st;
     unsafe {
         let mut timed_out: c_int = 0;
         let mut pt: proftime_T = 0;
@@ -2761,11 +2761,11 @@ fn match_keyword(
             for kp in entries {
                 let mut k_syn = kp.k_syn.clone();
                 if if cur_next_list.is_some() {
-                    in_id_list(ptr::null_mut(), cur_next_list, &raw mut k_syn, 0) != 0
+                    in_id_list(ptr::null_mut(), cur_next_list, &mut k_syn, 0) != 0
                 } else if cur_si.is_null() {
                     (kp.flags & HL_CONTAINED) == 0
                 } else {
-                    in_id_list(cur_si, &(*cur_si).si_cont_list, &raw mut k_syn, kp.flags) != 0
+                    in_id_list(cur_si, &(*cur_si).si_cont_list, &mut k_syn, kp.flags) != 0
                 } {
                     return kp;
                 }
@@ -4937,15 +4937,14 @@ fn idl_cache_clear(block: *mut synblock_T) {
 
 fn in_id_list(
     mut cur_si: *mut stateitem_T,
-    list: &SynIdList,
-    ssp: *mut sp_syn,
+    list: &SynIdList,ssp: &mut sp_syn,
     flags: c_int,
 ) -> c_int {
     unsafe {
-        let id = (*ssp).id;
+        let id = ssp.id;
 
         if !cur_si.is_null()
-            && (*ssp).cont_in_list.is_some()
+            && ssp.cont_in_list.is_some()
             && ((*cur_si).si_flags & HL_MATCH) == 0
         {
             while ((*cur_si).si_flags & HL_TRANS_CONT) != 0 && cur_si > cur_state_at(0) {
@@ -4955,8 +4954,8 @@ fn in_id_list(
                 let c_spp = syn_items(&mut *syn_st().syn_block).offset((*cur_si).si_idx as isize);
                 if in_id_list(
                     ptr::null_mut(),
-                    &(*ssp).cont_in_list,
-                    &raw mut (*c_spp).sp_syn,
+                    &ssp.cont_in_list,
+                    &mut (*c_spp).sp_syn,
                     (*c_spp).sp_flags,
                 ) != 0
                 {
@@ -4980,14 +4979,14 @@ fn in_id_list(
             let retval = if (*e).idl_marker != 0 {
                 let item = (*e).idl_marker;
                 if item < SYNID_TOP {
-                    if (item - SYNID_ALLBUT) as c_int != (*ssp).inc_tag {
+                    if (item - SYNID_ALLBUT) as c_int != ssp.inc_tag {
                         return 0;
                     }
                 } else if item < SYNID_CONTAINED {
-                    if (item - SYNID_TOP) as c_int != (*ssp).inc_tag || !toplevel {
+                    if (item - SYNID_TOP) as c_int != ssp.inc_tag || !toplevel {
                         return 0;
                     }
-                } else if (item - SYNID_CONTAINED) as c_int != (*ssp).inc_tag || toplevel {
+                } else if (item - SYNID_CONTAINED) as c_int != ssp.inc_tag || toplevel {
                     return 0;
                 }
                 false
@@ -5001,14 +5000,14 @@ fn in_id_list(
         let first = slice.first().copied().unwrap_or(0);
         let retval = if (SYNID_ALLBUT..SYNID_CLUSTER).contains(&first) {
             if first < SYNID_TOP {
-                if (first - SYNID_ALLBUT) as c_int != (*ssp).inc_tag {
+                if (first - SYNID_ALLBUT) as c_int != ssp.inc_tag {
                     return 0;
                 }
             } else if first < SYNID_CONTAINED {
-                if (first - SYNID_TOP) as c_int != (*ssp).inc_tag || !toplevel {
+                if (first - SYNID_TOP) as c_int != ssp.inc_tag || !toplevel {
                     return 0;
                 }
-            } else if (first - SYNID_CONTAINED) as c_int != (*ssp).inc_tag || toplevel {
+            } else if (first - SYNID_CONTAINED) as c_int != ssp.inc_tag || toplevel {
                 return 0;
             }
             slice = &slice[1..];
@@ -5029,7 +5028,7 @@ fn in_id_list(
                     &(*syn_clstr(&mut *syn_st().syn_block).offset((item - SYNID_CLUSTER) as isize)).scl_list;
                 if scl_list.is_some() && syn_st().in_id_list_depth < 30 {
                     syn_st().in_id_list_depth += 1;
-                    let r = in_id_list(ptr::null_mut(), scl_list, ssp, flags);
+                    let r = in_id_list(ptr::null_mut(), scl_list, &mut *ssp, flags);
                     syn_st().in_id_list_depth -= 1;
                     if r != 0 {
                         return c_int::from(retval);

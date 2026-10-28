@@ -1132,8 +1132,7 @@ pub fn draw_tabline() {
 }
 
 /// Build the `'statuscolumn'` string for line `lnum`.
-pub fn build_statuscol_str(
-    wp: *mut win_T,
+pub fn build_statuscol_str(wp: &mut win_T,
     lnum: linenr_T,
     relnum: c_int,
     virtnum: c_int,
@@ -1150,7 +1149,7 @@ pub fn build_statuscol_str(
         let mut clickrec: *mut StlClickRecord = ptr::null_mut();
         let mut hlrec_ptr: *mut stl_hlrec_t = ptr::null_mut();
         let buf_data = buf.data;
-        let stc = CStr::from_ptr((*wp).w_onebuf_opt.wo_stc).to_owned();
+        let stc = CStr::from_ptr(wp.w_onebuf_opt.wo_stc).to_owned();
         let width = build_stl_str_hl(
             wp,
             buf,
@@ -1176,7 +1175,7 @@ pub fn build_statuscol_str(
         }
 
         if !(*clickrec).start.is_null() {
-            let clicks = (*wp).w_statuscol_click_defs.entry(lnum).or_default();
+            let clicks = wp.w_statuscol_click_defs.entry(lnum).or_default();
             let click_defs = clicks.entry(virtnum).or_default();
             stl_clear_click_defs(click_defs);
             let cdp = stl_alloc_click_defs(click_defs, width);

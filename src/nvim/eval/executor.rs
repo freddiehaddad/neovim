@@ -120,7 +120,7 @@ fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
     unsafe {
         let mut numbuf = [0 as c_char; NUMBUFLEN];
         let s2 = tv_get_string_buf(tv2, numbuf.as_mut_ptr());
-        if grow_string_tv(tv1, s2) == OK {
+        if grow_string_tv(&mut *tv1, s2) == OK {
             return OK;
         }
 

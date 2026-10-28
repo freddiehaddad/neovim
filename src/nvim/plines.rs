@@ -121,7 +121,7 @@ pub(crate) fn win_charsize(
     if cstype == kCharsizeFast {
             charsize_fast(csarg, ptr_val, vcol, chr, mb_width)
         } else {
-            charsize_regular(csarg, ptr_val, vcol, chr, mb_width)
+            charsize_regular(&mut *csarg, ptr_val, vcol, chr, mb_width)
         }
 }
 
@@ -274,21 +274,20 @@ fn inline_virt_text_width(
     }
 }
 
-pub fn charsize_regular(
-    csarg: *mut CharsizeArg,
+pub fn charsize_regular(csarg: &mut CharsizeArg,
     cur: *const c_char,
     vcol: colnr_T,
     cur_char: i32,
     mb_width: c_int,
 ) -> CharSize {
     unsafe {
-        (*csarg).cur_text_width_left = 0;
-        (*csarg).cur_text_width_right = 0;
+        csarg.cur_text_width_left = 0;
+        csarg.cur_text_width_right = 0;
 
-        let wp = (*csarg).win;
+        let wp = csarg.win;
         let buf = (*wp).w_buffer;
-        let line = (*csarg).line;
-        let use_tabstop = cur_char == TAB && (*csarg).use_tabstop;
+        let line = csarg.line;
+        let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;
 
         let has_lcs_eol = (*wp).w_onebuf_opt.wo_list != 0 && (*wp).w_p_lcs_chars.eol != 0;
@@ -306,12 +305,12 @@ pub fn charsize_regular(
             is_doublewidth = size == 2 && cur_char >= 0x80;
         }
 
-        if (*csarg).virt_row >= 0 && !(*csarg).skip_cur_text {
+        if csarg.virt_row >= 0 && !csarg.skip_cur_text {
             let mut tab_size = size;
             let col = cur.offset_from(line) as c_int;
             loop {
-                let mark = marktree_itr_current(&(*buf).b_marktree, &(*csarg).iter);
-                if mark.pos.row != (*csarg).virt_row || mark.pos.col > col {
+                let mark = marktree_itr_current(&(*buf).b_marktree, &csarg.iter);
+                if mark.pos.row != csarg.virt_row || mark.pos.col > col {
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                     let decor = mt_decor(mark);
@@ -323,9 +322,9 @@ pub fn charsize_regular(
                     while !vt.is_null() {
                         if ((*vt).flags & kVTIsLines) == 0 && (*vt).pos == kVPosInline {
                             if mt_right(mark) {
-                                (*csarg).cur_text_width_right += (*vt).width;
+                                csarg.cur_text_width_right += (*vt).width;
                             } else {
-                                (*csarg).cur_text_width_left += (*vt).width;
+                                csarg.cur_text_width_left += (*vt).width;
                             }
                             size += (*vt).width;
                             if use_tabstop {
@@ -343,8 +342,8 @@ pub fn charsize_regular(
                 }
                 marktree_itr_next_filter(
                     &(*(*wp).w_buffer).b_marktree,
-                    &mut (*csarg).iter,
-                    (*csarg).virt_row + 1,
+                    &mut csarg.iter,
+                    csarg.virt_row + 1,
                     0,
                     &INLINE_FILTER,
                 );
@@ -366,7 +365,7 @@ pub fn charsize_regular(
             let mut col_off_prev = win_col_off(wp);
             let width2 = (*wp).w_view_width - col_off_prev + win_col_off2(wp);
             let mut wcol = vcol + col_off_prev;
-            let max_head_vcol = (*csarg).max_head_vcol;
+            let max_head_vcol = csarg.max_head_vcol;
             let mut added = 0;
 
             let mut head_prev = 0;
@@ -376,7 +375,7 @@ pub fn charsize_regular(
                 if wcol >= width2 && width2 > 0 {
                     wcol %= width2;
                 }
-                head_prev = (*csarg).indent_width;
+                head_prev = csarg.indent_width;
                 if head_prev == c_int::MIN {
                     head_prev = 0;
                     if *sbr != NUL {
@@ -385,7 +384,7 @@ pub fn charsize_regular(
                     if (*wp).w_onebuf_opt.wo_bri != 0 {
                         head_prev += get_breakindent_win(&mut *wp, line);
                     }
-                    (*csarg).indent_width = head_prev;
+                    csarg.indent_width = head_prev;
                 }
                 if wcol < head_prev {
                     head_prev -= wcol;
@@ -401,7 +400,7 @@ pub fn charsize_regular(
             }
 
             if wcol + size > (*wp).w_view_width {
-                let mut head_mid = (*csarg).indent_width;
+                let mut head_mid = csarg.indent_width;
                 if head_mid == c_int::MIN {
                     head_mid = 0;
                     if *sbr != NUL {
@@ -410,7 +409,7 @@ pub fn charsize_regular(
                     if (*wp).w_onebuf_opt.wo_bri != 0 {
                         head_mid += get_breakindent_win(&mut *wp, line);
                     }
-                    (*csarg).indent_width = head_mid;
+                    csarg.indent_width = head_mid;
                 }
                 if head_mid > 0 {
                     let prev_rem = (*wp).w_view_width - wcol;
@@ -428,7 +427,7 @@ pub fn charsize_regular(
                             / width2
                             * head_mid;
                     } else if max_head_vcol < 0 {
-                        let off = mb_added + virt_text_cursor_off(csarg, *cur == NUL);
+                        let off = mb_added + virt_text_cursor_off(&*csarg, *cur == NUL);
                         if off >= prev_rem {
                             if size > off {
                                 head += (1 + (off - prev_rem) / width) * head_mid;
@@ -451,7 +450,7 @@ pub fn charsize_regular(
             && vim_isbreak(c_int::from(*cur.add(0) as u8))
             && !vim_isbreak(c_int::from(*cur.add(1) as u8))
         {
-            let mut t = (*csarg).line;
+            let mut t = csarg.line;
             while vim_isbreak(c_int::from(*t as u8)) {
                 t = t.add(1);
             }
@@ -471,7 +470,7 @@ pub fn charsize_regular(
             }
 
             let mut virt_iter = MarkTreeIter::new();
-            let mut has_virt = if (*csarg).virt_row < 0 { 0 } else { -1 };
+            let mut has_virt = if csarg.virt_row < 0 { 0 } else { -1 };
 
             let mut vcol2 = vcol;
             loop {
@@ -488,16 +487,16 @@ pub fn charsize_regular(
                 if has_virt < 0 {
                     has_virt = c_int::from(marktree_itr_get_filter(
                         &(*buf).b_marktree,
-                        (*csarg).virt_row,
+                        csarg.virt_row,
                         col,
-                        (*csarg).virt_row + 1,
+                        csarg.virt_row + 1,
                         0,
                         &INLINE_FILTER,
                         &mut virt_iter,
                     ));
                 }
                 let virt_width = if has_virt != 0 {
-                    inline_virt_text_width(&mut *wp, &mut virt_iter, (*csarg).virt_row, col)
+                    inline_virt_text_width(&mut *wp, &mut virt_iter, csarg.virt_row, col)
                 } else {
                     0
                 };
@@ -636,7 +635,7 @@ pub fn linesize_regular(
         while (ci.ptr.offset_from(line) as colnr_T) < len && *ci.ptr != NUL {
             let cli = utf_ClusterInfo(ci);
             vcol +=
-                i64::from(charsize_regular(&raw mut *csarg, ci.ptr, vcol_arg, ci.chr.value, cli.cells).width);
+                i64::from(charsize_regular(&mut *csarg, ci.ptr, vcol_arg, ci.chr.value, cli.cells).width);
             ci = cli.next;
             if vcol > i64::from(MAXCOL) {
                 vcol_arg = MAXCOL;
@@ -647,7 +646,7 @@ pub fn linesize_regular(
         }
 
         if len == MAXCOL && csarg.virt_row >= 0 && *ci.ptr == NUL {
-            let head = charsize_regular(&raw mut *csarg, ci.ptr, vcol_arg, ci.chr.value, 0).head;
+            let head = charsize_regular(&mut *csarg, ci.ptr, vcol_arg, ci.chr.value, 0).head;
             vcol += i64::from(csarg.cur_text_width_left + csarg.cur_text_width_right + head);
             vcol_arg = if vcol > i64::from(MAXCOL) {
                 MAXCOL
@@ -687,7 +686,8 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> 
     }
 }
 
-fn virt_text_cursor_off(csarg: *const CharsizeArg, on_nul: bool) -> c_int {
+fn virt_text_cursor_off(csarg: &CharsizeArg, on_nul: bool) -> c_int {
+    let csarg: *const CharsizeArg = &raw const *csarg;
     unsafe {
         let mut off = 0;
         if !on_nul || (g_st().State & MODE_NORMAL) == 0 {
