@@ -25,14 +25,14 @@ pub struct Tm {
 
 #[cfg(unix)]
 struct OsTimeState {
-    TZ_CACHE: [u8; 64],
+    tz_cache: [u8; 64],
 }
 
 #[cfg(unix)]
 impl OsTimeState {
     const fn new() -> Self {
         Self {
-            TZ_CACHE: [0u8; 64],
+            tz_cache: [0u8; 64],
         }
     }
 }
@@ -140,7 +140,7 @@ pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
         } else {
             crate::memory::cstr_as_bytes(tz_ptr)
         };
-        let cache = &mut ostime_st().TZ_CACHE;
+        let cache = &mut ostime_st().tz_cache;
         let cache_len = cache.iter().position(|&b| b == 0).unwrap_or(cache.len());
         let cmp_len = tz_bytes.len().min(cache.len() - 1);
         if cache_len != cmp_len || cache[..cache_len] != tz_bytes[..cmp_len] {

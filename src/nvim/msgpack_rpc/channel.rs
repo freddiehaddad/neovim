@@ -786,7 +786,7 @@ pub fn rpc_close_event(mut channel: Option<&mut Channel>) {
                     return;
                 }
                 exit_on_closed_chan(0);
-            } else if !channel.as_deref_mut().unwrap().detach && !has_undetached_rpc_chan() {
+            } else if !channel.unwrap().detach && !has_undetached_rpc_chan() {
                 exit_on_closed_chan(0);
             } else {
                 #[cfg(windows)]

@@ -203,7 +203,7 @@ struct FileioModuleState {
     already_warned: bool,
     vim_tempdir: Option<std::ffi::CString>,
     #[cfg(unix)]
-    VIM_TEMPDIR_DP: *mut DIR,
+    vim_tempdir_dp: *mut DIR,
     notfound: c_int,
 }
 
@@ -213,7 +213,7 @@ impl FileioModuleState {
             already_warned: false,
             vim_tempdir: None,
             #[cfg(unix)]
-            VIM_TEMPDIR_DP: ptr::null_mut(),
+            vim_tempdir_dp: ptr::null_mut(),
             notfound: 0,
         }
     }
@@ -4369,7 +4369,7 @@ pub fn delete_recursive(name: impl crate::strings::IntoCCharPtr) -> c_int { let 
 #[cfg(unix)]
 fn vim_opentempdir() {
     unsafe {
-        if !fio_st().VIM_TEMPDIR_DP.is_null() {
+        if !fio_st().vim_tempdir_dp.is_null() {
             return;
         }
 
@@ -4381,20 +4381,20 @@ fn vim_opentempdir() {
             return;
         }
 
-        fio_st().VIM_TEMPDIR_DP = dp;
-        flock(dirfd(fio_st().VIM_TEMPDIR_DP), LOCK_SH);
+        fio_st().vim_tempdir_dp = dp;
+        flock(dirfd(fio_st().vim_tempdir_dp), LOCK_SH);
     }
 }
 
 #[cfg(unix)]
 fn vim_closetempdir() {
     unsafe {
-        if fio_st().VIM_TEMPDIR_DP.is_null() {
+        if fio_st().vim_tempdir_dp.is_null() {
             return;
         }
 
-        closedir(fio_st().VIM_TEMPDIR_DP);
-        fio_st().VIM_TEMPDIR_DP = ptr::null_mut();
+        closedir(fio_st().vim_tempdir_dp);
+        fio_st().vim_tempdir_dp = ptr::null_mut();
     }
 }
 

@@ -90,7 +90,7 @@ struct MoCatalog {
 struct LangModuleState {
     locales: Vec<CString>,
     #[cfg(not(windows))]
-    DID_INIT_LOCALES: bool,
+    did_init_locales: bool,
     locale_dir: [u8; MAXPATHL],
     locale_dir_len: usize,
     catalogs: Vec<MoCatalog>,
@@ -103,7 +103,7 @@ impl LangModuleState {
         Self {
             locales: Vec::new(),
             #[cfg(not(windows))]
-            DID_INIT_LOCALES: false,
+            did_init_locales: false,
             locale_dir: [0; MAXPATHL],
             locale_dir_len: 0,
             catalogs: Vec::new(),
@@ -797,10 +797,10 @@ fn find_locales() -> Vec<CString> {
 fn init_locales() {
     #[cfg(not(windows))]
     {
-        if lang_st().DID_INIT_LOCALES {
+        if lang_st().did_init_locales {
             return;
         }
-        lang_st().DID_INIT_LOCALES = true;
+        lang_st().did_init_locales = true;
         lang_st().locales = find_locales();
     }
 }

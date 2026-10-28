@@ -78,9 +78,9 @@ const ICONV_MULT: usize = 8;
 pub(crate) const NODE_WRITABLE: c_int = 1;
 
 #[cfg(unix)]
-const kOptBkcFlagBreaksymlink: c_uint = 0x08;
+const K_OPT_BKC_FLAG_BREAKSYMLINK: c_uint = 0x08;
 #[cfg(unix)]
-const kOptBkcFlagBreakhardlink: c_uint = 0x10;
+const K_OPT_BKC_FLAG_BREAKHARDLINK: c_uint = 0x10;
 
 const K_CPO_FNAMEAPP: c_int = b'P' as c_int;
 const K_CPO_FNAMEW: c_int = b'F' as c_int;
@@ -937,15 +937,15 @@ fn buf_write_make_backup(
         }
 
         #[cfg(not(windows))]
-        if (bkc & (kOptBkcFlagBreaksymlink | kOptBkcFlagBreakhardlink)) != 0 {
+        if (bkc & (K_OPT_BKC_FLAG_BREAKSYMLINK | K_OPT_BKC_FLAG_BREAKHARDLINK)) != 0 {
             let file_info_link_ok = os_fileinfo_link(fname, &mut file_info);
-            if (bkc & kOptBkcFlagBreaksymlink) != 0
+            if (bkc & K_OPT_BKC_FLAG_BREAKSYMLINK) != 0
                 && file_info_link_ok
                 && !os_fileinfo_id_equal(&file_info, file_info_old)
             {
                 *backup_copyp = false;
             }
-            if (bkc & kOptBkcFlagBreakhardlink) != 0
+            if (bkc & K_OPT_BKC_FLAG_BREAKHARDLINK) != 0
                 && os_fileinfo_hardlinks(file_info_old) > 1
                 && (!file_info_link_ok || os_fileinfo_id_equal(&file_info, file_info_old))
             {

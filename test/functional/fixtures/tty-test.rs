@@ -49,13 +49,17 @@ mod platform {
     const TCSADRAIN: c_int = 1;
 
     #[cfg(target_os = "linux")]
+    #[allow(non_camel_case_types)]
     type tcflag_t = u32;
     #[cfg(not(target_os = "linux"))]
+    #[allow(non_camel_case_types)]
     type tcflag_t = c_ulong;
 
     #[cfg(target_os = "linux")]
+    #[allow(non_camel_case_types)]
     type speed_t = u32;
     #[cfg(not(target_os = "linux"))]
+    #[allow(non_camel_case_types)]
     type speed_t = c_ulong;
 
     #[cfg(target_os = "linux")]
