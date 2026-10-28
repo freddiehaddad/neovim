@@ -613,13 +613,13 @@ pub fn input_blocking() -> bool {
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.
 fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
     unsafe {
-        if os_input_ready(events) {
+        if os_input_ready(events.as_ref()) {
             return true;
         }
 
         if ms == 0 {
             loop_poll_events(&mut *main_loop_ptr(), 0);
-            return os_input_ready(events);
+            return os_input_ready(events.as_ref());
         }
 
         if g_st().do_profiling == PROF_YES {
@@ -635,7 +635,7 @@ fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
         // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());
         let mut remaining = i64::from(ms);
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
-        while !(os_input_ready(events) || input_unanswerable()) {
+        while !(os_input_ready(events.as_ref()) || input_unanswerable()) {
             loop_poll_events(&mut *main_loop_ptr(), remaining);
             if remaining == 0 {
                 break;
@@ -655,7 +655,7 @@ fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
             prof_input_end();
         }
 
-        if input_unanswerable() && !os_input_ready(events) {
+        if input_unanswerable() && !os_input_ready(events.as_ref()) {
             // Dismiss the prompt (CTRL-C) instead of waiting forever.
             static DID_LOG: std::sync::atomic::AtomicBool =
                 std::sync::atomic::AtomicBool::new(false);
@@ -677,7 +677,7 @@ fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
             g_st().got_int = true;
         }
 
-        os_input_ready(events)
+        os_input_ready(events.as_ref())
     }
 }
 
@@ -733,8 +733,8 @@ fn push_event_key(buf: *mut u8, maxlen: c_int) -> c_int {
 }
 
 /// Check if there's pending input already in typebuf or `events`
-pub fn os_input_ready(events: *mut MultiQueue) -> bool {
-    g_st().typebuf_was_filled || input_available() != 0 || pending_events(unsafe { events.as_ref() })
+pub fn os_input_ready(events: Option<&MultiQueue>) -> bool {
+    g_st().typebuf_was_filled || input_available() != 0 || pending_events(events)
 }
 
 fn pending_events(events: Option<&MultiQueue>) -> bool {

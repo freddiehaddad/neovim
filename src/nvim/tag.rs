@@ -2983,7 +2983,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
 
                 if l_g_do_tagpreview != 0 && curwin_ptr() != curwin_save && win_valid(curwin_save) {
                     validate_cursor(curwin_mut());
-                    redraw_later(curwin_ptr(), UPD_VALID);
+                    redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
                     win_enter(curwin_save, true);
                 }
 
@@ -3198,7 +3198,7 @@ fn add_tag_field(
 ) -> bool {
     let field_name = field_name.into_c_char_ptr();
     unsafe {
-        if !tv_dict_find(dict, field_name, -1).is_null() {
+        if !tv_dict_find(dict.as_ref(), field_name, -1).is_null() {
             if opt_vars().p_verbose > 0 {
                 verbose_enter();
                 smsg!(0, gettext(c"Duplicate field name: %s"), field_name);
@@ -3452,7 +3452,7 @@ fn tagstack_push_items(wp: &mut win_T, l: Option<&list_T>) {
         for li in crate::eval::typval::list_iter_mut(l.map_or(ptr::null_mut(), |l| l.lv_first)) {
             if li.li_tv.v_type == VarType::VAR_DICT && !li.li_tv.vval.v_dict().is_null() {
                 let itemdict = li.li_tv.vval.v_dict();
-                let di = tv_dict_find(itemdict, c"from", -1);
+                let di = tv_dict_find(itemdict.as_ref(), c"from", -1);
                 if !di.is_null() {
                     let mut mark = pos_T {
                         lnum: 0,
@@ -3505,7 +3505,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
 
         let mut l: *mut list_T = ptr::null_mut();
 
-        let di_items = tv_dict_find(d, c"items", -1);
+        let di_items = tv_dict_find(d.as_ref(), c"items", -1);
         if !di_items.is_null() {
             if (*di_items).di_tv.v_type != VarType::VAR_LIST {
                 emsg(gettext(e_listreq));
@@ -3514,7 +3514,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
             l = (*di_items).di_tv.vval.v_list();
         }
 
-        let di_curidx = tv_dict_find(d, c"curidx", -1);
+        let di_curidx = tv_dict_find(d.as_ref(), c"curidx", -1);
         if !di_curidx.is_null() {
             tagstack_set_curidx(
                 wp,

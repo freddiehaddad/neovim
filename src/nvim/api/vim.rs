@@ -1102,7 +1102,7 @@ pub fn nvim_get_var(
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let mut di = tv_dict_find(get_globvar_dict(), name.data, name.size as isize);
+        let mut di = tv_dict_find(get_globvar_dict().as_ref(), name.data, name.size as isize);
         if di.is_null() {
             let found = script_autoload(name.data, name.size, false) && !aborting();
             if !found {
@@ -1114,7 +1114,7 @@ pub fn nvim_get_var(
                 );
                 return nil_obj();
             }
-            di = tv_dict_find(get_globvar_dict(), name.data, name.size as isize);
+            di = tv_dict_find(get_globvar_dict().as_ref(), name.data, name.size as isize);
         }
         if di.is_null() {
             api_set_error!(
@@ -3267,7 +3267,7 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
                 UPD_NOT_VALID
             };
             if !win.is_null() {
-                redraw_later(win, rtype);
+                redraw_later(win.as_mut(), rtype);
             } else if !buf.is_null() {
                 redraw_buf_later(buf, rtype);
             } else {

@@ -906,7 +906,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
         if reader.eof {
             if !reader.self_dict.is_null() {
                 let reader_type = reader.reader_type.unwrap();
-                if tv_dict_find(reader.self_dict, reader_type.as_ptr(), -1).is_null() {
+                if tv_dict_find(unsafe { reader.self_dict.as_ref() }, reader_type.as_ptr(), -1).is_null() {
                     let data = buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
                     let _type_len = reader_type.to_bytes().len();
                     let _ = tv_dict_add_list(

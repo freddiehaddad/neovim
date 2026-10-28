@@ -3481,7 +3481,7 @@ fn ins_compl_add_list(list: Option<&list_T>) {
 fn ins_compl_add_dict(dict: &mut dict_T) {
     unsafe {
         insexp().compl_opt_refresh_always = false;
-        let di_refresh = tv_dict_find(dict, c"refresh", 7);
+        let di_refresh = tv_dict_find(Some(dict), c"refresh", 7);
         if !di_refresh.is_null() && (*di_refresh).di_tv.v_type == VAR_STRING {
             let v = (*di_refresh).di_tv.vval.v_string();
             if !v.is_null() && crate::memory::cstr_as_bytes(v) == b"always" {
@@ -3489,7 +3489,7 @@ fn ins_compl_add_dict(dict: &mut dict_T) {
             }
         }
 
-        let di_words = tv_dict_find(dict, c"words", 5);
+        let di_words = tv_dict_find(Some(dict), c"words", 5);
         if !di_words.is_null() && (*di_words).di_tv.v_type == VAR_LIST {
             ins_compl_add_list(((*di_words).di_tv.vval.v_list()).as_ref());
         }
@@ -3520,7 +3520,7 @@ fn restore_orig_extmarks() {
     }
 }
 
-fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
+fn set_completion(mut startcol: colnr_T, list: Option<&list_T>) {
     unsafe {
         let mut flags = CP_ORIGINAL_TEXT;
         let cur_cot_flags = get_cot_flags();
@@ -3570,7 +3570,7 @@ fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
 
         insexp().ctrl_x_mode = CTRL_X_EVAL;
 
-        ins_compl_add_list(list.as_ref());
+        ins_compl_add_list(list);
         insexp().compl_matches = ins_compl_make_cyclic();
         insexp().compl_started = true;
         insexp().compl_used_match = true;
@@ -3623,7 +3623,7 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
         } else {
             let startcol = tv_get_number_chk(&argvars[0], None) as colnr_T;
             if startcol > 0 {
-                set_completion(startcol - 1, argvars[1].vval.v_list());
+                set_completion(startcol - 1, unsafe { argvars[1].vval.v_list().as_ref() });
             }
         }
     }

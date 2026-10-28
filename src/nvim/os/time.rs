@@ -97,7 +97,7 @@ pub fn os_delay(ms: u64, ignoreinput: bool) {
             let cond = if ignoreinput {
                 g_st().got_int
             } else {
-                os_input_ready(std::ptr::null_mut())
+                os_input_ready(None)
             };
             if cond {
                 break;

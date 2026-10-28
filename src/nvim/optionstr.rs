@@ -1679,7 +1679,7 @@ pub fn did_set_buftype(args: &mut optset_T) -> *const c_char {
         }
         if (*win).w_status_height != 0 || global_stl_height() != 0 {
             (*win).w_redr_status = true;
-            redraw_later(win, UPD_VALID);
+            redraw_later(win.as_mut(), UPD_VALID);
         }
         (*buf).b_help = *(*buf).b_p_bt == b'h' as c_char;
         redraw_titles();

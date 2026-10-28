@@ -2655,7 +2655,7 @@ fn enter_buffer(buf: *mut buf_T) {
             terminal_check_size(&mut *curbuf_mut().terminal);
         }
 
-        redraw_later(curwin_ptr(), UPD_NOT_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
     }
 }
 
@@ -5005,7 +5005,7 @@ pub fn buf_set_changedtick(buf: &mut buf_T, changedtick: varnumber_T) {
     unsafe {
         let old_val = buf.changedtick_di.di_tv;
 
-        let changedtick_di = tv_dict_find(buf.b_vars(), c"changedtick", 11);
+        let changedtick_di = tv_dict_find(buf.b_vars().as_ref(), c"changedtick", 11);
         debug_assert!(!changedtick_di.is_null());
         debug_assert!((*changedtick_di).di_tv.v_type == VarType::VAR_NUMBER);
         debug_assert!((*changedtick_di).di_tv.v_lock == VAR_FIXED);

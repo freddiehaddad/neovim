@@ -298,7 +298,7 @@ mod win_impl {
                 }
 
                 if !(*hdr).env.is_null() {
-                    status = build_env_block((*hdr).env, &mut env);
+                    status = build_env_block(((*hdr).env).as_ref(), &mut env);
                 }
 
                 if status != 0 {
@@ -488,10 +488,10 @@ mod win_impl {
         }
     }
 
-    fn build_env_block(denv: *mut dict_T, env_block: &mut Vec<u16>) -> c_int {
+    fn build_env_block(denv: Option<&dict_T>, env_block: &mut Vec<u16>) -> c_int {
         env_block.clear();
             let mut rc: c_int = 0;
-            let env = tv_dict_to_env(unsafe { denv.as_ref() });
+            let env = tv_dict_to_env(denv);
             let mut str_utf16: Vec<u16> = Vec::new();
 
             for entry in &env {

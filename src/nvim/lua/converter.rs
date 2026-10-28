@@ -742,7 +742,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             );
                             stack.push(cur);
                             tv_list_append_list( &mut *(*cur.tv).vval.v_list(), kv_pair);
-                            let last = tv_list_last(kv_pair);
+                            let last = tv_list_last(kv_pair.as_ref());
                             cur = TVPopStackItem {
                                 tv: &mut (*last).li_tv,
                                 list_len: 0,
@@ -784,7 +784,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         },
                     );
                     stack.push(cur);
-                    let last = tv_list_last(list);
+                    let last = tv_list_last(list.as_ref());
                     cur = TVPopStackItem {
                         tv: &mut (*last).li_tv,
                         list_len: 0,
@@ -881,7 +881,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                             table_props.string_keys_num as isize,
                                         );
                                         let val_di = tv_dict_find(
-                                            (*cur.tv).vval.v_dict(),
+                                            ((*cur.tv).vval.v_dict()).as_ref(),
                                             c"_VAL",
                                             4,
                                         );
@@ -1158,9 +1158,9 @@ fn lua_convert_one_value(
                 }
                 let mut handled_special = false;
                 if (*dict).dv_hashtab.ht_used == 2 {
-                    let type_di = tv_dict_find(dict, c"_TYPE", 5);
+                    let type_di = tv_dict_find(dict.as_ref(), c"_TYPE", 5);
                     if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VAR_LIST {
-                        let val_di = tv_dict_find(dict, c"_VAL", 4);
+                        let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in { *eval_msgpack_type_lists_mut() }.into_iter().enumerate() {
@@ -1191,7 +1191,7 @@ fn lua_convert_one_value(
                                                 let sign_li = tv_list_first(val_list.as_ref());
                                                 let highest_li = (*sign_li).li_next;
                                                 let high_li = (*highest_li).li_next;
-                                                let low_li = tv_list_last(val_list);
+                                                let low_li = tv_list_last(val_list.as_ref());
                                                 if (*sign_li).li_tv.v_type == VarType::VAR_NUMBER
                                                     && (*sign_li).li_tv.vval.v_number() != 0
                                                     && (*highest_li).li_tv.v_type
@@ -1326,7 +1326,7 @@ fn lua_convert_one_value(
                                         let val_list = (*val_di).di_tv.vval.v_list();
                                         if tv_list_len(val_list.as_ref()) == 2 {
                                             let first = tv_list_first(val_list.as_ref());
-                                            let last = tv_list_last(val_list);
+                                            let last = tv_list_last(val_list.as_ref());
                                             if (*first).li_tv.v_type == VarType::VAR_NUMBER
                                                 && (i8::MIN as i64..=i8::MAX as i64)
                                                     .contains(&(*first).li_tv.vval.v_number())
@@ -1454,7 +1454,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> bool {
                     {
                         return false;
                     }
-                    let last_item = tv_list_last(kv_pair);
+                    let last_item = tv_list_last(kv_pair.as_ref());
                     let next_li = (*li).li_next;
                     if let MPConvStackData::Pairs {
                         li: ref mut li_ref, ..

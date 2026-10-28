@@ -2886,7 +2886,7 @@ fn syn_cmd_spell(eap: &mut exarg_T, _syncing: c_int) {
             return;
         }
 
-        redraw_later(curwin_ptr(), UPD_NOT_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
     }
 }
 
@@ -2922,7 +2922,7 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
                 (&raw mut (*win_s(curwin_mut())).b_syn_chartab).cast(),
             );
         }
-        redraw_later(curwin_ptr(), UPD_NOT_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
     }
 }
 

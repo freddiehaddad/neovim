@@ -527,7 +527,7 @@ fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
 
 /// Do the appropriate action for the current mouse click in the current mode.
 pub fn do_mouse(
-    oap: *mut oparg_T,
+    mut oap: Option<&mut oparg_T>,
     c: c_int,
     mut dir: c_int,
     count: c_int,
@@ -612,11 +612,11 @@ pub fn do_mouse(
             return false;
         }
 
-        let mut regname = if !oap.is_null() { (*oap).regname } else { 0 };
+        let mut regname = if oap.is_some() { oap.as_deref_mut().unwrap().regname } else { 0 };
         if which_button == MOUSE_MIDDLE {
             if g_st().State == MODE_NORMAL {
-                if !oap.is_null() && (*oap).op_type != OP_NOP {
-                    clearopbeep(&mut *oap);
+                if oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
+                    clearopbeep(oap.as_deref_mut().unwrap());
                     return false;
                 }
 
@@ -790,9 +790,9 @@ pub fn do_mouse(
             }
         }
 
-        if !is_drag && !oap.is_null() && (*oap).op_type != OP_NOP {
+        if !is_drag && oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
             mouse_st().got_click = false;
-            (*oap).motion_type = kMTCharWise;
+            oap.as_deref_mut().unwrap().motion_type = kMTCharWise;
         }
 
         if !is_click && !is_drag {
@@ -805,10 +805,10 @@ pub fn do_mouse(
         if !g_st().Visual.active || mouse_can_visual {
             jump_flags = jump_to_mouse(
                 jump_flags,
-                if oap.is_null() {
+                if oap.is_none() {
                     ptr::null_mut()
                 } else {
-                    &raw mut (*oap).inclusive
+                    &raw mut oap.as_deref_mut().unwrap().inclusive
                 },
                 which_button,
             );
@@ -924,8 +924,8 @@ pub fn do_mouse(
             return false;
         }
 
-        if curwin_ptr() != old_curwin && !oap.is_null() && (*oap).op_type != OP_NOP {
-            clearop(&mut *oap);
+        if curwin_ptr() != old_curwin && oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
+            clearop(oap.as_deref_mut().unwrap());
         }
 
         if g_st().Visual.active && is_drag && get_scrolloff_value(curwin_mut()) != 0 {
@@ -1124,18 +1124,18 @@ pub fn do_mouse(
                     while ascii_iswhite(gchar_pos(&mut end_visual)) {
                         inc(&mut end_visual);
                     }
-                    if !oap.is_null() {
-                        (*oap).motion_type = kMTCharWise;
+                    if oap.is_some() {
+                        oap.as_deref_mut().unwrap().motion_type = kMTCharWise;
                     }
-                    if !oap.is_null()
+                    if oap.is_some()
                         && g_st().Visual.mode == b'v' as c_int
                         && !vim_iswordc(gchar_pos(&mut end_visual))
                         && equalpos(curwin_mut().w_cursor, g_st().Visual.start)
                     {
-                        pos = findmatch(oap.as_mut(), 0);
+                        pos = findmatch(oap.as_deref_mut(), 0);
                         if !pos.is_null() {
                             curwin_mut().w_cursor = *pos;
-                            if (*oap).motion_type == kMTLineWise {
+                            if oap.unwrap().motion_type == kMTLineWise {
                                 g_st().Visual.mode = b'V' as c_int;
                             } else if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                                 if lt(curwin_mut().w_cursor, g_st().Visual.start) {
@@ -1192,7 +1192,7 @@ pub fn ins_mouse(c: c_int) {
 
         undisplay_dollar();
         let mut tpos = curwin_mut().w_cursor;
-        if do_mouse(ptr::null_mut(), c, BACKWARD, 1, false) {
+        if do_mouse(None, c, BACKWARD, 1, false) {
             let new_curwin = curwin_ptr();
 
             if curwin_ptr() != old_curwin && win_valid(old_curwin) {
@@ -1640,7 +1640,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                 }
                 check_topfill(curwin_mut(), false);
                 curwin_mut().w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP);
-                redraw_later(curwin_ptr(), UPD_VALID);
+                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
                 row = 0;
             } else if row >= curwin_mut().w_view_height {
                 let mut count = 0;
@@ -1674,7 +1674,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                     }
                 }
                 check_topfill(curwin_mut(), false);
-                redraw_later(curwin_ptr(), UPD_VALID);
+                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
                 curwin_mut().w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP);
                 row = curwin_mut().w_view_height - 1;
             } else if row == 0
@@ -1792,7 +1792,7 @@ pub fn nv_mousescroll(cap: &mut cmdarg_T) {
 
 /// Mouse clicks and drags.
 pub fn nv_mouse(cap: &mut cmdarg_T) {
-    do_mouse(cap.oap, cap.cmdchar, BACKWARD, cap.count1, false);
+    do_mouse(Some(cap.oap_mut()), cap.cmdchar, BACKWARD, cap.count1, false);
 }
 
 /// Compute the buffer line position from the screen position "rowp" / "colp" in

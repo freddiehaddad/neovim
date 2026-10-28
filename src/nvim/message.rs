@@ -1219,7 +1219,7 @@ pub fn emsg<S: crate::strings::IntoCCharPtr>(s: S) -> bool {
 pub fn emsg_invreg(name: c_int) {
     semsg!(
             gettext(c"E354: Invalid register name: '%s'"),
-            transchar_buf(ptr::null(), name),
+            transchar_buf(None, name),
         );
 }
 
@@ -1952,7 +1952,7 @@ pub fn wait_return(redraw: c_int) {
         if tmpState == MODE_SETWSIZE {
             ui_refresh();
         } else if !g_st().skip_redraw && (redraw == 1 || (g_st().msg_scrolled != 0 && redraw != -1)) {
-            redraw_later(curwin_ptr(), UPD_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         }
     }
 }
@@ -2244,7 +2244,7 @@ pub fn msg_outtrans_len(
                     }
                     plain_start = str_.add(mb_l as usize);
                     msg_puts_hl(
-                        transchar_buf(ptr::null(), c),
+                        transchar_buf(None, c),
                         if hl_id == 0 { HLF_8 } else { hl_id },
                         false,
                     );

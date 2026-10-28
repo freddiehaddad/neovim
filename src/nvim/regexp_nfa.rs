@@ -2542,7 +2542,7 @@ fn has_state_with_pos(
     l: &mut nfa_list_T,
     state: usize,
     subs: &mut regsubs_T,
-    pim: *mut nfa_pim_T,
+    pim: Option<&nfa_pim_T>,
 ) -> bool {
     unsafe {
         let tp = l.t.as_mut_ptr();
@@ -2552,7 +2552,7 @@ fn has_state_with_pos(
                 && sub_equal(&mut (*thread).subs.norm, &mut subs.norm)
                 && (re_st().rex.nfa_has_zsubexpr == 0
                     || sub_equal(&mut (*thread).subs.synt, &mut subs.synt))
-                && pim_equal(Some(&(*thread).pim), pim.as_ref())
+                && pim_equal(Some(&(*thread).pim), pim)
             {
                 return true;
             }
@@ -2643,7 +2643,7 @@ fn state_in_list(
         };
         if states[state_idx].lastlist[re_st().nfa_ll_index] == l.id
             && (re_st().rex.nfa_has_backref == 0
-                || has_state_with_pos( l, state_idx,  &mut *subs, ptr::null_mut()))
+                || has_state_with_pos( l, state_idx,  &mut *subs, None))
         {
             return true;
         }
@@ -2731,7 +2731,7 @@ fn addstate_idx(
                         } else {
                             return subs_arg;
                         }
-                    } else if has_state_with_pos( l, state_idx,  &mut *subs_arg, pim) {
+                    } else if has_state_with_pos( l, state_idx,  &mut *subs_arg, pim.as_ref()) {
                         return subs_arg;
                     }
                 }

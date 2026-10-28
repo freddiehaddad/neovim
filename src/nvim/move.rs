@@ -179,7 +179,7 @@ fn redraw_for_cursorline(wp: &mut win_T) {
         }
 
         if wp.w_onebuf_opt.wo_rnu != 0 || win_cursorline_standout(&*wp) {
-            redraw_later(wp, UPD_VALID);
+            redraw_later(Some(&mut *wp), UPD_VALID);
         }
     }
 }
@@ -196,11 +196,11 @@ fn redraw_for_cursorcolumn(wp: &mut win_T) {
         }
 
         if wp.w_onebuf_opt.wo_cuc != 0 {
-            redraw_later((&raw mut *wp), UPD_SOME_VALID);
+            redraw_later(Some(&mut *wp), UPD_SOME_VALID);
         } else if wp.w_onebuf_opt.wo_cul != 0
             && (wp.w_p_culopt_flags & kOptCuloptFlagScreenline) != 0
         {
-            redraw_later((&raw mut *wp), UPD_VALID);
+            redraw_later(Some(&mut *wp), UPD_VALID);
         }
 
         if g_st().Visual.active && wp.w_buffer == g_st().curbuf {
@@ -260,7 +260,7 @@ fn reset_skipcol(wp: &mut win_T) {
         }
 
         wp.w_skipcol = 0;
-        redraw_later((&raw mut *wp), UPD_SOME_VALID);
+        redraw_later(Some(&mut *wp), UPD_SOME_VALID);
     }
 }
 
@@ -320,7 +320,7 @@ pub fn update_topline(wp: &mut win_T) {
 
         if buf_is_empty(wp.buf_mut()) {
             if wp.w_topline != 1 {
-                redraw_later((&raw mut *wp), UPD_NOT_VALID);
+                redraw_later(Some(&mut *wp), UPD_NOT_VALID);
             }
             wp.w_topline = 1;
             wp.w_botline = 2;
@@ -470,12 +470,12 @@ pub fn update_topline(wp: &mut win_T) {
 
         if wp.w_topline != old_topline || wp.w_topfill != old_topfill {
             g_st().dollar_vcol = -1;
-            redraw_later((&raw mut *wp), UPD_VALID);
+            redraw_later(Some(&mut *wp), UPD_VALID);
 
             if wp.w_onebuf_opt.wo_sms == 0 {
                 reset_skipcol(wp);
             } else if wp.w_skipcol != 0 {
-                redraw_later((&raw mut *wp), UPD_SOME_VALID);
+                redraw_later(Some(&mut *wp), UPD_SOME_VALID);
             }
 
             if wp.w_cursor.lnum == wp.w_topline {
@@ -597,7 +597,7 @@ pub fn changed_window_setting(wp: &mut win_T) {
     wp.w_lines_valid = 0;
         changed_line_abv_curs_win(wp);
         wp.w_valid &= !(VALID_BOTLINE | VALID_BOTLINE_AP | VALID_TOPLINE);
-        redraw_later(wp, UPD_NOT_VALID);
+        redraw_later(Some(&mut *wp), UPD_NOT_VALID);
 }
 
 /// Call `changed_window_setting()` for every window.
@@ -627,7 +627,7 @@ pub fn set_topline(wp: &mut win_T, mut lnum: linenr_T) {
             wp.w_topfill = 0;
         }
         wp.w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_TOPLINE);
-        redraw_later(wp, UPD_VALID);
+        redraw_later(Some(&mut *wp), UPD_VALID);
     }
 }
 
@@ -992,7 +992,7 @@ pub fn curs_columns(wp: &mut win_T, may_scroll: c_int) {
                 if new_leftcol != wp.w_leftcol {
                     wp.w_leftcol = new_leftcol;
                     win_check_anchored_floats( wp);
-                    redraw_later((&raw mut *wp), UPD_NOT_VALID);
+                    redraw_later(Some(&mut *wp), UPD_NOT_VALID);
                 }
             }
             wp.w_wcol -= wp.w_leftcol;
@@ -1093,7 +1093,7 @@ pub fn curs_columns(wp: &mut win_T, may_scroll: c_int) {
             wp.w_skipcol = 0;
         }
         if prev_skipcol != wp.w_skipcol {
-            redraw_later((&raw mut *wp), UPD_SOME_VALID);
+            redraw_later(Some(&mut *wp), UPD_SOME_VALID);
         }
 
         redraw_for_cursorcolumn(wp);
@@ -1448,7 +1448,7 @@ pub fn scroll_redraw(up: c_int, count: linenr_T) {
         if curwin_mut().w_cursor.lnum != prev_lnum {
             coladvance(curwin_mut(), curwin_mut().w_curswant);
         }
-        redraw_later(curwin_ptr(), UPD_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
     }
 }
 
@@ -1485,7 +1485,7 @@ pub fn scrolldown(wp: &mut win_T, line_count: linenr_T, byfold: c_int) -> bool {
                 } else {
                     wp.w_skipcol -= width1;
                 }
-                redraw_later(&raw mut *wp, UPD_NOT_VALID);
+                redraw_later(Some(&mut *wp), UPD_NOT_VALID);
                 done += 1;
             } else if can_fill {
                 wp.w_topfill += 1;
@@ -1510,7 +1510,7 @@ pub fn scrolldown(wp: &mut win_T, line_count: linenr_T, byfold: c_int) -> bool {
                     if size > width1 {
                         wp.w_skipcol = width1;
                         size -= width1;
-                        redraw_later(&raw mut *wp, UPD_NOT_VALID);
+                        redraw_later(Some(&mut *wp), UPD_NOT_VALID);
                     }
                     while size > width2 {
                         wp.w_skipcol += width2;
@@ -1638,7 +1638,7 @@ pub fn scrollup(wp: &mut win_T, line_count: linenr_T, byfold: bool) -> bool {
             }
 
             if prev_skipcol > 0 || wp.w_skipcol > 0 {
-                redraw_later(wp, UPD_NOT_VALID);
+                redraw_later(Some(&mut *wp), UPD_NOT_VALID);
             }
         } else {
             wp.w_topline += line_count;
@@ -1717,7 +1717,7 @@ pub fn adjust_skipcol() {
         }
         if scrolled {
             validate_virtcol(curwin_mut());
-            redraw_later(curwin_ptr(), UPD_NOT_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
             return;
         }
         let mut row: c_int = 0;
@@ -1747,7 +1747,7 @@ pub fn adjust_skipcol() {
             if row >= curwin_mut().w_view_height {
                 curwin_mut().w_skipcol += (row - curwin_mut().w_view_height) * width2;
             }
-            redraw_later(curwin_ptr(), UPD_NOT_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
         }
     }
 }
@@ -1975,7 +1975,7 @@ pub fn scroll_cursor_top(wp: &mut win_T, min_scroll: c_int, always: c_int) {
                     let skipcol = skipcol_from_plines(wp, plines_off);
                     if skipcol != wp.w_skipcol {
                         wp.w_skipcol = skipcol;
-                        redraw_later(wp, UPD_SOME_VALID);
+                        redraw_later(Some(&mut *wp), UPD_SOME_VALID);
                     }
                 }
             }
@@ -2061,7 +2061,7 @@ pub fn scroll_cursor_bot(wp: &mut win_T, min_scroll: c_int, set_topbot: bool) {
             {
                 wp.w_valid &= !(VALID_WROW | VALID_CROW);
                 if wp.w_skipcol != old_skipcol {
-                    redraw_later(wp, UPD_NOT_VALID);
+                    redraw_later(Some(&mut *wp), UPD_NOT_VALID);
                 } else {
                     reset_skipcol( &mut *wp);
                 }
@@ -2329,7 +2329,7 @@ pub fn scroll_cursor_halfway(wp: &mut win_T, atend: bool, prefer_above: bool) {
             wp.w_topline = topline;
             if skipcol != 0 {
                 wp.w_skipcol = skipcol;
-                redraw_later(wp, UPD_NOT_VALID);
+                redraw_later(Some(&mut *wp), UPD_NOT_VALID);
             } else if do_sms {
                 reset_skipcol( &mut *wp);
             }
@@ -2706,7 +2706,7 @@ fn move_cb_st() -> &'static mut MoveCursorbindState {
                     g_st().restart_edit = restart_edit_save;
                 }
                 mb_adjust_cursor();
-                redraw_later(curwin_ptr(), UPD_VALID);
+                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
 
                 if curwin_mut().w_onebuf_opt.wo_scb == 0 {
                     update_topline(curwin_mut());

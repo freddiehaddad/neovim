@@ -1133,7 +1133,7 @@ fn do_window_newwindow(nchar: c_int, Prenum: c_int, cbuf: &mut [c_char; 40]) {
 
 fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
     unsafe {
-        if check_text_or_curbuf_locked(ptr::null_mut()) {
+        if check_text_or_curbuf_locked(None) {
             return;
         }
 
@@ -1823,7 +1823,7 @@ pub fn ui_ext_win_position(wp: &mut win_T, validate: bool) {
                 wp.w_grid_alloc.mouse_enabled = wp.w_config.mouse;
                 if !valid {
                     wp.w_grid_alloc.valid = false;
-                    redraw_later(&raw mut *wp, UPD_NOT_VALID);
+                    redraw_later(Some(&mut *wp), UPD_NOT_VALID);
                 }
             } else {
                 if ui_has(kUIMultigrid) {
@@ -2429,8 +2429,8 @@ pub fn win_split_ins(
             win_comp_pos();
         }
 
-        redraw_later(wp, UPD_NOT_VALID);
-        redraw_later(oldwin, UPD_NOT_VALID);
+        redraw_later(wp.as_mut(), UPD_NOT_VALID);
+        redraw_later(oldwin.as_mut(), UPD_NOT_VALID);
         status_redraw_all();
 
         if need_status != 0 {
@@ -2734,7 +2734,7 @@ fn win_exchange(mut Prenum: c_int) {
         }
 
         win_enter(wp, true);
-        redraw_later(curwin_ptr(), UPD_NOT_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
     }
 }
 
@@ -2906,7 +2906,7 @@ pub fn win_move_after(win1: &mut win_T, win2: &mut win_T) {
             frame_append(&mut *win2.w_frame, &mut *win1.w_frame);
 
             win_comp_pos();
-            redraw_later(curwin_ptr(), UPD_NOT_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
         }
         win1.w_pos_changed = true;
         win2.w_pos_changed = true;
@@ -3277,7 +3277,7 @@ pub fn entering_window(win: &mut win_T) {
 }
 
 pub fn win_init_empty(wp: &mut win_T) {
-    redraw_later(wp, UPD_NOT_VALID);
+    redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         wp.w_lines_valid = 0;
         wp.w_cursor.lnum = 1;
         wp.w_cursor.col = 0;
@@ -5977,14 +5977,14 @@ fn win_enter_ext(wp: *mut win_T, flags: c_int) {
         curwin_mut().w_redr_status = true;
         g_st().redraw_tabline = true;
         if g_st().restart_edit != 0 {
-            redraw_later(curwin_ptr(), UPD_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         }
 
         if curwin_mut().w_hl_attr_normal != curwin_mut().w_hl_attr_normalnc {
-            redraw_later(curwin_ptr(), UPD_NOT_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
         }
         if !g_st().prevwin.is_null() && (*g_st().prevwin).w_hl_attr_normal != (*g_st().prevwin).w_hl_attr_normalnc {
-            redraw_later(g_st().prevwin, UPD_NOT_VALID);
+            redraw_later(g_st().prevwin.as_mut(), UPD_NOT_VALID);
         }
 
         if OptInt::from(curwin_mut().w_height) < opt_vars().p_wh
@@ -6809,7 +6809,7 @@ fn frame_comp_pos(topfrp: &mut frame_T, row: &mut c_int, col: &mut c_int) {
             if (*wp).w_winrow != *row || (*wp).w_wincol != *col {
                 (*wp).w_winrow = *row;
                 (*wp).w_wincol = *col;
-                redraw_later(wp, UPD_NOT_VALID);
+                redraw_later(wp.as_mut(), UPD_NOT_VALID);
                 (*wp).w_redr_status = true;
                 (*wp).w_pos_changed = true;
             }
@@ -6853,7 +6853,7 @@ pub fn win_setheight_win(mut height: c_int, win: *mut win_T, from_top: bool) {
         if (*win).w_floating {
             (*win).w_config.height = height.max(1);
             win_config_float(&mut *win, (*win).w_config.clone());
-            redraw_later(win, UPD_VALID);
+            redraw_later(win.as_mut(), UPD_VALID);
         } else {
             frame_setheight(
                 &mut *(*win).w_frame,
@@ -7007,7 +7007,7 @@ pub fn win_setwidth_win(mut width: c_int, wp: *mut win_T, from_left: bool) {
         if (*wp).w_floating {
             (*wp).w_config.width = width;
             win_config_float(&mut *wp, (*wp).w_config.clone());
-            redraw_later(wp, UPD_NOT_VALID);
+            redraw_later(wp.as_mut(), UPD_NOT_VALID);
         } else {
             frame_setwidth(&mut *(*wp).w_frame, width + (*wp).w_vsep_width, from_left);
 
@@ -7521,7 +7521,7 @@ pub fn scroll_to_fraction(wp: &mut win_T, prev_height: c_int) {
             wp.w_prev_fraction_row = wp.w_wrow;
         }
 
-        redraw_later(wp, UPD_SOME_VALID);
+        redraw_later(Some(&mut *wp), UPD_SOME_VALID);
         invalidate_botline_win(wp);
     }
 }
@@ -7560,7 +7560,7 @@ pub fn win_set_inner_size(wp: &mut win_T, valid_cursor: bool) {
                 }
                 scroll_to_fraction(wp, prev_height);
             }
-            redraw_later(wp, UPD_SOME_VALID);
+            redraw_later(Some(&mut *wp), UPD_SOME_VALID);
         }
 
         if width != wp.w_view_width {
@@ -7573,7 +7573,7 @@ pub fn win_set_inner_size(wp: &mut win_T, valid_cursor: bool) {
                     curs_columns( &mut *wp, 1);
                 }
             }
-            redraw_later(wp, UPD_NOT_VALID);
+            redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         }
 
         if !wp.buf_mut().terminal.is_null() {

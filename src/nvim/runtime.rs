@@ -3279,7 +3279,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut pat_owned: Option<std::ffi::CString> = None;
         if argvars[0].v_type == VarType::VAR_DICT {
             let arg_dict = argvars[0].vval.v_dict();
-            let sid_di = tv_dict_find(arg_dict, c"sid", 3);
+            let sid_di = tv_dict_find(arg_dict.as_ref(), c"sid", 3);
             if !sid_di.is_null() {
                 let mut error = false;
                 sid = tv_get_number_chk(&(*sid_di).di_tv, Some(&mut error));

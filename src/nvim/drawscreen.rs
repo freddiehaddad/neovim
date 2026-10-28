@@ -466,7 +466,7 @@ pub fn redrawing() -> bool {
 pub fn update_screen() -> bool {
     unsafe {
         if ds_st().still_may_intro && !may_show_intro() {
-            redraw_later(g_st().firstwin, UPD_NOT_VALID);
+            redraw_later(Some(crate::globals::firstwin_mut()), UPD_NOT_VALID);
             ds_st().still_may_intro = false;
         }
 
@@ -1444,7 +1444,7 @@ fn win_update(wp: &mut win_T) {
         for win in for_all_windows_ptr() {
             if ptr::eq((*win).w_buffer, wp.w_buffer) && win_redraw_signcols(&mut *win) {
                 changed_line_abv_curs_win(&mut *win);
-                redraw_later(win, UPD_NOT_VALID);
+                redraw_later(win.as_mut(), UPD_NOT_VALID);
             }
         }
         (*buf).b_signcols.last_max = (*buf).b_signcols.max;
@@ -2589,13 +2589,13 @@ pub fn number_width(wp: &mut win_T) -> c_int {
     }
 }
 
-pub fn redraw_later(wp: *mut win_T, type_: c_int) {
-    unsafe {
-        assert!(!wp.is_null() || g_st().exiting);
-        if !g_st().exiting && !g_st().redraw_not_allowed && (*wp).w_redr_type < type_ {
-            (*wp).w_redr_type = type_;
+pub fn redraw_later(mut wp: Option<&mut win_T>, type_: c_int) {
+     {
+        assert!(wp.is_some() || g_st().exiting);
+        if !g_st().exiting && !g_st().redraw_not_allowed && wp.as_deref_mut().unwrap().w_redr_type < type_ {
+            wp.as_deref_mut().unwrap().w_redr_type = type_;
             if type_ >= UPD_NOT_VALID {
-                (*wp).w_lines_valid = 0;
+                wp.unwrap().w_lines_valid = 0;
             }
             g_st().must_redraw = g_st().must_redraw.max(type_);
         }
@@ -2605,7 +2605,7 @@ pub fn redraw_later(wp: *mut win_T, type_: c_int) {
 pub fn redraw_all_later(type_: c_int) {
      {
         for wp in for_all_windows_ptr() {
-            redraw_later(wp, type_);
+            redraw_later(unsafe { wp.as_mut() }, type_);
         }
         set_must_redraw(type_);
     }
@@ -2620,7 +2620,7 @@ pub fn set_must_redraw(type_: c_int) {
 pub fn screen_invalidate_highlights() {
     unsafe {
         for wp in for_all_windows_ptr() {
-            redraw_later(wp, UPD_NOT_VALID);
+            redraw_later(wp.as_mut(), UPD_NOT_VALID);
             (*wp).w_grid_alloc.valid = false;
         }
     }
@@ -2634,7 +2634,7 @@ pub fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
     unsafe {
         for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
-                redraw_later(wp, type_);
+                redraw_later(wp.as_mut(), type_);
             }
         }
     }
@@ -2662,7 +2662,7 @@ pub fn redraw_win_range_later(wp: &mut win_T, first: linenr_T, last: linenr_T) {
             if wp.w_redraw_bot == 0 || wp.w_redraw_bot < last {
                 wp.w_redraw_bot = last;
             }
-            redraw_later((&raw mut *wp), UPD_VALID);
+            redraw_later(Some(&mut *wp), UPD_VALID);
         }
     }
 }
@@ -2713,7 +2713,7 @@ pub fn status_redraw_all() {
                 || (*wp).w_winbar_height != 0
             {
                 (*wp).w_redr_status = true;
-                redraw_later(wp, UPD_VALID);
+                redraw_later(wp.as_mut(), UPD_VALID);
             }
         }
     }
@@ -2734,12 +2734,12 @@ pub fn status_redraw_buf(buf: *mut buf_T) {
                     || (*wp).w_winbar_height != 0)
             {
                 (*wp).w_redr_status = true;
-                redraw_later(wp, UPD_VALID);
+                redraw_later(wp.as_mut(), UPD_VALID);
             }
         }
         if opt_vars().p_ru != 0 && curwin_mut().w_status_height == 0 && !curwin_mut().w_redr_status {
             g_st().redraw_cmdline = true;
-            redraw_later(curwin_ptr(), UPD_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         }
     }
 }

@@ -1282,7 +1282,7 @@ pub fn call_user_func(
             hash_add(&mut (*fc).fc_l_avars.dv_hashtab, &mut *v);
         }
         tv_list_init_static(&mut (*fc).fc_l_varlist);
-        tv_list_set_lock(&raw mut (*fc).fc_l_varlist, VAR_FIXED);
+        tv_list_set_lock(Some(&mut (*fc).fc_l_varlist), VAR_FIXED);
 
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
             add_nr_var(

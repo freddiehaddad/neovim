@@ -1518,14 +1518,14 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
                     return;
                 }
                 let dict = argvars[1].vval.v_dict();
-                let di_lnum = tv_dict_find(dict, c"lnum", -1);
+                let di_lnum = tv_dict_find(dict.as_ref(), c"lnum", -1);
                 if !di_lnum.is_null() {
                     lnum = tv_get_lnum(&(*di_lnum).di_tv);
                     if lnum <= 0 {
                         return;
                     }
                 }
-                let di_id = tv_dict_find(dict, c"id", -1);
+                let di_id = tv_dict_find(dict.as_ref(), c"id", -1);
                 if !di_id.is_null() {
                     sign_id =
                         tv_get_number_chk(&(*di_id).di_tv, Some(&mut notanum)) as c_int;
@@ -1533,7 +1533,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
                         return;
                     }
                 }
-                let di_group = tv_dict_find(dict, c"group", -1);
+                let di_group = tv_dict_find(dict.as_ref(), c"group", -1);
                 if !di_group.is_null() {
                     group = tv_get_string_chk(&(*di_group).di_tv);
                     if group.is_null() {
@@ -1593,7 +1593,7 @@ fn sign_place_from_dict(
         let mut id: c_int = 0;
         let mut notanum = false;
         if id_tv.is_none() {
-            let di = tv_dict_find(dict, c"id", -1);
+            let di = tv_dict_find(dict.as_ref(), c"id", -1);
             if !di.is_null() {
                 id_tv = Some(&(*di).di_tv);
             }
@@ -1611,7 +1611,7 @@ fn sign_place_from_dict(
 
         let mut group: *mut c_char = ptr::null_mut();
         if group_tv.is_none() {
-            let di = tv_dict_find(dict, c"group", -1);
+            let di = tv_dict_find(dict.as_ref(), c"group", -1);
             if !di.is_null() {
                 group_tv = Some(&(*di).di_tv);
             }
@@ -1627,7 +1627,7 @@ fn sign_place_from_dict(
         }
 
         if name_tv.is_none() {
-            let di = tv_dict_find(dict, c"name", -1);
+            let di = tv_dict_find(dict.as_ref(), c"name", -1);
             if !di.is_null() {
                 name_tv = Some(&(*di).di_tv);
             }
@@ -1641,7 +1641,7 @@ fn sign_place_from_dict(
         }
 
         if buf_tv.is_none() {
-            let di = tv_dict_find(dict, c"buffer", -1);
+            let di = tv_dict_find(dict.as_ref(), c"buffer", -1);
             if !di.is_null() {
                 buf_tv = Some(&mut (*di).di_tv);
             }
@@ -1655,7 +1655,7 @@ fn sign_place_from_dict(
         }
 
         let mut lnum: linenr_T = 0;
-        let di_lnum = tv_dict_find(dict, c"lnum", -1);
+        let di_lnum = tv_dict_find(dict.as_ref(), c"lnum", -1);
         if !di_lnum.is_null() {
             lnum = tv_get_lnum(&(*di_lnum).di_tv);
             if lnum <= 0 {
@@ -1665,7 +1665,7 @@ fn sign_place_from_dict(
         }
 
         let mut prio: c_int = -1;
-        let di_prio = tv_dict_find(dict, c"priority", -1);
+        let di_prio = tv_dict_find(dict.as_ref(), c"priority", -1);
         if !di_prio.is_null() {
             prio = tv_get_number_chk(&(*di_prio).di_tv, Some(&mut notanum)) as c_int;
             if notanum {
@@ -1794,14 +1794,14 @@ fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: *mut dict_T) -> c_i
         }
 
         if !dict.is_null() {
-            let di_buf = tv_dict_find(dict, c"buffer", -1);
+            let di_buf = tv_dict_find(dict.as_ref(), c"buffer", -1);
             if !di_buf.is_null() {
                 buf = get_buf_arg(&mut (*di_buf).di_tv);
                 if buf.is_null() {
                     return -1;
                 }
             }
-            if !tv_dict_find(dict, c"id", -1).is_null() {
+            if !tv_dict_find(dict.as_ref(), c"id", -1).is_null() {
                 id = tv_dict_get_number(dict, c"id") as c_int;
                 if id <= 0 {
                     emsg(gettext(e_invarg));

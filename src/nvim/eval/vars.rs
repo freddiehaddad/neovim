@@ -608,7 +608,7 @@ pub fn evalvars_init() {
         let msgpack_types_dict = tv_dict_alloc();
         for (i, type_name) in MSGPACK_TYPE_NAMES.iter().enumerate() {
             let type_list = tv_list_alloc(0);
-            tv_list_set_lock(type_list, VAR_FIXED);
+            tv_list_set_lock(type_list.as_mut(), VAR_FIXED);
             tv_list_ref(type_list);
             let di = tv_dict_item_alloc(type_name.as_ptr());
             (*di).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;

@@ -475,7 +475,7 @@ pub fn dict_get_value(
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let di = tv_dict_find(dict, key.data, key.size as isize);
+        let di = tv_dict_find(dict.as_ref(), key.data, key.size as isize);
         if di.is_null() {
             api_set_error!(
                 err,
@@ -496,7 +496,7 @@ pub fn dict_check_writable(
     err: &mut Error,
 ) -> *mut dictitem_T {
     unsafe {
-        let di = tv_dict_find(&raw mut *dict, key.data, key.size as isize);
+        let di = tv_dict_find(Some(dict), key.data, key.size as isize);
         if !di.is_null() {
             if ((*di).di_flags & DI_FLAGS_RO) != 0 {
                 api_set_error!(

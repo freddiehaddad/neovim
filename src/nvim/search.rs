@@ -3050,14 +3050,14 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 return;
             }
             let dict: *mut dict_T = argvars[0].vval.v_dict();
-            let mut di: *mut dictitem_T = tv_dict_find(dict, c"timeout", -1);
+            let mut di: *mut dictitem_T = tv_dict_find(dict.as_ref(), c"timeout", -1);
             if !di.is_null() {
                 timeout = tv_get_number_chk(&(*di).di_tv, Some(&mut error)) as c_int;
                 if error {
                     return;
                 }
             }
-            di = tv_dict_find(dict, c"maxcount", -1);
+            di = tv_dict_find(dict.as_ref(), c"maxcount", -1);
             if !di.is_null() {
                 maxcount = tv_get_number_chk(&(*di).di_tv, Some(&mut error)) as c_int;
                 if error {
@@ -3065,14 +3065,14 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 }
             }
             recompute = tv_dict_get_bool(dict, c"recompute", c_int::from(recompute)) != 0;
-            di = tv_dict_find(dict, c"pattern", -1);
+            di = tv_dict_find(dict.as_ref(), c"pattern", -1);
             if !di.is_null() {
                 pattern = tv_get_string_chk(&(*di).di_tv).cast_mut();
                 if pattern.is_null() {
                     return;
                 }
             }
-            di = tv_dict_find(dict, c"pos", -1);
+            di = tv_dict_find(dict.as_ref(), c"pos", -1);
             if !di.is_null() {
                 if (*di).di_tv.v_type != VarType::VAR_LIST {
                     semsg!(tr(e_invarg2), c"pos");
@@ -3085,7 +3085,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                     );
                     return;
                 }
-                let mut li: *mut listitem_T = tv_list_find((*di).di_tv.vval.v_list(), 0);
+                let mut li: *mut listitem_T = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 0);
                 if !li.is_null() {
                     pos.lnum =
                         tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as linenr_T;
@@ -3093,7 +3093,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                         return;
                     }
                 }
-                li = tv_list_find((*di).di_tv.vval.v_list(), 1);
+                li = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 1);
                 if !li.is_null() {
                     pos.col =
                         tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as colnr_T - 1;
@@ -3101,7 +3101,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                         return;
                     }
                 }
-                li = tv_list_find((*di).di_tv.vval.v_list(), 2);
+                li = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 2);
                 if !li.is_null() {
                     pos.coladd =
                         tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as colnr_T;
@@ -3785,7 +3785,7 @@ pub fn find_pattern_in_path(
                                     && win_valid(curwin_save)
                                 {
                                     validate_cursor(curwin_mut());
-                                    redraw_later(curwin_ptr(), UPD_VALID);
+                                    redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
                                     win_enter(curwin_save, true);
                                 }
                                 stop_fpip_loop = true;

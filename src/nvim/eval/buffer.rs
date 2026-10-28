@@ -478,7 +478,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
             if (*lines).v_type == VarType::VAR_LIST {
                 let l = (*lines).vval.v_list();
                 if !l.is_null() && tv_list_len(l.as_ref()) > 0 {
-                    let li = tv_list_last(l);
+                    let li = tv_list_last(l.as_ref());
                     let str_ = tv_get_string(&(*li).li_tv);
                     let bytes = crate::memory::cstr_as_bytes(str_);
                     if bytes.last() == Some(&b'\n') {

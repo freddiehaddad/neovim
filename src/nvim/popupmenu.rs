@@ -1311,7 +1311,7 @@ pub fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
         pum_preview_set_text(&mut *wp, info, &mut lnum, &mut max_info_width);
         g_st().no_u_sync -= 1;
         g_st().RedrawingDisabled -= 1;
-        redraw_later(wp, UPD_NOT_VALID);
+        redraw_later(wp.as_mut(), UPD_NOT_VALID);
 
         if !pum_adjust_info_position(&mut *wp, max_info_width) {
             wp = ptr::null_mut();
@@ -1498,7 +1498,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                             }
 
                             validate_cursor(curwin_mut());
-                            redraw_later(curwin_ptr(), UPD_SOME_VALID);
+                            redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
 
                             if resized && win_valid(curwin_save) {
                                 g_st().no_u_sync += 1;

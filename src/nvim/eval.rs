@@ -1100,7 +1100,7 @@ fn get_lval_dict_item(
         }
         lp.ll_dict = (*lp.ll_tv).vval.v_dict();
 
-        lp.ll_di = tv_dict_find(lp.ll_dict, key, len as isize);
+        lp.ll_di = tv_dict_find(lp.ll_dict.as_ref(), key, len as isize);
 
         if let Some(rettv) = rettv.as_deref() && (*lp.ll_dict).dv_scope != 0 {
             let prevval = if len != -1 {
@@ -2523,7 +2523,7 @@ fn eval_addblob(tv1: &mut typval_T, tv2: &mut typval_T) {
 fn eval_addlist(tv1: &mut typval_T, tv2: &mut typval_T) -> bool {
      {
         let mut var3 = tv_initial_value();
-        if !tv_list_concat(tv1.vval.v_list(), tv2.vval.v_list(), &mut var3) {
+        if !tv_list_concat(unsafe { tv1.vval.v_list().as_mut() }, tv2.vval.v_list(), &mut var3) {
             tv_clear(tv1);
             tv_clear(tv2);
             return false;
@@ -3562,7 +3562,7 @@ fn eval_index_inner(rettv: &mut typval_T,
                     }
                 }
 
-                let item = tv_dict_find(rettv.vval.v_dict(), key, keylen);
+                let item = tv_dict_find(rettv.vval.v_dict().as_ref(), key, keylen);
 
                 if item.is_null() && verbose {
                     if keylen > 0 {
@@ -4750,7 +4750,7 @@ fn eval_dict(
                 return FAIL;
             }
             if evaluate {
-                let mut item = tv_dict_find(d, key, -1);
+                let mut item = tv_dict_find(d.as_ref(), key, -1);
                 if !item.is_null() {
                     semsg!(
                         gettext(c"E721: Duplicate key in Dictionary: \"%s\""),
@@ -5684,7 +5684,7 @@ pub fn var2fpos(
                 ml_get_buf_len(&mut *bp, eval_st().VAR2FPOS_POS.lnum)
             };
 
-            let li = tv_list_find(l, 1);
+            let li = tv_list_find(l.as_mut(), 1);
             if !li.is_null()
                 && (*tv_list_item_tv(&mut *li)).v_type == VarType::VAR_STRING
                 && !(*tv_list_item_tv(&mut *li)).vval.v_string().is_null()
@@ -6144,10 +6144,10 @@ pub fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
     unsafe {
         let l = tv_list_alloc(argc as isize);
 
-        tv_list_set_lock(l, VAR_FIXED);
+        tv_list_set_lock(l.as_mut(), VAR_FIXED);
         for i in 0..(argc as usize) {
             tv_list_append_string( &mut *l, (*argv.add(i)).cast_const(), -1);
-            (*tv_list_item_tv(&mut *tv_list_last(l))).v_lock = VAR_FIXED;
+            (*tv_list_item_tv(&mut *tv_list_last(l.as_ref()))).v_lock = VAR_FIXED;
         }
         set_vim_var_list(VV_ARGV, l);
     }
@@ -6764,7 +6764,7 @@ pub fn do_string_sub(
                     zero_width = regmatch.startp[0];
                 }
 
-                let sublen = vim_regsub(&mut regmatch, sub, expr, tail, 0, REGSUB_MAGIC);
+                let sublen = vim_regsub(&mut regmatch, sub, expr.as_ref(), tail, 0, REGSUB_MAGIC);
                 if sublen <= 0 {
                     out = None;
                     break;
@@ -6780,7 +6780,7 @@ pub fn do_string_sub(
                 vim_regsub(
                     &mut regmatch,
                     sub,
-                    expr,
+                    expr.as_ref(),
                     buf.as_mut_ptr().add(cur_len),
                     sublen,
                     REGSUB_COPY | REGSUB_MAGIC,

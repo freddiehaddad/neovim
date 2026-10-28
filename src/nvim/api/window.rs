@@ -189,7 +189,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
         }
         ctx_restore(&mut switchwin);
 
-        redraw_later((&raw mut *w), UPD_VALID);
+        redraw_later(Some(&mut *(w)), UPD_VALID);
         w.w_redr_status = true;
     }
 }
@@ -506,7 +506,7 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
 
         w.w_ns_hl = ns_id as c_int;
         w.w_hl_needs_update = 1;
-        redraw_later((&raw mut *w), UPD_NOT_VALID);
+        redraw_later(Some(&mut *(w)), UPD_NOT_VALID);
     }
 }
 

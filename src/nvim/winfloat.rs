@@ -134,7 +134,7 @@ pub fn win_new_float(
         (*wp).w_vsep_width = 0;
 
         win_config_float(&mut *wp, fconfig);
-        redraw_later(wp, UPD_VALID);
+        redraw_later(wp.as_mut(), UPD_VALID);
         wp
     }
 }
@@ -280,7 +280,7 @@ pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
         wp.w_pos_changed = true;
         if change_external || change_border {
             wp.w_hl_needs_update = 1;
-            redraw_later(wp, UPD_NOT_VALID);
+            redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         }
 
         // compute initial position
@@ -328,7 +328,7 @@ pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
         // changing border style while keeping border only requires redrawing border
         if wp.w_config.border {
             wp.w_redr_border = true;
-            redraw_later(wp, UPD_VALID);
+            redraw_later(Some(&mut *wp), UPD_VALID);
         }
     }
 }

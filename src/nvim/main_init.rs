@@ -709,7 +709,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         setmouse();
 
-        redraw_later(curwin_ptr(), UPD_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
 
         g_st().no_wait_return += 1;
 
@@ -1833,7 +1833,7 @@ fn set_argf_var() {
                 tv_list_append_string( &mut *list, (&raw const g_st().NameBuff).cast(), -1);
             }
         }
-        tv_list_set_lock(list, VAR_FIXED);
+        tv_list_set_lock(list.as_mut(), VAR_FIXED);
         set_vim_var_list(VV_ARGF, list);
     }
 }

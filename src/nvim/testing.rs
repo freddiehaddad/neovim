@@ -198,7 +198,7 @@ fn fill_assert_error(
                     if !hashitem_empty(&*hi) {
                         let di1 = crate::eval::typval::tv_dict_hi2di(hi);
                         let hi_key = (&*hi).key_ptr();
-                        let item2 = tv_dict_find(got_d, hi_key, -1);
+                        let item2 = tv_dict_find(got_d.as_ref(), hi_key, -1);
                         if item2.is_null()
                             || !tv_equal(&(*di1).di_tv, &(*item2).di_tv, false)
                         {
@@ -225,7 +225,7 @@ fn fill_assert_error(
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
                         let hi_key = (&*hi).key_ptr();
-                        let item2 = tv_dict_find(exp_d, hi_key, -1);
+                        let item2 = tv_dict_find(exp_d.as_ref(), hi_key, -1);
                         if item2.is_null() {
                             let di2 = crate::eval::typval::tv_dict_hi2di(hi);
                             let key_len = crate::memory::cstr_len(hi_key);
@@ -663,7 +663,7 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                         let s = crate::memory::cstr_to_cstring(get_vim_var_str(VV_ERRMSG));
                         actual = s.as_ptr().cast_mut();
                         tofree = Some(s);
-                        let last_tv = &(*tv_list_last(list)).li_tv;
+                        let last_tv = &(*tv_list_last(list.as_ref())).li_tv;
                         let expected2 = tv_get_string_buf_chk(last_tv, buf.as_mut_ptr());
                         if expected2.is_null() {
                             valid_args = false;

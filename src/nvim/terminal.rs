@@ -1119,12 +1119,12 @@ fn set_terminal_winopts(s: &mut TerminalState) {
         curwin_mut().w_onebuf_opt.wo_siso = 0;
 
         if curwin_mut().w_onebuf_opt.wo_cuc != s.save_w_p_cuc {
-            redraw_later(curwin_ptr(), UPD_SOME_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
         } else if (curwin_mut().w_onebuf_opt.wo_cul != 0) != s.save_w_p_cul
             || (curwin_mut().w_onebuf_opt.wo_cul != 0
                 && curwin_mut().w_p_culopt_flags != s.save_w_p_culopt_flags)
         {
-            redraw_later(curwin_ptr(), UPD_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         }
     }
 }
@@ -1150,12 +1150,12 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
                 winopts = &raw mut (*wp).w_onebuf_opt;
                 if win_valid(wp) {
                     if s.save_w_p_cuc != (*wp).w_onebuf_opt.wo_cuc {
-                        redraw_later(wp, UPD_SOME_VALID);
+                        redraw_later(wp.as_mut(), UPD_SOME_VALID);
                     } else if s.save_w_p_cul != ((*wp).w_onebuf_opt.wo_cul != 0)
                         || (s.save_w_p_cul
                             && s.save_w_p_culopt_flags != (*wp).w_p_culopt_flags)
                     {
-                        redraw_later(wp, UPD_VALID);
+                        redraw_later(wp.as_mut(), UPD_VALID);
                     }
                 }
                 (*wp).w_p_culopt_flags = s.save_w_p_culopt_flags;
@@ -2308,7 +2308,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
                 curwin_mut().w_redr_status = true;
                 set_curwin(save_curwin);
                 g_st().curbuf = curwin_mut().w_buffer;
-                redraw_later(mouse_win, UPD_NOT_VALID);
+                redraw_later(mouse_win.as_mut(), UPD_NOT_VALID);
                 invalidate_terminal(term, -1, -1);
                 return mouse_win == curwin_ptr();
             }

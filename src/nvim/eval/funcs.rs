@@ -416,11 +416,11 @@ use crate::os::time::mktime;
 use crate::terminal::{terminal_buf, terminal_open, terminal_running};
 
 #[inline]
-fn tv_list_uidx(l: *const list_T, mut n: c_int) -> c_int {
+fn tv_list_uidx(l: Option<&list_T>, mut n: c_int) -> c_int {
     if n < 0 {
-            n += tv_list_len(unsafe { l.as_ref() });
+            n += tv_list_len(l);
         }
-        if n < 0 || n >= tv_list_len(unsafe { l.as_ref() }) { -1 } else { n }
+        if n < 0 || n >= tv_list_len(l) { -1 } else { n }
 }
 
 #[inline]
@@ -2824,7 +2824,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
             if !l.is_null() {
                 let mut error = false;
                 let li = tv_list_find(
-                    l,
+                    l.as_mut(),
                     tv_get_number_chk(&argvars[1], Some(&mut error)) as c_int,
                 );
                 if !error && !li.is_null() {
@@ -2834,7 +2834,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
         } else if argvars[0].v_type == VarType::VAR_DICT {
             let d = argvars[0].vval.v_dict();
             if !d.is_null() {
-                let di = tv_dict_find(d, tv_get_string(&argvars[1]), -1);
+                let di = tv_dict_find(d.as_ref(), tv_get_string(&argvars[1]), -1);
                 if !di.is_null() {
                     tv = &raw mut (*di).di_tv;
                 }
@@ -4060,13 +4060,13 @@ pub fn f_index(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
             idx = tv_list_uidx(
-                l,
+                l.as_ref(),
                 tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int,
             );
             if error || idx == -1 {
                 item = ptr::null_mut();
             } else {
-                item = tv_list_find(l, idx);
+                item = tv_list_find(l.as_mut(), idx);
                 debug_assert!(!item.is_null());
             }
             if argvars[3].v_type != VarType::VAR_UNKNOWN {
@@ -4151,11 +4151,11 @@ fn indexof_list(l: *mut list_T, startidx: varnumber_T,expr: &mut typval_T) -> va
         if startidx == 0 {
             item = tv_list_first(l.as_ref());
         } else {
-            idx = varnumber_T::from(tv_list_uidx(l, startidx as c_int));
+            idx = varnumber_T::from(tv_list_uidx(l.as_ref(), startidx as c_int));
             if idx == -1 {
                 item = ptr::null_mut();
             } else {
-                item = tv_list_find(l, idx as c_int);
+                item = tv_list_find(l.as_mut(), idx as c_int);
                 debug_assert!(!item.is_null());
             }
         }
@@ -4503,7 +4503,7 @@ pub fn create_environment(
 
             if pty {
                 for &ignored in PTY_IGNORED_ENV_VARS {
-                    let dv = tv_dict_find(env, ignored.as_ptr(), -1);
+                    let dv = tv_dict_find(env.as_ref(), ignored.as_ptr(), -1);
                     if !dv.is_null() {
                         tv_dict_item_remove(&mut *env,  &mut *dv);
                     }
@@ -4515,7 +4515,7 @@ pub fn create_environment(
         }
 
         if pty {
-            let dv = tv_dict_find(env, c"TERM", 4);
+            let dv = tv_dict_find(env.as_ref(), c"TERM", 4);
             if !dv.is_null() {
                 tv_dict_item_remove(&mut *env,  &mut *dv);
             }
@@ -4525,7 +4525,7 @@ pub fn create_environment(
         if set_nvim_addr {
             let nvim_addr = get_vim_var_str(VV_SEND_SERVER);
             if *nvim_addr != NUL {
-                let dv = tv_dict_find(env, c"NVIM", 4);
+                let dv = tv_dict_find(env.as_ref(), c"NVIM", 4);
                 if !dv.is_null() {
                     tv_dict_item_remove(&mut *env,  &mut *dv);
                 }
@@ -4552,7 +4552,7 @@ pub fn create_environment(
                                 namelen = mb_strup_buf(name, namebuff);
                                 name = namebuff;
                             }
-                            let dv = tv_dict_find(env, name, namelen as isize);
+                            let dv = tv_dict_find(env.as_ref(), name, namelen as isize);
                             if !dv.is_null() {
                                 tv_dict_item_remove(&mut *env,  &mut *dv);
                             }
@@ -4575,7 +4575,7 @@ pub fn create_environment(
         if pty {
             for &req in REQUIRED_ENV_VARS {
                 let len = req.to_bytes().len();
-                let dv = tv_dict_find(env, req.as_ptr(), len as isize);
+                let dv = tv_dict_find(env.as_ref(), req.as_ptr(), len as isize);
                 if dv.is_null()
                     && let Some(env_var) = os_getenv_cstr(req.as_ptr())
                 {
@@ -4649,7 +4649,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 }
             }
 
-            let job_term = tv_dict_find(job_opts, c"term", 4);
+            let job_term = tv_dict_find(job_opts.as_ref(), c"term", 4);
             if !job_term.is_null() && (*job_term).di_tv.v_type != VarType::VAR_BOOL {
                 semsg!(
                     gettext(e_invarg2),
@@ -4687,7 +4687,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 }
             }
 
-            job_env = tv_dict_find(job_opts, c"env", 3);
+            job_env = tv_dict_find(job_opts.as_ref(), c"env", 3);
             if !job_env.is_null() && (*job_env).di_tv.v_type != VarType::VAR_DICT {
                 semsg!(gettext(e_invarg2), c"env");
                 return;
@@ -5311,11 +5311,11 @@ fn find_some_match(argvars: &mut [typval_T], rettv: &mut typval_T, type_: SomeMa
                     break 'theend;
                 }
                 if !l.is_null() {
-                    idx = tv_list_uidx(l, start as c_int);
+                    idx = tv_list_uidx(l.as_ref(), start as c_int);
                     if idx == -1 {
                         break 'theend;
                     }
-                    li = tv_list_find(l, idx);
+                    li = tv_list_find(l.as_mut(), idx);
                 } else {
                     if start < 0 {
                         start = 0;
@@ -5591,7 +5591,7 @@ pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         if argvars[4].v_type != VarType::VAR_UNKNOWN {
             let d = argvars[4].vval.v_dict();
             if !d.is_null() {
-                let di = tv_dict_find(d, c"submatches", 10);
+                let di = tv_dict_find(d.as_ref(), c"submatches", 10);
                 if !di.is_null() {
                     if (*di).di_tv.v_type != VarType::VAR_BOOL {
                         semsg!(gettext(e_invargval), c"submatches");
@@ -5682,7 +5682,7 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 if argvars[2].v_type != VarType::VAR_UNKNOWN {
                     let d = argvars[2].vval.v_dict();
                     if !d.is_null() {
-                        let di = tv_dict_find(d, c"submatches", 10);
+                        let di = tv_dict_find(d.as_ref(), c"submatches", 10);
                         if !di.is_null() {
                             if (*di).di_tv.v_type != VarType::VAR_BOOL {
                                 semsg!(gettext(e_invargval), c"submatches");
@@ -5919,7 +5919,7 @@ fn msgpackparse_unpack_list(list: *const list_T, ret_list: &mut list_T) {
             );
             return;
         }
-        let mut lrstate: ListReaderState = encode_init_lrstate(list);
+        let mut lrstate: ListReaderState = encode_init_lrstate(list.as_ref());
         let buf = alloc_block();
         let mut buf_size: usize = 0;
 
@@ -6217,10 +6217,10 @@ pub fn f_rand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                 return;
             }
 
-            let tvx = &raw mut (*tv_list_find(l, 0)).li_tv;
-            let tvy = &raw mut (*tv_list_find(l, 1)).li_tv;
-            let tvz = &raw mut (*tv_list_find(l, 2)).li_tv;
-            let tvw = &raw mut (*tv_list_find(l, 3)).li_tv;
+            let tvx = &raw mut (*tv_list_find(l.as_mut(), 0)).li_tv;
+            let tvy = &raw mut (*tv_list_find(l.as_mut(), 1)).li_tv;
+            let tvz = &raw mut (*tv_list_find(l.as_mut(), 2)).li_tv;
+            let tvw = &raw mut (*tv_list_find(l.as_mut(), 3)).li_tv;
             if (*tvx).v_type != VarType::VAR_NUMBER
                 || (*tvy).v_type != VarType::VAR_NUMBER
                 || (*tvz).v_type != VarType::VAR_NUMBER
@@ -6488,13 +6488,13 @@ pub fn f_reltimestr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
     }
 }
 
-fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: &mut typval_T) {
-    let slen = tv_list_len(unsafe { l.as_ref() });
+fn repeat_list(l: Option<&list_T>, mut n: varnumber_T, rettv: &mut typval_T) {
+    let slen = tv_list_len(l);
         tv_list_alloc_ret(
             &mut *rettv,
             (varnumber_T::from(n > 0) * n * varnumber_T::from(slen)) as isize,
         );
-        if l.is_null() || n <= 0 || slen == 0 {
+        if l.is_none() || n <= 0 || slen == 0 {
             return;
         }
         if !check_repeat_count(varnumber_T::from(slen), n) {
@@ -6502,7 +6502,7 @@ fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: &mut typval_T) {
         }
         while n > 0 {
             n -= 1;
-            tv_list_extend(unsafe { &mut *rettv.vval.v_list() }, unsafe { l.as_ref() }, ptr::null_mut());
+            tv_list_extend(unsafe { &mut *rettv.vval.v_list() }, l, ptr::null_mut());
         }
 }
 
@@ -6581,7 +6581,7 @@ pub fn f_repeat(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
      {
         let n = tv_get_number(&argvars[1]);
         if argvars[0].v_type == VarType::VAR_LIST {
-            repeat_list(argvars[0].vval.v_list(), n, rettv);
+            repeat_list(unsafe { argvars[0].vval.v_list().as_ref() }, n, rettv);
         } else if argvars[0].v_type == VarType::VAR_BLOB {
             repeat_blob(&mut argvars[0], n, rettv);
         } else {
@@ -6620,7 +6620,7 @@ fn reduce_list(argvars: &mut [typval_T], rettv: &mut typval_T) {
         }
 
         let prev_locked = tv_list_locked(l.as_ref());
-        tv_list_set_lock(l, VAR_FIXED);
+        tv_list_set_lock(l.as_mut(), VAR_FIXED);
         while !li.is_null() {
             let mut argv = [tv_initial_value(); 3];
             argv[0] = *rettv;
@@ -6634,7 +6634,7 @@ fn reduce_list(argvars: &mut [typval_T], rettv: &mut typval_T) {
             }
             li = (*li).li_next;
         }
-        tv_list_set_lock(l, prev_locked);
+        tv_list_set_lock(l.as_mut(), prev_locked);
     }
 }
 
@@ -7814,7 +7814,7 @@ pub fn f_setcharsearch(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
             set_last_csearch(c, csearch, utfc_ptr2len(csearch));
         }
 
-        let mut di = tv_dict_find(d, c"forward", 7);
+        let mut di = tv_dict_find(d.as_ref(), c"forward", 7);
         if !di.is_null() {
             set_csearch_direction(if tv_get_number(&(*di).di_tv) != 0 {
                 FORWARD
@@ -7823,7 +7823,7 @@ pub fn f_setcharsearch(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
             });
         }
 
-        di = tv_dict_find(d, c"until", 5);
+        di = tv_dict_find(d.as_ref(), c"until", 5);
         if !di.is_null() {
             set_csearch_until(c_int::from(tv_get_number(&(*di).di_tv) != 0));
         }
@@ -7957,7 +7957,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 return;
             }
 
-            let di = tv_dict_find(d, c"regcontents", -1);
+            let di = tv_dict_find(d.as_ref(), c"regcontents", -1);
             if !di.is_null() {
                 regcontents = &raw const (*di).di_tv;
             }
@@ -9078,7 +9078,7 @@ pub fn f_timer_start(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 return;
             }
             let dict = argvars[2].vval.v_dict();
-            let di = tv_dict_find(dict, c"repeat", 6);
+            let di = tv_dict_find(dict.as_ref(), c"repeat", 6);
             if !di.is_null() {
                 repeat = tv_get_number(&(*di).di_tv) as c_int;
                 if repeat == 0 {

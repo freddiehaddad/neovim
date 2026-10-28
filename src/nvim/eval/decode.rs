@@ -223,7 +223,7 @@ fn json_decoder_pop(
             if last_container.special_val.is_null()
                 && (obj.is_special_string
                     || obj.val.vval.v_string().is_null()
-                    || !tv_dict_find(dict, obj.val.vval.v_string(), -1).is_null())
+                    || !tv_dict_find(dict.as_ref(), obj.val.vval.v_string(), -1).is_null())
             {
                 let mut v = obj.val;
                 tv_clear(&mut v);

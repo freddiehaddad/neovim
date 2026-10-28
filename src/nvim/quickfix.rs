@@ -4164,7 +4164,7 @@ fn qf_win_goto(win: *mut win_T, lnum: linenr_T) {
         curwin_mut().w_cursor.coladd = 0;
         curwin_mut().w_curswant = 0;
         update_topline(curwin_mut());
-        redraw_later(curwin_ptr(), UPD_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         curwin_mut().w_redr_status = true;
         set_curwin(old_curwin);
         g_st().curbuf = curwin_mut().w_buffer;
@@ -6199,7 +6199,7 @@ fn qf_get_list_from_lines(
         }
 
         let mut errorformat = opt_vars().p_efm;
-        let efm_di = tv_dict_find(what, c"efm", 3);
+        let efm_di = tv_dict_find(Some(what), c"efm", 3);
         if !efm_di.is_null() {
             if (*efm_di).di_tv.v_type != VarType::VAR_STRING
                 || (*efm_di).di_tv.vval.v_string().is_null()
@@ -6268,46 +6268,46 @@ fn qf_getprop_qfbufnr(qi: Option<&qf_info_T>, retdict: &mut dict_T) -> bool {
 fn qf_getprop_keys2flags(what: &dict_T, loclist: bool) -> c_int {
     let mut flags = QF_GETLIST_NONE;
 
-        if !tv_dict_find(what, c"all", 3).is_null() {
+        if !tv_dict_find(Some(what), c"all", 3).is_null() {
             flags |= QF_GETLIST_ALL;
             if !loclist {
                 flags &= !QF_GETLIST_FILEWINID;
             }
         }
-        if !tv_dict_find(what, c"title", 5).is_null() {
+        if !tv_dict_find(Some(what), c"title", 5).is_null() {
             flags |= QF_GETLIST_TITLE;
         }
-        if !tv_dict_find(what, c"nr", 2).is_null() {
+        if !tv_dict_find(Some(what), c"nr", 2).is_null() {
             flags |= QF_GETLIST_NR;
         }
-        if !tv_dict_find(what, c"winid", 5).is_null() {
+        if !tv_dict_find(Some(what), c"winid", 5).is_null() {
             flags |= QF_GETLIST_WINID;
         }
-        if !tv_dict_find(what, c"context", 7).is_null() {
+        if !tv_dict_find(Some(what), c"context", 7).is_null() {
             flags |= QF_GETLIST_CONTEXT;
         }
-        if !tv_dict_find(what, c"id", 2).is_null() {
+        if !tv_dict_find(Some(what), c"id", 2).is_null() {
             flags |= QF_GETLIST_ID;
         }
-        if !tv_dict_find(what, c"items", 5).is_null() {
+        if !tv_dict_find(Some(what), c"items", 5).is_null() {
             flags |= QF_GETLIST_ITEMS;
         }
-        if !tv_dict_find(what, c"idx", 3).is_null() {
+        if !tv_dict_find(Some(what), c"idx", 3).is_null() {
             flags |= QF_GETLIST_IDX;
         }
-        if !tv_dict_find(what, c"size", 4).is_null() {
+        if !tv_dict_find(Some(what), c"size", 4).is_null() {
             flags |= QF_GETLIST_SIZE;
         }
-        if !tv_dict_find(what, c"changedtick", 11).is_null() {
+        if !tv_dict_find(Some(what), c"changedtick", 11).is_null() {
             flags |= QF_GETLIST_TICK;
         }
-        if loclist && !tv_dict_find(what, c"filewinid", 9).is_null() {
+        if loclist && !tv_dict_find(Some(what), c"filewinid", 9).is_null() {
             flags |= QF_GETLIST_FILEWINID;
         }
-        if !tv_dict_find(what, c"qfbufnr", 7).is_null() {
+        if !tv_dict_find(Some(what), c"qfbufnr", 7).is_null() {
             flags |= QF_GETLIST_QFBUFNR;
         }
-        if !tv_dict_find(what, c"quickfixtextfunc", 16).is_null() {
+        if !tv_dict_find(Some(what), c"quickfixtextfunc", 16).is_null() {
             flags |= QF_GETLIST_QFTF;
         }
 
@@ -6317,7 +6317,7 @@ fn qf_getprop_keys2flags(what: &dict_T, loclist: bool) -> c_int {
 fn qf_getprop_qfidx(qi: &mut qf_info_T, what: &mut dict_T) -> c_int {
     unsafe {
         let mut qf_idx = qi.qf_curlist;
-        let mut di = tv_dict_find(what, c"nr", 2);
+        let mut di = tv_dict_find(Some(what), c"nr", 2);
         if !di.is_null() {
             if (*di).di_tv.v_type == VarType::VAR_NUMBER {
                 if (*di).di_tv.vval.v_number() != 0 {
@@ -6335,7 +6335,7 @@ fn qf_getprop_qfidx(qi: &mut qf_info_T, what: &mut dict_T) -> c_int {
             }
         }
 
-        di = tv_dict_find(what, c"id", 2);
+        di = tv_dict_find(Some(what), c"id", 2);
         if !di.is_null() {
             if (*di).di_tv.v_type == VarType::VAR_NUMBER {
                 if (*di).di_tv.vval.v_number() != 0 {
@@ -6485,36 +6485,36 @@ fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
         }
 }
 
-fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) -> bool {
+fn qf_get_properties(wp: Option<&win_T>, what: &mut dict_T, retdict: &mut dict_T) -> bool {
     unsafe {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
         let mut status = true;
         let mut qf_idx = INVALID_QFIDX;
 
-        let di = tv_dict_find(what, c"lines", 5);
+        let di = tv_dict_find(Some(what), c"lines", 5);
         if !di.is_null() {
             return qf_get_list_from_lines(what,  &mut *di, retdict);
         }
 
-        if !wp.is_null() {
-            qi = get_loc_list( &*wp);
+        if let Some(wp) = wp {
+            qi = get_loc_list(wp);
         }
 
-        let flags = qf_getprop_keys2flags(what, !wp.is_null());
+        let flags = qf_getprop_keys2flags(what, wp.is_some());
 
         if !qf_stack_empty(qi.as_ref()) {
             qf_idx = qf_getprop_qfidx(&mut *qi, what);
         }
 
         if qf_stack_empty(qi.as_ref()) || qf_idx == INVALID_QFIDX {
-            return qf_getprop_defaults(qi, flags, !wp.is_null(), retdict);
+            return qf_getprop_defaults(qi, flags, wp.is_some(), retdict);
         }
 
         let qfl = qf_get_list(&mut *qi, qf_idx);
         let mut eidx: c_int = 0;
 
-        let di = tv_dict_find(what, c"idx", 3);
+        let di = tv_dict_find(Some(what), c"idx", 3);
         if !di.is_null() {
             if (*di).di_tv.v_type != VarType::VAR_NUMBER {
                 return false;
@@ -6561,8 +6561,8 @@ fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) ->
                 varnumber_T::from(qfl.qf_changedtick),
             );
         }
-        if status && !wp.is_null() && (flags & QF_GETLIST_FILEWINID) != 0 {
-            status = qf_getprop_filewinid(wp.as_ref(), &*qi, retdict);
+        if status && wp.is_some() && (flags & QF_GETLIST_FILEWINID) != 0 {
+            status = qf_getprop_filewinid(wp, &*qi, retdict);
         }
         if status && (flags & QF_GETLIST_QFBUFNR) != 0 {
             status = qf_getprop_qfbufnr(qi.as_ref(), retdict);
@@ -6629,7 +6629,7 @@ fn qf_add_entry_from_dict(
             bufnum = 0;
         }
 
-        if !tv_dict_find(d, c"valid", -1).is_null() {
+        if !tv_dict_find(Some(d), c"valid", -1).is_null() {
             valid = tv_dict_get_bool(d, c"valid", 0) != 0;
         }
 
@@ -6738,7 +6738,7 @@ fn entry_is_closer_to_target(
 fn qf_add_entries(
     qi: &mut qf_info_T,
     mut qf_idx: c_int,
-    list: *mut list_T,
+    list: Option<&list_T>,
     title: *mut c_char,
     action: c_int,
 ) -> c_int {
@@ -6785,7 +6785,7 @@ fn qf_add_entries(
 
         let mut entry_to_select_index: c_int = 0;
 
-        let first_li = tv_list_first(list.as_ref());
+        let first_li = tv_list_first(list);
         for li in crate::eval::typval::list_iter_ptr(first_li) {
             if (*li).li_tv.v_type == VarType::VAR_DICT {
                 let d = (*li).li_tv.vval.v_dict();
@@ -6839,7 +6839,7 @@ fn qf_setprop_get_qfidx(
     unsafe {
         let mut qf_idx = qi.qf_curlist;
 
-        let di = tv_dict_find(what, c"nr", 2);
+        let di = tv_dict_find(Some(what), c"nr", 2);
         if !di.is_null() {
             if (*di).di_tv.v_type == VarType::VAR_NUMBER {
                 if (*di).di_tv.vval.v_number() != 0 {
@@ -6876,7 +6876,7 @@ fn qf_setprop_get_qfidx(
         }
 
         if !*newlist {
-            let di = tv_dict_find(what, c"id", 2);
+            let di = tv_dict_find(Some(what), c"id", 2);
             if !di.is_null() {
                 if (*di).di_tv.v_type != VarType::VAR_NUMBER {
                     return INVALID_QFIDX;
@@ -6924,7 +6924,7 @@ fn qf_setprop_items(
         qf_add_entries(
             qi,
             qf_idx,
-            di.di_tv.vval.v_list(),
+            unsafe { di.di_tv.vval.v_list().as_ref() },
             title_save
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
@@ -6947,7 +6947,7 @@ fn qf_setprop_items_from_lines(
         let mut errorformat = opt_vars().p_efm;
         let mut retval = false;
 
-        let efm_di = tv_dict_find(what, c"efm", 3);
+        let efm_di = tv_dict_find(Some(what), c"efm", 3);
         if !efm_di.is_null() {
             if (*efm_di).di_tv.v_type != VarType::VAR_STRING
                 || (*efm_di).di_tv.vval.v_string().is_null()
@@ -7056,27 +7056,27 @@ fn qf_set_properties(
 
         let qfl = qf_get_list(&mut *qi, qf_idx);
         let mut retval = false;
-        let mut di = tv_dict_find(what, c"title", 5);
+        let mut di = tv_dict_find(Some(what), c"title", 5);
         if !di.is_null() {
             retval = qf_setprop_title(qi, qf_idx, what,  &*di);
         }
-        di = tv_dict_find(what, c"items", 5);
+        di = tv_dict_find(Some(what), c"items", 5);
         if !di.is_null() {
             retval = qf_setprop_items(qi, qf_idx, &mut *di, action);
         }
-        di = tv_dict_find(what, c"lines", 5);
+        di = tv_dict_find(Some(what), c"lines", 5);
         if !di.is_null() {
             retval = qf_setprop_items_from_lines(qi, qf_idx, what,  &mut *di, action);
         }
-        di = tv_dict_find(what, c"context", 7);
+        di = tv_dict_find(Some(what), c"context", 7);
         if !di.is_null() {
             retval = qf_setprop_context(qfl, &mut *di);
         }
-        di = tv_dict_find(what, c"idx", 3);
+        di = tv_dict_find(Some(what), c"idx", 3);
         if !di.is_null() {
             retval = qf_setprop_curidx(qi, qfl, &*di);
         }
-        di = tv_dict_find(what, c"quickfixtextfunc", 16);
+        di = tv_dict_find(Some(what), c"quickfixtextfunc", 16);
         if !di.is_null() {
             retval = qf_setprop_qftf(qfl, &mut *di);
         }
@@ -7161,7 +7161,7 @@ pub fn set_errorlist(
         let retval = if let Some(what) = what {
             qf_set_properties(&mut *qi, what, action, title)
         } else {
-            let r = qf_add_entries(&mut *qi, (*qi).qf_curlist, list, title, action);
+            let r = qf_add_entries(&mut *qi, (*qi).qf_curlist, list.as_ref(), title, action);
             if r == QF_OK {
                 qf_list_changed(qf_get_curlist(&mut *qi));
             }
@@ -7749,7 +7749,7 @@ fn get_qf_loc_list(
                     let d = what_arg.vval.v_dict();
                     if !d.is_null() {
                         unsafe {
-                            qf_get_properties(wp, &mut *d, &mut *rettv.vval.v_dict());
+                            qf_get_properties(wp.as_ref(), &mut *d, &mut *rettv.vval.v_dict());
                         }
                     }
                 } else {

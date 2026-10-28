@@ -387,7 +387,7 @@ fn changed_common(
                 }
 
                 if xtra != 0 && (*wp).w_redraw_top != 0 {
-                    redraw_later(wp, UPD_NOT_VALID);
+                    redraw_later(wp.as_mut(), UPD_NOT_VALID);
                 }
 
                 let mut last = lnume + xtra - 1;
@@ -479,7 +479,7 @@ pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
         if curwin_mut().w_onebuf_opt.wo_diff != 0 {
             for wp in for_all_windows_ptr() {
                 if (*wp).w_onebuf_opt.wo_diff != 0 && wp != curwin_ptr() {
-                    redraw_later(wp, UPD_VALID);
+                    redraw_later(wp.as_mut(), UPD_VALID);
                     let wlnum = diff_lnum_win(lnum, &mut *wp);
                     if wlnum > 0 {
                         changed_lines_redraw_buf((*wp).buf_mut(), wlnum, wlnum + 1, 0);
@@ -591,7 +591,7 @@ pub fn changed_lines(
         {
             for wp in for_all_windows_ptr() {
                 if (*wp).w_onebuf_opt.wo_diff != 0 && wp != curwin_ptr() {
-                    redraw_later(wp, UPD_VALID);
+                    redraw_later(wp.as_mut(), UPD_VALID);
                     let wlnum = diff_lnum_win(lnum, &mut *wp);
                     if wlnum > 0 {
                         changed_lines_redraw_buf((*wp).buf_mut(), wlnum, lnume - lnum + wlnum, 0);

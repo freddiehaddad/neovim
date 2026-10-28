@@ -1907,7 +1907,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
                 }
             }
             (*w_s).b_langp = ga;
-            redraw_later((&raw mut *wp), UPD_NOT_VALID);
+            redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         }
         spell_priv_st().parse_spelllang_recursive = false;
         ret_msg
@@ -2811,7 +2811,7 @@ pub fn ex_spelldump(eap: &mut exarg_T) {
         if curbuf_mut().b_ml.ml_line_count > 1 {
             let _ = ml_delete(curbuf_mut().b_ml.ml_line_count);
         }
-        redraw_later(curwin_ptr(), UPD_NOT_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
     }
 }
 pub fn spell_dump_compl(

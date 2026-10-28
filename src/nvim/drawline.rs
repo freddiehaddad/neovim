@@ -2970,7 +2970,7 @@ pub fn win_line(
                             let extra_ptr = (&raw mut wlv.extra).cast::<c_char>();
                             xstrlcpy(
                                 extra_ptr,
-                                transchar_buf(wp.w_buffer, mb_c),
+                                transchar_buf(wp.w_buffer.as_ref(), mb_c),
                                 wlv.extra.len(),
                             );
                             wlv.p_extra = extra_ptr;

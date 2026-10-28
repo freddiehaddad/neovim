@@ -722,7 +722,7 @@ pub fn foldUpdateAfterInsert() {
 /// Update all lines in a window for folding.
 pub fn foldUpdateAll(win: &mut win_T) {
     win.w_foldinvalid = true;
-        redraw_later(win, UPD_NOT_VALID);
+        redraw_later(Some(&mut *win), UPD_NOT_VALID);
 }
 
 pub fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> bool {

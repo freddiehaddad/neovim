@@ -340,7 +340,7 @@ use crate::mbyte::utf_byte2len;
 fn trigger_autocomplete(s: &mut InsertState) -> bool {
      {
         mc_ins_cascade();
-        redraw_later(curwin_ptr(), UPD_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         update_screen();
         ui_flush();
         ins_compl_enable_autocomplete();
@@ -3521,7 +3521,7 @@ fn ins_up(startcol: bool) {
                 coladvance(curwin_mut(), getvcol_nolist(&mut g_st().Ins.start));
             }
             if old_topline != curwin_mut().w_topline || old_topfill != curwin_mut().w_topfill {
-                redraw_later(curwin_ptr(), UPD_VALID);
+                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
             }
             start_arrow(
                 &raw mut tpos,
@@ -3569,7 +3569,7 @@ fn ins_down(startcol: bool) {
                 coladvance(curwin_mut(), getvcol_nolist(&mut g_st().Ins.start));
             }
             if old_topline != curwin_mut().w_topline || old_topfill != curwin_mut().w_topfill {
-                redraw_later(curwin_ptr(), UPD_VALID);
+                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
             }
             start_arrow(
                 &raw mut tpos,
@@ -3977,7 +3977,7 @@ fn ins_ctrl_ey(tc: c_int) -> c_int {
             } else {
                 scrollup_clamp();
             }
-            redraw_later(curwin_ptr(), UPD_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         } else {
             c = ins_copychar(curwin_mut().w_cursor.lnum + if c == Ctrl_Y { -1 } else { 1 });
             if c != NUL as c_int {

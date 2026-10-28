@@ -962,7 +962,7 @@ fn win_config_float_tp(
                 if win_new_float((&raw mut *win), false, fconfig.clone(), err).is_null() {
                     break 'restore_curwin;
                 }
-                redraw_later((&raw mut *win), UPD_NOT_VALID);
+                redraw_later(Some(&mut *win), UPD_NOT_VALID);
             }
 
             if win_tp != parent_tp {
@@ -987,7 +987,7 @@ fn win_config_float_tp(
 
                 ui_comp_remove_grid(&mut win.w_grid_alloc);
 
-                redraw_later((&raw mut *win), UPD_NOT_VALID);
+                redraw_later(Some(&mut *win), UPD_NOT_VALID);
                 set_must_redraw(UPD_NOT_VALID);
             }
 
@@ -1956,7 +1956,7 @@ fn parse_win_config(
                     break 'fail;
                 }
                 if fconfig.hide && !config.hide {
-                    redraw_later(wp, UPD_NOT_VALID);
+                    redraw_later(wp.as_mut(), UPD_NOT_VALID);
                 }
                 fconfig.hide = config.hide;
             }

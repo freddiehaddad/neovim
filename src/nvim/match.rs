@@ -132,7 +132,7 @@ fn match_add(
     pat: *const c_char,
     prio: c_int,
     mut id: c_int,
-    pos_list: *mut list_T,
+    pos_list: Option<&list_T>,
     conceal_char: *const c_char,
 ) -> c_int {
     unsafe {
@@ -179,7 +179,7 @@ fn match_add(
             }
         }
 
-        let pos_len = tv_list_len(pos_list.as_ref());
+        let pos_len = tv_list_len(pos_list);
         let mut m = matchitem_T {
             mit_id: id,
             mit_priority: prio,
@@ -209,13 +209,13 @@ fn match_add(
             },
         };
 
-        if !pos_list.is_null() {
+        if pos_list.is_some() {
             let mut toplnum: linenr_T = 0;
             let mut botlnum: linenr_T = 0;
             let mut i: usize = 0;
             let mut failed = false;
 
-            for li in crate::eval::typval::list_iter_ptr(tv_list_first(pos_list.as_ref())) {
+            for li in crate::eval::typval::list_iter_ptr(tv_list_first(pos_list)) {
                 let mut lnum: linenr_T = 0;
                 let mut col: colnr_T = 0;
                 let mut len: c_int = 1;
@@ -227,7 +227,7 @@ fn match_add(
                     if subli.is_null() {
                         semsg!(
                             gettext(c"E5030: Empty list at position %d"),
-                            tv_list_idx_of_item(pos_list.as_ref(), li),
+                            tv_list_idx_of_item(pos_list, li),
                         );
                         failed = true;
                         break;
@@ -277,7 +277,7 @@ fn match_add(
                 } else {
                     semsg!(
                         gettext(c"E5031: List or number required at position %d"),
-                        tv_list_idx_of_item(pos_list.as_ref(), li),
+                        tv_list_idx_of_item(pos_list, li),
                     );
                     failed = true;
                     break;
@@ -310,7 +310,7 @@ fn match_add(
             .unwrap_or(wp.w_match_head.len());
         wp.w_match_head.insert(insert_idx, m);
 
-        redraw_later(&raw mut *wp, rtype);
+        redraw_later(Some(&mut *wp), rtype);
         id
     }
 }
@@ -341,14 +341,14 @@ fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
             redraw_win_range_later(wp, cur.mit_toplnum, cur.mit_botlnum);
             rtype = UPD_VALID;
         }
-        redraw_later(&raw mut *wp, rtype);
+        redraw_later(Some(&mut *wp), rtype);
         0
 }
 
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
 pub fn clear_matches(wp: &mut win_T) {
     wp.w_match_head.clear();
-        redraw_later(wp, UPD_SOME_VALID);
+        redraw_later(Some(&mut *wp), UPD_SOME_VALID);
 }
 
 /// Get match from ID `id` in window `wp` (`get_match`).
@@ -925,12 +925,12 @@ fn matchadd_dict_arg(
             return false;
         }
 
-        let di = tv_dict_find(tv.vval.v_dict(), c"conceal", 7);
+        let di = tv_dict_find(tv.vval.v_dict().as_ref(), c"conceal", 7);
         if !di.is_null() {
             *conceal_char = tv_get_string(&(*di).di_tv);
         }
 
-        let di = tv_dict_find(tv.vval.v_dict(), c"window", 6);
+        let di = tv_dict_find(tv.vval.v_dict().as_ref(), c"window", 6);
         if di.is_null() {
             return true;
         }
@@ -1039,11 +1039,11 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 return;
             }
             let d = li.li_tv.vval.v_dict();
-            if tv_dict_find(d, c"group", 5).is_null()
-                || (tv_dict_find(d, c"pattern", 7).is_null()
-                    && tv_dict_find(d, c"pos1", 4).is_null())
-                || tv_dict_find(d, c"priority", 8).is_null()
-                || tv_dict_find(d, c"id", 2).is_null()
+            if tv_dict_find(d.as_ref(), c"group", 5).is_null()
+                || (tv_dict_find(d.as_ref(), c"pattern", 7).is_null()
+                    && tv_dict_find(d.as_ref(), c"pos1", 4).is_null())
+                || tv_dict_find(d.as_ref(), c"priority", 8).is_null()
+                || tv_dict_find(d.as_ref(), c"id", 2).is_null()
             {
                 semsg!(
                     gettext(c"E474: List item %d is missing one of the required keys"),
@@ -1058,7 +1058,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         for li in crate::eval::typval::list_iter_mut(tv_list_first(l.as_ref())) {
             let mut i: c_int = 0;
             let d = li.li_tv.vval.v_dict();
-            let di = tv_dict_find(d, c"pattern", 7);
+            let di = tv_dict_find(d.as_ref(), c"pattern", 7);
             if di.is_null() {
                 if s.is_null() {
                     s = tv_list_alloc(9);
@@ -1069,7 +1069,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 while i < 9 {
                     let mut buf = [0 as c_char; 30];
                     vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", i);
-                    let pos_di = tv_dict_find(d, buf.as_ptr(), -1);
+                    let pos_di = tv_dict_find(d.as_ref(), buf.as_ptr(), -1);
                     if !pos_di.is_null() {
                         if (*pos_di).di_tv.v_type != VarType::VAR_LIST {
                             tv_list_unref(s);
@@ -1087,7 +1087,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             let group = tv_dict_get_string_buf(d, c"group", group_buf.as_mut_ptr());
             let priority = tv_dict_get_number(d, c"priority") as c_int;
             let id = tv_dict_get_number(d, c"id") as c_int;
-            let conceal_di = tv_dict_find(d, c"conceal", 7);
+            let conceal_di = tv_dict_find(d.as_ref(), c"conceal", 7);
             let conceal = if !conceal_di.is_null() {
                 tv_get_string(&(*conceal_di).di_tv)
             } else {
@@ -1095,11 +1095,11 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             };
             if i == 0 {
                 let pat = tv_dict_get_string(d, c"pattern");
-                if match_add(&mut *win, group, pat, priority, id, ptr::null_mut(), conceal) != id {
+                if match_add(&mut *win, group, pat, priority, id, None, conceal) != id {
                     match_add_failed = true;
                 }
             } else {
-                if match_add(&mut *win, group, ptr::null(), priority, id, s, conceal) != id {
+                if match_add(&mut *win, group, ptr::null(), priority, id, s.as_ref(), conceal) != id {
                     match_add_failed = true;
                 }
                 tv_list_unref(s);
@@ -1153,7 +1153,7 @@ pub fn f_matchadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             return;
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(&mut *win, grp, pat, prio, id, ptr::null_mut(), conceal_char) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(&mut *win, grp, pat, prio, id, None, conceal_char) as varnumber_T);
     }
 }
 
@@ -1211,7 +1211,7 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             return;
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(&mut *win, group, ptr::null(), prio, id, l, conceal_char) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(&mut *win, group, ptr::null(), prio, id, l.as_ref(), conceal_char) as varnumber_T);
     }
 }
 
@@ -1317,7 +1317,7 @@ pub fn ex_match(eap: &mut exarg_T) {
                         p.add(1),
                         10,
                         id,
-                        ptr::null_mut(),
+                        None,
                         ptr::null(),
                     );
                     *end = c;

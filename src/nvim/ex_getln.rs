@@ -846,7 +846,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
             curwin_mut().w_redr_status = true;
         }
 
-        redraw_later(curwin_ptr(), UPD_SOME_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
         update_screen();
         g_st().Search.hl_match = false;
         restore_last_search_pattern();
@@ -2077,7 +2077,7 @@ fn may_do_command_line_next_incsearch(
             validate_cursor(curwin_mut());
             g_st().Search.hl_match = true;
             save_viewstate(curwin_mut(), &mut s.old_viewstate);
-            redraw_later(curwin_ptr(), UPD_NOT_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
             update_screen();
             g_st().Search.hl_match = false;
             redrawcmdline();
@@ -3918,7 +3918,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         break 'color_cmdline_error;
                     }
                     prev_end = end;
-                    let last_li = tv_list_last(l);
+                    let last_li = tv_list_last(l.as_ref());
                     let group = tv_get_string_chk(&(*last_li).li_tv);
                     if group.is_null() {
                         break 'color_cmdline_error;
@@ -5255,7 +5255,7 @@ pub fn get_user_input(argvars: &[typval_T],
             if defstr.is_null() {
                 return;
             }
-            let cancelreturn_di = tv_dict_find(dict, c"cancelreturn", 12);
+            let cancelreturn_di = tv_dict_find(dict.as_ref(), c"cancelreturn", 12);
             if !cancelreturn_di.is_null() {
                 cancelreturn = &raw mut (*cancelreturn_di).di_tv;
             }

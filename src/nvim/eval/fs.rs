@@ -1901,10 +1901,10 @@ pub fn f_tempname(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 }
 
 /// Write "list" of strings to file "fp".
-fn write_list(fp: &mut FileDescriptor, list: *const list_T, binary: bool) -> bool {
+fn write_list(fp: &mut FileDescriptor, list: Option<&list_T>, binary: bool) -> bool {
     unsafe {
         let mut error: c_int = 0;
-        let mut li = tv_list_first(list.as_ref());
+        let mut li = tv_list_first(list);
         'outer: while !li.is_null() {
             let s = tv_get_string_chk(&(*li).li_tv);
             if s.is_null() {
@@ -2105,7 +2105,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                 } else if argvars[0].v_type == VarType::VAR_STRING {
                     write_string(&mut fp, argvars[0].vval.v_string())
                 } else {
-                    write_list(&mut fp, argvars[0].vval.v_list(), binary)
+                    write_list(&mut fp, argvars[0].vval.v_list().as_ref(), binary)
                 };
                 if write_ok {
                     rettv.vval = crate::eval::typval::TypvalVval::Number(0);

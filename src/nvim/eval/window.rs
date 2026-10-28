@@ -792,7 +792,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             if tv_dict_get_bool(d, c"vertical", 0) != 0 {
                 flags |= WSP_VERT;
             }
-            let di = tv_dict_find(d, c"rightbelow", -1);
+            let di = tv_dict_find(d.as_ref(), c"rightbelow", -1);
             if !di.is_null() {
                 flags |= if tv_get_bool(&(*di).di_tv) != 0 {
                     WSP_BELOW
@@ -969,38 +969,38 @@ pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
         }
 
         let dict = argvars[0].vval.v_dict();
-        let di = tv_dict_find(dict, c"lnum", 4);
+        let di = tv_dict_find(dict.as_ref(), c"lnum", 4);
         if !di.is_null() {
             curwin_mut().w_cursor.lnum = tv_get_number(&(*di).di_tv) as linenr_T;
         }
-        let di = tv_dict_find(dict, c"col", 3);
+        let di = tv_dict_find(dict.as_ref(), c"col", 3);
         if !di.is_null() {
             curwin_mut().w_cursor.col = tv_get_number(&(*di).di_tv) as colnr_T;
         }
-        let di = tv_dict_find(dict, c"coladd", 6);
+        let di = tv_dict_find(dict.as_ref(), c"coladd", 6);
         if !di.is_null() {
             curwin_mut().w_cursor.coladd = tv_get_number(&(*di).di_tv) as colnr_T;
         }
-        let di = tv_dict_find(dict, c"topline", 7);
+        let di = tv_dict_find(dict.as_ref(), c"topline", 7);
         if !di.is_null() {
             set_topline(curwin_mut(), tv_get_number(&(*di).di_tv) as linenr_T);
         }
         let mut vs = viewstate_T::default();
         save_viewstate(curwin_mut(), &mut vs);
-        let di = tv_dict_find(dict, c"curswant", 8);
+        let di = tv_dict_find(dict.as_ref(), c"curswant", 8);
         if !di.is_null() {
             vs.vs_curswant = tv_get_number(&(*di).di_tv) as colnr_T;
             vs.vs_set_curswant = false;
         }
-        let di = tv_dict_find(dict, c"topfill", 7);
+        let di = tv_dict_find(dict.as_ref(), c"topfill", 7);
         if !di.is_null() {
             vs.vs_topfill = tv_get_number(&(*di).di_tv) as c_int;
         }
-        let di = tv_dict_find(dict, c"leftcol", 7);
+        let di = tv_dict_find(dict.as_ref(), c"leftcol", 7);
         if !di.is_null() {
             vs.vs_leftcol = tv_get_number(&(*di).di_tv) as colnr_T;
         }
-        let di = tv_dict_find(dict, c"skipcol", 7);
+        let di = tv_dict_find(dict.as_ref(), c"skipcol", 7);
         if !di.is_null() {
             vs.vs_skipcol = tv_get_number(&(*di).di_tv) as colnr_T;
         }

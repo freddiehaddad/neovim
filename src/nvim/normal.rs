@@ -1667,16 +1667,16 @@ fn check_text_locked(oap: Option<&mut oparg_T>) -> bool {
     }
 }
 
-pub fn check_text_or_curbuf_locked(oap: *mut oparg_T) -> bool {
-    unsafe {
-        if check_text_locked(oap.as_mut()) {
+pub fn check_text_or_curbuf_locked(mut oap: Option<&mut oparg_T>) -> bool {
+     {
+        if check_text_locked(oap.as_deref_mut()) {
             return true;
         }
         if !curbuf_locked() {
             return false;
         }
-        if !oap.is_null() {
-            clearop(&mut *oap);
+        if let Some(oap) = oap {
+            clearop(oap);
         }
         true
     }
@@ -2250,7 +2250,7 @@ fn normal_execute(s: &mut NormalState, key: c_int) -> c_int {
             }
 
             if (nv_cmds[s.idx as usize].cmd_flags & NV_NCW) != 0
-                && check_text_or_curbuf_locked(&mut s.oa)
+                && check_text_or_curbuf_locked(Some(&mut s.oa))
             {
                 s.command_finished = true;
                 break 'finish;
@@ -3192,7 +3192,7 @@ pub fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int) {
                         }
                     }
 
-                    redraw_later(curwin_ptr(), UPD_VALID);
+                    redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
                     cursor_correct(curwin_mut());
                     curwin_mut().w_redr_status = true;
                 }
@@ -3786,7 +3786,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                     beginline(BL_WHITE | BL_FIX);
                 }
                 scroll_cursor_top(curwin_mut(), 0, 1);
-                redraw_later(curwin_ptr(), UPD_VALID);
+                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
                 set_fraction(curwin_mut());
             }
             c if c == b'.' as c_int || c == b'z' as c_int => {
@@ -3794,7 +3794,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                     beginline(BL_WHITE | BL_FIX);
                 }
                 scroll_cursor_halfway(curwin_mut(), true, false);
-                redraw_later(curwin_ptr(), UPD_VALID);
+                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
                 set_fraction(curwin_mut());
             }
             c if c == b'^' as c_int || c == b'-' as c_int || c == b'b' as c_int => {
@@ -3812,7 +3812,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                     beginline(BL_WHITE | BL_FIX);
                 }
                 scroll_cursor_bot(curwin_mut(), 0, true);
-                redraw_later(curwin_ptr(), UPD_VALID);
+                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
                 set_fraction(curwin_mut());
             }
             c if c == b'H' as c_int || c == b'h' as c_int || c == K_LEFT => {
@@ -3861,7 +3861,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                     }
                     if curwin_mut().w_leftcol != col {
                         curwin_mut().w_leftcol = col;
-                        redraw_later(curwin_ptr(), UPD_NOT_VALID);
+                        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
                     }
                 }
             }
@@ -3894,7 +3894,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                     }
                     if curwin_mut().w_leftcol != col {
                         curwin_mut().w_leftcol = col;
-                        redraw_later(curwin_ptr(), UPD_NOT_VALID);
+                        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
                     }
                 }
             }
@@ -4223,7 +4223,7 @@ fn nv_clear(cap: &mut cmdarg_T) {
         for wp in for_all_windows_mut() {
             (*wp.w_s_ptr()).b_syn_slow = false;
         }
-        redraw_later(curwin_ptr(), UPD_CLEAR);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_CLEAR);
     }
 }
 
@@ -4896,7 +4896,7 @@ fn nv_gotofile(cap: &mut cmdarg_T) {
      {
         let mut lnum: linenr_T = -1;
 
-        if check_text_or_curbuf_locked(cap.oap) {
+        if check_text_or_curbuf_locked(Some(cap.oap_mut())) {
             return;
         }
 
@@ -5026,7 +5026,7 @@ fn nv_next(cap: &mut cmdarg_T) {
             && !g_st().Search.no_hlsearch
             && win_hl_attr(curwin_mut(), HLF_LC as c_int) != win_hl_attr(curwin_mut(), HLF_L as c_int)
         {
-            redraw_later(curwin_ptr(), UPD_SOME_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
         }
     }
 }
@@ -5078,7 +5078,7 @@ fn normal_search(
             && !g_st().Search.no_hlsearch
             && win_hl_attr(curwin_mut(), HLF_LC as c_int) != win_hl_attr(curwin_mut(), HLF_L as c_int)
         {
-            redraw_later(curwin_ptr(), UPD_SOME_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
         }
 
         check_cursor(curwin_mut());
@@ -5384,7 +5384,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
             nv_mark_move_to(cap, flags, &mut *fm);
         } else if cap.nchar >= K_RIGHTRELEASE && cap.nchar <= K_LEFTMOUSE {
             do_mouse(
-                cap.oap,
+                Some(cap.oap_mut()),
                 cap.nchar,
                 if cap.cmdchar == b']' as c_int {
                     FORWARD
@@ -6725,7 +6725,7 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
                 nv_gd(&mut *oap, cap.nchar, cap.count0);
             }
             K_LEFTMOUSE => {
-                if do_mouse(oap, cap.nchar, BACKWARD, cap.count1, false) {
+                if do_mouse(oap.as_mut(), cap.nchar, BACKWARD, cap.count1, false) {
                     stuffcharReadbuff(Ctrl_RSB);
                     exec_stuffed(Some(cap));
                 }
@@ -6734,7 +6734,7 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
             | K_MOUSEMOVE | K_RIGHTMOUSE | K_RIGHTDRAG | K_RIGHTRELEASE | K_X1MOUSE | K_X1DRAG
             | K_X1RELEASE | K_X2MOUSE | K_X2DRAG | K_X2RELEASE => {
                 g_st().mod_mask = MOD_MASK_CTRL;
-                do_mouse(oap, cap.nchar, BACKWARD, cap.count1, false);
+                do_mouse(oap.as_mut(), cap.nchar, BACKWARD, cap.count1, false);
             }
             K_IGNORE => {}
             c if c == b'p' as c_int || c == b'P' as c_int => {

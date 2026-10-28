@@ -586,10 +586,10 @@ pub fn str_foldcase(
 }
 
 pub fn transchar(c: c_int) -> *mut c_char {
-    transchar_buf(g_st().curbuf, c)
+    transchar_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
+pub fn transchar_buf(buf: Option<&buf_T>, mut c: c_int) -> *mut c_char {
     unsafe {
         let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
         let mut i: usize = 0;
@@ -604,7 +604,7 @@ pub fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
             *charbuf_ptr.add(i) = c as u8;
             *charbuf_ptr.add(i + 1) = 0;
         } else if c <= 0xFF {
-            transchar_nonprint(buf.as_ref(), charbuf_ptr.add(i).cast::<c_char>(), c);
+            transchar_nonprint(buf, charbuf_ptr.add(i).cast::<c_char>(), c);
         } else {
             transchar_hex(charbuf_ptr.add(i).cast::<c_char>(), c);
         }
@@ -622,7 +622,7 @@ pub fn transchar_byte_buf(buf: *const buf_T, c: c_int) -> *mut c_char {
             transchar_nonprint(unsafe { buf.as_ref() }, charbuf_ptr, c);
             return charbuf_ptr;
         }
-        transchar_buf(buf, c)
+        transchar_buf(unsafe { buf.as_ref() }, c)
 }
 
 pub fn transchar_nonprint(buf: Option<&buf_T>, charbuf: *mut c_char, mut c: c_int) {

@@ -338,7 +338,7 @@ fn filter_map_list(
 
         let prev_lock = tv_list_locked(l.as_ref());
         if prev_lock == VAR_UNLOCKED {
-            tv_list_set_lock(l, VAR_LOCKED);
+            tv_list_set_lock(l.as_mut(), VAR_LOCKED);
         }
 
         let mut idx: i64 = 0;
@@ -378,7 +378,7 @@ fn filter_map_list(
             idx += 1;
         }
 
-        tv_list_set_lock(l, prev_lock);
+        tv_list_set_lock(l.as_mut(), prev_lock);
     }
 }
 
@@ -546,7 +546,7 @@ fn count_list(l: *mut list_T, needle: &typval_T, idx: i64, ic: bool) -> i64 {
         if tv_list_len(l.as_ref()) == 0 {
             return 0;
         }
-        let mut li = tv_list_find(l, idx as c_int);
+        let mut li = tv_list_find(l.as_mut(), idx as c_int);
         if li.is_null() {
             semsg!(e_list_index_out_of_range_nr, idx);
             return 0;
@@ -720,7 +720,7 @@ fn extend_list(argvars: &mut [typval_T],
                     return;
                 }
                 if before != tv_list_len(unsafe { l1.as_ref() }) {
-                    item = tv_list_find(l1, before);
+                    item = tv_list_find(unsafe { l1.as_mut() }, before);
                     if item.is_null() {
                         semsg!(e_list_index_out_of_range_nr, before as i64);
                         if is_new {
@@ -845,7 +845,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
             let mut item: *mut listitem_T = std::ptr::null_mut();
             if before != (tv_list_len(l.as_ref()) as i64) {
-                item = tv_list_find(l, before as c_int);
+                item = tv_list_find(l.as_mut(), before as c_int);
                 if item.is_null() {
                     semsg!(e_list_index_out_of_range_nr, before);
                     l = std::ptr::null_mut();

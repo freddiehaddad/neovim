@@ -285,7 +285,7 @@ pub fn diff_buf_delete(buf: *mut buf_T) {
                 (*tp).tp_diff_invalid = 1;
                 if ptr::eq(tp, g_st().curtab) {
                     g_st().need_diff_redraw = true;
-                    redraw_later(curwin_ptr(), UPD_VALID);
+                    redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
                 }
             }
         }
@@ -686,7 +686,7 @@ pub fn diff_redraw(dofold: bool) {
             if (*wp).w_onebuf_opt.wo_diff == 0 || !buf_valid((*wp).w_buffer) {
                 continue;
             }
-            redraw_later(wp, UPD_SOME_VALID);
+            redraw_later(wp.as_mut(), UPD_SOME_VALID);
             if wp != curwin_ptr() {
                 wp_other = wp;
             }
@@ -1516,7 +1516,7 @@ pub fn diff_win_options(wp: &mut win_T, addbuf: bool) {
         if addbuf {
             diff_buf_add(wp.w_buffer);
         }
-        redraw_later((&raw mut *wp), UPD_NOT_VALID);
+        redraw_later(Some(&mut *wp), UPD_NOT_VALID);
     }
 }
 pub fn ex_diffoff(eap: &mut exarg_T) {

@@ -451,7 +451,7 @@ fn try_load_terminfo_key(
 fn load_terminfo(
     tk: &mut TermKey,
     ti: Option<&TerminfoEntry>,
-    input: *mut crate::tui::input::TermInput,
+    mut input: Option<&mut crate::tui::input::TermInput>,
 ) {
     unsafe {
         let mut root = TrieNode::new_arr(0, 0xff);
@@ -470,7 +470,7 @@ fn load_terminfo(
             };
             if !try_load_terminfo_key(
                 ti,
-                input.as_mut(),
+                input.as_deref_mut(),
                 &mut root,
                 false,
                 entry.ti_key as usize,
@@ -497,7 +497,7 @@ fn load_terminfo(
             };
             try_load_terminfo_key(
                 ti,
-                input.as_mut(),
+                input.as_deref_mut(),
                 &mut root,
                 false,
                 entry.ti_key as usize,
@@ -521,7 +521,7 @@ fn load_terminfo(
             };
             if !try_load_terminfo_key(
                 ti,
-                input.as_mut(),
+                input.as_deref_mut(),
                 &mut root,
                 true,
                 i - 1,
@@ -549,7 +549,7 @@ pub fn start_driver_ti(
     input: *mut crate::tui::input::TermInput,
 ) -> c_int {
     if tk.ti.root.is_none() {
-            load_terminfo(tk, ti, input);
+            load_terminfo(tk, ti, unsafe { input.as_mut() });
         }
         1
 }

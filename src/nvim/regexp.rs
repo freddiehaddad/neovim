@@ -2545,7 +2545,7 @@ pub(crate) fn fill_submatch_list(
 pub fn vim_regsub(
     rmp: &mut regmatch_T,
     source: *mut c_char,
-    expr: *mut typval_T,
+    expr: Option<&typval_T>,
     dest: *mut c_char,
     destlen: c_int,
     flags: c_int,
@@ -2563,7 +2563,7 @@ pub fn vim_regsub(
         re_st().rex.reg_maxline = 0;
         re_st().rex.reg_buf = g_st().curbuf;
         re_st().rex.reg_line_lbr = true;
-        let result = vim_regsub_both(source, unsafe { expr.as_ref() }, dest, destlen, flags);
+        let result = vim_regsub_both(source, expr, dest, destlen, flags);
 
         re_st().rex_in_use = rex_in_use_save;
         if re_st().rex_in_use {

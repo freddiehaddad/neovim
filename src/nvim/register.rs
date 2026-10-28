@@ -1434,28 +1434,24 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
 
 fn put_do_autocmd(
     regname: c_int,
-    reg: *mut yankreg_T,
+    reg: Option<&yankreg_T>,
     insert: Option<&NvimString>,
     post: bool,
     dir: Direction,
 ) {
     unsafe {
-        if reg_st().put_autocmd_recursive || (regname == c_int::from(b'_') && reg.is_null()) {
+        if reg_st().put_autocmd_recursive || (regname == c_int::from(b'_') && reg.is_none()) {
             return;
         }
 
-        if regname != c_int::from(b'.') && insert.is_none() && reg.is_null() {
+        if regname != c_int::from(b'.') && insert.is_none() && reg.is_none() {
             return;
         }
 
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let v_event = get_v_event(&mut save_v_event);
 
-        let list = tv_list_alloc(if !reg.is_null() {
-            (*reg).y_array.len() as isize
-        } else {
-            1
-        });
+        let list = tv_list_alloc(reg.map_or(1, |reg| reg.y_array.len() as isize));
 
         if regname == c_int::from(b'.') {
             let last_ins = &raw const g_st().last_insert_ga;
@@ -1465,7 +1461,7 @@ fn put_do_autocmd(
         } else if let Some(insert) = insert {
             tv_list_append_string( &mut *list, insert.data, insert.size as isize);
         } else {
-            for &item in &(&*reg).y_array {
+            for &item in &(reg.unwrap()).y_array {
                 tv_list_append_string( &mut *list, item.data, item.size as isize);
             }
         }
@@ -1483,7 +1479,7 @@ fn put_do_autocmd(
         buf[1] = NUL;
         tv_dict_add_str_len(&mut *v_event, c"operator", buf.as_ptr(), 1);
 
-        add_regtype_to_dict(reg.as_ref(), &mut *v_event, buf.as_mut_ptr(), buf.len());
+        add_regtype_to_dict(reg, &mut *v_event, buf.as_mut_ptr(), buf.len());
 
         tv_dict_add_bool(
             &mut *v_event,
@@ -1616,10 +1612,10 @@ pub fn do_put(
             }
 
             if has_event(EVENT_TEXTPUTPRE) {
-                put_do_autocmd(c_int::from(b'.'), ptr::null_mut(), None, false, dir);
+                put_do_autocmd(c_int::from(b'.'), None, None, false, dir);
             }
             if has_event(EVENT_TEXTPUTPOST) {
-                put_do_autocmd(c_int::from(b'.'), ptr::null_mut(), None, true, dir);
+                put_do_autocmd(c_int::from(b'.'), None, None, true, dir);
             }
 
             if has_textput_events {
@@ -1724,7 +1720,7 @@ pub fn do_put(
             if has_event(EVENT_TEXTPUTPRE) {
                 put_do_autocmd(
                     regname,
-                    ptr::null_mut(),
+                    None,
                     Some(&insert_string),
                     false,
                     dir,
@@ -1736,7 +1732,7 @@ pub fn do_put(
                 if reg.is_null() {
                     reg = get_yank_register(regname, YREG_PASTE);
                 }
-                put_do_autocmd(regname, reg, None, false, dir);
+                put_do_autocmd(regname, reg.as_ref(), None, false, dir);
                 reg = save_reg;
             }
             if reg.is_null() {
@@ -2460,11 +2456,11 @@ pub fn do_put(
 
         if has_event(EVENT_TEXTPUTPOST) {
             if insert_string.data.is_null() {
-                put_do_autocmd(regname, reg, None, true, dir);
+                put_do_autocmd(regname, reg.as_ref(), None, true, dir);
             } else {
                 put_do_autocmd(
                     regname,
-                    ptr::null_mut(),
+                    None,
                     Some(&insert_string),
                     true,
                     dir,

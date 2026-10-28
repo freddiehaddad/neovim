@@ -2632,7 +2632,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp
                             spell_edit_score(Some(&mut *slang), (&raw const su.su_badword).cast(), p);
                     } else {
                         goodscore += spell_edit_score_limit(
-                            slang,
+                            Some(&mut *slang),
                             (&raw mut su.su_badword).cast(),
                             p,
                             limit,
@@ -3152,12 +3152,12 @@ fn spell_edit_score(
     }
 }
 fn spell_edit_score_limit(
-    slang: *mut slang_T,
+    slang: Option<&mut slang_T>,
     badword: *mut c_char,
     goodword: *mut c_char,
     limit: c_int,
 ) -> c_int {
-    spell_edit_score_limit_w(unsafe { slang.as_mut() }, badword, goodword, limit)
+    spell_edit_score_limit_w(slang, badword, goodword, limit)
 }
 fn spell_edit_score_limit_w(
     mut slang: Option<&mut slang_T>,

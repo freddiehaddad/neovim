@@ -2367,7 +2367,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
 
         for wp in for_all_windows_ptr() {
             if (*wp).w_buffer == g_st().curbuf && (*wp).w_onebuf_opt.wo_cole > 0 {
-                redraw_later(wp, UPD_NOT_VALID);
+                redraw_later(wp.as_mut(), UPD_NOT_VALID);
             }
         }
 

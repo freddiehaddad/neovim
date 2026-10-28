@@ -4244,10 +4244,10 @@ fn do_sub(
 
                                 update_topline(curwin_mut());
                                 validate_cursor(curwin_mut());
-                                redraw_later(curwin_ptr(), UPD_SOME_VALID);
+                                redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
                                 show_cursor_info_later(true);
                                 update_screen();
-                                redraw_later(curwin_ptr(), UPD_SOME_VALID);
+                                redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
 
                                 curwin_mut().w_onebuf_opt.wo_fen = save_p_fen;
 

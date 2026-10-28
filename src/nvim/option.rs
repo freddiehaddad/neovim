@@ -3785,7 +3785,7 @@ pub fn check_redraw_for(buf: *mut buf_T, win: &mut win_T, flags: u32) {
 
         if (flags & kOptFlagRedrBuf) != 0 || (flags & kOptFlagRedrWin) != 0 || all {
             if (flags & kOptFlagHLOnly) != 0 {
-                redraw_later((&raw mut *win), UPD_NOT_VALID);
+                redraw_later(Some(&mut *win), UPD_NOT_VALID);
             } else {
                 changed_window_setting(win);
             }

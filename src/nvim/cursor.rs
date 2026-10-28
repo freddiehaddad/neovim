@@ -526,7 +526,7 @@ pub fn set_leftcol(leftcol: colnr_T) -> bool {
         if retval {
             curwin_mut().w_set_curswant = true;
         }
-        redraw_later(curwin_ptr(), UPD_NOT_VALID);
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
         retval
     }
 }

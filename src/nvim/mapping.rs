@@ -2416,7 +2416,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
         let lhsrawalt = tv_dict_get_string(d, c"lhsrawalt");
         let mut orig_rhs = tv_dict_get_string(d, c"rhs") as *const c_char;
         let mut rhs_lua: LuaRef = LUA_NOREF;
-        let callback_di = tv_dict_find(d, c"callback", 8);
+        let callback_di = tv_dict_find(d.as_ref(), c"callback", 8);
         if !callback_di.is_null() && (*callback_di).di_tv.v_type == VarType::VAR_FUNC {
             let fp = find_func((*callback_di).di_tv.vval.v_string());
             if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {

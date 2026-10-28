@@ -10016,7 +10016,7 @@ fn findfunc_find_file(
         } else if count > fname_count {
             let _ = semsg!(gettext(e_no_more_file_str_found_in_path), findarg);
         } else {
-            let li = tv_list_find(fname_list, count - 1);
+            let li = tv_list_find(fname_list.as_mut(), count - 1);
             if !li.is_null() {
                 let tv = &raw const (*li).li_tv;
                 if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null() {
@@ -10690,7 +10690,7 @@ fn ex_syncbind(_eap: &mut exarg_T) {
                     scrolldown(&mut *wp, -y, c_int::from(true));
                 }
                 (*wp).w_scbind_pos = vtopline;
-                redraw_later(wp, UPD_VALID);
+                redraw_later(wp.as_mut(), UPD_VALID);
                 cursor_correct(&mut *wp);
                 (*wp).w_redr_status = true;
             }
@@ -11974,7 +11974,7 @@ fn back_to_current_window(curwin_save: *mut win_T) {
      {
         if curwin_ptr() != curwin_save && win_valid(curwin_save) {
             validate_cursor(curwin_mut());
-            redraw_later(curwin_ptr(), UPD_VALID);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
             win_enter(curwin_save, true);
         }
         g_st().g_do_tagpreview = 0;
