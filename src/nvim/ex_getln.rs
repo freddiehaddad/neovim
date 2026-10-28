@@ -872,7 +872,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
 /// When CTRL-L typed: add character from the match to the pattern.
 /// May set `*c` to the added character.
 /// Return `OK` when calling `command_line_not_changed`.
-fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_T) -> c_int {
+fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_T) -> bool {
     unsafe {
         let mut skiplen: c_int = 0;
         let mut patlen: c_int = 0;
@@ -893,7 +893,7 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_
             &mut magic,
         ) {
             restore_last_search_pattern();
-            return FAIL;
+            return false;
         }
         restore_last_search_pattern();
 
@@ -930,10 +930,10 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_
                     }
                     *c = save_c;
                 }
-                return FAIL;
+                return false;
             }
         }
-        OK
+        true
     }
 }
 
@@ -1949,7 +1949,7 @@ fn may_do_command_line_next_incsearch(
     count: c_int,
     s: &mut incsearch_state_T,
     next_match: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut skiplen: c_int = 0;
         let mut patlen: c_int = 0;
@@ -1967,11 +1967,11 @@ fn may_do_command_line_next_incsearch(
             &mut magic,
         ) {
             restore_last_search_pattern();
-            return OK;
+            return true;
         }
         if patlen == 0 && *getln_st().ccline.cmdbuff.add(skiplen as usize) == NUL {
             restore_last_search_pattern();
-            return FAIL;
+            return false;
         }
 
         ui_busy_start();
@@ -2089,7 +2089,7 @@ fn may_do_command_line_next_incsearch(
             vim_beep(kOptBoFlagError);
         }
         restore_last_search_pattern();
-        FAIL
+        false
     }
 }
 
@@ -2674,7 +2674,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                             s.firstc,
                             &mut s.c,
                             &mut s.is_state,
-                        ) == OK
+                        )
                         {
                             return command_line_not_changed(s);
                         }
@@ -2755,12 +2755,12 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                     }
 
                     Ctrl_G | Ctrl_T => {
-                        if may_do_command_line_next_incsearch(
+                        if !may_do_command_line_next_incsearch(
                             s.firstc,
                             s.count,
                             &mut s.is_state,
                             s.c == Ctrl_G,
-                        ) == FAIL
+                        )
                         {
                             return command_line_not_changed(s);
                         }

@@ -3670,7 +3670,7 @@ fn nv_z_get_count(cap: &mut cmdarg_T, nchar_arg: &mut c_int) -> bool {
     }
 }
 
-fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> c_int {
+fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> bool {
     unsafe {
         let mut undo = false;
 
@@ -3685,18 +3685,18 @@ fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> c_int {
 
             if vim_strchr(c"gGwW".as_ptr(), nchar).is_null() {
                 clearopbeep(&mut *cap.oap);
-                return OK;
+                return true;
             }
             undo = true;
         }
 
         if checkclearop(&mut *cap.oap) {
-            return OK;
+            return true;
         }
         let mut ptr: *mut c_char = ptr::null_mut();
         let mut len: usize = 0;
         if g_st().Visual.active && !get_visual_text(Some(cap), &mut ptr, &mut len) {
-            return FAIL;
+            return false;
         }
         if ptr.is_null() {
             let pos = (**curwin.as_ptr()).w_cursor;
@@ -3713,7 +3713,7 @@ fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> c_int {
         if ptr.is_null() {
             len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, None);
             if len == 0 {
-                return FAIL;
+                return false;
             }
         }
         assert!(len <= c_int::MAX as usize);
@@ -3733,7 +3733,7 @@ fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> c_int {
             undo,
         );
 
-        OK
+        true
     }
 }
 
@@ -4061,7 +4061,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                 || c == b'G' as c_int
                 || c == b'W' as c_int =>
             {
-                if nv_zg_zw(cap, nchar) == FAIL {
+                if !nv_zg_zw(cap, nchar) {
                     return;
                 }
             }

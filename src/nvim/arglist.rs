@@ -171,20 +171,20 @@ pub fn gargcount() -> c_int {
     }
 }
 
-fn check_arglist_locked() -> c_int {
+fn check_arglist_locked() -> bool {
     if arglist_st().arglist_locked {
             emsg(gettext(
                 (&raw const e_cannot_change_arglist_recursively).cast(),
             ));
-            return FAIL;
+            return false;
         }
-        OK
+        true
 }
 
 /// Clear an argument list: free all file names and reset it to zero entries (`alist_clear`).
 pub fn alist_clear(al: *mut alist_T) {
     unsafe {
-        if check_arglist_locked() == FAIL {
+        if !check_arglist_locked() {
             return;
         }
         (*al).al_ga = Vec::new();
@@ -205,7 +205,7 @@ pub fn alist_new() {
 /// Set the argument list for the current window (`alist_set`).
 fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
     unsafe {
-        if check_arglist_locked() == FAIL {
+        if !check_arglist_locked() {
             return;
         }
 
@@ -232,7 +232,7 @@ fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
 pub fn alist_add(al: *mut alist_T, ae_fname: CString, set_fnum: c_int) {
     unsafe {
         let wp = *curwin.as_ptr();
-        if check_arglist_locked() == FAIL {
+        if !check_arglist_locked() {
             return;
         }
         arglist_st().arglist_locked = true;
@@ -349,7 +349,7 @@ fn alist_check_arg_idx() {
 fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool) {
     unsafe {
         let old_argcount = argcount();
-        if check_arglist_locked() != FAIL {
+        if check_arglist_locked() {
             let wp = *curwin.as_ptr();
             let al = win_alist(&*wp);
             after = after.clamp(0, old_argcount);
@@ -425,19 +425,19 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
     }
 }
 
-fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool) -> c_int {
+fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool) -> bool {
     unsafe {
         let mut new_ga: Vec<*mut c_char> = Vec::new();
         let mut exp_files: Vec<CString> = Vec::new();
         let mut arg_escaped = true;
 
-        if check_arglist_locked() == FAIL {
-            return FAIL;
+        if !check_arglist_locked() {
+            return false;
         }
 
         if what == AL_ADD && *str_ == NUL {
             if (*g_st().curbuf).b_ffname.is_null() {
-                return FAIL;
+                return false;
             }
             str_ = (*g_st().curbuf).b_fname;
             arg_escaped = false;
@@ -457,7 +457,7 @@ fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool)
             drop(new_ga);
             if i == FAIL || exp_files.is_empty() {
                 emsg(gettext((&raw const e_nomatch).cast()));
-                return FAIL;
+                return false;
             }
 
             if what == AL_ADD {
@@ -469,7 +469,7 @@ fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool)
         }
 
         alist_check_arg_idx();
-        OK
+        true
     }
 }
 
@@ -533,7 +533,7 @@ pub fn check_arg_idx(win: &mut win_T) {
 pub fn ex_args(eap: &mut exarg_T) {
     unsafe {
         if eap.cmdidx != CMD_args {
-            if check_arglist_locked() == FAIL {
+            if !check_arglist_locked() {
                 return;
             }
             if eap.cmdidx == CMD_argglobal {
@@ -544,7 +544,7 @@ pub fn ex_args(eap: &mut exarg_T) {
         }
 
         if *eap.arg != NUL {
-            if check_arglist_locked() == FAIL {
+            if !check_arglist_locked() {
                 return;
             }
             ex_next(eap);
@@ -712,7 +712,7 @@ pub fn ex_next(eap: &mut exarg_T) {
             )
         {
             let i = if *eap.arg != NUL {
-                if do_arglist(eap.arg, AL_SET, 0, true) == FAIL {
+                if !do_arglist(eap.arg, AL_SET, 0, true) {
                     return;
                 }
                 0
@@ -772,7 +772,7 @@ pub fn ex_argedit(eap: &mut exarg_T) {
         };
         let curbuf_is_reusable = curbuf_reusable();
 
-        if do_arglist(eap.arg, AL_ADD, i, true) == FAIL {
+        if !do_arglist(eap.arg, AL_ADD, i, true) {
             return;
         }
         maketitle();
@@ -809,7 +809,7 @@ pub fn ex_argadd(eap: &mut exarg_T) {
 /// `:argdelete` (`ex_argdelete`).
 pub fn ex_argdelete(eap: &mut exarg_T) {
     unsafe {
-        if check_arglist_locked() == FAIL {
+        if !check_arglist_locked() {
             return;
         }
 

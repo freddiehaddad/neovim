@@ -255,7 +255,7 @@ pub fn mf_get(mfp: &mut memfile_T, nr: blocknr_T, page_count: c_uint) -> *mut bh
 
             let mut boxed = mf_alloc_bhdr(mfp, nr, page_count, BH_LOCKED);
             hp = &raw mut *boxed;
-            if mf_read(mfp, hp) == FAIL {
+            if !mf_read(mfp, hp) {
                 return ptr::null_mut();
             }
             mfp.mf_hash.insert(nr, boxed);
@@ -336,7 +336,7 @@ pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> c_int {
                 if (flags & MFS_ZERO) != 0 && (*hp).bh_bnum != 0 {
                     continue;
                 }
-                if mf_write(mfp, hp) == FAIL {
+                if !mf_write(mfp, hp) {
                     if status == FAIL {
                         completed_all = false;
                         break;
@@ -406,7 +406,7 @@ pub fn mf_release_all() -> bool {
                         .collect();
                     for hp in blocks {
                         if ((*hp).bh_flags & BH_LOCKED) == 0
-                            && (((*hp).bh_flags & BH_DIRTY) == 0 || mf_write(&mut *mfp, hp) != FAIL)
+                            && (((*hp).bh_flags & BH_DIRTY) == 0 || mf_write(&mut *mfp, hp))
                         {
                             let _ = (*mfp).mf_hash.remove(&(*hp).bh_bnum);
                             retval = true;
@@ -435,38 +435,38 @@ fn mf_alloc_bhdr(
     })
 }
 
-fn mf_read(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
+fn mf_read(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
     unsafe {
         if mfp.mf_fd < 0 {
-            return FAIL;
+            return false;
         }
 
         let page_size = mfp.mf_page_size;
         let offset = i64::from(page_size).wrapping_mul((*hp).bh_bnum);
         if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
             perror_msg(c"E294: Seek error in swap file read".as_ptr());
-            return FAIL;
+            return false;
         }
         assert!((*hp).bh_page_count <= c_uint::MAX / page_size);
         let size = (page_size * (*hp).bh_page_count) as usize;
         let nread = read_eintr(mfp.mf_fd, (*hp).data_ptr().cast(), size);
         if (nread as usize) != size {
             perror_msg(c"E295: Read error in swap file".as_ptr());
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
-fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
+fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
     unsafe {
         if mfp.mf_fd < 0 && !mfp.mf_reopen {
-            return FAIL;
+            return false;
         }
 
-        if (*hp).bh_bnum < 0 && mf_trans_add(&raw mut *mfp, hp) == FAIL {
-            return FAIL;
+        if (*hp).bh_bnum < 0 && !mf_trans_add(&raw mut *mfp, hp) {
+            return false;
         }
 
         let page_size = mfp.mf_page_size;
@@ -492,7 +492,7 @@ fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
                 if mfp.mf_fd >= 0 {
                     if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
                         perror_msg(c"E296: Seek error in swap file write".as_ptr());
-                        return FAIL;
+                        return false;
                     }
                     let data = if hp2.is_null() {
                         (*hp).data_ptr()
@@ -525,7 +525,7 @@ fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
                         }
                         g_st().did_swapwrite_msg = true;
                     }
-                    return FAIL;
+                    return false;
                 }
             }
 
@@ -542,14 +542,14 @@ fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
                 break;
             }
         }
-        OK
+        true
     }
 }
 
-fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
+fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> bool {
     unsafe {
         if (*hp).bh_bnum >= 0 {
-            return OK;
+            return true;
         }
 
         let page_count = (*hp).bh_page_count;
@@ -578,7 +578,7 @@ fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
 
         (*mfp).mf_trans.insert(old_bnum, new_bnum);
 
-        OK
+        true
     }
 }
 

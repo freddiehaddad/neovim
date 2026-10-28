@@ -302,18 +302,18 @@ fn uf2hikey(fp: &ufunc_T) -> *mut c_char {
     fp.uf_name.as_ptr().cast_mut()
 }
 
-fn func_hashtab_add(fp: &mut ufunc_T) -> c_int {
+fn func_hashtab_add(fp: &mut ufunc_T) -> bool {
     unsafe {
         let key_ptr = uf2hikey(fp);
         let key = CStr::from_ptr(key_ptr).to_bytes();
         let ht = &raw mut uf_st().func_hashtab;
         if (*ht).contains_key(key) {
             crate::siemsg!(c"Duplicate key in hash table: \"%s\"".as_ptr(), key_ptr);
-            return FAIL;
+            return false;
         }
         (*ht).insert(key.to_vec(), fp);
         uf_st().func_hashtab_changed = uf_st().func_hashtab_changed.wrapping_add(1);
-        OK
+        true
     }
 }
 
@@ -2095,13 +2095,13 @@ fn function_list_modified(prev_ht_changed: c_int) -> bool {
         false
 }
 
-fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> c_int {
+fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> bool {
     let prev_ht_changed = uf_st().func_hashtab_changed;
 
         msg_start();
 
         if function_list_modified(prev_ht_changed) {
-            return FAIL;
+            return false;
         }
 
         if indent {
@@ -2158,7 +2158,7 @@ fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> c_int {
             last_set_msg(fp.uf_script_ctx);
         }
 
-        OK
+        true
 }
 
 /// Get a function name, translating `<SID>` and `<SNR>`.
@@ -2477,7 +2477,7 @@ fn list_functions(mut regmatch: Option<&mut regmatch_T>) {
                 !message_filtered(uf2hikey(&*fp)) && !func_name_refcount(uf2hikey(&*fp))
             };
             if matches {
-                if list_func_head(&mut *fp, false, false) == FAIL {
+                if !list_func_head(&mut *fp, false, false) {
                     return;
                 }
                 if function_list_modified(prev_ht_changed) {
@@ -2538,7 +2538,7 @@ fn list_one_function(eap: &mut exarg_T, name: *mut c_char, p: *mut c_char) -> *m
         let prev_ht_changed = uf_st().func_hashtab_changed;
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        if list_func_head(&mut *fp, eap.forceit == 0, eap.forceit != 0) != OK {
+        if !list_func_head(&mut *fp, eap.forceit == 0, eap.forceit != 0) {
             return fp;
         }
 
@@ -3230,7 +3230,7 @@ pub fn ex_function(eap: &mut exarg_T) {
             if overwrite {
                 let ht = &raw mut uf_st().func_hashtab;
                 (*ht).insert(CStr::from_ptr(name).to_bytes().to_vec(), fp);
-            } else if func_hashtab_add(&mut *fp) == FAIL {
+            } else if !func_hashtab_add(&mut *fp) {
                 free_fp = true;
                 erret!();
             }
@@ -3617,7 +3617,7 @@ fn ex_defer_inner(
     arg: *mut *mut c_char,
     partial: *const partial_T,
     evalarg: &mut evalarg_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut partial_argc = 0;
@@ -3628,14 +3628,14 @@ fn ex_defer_inner(
                 gettext(e_str_not_inside_function.as_ptr()),
                 c"defer".as_ptr(),
             );
-            return FAIL;
+            return false;
         }
         if !partial.is_null() {
             if !(*partial).pt_dict.is_null() {
                 emsg(gettext(
                     E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER.as_ptr(),
                 ));
-                return FAIL;
+                return false;
             }
             if !(*partial).pt_argv.is_empty() {
                 partial_argc = (*partial).pt_argv.len() as c_int;
@@ -3682,10 +3682,10 @@ fn ex_defer_inner(
                 argcount -= 1;
                 tv_clear(&raw mut argvars[argcount as usize]);
             }
-            return FAIL;
+            return false;
         }
         add_defer(name, argcount, argvars.as_mut_ptr());
-        OK
+        true
     }
 }
 
@@ -3843,7 +3843,7 @@ pub fn ex_call(eap: &mut exarg_T) {
 
         let failed = if eap.cmdidx == cmdidx_T::CMD_defer as c_int {
             arg = startarg;
-            ex_defer_inner(name, &raw mut arg, partial, &mut evalarg) == FAIL
+            !ex_defer_inner(name, &raw mut arg, partial, &mut evalarg)
         } else {
             let mut funcexe = funcexe_T::new();
             funcexe.fe_partial = partial;

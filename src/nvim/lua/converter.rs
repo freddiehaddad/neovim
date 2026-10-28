@@ -890,17 +890,17 @@ fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> c_int {
 }
 
 #[inline]
-fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> c_int {
+fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> bool {
     unsafe {
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
             semsg!(
                 c"E5102: Lua failed to grow stack to %i".as_ptr(),
                 lua_gettop(lstate) + 3,
             );
-            return FAIL;
+            return false;
         }
         lua_createtable(lstate, 0, len as c_int);
-        OK
+        true
     }
 }
 
@@ -1194,10 +1194,10 @@ fn lua_convert_one_value(
                                                     if csr != NOTDONE {
                                                         return csr;
                                                     }
-                                                    if lua_conv_dict_start(
+                                                    if !lua_conv_dict_start(
                                                         lstate,
                                                         tv_list_len(val_list) as usize,
-                                                    ) == FAIL
+                                                    )
                                                     {
                                                         return FAIL;
                                                     }
@@ -1249,7 +1249,7 @@ fn lua_convert_one_value(
                     if csr != NOTDONE {
                         return csr;
                     }
-                    if lua_conv_dict_start(lstate, (*dict).dv_hashtab.ht_used) == FAIL {
+                    if !lua_conv_dict_start(lstate, (*dict).dv_hashtab.ht_used) {
                         return FAIL;
                     }
                     mpstack.push(MPConvStackVal {
@@ -1273,13 +1273,13 @@ fn lua_convert_one_value(
     }
 }
 
-fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> c_int {
+fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> bool {
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
 
         if lua_convert_one_value(lstate, &mut mpstack, top_tv, copy_id) == FAIL {
-            return FAIL;
+            return false;
         }
 
         while !mpstack.is_empty() {
@@ -1344,7 +1344,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> c_int {
                         copy_id,
                     ) == FAIL
                     {
-                        return FAIL;
+                        return false;
                     }
                     let last_item = tv_list_last(kv_pair);
                     let next_li = (*li).li_next;
@@ -1362,10 +1362,10 @@ fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> c_int {
             };
 
             if lua_convert_one_value(lstate, &mut mpstack, &mut *next_tv, copy_id) == FAIL {
-                return FAIL;
+                return false;
             }
         }
-        OK
+        true
     }
 }
 
@@ -1386,7 +1386,7 @@ pub unsafe extern "C-unwind" fn nlua_push_typval(
             );
             return false;
         }
-        if encode_vim_to_lua(lstate, &mut *tv) == FAIL {
+        if !encode_vim_to_lua(lstate, &mut *tv) {
             return false;
         }
         assert_eq!(lua_gettop(lstate), initial_size + 1);

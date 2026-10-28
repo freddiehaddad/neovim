@@ -33,7 +33,7 @@ use crate::autocmd::HLF_8;
 use crate::buffer::KEYMAP_INIT;
 use crate::change::MB_MAXCHAR;
 use crate::cmdexpand::LineGetter;
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::regexp::{Ctrl_H, NUMBUFLEN};
 use crate::state::MODE_LANGMAP;
 
@@ -1946,7 +1946,7 @@ fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
 }
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
-fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> c_int {
+fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> bool {
     unsafe {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
         let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
@@ -1958,9 +1958,9 @@ fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> c_
                 *char2 = mb_cptr2char_adv(&raw mut p);
                 if *p == NUL {
                     if check_digraph_chars_valid(*char1, *char2) {
-                        return OK;
+                        return true;
                     }
-                    return FAIL;
+                    return false;
                 }
             }
         }
@@ -1968,7 +1968,7 @@ fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> c_
             gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR.as_ptr()),
             chars,
         );
-        FAIL
+        false
     }
 }
 
@@ -1976,7 +1976,7 @@ fn digraph_set_common(argchars: &typval_T,argdigraph: &typval_T) -> bool {
     unsafe {
         let mut char1: c_int = 0;
         let mut char2: c_int = 0;
-        if get_digraph_chars(argchars, &mut char1, &mut char2) == FAIL {
+        if !get_digraph_chars(argchars, &mut char1, &mut char2) {
             return false;
         }
 

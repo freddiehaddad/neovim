@@ -540,13 +540,13 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
 
                 if (*stackp).ffs_filearray.is_empty() {
                     let dir_vis_idx = search_ctx.ffsc_dir_visited_list.unwrap();
-                    if ff_check_visited(
+                    if !ff_check_visited(
                         &mut search_ctx.ffsc_dir_visited_lists_list[dir_vis_idx].ffvl_visited_list,
                         (*stackp).ffs_fix_path.data,
                         (*stackp).ffs_fix_path.size,
                         (*stackp).ffs_wc_path.data,
                         (*stackp).ffs_wc_path.size,
-                    ) == FAIL
+                    )
                     {
                         continue;
                     }
@@ -736,7 +736,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                                         file_path.size,
                                         EMPTY_C.as_ptr(),
                                         0,
-                                    ) == OK
+                                    )
                                 {
                                     (*stackp).ffs_filearray_cur = i + 1;
                                     ff_push(search_ctx, stack_elem);
@@ -985,7 +985,7 @@ fn ff_check_visited(
     fnamelen: usize,
     wc_path: *const c_char,
     wc_pathlen: usize,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut url = false;
         let mut file_id = FileID::new();
@@ -998,7 +998,7 @@ fn ff_check_visited(
             url = true;
         } else {
             if !os_fileid(fname, &mut file_id) {
-                return FAIL;
+                return false;
             }
         }
 
@@ -1019,7 +1019,7 @@ fn ff_check_visited(
                     wc_path,
                 )
             {
-                return FAIL;
+                return false;
             }
         }
 
@@ -1043,7 +1043,7 @@ fn ff_check_visited(
             ffv_fname,
         });
 
-        OK
+        true
     }
 }
 

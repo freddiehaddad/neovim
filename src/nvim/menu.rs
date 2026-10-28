@@ -906,13 +906,13 @@ fn find_menu(
 }
 
 /// Show the mapping associated with a menu item or hierarchy in a sub-menu (`show_menus`).
-fn show_menus(path_name: *mut c_char, modes: c_int) -> c_int {
+fn show_menus(path_name: *mut c_char, modes: c_int) -> bool {
     unsafe {
         let mut menu: *mut vimmenu_T = ptr::null_mut();
         if *path_name != NUL {
             menu = find_menu(&mut *get_root_menu(path_name), path_name, modes);
             if menu.is_null() {
-                return FAIL;
+                return false;
             }
         }
 
@@ -920,7 +920,7 @@ fn show_menus(path_name: *mut c_char, modes: c_int) -> c_int {
         msg_puts_title(gettext(c"\n--- Menus ---".as_ptr()));
         show_menus_recursive(menu, modes, 0);
         menu_st().MENUS_LOCKED -= 1;
-        OK
+        true
     }
 }
 

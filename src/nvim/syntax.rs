@@ -275,7 +275,7 @@ const spo_name_tab: [*const c_char; SPO_COUNT] = [
 ];
 
 use crate::charset::NUL;
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::sign::EXP_SUBCMD;
 
 pub type SynIdList = Option<std::rc::Rc<[i16]>>;
@@ -3743,15 +3743,15 @@ fn get_syn_options(
                     emsg(gettext(e_contains_argument_not_accepted_here));
                     return ptr::null_mut();
                 }
-                if get_id_list(&raw mut arg, 8, &mut opt.cont_list, skip != 0) == FAIL {
+                if !get_id_list(&raw mut arg, 8, &mut opt.cont_list, skip != 0) {
                     return ptr::null_mut();
                 }
             } else if argtype == 2 {
-                if get_id_list(&raw mut arg, 11, &mut opt.cont_in_list, skip != 0) == FAIL {
+                if !get_id_list(&raw mut arg, 11, &mut opt.cont_in_list, skip != 0) {
                     return ptr::null_mut();
                 }
             } else if argtype == 3 {
-                if get_id_list(&raw mut arg, 9, &mut opt.next_list, skip != 0) == FAIL {
+                if !get_id_list(&raw mut arg, 9, &mut opt.next_list, skip != 0) {
                     return ptr::null_mut();
                 }
             } else if argtype == 11 && *arg.add(5) == b'=' as c_char {
@@ -4442,12 +4442,12 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
                 };
 
                 let mut clstr_list: SynIdList = None;
-                if get_id_list(
+                if !get_id_list(
                     &raw mut rest,
                     opt_len,
                     &mut clstr_list,
                     eap.skip != 0,
-                ) == FAIL
+                )
                 {
                     semsg!(gettext((&raw const e_invarg2).cast()), rest);
                     break;
@@ -4704,7 +4704,7 @@ fn get_id_list(
     keylen: c_int,
     list: &mut SynIdList,
     skip: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut p: *mut c_char = ptr::null_mut();
         let mut total_count: c_int = 0;
@@ -4835,13 +4835,13 @@ fn get_id_list(
 
         *arg = p;
         if failed || retval.is_empty() {
-            return FAIL;
+            return false;
         }
 
         if list.is_none() {
             *list = Some(std::rc::Rc::from(retval));
         }
-        OK
+        true
     }
 }
 

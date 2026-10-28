@@ -2343,7 +2343,7 @@ fn do_system_initialization() {
 fn do_user_initialization() -> bool {
     unsafe {
         let mut do_exrc = opt_vars().p_exrc != 0;
-        if execute_env(c"VIMINIT".as_ptr().cast_mut()) == OK {
+        if execute_env(c"VIMINIT".as_ptr().cast_mut()) {
             do_exrc = opt_vars().p_exrc != 0;
             return do_exrc;
         }
@@ -2457,7 +2457,7 @@ fn do_user_initialization() -> bool {
             }
         }
 
-        if execute_env(c"EXINIT".as_ptr().cast_mut()) == OK {
+        if execute_env(c"EXINIT".as_ptr().cast_mut()) {
             do_exrc = opt_vars().p_exrc != 0;
             return do_exrc;
         }
@@ -2507,9 +2507,9 @@ fn source_startup_scripts(parmp: &mparm_T) {
         time_msg_if_enabled(c"sourcing vimrc file(s)".as_ptr());
 }
 
-fn execute_env(env: *mut c_char) -> c_int {
+fn execute_env(env: *mut c_char) -> bool {
     let Some(initstr) = os_getenv_cstr(env) else {
-            return FAIL;
+            return false;
         };
 
         estack_push(ETYPE_ENV, env, 0);
@@ -2522,7 +2522,7 @@ fn execute_env(env: *mut c_char) -> c_int {
         estack_pop();
         g_st().current_sctx = save_current_sctx;
 
-        OK
+        true
 }
 
 fn mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) -> ! {

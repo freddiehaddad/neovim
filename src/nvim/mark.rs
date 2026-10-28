@@ -2186,10 +2186,10 @@ fn add_mark(
     pos: &pos_T,
     bufnr: c_int,
     fname: *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         if pos.lnum <= 0 {
-            return OK;
+            return true;
         }
 
         let d = tv_dict_alloc();
@@ -2212,10 +2212,10 @@ fn add_mark(
             || tv_dict_add_list(d, c"pos".as_ptr(), 3, lpos) == FAIL
             || (!fname.is_null() && tv_dict_add_str(d, c"file".as_ptr(), 4, fname) == FAIL)
         {
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 

@@ -1740,43 +1740,43 @@ fn validate_opt_idx(
     flags: u32,
     prefix: set_prefix_T,
     errmsg: *mut *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         if !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) && prefix != PREFIX_NONE {
             *errmsg = e_invarg.as_ptr();
-            return FAIL;
+            return false;
         }
 
         if (opt_flags & OPT_WINONLY) != 0 && !option_is_window_local(opt_idx) {
-            return FAIL;
+            return false;
         }
 
         if (opt_flags & OPT_NOWIN) != 0 && option_is_window_local(opt_idx) {
-            return FAIL;
+            return false;
         }
 
         if (opt_flags & OPT_MODELINE) != 0 {
             if (flags & kOptFlagSecure) != 0 {
                 *errmsg = E_NOT_ALLOWED_IN_MODELINE;
-                return FAIL;
+                return false;
             }
             if (flags & kOptFlagMLE) != 0 && opt_vars().p_mle == 0 {
                 *errmsg = E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF;
-                return FAIL;
+                return false;
             }
             if win.w_onebuf_opt.wo_diff != 0
                 && (opt_idx == kOptFoldmethod || opt_idx == kOptWrap)
             {
-                return FAIL;
+                return false;
             }
         }
 
         if g_st().sandbox != 0 && (flags & kOptFlagSecure) != 0 {
             *errmsg = e_sandbox.as_ptr();
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -2027,7 +2027,7 @@ fn do_one_set_option(
         let varp = get_varp_scope(opt, opt_flags);
 
         let mut errmsg: *const c_char = ptr::null();
-        if validate_opt_idx(&mut **curwin.as_ptr(), opt_idx, opt_flags, flags, prefix, &mut errmsg) == FAIL {
+        if !validate_opt_idx(&mut **curwin.as_ptr(), opt_idx, opt_flags, flags, prefix, &mut errmsg) {
             return errmsg;
         }
 

@@ -623,7 +623,7 @@ fn sign_define_by_name(
     }
 }
 
-fn sign_undefine_by_name(name: *const c_char) -> c_int {
+fn sign_undefine_by_name(name: *const c_char) -> bool {
     unsafe {
         let sm_ptr = &raw mut sign_st().sign_map;
         let Some(pos) = (*sm_ptr)
@@ -631,10 +631,10 @@ fn sign_undefine_by_name(name: *const c_char) -> c_int {
             .position(|sp| std::ffi::CStr::from_ptr(sp.sn_name.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes())
         else {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
-            return FAIL;
+            return false;
         };
         (*sm_ptr).swap_remove(pos);
-        OK
+        true
     }
 }
 
@@ -700,16 +700,16 @@ fn sign_place(
     buf: *mut buf_T,
     mut lnum: linenr_T,
     mut prio: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         if !group.is_null() && (*group == b'*' as c_char || *group == NUL) {
-            return FAIL;
+            return false;
         }
 
         let sp = pmap_get_sign(name);
         if sp.is_null() {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
-            return FAIL;
+            return false;
         }
 
         if prio == -1 {
@@ -730,10 +730,10 @@ fn sign_place(
                 gettext(c"E885: Not possible to change sign %s".as_ptr()),
                 name,
             );
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -946,7 +946,7 @@ fn parse_sign_cmd_args(
     prio: &mut c_int,
     buf: *mut *mut buf_T,
     lnum: &mut linenr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let arg1 = arg;
         let mut filename: *mut c_char = ptr::null_mut();
@@ -971,7 +971,7 @@ fn parse_sign_cmd_args(
             } else if (crate::memory::cstr_prefix_bytes(arg, 1) == &b"*"[..1]) && cmd == SIGNCMD_UNPLACE {
                 if *id != -1 {
                     emsg(gettext(e_invarg.as_ptr()));
-                    return FAIL;
+                    return false;
                 }
                 *id = -2;
                 arg = skiptowhite(arg.add(1));
@@ -1014,20 +1014,20 @@ fn parse_sign_cmd_args(
                 break;
             } else {
                 emsg(gettext(e_invarg.as_ptr()));
-                return FAIL;
+                return false;
             }
             arg = skipwhite(arg);
         }
 
         if !filename.is_null() && (*buf).is_null() {
             semsg!(gettext(e_invalid_buffer_name_str.as_ptr()), filename);
-            return FAIL;
+            return false;
         }
 
         if filename.is_null() && ((cmd == SIGNCMD_PLACE && lnum_arg) || cmd == SIGNCMD_JUMP) {
             *buf = (**curwin.as_ptr()).w_buffer;
         }
-        OK
+        true
     }
 }
 
@@ -1077,7 +1077,7 @@ pub fn ex_sign(eap: &mut exarg_T) {
             let mut prio: c_int = -1;
             let mut buf: *mut buf_T = ptr::null_mut();
 
-            if parse_sign_cmd_args(
+            if !parse_sign_cmd_args(
                 idx,
                 arg,
                 &raw mut name,
@@ -1086,7 +1086,7 @@ pub fn ex_sign(eap: &mut exarg_T) {
                 &mut prio,
                 &raw mut buf,
                 &mut lnum,
-            ) == FAIL
+            )
             {
                 return;
             }
@@ -1684,7 +1684,7 @@ fn sign_place_from_dict(
         }
 
         let mut uid = id as u32;
-        if sign_place(&mut uid, group, name, buf, lnum, prio) == OK {
+        if sign_place(&mut uid, group, name, buf, lnum, prio) {
             return uid as c_int;
         }
 
@@ -1757,7 +1757,7 @@ fn sign_undefine_multiple(l: *const list_T, retlist: *mut list_T) {
         while !li.is_null() {
             let mut retval: c_int = -1;
             let name = tv_get_string_chk(&(*li).li_tv);
-            if !name.is_null() && sign_undefine_by_name(name) == OK {
+            if !name.is_null() && sign_undefine_by_name(name) {
                 retval = 0;
             }
             tv_list_append_number(retlist, i64::from(retval));
@@ -1787,7 +1787,7 @@ pub fn f_sign_undefine(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             if name.is_null() {
                 return;
             }
-            if sign_undefine_by_name(name) == OK {
+            if sign_undefine_by_name(name) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
             }
         }

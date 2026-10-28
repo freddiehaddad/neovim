@@ -4947,14 +4947,14 @@ fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
 }
 
 /// Start executing an Ex command line.
-fn do_cmdline_start() -> c_int {
+fn do_cmdline_start() -> bool {
     debug_assert!(docmd_st().cmdline_call_depth >= 0);
         if docmd_st().cmdline_call_depth >= 200 && OptInt::from(docmd_st().cmdline_call_depth) >= opt_vars().p_mfd {
-            return FAIL;
+            return false;
         }
         docmd_st().cmdline_call_depth += 1;
         start_batch_changes();
-        OK
+        true
 }
 
 /// End executing an Ex command line.
@@ -5000,7 +5000,7 @@ pub fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_int) -> c
         let ml = &raw mut g_st().msg_list;
         let saved_msg_list = (*ml).replace(Vec::new());
 
-        if do_cmdline_start() == FAIL {
+        if !do_cmdline_start() {
             let _ = emsg(gettext(e_command_too_recursive.as_ptr()));
             do_errthrow(None, ptr::null_mut());
             g_st().msg_list = saved_msg_list;
@@ -5882,7 +5882,7 @@ pub fn set_cmd_count(eap: &mut exarg_T, count: linenr_T, validate: bool) {
     }
 }
 
-fn parse_count(eap: &mut exarg_T, errormsg: *mut *const c_char, validate: bool) -> c_int {
+fn parse_count(eap: &mut exarg_T, errormsg: *mut *const c_char, validate: bool) -> bool {
     unsafe {
         if (eap.argt & EX_COUNT) != 0 && ascii_isdigit(*eap.arg) {
             let p = skipdigits(eap.arg.add(1));
@@ -5906,12 +5906,12 @@ fn parse_count(eap: &mut exarg_T, errormsg: *mut *const c_char, validate: bool) 
                     if !errormsg.is_null() {
                         *errormsg = gettext(e_zerocount.as_ptr());
                     }
-                    return FAIL;
+                    return false;
                 }
                 set_cmd_count(eap, n, validate);
             }
         }
-        OK
+        true
     }
 }
 
@@ -6092,7 +6092,7 @@ pub fn parse_cmdline(
 
             if !skipmods {
                 parse_register(eap);
-                if parse_count(eap, errormsg, false) == FAIL {
+                if !parse_count(eap, errormsg, false) {
                     break 'end;
                 }
             }
@@ -6136,11 +6136,11 @@ fn execute_cmd0(
     eap: &mut exarg_T,
     errormsg: *mut *const c_char,
     preview: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         if (eap.argt & EX_XFILE) != 0 && expand_filename(eap, eap.cmdlinep, errormsg) == FAIL
         {
-            return FAIL;
+            return false;
         }
 
         if (eap.argt & EX_BUFNAME) != 0
@@ -6179,7 +6179,7 @@ fn execute_cmd0(
                 shift_cmd_args(&mut *eap);
             }
             if eap.line2 < 0 {
-                return FAIL;
+                return false;
             }
         }
 
@@ -6207,14 +6207,14 @@ fn execute_cmd0(
             }
         }
 
-        OK
+        true
     }
 }
 
 pub fn execute_cmd(eap: &mut exarg_T, cmod: &mut cmdmod_T, preview: bool) -> c_int {
     unsafe {
         let mut retv: c_int = 0;
-        if do_cmdline_start() == FAIL {
+        if !do_cmdline_start() {
             let _ = emsg(gettext(e_command_too_recursive.as_ptr()));
             return retv;
         }
@@ -6262,7 +6262,7 @@ pub fn execute_cmd(eap: &mut exarg_T, cmod: &mut cmdmod_T, preview: bool) -> c_i
                 hasFolding(*curwin.as_ptr(), eap.line2, None, &raw mut eap.line2);
             }
 
-            if parse_count(&mut *eap, &mut errormsg, true) == FAIL {
+            if !parse_count(&mut *eap, &mut errormsg, true) {
                 break 'end;
             }
 
@@ -6734,7 +6734,7 @@ fn do_one_cmd(
             }
 
             parse_register(&mut ea);
-            if parse_count(&mut ea, &mut errormsg, true) == FAIL {
+            if !parse_count(&mut ea, &mut errormsg, true) {
                 break 'doend;
             }
 
@@ -6761,7 +6761,7 @@ fn do_one_cmd(
             }
 
             let mut retv: c_int = 0;
-            if execute_cmd0(&mut retv, &mut ea, &mut errormsg, false) == FAIL {
+            if !execute_cmd0(&mut retv, &mut ea, &mut errormsg, false) {
                 break 'doend;
             }
 
@@ -8900,7 +8900,7 @@ pub fn check_nextcmd(p: *mut c_char) -> *mut c_char {
     }
 }
 
-fn check_more(message: bool, forceit: bool) -> c_int {
+fn check_more(message: bool, forceit: bool) -> bool {
     unsafe {
         let ac = argcount();
         let n = ac - (**curwin.as_ptr()).w_arg_idx - 1;
@@ -8924,9 +8924,9 @@ fn check_more(message: bool, forceit: bool) -> c_int {
                     if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 1)
                         == VIM_YES
                     {
-                        return OK;
+                        return true;
                     }
-                    return FAIL;
+                    return false;
                 }
                 let _ = semsg!(
                     ngettext(
@@ -8938,9 +8938,9 @@ fn check_more(message: bool, forceit: bool) -> c_int {
                 );
                 docmd_st().quitmore = 2;
             }
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -9010,7 +9010,7 @@ pub fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bo
             return true;
         }
 
-        if quit_all || (check_more(false, forceit) == OK && only_one_window()) {
+        if quit_all || (check_more(false, forceit) && only_one_window()) {
             apply_autocmds(
                 EVENT_EXITPRE,
                 ptr::null_mut(),
@@ -9062,7 +9062,7 @@ fn ex_quit(eap: &mut exarg_T) {
         }
 
         let save_exiting = g_st().exiting;
-        if check_more(false, eap.forceit != 0) == OK && only_one_window() {
+        if check_more(false, eap.forceit != 0) && only_one_window() {
             g_st().exiting = true;
         }
         if (!buf_hide(&*(*wp).w_buffer)
@@ -9072,7 +9072,7 @@ fn ex_quit(eap: &mut exarg_T) {
                     | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
                     | CCGD_EXCMD,
             ))
-            || check_more(true, eap.forceit != 0) == FAIL
+            || !check_more(true, eap.forceit != 0)
             || (only_one_window() && check_changed_any(eap.forceit != 0, true))
         {
             not_exiting(save_exiting);
@@ -9857,13 +9857,13 @@ fn ex_exit(eap: &mut exarg_T) {
         }
 
         let save_exiting = g_st().exiting;
-        if check_more(false, eap.forceit != 0) == OK && only_one_window() {
+        if check_more(false, eap.forceit != 0) && only_one_window() {
             g_st().exiting = true;
         }
         if ((eap.cmdidx == cmdidx_T::CMD_wq as c_int || curbufIsChanged())
             && do_write(eap) == FAIL)
             || before_quit_autocmds(*curwin.as_ptr(), false, eap.forceit != 0)
-            || check_more(true, eap.forceit != 0) == FAIL
+            || !check_more(true, eap.forceit != 0)
             || (only_one_window() && check_changed_any(eap.forceit != 0, false))
         {
             not_exiting(save_exiting);

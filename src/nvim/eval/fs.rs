@@ -1435,12 +1435,12 @@ fn read_blob(
     rettv: &mut typval_T,
     mut offset: off_T,
     size_arg: off_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let blob = rettv.vval.v_blob();
         let mut file_info = FileInfo::new();
         if !os_fileinfo_fd(fileno(fd), &mut file_info) {
-            return FAIL; // can't read the file, error
+            return false; // can't read the file, error
         }
 
         let mut size = size_arg;
@@ -1465,10 +1465,10 @@ fn read_blob(
             SEEK_END
         };
         if size <= 0 {
-            return OK;
+            return true;
         }
         if offset != 0 && vim_fseek(fd, offset, whence) != 0 {
-            return OK;
+            return true;
         }
 
         let bv = &mut (*blob).bv_ga;
@@ -1477,9 +1477,9 @@ fn read_blob(
             // An empty blob is returned on error.
             crate::eval::typval::tv_blob_unref(rettv.vval.v_blob());
             rettv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -1539,7 +1539,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
         }
 
         if blob {
-            if read_blob(fd, rettv, offset, size) == FAIL {
+            if !read_blob(fd, rettv, offset, size) {
                 semsg!(gettext(e_cant_read_file_str.as_ptr()), fname);
             }
             fclose(fd);

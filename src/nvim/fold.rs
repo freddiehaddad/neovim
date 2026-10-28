@@ -2583,7 +2583,7 @@ pub fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int {
     unsafe {
         if foldmethodIsManual(&mut *wp)
             && (put_line(fd, c"silent! normal! zE".as_ptr() as *mut c_char) == FAIL
-                || put_folds_recurse(fd, &(*wp).w_folds, 0) == FAIL
+                || !put_folds_recurse(fd, &(*wp).w_folds, 0)
                 || put_line(fd, c"let &fdl = &fdl".as_ptr() as *mut c_char) == FAIL)
         {
             return FAIL;
@@ -2597,11 +2597,11 @@ pub fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int {
     }
 }
 
-fn put_folds_recurse(fd: *mut FILE, gap: &[fold_T], off: linenr_T) -> c_int {
+fn put_folds_recurse(fd: *mut FILE, gap: &[fold_T], off: linenr_T) -> bool {
     unsafe {
         for fp in gap {
-            if put_folds_recurse(fd, &fp.fd_nested, off + fp.fd_top) == FAIL {
-                return FAIL;
+            if !put_folds_recurse(fd, &fp.fd_nested, off + fp.fd_top) {
+                return false;
             }
             let mut buf = [0 as c_char; 64];
             vim_snprintf!(
@@ -2612,10 +2612,10 @@ fn put_folds_recurse(fd: *mut FILE, gap: &[fold_T], off: linenr_T) -> c_int {
                 i64::from(fp.fd_top + off + fp.fd_len - 1),
             );
             if fputs(buf.as_ptr(), fd) < 0 || put_eol(fd) == FAIL {
-                return FAIL;
+                return false;
             }
         }
-        OK
+        true
     }
 }
 
@@ -2645,14 +2645,14 @@ fn put_foldopen_recurse(
                     if put_foldopen_recurse(fd, wp, &fp.fd_nested, off + fp.fd_top) == FAIL {
                         return FAIL;
                     }
-                    if fp.fd_flags == FD_CLOSED && put_fold_open_close(fd, fp, off) == FAIL {
+                    if fp.fd_flags == FD_CLOSED && !put_fold_open_close(fd, fp, off) {
                         return FAIL;
                     }
                 } else {
                     let level = i64::from(foldLevelWin(&mut *wp, off + fp.fd_top));
                     if ((fp.fd_flags == FD_CLOSED && (*wp).w_onebuf_opt.wo_fdl >= level)
                         || (fp.fd_flags != FD_CLOSED && (*wp).w_onebuf_opt.wo_fdl < level))
-                        && put_fold_open_close(fd, fp, off) == FAIL
+                        && !put_fold_open_close(fd, fp, off)
                     {
                         return FAIL;
                     }
@@ -2664,7 +2664,7 @@ fn put_foldopen_recurse(
     }
 }
 
-fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> c_int {
+fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> bool {
     unsafe {
         let mut buf = [0 as c_char; 32];
         vim_snprintf!(
@@ -2674,7 +2674,7 @@ fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> c_int {
             fp.fd_top + off,
         );
         if fputs(buf.as_ptr(), fd) < 0 || put_eol(fd) == FAIL {
-            return FAIL;
+            return false;
         }
         let cmd = if fp.fd_flags == FD_CLOSED {
             c"sil! normal! zc".as_ptr()
@@ -2682,9 +2682,9 @@ fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> c_int {
             c"sil! normal! zo".as_ptr()
         };
         if fputs(cmd, fd) < 0 || put_eol(fd) == FAIL {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 

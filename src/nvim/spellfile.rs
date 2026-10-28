@@ -2820,18 +2820,18 @@ fn check_renumber(spin: &mut spellinfo_T) {
         }
 }
 
-fn store_afflist_add(store_afflist: *mut c_char, cntp: &mut c_int, id: c_int) -> c_int {
+fn store_afflist_add(store_afflist: *mut c_char, cntp: &mut c_int, id: c_int) -> bool {
     unsafe {
         if *cntp >= (MAXWLEN - 1) as c_int {
             emsg(gettext(
                 (&raw const e_too_many_postponed_prefixes_spell).cast(),
             ));
-            return FAIL;
+            return false;
         }
         *store_afflist.offset(*cntp as isize) = id as u8 as c_char;
         *cntp += 1;
         *store_afflist.offset(*cntp as isize) = NUL;
-        OK
+        true
     }
 }
 
@@ -3219,7 +3219,7 @@ fn get_pfxlist(
                 let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
                 if let Some(ah) = affile.af_pref.get(key_bytes) {
                     let id = ah.ah_newID;
-                    if id != 0 && store_afflist_add(store_afflist, cntp, id) == FAIL {
+                    if id != 0 && !store_afflist_add(store_afflist, cntp, id) {
                         return FAIL;
                     }
                 }
@@ -3248,7 +3248,7 @@ fn get_compflags(
                 { let _d = (key.as_mut_ptr()).cast::<u8>(); let _n = p.offset_from(prevp) as usize; if _n > 0 { std::ptr::copy_nonoverlapping((prevp).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
                 if let Some(ci) = affile.af_comp.get(key_bytes)
-                    && store_afflist_add(store_afflist, &mut *cntp, ci.ci_newID) == FAIL
+                    && !store_afflist_add(store_afflist, &mut *cntp, ci.ci_newID)
                 {
                     return FAIL;
                 }
@@ -3402,11 +3402,11 @@ fn store_aff_word(
                                             j += 1;
                                         }
                                         if j == use_pfxlen
-                                            && store_afflist_add(
+                                            && !store_afflist_add(
                                                 use_pfxlist,
                                                 &mut listlen,
                                                 *pfxlist.offset(i as isize) as u8 as c_int,
-                                            ) == FAIL
+                                            )
                                         {
                                             retval = FAIL;
                                             break;
@@ -3447,11 +3447,11 @@ fn store_aff_word(
                                             j += 1;
                                         }
                                         if *use_pfxlist.offset(j as isize) == NUL
-                                            && store_afflist_add(
+                                            && !store_afflist_add(
                                                 use_pfxlist,
                                                 &mut listlen,
                                                 *pfxlist.offset(i as isize) as u8 as c_int,
-                                            ) == FAIL
+                                            )
                                         {
                                             retval = FAIL;
                                             break;
@@ -4672,7 +4672,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
         spin.si_foldwcount = 0;
 
         spell_message(&raw mut *spin, gettext(c"Performing soundfolding...".as_ptr()));
-        if sug_filltree(spin, &mut *slang) != FAIL && sug_maketable(spin) != FAIL {
+        if sug_filltree(spin, &mut *slang) && sug_maketable(spin) != FAIL {
             smsg!(
                 0,
                 gettext(c"Number of words after soundfolding: %lld".as_ptr()),
@@ -4697,7 +4697,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
     }
 }
 
-fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> c_int {
+fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> bool {
     unsafe {
         let mut arridx = [0 as idx_T; MAXWLEN];
         let mut curi = [0 as c_int; MAXWLEN];
@@ -4710,7 +4710,7 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> c_int {
         spin.si_sugtree = 1;
 
         if slang.sl_fbyts.is_empty() || slang.sl_fidxs.is_empty() {
-            return FAIL;
+            return false;
         }
         let fbyts_len = slang.sl_fbyts.len() as c_int;
         let byts = slang.sl_fbyts.as_mut_ptr();
@@ -4748,7 +4748,7 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> c_int {
                         0,
                     ) == FAIL
                     {
-                        return FAIL;
+                        return false;
                     }
 
                     words_done += 1;
@@ -4775,7 +4775,7 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> c_int {
             gettext(c"Total number of words: %d".as_ptr()),
             words_done,
         );
-        OK
+        true
     }
 }
 
@@ -5505,7 +5505,7 @@ fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c_char) 
     }
 }
 
-fn set_spell_finish(new_st: &mut spelltab_T) -> c_int {
+fn set_spell_finish(new_st: &mut spelltab_T) -> bool {
     if spell_priv_st().did_set_spelltab {
             for i in 0..256 {
                 if spell_priv_st().spelltab.st_isw[i] != new_st.st_isw[i]
@@ -5516,7 +5516,7 @@ fn set_spell_finish(new_st: &mut spelltab_T) -> c_int {
                     emsg(gettext(
                         c"E763: Word characters differ between spell files".as_ptr(),
                     ));
-                    return FAIL;
+                    return false;
                 }
             }
         } else {
@@ -5524,7 +5524,7 @@ fn set_spell_finish(new_st: &mut spelltab_T) -> c_int {
             spell_priv_st().did_set_spelltab = true;
         }
 
-        OK
+        true
 }
 
 fn write_spell_prefcond(

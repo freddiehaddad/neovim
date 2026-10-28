@@ -819,11 +819,11 @@ fn adjust_types(
     ap_types: &mut Vec<*const c_char>,
     arg: c_int,
     type_: *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         if arg <= 0 {
             semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), type_);
-            return FAIL;
+            return false;
         }
 
         if (arg as usize) > ap_types.len() {
@@ -844,7 +844,7 @@ fn adjust_types(
                         format_typename(prev),
                         format_typename(type_),
                     );
-                    return FAIL;
+                    return false;
                 }
             } else if format_typeof(type_) != format_typeof(prev) {
                 semsg!(
@@ -853,12 +853,12 @@ fn adjust_types(
                     format_typename(type_),
                     format_typename(prev),
                 );
-                return FAIL;
+                return false;
             }
         }
 
         ap_types[(arg - 1) as usize] = type_;
-        OK
+        true
     }
 }
 
@@ -986,7 +986,7 @@ pub fn parse_fmt_types(
                         p = p.add(1);
                         any_pos = true;
                         check_pos_arg!();
-                        if adjust_types(&mut ap_types, uj as c_int, arg) == FAIL {
+                        if !adjust_types(&mut ap_types, uj as c_int, arg) {
                             fail!();
                         }
                     } else {
@@ -1021,7 +1021,7 @@ pub fn parse_fmt_types(
                                 any_pos = true;
                                 check_pos_arg!();
                                 p = p.add(1);
-                                if adjust_types(&mut ap_types, uj as c_int, arg) == FAIL {
+                                if !adjust_types(&mut ap_types, uj as c_int, arg) {
                                     fail!();
                                 }
                             } else {
@@ -1066,7 +1066,7 @@ pub fn parse_fmt_types(
                     | b'B' | b'c' | b's' | b'S' | b'p' | b'f' | b'F' | b'e' | b'E' | b'g'
                     | b'G' => {
                         if pos_arg != -1 {
-                            if adjust_types(&mut ap_types, pos_arg, ptype) == FAIL {
+                            if !adjust_types(&mut ap_types, pos_arg, ptype) {
                                 fail!();
                             }
                         } else {

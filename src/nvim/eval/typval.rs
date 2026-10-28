@@ -2209,7 +2209,7 @@ fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
     }
 }
 
-fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_int {
+fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> bool {
     unsafe {
         info.item_compare_ic = 0;
         info.item_compare_lc = false;
@@ -2222,7 +2222,7 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
         info.item_compare_keys_ready = false;
 
         if argvars[1].v_type == VarType::VAR_UNKNOWN {
-            return OK;
+            return true;
         }
 
         if argvars[1].v_type == VarType::VAR_FUNC {
@@ -2236,7 +2236,7 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
             let mut error = false;
             let nr = tv_get_number_chk(&argvars[1], Some(&mut error)) as c_int;
             if error {
-                return FAIL;
+                return false;
             }
             if nr == 1 {
                 info.item_compare_ic = 1;
@@ -2247,7 +2247,7 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
                 }
             } else if nr != 0 {
                 emsg(tr(e_invarg.as_ptr()));
-                return FAIL;
+                return false;
             }
             if let Some(ref func_cstr) = info.item_compare_func {
                 match func_cstr.to_bytes() {
@@ -2279,12 +2279,12 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
 
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             if tv_check_for_dict_arg(argvars, 2) == FAIL {
-                return FAIL;
+                return false;
             }
             info.item_compare_selfdict = argvars[2].vval.v_dict();
         }
 
-        OK
+        true
     }
 }
 
@@ -2314,7 +2314,7 @@ fn do_sort_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, sort: bool) {
             tv_list_set_ret_inline(rettv, l);
 
             let len = tv_list_len_inline(l);
-            if len > 1 && parse_sort_uniq_args(argvars, &mut info) != FAIL {
+            if len > 1 && parse_sort_uniq_args(argvars, &mut info) {
                 if sort {
                     do_sort(l, &mut info);
                 } else {
@@ -4088,7 +4088,7 @@ fn nothing_conv_dict_end(dictp: *mut *mut dict_T) {
 fn nothing_convert_one_value(
     mpstack: &mut Vec<MPConvStackVal>,tv: &mut typval_T,
     copy_id: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         match tv.v_type {
             VarType::VAR_STRING => {
@@ -4120,7 +4120,7 @@ fn nothing_convert_one_value(
                     partial_name(pt)
                 };
                 if nothing_conv_func_start(tv, fun) != NOTDONE {
-                    return OK;
+                    return true;
                 }
                 mpstack.push(MPConvStackVal {
                     tv: &raw mut *tv,
@@ -4137,11 +4137,11 @@ fn nothing_convert_one_value(
                     tv_list_unref(list);
                     tv.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
                     tv.v_lock = VAR_UNLOCKED;
-                    return OK;
+                    return true;
                 }
                 let saved_copy_id = (*list).lv_copyID;
                 if (*list).lv_copyID == copy_id {
-                    return OK;
+                    return true;
                 }
                 (*list).lv_copyID = copy_id;
                 let mut mpsv = MPConvStackVal {
@@ -4169,11 +4169,11 @@ fn nothing_convert_one_value(
                 let dictp = (*tv_ptr).vval.v_dict_mut();
                 if dict.is_null() || (*dict).dv_hashtab.ht_used == 0 {
                     nothing_conv_empty_dict(Some(&mut *tv_ptr), dictp);
-                    return OK;
+                    return true;
                 }
                 let saved_copy_id = (*dict).dv_copyID;
                 if (*dict).dv_copyID == copy_id {
-                    return OK;
+                    return true;
                 }
                 (*dict).dv_copyID = copy_id;
                 let mut mpsv = MPConvStackVal {
@@ -4191,10 +4191,10 @@ fn nothing_convert_one_value(
             }
             VarType::VAR_UNKNOWN => {
                 internal_error(c"_typval_encode_nothing_convert_one_value()".as_ptr());
-                return FAIL;
+                return false;
             }
         }
-        OK
+        true
     }
 }
 
@@ -4203,7 +4203,7 @@ fn encode_vim_to_nothing(top_tv: &mut typval_T) -> c_int {
         let copy_id = get_copyID();
 
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
-        if nothing_convert_one_value(&mut mpstack, top_tv, copy_id) == FAIL {
+        if !nothing_convert_one_value(&mut mpstack, top_tv, copy_id) {
             return FAIL;
         }
 
@@ -4332,7 +4332,7 @@ fn encode_vim_to_nothing(top_tv: &mut typval_T) -> c_int {
                 MPConvStackData::Pairs { .. } => unreachable!(),
             };
             debug_assert!(!tv.is_null());
-            if nothing_convert_one_value(&mut mpstack, &mut *tv, copy_id) == FAIL {
+            if !nothing_convert_one_value(&mut mpstack, &mut *tv, copy_id) {
                 return FAIL;
             }
         }

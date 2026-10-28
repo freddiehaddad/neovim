@@ -933,11 +933,11 @@ fn uc_scan_attr(
     complp: &mut c_int,
     compl_arg: &mut Option<CString>,
     addr_type_arg: &mut cmd_addr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         if len == 0 {
             emsg(gettext(c"E175: No attribute specified".as_ptr()));
-            return FAIL;
+            return false;
         }
 
         if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bang".as_ptr(), len)) {
@@ -975,12 +975,12 @@ fn uc_scan_attr(
                         b'_' => *argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE,
                         _ => {
                             emsg(gettext(c"E176: Invalid number of arguments".as_ptr()));
-                            return FAIL;
+                            return false;
                         }
                     }
                 } else {
                     emsg(gettext(c"E176: Invalid number of arguments".as_ptr()));
-                    return FAIL;
+                    return false;
                 }
             } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"range".as_ptr(), attrlen)) {
                 *argt |= EX_RANGE;
@@ -990,7 +990,7 @@ fn uc_scan_attr(
                     let mut p = val;
                     if *def >= 0 {
                         emsg(gettext(c"E177: Count cannot be specified twice".as_ptr()));
-                        return FAIL;
+                        return false;
                     }
 
                     *def = getdigits_int(&raw mut p, true, 0);
@@ -998,7 +998,7 @@ fn uc_scan_attr(
 
                     if p != val.add(vallen) || vallen == 0 {
                         emsg(gettext(c"E178: Invalid default value for count".as_ptr()));
-                        return FAIL;
+                        return false;
                     }
                 }
                 if *addr_type_arg == ADDR_NONE {
@@ -1014,14 +1014,14 @@ fn uc_scan_attr(
                     let mut p = val;
                     if *def >= 0 {
                         emsg(gettext(c"E177: Count cannot be specified twice".as_ptr()));
-                        return FAIL;
+                        return false;
                     }
 
                     *def = getdigits_int(&raw mut p, true, 0);
 
                     if p != val.add(vallen) {
                         emsg(gettext(c"E178: Invalid default value for count".as_ptr()));
-                        return FAIL;
+                        return false;
                     }
                 }
 
@@ -1034,11 +1034,11 @@ fn uc_scan_attr(
                         gettext(E_ARGUMENT_REQUIRED_FOR_STR.as_ptr()),
                         c"-complete".as_ptr(),
                     );
-                    return FAIL;
+                    return false;
                 }
 
                 if parse_compl_arg(val, vallen as c_int, complp, argt, compl_arg) == FAIL {
-                    return FAIL;
+                    return false;
                 }
             } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"addr".as_ptr(), attrlen)) {
                 *argt |= EX_RANGE;
@@ -1047,10 +1047,10 @@ fn uc_scan_attr(
                         gettext(E_ARGUMENT_REQUIRED_FOR_STR.as_ptr()),
                         c"-addr".as_ptr(),
                     );
-                    return FAIL;
+                    return false;
                 }
                 if parse_addr_type_arg(val, vallen as c_int, addr_type_arg) == FAIL {
-                    return FAIL;
+                    return false;
                 }
                 if *addr_type_arg != ADDR_LINES {
                     *argt |= EX_ZEROR;
@@ -1060,11 +1060,11 @@ fn uc_scan_attr(
                 *attr.add(len) = NUL;
                 semsg!(gettext(c"E181: Invalid attribute: %s".as_ptr()), attr);
                 *attr.add(len) = ch;
-                return FAIL;
+                return false;
             }
         }
 
-        OK
+        true
     }
 }
 
@@ -1210,7 +1210,7 @@ pub fn ex_command(eap: &mut exarg_T) {
         while *p == b'-' as c_char {
             p = p.add(1);
             let end = skiptowhite(p);
-            if uc_scan_attr(
+            if !uc_scan_attr(
                 p,
                 end.offset_from(p) as usize,
                 &mut argt,
@@ -1219,7 +1219,7 @@ pub fn ex_command(eap: &mut exarg_T) {
                 &mut context,
                 &mut compl_arg,
                 &mut addr_type_arg,
-            ) == FAIL
+            )
             {
                 return;
             }

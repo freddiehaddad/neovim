@@ -287,7 +287,7 @@ fn buf_write_convert(ip: &mut bw_info, bufp: *mut *mut c_char, lenp: &mut c_int)
     }
 }
 
-fn buf_write_bytes(ip: &mut bw_info) -> c_int {
+fn buf_write_bytes(ip: &mut bw_info) -> bool {
     let mut buf = ip.bw_buf.as_mut_ptr();
         let mut len = ip.bw_len;
         let flags = ip.bw_flags;
@@ -295,7 +295,7 @@ fn buf_write_bytes(ip: &mut bw_info) -> c_int {
         if (flags & FIO_NOCONVERT) == 0 {
             let converted = buf_write_convert(ip, &raw mut buf, &mut len);
             if converted < 0 {
-                return FAIL;
+                return false;
             }
             let remaining = ip.bw_len - converted;
             ip.bw_len = remaining;
@@ -303,7 +303,7 @@ fn buf_write_bytes(ip: &mut bw_info) -> c_int {
             if ip.bw_fd >= 0 {
                 let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
                 if wlen < len {
-                    return FAIL;
+                    return false;
                 }
             }
 
@@ -317,15 +317,15 @@ fn buf_write_bytes(ip: &mut bw_info) -> c_int {
             if ip.bw_fd >= 0 {
                 let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
                 if wlen < len {
-                    return FAIL;
+                    return false;
                 }
             }
         }
 
-        OK
+        true
 }
 
-fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> c_int {
+fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> bool {
     unsafe {
         if (*buf).b_mtime_read != 0
             && time_differs(file_info, (*buf).b_mtime_read, (*buf).b_mtime_read_ns)
@@ -337,12 +337,12 @@ fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> c_int {
                 HLF_E,
             );
             if ask_yesno(gettext(c"Do you really want to write to it".as_ptr())) == b'n' as c_int {
-                return FAIL;
+                return false;
             }
             g_st().msg_scroll = 0;
         }
     }
-    OK
+    true
 }
 
 fn make_bom(buf_in: *mut c_char, name: *mut c_char) -> c_int {
@@ -778,7 +778,7 @@ fn get_fileinfo(
     newfile: &mut bool,
     readonly: &mut bool,
     err: &mut Error_T,
-) -> c_int {
+) -> bool {
     {
         if get_fileinfo_os(
             fname,
@@ -790,7 +790,7 @@ fn get_fileinfo(
             err,
         ) == FAIL
         {
-            return FAIL;
+            return false;
         }
 
         *readonly = false;
@@ -810,14 +810,14 @@ fn get_fileinfo(
                         gettext(c"is read-only (add ! to override)".as_ptr()),
                     );
                 }
-                return FAIL;
+                return false;
             }
 
-            if overwriting && !forceit && check_mtime(buf, file_info_old) == FAIL {
-                return FAIL;
+            if overwriting && !forceit && !check_mtime(buf, file_info_old) {
+                return false;
             }
         }
-        OK
+        true
     }
 }
 
@@ -873,7 +873,7 @@ fn buf_write_make_backup(
     backup_copyp: &mut bool,
     backupp: &mut Option<std::ffi::CString>,
     err: &mut Error_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut file_info = FileInfo::new();
         let no_prepend_dot = false;
@@ -1047,7 +1047,7 @@ fn buf_write_make_backup(
                 ));
             }
             if (some_error || err.msg.is_some()) && !forceit {
-                return FAIL;
+                return false;
             }
             *err = set_err(ptr::null());
         } else {
@@ -1056,7 +1056,7 @@ fn buf_write_make_backup(
                     c"E504",
                     gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')".as_ptr()),
                 );
-                return FAIL;
+                return false;
             }
 
             let mut dirp = opt_vars().p_bdir;
@@ -1099,11 +1099,11 @@ fn buf_write_make_backup(
                 *err = set_err(gettext(
                     c"E510: Can't make backup file (add ! to override)".as_ptr(),
                 ));
-                return FAIL;
+                return false;
             }
         }
     }
-    OK
+    true
 }
 
 /// Write to file `fname` lines `start` through `end`.
@@ -1276,7 +1276,7 @@ pub fn buf_write(
 
         'nofail: {
             'fail: {
-                if get_fileinfo(
+                if !get_fileinfo(
                     buf,
                     fname,
                     overwriting,
@@ -1287,7 +1287,7 @@ pub fn buf_write(
                     &mut newfile,
                     &mut file_readonly,
                     &mut err,
-                ) == FAIL
+                )
                 {
                     break 'fail;
                 }
@@ -1310,7 +1310,7 @@ pub fn buf_write(
                     && !filtering
                     && perm >= 0
                     && dobackup
-                    && buf_write_make_backup(
+                    && !buf_write_make_backup(
                         fname,
                         append,
                         &mut file_info_old,
@@ -1322,7 +1322,7 @@ pub fn buf_write(
                         &mut backup_copy,
                         &mut backup,
                         &mut err,
-                    ) == FAIL
+                    )
                 {
                     retval = FAIL;
                     break 'fail;
@@ -1548,7 +1548,7 @@ pub fn buf_write(
                             write_info.bw_len = make_bom(buffer, fenc);
                             if write_info.bw_len > 0 {
                                 write_info.bw_flags = FIO_NOCONVERT | wb_flags;
-                                if buf_write_bytes(&mut write_info) == FAIL {
+                                if !buf_write_bytes(&mut write_info) {
                                     end = 0;
                                 } else {
                                     nchars += i64::from(write_info.bw_len);
@@ -1599,7 +1599,7 @@ pub fn buf_write(
                                 if write_info.bw_len != bufsize {
                                     continue;
                                 }
-                                if buf_write_bytes(&mut write_info) == FAIL {
+                                if !buf_write_bytes(&mut write_info) {
                                     end = 0;
                                     break;
                                 }
@@ -1627,7 +1627,7 @@ pub fn buf_write(
                                 if fileformat == EOL_DOS {
                                     write_info.bw_len += 1;
                                     if write_info.bw_len == bufsize {
-                                        if buf_write_bytes(&mut write_info) == FAIL {
+                                        if !buf_write_bytes(&mut write_info) {
                                             end = 0;
                                             break;
                                         }
@@ -1640,7 +1640,7 @@ pub fn buf_write(
                             }
                             write_info.bw_len += 1;
                             if write_info.bw_len == bufsize {
-                                if buf_write_bytes(&mut write_info) == FAIL {
+                                if !buf_write_bytes(&mut write_info) {
                                     end = 0;
                                     break;
                                 }
@@ -1689,7 +1689,7 @@ pub fn buf_write(
                         }
                         if write_info.bw_len > 0 && end > 0 {
                             let remaining = write_info.bw_len;
-                            if buf_write_bytes(&mut write_info) == FAIL {
+                            if !buf_write_bytes(&mut write_info) {
                                 end = 0;
                             }
                             nchars += i64::from(remaining - write_info.bw_len);

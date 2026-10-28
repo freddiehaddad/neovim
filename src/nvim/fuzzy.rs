@@ -15,7 +15,7 @@ use crate::eval::typval::{
 };
 use crate::globals::*;
 use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::mbyte::{
     mb_charlen, mb_islower, mb_isupper, mb_tolower, mb_toupper, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
@@ -71,10 +71,10 @@ struct MatchStruct {
     match_bonus: [f64; MATCH_MAX_LEN],
 }
 
-fn has_match(needle: *const c_char, haystack: *const c_char) -> c_int {
+fn has_match(needle: *const c_char, haystack: *const c_char) -> bool {
     unsafe {
         if needle.is_null() || haystack.is_null() || *needle == 0 {
-            return FAIL;
+            return false;
         }
 
         let mut n_ptr = needle;
@@ -96,13 +96,13 @@ fn has_match(needle: *const c_char, haystack: *const c_char) -> c_int {
             }
 
             if !found {
-                return FAIL;
+                return false;
             }
 
             n_ptr = n_ptr.add(utfc_ptr2len(n_ptr) as usize);
         }
 
-        OK
+        true
     }
 }
 
@@ -343,7 +343,7 @@ pub fn fuzzy_match(
             }
 
             let mut score = FUZZY_SCORE_NONE;
-            if has_match(pat, str_ptr) != FAIL {
+            if has_match(pat, str_ptr) {
                 let fzy_score = match_positions(pat, str_ptr, matches.add(num_matches as usize));
                 if fzy_score != SCORE_MIN {
                     score = if fzy_score == SCORE_MAX {

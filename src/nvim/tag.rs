@@ -759,7 +759,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                         }
                         break;
                     } else if type_ == DT_LTAG {
-                        if add_llist_tags(tag, &*do_tag_matches) == FAIL {
+                        if !add_llist_tags(tag, &*do_tag_matches) {
                             break 'end_do_tag;
                         }
                         cur_match = 0;
@@ -1004,7 +1004,7 @@ fn select_tag_match(eap: Option<&exarg_T>,
 }
 
 /// Add the matching tags to the location list for the current window.
-fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> c_int {
+fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
     unsafe {
         let mut tag_name = [0 as c_char; 128 + 1];
         let mut tagp = tagptrs_T::default();
@@ -1097,7 +1097,7 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> c_int {
 
         tv_list_free(list);
 
-        OK
+        true
     }
 }
 
@@ -2629,7 +2629,7 @@ fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
         }
 
         let mut p = tagp.command;
-        if find_extra(&raw mut p) == OK {
+        if find_extra(&raw mut p) {
             tagp.command_end = p;
             if p > tagp.command && *p.sub(1) == b'|' as c_char {
                 tagp.command_end = p.sub(1);
@@ -2743,7 +2743,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
 
             {
                 str_ = pbuf;
-                if find_extra(&raw mut str_) == OK {
+                if find_extra(&raw mut str_) {
                     if str_ > pbuf && *str_.sub(1) == b'|' as c_char {
                         pbuf_end = str_.sub(1);
                     } else {
@@ -3072,7 +3072,7 @@ fn test_for_current(
     }
 }
 
-fn find_extra(pp: *mut *mut c_char) -> c_int {
+fn find_extra(pp: *mut *mut c_char) -> bool {
     unsafe {
         let mut str_ = *pp;
         let mut first_char = **pp;
@@ -3108,9 +3108,9 @@ fn find_extra(pp: *mut *mut c_char) -> c_int {
 
         if !str_.is_null() && { let _p = str_; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b";\""[..2] } {
             *pp = str_;
-            return OK;
+            return true;
         }
-        FAIL
+        false
     }
 }
 

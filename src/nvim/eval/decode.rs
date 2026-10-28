@@ -491,7 +491,7 @@ fn parse_json_number(
     next_map_special: &mut bool,
     didcomma: &mut bool,
     didcolon: &mut bool,
-) -> c_int {
+) -> bool {
     let e = unsafe { buf.add(buf_len) };
     let mut p = *pp;
     let s = p;
@@ -515,7 +515,7 @@ fn parse_json_number(
                     s,
                 );
                 *pp = p;
-                return FAIL;
+                return false;
             }
             if p < e && p != ints {
                 if *p as u8 == b'.' {
@@ -546,7 +546,7 @@ fn parse_json_number(
                 s,
             );
             *pp = p;
-            return FAIL;
+            return false;
         } else if p == fracs || (!fracs.is_null() && exps_s == fracs.add(1)) {
             semsg!(
                 c"E474: Missing number after decimal dot: %.*s".as_ptr(),
@@ -554,7 +554,7 @@ fn parse_json_number(
                 s,
             );
             *pp = p;
-            return FAIL;
+            return false;
         } else if p == exps {
             semsg!(
                 c"E474: Missing exponent: %.*s".as_ptr(),
@@ -562,7 +562,7 @@ fn parse_json_number(
                 s,
             );
             *pp = p;
-            return FAIL;
+            return false;
         }
 
         let mut tv = typval_T {
@@ -627,13 +627,13 @@ fn parse_json_number(
         ) == FAIL
         {
             *pp = p;
-            return FAIL;
+            return false;
         }
         if !*next_map_special {
             p = p.sub(1);
         }
         *pp = p;
-        OK
+        true
     }
 }
 
@@ -930,7 +930,7 @@ pub fn json_decode_string(
                         }
                     }
                     b'-' | b'0'..=b'9' => {
-                        if parse_json_number(
+                        if !parse_json_number(
                             buf,
                             buf_len,
                             &mut p,
@@ -939,7 +939,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        ) == FAIL
+                        )
                         {
                             return fail_cleanup(stack);
                         }

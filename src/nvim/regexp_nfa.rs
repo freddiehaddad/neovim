@@ -957,7 +957,7 @@ fn nfa_regatom() -> c_int {
                 }
                 return OK;
             } else if c == Magic(b'(' as c_int) {
-                if nfa_reg(REG_PAREN) == FAIL {
+                if !nfa_reg(REG_PAREN) {
                     return FAIL;
                 }
                 return OK;
@@ -1031,7 +1031,7 @@ fn nfa_regatom() -> c_int {
                             g_st().rc_did_emsg = true;
                             return FAIL;
                         }
-                        if nfa_reg(REG_ZPAREN) == FAIL {
+                        if !nfa_reg(REG_ZPAREN) {
                             return FAIL;
                         }
                         re_st().re_has_z = REX_SET;
@@ -1048,7 +1048,7 @@ fn nfa_regatom() -> c_int {
             } else if c == Magic(b'%' as c_int) {
                 c = no_Magic(getchr());
                 if c == b'(' as c_int {
-                    if nfa_reg(REG_NPAREN) == FAIL {
+                    if !nfa_reg(REG_NPAREN) {
                         return FAIL;
                     }
                     EMIT(NFA_NOPEN);
@@ -1707,7 +1707,7 @@ fn nfa_regpiece_multi(
     }
 }
 
-fn nfa_regconcat() -> c_int {
+fn nfa_regconcat() -> bool {
     let mut cont = true;
         let mut first = true;
 
@@ -1746,7 +1746,7 @@ fn nfa_regconcat() -> c_int {
                 re_st().curchr = -1;
             } else {
                 if nfa_regpiece() == FAIL {
-                    return FAIL;
+                    return false;
                 }
                 if !first {
                     EMIT(NFA_CONCAT);
@@ -1756,15 +1756,15 @@ fn nfa_regconcat() -> c_int {
             }
         }
 
-        OK
+        true
 }
 
-fn nfa_regbranch() -> c_int {
+fn nfa_regbranch() -> bool {
     unsafe {
         let pv = &raw const re_st().post_vec;
         let mut old_post_pos = (*pv).len();
-        if nfa_regconcat() == FAIL {
-            return FAIL;
+        if !nfa_regconcat() {
+            return false;
         }
         while peekchr() == Magic(b'&' as c_int) {
             skipchr();
@@ -1774,8 +1774,8 @@ fn nfa_regbranch() -> c_int {
             EMIT(NFA_NOPEN);
             EMIT(NFA_PREV_ATOM_NO_WIDTH);
             old_post_pos = (*pv).len();
-            if nfa_regconcat() == FAIL {
-                return FAIL;
+            if !nfa_regconcat() {
+                return false;
             }
             if old_post_pos == (*pv).len() {
                 EMIT(NFA_EMPTY);
@@ -1785,11 +1785,11 @@ fn nfa_regbranch() -> c_int {
         if old_post_pos == (*pv).len() {
             EMIT(NFA_EMPTY);
         }
-        OK
+        true
     }
 }
 
-fn nfa_reg(paren: c_int) -> c_int {
+fn nfa_reg(paren: c_int) -> bool {
     unsafe {
         let mut parno: c_int = 0;
 
@@ -1797,7 +1797,7 @@ fn nfa_reg(paren: c_int) -> c_int {
             if re_st().regnpar >= NSUBEXP as c_int {
                 emsg(tr(c"E872: (NFA regexp) Too many '('".as_ptr()));
                 g_st().rc_did_emsg = true;
-                return FAIL;
+                return false;
             }
             parno = re_st().regnpar;
             re_st().regnpar += 1;
@@ -1805,7 +1805,7 @@ fn nfa_reg(paren: c_int) -> c_int {
             if re_st().regnzpar >= NSUBEXP as c_int {
                 emsg(tr(c"E879: (NFA regexp) Too many \\z(".as_ptr()));
                 g_st().rc_did_emsg = true;
-                return FAIL;
+                return false;
             }
             parno = re_st().regnzpar;
             re_st().regnzpar += 1;
@@ -1814,19 +1814,19 @@ fn nfa_reg(paren: c_int) -> c_int {
         if re_st().nfa_reg_parse_depth >= REG_MAX_PAREN_DEPTH {
             emsg(tr((&raw const e_command_too_complex).cast()));
             g_st().rc_did_emsg = true;
-            return FAIL;
+            return false;
         }
         re_st().nfa_reg_parse_depth += 1;
 
-        if nfa_regbranch() == FAIL {
+        if !nfa_regbranch() {
             re_st().nfa_reg_parse_depth -= 1;
-            return FAIL;
+            return false;
         }
         while peekchr() == Magic(b'|' as c_int) {
             skipchr();
-            if nfa_regbranch() == FAIL {
+            if !nfa_regbranch() {
                 re_st().nfa_reg_parse_depth -= 1;
-                return FAIL;
+                return false;
             }
             EMIT(NFA_OR);
         }
@@ -1853,7 +1853,7 @@ fn nfa_reg(paren: c_int) -> c_int {
             }
             g_st().rc_did_emsg = true;
             re_st().nfa_reg_parse_depth -= 1;
-            return FAIL;
+            return false;
         } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
             if peekchr() == Magic(b')' as c_int) {
                 semsg!(
@@ -1869,7 +1869,7 @@ fn nfa_reg(paren: c_int) -> c_int {
             }
             g_st().rc_did_emsg = true;
             re_st().nfa_reg_parse_depth -= 1;
-            return FAIL;
+            return false;
         }
 
         if paren == REG_PAREN {
@@ -1880,12 +1880,12 @@ fn nfa_reg(paren: c_int) -> c_int {
         }
 
         re_st().nfa_reg_parse_depth -= 1;
-        OK
+        true
     }
 }
 
 fn re2post() -> bool {
-    if nfa_reg(REG_NOPAREN) == FAIL {
+    if !nfa_reg(REG_NOPAREN) {
             return false;
         }
         EMIT(NFA_MOPEN);
@@ -3417,14 +3417,14 @@ fn failure_chance(states: &[nfa_state_T], state: Option<usize>, depth: c_int) ->
     }
 }
 
-fn skip_to_start(c: c_int, colp: &mut colnr_T) -> c_int {
+fn skip_to_start(c: c_int, colp: &mut colnr_T) -> bool {
     unsafe {
         let s = cstrchr(re_st().rex.line.add(*colp as usize).cast(), c);
         if s.is_null() {
-            return FAIL;
+            return false;
         }
         *colp = s.cast::<u8>().offset_from(re_st().rex.line) as colnr_T;
-        OK
+        true
     }
 }
 
@@ -3464,7 +3464,7 @@ fn find_match_text(startcol: &mut colnr_T, regstart: c_int, match_text: *const u
             }
 
             col += regstart_len2;
-            if skip_to_start(regstart, &mut col) == FAIL {
+            if !skip_to_start(regstart, &mut col) {
                 break;
             }
         }
@@ -4519,7 +4519,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     if prog.regstart != NUL as c_int && clen != 0 {
                         if (*nextlist).n == 0 {
                             let mut col = (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) + clen;
-                            if skip_to_start(prog.regstart, &mut col) == FAIL {
+                            if !skip_to_start(prog.regstart, &mut col) {
                                 break;
                             }
                             re_st().rex.input = re_st().rex.line.add((col - clen) as usize);
@@ -4802,7 +4802,7 @@ fn nfa_regexec_both(
         }
 
         if (*prog).regstart != NUL as c_int {
-            if skip_to_start((*prog).regstart, &mut col) == FAIL {
+            if !skip_to_start((*prog).regstart, &mut col) {
                 return 0;
             }
             if let Some(ref mt) = (*prog).match_text

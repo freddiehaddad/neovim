@@ -351,7 +351,7 @@ pub fn do_errthrow(cstack: Option<&mut cstack_T>, cmdname: *mut c_char) {
         }
 
         let messages = std::mem::take(list);
-        if throw_exception(ExceptionValue::Error(messages), cmdname) != FAIL {
+        if throw_exception(ExceptionValue::Error(messages), cmdname) {
             if let Some(cstack) = cstack {
                 do_throw(&raw mut *cstack);
             } else {
@@ -377,7 +377,7 @@ pub fn do_intthrow(cstack: *mut cstack_T) -> bool {
         if throw_exception(
             ExceptionValue::Interrupt(c"Vim:Interrupt".to_owned()),
             ptr::null_mut(),
-        ) != FAIL
+        )
         {
             do_throw(cstack);
         }
@@ -442,7 +442,7 @@ pub fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> 
     }
 }
 
-fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int {
+fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> bool {
     unsafe {
         let (r#type, mut messages, excp_value) = match value {
             ExceptionValue::User(val_str) => {
@@ -454,7 +454,7 @@ fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int {
                         c"E608: Cannot :throw exceptions with 'Vim' prefix".as_ptr(),
                     ));
                     g_st().current_exception = None;
-                    return FAIL;
+                    return false;
                 }
                 (ET_USER, Vec::new(), val_str)
             }
@@ -517,7 +517,7 @@ fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int {
         }
 
         g_st().current_exception = Some(excp);
-        OK
+        true
     }
 }
 
@@ -1115,7 +1115,7 @@ pub fn ex_throw(eap: &mut exarg_T) {
 
         if let Some(val_cstr) = value
             && eap.skip == 0
-            && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut()) != FAIL
+            && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut())
         {
             do_throw(eap.cstack.cast());
         }

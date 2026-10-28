@@ -5958,7 +5958,7 @@ fn get_normal_compl_info(
     line: *mut c_char,
     mut startcol: c_int,
     curs_col: colnr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         if (insexp().compl_cont_status & CONT_SOL) != 0 || ctrl_x_mode_path_defines() {
             if !compl_status_adding() {
@@ -6053,7 +6053,7 @@ fn get_normal_compl_info(
             prepare_cpt_compl_funcs();
         }
 
-        OK
+        true
     }
 }
 
@@ -6260,7 +6260,7 @@ fn get_userdefined_compl_info(
     }
 }
 
-fn get_spell_compl_info(startcol: c_int, curs_col: colnr_T) -> c_int {
+fn get_spell_compl_info(startcol: c_int, curs_col: colnr_T) -> bool {
     unsafe {
         if insexp().spell_bad_len > 0 {
             debug_assert!(insexp().spell_bad_len <= c_int::MAX as usize);
@@ -6278,7 +6278,7 @@ fn get_spell_compl_info(startcol: c_int, curs_col: colnr_T) -> c_int {
         let line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
         set_compl_pattern_bytes(line.add(insexp().compl_col as usize), insexp().compl_length as usize);
 
-        OK
+        true
     }
 }
 
@@ -6293,7 +6293,7 @@ fn compl_get_info(
             || ctrl_x_mode_register()
             || ((insexp().ctrl_x_mode & CTRL_X_WANT_IDENT) != 0 && !thesaurus_func_complete(insexp().ctrl_x_mode))
         {
-            if get_normal_compl_info(line, startcol, curs_col) != OK {
+            if !get_normal_compl_info(line, startcol, curs_col) {
                 return FAIL;
             }
             *line_invalid = true;
@@ -6312,7 +6312,7 @@ fn compl_get_info(
             }
             *line_invalid = true;
         } else if ctrl_x_mode_spell() {
-            if get_spell_compl_info(startcol, curs_col) == FAIL {
+            if !get_spell_compl_info(startcol, curs_col) {
                 return FAIL;
             }
             *line_invalid = true;
@@ -6360,7 +6360,7 @@ fn ins_compl_continue_search(line: *mut c_char) {
     }
 }
 
-fn ins_compl_start() -> c_int {
+fn ins_compl_start() -> bool {
     unsafe {
         let save_did_ai = g_st().Ins.did_ai;
 
@@ -6370,7 +6370,7 @@ fn ins_compl_start() -> c_int {
         g_st().Ins.can_si_back = false;
         if stop_arrow() == FAIL {
             g_st().Ins.did_ai = save_did_ai;
-            return FAIL;
+            return false;
         }
 
         let mut line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
@@ -6402,7 +6402,7 @@ fn ins_compl_start() -> c_int {
             {
                 g_st().Ins.did_ai = save_did_ai;
             }
-            return FAIL;
+            return false;
         }
         if line_invalid {
             line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
@@ -6467,7 +6467,7 @@ fn ins_compl_start() -> c_int {
             let extmarks = &raw mut insexp().compl_orig_extmarks;
             (*extmarks).clear();
             g_st().Ins.did_ai = save_did_ai;
-            return FAIL;
+            return false;
         }
 
         if !shortmess(kShmCompletionmenu) && !insexp().compl_autocomplete {
@@ -6479,7 +6479,7 @@ fn ins_compl_start() -> c_int {
         }
 
         g_st().Ins.did_ai = save_did_ai;
-        OK
+        true
     }
 }
 
@@ -6571,7 +6571,7 @@ pub fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
         if !insexp().compl_started {
             insexp().compl_autostarted = insexp().compl_autostart_pending;
             insexp().compl_autostart_pending = false;
-            if ins_compl_start() == FAIL {
+            if !ins_compl_start() {
                 return FAIL;
             }
         } else if insert_match && stop_arrow() == FAIL {

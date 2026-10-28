@@ -871,7 +871,7 @@ fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
                 {
                     break 'theend;
                 }
-                if check_external_diff(dio) == FAIL {
+                if !check_external_diff(dio) {
                     break 'theend;
                 }
             }
@@ -1058,7 +1058,7 @@ pub fn ex_diffupdate(eap: &mut exarg_T) {
         }
     }
 }
-fn check_external_diff(diffio: &mut diffio_T) -> c_int {
+fn check_external_diff(diffio: &mut diffio_T) -> bool {
     unsafe {
         let mut io_error = false;
         let mut ok: TriState;
@@ -1126,9 +1126,9 @@ fn check_external_diff(diffio: &mut diffio_T) -> c_int {
             }
             emsg(gettext(c"E97: Cannot create diffs".as_ptr()));
             diff_st().diff_a_works = kNone;
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 fn diff_file_internal(diffio: &mut diffio_T) -> c_int {

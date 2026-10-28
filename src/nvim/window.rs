@@ -5153,7 +5153,7 @@ pub fn win_new_tabpage(
         let newtp = alloc_tabpage();
 
         if enter {
-            if leave_tabpage(g_st().curbuf, true) == FAIL {
+            if !leave_tabpage(g_st().curbuf, true) {
                 free_tabpage(newtp);
                 return ptr::null_mut();
             }
@@ -5403,7 +5403,7 @@ pub fn tabpage_index(ftp: *mut tabpage_T) -> c_int {
     }
 }
 
-fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> c_int {
+fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> bool {
     unsafe {
         let tp = g_st().curtab;
 
@@ -5419,7 +5419,7 @@ fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> c_int 
                     g_st().curbuf,
                 );
                 if !ptr::eq(g_st().curtab, tp) {
-                    return FAIL;
+                    return false;
                 }
             }
             apply_autocmds(
@@ -5430,7 +5430,7 @@ fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> c_int 
                 g_st().curbuf,
             );
             if !ptr::eq(g_st().curtab, tp) {
-                return FAIL;
+                return false;
             }
             apply_autocmds(
                 EVENT_TABLEAVE,
@@ -5440,7 +5440,7 @@ fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> c_int 
                 g_st().curbuf,
             );
             if !ptr::eq(g_st().curtab, tp) {
-                return FAIL;
+                return false;
             }
         }
 
@@ -5455,7 +5455,7 @@ fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> c_int 
         }
         g_st().firstwin = ptr::null_mut();
         g_st().lastwin = ptr::null_mut();
-        OK
+        true
     }
 }
 
@@ -5630,7 +5630,7 @@ pub fn goto_tabpage_tp(
 
         g_st().skip_win_fix_scroll = true;
         if !ptr::eq(tp, g_st().curtab)
-            && leave_tabpage((*(*tp).tp_curwin).w_buffer, trigger_leave_autocmds) == OK
+            && leave_tabpage((*(*tp).tp_curwin).w_buffer, trigger_leave_autocmds)
         {
             if valid_tabpage(tp) {
                 enter_tabpage(tp, g_st().curbuf, trigger_enter_autocmds, trigger_leave_autocmds);
@@ -8234,7 +8234,7 @@ pub fn restore_snapshot(idx: c_int, close_curwin: c_int) {
         if let Some(sn) = (*g_st().curtab).tp_snapshot[idx as usize].take()
             && sn.fr_width == (*g_st().topframe).fr_width
             && sn.fr_height == (*g_st().topframe).fr_height
-            && check_snapshot_rec(&sn, &mut *g_st().topframe) == OK
+            && check_snapshot_rec(&sn, &mut *g_st().topframe)
         {
             let wp = restore_snapshot_rec(&sn, &mut *g_st().topframe);
             win_comp_pos();
@@ -8246,25 +8246,20 @@ pub fn restore_snapshot(idx: c_int, close_curwin: c_int) {
     }
 }
 
-fn check_snapshot_rec(sn: &SnapshotFrame, fr: &mut frame_T) -> c_int {
+fn check_snapshot_rec(sn: &SnapshotFrame, fr: &mut frame_T) -> bool {
     unsafe {
-        if sn.fr_layout != fr.fr_layout
+        !(sn.fr_layout != fr.fr_layout
             || sn.fr_next.is_none() != fr.fr_next.is_null()
             || sn.fr_child.is_none() != fr.fr_child.is_null()
             || (sn
                 .fr_next
                 .as_deref()
-                .is_some_and(|next| check_snapshot_rec(next, &mut *fr.fr_next) == FAIL))
+                .is_some_and(|next| !check_snapshot_rec(next, &mut *fr.fr_next)))
             || (sn
                 .fr_child
                 .as_deref()
-                .is_some_and(|child| check_snapshot_rec(child, &mut *fr.fr_child) == FAIL))
-            || (!sn.fr_win.is_null() && !win_valid(sn.fr_win))
-        {
-            FAIL
-        } else {
-            OK
-        }
+                .is_some_and(|child| !check_snapshot_rec(child, &mut *fr.fr_child)))
+            || (!sn.fr_win.is_null() && !win_valid(sn.fr_win)))
     }
 }
 

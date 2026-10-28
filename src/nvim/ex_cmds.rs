@@ -2163,22 +2163,22 @@ pub fn ex_write(eap: &mut exarg_T) {
 }
 
 #[cfg(unix)]
-fn check_writable(fname: *const c_char) -> c_int {
+fn check_writable(fname: *const c_char) -> bool {
     if os_nodetype(fname) == NODE_OTHER {
         semsg!(
             gettext(c"E503: \"%s\" is not a file or writable device".as_ptr()),
             fname,
         );
-        return FAIL;
+        return false;
     }
-    OK
+    true
 }
 
-fn handle_mkdir_p_arg(eap: &mut exarg_T, fname: *mut c_char) -> c_int {
+fn handle_mkdir_p_arg(eap: &mut exarg_T, fname: *mut c_char) -> bool {
     if eap.mkdir_p != 0 && os_file_mkdir(fname, 0o755) < 0 {
-            return FAIL;
+            return false;
         }
-        OK
+        true
 }
 
 /// Write current buffer to file `eap->arg`.
@@ -2231,7 +2231,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
                     break 'theend;
                 }
                 #[cfg(unix)]
-                if check_writable((*g_st().curbuf).b_ffname) == FAIL {
+                if !check_writable((*g_st().curbuf).b_ffname) {
                     break 'theend;
                 }
                 if check_readonly(&mut eap.forceit, &mut *g_st().curbuf) {
@@ -2333,7 +2333,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
                     fname = (*g_st().curbuf).b_sfname;
                 }
 
-                if handle_mkdir_p_arg(eap, fname) == FAIL {
+                if !handle_mkdir_p_arg(eap, fname) {
                     retval = FAIL;
                     break 'theend;
                 }
@@ -2516,7 +2516,7 @@ pub fn do_wqall(eap: &mut exarg_T) {
             } else {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&mut bufref, buf);
-                if handle_mkdir_p_arg(eap, (*buf).b_fname) == FAIL
+                if !handle_mkdir_p_arg(eap, (*buf).b_fname)
                     || buf_write_all(&mut *buf, eap.forceit != 0) == FAIL
                 {
                     error += 1;
@@ -3866,14 +3866,14 @@ fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
     }
 }
 
-fn check_regexp_delim(c: c_int) -> c_int {
+fn check_regexp_delim(c: c_int) -> bool {
     if ascii_isalpha(c) {
             emsg(gettext(
                 c"E146: Regular expressions can't be delimited by letters".as_ptr(),
             ));
-            return FAIL;
+            return false;
         }
-        OK
+        true
 }
 
 fn push_preview_lines(
@@ -3949,7 +3949,7 @@ fn do_sub(
             && !ascii_iswhite(*cmd as c_int)
             && vim_strchr(c"0123456789cegriIp|\"".as_ptr(), (*cmd as u8) as c_int).is_null()
         {
-            if check_regexp_delim((*cmd as u8) as c_int) == FAIL {
+            if !check_regexp_delim((*cmd as u8) as c_int) {
                 return 0;
             }
 
@@ -4917,7 +4917,7 @@ pub fn ex_global(eap: &mut exarg_T) {
                 c"E148: Regular expression missing from global".as_ptr(),
             ));
             return;
-        } else if check_regexp_delim((*cmd as u8) as c_int) == FAIL {
+        } else if !check_regexp_delim((*cmd as u8) as c_int) {
             return;
         } else {
             delim = *cmd;

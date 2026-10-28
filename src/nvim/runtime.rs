@@ -820,7 +820,7 @@ pub fn do_in_path(
 
                             did_one |= gen_expand_wildcards_and_cb(
                                 1, &mut buf, ew_flags, do_all, callback,
-                            ) == OK;
+                            );
                         }
                     }
                 }
@@ -949,7 +949,7 @@ fn do_in_cached_path(
                         ew_flags,
                         do_all,
                         callback,
-                    ) == OK;
+                    );
                 }
             }
         }
@@ -1413,16 +1413,16 @@ fn gen_expand_wildcards_and_cb(
     flags: c_int,
     all: bool,
     callback: &mut RuntimeCallback<'_>,
-) -> c_int {
+) -> bool {
     let mut files: Vec<std::ffi::CString> = Vec::new();
 
         if gen_expand_wildcards_vec(num_pat, pats, &mut files, flags) != OK {
-            return FAIL;
+            return false;
         }
 
         callback.invoke(&files, all);
 
-        OK
+        true
 }
 
 fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
@@ -1659,7 +1659,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
     }
 }
 
-fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
+fn load_pack_plugin(opt: bool, fname: *mut c_char) -> bool {
     let ffname_cstr = fix_fname(fname).unwrap_or_default();
         let ffname = ffname_cstr.as_ptr();
         let len = ffname_cstr.as_bytes().len() + 14;
@@ -1684,7 +1684,7 @@ fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
             do_cmdline_cmd(c"augroup END".as_ptr());
         }
 
-        OK
+        true
 }
 
 fn add_pack_plugins(

@@ -3232,7 +3232,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
     p1: &mut pos_T,
     p2: &mut pos_T,inclusive: &mut bool,region_type: &mut c_int,
     oap: &mut oparg_T,
-) -> c_int {
+) -> bool {
     unsafe {
         tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
 
@@ -3240,7 +3240,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
             || tv_check_for_list_arg(argvars, 1) == FAIL
             || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
         {
-            return FAIL;
+            return false;
         }
 
         let mut fnum1: c_int = -1;
@@ -3249,7 +3249,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
             || list2fpos(&mut argvars[1], p2, Some(&mut fnum2), None, false) != OK
             || fnum1 != fnum2
         {
-            return FAIL;
+            return false;
         }
 
         let is_select_exclusive: bool;
@@ -3282,13 +3282,13 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
                 block_width = getdigits_int(&raw mut p, false, 0);
                 if block_width <= 0 || *p != NUL {
                     semsg!(gettext(e_invargNval.as_ptr()), c"type".as_ptr(), type_str);
-                    return FAIL;
+                    return false;
                 }
             }
             *region_type = kMTBlockWise;
         } else {
             semsg!(gettext(e_invargNval.as_ptr()), c"type".as_ptr(), type_str);
-            return FAIL;
+            return false;
         }
 
         let findbuf = if fnum1 != 0 {
@@ -3298,29 +3298,29 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
         };
         if findbuf.is_null() || (*findbuf).b_ml.ml_mfp.is_none() {
             emsg(gettext(e_buffer_is_not_loaded.as_ptr()));
-            return FAIL;
+            return false;
         }
 
         if p1.lnum < 1 || p1.lnum > (*findbuf).b_ml.ml_line_count {
             semsg!(gettext(e_invalid_line_number_nr.as_ptr()), p1.lnum);
-            return FAIL;
+            return false;
         }
         if p1.col == MAXCOL {
             p1.col = ml_get_buf_len(findbuf, p1.lnum) + 1;
         } else if p1.col < 1 || p1.col > ml_get_buf_len(findbuf, p1.lnum) + 1 {
             semsg!(gettext(e_invalid_column_number_nr.as_ptr()), p1.col);
-            return FAIL;
+            return false;
         }
 
         if p2.lnum < 1 || p2.lnum > (*findbuf).b_ml.ml_line_count {
             semsg!(gettext(e_invalid_line_number_nr.as_ptr()), p2.lnum);
-            return FAIL;
+            return false;
         }
         if p2.col == MAXCOL {
             p2.col = ml_get_buf_len(findbuf, p2.lnum) + 1;
         } else if p2.col < 1 || p2.col > ml_get_buf_len(findbuf, p2.lnum) + 1 {
             semsg!(gettext(e_invalid_column_number_nr.as_ptr()), p2.col);
-            return FAIL;
+            return false;
         }
 
         g_st().curbuf = findbuf;
@@ -3339,7 +3339,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
             &mut *inclusive,
             oap,
         );
-        OK
+        true
     }
 }
 
@@ -3370,7 +3370,7 @@ pub fn f_getregion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         let mut region_type = kMTUnknown;
         let mut oa = oparg_T::new();
 
-        if getregionpos(
+        if !getregionpos(
             argvars,
             &mut *rettv,
             &mut p1,
@@ -3378,7 +3378,7 @@ pub fn f_getregion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             &mut inclusive,
             &mut region_type,
             &mut oa,
-        ) == FAIL
+        )
         {
             return;
         }
@@ -3469,7 +3469,7 @@ pub fn f_getregionpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let mut bounds_only = false;
         let mut oa = oparg_T::new();
 
-        if getregionpos(
+        if !getregionpos(
             argvars,
             &mut *rettv,
             &mut p1,
@@ -3477,7 +3477,7 @@ pub fn f_getregionpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
             &mut inclusive,
             &mut region_type,
             &mut oa,
-        ) == FAIL
+        )
         {
             return;
         }
@@ -6467,21 +6467,21 @@ pub fn f_reg_recorded(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
     return_register(g_st().reg_recorded, rettv);
 }
 
-fn list2proftime(arg: &mut typval_T, tm: &mut proftime_T) -> c_int {
+fn list2proftime(arg: &mut typval_T, tm: &mut proftime_T) -> bool {
     {
         if arg.v_type != VarType::VAR_LIST || tv_list_len(arg.vval.v_list()) != 2 {
-            return FAIL;
+            return false;
         }
         let mut error = false;
         let n1 = tv_list_find_nr(arg.vval.v_list(), 0, Some(&mut error));
         let n2 = tv_list_find_nr(arg.vval.v_list(), 1, Some(&mut error));
         if error {
-            return FAIL;
+            return false;
         }
         let high = (n1 as i32) as u32 as u64;
         let low = (n2 as i32) as u32 as u64;
         *tm = (high << 32) | low;
-        OK
+        true
     }
 }
 
@@ -6495,13 +6495,13 @@ pub fn f_reltime(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         if argvars[0].v_type == VarType::VAR_UNKNOWN {
             res = profile_start();
         } else if argvars[1].v_type == VarType::VAR_UNKNOWN {
-            if list2proftime(&mut argvars[0], &mut res) == FAIL {
+            if !list2proftime(&mut argvars[0], &mut res) {
                 return;
             }
             res = profile_end(res);
         } else {
-            if list2proftime(&mut argvars[0], &mut start) == FAIL
-                || list2proftime(&mut argvars[1], &mut res) == FAIL
+            if !list2proftime(&mut argvars[0], &mut start)
+                || !list2proftime(&mut argvars[1], &mut res)
             {
                 return;
             }
@@ -6522,7 +6522,7 @@ pub fn f_reltimestr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
     let mut tm: proftime_T = 0;
     rettv.v_type = VarType::VAR_STRING;
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-    if list2proftime(&mut argvars[0], &mut tm) == OK {
+    if list2proftime(&mut argvars[0], &mut tm) {
         crate::eval::typval::tv_set_string(rettv, profile_msg(tm));
     }
 }
@@ -8304,7 +8304,7 @@ pub fn f_reltimefloat(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
     let mut tm: proftime_T = 0;
     rettv.v_type = VarType::VAR_FLOAT;
     rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
-    if list2proftime(&mut argvars[0], &mut tm) == OK {
+    if list2proftime(&mut argvars[0], &mut tm) {
         rettv.vval = crate::eval::typval::TypvalVval::Float(
             (profile_signed(tm) as float_T) / (NS_PER_SEC as float_T),
         );
