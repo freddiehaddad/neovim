@@ -80,7 +80,7 @@ use crate::lua::executor::{
 };
 use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
-use crate::math::{FAIL, xpopcount};
+use crate::math::xpopcount;
 use crate::mbyte::{mb_string2cells, utf_ClusterInfo, utf_ptr2StrCharInfo};
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_alloc, arena_strdup};
@@ -1541,7 +1541,7 @@ pub fn nvim_create_buf(
                 unblock_autocmds();
                 break 'create;
             }
-            if ml_open(&mut *buf) == FAIL {
+            if !ml_open(&mut *buf) {
                 unblock_autocmds();
                 break 'create;
             }

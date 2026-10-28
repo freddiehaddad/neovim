@@ -612,7 +612,7 @@ pub fn f_filecopy(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         && (s_isreg(from_info.stat.st_mode) || s_islnk(from_info.stat.st_mode))
     {
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(
-            vim_copyfile(tv_get_string(&argvars[0]), tv_get_string(&argvars[1])) == OK,
+            vim_copyfile(tv_get_string(&argvars[0]), tv_get_string(&argvars[1])),
         ));
     }
 }
@@ -1420,7 +1420,7 @@ pub fn f_readdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let expr = (&raw mut argvars[1]);
         let mut entries: Vec<std::ffi::CString> = Vec::new();
         let ret = readdir_core(&mut entries, path, expr);
-        if ret == OK {
+        if ret {
             for entry in &entries {
                 tv_list_append_string(rettv.vval.v_list(), entry.as_ptr(), -1);
             }

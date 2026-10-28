@@ -4803,7 +4803,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             let buf = g_st().curbuf;
 
             (*buf).b_p_swf = 0;
-            if (*buf).b_ml.ml_mfp.is_none() && ml_open(&mut *buf) == FAIL {
+            if (*buf).b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
                 proc_stop(&mut (*chan).uv.proc_);
                 channel_decref(chan);
                 return;

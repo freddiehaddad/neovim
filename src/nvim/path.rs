@@ -8,7 +8,6 @@ use crate::eval::eval_to_string;
 use crate::ex_docmd::eval_vars;
 use crate::fileio::{file_pat_to_reg_pat, match_file_list};
 use crate::globals::*;
-use crate::math::{FAIL, OK};
 #[cfg(unix)]
 use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
@@ -569,7 +568,7 @@ pub fn FullName_save(fname: *const c_char, force: bool) -> Option<std::ffi::CStr
     }
 
     let mut buf: Vec<c_char> = vec![0; MAXPATHL];
-        if vim_FullName(fname, buf.as_mut_ptr(), MAXPATHL, force) == FAIL {
+        if !vim_FullName(fname, buf.as_mut_ptr(), MAXPATHL, force) {
             return to_slash_save(fname);
         }
         Some(cstr_to_cstring(buf.as_ptr()))
@@ -1792,26 +1791,26 @@ pub fn vim_FullName(
     buf: *mut c_char,
     len: usize,
     force: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         *buf = NUL;
         if fname.is_null() {
-            return FAIL;
+            return false;
         }
 
         if CStr::from_ptr(fname).to_bytes().len() > len.saturating_sub(1) {
             xstrlcpy(buf, fname, len);
             to_slash(buf);
-            return FAIL;
+            return false;
         }
 
         if path_with_url(fname) != 0 {
             xstrlcpy(buf, fname, len);
-            return OK;
+            return true;
         }
 
         let rv = path_to_absolute(fname, buf, len, c_int::from(force));
-        if rv == FAIL {
+        if !rv {
             xstrlcpy(buf, fname, len);
         }
         to_slash(buf);
@@ -2162,7 +2161,7 @@ pub fn path_full_dir_name(directory: *mut c_char, buffer: *mut c_char, len: usiz
         }
 
         xstrlcpy(buffer, old_dir.as_ptr(), len);
-        if append_path(buffer, directory, len) == FAIL {
+        if !append_path(buffer, directory, len) {
             return false;
         }
 
@@ -2170,20 +2169,20 @@ pub fn path_full_dir_name(directory: *mut c_char, buffer: *mut c_char, len: usiz
     }
 }
 
-pub fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) -> c_int {
+pub fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) -> bool {
     unsafe {
         let mut current_length = CStr::from_ptr(path).to_bytes().len();
         let to_append_bytes = CStr::from_ptr(to_append).to_bytes();
         let to_append_length = to_append_bytes.len();
 
         if to_append_length == 0 || to_append_bytes == b"." {
-            return OK;
+            return true;
         }
 
         if current_length > 0 && !vim_ispathsep_nocolon(*path.add(current_length - 1) as c_int) {
             let pathsep_len = PATHSEPSTR.len() - 1;
             if current_length + pathsep_len + 1 > max_len {
-                return FAIL;
+                return false;
             }
             xstrlcpy(
                 path.add(current_length),
@@ -2194,7 +2193,7 @@ pub fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) 
         }
 
         if current_length + to_append_length + 1 > max_len {
-            return FAIL;
+            return false;
         }
 
         xstrlcpy(
@@ -2202,7 +2201,7 @@ pub fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) 
             to_append,
             max_len - current_length,
         );
-        OK
+        true
     }
 }
 
@@ -2211,7 +2210,7 @@ fn path_to_absolute(
     buf: *mut c_char,
     len: usize,
     force: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         *buf = NUL;
         let mut rel_dir_vec = vec![0 as c_char; len];
@@ -2270,7 +2269,7 @@ fn path_to_absolute(
             }
 
             if !path_full_dir_name(relative_directory, buf, len) {
-                return FAIL;
+                return false;
             }
         }
         drop(rel_dir_vec);
@@ -2512,22 +2511,22 @@ mod tests {
 
             let mut buf = [0 as c_char; 100];
             xstrlcpy(buf.as_mut_ptr(), c"path1".as_ptr(), buf.len());
-            assert_eq!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100), OK);
+            assert!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100));
             assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1/path2");
 
             xstrlcpy(buf.as_mut_ptr(), c"path1/".as_ptr(), buf.len());
-            assert_eq!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100), OK);
+            assert!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100));
             assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1/path2");
-            assert_eq!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 11), FAIL);
+            assert!(!append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 11));
 
             xstrlcpy(buf.as_mut_ptr(), c"path1".as_ptr(), buf.len());
-            assert_eq!(append_path(buf.as_mut_ptr(), c"".as_ptr(), 6), OK);
+            assert!(append_path(buf.as_mut_ptr(), c"".as_ptr(), 6));
             assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1");
-            assert_eq!(append_path(buf.as_mut_ptr(), c".".as_ptr(), 6), OK);
+            assert!(append_path(buf.as_mut_ptr(), c".".as_ptr(), 6));
             assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1");
 
             buf[0] = NUL;
-            assert_eq!(append_path(buf.as_mut_ptr(), c"/path2".as_ptr(), 7), OK);
+            assert!(append_path(buf.as_mut_ptr(), c"/path2".as_ptr(), 7));
             assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"/path2");
         }
     }
@@ -2664,26 +2663,20 @@ mod tests {
                 ));
 
             // vim_FullName
-            assert_eq!(vim_FullName(ptr::null(), out.as_mut_ptr(), 10, true), FAIL);
-            assert_eq!(
-                vim_FullName(
+            assert!(!vim_FullName(ptr::null(), out.as_mut_ptr(), 10, true));
+            assert!(vim_FullName(
                     c"http://www.neovim.org".as_ptr(),
                     out.as_mut_ptr(),
                     MAXPATHL,
                     true
-                ),
-                OK
-            );
+                ));
             assert_eq!(
                 CStr::from_ptr(out.as_ptr()).to_str().unwrap(),
                 "http://www.neovim.org"
             );
 
             let rel_dot = CString::new(format!("./{f1_rel}")).unwrap();
-            assert_eq!(
-                vim_FullName(rel_dot.as_ptr(), out.as_mut_ptr(), MAXPATHL, true),
-                OK
-            );
+            assert!(vim_FullName(rel_dot.as_ptr(), out.as_mut_ptr(), MAXPATHL, true));
             assert_eq!(
                 CStr::from_ptr(out.as_ptr()).to_str().unwrap(),
                 format!("{abs_dir}/f1.o")

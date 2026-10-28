@@ -688,7 +688,7 @@ fn get_fileinfo_os(
     device: *mut bool,
     newfile: *mut bool,
     err: *mut Error_T,
-) -> c_int {
+) -> bool {
     unsafe {
         *perm = -1;
         if !os_fileinfo(fname, file_info_old) {
@@ -700,7 +700,7 @@ fn get_fileinfo_os(
                     {
                         *err = set_err_num(c"E502", gettext(c"is a directory".as_ptr()));
                     }
-                    return FAIL;
+                    return false;
                 }
                 if os_nodetype(fname) != NODE_WRITABLE {
                     {
@@ -709,14 +709,14 @@ fn get_fileinfo_os(
                             gettext(c"is not a file or writable device".as_ptr()),
                         );
                     }
-                    return FAIL;
+                    return false;
                 }
                 *device = true;
                 *newfile = true;
                 *perm = -1;
             }
         }
-        OK
+        true
     }
 }
 
@@ -729,7 +729,7 @@ fn get_fileinfo_os(
     device: *mut bool,
     newfile: *mut bool,
     err: *mut Error_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let nodetype = if fname.is_null() {
             NODE_OTHER
@@ -743,7 +743,7 @@ fn get_fileinfo_os(
                     gettext(c"is not a file or writable device".as_ptr()),
                 );
             }
-            return FAIL;
+            return false;
         }
         if nodetype == NODE_WRITABLE {
             *device = true;
@@ -757,13 +757,13 @@ fn get_fileinfo_os(
                 {
                     *err = set_err_num(c"E502", gettext(c"is a directory".as_ptr()));
                 }
-                return FAIL;
+                return false;
             }
             if overwriting {
                 let _ = os_fileinfo(fname, file_info_old);
             }
         }
-        OK
+        true
     }
 }
 
@@ -780,7 +780,7 @@ fn get_fileinfo(
     err: &mut Error_T,
 ) -> bool {
     {
-        if get_fileinfo_os(
+        if !get_fileinfo_os(
             fname,
             file_info_old,
             overwriting,
@@ -788,7 +788,7 @@ fn get_fileinfo(
             device,
             newfile,
             err,
-        ) == FAIL
+        )
         {
             return false;
         }

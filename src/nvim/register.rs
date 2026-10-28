@@ -886,7 +886,7 @@ pub fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg: bool) 
                     if put {
                         let mut dir = BACKWARD;
                         if (g_st().State & REPLACE_FLAG) != 0 {
-                            if u_save_cursor() == FAIL {
+                            if !u_save_cursor() {
                                 return FAIL;
                             }
                             del_chars(mb_charlen(reg_ref.y_array[0].data), 1);
@@ -1658,7 +1658,7 @@ pub fn do_put(
             }
 
             if command_start_char == c_int::from(b'a')
-                && u_save((**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.lnum + 1) == FAIL
+                && !u_save((**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.lnum + 1)
             {
                 return;
             }
@@ -1685,7 +1685,7 @@ pub fn do_put(
         }
 
         if (*g_st().curbuf).terminal.is_null()
-            && u_save((**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.lnum + 1) == FAIL
+            && !u_save((**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.lnum + 1)
         {
             return;
         }
@@ -1764,7 +1764,7 @@ pub fn do_put(
             let mut split_pos: colnr_T = 0;
             if y_type == MotionType::kMTLineWise {
                 if (flags & PUT_LINE_SPLIT) != 0 {
-                    if u_save_cursor() == FAIL {
+                    if !u_save_cursor() {
                         break 'end;
                     }
                     let curline = get_cursor_line_ptr();
@@ -1820,7 +1820,7 @@ pub fn do_put(
             if y_type == MotionType::kMTBlockWise {
                 lnum = (**curwin.as_ptr()).w_cursor.lnum + (y_size as linenr_T) + 1;
                 lnum = lnum.min((*g_st().curbuf).b_ml.ml_line_count + 1);
-                if u_save((**curwin.as_ptr()).w_cursor.lnum - 1, lnum) == FAIL {
+                if !u_save((**curwin.as_ptr()).w_cursor.lnum - 1, lnum) {
                     break 'end;
                 }
             } else if y_type == MotionType::kMTLineWise {
@@ -1838,7 +1838,7 @@ pub fn do_put(
                 } else {
                     u_save(lnum - 1, lnum)
                 };
-                if save_res == FAIL {
+                if !save_res {
                     break 'end;
                 }
                 if dir == FORWARD {
@@ -1847,7 +1847,7 @@ pub fn do_put(
                     (**curwin.as_ptr()).w_cursor.lnum = lnum;
                 }
                 (*g_st().curbuf).b_op_start = (**curwin.as_ptr()).w_cursor;
-            } else if u_save_cursor() == FAIL {
+            } else if !u_save_cursor() {
                 break 'end;
             }
 
@@ -1943,12 +1943,12 @@ pub fn do_put(
                     let mut delcount: c_int = 0;
 
                     if (**curwin.as_ptr()).w_cursor.lnum > (*g_st().curbuf).b_ml.ml_line_count {
-                        if ml_append(
+                        if !ml_append(
                             (*g_st().curbuf).b_ml.ml_line_count,
                             c"".as_ptr().cast_mut(),
                             1,
                             false,
-                        ) == FAIL
+                        )
                         {
                             break;
                         }
@@ -2275,7 +2275,7 @@ pub fn do_put(
 
                             while i < y_size {
                                 if y_type != MotionType::kMTCharWise || i < y_size - 1 {
-                                    if ml_append(lnum, (*y_array.add(i)).data, 0, false) == FAIL {
+                                    if !ml_append(lnum, (*y_array.add(i)).data, 0, false) {
                                         break 'error;
                                     }
                                     new_lnum += 1;

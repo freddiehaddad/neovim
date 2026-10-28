@@ -82,7 +82,6 @@ use crate::arglist::ML_EMPTY;
 use crate::charset::NUL;
 use crate::eval::kListLenMayKnow;
 use crate::ex_cmds::{BL_FIX, BL_SOL, kCpoUndo};
-use crate::math::{FAIL, OK};
 
 const UH_CHANGED: c_int = 0x01;
 const UH_EMPTYBUF: c_int = 0x02;
@@ -272,7 +271,7 @@ fn undo_st() -> &'static mut UndoModuleState {
 }
 
 /// Save the current line for both the `"u"` and `"U"` command.
-pub fn u_save_cursor() -> c_int {
+pub fn u_save_cursor() -> bool {
     unsafe {
         let cur = (**curwin.as_ptr()).w_cursor.lnum;
         let top = if cur > 0 { cur - 1 } else { 0 };
@@ -282,13 +281,13 @@ pub fn u_save_cursor() -> c_int {
 }
 
 /// Save the lines between `top` and `bot` for both the `"u"` and `"U"` command.
-pub fn u_save(top: linenr_T, bot: linenr_T) -> c_int {
+pub fn u_save(top: linenr_T, bot: linenr_T) -> bool {
     unsafe { u_save_buf(&mut *g_st().curbuf, top, bot) }
 }
 
-pub fn u_save_buf(buf: &mut buf_T, top: linenr_T, bot: linenr_T) -> c_int {
+pub fn u_save_buf(buf: &mut buf_T, top: linenr_T, bot: linenr_T) -> bool {
     if top >= bot || bot > buf.b_ml.ml_line_count + 1 {
-            return FAIL;
+            return false;
         }
 
         if top + 2 == bot {
@@ -299,17 +298,17 @@ pub fn u_save_buf(buf: &mut buf_T, top: linenr_T, bot: linenr_T) -> c_int {
 }
 
 /// Save the line `lnum` (used by `":s"` and `"~"` command).
-pub fn u_savesub(lnum: linenr_T) -> c_int {
+pub fn u_savesub(lnum: linenr_T) -> bool {
     u_savecommon(g_st().curbuf, lnum - 1, lnum + 1, lnum + 1, false)
 }
 
 /// A new line is inserted before line `lnum` (used by `:s` command).
-pub fn u_inssub(lnum: linenr_T) -> c_int {
+pub fn u_inssub(lnum: linenr_T) -> bool {
     u_savecommon(g_st().curbuf, lnum - 1, lnum, lnum + 1, false)
 }
 
 /// Save the lines `lnum` - `lnum + nlines` (used by delete command).
-pub fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> c_int {
+pub fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> bool {
     unsafe {
         u_savecommon(
             g_st().curbuf,
@@ -373,11 +372,11 @@ pub fn u_savecommon(
     bot: linenr_T,
     newbot: linenr_T,
     reload: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         if !reload {
             if !undo_allowed(buf) {
-                return FAIL;
+                return false;
             }
 
             if buf == g_st().curbuf {
@@ -386,7 +385,7 @@ pub fn u_savecommon(
 
             if bot > (*buf).b_ml.ml_line_count + 1 {
                 emsg(gettext(c"E881: Line count changed unexpectedly".as_ptr()));
-                return FAIL;
+                return false;
             }
         }
 
@@ -424,7 +423,7 @@ pub fn u_savecommon(
                     u_freebranch(buf, oc, &mut dummy);
                 }
                 (*buf).b_u_synced = false;
-                return OK;
+                return true;
             };
 
             uhp_mut(&mut *buf, uhp).uh_prev = None;
@@ -490,7 +489,7 @@ pub fn u_savecommon(
             (*buf).b_u_numhead += 1;
         } else {
             if get_undolevel(buf) < 0 {
-                return OK;
+                return true;
             }
 
             if size == 1 {
@@ -529,7 +528,7 @@ pub fn u_savecommon(
                                 first_uep.ue_lcount = (*buf).b_ml.ml_line_count;
                                 uhp_mut(&mut *buf, newhead).uh_getbot_entry = true;
                             }
-                            return OK;
+                            return true;
                         }
                     }
                 }
@@ -561,7 +560,7 @@ pub fn u_savecommon(
                 fast_breakcheck();
                 if g_st().got_int {
                     uhp_mut(&mut *buf, newhead).uh_getbot_entry = false;
-                    return FAIL;
+                    return false;
                 }
                 uep.ue_array.push(u_save_line_buf(buf, top + 1 + i));
             }
@@ -574,7 +573,7 @@ pub fn u_savecommon(
         (*buf).b_u_synced = false;
         undo_st().undo_undoes = false;
 
-        OK
+        true
     }
 }
 
@@ -622,7 +621,7 @@ pub fn u_get_undo_file_name(
         let mut fname_buf = [0 as c_char; MAXPATHL];
         #[cfg(unix)]
         {
-            if resolve_symlink(ffname, fname_buf.as_mut_ptr()) == OK {
+            if resolve_symlink(ffname, fname_buf.as_mut_ptr()) {
                 ffname = fname_buf.as_ptr();
             }
         }
@@ -2881,13 +2880,13 @@ pub fn u_undoline() {
         }
         atom_did_global_op();
 
-        if u_savecommon(
+        if !u_savecommon(
             g_st().curbuf,
             (*g_st().curbuf).b_u_line_lnum - 1,
             (*g_st().curbuf).b_u_line_lnum + 1,
             0,
             false,
-        ) == FAIL
+        )
         {
             return;
         }

@@ -28,7 +28,7 @@ use crate::fileio::{FILE, fputs};
 use crate::globals::*;
 use crate::indent::{get_indent_buf, get_sw_value};
 use crate::mark::setpcmark;
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::mbyte::{mb_adjust_cursor, ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
@@ -1313,7 +1313,7 @@ fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, markerlen: 
         let line = ml_get_buf(&raw mut *buf, lnum);
         let line_len = ml_get_buf_len(&raw mut *buf, lnum) as usize;
 
-        if u_save(lnum - 1, lnum + 1) != OK {
+        if !u_save(lnum - 1, lnum + 1) {
             return;
         }
 
@@ -1413,7 +1413,7 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
                     }
                 }
             }
-            if u_save(lnum - 1, lnum + 1) == OK {
+            if u_save(lnum - 1, lnum + 1) {
                 let orig_len = ml_get_buf_len(&raw mut *buf, lnum) as usize;
                 let mut newline_vec = vec![0 as c_char; orig_len - len + 1];
                 let newline = newline_vec.as_mut_ptr();

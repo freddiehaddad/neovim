@@ -75,8 +75,6 @@ use crate::api::vim::kCdScopeGlobal;
 use crate::buffer::{kCdCauseAuto, kCdCauseBuffer};
 use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
 use crate::ex_session::kCdCauseOther;
-#[cfg(windows)]
-use crate::math::FAIL;
 
 #[repr(C)]
 pub struct ff_stack_T {
@@ -220,7 +218,7 @@ pub fn vim_findfile_init(
             #[cfg(windows)]
             let handled_drive = if *path != NUL && *path.add(1) == b':' as c_char {
                 let drive: [c_char; 3] = [*path, b':' as c_char, NUL];
-                if vim_FullName(drive.as_ptr(), expand_ptr, MAXPATHL, true) == FAIL {
+                if !vim_FullName(drive.as_ptr(), expand_ptr, MAXPATHL, true) {
                     return None;
                 }
                 path = path.add(2);

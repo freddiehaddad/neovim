@@ -5705,7 +5705,7 @@ fn nv_replace(cap: &mut cmdarg_T) {
         }
 
         if virtual_active(*curwin.as_ptr()) {
-            if u_save_cursor() == 0 {
+            if !u_save_cursor() {
                 return;
             }
             if gchar_cursor() == NUL as c_int {
@@ -5735,7 +5735,7 @@ fn nv_replace(cap: &mut cmdarg_T) {
             return;
         }
 
-        if u_save_cursor() == 0 {
+        if !u_save_cursor() {
             return;
         }
 
@@ -5928,7 +5928,7 @@ fn n_swapchar(cap: &mut cmdarg_T) {
 
         prep_redo_cmd(cap);
 
-        if u_save_cursor() == 0 {
+        if !u_save_cursor() {
             return;
         }
 
@@ -5944,7 +5944,7 @@ fn n_swapchar(cap: &mut cmdarg_T) {
                     (**curwin.as_ptr()).w_cursor.lnum += 1;
                     (**curwin.as_ptr()).w_cursor.col = 0;
                     if n > 1 {
-                        if u_savesub((**curwin.as_ptr()).w_cursor.lnum) == 0 {
+                        if !u_savesub((**curwin.as_ptr()).w_cursor.lnum) {
                             break;
                         }
                         u_clearline(&mut *g_st().curbuf);
@@ -6817,7 +6817,7 @@ fn n_opencmd(cap: &mut cmdarg_T) {
         if u_save(
             (**curwin.as_ptr()).w_cursor.lnum - c_int::from(cap.cmdchar == b'O' as c_int),
             (**curwin.as_ptr()).w_cursor.lnum + c_int::from(cap.cmdchar == b'o' as c_int),
-        ) != 0
+        )
             && open_line(
                 if cap.cmdchar == b'O' as c_int {
                     BACKWARD

@@ -2239,7 +2239,7 @@ pub fn readfile(
                                 if skip_count == 0 {
                                     *ptr = NUL;
                                     let len = (ptr.offset_from(line_start) + 1) as colnr_T;
-                                    if ml_append(lnum, line_start, len, newfile) == FAIL {
+                                    if !ml_append(lnum, line_start, len, newfile) {
                                         error = true;
                                         break;
                                     }
@@ -2315,7 +2315,7 @@ pub fn readfile(
                                         ff_error = EOL_DOS;
                                     }
                                 }
-                                if ml_append(lnum, line_start, len, newfile) == FAIL {
+                                if !ml_append(lnum, line_start, len, newfile) {
                                     error = true;
                                     break;
                                 }
@@ -2395,7 +2395,7 @@ pub fn readfile(
                 }
                 *ptr = NUL;
                 let len = (ptr.offset_from(line_start) + 1) as colnr_T;
-                if ml_append(lnum, line_start, len, newfile) == FAIL {
+                if !ml_append(lnum, line_start, len, newfile) {
                     error = true;
                 } else {
                     if read_undo_file && len > 0 {
@@ -3618,8 +3618,7 @@ pub fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
             return 0;
         }
 
-        let ret = vim_copyfile(from, to);
-        if ret != OK {
+        if !vim_copyfile(from, to) {
             return -1;
         }
 
@@ -3632,7 +3631,7 @@ pub fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
 }
 
 /// Create the new file with same permissions as the original.
-pub fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
+pub fn vim_copyfile(from: *const c_char, to: *const c_char) -> bool {
     #[cfg(not(windows))]
     unsafe {
         let mut from_info: FileInfo = FileInfo::new();
@@ -3644,7 +3643,7 @@ pub fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
                 linkbuf[len as usize] = NUL;
                 ret = symlink(linkbuf.as_ptr(), to);
             }
-            return if ret == 0 { OK } else { FAIL };
+            return ret == 0;
         }
     }
 
@@ -3652,13 +3651,13 @@ pub fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
 
     if os_copy(from, to, UV_FS_COPYFILE_EXCL) != 0 {
         os_free_acl(acl);
-        return FAIL;
+        return false;
     }
 
     os_set_acl(to, acl);
     os_free_acl(acl);
 
-    OK
+    true
 }
 
 /// Check if any not hidden buffer has been changed.
@@ -3721,7 +3720,7 @@ fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> bool {
         g_st().curbuf = tobuf;
         for lnum in 1..=(*frombuf).b_ml.ml_line_count {
             let p = CStr::from_ptr(ml_get_buf(frombuf, lnum)).to_owned();
-            if ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) == FAIL {
+            if !ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) {
                 retval = false;
                 break;
             }
@@ -3731,7 +3730,7 @@ fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> bool {
             g_st().curbuf = frombuf;
             let mut lnum = (*g_st().curbuf).b_ml.ml_line_count;
             while lnum > 0 {
-                if ml_delete(lnum) == FAIL {
+                if !ml_delete(lnum) {
                     retval = false;
                     break;
                 }
@@ -4008,7 +4007,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
 
         if opt_vars().p_ur < 0 || i64::from((*g_st().curbuf).b_ml.ml_line_count) <= opt_vars().p_ur {
             u_sync(false);
-            saved = u_savecommon(g_st().curbuf, 0, (*g_st().curbuf).b_ml.ml_line_count + 1, 0, true);
+            saved = if u_savecommon(g_st().curbuf, 0, (*g_st().curbuf).b_ml.ml_line_count + 1, 0, true) { OK } else { FAIL };
             flags |= READ_KEEP_UNDO;
         }
 
@@ -4020,7 +4019,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
             if !savebuf.is_null() && buf == g_st().curbuf {
                 g_st().curbuf = savebuf;
                 (**curwin.as_ptr()).w_buffer = savebuf;
-                saved = ml_open(&mut *g_st().curbuf);
+                saved = if ml_open(&mut *g_st().curbuf) { OK } else { FAIL };
                 g_st().curbuf = buf;
                 (**curwin.as_ptr()).w_buffer = buf;
             }
@@ -4059,7 +4058,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
                 }
                 if !savebuf.is_null() && bufref_valid(Some(&bufref)) && buf == g_st().curbuf {
                     while !buf_is_empty(&mut *g_st().curbuf) {
-                        if ml_delete((*buf).b_ml.ml_line_count) == FAIL {
+                        if !ml_delete((*buf).b_ml.ml_line_count) {
                             break;
                         }
                     }
@@ -4292,14 +4291,14 @@ pub fn readdir_core(
     entries: &mut Vec<std::ffi::CString>,
     path: *const c_char,
     context: *mut crate::eval::typval::typval_T,
-) -> c_int {
+) -> bool {
     unsafe {
         entries.clear();
 
         let mut dir = Directory::new();
         if !os_scandir(&mut dir, path) {
             smsg!(0, tr(e_notopen.as_ptr()), path);
-            return FAIL;
+            return false;
         }
 
         loop {
@@ -4329,7 +4328,7 @@ pub fn readdir_core(
 
         entries.sort_unstable();
 
-        OK
+        true
     }
 }
 
@@ -4341,7 +4340,7 @@ pub fn delete_recursive(name: *const c_char) -> c_int {
         if os_isrealdir(name) {
             let exp = CStr::from_ptr(name).to_owned();
             let mut entries: Vec<std::ffi::CString> = Vec::new();
-            if readdir_core(&mut entries, exp.as_ptr(), ptr::null_mut()) == OK {
+            if readdir_core(&mut entries, exp.as_ptr(), ptr::null_mut()) {
                 let namebuff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
                 let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/".as_ptr(), exp.as_ptr());
 

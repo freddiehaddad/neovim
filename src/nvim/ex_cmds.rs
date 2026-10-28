@@ -499,7 +499,7 @@ pub fn ex_align(eap: &mut exarg_T) {
             }
         }
 
-        if u_save(eap.line1 - 1, eap.line2 + 1) == FAIL {
+        if !u_save(eap.line1 - 1, eap.line2 + 1) {
             return;
         }
 
@@ -685,7 +685,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
             return;
         }
 
-        if u_save(eap.line1 - 1, eap.line2 + 1) == FAIL {
+        if !u_save(eap.line1 - 1, eap.line2 + 1) {
             return;
         }
         regmatch.regprog = ptr::null_mut();
@@ -887,7 +887,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
                 old_count += bytelen as bcount_t;
                 if !unique || i == 0 || string_compare(s, sortbuf1) != 0 {
                     { std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                    if ml_append(lnum, sortbuf1, 0, false) == FAIL {
+                    if !ml_append(lnum, sortbuf1, 0, false) {
                         break;
                     }
                     lnum += 1;
@@ -964,7 +964,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
             return;
         }
 
-        if u_save(eap.line1 - 1, eap.line2 + 1) == FAIL {
+        if !u_save(eap.line1 - 1, eap.line2 + 1) {
             return;
         }
         regmatch.regprog = ptr::null_mut();
@@ -1187,7 +1187,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
 
         let num_lines = line2 - line1 + 1;
 
-        if u_save(dest, dest + 1) == FAIL {
+        if !u_save(dest, dest + 1) {
             return false;
         }
 
@@ -1289,7 +1289,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
 
         buf_updates_send_changes(g_st().curbuf, dest + 1, num_lines as i64, 0);
 
-        if u_save(line1 + extra - 1, line2 + extra + 1) == FAIL {
+        if !u_save(line1 + extra - 1, line2 + extra + 1) {
             return false;
         }
 
@@ -1354,7 +1354,7 @@ pub fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
             (*g_st().curbuf).b_op_start.col = 0;
         }
 
-        if u_save(n, n + 1) == FAIL {
+        if !u_save(n, n + 1) {
             return;
         }
 
@@ -1659,7 +1659,7 @@ fn do_filter(
 
             'error: {
                 if do_out {
-                    if u_save(line2, line2 + 1) == FAIL {
+                    if !u_save(line2, line2 + 1) {
                         break 'error;
                     }
                     redraw_curbuf_later(UPD_VALID);
@@ -3053,7 +3053,7 @@ pub fn do_ecmd(
                     && (opt_vars().p_ur < 0 || ((*g_st().curbuf).b_ml.ml_line_count as OptInt) <= opt_vars().p_ur)
                 {
                     u_sync(false);
-                    if u_savecommon(g_st().curbuf, 0, (*g_st().curbuf).b_ml.ml_line_count + 1, 0, true) == FAIL {
+                    if !u_savecommon(g_st().curbuf, 0, (*g_st().curbuf).b_ml.ml_line_count + 1, 0, true) {
                         break 'theend;
                     }
                     u_unchanged(&mut *g_st().curbuf);
@@ -3412,7 +3412,7 @@ pub fn ex_append(eap: &mut exarg_T) {
                 p = p.add(1);
             }
             if (*p == b'.' as c_char && *p.add(1) == NUL)
-                || (!did_undo && u_save(lnum, lnum + 1 + if empty { 1 } else { 0 }) == FAIL)
+                || (!did_undo && !u_save(lnum, lnum + 1 + if empty { 1 } else { 0 }))
             {
                 break;
             }
@@ -3476,7 +3476,7 @@ pub fn ex_change(eap: &mut exarg_T) {
             ex_append(eap);
             return;
         }
-        if eap.line2 >= eap.line1 && u_save(eap.line1 - 1, eap.line2 + 1) == FAIL {
+        if eap.line2 >= eap.line1 && !u_save(eap.line1 - 1, eap.line2 + 1) {
             return;
         }
 
@@ -4512,7 +4512,7 @@ fn do_sub(
                                     new_start.size -= 1;
                                     p1 = p1.add(1);
                                 } else if *p1 == CAR as c_char {
-                                    if u_inssub(lnum) == OK {
+                                    if u_inssub(lnum) {
                                         let plen =
                                             (p1.offset_from(new_start.data()) + 1) as colnr_T;
                                         *p1 = NUL;
@@ -4602,7 +4602,7 @@ fn do_sub(
                             matchcol = sub_firstline.size as colnr_T - matchcol;
                             prev_matchcol = sub_firstline.size as colnr_T - prev_matchcol;
 
-                            if u_savesub(lnum) != OK {
+                            if !u_savesub(lnum) {
                                 break;
                             }
                             ml_replace(lnum, new_start.data(), true);
@@ -4624,7 +4624,7 @@ fn do_sub(
 
                             if nmatch_tl > 0 {
                                 lnum += 1;
-                                if u_savedel(lnum, nmatch_tl) != OK {
+                                if !u_savedel(lnum, nmatch_tl) {
                                     break;
                                 }
                                 for _ in 0..nmatch_tl {

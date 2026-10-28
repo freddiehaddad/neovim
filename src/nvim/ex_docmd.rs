@@ -10737,7 +10737,7 @@ fn ex_read(eap: &mut exarg_T) {
             return;
         }
 
-        if u_save(eap.line2, eap.line2 + 1) == FAIL {
+        if !u_save(eap.line2, eap.line2 + 1) {
             return;
         }
 

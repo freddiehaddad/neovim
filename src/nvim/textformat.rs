@@ -64,7 +64,6 @@ pub type InsArrow = c_int;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_docmd::CMOD_LOCKMARKS;
 use crate::extmark::TriState;
-use crate::math::FAIL;
 use crate::regexp::MAXCOL;
 use crate::search::FORWARD;
 use crate::state::{MODE_INSERT, MODE_NORMAL, VREPLACE_FLAG};
@@ -751,7 +750,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 
         if prev_line && !paragraph_start((**curwin.as_ptr()).w_cursor.lnum) {
             (**curwin.as_ptr()).w_cursor.lnum -= 1;
-            if u_save_cursor() == FAIL {
+            if !u_save_cursor() {
                 return;
             }
         }
@@ -838,7 +837,7 @@ pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
 
         (**curwin.as_ptr()).w_cursor = oap.cursor_start;
 
-        if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
+        if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
             return;
         }
         (**curwin.as_ptr()).w_cursor = oap.start;
@@ -1107,7 +1106,7 @@ pub fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                     advance = false;
                     (**curwin.as_ptr()).w_cursor.lnum += 1;
                     (**curwin.as_ptr()).w_cursor.col = 0;
-                    if line_count < 0 && u_save_cursor() == FAIL {
+                    if line_count < 0 && !u_save_cursor() {
                         break;
                     }
                     if next_leader_len > 0 {

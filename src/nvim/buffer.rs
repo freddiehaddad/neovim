@@ -948,7 +948,7 @@ pub fn get_highest_fnum() -> c_int {
 }
 
 /// Read data from buffer for retrying.
-fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> c_int {
+fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> bool {
     unsafe {
         let silent = shortmess(kShmFileinfo);
 
@@ -987,7 +987,7 @@ fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> c_int {
         if read_stdin {
             if !g_st().readonlymode && !buf_is_empty(&mut *g_st().curbuf) {
                 changed(g_st().curbuf);
-            } else if retval != FAIL {
+            } else if retval == OK {
                 unchanged(g_st().curbuf, false, true);
             }
 
@@ -1000,7 +1000,7 @@ fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> c_int {
                 &mut retval,
             );
         }
-        retval
+        retval == OK
     }
 }
 
@@ -1040,7 +1040,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             (*g_st().curbuf).b_p_ro = 1;
         }
 
-        if ml_open(&mut *g_st().curbuf) == FAIL {
+        if !ml_open(&mut *g_st().curbuf) {
             close_buffer(*curwin.as_ptr(), g_st().curbuf, 0, false, false, false);
 
             g_st().curbuf = ptr::null_mut();
@@ -1135,7 +1135,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             if read_fifo {
                 (*g_st().curbuf).b_p_bin = save_bin;
                 if retval == OK {
-                    retval = read_buffer(false, eap, flags);
+                    retval = if read_buffer(false, eap, flags) { OK } else { FAIL };
                 }
             }
 
@@ -1158,7 +1158,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             );
             (*g_st().curbuf).b_p_bin = save_bin;
             if retval == OK {
-                retval = read_buffer(true, (eap.is_some()).then(||  { eap.unwrap() }), flags);
+                retval = if read_buffer(true, (eap.is_some()).then(||  { eap.unwrap() }), flags) { OK } else { FAIL };
             }
         }
 
@@ -1956,7 +1956,7 @@ pub fn do_bufdel(
             while !g_st().got_int {
                 if bnr == (*g_st().curbuf).b_fnum {
                     do_current = bnr;
-                } else if do_buffer(command, DOBUF_FIRST, FORWARD, bnr, forceit) == OK {
+                } else if do_buffer(command, DOBUF_FIRST, FORWARD, bnr, forceit) {
                     deleted += 1;
                 }
 
@@ -1985,7 +1985,7 @@ pub fn do_bufdel(
             }
             if !g_st().got_int
                 && do_current != 0
-                && do_buffer(command, DOBUF_FIRST, FORWARD, do_current, forceit) == OK
+                && do_buffer(command, DOBUF_FIRST, FORWARD, do_current, forceit)
             {
                 deleted += 1;
             }
@@ -2051,13 +2051,13 @@ pub fn do_bufdel(
     }
 }
 
-fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> c_int {
+fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> bool {
     unsafe {
         let buf = g_st().curbuf;
 
         if action == DOBUF_UNLOAD {
             emsg(gettext(c"E90: Cannot unload last buffer".as_ptr()));
-            return FAIL;
+            return false;
         }
 
         let mut bufref: bufref_T = bufref_T::new();
@@ -2088,7 +2088,7 @@ fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> c_int {
             ECMD_ONE,
             if forceit != 0 { ECMD_FORCEIT } else { 0 },
             *curwin.as_ptr(),
-        );
+        ) == OK;
 
         if buf != g_st().curbuf && bufref_valid(Some(&bufref)) && (*buf).b_nwindows == 0 {
             close_buffer(ptr::null_mut(), buf, action, false, false, false);
@@ -2096,7 +2096,7 @@ fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> c_int {
 
         if !close_others {
             g_st().need_fileinfo = false;
-        } else if retval == OK && !shortmess(kShmFileinfo) {
+        } else if retval && !shortmess(kShmFileinfo) {
             g_st().need_fileinfo = true;
         }
 
@@ -2110,7 +2110,7 @@ fn do_buffer_ext(
     dir: c_int,
     mut count: c_int,
     flags: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut buf: *mut buf_T;
         let mut bp: *mut buf_T;
@@ -2137,7 +2137,7 @@ fn do_buffer_ext(
             }
             if !buf_is_changed(&*buf) {
                 emsg(gettext(c"E84: No modified buffer found".as_ptr()));
-                return FAIL;
+                return false;
             }
         } else if start == DOBUF_FIRST && count != 0 {
             while !buf.is_null() && (*buf).b_fnum != count {
@@ -2182,7 +2182,7 @@ fn do_buffer_ext(
                 }
                 if bp == buf {
                     emsg(gettext(c"E85: There is no listed buffer".as_ptr()));
-                    return FAIL;
+                    return false;
                 }
             }
         }
@@ -2197,40 +2197,40 @@ fn do_buffer_ext(
             } else {
                 emsg(gettext(c"E88: Cannot go before first buffer".as_ptr()));
             }
-            return FAIL;
+            return false;
         }
 
         if action == DOBUF_GOTO
             && buf != g_st().curbuf
             && !check_can_set_curbuf_forceit(flags & DOBUF_FORCEIT)
         {
-            return FAIL;
+            return false;
         }
 
         if (action == DOBUF_GOTO || action == DOBUF_SPLIT) && ((*buf).b_flags & BF_DUMMY) != 0 {
             semsg!(gettext(e_nobufnr.as_ptr()), count);
-            return FAIL;
+            return false;
         }
 
         if unload {
             let mut bufref: bufref_T = bufref_T::new();
             if !can_unload_buffer(&mut *buf) {
-                return FAIL;
+                return false;
             }
             set_bufref(&mut bufref, buf);
 
             if action != DOBUF_WIPE && (*buf).b_ml.ml_mfp.is_none() && (*buf).b_p_bl == 0 {
-                return FAIL;
+                return false;
             }
 
             if (flags & DOBUF_FORCEIT) == 0 && buf_is_changed(&*buf) {
                 if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                     dialog_changed(&mut *buf, false);
                     if !bufref_valid(Some(&bufref)) {
-                        return FAIL;
+                        return false;
                     }
                     if buf_is_changed(&*buf) {
-                        return FAIL;
+                        return false;
                     }
                 } else {
                     semsg!(
@@ -2240,7 +2240,7 @@ fn do_buffer_ext(
                         ),
                         (*buf).b_fnum,
                     );
-                    return FAIL;
+                    return false;
                 }
             }
 
@@ -2250,14 +2250,14 @@ fn do_buffer_ext(
             {
                 if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     if !dialog_close_terminal(&mut *buf) {
-                        return FAIL;
+                        return false;
                     }
                 } else {
                     semsg!(
                         gettext(c"E89: %s will be killed (add ! to override)".as_ptr()),
                         (*buf).b_fname,
                     );
-                    return FAIL;
+                    return false;
                 }
             }
 
@@ -2317,7 +2317,7 @@ fn do_buffer_ext(
                 if buf != g_st().curbuf && bufref_valid(Some(&bufref)) && (*buf).b_nwindows <= 0 {
                     close_buffer(ptr::null_mut(), buf, action, false, false, false);
                 }
-                return OK;
+                return true;
             }
 
             buf = ptr::null_mut();
@@ -2454,18 +2454,18 @@ fn do_buffer_ext(
         }
 
         if action == DOBUF_SPLIT && !swbuf_goto_win_with_buf(buf).is_null() {
-            return OK;
+            return true;
         }
         if buf != g_st().curbuf && (*buf).b_locked_split != 0 {
             emsg(gettext(e_cannot_switch_to_a_closing_buffer.as_ptr()));
-            return FAIL;
+            return false;
         }
         if action == DOBUF_SPLIT && win_split(0, 0) == FAIL {
-            return FAIL;
+            return false;
         }
 
         if buf == g_st().curbuf {
-            return OK;
+            return true;
         }
 
         if action == DOBUF_GOTO && !can_abandon(&mut *g_st().curbuf, (flags & DOBUF_FORCEIT) != 0) {
@@ -2474,12 +2474,12 @@ fn do_buffer_ext(
                 set_bufref(&mut bufref, buf);
                 dialog_changed(&mut *g_st().curbuf, false);
                 if !bufref_valid(Some(&bufref)) {
-                    return FAIL;
+                    return false;
                 }
             }
             if buf_is_changed(&*g_st().curbuf) {
                 no_write_message();
-                return FAIL;
+                return false;
             }
         }
 
@@ -2490,10 +2490,10 @@ fn do_buffer_ext(
         }
 
         if aborting() {
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -2503,7 +2503,7 @@ pub fn do_buffer(
     dir: c_int,
     count: c_int,
     forceit: c_int,
-) -> c_int {
+) -> bool {
     do_buffer_ext(
             action,
             start,
@@ -3023,7 +3023,7 @@ pub fn buflist_getfile(
     mut lnum: linenr_T,
     options: c_int,
     forceit: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut fm: *mut fmark_T = ptr::null_mut();
 
@@ -3034,15 +3034,15 @@ pub fn buflist_getfile(
             } else {
                 semsg!(gettext(e_buffer_nr_not_found.as_ptr()), n);
             }
-            return FAIL;
+            return false;
         }
 
         if buf == g_st().curbuf {
-            return OK;
+            return true;
         }
 
         if text_or_buf_locked() {
-            return FAIL;
+            return false;
         }
 
         let col: colnr_T;
@@ -3074,7 +3074,7 @@ pub fn buflist_getfile(
                     },
                 ) == FAIL
                 {
-                    return FAIL;
+                    return false;
                 }
                 reset_binding(&mut **curwin.as_ptr());
             }
@@ -3101,10 +3101,10 @@ pub fn buflist_getfile(
             if (opt_vars().jop_flags & kOptJopFlagView) != 0 && restore_view {
                 mark_view_restore(fm);
             }
-            return OK;
+            return true;
         }
         g_st().RedrawingDisabled -= 1;
-        FAIL
+        false
     }
 }
 
@@ -4678,7 +4678,7 @@ pub fn do_modelines(flags: c_int) {
         buf_st().modelines_entered += 1;
         let mut lnum = 1;
         while (*g_st().curbuf).b_p_ml != 0 && lnum <= (*g_st().curbuf).b_ml.ml_line_count && lnum <= nmlines {
-            if chk_modeline(lnum, flags) == FAIL {
+            if !chk_modeline(lnum, flags) {
                 nmlines = 0;
             }
             lnum += 1;
@@ -4690,7 +4690,7 @@ pub fn do_modelines(flags: c_int) {
             && lnum > nmlines
             && lnum > (*g_st().curbuf).b_ml.ml_line_count - nmlines
         {
-            if chk_modeline(lnum, flags) == FAIL {
+            if !chk_modeline(lnum, flags) {
                 nmlines = 0;
             }
             lnum -= 1;
@@ -4699,10 +4699,10 @@ pub fn do_modelines(flags: c_int) {
     }
 }
 
-fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
+fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
     unsafe {
         let mut e: *mut c_char;
-        let mut retval = OK;
+        let mut retval = true;
 
         let mut prev: c_int = -1;
         let mut s = ml_get(lnum);
@@ -4808,11 +4808,11 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
                 g_st().current_sctx.sc_lnum = lnum;
                 g_st().secure = 1;
 
-                retval = do_set(s, OPT_MODELINE | OPT_LOCAL | flags);
+                retval = do_set(s, OPT_MODELINE | OPT_LOCAL | flags) == OK;
 
                 g_st().secure = secure_save;
                 g_st().current_sctx = save_current_sctx;
-                if retval == FAIL {
+                if !retval {
                     break;
                 }
             }
@@ -4992,7 +4992,7 @@ pub fn buf_contents_changed(buf: &mut buf_T) -> bool {
 
         block_autocmds();
 
-        if ml_open(&mut *g_st().curbuf) == OK
+        if ml_open(&mut *g_st().curbuf)
             && readfile(
                 buf.b_ffname,
                 buf.b_fname,

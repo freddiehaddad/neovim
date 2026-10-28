@@ -2040,7 +2040,7 @@ pub fn open_spellbuf() -> Box<buf_T> {
     let mut buf = Box::new(buf_T::new());
         buf.b_spell = true;
         buf.b_p_swf = 1;
-        if ml_open(&mut buf) == FAIL {
+        if !ml_open(&mut buf) {
             let _ = logmsg!(
                 3,
                 std::ptr::null(),
@@ -2286,7 +2286,7 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
                 false,
                 None,
             ) == 0
-                || u_save_cursor() == FAIL
+                || !u_save_cursor()
             {
                 break;
             }

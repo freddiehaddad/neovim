@@ -1191,7 +1191,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
                 emsg(gettext(e_write.as_ptr()));
             } else if eap.cmdidx == CMD_mksession {
                 let mut tbuf: Vec<c_char> = vec![0; MAXPATHL];
-                if vim_FullName(fname, tbuf.as_mut_ptr(), MAXPATHL, false) == OK {
+                if vim_FullName(fname, tbuf.as_mut_ptr(), MAXPATHL, false) {
                     set_vim_var_string(VV_THIS_SESSION, tbuf.as_ptr(), -1);
                 }
             }

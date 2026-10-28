@@ -50,7 +50,7 @@ use crate::input_cmdatom::{
 use crate::insert::{Ctrl_X, beginline, display_dollar, edit, kFoAuto, linetabsize_str};
 use crate::keycodes::{CAR, K_COMMAND, NL, TAB};
 use crate::mark::{mark_col_adjust, mark_mb_adjustpos};
-use crate::math::{FAIL, OK, trim_to_int};
+use crate::math::trim_to_int;
 use crate::mbyte::{
     bomb_size, mb_islower, mb_isupper, mb_prevptr, mb_tolower, mb_toupper, utf_ClusterInfo,
     utf_char2bytes, utf_char2cells, utf_char2len, utf_eat_space, utf_head_off, utf_ptr2StrCharInfo,
@@ -274,7 +274,7 @@ pub fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
     unsafe {
         let mut block_col: c_int = 0;
 
-        if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
+        if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
             return;
         }
 
@@ -813,13 +813,13 @@ fn block_insert(
 }
 
 /// Handle a delete operation.
-pub fn op_delete(oap: &mut oparg_T) -> c_int {
+pub fn op_delete(oap: &mut oparg_T) -> bool {
     unsafe {
         let mut bd = block_def::new();
         let old_lcount = (*g_st().curbuf).b_ml.ml_line_count;
 
         if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
-            return OK;
+            return true;
         }
 
         if oap.empty {
@@ -828,7 +828,7 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
 
         if !modifiable(&*g_st().curbuf) {
             emsg(tr(e_modifiable.as_ptr()));
-            return FAIL;
+            return false;
         }
 
         if g_st().Visual.select && oap.is_VIsual {
@@ -865,7 +865,7 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
                 if !vim_strchr(opt_vars().p_cpo, kCpoEmptyregion).is_null() {
                     beep_flush();
                 }
-                return OK;
+                return true;
             }
         }
 
@@ -876,7 +876,7 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
                 if oap.regname != 0 {
                     if !valid_yank_reg(oap.regname, true) {
                         beep_flush();
-                        return OK;
+                        return true;
                     }
                     reg = get_yank_register(oap.regname, YREG_YANK);
                     op_yank_reg(oap, false, reg, is_append_register(oap.regname));
@@ -910,8 +910,8 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
             }
 
             if oap.motion_type == kMTBlockWise {
-                if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
-                    return FAIL;
+                if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
+                    return false;
                 }
 
                 for lnum in (**curwin.as_ptr()).w_cursor.lnum..=oap.end.lnum {
@@ -967,8 +967,8 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
                         del_lines(oap.line_count - 1, true);
                         (**curwin.as_ptr()).w_cursor.lnum = lnum;
                     }
-                    if u_save_cursor() == FAIL {
-                        return FAIL;
+                    if !u_save_cursor() {
+                        return false;
                     }
                     if (*g_st().curbuf).b_p_ai != 0 {
                         beginline(BL_WHITE);
@@ -990,8 +990,8 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
                 if g_st().virtual_op != 0 {
                     if gchar_pos(&mut oap.start) == TAB {
                         let mut endcol: c_int = 0;
-                        if u_save_cursor() == FAIL {
-                            return FAIL;
+                        if !u_save_cursor() {
+                            return false;
                         }
                         if oap.line_count == 1 {
                             endcol = getviscol2(oap.end.col, oap.end.coladd);
@@ -1010,8 +1010,8 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
                         && oap.end.coladd == 0
                         && oap.inclusive
                     {
-                        if u_save(oap.end.lnum - 1, oap.end.lnum + 1) == FAIL {
-                            return FAIL;
+                        if !u_save(oap.end.lnum - 1, oap.end.lnum + 1) {
+                            return false;
                         }
                         (**curwin.as_ptr()).w_cursor = oap.end;
                         coladvance_force(getviscol2(oap.end.col, oap.end.coladd));
@@ -1022,8 +1022,8 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
                 }
 
                 if oap.line_count == 1 {
-                    if u_save_cursor() == FAIL {
-                        return FAIL;
+                    if !u_save_cursor() {
+                        return false;
                     }
 
                     if !vim_strchr(opt_vars().p_cpo, kCpoDollar).is_null()
@@ -1061,12 +1061,12 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
                         oap.op_type == OP_DELETE && !oap.is_VIsual,
                     );
                 } else {
-                    if u_save(
+                    if !u_save(
                         (**curwin.as_ptr()).w_cursor.lnum - 1,
                         (**curwin.as_ptr()).w_cursor.lnum + oap.line_count,
-                    ) == FAIL
+                    )
                     {
-                        return FAIL;
+                        return false;
                     }
 
                     g_st().curbuf_splice_pending += 1;
@@ -1126,7 +1126,7 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
             (*g_st().curbuf).b_op_start = oap.start;
         }
 
-        OK
+        true
     }
 }
 
@@ -1191,7 +1191,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> bool {
 
         mb_adjust_opend(oap);
 
-        if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
+        if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
             return false;
         }
 
@@ -1413,7 +1413,7 @@ pub fn op_tilde(oap: &mut oparg_T) {
         let mut bd = block_def::new();
         let mut did_change = false;
 
-        if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
+        if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
             return;
         }
 
@@ -1567,7 +1567,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
             if (**curwin.as_ptr()).w_cursor.coladd > 0 {
                 let old_ve_flags = (**curwin.as_ptr()).w_onebuf_opt.wo_ve_flags;
 
-                if u_save_cursor() == FAIL {
+                if !u_save_cursor() {
                     return;
                 }
                 (**curwin.as_ptr()).w_onebuf_opt.wo_ve_flags = kOptVeFlagAll;
@@ -1599,7 +1599,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
                     (**curwin.as_ptr()).w_cursor.col += 1;
                 }
                 if bd.is_short != 0 && bd.is_MAX == 0 {
-                    if u_save_cursor() == FAIL {
+                    if !u_save_cursor() {
                         return;
                     }
                     for _ in 0..bd.endspaces {
@@ -1719,7 +1719,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
                 let mut ins_text = Vec::with_capacity(ins_len as usize + 1);
                 ins_text.extend_from_slice(std::slice::from_raw_parts(firstline, ins_len as usize));
                 ins_text.push(NUL);
-                if u_save(oap.start.lnum, oap.end.lnum + 1) == OK {
+                if u_save(oap.start.lnum, oap.end.lnum + 1) {
                     block_insert(
                         oap,
                         ins_text.as_ptr(),
@@ -1751,10 +1751,10 @@ pub fn op_change(oap: &mut oparg_T) -> c_int {
         }
 
         if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
-            if u_save_cursor() == FAIL {
+            if !u_save_cursor() {
                 return 0;
             }
-        } else if op_delete(oap) == FAIL {
+        } else if !op_delete(oap) {
             return 0;
         }
 
@@ -1962,10 +1962,10 @@ pub fn do_join(
         debug_assert!(count >= 1);
 
         if save_undo
-            && u_save(
+            && !u_save(
                 (**curwin.as_ptr()).w_cursor.lnum - 1,
                 (**curwin.as_ptr()).w_cursor.lnum + (count as linenr_T),
-            ) == FAIL
+            )
         {
             return false;
         }
@@ -2526,7 +2526,7 @@ pub fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
 
         if !g_st().Visual.active {
             let mut pos = (**curwin.as_ptr()).w_cursor;
-            if u_save_cursor() == FAIL {
+            if !u_save_cursor() {
                 g_st().disable_fold_update -= 1;
                 return;
             }
@@ -2543,7 +2543,7 @@ pub fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
                 coladd: 0,
             };
 
-            if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
+            if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
                 g_st().disable_fold_update -= 1;
                 return;
             }
@@ -3910,7 +3910,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                         op_delete(oap);
                         if oap.motion_type == kMTLineWise
                             && has_format_option(kFoAuto)
-                            && u_save_cursor() == OK
+                            && u_save_cursor()
                         {
                             auto_format(false, true);
                         }

@@ -398,7 +398,7 @@ fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
 }
 
 /// Open a new memline for `buf`.
-pub fn ml_open(buf: &mut buf_T) -> c_int {
+pub fn ml_open(buf: &mut buf_T) -> bool {
     unsafe {
         buf.b_ml.ml_stack.clear();
         buf.b_ml.ml_stack_top = 0;
@@ -416,7 +416,7 @@ pub fn ml_open(buf: &mut buf_T) -> c_int {
 
         buf.b_ml.ml_mfp = mf_open(None, 0);
         let Some(mfp_box) = buf.b_ml.ml_mfp.as_deref_mut() else {
-            return FAIL;
+            return false;
         };
         let mfp: *mut memfile_T = &raw mut *mfp_box;
         buf.b_ml.ml_flags = ML_EMPTY;
@@ -488,18 +488,18 @@ pub fn ml_open(buf: &mut buf_T) -> c_int {
         (*dp).db_line_count = 1;
         *dp.cast::<c_char>().add((*dp).db_txt_start as usize) = NUL;
 
-        OK
+        true
     }
 }
 
-fn ml_open_error(buf: &mut buf_T, mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
+fn ml_open_error(buf: &mut buf_T, mfp: *mut memfile_T, hp: *mut bhdr_T) -> bool {
     if !mfp.is_null() {
             if !hp.is_null() {
                 mf_put(mfp, hp, false, false);
             }
             mf_close(buf.b_ml.ml_mfp.take(), true);
         }
-        FAIL
+        false
 }
 
 /// Called when the file name of `buf` has been changed.
@@ -627,11 +627,11 @@ pub fn ml_open_file(buf: &mut buf_T) {
             let Some(fname) = fname else {
                 continue;
             };
-            if mf_open_file(&mut *mfp, fname) == OK {
+            if mf_open_file(&mut *mfp, fname) {
                 (*mfp).mf_dirty = MF_DIRTY_YES_NOSYNC;
                 ml_upd_block0(buf, upd_block0_T::UB_SAME_DIR);
 
-                if mf_sync(&mut *mfp, MFS_ZERO) == OK {
+                if mf_sync(&mut *mfp, MFS_ZERO) {
                     mf_set_dirty(&mut *mfp);
                     break;
                 }
@@ -917,7 +917,7 @@ pub fn ml_recover(checkext: bool) {
             ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
         };
-        if called_from_main && ml_open(&mut *g_st().curbuf) == FAIL {
+        if called_from_main && !ml_open(&mut *g_st().curbuf) {
             getout(1);
         }
 
@@ -1515,7 +1515,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_
             #[cfg(unix)]
             {
                 let buf_ptr = (&raw mut fname_buf).cast::<c_char>();
-                fname_res = if resolve_symlink(fname, buf_ptr) == OK {
+                fname_res = if resolve_symlink(fname, buf_ptr) {
                     buf_ptr
                 } else {
                     fname
@@ -2013,15 +2013,15 @@ pub fn ml_preserve(buf: &mut buf_T, message: bool, do_fsync: bool) {
             while mf_need_trans(&mut *mfp) && lnum <= buf.b_ml.ml_line_count {
                 let hp = ml_find_line(buf, lnum, ML_FIND);
                 if hp.is_null() {
-                    status = FAIL;
+                    status = false;
                     break;
                 }
                 lnum = buf.b_ml.ml_locked_high + 1;
             }
-            if status != FAIL {
+            if status {
                 ml_find_line(buf, 0, ML_FLUSH);
-                if mf_sync(&mut *mfp, MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 }) == FAIL {
-                    status = FAIL;
+                if !mf_sync(&mut *mfp, MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 }) {
+                    status = false;
                 }
                 buf.b_ml.ml_stack_top = 0;
             }
@@ -2030,7 +2030,7 @@ pub fn ml_preserve(buf: &mut buf_T, message: bool, do_fsync: bool) {
         g_st().got_int |= got_int_save;
 
         if message {
-            if status == OK {
+            if status {
                 msg(tr(c"File preserved"), 0);
             } else {
                 emsg(tr(c"E314: Preserve failed"));
@@ -2205,13 +2205,13 @@ fn ml_append_int(
     line_arg: *mut c_char,
     len_arg: colnr_T,
     flags: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let line = line_arg;
         let mut len = len_arg;
 
         if lnum > (*buf).b_ml.ml_line_count || (*buf).b_ml.ml_mfp.is_none() {
-            return FAIL;
+            return false;
         }
 
         if ml_st().lowest_marked != 0 && ml_st().lowest_marked > lnum {
@@ -2228,7 +2228,7 @@ fn ml_append_int(
 
         let mut hp = ml_find_line(&mut *buf, if lnum == 0 { 1 } else { lnum }, ML_INSERT);
         if hp.is_null() {
-            return FAIL;
+            return false;
         }
 
         (*buf).b_ml.ml_flags &= !ML_EMPTY;
@@ -2250,7 +2250,7 @@ fn ml_append_int(
             (*buf).b_ml.ml_locked_high -= 1;
             hp = ml_find_line(&mut *buf, lnum + 1, ML_INSERT);
             if hp.is_null() {
-                return FAIL;
+                return false;
             }
 
             db_idx = -1;
@@ -2448,13 +2448,13 @@ fn ml_append_int(
                 let pb_idx = (*ip).ip_index as usize;
                 hp = mf_get(&mut *mfp, (*ip).ip_bnum, 1);
                 if hp.is_null() {
-                    return FAIL;
+                    return false;
                 }
                 let mut pp = (*hp).data_ptr().cast::<PointerBlock>();
                 if (*pp).pb_id != PTR_ID {
                     iemsg(tr(e_pointer_block_id_wrong_three));
                     mf_put(mfp, hp, false, false);
-                    return FAIL;
+                    return false;
                 }
                 if (*pp).pb_count < (*pp).pb_count_max {
                     if pb_idx + 1 < (*pp).pb_count as usize {
@@ -2503,7 +2503,7 @@ fn ml_append_int(
                 loop {
                     hp_new = ml_new_ptr(&mut *mfp);
                     if hp_new.is_null() {
-                        return FAIL;
+                        return false;
                     }
                     pp_new = (*hp_new).data_ptr().cast::<PointerBlock>();
 
@@ -2585,7 +2585,7 @@ fn ml_append_int(
         }
 
         ml_updatechunk(buf, lnum + 1, len, ML_CHNK_ADDLINE);
-        OK
+        true
     }
 }
 
@@ -2595,10 +2595,10 @@ fn ml_append_flush(
     line: *mut c_char,
     len: colnr_T,
     flags: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         if lnum > (*buf).b_ml.ml_line_count {
-            return FAIL;
+            return false;
         }
         if (*buf).b_ml.ml_line_lnum != 0 {
             ml_flush_line(buf, false);
@@ -2608,7 +2608,7 @@ fn ml_append_flush(
 }
 
 /// Append a line after `lnum` (may be 0 to insert in front of the file).
-pub fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> c_int {
+pub fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> bool {
     ml_append_flags(lnum, line, len, if newfile { ML_APPEND_NEW } else { 0 })
 }
 
@@ -2618,10 +2618,10 @@ pub fn ml_append_flags(
     line: *mut c_char,
     len: colnr_T,
     flags: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         if (*g_st().curbuf).b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
-            return FAIL;
+            return false;
         }
         ml_append_flush(g_st().curbuf, lnum, line, len, flags)
     }
@@ -2634,10 +2634,10 @@ pub fn ml_append_buf(
     line: *mut c_char,
     len: colnr_T,
     newfile: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         if (*buf).b_ml.ml_mfp.is_none() {
-            return FAIL;
+            return false;
         }
         ml_append_flush(
             buf,
@@ -2678,12 +2678,12 @@ pub fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len: isize)
 }
 
 /// Replace line `lnum`, with buffering, in current buffer.
-pub fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int {
+pub fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> bool {
     ml_replace_buf(g_st().curbuf, lnum, line, copy, false)
 }
 
 /// Replace a line for the current buffer with explicit `len` (excluding NUL).
-pub fn ml_replace_len(lnum: linenr_T, line: *mut c_char, len: usize, copy: bool) -> c_int {
+pub fn ml_replace_len(lnum: linenr_T, line: *mut c_char, len: usize, copy: bool) -> bool {
     ml_replace_buf_len(g_st().curbuf, lnum, line, len, copy, false)
 }
 
@@ -2693,7 +2693,7 @@ pub fn ml_replace_buf(
     line: *mut c_char,
     copy: bool,
     noalloc: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let len = if !line.is_null() {
             std::ffi::CStr::from_ptr(line).to_bytes().len()
@@ -2712,15 +2712,15 @@ pub fn ml_replace_buf_len(
     len_arg: usize,
     copy: bool,
     noalloc: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut line = line_arg;
         if line.is_null() {
-            return FAIL;
+            return false;
         }
 
         if (*buf).b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
-            return FAIL;
+            return false;
         }
 
         let new_buf = if copy {
@@ -2760,7 +2760,7 @@ pub fn ml_replace_buf_len(
             ml_flush_line(buf, true);
         }
 
-        OK
+        true
     }
 }
 
@@ -2779,12 +2779,12 @@ pub fn ml_replace_dirty_line(buf: &mut buf_T, bytes: &[c_char], clear_empty: boo
 }
 
 /// Delete line `lnum` in `buf`.
-pub fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> c_int {
+pub fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> bool {
     ml_flush_line(buf, false);
         ml_delete_int(buf, lnum, if message { ML_DEL_MESSAGE } else { 0 })
 }
 
-fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int {
+fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> bool {
     unsafe {
         if ml_st().lowest_marked != 0 && ml_st().lowest_marked > lnum {
             ml_st().lowest_marked -= 1;
@@ -2801,12 +2801,12 @@ fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int {
 
         let mfp = (*buf).b_ml.mfp_ptr();
         if mfp.is_null() {
-            return FAIL;
+            return false;
         }
 
         let mut hp = ml_find_line(&mut *buf, lnum, ML_DELETE);
         if hp.is_null() {
-            return FAIL;
+            return false;
         }
 
         let dp = (*hp).data_ptr().cast::<DataBlock>();
@@ -2843,13 +2843,13 @@ fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int {
                 idx = (*ip).ip_index;
                 hp = mf_get(&mut *mfp, (*ip).ip_bnum, 1);
                 if hp.is_null() {
-                    return FAIL;
+                    return false;
                 }
                 let pp = (*hp).data_ptr().cast::<PointerBlock>();
                 if (*pp).pb_id != PTR_ID {
                     iemsg(tr(e_pointer_block_id_wrong_four));
                     mf_put(mfp, hp, false, false);
-                    return FAIL;
+                    return false;
                 }
                 (*pp).pb_count -= 1;
                 count = c_int::from((*pp).pb_count);
@@ -2901,21 +2901,21 @@ fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int {
         }
 
         ml_updatechunk(buf, lnum, line_size, ML_CHNK_DELLINE);
-        OK
+        true
     }
 }
 
 /// Delete line `lnum` in the current buffer.
-pub fn ml_delete(lnum: linenr_T) -> c_int {
+pub fn ml_delete(lnum: linenr_T) -> bool {
     ml_delete_flags(lnum, 0)
 }
 
 /// Like `ml_delete()` but using flags.
-pub fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> c_int {
+pub fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> bool {
     unsafe {
         ml_flush_line(g_st().curbuf, false);
         if lnum < 1 || lnum > (*g_st().curbuf).b_ml.ml_line_count {
-            return FAIL;
+            return false;
         }
         ml_delete_int(g_st().curbuf, lnum, flags)
     }
@@ -3328,13 +3328,13 @@ fn ml_lineadd(buf: &mut buf_T, count: c_int) {
 
 /// Resolve a symlink in the last component of a file name.
 #[cfg(unix)]
-pub fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
+pub fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> bool {
     unsafe {
         let mut tmp = [0 as c_char; MAXPATHL];
         let mut depth: c_int = 0;
 
         if fname.is_null() {
-            return FAIL;
+            return false;
         }
 
         let tmp_ptr = (&raw mut tmp).cast::<c_char>();
@@ -3344,7 +3344,7 @@ pub fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
             depth += 1;
             if depth == 100 {
                 semsg!(tr(c"E773: Symlink loop for \"%s\""), fname);
-                return FAIL;
+                return false;
             }
 
             let ret = readlink(tmp_ptr, buf, MAXPATHL - 1);
@@ -3352,11 +3352,11 @@ pub fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
                 let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
                 if err == EINVAL || err == ENOENT {
                     if depth == 1 {
-                        return FAIL;
+                        return false;
                     }
                     break;
                 }
-                return FAIL;
+                return false;
             }
             *buf.add(ret as usize) = NUL;
 
@@ -3365,7 +3365,7 @@ pub fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
             } else {
                 let tail = path_tail(tmp_ptr);
                 if std::ffi::CStr::from_ptr(tail).to_bytes().len() + std::ffi::CStr::from_ptr(buf).to_bytes().len() >= MAXPATHL {
-                    return FAIL;
+                    return false;
                 }
                 let rem = MAXPATHL - tail.offset_from(tmp_ptr) as usize;
                 xstrlcpy(tail, buf, rem);
@@ -3391,7 +3391,7 @@ pub fn makeswapname(
         #[cfg(unix)]
         {
             let buf_ptr = (&raw mut fname_buf).cast::<c_char>();
-            if resolve_symlink(fname, buf_ptr) == OK {
+            if resolve_symlink(fname, buf_ptr) {
                 fname_res = buf_ptr;
             }
         }
@@ -3821,11 +3821,11 @@ fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c_long) 
         let buf_s_ptr = (&raw mut buf_s).cast::<c_char>();
         let retval_c = vim_FullName(fname_c, buf_c_ptr, MAXPATHL, true);
         let retval_s = vim_FullName(fname_s, buf_s_ptr, MAXPATHL, true);
-        if retval_c == OK && retval_s == OK {
+        if retval_c && retval_s {
             return std::ffi::CStr::from_ptr(buf_c_ptr).to_bytes() != std::ffi::CStr::from_ptr(buf_s_ptr).to_bytes();
         }
 
-        if ino_s == 0 && ino_c == 0 && retval_c == FAIL && retval_s == FAIL {
+        if ino_s == 0 && ino_c == 0 && !retval_c && !retval_s {
             return std::ffi::CStr::from_ptr(fname_c).to_bytes() != std::ffi::CStr::from_ptr(fname_s).to_bytes();
         }
         true

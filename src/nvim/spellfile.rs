@@ -888,13 +888,13 @@ pub fn suggest_load_files() {
                                     if someerror {
                                         break;
                                     }
-                                    if ml_append_buf(
+                                    if !ml_append_buf(
                                         sugbuf_ptr,
                                         wordnr as linenr_T,
                                         ga.as_mut_ptr().cast(),
                                         ga.len() as c_int,
                                         true,
-                                    ) == FAIL
+                                    )
                                     {
                                         someerror = true;
                                         break;
@@ -4826,13 +4826,13 @@ fn sug_filltable(
                 gap.push(NUL);
 
                 let spellbuf = spin.si_spellbuf.as_deref_mut().unwrap();
-                if ml_append_buf(
+                if !ml_append_buf(
                     spellbuf,
                     wordnr as linenr_T,
                     gap.as_mut_ptr(),
                     gap.len() as c_int,
                     true,
-                ) == FAIL
+                )
                 {
                     return -1;
                 }

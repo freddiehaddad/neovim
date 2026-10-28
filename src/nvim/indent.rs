@@ -60,7 +60,6 @@ pub type Indenter = fn() -> c_int;
 
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::globals::IOSIZE;
-use crate::math::{FAIL, OK};
 use crate::state::{MODE_INSERT, VREPLACE_FLAG};
 
 pub(crate) const TABSTOP_MAX: c_int = 9999;
@@ -669,7 +668,7 @@ pub fn set_indent(size: c_int, flags: c_int) -> bool {
         }
         ptr::copy(p, s, line_len as usize);
 
-        if (flags & SIN_UNDO) == 0 || u_savesub((**curwin.as_ptr()).w_cursor.lnum) == OK {
+        if (flags & SIN_UNDO) == 0 || u_savesub((**curwin.as_ptr()).w_cursor.lnum) {
             let old_offset = p.offset_from(oldline) as colnr_T;
             let new_offset = s.offset_from(newline) as colnr_T;
 
@@ -926,7 +925,7 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
             start_lnum + oap.line_count,
             start_lnum + oap.line_count,
             false,
-        ) == OK
+        )
         {
             i = oap.line_count - 1;
             while i >= 0 && !g_st().got_int {
@@ -1487,7 +1486,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
                         if (*g_st().curbuf).b_p_et != 0 || got_tab || (num_spaces + num_tabs < len) {
                             if !did_undo {
                                 did_undo = true;
-                                if u_save(lnum - 1, lnum + 1) == FAIL {
+                                if !u_save(lnum - 1, lnum + 1) {
                                     new_line = ptr::null_mut();
                                     break;
                                 }
@@ -1518,7 +1517,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
                                     b' ' as c_char
                                 };
                             }
-                            if ml_replace(lnum, new_line, true) == OK {
+                            if ml_replace(lnum, new_line, true) {
                                 new_line = (*g_st().curbuf).b_ml.ml_line_ptr;
                                 extmark_splice_cols(
                                     g_st().curbuf,

@@ -43,7 +43,6 @@ use crate::input::openscript;
 use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
 };
-use crate::math::OK;
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len, vimconv_T,
 };
@@ -2305,7 +2304,7 @@ pub fn get_lib_dir() -> Option<std::ffi::CString> {
 
         let mut exe_name = [0 as c_char; MAXPATHL];
         vim_get_prefix_from_exepath(exe_name.as_mut_ptr());
-        if append_path(exe_name.as_mut_ptr(), c"lib/nvim".as_ptr(), MAXPATHL) == OK {
+        if append_path(exe_name.as_mut_ptr(), c"lib/nvim".as_ptr(), MAXPATHL) {
             return Some(crate::memory::cstr_to_cstring(exe_name.as_ptr()));
         }
         None

@@ -3449,7 +3449,7 @@ fn diffgetput(
             if (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_cur]
                 + (&(*g_st().curtab).tp_diffs)[dp_idx].df_count[idx_cur]
                 > line1 + off
-                && u_save(lnum - 1, undo_bot) != FAIL
+                && u_save(lnum - 1, undo_bot)
             {
                 let mut start_skip: linenr_T = 0;
                 let mut end_skip: linenr_T = 0;
@@ -3492,7 +3492,7 @@ fn diffgetput(
                 let mut added: c_int = 0;
                 for _ in 0..count {
                     buf_empty = (*g_st().curbuf).b_ml.ml_line_count == 1;
-                    if ml_delete(lnum) == OK {
+                    if ml_delete(lnum) {
                         added -= 1;
                     }
                 }

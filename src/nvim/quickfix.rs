@@ -3163,7 +3163,11 @@ fn qf_jump_edit_buffer(
             }
 
             if retval == OK {
-                retval = buflist_getfile(fnum, 1, GETF_SETMARK | GETF_SWITCH, forceit);
+                retval = if buflist_getfile(fnum, 1, GETF_SETMARK | GETF_SWITCH, forceit) {
+                    OK
+                } else {
+                    FAIL
+                };
             }
         }
 
@@ -4456,7 +4460,7 @@ fn qf_buf_add_line(
         }
 
         gap.push(NUL);
-        if ml_append_buf(buf, lnum, gap.as_mut_ptr(), gap.len() as colnr_T, false) == FAIL {
+        if !ml_append_buf(buf, lnum, gap.as_mut_ptr(), gap.len() as colnr_T, false) {
             return false;
         }
 
@@ -4529,7 +4533,7 @@ fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize, qf_win
             }
 
             while ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) == 0 {
-                if ml_delete(1) == FAIL {
+                if !ml_delete(1) {
                     internal_error(c"qf_fill_buffer()".as_ptr());
                     return;
                 }
@@ -5993,7 +5997,7 @@ fn load_dummy_buffer(
 
         buf_copy_options(newbuf, BCO_ENTER | BCO_NOHELP);
 
-        if ml_open(&mut *newbuf) == OK {
+        if ml_open(&mut *newbuf) {
             (*newbuf).b_locked += 1;
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);

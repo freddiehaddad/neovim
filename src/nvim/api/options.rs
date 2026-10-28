@@ -49,7 +49,6 @@ const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
 
 use crate::charset::NUL;
-use crate::math::FAIL;
 
 #[repr(C)]
 #[derive(Default)]
@@ -273,7 +272,7 @@ fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *
             return ptr::null_mut();
         }
 
-        if ml_open(&mut *ftbuf) == FAIL {
+        if !ml_open(&mut *ftbuf) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,

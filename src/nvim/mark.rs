@@ -766,7 +766,7 @@ fn switch_to_mark_buf(fm: *mut fmark_T, pcmark_on_switch: bool) -> MarkMoveRes {
     unsafe {
         if (*fm).fnum != (*g_st().curbuf).b_fnum {
             let getfile_flag = if pcmark_on_switch { GETF_SETMARK } else { 0 };
-            let res = buflist_getfile((*fm).fnum, (*fm).mark.lnum, getfile_flag, 0) == OK;
+            let res = buflist_getfile((*fm).fnum, (*fm).mark.lnum, getfile_flag, 0);
             return if res {
                 kMarkSwitchedBuf
             } else {

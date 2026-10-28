@@ -54,7 +54,6 @@ use crate::drawline::{HLF_COUNT, SMT_ALL};
 use crate::ex_getln::hlf_T;
 use crate::globals::IOSIZE;
 use crate::keycodes::ESC;
-use crate::math::OK;
 use crate::search::FORWARD;
 const WF_MIXCAP: c_int = 0x20;
 const SCORE_SPLIT: c_int = 149;
@@ -784,7 +783,7 @@ pub fn spell_suggest(count: c_int) {
                 g_st().msg_scroll = msg_scroll_save;
                 return;
             }
-            if selected > 0 && selected <= sug_len && u_save_cursor() == OK {
+            if selected > 0 && selected <= sug_len && u_save_cursor() {
                 let stp = &sug.su_ga[(selected - 1) as usize];
                 if sug.su_badlen > stp.st_orglen {
                     spell_priv_st().repl_from = Some(

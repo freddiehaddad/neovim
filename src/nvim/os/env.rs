@@ -185,7 +185,6 @@ pub(crate) fn os_environ_ptr() -> *mut *mut *mut c_char {
 use crate::charset::NUL;
 #[cfg(unix)]
 use crate::globals::IOSIZE;
-use crate::math::OK;
 use crate::os::fs::MAXPATHL;
 #[cfg(windows)]
 use crate::os::os_win_console::GetLastError;
@@ -956,7 +955,7 @@ pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
                         exe_name.as_mut_ptr(),
                         c"share/nvim/runtime/".as_ptr(),
                         MAXPATHL,
-                    ) == OK
+                    )
                     {
                         vim_path = exe_name.as_mut_ptr();
                     }

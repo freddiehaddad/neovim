@@ -2087,7 +2087,7 @@ pub fn stop_arrow() -> bool {
             g_st().Ins.start_textlen = linetabsize_str(get_cursor_line_ptr());
 
             let jumped = g_st().Ins.moved == kInsJump;
-            if u_save_cursor() == OK {
+            if u_save_cursor() {
                 g_st().Ins.moved = kInsNone;
                 g_st().Ins.need_undo = false;
             }
@@ -2112,7 +2112,7 @@ pub fn stop_arrow() -> bool {
                 let redo = redo_keys(ptr::null());
                 g_st().Ins.new_insert_skip = redo.as_ref().map_or(0, |s| s.as_bytes().len() as c_int);
             }
-        } else if g_st().Ins.need_undo && u_save_cursor() == OK {
+        } else if g_st().Ins.need_undo && u_save_cursor() {
             if lt((**curwin.as_ptr()).w_cursor, g_st().Ins.start) {
                 g_st().Ins.start = (**curwin.as_ptr()).w_cursor;
                 g_st().Ins.start_textlen = linetabsize_str(get_cursor_line_ptr());
@@ -3127,7 +3127,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
             mc_ins_join();
             let lnum = g_st().Ins.start.lnum;
             if (**curwin.as_ptr()).w_cursor.lnum == lnum || g_st().Ins.revins_on {
-                if u_save((**curwin.as_ptr()).w_cursor.lnum - 2, (**curwin.as_ptr()).w_cursor.lnum + 1) == FAIL {
+                if !u_save((**curwin.as_ptr()).w_cursor.lnum - 2, (**curwin.as_ptr()).w_cursor.lnum + 1) {
                     return false;
                 }
                 g_st().Ins.start.lnum -= 1;

@@ -20,7 +20,6 @@ use std::ptr;
 
 pub type blocknr_T = i64;
 pub type mfdirty_T = c_int;
-use crate::math::{FAIL, OK};
 
 const MEMFILE_PAGE_SIZE: c_uint = 4096;
 pub(crate) const MIN_SWAP_PAGE_SIZE: c_uint = 1048;
@@ -150,13 +149,13 @@ pub fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<mem
 }
 
 /// Open a file for an existing memfile.
-pub fn mf_open_file(mfp: &mut memfile_T, fname: std::ffi::CString) -> c_int {
+pub fn mf_open_file(mfp: &mut memfile_T, fname: std::ffi::CString) -> bool {
     if mf_do_open(mfp, fname, O_RDWR | O_CREAT | O_EXCL) {
-            mfp.mf_dirty = MF_DIRTY_YES;
-            OK
-        } else {
-            FAIL
-        }
+        mfp.mf_dirty = MF_DIRTY_YES;
+        true
+    } else {
+        false
+    }
 }
 
 /// Close a memory file and optionally delete the associated file.
@@ -307,20 +306,20 @@ pub fn mf_free(mfp: &mut memfile_T, hp: &mut bhdr_T) {
 }
 
 /// Sync memory file to disk.
-pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> c_int {
+pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> bool {
     unsafe {
         let got_int_save = g_st().got_int;
 
         if mfp.mf_fd < 0 {
             mfp.mf_dirty = MF_DIRTY_NO;
-            return FAIL;
+            return false;
         }
 
         {
             g_st().got_int = false;
         }
 
-        let mut status = OK;
+        let mut status = true;
         let mut completed_all = true;
         let blocks: Vec<*mut bhdr_T> = mfp
             .mf_hash
@@ -331,17 +330,17 @@ pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> c_int {
         for hp in blocks {
             if ((flags & MFS_ALL) != 0 || (*hp).bh_bnum >= 0)
                 && ((*hp).bh_flags & BH_DIRTY) != 0
-                && (status == OK || ((*hp).bh_bnum >= 0 && (*hp).bh_bnum < mfp.mf_infile_count))
+                && (status || ((*hp).bh_bnum >= 0 && (*hp).bh_bnum < mfp.mf_infile_count))
             {
                 if (flags & MFS_ZERO) != 0 && (*hp).bh_bnum != 0 {
                     continue;
                 }
                 if !mf_write(mfp, hp) {
-                    if status == FAIL {
+                    if !status {
                         completed_all = false;
                         break;
                     }
-                    status = FAIL;
+                    status = false;
                 }
                 if (flags & MFS_STOP) != 0 {
                     if os_char_avail() {
@@ -360,12 +359,12 @@ pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> c_int {
             }
         }
 
-        if completed_all || status == FAIL {
+        if completed_all || !status {
             mfp.mf_dirty = MF_DIRTY_NO;
         }
 
         if (flags & MFS_FLUSH) != 0 && os_fsync(mfp.mf_fd) != 0 {
-            status = FAIL;
+            status = false;
         }
 
         {

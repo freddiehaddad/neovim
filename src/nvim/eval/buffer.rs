@@ -43,7 +43,6 @@ use std::ffi::{CStr, c_int};
 use std::ptr;
 
 use crate::charset::NUL;
-use crate::math::{FAIL, OK};
 
 pub(crate) const SEA_READONLY: c_int = 4;
 
@@ -216,8 +215,8 @@ fn set_buffer_lines(
 
             if !append && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
                 let old_len = CStr::from_ptr(ml_get(lnum)).to_bytes().len() as c_int;
-                if u_savesub(lnum) == OK
-                    && ml_replace(lnum, line_cstr.as_ptr().cast_mut(), true) == OK
+                if u_savesub(lnum)
+                    && ml_replace(lnum, line_cstr.as_ptr().cast_mut(), true)
                 {
                     let new_len = line_cstr.to_bytes().len() as c_int;
                     inserted_bytes(lnum, 0, old_len, new_len);
@@ -226,9 +225,9 @@ fn set_buffer_lines(
                     }
                     rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
                 }
-            } else if added > 0 || u_save(lnum - 1, lnum) == OK {
+            } else if added > 0 || u_save(lnum - 1, lnum) {
                 added += 1;
-                if ml_append(lnum - 1, line_cstr.as_ptr().cast_mut(), 0, false) == OK {
+                if ml_append(lnum - 1, line_cstr.as_ptr().cast_mut(), 0, false) {
                     rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
                 }
             }
@@ -693,7 +692,7 @@ pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             u_sync(true);
         }
 
-        if u_save(first - 1, last + 1) != FAIL {
+        if u_save(first - 1, last + 1) {
             for _ in first..=last {
                 ml_delete_flags(first, ML_DEL_MESSAGE);
             }

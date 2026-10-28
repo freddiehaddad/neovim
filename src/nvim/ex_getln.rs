@@ -2995,7 +2995,7 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
             0,
         );
         try_leave(&tstate, &mut err);
-        if error_set(&err) || result == FAIL {
+        if error_set(&err) || !result {
             api_clear_error(&mut err);
             return ptr::null_mut();
         }

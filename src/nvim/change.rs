@@ -68,7 +68,6 @@ use std::ptr;
 use crate::arglist::ML_EMPTY;
 use crate::eval::typval::kCallbackNone;
 use crate::ex_docmd::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
-use crate::math::FAIL;
 use crate::regexp::{GRAPHEME_STATE_INIT, MAXCOL};
 
 pub const OPENLINE_DELSPACES: c_int = 0x01;
@@ -1625,7 +1624,7 @@ pub fn open_line(
 
         let mut did_append: bool;
         let append_failed = if (g_st().State & VREPLACE_FLAG) == 0 || old_cursor.lnum >= g_st().orig_line_count {
-            if ml_append((**curwin.as_ptr()).w_cursor.lnum, p_extra, 0, false) == FAIL {
+            if !ml_append((**curwin.as_ptr()).w_cursor.lnum, p_extra, 0, false) {
                 did_append = false;
                 true
             } else {
@@ -1866,7 +1865,7 @@ pub fn del_lines(nlines: linenr_T, undo: bool) {
             return;
         }
 
-        if undo && u_savedel(first, nlines) == FAIL {
+        if undo && !u_savedel(first, nlines) {
             return;
         }
 

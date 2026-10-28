@@ -5354,7 +5354,7 @@ pub fn ins_compl_delete(new_leader: bool) {
             }
 
             while (**curwin.as_ptr()).w_cursor.lnum > insexp().compl_lnum {
-                if ml_delete((**curwin.as_ptr()).w_cursor.lnum) == FAIL {
+                if !ml_delete((**curwin.as_ptr()).w_cursor.lnum) {
                     return;
                 }
                 deleted_lines_mark((**curwin.as_ptr()).w_cursor.lnum, 1);

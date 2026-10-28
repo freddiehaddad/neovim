@@ -535,12 +535,12 @@ pub fn do_tag(eap: Option<&exarg_T>,
 
                         saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark.clone();
                         if saved_fmark.fnum != (*g_st().curbuf).b_fnum {
-                            if buflist_getfile(
+                            if !buflist_getfile(
                                 saved_fmark.fnum,
                                 saved_fmark.mark.lnum,
                                 GETF_SETMARK,
                                 forceit,
-                            ) == FAIL
+                            )
                             {
                                 tagstackidx = oldtagstackidx;
                                 break 'end_do_tag;

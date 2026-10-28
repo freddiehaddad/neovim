@@ -2345,7 +2345,7 @@ pub fn ex_lua(eap: &mut exarg_T) {
 
 pub fn ex_luado(eap: &mut exarg_T) {
     unsafe {
-        if u_save(eap.line1 - 1, eap.line2 + 1) == FAIL {
+        if !u_save(eap.line1 - 1, eap.line2 + 1) {
             emsg(gettext(c"cannot save undo information".as_ptr()));
             return;
         }

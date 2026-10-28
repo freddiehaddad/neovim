@@ -495,7 +495,7 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            if u_save_buf(&mut *b, (start - 1) as linenr_T, end as linenr_T) == FAIL {
+            if !u_save_buf(&mut *b, (start - 1) as linenr_T, end as linenr_T) {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -508,7 +508,7 @@ pub fn nvim_buf_set_lines(
 
             let to_delete = old_len.saturating_sub(new_len);
             for _ in 0..to_delete {
-                if ml_delete_buf(b, start as linenr_T, false) == FAIL {
+                if !ml_delete_buf(b, start as linenr_T, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -537,7 +537,7 @@ pub fn nvim_buf_set_lines(
                 }
 
                 let line_ptr = *lines.add(i);
-                if ml_replace_buf(b, lnum as linenr_T, line_ptr, false, true) == FAIL {
+                if !ml_replace_buf(b, lnum as linenr_T, line_ptr, false, true) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -562,7 +562,7 @@ pub fn nvim_buf_set_lines(
                 }
 
                 let line_ptr = *lines.add(i);
-                if ml_append_buf(b, lnum as linenr_T, line_ptr, 0, false) == FAIL {
+                if !ml_append_buf(b, lnum as linenr_T, line_ptr, 0, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -824,7 +824,7 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if u_save_buf(&mut *b, (start_row as linenr_T) - 1, (end_row as linenr_T) + 1) == FAIL {
+            if !u_save_buf(&mut *b, (start_row as linenr_T) - 1, (end_row as linenr_T) + 1) {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -838,7 +838,7 @@ pub fn nvim_buf_set_text(
 
             let to_delete = old_len.saturating_sub(new_len);
             for _ in 0..to_delete {
-                if ml_delete_buf(b, start_row as linenr_T, false) == FAIL {
+                if !ml_delete_buf(b, start_row as linenr_T, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -865,7 +865,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if ml_replace_buf(b, lnum as linenr_T, *lines.add(i), false, true) == FAIL {
+                if !ml_replace_buf(b, lnum as linenr_T, *lines.add(i), false, true) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -887,7 +887,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if ml_append_buf(b, lnum as linenr_T, *lines.add(i), 0, false) == FAIL {
+                if !ml_append_buf(b, lnum as linenr_T, *lines.add(i), 0, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -1472,7 +1472,7 @@ pub fn nvim_buf_delete(
             c_int::from(force),
         );
 
-        if result == FAIL {
+        if !result {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
