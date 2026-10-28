@@ -36,17 +36,17 @@ use crate::os::input::input_blocking;
 #[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
 use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
-pub type ClientType = c_int;
-pub type ChannelStreamType = c_int;
-pub type ChannelPart = c_int;
+pub type ClientType = i32;
+pub type ChannelStreamType = i32;
+pub type ChannelPart = i32;
 
 #[cfg(windows)]
-const UV_EPIPE: c_int = -4047;
+const UV_EPIPE: i32 = -4047;
 #[cfg(not(windows))]
-const UV_EPIPE: c_int = -32;
+const UV_EPIPE: i32 = -32;
 
 const K_CLIENT_TYPE_UNKNOWN: ClientType = -1;
 const K_CLIENT_TYPE_REMOTE: ClientType = 0;
@@ -64,16 +64,16 @@ pub struct RemoteUI {
     pub r#override: bool,
     pub composed: bool,
     pub ui_ext: [bool; K_UIEXT_COUNT],
-    pub width: c_int,
-    pub height: c_int,
-    pub pum_nlines: c_int,
+    pub width: i32,
+    pub height: i32,
+    pub pum_nlines: i32,
     pub pum_pos: bool,
     pub pum_row: f64,
     pub pum_col: f64,
     pub pum_height: f64,
     pub pum_width: f64,
     pub term_name: Option<std::ffi::CString>,
-    pub term_colors: c_int,
+    pub term_colors: i32,
     pub stdin_tty: bool,
     pub stdout_tty: bool,
     pub channel_id: u64,
@@ -86,7 +86,7 @@ pub struct RemoteUI {
     pub flushed_events: bool,
     pub incomplete_event: bool,
     pub ncells_pending: usize,
-    pub hl_id: c_int,
+    pub hl_id: i32,
     pub cursor_row: Integer,
     pub cursor_col: Integer,
     pub client_row: Integer,
@@ -174,7 +174,7 @@ pub struct Channel {
     pub on_data: CallbackReader,
     pub on_stderr: CallbackReader,
     pub on_exit: Callback,
-    pub exit_status: c_int,
+    pub exit_status: i32,
     pub callback_busy: bool,
     pub callback_scheduled: bool,
     pub did_close_event: bool,
@@ -363,7 +363,7 @@ pub fn rpc_send_call(
                 let array = res.data.array();
                 if array.size == 2
                     && array[0].obj_type == ObjectType::ObjectTypeInteger
-                    && let Some(et) = ErrorType::from_raw(array[0].data.integer() as c_int)
+                    && let Some(et) = ErrorType::from_raw(array[0].data.integer() as i32)
                     && matches!(
                         et,
                         ErrorType::ErrorTypeException | ErrorType::ErrorTypeValidation
@@ -630,7 +630,7 @@ pub fn rpc_write_raw(id: u64, buffer: std::rc::Rc<WBuffer>) -> bool {
 
 fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
     unsafe {
-        let mut err: c_int = 0;
+        let mut err: i32 = 0;
 
         if channel.rpc.closed {
             return false;
@@ -787,11 +787,7 @@ pub fn rpc_close_event(channel: Option<&mut Channel>) {
     }
 }
 
-fn chan_close_on_err(
-    channel: &mut Channel,
-    msg: impl crate::strings::IntoCCharPtr,
-    loglevel: c_int,
-) {
+fn chan_close_on_err(channel: &mut Channel, msg: impl crate::strings::IntoCCharPtr, loglevel: i32) {
     let msg = msg.into_c_char_ptr();
     {
         logmsg!(loglevel, c"RPC: ", ptr::null(), -1, true, c"%s", msg,);

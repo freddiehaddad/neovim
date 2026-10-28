@@ -21,23 +21,23 @@ use crate::os::time::os_time;
 use crate::regexp::{
     NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 
-pub const HIST_DEFAULT: c_int = -2;
-pub const HIST_INVALID: c_int = -1;
-pub const HIST_CMD: c_int = 0;
-pub const HIST_SEARCH: c_int = 1;
-pub const HIST_EXPR: c_int = 2;
-pub const HIST_INPUT: c_int = 3;
-pub const HIST_DEBUG: c_int = 4;
+pub const HIST_DEFAULT: i32 = -2;
+pub const HIST_INVALID: i32 = -1;
+pub const HIST_CMD: i32 = 0;
+pub const HIST_SEARCH: i32 = 1;
+pub const HIST_EXPR: i32 = 2;
+pub const HIST_INPUT: i32 = 3;
+pub const HIST_DEBUG: i32 = 4;
 pub const HIST_COUNT: usize = 5;
 
 struct CmdhistState {
     history: [Vec<Histentry>; HIST_COUNT],
-    hisidx: [c_int; HIST_COUNT],
-    hisnum: [c_int; HIST_COUNT],
-    hislen: c_int,
-    last_maptick: c_int,
+    hisidx: [i32; HIST_COUNT],
+    hisnum: [i32; HIST_COUNT],
+    hislen: i32,
+    last_maptick: i32,
 }
 
 impl CmdhistState {
@@ -67,7 +67,7 @@ const HISTORY_EXPAND_ARGS: [&CStr; 12] = [
 
 #[derive(Clone)]
 pub struct Histentry {
-    pub hisnum: c_int,
+    pub hisnum: i32,
     pub hisstr: Option<std::ffi::CString>,
     pub sep: c_char,
     pub timestamp: u64,
@@ -119,12 +119,12 @@ fn hist_free_entry(hisptr: *mut Histentry) {
 }
 
 /// Return the length of the history tables (`get_hislen`).
-pub fn get_hislen() -> c_int {
+pub fn get_hislen() -> i32 {
     hist_st().hislen
 }
 
 /// Return a slice of a specified history table (`get_histentry`).
-pub fn get_histentry(hist_type: c_int) -> &'static [Histentry] {
+pub fn get_histentry(hist_type: i32) -> &'static [Histentry] {
     unsafe {
         (&raw const hist_st().history[hist_type as usize])
             .as_ref()
@@ -134,12 +134,12 @@ pub fn get_histentry(hist_type: c_int) -> &'static [Histentry] {
 }
 
 /// Return the current index for `hist_type` (`get_hisidx`).
-pub fn get_hisidx(hist_type: c_int) -> c_int {
+pub fn get_hisidx(hist_type: i32) -> i32 {
     hist_st().hisidx[hist_type as usize]
 }
 
 /// Translate a history character to the associated `HistoryType` (`hist_char2type`).
-pub const fn hist_char2type(c: c_int) -> c_int {
+pub const fn hist_char2type(c: i32) -> i32 {
     match c as u8 {
         b':' => HIST_CMD,
         b'=' => HIST_EXPR,
@@ -151,7 +151,7 @@ pub const fn hist_char2type(c: c_int) -> c_int {
 }
 
 /// Obtain possible first arguments of `:history` for completion (`get_history_arg`).
-pub fn get_history_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_history_arg(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx >= 0 && (idx as usize) < HISTORY_EXPAND_ARGS.len() {
         HISTORY_EXPAND_ARGS[idx as usize].as_ptr().cast_mut()
     } else {
@@ -161,8 +161,8 @@ pub fn get_history_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 
 /// Initialize or resize command-line history tables (`init_history`).
 pub fn init_history() {
-    assert!(opt_vars().p_hi >= 0 && opt_vars().p_hi <= (c_int::MAX as i64));
-    let newlen = opt_vars().p_hi as c_int;
+    assert!(opt_vars().p_hi >= 0 && opt_vars().p_hi <= (i32::MAX as i64));
+    let newlen = opt_vars().p_hi as i32;
     let oldlen = hist_st().hislen;
 
     if newlen == oldlen {
@@ -211,7 +211,7 @@ fn in_history(
     hist_type: usize,
     str_ptr: impl crate::strings::IntoCCharPtr,
     move_to_front: bool,
-    sep: c_int,
+    sep: i32,
 ) -> bool {
     let str_ptr = str_ptr.into_c_char_ptr();
     {
@@ -221,7 +221,7 @@ fn in_history(
         }
         let hislen = hist_st().hislen;
         let str_bytes = crate::memory::cstr_as_bytes(str_ptr);
-        let mut last_i: c_int = -1;
+        let mut last_i: i32 = -1;
         let mut i = cur_idx;
 
         loop {
@@ -230,7 +230,7 @@ fn in_history(
                 return false;
             };
             let p_bytes = hisstr.to_bytes();
-            let sep_matches = (hist_type as c_int) != HIST_SEARCH || (sep as c_char) == entry.sep;
+            let sep_matches = (hist_type as i32) != HIST_SEARCH || (sep as c_char) == entry.sep;
             if str_bytes == p_bytes && sep_matches {
                 if !move_to_front {
                     return true;
@@ -272,11 +272,7 @@ fn in_history(
     }
 }
 
-fn get_histtype(
-    name: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    return_default: bool,
-) -> c_int {
+fn get_histtype(name: impl crate::strings::IntoCCharPtr, len: usize, return_default: bool) -> i32 {
     let name = name.into_c_char_ptr();
     {
         if len == 0 {
@@ -291,13 +287,13 @@ fn get_histtype(
             if crate::memory::cstr_prefix_bytes(name, len)
                 .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(hname.as_ptr(), len))
             {
-                return i as c_int;
+                return i as i32;
             }
         }
 
         let b0 = crate::memory::cstr_first_byte(name);
         if len == 1 && matches!(b0, b':' | b'=' | b'@' | b'>' | b'?' | b'/') {
-            return hist_char2type(b0 as c_int);
+            return hist_char2type(b0 as i32);
         }
 
         HIST_INVALID
@@ -306,11 +302,11 @@ fn get_histtype(
 
 /// Add the given string to the given history (`add_to_history`).
 pub fn add_to_history(
-    histype: c_int,
+    histype: i32,
     new_entry: impl crate::strings::IntoCCharPtr,
     new_entrylen: usize,
     in_map: bool,
-    sep: c_int,
+    sep: i32,
 ) {
     let new_entry = new_entry.into_c_char_ptr();
     let hislen = hist_st().hislen;
@@ -364,7 +360,7 @@ pub fn add_to_history(
     }
 }
 
-fn get_history_idx(histype: c_int) -> c_int {
+fn get_history_idx(histype: i32) -> i32 {
     let hislen = hist_st().hislen;
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT {
         return -1;
@@ -376,7 +372,7 @@ fn get_history_idx(histype: c_int) -> c_int {
     hist_st().history[histype as usize][idx as usize].hisnum
 }
 
-fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
+fn calc_hist_idx(histype: i32, num: i32) -> i32 {
     let hislen = hist_st().hislen;
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT || num == 0 {
         return -1;
@@ -415,7 +411,7 @@ fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
 }
 
 /// Clear all entries in a history (`clr_history`).
-pub fn clr_history(histype: c_int) -> bool {
+pub fn clr_history(histype: i32) -> bool {
     let hislen = hist_st().hislen;
     if hislen != 0 && histype >= 0 && (histype as usize) < HIST_COUNT {
         let htype = histype as usize;
@@ -430,7 +426,7 @@ pub fn clr_history(histype: c_int) -> bool {
     }
 }
 
-fn del_history_entry(histype: c_int, str_ptr: impl crate::strings::IntoCCharPtr) -> c_int {
+fn del_history_entry(histype: i32, str_ptr: impl crate::strings::IntoCCharPtr) -> i32 {
     let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let hislen = hist_st().hislen;
@@ -491,11 +487,11 @@ fn del_history_entry(histype: c_int, str_ptr: impl crate::strings::IntoCCharPtr)
         }
 
         vim_regfree(regmatch.regprog);
-        c_int::from(found)
+        i32::from(found)
     }
 }
 
-fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
+fn del_history_idx(histype: i32, idx_arg: i32) -> i32 {
     let mut i = calc_hist_idx(histype, idx_arg);
     if i < 0 {
         return 0;
@@ -568,9 +564,9 @@ pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
             let arg1 = &argvars[1];
             if arg1.v_type == VarType::VarUnknown {
-                c_int::from(clr_history(htype))
+                i32::from(clr_history(htype))
             } else if arg1.v_type == VarType::VarNumber {
-                del_history_idx(htype, tv_get_number(arg1) as c_int)
+                del_history_idx(htype, tv_get_number(arg1) as i32)
             } else {
                 let mut buf = [0 as c_char; NUMBUFLEN];
                 let pat = tv_get_string_buf(arg1, buf.as_mut_ptr());
@@ -593,7 +589,7 @@ pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             let req_idx = if arg1.v_type == VarType::VarUnknown {
                 get_history_idx(htype)
             } else {
-                tv_get_number_chk(arg1, None) as c_int
+                tv_get_number_chk(arg1, None) as i32
             };
             let idx = calc_hist_idx(htype, req_idx);
             if idx < 0 {
@@ -628,8 +624,8 @@ pub fn ex_history(eap: &mut Exarg) {
     unsafe {
         let mut histype1 = HIST_CMD;
         let mut histype2 = HIST_CMD;
-        let mut hisidx1: c_int = 1;
-        let mut hisidx2: c_int = -1;
+        let mut hisidx1: i32 = 1;
+        let mut hisidx2: i32 = -1;
         let arg = eap.arg;
 
         msg_ext_set_kind(c"list_cmd");
@@ -657,7 +653,7 @@ pub fn ex_history(eap: &mut Exarg) {
                     .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all", name_len))
                 {
                     histype1 = 0;
-                    histype2 = (HIST_COUNT as c_int) - 1;
+                    histype2 = (HIST_COUNT as i32) - 1;
                 } else {
                     semsg!(E_TRAILING_ARG, arg);
                     return;
@@ -713,7 +709,7 @@ pub fn ex_history(eap: &mut Exarg) {
                         && entry.hisnum <= k
                         && !message_filtered(entry_ptr)
                     {
-                        msg_putchar(b'\n' as c_int);
+                        msg_putchar(b'\n' as i32);
                         let marker = if i == idx { '>' } else { ' ' };
                         let prefix = format!("{marker}{:6}  ", entry.hisnum);
                         let prefix_bytes = prefix.as_bytes();
@@ -728,7 +724,7 @@ pub fn ex_history(eap: &mut Exarg) {
                                 entry_ptr,
                                 iobuf.as_mut_ptr().add(len),
                                 g_st().columns_global - 10,
-                                (IOSIZE - len) as c_int,
+                                (IOSIZE - len) as i32,
                             );
                         } else {
                             xstrlcpy(iobuf.as_mut_ptr().add(len), entry_ptr, IOSIZE - len);
@@ -793,11 +789,7 @@ pub fn hist_iter(
 /// Get array of history items (`hist_get_array`).
 pub fn hist_get_array(
     history_type: u8,
-) -> (
-    &'static mut [Histentry],
-    &'static mut c_int,
-    &'static mut c_int,
-) {
+) -> (&'static mut [Histentry], &'static mut i32, &'static mut i32) {
     init_history();
     let htype = history_type as usize;
     (
@@ -813,13 +805,13 @@ mod tests {
 
     #[test]
     fn hist_char2type_maps_all_prefixes() {
-        assert_eq!(hist_char2type(b':' as c_int), HIST_CMD);
-        assert_eq!(hist_char2type(b'=' as c_int), HIST_EXPR);
-        assert_eq!(hist_char2type(b'@' as c_int), HIST_INPUT);
-        assert_eq!(hist_char2type(b'>' as c_int), HIST_DEBUG);
-        assert_eq!(hist_char2type(b'/' as c_int), HIST_SEARCH);
-        assert_eq!(hist_char2type(b'?' as c_int), HIST_SEARCH);
+        assert_eq!(hist_char2type(b':' as i32), HIST_CMD);
+        assert_eq!(hist_char2type(b'=' as i32), HIST_EXPR);
+        assert_eq!(hist_char2type(b'@' as i32), HIST_INPUT);
+        assert_eq!(hist_char2type(b'>' as i32), HIST_DEBUG);
+        assert_eq!(hist_char2type(b'/' as i32), HIST_SEARCH);
+        assert_eq!(hist_char2type(b'?' as i32), HIST_SEARCH);
         assert_eq!(hist_char2type(0), HIST_SEARCH);
-        assert_eq!(hist_char2type(b'x' as c_int), HIST_INVALID);
+        assert_eq!(hist_char2type(b'x' as i32), HIST_INVALID);
     }
 }

@@ -1,167 +1,167 @@
 //! NFA regular expression engine (`src/nvim/regexp.c`).
 
 use crate::message::{semsg, siemsg};
-use std::ffi::{CStr, c_int, c_uint};
+use std::ffi::CStr;
 use std::mem::size_of;
 use std::ptr;
 
 use super::*;
 
-const NFA_ADD_NL: c_int = 31;
+const NFA_ADD_NL: i32 = 31;
 
-const NFA_SPLIT: c_int = -1024;
-const NFA_MATCH: c_int = NFA_SPLIT + 1;
-const NFA_EMPTY: c_int = NFA_SPLIT + 2;
+const NFA_SPLIT: i32 = -1024;
+const NFA_MATCH: i32 = NFA_SPLIT + 1;
+const NFA_EMPTY: i32 = NFA_SPLIT + 2;
 
-const NFA_START_COLL: c_int = NFA_SPLIT + 3;
-const NFA_END_COLL: c_int = NFA_SPLIT + 4;
-const NFA_START_NEG_COLL: c_int = NFA_SPLIT + 5;
-const NFA_END_NEG_COLL: c_int = NFA_SPLIT + 6;
-const NFA_RANGE: c_int = NFA_SPLIT + 7;
-const NFA_RANGE_MIN: c_int = NFA_SPLIT + 8;
-const NFA_RANGE_MAX: c_int = NFA_SPLIT + 9;
+const NFA_START_COLL: i32 = NFA_SPLIT + 3;
+const NFA_END_COLL: i32 = NFA_SPLIT + 4;
+const NFA_START_NEG_COLL: i32 = NFA_SPLIT + 5;
+const NFA_END_NEG_COLL: i32 = NFA_SPLIT + 6;
+const NFA_RANGE: i32 = NFA_SPLIT + 7;
+const NFA_RANGE_MIN: i32 = NFA_SPLIT + 8;
+const NFA_RANGE_MAX: i32 = NFA_SPLIT + 9;
 
-const NFA_CONCAT: c_int = NFA_SPLIT + 10;
-const NFA_OR: c_int = NFA_SPLIT + 11;
-const NFA_STAR: c_int = NFA_SPLIT + 12;
-const NFA_STAR_NONGREEDY: c_int = NFA_SPLIT + 13;
-const NFA_QUEST: c_int = NFA_SPLIT + 14;
-const NFA_QUEST_NONGREEDY: c_int = NFA_SPLIT + 15;
+const NFA_CONCAT: i32 = NFA_SPLIT + 10;
+const NFA_OR: i32 = NFA_SPLIT + 11;
+const NFA_STAR: i32 = NFA_SPLIT + 12;
+const NFA_STAR_NONGREEDY: i32 = NFA_SPLIT + 13;
+const NFA_QUEST: i32 = NFA_SPLIT + 14;
+const NFA_QUEST_NONGREEDY: i32 = NFA_SPLIT + 15;
 
-const NFA_BOL: c_int = NFA_SPLIT + 16;
-const NFA_EOL: c_int = NFA_SPLIT + 17;
-const NFA_BOW: c_int = NFA_SPLIT + 18;
-const NFA_EOW: c_int = NFA_SPLIT + 19;
-const NFA_BOF: c_int = NFA_SPLIT + 20;
-const NFA_EOF: c_int = NFA_SPLIT + 21;
-const NFA_NEWL: c_int = NFA_SPLIT + 22;
-const NFA_ZSTART: c_int = NFA_SPLIT + 23;
-const NFA_ZEND: c_int = NFA_SPLIT + 24;
-const NFA_NOPEN: c_int = NFA_SPLIT + 25;
-const NFA_NCLOSE: c_int = NFA_SPLIT + 26;
-const NFA_START_INVISIBLE: c_int = NFA_SPLIT + 27;
-const NFA_START_INVISIBLE_FIRST: c_int = NFA_SPLIT + 28;
-const NFA_START_INVISIBLE_NEG: c_int = NFA_SPLIT + 29;
-const NFA_START_INVISIBLE_NEG_FIRST: c_int = NFA_SPLIT + 30;
-const NFA_START_INVISIBLE_BEFORE: c_int = NFA_SPLIT + 31;
-const NFA_START_INVISIBLE_BEFORE_FIRST: c_int = NFA_SPLIT + 32;
-const NFA_START_INVISIBLE_BEFORE_NEG: c_int = NFA_SPLIT + 33;
-const NFA_START_INVISIBLE_BEFORE_NEG_FIRST: c_int = NFA_SPLIT + 34;
-const NFA_START_PATTERN: c_int = NFA_SPLIT + 35;
-const NFA_END_INVISIBLE: c_int = NFA_SPLIT + 36;
-const NFA_END_INVISIBLE_NEG: c_int = NFA_SPLIT + 37;
-const NFA_END_PATTERN: c_int = NFA_SPLIT + 38;
-const NFA_COMPOSING: c_int = NFA_SPLIT + 39;
-const NFA_END_COMPOSING: c_int = NFA_SPLIT + 40;
-const NFA_ANY_COMPOSING: c_int = NFA_SPLIT + 41;
-const NFA_OPT_CHARS: c_int = NFA_SPLIT + 42;
+const NFA_BOL: i32 = NFA_SPLIT + 16;
+const NFA_EOL: i32 = NFA_SPLIT + 17;
+const NFA_BOW: i32 = NFA_SPLIT + 18;
+const NFA_EOW: i32 = NFA_SPLIT + 19;
+const NFA_BOF: i32 = NFA_SPLIT + 20;
+const NFA_EOF: i32 = NFA_SPLIT + 21;
+const NFA_NEWL: i32 = NFA_SPLIT + 22;
+const NFA_ZSTART: i32 = NFA_SPLIT + 23;
+const NFA_ZEND: i32 = NFA_SPLIT + 24;
+const NFA_NOPEN: i32 = NFA_SPLIT + 25;
+const NFA_NCLOSE: i32 = NFA_SPLIT + 26;
+const NFA_START_INVISIBLE: i32 = NFA_SPLIT + 27;
+const NFA_START_INVISIBLE_FIRST: i32 = NFA_SPLIT + 28;
+const NFA_START_INVISIBLE_NEG: i32 = NFA_SPLIT + 29;
+const NFA_START_INVISIBLE_NEG_FIRST: i32 = NFA_SPLIT + 30;
+const NFA_START_INVISIBLE_BEFORE: i32 = NFA_SPLIT + 31;
+const NFA_START_INVISIBLE_BEFORE_FIRST: i32 = NFA_SPLIT + 32;
+const NFA_START_INVISIBLE_BEFORE_NEG: i32 = NFA_SPLIT + 33;
+const NFA_START_INVISIBLE_BEFORE_NEG_FIRST: i32 = NFA_SPLIT + 34;
+const NFA_START_PATTERN: i32 = NFA_SPLIT + 35;
+const NFA_END_INVISIBLE: i32 = NFA_SPLIT + 36;
+const NFA_END_INVISIBLE_NEG: i32 = NFA_SPLIT + 37;
+const NFA_END_PATTERN: i32 = NFA_SPLIT + 38;
+const NFA_COMPOSING: i32 = NFA_SPLIT + 39;
+const NFA_END_COMPOSING: i32 = NFA_SPLIT + 40;
+const NFA_ANY_COMPOSING: i32 = NFA_SPLIT + 41;
+const NFA_OPT_CHARS: i32 = NFA_SPLIT + 42;
 
-const NFA_PREV_ATOM_NO_WIDTH: c_int = NFA_SPLIT + 43;
-const NFA_PREV_ATOM_NO_WIDTH_NEG: c_int = NFA_SPLIT + 44;
-const NFA_PREV_ATOM_JUST_BEFORE: c_int = NFA_SPLIT + 45;
-const NFA_PREV_ATOM_JUST_BEFORE_NEG: c_int = NFA_SPLIT + 46;
-const NFA_PREV_ATOM_LIKE_PATTERN: c_int = NFA_SPLIT + 47;
+const NFA_PREV_ATOM_NO_WIDTH: i32 = NFA_SPLIT + 43;
+const NFA_PREV_ATOM_NO_WIDTH_NEG: i32 = NFA_SPLIT + 44;
+const NFA_PREV_ATOM_JUST_BEFORE: i32 = NFA_SPLIT + 45;
+const NFA_PREV_ATOM_JUST_BEFORE_NEG: i32 = NFA_SPLIT + 46;
+const NFA_PREV_ATOM_LIKE_PATTERN: i32 = NFA_SPLIT + 47;
 
-const NFA_BACKREF1: c_int = NFA_SPLIT + 48;
-const NFA_BACKREF9: c_int = NFA_SPLIT + 56;
-const NFA_ZREF1: c_int = NFA_SPLIT + 57;
-const NFA_ZREF9: c_int = NFA_SPLIT + 65;
-const NFA_SKIP: c_int = NFA_SPLIT + 66;
+const NFA_BACKREF1: i32 = NFA_SPLIT + 48;
+const NFA_BACKREF9: i32 = NFA_SPLIT + 56;
+const NFA_ZREF1: i32 = NFA_SPLIT + 57;
+const NFA_ZREF9: i32 = NFA_SPLIT + 65;
+const NFA_SKIP: i32 = NFA_SPLIT + 66;
 
-const NFA_MOPEN: c_int = NFA_SPLIT + 67;
-const NFA_MOPEN1: c_int = NFA_SPLIT + 68;
-const NFA_MOPEN9: c_int = NFA_SPLIT + 76;
+const NFA_MOPEN: i32 = NFA_SPLIT + 67;
+const NFA_MOPEN1: i32 = NFA_SPLIT + 68;
+const NFA_MOPEN9: i32 = NFA_SPLIT + 76;
 
-const NFA_MCLOSE: c_int = NFA_SPLIT + 77;
-const NFA_MCLOSE9: c_int = NFA_SPLIT + 86;
+const NFA_MCLOSE: i32 = NFA_SPLIT + 77;
+const NFA_MCLOSE9: i32 = NFA_SPLIT + 86;
 
-const NFA_ZOPEN: c_int = NFA_SPLIT + 87;
-const NFA_ZOPEN9: c_int = NFA_SPLIT + 96;
+const NFA_ZOPEN: i32 = NFA_SPLIT + 87;
+const NFA_ZOPEN9: i32 = NFA_SPLIT + 96;
 
-const NFA_ZCLOSE: c_int = NFA_SPLIT + 97;
-const NFA_ZCLOSE1: c_int = NFA_SPLIT + 98;
-const NFA_ZCLOSE9: c_int = NFA_SPLIT + 106;
+const NFA_ZCLOSE: i32 = NFA_SPLIT + 97;
+const NFA_ZCLOSE1: i32 = NFA_SPLIT + 98;
+const NFA_ZCLOSE9: i32 = NFA_SPLIT + 106;
 
-const NFA_ANY: c_int = NFA_SPLIT + 107;
-const NFA_IDENT: c_int = NFA_SPLIT + 108;
-const NFA_SIDENT: c_int = NFA_SPLIT + 109;
-const NFA_KWORD: c_int = NFA_SPLIT + 110;
-const NFA_SKWORD: c_int = NFA_SPLIT + 111;
-const NFA_FNAME: c_int = NFA_SPLIT + 112;
-const NFA_SFNAME: c_int = NFA_SPLIT + 113;
-const NFA_PRINT: c_int = NFA_SPLIT + 114;
-const NFA_SPRINT: c_int = NFA_SPLIT + 115;
-const NFA_WHITE: c_int = NFA_SPLIT + 116;
-const NFA_NWHITE: c_int = NFA_SPLIT + 117;
-const NFA_DIGIT: c_int = NFA_SPLIT + 118;
-const NFA_NDIGIT: c_int = NFA_SPLIT + 119;
-const NFA_HEX: c_int = NFA_SPLIT + 120;
-const NFA_NHEX: c_int = NFA_SPLIT + 121;
-const NFA_OCTAL: c_int = NFA_SPLIT + 122;
-const NFA_NOCTAL: c_int = NFA_SPLIT + 123;
-const NFA_WORD: c_int = NFA_SPLIT + 124;
-const NFA_NWORD: c_int = NFA_SPLIT + 125;
-const NFA_HEAD: c_int = NFA_SPLIT + 126;
-const NFA_NHEAD: c_int = NFA_SPLIT + 127;
-const NFA_ALPHA: c_int = NFA_SPLIT + 128;
-const NFA_NALPHA: c_int = NFA_SPLIT + 129;
-const NFA_LOWER: c_int = NFA_SPLIT + 130;
-const NFA_NLOWER: c_int = NFA_SPLIT + 131;
-const NFA_UPPER: c_int = NFA_SPLIT + 132;
-const NFA_NUPPER: c_int = NFA_SPLIT + 133;
-const NFA_LOWER_IC: c_int = NFA_SPLIT + 134;
-const NFA_NLOWER_IC: c_int = NFA_SPLIT + 135;
-const NFA_UPPER_IC: c_int = NFA_SPLIT + 136;
-const NFA_NUPPER_IC: c_int = NFA_SPLIT + 137;
+const NFA_ANY: i32 = NFA_SPLIT + 107;
+const NFA_IDENT: i32 = NFA_SPLIT + 108;
+const NFA_SIDENT: i32 = NFA_SPLIT + 109;
+const NFA_KWORD: i32 = NFA_SPLIT + 110;
+const NFA_SKWORD: i32 = NFA_SPLIT + 111;
+const NFA_FNAME: i32 = NFA_SPLIT + 112;
+const NFA_SFNAME: i32 = NFA_SPLIT + 113;
+const NFA_PRINT: i32 = NFA_SPLIT + 114;
+const NFA_SPRINT: i32 = NFA_SPLIT + 115;
+const NFA_WHITE: i32 = NFA_SPLIT + 116;
+const NFA_NWHITE: i32 = NFA_SPLIT + 117;
+const NFA_DIGIT: i32 = NFA_SPLIT + 118;
+const NFA_NDIGIT: i32 = NFA_SPLIT + 119;
+const NFA_HEX: i32 = NFA_SPLIT + 120;
+const NFA_NHEX: i32 = NFA_SPLIT + 121;
+const NFA_OCTAL: i32 = NFA_SPLIT + 122;
+const NFA_NOCTAL: i32 = NFA_SPLIT + 123;
+const NFA_WORD: i32 = NFA_SPLIT + 124;
+const NFA_NWORD: i32 = NFA_SPLIT + 125;
+const NFA_HEAD: i32 = NFA_SPLIT + 126;
+const NFA_NHEAD: i32 = NFA_SPLIT + 127;
+const NFA_ALPHA: i32 = NFA_SPLIT + 128;
+const NFA_NALPHA: i32 = NFA_SPLIT + 129;
+const NFA_LOWER: i32 = NFA_SPLIT + 130;
+const NFA_NLOWER: i32 = NFA_SPLIT + 131;
+const NFA_UPPER: i32 = NFA_SPLIT + 132;
+const NFA_NUPPER: i32 = NFA_SPLIT + 133;
+const NFA_LOWER_IC: i32 = NFA_SPLIT + 134;
+const NFA_NLOWER_IC: i32 = NFA_SPLIT + 135;
+const NFA_UPPER_IC: i32 = NFA_SPLIT + 136;
+const NFA_NUPPER_IC: i32 = NFA_SPLIT + 137;
 
-const NFA_FIRST_NL: c_int = NFA_ANY + NFA_ADD_NL;
-const NFA_LAST_NL: c_int = NFA_NUPPER_IC + NFA_ADD_NL;
+const NFA_FIRST_NL: i32 = NFA_ANY + NFA_ADD_NL;
+const NFA_LAST_NL: i32 = NFA_NUPPER_IC + NFA_ADD_NL;
 
-const NFA_CURSOR: c_int = NFA_LAST_NL + 1;
-const NFA_LNUM: c_int = NFA_CURSOR + 1;
-const NFA_LNUM_GT: c_int = NFA_CURSOR + 2;
-const NFA_LNUM_LT: c_int = NFA_CURSOR + 3;
-const NFA_COL: c_int = NFA_CURSOR + 4;
-const NFA_COL_GT: c_int = NFA_CURSOR + 5;
-const NFA_COL_LT: c_int = NFA_CURSOR + 6;
-const NFA_VCOL: c_int = NFA_CURSOR + 7;
-const NFA_VCOL_GT: c_int = NFA_CURSOR + 8;
-const NFA_VCOL_LT: c_int = NFA_CURSOR + 9;
-const NFA_MARK: c_int = NFA_CURSOR + 10;
-const NFA_MARK_GT: c_int = NFA_CURSOR + 11;
-const NFA_MARK_LT: c_int = NFA_CURSOR + 12;
-const NFA_VISUAL: c_int = NFA_CURSOR + 13;
+const NFA_CURSOR: i32 = NFA_LAST_NL + 1;
+const NFA_LNUM: i32 = NFA_CURSOR + 1;
+const NFA_LNUM_GT: i32 = NFA_CURSOR + 2;
+const NFA_LNUM_LT: i32 = NFA_CURSOR + 3;
+const NFA_COL: i32 = NFA_CURSOR + 4;
+const NFA_COL_GT: i32 = NFA_CURSOR + 5;
+const NFA_COL_LT: i32 = NFA_CURSOR + 6;
+const NFA_VCOL: i32 = NFA_CURSOR + 7;
+const NFA_VCOL_GT: i32 = NFA_CURSOR + 8;
+const NFA_VCOL_LT: i32 = NFA_CURSOR + 9;
+const NFA_MARK: i32 = NFA_CURSOR + 10;
+const NFA_MARK_GT: i32 = NFA_CURSOR + 11;
+const NFA_MARK_LT: i32 = NFA_CURSOR + 12;
+const NFA_VISUAL: i32 = NFA_CURSOR + 13;
 
-const NFA_CLASS_ALNUM: c_int = NFA_CURSOR + 14;
-const NFA_CLASS_ALPHA: c_int = NFA_CURSOR + 15;
-const NFA_CLASS_BLANK: c_int = NFA_CURSOR + 16;
-const NFA_CLASS_CNTRL: c_int = NFA_CURSOR + 17;
-const NFA_CLASS_DIGIT: c_int = NFA_CURSOR + 18;
-const NFA_CLASS_GRAPH: c_int = NFA_CURSOR + 19;
-const NFA_CLASS_LOWER: c_int = NFA_CURSOR + 20;
-const NFA_CLASS_PRINT: c_int = NFA_CURSOR + 21;
-const NFA_CLASS_PUNCT: c_int = NFA_CURSOR + 22;
-const NFA_CLASS_SPACE: c_int = NFA_CURSOR + 23;
-const NFA_CLASS_UPPER: c_int = NFA_CURSOR + 24;
-const NFA_CLASS_XDIGIT: c_int = NFA_CURSOR + 25;
-const NFA_CLASS_TAB: c_int = NFA_CURSOR + 26;
-const NFA_CLASS_RETURN: c_int = NFA_CURSOR + 27;
-const NFA_CLASS_BACKSPACE: c_int = NFA_CURSOR + 28;
-const NFA_CLASS_ESCAPE: c_int = NFA_CURSOR + 29;
-const NFA_CLASS_IDENT: c_int = NFA_CURSOR + 30;
-const NFA_CLASS_KEYWORD: c_int = NFA_CURSOR + 31;
-const NFA_CLASS_FNAME: c_int = NFA_CURSOR + 32;
+const NFA_CLASS_ALNUM: i32 = NFA_CURSOR + 14;
+const NFA_CLASS_ALPHA: i32 = NFA_CURSOR + 15;
+const NFA_CLASS_BLANK: i32 = NFA_CURSOR + 16;
+const NFA_CLASS_CNTRL: i32 = NFA_CURSOR + 17;
+const NFA_CLASS_DIGIT: i32 = NFA_CURSOR + 18;
+const NFA_CLASS_GRAPH: i32 = NFA_CURSOR + 19;
+const NFA_CLASS_LOWER: i32 = NFA_CURSOR + 20;
+const NFA_CLASS_PRINT: i32 = NFA_CURSOR + 21;
+const NFA_CLASS_PUNCT: i32 = NFA_CURSOR + 22;
+const NFA_CLASS_SPACE: i32 = NFA_CURSOR + 23;
+const NFA_CLASS_UPPER: i32 = NFA_CURSOR + 24;
+const NFA_CLASS_XDIGIT: i32 = NFA_CURSOR + 25;
+const NFA_CLASS_TAB: i32 = NFA_CURSOR + 26;
+const NFA_CLASS_RETURN: i32 = NFA_CURSOR + 27;
+const NFA_CLASS_BACKSPACE: i32 = NFA_CURSOR + 28;
+const NFA_CLASS_ESCAPE: i32 = NFA_CURSOR + 29;
+const NFA_CLASS_IDENT: i32 = NFA_CURSOR + 30;
+const NFA_CLASS_KEYWORD: i32 = NFA_CURSOR + 31;
+const NFA_CLASS_FNAME: i32 = NFA_CURSOR + 32;
 
 const NFA_POSTFIX_KEEP: usize = 10000;
 
-const NFA_PIM_UNUSED: c_int = 0;
-const NFA_PIM_TODO: c_int = 1;
-const NFA_PIM_MATCH: c_int = 2;
-const NFA_PIM_NOMATCH: c_int = 3;
+const NFA_PIM_UNUSED: i32 = 0;
+const NFA_PIM_TODO: i32 = 1;
+const NFA_PIM_MATCH: i32 = 2;
+const NFA_PIM_NOMATCH: i32 = 3;
 
-const ADDSTATE_HERE_OFFSET: c_int = 10;
+const ADDSTATE_HERE_OFFSET: i32 = 10;
 
-static NFA_CLASSCODES: [c_int; 27] = [
+static NFA_CLASSCODES: [i32; 27] = [
     NFA_ANY, NFA_IDENT, NFA_SIDENT, NFA_KWORD, NFA_SKWORD, NFA_FNAME, NFA_SFNAME, NFA_PRINT,
     NFA_SPRINT, NFA_WHITE, NFA_NWHITE, NFA_DIGIT, NFA_NDIGIT, NFA_HEX, NFA_NHEX, NFA_OCTAL,
     NFA_NOCTAL, NFA_WORD, NFA_NWORD, NFA_HEAD, NFA_NHEAD, NFA_ALPHA, NFA_NALPHA, NFA_LOWER,
@@ -175,10 +175,10 @@ const E_VALUE_TOO_LARGE: &CStr = c"E951: \\% value too large";
 
 struct RegexpNfaState {
     temp_subs: Regsubs,
-    nfa_match: c_int,
+    nfa_match: i32,
     nfa_time_limit: Option<Proftime>,
-    nfa_timed_out: *mut c_int,
-    nfa_time_count: c_int,
+    nfa_timed_out: *mut i32,
+    nfa_time_count: i32,
     rec_listbuf: Vec<[Vec<NfaThread>; 2]>,
 }
 
@@ -203,19 +203,19 @@ fn nfa_st() -> &'static mut RegexpNfaState {
 }
 
 #[inline]
-fn emit_fn(c: c_int) {
+fn emit_fn(c: i32) {
     {
         re_st().post_vec.push(c);
     }
 }
 
 #[inline]
-fn emit2(c: c_int) {
+fn emit2(c: i32) {
     emit_fn(c);
     emit_fn(NFA_CONCAT);
 }
 
-fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
+fn nfa_regcomp_start(expr: *mut u8, re_flags: i32) {
     {
         re_st().nstate = 0;
         re_st().istate = 0;
@@ -231,7 +231,7 @@ fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
     }
 }
 
-fn nfa_get_reganch(states: &[NfaState], start: Option<usize>, depth: c_int) -> c_int {
+fn nfa_get_reganch(states: &[NfaState], start: Option<usize>, depth: i32) -> i32 {
     let mut p = start;
     if depth > 4 {
         return 0;
@@ -247,7 +247,7 @@ fn nfa_get_reganch(states: &[NfaState], start: Option<usize>, depth: c_int) -> c
                 p = st.out;
             }
             NFA_SPLIT => {
-                return c_int::from(
+                return i32::from(
                     nfa_get_reganch(states, st.out, depth + 1) != 0
                         && nfa_get_reganch(states, st.out1, depth + 1) != 0,
                 );
@@ -258,7 +258,7 @@ fn nfa_get_reganch(states: &[NfaState], start: Option<usize>, depth: c_int) -> c
     0
 }
 
-fn nfa_get_regstart(states: &[NfaState], start: Option<usize>, depth: c_int) -> c_int {
+fn nfa_get_regstart(states: &[NfaState], start: Option<usize>, depth: i32) -> i32 {
     let mut p = start;
     if depth > 4 {
         return 0;
@@ -326,7 +326,7 @@ fn nfa_get_match_text(states: &[NfaState], start: Option<usize>) -> Option<std::
     }
 }
 
-fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_newl: c_int) -> c_int {
+fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_newl: i32) -> i32 {
     let mut newl = false;
     let config = get_char_class_bits(start, end, &mut newl);
     if config < 0 {
@@ -376,13 +376,13 @@ fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_newl: c_in
 }
 
 #[rustfmt::skip]
-fn nfa_emit_equi_class(c: c_int) {
+fn nfa_emit_equi_class(c: i32) {
     match c {
             0x41 | 0xc0 | 0xc1 | 0xc2 | 0xc3 | 0xc4 | 0xc5 | 0x100 | 0x102 | 0x104 | 0x1cd
             | 0x1de | 0x1e0 | 0x1fa | 0x200 | 0x202 | 0x226 | 0x23a | 0x1e00 | 0x1ea0 | 0x1ea2
             | 0x1ea4 | 0x1ea6 | 0x1ea8 | 0x1eaa | 0x1eac | 0x1eae | 0x1eb0 | 0x1eb2 | 0x1eb4
             | 0x1eb6 => {
-                emit2(b'A' as c_int); emit2(0xc0); emit2(0xc1);
+                emit2(b'A' as i32); emit2(0xc0); emit2(0xc1);
                 emit2(0xc2); emit2(0xc3);
                 emit2(0xc4); emit2(0xc5);
                 emit2(0x100); emit2(0x102); emit2(0x104);
@@ -396,20 +396,20 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x42 | 0x181 | 0x243 | 0x1e02 | 0x1e04 | 0x1e06 => {
-                emit2(b'B' as c_int);
+                emit2(b'B' as i32);
                 emit2(0x181); emit2(0x243); emit2(0x1e02);
                 emit2(0x1e04); emit2(0x1e06);
                 return;
             }
             0x43 | 0xc7 | 0x106 | 0x108 | 0x10a | 0x10c | 0x187 | 0x23b | 0x1e08 | 0xa792 => {
-                emit2(b'C' as c_int); emit2(0xc7);
+                emit2(b'C' as i32); emit2(0xc7);
                 emit2(0x106); emit2(0x108); emit2(0x10a);
                 emit2(0x10c); emit2(0x187); emit2(0x23b);
                 emit2(0x1e08); emit2(0xa792);
                 return;
             }
             0x44 | 0x10e | 0x110 | 0x18a | 0x1e0a | 0x1e0c | 0x1e0e | 0x1e10 | 0x1e12 => {
-                emit2(b'D' as c_int); emit2(0x10e); emit2(0x110); emit2(0x18a);
+                emit2(b'D' as i32); emit2(0x10e); emit2(0x110); emit2(0x18a);
                 emit2(0x1e0a); emit2(0x1e0c); emit2(0x1e0e);
                 emit2(0x1e10); emit2(0x1e12);
                 return;
@@ -417,7 +417,7 @@ fn nfa_emit_equi_class(c: c_int) {
             0x45 | 0xc8 | 0xc9 | 0xca | 0xcb | 0x112 | 0x114 | 0x116 | 0x118 | 0x11a | 0x204
             | 0x206 | 0x228 | 0x246 | 0x1e14 | 0x1e16 | 0x1e18 | 0x1e1a | 0x1e1c | 0x1eb8
             | 0x1eba | 0x1ebc | 0x1ebe | 0x1ec0 | 0x1ec2 | 0x1ec4 | 0x1ec6 => {
-                emit2(b'E' as c_int); emit2(0xc8); emit2(0xc9);
+                emit2(b'E' as i32); emit2(0xc8); emit2(0xc9);
                 emit2(0xca); emit2(0xcb);
                 emit2(0x112); emit2(0x114); emit2(0x116);
                 emit2(0x118); emit2(0x11a); emit2(0x204);
@@ -430,26 +430,26 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x46 | 0x191 | 0x1e1e | 0xa798 => {
-                emit2(b'F' as c_int); emit2(0x191); emit2(0x1e1e); emit2(0xa798);
+                emit2(b'F' as i32); emit2(0x191); emit2(0x1e1e); emit2(0xa798);
                 return;
             }
             0x47 | 0x11c | 0x11e | 0x120 | 0x122 | 0x193 | 0x1e4 | 0x1e6 | 0x1f4 | 0x1e20
             | 0xa7a0 => {
-                emit2(b'G' as c_int); emit2(0x11c); emit2(0x11e); emit2(0x120);
+                emit2(b'G' as i32); emit2(0x11c); emit2(0x11e); emit2(0x120);
                 emit2(0x122); emit2(0x193); emit2(0x1e4);
                 emit2(0x1e6); emit2(0x1f4); emit2(0x1e20);
                 emit2(0xa7a0);
                 return;
             }
             0x48 | 0x124 | 0x126 | 0x21e | 0x1e22 | 0x1e24 | 0x1e26 | 0x1e28 | 0x1e2a | 0x2c67 => {
-                emit2(b'H' as c_int); emit2(0x124); emit2(0x126); emit2(0x21e);
+                emit2(b'H' as i32); emit2(0x124); emit2(0x126); emit2(0x21e);
                 emit2(0x1e22); emit2(0x1e24); emit2(0x1e26);
                 emit2(0x1e28); emit2(0x1e2a); emit2(0x2c67);
                 return;
             }
             0x49 | 0xcc | 0xcd | 0xce | 0xcf | 0x128 | 0x12a | 0x12c | 0x12e | 0x130 | 0x197
             | 0x1cf | 0x208 | 0x20a | 0x1e2c | 0x1e2e | 0x1ec8 | 0x1eca => {
-                emit2(b'I' as c_int); emit2(0xcc); emit2(0xcd);
+                emit2(b'I' as i32); emit2(0xcc); emit2(0xcd);
                 emit2(0xce); emit2(0xcf);
                 emit2(0x128); emit2(0x12a); emit2(0x12c);
                 emit2(0x12e); emit2(0x130); emit2(0x197);
@@ -459,31 +459,31 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x4a | 0x134 | 0x248 => {
-                emit2(b'J' as c_int); emit2(0x134); emit2(0x248);
+                emit2(b'J' as i32); emit2(0x134); emit2(0x248);
                 return;
             }
             0x4b | 0x136 | 0x198 | 0x1e8 | 0x1e30 | 0x1e32 | 0x1e34 | 0x2c69 | 0xa740 => {
-                emit2(b'K' as c_int); emit2(0x136); emit2(0x198); emit2(0x1e8);
+                emit2(b'K' as i32); emit2(0x136); emit2(0x198); emit2(0x1e8);
                 emit2(0x1e30); emit2(0x1e32); emit2(0x1e34);
                 emit2(0x2c69); emit2(0xa740);
                 return;
             }
             0x4c | 0x139 | 0x13b | 0x13d | 0x13f | 0x141 | 0x23d | 0x1e36 | 0x1e38 | 0x1e3a
             | 0x1e3c | 0x2c60 => {
-                emit2(b'L' as c_int); emit2(0x139); emit2(0x13b);
+                emit2(b'L' as i32); emit2(0x139); emit2(0x13b);
                 emit2(0x13d); emit2(0x13f); emit2(0x141);
                 emit2(0x23d); emit2(0x1e36); emit2(0x1e38);
                 emit2(0x1e3a); emit2(0x1e3c); emit2(0x2c60);
                 return;
             }
             0x4d | 0x1e3e | 0x1e40 | 0x1e42 => {
-                emit2(b'M' as c_int); emit2(0x1e3e); emit2(0x1e40);
+                emit2(b'M' as i32); emit2(0x1e3e); emit2(0x1e40);
                 emit2(0x1e42);
                 return;
             }
             0x4e | 0xd1 | 0x143 | 0x145 | 0x147 | 0x1f8 | 0x1e44 | 0x1e46 | 0x1e48 | 0x1e4a
             | 0xa7a4 => {
-                emit2(b'N' as c_int); emit2(0xd1);
+                emit2(b'N' as i32); emit2(0xd1);
                 emit2(0x143); emit2(0x145); emit2(0x147);
                 emit2(0x1f8); emit2(0x1e44); emit2(0x1e46);
                 emit2(0x1e48); emit2(0x1e4a); emit2(0xa7a4);
@@ -493,7 +493,7 @@ fn nfa_emit_equi_class(c: c_int) {
             | 0x1a0 | 0x1d1 | 0x1ea | 0x1ec | 0x1fe | 0x20c | 0x20e | 0x22a | 0x22c | 0x22e
             | 0x230 | 0x1e4c | 0x1e4e | 0x1e50 | 0x1e52 | 0x1ecc | 0x1ece | 0x1ed0 | 0x1ed2
             | 0x1ed4 | 0x1ed6 | 0x1ed8 | 0x1eda | 0x1edc | 0x1ede | 0x1ee0 | 0x1ee2 => {
-                emit2(b'O' as c_int); emit2(0xd2); emit2(0xd3);
+                emit2(b'O' as i32); emit2(0xd2); emit2(0xd3);
                 emit2(0xd4); emit2(0xd5);
                 emit2(0xd6); emit2(0xd8);
                 emit2(0x14c); emit2(0x14e); emit2(0x150);
@@ -510,17 +510,17 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x50 | 0x1a4 | 0x1e54 | 0x1e56 | 0x2c63 => {
-                emit2(b'P' as c_int); emit2(0x1a4); emit2(0x1e54); emit2(0x1e56);
+                emit2(b'P' as i32); emit2(0x1a4); emit2(0x1e54); emit2(0x1e56);
                 emit2(0x2c63);
                 return;
             }
             0x51 | 0x24a => {
-                emit2(b'Q' as c_int); emit2(0x24a);
+                emit2(b'Q' as i32); emit2(0x24a);
                 return;
             }
             0x52 | 0x154 | 0x156 | 0x158 | 0x210 | 0x212 | 0x24c | 0x1e58 | 0x1e5a | 0x1e5c
             | 0x1e5e | 0x2c64 | 0xa7a6 => {
-                emit2(b'R' as c_int); emit2(0x154); emit2(0x156); emit2(0x158);
+                emit2(b'R' as i32); emit2(0x154); emit2(0x156); emit2(0x158);
                 emit2(0x210); emit2(0x212); emit2(0x24c); emit2(0x1e58);
                 emit2(0x1e5a); emit2(0x1e5c); emit2(0x1e5e); emit2(0x2c64);
                 emit2(0xa7a6);
@@ -528,7 +528,7 @@ fn nfa_emit_equi_class(c: c_int) {
             }
             0x53 | 0x15a | 0x15c | 0x15e | 0x160 | 0x218 | 0x1e60 | 0x1e62 | 0x1e64 | 0x1e66
             | 0x1e68 | 0x2c7e | 0xa7a8 => {
-                emit2(b'S' as c_int); emit2(0x15a); emit2(0x15c); emit2(0x15e);
+                emit2(b'S' as i32); emit2(0x15a); emit2(0x15c); emit2(0x15e);
                 emit2(0x160); emit2(0x218); emit2(0x1e60); emit2(0x1e62);
                 emit2(0x1e64); emit2(0x1e66); emit2(0x1e68); emit2(0x2c7e);
                 emit2(0xa7a8);
@@ -536,7 +536,7 @@ fn nfa_emit_equi_class(c: c_int) {
             }
             0x54 | 0x162 | 0x164 | 0x166 | 0x1ac | 0x1ae | 0x21a | 0x23e | 0x1e6a | 0x1e6c
             | 0x1e6e | 0x1e70 => {
-                emit2(b'T' as c_int); emit2(0x162); emit2(0x164); emit2(0x166);
+                emit2(b'T' as i32); emit2(0x162); emit2(0x164); emit2(0x166);
                 emit2(0x1ac); emit2(0x1ae); emit2(0x23e); emit2(0x21a);
                 emit2(0x1e6a); emit2(0x1e6c); emit2(0x1e6e); emit2(0x1e70);
                 return;
@@ -545,7 +545,7 @@ fn nfa_emit_equi_class(c: c_int) {
             | 0x1af | 0x1d3 | 0x1d5 | 0x1d7 | 0x1d9 | 0x1db | 0x214 | 0x216 | 0x244 | 0x1e72
             | 0x1e74 | 0x1e76 | 0x1e78 | 0x1e7a | 0x1ee4 | 0x1ee6 | 0x1ee8 | 0x1eea | 0x1eec
             | 0x1eee | 0x1ef0 => {
-                emit2(b'U' as c_int); emit2(0xd9); emit2(0xda);
+                emit2(b'U' as i32); emit2(0xd9); emit2(0xda);
                 emit2(0xdc); emit2(0xdb);
                 emit2(0x168); emit2(0x16a);
                 emit2(0x16c); emit2(0x16e); emit2(0x170);
@@ -560,21 +560,21 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x56 | 0x1b2 | 0x1e7c | 0x1e7e => {
-                emit2(b'V' as c_int); emit2(0x1b2); emit2(0x1e7c); emit2(0x1e7e);
+                emit2(b'V' as i32); emit2(0x1b2); emit2(0x1e7c); emit2(0x1e7e);
                 return;
             }
             0x57 | 0x174 | 0x1e80 | 0x1e82 | 0x1e84 | 0x1e86 | 0x1e88 => {
-                emit2(b'W' as c_int); emit2(0x174); emit2(0x1e80); emit2(0x1e82);
+                emit2(b'W' as i32); emit2(0x174); emit2(0x1e80); emit2(0x1e82);
                 emit2(0x1e84); emit2(0x1e86); emit2(0x1e88);
                 return;
             }
             0x58 | 0x1e8a | 0x1e8c => {
-                emit2(b'X' as c_int); emit2(0x1e8a); emit2(0x1e8c);
+                emit2(b'X' as i32); emit2(0x1e8a); emit2(0x1e8c);
                 return;
             }
             0x59 | 0xdd | 0x176 | 0x178 | 0x1b3 | 0x232 | 0x24e | 0x1e8e | 0x1ef2 | 0x1ef4
             | 0x1ef6 | 0x1ef8 => {
-                emit2(b'Y' as c_int); emit2(0xdd);
+                emit2(b'Y' as i32); emit2(0xdd);
                 emit2(0x176); emit2(0x178); emit2(0x1b3);
                 emit2(0x232); emit2(0x24e); emit2(0x1e8e);
                 emit2(0x1ef2); emit2(0x1ef4); emit2(0x1ef6);
@@ -582,7 +582,7 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x5a | 0x179 | 0x17b | 0x17d | 0x1b5 | 0x1e90 | 0x1e92 | 0x1e94 | 0x2c6b => {
-                emit2(b'Z' as c_int); emit2(0x179); emit2(0x17b); emit2(0x17d);
+                emit2(b'Z' as i32); emit2(0x179); emit2(0x17b); emit2(0x17d);
                 emit2(0x1b5); emit2(0x1e90); emit2(0x1e92);
                 emit2(0x1e94); emit2(0x2c6b);
                 return;
@@ -591,7 +591,7 @@ fn nfa_emit_equi_class(c: c_int) {
             | 0x1df | 0x1e1 | 0x1fb | 0x201 | 0x203 | 0x227 | 0x1d8f | 0x1e01 | 0x1e9a
             | 0x1ea1 | 0x1ea3 | 0x1ea5 | 0x1ea7 | 0x1ea9 | 0x1eab | 0x1ead | 0x1eaf | 0x1eb1
             | 0x1eb3 | 0x1eb5 | 0x1eb7 | 0x2c65 => {
-                emit2(b'a' as c_int); emit2(0xe0); emit2(0xe1);
+                emit2(b'a' as i32); emit2(0xe0); emit2(0xe1);
                 emit2(0xe2); emit2(0xe3);
                 emit2(0xe4); emit2(0xe5);
                 emit2(0x101); emit2(0x103); emit2(0x105);
@@ -606,13 +606,13 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x62 | 0x180 | 0x253 | 0x1d6c | 0x1d80 | 0x1e03 | 0x1e05 | 0x1e07 => {
-                emit2(b'b' as c_int); emit2(0x180); emit2(0x253); emit2(0x1d6c);
+                emit2(b'b' as i32); emit2(0x180); emit2(0x253); emit2(0x1d6c);
                 emit2(0x1d80); emit2(0x1e03); emit2(0x1e05); emit2(0x1e07);
                 return;
             }
             0x63 | 0xe7 | 0x107 | 0x109 | 0x10b | 0x10d | 0x188 | 0x23c | 0x1e09 | 0xa793
             | 0xa794 => {
-                emit2(b'c' as c_int); emit2(0xe7);
+                emit2(b'c' as i32); emit2(0xe7);
                 emit2(0x107); emit2(0x109); emit2(0x10b);
                 emit2(0x10d); emit2(0x188); emit2(0x23c);
                 emit2(0x1e09); emit2(0xa793); emit2(0xa794);
@@ -620,7 +620,7 @@ fn nfa_emit_equi_class(c: c_int) {
             }
             0x64 | 0x10f | 0x111 | 0x257 | 0x1d6d | 0x1d81 | 0x1d91 | 0x1e0b | 0x1e0d | 0x1e0f
             | 0x1e11 | 0x1e13 => {
-                emit2(b'd' as c_int); emit2(0x10f); emit2(0x111);
+                emit2(b'd' as i32); emit2(0x10f); emit2(0x111);
                 emit2(0x257); emit2(0x1d6d); emit2(0x1d81);
                 emit2(0x1d91); emit2(0x1e0b); emit2(0x1e0d);
                 emit2(0x1e0f); emit2(0x1e11); emit2(0x1e13);
@@ -629,7 +629,7 @@ fn nfa_emit_equi_class(c: c_int) {
             0x65 | 0xe8 | 0xe9 | 0xea | 0xeb | 0x113 | 0x115 | 0x117 | 0x119 | 0x11b | 0x205
             | 0x207 | 0x229 | 0x247 | 0x1d92 | 0x1e15 | 0x1e17 | 0x1e19 | 0x1e1b | 0x1e1d
             | 0x1eb9 | 0x1ebb | 0x1ebd | 0x1ebf | 0x1ec1 | 0x1ec3 | 0x1ec5 | 0x1ec7 => {
-                emit2(b'e' as c_int); emit2(0xe8); emit2(0xe9);
+                emit2(b'e' as i32); emit2(0xe8); emit2(0xe9);
                 emit2(0xea); emit2(0xeb);
                 emit2(0x113); emit2(0x115);
                 emit2(0x117); emit2(0x119); emit2(0x11b);
@@ -642,13 +642,13 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x66 | 0x192 | 0x1d6e | 0x1d82 | 0x1e1f | 0xa799 => {
-                emit2(b'f' as c_int); emit2(0x192); emit2(0x1d6e); emit2(0x1d82);
+                emit2(b'f' as i32); emit2(0x192); emit2(0x1d6e); emit2(0x1d82);
                 emit2(0x1e1f); emit2(0xa799);
                 return;
             }
             0x67 | 0x11d | 0x11f | 0x121 | 0x123 | 0x1e5 | 0x1e7 | 0x1f5 | 0x260 | 0x1d83
             | 0x1e21 | 0xa7a1 => {
-                emit2(b'g' as c_int); emit2(0x11d); emit2(0x11f); emit2(0x121);
+                emit2(b'g' as i32); emit2(0x11d); emit2(0x11f); emit2(0x121);
                 emit2(0x123); emit2(0x1e5); emit2(0x1e7);
                 emit2(0x1f5); emit2(0x260); emit2(0x1d83);
                 emit2(0x1e21); emit2(0xa7a1);
@@ -656,7 +656,7 @@ fn nfa_emit_equi_class(c: c_int) {
             }
             0x68 | 0x125 | 0x127 | 0x21f | 0x1e23 | 0x1e25 | 0x1e27 | 0x1e29 | 0x1e2b | 0x1e96
             | 0x2c68 | 0xa795 => {
-                emit2(b'h' as c_int); emit2(0x125); emit2(0x127); emit2(0x21f);
+                emit2(b'h' as i32); emit2(0x125); emit2(0x127); emit2(0x21f);
                 emit2(0x1e23); emit2(0x1e25); emit2(0x1e27);
                 emit2(0x1e29); emit2(0x1e2b); emit2(0x1e96);
                 emit2(0x2c68); emit2(0xa795);
@@ -664,7 +664,7 @@ fn nfa_emit_equi_class(c: c_int) {
             }
             0x69 | 0xec | 0xed | 0xee | 0xef | 0x129 | 0x12b | 0x12d | 0x12f | 0x1d0 | 0x209
             | 0x20b | 0x268 | 0x1d96 | 0x1e2d | 0x1e2f | 0x1ec9 | 0x1ecb => {
-                emit2(b'i' as c_int); emit2(0xec); emit2(0xed);
+                emit2(b'i' as i32); emit2(0xec); emit2(0xed);
                 emit2(0xee); emit2(0xef);
                 emit2(0x129); emit2(0x12b); emit2(0x12d);
                 emit2(0x12f); emit2(0x1d0); emit2(0x209);
@@ -674,31 +674,31 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x6a | 0x135 | 0x1f0 | 0x249 => {
-                emit2(b'j' as c_int); emit2(0x135); emit2(0x1f0); emit2(0x249);
+                emit2(b'j' as i32); emit2(0x135); emit2(0x1f0); emit2(0x249);
                 return;
             }
             0x6b | 0x137 | 0x199 | 0x1e9 | 0x1d84 | 0x1e31 | 0x1e33 | 0x1e35 | 0x2c6a | 0xa741 => {
-                emit2(b'k' as c_int); emit2(0x137); emit2(0x199); emit2(0x1e9);
+                emit2(b'k' as i32); emit2(0x137); emit2(0x199); emit2(0x1e9);
                 emit2(0x1d84); emit2(0x1e31); emit2(0x1e33);
                 emit2(0x1e35); emit2(0x2c6a); emit2(0xa741);
                 return;
             }
             0x6c | 0x13a | 0x13c | 0x13e | 0x140 | 0x142 | 0x19a | 0x1e37 | 0x1e39 | 0x1e3b
             | 0x1e3d | 0x2c61 => {
-                emit2(b'l' as c_int); emit2(0x13a); emit2(0x13c);
+                emit2(b'l' as i32); emit2(0x13a); emit2(0x13c);
                 emit2(0x13e); emit2(0x140); emit2(0x142);
                 emit2(0x19a); emit2(0x1e37); emit2(0x1e39);
                 emit2(0x1e3b); emit2(0x1e3d); emit2(0x2c61);
                 return;
             }
             0x6d | 0x1d6f | 0x1e3f | 0x1e41 | 0x1e43 => {
-                emit2(b'm' as c_int); emit2(0x1d6f); emit2(0x1e3f);
+                emit2(b'm' as i32); emit2(0x1d6f); emit2(0x1e3f);
                 emit2(0x1e41); emit2(0x1e43);
                 return;
             }
             0x6e | 0xf1 | 0x144 | 0x146 | 0x148 | 0x149 | 0x1f9 | 0x1d70 | 0x1d87 | 0x1e45
             | 0x1e47 | 0x1e49 | 0x1e4b | 0xa7a5 => {
-                emit2(b'n' as c_int); emit2(0xf1);
+                emit2(b'n' as i32); emit2(0xf1);
                 emit2(0x144); emit2(0x146); emit2(0x148);
                 emit2(0x149); emit2(0x1f9); emit2(0x1d70);
                 emit2(0x1d87); emit2(0x1e45); emit2(0x1e47);
@@ -709,7 +709,7 @@ fn nfa_emit_equi_class(c: c_int) {
             | 0x1d2 | 0x1eb | 0x1ed | 0x1ff | 0x20d | 0x20f | 0x22b | 0x22d | 0x22f | 0x231
             | 0x275 | 0x1e4d | 0x1e4f | 0x1e51 | 0x1e53 | 0x1ecd | 0x1ecf | 0x1ed1 | 0x1ed3
             | 0x1ed5 | 0x1ed7 | 0x1ed9 | 0x1edb | 0x1edd | 0x1edf | 0x1ee1 | 0x1ee3 => {
-                emit2(b'o' as c_int); emit2(0xf2); emit2(0xf3);
+                emit2(b'o' as i32); emit2(0xf2); emit2(0xf3);
                 emit2(0xf4); emit2(0xf5);
                 emit2(0xf6); emit2(0xf8);
                 emit2(0x14d); emit2(0x14f); emit2(0x151);
@@ -726,17 +726,17 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x70 | 0x1a5 | 0x1d71 | 0x1d7d | 0x1d88 | 0x1e55 | 0x1e57 => {
-                emit2(b'p' as c_int); emit2(0x1a5); emit2(0x1d71); emit2(0x1d7d);
+                emit2(b'p' as i32); emit2(0x1a5); emit2(0x1d71); emit2(0x1d7d);
                 emit2(0x1d88); emit2(0x1e55); emit2(0x1e57);
                 return;
             }
             0x71 | 0x24b | 0x2a0 => {
-                emit2(b'q' as c_int); emit2(0x24b); emit2(0x2a0);
+                emit2(b'q' as i32); emit2(0x24b); emit2(0x2a0);
                 return;
             }
             0x72 | 0x155 | 0x157 | 0x159 | 0x211 | 0x213 | 0x24d | 0x27d | 0x1d72 | 0x1d73
             | 0x1d89 | 0x1e59 | 0x1e5b | 0x1e5d | 0x1e5f | 0xa7a7 => {
-                emit2(b'r' as c_int); emit2(0x155); emit2(0x157); emit2(0x159);
+                emit2(b'r' as i32); emit2(0x155); emit2(0x157); emit2(0x159);
                 emit2(0x211); emit2(0x213); emit2(0x24d); emit2(0x27d);
                 emit2(0x1d72); emit2(0x1d73); emit2(0x1d89); emit2(0x1e59);
                 emit2(0x1e5b); emit2(0x1e5d); emit2(0x1e5f); emit2(0xa7a7);
@@ -744,7 +744,7 @@ fn nfa_emit_equi_class(c: c_int) {
             }
             0x73 | 0x15b | 0x15d | 0x15f | 0x161 | 0x219 | 0x23f | 0x1d74 | 0x1d8a | 0x1e61
             | 0x1e63 | 0x1e65 | 0x1e67 | 0x1e69 | 0xa7a9 => {
-                emit2(b's' as c_int); emit2(0x15b); emit2(0x15d); emit2(0x15f);
+                emit2(b's' as i32); emit2(0x15b); emit2(0x15d); emit2(0x15f);
                 emit2(0x161); emit2(0x219); emit2(0x23f); emit2(0x1d74);
                 emit2(0x1d8a); emit2(0x1e61); emit2(0x1e63); emit2(0x1e65);
                 emit2(0x1e67); emit2(0x1e69); emit2(0xa7a9);
@@ -752,7 +752,7 @@ fn nfa_emit_equi_class(c: c_int) {
             }
             0x74 | 0x163 | 0x165 | 0x167 | 0x1ab | 0x1ad | 0x21b | 0x288 | 0x1d75 | 0x1e6b
             | 0x1e6d | 0x1e6f | 0x1e71 | 0x1e97 | 0x2c66 => {
-                emit2(b't' as c_int); emit2(0x163); emit2(0x165); emit2(0x167);
+                emit2(b't' as i32); emit2(0x163); emit2(0x165); emit2(0x167);
                 emit2(0x1ab); emit2(0x1ad); emit2(0x21b); emit2(0x288);
                 emit2(0x1d75); emit2(0x1e6b); emit2(0x1e6d); emit2(0x1e6f);
                 emit2(0x1e71); emit2(0x1e97); emit2(0x2c66);
@@ -762,7 +762,7 @@ fn nfa_emit_equi_class(c: c_int) {
             | 0x1b0 | 0x1d4 | 0x1d6 | 0x1d8 | 0x1da | 0x1dc | 0x215 | 0x217 | 0x289 | 0x1d7e
             | 0x1d99 | 0x1e73 | 0x1e75 | 0x1e77 | 0x1e79 | 0x1e7b | 0x1ee5 | 0x1ee7 | 0x1ee9
             | 0x1eeb | 0x1eed | 0x1eef | 0x1ef1 => {
-                emit2(b'u' as c_int); emit2(0xf9); emit2(0xfa);
+                emit2(b'u' as i32); emit2(0xf9); emit2(0xfa);
                 emit2(0xfb); emit2(0xfc);
                 emit2(0x169); emit2(0x16b);
                 emit2(0x16d); emit2(0x16f); emit2(0x171);
@@ -777,22 +777,22 @@ fn nfa_emit_equi_class(c: c_int) {
                 return;
             }
             0x76 | 0x28b | 0x1d8c | 0x1e7d | 0x1e7f => {
-                emit2(b'v' as c_int); emit2(0x28b); emit2(0x1d8c); emit2(0x1e7d);
+                emit2(b'v' as i32); emit2(0x28b); emit2(0x1d8c); emit2(0x1e7d);
                 emit2(0x1e7f);
                 return;
             }
             0x77 | 0x175 | 0x1e81 | 0x1e83 | 0x1e85 | 0x1e87 | 0x1e89 | 0x1e98 => {
-                emit2(b'w' as c_int); emit2(0x175); emit2(0x1e81); emit2(0x1e83);
+                emit2(b'w' as i32); emit2(0x175); emit2(0x1e81); emit2(0x1e83);
                 emit2(0x1e85); emit2(0x1e87); emit2(0x1e89); emit2(0x1e98);
                 return;
             }
             0x78 | 0x1e8b | 0x1e8d => {
-                emit2(b'x' as c_int); emit2(0x1e8b); emit2(0x1e8d);
+                emit2(b'x' as i32); emit2(0x1e8b); emit2(0x1e8d);
                 return;
             }
             0x79 | 0xfd | 0xff | 0x177 | 0x1b4 | 0x233 | 0x24f | 0x1e8f | 0x1e99 | 0x1ef3
             | 0x1ef5 | 0x1ef7 | 0x1ef9 => {
-                emit2(b'y' as c_int); emit2(0xfd); emit2(0xff);
+                emit2(b'y' as i32); emit2(0xfd); emit2(0xff);
                 emit2(0x177); emit2(0x1b4); emit2(0x233); emit2(0x24f);
                 emit2(0x1e8f); emit2(0x1e99); emit2(0x1ef3);
                 emit2(0x1ef5); emit2(0x1ef7); emit2(0x1ef9);
@@ -800,7 +800,7 @@ fn nfa_emit_equi_class(c: c_int) {
             }
             0x7a | 0x17a | 0x17c | 0x17e | 0x1b6 | 0x1d76 | 0x1d8e | 0x1e91 | 0x1e93 | 0x1e95
             | 0x2c6c => {
-                emit2(b'z' as c_int); emit2(0x17a); emit2(0x17c); emit2(0x17e);
+                emit2(b'z' as i32); emit2(0x17a); emit2(0x17c); emit2(0x17e);
                 emit2(0x1b6); emit2(0x1d76); emit2(0x1d8e); emit2(0x1e91);
                 emit2(0x1e93); emit2(0x1e95); emit2(0x2c6c);
                 return;
@@ -813,49 +813,49 @@ fn nfa_emit_equi_class(c: c_int) {
 fn nfa_regatom() -> bool {
     unsafe {
         let mut old_regparse = re_st().regparse.cast::<u8>();
-        let mut extra: c_int = 0;
-        let mut startc: c_int = -1;
+        let mut extra: i32 = 0;
+        let mut startc: i32 = -1;
         let save_prev_at_start = re_st().prev_at_start;
 
         let mut c = getchr();
         let mut goto_collection = false;
         let mut goto_multibyte = false;
 
-        if c == NUL as c_int {
+        if c == NUL as i32 {
             emsg(tr(E_NUL_FOUND));
             g_st().rc_did_emsg = true;
             return false;
-        } else if c == magic_fn(b'^' as c_int) {
+        } else if c == magic_fn(b'^' as i32) {
             emit_fn(NFA_BOL);
             return true;
-        } else if c == magic_fn(b'$' as c_int) {
+        } else if c == magic_fn(b'$' as i32) {
             emit_fn(NFA_EOL);
             re_st().had_eol = 1;
             return true;
-        } else if c == magic_fn(b'<' as c_int) {
+        } else if c == magic_fn(b'<' as i32) {
             emit_fn(NFA_BOW);
             return true;
-        } else if c == magic_fn(b'>' as c_int) {
+        } else if c == magic_fn(b'>' as i32) {
             emit_fn(NFA_EOW);
             return true;
-        } else if c == magic_fn(b'_' as c_int) {
+        } else if c == magic_fn(b'_' as i32) {
             c = no_magic(getchr());
-            if c == NUL as c_int {
+            if c == NUL as i32 {
                 emsg(tr(E_NUL_FOUND));
                 g_st().rc_did_emsg = true;
                 return false;
             }
-            if c == b'^' as c_int {
+            if c == b'^' as i32 {
                 emit_fn(NFA_BOL);
                 return true;
             }
-            if c == b'$' as c_int {
+            if c == b'$' as i32 {
                 emit_fn(NFA_EOL);
                 re_st().had_eol = 1;
                 return true;
             }
             extra = NFA_ADD_NL;
-            if c == b'[' as c_int {
+            if c == b'[' as i32 {
                 goto_collection = true;
             } else {
                 let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_magic(c)).cast::<u8>();
@@ -868,7 +868,7 @@ fn nfa_regatom() -> bool {
                     siemsg!(c"INTERNAL: Unknown character class char: %d", c);
                     return false;
                 }
-                if c == magic_fn(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
+                if c == magic_fn(b'.' as i32) && utf_iscomposing_legacy(peekchr()) {
                     old_regparse = re_st().regparse.cast();
                     c = getchr();
                     goto_multibyte = true;
@@ -888,33 +888,33 @@ fn nfa_regatom() -> bool {
         if !goto_collection && !goto_multibyte {
             if matches!(
                 c,
-                x if x == magic_fn(b'.' as c_int)
-                    || x == magic_fn(b'i' as c_int)
-                    || x == magic_fn(b'I' as c_int)
-                    || x == magic_fn(b'k' as c_int)
-                    || x == magic_fn(b'K' as c_int)
-                    || x == magic_fn(b'f' as c_int)
-                    || x == magic_fn(b'F' as c_int)
-                    || x == magic_fn(b'p' as c_int)
-                    || x == magic_fn(b'P' as c_int)
-                    || x == magic_fn(b's' as c_int)
-                    || x == magic_fn(b'S' as c_int)
-                    || x == magic_fn(b'd' as c_int)
-                    || x == magic_fn(b'D' as c_int)
-                    || x == magic_fn(b'x' as c_int)
-                    || x == magic_fn(b'X' as c_int)
-                    || x == magic_fn(b'o' as c_int)
-                    || x == magic_fn(b'O' as c_int)
-                    || x == magic_fn(b'w' as c_int)
-                    || x == magic_fn(b'W' as c_int)
-                    || x == magic_fn(b'h' as c_int)
-                    || x == magic_fn(b'H' as c_int)
-                    || x == magic_fn(b'a' as c_int)
-                    || x == magic_fn(b'A' as c_int)
-                    || x == magic_fn(b'l' as c_int)
-                    || x == magic_fn(b'L' as c_int)
-                    || x == magic_fn(b'u' as c_int)
-                    || x == magic_fn(b'U' as c_int)
+                x if x == magic_fn(b'.' as i32)
+                    || x == magic_fn(b'i' as i32)
+                    || x == magic_fn(b'I' as i32)
+                    || x == magic_fn(b'k' as i32)
+                    || x == magic_fn(b'K' as i32)
+                    || x == magic_fn(b'f' as i32)
+                    || x == magic_fn(b'F' as i32)
+                    || x == magic_fn(b'p' as i32)
+                    || x == magic_fn(b'P' as i32)
+                    || x == magic_fn(b's' as i32)
+                    || x == magic_fn(b'S' as i32)
+                    || x == magic_fn(b'd' as i32)
+                    || x == magic_fn(b'D' as i32)
+                    || x == magic_fn(b'x' as i32)
+                    || x == magic_fn(b'X' as i32)
+                    || x == magic_fn(b'o' as i32)
+                    || x == magic_fn(b'O' as i32)
+                    || x == magic_fn(b'w' as i32)
+                    || x == magic_fn(b'W' as i32)
+                    || x == magic_fn(b'h' as i32)
+                    || x == magic_fn(b'H' as i32)
+                    || x == magic_fn(b'a' as i32)
+                    || x == magic_fn(b'A' as i32)
+                    || x == magic_fn(b'l' as i32)
+                    || x == magic_fn(b'L' as i32)
+                    || x == magic_fn(b'u' as i32)
+                    || x == magic_fn(b'U' as i32)
             ) {
                 let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_magic(c)).cast::<u8>();
                 if p.is_null() {
@@ -926,7 +926,7 @@ fn nfa_regatom() -> bool {
                     siemsg!(c"INTERNAL: Unknown character class char: %d", c);
                     return false;
                 }
-                if c == magic_fn(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
+                if c == magic_fn(b'.' as i32) && utf_iscomposing_legacy(peekchr()) {
                     old_regparse = re_st().regparse.cast();
                     c = getchr();
                 } else {
@@ -939,7 +939,7 @@ fn nfa_regatom() -> bool {
                     }
                     return true;
                 }
-            } else if c == magic_fn(b'n' as c_int) {
+            } else if c == magic_fn(b'n' as i32) {
                 if re_st().reg_string != 0 {
                     emit_fn(NL);
                 } else {
@@ -947,24 +947,24 @@ fn nfa_regatom() -> bool {
                     re_st().regflags |= RF_HASNL;
                 }
                 return true;
-            } else if c == magic_fn(b'(' as c_int) {
+            } else if c == magic_fn(b'(' as i32) {
                 if !nfa_reg(REG_PAREN) {
                     return false;
                 }
                 return true;
-            } else if c == magic_fn(b'|' as c_int)
-                || c == magic_fn(b'&' as c_int)
-                || c == magic_fn(b')' as c_int)
-                || c == magic_fn(b'=' as c_int)
-                || c == magic_fn(b'?' as c_int)
-                || c == magic_fn(b'+' as c_int)
-                || c == magic_fn(b'@' as c_int)
-                || c == magic_fn(b'*' as c_int)
-                || c == magic_fn(b'{' as c_int)
+            } else if c == magic_fn(b'|' as i32)
+                || c == magic_fn(b'&' as i32)
+                || c == magic_fn(b')' as i32)
+                || c == magic_fn(b'=' as i32)
+                || c == magic_fn(b'?' as i32)
+                || c == magic_fn(b'+' as i32)
+                || c == magic_fn(b'@' as i32)
+                || c == magic_fn(b'*' as i32)
+                || c == magic_fn(b'{' as i32)
             {
                 semsg!(tr(E_MISPLACED), no_magic(c));
                 return false;
-            } else if c == magic_fn(b'~' as c_int) {
+            } else if c == magic_fn(b'~' as i32) {
                 let Some(prev_sub) = reg_prev_sub_ref() else {
                     emsg(tr(E_NOPRESUB));
                     return false;
@@ -980,15 +980,15 @@ fn nfa_regatom() -> bool {
                 }
                 emit_fn(NFA_NOPEN);
                 return true;
-            } else if (magic_fn(b'1' as c_int)..=magic_fn(b'9' as c_int)).contains(&c) {
-                let refnum = no_magic(c) - b'1' as c_int;
+            } else if (magic_fn(b'1' as i32)..=magic_fn(b'9' as i32)).contains(&c) {
+                let refnum = no_magic(c) - b'1' as i32;
                 if !seen_endbrace(refnum + 1) {
                     return false;
                 }
                 emit_fn(NFA_BACKREF1 + refnum);
                 re_st().rex.nfa_has_backref = 1;
                 return true;
-            } else if c == magic_fn(b'z' as c_int) {
+            } else if c == magic_fn(b'z' as i32) {
                 c = no_magic(getchr());
                 match c as u8 {
                     b's' => {
@@ -1012,7 +1012,7 @@ fn nfa_regatom() -> bool {
                             g_st().rc_did_emsg = true;
                             return false;
                         }
-                        emit_fn(NFA_ZREF1 + (no_magic(c) - b'1' as c_int));
+                        emit_fn(NFA_ZREF1 + (no_magic(c) - b'1' as i32));
                         re_st().re_has_z = REX_USE;
                         return true;
                     }
@@ -1033,9 +1033,9 @@ fn nfa_regatom() -> bool {
                         return false;
                     }
                 }
-            } else if c == magic_fn(b'%' as c_int) {
+            } else if c == magic_fn(b'%' as i32) {
                 c = no_magic(getchr());
-                if c == b'(' as c_int {
+                if c == b'(' as i32 {
                     if !nfa_reg(REG_NPAREN) {
                         return false;
                     }
@@ -1043,7 +1043,7 @@ fn nfa_regatom() -> bool {
                     return true;
                 }
                 return nfa_regatom_percent(c, save_prev_at_start);
-            } else if c == magic_fn(b'[' as c_int) {
+            } else if c == magic_fn(b'[' as i32) {
                 goto_collection = true;
             }
         }
@@ -1059,7 +1059,7 @@ fn nfa_regatom() -> bool {
 
         let plen = utfc_ptr2len(old_regparse.cast());
         if utf_char2len(c) != plen || utf_iscomposing_legacy(c) {
-            let mut i: c_int = 0;
+            let mut i: i32 = 0;
             loop {
                 emit_fn(c);
                 if i > 0 {
@@ -1082,7 +1082,7 @@ fn nfa_regatom() -> bool {
 }
 
 #[inline(never)]
-fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
+fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
     {
         match c as u8 {
             b'd' | b'o' | b'x' | b'u' | b'U' => {
@@ -1094,7 +1094,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                     b'U' => gethexchrs(8),
                     _ => -1,
                 };
-                if nr < 0 || nr > i64::from(c_int::MAX) {
+                if nr < 0 || nr > i64::from(i32::MAX) {
                     semsg!(
                         tr(c"E678: Invalid character after %s%%[dxouU]"),
                         if re_st().reg_magic == MAGIC_ALL {
@@ -1106,7 +1106,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                     g_st().rc_did_emsg = true;
                     return false;
                 }
-                emit_fn(if nr == 0 { 0x0a } else { nr as c_int });
+                emit_fn(if nr == 0 { 0x0a } else { nr as i32 });
                 true
             }
             b'^' => {
@@ -1140,13 +1140,13 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                 true
             }
             b'[' => {
-                let mut n: c_int = 0;
+                let mut n: i32 = 0;
                 loop {
                     c = peekchr();
-                    if c == b']' as c_int {
+                    if c == b']' as i32 {
                         break;
                     }
-                    if c == NUL as c_int {
+                    if c == NUL as i32 {
                         semsg!(
                             tr(E_MISSING_SB),
                             if re_st().reg_magic == MAGIC_ALL {
@@ -1187,10 +1187,10 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                 let mut cur = false;
                 let mut got_digit = false;
 
-                if c == b'<' as c_int || c == b'>' as c_int {
+                if c == b'<' as i32 || c == b'>' as i32 {
                     c = getchr();
                 }
-                if no_magic(c) == b'.' as c_int {
+                if no_magic(c) == b'.' as i32 {
                     cur = true;
                     c = getchr();
                 }
@@ -1199,27 +1199,27 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         semsg!(tr(E_REGEXP_NUMBER_AFTER_DOT_POS_SEARCH_CHR), no_magic(c),);
                         return false;
                     }
-                    if n > i64::from(i32::MAX - (c - b'0' as c_int)) / 10 {
+                    if n > i64::from(i32::MAX - (c - b'0' as i32)) / 10 {
                         emsg(tr(E_VALUE_TOO_LARGE));
                         return false;
                     }
-                    n = n * 10 + i64::from(c - b'0' as c_int);
+                    n = n * 10 + i64::from(c - b'0' as i32);
                     c = getchr();
                     got_digit = true;
                 }
-                if c == b'l' as c_int || c == b'c' as c_int || c == b'v' as c_int {
+                if c == b'l' as i32 || c == b'c' as i32 || c == b'v' as i32 {
                     let mut limit = i32::MAX;
                     if !cur && !got_digit {
                         semsg!(tr(E_NFA_REGEXP_MISSING_VALUE_IN_CHR), no_magic(c));
                         return false;
                     }
-                    if c == b'l' as c_int {
+                    if c == b'l' as i32 {
                         if cur {
                             n = i64::from(crate::globals::curwin_mut().w_cursor.lnum);
                         }
-                        emit_fn(if cmp == b'<' as c_int {
+                        emit_fn(if cmp == b'<' as i32 {
                             NFA_LNUM_LT
-                        } else if cmp == b'>' as c_int {
+                        } else if cmp == b'>' as i32 {
                             NFA_LNUM_GT
                         } else {
                             NFA_LNUM
@@ -1227,13 +1227,13 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         if save_prev_at_start != 0 {
                             re_st().at_start = 1;
                         }
-                    } else if c == b'c' as c_int {
+                    } else if c == b'c' as i32 {
                         if cur {
                             n = i64::from(crate::globals::curwin_mut().w_cursor.col) + 1;
                         }
-                        emit_fn(if cmp == b'<' as c_int {
+                        emit_fn(if cmp == b'<' as i32 {
                             NFA_COL_LT
-                        } else if cmp == b'>' as c_int {
+                        } else if cmp == b'>' as i32 {
                             NFA_COL_GT
                         } else {
                             NFA_COL
@@ -1252,9 +1252,9 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                             vcol += 1;
                             n = i64::from(vcol);
                         }
-                        emit_fn(if cmp == b'<' as c_int {
+                        emit_fn(if cmp == b'<' as i32 {
                             NFA_VCOL_LT
-                        } else if cmp == b'>' as c_int {
+                        } else if cmp == b'>' as i32 {
                             NFA_VCOL_GT
                         } else {
                             NFA_VCOL
@@ -1265,12 +1265,12 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         emsg(tr(E_VALUE_TOO_LARGE));
                         return false;
                     }
-                    emit_fn(n as c_int);
+                    emit_fn(n as i32);
                     return true;
-                } else if no_magic(c) == b'\'' as c_int && n == 0 {
-                    emit_fn(if cmp == b'<' as c_int {
+                } else if no_magic(c) == b'\'' as i32 && n == 0 {
+                    emit_fn(if cmp == b'<' as i32 {
                         NFA_MARK_LT
-                    } else if cmp == b'>' as c_int {
+                    } else if cmp == b'>' as i32 {
                         NFA_MARK_GT
                     } else {
                         NFA_MARK
@@ -1288,10 +1288,10 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
 #[inline(never)]
 fn nfa_regatom_collection(
     old_regparse: &mut *mut u8,
-    extra: &mut c_int,
-    startc: &mut c_int,
-    c: &mut c_int,
-) -> c_int {
+    extra: &mut i32,
+    startc: &mut i32,
+    c: &mut i32,
+) -> i32 {
     unsafe {
         let p = re_st().regparse.cast::<u8>();
         let endp = skip_anyof(p.cast()).cast::<u8>();
@@ -1299,7 +1299,7 @@ fn nfa_regatom_collection(
             let result = nfa_recognize_char_class(
                 re_st().regparse.cast(),
                 endp,
-                c_int::from(*extra == NFA_ADD_NL),
+                i32::from(*extra == NFA_ADD_NL),
             );
             if result != FAIL {
                 if (NFA_FIRST_NL..=NFA_LAST_NL).contains(&result) {
@@ -1323,7 +1323,7 @@ fn nfa_regatom_collection(
                 emit_fn(NFA_START_COLL);
             }
             if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
-                *startc = b'-' as c_int;
+                *startc = b'-' as i32;
                 emit_fn(*startc);
                 emit_fn(NFA_CONCAT);
                 mb_ptr_adv(&raw mut re_st().regparse);
@@ -1337,8 +1337,8 @@ fn nfa_regatom_collection(
                 let mut got_coll_char = false;
 
                 if crate::memory::cstr_first_byte(re_st().regparse) == b'[' {
-                    let mut equiclass: c_int = 0;
-                    let mut collclass: c_int = 0;
+                    let mut equiclass: i32 = 0;
+                    let mut collclass: i32 = 0;
                     let charclass = get_char_class(&raw mut re_st().regparse);
                     if charclass == CLASS_NONE {
                         equiclass = get_equi_class(&raw mut re_st().regparse);
@@ -1399,11 +1399,11 @@ fn nfa_regatom_collection(
                     && (re_st().regparse.add(1).cast::<u8>() as *const u8) <= endp
                     && (crate::strings::vim_haschr(
                         REGEXP_INRANGE,
-                        crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
+                        crate::memory::cstr_byte_at(re_st().regparse, 1) as i32,
                     ) || (re_st().reg_cpo_lit == 0
                         && crate::strings::vim_haschr(
                             REGEXP_ABBR,
-                            crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
+                            crate::memory::cstr_byte_at(re_st().regparse, 1) as i32,
                         )))
                 {
                     mb_ptr_adv(&raw mut re_st().regparse);
@@ -1421,7 +1421,7 @@ fn nfa_regatom_collection(
                         b'd' | b'o' | b'x' | b'u' | b'U'
                     ) {
                         *startc = coll_get_char();
-                        if *startc == c_int::MAX {
+                        if *startc == i32::MAX {
                             emsg(tr(E_UNICODE_VAL_TOO_LARGE));
                             g_st().rc_did_emsg = true;
                             return FAIL;
@@ -1430,7 +1430,7 @@ fn nfa_regatom_collection(
                         mb_ptr_back(*old_regparse, &raw mut re_st().regparse);
                     } else {
                         *startc = backslash_trans(
-                            crate::memory::cstr_first_byte(re_st().regparse) as c_int
+                            crate::memory::cstr_first_byte(re_st().regparse) as i32
                         );
                     }
                 }
@@ -1504,7 +1504,7 @@ fn nfa_regatom_collection(
 
             mb_ptr_back(*old_regparse, &raw mut re_st().regparse);
             if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
-                emit_fn(b'-' as c_int);
+                emit_fn(b'-' as i32);
                 emit_fn(NFA_CONCAT);
             }
 
@@ -1558,15 +1558,15 @@ fn nfa_regpiece() -> bool {
 }
 
 #[inline(never)]
-fn nfa_regpiece_multi(op: c_int, old_state: &mut ParseState, my_post_start: usize) -> bool {
+fn nfa_regpiece_multi(op: i32, old_state: &mut ParseState, my_post_start: usize) -> bool {
     {
-        let mut minval: c_int = 0;
-        let mut maxval: c_int = 0;
+        let mut minval: i32 = 0;
+        let mut maxval: i32 = 0;
         let mut new_state = ParseState::new();
         skipchr();
-        if op == magic_fn(b'*' as c_int) {
+        if op == magic_fn(b'*' as i32) {
             emit_fn(NFA_STAR);
-        } else if op == magic_fn(b'+' as c_int) {
+        } else if op == magic_fn(b'+' as i32) {
             restore_parse_state(&mut *old_state);
             re_st().curchr = -1;
             if !nfa_regatom() {
@@ -1575,18 +1575,18 @@ fn nfa_regpiece_multi(op: c_int, old_state: &mut ParseState, my_post_start: usiz
             emit_fn(NFA_STAR);
             emit_fn(NFA_CONCAT);
             skipchr();
-        } else if op == magic_fn(b'@' as c_int) {
+        } else if op == magic_fn(b'@' as i32) {
             let c2 = getdecchrs();
             let mut op2 = no_magic(getchr());
-            let mut i: c_int = 0;
+            let mut i: i32 = 0;
             match op2 as u8 {
                 b'=' => i = NFA_PREV_ATOM_NO_WIDTH,
                 b'!' => i = NFA_PREV_ATOM_NO_WIDTH_NEG,
                 b'<' => {
                     op2 = no_magic(getchr());
-                    if op2 == b'=' as c_int {
+                    if op2 == b'=' as i32 {
                         i = NFA_PREV_ATOM_JUST_BEFORE;
-                    } else if op2 == b'!' as c_int {
+                    } else if op2 == b'!' as i32 {
                         i = NFA_PREV_ATOM_JUST_BEFORE_NEG;
                     }
                 }
@@ -1599,14 +1599,14 @@ fn nfa_regpiece_multi(op: c_int, old_state: &mut ParseState, my_post_start: usiz
             }
             emit_fn(i);
             if i == NFA_PREV_ATOM_JUST_BEFORE || i == NFA_PREV_ATOM_JUST_BEFORE_NEG {
-                emit_fn(c2 as c_int);
+                emit_fn(c2 as i32);
             }
-        } else if op == magic_fn(b'?' as c_int) || op == magic_fn(b'=' as c_int) {
+        } else if op == magic_fn(b'?' as i32) || op == magic_fn(b'=' as i32) {
             emit_fn(NFA_QUEST);
-        } else if op == magic_fn(b'{' as c_int) {
+        } else if op == magic_fn(b'{' as i32) {
             let mut greedy = true;
             let c2 = peekchr();
-            if c2 == b'-' as c_int || c2 == magic_fn(b'-' as c_int) {
+            if c2 == b'-' as i32 || c2 == magic_fn(b'-' as i32) {
                 skipchr();
                 greedy = false;
             }
@@ -1686,34 +1686,34 @@ fn nfa_regconcat() -> bool {
 
     while cont {
         let p = peekchr();
-        if p == NUL as c_int
-            || p == magic_fn(b'|' as c_int)
-            || p == magic_fn(b'&' as c_int)
-            || p == magic_fn(b')' as c_int)
+        if p == NUL as i32
+            || p == magic_fn(b'|' as i32)
+            || p == magic_fn(b'&' as i32)
+            || p == magic_fn(b')' as i32)
         {
             cont = false;
-        } else if p == magic_fn(b'Z' as c_int) {
+        } else if p == magic_fn(b'Z' as i32) {
             re_st().regflags |= RF_ICOMBINE;
             skipchr_keepstart();
-        } else if p == magic_fn(b'c' as c_int) {
+        } else if p == magic_fn(b'c' as i32) {
             re_st().regflags |= RF_ICASE;
             skipchr_keepstart();
-        } else if p == magic_fn(b'C' as c_int) {
+        } else if p == magic_fn(b'C' as i32) {
             re_st().regflags |= RF_NOICASE;
             skipchr_keepstart();
-        } else if p == magic_fn(b'v' as c_int) {
+        } else if p == magic_fn(b'v' as i32) {
             re_st().reg_magic = MAGIC_ALL;
             skipchr_keepstart();
             re_st().curchr = -1;
-        } else if p == magic_fn(b'm' as c_int) {
+        } else if p == magic_fn(b'm' as i32) {
             re_st().reg_magic = MAGIC_ON;
             skipchr_keepstart();
             re_st().curchr = -1;
-        } else if p == magic_fn(b'M' as c_int) {
+        } else if p == magic_fn(b'M' as i32) {
             re_st().reg_magic = MAGIC_OFF;
             skipchr_keepstart();
             re_st().curchr = -1;
-        } else if p == magic_fn(b'V' as c_int) {
+        } else if p == magic_fn(b'V' as i32) {
             re_st().reg_magic = MAGIC_NONE;
             skipchr_keepstart();
             re_st().curchr = -1;
@@ -1738,7 +1738,7 @@ fn nfa_regbranch() -> bool {
         if !nfa_regconcat() {
             return false;
         }
-        while peekchr() == magic_fn(b'&' as c_int) {
+        while peekchr() == magic_fn(b'&' as i32) {
             skipchr();
             if old_post_pos == re_st().post_vec.len() {
                 emit_fn(NFA_EMPTY);
@@ -1761,12 +1761,12 @@ fn nfa_regbranch() -> bool {
     }
 }
 
-fn nfa_reg(paren: c_int) -> bool {
+fn nfa_reg(paren: i32) -> bool {
     unsafe {
-        let mut parno: c_int = 0;
+        let mut parno: i32 = 0;
 
         if paren == REG_PAREN {
-            if re_st().regnpar >= NSUBEXP as c_int {
+            if re_st().regnpar >= NSUBEXP as i32 {
                 emsg(tr(c"E872: (NFA regexp) Too many '('"));
                 g_st().rc_did_emsg = true;
                 return false;
@@ -1774,7 +1774,7 @@ fn nfa_reg(paren: c_int) -> bool {
             parno = re_st().regnpar;
             re_st().regnpar += 1;
         } else if paren == REG_ZPAREN {
-            if re_st().regnzpar >= NSUBEXP as c_int {
+            if re_st().regnzpar >= NSUBEXP as i32 {
                 emsg(tr(c"E879: (NFA regexp) Too many \\z("));
                 g_st().rc_did_emsg = true;
                 return false;
@@ -1794,7 +1794,7 @@ fn nfa_reg(paren: c_int) -> bool {
             re_st().nfa_reg_parse_depth -= 1;
             return false;
         }
-        while peekchr() == magic_fn(b'|' as c_int) {
+        while peekchr() == magic_fn(b'|' as i32) {
             skipchr();
             if !nfa_regbranch() {
                 re_st().nfa_reg_parse_depth -= 1;
@@ -1803,7 +1803,7 @@ fn nfa_reg(paren: c_int) -> bool {
             emit_fn(NFA_OR);
         }
 
-        if paren != REG_NOPAREN && getchr() != magic_fn(b')' as c_int) {
+        if paren != REG_NOPAREN && getchr() != magic_fn(b')' as i32) {
             if paren == REG_NPAREN {
                 semsg!(
                     tr(E_UNMATCHED_STR_PERCENT_OPEN),
@@ -1826,8 +1826,8 @@ fn nfa_reg(paren: c_int) -> bool {
             g_st().rc_did_emsg = true;
             re_st().nfa_reg_parse_depth -= 1;
             return false;
-        } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
-            if peekchr() == magic_fn(b')' as c_int) {
+        } else if paren == REG_NOPAREN && peekchr() != NUL as i32 {
+            if peekchr() == magic_fn(b')' as i32) {
                 semsg!(
                     tr(E_UNMATCHED_STR_CLOSE),
                     if re_st().reg_magic == MAGIC_ALL {
@@ -1868,7 +1868,7 @@ fn re2post() -> bool {
 
 fn alloc_state(
     states: &mut [NfaState],
-    c: c_int,
+    c: i32,
     out: Option<usize>,
     out1: Option<usize>,
 ) -> Option<usize> {
@@ -1912,9 +1912,9 @@ fn st_error() {
     emsg(tr(c"E874: (NFA) Could not pop the stack!"));
 }
 
-fn nfa_max_width(states: &[NfaState], startstate: Option<usize>, depth: c_int) -> c_int {
+fn nfa_max_width(states: &[NfaState], startstate: Option<usize>, depth: i32) -> i32 {
     let mut state = startstate;
-    let mut len: c_int = 0;
+    let mut len: i32 = 0;
 
     if depth > 4 {
         return -1;
@@ -2012,8 +2012,8 @@ fn nfa_max_width(states: &[NfaState], startstate: Option<usize>, depth: c_int) -
 
 fn post2nfa(
     states: &mut [NfaState],
-    postfix: *mut c_int,
-    end: *mut c_int,
+    postfix: *mut i32,
+    end: *mut i32,
     nfa_calc_size: bool,
 ) -> Option<usize> {
     unsafe {
@@ -2186,7 +2186,7 @@ fn post2nfa(
                         }
                         _ => (NFA_START_PATTERN, NFA_END_PATTERN),
                     };
-                    let mut n: c_int = 0;
+                    let mut n: i32 = 0;
                     if before {
                         p = p.add(1);
                         n = *p;
@@ -2230,7 +2230,7 @@ fn post2nfa(
                             c if (NFA_ZOPEN..=NFA_ZOPEN9).contains(&c) => {
                                 NFA_ZCLOSE + (c - NFA_ZOPEN)
                             }
-                            c => c + NSUBEXP as c_int,
+                            c => c + NSUBEXP as i32,
                         };
                         if stack.is_empty() {
                             let s = alloc_state(states, mopen, None, None)?;
@@ -2442,12 +2442,12 @@ fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
         let m1 = sub1.list.multi();
         let m2 = sub2.list.multi();
         for i in 0..todo {
-            let s1 = if (i as c_int) < sub1.in_use {
+            let s1 = if (i as i32) < sub1.in_use {
                 m1[i].start_lnum
             } else {
                 -1
             };
-            let s2 = if (i as c_int) < sub2.in_use {
+            let s2 = if (i as i32) < sub2.in_use {
                 m2[i].start_lnum
             } else {
                 -1
@@ -2459,12 +2459,12 @@ fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
                 return false;
             }
             if re_st().rex.nfa_has_backref != 0 {
-                let e1 = if (i as c_int) < sub1.in_use {
+                let e1 = if (i as i32) < sub1.in_use {
                     m1[i].end_lnum
                 } else {
                     -1
                 };
-                let e2 = if (i as c_int) < sub2.in_use {
+                let e2 = if (i as i32) < sub2.in_use {
                     m2[i].end_lnum
                 } else {
                     -1
@@ -2481,12 +2481,12 @@ fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
         let l1 = sub1.list.line();
         let l2 = sub2.list.line();
         for i in 0..todo {
-            let sp1 = if (i as c_int) < sub1.in_use {
+            let sp1 = if (i as i32) < sub1.in_use {
                 l1[i].start
             } else {
                 ptr::null_mut()
             };
-            let sp2 = if (i as c_int) < sub2.in_use {
+            let sp2 = if (i as i32) < sub2.in_use {
                 l2[i].start
             } else {
                 ptr::null_mut()
@@ -2495,12 +2495,12 @@ fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
                 return false;
             }
             if re_st().rex.nfa_has_backref != 0 {
-                let ep1 = if (i as c_int) < sub1.in_use {
+                let ep1 = if (i as i32) < sub1.in_use {
                     l1[i].end
                 } else {
                     ptr::null_mut()
                 };
-                let ep2 = if (i as c_int) < sub2.in_use {
+                let ep2 = if (i as i32) < sub2.in_use {
                     l2[i].end
                 } else {
                     ptr::null_mut()
@@ -2565,7 +2565,7 @@ fn pim_equal(one: Option<&NfaPim>, two: Option<&NfaPim>) -> bool {
     }
 }
 
-fn match_follows(states: &[NfaState], startstate: Option<usize>, depth: c_int) -> bool {
+fn match_follows(states: &[NfaState], startstate: Option<usize>, depth: i32) -> bool {
     let mut state = startstate;
     if depth > 10 {
         return false;
@@ -2638,8 +2638,8 @@ fn addstate(
     state: Option<usize>,
     subs_arg: Option<&mut Regsubs>,
     pim: *mut NfaPim,
-    off_arg: c_int,
-    depth: c_int,
+    off_arg: i32,
+    depth: i32,
 ) -> *mut Regsubs {
     let subs_ptr = subs_arg.map_or(ptr::null_mut(), |p| &raw mut *p);
     let Some(state_idx) = state else {
@@ -2666,8 +2666,8 @@ fn addstate_idx(
     state_idx: usize,
     subs_arg: *mut Regsubs,
     pim: *mut NfaPim,
-    off_arg: c_int,
-    depth: c_int,
+    off_arg: i32,
+    depth: i32,
 ) -> *mut Regsubs {
     unsafe {
         if depth >= 5000 || subs_arg.is_null() {
@@ -2783,11 +2783,11 @@ fn addstate_eps(
     states: *mut NfaState,
     l: &mut NfaList,
     state_idx: usize,
-    st_c: c_int,
+    st_c: i32,
     mut subs: *mut Regsubs,
     pim: *mut NfaPim,
-    off_arg: c_int,
-    depth: c_int,
+    off_arg: i32,
+    depth: i32,
 ) -> *mut Regsubs {
     unsafe {
         let off = if off_arg <= -ADDSTATE_HERE_OFFSET {
@@ -2826,11 +2826,11 @@ fn addstate_eps(
 
                 let mut save_ptr: *mut u8 = ptr::null_mut();
                 let mut save_multipos = MultiPos::new();
-                let save_in_use: c_int;
+                let save_in_use: i32;
 
                 if reg_multi() {
                     let multi = sub.list.multi_mut();
-                    if (subidx as c_int) < sub.in_use {
+                    if (subidx as i32) < sub.in_use {
                         save_multipos = multi[subidx];
                         save_in_use = -1;
                     } else {
@@ -2839,7 +2839,7 @@ fn addstate_eps(
                             item.start_lnum = -1;
                             item.end_lnum = -1;
                         }
-                        sub.in_use = subidx as c_int + 1;
+                        sub.in_use = subidx as i32 + 1;
                     }
                     if off == -1 {
                         multi[subidx].start_lnum = re_st().rex.lnum + 1;
@@ -2852,7 +2852,7 @@ fn addstate_eps(
                     multi[subidx].end_lnum = -1;
                 } else {
                     let line = sub.list.line_mut();
-                    if (subidx as c_int) < sub.in_use {
+                    if (subidx as i32) < sub.in_use {
                         save_ptr = line[subidx].start;
                         save_in_use = -1;
                     } else {
@@ -2861,7 +2861,7 @@ fn addstate_eps(
                             item.start = ptr::null_mut();
                             item.end = ptr::null_mut();
                         }
-                        sub.in_use = subidx as c_int + 1;
+                        sub.in_use = subidx as i32 + 1;
                     }
                     line[subidx].start = re_st().rex.input.offset(off as isize);
                 }
@@ -2913,8 +2913,8 @@ fn addstate_eps(
                     };
 
                     let save_in_use = sub.in_use;
-                    if sub.in_use <= subidx as c_int {
-                        sub.in_use = subidx as c_int + 1;
+                    if sub.in_use <= subidx as i32 {
+                        sub.in_use = subidx as i32 + 1;
                     }
                     let mut save_ptr: *mut u8 = ptr::null_mut();
                     let mut save_multipos = MultiPos::new();
@@ -2967,7 +2967,7 @@ fn addstate_here(
     state: Option<usize>,
     subs: &mut Regsubs,
     pim: *mut NfaPim,
-    ip: &mut c_int,
+    ip: &mut i32,
 ) -> *mut Regsubs {
     unsafe {
         let tlen = l.n;
@@ -3023,7 +3023,7 @@ fn addstate_here(
     }
 }
 
-fn check_char_class(cls: c_int, c: c_int) -> bool {
+fn check_char_class(cls: i32, c: i32) -> bool {
     match cls {
         NFA_CLASS_ALNUM => {
             if (1..128).contains(&c) && (c as u8).is_ascii_alphanumeric() {
@@ -3036,7 +3036,7 @@ fn check_char_class(cls: c_int, c: c_int) -> bool {
             }
         }
         NFA_CLASS_BLANK => {
-            if c == b' ' as c_int || c == b'\t' as c_int {
+            if c == b' ' as i32 || c == b'\t' as i32 {
                 return true;
             }
         }
@@ -3071,7 +3071,7 @@ fn check_char_class(cls: c_int, c: c_int) -> bool {
             }
         }
         NFA_CLASS_SPACE => {
-            if (9..=13).contains(&c) || c == b' ' as c_int {
+            if (9..=13).contains(&c) || c == b' ' as i32 {
                 return true;
             }
         }
@@ -3086,12 +3086,12 @@ fn check_char_class(cls: c_int, c: c_int) -> bool {
             }
         }
         NFA_CLASS_TAB => {
-            if c == b'\t' as c_int {
+            if c == b'\t' as i32 {
                 return true;
             }
         }
         NFA_CLASS_RETURN => {
-            if c == b'\r' as c_int {
+            if c == b'\r' as i32 {
                 return true;
             }
         }
@@ -3128,7 +3128,7 @@ fn check_char_class(cls: c_int, c: c_int) -> bool {
     false
 }
 
-fn match_backref(sub: &mut Regsub, subidx: c_int, bytelen: &mut c_int) -> bool {
+fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
     unsafe {
         if sub.in_use <= subidx {
             *bytelen = 0;
@@ -3168,7 +3168,7 @@ fn match_backref(sub: &mut Regsub, subidx: c_int, bytelen: &mut c_int) -> bool {
                 *bytelen = 0;
                 return true;
             }
-            let mut len = lpos.end.offset_from(lpos.start) as c_int;
+            let mut len = lpos.end.offset_from(lpos.start) as i32;
             if cstrncmp(lpos.start.cast(), re_st().rex.input.cast(), &mut len) == 0 {
                 *bytelen = len;
                 return true;
@@ -3178,7 +3178,7 @@ fn match_backref(sub: &mut Regsub, subidx: c_int, bytelen: &mut c_int) -> bool {
     }
 }
 
-fn match_zref(subidx: c_int, bytelen: &mut c_int) -> bool {
+fn match_zref(subidx: i32, bytelen: &mut i32) -> bool {
     unsafe {
         cleanup_zsubexpr();
         let idx = subidx as usize;
@@ -3192,7 +3192,7 @@ fn match_zref(subidx: c_int, bytelen: &mut c_int) -> bool {
             return true;
         };
         let m = m_cstr.as_ptr();
-        let mut len = m_cstr.as_bytes().len() as c_int;
+        let mut len = m_cstr.as_bytes().len() as i32;
         if cstrncmp(m, re_st().rex.input.cast(), &mut len) == 0 {
             *bytelen = len;
             return true;
@@ -3201,7 +3201,7 @@ fn match_zref(subidx: c_int, bytelen: &mut c_int) -> bool {
     }
 }
 
-fn nfa_save_listids(prog: &mut NfaRegprog, list: *mut c_int) {
+fn nfa_save_listids(prog: &mut NfaRegprog, list: *mut i32) {
     unsafe {
         let mut p = prog.state.as_mut_ptr();
         let mut i = prog.nstate;
@@ -3216,7 +3216,7 @@ fn nfa_save_listids(prog: &mut NfaRegprog, list: *mut c_int) {
     }
 }
 
-fn nfa_restore_listids(prog: &mut NfaRegprog, list: *const c_int) {
+fn nfa_restore_listids(prog: &mut NfaRegprog, list: *const i32) {
     unsafe {
         let mut p = prog.state.as_mut_ptr();
         let mut i = prog.nstate;
@@ -3231,7 +3231,7 @@ fn nfa_restore_listids(prog: &mut NfaRegprog, list: *const c_int) {
 }
 
 #[inline]
-fn nfa_re_num_cmp(val: u64, op: c_int, pos: u64) -> bool {
+fn nfa_re_num_cmp(val: u64, op: i32, pos: u64) -> bool {
     if op == 1 {
         pos > val
     } else if op == 2 {
@@ -3247,8 +3247,8 @@ fn recursive_regmatch(
     prog: &mut NfaRegprog,
     submatch: &mut Regsubs,
     m: &mut Regsubs,
-    listids: &mut Vec<c_int>,
-) -> c_int {
+    listids: &mut Vec<i32>,
+) -> i32 {
     unsafe {
         let save_reginput_col = re_st().rex.input.offset_from(re_st().rex.line) as usize;
         let save_reglnum = re_st().rex.lnum;
@@ -3296,8 +3296,7 @@ fn recursive_regmatch(
                 }
                 re_st().rex.input = re_st().rex.line;
             } else {
-                if reg_multi()
-                    && (re_st().rex.input.offset_from(re_st().rex.line) as c_int) < st.val
+                if reg_multi() && (re_st().rex.input.offset_from(re_st().rex.line) as i32) < st.val
                 {
                     re_st().rex.lnum -= 1;
                     re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
@@ -3312,7 +3311,7 @@ fn recursive_regmatch(
                             .add(reg_getline_len(re_st().rex.lnum) as usize);
                     }
                 }
-                if (re_st().rex.input.offset_from(re_st().rex.line) as c_int) >= st.val {
+                if (re_st().rex.input.offset_from(re_st().rex.line) as i32) >= st.val {
                     re_st().rex.input = re_st().rex.input.sub(st.val as usize);
                     re_st().rex.input = re_st().rex.input.sub(utf_head_off(
                         re_st().rex.line.cast(),
@@ -3363,7 +3362,7 @@ fn recursive_regmatch(
     }
 }
 
-fn failure_chance(states: &[NfaState], state: Option<usize>, depth: c_int) -> c_int {
+fn failure_chance(states: &[NfaState], state: Option<usize>, depth: i32) -> i32 {
     let Some(state_idx) = state else {
         return 1;
     };
@@ -3410,7 +3409,7 @@ fn failure_chance(states: &[NfaState], state: Option<usize>, depth: c_int) -> c_
     }
 }
 
-fn skip_to_start(c: c_int, colp: &mut Colnr) -> bool {
+fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
     unsafe {
         let s = cstrchr(re_st().rex.line.add(*colp as usize).cast(), c);
         if s.is_null() {
@@ -3421,7 +3420,7 @@ fn skip_to_start(c: c_int, colp: &mut Colnr) -> bool {
     }
 }
 
-fn find_match_text(startcol: &mut Colnr, regstart: c_int, match_text: *const u8) -> c_int {
+fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: *const u8) -> i32 {
     unsafe {
         let mut col = *startcol;
         loop {
@@ -3466,11 +3465,11 @@ fn find_match_text(startcol: &mut Colnr, regstart: c_int, match_text: *const u8)
     }
 }
 
-fn match_composing(states: &[NfaState], mut sta: Option<usize>, curc: c_int, clen: c_int) -> bool {
+fn match_composing(states: &[NfaState], mut sta: Option<usize>, curc: i32, clen: i32) -> bool {
     unsafe {
         let mut mc = curc;
-        let mut len: c_int = 0;
-        let mut cchars: [c_int; MAX_MCO] = [0; MAX_MCO];
+        let mut len: i32 = 0;
+        let mut cchars: [i32; MAX_MCO] = [0; MAX_MCO];
         let mut ccount: usize = 0;
 
         let Some(sta_idx) = sta else {
@@ -3537,14 +3536,14 @@ fn nfa_regmatch(
     start: Option<usize>,
     submatch: &mut Regsubs,
     m: &mut Regsubs,
-) -> c_int {
+) -> i32 {
     unsafe {
         let Some(start_idx) = start else {
             return 0;
         };
         let mut flag: usize = 0;
         let mut go_to_nextline = false;
-        let mut listids: Vec<c_int> = Vec::new();
+        let mut listids: Vec<i32> = Vec::new();
         let toplevel = (&prog.state)[start_idx].c == NFA_MOPEN;
 
         reg_breakcheck();
@@ -3623,19 +3622,19 @@ fn nfa_regmatch(
         }
 
         loop {
-            let curc: c_int;
-            let mut clen: c_int;
+            let curc: i32;
+            let mut clen: i32;
             if *re_st().rex.input != NUL
                 && *re_st().rex.input < 0x80
                 && *re_st().rex.input.add(1) < 0x80
             {
-                curc = *re_st().rex.input as c_int;
+                curc = *re_st().rex.input as i32;
                 clen = 1;
             } else {
                 curc = utf_ptr2char(re_st().rex.input.cast());
                 clen = utfc_ptr2len(re_st().rex.input.cast());
             }
-            if curc == NUL as c_int {
+            if curc == NUL as i32 {
                 clen = 0;
                 go_to_nextline = false;
             }
@@ -3651,8 +3650,7 @@ fn nfa_regmatch(
             nextlist.n = 0;
             nextlist.has_pim = 0;
             re_st().rex.nfa_listid += 1;
-            if prog.re_engine == AUTOMATIC_ENGINE as c_uint
-                && re_st().rex.nfa_listid >= NFA_MAX_STATES
+            if prog.re_engine == AUTOMATIC_ENGINE as u32 && re_st().rex.nfa_listid >= NFA_MAX_STATES
             {
                 nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
                 return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
@@ -3666,7 +3664,7 @@ fn nfa_regmatch(
             }
 
             let mut goto_nextchar = false;
-            let mut listidx: c_int = 0;
+            let mut listidx: i32 = 0;
             while listidx < thislist.n {
                 reg_breakcheck();
                 if g_st().got_int {
@@ -3687,8 +3685,8 @@ fn nfa_regmatch(
 
                 let mut add_state: Option<usize> = None;
                 let mut add_here = false;
-                let mut add_count: c_int = 0;
-                let mut add_off: c_int = 0;
+                let mut add_count: i32 = 0;
+                let mut add_off: i32 = 0;
 
                 match t_st.c {
                     NFA_MATCH => {
@@ -3860,8 +3858,7 @@ fn nfa_regmatch(
                                     m.norm.list.multi()[0].end_col
                                         - (re_st().rex.input.offset_from(re_st().rex.line) as Colnr)
                                 } else {
-                                    m.norm.list.line()[0].end.offset_from(re_st().rex.input)
-                                        as c_int
+                                    m.norm.list.line()[0].end.offset_from(re_st().rex.input) as i32
                                 };
                                 if bytelen == 0 {
                                     add_here = true;
@@ -3884,13 +3881,13 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_EOL => {
-                        if curc == NUL as c_int {
+                        if curc == NUL as i32 {
                             add_here = true;
                             add_state = t_st.out;
                         }
                     }
                     NFA_BOW => {
-                        if curc != NUL as c_int {
+                        if curc != NUL as i32 {
                             let this_class = mb_get_class_tab(
                                 re_st().rex.input.cast(),
                                 (&raw const re_st().rex.buf_mut().b_chartab).cast(),
@@ -3924,7 +3921,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_EOF => {
-                        if re_st().rex.lnum == re_st().rex.reg_maxline && curc == NUL as c_int {
+                        if re_st().rex.lnum == re_st().rex.reg_maxline && curc == NUL as i32 {
                             add_here = true;
                             add_state = t_st.out;
                         }
@@ -3936,7 +3933,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NEWL => {
-                        if curc == NUL as c_int
+                        if curc == NUL as i32
                             && !re_st().rex.reg_line_lbr
                             && reg_multi()
                             && re_st().rex.lnum <= re_st().rex.reg_maxline
@@ -3944,13 +3941,13 @@ fn nfa_regmatch(
                             go_to_nextline = true;
                             add_state = t_st.out;
                             add_off = -1;
-                        } else if curc == b'\n' as c_int && re_st().rex.reg_line_lbr {
+                        } else if curc == b'\n' as i32 && re_st().rex.reg_line_lbr {
                             add_state = t_st.out;
                             add_off = 1;
                         }
                     }
                     NFA_START_COLL | NFA_START_NEG_COLL => {
-                        if curc != NUL as c_int {
+                        if curc != NUL as i32 {
                             let mut state = t_st.out;
                             let result_if_matched = t_st.c == NFA_START_COLL;
                             let mut matched = false;
@@ -4091,7 +4088,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NWHITE => {
-                        if curc != NUL as c_int && !ascii_iswhite(curc) {
+                        if curc != NUL as i32 && !ascii_iswhite(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4103,7 +4100,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NDIGIT => {
-                        if curc != NUL as c_int && !ri_digit(curc) {
+                        if curc != NUL as i32 && !ri_digit(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4115,7 +4112,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NHEX => {
-                        if curc != NUL as c_int && !ri_hex(curc) {
+                        if curc != NUL as i32 && !ri_hex(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4127,7 +4124,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NOCTAL => {
-                        if curc != NUL as c_int && !ri_octal(curc) {
+                        if curc != NUL as i32 && !ri_octal(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4139,7 +4136,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NWORD => {
-                        if curc != NUL as c_int && !ri_word(curc) {
+                        if curc != NUL as i32 && !ri_word(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4151,7 +4148,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NHEAD => {
-                        if curc != NUL as c_int && !ri_head(curc) {
+                        if curc != NUL as i32 && !ri_head(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4163,7 +4160,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NALPHA => {
-                        if curc != NUL as c_int && !ri_alpha(curc) {
+                        if curc != NUL as i32 && !ri_alpha(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4175,7 +4172,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NLOWER => {
-                        if curc != NUL as c_int && !ri_lower(curc) {
+                        if curc != NUL as i32 && !ri_lower(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4187,7 +4184,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NUPPER => {
-                        if curc != NUL as c_int && !ri_upper(curc) {
+                        if curc != NUL as i32 && !ri_upper(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4199,7 +4196,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NLOWER_IC => {
-                        if curc != NUL as c_int
+                        if curc != NUL as i32
                             && !(ri_lower(curc) || (re_st().rex.reg_ic && ri_upper(curc)))
                         {
                             add_state = t_st.out;
@@ -4213,7 +4210,7 @@ fn nfa_regmatch(
                         }
                     }
                     NFA_NUPPER_IC => {
-                        if curc != NUL as c_int
+                        if curc != NUL as i32
                             && !(ri_upper(curc) || (re_st().rex.reg_ic && ri_lower(curc)))
                         {
                             add_state = t_st.out;
@@ -4221,7 +4218,7 @@ fn nfa_regmatch(
                         }
                     }
                     c if (NFA_BACKREF1..=NFA_ZREF9).contains(&c) => {
-                        let mut bytelen: c_int = 0;
+                        let mut bytelen: i32 = 0;
                         let matched = if (NFA_BACKREF1..=NFA_BACKREF9).contains(&c) {
                             let subidx = c - NFA_BACKREF1 + 1;
                             match_backref(&mut t.subs.norm, subidx, &mut bytelen)
@@ -4517,7 +4514,7 @@ fn nfa_regmatch(
             {
                 if toplevel {
                     let mut add = true;
-                    if prog.regstart != NUL as c_int && clen != 0 {
+                    if prog.regstart != NUL as i32 && clen != 0 {
                         if nextlist.n == 0 {
                             let mut col =
                                 (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + clen;
@@ -4629,7 +4626,7 @@ fn nfa_regmatch(
     }
 }
 
-fn finish_nfa_regmatch(prog: &mut NfaRegprog, toplevel: bool, list: &mut [NfaList; 2]) -> c_int {
+fn finish_nfa_regmatch(prog: &mut NfaRegprog, toplevel: bool, list: &mut [NfaList; 2]) -> i32 {
     {
         if toplevel
             && prog.listbuf[0].capacity() == 0
@@ -4652,8 +4649,8 @@ fn nfa_regtry(
     prog: &mut NfaRegprog,
     col: Colnr,
     tm: Option<Proftime>,
-    timed_out: Option<&mut c_int>,
-) -> c_int {
+    timed_out: Option<&mut i32>,
+) -> i32 {
     unsafe {
         let mut subs = Regsubs::new();
         let mut m = Regsubs::new();
@@ -4751,10 +4748,10 @@ fn nfa_regexec_both(
     mut line: *mut u8,
     startcol: Colnr,
     tm: Option<Proftime>,
-    timed_out: Option<&mut c_int>,
-) -> c_int {
+    timed_out: Option<&mut i32>,
+) -> i32 {
     unsafe {
-        let mut retval: c_int = 0;
+        let mut retval: i32 = 0;
         let mut col = startcol;
 
         let prog: *mut NfaRegprog = if reg_multi() {
@@ -4807,7 +4804,7 @@ fn nfa_regexec_both(
             re_st().rex.need_clear_zsubexpr = 0;
         }
 
-        if prog.regstart != NUL as c_int {
+        if prog.regstart != NUL as i32 {
             if !skip_to_start(prog.regstart, &mut col) {
                 return 0;
             }
@@ -4845,7 +4842,7 @@ fn nfa_regexec_both(
     }
 }
 
-fn finish_nfa_regexec(retval: c_int, col: Colnr) -> c_int {
+fn finish_nfa_regexec(retval: i32, col: Colnr) -> i32 {
     {
         if retval > 0 {
             if reg_multi() {
@@ -4865,7 +4862,7 @@ fn finish_nfa_regexec(retval: c_int, col: Colnr) -> c_int {
     }
 }
 
-pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<NfaRegprog> {
+pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: i32) -> Option<NfaRegprog> {
     unsafe {
         if expr.is_null() {
             return None;
@@ -4933,12 +4930,7 @@ fn cleanup_nfa_regcomp(prog: Option<NfaRegprog>) -> Option<NfaRegprog> {
     }
 }
 
-pub(super) fn nfa_regexec_nl(
-    rmp: &mut Regmatch,
-    line: *mut u8,
-    col: Colnr,
-    line_lbr: bool,
-) -> c_int {
+pub(super) fn nfa_regexec_nl(rmp: &mut Regmatch, line: *mut u8, col: Colnr, line_lbr: bool) -> i32 {
     unsafe {
         re_st().rex.reg_match = rmp;
         re_st().rex.reg_mmatch = ptr::null_mut();
@@ -4948,7 +4940,7 @@ pub(super) fn nfa_regexec_nl(
         re_st().rex.reg_win = ptr::null_mut();
         re_st().rex.reg_ic = rmp.rm_ic;
         re_st().rex.reg_icombine = false;
-        re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
+        re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as u32)) != 0;
         re_st().rex.reg_maxcol = 0;
         nfa_regexec_both(line, col, None, None)
     }
@@ -4961,8 +4953,8 @@ pub(super) fn nfa_regexec_multi(
     lnum: Linenr,
     col: Colnr,
     tm: Option<Proftime>,
-    timed_out: Option<&mut c_int>,
-) -> c_int {
+    timed_out: Option<&mut i32>,
+) -> i32 {
     init_regexec_multi(rmp, win, buf, lnum);
     nfa_regexec_both(ptr::null_mut(), col, tm, timed_out)
 }

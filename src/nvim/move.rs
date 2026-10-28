@@ -40,7 +40,6 @@ use crate::strings::tr;
 use crate::textformat::Oparg;
 use crate::window::{VALID_BOTLINE_AP, WinInfoInfo, win_fdccol_count};
 use crate::winfloat::win_check_anchored_floats;
-use std::ffi::c_int;
 use std::ptr;
 
 use crate::charset::NUL;
@@ -55,12 +54,12 @@ use crate::search::{BACKWARD, Direction, FORWARD};
 #[derive(Clone, Copy, Default)]
 struct Lineoff {
     lnum: Linenr,
-    fill: c_int,
-    height: c_int,
+    fill: i32,
+    height: i32,
 }
 
 /// Get the number of screen lines skipped with `wp->w_skipcol`.
-fn adjust_plines_for_skipcol(wp: &mut WinInfoInfo) -> c_int {
+fn adjust_plines_for_skipcol(wp: &mut WinInfoInfo) -> i32 {
     unsafe {
         if wp.w_skipcol == 0 {
             return 0;
@@ -85,7 +84,7 @@ pub fn plines_correct_topline(
     nextp: Option<&mut Linenr>,
     limit_winheight: bool,
     foldedp: Option<&mut bool>,
-) -> c_int {
+) -> i32 {
     {
         let mut n = plines_win_full(
             wp,
@@ -124,7 +123,7 @@ fn comp_botline(wp: &mut WinInfoInfo) {
             (wp.w_topline, 0)
         };
 
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         if use_cache {
             while i < wp.w_lines_valid && (&wp.w_lines)[i as usize].wl_lnum < lnum {
                 i += 1;
@@ -151,7 +150,7 @@ fn comp_botline(wp: &mut WinInfoInfo) {
                 let wl = (&wp.w_lines)[i as usize];
                 folded = wl.wl_folded;
                 last = wl.wl_lastlnum;
-                c_int::from(wl.wl_size)
+                i32::from(wl.wl_size)
             } else {
                 plines_correct_topline(wp, lnum, Some(&mut last), true, Some(&mut folded))
             };
@@ -228,7 +227,7 @@ pub fn set_valid_virtcol(wp: &mut WinInfoInfo, vcol: Colnr) {
 
 /// Calculates how much the `'listchars'` `"precedes"` or `'smoothscroll'` `"<<<"`
 /// marker overlaps with buffer text for window `wp`.
-pub fn sms_marker_overlap(wp: &mut WinInfoInfo, mut extra2: c_int) -> c_int {
+pub fn sms_marker_overlap(wp: &mut WinInfoInfo, mut extra2: i32) -> i32 {
     unsafe {
         if extra2 == -1 {
             extra2 = win_col_off(wp) - win_col_off2(&mut *wp);
@@ -247,11 +246,11 @@ pub fn sms_marker_overlap(wp: &mut WinInfoInfo, mut extra2: c_int) -> c_int {
 
 /// Calculates the skipcol offset for window `wp` given how many physical lines
 /// we want to scroll down.
-fn skipcol_from_plines(wp: &mut WinInfoInfo, plines_off: c_int) -> c_int {
+fn skipcol_from_plines(wp: &mut WinInfoInfo, plines_off: i32) -> i32 {
     unsafe {
         let width1 = wp.w_view_width - win_col_off(wp);
 
-        let mut skipcol: c_int = 0;
+        let mut skipcol: i32 = 0;
         if plines_off > 0 {
             skipcol += width1;
         }
@@ -497,12 +496,12 @@ pub fn update_topline(wp: &mut WinInfoInfo) {
 }
 
 /// Return the scrolljump value to use for the window `wp`.
-fn scrolljump_value(wp: &mut WinInfoInfo) -> c_int {
+fn scrolljump_value(wp: &mut WinInfoInfo) -> i32 {
     {
         if opt_vars().p_sj >= 0 {
-            opt_vars().p_sj as c_int
+            opt_vars().p_sj as i32
         } else {
-            (wp.w_view_height * (-opt_vars().p_sj as c_int)) / 100
+            (wp.w_view_height * (-opt_vars().p_sj as i32)) / 100
         }
     }
 }
@@ -701,9 +700,9 @@ pub fn approximate_botline_win(wp: &mut WinInfoInfo) {
 }
 
 /// Return true if `wp->w_wrow` and `wp->w_wcol` are valid.
-pub fn cursor_valid(wp: &mut WinInfoInfo) -> c_int {
+pub fn cursor_valid(wp: &mut WinInfoInfo) -> i32 {
     check_cursor_moved(wp);
-    c_int::from((wp.w_valid & (VALID_WROW | VALID_WCOL)) == (VALID_WROW | VALID_WCOL))
+    i32::from((wp.w_valid & (VALID_WROW | VALID_WCOL)) == (VALID_WROW | VALID_WCOL))
 }
 
 /// Validate cursor position. Makes sure `w_wrow` and `w_wcol` are valid.
@@ -712,7 +711,7 @@ pub fn validate_cursor(wp: &mut WinInfoInfo) {
         check_cursor_lnum(wp);
         check_cursor_moved(wp);
         if (wp.w_valid & (VALID_WCOL | VALID_WROW)) != (VALID_WCOL | VALID_WROW) {
-            curs_columns(wp, c_int::from(true));
+            curs_columns(wp, i32::from(true));
         }
     }
 }
@@ -722,7 +721,7 @@ fn curs_rows(wp: &mut WinInfoInfo) {
     {
         let all_invalid =
             !redrawing() || wp.w_lines_valid == 0 || (&wp.w_lines)[0].wl_lnum > wp.w_topline;
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         wp.w_cline_row = 0;
         let mut lnum = wp.w_topline;
         while lnum < wp.w_cursor.lnum {
@@ -751,13 +750,13 @@ fn curs_rows(wp: &mut WinInfoInfo) {
                     i += 1;
                     break;
                 }
-                wp.w_cline_row += c_int::from(wl.wl_size);
+                wp.w_cline_row += i32::from(wl.wl_size);
             } else {
                 let mut last = lnum;
                 let mut folded = false;
                 let n = plines_correct_topline(wp, lnum, Some(&mut last), true, Some(&mut folded));
                 lnum = last + 1;
-                if lnum + c_int::from(decor_conceal_line(wp, lnum - 1, false)) > wp.w_cursor.lnum {
+                if lnum + i32::from(decor_conceal_line(wp, lnum - 1, false)) > wp.w_cursor.lnum {
                     i += 1;
                     break;
                 }
@@ -790,7 +789,7 @@ fn curs_rows(wp: &mut WinInfoInfo) {
                 wp.w_cline_folded = has_folding(wp, wp.w_cursor.lnum, None, ptr::null_mut());
             } else {
                 let wl = (&wp.w_lines)[i as usize];
-                wp.w_cline_height = c_int::from(wl.wl_size);
+                wp.w_cline_height = i32::from(wl.wl_size);
                 wp.w_cline_folded = wl.wl_folded;
             }
         }
@@ -876,15 +875,14 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
 /// Compute offset of a window, occupied by absolute or relative line number,
 /// fold column and sign column.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_col_off(wp: *mut WinInfoInfo) -> c_int {
+pub unsafe extern "C" fn win_col_off(wp: *mut WinInfoInfo) -> i32 {
     unsafe {
         let wp = &mut *wp;
         let num_off = if wp.w_onebuf_opt.wo_nu != 0
             || wp.w_onebuf_opt.wo_rnu != 0
             || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
         {
-            number_width(&mut *wp)
-                + c_int::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc))
+            number_width(&mut *wp) + i32::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc))
         } else {
             0
         };
@@ -894,7 +892,7 @@ pub unsafe extern "C" fn win_col_off(wp: *mut WinInfoInfo) -> c_int {
 
 /// Return the difference in column offset for the second screen line of a
 /// wrapped line.
-pub fn win_col_off2(wp: &mut WinInfoInfo) -> c_int {
+pub fn win_col_off2(wp: &mut WinInfoInfo) -> i32 {
     {
         if (wp.w_onebuf_opt.wo_nu != 0
             || wp.w_onebuf_opt.wo_rnu != 0
@@ -902,7 +900,7 @@ pub fn win_col_off2(wp: &mut WinInfoInfo) -> c_int {
             && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL)
         {
             return number_width(wp)
-                + c_int::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc));
+                + i32::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc));
         }
         0
     }
@@ -910,7 +908,7 @@ pub fn win_col_off2(wp: &mut WinInfoInfo) -> c_int {
 
 /// Compute `wp->w_wcol` and `wp->w_virtcol`, and update `wp->w_wrow`,
 /// `wp->w_cline_row`, and `wp->w_leftcol`.
-pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: c_int) {
+pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
     unsafe {
         let mut startcol: Colnr = 0;
         let mut endcol: Colnr = 0;
@@ -948,7 +946,7 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: c_int) {
         wp.w_wrow = wp.w_cline_row;
 
         let width1 = wp.w_view_width - extra;
-        let mut width2: c_int = 0;
+        let mut width2: i32 = 0;
         let mut did_sub_skipcol = false;
         if width1 <= 0 {
             wp.w_wcol = wp.w_view_width - 1;
@@ -994,9 +992,9 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: c_int) {
                         diff = opt_vars().p_ss;
                     }
                     if off_left < 0 {
-                        wp.w_leftcol - diff as c_int
+                        wp.w_leftcol - diff as i32
                     } else {
-                        wp.w_leftcol + diff as c_int
+                        wp.w_leftcol + diff as i32
                     }
                 };
                 new_leftcol = new_leftcol.max(0);
@@ -1019,7 +1017,7 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: c_int) {
             wp.w_wrow += win_get_fill(wp, wp.w_cursor.lnum);
         }
 
-        let mut plines: c_int = 0;
+        let mut plines: i32 = 0;
         let so = get_scrolloff_value(wp);
         let prev_skipcol = wp.w_skipcol;
         if (wp.w_wrow >= wp.w_view_height
@@ -1042,7 +1040,7 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: c_int) {
             }
             plines -= 1;
             let mut n = if i64::from(plines) > i64::from(wp.w_wrow) + so {
-                (wp.w_wrow as i64 + so) as c_int
+                (wp.w_wrow as i64 + so) as i32
             } else {
                 plines
             };
@@ -1066,7 +1064,7 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: c_int) {
                     - i64::from(wp.w_virtcol)
                     + i64::from(width2)
                     - 1)
-                    / i64::from(width2)) as c_int;
+                    / i64::from(width2)) as i32;
                 if extra > 0 {
                     if extra * width2 > wp.w_skipcol {
                         extra = wp.w_skipcol / width2;
@@ -1117,17 +1115,17 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: c_int) {
 pub fn textpos2screenpos(
     wp: &mut WinInfoInfo,
     pos: &mut CursorPos,
-    rowp: &mut c_int,
-    scolp: &mut c_int,
-    ccolp: &mut c_int,
-    ecolp: &mut c_int,
+    rowp: &mut i32,
+    scolp: &mut i32,
+    ccolp: &mut i32,
+    ecolp: &mut i32,
     local: bool,
 ) {
     unsafe {
         let mut scol: Colnr = 0;
         let mut ccol: Colnr = 0;
         let mut ecol: Colnr = 0;
-        let mut row: c_int;
+        let mut row: i32;
         let mut coloff: Colnr = 0;
         let mut visible_row = false;
         let mut is_folded = false;
@@ -1135,7 +1133,7 @@ pub fn textpos2screenpos(
         let mut lnum = pos.lnum;
         if lnum >= wp.w_topline && lnum <= wp.w_botline {
             is_folded = has_folding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
-            row = plines_m_win(wp, wp.w_topline, lnum - 1, c_int::MAX);
+            row = plines_m_win(wp, wp.w_topline, lnum - 1, i32::MAX);
             row -= adjust_plines_for_skipcol(wp);
             row += if lnum == wp.w_topline {
                 wp.w_topfill
@@ -1242,10 +1240,10 @@ pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             semsg!(tr(E_INVALID_LINE_NUMBER_NR), pos.lnum);
             return;
         }
-        let mut row: c_int = 0;
-        let mut scol: c_int = 0;
-        let mut ccol: c_int = 0;
-        let mut ecol: c_int = 0;
+        let mut row: i32 = 0;
+        let mut scol: i32 = 0;
+        let mut ccol: i32 = 0;
+        let mut ecol: i32 = 0;
         textpos2screenpos(
             &mut *wp, &mut pos, &mut row, &mut scol, &mut ccol, &mut ecol, false,
         );
@@ -1258,7 +1256,7 @@ pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 }
 
 /// Convert a virtual (screen) column to a character column (1-based).
-fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: c_int) -> c_int {
+fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
     unsafe {
         let offset = vcol2col(wp, lnum, vcol - 1, None);
         let line = ml_get_buf(wp.buf_mut(), lnum);
@@ -1270,7 +1268,7 @@ fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: c_int) -> c_int {
             }
             p = p.sub(utf_head_off(line, p.sub(1)) as usize + 1);
         }
-        p.offset_from(line) as c_int + 1
+        p.offset_from(line) as i32 + 1
     }
 }
 
@@ -1297,7 +1295,7 @@ pub fn f_virtcol2col(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             return;
         }
 
-        let screencol = tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int;
+        let screencol = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
         if error || screencol < 0 {
             return;
         }
@@ -1401,7 +1399,7 @@ fn cursor_correct_sms(wp: &mut WinInfoInfo) {
 }
 
 /// Scroll `count` lines up or down, and redraw.
-pub fn scroll_redraw(up: c_int, count: Linenr) {
+pub fn scroll_redraw(up: i32, count: Linenr) {
     {
         let prev_topline = curwin_mut().w_topline;
         let prev_skipcol = curwin_mut().w_skipcol;
@@ -1411,7 +1409,7 @@ pub fn scroll_redraw(up: c_int, count: Linenr) {
         let moved = if up != 0 {
             scrollup(curwin_mut(), count, true)
         } else {
-            scrolldown(curwin_mut(), count, c_int::from(true))
+            scrolldown(curwin_mut(), count, i32::from(true))
         };
 
         if get_scrolloff_value(curwin_mut()) > 0 {
@@ -1451,11 +1449,11 @@ pub fn scroll_redraw(up: c_int, count: Linenr) {
 }
 
 /// Scroll a window down by `line_count` logical lines (`CTRL-Y`).
-pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: c_int) -> bool {
+pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool {
     unsafe {
-        let mut done: c_int = 0;
-        let mut width1: c_int = 0;
-        let mut width2: c_int = 0;
+        let mut done: i32 = 0;
+        let mut width1: i32 = 0;
+        let mut width2: i32 = 0;
         let do_sms = wp.w_onebuf_opt.wo_wrap != 0 && wp.w_onebuf_opt.wo_sms != 0;
 
         if do_sms {
@@ -1499,7 +1497,7 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: c_int) -> bo
                     Some(&mut first),
                     ptr::null_mut(),
                 ) {
-                    done += c_int::from(!decor_conceal_line(wp, first - 1, false));
+                    done += i32::from(!decor_conceal_line(wp, first - 1, false));
                     if byfold == 0 {
                         todo -= wp.w_topline - first - 1;
                     }
@@ -1565,7 +1563,7 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: c_int) -> bo
                 Some(&mut first),
                 ptr::null_mut(),
             ) {
-                wrow -= c_int::from(!decor_conceal_line(wp, wp.w_cursor.lnum - 1, false));
+                wrow -= i32::from(!decor_conceal_line(wp, wp.w_cursor.lnum - 1, false));
                 wp.w_cursor.lnum = (first - 1).max(1);
             } else {
                 wrow -= plines_win(&raw mut *wp, wp.w_cursor.lnum, true);
@@ -1605,7 +1603,7 @@ pub fn scrollup(wp: &mut WinInfoInfo, line_count: Linenr, byfold: bool) -> bool 
 
             let mut todo = line_count;
             while todo > 0 {
-                todo += c_int::from(decor_conceal_line(wp, wp.w_topline - 1, false));
+                todo += i32::from(decor_conceal_line(wp, wp.w_topline - 1, false));
                 if wp.w_topfill > 0 {
                     wp.w_topfill -= 1;
                 } else {
@@ -1720,7 +1718,7 @@ pub fn adjust_skipcol() {
             redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
             return;
         }
-        let mut row: c_int = 0;
+        let mut row: i32 = 0;
         let mut col = i64::from(curwin_mut().w_virtcol) + scrolloff_cols;
 
         if scrolloff_cols > 0 {
@@ -1737,7 +1735,7 @@ pub fn adjust_skipcol() {
             row += 1;
         }
         if col > i64::from(width2) {
-            row += (col / i64::from(width2)) as c_int;
+            row += (col / i64::from(width2)) as i32;
         }
         if row >= curwin_mut().w_view_height {
             if curwin_mut().w_skipcol == 0 {
@@ -1867,7 +1865,7 @@ fn topline_back_winheight(wp: *mut WinInfoInfo, lp: &mut Lineoff, winheight: boo
             if lp.lnum < 1 {
                 lp.height = MAXCOL;
             } else if has_folding(wp, lp.lnum, Some(&mut lp.lnum), ptr::null_mut()) {
-                lp.height = c_int::from(!decor_conceal_line(
+                lp.height = i32::from(!decor_conceal_line(
                     unsafe { &mut *(wp) },
                     lp.lnum - 1,
                     false,
@@ -1894,7 +1892,7 @@ fn botline_forw(wp: &mut WinInfoInfo, lp: &mut Lineoff) {
             if lp.lnum > wp.buf_mut().b_ml.ml_line_count {
                 lp.height = MAXCOL;
             } else if has_folding((&raw mut *wp), lp.lnum, None, &raw mut lp.lnum) {
-                lp.height = c_int::from(!decor_conceal_line(wp, lp.lnum - 1, false));
+                lp.height = i32::from(!decor_conceal_line(wp, lp.lnum - 1, false));
             } else {
                 lp.height = plines_win_nofill(wp, lp.lnum, true);
             }
@@ -1903,7 +1901,7 @@ fn botline_forw(wp: &mut WinInfoInfo, lp: &mut Lineoff) {
 }
 
 /// Recompute topline to put the cursor at the top of the window.
-pub fn scroll_cursor_top(wp: &mut WinInfoInfo, min_scroll: c_int, always: c_int) {
+pub fn scroll_cursor_top(wp: &mut WinInfoInfo, min_scroll: i32, always: i32) {
     unsafe {
         let old_topline = wp.w_topline;
         let old_skipcol = wp.w_skipcol;
@@ -1969,7 +1967,7 @@ pub fn scroll_cursor_top(wp: &mut WinInfoInfo, min_scroll: c_int, always: c_int)
             wp.w_topline = wp.w_topline.min(wp.w_cursor.lnum);
             wp.w_topfill = win_get_fill(wp, wp.w_topline);
             if wp.w_topfill > 0 && i64::from(extra) > off {
-                wp.w_topfill -= extra - off as c_int;
+                wp.w_topfill -= extra - off as i32;
                 wp.w_topfill = wp.w_topfill.max(0);
             }
             check_topfill(wp, false);
@@ -2005,7 +2003,7 @@ pub fn scroll_cursor_top(wp: &mut WinInfoInfo, min_scroll: c_int, always: c_int)
 }
 
 /// Set `w_empty_rows` and `w_filler_rows` for window `wp`.
-pub fn set_empty_rows(wp: &mut WinInfoInfo, used: c_int) {
+pub fn set_empty_rows(wp: &mut WinInfoInfo, used: i32) {
     {
         wp.w_filler_rows = 0;
         if used == 0 {
@@ -2026,7 +2024,7 @@ pub fn set_empty_rows(wp: &mut WinInfoInfo, used: c_int) {
 }
 
 /// Recompute topline to put the cursor at the bottom of the window.
-pub fn scroll_cursor_bot(wp: &mut WinInfoInfo, min_scroll: c_int, set_topbot: bool) {
+pub fn scroll_cursor_bot(wp: &mut WinInfoInfo, min_scroll: i32, set_topbot: bool) {
     unsafe {
         let mut loff = Lineoff::default();
         let old_topline = wp.w_topline;
@@ -2039,7 +2037,7 @@ pub fn scroll_cursor_bot(wp: &mut WinInfoInfo, min_scroll: c_int, set_topbot: bo
         let do_sms = wp.w_onebuf_opt.wo_wrap != 0 && wp.w_onebuf_opt.wo_sms != 0;
 
         if set_topbot {
-            let mut used: c_int = 0;
+            let mut used: i32 = 0;
             let mut cln_last = cln;
             has_folding(wp, cln, None, &raw mut cln_last);
             wp.w_botline = cln_last + 1;
@@ -2085,7 +2083,7 @@ pub fn scroll_cursor_bot(wp: &mut WinInfoInfo, min_scroll: c_int, set_topbot: bo
 
         let mut used = plines_win_nofill(wp, cln, true);
 
-        let mut scrolled: c_int = 0;
+        let mut scrolled: i32 = 0;
         if cln >= wp.w_botline {
             scrolled = used;
             if cln == wp.w_botline {
@@ -2127,7 +2125,7 @@ pub fn scroll_cursor_bot(wp: &mut WinInfoInfo, min_scroll: c_int, set_topbot: bo
         boff.fill = 0;
         let fill_below_window = win_get_fill(wp, wp.w_botline) - wp.w_filler_rows;
 
-        let mut extra: c_int = 0;
+        let mut extra: i32 = 0;
         let so = get_scrolloff_value(&mut *wp);
         let eff_so = if g_st().mouse_dragging > 0 {
             i64::from(g_st().mouse_dragging - 1)
@@ -2250,7 +2248,7 @@ pub fn scroll_cursor_halfway(wp: &mut WinInfoInfo, atend: bool, prefer_above: bo
         let mut topline = loff.lnum;
         let mut skipcol: Colnr = 0;
 
-        let mut want_height: c_int = 0;
+        let mut want_height: i32 = 0;
         let do_sms = wp.w_onebuf_opt.wo_wrap != 0 && wp.w_onebuf_opt.wo_sms != 0;
         if do_sms {
             if atend {
@@ -2261,9 +2259,9 @@ pub fn scroll_cursor_halfway(wp: &mut WinInfoInfo, atend: bool, prefer_above: bo
             }
         }
 
-        let mut topfill: c_int = 0;
-        let mut above: c_int = 0;
-        let mut below: c_int = 0;
+        let mut topfill: i32 = 0;
+        let mut above: i32 = 0;
+        let mut below: i32 = 0;
         while topline > 1 {
             if do_sms {
                 topline_back_winheight(wp, &mut loff, false);
@@ -2433,7 +2431,7 @@ pub fn cursor_correct(wp: &mut WinInfoInfo) {
 }
 
 /// Decide how much overlap to use for page-up or page-down scrolling.
-fn get_scroll_overlap(dir: Direction) -> c_int {
+fn get_scroll_overlap(dir: Direction) -> i32 {
     {
         let min_height = curwin_mut().w_view_height - 2;
 
@@ -2451,7 +2449,7 @@ fn get_scroll_overlap(dir: Direction) -> c_int {
         };
         let fill = win_get_fill(
             crate::globals::curwin_mut(),
-            lnum + c_int::from(dir == BACKWARD),
+            lnum + i32::from(dir == BACKWARD),
         ) - if dir == FORWARD {
             curwin_mut().w_filler_rows
         } else {
@@ -2507,7 +2505,7 @@ fn get_scroll_overlap(dir: Direction) -> c_int {
 }
 
 /// Scroll `count` lines with `'smoothscroll'` in direction `dir`.
-fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_int) -> bool {
+fn scroll_with_sms(dir: Direction, mut count: i32, curscount: &mut i32) -> bool {
     unsafe {
         let prev_sms = curwin_mut().w_onebuf_opt.wo_sms;
         let prev_skipcol = curwin_mut().w_skipcol;
@@ -2515,11 +2513,11 @@ fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_int) -> b
         let prev_topfill = curwin_mut().w_topfill;
 
         curwin_mut().w_onebuf_opt.wo_sms = 1;
-        scroll_redraw(c_int::from(dir == FORWARD), count);
+        scroll_redraw(i32::from(dir == FORWARD), count);
 
         if prev_sms == 0 && curwin_mut().w_skipcol > 0 {
             let mut fixdir = dir;
-            if (curwin_mut().w_topline - prev_topline).abs() > c_int::from(dir == BACKWARD) {
+            if (curwin_mut().w_topline - prev_topline).abs() > i32::from(dir == BACKWARD) {
                 fixdir = -dir;
             }
 
@@ -2535,7 +2533,7 @@ fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_int) -> b
                         - 1)
                         / width2;
             }
-            scroll_redraw(c_int::from(fixdir == FORWARD), count);
+            scroll_redraw(i32::from(fixdir == FORWARD), count);
             *curscount += count * if fixdir == dir { 1 } else { -1 };
         }
         curwin_mut().w_onebuf_opt.wo_sms = prev_sms;
@@ -2547,7 +2545,7 @@ fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_int) -> b
 }
 
 /// Move screen `count` (half) pages up (`dir` is `BACKWARD`) or down (`dir` is `FORWARD`).
-pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> bool {
+pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
     {
         let mut did_move = false;
         let buflen = curbuf_mut().b_ml.ml_line_count;
@@ -2564,7 +2562,7 @@ pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> bool {
             }
             count = curwin_mut()
                 .w_view_height
-                .min(curwin_mut().w_onebuf_opt.wo_scr as c_int);
+                .min(curwin_mut().w_onebuf_opt.wo_scr as i32);
 
             let mut curscount = count;
             if dir == FORWARD
@@ -2611,7 +2609,7 @@ pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> bool {
                 && opt_vars().p_window > 0
                 && opt_vars().p_window < i64::from(g_st().rows_global - 1)
             {
-                (opt_vars().p_window as c_int - 2).max(1)
+                (opt_vars().p_window as i32 - 2).max(1)
             } else {
                 get_scroll_overlap(dir)
             };
@@ -2722,7 +2720,7 @@ pub fn do_check_cursorbind() {
 
                 {
                     let restart_edit_save = g_st().restart_edit;
-                    g_st().restart_edit = c_int::from(true);
+                    g_st().restart_edit = i32::from(true);
                     check_cursor(curwin_mut());
 
                     if curwin_mut().w_onebuf_opt.wo_scb == 0 {

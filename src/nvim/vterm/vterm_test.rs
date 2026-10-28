@@ -2,7 +2,7 @@
 
 use crate::terminal::Terminal;
 use crate::vterm::parser::{CSI_ARG_FLAG_MORE, CSI_ARG_MISSING, VTermStringFragment};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::io::Write;
 use std::ptr;
 use std::sync::Mutex;
@@ -29,7 +29,7 @@ use crate::vterm::state::{
     VTERM_PROP_THEMEUPDATES, VTERM_PROP_TITLE, VTermSelectionMask,
 };
 
-pub type VTermAttrMask = c_int;
+pub type VTermAttrMask = i32;
 
 const CSI_ARG_MASK: i64 = !((1u64 << 31) as i64);
 
@@ -55,18 +55,18 @@ const VTERM_ATTR_OVERLINE_MASK: VTermAttrMask = 1 << 14;
 
 #[repr(C)]
 struct StatePenRecord {
-    bold: c_int,
-    underline: c_int,
-    italic: c_int,
-    blink: c_int,
-    reverse: c_int,
-    conceal: c_int,
-    strike: c_int,
-    font: c_int,
-    small: c_int,
-    baseline: c_int,
-    dim: c_int,
-    overline: c_int,
+    bold: i32,
+    underline: i32,
+    italic: i32,
+    blink: i32,
+    reverse: i32,
+    conceal: i32,
+    strike: i32,
+    font: i32,
+    small: i32,
+    baseline: i32,
+    dim: i32,
+    overline: i32,
     foreground: VTermColor,
     background: VTermColor,
 }
@@ -155,7 +155,7 @@ fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
     }
 }
 
-pub fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull) -> c_int {
+pub fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull) -> i32 {
     let mut out = b"text ".to_vec();
     let mut i = 0usize;
     {
@@ -173,17 +173,17 @@ pub fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull)
     }
     out.push(b'\n');
     append_test_output(&out);
-    i as c_int
+    i as i32
 }
 
 pub fn parser_csi<T>(
     leader: *const c_char,
     args: *const i64,
-    argcount: c_int,
+    argcount: i32,
     intermed: *const c_char,
     command: c_char,
     _user: *mut T,
-) -> c_int {
+) -> i32 {
     let mut out = Vec::new();
     let _ = write!(out, "csi {:02x}", command as u8);
     unsafe {
@@ -224,7 +224,7 @@ pub fn parser_csi<T>(
     1
 }
 
-pub fn parser_osc<T>(command: c_int, frag: VTermStringFragment, _user: *mut T) -> c_int {
+pub fn parser_osc<T>(command: i32, frag: VTermStringFragment, _user: *mut T) -> i32 {
     let mut out = b"osc ".to_vec();
     if frag.initial() {
         if command == -1 {
@@ -247,7 +247,7 @@ pub fn parser_dcs<T>(
     commandlen: usize,
     frag: VTermStringFragment,
     _user: *mut T,
-) -> c_int {
+) -> i32 {
     let mut out = b"dcs ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -265,7 +265,7 @@ pub fn parser_dcs<T>(
     1
 }
 
-pub fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
+pub fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> i32 {
     let mut out = b"apc ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -279,7 +279,7 @@ pub fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     1
 }
 
-pub fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
+pub fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> i32 {
     let mut out = b"pm ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -293,7 +293,7 @@ pub fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     1
 }
 
-pub fn parser_sos<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
+pub fn parser_sos<T>(frag: VTermStringFragment, _user: *mut T) -> i32 {
     let mut out = b"sos ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -311,7 +311,7 @@ pub fn selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
     _user: *mut Terminal,
-) -> c_int {
+) -> i32 {
     let mut out = Vec::new();
     let _ = write!(out, "selection-set mask={mask:04X} ");
     if frag.initial() {
@@ -326,7 +326,7 @@ pub fn selection_set(
     1
 }
 
-pub fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) -> c_int {
+pub fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) -> i32 {
     let mut out = Vec::new();
     let _ = writeln!(out, "selection-query mask={mask:04X}");
     append_test_output(&out);
@@ -354,7 +354,7 @@ fn format_schar(out: &mut Vec<u8>, schar: Schar) {
     }
 }
 
-pub fn state_putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, _user: *mut VTermScreen) -> c_int {
+pub fn state_putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, _user: *mut VTermScreen) -> i32 {
     if !vtt_st().want_state_putglyph {
         return 1;
     }
@@ -381,12 +381,7 @@ pub fn state_putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, _user: *mut VTer
     1
 }
 
-pub fn state_movecursor<T>(
-    pos: VTermPos,
-    _oldpos: VTermPos,
-    _visible: c_int,
-    _user: *mut T,
-) -> c_int {
+pub fn state_movecursor<T>(pos: VTermPos, _oldpos: VTermPos, _visible: i32, _user: *mut T) -> i32 {
     vtt_st().state_pos = pos;
     let mut out = Vec::new();
     if vtt_st().want_state_movecursor {
@@ -398,10 +393,10 @@ pub fn state_movecursor<T>(
 
 pub fn state_scrollrect(
     rect: VTermRect,
-    downward: c_int,
-    rightward: c_int,
+    downward: i32,
+    rightward: i32,
     _user: *mut VTermScreen,
-) -> c_int {
+) -> i32 {
     if !vtt_st().want_state_scrollrect {
         return 0;
     }
@@ -415,7 +410,7 @@ pub fn state_scrollrect(
     1
 }
 
-pub fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: *mut T) -> c_int {
+pub fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: *mut T) -> i32 {
     if !vtt_st().want_state_moverect {
         return 0;
     }
@@ -474,7 +469,7 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
     }
 }
 
-pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: *mut T) -> c_int {
+pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: *mut T) -> i32 {
     if !vtt_st().want_state_settermprop {
         return 1;
     }
@@ -516,7 +511,7 @@ pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: *mut T
     errcode
 }
 
-pub fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermScreen) -> c_int {
+pub fn state_erase(rect: VTermRect, selective: i32, _user: *mut VTermScreen) -> i32 {
     if !vtt_st().want_state_erase {
         return 1;
     }
@@ -531,7 +526,7 @@ pub fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermScreen) -
     1
 }
 
-pub fn state_setpenattr(attr: VTermAttr, val: &mut VTermValue, _user: *mut VTermScreen) -> c_int {
+pub fn state_setpenattr(attr: VTermAttr, val: &mut VTermValue, _user: *mut VTermScreen) -> i32 {
     match attr {
         VTERM_ATTR_BOLD => vtt_st().state_pen.bold = val.boolean(),
         VTERM_ATTR_UNDERLINE => vtt_st().state_pen.underline = val.number(),
@@ -553,7 +548,7 @@ pub fn state_setpenattr(attr: VTermAttr, val: &mut VTermValue, _user: *mut VTerm
     1
 }
 
-pub fn state_sb_clear(_user: *mut VTermScreen) -> c_int {
+pub fn state_sb_clear(_user: *mut VTermScreen) -> i32 {
     if !vtt_st().want_state_scrollback {
         return 1;
     }
@@ -561,11 +556,11 @@ pub fn state_sb_clear(_user: *mut VTermScreen) -> c_int {
     0
 }
 
-pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: *mut Terminal) -> c_int {
+pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: *mut Terminal) -> i32 {
     if !vtt_st().want_screen_scrollback {
         return 1;
     }
-    let cols = cells.len() as c_int;
+    let cols = cells.len() as i32;
     let mut eol = cells.len();
     while eol > 0 && cells[eol - 1].schar == 0 {
         eol -= 1;
@@ -581,11 +576,11 @@ pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: *mut Terminal) -> c_
     1
 }
 
-pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: *mut Terminal) -> c_int {
+pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: *mut Terminal) -> i32 {
     if !vtt_st().want_screen_scrollback {
         return 0;
     }
-    let cols = cells.len() as c_int;
+    let cols = cells.len() as i32;
     for (col, cell) in cells.iter_mut().enumerate() {
         cell.schar = if col < 5 {
             (b'A' + col as u8) as Schar
@@ -600,7 +595,7 @@ pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: *mut Terminal) ->
     1
 }
 
-pub fn screen_sb_clear(_user: *mut Terminal) -> c_int {
+pub fn screen_sb_clear(_user: *mut Terminal) -> i32 {
     if !vtt_st().want_screen_scrollback {
         return 1;
     }
@@ -621,39 +616,39 @@ pub fn vterm_state_get_penattr(
     state: &VTermStateFull,
     attr: VTermAttr,
     val: &mut VTermValue,
-) -> c_int {
+) -> i32 {
     let pen = &state.pen;
     match attr {
         VTERM_ATTR_BOLD => {
-            *val = VTermValue::Boolean(pen.bold() as c_int);
+            *val = VTermValue::Boolean(pen.bold() as i32);
             1
         }
         VTERM_ATTR_UNDERLINE => {
-            *val = VTermValue::Number(pen.underline() as c_int);
+            *val = VTermValue::Number(pen.underline() as i32);
             1
         }
         VTERM_ATTR_ITALIC => {
-            *val = VTermValue::Boolean(pen.italic() as c_int);
+            *val = VTermValue::Boolean(pen.italic() as i32);
             1
         }
         VTERM_ATTR_BLINK => {
-            *val = VTermValue::Boolean(pen.blink() as c_int);
+            *val = VTermValue::Boolean(pen.blink() as i32);
             1
         }
         VTERM_ATTR_REVERSE => {
-            *val = VTermValue::Boolean(pen.reverse() as c_int);
+            *val = VTermValue::Boolean(pen.reverse() as i32);
             1
         }
         VTERM_ATTR_CONCEAL => {
-            *val = VTermValue::Boolean(pen.conceal() as c_int);
+            *val = VTermValue::Boolean(pen.conceal() as i32);
             1
         }
         VTERM_ATTR_STRIKE => {
-            *val = VTermValue::Boolean(pen.strike() as c_int);
+            *val = VTermValue::Boolean(pen.strike() as i32);
             1
         }
         VTERM_ATTR_FONT => {
-            *val = VTermValue::Number(pen.font() as c_int);
+            *val = VTermValue::Number(pen.font() as i32);
             1
         }
         VTERM_ATTR_FOREGROUND => {
@@ -665,11 +660,11 @@ pub fn vterm_state_get_penattr(
             1
         }
         VTERM_ATTR_SMALL => {
-            *val = VTermValue::Boolean(pen.small() as c_int);
+            *val = VTermValue::Boolean(pen.small() as i32);
             1
         }
         VTERM_ATTR_BASELINE => {
-            *val = VTermValue::Number(pen.baseline() as c_int);
+            *val = VTermValue::Number(pen.baseline() as i32);
             1
         }
         VTERM_ATTR_URI => {
@@ -677,27 +672,27 @@ pub fn vterm_state_get_penattr(
             1
         }
         VTERM_ATTR_DIM => {
-            *val = VTermValue::Boolean(pen.dim() as c_int);
+            *val = VTermValue::Boolean(pen.dim() as i32);
             1
         }
         VTERM_ATTR_OVERLINE => {
-            *val = VTermValue::Boolean(pen.overline() as c_int);
+            *val = VTermValue::Boolean(pen.overline() as i32);
             1
         }
         _ => 0,
     }
 }
 
-pub fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> c_int {
+pub fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> i32 {
     let ca = a;
     let cb = b;
     if ca.type_byte() != cb.type_byte() {
         return 0;
     }
     if ca.is_indexed() {
-        c_int::from(ca.idx() == cb.idx())
+        i32::from(ca.idx() == cb.idx())
     } else if ca.is_rgb() {
-        c_int::from(ca.red() == cb.red() && ca.green() == cb.green() && ca.blue() == cb.blue())
+        i32::from(ca.red() == cb.red() && ca.green() == cb.green() && ca.blue() == cb.blue())
     } else {
         0
     }
@@ -759,7 +754,7 @@ pub fn vterm_screen_get_attrs_extent(
     extent: &mut VTermRect,
     pos: VTermPos,
     attrs: VTermAttrMask,
-) -> c_int {
+) -> i32 {
     let target = unsafe { &*getcell(screen, pos.row, pos.col) };
     extent.start_row = pos.row;
     extent.end_row = pos.row + 1;
@@ -839,7 +834,7 @@ pub fn vterm_screen_get_text(
     outpos
 }
 
-pub fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> c_int {
+pub fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> i32 {
     unsafe {
         while pos.col < screen.cols {
             let cell = getcell(screen, pos.row, pos.col);
@@ -856,7 +851,7 @@ pub fn vterm_state_get_cursorpos(state: &VTermStateFull, cursorpos: &mut VTermPo
     *cursorpos = state.pos;
 }
 
-pub fn vterm_state_set_bold_highbright(state: &mut VTermStateFull, bold_is_highbright: c_int) {
+pub fn vterm_state_set_bold_highbright(state: &mut VTermStateFull, bold_is_highbright: i32) {
     state.bold_is_highbright = bold_is_highbright;
 }
 
@@ -893,13 +888,13 @@ mod tests {
 
     static VTERM_TEST_LOCK: Mutex<()> = Mutex::new(());
 
-    fn parser_control<T>(control: u8, _user: *mut T) -> c_int {
+    fn parser_control<T>(control: u8, _user: *mut T) -> i32 {
         let s = format!("control {control:02x}\n");
         append_test_output(s.as_bytes());
         1
     }
 
-    fn parser_escape(bytes: *const c_char, _len: usize, _user: *mut VTermStateFull) -> c_int {
+    fn parser_escape(bytes: *const c_char, _len: usize, _user: *mut VTermStateFull) -> i32 {
         let slice = { crate::memory::cstr_as_bytes(bytes) };
         let mut out = b"escape ".to_vec();
         out.extend_from_slice(slice);
@@ -909,11 +904,11 @@ mod tests {
     }
 
     fn state_setlineinfo(
-        _row: c_int,
+        _row: i32,
         _newinfo: &VTermLineInfo,
         _oldinfo: &VTermLineInfo,
         _user: *mut VTermScreen,
-    ) -> c_int {
+    ) -> i32 {
         1
     }
 
@@ -1096,20 +1091,20 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(&actual), exp);
     }
 
-    fn cursor(row: c_int, col: c_int, state: &VTermStateFull) {
+    fn cursor(row: i32, col: i32, state: &VTermStateFull) {
         let mut pos = VTermPos { row: 0, col: 0 };
         vterm_state_get_cursorpos(state, &mut pos);
         assert_eq!((pos.row, pos.col), (row, col));
     }
 
-    fn lineinfo(row: c_int, exp_dwl: bool, exp_dhl: bool, exp_cont: bool, state: &VTermStateFull) {
+    fn lineinfo(row: i32, exp_dwl: bool, exp_dhl: bool, exp_cont: bool, state: &VTermStateFull) {
         let info = vterm_state_get_lineinfo(state, row);
         assert_eq!(info.doublewidth() == 1, exp_dwl);
         assert_eq!(info.doubleheight() == 1, exp_dhl);
         assert_eq!(info.continuation(), exp_cont);
     }
 
-    fn pen(attribute: &str, expected: c_int, state: &VTermStateFull) {
+    fn pen(attribute: &str, expected: i32, state: &VTermStateFull) {
         let attr = match attribute {
             "bold" => VTERM_ATTR_BOLD,
             "underline" => VTERM_ATTR_UNDERLINE,
@@ -1126,15 +1121,15 @@ mod tests {
         assert_eq!(val.boolean(), expected);
     }
 
-    fn resize(rows: c_int, cols: c_int, vt: &mut VTerm) {
+    fn resize(rows: i32, cols: i32, vt: &mut VTerm) {
         vterm_set_size(vt, rows, cols);
     }
 
     fn screen_chars(
-        start_row: c_int,
-        start_col: c_int,
-        end_row: c_int,
-        end_col: c_int,
+        start_row: i32,
+        start_col: i32,
+        end_row: i32,
+        end_col: i32,
         expected: &[u8],
         screen: &VTermScreen,
     ) {
@@ -1151,10 +1146,10 @@ mod tests {
     }
 
     fn screen_text(
-        start_row: c_int,
-        start_col: c_int,
-        end_row: c_int,
-        end_col: c_int,
+        start_row: i32,
+        start_col: i32,
+        end_row: i32,
+        end_col: i32,
         expected: &[u8],
         screen: &VTermScreen,
     ) {
@@ -1178,11 +1173,11 @@ mod tests {
         assert_eq!(actual.as_bytes(), expected);
     }
 
-    fn screen_row(row: c_int, expected: &[u8], screen: &VTermScreen, end_col: c_int) {
+    fn screen_row(row: i32, expected: &[u8], screen: &VTermScreen, end_col: i32) {
         screen_chars(row, 0, row + 1, end_col, expected, screen);
     }
 
-    fn screen_cell(row: c_int, col: c_int, expected: &[u8], screen: &mut VTermScreen) {
+    fn screen_cell(row: i32, col: i32, expected: &[u8], screen: &mut VTermScreen) {
         use std::fmt::Write as _;
         unsafe {
             let pos = VTermPos { row, col };
@@ -1258,11 +1253,11 @@ mod tests {
         }
     }
 
-    fn screen_eol(row: c_int, col: c_int, expected: c_int, screen: &VTermScreen) {
+    fn screen_eol(row: i32, col: i32, expected: i32, screen: &VTermScreen) {
         assert_eq!(vterm_screen_is_eol(screen, VTermPos { row, col }), expected);
     }
 
-    fn screen_attrs_extent(row: c_int, col: c_int, expected: &[u8], screen: &VTermScreen) {
+    fn screen_attrs_extent(row: i32, col: i32, expected: &[u8], screen: &VTermScreen) {
         let mut rect = VTermRect {
             start_row: 0,
             end_row: 0,
@@ -1287,7 +1282,7 @@ mod tests {
     fn encin(input: &[u8], encoding: &mut VTermEncodingInstance) {
         let len = input.len();
         let mut cp = vec![0u32; len.max(1)];
-        let mut cpi: c_int = 0;
+        let mut cpi: i32 = 0;
         let mut pos: usize = 0;
         encoding.decode(&mut cp, &mut cpi, input, &mut pos);
         clear_test_output();
@@ -1305,11 +1300,11 @@ mod tests {
         }
     }
 
-    fn mousemove(row: c_int, col: c_int, vt: &mut VTerm, mod_: VTermModifier) {
+    fn mousemove(row: i32, col: i32, vt: &mut VTerm, mod_: VTermModifier) {
         vterm_mouse_move(vt, row, col, mod_);
     }
 
-    fn mousebtn(press: u8, button: c_int, vt: &mut VTerm, mod_: VTermModifier) {
+    fn mousebtn(press: u8, button: i32, vt: &mut VTerm, mod_: VTermModifier) {
         vterm_mouse_button(vt, button, press == b'd' || press == b'D', mod_);
     }
 

@@ -6,14 +6,14 @@ pub mod lpcset;
 pub mod lptree;
 pub mod lpvm;
 
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
 use crate::lua::converter::{lua_Integer, lua_Number, lua_State, luaL_Reg};
 
 pub type LpegByte = u8;
-pub type LpegUint = c_uint;
+pub type LpegUint = u32;
 pub type LpegIndex = LpegUint;
 #[allow(non_camel_case_types)]
 pub type lua_Unsigned = usize;
@@ -21,24 +21,24 @@ pub type lua_Unsigned = usize;
 pub const PATTERN_T: &CStr = c"lpeg-pattern";
 pub const MAXSTACKIDX: &CStr = c"lpeg-maxstack";
 
-pub const MAXBACK: c_int = 400;
+pub const MAXBACK: i32 = 400;
 pub const MAXRULES: usize = 1000;
 pub const INITCAPSIZE: usize = 32;
-pub const SUBJIDX: c_int = 2;
-pub const FIXEDARGS: c_int = 3;
+pub const SUBJIDX: i32 = 2;
+pub const FIXEDARGS: i32 = 3;
 
 #[inline]
-pub const fn caplistidx(ptop: c_int) -> c_int {
+pub const fn caplistidx(ptop: i32) -> i32 {
     ptop + 2
 }
 
 #[inline]
-pub const fn ktableidx(ptop: c_int) -> c_int {
+pub const fn ktableidx(ptop: i32) -> i32 {
     ptop + 3
 }
 
 #[inline]
-pub const fn stackidx(ptop: c_int) -> c_int {
+pub const fn stackidx(ptop: i32) -> i32 {
     ptop + 4
 }
 
@@ -86,17 +86,17 @@ pub fn setchar(cs: &mut [LpegByte; CHARSETSIZE], b: usize) {
 }
 
 #[inline]
-pub fn testchar(st: *const LpegByte, c: LpegUint) -> c_int {
-    unsafe { (((*st.add((c >> 3) as usize) as LpegUint) >> (c & 7)) & 1) as c_int }
+pub fn testchar(st: *const LpegByte, c: LpegUint) -> i32 {
+    unsafe { (((*st.add((c >> 3) as usize) as LpegUint) >> (c & 7)) & 1) as i32 }
 }
 
-pub const MAXOFF: c_int = 0xF;
-pub const MAXAUX: c_int = 0xFF;
-pub const MAXBEHIND: c_int = MAXAUX;
+pub const MAXOFF: i32 = 0xF;
+pub const MAXAUX: i32 = 0xFF;
+pub const MAXBEHIND: i32 = MAXAUX;
 
 #[inline]
-pub const fn instsize(l: c_int) -> c_int {
-    (l as usize).div_ceil(size_of::<Instruction>()) as c_int
+pub const fn instsize(l: i32) -> i32 {
+    (l as usize).div_ceil(size_of::<Instruction>()) as i32
 }
 
 pub type CapKind = LpegByte;
@@ -118,7 +118,7 @@ pub const CRUNTIME: CapKind = 14;
 pub const CGROUP: CapKind = 15;
 
 pub const MAXINDT: LpegIndex = !0;
-pub const MAXLOP: c_int = 20;
+pub const MAXLOP: i32 = 20;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -151,11 +151,11 @@ pub struct CapState {
     pub cap: *mut Capture,
     pub ocap: *mut Capture,
     pub lstate: *mut lua_State,
-    pub ptop: c_int,
-    pub firstcap: c_int,
+    pub ptop: i32,
+    pub firstcap: i32,
     pub s: *const c_char,
-    pub valuecached: c_int,
-    pub reclevel: c_int,
+    pub valuecached: i32,
+    pub reclevel: i32,
 }
 
 #[inline]
@@ -217,8 +217,8 @@ pub struct TTreeSet {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union TTreeU {
-    pub ps: c_int,
-    pub n: c_int,
+    pub ps: i32,
+    pub n: i32,
     pub set: TTreeSet,
 }
 
@@ -322,37 +322,37 @@ pub struct Inst {
 #[derive(Copy, Clone)]
 pub union Instruction {
     pub i: Inst,
-    pub offset: c_int,
+    pub offset: i32,
     pub buff: [LpegByte; 1],
 }
 
 #[inline]
-pub fn getkind(op: &Instruction) -> c_int {
-    unsafe { c_int::from(op.i.aux1 & 0xF) }
+pub fn getkind(op: &Instruction) -> i32 {
+    unsafe { i32::from(op.i.aux1 & 0xF) }
 }
 
 #[inline]
-pub fn getoff(op: &Instruction) -> c_int {
-    unsafe { c_int::from((op.i.aux1 >> 4) & 0xF) }
+pub fn getoff(op: &Instruction) -> i32 {
+    unsafe { i32::from((op.i.aux1 >> 4) & 0xF) }
 }
 
 #[inline]
-pub const fn joinkindoff(k: c_int, o: c_int) -> c_int {
+pub const fn joinkindoff(k: i32, o: i32) -> i32 {
     k | (o << 4)
 }
 
 #[inline]
-pub fn utf_to(inst: &Instruction) -> c_int {
-    unsafe { (c_int::from(inst.i.aux2.key) << 8) | c_int::from(inst.i.aux1) }
+pub fn utf_to(inst: &Instruction) -> i32 {
+    unsafe { (i32::from(inst.i.aux2.key) << 8) | i32::from(inst.i.aux1) }
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct CharsetInfo {
     pub cs: *const LpegByte,
-    pub offset: c_int,
-    pub size: c_int,
-    pub deflt: c_int,
+    pub offset: i32,
+    pub size: i32,
+    pub deflt: i32,
 }
 
 impl CharsetInfo {
@@ -386,7 +386,7 @@ mod tests {
         setchar(&mut cs, b'A' as usize);
         assert_eq!(testchar(cs.as_ptr(), b'A' as LpegUint), 1);
         assert_eq!(charsettype(&cs, &mut info), ICHAR);
-        assert_eq!(info.offset, c_int::from(b'A'));
+        assert_eq!(info.offset, i32::from(b'A'));
 
         fillset(&mut cs, 0xFF);
         assert_eq!(charsettype(&cs, &mut info), IANY);

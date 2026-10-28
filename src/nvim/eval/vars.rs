@@ -79,13 +79,13 @@ use crate::version::{highest_patch, min_vim_version};
 use crate::window::{
     TabPageInfo, WinInfoInfo, find_tabpage, goto_tabpage_tp, prevwin_curwin, valid_tabpage,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
-pub type VimVarIndex = c_int;
-pub type ScopeType = c_int;
-pub type Scid = c_int;
-type ExUnletlockCallback = fn(&mut Lval, *mut c_char, &mut Exarg, c_int) -> bool;
+pub type VimVarIndex = i32;
+pub type ScopeType = i32;
+pub type Scid = i32;
+type ExUnletlockCallback = fn(&mut Lval, *mut c_char, &mut Exarg, i32) -> bool;
 
 use crate::api::win_config::{K_CTX_NO_DISPLAY, K_CTX_NO_EVENTS};
 use crate::change::MB_MAXCHAR;
@@ -94,7 +94,7 @@ use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
 pub struct Evalarg {
-    pub eval_flags: c_int,
+    pub eval_flags: i32,
 }
 
 impl Evalarg {
@@ -119,8 +119,8 @@ pub struct Lval {
     pub ll_list: *mut TvList,
     pub ll_range: bool,
     pub ll_empty2: bool,
-    pub ll_n1: c_int,
-    pub ll_n2: c_int,
+    pub ll_n1: i32,
+    pub ll_n2: i32,
     pub ll_dict: *mut TvDict,
     pub ll_di: *mut Dictitem,
     pub ll_newkey: Option<std::ffi::CString>,
@@ -177,10 +177,10 @@ pub(crate) const ENV_STARTREASON: &CStr = c"__NVIM_STARTREASON";
 
 pub(crate) const SID_STR: Scid = -10;
 
-pub(crate) const FORCE_BIN: c_int = 1;
-pub(crate) const FORCE_NOBIN: c_int = 2;
-pub(crate) const BAD_KEEP: c_int = -1;
-pub(crate) const BAD_DROP: c_int = -2;
+pub(crate) const FORCE_BIN: i32 = 1;
+pub(crate) const FORCE_NOBIN: i32 = 2;
+pub(crate) const BAD_KEEP: i32 = -1;
+pub(crate) const BAD_DROP: i32 = -2;
 
 const K_OPT_CHARCONVERT: OptIndex = 36;
 const K_OPT_DIFFEXPR: OptIndex = 72;
@@ -720,15 +720,15 @@ pub fn evalvars_clear() {
     }
 }
 
-pub fn garbage_collect_globvars(copy_id: c_int) -> c_int {
-    c_int::from(set_ref_in_ht(
+pub fn garbage_collect_globvars(copy_id: i32) -> i32 {
+    i32::from(set_ref_in_ht(
         &raw mut vars_st().globvardict.dv_hashtab,
         copy_id,
         ptr::null_mut(),
     ))
 }
 
-pub fn garbage_collect_vimvars(copy_id: c_int) -> bool {
+pub fn garbage_collect_vimvars(copy_id: i32) -> bool {
     set_ref_in_ht(
         &raw mut vars_st().vimvardict.dv_hashtab,
         copy_id,
@@ -736,7 +736,7 @@ pub fn garbage_collect_vimvars(copy_id: c_int) -> bool {
     )
 }
 
-pub fn garbage_collect_scriptvars(copy_id: c_int) -> bool {
+pub fn garbage_collect_scriptvars(copy_id: i32) -> bool {
     let mut abort = false;
 
     for i in 1..=crate::runtime::script_items_len() {
@@ -912,7 +912,7 @@ pub fn eval_spell_expr(
 }
 
 /// Get spell word from an entry from spellsuggest=expr:
-pub fn get_spellword(list: &mut TvList, ret_word: *mut *const c_char) -> c_int {
+pub fn get_spellword(list: &mut TvList, ret_word: *mut *const c_char) -> i32 {
     unsafe {
         if tv_list_len(Some(list)) != 2 {
             emsg(gettext(
@@ -924,12 +924,12 @@ pub fn get_spellword(list: &mut TvList, ret_word: *mut *const c_char) -> c_int {
         if (*ret_word).is_null() {
             return -1;
         }
-        tv_list_find_nr(Some(&mut *list), -1, None) as c_int
+        tv_list_find_nr(Some(&mut *list), -1, None) as i32
     }
 }
 
 /// Prepare v: variable "idx" to be used.
-pub fn prepare_vimvar(idx: c_int, save_tv: &mut TypVal) {
+pub fn prepare_vimvar(idx: i32, save_tv: &mut TypVal) {
     unsafe {
         let p = (&raw mut vars_st().vimvars)
             .cast::<VimVar>()
@@ -943,7 +943,7 @@ pub fn prepare_vimvar(idx: c_int, save_tv: &mut TypVal) {
 }
 
 /// Restore v: variable "idx" to typeval "save_tv".
-pub fn restore_vimvar(idx: c_int, save_tv: &mut TypVal) {
+pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
     unsafe {
         let p = (&raw mut vars_st().vimvars)
             .cast::<VimVar>()
@@ -963,23 +963,23 @@ pub fn restore_vimvar(idx: c_int, save_tv: &mut TypVal) {
 }
 
 /// List Vim variables.
-fn list_vim_vars(first: &mut c_int) {
+fn list_vim_vars(first: &mut i32) {
     list_hashtable_vars(
         &mut vars_st().vimvardict.dv_hashtab,
         c"v:",
-        false as c_int,
+        false as i32,
         &mut *first,
     );
 }
 
 /// List script-local variables, if there is a script.
-fn list_script_vars(first: &mut c_int) {
+fn list_script_vars(first: &mut i32) {
     {
         if crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
             list_hashtable_vars(
                 &mut *script_vars_ht(g_st().current_sctx.sc_sid),
                 c"s:",
-                false as c_int,
+                false as i32,
                 &mut *first,
             );
         }
@@ -1088,13 +1088,13 @@ pub fn heredoc_get(
 ) -> *mut TvList {
     let mut cmd = cmd.into_c_char_ptr();
     unsafe {
-        let mut marker_indent_len: c_int = 0;
-        let mut text_indent_len: c_int = 0;
+        let mut marker_indent_len: i32 = 0;
+        let mut text_indent_len: i32 = 0;
         let mut text_indent: Option<Vec<c_char>> = None;
         let mut dot: [c_char; 2] = [b'.' as c_char, NUL];
         let mut heredoc_in_string = false;
         let mut line_arg: *mut c_char = ptr::null_mut();
-        let nl_ptr = vim_strchr(cmd, b'\n' as c_int);
+        let nl_ptr = vim_strchr(cmd, b'\n' as i32);
 
         if !nl_ptr.is_null() {
             heredoc_in_string = true;
@@ -1158,8 +1158,8 @@ pub fn heredoc_get(
         let mut theline_owned: Option<std::ffi::CString> = None;
         let l = tv_list_alloc(0);
         loop {
-            let mut mi: c_int = 0;
-            let mut ti: c_int = 0;
+            let mut mi: i32 = 0;
+            let mut ti: i32 = 0;
 
             let theline: *mut c_char = if heredoc_in_string {
                 if crate::memory::cstr_is_empty(line_arg) {
@@ -1170,7 +1170,7 @@ pub fn heredoc_get(
                 }
 
                 let cur_line = line_arg;
-                let next_line = vim_strchr(cur_line, b'\n' as c_int);
+                let next_line = vim_strchr(cur_line, b'\n' as i32);
                 if next_line.is_null() {
                     line_arg = line_arg.add(crate::memory::cstr_len(line_arg));
                 } else {
@@ -1252,13 +1252,13 @@ pub fn heredoc_get(
 /// ":let" and ":const" commands.
 pub fn ex_let(eap: &mut Exarg) {
     unsafe {
-        let is_const = eap.cmdidx == Cmdidx::CmdConst as c_int;
+        let is_const = eap.cmdidx == Cmdidx::CmdConst as i32;
         let mut arg = eap.arg;
         let mut rettv: TypVal = TypVal::new();
-        let mut var_count: c_int = 0;
-        let mut semicolon: c_int = 0;
+        let mut var_count: i32 = 0;
+        let mut semicolon: i32 = 0;
         let mut op: [c_char; 2] = [0; 2];
-        let mut first: c_int = 1;
+        let mut first: i32 = 1;
 
         let argend = skip_var_list(arg, &mut var_count, &mut semicolon, false);
         if argend.is_null() {
@@ -1267,10 +1267,8 @@ pub fn ex_let(eap: &mut Exarg) {
         let mut expr = skipwhite(argend);
         let concat = crate::memory::cstr_prefix_bytes(expr, 3) == &b"..="[..3];
         let has_assign = crate::memory::cstr_first_byte(expr) == b'='
-            || (crate::strings::vim_haschr(
-                c"+-*/%.",
-                crate::memory::cstr_first_byte(expr) as c_int,
-            ) && crate::memory::cstr_byte_at(expr, 1) == b'=');
+            || (crate::strings::vim_haschr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as i32)
+                && crate::memory::cstr_byte_at(expr, 1) == b'=');
         if !has_assign && !concat {
             if crate::memory::cstr_first_byte(arg) == b'[' {
                 emsg(gettext(E_INVARG));
@@ -1305,7 +1303,7 @@ pub fn ex_let(eap: &mut Exarg) {
                         0,
                         semicolon,
                         var_count,
-                        c_int::from(is_const),
+                        i32::from(is_const),
                         op.as_mut_ptr(),
                     );
                 }
@@ -1319,8 +1317,7 @@ pub fn ex_let(eap: &mut Exarg) {
         op[0] = b'=' as c_char;
         op[1] = NUL;
         if crate::memory::cstr_first_byte(expr) != b'=' {
-            if crate::strings::vim_haschr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as c_int)
-            {
+            if crate::strings::vim_haschr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as i32) {
                 op[0] = *expr;
                 if crate::memory::cstr_first_byte(expr) == b'.'
                     && crate::memory::cstr_byte_at(expr, 1) == b'.'
@@ -1352,7 +1349,7 @@ pub fn ex_let(eap: &mut Exarg) {
                 0,
                 semicolon,
                 var_count,
-                c_int::from(is_const),
+                i32::from(is_const),
                 op.as_mut_ptr(),
             );
         }
@@ -1366,10 +1363,10 @@ pub fn ex_let(eap: &mut Exarg) {
 pub fn ex_let_vars(
     arg_start: *mut c_char,
     tv: &mut TypVal,
-    copy: c_int,
-    semicolon: c_int,
-    var_count: c_int,
-    is_const: c_int,
+    copy: i32,
+    semicolon: i32,
+    var_count: i32,
+    is_const: i32,
     op: *mut c_char,
 ) -> bool {
     unsafe {
@@ -1452,8 +1449,8 @@ pub fn ex_let_vars(
 /// Skip over assignable variable "var" or list of variables "[var, var]".
 pub fn skip_var_list(
     arg: impl crate::strings::IntoCCharPtr,
-    var_count: &mut c_int,
-    semicolon: &mut c_int,
+    var_count: &mut i32,
+    semicolon: &mut i32,
     silent: bool,
 ) -> *const c_char {
     let arg = arg.into_c_char_ptr();
@@ -1518,14 +1515,9 @@ fn skip_var_one(arg: impl crate::strings::IntoCCharPtr) -> *const c_char {
 }
 
 /// List variables for hashtab "ht" with prefix "prefix".
-pub fn list_hashtable_vars(
-    ht: &mut Hashtab,
-    prefix: &std::ffi::CStr,
-    empty: c_int,
-    first: &mut c_int,
-) {
+pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32, first: &mut i32) {
     unsafe {
-        let mut todo = ht.ht_used as c_int;
+        let mut todo = ht.ht_used as i32;
         let mut hi = ht.array_ptr();
         while todo > 0 && !g_st().got_int {
             if !hashitem_empty(&*hi) {
@@ -1557,43 +1549,43 @@ pub fn list_hashtable_vars(
     }
 }
 
-fn list_glob_vars(first: &mut c_int) {
+fn list_glob_vars(first: &mut i32) {
     list_hashtable_vars(
         &mut vars_st().globvardict.dv_hashtab,
         c"",
-        true as c_int,
+        true as i32,
         &mut *first,
     );
 }
 
-fn list_buf_vars(first: &mut c_int) {
+fn list_buf_vars(first: &mut i32) {
     {
         list_hashtable_vars(
             &mut curbuf_mut().b_vars().dv_hashtab,
             c"b:",
-            true as c_int,
+            true as i32,
             &mut *first,
         );
     }
 }
 
-fn list_win_vars(first: &mut c_int) {
+fn list_win_vars(first: &mut i32) {
     {
         list_hashtable_vars(
             &mut curwin_mut().w_vars().dv_hashtab,
             c"w:",
-            true as c_int,
+            true as i32,
             &mut *first,
         );
     }
 }
 
-fn list_tab_vars(first: &mut c_int) {
+fn list_tab_vars(first: &mut i32) {
     {
         list_hashtable_vars(
             &mut curtab_mut().tp_vars().dv_hashtab,
             c"t:",
-            true as c_int,
+            true as i32,
             &mut *first,
         );
     }
@@ -1603,7 +1595,7 @@ fn list_tab_vars(first: &mut c_int) {
 fn list_arg_vars(
     eap: &mut Exarg,
     arg: impl crate::strings::IntoCCharPtr,
-    first: &mut c_int,
+    first: &mut i32,
 ) -> *const c_char {
     let mut arg = arg.into_c_char_ptr();
     unsafe {
@@ -1731,11 +1723,11 @@ fn ex_let_env(
         if len == 0 {
             semsg!(gettext(E_INVARG2), name.sub(1));
         } else if !op.is_null()
-            && crate::strings::vim_haschr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int)
+            && crate::strings::vim_haschr(c"+-*/%", crate::memory::cstr_first_byte(op) as i32)
         {
             semsg!(gettext(E_LETWRONG), op);
         } else if !endchars.is_null()
-            && !crate::strings::vim_haschr(endchars, *skipwhite(arg) as u8 as c_int)
+            && !crate::strings::vim_haschr(endchars, *skipwhite(arg) as u8 as i32)
         {
             emsg(gettext(E_LETUNEXP));
         } else if !check_secure() {
@@ -1784,7 +1776,7 @@ fn ex_let_option(
 
         let mut arg_end: *mut c_char = ptr::null_mut();
         let mut opt_idx: OptIndex = 0;
-        let mut opt_flags: c_int = 0;
+        let mut opt_flags: i32 = 0;
 
         let mut arg_const: *const c_char = arg;
         let p = find_option_var_end(&raw mut arg_const, &mut opt_idx, &mut opt_flags).cast_mut();
@@ -1792,7 +1784,7 @@ fn ex_let_option(
 
         if p.is_null()
             || (!endchars.is_null()
-                && !crate::strings::vim_haschr(endchars, *skipwhite(p) as u8 as c_int))
+                && !crate::strings::vim_haschr(endchars, *skipwhite(p) as u8 as i32))
         {
             emsg(gettext(E_LETUNEXP));
             return ptr::null_mut();
@@ -1919,11 +1911,11 @@ fn ex_let_register(
         let mut arg_end: *mut c_char = ptr::null_mut();
         arg = arg.add(1);
         if !op.is_null()
-            && crate::strings::vim_haschr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int)
+            && crate::strings::vim_haschr(c"+-*/%", crate::memory::cstr_first_byte(op) as i32)
         {
             semsg!(gettext(E_LETWRONG), op);
         } else if !endchars.is_null()
-            && !crate::strings::vim_haschr(endchars, *skipwhite(arg.add(1)) as u8 as c_int)
+            && !crate::strings::vim_haschr(endchars, *skipwhite(arg.add(1)) as u8 as i32)
         {
             emsg(gettext(E_LETUNEXP));
         } else {
@@ -1931,9 +1923,9 @@ fn ex_let_register(
             let mut p = tv_get_string_chk(&*tv);
             if !p.is_null() && !op.is_null() && crate::memory::cstr_first_byte(op) == b'.' {
                 let reg_c = if crate::memory::cstr_first_byte(arg) == b'@' {
-                    b'"' as c_int
+                    b'"' as i32
                 } else {
-                    crate::memory::cstr_first_byte(arg) as c_int
+                    crate::memory::cstr_first_byte(arg) as i32
                 };
                 if let Some(s) = get_reg_contents_str(reg_c, K_GREG_EXPR_SRC) {
                     let mut bytes = Vec::from(s.as_bytes());
@@ -1945,16 +1937,11 @@ fn ex_let_register(
             }
             if !p.is_null() {
                 let reg_c = if crate::memory::cstr_first_byte(arg) == b'@' {
-                    b'"' as c_int
+                    b'"' as i32
                 } else {
-                    crate::memory::cstr_first_byte(arg) as c_int
+                    crate::memory::cstr_first_byte(arg) as i32
                 };
-                write_reg_contents(
-                    reg_c,
-                    p,
-                    crate::memory::cstr_len(p) as isize,
-                    false as c_int,
-                );
+                write_reg_contents(reg_c, p, crate::memory::cstr_len(p) as isize, false as i32);
                 arg_end = arg.add(1);
             }
             drop(ptofree);
@@ -1984,14 +1971,14 @@ fn ex_let_one(
             return ex_let_option(arg, tv, is_const, endchars, op);
         } else if crate::memory::cstr_first_byte(arg) == b'@' {
             return ex_let_register(arg, tv, is_const, endchars, op);
-        } else if eval_isnamec1(crate::memory::cstr_first_byte(arg) as c_int)
+        } else if eval_isnamec1(crate::memory::cstr_first_byte(arg) as i32)
             || crate::memory::cstr_first_byte(arg) == b'{'
         {
             let mut lv: Lval = Lval::new();
             let p = get_lval(arg, Some(tv), &mut lv, false, false, 0, FNE_CHECK_START);
             if !p.is_null() && !lv.ll_name.is_null() {
                 if !endchars.is_null()
-                    && !crate::strings::vim_haschr(endchars, *skipwhite(p) as u8 as c_int)
+                    && !crate::strings::vim_haschr(endchars, *skipwhite(p) as u8 as i32)
                 {
                     emsg(gettext(E_LETUNEXP));
                 } else {
@@ -2024,7 +2011,7 @@ pub fn ex_unlet(eap: &mut Exarg) {
 pub fn ex_lockvar(eap: &mut Exarg) {
     {
         let mut arg = eap.arg;
-        let mut deep: c_int = 2;
+        let mut deep: i32 = 2;
 
         if eap.forceit != 0 {
             deep = -1;
@@ -2041,8 +2028,8 @@ pub fn ex_lockvar(eap: &mut Exarg) {
 fn ex_unletlock(
     eap: &mut Exarg,
     argstart: impl crate::strings::IntoCCharPtr,
-    deep: c_int,
-    glv_flags: c_int,
+    deep: i32,
+    glv_flags: i32,
     callback: ExUnletlockCallback,
 ) {
     let argstart = argstart.into_c_char_ptr().cast_mut();
@@ -2106,7 +2093,7 @@ fn ex_unletlock(
 }
 
 /// Unlet a variable indicated by `lp`.
-fn do_unlet_var(lp: &mut Lval, name_end: *mut c_char, eap: &mut Exarg, _deep: c_int) -> bool {
+fn do_unlet_var(lp: &mut Lval, name_end: *mut c_char, eap: &mut Exarg, _deep: i32) -> bool {
     unsafe {
         let forceit = eap.forceit != 0;
         let mut ret = true;
@@ -2170,9 +2157,9 @@ fn do_unlet_var(lp: &mut Lval, name_end: *mut c_char, eap: &mut Exarg, _deep: c_
 fn tv_list_unlet_range(
     l: Option<&mut TvList>,
     li_first: *mut Listitem,
-    n1_arg: c_int,
+    n1_arg: i32,
     has_n2: bool,
-    n2: c_int,
+    n2: i32,
 ) {
     unsafe {
         debug_assert!(l.is_some());
@@ -2208,7 +2195,7 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
                 } else {
                     let di = find_var_in_ht(
                         &mut *ht,
-                        crate::memory::cstr_first_byte(name) as c_int,
+                        crate::memory::cstr_first_byte(name) as i32,
                         c"",
                         0,
                         0,
@@ -2227,8 +2214,8 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
             }
             if !hi.is_null() && !hashitem_empty(&*hi) {
                 let di = tv_dict_hi2di(hi);
-                if var_check_fixed(c_int::from(di.di_flags), name, TV_CSTRING)
-                    || var_check_ro(c_int::from(di.di_flags), name, TV_CSTRING)
+                if var_check_fixed(i32::from(di.di_flags), name, TV_CSTRING)
+                    || var_check_ro(i32::from(di.di_flags), name, TV_CSTRING)
                     || value_check_lock((*d).dv_lock, name, TV_CSTRING)
                 {
                     return false;
@@ -2263,9 +2250,9 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
 }
 
 /// Lock or unlock variable indicated by `lp`.
-fn do_lock_var(lp: &mut Lval, _name_end: *mut c_char, eap: &mut Exarg, deep: c_int) -> bool {
+fn do_lock_var(lp: &mut Lval, _name_end: *mut c_char, eap: &mut Exarg, deep: i32) -> bool {
     unsafe {
-        let lock = eap.cmdidx == Cmdidx::CmdLockvar as c_int;
+        let lock = eap.cmdidx == Cmdidx::CmdLockvar as i32;
         let mut ret = true;
 
         if lp.ll_tv.is_null() {
@@ -2380,7 +2367,7 @@ pub fn get_vim_var_partial(idx: VimVarIndex) -> *mut TvPartial {
 }
 
 /// Function to concatenate a prefix and a variable name.
-pub fn cat_prefix_varname(prefix: c_int, name: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+pub fn cat_prefix_varname(prefix: i32, name: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     let name = name.into_c_char_ptr();
     unsafe {
         let name_len = crate::memory::cstr_len(name);
@@ -2396,7 +2383,7 @@ pub fn cat_prefix_varname(prefix: c_int, name: impl crate::strings::IntoCCharPtr
 }
 
 /// Function given to ExpandGeneric() to obtain the list of user defined variable names.
-pub fn get_user_var_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     unsafe {
         if idx == 0 {
             vars_st().gdone = 0;
@@ -2418,7 +2405,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
             }
             let hi_key = (&*vars_st().hi).key_ptr();
             if b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2) {
-                return cat_prefix_varname(b'g' as c_int, hi_key);
+                return cat_prefix_varname(b'g' as i32, hi_key);
             }
             return hi_key;
         }
@@ -2434,7 +2421,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
             while hashitem_empty(&*vars_st().hi) {
                 vars_st().hi = vars_st().hi.add(1);
             }
-            return cat_prefix_varname(b'b' as c_int, (&*vars_st().hi).key_ptr());
+            return cat_prefix_varname(b'b' as i32, (&*vars_st().hi).key_ptr());
         }
 
         ht = &raw const (*prevwin_curwin()).w_vars().dv_hashtab;
@@ -2448,7 +2435,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
             while hashitem_empty(&*vars_st().hi) {
                 vars_st().hi = vars_st().hi.add(1);
             }
-            return cat_prefix_varname(b'w' as c_int, (&*vars_st().hi).key_ptr());
+            return cat_prefix_varname(b'w' as i32, (&*vars_st().hi).key_ptr());
         }
 
         ht = &raw const curtab_mut().tp_vars().dv_hashtab;
@@ -2462,13 +2449,13 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
             while hashitem_empty(&*vars_st().hi) {
                 vars_st().hi = vars_st().hi.add(1);
             }
-            return cat_prefix_varname(b't' as c_int, (&*vars_st().hi).key_ptr());
+            return cat_prefix_varname(b't' as i32, (&*vars_st().hi).key_ptr());
         }
 
         if vars_st().vidx < VV_LEN {
             let v = vars_st().vidx as VimVarIndex;
             vars_st().vidx += 1;
-            return cat_prefix_varname(b'v' as c_int, get_vim_var_name(v));
+            return cat_prefix_varname(b'v' as i32, get_vim_var_name(v));
         }
 
         vars_st().varnamebuf = Vec::new();
@@ -2509,7 +2496,7 @@ pub fn set_vim_var_special(idx: VimVarIndex, val: SpecialVarValue) {
     }
 }
 
-pub fn set_vim_var_char(c: c_int) {
+pub fn set_vim_var_char(c: i32) {
     let mut buf = [0 as c_char; MB_MAXCHAR + 1];
     let buflen = utf_char2bytes(c, buf.as_mut_ptr());
     buf[buflen as usize] = NUL;
@@ -2566,10 +2553,10 @@ pub fn set_vim_var_partial(idx: VimVarIndex, val: *mut TvPartial) {
     }
 }
 
-pub fn set_reg_var(c: c_int) {
+pub fn set_reg_var(c: i32) {
     {
         let mut regname: [c_char; 2] = [0, NUL];
-        if c == 0 || c == b' ' as c_int {
+        if c == 0 || c == b' ' as i32 {
             regname[0] = b'"' as c_char;
         } else {
             regname[0] = c as u8 as c_char;
@@ -2626,9 +2613,9 @@ pub fn set_cmdarg(
         }
 
         if eap.unwrap().force_ff != 0 {
-            let ff_str: &[u8] = if eap.unwrap().force_ff == b'u' as c_int {
+            let ff_str: &[u8] = if eap.unwrap().force_ff == b'u' as i32 {
                 b" ++ff=unix"
-            } else if eap.unwrap().force_ff == b'd' as c_int {
+            } else if eap.unwrap().force_ff == b'd' as i32 {
                 b" ++ff=dos"
             } else {
                 b" ++ff=mac"
@@ -2690,7 +2677,7 @@ pub fn set_vcount(count: i64, count1: i64, set_prevcount: bool) {
 /// Get the value of internal variable "name".
 pub fn eval_variable(
     name: impl crate::strings::IntoCCharPtr,
-    len: c_int,
+    len: i32,
     rettv: Option<&mut TypVal>,
     dip: *mut *mut Dictitem,
     verbose: bool,
@@ -2701,12 +2688,7 @@ pub fn eval_variable(
         let mut ret = true;
         let mut tv: *mut TypVal = ptr::null_mut();
 
-        let v = find_var(
-            name,
-            len as usize,
-            ptr::null_mut(),
-            c_int::from(no_autoload),
-        );
+        let v = find_var(name, len as usize, ptr::null_mut(), i32::from(no_autoload));
         if !v.is_null() {
             tv = &raw mut (*v).di_tv;
             if !dip.is_null() {
@@ -2751,7 +2733,7 @@ pub fn find_var(
     name: impl crate::strings::IntoCCharPtr,
     name_len: usize,
     htp: *mut *mut Hashtab,
-    no_autoload: c_int,
+    no_autoload: i32,
 ) -> *mut Dictitem {
     let name = name.into_c_char_ptr();
     unsafe {
@@ -2765,10 +2747,10 @@ pub fn find_var(
         }
         let ret = find_var_in_ht(
             &mut *ht,
-            crate::memory::cstr_first_byte(name) as c_int,
+            crate::memory::cstr_first_byte(name) as i32,
             varname,
             name_len - (varname.offset_from(name) as usize),
-            c_int::from(no_autoload != 0 || !htp.is_null()),
+            i32::from(no_autoload != 0 || !htp.is_null()),
         );
         if !ret.is_null() {
             return ret;
@@ -2777,7 +2759,7 @@ pub fn find_var(
         find_var_in_scoped_ht(
             name,
             name_len,
-            c_int::from(no_autoload != 0 || !htp.is_null()),
+            i32::from(no_autoload != 0 || !htp.is_null()),
         )
     }
 }
@@ -2785,10 +2767,10 @@ pub fn find_var(
 /// Find variable in hashtab.
 pub fn find_var_in_ht(
     ht: &mut Hashtab,
-    htname: c_int,
+    htname: i32,
     varname: impl crate::strings::IntoCCharPtr,
     varname_len: usize,
-    no_autoload: c_int,
+    no_autoload: i32,
 ) -> *mut Dictitem {
     let varname = varname.into_c_char_ptr();
     unsafe {
@@ -2958,7 +2940,7 @@ pub fn vars_clear(ht: &mut Hashtab) {
 pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
     unsafe {
         hash_lock(ht);
-        let mut todo = ht.ht_used as c_int;
+        let mut todo = ht.ht_used as i32;
         let mut hi = ht.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
@@ -2988,7 +2970,7 @@ fn delete_var(ht: &mut Hashtab, hi: &mut Hashitem) {
 }
 
 /// List the value of one internal variable.
-fn list_one_var(v: &mut Dictitem, prefix: impl crate::strings::IntoCCharPtr, first: &mut c_int) {
+fn list_one_var(v: &mut Dictitem, prefix: impl crate::strings::IntoCCharPtr, first: &mut i32) {
     let prefix = prefix.into_c_char_ptr();
     {
         let s = encode_tv2echo(&mut v.di_tv, None);
@@ -3009,7 +2991,7 @@ fn list_one_var_a(
     name_len: isize,
     v_type: VarType,
     string: impl crate::strings::IntoCCharPtr,
-    first: &mut c_int,
+    first: &mut i32,
 ) {
     let name = name.into_c_char_ptr();
     let mut string = string.into_c_char_ptr();
@@ -3019,7 +3001,7 @@ fn list_one_var_a(
             msg_ext_set_kind(c"list_cmd");
             msg_start();
         } else {
-            msg_putchar(b'\n' as c_int);
+            msg_putchar(b'\n' as i32);
         }
         if !crate::memory::cstr_is_empty(prefix) {
             msg_puts(prefix);
@@ -3027,24 +3009,24 @@ fn list_one_var_a(
         if !name.is_null() {
             msg_puts_len(name, name_len, 0, false);
         }
-        msg_putchar(b' ' as c_int);
+        msg_putchar(b' ' as i32);
         msg_advance(22);
         if v_type == VarType::VarNumber {
-            msg_putchar(b'#' as c_int);
+            msg_putchar(b'#' as i32);
         } else if v_type == VarType::VarFunc || v_type == VarType::VarPartial {
-            msg_putchar(b'*' as c_int);
+            msg_putchar(b'*' as i32);
         } else if v_type == VarType::VarList {
-            msg_putchar(b'[' as c_int);
+            msg_putchar(b'[' as i32);
             if crate::memory::cstr_first_byte(string) == b'[' {
                 string = string.add(1);
             }
         } else if v_type == VarType::VarDict {
-            msg_putchar(b'{' as c_int);
+            msg_putchar(b'{' as i32);
             if crate::memory::cstr_first_byte(string) == b'{' {
                 string = string.add(1);
             }
         } else {
-            msg_putchar(b' ' as c_int);
+            msg_putchar(b' ' as i32);
         }
 
         msg_outtrans(string, 0, false);
@@ -3102,9 +3084,9 @@ pub fn before_set_vvar(
             di.di_tv.vval = crate::eval::typval::TypvalVval::Number(tv_get_number(&*tv));
             if crate::memory::cstr_as_bytes(varname) == b"searchforward" {
                 set_search_direction(if di.di_tv.vval.v_number() != 0 {
-                    b'/' as c_int
+                    b'/' as i32
                 } else {
-                    b'?' as c_int
+                    b'?' as i32
                 });
             } else if crate::memory::cstr_as_bytes(varname) == b"hlsearch" {
                 g_st().search_global.no_hlsearch = di.di_tv.vval.v_number() == 0;
@@ -3176,9 +3158,9 @@ pub fn set_var_const(
                 return;
             }
 
-            if var_check_ro(c_int::from((*di).di_flags), name, name_len)
+            if var_check_ro(i32::from((*di).di_flags), name, name_len)
                 || value_check_lock((*di).di_tv.v_lock, name, name_len)
-                || var_check_lock(c_int::from((*di).di_flags), name, name_len)
+                || var_check_lock(i32::from((*di).di_flags), name, name_len)
             {
                 return;
             }
@@ -3246,7 +3228,7 @@ pub fn set_var_const(
 
 /// Check whether variable is read-only (DI_FLAGS_RO, DI_FLAGS_RO_SBX).
 pub fn var_check_ro(
-    flags: c_int,
+    flags: i32,
     name: impl crate::strings::IntoCCharPtr,
     mut name_len: usize,
 ) -> bool {
@@ -3270,14 +3252,14 @@ pub fn var_check_ro(
             name_len = crate::memory::cstr_len(name);
         }
 
-        semsg!(gettext(error_message), name_len as c_int, name);
+        semsg!(gettext(error_message), name_len as i32, name);
         true
     }
 }
 
 /// Return true if di_flags "flags" indicates variable "name" is locked.
 pub fn var_check_lock(
-    flags: c_int,
+    flags: i32,
     name: impl crate::strings::IntoCCharPtr,
     mut name_len: usize,
 ) -> bool {
@@ -3296,7 +3278,7 @@ pub fn var_check_lock(
 
         semsg!(
             gettext(c"E1122: Variable is locked: %.*s"),
-            name_len as c_int,
+            name_len as i32,
             name,
         );
         true
@@ -3305,7 +3287,7 @@ pub fn var_check_lock(
 
 /// Check whether variable is fixed (DI_FLAGS_FIX).
 pub fn var_check_fixed(
-    flags: c_int,
+    flags: i32,
     name: impl crate::strings::IntoCCharPtr,
     mut name_len: usize,
 ) -> bool {
@@ -3318,11 +3300,7 @@ pub fn var_check_fixed(
             } else if name_len == TV_CSTRING {
                 name_len = crate::memory::cstr_len(name);
             }
-            semsg!(
-                gettext(E_CANNOT_DELETE_VARIABLE_STR),
-                name_len as c_int,
-                name,
-            );
+            semsg!(gettext(E_CANNOT_DELETE_VARIABLE_STR), name_len as i32, name,);
             return true;
         }
         false
@@ -3340,10 +3318,10 @@ pub fn var_wrong_func_name(name: impl crate::strings::IntoCCharPtr, new_var: boo
         } else {
             *name
         };
-        if !(crate::strings::vim_haschr(c"wbst", crate::memory::cstr_first_byte(name) as c_int)
+        if !(crate::strings::vim_haschr(c"wbst", crate::memory::cstr_first_byte(name) as i32)
             && crate::memory::cstr_byte_at(name, 1) == b':')
             && !ascii_isupper(first_after_scope)
-            && !crate::strings::vim_haschr(name, b'#' as c_int)
+            && !crate::strings::vim_haschr(name, b'#' as i32)
         {
             semsg!(
                 gettext(c"E704: Funcref variable name must start with a capital: %s"),
@@ -3368,7 +3346,7 @@ pub fn valid_varname(varname: impl crate::strings::IntoCCharPtr) -> bool {
     unsafe {
         let mut p = varname;
         while !crate::memory::cstr_is_empty(p) {
-            if !eval_isnamec1(crate::memory::cstr_first_byte(p) as c_int)
+            if !eval_isnamec1(crate::memory::cstr_first_byte(p) as i32)
                 && (p == varname || !ascii_isdigit(crate::memory::cstr_first_char(p)))
                 && *p != AUTOLOAD_CHAR
             {
@@ -3386,7 +3364,7 @@ fn get_var_from(
     varname: impl crate::strings::IntoCCharPtr,
     rettv: &mut TypVal,
     deftv: &mut TypVal,
-    htname: c_int,
+    htname: i32,
     tp: *mut TabPageInfo,
     win: *mut WinInfoInfo,
     buf: *mut FileBuf,
@@ -3394,7 +3372,7 @@ fn get_var_from(
     let mut varname = varname.into_c_char_ptr();
     unsafe {
         let mut done = false;
-        let do_change_curbuf = !buf.is_null() && htname == b'b' as c_int;
+        let do_change_curbuf = !buf.is_null() && htname == b'b' as i32;
 
         g_st().emsg_off += 1;
 
@@ -3404,7 +3382,7 @@ fn get_var_from(
         if !varname.is_null()
             && !tp.is_null()
             && !win.is_null()
-            && (htname != b'b' as c_int || !buf.is_null())
+            && (htname != b'b' as i32 || !buf.is_null())
         {
             let need_switch_win =
                 !(tp == g_st().curtab && win == curwin_ptr()) && !do_change_curbuf;
@@ -3418,7 +3396,7 @@ fn get_var_from(
                     K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                 )
             {
-                if crate::memory::cstr_first_byte(varname) == b'&' && htname != b't' as c_int {
+                if crate::memory::cstr_first_byte(varname) == b'&' && htname != b't' as i32 {
                     let save_curbuf = g_st().curbuf;
 
                     if do_change_curbuf {
@@ -3426,7 +3404,7 @@ fn get_var_from(
                     }
 
                     if crate::memory::cstr_byte_at(varname, 1) == 0 {
-                        let opts = get_winbuf_options(c_int::from(htname == b'b' as c_int));
+                        let opts = get_winbuf_options(i32::from(htname == b'b' as i32));
                         tv_dict_set_ret(rettv, opts);
                         done = true;
                     } else if eval_option(&raw mut varname, Some(rettv), true) {
@@ -3435,9 +3413,9 @@ fn get_var_from(
 
                     g_st().curbuf = save_curbuf;
                 } else if crate::memory::cstr_is_empty(varname) {
-                    let v: *const ScopeDictDictItem = if htname == b'b' as c_int {
+                    let v: *const ScopeDictDictItem = if htname == b'b' as i32 {
                         &raw const (*buf).b_bufvar
-                    } else if htname == b'w' as c_int {
+                    } else if htname == b'w' as i32 {
                         (&raw const (*win).w_winvar).cast()
                     } else {
                         (&raw const (*tp).tp_winvar).cast()
@@ -3445,9 +3423,9 @@ fn get_var_from(
                     tv_copy(&(*v).di_tv, rettv);
                     done = true;
                 } else {
-                    let ht = if htname == b'b' as c_int {
+                    let ht = if htname == b'b' as i32 {
                         &raw mut (*buf).b_vars().dv_hashtab
-                    } else if htname == b'w' as c_int {
+                    } else if htname == b'w' as i32 {
                         &raw mut (*win).w_vars().dv_hashtab
                     } else {
                         &raw mut (*tp).tp_vars().dv_hashtab
@@ -3484,7 +3462,7 @@ fn get_var_from(
 fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
     {
         let tp = if off == 1 {
-            find_tabpage(tv_get_number_chk(&argvars[0], None) as c_int)
+            find_tabpage(tv_get_number_chk(&argvars[0], None) as i32)
         } else {
             g_st().curtab
         };
@@ -3495,7 +3473,7 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
             varname,
             rettv,
             &mut argvars[off + 2],
-            b'w' as c_int,
+            b'w' as i32,
             tp,
             win,
             ptr::null_mut(),
@@ -3667,7 +3645,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         }
 
         let tp = if off == 1 {
-            find_tabpage(tv_get_number_chk(&argvars[0], None) as c_int)
+            find_tabpage(tv_get_number_chk(&argvars[0], None) as i32)
         } else {
             g_st().curtab
         };
@@ -3772,7 +3750,7 @@ pub fn var_exists(var: impl crate::strings::IntoCCharPtr) -> bool {
 pub fn var_redir_start(name: impl crate::strings::IntoCCharPtr, append: bool) -> bool {
     let name = name.into_c_char_ptr();
     unsafe {
-        if !eval_isnamec1(crate::memory::cstr_first_byte(name) as c_int) {
+        if !eval_isnamec1(crate::memory::cstr_first_byte(name) as i32) {
             emsg(gettext(E_INVARG));
             return false;
         }
@@ -3848,7 +3826,7 @@ pub fn var_redir_start(name: impl crate::strings::IntoCCharPtr, append: bool) ->
 }
 
 /// Append "value[value_len]" to the variable set by var_redir_start().
-pub fn var_redir_str(value: impl crate::strings::IntoCCharPtr, value_len: c_int) {
+pub fn var_redir_str(value: impl crate::strings::IntoCCharPtr, value_len: i32) {
     let value = value.into_c_char_ptr();
     unsafe {
         if vars_st().redir_lval.is_none() {
@@ -3918,7 +3896,7 @@ pub fn var_redir_stop() {
 pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     {
         let varname = tv_get_string_chk(&argvars[1]);
-        let tp = find_tabpage(tv_get_number_chk(&argvars[0], None) as c_int);
+        let tp = find_tabpage(tv_get_number_chk(&argvars[0], None) as i32);
         let mut win: *mut WinInfoInfo = ptr::null_mut();
 
         if !tp.is_null() {
@@ -3934,7 +3912,7 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             varname,
             &mut *rettv,
             &mut argvars[2],
-            b't' as c_int,
+            b't' as i32,
             tp,
             win,
             ptr::null_mut(),
@@ -3962,7 +3940,7 @@ pub fn f_getbufvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             varname,
             &mut *rettv,
             &mut argvars[2],
-            b'b' as c_int,
+            b'b' as i32,
             g_st().curtab,
             curwin_ptr(),
             buf,
@@ -3977,7 +3955,7 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
             return;
         }
 
-        let tp = find_tabpage(tv_get_number_chk(&argvars[0], None) as c_int);
+        let tp = find_tabpage(tv_get_number_chk(&argvars[0], None) as i32);
         let varname = tv_get_string_chk(&argvars[1]);
         let varp = (&raw mut argvars[2]);
 

@@ -26,7 +26,7 @@ use crate::path::{add_pathsep, vim_full_name, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
 use crate::window::{Frame, TabPageInfo, WinInfoInfo, tabpage_index};
-use std::ffi::{CString, c_char, c_int, c_uint};
+use std::ffi::{CString, c_char};
 use std::ptr;
 
 use crate::api::win_config::FR_COL;
@@ -34,28 +34,28 @@ use crate::drawscreen::FR_LEAF;
 use crate::math::FAIL;
 use crate::regexp::MAXCOL;
 
-pub(crate) const OPT_SKIPRTP: c_int = 0x80;
-pub(crate) const K_CD_CAUSE_OTHER: c_int = -1;
+pub(crate) const OPT_SKIPRTP: i32 = 0x80;
+pub(crate) const K_CD_CAUSE_OTHER: i32 = -1;
 
-const CMD_MKSESSION: c_int = 287;
-const CMD_MKVIMRC: c_int = 289;
-const CMD_MKVIEW: c_int = 290;
+const CMD_MKSESSION: i32 = 287;
+const CMD_MKVIMRC: i32 = 289;
+const CMD_MKVIEW: i32 = 290;
 
-const K_OPT_SSOP_FLAG_BUFFERS: c_uint = 0x01;
-const K_OPT_SSOP_FLAG_RESIZE: c_uint = 0x04;
-const K_OPT_SSOP_FLAG_WINSIZE: c_uint = 0x08;
-const K_OPT_SSOP_FLAG_LOCALOPTIONS: c_uint = 0x10;
-const K_OPT_SSOP_FLAG_OPTIONS: c_uint = 0x20;
-const K_OPT_SSOP_FLAG_HELP: c_uint = 0x40;
-const K_OPT_SSOP_FLAG_BLANK: c_uint = 0x80;
-const K_OPT_SSOP_FLAG_GLOBALS: c_uint = 0x100;
-pub(crate) const K_OPT_SSOP_FLAG_SESDIR: c_uint = 0x800;
-pub(crate) const K_OPT_SSOP_FLAG_CURDIR: c_uint = 0x1000;
-const K_OPT_SSOP_FLAG_FOLDS: c_uint = 0x2000;
-const K_OPT_SSOP_FLAG_CURSOR: c_uint = 0x4000;
-const K_OPT_SSOP_FLAG_TABPAGES: c_uint = 0x8000;
-const K_OPT_SSOP_FLAG_TERMINAL: c_uint = 0x10000;
-const K_OPT_SSOP_FLAG_SKIPRTP: c_uint = 0x20000;
+const K_OPT_SSOP_FLAG_BUFFERS: u32 = 0x01;
+const K_OPT_SSOP_FLAG_RESIZE: u32 = 0x04;
+const K_OPT_SSOP_FLAG_WINSIZE: u32 = 0x08;
+const K_OPT_SSOP_FLAG_LOCALOPTIONS: u32 = 0x10;
+const K_OPT_SSOP_FLAG_OPTIONS: u32 = 0x20;
+const K_OPT_SSOP_FLAG_HELP: u32 = 0x40;
+const K_OPT_SSOP_FLAG_BLANK: u32 = 0x80;
+const K_OPT_SSOP_FLAG_GLOBALS: u32 = 0x100;
+pub(crate) const K_OPT_SSOP_FLAG_SESDIR: u32 = 0x800;
+pub(crate) const K_OPT_SSOP_FLAG_CURDIR: u32 = 0x1000;
+const K_OPT_SSOP_FLAG_FOLDS: u32 = 0x2000;
+const K_OPT_SSOP_FLAG_CURSOR: u32 = 0x4000;
+const K_OPT_SSOP_FLAG_TABPAGES: u32 = 0x8000;
+const K_OPT_SSOP_FLAG_TERMINAL: u32 = 0x10000;
+const K_OPT_SSOP_FLAG_SKIPRTP: u32 = 0x20000;
 
 struct ExSessionState {
     did_lcd: bool,
@@ -93,21 +93,21 @@ fn write_fmt(fd: *mut FILE, s: String) -> bool {
     write_bytes(fd, s.as_bytes())
 }
 
-fn put_view_curpos(fd: *mut FILE, wp: &WinInfoInfo, spaces: &str) -> c_int {
+fn put_view_curpos(fd: *mut FILE, wp: &WinInfoInfo, spaces: &str) -> i32 {
     {
         let s = if wp.w_curswant == MAXCOL {
             format!("{spaces}normal! $\n")
         } else {
             format!("{spaces}normal! 0{}|\n", wp.w_virtcol + 1)
         };
-        c_int::from(write_fmt(fd, s))
+        i32::from(write_fmt(fd, s))
     }
 }
 
 fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInfo) -> bool {
     {
         if restore_size && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
-            let mut n: c_int = 0;
+            let mut n: i32 = 0;
             for wp in win_iter_mut(tab_firstwin) {
                 if ses_do_win(wp) == 0 {
                     continue;
@@ -152,7 +152,7 @@ fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInf
 
 fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
     unsafe {
-        let mut count: c_int = 0;
+        let mut count: i32 = 0;
 
         if fr.fr_layout == FR_LEAF {
             return true;
@@ -228,20 +228,20 @@ fn ses_do_frame(fr: &Frame) -> bool {
     }
 }
 
-fn ses_do_win(wp: &mut WinInfoInfo) -> c_int {
+fn ses_do_win(wp: &mut WinInfoInfo) -> i32 {
     unsafe {
         if wp.w_floating {
             return 0;
         }
         let buf = wp.w_buffer;
         if (*buf).b_fname.is_null() || ((*buf).terminal.is_null() && bt_nofilename(buf.as_ref())) {
-            return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_BLANK) as c_int;
+            return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_BLANK) as i32;
         }
         if bt_help(buf.as_ref()) {
-            return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) as c_int;
+            return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) as i32;
         }
         if bt_terminal(buf.as_ref()) {
-            return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) as c_int;
+            return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) as i32;
         }
         1
     }
@@ -252,7 +252,7 @@ fn ses_arglist(
     cmd: &std::ffi::CStr,
     gap: &[Aentry],
     fullname: bool,
-    _flagp: &mut c_uint,
+    _flagp: &mut u32,
 ) -> bool {
     if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd.as_ptr()))) {
         return false;
@@ -278,7 +278,7 @@ fn ses_arglist(
     true
 }
 
-fn ses_get_fname(buf: &mut FileBuf, flagp: &c_uint) -> *mut c_char {
+fn ses_get_fname(buf: &mut FileBuf, flagp: &u32) -> *mut c_char {
     {
         if !buf.b_sfname.is_null()
             && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
@@ -292,7 +292,7 @@ fn ses_get_fname(buf: &mut FileBuf, flagp: &c_uint) -> *mut c_char {
     }
 }
 
-fn ses_fname(fd: *mut FILE, buf: &mut FileBuf, flagp: &mut c_uint, add_eol: bool) -> bool {
+fn ses_fname(fd: *mut FILE, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -> bool {
     let name = ses_get_fname(buf, flagp);
     if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
         return false;
@@ -321,11 +321,7 @@ fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString {
     }
 }
 
-fn ses_put_fname(
-    fd: *mut FILE,
-    name: impl crate::strings::IntoCCharPtr,
-    _flagp: &mut c_uint,
-) -> bool {
+fn ses_put_fname(fd: *mut FILE, name: impl crate::strings::IntoCCharPtr, _flagp: &mut u32) -> bool {
     let name = name.into_c_char_ptr();
     unsafe {
         let p = ses_escape_fname(name);
@@ -338,8 +334,8 @@ fn put_view(
     wp: &mut WinInfoInfo,
     tp: &mut TabPageInfo,
     add_edit: bool,
-    flagp: &mut c_uint,
-    current_arg_idx: c_int,
+    flagp: &mut u32,
+    current_arg_idx: i32,
 ) -> bool {
     unsafe {
         let mut did_next = false;
@@ -366,7 +362,7 @@ fn put_view(
             }
         }
 
-        let wargcount = crate::arglist::win_alist(&*wp).al_ga.len() as c_int;
+        let wargcount = crate::arglist::win_alist(&*wp).al_ga.len() as i32;
         if wp.w_arg_idx != current_arg_idx
             && wp.w_arg_idx < wargcount
             && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
@@ -446,7 +442,7 @@ fn put_view(
             makeset(
                 fd,
                 OPT_LOCAL,
-                c_int::from(
+                i32::from(
                     ptr::eq(flagp, &raw mut opt_vars().vop_flags)
                         || (*flagp & K_OPT_SSOP_FLAG_OPTIONS) == 0,
                 ),
@@ -611,8 +607,8 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
     unsafe {
         let mut only_save_windows = true;
         let mut edited_win: *mut WinInfoInfo = ptr::null_mut();
-        let mut cur_arg_idx: c_int = 0;
-        let mut next_arg_idx: c_int = 0;
+        let mut cur_arg_idx: i32 = 0;
+        let mut next_arg_idx: i32 = 0;
 
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_BUFFERS) != 0 {
             only_save_windows = false;
@@ -778,7 +774,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
         for tp_iter in for_all_tabpages_ptr() {
             let mut tp: *mut TabPageInfo = tp_iter;
             let mut need_tabnext = false;
-            let mut cnr: c_int = 1;
+            let mut cnr: i32 = 1;
             let tab_firstwin: *mut WinInfoInfo;
             let tab_topframe: *mut Frame;
 
@@ -859,7 +855,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                 return false;
             }
 
-            let mut nr: c_int = 0;
+            let mut nr: i32 = 0;
             let mut restore_size = true;
             wp = tab_firstwin;
             while !wp.is_null() {
@@ -1012,8 +1008,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         let fname: *mut c_char;
         if eap.cmdidx == CMD_MKVIEW
             && (crate::memory::cstr_is_empty(eap.arg)
-                || (ascii_isdigit(*eap.arg as c_int)
-                    && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
+                || (ascii_isdigit(*eap.arg as i32) && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
         {
             eap.forceit = 1;
             let Some(vf) = get_view_file(*eap.arg) else {
@@ -1182,7 +1177,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
         let mut p = sname;
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'='
-                || vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(p)))
+                || vim_ispathsep(i32::from(crate::memory::cstr_first_byte(p)))
             {
                 len += 1;
             }
@@ -1201,7 +1196,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
                 *s = b'=' as c_char;
                 *s.add(1) = b'=' as c_char;
                 s = s.add(2);
-            } else if vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(p))) {
+            } else if vim_ispathsep(i32::from(crate::memory::cstr_first_byte(p))) {
                 *s = b'=' as c_char;
                 #[cfg(windows)]
                 {
@@ -1233,7 +1228,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
 
 pub fn put_eol(fd: *mut FILE) -> bool {
     unsafe {
-        if fputc(b'\n' as c_int, fd) < 0 {
+        if fputc(b'\n' as i32, fd) < 0 {
             return false;
         }
         true
@@ -1242,7 +1237,7 @@ pub fn put_eol(fd: *mut FILE) -> bool {
 
 pub fn put_line(fd: *mut FILE, s: &std::ffi::CStr) -> bool {
     unsafe {
-        if fputs(s.as_ptr().cast_mut(), fd) < 0 || fputc(b'\n' as c_int, fd) < 0 {
+        if fputs(s.as_ptr().cast_mut(), fd) < 0 || fputc(b'\n' as i32, fd) < 0 {
             return false;
         }
         true

@@ -5,7 +5,6 @@ use crate::event::r#loop::{
 };
 use crate::event::multiqueue::{Event, MultiQueue, multiqueue_put_event};
 use crate::event::time::loop_fast_events;
-use std::ffi::c_int;
 use std::ptr;
 
 #[repr(C)]
@@ -13,7 +12,7 @@ pub struct SignalWatcher {
     pub uv: [u64; 40],
     pub data: *mut crate::tui::tui::TUIData,
     pub events: *mut MultiQueue,
-    pub signum: c_int,
+    pub signum: i32,
 }
 
 impl SignalWatcher {
@@ -47,7 +46,7 @@ pub fn signal_watcher_init(
     }
 }
 
-pub fn signal_watcher_start(watcher: &mut SignalWatcher, signum: c_int) {
+pub fn signal_watcher_start(watcher: &mut SignalWatcher, signum: i32) {
     unsafe {
         watcher.signum = signum;
         uv_signal_start(
@@ -80,7 +79,7 @@ pub fn signal_event(watcher: &mut SignalWatcher) {
     }
 }
 
-unsafe extern "C" fn signal_watcher_cb(handle: *mut uv_signal_t, signum: c_int) {
+unsafe extern "C" fn signal_watcher_cb(handle: *mut uv_signal_t, signum: i32) {
     unsafe {
         let watcher = *handle.cast::<*mut SignalWatcher>();
         (*watcher).signum = signum;

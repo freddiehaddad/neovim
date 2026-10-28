@@ -19,7 +19,7 @@ use crate::os::shell::get_cmd_output;
 use crate::path::{path_tail, path_tail_with_sep};
 use crate::profile::time_msg;
 use crate::strings::gettext;
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CStr, CString, c_char};
 use std::path::{Path, PathBuf};
 use std::ptr;
 
@@ -28,50 +28,50 @@ pub(crate) const HAVE_LIBINTL: bool = match option_env!("NVIM_HAVE_LIBINTL") {
     None => true,
 };
 
-pub(crate) const LC_CTYPE: c_int = if cfg!(target_os = "linux") { 0 } else { 2 };
+pub(crate) const LC_CTYPE: i32 = if cfg!(target_os = "linux") { 0 } else { 2 };
 
 #[cfg(windows)]
-const LC_ALL: c_int = 0;
+const LC_ALL: i32 = 0;
 #[cfg(windows)]
-const LC_COLLATE: c_int = 1;
+const LC_COLLATE: i32 = 1;
 #[cfg(windows)]
-const LC_NUMERIC: c_int = 4;
+const LC_NUMERIC: i32 = 4;
 #[cfg(windows)]
-const LC_TIME: c_int = 5;
+const LC_TIME: i32 = 5;
 #[cfg(windows)]
-const VIM_LC_MESSAGES: c_int = 6789;
+const VIM_LC_MESSAGES: i32 = 6789;
 
 #[cfg(target_os = "linux")]
-const LC_NUMERIC: c_int = 1;
+const LC_NUMERIC: i32 = 1;
 #[cfg(target_os = "linux")]
-const LC_TIME: c_int = 2;
+const LC_TIME: i32 = 2;
 #[cfg(target_os = "linux")]
-const LC_COLLATE: c_int = 3;
+const LC_COLLATE: i32 = 3;
 #[cfg(target_os = "linux")]
-const LC_MESSAGES: c_int = 5;
+const LC_MESSAGES: i32 = 5;
 #[cfg(target_os = "linux")]
-const LC_ALL: c_int = 6;
+const LC_ALL: i32 = 6;
 #[cfg(target_os = "linux")]
-const VIM_LC_MESSAGES: c_int = LC_MESSAGES;
+const VIM_LC_MESSAGES: i32 = LC_MESSAGES;
 
 #[cfg(not(any(windows, target_os = "linux")))]
-const LC_ALL: c_int = 0;
+const LC_ALL: i32 = 0;
 #[cfg(not(any(windows, target_os = "linux")))]
-const LC_COLLATE: c_int = 1;
+const LC_COLLATE: i32 = 1;
 #[cfg(not(any(windows, target_os = "linux")))]
-const LC_NUMERIC: c_int = 4;
+const LC_NUMERIC: i32 = 4;
 #[cfg(not(any(windows, target_os = "linux")))]
-const LC_TIME: c_int = 5;
+const LC_TIME: i32 = 5;
 #[cfg(not(any(windows, target_os = "linux")))]
-const LC_MESSAGES: c_int = 6;
+const LC_MESSAGES: i32 = 6;
 #[cfg(not(any(windows, target_os = "linux")))]
-const VIM_LC_MESSAGES: c_int = LC_MESSAGES;
+const VIM_LC_MESSAGES: i32 = LC_MESSAGES;
 
 unsafe extern "C" {
-    pub(crate) fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
+    pub(crate) fn setlocale(category: i32, locale: *const c_char) -> *mut c_char;
 
     #[cfg(unix)]
-    pub(crate) fn nl_langinfo(item: c_int) -> *mut c_char;
+    pub(crate) fn nl_langinfo(item: i32) -> *mut c_char;
 }
 
 struct MoEntry {
@@ -580,7 +580,7 @@ use crate::diff::K_SHELL_OPT_SILENT;
 use crate::os::fs::MAXPATHL;
 
 #[inline]
-fn get_locale_val(what: c_int) -> *mut c_char {
+fn get_locale_val(what: i32) -> *mut c_char {
     unsafe { setlocale(what, ptr::null()) }
 }
 
@@ -800,7 +800,7 @@ pub fn free_locales() {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the possible arguments of `":language"`.
-pub fn get_lang_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_lang_arg(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     match idx {
         0 => c"messages".as_ptr().cast_mut(),
         1 => c"ctype".as_ptr().cast_mut(),
@@ -811,7 +811,7 @@ pub fn get_lang_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the available locales.
-pub fn get_locales(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_locales(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }

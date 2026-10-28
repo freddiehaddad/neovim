@@ -51,26 +51,26 @@ use crate::ui_compositor::{
 };
 use crate::window::{win_set_inner_size, win_ui_flush};
 use crate::winfloat::win_config_float;
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 const MAX_UI_COUNT: usize = 16;
-const SHAPE_IDX_N: c_int = 0;
-const SHAPE_IDX_R: c_int = 3;
+const SHAPE_IDX_N: i32 = 0;
+const SHAPE_IDX_R: i32 = 3;
 
 pub(crate) const K_UIGLOBAL_COUNT: usize = K_UILINEGRID;
 const K_UIFLOAT_DEBUG: usize = 9;
 
-pub(crate) const K_LINE_FLAG_INVALID: c_int = 2;
+pub(crate) const K_LINE_FLAG_INVALID: i32 = 2;
 
-const K_OPT_BO_FLAG_ALL: c_uint = 0x01;
-const K_OPT_RDB_FLAG_LINE: c_uint = 0x10;
-const K_OPT_RDB_FLAG_FLUSH: c_uint = 0x20;
+const K_OPT_BO_FLAG_ALL: u32 = 0x01;
+const K_OPT_RDB_FLAG_LINE: u32 = 0x10;
+const K_OPT_RDB_FLAG_FLUSH: u32 = 0x20;
 
-const K_MOUSE_NORMAL: c_int = b'n' as c_int;
-const K_MOUSE_RETURN: c_int = b'r' as c_int;
-const K_MOUSE_INSERT: c_int = b'i' as c_int;
-const K_MOUSE_COMMAND_CONST: c_int = b'c' as c_int;
+const K_MOUSE_NORMAL: i32 = b'n' as i32;
+const K_MOUSE_RETURN: i32 = b'r' as i32;
+const K_MOUSE_INSERT: i32 = b'i' as i32;
+const K_MOUSE_COMMAND_CONST: i32 = b'c' as i32;
 const K_MOUSE_HELP: c_char = b'h' as c_char;
 const MOUSE_A: &CStr = c"nvich";
 
@@ -101,20 +101,20 @@ impl Drop for UIEventCallback {
 struct UiState {
     uis: Vec<*mut RemoteUI>,
     ui_ext: [bool; K_UIEXT_COUNT],
-    ui_mode_idx: c_int,
-    cursor_row: c_int,
-    cursor_col: c_int,
+    ui_mode_idx: i32,
+    cursor_row: i32,
+    cursor_col: i32,
     pending_cursor_update: bool,
-    busy: c_int,
+    busy: i32,
     pending_mode_info_update: bool,
     pending_mode_update: bool,
     cursor_grid_handle: ObjHandle,
     ui_event_cbs: std::collections::BTreeMap<u32, UIEventCallback>,
     ui_cb_ext: [bool; K_UIEXT_COUNT],
     has_mouse: bool,
-    pending_has_mouse: c_int,
+    pending_has_mouse: i32,
     pending_default_colors: bool,
-    beep_count: c_int,
+    beep_count: i32,
     beep_start_time: u64,
     ui_flush_was_busy: bool,
     ui_flush_cursor_was_obscured: bool,
@@ -234,8 +234,8 @@ pub fn ui_refresh() {
             std::process::abort();
         }
 
-        let mut width = c_int::MAX;
-        let mut height = c_int::MAX;
+        let mut width = i32::MAX;
+        let mut height = i32::MAX;
         let active = ui_active() != 0;
         let mut ext_widgets = [active; K_UIEXT_COUNT];
         let inclusive = ui_override();
@@ -305,9 +305,9 @@ pub fn ui_refresh() {
     }
 }
 
-pub fn ui_pum_get_height() -> c_int {
+pub fn ui_pum_get_height() -> i32 {
     unsafe {
-        let mut pum_height: c_int = 0;
+        let mut pum_height: i32 = 0;
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
@@ -387,7 +387,7 @@ pub fn ui_busy_stop() {
     }
 }
 
-pub fn vim_beep(val: c_uint) {
+pub fn vim_beep(val: u32) {
     if g_st().emsg_silent != 0 || g_st().in_assert_fails {
         g_st().did_beep_silent += 1;
         return;
@@ -412,7 +412,7 @@ pub fn vim_beep(val: c_uint) {
         }
     }
 
-    if crate::strings::vim_haschr(opt_vars().p_debug, b'e' as c_int) {
+    if crate::strings::vim_haschr(opt_vars().p_debug, b'e' as i32) {
         msg_source(HLF_W);
         msg(gettext(c"Beep!"), HLF_W);
     }
@@ -520,12 +520,12 @@ pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
 
 pub fn ui_line(
     grid: &mut ScreenGrid,
-    row: c_int,
+    row: i32,
     invalid_row: bool,
-    startcol: c_int,
-    endcol: c_int,
-    clearcol: c_int,
-    clearattr: c_int,
+    startcol: i32,
+    endcol: i32,
+    clearcol: i32,
+    clearattr: i32,
     wrap: bool,
 ) {
     unsafe {
@@ -563,11 +563,11 @@ pub fn ui_line(
     }
 }
 
-pub fn ui_cursor_goto(new_row: c_int, new_col: c_int) {
+pub fn ui_cursor_goto(new_row: i32, new_col: i32) {
     ui_grid_cursor_goto(DEFAULT_GRID_HANDLE, new_row, new_col);
 }
 
-pub fn ui_grid_cursor_goto(grid_handle: ObjHandle, new_row: c_int, new_col: c_int) {
+pub fn ui_grid_cursor_goto(grid_handle: ObjHandle, new_row: i32, new_col: i32) {
     if new_row == ui_state().cursor_row
         && new_col == ui_state().cursor_col
         && grid_handle == ui_state().cursor_grid_handle
@@ -590,11 +590,11 @@ pub fn ui_mode_info_set() {
     ui_state().pending_mode_info_update = true;
 }
 
-pub fn ui_current_row() -> c_int {
+pub fn ui_current_row() -> i32 {
     ui_state().cursor_row
 }
 
-pub fn ui_current_col() -> c_int {
+pub fn ui_current_col() -> i32 {
     ui_state().cursor_col
 }
 
@@ -666,13 +666,13 @@ pub fn ui_flush() {
             ui_state().ui_flush_cursor_was_obscured = cursor_obscured;
         }
 
-        if ui_state().pending_has_mouse != c_int::from(ui_state().has_mouse) {
+        if ui_state().pending_has_mouse != i32::from(ui_state().has_mouse) {
             if ui_state().has_mouse {
                 ui_call_mouse_on();
             } else {
                 ui_call_mouse_off();
             }
-            ui_state().pending_has_mouse = c_int::from(ui_state().has_mouse);
+            ui_state().pending_has_mouse = i32::from(ui_state().has_mouse);
         }
         ui_call_flush();
 
@@ -701,7 +701,7 @@ pub fn ui_check_mouse() {
         } else if (g_st().state_global & MODE_CMDLINE) != 0 {
             K_MOUSE_COMMAND_CONST
         } else if g_st().state_global == MODE_EXTERNCMD {
-            b' ' as c_int
+            b' ' as i32
         } else {
             K_MOUSE_NORMAL
         };
@@ -712,7 +712,7 @@ pub fn ui_check_mouse() {
     }
 }
 
-pub fn ui_mouse_has(mode: c_int) -> bool {
+pub fn ui_mouse_has(mode: i32) -> bool {
     {
         let p = opt_vars().p_mouse;
         for &p_byte in crate::memory::cstr_as_bytes(p) {
@@ -724,7 +724,7 @@ pub fn ui_mouse_has(mode: c_int) -> bool {
                 if mode != K_MOUSE_RETURN && curbuf_mut().b_help {
                     return true;
                 }
-            } else if mode == (p_byte as c_char) as c_int {
+            } else if mode == (p_byte as c_char) as i32 {
                 return true;
             }
         }
@@ -834,7 +834,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
     }
 }
 
-pub fn ui_grid_resize(grid_handle: ObjHandle, width: c_int, height: c_int, err: &mut Error) {
+pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut Error) {
     unsafe {
         if grid_handle == DEFAULT_GRID_HANDLE {
             screen_resize(width, height);
@@ -875,7 +875,7 @@ fn ui_attach_error(
 ) {
     let name = name.into_c_char_ptr();
     let msg = msg.into_c_char_ptr();
-    let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)");
+    let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)");
     logmsg!(
         LOGLVL_ERR,
         ptr::null(),
@@ -997,7 +997,7 @@ pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
             ui_cb_update_ext();
             ui_refresh();
             if checkerr {
-                let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)");
+                let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)");
                 msg_schedule_semsg!(c"Excessive errors in vim.ui_attach() callback (ns=%s)", ns,);
             }
         }
@@ -1285,7 +1285,7 @@ pub fn ui_call_raw_line(
     endcol: Integer,
     clearcol: Integer,
     clearattr: Integer,
-    flags: c_int,
+    flags: i32,
     chunk: *const Schar,
     attrs: *const Sattr,
 ) {
@@ -1306,7 +1306,7 @@ pub fn ui_composed_call_raw_line(
     endcol: Integer,
     clearcol: Integer,
     clearattr: Integer,
-    flags: c_int,
+    flags: i32,
     chunk: *const Schar,
     attrs: *const Sattr,
 ) {

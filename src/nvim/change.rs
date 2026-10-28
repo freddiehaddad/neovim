@@ -62,7 +62,7 @@ use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
 use crate::undo::{curbuf_is_changed_fn, u_clearline, u_save_cursor, u_savedel};
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
@@ -70,13 +70,13 @@ use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::ex_docmd::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
 use crate::regexp::{GRAPHEME_STATE_INIT, MAXCOL};
 
-pub const OPENLINE_DELSPACES: c_int = 0x01;
-pub const OPENLINE_DO_COM: c_int = 0x02;
-pub const OPENLINE_KEEPTRAIL: c_int = 0x04;
-pub const OPENLINE_MARKFIX: c_int = 0x08;
-pub const OPENLINE_COM_LIST: c_int = 0x10;
-pub const OPENLINE_FORMAT: c_int = 0x20;
-pub const OPENLINE_FORCE_INDENT: c_int = 0x40;
+pub const OPENLINE_DELSPACES: i32 = 0x01;
+pub const OPENLINE_DO_COM: i32 = 0x02;
+pub const OPENLINE_KEEPTRAIL: i32 = 0x04;
+pub const OPENLINE_MARKFIX: i32 = 0x08;
+pub const OPENLINE_COM_LIST: i32 = 0x10;
+pub const OPENLINE_FORMAT: i32 = 0x20;
+pub const OPENLINE_FORCE_INDENT: i32 = 0x40;
 
 pub(crate) const TAB: c_char = b'\t' as c_char;
 
@@ -94,23 +94,23 @@ pub(crate) const COM_LEFT: c_char = b'l' as c_char;
 pub(crate) const COM_RIGHT: c_char = b'r' as c_char;
 const COM_NOBACK: c_char = b'O' as c_char;
 
-pub(crate) const KEY_OPEN_FORW: c_int = 0x101;
-pub(crate) const KEY_OPEN_BACK: c_int = 0x102;
+pub(crate) const KEY_OPEN_FORW: i32 = 0x101;
+pub(crate) const KEY_OPEN_BACK: i32 = 0x102;
 
-pub(crate) const SIN_INSERT: c_int = 2;
-pub(crate) const SIN_NOMARK: c_int = 8;
+pub(crate) const SIN_INSERT: i32 = 2;
+pub(crate) const SIN_NOMARK: i32 = 8;
 
-pub(crate) const ML_DEL_MESSAGE: c_int = 1;
+pub(crate) const ML_DEL_MESSAGE: i32 = 1;
 
-pub(crate) const K_OPT_VE_FLAG_ONEMORE: c_uint = 0x08;
-pub(crate) const K_CPO_DOLLAR: c_int = b'$' as c_int;
-pub(crate) const K_CPO_LISTWM: c_int = b'L' as c_int;
-const K_FO_NO_OPEN_COMS: c_int = b'/' as c_int;
+pub(crate) const K_OPT_VE_FLAG_ONEMORE: u32 = 0x08;
+pub(crate) const K_CPO_DOLLAR: i32 = b'$' as i32;
+pub(crate) const K_CPO_LISTWM: i32 = b'L' as i32;
+const K_FO_NO_OPEN_COMS: i32 = b'/' as i32;
 
-pub(crate) const HLF_W: c_int = 26;
+pub(crate) const HLF_W: i32 = 26;
 
 #[inline]
-pub const fn replace_normal(s: c_int) -> bool {
+pub const fn replace_normal(s: i32) -> bool {
     (s & REPLACE_FLAG) != 0 && (s & VREPLACE_FLAG) == 0
 }
 
@@ -124,7 +124,7 @@ fn for_all_tab_windows(mut f: impl FnMut(&'static mut WinInfoInfo)) {
 }
 
 /// If the file is readonly, give a warning message with the first change.
-pub fn change_warning(buf: &mut FileBuf, col: c_int) {
+pub fn change_warning(buf: &mut FileBuf, col: i32) {
     {
         const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
@@ -183,7 +183,7 @@ pub fn changed(buf: &mut FileBuf) {
                     && !ui_has(K_UIMESSAGES)
                 {
                     msg_delay(2002, true);
-                    wait_return(c_int::from(true));
+                    wait_return(i32::from(true));
                     g_st().msg_scroll = save_msg_scroll;
                 } else {
                     g_st().need_wait_return = save_need_wait_return;
@@ -482,7 +482,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
 }
 
 /// Insert/delete bytes at column.
-pub fn inserted_bytes(lnum: Linenr, start_col: Colnr, old_col: c_int, new_col: c_int) {
+pub fn inserted_bytes(lnum: Linenr, start_col: Colnr, old_col: i32, new_col: i32) {
     if g_st().curbuf_splice_pending == 0 {
         extmark_splice_cols(
             curbuf_mut(),
@@ -508,7 +508,7 @@ pub fn appended_lines(lnum: Linenr, count: Linenr) {
 }
 
 /// Like `appended_lines()`, but adjust marks first.
-pub fn appended_lines_mark(lnum: Linenr, count: c_int) {
+pub fn appended_lines_mark(lnum: Linenr, count: i32) {
     mark_adjust(lnum + 1, MAXLNUM, count, 0, K_EXTMARK_UNDO);
     changed_lines(curbuf_mut(), lnum + 1, 0, lnum + 1, count, true);
 }
@@ -524,7 +524,7 @@ pub fn deleted_lines(lnum: Linenr, count: Linenr) {
 }
 
 /// Like `deleted_lines()`, but adjust marks first.
-pub fn deleted_lines_mark(lnum: Linenr, count: c_int) {
+pub fn deleted_lines_mark(lnum: Linenr, count: i32) {
     {
         let made_empty = count > 0 && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
 
@@ -534,7 +534,7 @@ pub fn deleted_lines_mark(lnum: Linenr, count: c_int) {
             lnum,
             lnum + count - 1,
             MAXLNUM,
-            -count + c_int::from(made_empty),
+            -count + i32::from(made_empty),
             K_EXTMARK_UNDO,
         );
         changed_lines(curbuf_mut(), lnum, 0, lnum + count, -count, true);
@@ -545,7 +545,7 @@ pub fn deleted_lines_mark(lnum: Linenr, count: c_int) {
 pub fn changed_lines_redraw_buf(buf: &mut FileBuf, lnum: Linenr, mut lnume: Linenr, xtra: Linenr) {
     {
         if xtra != 0 && buf.b_marktree.n_keys > 0 {
-            lnume += 1 + c_int::from(xtra < 0 && buf_meta_total(buf, K_MTMETA_LINES) != 0);
+            lnume += 1 + i32::from(xtra < 0 && buf_meta_total(buf, K_MTMETA_LINES) != 0);
         }
 
         if buf.b_mod_set {
@@ -629,7 +629,7 @@ pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
 pub fn save_file_ff(buf: &mut FileBuf) {
     {
-        buf.b_start_ffc = c_int::from(crate::memory::cstr_first_byte(buf.b_p_ff));
+        buf.b_start_ffc = i32::from(crate::memory::cstr_first_byte(buf.b_p_ff));
         buf.b_start_eof = buf.b_p_eof;
         buf.b_start_eol = buf.b_p_eol;
         buf.b_start_bomb = buf.b_p_bomb;
@@ -691,7 +691,7 @@ pub fn ins_bytes_len(p: impl crate::strings::IntoCCharPtr, len: usize) {
     unsafe {
         let mut i: usize = 0;
         while i < len {
-            let n = utfc_ptr2len_len(p.add(i), (len - i) as c_int) as usize;
+            let n = utfc_ptr2len_len(p.add(i), (len - i) as i32) as usize;
             ins_char_bytes(p.add(i), n);
             i += n;
         }
@@ -699,7 +699,7 @@ pub fn ins_bytes_len(p: impl crate::strings::IntoCCharPtr, len: usize) {
 }
 
 /// Insert or replace a single character at the cursor position.
-pub fn ins_char(c: c_int) {
+pub fn ins_char(c: i32) {
     let mut buf: [c_char; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
     let n = utf_char2bytes(c, buf.as_mut_ptr()) as usize;
 
@@ -783,7 +783,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
 
         ml_replace(lnum, newp, true);
         drop(newp_vec);
-        inserted_bytes(lnum, col as Colnr, oldlen as c_int, newlen as c_int);
+        inserted_bytes(lnum, col as Colnr, oldlen as i32, newlen as i32);
 
         if opt_vars().p_sm != 0
             && (g_st().state_global & MODE_INSERT) != 0
@@ -828,7 +828,7 @@ pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
         );
         ml_replace(lnum, newp, true);
         drop(newp_vec);
-        inserted_bytes(lnum, col, 0, slen as c_int);
+        inserted_bytes(lnum, col, 0, slen as i32);
         curwin_mut().w_cursor.col += slen as Colnr;
     }
 }
@@ -840,16 +840,16 @@ pub fn del_char(fixpos: bool) -> bool {
         if crate::memory::cstr_is_empty(get_cursor_pos_ptr()) {
             return false;
         }
-        del_chars(1, c_int::from(fixpos))
+        del_chars(1, i32::from(fixpos))
     }
 }
 
 /// Like `del_bytes()`, but delete characters instead of bytes.
-pub fn del_chars(count: c_int, fixpos: c_int) -> bool {
+pub fn del_chars(count: i32, fixpos: i32) -> bool {
     unsafe {
         let mut bytes: Colnr = 0;
         let mut p = get_cursor_pos_ptr();
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         while i < count && !crate::memory::cstr_is_empty(p) {
             let l = utfc_ptr2len(p);
             bytes += l;
@@ -953,9 +953,9 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
 
 /// Add a new line below or above the current line.
 pub fn open_line(
-    dir: c_int,
-    flags: c_int,
-    second_line_indent: c_int,
+    dir: i32,
+    flags: i32,
+    second_line_indent: i32,
     mut did_do_comment: Option<&mut bool>,
 ) -> bool {
     unsafe {
@@ -964,19 +964,19 @@ pub fn open_line(
         let mut less_cols: Colnr = 0;
         let mut less_cols_off: Colnr = 0;
         let mut newcol: Colnr = 0;
-        let mut newindent: c_int = 0;
+        let mut newindent: i32 = 0;
         let mut trunc_line = false;
         let mut retval = false;
-        let mut extra_len: c_int = 0;
-        let mut lead_len: c_int;
-        let mut comment_start: c_int = 0;
+        let mut extra_len: i32 = 0;
+        let mut lead_len: i32;
+        let mut comment_start: i32 = 0;
         let mut lead_flags: *mut c_char = ptr::null_mut();
         let mut leader: *mut c_char = ptr::null_mut();
         let mut allocated_vec: Vec<c_char> = Vec::new();
         let mut saved_char: c_char = NUL;
         let do_si = may_do_si();
         let mut no_si = false;
-        let mut first_char: c_int = 0;
+        let mut first_char: i32 = 0;
         let saved_pi = curbuf_mut().b_p_pi;
 
         let lnum = curwin_mut().w_cursor.lnum;
@@ -1010,9 +1010,9 @@ pub fn open_line(
             p_extra = saved_line.add(curwin_mut().w_cursor.col as usize);
             if do_si {
                 let p = skipwhite(p_extra);
-                first_char = c_int::from(crate::memory::cstr_first_byte(p));
+                first_char = i32::from(crate::memory::cstr_first_byte(p));
             }
-            extra_len = crate::memory::cstr_len(p_extra) as c_int;
+            extra_len = crate::memory::cstr_len(p_extra) as i32;
             saved_char = *p_extra;
             *p_extra = NUL;
         }
@@ -1037,7 +1037,7 @@ pub fn open_line(
             if !trunc_line
                 && do_si
                 && !crate::memory::cstr_is_empty(saved_line)
-                && (p_extra.is_null() || first_char != b'{' as c_int)
+                && (p_extra.is_null() || first_char != b'{' as i32)
             {
                 let old_cursor = curwin_mut().w_cursor;
                 let mut ptr = saved_line;
@@ -1104,7 +1104,7 @@ pub fn open_line(
                         }
                         if crate::memory::cstr_first_byte(p) == b')' {
                             curwin_mut().w_cursor.col = p.offset_from(ptr) as Colnr;
-                            let pos = findmatch(None, b'(' as c_int);
+                            let pos = findmatch(None, b'(' as i32);
                             if !pos.is_null() {
                                 curwin_mut().w_cursor.lnum = (*pos).lnum;
                                 newindent = get_indent();
@@ -1164,7 +1164,7 @@ pub fn open_line(
                 } else {
                     KEY_OPEN_BACK
                 },
-                b' ' as c_int,
+                b' ' as i32,
                 linewhite(curwin_mut().w_cursor.lnum),
             )
             && (flags & OPENLINE_FORCE_INDENT) == 0;
@@ -1200,9 +1200,9 @@ pub fn open_line(
 
         if lead_len > 0 {
             let mut lead_repl: *mut c_char = ptr::null_mut();
-            let mut lead_repl_len: c_int = 0;
+            let mut lead_repl_len: i32 = 0;
             let mut lead_middle: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
-            let lead_middle_len: c_int;
+            let lead_middle_len: i32;
             let mut lead_end: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
             let mut comment_end: *mut c_char = ptr::null_mut();
             let mut extra_space = false;
@@ -1234,7 +1234,7 @@ pub fn open_line(
                     }
                     lead_middle_len =
                         copy_option_part(&raw mut p, lead_middle.as_mut_ptr(), COM_MAX_LEN, c",")
-                            as c_int;
+                            as i32;
 
                     while !crate::memory::cstr_is_empty(p) && *p.sub(1) != b':' as c_char {
                         if *p == COM_AUTO_END {
@@ -1245,7 +1245,7 @@ pub fn open_line(
                     let n = copy_option_part(&raw mut p, lead_end.as_mut_ptr(), COM_MAX_LEN, c",");
 
                     if g_st().ins_global.end_comment_pending == -1 {
-                        g_st().ins_global.end_comment_pending = c_int::from(lead_end[n - 1] as u8);
+                        g_st().ins_global.end_comment_pending = i32::from(lead_end[n - 1] as u8);
                     }
 
                     if dir == FORWARD {
@@ -1296,7 +1296,7 @@ pub fn open_line(
                     while lead_repl > curbuf_mut().b_p_com && *lead_repl.sub(1) != b':' as c_char {
                         lead_repl = lead_repl.sub(1);
                     }
-                    lead_repl_len = p.offset_from(lead_repl) as c_int;
+                    lead_repl_len = p.offset_from(lead_repl) as i32;
 
                     extra_space = true;
 
@@ -1315,7 +1315,7 @@ pub fn open_line(
                         {
                             p2 = p2.add(1);
                         }
-                        g_st().ins_global.end_comment_pending = c_int::from(*p2.sub(1) as u8);
+                        g_st().ins_global.end_comment_pending = i32::from(*p2.sub(1) as u8);
                     }
                     break;
                 }
@@ -1334,7 +1334,7 @@ pub fn open_line(
             if lead_len > 0 {
                 let bytes = lead_len
                     + lead_repl_len
-                    + c_int::from(extra_space)
+                    + i32::from(extra_space)
                     + extra_len
                     + second_line_indent.max(0)
                     + 1;
@@ -1352,7 +1352,7 @@ pub fn open_line(
 
                 if !lead_repl.is_null() {
                     let mut c: c_char = 0;
-                    let mut off: c_int = 0;
+                    let mut off: i32 = 0;
 
                     let mut p = lead_flags;
                     while !crate::memory::cstr_is_empty(p)
@@ -1378,14 +1378,14 @@ pub fn open_line(
 
                         {
                             let repl_size = vim_strnsize(lead_repl, lead_repl_len);
-                            let mut old_size: c_int = 0;
+                            let mut old_size: i32 = 0;
                             let endp = p;
 
                             while old_size < repl_size && p > leader {
                                 p = p.sub(utf_head_off(leader, p.sub(1)) as usize + 1);
                                 old_size += ptr2cells(p);
                             }
-                            let l = lead_repl_len - endp.offset_from(p) as c_int;
+                            let l = lead_repl_len - endp.offset_from(p) as i32;
                             if l != 0 {
                                 ptr::copy(
                                     endp,
@@ -1429,7 +1429,7 @@ pub fn open_line(
                         let mut p = skipwhite(leader);
                         {
                             let repl_size = vim_strnsize(lead_repl, lead_repl_len);
-                            let mut i: c_int = 0;
+                            let mut i: i32 = 0;
                             while i < lead_len && crate::memory::cstr_byte_at(p, i as usize) != 0 {
                                 let l = utfc_ptr2len(p.add(i as usize));
                                 if vim_strnsize(p, i + l) > repl_size {
@@ -1441,7 +1441,7 @@ pub fn open_line(
                                 ptr::copy(
                                     p.add(i as usize),
                                     p.add(lead_repl_len as usize),
-                                    (lead_len - i - p.offset_from(leader) as c_int) as usize,
+                                    (lead_len - i - p.offset_from(leader) as i32) as usize,
                                 );
                                 lead_len += lead_repl_len - i;
                             }
@@ -1500,7 +1500,7 @@ pub fn open_line(
                         && lead_len > 0
                         && *leader.add((lead_len - 1) as usize) == b' ' as c_char
                     {
-                        if crate::strings::vim_haschr(skipwhite(leader), b'\t' as c_int) {
+                        if crate::strings::vim_haschr(skipwhite(leader), b'\t' as i32) {
                             break;
                         }
                         lead_len -= 1;
@@ -1575,7 +1575,7 @@ pub fn open_line(
         if lead_len > 0 {
             if (flags & OPENLINE_COM_LIST) != 0 && second_line_indent > 0 {
                 let padding =
-                    second_line_indent - (newindent + crate::memory::cstr_len(leader) as c_int);
+                    second_line_indent - (newindent + crate::memory::cstr_len(leader) as i32);
                 for _ in 0..padding {
                     crate::memory::cstr_cat(leader, c" ");
                     less_cols -= 1;
@@ -1701,9 +1701,9 @@ pub fn open_line(
                     }
                     ml_replace(curwin_mut().w_cursor.lnum, saved_line, true);
 
-                    let new_len = crate::memory::cstr_len(saved_line) as c_int;
+                    let new_len = crate::memory::cstr_len(saved_line) as i32;
 
-                    let mut cols_spliced: c_int = 0;
+                    let mut cols_spliced: i32 = 0;
                     if new_len < curwin_mut().w_cursor.col {
                         extmark_splice_cols(
                             curbuf_mut(),
@@ -1837,7 +1837,7 @@ pub fn open_line(
 }
 
 /// Delete from cursor to end of line.
-pub fn truncate_line(fixpos: c_int) {
+pub fn truncate_line(fixpos: i32) {
     unsafe {
         let lnum = curwin_mut().w_cursor.lnum;
         let col = curwin_mut().w_cursor.col;
@@ -1875,7 +1875,7 @@ pub fn del_lines(nlines: Linenr, undo: bool) {
             return;
         }
 
-        let mut n: c_int = 0;
+        let mut n: i32 = 0;
         while n < nlines {
             if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
                 break;
@@ -1902,7 +1902,7 @@ pub fn get_leader_len(
     flags: *mut *mut c_char,
     backward: bool,
     include_space: bool,
-) -> c_int {
+) -> i32 {
     let line = line.into_c_char_ptr();
     unsafe {
         let mut got_com = false;
@@ -1925,7 +1925,7 @@ pub fn get_leader_len(
                 }
                 let prev_list = list;
                 copy_option_part(&raw mut list, part_buf.as_mut_ptr(), COM_MAX_LEN, c",");
-                let mut string = vim_strchr(part_buf.as_ptr(), b':' as c_int);
+                let mut string = vim_strchr(part_buf.as_ptr(), b':' as i32);
                 if string.is_null() {
                     continue;
                 }
@@ -1933,20 +1933,20 @@ pub fn get_leader_len(
                 string = string.add(1);
 
                 if middle_match_len != 0
-                    && !crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8))
-                    && !crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_END as u8))
+                    && !crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_MIDDLE as u8))
+                    && !crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_END as u8))
                 {
                     break;
                 }
 
                 if got_com
-                    && !crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_NEST as u8))
+                    && !crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_NEST as u8))
                 {
                     continue;
                 }
 
                 if backward
-                    && crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_NOBACK as u8))
+                    && crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_NOBACK as u8))
                 {
                     continue;
                 }
@@ -1969,14 +1969,14 @@ pub fn get_leader_len(
                     continue;
                 }
 
-                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8))
+                if crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_BLANK as u8))
                     && !ascii_iswhite(crate::memory::cstr_char_at(line, i + j))
                     && crate::memory::cstr_byte_at(line, i + j) != 0
                 {
                     continue;
                 }
 
-                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8)) {
+                if crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_MIDDLE as u8)) {
                     if middle_match_len == 0 {
                         middle_match_len = j;
                         saved_flags = prev_list;
@@ -2017,11 +2017,11 @@ pub fn get_leader_len(
             }
 
             got_com = true;
-            if !crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_NEST as u8)) {
+            if !crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_NEST as u8)) {
                 break;
             }
         }
-        result as c_int
+        result as i32
     }
 }
 
@@ -2029,16 +2029,16 @@ pub fn get_leader_len(
 pub fn get_last_leader_offset(
     line: impl crate::strings::IntoCCharPtr,
     flags: *mut *mut c_char,
-) -> c_int {
+) -> i32 {
     let line = line.into_c_char_ptr();
     unsafe {
-        let mut result: c_int = -1;
-        let mut lower_check_bound: c_int = 0;
+        let mut result: i32 = -1;
+        let mut lower_check_bound: i32 = 0;
         let mut com_leader: *mut c_char = ptr::null_mut();
         let mut com_flags: *mut c_char = ptr::null_mut();
         let mut part_buf: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
 
-        let mut i = crate::memory::cstr_len(line) as c_int;
+        let mut i = crate::memory::cstr_len(line) as i32;
         while {
             i -= 1;
             i >= lower_check_bound
@@ -2049,7 +2049,7 @@ pub fn get_last_leader_offset(
                 let flags_save = list;
 
                 copy_option_part(&raw mut list, part_buf.as_mut_ptr(), COM_MAX_LEN, c",");
-                let mut string = vim_strchr(part_buf.as_ptr(), b':' as c_int);
+                let mut string = vim_strchr(part_buf.as_ptr(), b':' as i32);
                 if string.is_null() {
                     continue;
                 }
@@ -2075,15 +2075,15 @@ pub fn get_last_leader_offset(
                     continue;
                 }
 
-                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8))
+                if crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_BLANK as u8))
                     && !ascii_iswhite(crate::memory::cstr_char_at(line, i as usize + j))
                     && crate::memory::cstr_byte_at(line, i as usize + j) != 0
                 {
                     continue;
                 }
 
-                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8)) {
-                    let mut k: c_int = 0;
+                if crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_MIDDLE as u8)) {
+                    let mut k: i32 = 0;
                     while k <= i && ascii_iswhite(crate::memory::cstr_char_at(line, k as usize)) {
                         k += 1;
                     }
@@ -2104,7 +2104,7 @@ pub fn get_last_leader_offset(
                 let mut part_buf2: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
 
                 result = i;
-                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_NEST as u8)) {
+                if crate::strings::vim_haschr(part_buf.as_ptr(), i32::from(COM_NEST as u8)) {
                     continue;
                 }
 
@@ -2113,7 +2113,7 @@ pub fn get_last_leader_offset(
                 while ascii_iswhite(crate::memory::cstr_first_char(com_leader)) {
                     com_leader = com_leader.add(1);
                 }
-                let len1 = crate::memory::cstr_len(com_leader) as c_int;
+                let len1 = crate::memory::cstr_len(com_leader) as i32;
 
                 let mut list = curbuf_mut().b_p_com;
                 while !crate::memory::cstr_is_empty(list) {
@@ -2123,7 +2123,7 @@ pub fn get_last_leader_offset(
                     if flags_save == com_flags {
                         continue;
                     }
-                    let mut string = vim_strchr(part_buf2.as_ptr(), b':' as c_int);
+                    let mut string = vim_strchr(part_buf2.as_ptr(), b':' as i32);
                     if string.is_null() {
                         continue;
                     }
@@ -2131,7 +2131,7 @@ pub fn get_last_leader_offset(
                     while ascii_iswhite(crate::memory::cstr_first_char(string)) {
                         string = string.add(1);
                     }
-                    let len2 = crate::memory::cstr_len(string) as c_int;
+                    let len2 = crate::memory::cstr_len(string) as i32;
                     if len2 == 0 {
                         continue;
                     }

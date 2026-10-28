@@ -27,7 +27,7 @@ use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
 use crate::memory::{Arena, arena_memdupz, cstr_from_bytes};
 use crate::msgpack_rpc::packer::Integer;
-use std::ffi::{CString, c_char, c_int};
+use std::ffi::{CString, c_char};
 
 use crate::api::tabpage::Buffer;
 use crate::highlight::OptionalKeys;
@@ -156,7 +156,7 @@ fn api_err_req(err: &mut Error, name: &std::ffi::CStr) {
 }
 
 #[inline]
-fn format_buflocal_arena(arena: &mut Arena, handle: c_int) -> NvimString {
+fn format_buflocal_arena(arena: &mut Arena, handle: i32) -> NvimString {
     let s = format!("<buffer={handle}>");
     let data = arena_memdupz(arena, s.as_ptr().cast(), s.len());
     NvimString {
@@ -202,7 +202,7 @@ fn unpack_string_or_array(
     }
 }
 
-fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
+fn get_augroup_from_object(group: Object, err: &mut Error) -> i32 {
     match group.obj_type {
         ObjectType::ObjectTypeNil => AUGROUP_DEFAULT,
         ObjectType::ObjectTypeString => {
@@ -214,7 +214,7 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
             au_group
         }
         ObjectType::ObjectTypeInteger => {
-            let au_group = group.data.integer() as c_int;
+            let au_group = group.data.integer() as i32;
             let name = if au_group == 0 {
                 std::ptr::null()
             } else {
@@ -322,7 +322,7 @@ fn get_patterns_from_pattern_or_buf(
 fn clear_autocmd(
     event: AuEvent,
     pat: impl crate::strings::IntoCCharPtr,
-    au_group: c_int,
+    au_group: i32,
     err: &mut Error,
 ) -> bool {
     let pat = pat.into_c_char_ptr();
@@ -395,7 +395,7 @@ pub fn nvim_get_autocmds(
         };
         let mut event_set = [false; NUM_EVENTS];
         let mut check_event = false;
-        let mut group: c_int = 0;
+        let mut group: i32 = 0;
 
         'body: {
             match opts.group.obj_type {
@@ -408,7 +408,7 @@ pub fn nvim_get_autocmds(
                     }
                 }
                 ObjectType::ObjectTypeInteger => {
-                    group = opts.group.data.integer() as c_int;
+                    group = opts.group.data.integer() as i32;
                     let name = if group == 0 {
                         std::ptr::null()
                     } else {
@@ -431,8 +431,8 @@ pub fn nvim_get_autocmds(
             }
 
             let mask = opts.is_set_get_autocmds;
-            let id: c_int = if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_ID) {
-                opts.id as c_int
+            let id: i32 = if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_ID) {
+                opts.id as i32
             } else {
                 -1
             };
@@ -498,7 +498,7 @@ pub fn nvim_get_autocmds(
                             err,
                             ErrorType::ErrorTypeValidation,
                             c"Too many patterns (maximum of %d)",
-                            AUCMD_MAX_PATTERNS as c_int,
+                            AUCMD_MAX_PATTERNS as i32,
                         );
                         break 'body;
                     }
@@ -545,7 +545,7 @@ pub fn nvim_get_autocmds(
                         err,
                         ErrorType::ErrorTypeValidation,
                         c"Too many buffers (maximum of %d)",
-                        AUCMD_MAX_PATTERNS as c_int,
+                        AUCMD_MAX_PATTERNS as i32,
                     );
                     break 'body;
                 }
@@ -606,7 +606,7 @@ pub fn nvim_get_autocmds(
                         let mut passed = false;
                         for &raw_pat in &pattern_filters[..pattern_filter_count] {
                             let mut pat = raw_pat;
-                            let patlen = crate::memory::cstr_len(pat) as c_int;
+                            let patlen = crate::memory::cstr_len(pat) as i32;
                             let mut pattern_buflocal = [0 as c_char; BUFLOCAL_PAT_LEN];
                             if aupat_is_buflocal(pat, patlen) {
                                 aupat_normalize_buflocal_pat(
@@ -930,7 +930,7 @@ pub fn nvim_create_autocmd(
                         autocmd_id,
                         event_nr,
                         pat.data.string().data,
-                        pat.data.string().size as c_int,
+                        pat.data.string().size as i32,
                         au_group,
                         opts.once,
                         opts.nested,
@@ -1129,7 +1129,7 @@ pub fn nvim_create_augroup(
 pub fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    augroup_del_by_id(id as c_int);
+    augroup_del_by_id(id as i32);
     try_leave(&tstate, err);
 }
 
@@ -1186,7 +1186,7 @@ pub fn nvim_exec_autocmds(
                 }
             }
             ObjectType::ObjectTypeInteger => {
-                au_group = opts.group.data.integer() as c_int;
+                au_group = opts.group.data.integer() as i32;
                 let name = if au_group == 0 {
                     std::ptr::null()
                 } else {

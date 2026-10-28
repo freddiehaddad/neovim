@@ -52,7 +52,7 @@ use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
 use crate::window::WinInfoInfo;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::cursor::{Colnr, Linenr};
@@ -541,13 +541,13 @@ pub fn nvim_buf_get_extmarks(
             limit = i64::MAX;
         }
 
-        let mut l_row: c_int = 0;
+        let mut l_row: i32 = 0;
         let mut l_col: Colnr = 0;
         if !extmark_get_index_from_obj(b, ns_id, start, &mut l_row, &mut l_col, err) {
             return rv;
         }
 
-        let mut u_row: c_int = 0;
+        let mut u_row: i32 = 0;
         let mut u_col: Colnr = 0;
         if !extmark_get_index_from_obj(b, ns_id, end, &mut u_row, &mut u_col, err) {
             return rv;
@@ -769,7 +769,7 @@ pub fn nvim_buf_set_extmark(
                 id = opts.id as u32;
             }
 
-            let mut line2: c_int = -1;
+            let mut line2: i32 = -1;
             let mut did_end_line = false;
 
             if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_LINE) {
@@ -798,7 +798,7 @@ pub fn nvim_buf_set_extmark(
                     api_err_range(err, c"end_row");
                     break 'error;
                 }
-                line2 = val as c_int;
+                line2 = val as i32;
             }
 
             let mut col2: Colnr = -1;
@@ -841,10 +841,10 @@ pub fn nvim_buf_set_extmark(
                 has_hl = hl.hl_id > 0;
             }
 
-            sign.hl_id = opts.sign_hl_group as c_int;
-            sign.cursorline_hl_id = opts.cursorline_hl_group as c_int;
-            sign.number_hl_id = opts.number_hl_group as c_int;
-            sign.line_hl_id = opts.line_hl_group as c_int;
+            sign.hl_id = opts.sign_hl_group as i32;
+            sign.cursorline_hl_id = opts.cursorline_hl_group as i32;
+            sign.number_hl_id = opts.number_hl_group as i32;
+            sign.line_hl_id = opts.line_hl_group as i32;
 
             if sign.hl_id != 0
                 || sign.cursorline_hl_id != 0
@@ -942,7 +942,7 @@ pub fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_WIN_COL) {
-                virt_text.col = opts.virt_text_win_col as c_int;
+                virt_text.col = opts.virt_text_win_col as i32;
                 virt_text.pos = K_VPOS_WIN_COL;
             }
 
@@ -1010,7 +1010,7 @@ pub fn nvim_buf_set_extmark(
                         );
                         break 'error;
                     }
-                    let mut dummig: c_int = 0;
+                    let mut dummig: i32 = 0;
                     let jtem = parse_virt_text(item.data.array(), err, &mut dummig, false);
                     virt_lines.data.virt_lines_mut().push(VirtLine {
                         line: jtem,
@@ -1135,7 +1135,7 @@ pub fn nvim_buf_set_extmark(
                 } else if line2 == b.b_ml.ml_line_count {
                     len = 0;
                 } else {
-                    line2 = line as c_int;
+                    line2 = line as i32;
                 }
                 if col2 > len {
                     if strict {
@@ -1152,8 +1152,8 @@ pub fn nvim_buf_set_extmark(
                 && !g_st().decor_state.win.is_null()
                 && (*g_st().decor_state.win).w_buffer == (&raw mut *b)
             {
-                let r = line as c_int;
-                let c = col as c_int;
+                let r = line as i32;
+                let c = col as i32;
                 if line2 == -1 {
                     line2 = r;
                     col2 = c;
@@ -1300,7 +1300,7 @@ pub fn nvim_buf_set_extmark(
                     b,
                     ns_id as u32,
                     Some(&mut id),
-                    line as c_int,
+                    line as i32,
                     col as Colnr,
                     line2,
                     col2,
@@ -1383,9 +1383,9 @@ pub fn nvim_buf_clear_namespace(
     extmark_clear(
         b,
         if ns_id < 0 { 0 } else { ns_id as u32 },
-        line_start as c_int,
+        line_start as i32,
         0,
-        (line_end as c_int) - 1,
+        (line_end as i32) - 1,
         MAXCOL as Colnr,
     );
 }
@@ -1501,7 +1501,7 @@ fn extmark_get_index_from_obj(
     buf: &mut FileBuf,
     ns_id: Integer,
     obj: Object,
-    row: &mut c_int,
+    row: &mut i32,
     col: &mut Colnr,
     err: &mut Error,
 ) -> bool {
@@ -1513,7 +1513,7 @@ fn extmark_get_index_from_obj(
                 *col = 0;
                 return true;
             } else if id == -1 {
-                *row = MAXLNUM as c_int;
+                *row = MAXLNUM as i32;
                 *col = MAXCOL as Colnr;
                 return true;
             } else if id < 0 {
@@ -1541,7 +1541,7 @@ fn extmark_get_index_from_obj(
 
             let pos_row = pos[0].data.integer();
             let pos_col = pos[1].data.integer();
-            *row = (if pos_row >= 0 { pos_row } else { MAXLNUM }) as c_int;
+            *row = (if pos_row >= 0 { pos_row } else { MAXLNUM }) as i32;
             *col = (if pos_col >= 0 { pos_col } else { MAXCOL }) as Colnr;
             true
         } else {
@@ -1557,10 +1557,10 @@ fn extmark_get_index_from_obj(
 }
 
 // DLLEXPORT VirtText parse_virt_text(Array chunks, Error *err, int *width, bool untab);
-pub fn parse_virt_text(chunks: Array, err: &mut Error, width: *mut c_int, untab: bool) -> VirtText {
+pub fn parse_virt_text(chunks: Array, err: &mut Error, width: *mut i32, untab: bool) -> VirtText {
     unsafe {
         let mut virt_text = VirtText::new();
-        let mut w: c_int = 0;
+        let mut w: i32 = 0;
 
         'free_exit: {
             for i in 0..chunks.size {
@@ -1589,7 +1589,7 @@ pub fn parse_virt_text(chunks: Array, err: &mut Error, width: *mut c_int, untab:
                 }
 
                 let str_val = chunk[0].data.string();
-                let mut hl_id: c_int = -1;
+                let mut hl_id: i32 = -1;
                 if chunk.size == 2 {
                     let hl = chunk[1];
                     if hl.obj_type == ObjectType::ObjectTypeArray {
@@ -1619,7 +1619,7 @@ pub fn parse_virt_text(chunks: Array, err: &mut Error, width: *mut c_int, untab:
                     },
                     untab,
                 );
-                w += mb_string2cells(text_cstr.as_ptr()) as c_int;
+                w += mb_string2cells(text_cstr.as_ptr()) as i32;
 
                 virt_text.push(VirtTextChunk {
                     text: Some(text_cstr),

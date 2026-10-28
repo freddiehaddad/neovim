@@ -1,9 +1,9 @@
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
 use crate::mbyte::{Vimconv, string_convert};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
-pub const CONV_NONE: c_int = 0;
+pub const CONV_NONE: i32 = 0;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

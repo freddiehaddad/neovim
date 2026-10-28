@@ -2,7 +2,7 @@
 
 use std::cell::Cell;
 use std::collections::VecDeque;
-use std::ffi::{CString, c_char, c_int};
+use std::ffi::{CString, c_char};
 use std::rc::Rc;
 
 pub enum Event {
@@ -18,14 +18,14 @@ pub enum Event {
     RStreamRead(*mut crate::event::rstream::RStream),
     SocketConnection {
         watcher: *mut crate::event::socket::SocketWatcher,
-        status: c_int,
+        status: i32,
     },
     ProcCloseHandles(*mut crate::event::proc::Proc),
     ProcClose(*mut crate::event::proc::Proc),
-    ProcExit(c_int),
+    ProcExit(i32),
     AutoCmdDeferred(Box<crate::autocmd::AutoCmdEvent>),
     AutoCmdOptionSetModified {
-        bufnr: c_int,
+        bufnr: i32,
         new_val: bool,
     },
     AutoCmdVimResume,
@@ -58,22 +58,22 @@ pub enum Event {
     PtyProcFinish(*mut crate::event::proc::Proc),
     ShellOutData {
         str_copy: Vec<c_char>,
-        fd: c_int,
+        fd: i32,
     },
     TermRequest(Box<crate::terminal::TermRequestEvent>),
     TermStateChange(crate::msgpack_rpc::packer::ObjHandle),
     TermSyncFlush(crate::msgpack_rpc::packer::ObjHandle),
     TermClipboardSet {
-        mask: c_int,
+        mask: i32,
         data: CString,
     },
     TInputDone,
     UiRefresh,
     UiClientConnect(CString),
     CmdwinOpen {
-        firstc: c_int,
+        firstc: i32,
         content: Option<CString>,
-        pos: c_int,
+        pos: i32,
     },
     #[cfg(test)]
     Test(usize),

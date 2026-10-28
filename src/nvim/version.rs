@@ -19,15 +19,15 @@ use crate::option_vars::*;
 use crate::strings::gettext;
 use crate::ui::ui_has;
 use crate::window::{LOWEST_WIN_ID, one_window};
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CStr, CString, c_char};
 use std::ptr;
 
-const K_SHM_INTRO: c_int = b'I' as c_int;
+const K_SHM_INTRO: i32 = b'I' as i32;
 
-static VIM_VERSIONS: [c_int; 5] = [801, 802, 900, 901, 902];
+static VIM_VERSIONS: [i32; 5] = [801, 802, 900, 901, 902];
 static NUM_PATCHES: [usize; 5] = [2409, 4049, 1650, 1726, 823];
 #[rustfmt::skip]
-static PATCHES_801: &[c_int] = &[
+static PATCHES_801: &[i32] = &[
     2424, 2423, 2422, 2421, 2420, 2419, 2418, 2417, 2416, 2415, 2414, 2413, 2412, 2411, 2410, 2409,
     2408, 2407, 2406, 2405, 2404, 2403, 2402, 2401, 2400, 2399, 2398, 2397, 2396, 2395, 2394, 2393,
     2392, 2391, 2390, 2389, 2388, 2387, 2386, 2385, 2384, 2383, 2382,
@@ -207,7 +207,7 @@ static PATCHES_801: &[c_int] = &[
     6, 5, 4, 3, 2, 1, 0,
 ];
 #[rustfmt::skip]
-static PATCHES_802: &[c_int] = &[
+static PATCHES_802: &[i32] = &[
     5171, 5170,
     // 5169
     5168, 5167, 5166, 5165, 5164, 5163, 5162, 5161,
@@ -1831,7 +1831,7 @@ static PATCHES_802: &[c_int] = &[
     10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
 ];
 #[rustfmt::skip]
-static PATCHES_900: &[c_int] = &[
+static PATCHES_900: &[i32] = &[
     2190, 2189, 2188, 2187,
     // 2186
     2185,
@@ -2600,7 +2600,7 @@ static PATCHES_900: &[c_int] = &[
     // 0
 ];
 #[rustfmt::skip]
-static PATCHES_901: &[c_int] = &[
+static PATCHES_901: &[i32] = &[
     2148, 2147, 2146, 2145,
     // 2143-2144
     2142, 2141,
@@ -3254,7 +3254,7 @@ static PATCHES_901: &[c_int] = &[
     5, 4, 3, 2, 1, 0,
 ];
 #[rustfmt::skip]
-static PATCHES_902: &[c_int] = &[
+static PATCHES_902: &[i32] = &[
     1201,
     // 1200
     1199, 1198, 1197, 1196,
@@ -3727,7 +3727,7 @@ static PATCHES_902: &[c_int] = &[
     // 2
     1, 0,
 ];
-static INCLUDED_PATCHSETS: [&[c_int]; 5] = [
+static INCLUDED_PATCHSETS: [&[i32]; 5] = [
     PATCHES_801,
     PATCHES_802,
     PATCHES_900,
@@ -3769,7 +3769,7 @@ const fn env_flag_enabled(opt: Option<&str>, default: bool) -> bool {
     }
 }
 
-const fn parse_version_int(opt: Option<&str>, fallback: c_int) -> c_int {
+const fn parse_version_int(opt: Option<&str>, fallback: i32) -> i32 {
     let Some(s) = opt else {
         return fallback;
     };
@@ -3777,14 +3777,14 @@ const fn parse_version_int(opt: Option<&str>, fallback: c_int) -> c_int {
     if bytes.is_empty() {
         return fallback;
     }
-    let mut val: c_int = 0;
+    let mut val: i32 = 0;
     let mut i = 0;
     while i < bytes.len() {
         let b = bytes[i];
         if b < b'0' || b > b'9' {
             return fallback;
         }
-        val = val * 10 + (b - b'0') as c_int;
+        val = val * 10 + (b - b'0') as i32;
         i += 1;
     }
     val
@@ -3801,18 +3801,15 @@ static LONG_VERSION_BUF: [u8; 256] =
     make_cstr_buf_or(option_env!("NVIM_VERSION_LONG"), "NVIM v0.13.0-dev");
 static VERSION_BUILD_BUF: [u8; 256] = make_cstr_buf(option_env!("NVIM_VERSION_BUILD"));
 
-pub static NVIM_VERSION_MAJOR_CONST: c_int =
-    parse_version_int(option_env!("NVIM_VERSION_MAJOR"), 0);
-pub static NVIM_VERSION_MINOR_CONST: c_int =
-    parse_version_int(option_env!("NVIM_VERSION_MINOR"), 13);
-pub static NVIM_VERSION_PATCH_CONST: c_int =
-    parse_version_int(option_env!("NVIM_VERSION_PATCH"), 0);
+pub static NVIM_VERSION_MAJOR_CONST: i32 = parse_version_int(option_env!("NVIM_VERSION_MAJOR"), 0);
+pub static NVIM_VERSION_MINOR_CONST: i32 = parse_version_int(option_env!("NVIM_VERSION_MINOR"), 13);
+pub static NVIM_VERSION_PATCH_CONST: i32 = parse_version_int(option_env!("NVIM_VERSION_PATCH"), 0);
 pub const NVIM_VERSION_PRERELEASE_CONST: bool = match option_env!("NVIM_VERSION_PRERELEASE") {
     Some(s) => !s.is_empty(),
     None => true,
 };
-pub const NVIM_API_LEVEL_CONST: c_int = parse_version_int(option_env!("NVIM_API_LEVEL"), 15);
-pub const NVIM_API_LEVEL_COMPAT_CONST: c_int =
+pub const NVIM_API_LEVEL_CONST: i32 = parse_version_int(option_env!("NVIM_API_LEVEL"), 15);
+pub const NVIM_API_LEVEL_COMPAT_CONST: i32 =
     parse_version_int(option_env!("NVIM_API_LEVEL_COMPAT"), 0);
 pub const NVIM_API_PRERELEASE_CONST: bool =
     env_flag_enabled(option_env!("NVIM_API_PRERELEASE"), true);
@@ -3868,16 +3865,16 @@ pub const fn nvim_version_build() -> *const c_char {
     }
 }
 
-fn parse_leading_int(s: &[u8]) -> Option<c_int> {
+fn parse_leading_int(s: &[u8]) -> Option<i32> {
     if !s.first().is_some_and(u8::is_ascii_digit) {
         return None;
     }
-    let mut val: c_int = 0;
+    let mut val: i32 = 0;
     for &b in s {
         if !b.is_ascii_digit() {
             break;
         }
-        val = val.wrapping_mul(10).wrapping_add(c_int::from(b - b'0'));
+        val = val.wrapping_mul(10).wrapping_add(i32::from(b - b'0'));
     }
     Some(val)
 }
@@ -3887,8 +3884,8 @@ pub fn has_nvim_version(version_str: &[u8]) -> bool {
     let Some(major) = parse_leading_int(version_str) else {
         return false;
     };
-    let mut minor: c_int = 0;
-    let mut patch: c_int = 0;
+    let mut minor: i32 = 0;
+    let mut patch: i32 = 0;
 
     if let Some(dot1) = version_str.iter().position(|&b| b == b'.') {
         let rest1 = &version_str[dot1 + 1..];
@@ -3913,16 +3910,16 @@ pub fn has_nvim_version(version_str: &[u8]) -> bool {
         )
 }
 
-pub fn min_vim_version() -> c_int {
+pub fn min_vim_version() -> i32 {
     VIM_VERSIONS[0]
 }
 
-pub fn highest_patch() -> c_int {
+pub fn highest_patch() -> i32 {
     INCLUDED_PATCHSETS[0][0]
 }
 
 /// Checks whether a Vim patch has been included (`has_vim_patch`).
-pub fn has_vim_patch(n: c_int, major_minor_version: c_int) -> bool {
+pub fn has_vim_patch(n: i32, major_minor_version: i32) -> bool {
     let v_i = if major_minor_version > 0 {
         if major_minor_version < VIM_VERSIONS[0] {
             return true;
@@ -3959,7 +3956,7 @@ pub fn ex_version(eap: &mut Exarg) {
     {
         if crate::memory::cstr_is_empty(eap.arg) {
             if !ui_has(K_UIMESSAGES) {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
             }
             list_version();
         }
@@ -3975,7 +3972,7 @@ fn version_msg_wrap(s: impl crate::strings::IntoCCharPtr, wrap: bool) {
             && g_st().msg_col + len >= g_st().columns_global
             && crate::memory::cstr_first_byte(s) != b'\n'
         {
-            msg_putchar(b'\n' as c_int);
+            msg_putchar(b'\n' as i32);
         }
         if !g_st().got_int {
             if wrap {
@@ -3995,12 +3992,12 @@ fn version_msg(s: impl crate::strings::IntoCCharPtr) {
 }
 
 /// List string items nicely aligned in columns (`list_in_columns`).
-pub fn list_in_columns(items: &[*mut c_char], current: c_int) {
-    let item_count = items.len() as c_int;
-    let mut width: c_int = 0;
+pub fn list_in_columns(items: &[*mut c_char], current: i32) {
+    let item_count = items.len() as i32;
+    let mut width: i32 = 0;
 
     for (i, &item) in items.iter().enumerate() {
-        let l = vim_strsize(item) + if i as c_int == current { 2 } else { 0 };
+        let l = vim_strsize(item) + if i as i32 == current { 2 } else { 0 };
         if l > width {
             width = l;
         }
@@ -4009,43 +4006,43 @@ pub fn list_in_columns(items: &[*mut c_char], current: c_int) {
 
     if g_st().columns_global < width {
         for (idx, &item) in items.iter().enumerate() {
-            version_msg_wrap(item, idx as c_int == current);
-            if g_st().msg_col > 0 && (idx as c_int) < item_count - 1 {
-                msg_putchar(b'\n' as c_int);
+            version_msg_wrap(item, idx as i32 == current);
+            if g_st().msg_col > 0 && (idx as i32) < item_count - 1 {
+                msg_putchar(b'\n' as i32);
             }
         }
         return;
     }
 
     let ncol = (g_st().columns_global + 1) / width;
-    let nrow = item_count / ncol + c_int::from(item_count % ncol != 0);
-    let mut cur_row: c_int = 1;
+    let nrow = item_count / ncol + i32::from(item_count % ncol != 0);
+    let mut cur_row: i32 = 1;
 
-    let mut idx_i: c_int = 0;
+    let mut idx_i: i32 = 0;
     while !g_st().got_int && idx_i < nrow * ncol {
         let idx = (idx_i / ncol) + (idx_i % ncol) * nrow;
         if idx < item_count {
             let last_col = (idx_i + 1) % ncol == 0;
             if idx == current {
-                msg_putchar(b'[' as c_int);
+                msg_putchar(b'[' as i32);
             }
             msg_puts(items[idx as usize]);
             if idx == current {
-                msg_putchar(b']' as c_int);
+                msg_putchar(b']' as i32);
             }
             if last_col {
                 if g_st().msg_col > 0 && cur_row < nrow {
-                    msg_putchar(b'\n' as c_int);
+                    msg_putchar(b'\n' as i32);
                 }
                 cur_row += 1;
             } else {
                 while g_st().msg_col % width != 0 {
-                    msg_putchar(b' ' as c_int);
+                    msg_putchar(b' ' as i32);
                 }
             }
         } else if g_st().msg_col > 0 {
             if cur_row < nrow {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
             }
             cur_row += 1;
         }
@@ -4082,13 +4079,13 @@ pub fn list_version() {
     {
         msg_ext_set_kind(c"list_cmd");
         msg_puts(long_version());
-        msg_putchar(b'\n' as c_int);
+        msg_putchar(b'\n' as i32);
         msg_puts(version_buildtype());
-        msg_putchar(b'\n' as c_int);
+        msg_putchar(b'\n' as i32);
         list_lua_version();
 
         if opt_vars().p_verbose > 0 {
-            msg_putchar(b'\n' as c_int);
+            msg_putchar(b'\n' as i32);
             msg_puts(c"Vim versions: ");
 
             for (i, ver) in VERSIONS.iter().enumerate() {
@@ -4099,7 +4096,7 @@ pub fn list_version() {
             }
 
             if !version_cflags().is_null() {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 msg_puts(version_cflags());
             }
             version_msg(c"\n\n");
@@ -4167,7 +4164,7 @@ pub fn intro_message(colon: bool) {
             c"type  :help Kuwasha<Enter>  for information ".as_ptr(),
         ];
 
-        let lines_size = lines.len() as c_int;
+        let lines_size = lines.len() as i32;
         let mut blanklines = g_st().rows_global - (lines_size - 1);
         if opt_vars().p_ls > 1 {
             blanklines -= g_st().rows_global - crate::globals::topframe_mut().fr_height;
@@ -4216,7 +4213,7 @@ pub fn intro_message(colon: bool) {
     }
 }
 
-fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: bool, is_logo: bool) {
+fn do_intro_line(row: i32, mesg: impl crate::strings::IntoCCharPtr, colon: bool, is_logo: bool) {
     let mesg = mesg.into_c_char_ptr();
     unsafe {
         let mut col = (g_st().columns_global - vim_strsize(mesg)) / 2;
@@ -4241,7 +4238,7 @@ fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: boo
             let mut p = mesg;
             while !crate::memory::cstr_is_empty(p) {
                 let clen = utfc_ptr2len(p);
-                let mut attr: c_int = 0;
+                let mut attr: i32 = 0;
                 if (crate::memory::cstr_first_byte(p)) >= 0x80 {
                     seen_diagonal = seen_diagonal || (clen == 3 && utf_ptr2char(p) == 0x2572);
                     attr = if seen_diagonal {
@@ -4274,10 +4271,10 @@ fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: boo
             return;
         }
 
-        let hlf8_attr = crate::highlight::hl_attr(HLF_8 as c_int);
+        let hlf8_attr = crate::highlight::hl_attr(HLF_8 as i32);
         let mut p = mesg;
         while !crate::memory::cstr_is_empty(p) {
-            let mut l: c_int = 0;
+            let mut l: i32 = 0;
             while crate::memory::cstr_byte_at(p, l as usize) != 0
                 && (l == 0
                     || (crate::memory::cstr_byte_at(p, l as usize) != b'<'
@@ -4294,7 +4291,7 @@ fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: boo
                     .position(|&b| b == b':')
                     .map_or(ptr::null(), |i| p.add(i));
                 if !colon_pos.is_null() && crate::memory::cstr_byte_at(p, l as usize) == b'<' {
-                    let prefix_len = colon_pos.offset_from(p) as c_int;
+                    let prefix_len = colon_pos.offset_from(p) as i32;
                     col += grid_line_puts(col, p, prefix_len, 0);
                     col += grid_line_puts(col, colon_pos, 1, hlf8_attr);
                     let cmd_len = l - prefix_len - 1;

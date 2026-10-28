@@ -1,6 +1,6 @@
 //! Diff hunk emission (`src/xdiff/xemit.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::xdiff::xutils::{xdl_emit_diffrec, xdl_emit_hunk_hdr};
@@ -12,7 +12,7 @@ fn xdl_get_rec(xdf: &Xdfile, ri: i64, rec: &mut *const c_char) -> i64 {
     r.size
 }
 
-fn xdl_emit_record(xdf: &Xdfile, ri: i64, pre: &std::ffi::CStr, ecb: &mut Xdemitcb) -> c_int {
+fn xdl_emit_record(xdf: &Xdfile, ri: i64, pre: &std::ffi::CStr, ecb: &mut Xdemitcb) -> i32 {
     let psize = { pre.to_bytes().len() as i64 };
     let mut rec: *const c_char = ptr::null();
     let size = xdl_get_rec(xdf, ri, &mut rec);
@@ -77,7 +77,7 @@ pub fn xdl_emit_diff(
     xscr: &[Xdchange],
     ecb: &mut Xdemitcb,
     xecfg: &Xdemitconf,
-) -> c_int {
+) -> i32 {
     let mut idx = 0;
     while let Some(end_idx) = xdl_get_hunk(xscr, &mut idx, xecfg) {
         let mut cur = idx;

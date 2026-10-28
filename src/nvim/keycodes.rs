@@ -12,17 +12,17 @@ use crate::mbyte::{
 };
 use crate::message::emsg;
 use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 
 pub const NUL: u8 = 0;
-pub const BS: c_int = 0x08;
-pub const TAB: c_int = 0x09;
-pub const NL: c_int = 0x0a;
-pub const CAR: c_int = 0x0d;
+pub const BS: i32 = 0x08;
+pub const TAB: i32 = 0x09;
+pub const NL: i32 = 0x0a;
+pub const CAR: i32 = 0x0d;
 pub const CTRL_V_CONST: u8 = 22;
-pub const ESC: c_int = 0x1b;
-pub const DEL: c_int = 0x7f;
-pub const CSI: c_int = 0x9b;
+pub const ESC: i32 = 0x1b;
+pub const DEL: i32 = 0x7f;
+pub const CSI: i32 = 0x9b;
 
 pub const K_SPECIAL: u8 = 0x80;
 pub const KS_ZERO: u8 = 255;
@@ -129,23 +129,23 @@ pub const KE_WILD: u8 = 108;
 pub const KE_COMPLETE_DELAY: u8 = 110;
 
 #[inline]
-pub const fn termcap2key(a: c_int, b: c_int) -> c_int {
+pub const fn termcap2key(a: i32, b: i32) -> i32 {
     -(a + (b << 8))
 }
 
 #[inline]
-pub const fn key2termcap0(x: c_int) -> c_int {
+pub const fn key2termcap0(x: i32) -> i32 {
     (-x) & 0xff
 }
 
 #[inline]
-pub const fn key2termcap1(x: c_int) -> c_int {
-    (((-x) as u32 >> 8) & 0xff) as c_int
+pub const fn key2termcap1(x: i32) -> i32 {
+    (((-x) as u32 >> 8) & 0xff) as i32
 }
 
 #[inline]
-pub const fn k_second(c: c_int) -> u8 {
-    if c == K_SPECIAL as c_int {
+pub const fn k_second(c: i32) -> u8 {
+    if c == K_SPECIAL as i32 {
         KS_SPECIAL
     } else if c == 0 {
         KS_ZERO
@@ -155,8 +155,8 @@ pub const fn k_second(c: c_int) -> u8 {
 }
 
 #[inline]
-pub const fn k_third(c: c_int) -> u8 {
-    if c == K_SPECIAL as c_int || c == 0 {
+pub const fn k_third(c: i32) -> u8 {
+    if c == K_SPECIAL as i32 || c == 0 {
         KE_FILLER
     } else {
         key2termcap1(c) as u8
@@ -164,7 +164,7 @@ pub const fn k_third(c: c_int) -> u8 {
 }
 
 #[inline]
-pub const fn ctrl_chr(c: c_int) -> c_int {
+pub const fn ctrl_chr(c: i32) -> i32 {
     crate::charset::toupper_asc(c) ^ 0x40
 }
 
@@ -172,192 +172,192 @@ use crate::cmdexpand::MB_MAXBYTES;
 use crate::eval::STR2NR_ALL;
 use crate::mouse::{MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RELEASE, MOUSE_RIGHT, MOUSE_X1, MOUSE_X2};
 
-pub const K_ZERO: c_int = termcap2key(KS_ZERO as c_int, KE_FILLER as c_int);
-pub const K_UP: c_int = termcap2key(b'k' as c_int, b'u' as c_int);
-pub const K_KUP: c_int = termcap2key(b'K' as c_int, b'u' as c_int);
-pub const K_DOWN: c_int = termcap2key(b'k' as c_int, b'd' as c_int);
-pub const K_KDOWN: c_int = termcap2key(b'K' as c_int, b'd' as c_int);
-pub const K_LEFT: c_int = termcap2key(b'k' as c_int, b'l' as c_int);
-pub const K_KLEFT: c_int = termcap2key(b'K' as c_int, b'l' as c_int);
-pub const K_RIGHT: c_int = termcap2key(b'k' as c_int, b'r' as c_int);
-pub const K_KRIGHT: c_int = termcap2key(b'K' as c_int, b'r' as c_int);
-pub const K_S_UP: c_int = termcap2key(KS_EXTRA as c_int, KE_S_UP as c_int);
-pub const K_S_DOWN: c_int = termcap2key(KS_EXTRA as c_int, KE_S_DOWN as c_int);
-pub const K_S_LEFT: c_int = termcap2key(b'#' as c_int, b'4' as c_int);
-pub const K_C_LEFT: c_int = termcap2key(KS_EXTRA as c_int, KE_C_LEFT as c_int);
-pub const K_S_RIGHT: c_int = termcap2key(b'%' as c_int, b'i' as c_int);
-pub const K_C_RIGHT: c_int = termcap2key(KS_EXTRA as c_int, KE_C_RIGHT as c_int);
-pub const K_S_HOME: c_int = termcap2key(b'#' as c_int, b'2' as c_int);
-pub const K_C_HOME: c_int = termcap2key(KS_EXTRA as c_int, KE_C_HOME as c_int);
-pub const K_S_END: c_int = termcap2key(b'*' as c_int, b'7' as c_int);
-pub const K_C_END: c_int = termcap2key(KS_EXTRA as c_int, KE_C_END as c_int);
-pub const K_TAB: c_int = termcap2key(KS_EXTRA as c_int, KE_TAB as c_int);
-pub const K_S_TAB: c_int = termcap2key(b'k' as c_int, b'B' as c_int);
+pub const K_ZERO: i32 = termcap2key(KS_ZERO as i32, KE_FILLER as i32);
+pub const K_UP: i32 = termcap2key(b'k' as i32, b'u' as i32);
+pub const K_KUP: i32 = termcap2key(b'K' as i32, b'u' as i32);
+pub const K_DOWN: i32 = termcap2key(b'k' as i32, b'd' as i32);
+pub const K_KDOWN: i32 = termcap2key(b'K' as i32, b'd' as i32);
+pub const K_LEFT: i32 = termcap2key(b'k' as i32, b'l' as i32);
+pub const K_KLEFT: i32 = termcap2key(b'K' as i32, b'l' as i32);
+pub const K_RIGHT: i32 = termcap2key(b'k' as i32, b'r' as i32);
+pub const K_KRIGHT: i32 = termcap2key(b'K' as i32, b'r' as i32);
+pub const K_S_UP: i32 = termcap2key(KS_EXTRA as i32, KE_S_UP as i32);
+pub const K_S_DOWN: i32 = termcap2key(KS_EXTRA as i32, KE_S_DOWN as i32);
+pub const K_S_LEFT: i32 = termcap2key(b'#' as i32, b'4' as i32);
+pub const K_C_LEFT: i32 = termcap2key(KS_EXTRA as i32, KE_C_LEFT as i32);
+pub const K_S_RIGHT: i32 = termcap2key(b'%' as i32, b'i' as i32);
+pub const K_C_RIGHT: i32 = termcap2key(KS_EXTRA as i32, KE_C_RIGHT as i32);
+pub const K_S_HOME: i32 = termcap2key(b'#' as i32, b'2' as i32);
+pub const K_C_HOME: i32 = termcap2key(KS_EXTRA as i32, KE_C_HOME as i32);
+pub const K_S_END: i32 = termcap2key(b'*' as i32, b'7' as i32);
+pub const K_C_END: i32 = termcap2key(KS_EXTRA as i32, KE_C_END as i32);
+pub const K_TAB: i32 = termcap2key(KS_EXTRA as i32, KE_TAB as i32);
+pub const K_S_TAB: i32 = termcap2key(b'k' as i32, b'B' as i32);
 
-pub const K_XF1: c_int = termcap2key(KS_EXTRA as c_int, KE_XF1 as c_int);
-pub const K_XF2: c_int = termcap2key(KS_EXTRA as c_int, KE_XF2 as c_int);
-pub const K_XF3: c_int = termcap2key(KS_EXTRA as c_int, KE_XF3 as c_int);
-pub const K_XF4: c_int = termcap2key(KS_EXTRA as c_int, KE_XF4 as c_int);
+pub const K_XF1: i32 = termcap2key(KS_EXTRA as i32, KE_XF1 as i32);
+pub const K_XF2: i32 = termcap2key(KS_EXTRA as i32, KE_XF2 as i32);
+pub const K_XF3: i32 = termcap2key(KS_EXTRA as i32, KE_XF3 as i32);
+pub const K_XF4: i32 = termcap2key(KS_EXTRA as i32, KE_XF4 as i32);
 
-pub const K_XUP: c_int = termcap2key(KS_EXTRA as c_int, KE_XUP as c_int);
-pub const K_XDOWN: c_int = termcap2key(KS_EXTRA as c_int, KE_XDOWN as c_int);
-pub const K_XLEFT: c_int = termcap2key(KS_EXTRA as c_int, KE_XLEFT as c_int);
-pub const K_XRIGHT: c_int = termcap2key(KS_EXTRA as c_int, KE_XRIGHT as c_int);
+pub const K_XUP: i32 = termcap2key(KS_EXTRA as i32, KE_XUP as i32);
+pub const K_XDOWN: i32 = termcap2key(KS_EXTRA as i32, KE_XDOWN as i32);
+pub const K_XLEFT: i32 = termcap2key(KS_EXTRA as i32, KE_XLEFT as i32);
+pub const K_XRIGHT: i32 = termcap2key(KS_EXTRA as i32, KE_XRIGHT as i32);
 
-pub const K_F1: c_int = termcap2key(b'k' as c_int, b'1' as c_int);
-pub const K_F2: c_int = termcap2key(b'k' as c_int, b'2' as c_int);
-pub const K_F3: c_int = termcap2key(b'k' as c_int, b'3' as c_int);
-pub const K_F4: c_int = termcap2key(b'k' as c_int, b'4' as c_int);
-pub const K_F5: c_int = termcap2key(b'k' as c_int, b'5' as c_int);
-pub const K_F6: c_int = termcap2key(b'k' as c_int, b'6' as c_int);
-pub const K_F7: c_int = termcap2key(b'k' as c_int, b'7' as c_int);
-pub const K_F8: c_int = termcap2key(b'k' as c_int, b'8' as c_int);
-pub const K_F9: c_int = termcap2key(b'k' as c_int, b'9' as c_int);
-pub const K_F10: c_int = termcap2key(b'k' as c_int, b';' as c_int);
+pub const K_F1: i32 = termcap2key(b'k' as i32, b'1' as i32);
+pub const K_F2: i32 = termcap2key(b'k' as i32, b'2' as i32);
+pub const K_F3: i32 = termcap2key(b'k' as i32, b'3' as i32);
+pub const K_F4: i32 = termcap2key(b'k' as i32, b'4' as i32);
+pub const K_F5: i32 = termcap2key(b'k' as i32, b'5' as i32);
+pub const K_F6: i32 = termcap2key(b'k' as i32, b'6' as i32);
+pub const K_F7: i32 = termcap2key(b'k' as i32, b'7' as i32);
+pub const K_F8: i32 = termcap2key(b'k' as i32, b'8' as i32);
+pub const K_F9: i32 = termcap2key(b'k' as i32, b'9' as i32);
+pub const K_F10: i32 = termcap2key(b'k' as i32, b';' as i32);
 
-pub const K_F11: c_int = termcap2key(b'F' as c_int, b'1' as c_int);
-pub const K_F12: c_int = termcap2key(b'F' as c_int, b'2' as c_int);
-pub const K_F13: c_int = termcap2key(b'F' as c_int, b'3' as c_int);
-pub const K_F14: c_int = termcap2key(b'F' as c_int, b'4' as c_int);
-pub const K_F15: c_int = termcap2key(b'F' as c_int, b'5' as c_int);
-pub const K_F16: c_int = termcap2key(b'F' as c_int, b'6' as c_int);
-pub const K_F17: c_int = termcap2key(b'F' as c_int, b'7' as c_int);
-pub const K_F18: c_int = termcap2key(b'F' as c_int, b'8' as c_int);
-pub const K_F19: c_int = termcap2key(b'F' as c_int, b'9' as c_int);
-pub const K_F20: c_int = termcap2key(b'F' as c_int, b'A' as c_int);
+pub const K_F11: i32 = termcap2key(b'F' as i32, b'1' as i32);
+pub const K_F12: i32 = termcap2key(b'F' as i32, b'2' as i32);
+pub const K_F13: i32 = termcap2key(b'F' as i32, b'3' as i32);
+pub const K_F14: i32 = termcap2key(b'F' as i32, b'4' as i32);
+pub const K_F15: i32 = termcap2key(b'F' as i32, b'5' as i32);
+pub const K_F16: i32 = termcap2key(b'F' as i32, b'6' as i32);
+pub const K_F17: i32 = termcap2key(b'F' as i32, b'7' as i32);
+pub const K_F18: i32 = termcap2key(b'F' as i32, b'8' as i32);
+pub const K_F19: i32 = termcap2key(b'F' as i32, b'9' as i32);
+pub const K_F20: i32 = termcap2key(b'F' as i32, b'A' as i32);
 
-pub const K_F21: c_int = termcap2key(b'F' as c_int, b'B' as c_int);
-pub const K_F22: c_int = termcap2key(b'F' as c_int, b'C' as c_int);
-pub const K_F23: c_int = termcap2key(b'F' as c_int, b'D' as c_int);
-pub const K_F24: c_int = termcap2key(b'F' as c_int, b'E' as c_int);
-pub const K_F25: c_int = termcap2key(b'F' as c_int, b'F' as c_int);
-pub const K_F26: c_int = termcap2key(b'F' as c_int, b'G' as c_int);
-pub const K_F27: c_int = termcap2key(b'F' as c_int, b'H' as c_int);
-pub const K_F28: c_int = termcap2key(b'F' as c_int, b'I' as c_int);
-pub const K_F29: c_int = termcap2key(b'F' as c_int, b'J' as c_int);
-pub const K_F30: c_int = termcap2key(b'F' as c_int, b'K' as c_int);
+pub const K_F21: i32 = termcap2key(b'F' as i32, b'B' as i32);
+pub const K_F22: i32 = termcap2key(b'F' as i32, b'C' as i32);
+pub const K_F23: i32 = termcap2key(b'F' as i32, b'D' as i32);
+pub const K_F24: i32 = termcap2key(b'F' as i32, b'E' as i32);
+pub const K_F25: i32 = termcap2key(b'F' as i32, b'F' as i32);
+pub const K_F26: i32 = termcap2key(b'F' as i32, b'G' as i32);
+pub const K_F27: i32 = termcap2key(b'F' as i32, b'H' as i32);
+pub const K_F28: i32 = termcap2key(b'F' as i32, b'I' as i32);
+pub const K_F29: i32 = termcap2key(b'F' as i32, b'J' as i32);
+pub const K_F30: i32 = termcap2key(b'F' as i32, b'K' as i32);
 
-pub const K_F31: c_int = termcap2key(b'F' as c_int, b'L' as c_int);
-pub const K_F32: c_int = termcap2key(b'F' as c_int, b'M' as c_int);
-pub const K_F33: c_int = termcap2key(b'F' as c_int, b'N' as c_int);
-pub const K_F34: c_int = termcap2key(b'F' as c_int, b'O' as c_int);
-pub const K_F35: c_int = termcap2key(b'F' as c_int, b'P' as c_int);
-pub const K_F36: c_int = termcap2key(b'F' as c_int, b'Q' as c_int);
-pub const K_F37: c_int = termcap2key(b'F' as c_int, b'R' as c_int);
-pub const K_F38: c_int = termcap2key(b'F' as c_int, b'S' as c_int);
-pub const K_F39: c_int = termcap2key(b'F' as c_int, b'T' as c_int);
-pub const K_F40: c_int = termcap2key(b'F' as c_int, b'U' as c_int);
+pub const K_F31: i32 = termcap2key(b'F' as i32, b'L' as i32);
+pub const K_F32: i32 = termcap2key(b'F' as i32, b'M' as i32);
+pub const K_F33: i32 = termcap2key(b'F' as i32, b'N' as i32);
+pub const K_F34: i32 = termcap2key(b'F' as i32, b'O' as i32);
+pub const K_F35: i32 = termcap2key(b'F' as i32, b'P' as i32);
+pub const K_F36: i32 = termcap2key(b'F' as i32, b'Q' as i32);
+pub const K_F37: i32 = termcap2key(b'F' as i32, b'R' as i32);
+pub const K_F38: i32 = termcap2key(b'F' as i32, b'S' as i32);
+pub const K_F39: i32 = termcap2key(b'F' as i32, b'T' as i32);
+pub const K_F40: i32 = termcap2key(b'F' as i32, b'U' as i32);
 
-pub const K_F41: c_int = termcap2key(b'F' as c_int, b'V' as c_int);
-pub const K_F42: c_int = termcap2key(b'F' as c_int, b'W' as c_int);
-pub const K_F43: c_int = termcap2key(b'F' as c_int, b'X' as c_int);
-pub const K_F44: c_int = termcap2key(b'F' as c_int, b'Y' as c_int);
-pub const K_F45: c_int = termcap2key(b'F' as c_int, b'Z' as c_int);
-pub const K_F46: c_int = termcap2key(b'F' as c_int, b'a' as c_int);
-pub const K_F47: c_int = termcap2key(b'F' as c_int, b'b' as c_int);
-pub const K_F48: c_int = termcap2key(b'F' as c_int, b'c' as c_int);
-pub const K_F49: c_int = termcap2key(b'F' as c_int, b'd' as c_int);
-pub const K_F50: c_int = termcap2key(b'F' as c_int, b'e' as c_int);
+pub const K_F41: i32 = termcap2key(b'F' as i32, b'V' as i32);
+pub const K_F42: i32 = termcap2key(b'F' as i32, b'W' as i32);
+pub const K_F43: i32 = termcap2key(b'F' as i32, b'X' as i32);
+pub const K_F44: i32 = termcap2key(b'F' as i32, b'Y' as i32);
+pub const K_F45: i32 = termcap2key(b'F' as i32, b'Z' as i32);
+pub const K_F46: i32 = termcap2key(b'F' as i32, b'a' as i32);
+pub const K_F47: i32 = termcap2key(b'F' as i32, b'b' as i32);
+pub const K_F48: i32 = termcap2key(b'F' as i32, b'c' as i32);
+pub const K_F49: i32 = termcap2key(b'F' as i32, b'd' as i32);
+pub const K_F50: i32 = termcap2key(b'F' as i32, b'e' as i32);
 
-pub const K_F51: c_int = termcap2key(b'F' as c_int, b'f' as c_int);
-pub const K_F52: c_int = termcap2key(b'F' as c_int, b'g' as c_int);
-pub const K_F53: c_int = termcap2key(b'F' as c_int, b'h' as c_int);
-pub const K_F54: c_int = termcap2key(b'F' as c_int, b'i' as c_int);
-pub const K_F55: c_int = termcap2key(b'F' as c_int, b'j' as c_int);
-pub const K_F56: c_int = termcap2key(b'F' as c_int, b'k' as c_int);
-pub const K_F57: c_int = termcap2key(b'F' as c_int, b'l' as c_int);
-pub const K_F58: c_int = termcap2key(b'F' as c_int, b'm' as c_int);
-pub const K_F59: c_int = termcap2key(b'F' as c_int, b'n' as c_int);
-pub const K_F60: c_int = termcap2key(b'F' as c_int, b'o' as c_int);
+pub const K_F51: i32 = termcap2key(b'F' as i32, b'f' as i32);
+pub const K_F52: i32 = termcap2key(b'F' as i32, b'g' as i32);
+pub const K_F53: i32 = termcap2key(b'F' as i32, b'h' as i32);
+pub const K_F54: i32 = termcap2key(b'F' as i32, b'i' as i32);
+pub const K_F55: i32 = termcap2key(b'F' as i32, b'j' as i32);
+pub const K_F56: i32 = termcap2key(b'F' as i32, b'k' as i32);
+pub const K_F57: i32 = termcap2key(b'F' as i32, b'l' as i32);
+pub const K_F58: i32 = termcap2key(b'F' as i32, b'm' as i32);
+pub const K_F59: i32 = termcap2key(b'F' as i32, b'n' as i32);
+pub const K_F60: i32 = termcap2key(b'F' as i32, b'o' as i32);
 
-pub const K_F61: c_int = termcap2key(b'F' as c_int, b'p' as c_int);
-pub const K_F62: c_int = termcap2key(b'F' as c_int, b'q' as c_int);
-pub const K_F63: c_int = termcap2key(b'F' as c_int, b'r' as c_int);
+pub const K_F61: i32 = termcap2key(b'F' as i32, b'p' as i32);
+pub const K_F62: i32 = termcap2key(b'F' as i32, b'q' as i32);
+pub const K_F63: i32 = termcap2key(b'F' as i32, b'r' as i32);
 
-pub const K_S_XF1: c_int = termcap2key(KS_EXTRA as c_int, KE_S_XF1 as c_int);
-pub const K_S_XF2: c_int = termcap2key(KS_EXTRA as c_int, KE_S_XF2 as c_int);
-pub const K_S_XF3: c_int = termcap2key(KS_EXTRA as c_int, KE_S_XF3 as c_int);
-pub const K_S_XF4: c_int = termcap2key(KS_EXTRA as c_int, KE_S_XF4 as c_int);
+pub const K_S_XF1: i32 = termcap2key(KS_EXTRA as i32, KE_S_XF1 as i32);
+pub const K_S_XF2: i32 = termcap2key(KS_EXTRA as i32, KE_S_XF2 as i32);
+pub const K_S_XF3: i32 = termcap2key(KS_EXTRA as i32, KE_S_XF3 as i32);
+pub const K_S_XF4: i32 = termcap2key(KS_EXTRA as i32, KE_S_XF4 as i32);
 
-pub const K_S_F1: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F1 as c_int);
-pub const K_S_F2: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F2 as c_int);
-pub const K_S_F3: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F3 as c_int);
-pub const K_S_F4: c_int = termcap2key(KS_EXTRA as c_int, KE_S_F4 as c_int);
+pub const K_S_F1: i32 = termcap2key(KS_EXTRA as i32, KE_S_F1 as i32);
+pub const K_S_F2: i32 = termcap2key(KS_EXTRA as i32, KE_S_F2 as i32);
+pub const K_S_F3: i32 = termcap2key(KS_EXTRA as i32, KE_S_F3 as i32);
+pub const K_S_F4: i32 = termcap2key(KS_EXTRA as i32, KE_S_F4 as i32);
 
-pub const K_HELP: c_int = termcap2key(b'%' as c_int, b'1' as c_int);
-pub const K_UNDO: c_int = termcap2key(b'&' as c_int, b'8' as c_int);
-pub const K_FIND: c_int = termcap2key(b'@' as c_int, b'0' as c_int);
-pub const K_KSELECT: c_int = termcap2key(b'*' as c_int, b'6' as c_int);
-pub const K_BS: c_int = termcap2key(b'k' as c_int, b'b' as c_int);
-pub const K_INS: c_int = termcap2key(b'k' as c_int, b'I' as c_int);
-pub const K_KINS: c_int = termcap2key(KS_EXTRA as c_int, KE_KINS as c_int);
-pub const K_DEL: c_int = termcap2key(b'k' as c_int, b'D' as c_int);
-pub const K_KDEL: c_int = termcap2key(KS_EXTRA as c_int, KE_KDEL as c_int);
-pub const K_HOME: c_int = termcap2key(b'k' as c_int, b'h' as c_int);
-pub const K_KHOME: c_int = termcap2key(b'K' as c_int, b'1' as c_int);
-pub const K_XHOME: c_int = termcap2key(KS_EXTRA as c_int, KE_XHOME as c_int);
-pub const K_ZHOME: c_int = termcap2key(KS_EXTRA as c_int, KE_ZHOME as c_int);
-pub const K_END: c_int = termcap2key(b'@' as c_int, b'7' as c_int);
-pub const K_KEND: c_int = termcap2key(b'K' as c_int, b'4' as c_int);
-pub const K_XEND: c_int = termcap2key(KS_EXTRA as c_int, KE_XEND as c_int);
-pub const K_ZEND: c_int = termcap2key(KS_EXTRA as c_int, KE_ZEND as c_int);
-pub const K_PAGEUP: c_int = termcap2key(b'k' as c_int, b'P' as c_int);
-pub const K_PAGEDOWN: c_int = termcap2key(b'k' as c_int, b'N' as c_int);
-pub const K_KPAGEUP: c_int = termcap2key(b'K' as c_int, b'3' as c_int);
-pub const K_KPAGEDOWN: c_int = termcap2key(b'K' as c_int, b'5' as c_int);
-pub const K_KORIGIN: c_int = termcap2key(b'K' as c_int, b'2' as c_int);
+pub const K_HELP: i32 = termcap2key(b'%' as i32, b'1' as i32);
+pub const K_UNDO: i32 = termcap2key(b'&' as i32, b'8' as i32);
+pub const K_FIND: i32 = termcap2key(b'@' as i32, b'0' as i32);
+pub const K_KSELECT: i32 = termcap2key(b'*' as i32, b'6' as i32);
+pub const K_BS: i32 = termcap2key(b'k' as i32, b'b' as i32);
+pub const K_INS: i32 = termcap2key(b'k' as i32, b'I' as i32);
+pub const K_KINS: i32 = termcap2key(KS_EXTRA as i32, KE_KINS as i32);
+pub const K_DEL: i32 = termcap2key(b'k' as i32, b'D' as i32);
+pub const K_KDEL: i32 = termcap2key(KS_EXTRA as i32, KE_KDEL as i32);
+pub const K_HOME: i32 = termcap2key(b'k' as i32, b'h' as i32);
+pub const K_KHOME: i32 = termcap2key(b'K' as i32, b'1' as i32);
+pub const K_XHOME: i32 = termcap2key(KS_EXTRA as i32, KE_XHOME as i32);
+pub const K_ZHOME: i32 = termcap2key(KS_EXTRA as i32, KE_ZHOME as i32);
+pub const K_END: i32 = termcap2key(b'@' as i32, b'7' as i32);
+pub const K_KEND: i32 = termcap2key(b'K' as i32, b'4' as i32);
+pub const K_XEND: i32 = termcap2key(KS_EXTRA as i32, KE_XEND as i32);
+pub const K_ZEND: i32 = termcap2key(KS_EXTRA as i32, KE_ZEND as i32);
+pub const K_PAGEUP: i32 = termcap2key(b'k' as i32, b'P' as i32);
+pub const K_PAGEDOWN: i32 = termcap2key(b'k' as i32, b'N' as i32);
+pub const K_KPAGEUP: i32 = termcap2key(b'K' as i32, b'3' as i32);
+pub const K_KPAGEDOWN: i32 = termcap2key(b'K' as i32, b'5' as i32);
+pub const K_KORIGIN: i32 = termcap2key(b'K' as i32, b'2' as i32);
 
-pub const K_KPLUS: c_int = termcap2key(b'K' as c_int, b'6' as c_int);
-pub const K_KMINUS: c_int = termcap2key(b'K' as c_int, b'7' as c_int);
-pub const K_KDIVIDE: c_int = termcap2key(b'K' as c_int, b'8' as c_int);
-pub const K_KMULTIPLY: c_int = termcap2key(b'K' as c_int, b'9' as c_int);
-pub const K_KENTER: c_int = termcap2key(b'K' as c_int, b'A' as c_int);
-pub const K_KPOINT: c_int = termcap2key(b'K' as c_int, b'B' as c_int);
+pub const K_KPLUS: i32 = termcap2key(b'K' as i32, b'6' as i32);
+pub const K_KMINUS: i32 = termcap2key(b'K' as i32, b'7' as i32);
+pub const K_KDIVIDE: i32 = termcap2key(b'K' as i32, b'8' as i32);
+pub const K_KMULTIPLY: i32 = termcap2key(b'K' as i32, b'9' as i32);
+pub const K_KENTER: i32 = termcap2key(b'K' as i32, b'A' as i32);
+pub const K_KPOINT: i32 = termcap2key(b'K' as i32, b'B' as i32);
 
-pub const K_K0: c_int = termcap2key(b'K' as c_int, b'C' as c_int);
-pub const K_K1: c_int = termcap2key(b'K' as c_int, b'D' as c_int);
-pub const K_K2: c_int = termcap2key(b'K' as c_int, b'E' as c_int);
-pub const K_K3: c_int = termcap2key(b'K' as c_int, b'F' as c_int);
-pub const K_K4: c_int = termcap2key(b'K' as c_int, b'G' as c_int);
-pub const K_K5: c_int = termcap2key(b'K' as c_int, b'H' as c_int);
-pub const K_K6: c_int = termcap2key(b'K' as c_int, b'I' as c_int);
-pub const K_K7: c_int = termcap2key(b'K' as c_int, b'J' as c_int);
-pub const K_K8: c_int = termcap2key(b'K' as c_int, b'K' as c_int);
-pub const K_K9: c_int = termcap2key(b'K' as c_int, b'L' as c_int);
+pub const K_K0: i32 = termcap2key(b'K' as i32, b'C' as i32);
+pub const K_K1: i32 = termcap2key(b'K' as i32, b'D' as i32);
+pub const K_K2: i32 = termcap2key(b'K' as i32, b'E' as i32);
+pub const K_K3: i32 = termcap2key(b'K' as i32, b'F' as i32);
+pub const K_K4: i32 = termcap2key(b'K' as i32, b'G' as i32);
+pub const K_K5: i32 = termcap2key(b'K' as i32, b'H' as i32);
+pub const K_K6: i32 = termcap2key(b'K' as i32, b'I' as i32);
+pub const K_K7: i32 = termcap2key(b'K' as i32, b'J' as i32);
+pub const K_K8: i32 = termcap2key(b'K' as i32, b'K' as i32);
+pub const K_K9: i32 = termcap2key(b'K' as i32, b'L' as i32);
 
-pub const K_KCOMMA: c_int = termcap2key(b'K' as c_int, b'M' as c_int);
-pub const K_KEQUAL: c_int = termcap2key(b'K' as c_int, b'N' as c_int);
+pub const K_KCOMMA: i32 = termcap2key(b'K' as i32, b'M' as i32);
+pub const K_KEQUAL: i32 = termcap2key(b'K' as i32, b'N' as i32);
 
-pub const K_MOUSE: c_int = termcap2key(KS_MOUSE as c_int, KE_FILLER as c_int);
-pub const K_LEFTMOUSE: c_int = termcap2key(KS_EXTRA as c_int, KE_LEFTMOUSE as c_int);
-pub const K_LEFTMOUSE_NM: c_int = termcap2key(KS_EXTRA as c_int, KE_LEFTMOUSE_NM as c_int);
-pub const K_LEFTDRAG: c_int = termcap2key(KS_EXTRA as c_int, KE_LEFTDRAG as c_int);
-pub const K_LEFTRELEASE: c_int = termcap2key(KS_EXTRA as c_int, KE_LEFTRELEASE as c_int);
-pub const K_LEFTRELEASE_NM: c_int = termcap2key(KS_EXTRA as c_int, KE_LEFTRELEASE_NM as c_int);
-pub const K_MOUSEMOVE: c_int = termcap2key(KS_EXTRA as c_int, KE_MOUSEMOVE as c_int);
-pub const K_MIDDLEMOUSE: c_int = termcap2key(KS_EXTRA as c_int, KE_MIDDLEMOUSE as c_int);
-pub const K_MIDDLEDRAG: c_int = termcap2key(KS_EXTRA as c_int, KE_MIDDLEDRAG as c_int);
-pub const K_MIDDLERELEASE: c_int = termcap2key(KS_EXTRA as c_int, KE_MIDDLERELEASE as c_int);
-pub const K_RIGHTMOUSE: c_int = termcap2key(KS_EXTRA as c_int, KE_RIGHTMOUSE as c_int);
-pub const K_RIGHTDRAG: c_int = termcap2key(KS_EXTRA as c_int, KE_RIGHTDRAG as c_int);
-pub const K_RIGHTRELEASE: c_int = termcap2key(KS_EXTRA as c_int, KE_RIGHTRELEASE as c_int);
-pub const K_X1MOUSE: c_int = termcap2key(KS_EXTRA as c_int, KE_X1MOUSE as c_int);
-pub const K_X1DRAG: c_int = termcap2key(KS_EXTRA as c_int, KE_X1DRAG as c_int);
-pub const K_X1RELEASE: c_int = termcap2key(KS_EXTRA as c_int, KE_X1RELEASE as c_int);
-pub const K_X2MOUSE: c_int = termcap2key(KS_EXTRA as c_int, KE_X2MOUSE as c_int);
-pub const K_X2DRAG: c_int = termcap2key(KS_EXTRA as c_int, KE_X2DRAG as c_int);
-pub const K_X2RELEASE: c_int = termcap2key(KS_EXTRA as c_int, KE_X2RELEASE as c_int);
+pub const K_MOUSE: i32 = termcap2key(KS_MOUSE as i32, KE_FILLER as i32);
+pub const K_LEFTMOUSE: i32 = termcap2key(KS_EXTRA as i32, KE_LEFTMOUSE as i32);
+pub const K_LEFTMOUSE_NM: i32 = termcap2key(KS_EXTRA as i32, KE_LEFTMOUSE_NM as i32);
+pub const K_LEFTDRAG: i32 = termcap2key(KS_EXTRA as i32, KE_LEFTDRAG as i32);
+pub const K_LEFTRELEASE: i32 = termcap2key(KS_EXTRA as i32, KE_LEFTRELEASE as i32);
+pub const K_LEFTRELEASE_NM: i32 = termcap2key(KS_EXTRA as i32, KE_LEFTRELEASE_NM as i32);
+pub const K_MOUSEMOVE: i32 = termcap2key(KS_EXTRA as i32, KE_MOUSEMOVE as i32);
+pub const K_MIDDLEMOUSE: i32 = termcap2key(KS_EXTRA as i32, KE_MIDDLEMOUSE as i32);
+pub const K_MIDDLEDRAG: i32 = termcap2key(KS_EXTRA as i32, KE_MIDDLEDRAG as i32);
+pub const K_MIDDLERELEASE: i32 = termcap2key(KS_EXTRA as i32, KE_MIDDLERELEASE as i32);
+pub const K_RIGHTMOUSE: i32 = termcap2key(KS_EXTRA as i32, KE_RIGHTMOUSE as i32);
+pub const K_RIGHTDRAG: i32 = termcap2key(KS_EXTRA as i32, KE_RIGHTDRAG as i32);
+pub const K_RIGHTRELEASE: i32 = termcap2key(KS_EXTRA as i32, KE_RIGHTRELEASE as i32);
+pub const K_X1MOUSE: i32 = termcap2key(KS_EXTRA as i32, KE_X1MOUSE as i32);
+pub const K_X1DRAG: i32 = termcap2key(KS_EXTRA as i32, KE_X1DRAG as i32);
+pub const K_X1RELEASE: i32 = termcap2key(KS_EXTRA as i32, KE_X1RELEASE as i32);
+pub const K_X2MOUSE: i32 = termcap2key(KS_EXTRA as i32, KE_X2MOUSE as i32);
+pub const K_X2DRAG: i32 = termcap2key(KS_EXTRA as i32, KE_X2DRAG as i32);
+pub const K_X2RELEASE: i32 = termcap2key(KS_EXTRA as i32, KE_X2RELEASE as i32);
 
-pub const K_IGNORE: c_int = termcap2key(KS_EXTRA as c_int, KE_IGNORE as c_int);
-pub const K_NOP: c_int = termcap2key(KS_EXTRA as c_int, KE_NOP as c_int);
-pub const K_MOUSEDOWN: c_int = termcap2key(KS_EXTRA as c_int, KE_MOUSEDOWN as c_int);
-pub const K_MOUSEUP: c_int = termcap2key(KS_EXTRA as c_int, KE_MOUSEUP as c_int);
-pub const K_MOUSELEFT: c_int = termcap2key(KS_EXTRA as c_int, KE_MOUSELEFT as c_int);
-pub const K_MOUSERIGHT: c_int = termcap2key(KS_EXTRA as c_int, KE_MOUSERIGHT as c_int);
-pub const K_SNR: c_int = termcap2key(KS_EXTRA as c_int, KE_SNR as c_int);
-pub const K_PLUG: c_int = termcap2key(KS_EXTRA as c_int, KE_PLUG as c_int);
-pub const K_DROP: c_int = termcap2key(KS_EXTRA as c_int, KE_DROP as c_int);
-pub const K_COMMAND: c_int = termcap2key(KS_EXTRA as c_int, KE_COMMAND as c_int);
+pub const K_IGNORE: i32 = termcap2key(KS_EXTRA as i32, KE_IGNORE as i32);
+pub const K_NOP: i32 = termcap2key(KS_EXTRA as i32, KE_NOP as i32);
+pub const K_MOUSEDOWN: i32 = termcap2key(KS_EXTRA as i32, KE_MOUSEDOWN as i32);
+pub const K_MOUSEUP: i32 = termcap2key(KS_EXTRA as i32, KE_MOUSEUP as i32);
+pub const K_MOUSELEFT: i32 = termcap2key(KS_EXTRA as i32, KE_MOUSELEFT as i32);
+pub const K_MOUSERIGHT: i32 = termcap2key(KS_EXTRA as i32, KE_MOUSERIGHT as i32);
+pub const K_SNR: i32 = termcap2key(KS_EXTRA as i32, KE_SNR as i32);
+pub const K_PLUG: i32 = termcap2key(KS_EXTRA as i32, KE_PLUG as i32);
+pub const K_DROP: i32 = termcap2key(KS_EXTRA as i32, KE_DROP as i32);
+pub const K_COMMAND: i32 = termcap2key(KS_EXTRA as i32, KE_COMMAND as i32);
 
 pub const MOD_MASK_SHIFT: u16 = 0x02;
 pub const MOD_MASK_CTRL: u16 = 0x04;
@@ -371,17 +371,17 @@ pub const MOD_MASK_MULTI_CLICK: u16 = MOD_MASK_2CLICK | MOD_MASK_3CLICK | MOD_MA
 
 pub const MAX_KEY_NAME_LEN: usize = 32;
 
-pub const REPTERM_FROM_PART: c_int = 1;
-pub const REPTERM_DO_LT: c_int = 2;
-pub const REPTERM_NO_SPECIAL: c_int = 4;
-pub const REPTERM_NO_SIMPLIFY: c_int = 8;
+pub const REPTERM_FROM_PART: i32 = 1;
+pub const REPTERM_DO_LT: i32 = 2;
+pub const REPTERM_NO_SPECIAL: i32 = 4;
+pub const REPTERM_NO_SIMPLIFY: i32 = 8;
 
-pub const FSK_KEYCODE: c_int = 0x01;
-pub const FSK_KEEP_X_KEY: c_int = 0x02;
-pub const FSK_IN_STRING: c_int = 0x04;
-pub const FSK_SIMPLIFY: c_int = 0x08;
+pub const FSK_KEYCODE: i32 = 0x01;
+pub const FSK_KEEP_X_KEY: i32 = 0x02;
+pub const FSK_IN_STRING: i32 = 0x04;
+pub const FSK_SIMPLIFY: i32 = 0x08;
 
-const K_CPO_BSLASH: c_int = b'B' as c_int;
+const K_CPO_BSLASH: i32 = b'B' as i32;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -394,7 +394,7 @@ pub struct ModMaskTable {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyChord {
-    pub mods: c_int,
+    pub mods: i32,
     pub key_mem: c_char,
     pub key: NvimString,
     pub key_alt: NvimString,
@@ -851,111 +851,111 @@ const MODIFIER_KEYS_TABLE: &[u8] = &[
 
 #[derive(Clone, Copy)]
 struct MouseTableEntry {
-    pseudo_code: c_int,
-    button: c_int,
+    pseudo_code: i32,
+    button: i32,
     is_click: bool,
     is_drag: bool,
 }
 
 const MOUSE_TABLE: &[MouseTableEntry] = &[
     MouseTableEntry {
-        pseudo_code: KE_LEFTMOUSE as c_int,
+        pseudo_code: KE_LEFTMOUSE as i32,
         button: MOUSE_LEFT,
         is_click: true,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_LEFTDRAG as c_int,
+        pseudo_code: KE_LEFTDRAG as i32,
         button: MOUSE_LEFT,
         is_click: false,
         is_drag: true,
     },
     MouseTableEntry {
-        pseudo_code: KE_LEFTRELEASE as c_int,
+        pseudo_code: KE_LEFTRELEASE as i32,
         button: MOUSE_LEFT,
         is_click: false,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_MIDDLEMOUSE as c_int,
+        pseudo_code: KE_MIDDLEMOUSE as i32,
         button: MOUSE_MIDDLE,
         is_click: true,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_MIDDLEDRAG as c_int,
+        pseudo_code: KE_MIDDLEDRAG as i32,
         button: MOUSE_MIDDLE,
         is_click: false,
         is_drag: true,
     },
     MouseTableEntry {
-        pseudo_code: KE_MIDDLERELEASE as c_int,
+        pseudo_code: KE_MIDDLERELEASE as i32,
         button: MOUSE_MIDDLE,
         is_click: false,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_RIGHTMOUSE as c_int,
+        pseudo_code: KE_RIGHTMOUSE as i32,
         button: MOUSE_RIGHT,
         is_click: true,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_RIGHTDRAG as c_int,
+        pseudo_code: KE_RIGHTDRAG as i32,
         button: MOUSE_RIGHT,
         is_click: false,
         is_drag: true,
     },
     MouseTableEntry {
-        pseudo_code: KE_RIGHTRELEASE as c_int,
+        pseudo_code: KE_RIGHTRELEASE as i32,
         button: MOUSE_RIGHT,
         is_click: false,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_X1MOUSE as c_int,
+        pseudo_code: KE_X1MOUSE as i32,
         button: MOUSE_X1,
         is_click: true,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_X1DRAG as c_int,
+        pseudo_code: KE_X1DRAG as i32,
         button: MOUSE_X1,
         is_click: false,
         is_drag: true,
     },
     MouseTableEntry {
-        pseudo_code: KE_X1RELEASE as c_int,
+        pseudo_code: KE_X1RELEASE as i32,
         button: MOUSE_X1,
         is_click: false,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_X2MOUSE as c_int,
+        pseudo_code: KE_X2MOUSE as i32,
         button: MOUSE_X2,
         is_click: true,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_X2DRAG as c_int,
+        pseudo_code: KE_X2DRAG as i32,
         button: MOUSE_X2,
         is_click: false,
         is_drag: true,
     },
     MouseTableEntry {
-        pseudo_code: KE_X2RELEASE as c_int,
+        pseudo_code: KE_X2RELEASE as i32,
         button: MOUSE_X2,
         is_click: false,
         is_drag: false,
     },
     MouseTableEntry {
-        pseudo_code: KE_MOUSEMOVE as c_int,
+        pseudo_code: KE_MOUSEMOVE as i32,
         button: MOUSE_RELEASE,
         is_click: false,
         is_drag: true,
     },
     MouseTableEntry {
-        pseudo_code: KE_IGNORE as c_int,
+        pseudo_code: KE_IGNORE as i32,
         button: MOUSE_RELEASE,
         is_click: false,
         is_drag: false,
@@ -964,7 +964,7 @@ const MOUSE_TABLE: &[MouseTableEntry] = &[
 
 #[derive(Clone, Copy)]
 struct KeyNameEntry {
-    key: c_int,
+    key: i32,
     is_alt: bool,
     name: &'static CStr,
 }
@@ -1091,7 +1091,7 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
         name: c"BS",
     },
     KeyNameEntry {
-        key: b'<' as c_int,
+        key: b'<' as i32,
         is_alt: false,
         name: c"lt",
     },
@@ -1486,7 +1486,7 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
         name: c"xUp",
     },
     KeyNameEntry {
-        key: b'|' as c_int,
+        key: b'|' as i32,
         is_alt: false,
         name: c"Bar",
     },
@@ -1621,7 +1621,7 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
         name: c"kPlus",
     },
     KeyNameEntry {
-        key: b' ' as c_int,
+        key: b' ' as i32,
         is_alt: false,
         name: c"Space",
     },
@@ -1661,7 +1661,7 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
         name: c"xRight",
     },
     KeyNameEntry {
-        key: b'\\' as c_int,
+        key: b'\\' as i32,
         is_alt: false,
         name: c"Bslash",
     },
@@ -2052,12 +2052,12 @@ fn get_special_key_code_hash(name: &[u8]) -> isize {
 }
 
 /// Return the modifier mask bit (`MOD_MASK_*`) corresponding to mod name (`name_to_mod_mask`).
-pub fn name_to_mod_mask(c: c_int) -> c_int {
+pub fn name_to_mod_mask(c: i32) -> i32 {
     let c = toupper_asc(c);
     let mut i = 0;
     while MOD_MASK_TABLE[i].mod_mask != 0 {
-        if c == c_int::from(MOD_MASK_TABLE[i].name as u8) {
-            return c_int::from(MOD_MASK_TABLE[i].mod_flag);
+        if c == i32::from(MOD_MASK_TABLE[i].name as u8) {
+            return i32::from(MOD_MASK_TABLE[i].mod_flag);
         }
         i += 1;
     }
@@ -2065,31 +2065,31 @@ pub fn name_to_mod_mask(c: c_int) -> c_int {
 }
 
 /// Check if there is a special key code for `key` with specified modifiers (`simplify_key`).
-pub fn simplify_key(key: c_int, modifiers: &mut c_int) -> c_int {
+pub fn simplify_key(key: i32, modifiers: &mut i32) -> i32 {
     let mut mods = *modifiers;
-    if (mods & c_int::from(MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0 {
+    if (mods & i32::from(MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0 {
         return key;
     }
 
     // TAB is a special case.
-    if key == TAB && (mods & c_int::from(MOD_MASK_SHIFT)) != 0 {
-        *modifiers = mods & !c_int::from(MOD_MASK_SHIFT);
+    if key == TAB && (mods & i32::from(MOD_MASK_SHIFT)) != 0 {
+        *modifiers = mods & !i32::from(MOD_MASK_SHIFT);
         return K_S_TAB;
     }
     let key0 = key2termcap0(key);
     let key1 = key2termcap1(key);
     let mut i = 0;
     while MODIFIER_KEYS_TABLE[i] != NUL {
-        let entry_mod = c_int::from(MODIFIER_KEYS_TABLE[i]);
-        if key0 == c_int::from(MODIFIER_KEYS_TABLE[i + 3])
-            && key1 == c_int::from(MODIFIER_KEYS_TABLE[i + 4])
+        let entry_mod = i32::from(MODIFIER_KEYS_TABLE[i]);
+        if key0 == i32::from(MODIFIER_KEYS_TABLE[i + 3])
+            && key1 == i32::from(MODIFIER_KEYS_TABLE[i + 4])
             && (mods & entry_mod) != 0
         {
             mods &= !entry_mod;
             *modifiers = mods;
             return termcap2key(
-                c_int::from(MODIFIER_KEYS_TABLE[i + 1]),
-                c_int::from(MODIFIER_KEYS_TABLE[i + 2]),
+                i32::from(MODIFIER_KEYS_TABLE[i + 1]),
+                i32::from(MODIFIER_KEYS_TABLE[i + 2]),
             );
         }
         i += MOD_KEYS_ENTRY_SIZE;
@@ -2098,7 +2098,7 @@ pub fn simplify_key(key: c_int, modifiers: &mut c_int) -> c_int {
 }
 
 /// Inverse of `simplify_key()` (`unsimplify_key`).
-pub fn unsimplify_key(c: c_int, modifiers: &mut c_int) -> c_int {
+pub fn unsimplify_key(c: i32, modifiers: &mut i32) -> i32 {
     if !is_special(c) {
         return c;
     }
@@ -2107,15 +2107,15 @@ pub fn unsimplify_key(c: c_int, modifiers: &mut c_int) -> c_int {
     let key1 = key2termcap1(c);
     let mut i = 0;
     while MODIFIER_KEYS_TABLE[i] != NUL {
-        if key0 == c_int::from(MODIFIER_KEYS_TABLE[i + 1])
-            && key1 == c_int::from(MODIFIER_KEYS_TABLE[i + 2])
+        if key0 == i32::from(MODIFIER_KEYS_TABLE[i + 1])
+            && key1 == i32::from(MODIFIER_KEYS_TABLE[i + 2])
         {
             {
-                *modifiers |= c_int::from(MODIFIER_KEYS_TABLE[i]);
+                *modifiers |= i32::from(MODIFIER_KEYS_TABLE[i]);
             }
             return termcap2key(
-                c_int::from(MODIFIER_KEYS_TABLE[i + 3]),
-                c_int::from(MODIFIER_KEYS_TABLE[i + 4]),
+                i32::from(MODIFIER_KEYS_TABLE[i + 3]),
+                i32::from(MODIFIER_KEYS_TABLE[i + 4]),
             );
         }
         i += MOD_KEYS_ENTRY_SIZE;
@@ -2124,7 +2124,7 @@ pub fn unsimplify_key(c: c_int, modifiers: &mut c_int) -> c_int {
 }
 
 /// Change `<xKey>` to `<Key>` (`handle_x_keys`).
-pub fn handle_x_keys(key: c_int) -> c_int {
+pub fn handle_x_keys(key: i32) -> i32 {
     match key {
         K_XUP => K_UP,
         K_XDOWN => K_DOWN,
@@ -2150,8 +2150,8 @@ static SPECIAL_KEY_STRING: crate::globals::GlobalState<[c_char; MAX_KEY_NAME_LEN
 /// Gets a key "chord" (key + modifiers) as a string, and optionally as structured `data`
 /// (`get_special_key`).
 pub fn get_special_key(
-    mut c: c_int,
-    mut modifiers: c_int,
+    mut c: i32,
+    mut modifiers: i32,
     mut data: Option<&mut KeyChord>,
 ) -> *mut c_char {
     unsafe {
@@ -2162,7 +2162,7 @@ pub fn get_special_key(
         let mut idx: usize = 1;
 
         // Key that stands for a normal character.
-        if is_special(c) && key2termcap0(c) == KS_KEY as c_int {
+        if is_special(c) && key2termcap0(c) == KS_KEY as i32 {
             c = key2termcap1(c);
         }
 
@@ -2175,9 +2175,9 @@ pub fn get_special_key(
 
         // When not a known special key, and not a printable character, try to
         // extract modifiers.
-        if c > 0 && utf_char2len(c) == 1 && table_idx < 0 && !vim_isprintc(c) && c < b' ' as c_int {
-            c += b'@' as c_int;
-            modifiers |= c_int::from(MOD_MASK_CTRL);
+        if c > 0 && utf_char2len(c) == 1 && table_idx < 0 && !vim_isprintc(c) && c < b' ' as i32 {
+            c += b'@' as i32;
+            modifiers |= i32::from(MOD_MASK_CTRL);
             is_ascii_ctrl = true;
         }
 
@@ -2188,8 +2188,8 @@ pub fn get_special_key(
         // translate the modifier into a string
         let mut i = 0;
         while MOD_MASK_TABLE[i].name != b'A' as c_char {
-            let mask = c_int::from(MOD_MASK_TABLE[i].mod_mask);
-            let flag = c_int::from(MOD_MASK_TABLE[i].mod_flag);
+            let mask = i32::from(MOD_MASK_TABLE[i].mod_mask);
+            let flag = i32::from(MOD_MASK_TABLE[i].mod_flag);
             if (modifiers & mask) == flag {
                 *string.add(idx) = MOD_MASK_TABLE[i].name;
                 idx += 1;
@@ -2230,14 +2230,14 @@ pub fn get_special_key(
                 let len = utf_char2len(c);
                 if len == 1 && vim_isprintc(c) {
                     if data.is_some() {
-                        if (b'A' as c_int..=b'Z' as c_int).contains(&c) {
+                        if (b'A' as i32..=b'Z' as i32).contains(&c) {
                             data.as_deref_mut().unwrap().key_mem = (c as u8 + 32) as c_char;
                             data.as_deref_mut().unwrap().key = NvimString {
                                 data: std::ptr::addr_of_mut!(data.as_deref_mut().unwrap().key_mem),
                                 size: 1,
                             };
                             if !is_ascii_ctrl {
-                                data.as_deref_mut().unwrap().mods |= c_int::from(MOD_MASK_SHIFT);
+                                data.as_deref_mut().unwrap().mods |= i32::from(MOD_MASK_SHIFT);
                             }
                             data.as_deref_mut().unwrap().key_alt = NvimString {
                                 data: string.add(idx),
@@ -2332,7 +2332,7 @@ pub fn get_special_key(
 }
 
 /// Return string representing the key "chord" (key + modifiers) (`get_special_key_name`).
-pub fn get_special_key_name(c: c_int, modifiers: c_int) -> *mut c_char {
+pub fn get_special_key_name(c: i32, modifiers: i32) -> *mut c_char {
     get_special_key(c, modifiers, None)
 }
 
@@ -2341,11 +2341,11 @@ pub fn trans_special(
     srcp: *mut *const c_char,
     src_len: usize,
     dst: *mut c_char,
-    flags: c_int,
+    flags: i32,
     escape_ks: bool,
     did_simplify: Option<&mut bool>,
-) -> c_uint {
-    let mut modifiers: c_int = 0;
+) -> u32 {
+    let mut modifiers: i32 = 0;
     let key = find_special_key(srcp, src_len, &mut modifiers, flags, did_simplify);
     if key == 0 {
         return 0;
@@ -2356,9 +2356,9 @@ pub fn trans_special(
 
 /// Put the character sequence for `key` with `modifiers` into `dst` and return
 /// the resulting length (`special_to_buf`).
-pub fn special_to_buf(key: c_int, modifiers: c_int, escape_ks: bool, dst: *mut c_char) -> c_uint {
+pub fn special_to_buf(key: i32, modifiers: i32, escape_ks: bool, dst: *mut c_char) -> u32 {
     unsafe {
-        let mut dlen: c_uint = 0;
+        let mut dlen: u32 = 0;
 
         // Put the appropriate modifier in a string.
         if modifiers != 0 {
@@ -2380,9 +2380,9 @@ pub fn special_to_buf(key: c_int, modifiers: c_int, escape_ks: bool, dst: *mut c
         } else if escape_ks {
             let after = add_char2buf(key, dst.add(dlen as usize));
             debug_assert!(after as usize >= dst as usize);
-            dlen = (after as usize - dst as usize) as c_uint;
+            dlen = (after as usize - dst as usize) as u32;
         } else {
-            dlen += utf_char2bytes(key, dst.add(dlen as usize)) as c_uint;
+            dlen += utf_char2bytes(key, dst.add(dlen as usize)) as u32;
         }
 
         dlen
@@ -2391,33 +2391,33 @@ pub fn special_to_buf(key: c_int, modifiers: c_int, escape_ks: bool, dst: *mut c
 
 /// Try to include modifiers (except alt/meta) in the key (`extract_modifiers`).
 fn extract_modifiers(
-    mut key: c_int,
-    modp: &mut c_int,
+    mut key: i32,
+    modp: &mut i32,
     simplify: bool,
     did_simplify: Option<&mut bool>,
-) -> c_int {
+) -> i32 {
     let mut modifiers = *modp;
 
-    if (modifiers & c_int::from(MOD_MASK_SHIFT)) != 0 && ascii_isalpha(key) {
+    if (modifiers & i32::from(MOD_MASK_SHIFT)) != 0 && ascii_isalpha(key) {
         key = toupper_asc(key);
         // With <C-S-a> we keep the shift modifier.
         // With <S-a>, <A-S-a> and <S-A> we don't keep the shift modifier.
-        if (modifiers & c_int::from(MOD_MASK_CTRL)) == 0 {
-            modifiers &= !c_int::from(MOD_MASK_SHIFT);
+        if (modifiers & i32::from(MOD_MASK_CTRL)) == 0 {
+            modifiers &= !i32::from(MOD_MASK_SHIFT);
         }
     }
 
     // <C-H> and <C-h> mean the same thing, always use "H"
-    if (modifiers & c_int::from(MOD_MASK_CTRL)) != 0 && ascii_isalpha(key) {
+    if (modifiers & i32::from(MOD_MASK_CTRL)) != 0 && ascii_isalpha(key) {
         key = toupper_asc(key);
     }
 
     if simplify
-        && (modifiers & c_int::from(MOD_MASK_CTRL)) != 0
-        && ((b'?' as c_int..=b'_' as c_int).contains(&key) || ascii_isalpha(key))
+        && (modifiers & i32::from(MOD_MASK_CTRL)) != 0
+        && ((b'?' as i32..=b'_' as i32).contains(&key) || ascii_isalpha(key))
     {
         key = ctrl_chr(key);
-        modifiers &= !c_int::from(MOD_MASK_CTRL);
+        modifiers &= !i32::from(MOD_MASK_CTRL);
         if key == 0 {
             // <C-@> is <Nul>
             key = K_ZERO;
@@ -2435,10 +2435,10 @@ fn extract_modifiers(
 pub fn find_special_key(
     srcp: *mut *const c_char,
     src_len: usize,
-    modp: &mut c_int,
-    flags: c_int,
+    modp: &mut i32,
+    flags: i32,
     did_simplify: Option<&mut bool>,
-) -> c_int {
+) -> i32 {
     unsafe {
         if src_len == 0 {
             return 0;
@@ -2466,7 +2466,7 @@ pub fn find_special_key(
                 last_dash = bp;
                 if (bp.add(1) as usize) <= (end as usize) {
                     let end_minus_bp = end as usize - bp as usize;
-                    let l = utfc_ptr2len_len(bp.add(1), (end_minus_bp + 1) as c_int) as usize;
+                    let l = utfc_ptr2len_len(bp.add(1), (end_minus_bp + 1) as i32) as usize;
                     if end_minus_bp > l
                         && !(in_string && crate::memory::cstr_byte_at(bp, 1) == b'"')
                         && crate::memory::cstr_byte_at(bp, l + 1) == b'>'
@@ -2492,7 +2492,7 @@ pub fn find_special_key(
                 } else if end_minus_bp > 4
                     && crate::memory::cstr_prefix_bytes(bp, 5).eq_ignore_ascii_case(b"char-")
                 {
-                    let mut l: c_int = 0;
+                    let mut l: i32 = 0;
                     vim_str2nr(
                         bp.add(5),
                         None,
@@ -2520,11 +2520,11 @@ pub fn find_special_key(
             let end_of_name = bp.add(1);
 
             // Which modifiers are given?
-            let mut modifiers: c_int = 0;
+            let mut modifiers: i32 = 0;
             bp = src.add(1);
             while (bp as usize) < (last_dash as usize) {
                 if crate::memory::cstr_first_byte(bp) != b'-' {
-                    let bit = name_to_mod_mask(c_int::from(crate::memory::cstr_first_byte(bp)));
+                    let bit = name_to_mod_mask(i32::from(crate::memory::cstr_first_byte(bp)));
                     if bit == 0 {
                         break; // Illegal modifier name
                     }
@@ -2535,13 +2535,13 @@ pub fn find_special_key(
 
             // Legal modifier name.
             if (bp as usize) >= (last_dash as usize) {
-                let mut key: c_int;
+                let mut key: i32;
                 if crate::memory::cstr_slice(last_dash, (1) + (5))[1..]
                     .eq_ignore_ascii_case(b"char-")
                     && ascii_isdigit(crate::memory::cstr_char_at(last_dash, 6))
                 {
                     // <Char-123> or <Char-033> or <Char-0x33>
-                    let mut l: c_int = 0;
+                    let mut l: i32 = 0;
                     let mut n: u64 = 0;
                     vim_str2nr(
                         last_dash.add(6),
@@ -2558,7 +2558,7 @@ pub fn find_special_key(
                         emsg(E_INVARG);
                         return 0;
                     }
-                    key = n as c_int;
+                    key = n as i32;
                 } else {
                     let off: usize;
                     let l: usize;
@@ -2622,17 +2622,17 @@ pub fn find_special_key(
 }
 
 /// Try to find key `c` in the special key table (`find_special_key_in_table`).
-pub fn find_special_key_in_table(c: c_int) -> c_int {
+pub fn find_special_key_in_table(c: i32) -> i32 {
     for (i, entry) in KEY_NAMES_TABLE.iter().enumerate() {
         if c == entry.key && !entry.is_alt {
-            return i as c_int;
+            return i as i32;
         }
     }
     -1
 }
 
 /// Find the special key with the given name (`get_special_key_code`).
-pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(name) == b't'
@@ -2641,8 +2641,8 @@ pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> c_int {
             && *name.add(3) != 0
         {
             return termcap2key(
-                c_int::from(crate::memory::cstr_byte_at(name, 2)),
-                c_int::from(crate::memory::cstr_byte_at(name, 3)),
+                i32::from(crate::memory::cstr_byte_at(name, 2)),
+                i32::from(crate::memory::cstr_byte_at(name, 3)),
             );
         }
 
@@ -2662,7 +2662,7 @@ pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> c_int {
 }
 
 /// Look up the given mouse code to return the relevant information (`get_mouse_button`).
-pub fn get_mouse_button(code: c_int, is_click: &mut bool, is_drag: &mut bool) -> c_int {
+pub fn get_mouse_button(code: i32, is_click: &mut bool, is_drag: &mut bool) -> i32 {
     for entry in MOUSE_TABLE {
         if code == entry.pseudo_code {
             *is_click = entry.is_click;
@@ -2679,7 +2679,7 @@ pub fn replace_termcodes(
     from_len: usize,
     buf_limit: bool,
     sid_arg: Scid,
-    flags: c_int,
+    flags: i32,
     mut did_simplify: Option<&mut bool>,
     cpo_val: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
@@ -2733,7 +2733,7 @@ pub fn replace_termcodes(
                         dlen += 1;
                         *result.add(dlen) = KE_SNR as c_char;
                         dlen += 1;
-                        vim_snprintf!(result.add(dlen), buf_len - dlen, c"%d", sid as c_int,);
+                        vim_snprintf!(result.add(dlen), buf_len - dlen, c"%d", sid as i32,);
                         dlen += crate::memory::cstr_as_bytes(result)[dlen..].len();
                         *result.add(dlen) = b'_' as c_char;
                         dlen += 1;
@@ -2813,7 +2813,7 @@ pub fn replace_termcodes(
 
             // skip multibyte char correctly
             let rem_after = (end_exclusive as usize) - (src as usize);
-            let mut i = utfc_ptr2len_len(src, rem_after as c_int) as isize;
+            let mut i = utfc_ptr2len_len(src, rem_after as i32) as isize;
             while i > 0 {
                 // If the character is K_SPECIAL, replace it with K_SPECIAL
                 // KS_SPECIAL KE_FILLER.
@@ -2842,7 +2842,7 @@ pub fn replace_termcodes(
 }
 
 /// Add character `c` to buffer `s`, escaping `K_SPECIAL` (`add_char2buf`).
-pub fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
+pub fn add_char2buf(c: i32, s: *mut c_char) -> *mut c_char {
     unsafe {
         let mut s = s;
         let mut temp = [0 as c_char; MB_MAXBYTES + 1];
@@ -2924,25 +2924,25 @@ mod tests {
 
     #[test]
     fn name_to_mod_mask_recognizes_modifiers_case_insensitively() {
-        assert_eq!(name_to_mod_mask(b'S' as c_int), MOD_MASK_SHIFT as c_int);
-        assert_eq!(name_to_mod_mask(b's' as c_int), MOD_MASK_SHIFT as c_int);
-        assert_eq!(name_to_mod_mask(b'C' as c_int), MOD_MASK_CTRL as c_int);
-        assert_eq!(name_to_mod_mask(b'M' as c_int), MOD_MASK_ALT as c_int);
-        assert_eq!(name_to_mod_mask(b'A' as c_int), MOD_MASK_ALT as c_int);
-        assert_eq!(name_to_mod_mask(b'D' as c_int), MOD_MASK_CMD as c_int);
-        assert_eq!(name_to_mod_mask(b'Z' as c_int), 0);
+        assert_eq!(name_to_mod_mask(b'S' as i32), MOD_MASK_SHIFT as i32);
+        assert_eq!(name_to_mod_mask(b's' as i32), MOD_MASK_SHIFT as i32);
+        assert_eq!(name_to_mod_mask(b'C' as i32), MOD_MASK_CTRL as i32);
+        assert_eq!(name_to_mod_mask(b'M' as i32), MOD_MASK_ALT as i32);
+        assert_eq!(name_to_mod_mask(b'A' as i32), MOD_MASK_ALT as i32);
+        assert_eq!(name_to_mod_mask(b'D' as i32), MOD_MASK_CMD as i32);
+        assert_eq!(name_to_mod_mask(b'Z' as i32), 0);
     }
 
     #[test]
     fn simplify_and_unsimplify_key_roundtrip() {
-        let mut mods = MOD_MASK_SHIFT as c_int;
+        let mut mods = MOD_MASK_SHIFT as i32;
         let simplified = simplify_key(K_F1, &mut mods);
         assert_eq!(simplified, K_S_F1);
         assert_eq!(mods, 0);
 
         let unsimplified = unsimplify_key(simplified, &mut mods);
         assert_eq!(unsimplified, K_F1);
-        assert_eq!(mods, MOD_MASK_SHIFT as c_int);
+        assert_eq!(mods, MOD_MASK_SHIFT as i32);
     }
 
     #[test]
@@ -2968,7 +2968,7 @@ mod tests {
 
     #[test]
     fn find_special_key_handles_modifiers_case_and_quotes() {
-        let mut modp: c_int = 0;
+        let mut modp: i32 = 0;
         let mut p = c"abc".as_ptr();
         assert_eq!(find_special_key(&mut p, 3, &mut modp, 0, None), 0);
 
@@ -2986,10 +2986,7 @@ mod tests {
         }
 
         p = c"<C-\">".as_ptr();
-        assert_eq!(
-            find_special_key(&mut p, 5, &mut modp, 0, None),
-            b'"' as c_int
-        );
+        assert_eq!(find_special_key(&mut p, 5, &mut modp, 0, None), b'"' as i32);
         p = c"<C-\">".as_ptr();
         assert_eq!(
             find_special_key(&mut p, 5, &mut modp, FSK_IN_STRING, None),
@@ -3000,7 +2997,7 @@ mod tests {
         p = c"<C-\\\">".as_ptr();
         assert_eq!(
             find_special_key(&mut p, 6, &mut modp, FSK_IN_STRING, None),
-            b'"' as c_int
+            b'"' as i32
         );
     }
 }

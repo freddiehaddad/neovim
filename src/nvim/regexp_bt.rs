@@ -1,98 +1,98 @@
 //! Backtracking regular expression engine (`src/nvim/regexp.c`).
 
 use crate::message::semsg;
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 use std::mem::size_of;
 use std::ptr;
 
 use super::*;
 
-const END: c_int = 0;
-const BOL: c_int = 1;
-const EOL: c_int = 2;
-const BRANCH: c_int = 3;
-const BACK: c_int = 4;
-const EXACTLY: c_int = 5;
-const NOTHING: c_int = 6;
-const STAR: c_int = 7;
-const PLUS: c_int = 8;
-const MATCH: c_int = 9;
-const NOMATCH: c_int = 10;
-const BEHIND: c_int = 11;
-const NOBEHIND: c_int = 12;
-const SUBPAT: c_int = 13;
-const BRACE_SIMPLE: c_int = 14;
-const BOW: c_int = 15;
-const EOW: c_int = 16;
-const BRACE_LIMITS: c_int = 17;
-const NEWL: c_int = 18;
-const BHPOS: c_int = 19;
+const END: i32 = 0;
+const BOL: i32 = 1;
+const EOL: i32 = 2;
+const BRANCH: i32 = 3;
+const BACK: i32 = 4;
+const EXACTLY: i32 = 5;
+const NOTHING: i32 = 6;
+const STAR: i32 = 7;
+const PLUS: i32 = 8;
+const MATCH: i32 = 9;
+const NOMATCH: i32 = 10;
+const BEHIND: i32 = 11;
+const NOBEHIND: i32 = 12;
+const SUBPAT: i32 = 13;
+const BRACE_SIMPLE: i32 = 14;
+const BOW: i32 = 15;
+const EOW: i32 = 16;
+const BRACE_LIMITS: i32 = 17;
+const NEWL: i32 = 18;
+const BHPOS: i32 = 19;
 
-const ADD_NL: c_int = 30;
-const ANY: c_int = 20;
-const ANYOF: c_int = 21;
-const ANYBUT: c_int = 22;
-const IDENT: c_int = 23;
-const SIDENT: c_int = 24;
-const KWORD: c_int = 25;
-const SKWORD: c_int = 26;
-const FNAME: c_int = 27;
-const SFNAME: c_int = 28;
-const PRINT: c_int = 29;
-const SPRINT: c_int = 30;
-const WHITE: c_int = 31;
-const NWHITE: c_int = 32;
-const DIGIT: c_int = 33;
-const NDIGIT: c_int = 34;
-const HEX: c_int = 35;
-const NHEX: c_int = 36;
-const OCTAL: c_int = 37;
-const NOCTAL: c_int = 38;
-const WORD: c_int = 39;
-const NWORD: c_int = 40;
-const HEAD: c_int = 41;
-const NHEAD: c_int = 42;
-const ALPHA: c_int = 43;
-const NALPHA: c_int = 44;
-const LOWER: c_int = 45;
-const NLOWER: c_int = 46;
-const UPPER: c_int = 47;
-const NUPPER: c_int = 48;
-const FIRST_NL: c_int = ANY + ADD_NL;
-const LAST_NL: c_int = NUPPER + ADD_NL;
+const ADD_NL: i32 = 30;
+const ANY: i32 = 20;
+const ANYOF: i32 = 21;
+const ANYBUT: i32 = 22;
+const IDENT: i32 = 23;
+const SIDENT: i32 = 24;
+const KWORD: i32 = 25;
+const SKWORD: i32 = 26;
+const FNAME: i32 = 27;
+const SFNAME: i32 = 28;
+const PRINT: i32 = 29;
+const SPRINT: i32 = 30;
+const WHITE: i32 = 31;
+const NWHITE: i32 = 32;
+const DIGIT: i32 = 33;
+const NDIGIT: i32 = 34;
+const HEX: i32 = 35;
+const NHEX: i32 = 36;
+const OCTAL: i32 = 37;
+const NOCTAL: i32 = 38;
+const WORD: i32 = 39;
+const NWORD: i32 = 40;
+const HEAD: i32 = 41;
+const NHEAD: i32 = 42;
+const ALPHA: i32 = 43;
+const NALPHA: i32 = 44;
+const LOWER: i32 = 45;
+const NLOWER: i32 = 46;
+const UPPER: i32 = 47;
+const NUPPER: i32 = 48;
+const FIRST_NL: i32 = ANY + ADD_NL;
+const LAST_NL: i32 = NUPPER + ADD_NL;
 
-const MOPEN: c_int = 80;
-const MCLOSE: c_int = 90;
-const BACKREF: c_int = 100;
-const ZOPEN: c_int = 110;
-const ZCLOSE: c_int = 120;
-const ZREF: c_int = 130;
-const BRACE_COMPLEX: c_int = 140;
-const NOPEN: c_int = 150;
-const NCLOSE: c_int = 151;
+const MOPEN: i32 = 80;
+const MCLOSE: i32 = 90;
+const BACKREF: i32 = 100;
+const ZOPEN: i32 = 110;
+const ZCLOSE: i32 = 120;
+const ZREF: i32 = 130;
+const BRACE_COMPLEX: i32 = 140;
+const NOPEN: i32 = 150;
+const NCLOSE: i32 = 151;
 
-const MULTIBYTECODE: c_int = 200;
-const RE_BOF: c_int = 201;
-const RE_EOF: c_int = 202;
-const CURSOR: c_int = 203;
-const RE_LNUM: c_int = 204;
-const RE_COL: c_int = 205;
-const RE_VCOL: c_int = 206;
-const RE_MARK: c_int = 207;
-const RE_VISUAL: c_int = 208;
-const RE_COMPOSING: c_int = 209;
+const MULTIBYTECODE: i32 = 200;
+const RE_BOF: i32 = 201;
+const RE_EOF: i32 = 202;
+const CURSOR: i32 = 203;
+const RE_LNUM: i32 = 204;
+const RE_COL: i32 = 205;
+const RE_VCOL: i32 = 206;
+const RE_MARK: i32 = 207;
+const RE_VISUAL: i32 = 208;
+const RE_COMPOSING: i32 = 209;
 
-const HASWIDTH: c_int = 0x1;
-const SIMPLE: c_int = 0x2;
-const SPSTART: c_int = 0x4;
-const HASNL: c_int = 0x8;
-const HASLOOKBH: c_int = 0x10;
-const WORST: c_int = 0;
+const HASWIDTH: i32 = 0x1;
+const SIMPLE: i32 = 0x2;
+const SPSTART: i32 = 0x4;
+const HASNL: i32 = 0x8;
+const HASLOOKBH: i32 = 0x10;
+const WORST: i32 = 0;
 
-const REGSTACK_INITIAL: c_int = 2048;
-const BACKPOS_INITIAL: c_int = 64;
+const REGSTACK_INITIAL: i32 = 2048;
+const BACKPOS_INITIAL: i32 = 64;
 
-static CLASSCODES: [c_int; 27] = [
+static CLASSCODES: [i32; 27] = [
     ANY, IDENT, SIDENT, KWORD, SKWORD, FNAME, SFNAME, PRINT, SPRINT, WHITE, NWHITE, DIGIT, NDIGIT,
     HEX, NHEX, OCTAL, NOCTAL, WORD, NWORD, HEAD, NHEAD, ALPHA, NALPHA, LOWER, NLOWER, UPPER,
     NUPPER,
@@ -101,8 +101,8 @@ static CLASSCODES: [c_int; 27] = [
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct Regstar {
-    nextb: c_int,
-    nextb_ic: c_int,
+    nextb: i32,
+    nextb_ic: i32,
     count: i64,
     minval: i64,
     maxval: i64,
@@ -149,7 +149,7 @@ fn bt_st() -> &'static mut RegexpBtState {
 }
 
 #[inline]
-fn with_nl(op: c_int) -> bool {
+fn with_nl(op: i32) -> bool {
     (FIRST_NL..=LAST_NL).contains(&op)
 }
 
@@ -159,12 +159,12 @@ fn just_calc_size() -> *mut u8 {
 }
 
 #[inline]
-fn op_fn(p: *const u8) -> c_int {
-    unsafe { *p as c_int }
+fn op_fn(p: *const u8) -> i32 {
+    unsafe { *p as i32 }
 }
 
 #[inline]
-fn next_fn(p: *const u8) -> c_int {
+fn next_fn(p: *const u8) -> i32 {
     {
         ((crate::memory::cstr_char_at(p.cast(), 1) & 0o377) << 8)
             + (crate::memory::cstr_char_at(p.cast(), 2) & 0o377)
@@ -201,7 +201,7 @@ fn advance_reginput() {
     mb_ptr_adv(&raw mut re_st().rex.input);
 }
 
-fn bt_recognize_char_class(start: *const u8, end: *const u8) -> c_int {
+fn bt_recognize_char_class(start: *const u8, end: *const u8) -> i32 {
     let mut newl = false;
     let config = get_char_class_bits(start, end, &mut newl);
     if config < 0 || newl {
@@ -236,11 +236,11 @@ fn bt_recognize_char_class(start: *const u8, end: *const u8) -> c_int {
     }
 }
 
-fn use_multibytecode(c: c_int) -> bool {
+fn use_multibytecode(c: i32) -> bool {
     utf_char2len(c) > 1 && (re_multi_type(peekchr()) != NOT_MULTI || utf_iscomposing_legacy(c))
 }
 
-fn regc(b: c_int) {
+fn regc(b: i32) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += 1;
@@ -251,7 +251,7 @@ fn regc(b: c_int) {
     }
 }
 
-fn regmbc(c: c_int) {
+fn regmbc(c: i32) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += i64::from(utf_char2len(c));
@@ -264,13 +264,13 @@ fn regmbc(c: c_int) {
 }
 
 #[rustfmt::skip]
-fn reg_equi_class(c: c_int) {
+fn reg_equi_class(c: i32) {
     match c {
             0x41 | 0xc0 | 0xc1 | 0xc2 | 0xc3 | 0xc4 | 0xc5 | 0x100 | 0x102 | 0x104 | 0x1cd
             | 0x1de | 0x1e0 | 0x1fa | 0x202 | 0x226 | 0x23a | 0x1e00 | 0x1ea0 | 0x1ea2
             | 0x1ea4 | 0x1ea6 | 0x1ea8 | 0x1eaa | 0x1eac | 0x1eae | 0x1eb0 | 0x1eb2 | 0x1eb4
             | 0x1eb6 => {
-                regmbc(b'A' as c_int); regmbc(0xc0); regmbc(0xc1); regmbc(0xc2);
+                regmbc(b'A' as i32); regmbc(0xc0); regmbc(0xc1); regmbc(0xc2);
                 regmbc(0xc3); regmbc(0xc4); regmbc(0xc5);
                 regmbc(0x100); regmbc(0x102); regmbc(0x104);
                 regmbc(0x1cd); regmbc(0x1de); regmbc(0x1e0);
@@ -283,20 +283,20 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x42 | 0x181 | 0x243 | 0x1e02 | 0x1e04 | 0x1e06 => {
-                regmbc(b'B' as c_int);
+                regmbc(b'B' as i32);
                 regmbc(0x181); regmbc(0x243); regmbc(0x1e02);
                 regmbc(0x1e04); regmbc(0x1e06);
                 return;
             }
             0x43 | 0xc7 | 0x106 | 0x108 | 0x10a | 0x10c | 0x187 | 0x23b | 0x1e08 | 0xa792 => {
-                regmbc(b'C' as c_int); regmbc(0xc7);
+                regmbc(b'C' as i32); regmbc(0xc7);
                 regmbc(0x106); regmbc(0x108); regmbc(0x10a);
                 regmbc(0x10c); regmbc(0x187); regmbc(0x23b);
                 regmbc(0x1e08); regmbc(0xa792);
                 return;
             }
             0x44 | 0x10e | 0x110 | 0x18a | 0x1e0a | 0x1e0c | 0x1e0e | 0x1e10 | 0x1e12 => {
-                regmbc(b'D' as c_int); regmbc(0x10e); regmbc(0x110);
+                regmbc(b'D' as i32); regmbc(0x10e); regmbc(0x110);
                 regmbc(0x18a); regmbc(0x1e0a); regmbc(0x1e0c);
                 regmbc(0x1e0e); regmbc(0x1e10); regmbc(0x1e12);
                 return;
@@ -304,7 +304,7 @@ fn reg_equi_class(c: c_int) {
             0x45 | 0xc8 | 0xc9 | 0xca | 0xcb | 0x112 | 0x114 | 0x116 | 0x118 | 0x11a | 0x204
             | 0x206 | 0x228 | 0x246 | 0x1e14 | 0x1e16 | 0x1e18 | 0x1e1a | 0x1e1c | 0x1eb8
             | 0x1eba | 0x1ebc | 0x1ebe | 0x1ec0 | 0x1ec2 | 0x1ec4 | 0x1ec6 => {
-                regmbc(b'E' as c_int); regmbc(0xc8); regmbc(0xc9);
+                regmbc(b'E' as i32); regmbc(0xc8); regmbc(0xc9);
                 regmbc(0xca); regmbc(0xcb); regmbc(0x112);
                 regmbc(0x114); regmbc(0x116); regmbc(0x118);
                 regmbc(0x11a); regmbc(0x204); regmbc(0x206);
@@ -316,20 +316,20 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x46 | 0x191 | 0x1e1e | 0xa798 => {
-                regmbc(b'F' as c_int); regmbc(0x191); regmbc(0x1e1e);
+                regmbc(b'F' as i32); regmbc(0x191); regmbc(0x1e1e);
                 regmbc(0xa798);
                 return;
             }
             0x47 | 0x11c | 0x11e | 0x120 | 0x122 | 0x193 | 0x1e4 | 0x1e6 | 0x1f4 | 0x1e20
             | 0xa7a0 => {
-                regmbc(b'G' as c_int); regmbc(0x11c); regmbc(0x11e);
+                regmbc(b'G' as i32); regmbc(0x11c); regmbc(0x11e);
                 regmbc(0x120); regmbc(0x122); regmbc(0x193);
                 regmbc(0x1e4); regmbc(0x1e6); regmbc(0x1f4);
                 regmbc(0x1e20); regmbc(0xa7a0);
                 return;
             }
             0x48 | 0x124 | 0x126 | 0x21e | 0x1e22 | 0x1e24 | 0x1e26 | 0x1e28 | 0x1e2a | 0x2c67 => {
-                regmbc(b'H' as c_int); regmbc(0x124); regmbc(0x126);
+                regmbc(b'H' as i32); regmbc(0x124); regmbc(0x126);
                 regmbc(0x21e); regmbc(0x1e22); regmbc(0x1e24);
                 regmbc(0x1e26); regmbc(0x1e28); regmbc(0x1e2a);
                 regmbc(0x2c67);
@@ -337,7 +337,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x49 | 0xcc | 0xcd | 0xce | 0xcf | 0x128 | 0x12a | 0x12c | 0x12e | 0x130 | 0x197
             | 0x1cf | 0x208 | 0x20a | 0x1e2c | 0x1e2e | 0x1ec8 | 0x1eca => {
-                regmbc(b'I' as c_int); regmbc(0xcc); regmbc(0xcd);
+                regmbc(b'I' as i32); regmbc(0xcc); regmbc(0xcd);
                 regmbc(0xce); regmbc(0xcf); regmbc(0x128);
                 regmbc(0x12a); regmbc(0x12c); regmbc(0x12e);
                 regmbc(0x130); regmbc(0x197); regmbc(0x1cf);
@@ -346,31 +346,31 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x4a | 0x134 | 0x248 => {
-                regmbc(b'J' as c_int); regmbc(0x134); regmbc(0x248);
+                regmbc(b'J' as i32); regmbc(0x134); regmbc(0x248);
                 return;
             }
             0x4b | 0x136 | 0x198 | 0x1e8 | 0x1e30 | 0x1e32 | 0x1e34 | 0x2c69 | 0xa740 => {
-                regmbc(b'K' as c_int); regmbc(0x136); regmbc(0x198);
+                regmbc(b'K' as i32); regmbc(0x136); regmbc(0x198);
                 regmbc(0x1e8); regmbc(0x1e30); regmbc(0x1e32);
                 regmbc(0x1e34); regmbc(0x2c69); regmbc(0xa740);
                 return;
             }
             0x4c | 0x139 | 0x13b | 0x13d | 0x13f | 0x141 | 0x23d | 0x1e36 | 0x1e38 | 0x1e3a
             | 0x1e3c | 0x2c60 => {
-                regmbc(b'L' as c_int); regmbc(0x139); regmbc(0x13b);
+                regmbc(b'L' as i32); regmbc(0x139); regmbc(0x13b);
                 regmbc(0x13d); regmbc(0x13f); regmbc(0x141);
                 regmbc(0x23d); regmbc(0x1e36); regmbc(0x1e38);
                 regmbc(0x1e3a); regmbc(0x1e3c); regmbc(0x2c60);
                 return;
             }
             0x4d | 0x1e3e | 0x1e40 | 0x1e42 => {
-                regmbc(b'M' as c_int); regmbc(0x1e3e); regmbc(0x1e40);
+                regmbc(b'M' as i32); regmbc(0x1e3e); regmbc(0x1e40);
                 regmbc(0x1e42);
                 return;
             }
             0x4e | 0xd1 | 0x143 | 0x145 | 0x147 | 0x1f8 | 0x1e44 | 0x1e46 | 0x1e48 | 0x1e4a
             | 0xa7a4 => {
-                regmbc(b'N' as c_int); regmbc(0xd1);
+                regmbc(b'N' as i32); regmbc(0xd1);
                 regmbc(0x143); regmbc(0x145); regmbc(0x147);
                 regmbc(0x1f8); regmbc(0x1e44); regmbc(0x1e46);
                 regmbc(0x1e48); regmbc(0x1e4a); regmbc(0xa7a4);
@@ -380,7 +380,7 @@ fn reg_equi_class(c: c_int) {
             | 0x1a0 | 0x1d1 | 0x1ea | 0x1ec | 0x1fe | 0x20c | 0x20e | 0x22a | 0x22c | 0x22e
             | 0x230 | 0x1e4c | 0x1e4e | 0x1e50 | 0x1e52 | 0x1ecc | 0x1ece | 0x1ed0 | 0x1ed2
             | 0x1ed4 | 0x1ed6 | 0x1ed8 | 0x1eda | 0x1edc | 0x1ede | 0x1ee0 | 0x1ee2 => {
-                regmbc(b'O' as c_int); regmbc(0xd2); regmbc(0xd3); regmbc(0xd4);
+                regmbc(b'O' as i32); regmbc(0xd2); regmbc(0xd3); regmbc(0xd4);
                 regmbc(0xd5); regmbc(0xd6); regmbc(0xd8);
                 regmbc(0x14c); regmbc(0x14e); regmbc(0x150);
                 regmbc(0x19f); regmbc(0x1a0); regmbc(0x1d1);
@@ -396,17 +396,17 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x50 | 0x1a4 | 0x1e54 | 0x1e56 | 0x2c63 => {
-                regmbc(b'P' as c_int); regmbc(0x1a4); regmbc(0x1e54);
+                regmbc(b'P' as i32); regmbc(0x1a4); regmbc(0x1e54);
                 regmbc(0x1e56); regmbc(0x2c63);
                 return;
             }
             0x51 | 0x24a => {
-                regmbc(b'Q' as c_int); regmbc(0x24a);
+                regmbc(b'Q' as i32); regmbc(0x24a);
                 return;
             }
             0x52 | 0x154 | 0x156 | 0x158 | 0x210 | 0x212 | 0x24c | 0x1e58 | 0x1e5a | 0x1e5c
             | 0x1e5e | 0x2c64 | 0xa7a6 => {
-                regmbc(b'R' as c_int); regmbc(0x154); regmbc(0x156);
+                regmbc(b'R' as i32); regmbc(0x154); regmbc(0x156);
                 regmbc(0x210); regmbc(0x212); regmbc(0x158);
                 regmbc(0x24c); regmbc(0x1e58); regmbc(0x1e5a);
                 regmbc(0x1e5c); regmbc(0x1e5e); regmbc(0x2c64);
@@ -415,7 +415,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x53 | 0x15a | 0x15c | 0x15e | 0x160 | 0x218 | 0x1e60 | 0x1e62 | 0x1e64 | 0x1e66
             | 0x1e68 | 0x2c7e | 0xa7a8 => {
-                regmbc(b'S' as c_int); regmbc(0x15a); regmbc(0x15c);
+                regmbc(b'S' as i32); regmbc(0x15a); regmbc(0x15c);
                 regmbc(0x15e); regmbc(0x160); regmbc(0x218);
                 regmbc(0x1e60); regmbc(0x1e62); regmbc(0x1e64);
                 regmbc(0x1e66); regmbc(0x1e68); regmbc(0x2c7e);
@@ -424,7 +424,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x54 | 0x162 | 0x164 | 0x166 | 0x1ac | 0x1ae | 0x21a | 0x23e | 0x1e6a | 0x1e6c
             | 0x1e6e | 0x1e70 => {
-                regmbc(b'T' as c_int); regmbc(0x162); regmbc(0x164);
+                regmbc(b'T' as i32); regmbc(0x162); regmbc(0x164);
                 regmbc(0x166); regmbc(0x1ac); regmbc(0x23e);
                 regmbc(0x1ae); regmbc(0x21a); regmbc(0x1e6a);
                 regmbc(0x1e6c); regmbc(0x1e6e); regmbc(0x1e70);
@@ -434,7 +434,7 @@ fn reg_equi_class(c: c_int) {
             | 0x1af | 0x1d3 | 0x1d5 | 0x1d7 | 0x1d9 | 0x1db | 0x214 | 0x216 | 0x244 | 0x1e72
             | 0x1e74 | 0x1e76 | 0x1e78 | 0x1e7a | 0x1ee4 | 0x1ee6 | 0x1ee8 | 0x1eea | 0x1eec
             | 0x1eee | 0x1ef0 => {
-                regmbc(b'U' as c_int); regmbc(0xd9); regmbc(0xda);
+                regmbc(b'U' as i32); regmbc(0xd9); regmbc(0xda);
                 regmbc(0xdb); regmbc(0xdc); regmbc(0x168);
                 regmbc(0x16a); regmbc(0x16c); regmbc(0x16e);
                 regmbc(0x170); regmbc(0x172); regmbc(0x1af);
@@ -448,30 +448,30 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x56 | 0x1b2 | 0x1e7c | 0x1e7e => {
-                regmbc(b'V' as c_int); regmbc(0x1b2); regmbc(0x1e7c);
+                regmbc(b'V' as i32); regmbc(0x1b2); regmbc(0x1e7c);
                 regmbc(0x1e7e);
                 return;
             }
             0x57 | 0x174 | 0x1e80 | 0x1e82 | 0x1e84 | 0x1e86 | 0x1e88 => {
-                regmbc(b'W' as c_int); regmbc(0x174); regmbc(0x1e80);
+                regmbc(b'W' as i32); regmbc(0x174); regmbc(0x1e80);
                 regmbc(0x1e82); regmbc(0x1e84); regmbc(0x1e86);
                 regmbc(0x1e88);
                 return;
             }
             0x58 | 0x1e8a | 0x1e8c => {
-                regmbc(b'X' as c_int); regmbc(0x1e8a); regmbc(0x1e8c);
+                regmbc(b'X' as i32); regmbc(0x1e8a); regmbc(0x1e8c);
                 return;
             }
             0x59 | 0xdd | 0x176 | 0x178 | 0x1b3 | 0x232 | 0x24e | 0x1e8e | 0x1ef2 | 0x1ef4
             | 0x1ef6 | 0x1ef8 => {
-                regmbc(b'Y' as c_int); regmbc(0xdd); regmbc(0x176);
+                regmbc(b'Y' as i32); regmbc(0xdd); regmbc(0x176);
                 regmbc(0x178); regmbc(0x1b3); regmbc(0x232);
                 regmbc(0x24e); regmbc(0x1e8e); regmbc(0x1ef2);
                 regmbc(0x1ef4); regmbc(0x1ef6); regmbc(0x1ef8);
                 return;
             }
             0x5a | 0x179 | 0x17b | 0x17d | 0x1b5 | 0x1e90 | 0x1e92 | 0x1e94 | 0x2c6b => {
-                regmbc(b'Z' as c_int); regmbc(0x179); regmbc(0x17b);
+                regmbc(b'Z' as i32); regmbc(0x179); regmbc(0x17b);
                 regmbc(0x17d); regmbc(0x1b5); regmbc(0x1e90);
                 regmbc(0x1e92); regmbc(0x1e94); regmbc(0x2c6b);
                 return;
@@ -480,7 +480,7 @@ fn reg_equi_class(c: c_int) {
             | 0x1df | 0x1e1 | 0x1fb | 0x201 | 0x203 | 0x227 | 0x1d8f | 0x1e01 | 0x1e9a
             | 0x1ea1 | 0x1ea3 | 0x1ea5 | 0x1ea7 | 0x1ea9 | 0x1eab | 0x1ead | 0x1eaf | 0x1eb1
             | 0x1eb3 | 0x1eb5 | 0x1eb7 | 0x2c65 => {
-                regmbc(b'a' as c_int); regmbc(0xe0); regmbc(0xe1);
+                regmbc(b'a' as i32); regmbc(0xe0); regmbc(0xe1);
                 regmbc(0xe2); regmbc(0xe3); regmbc(0xe4);
                 regmbc(0xe5); regmbc(0x101); regmbc(0x103);
                 regmbc(0x105); regmbc(0x1ce); regmbc(0x1df);
@@ -494,7 +494,7 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x62 | 0x180 | 0x253 | 0x1d6c | 0x1d80 | 0x1e03 | 0x1e05 | 0x1e07 => {
-                regmbc(b'b' as c_int);
+                regmbc(b'b' as i32);
                 regmbc(0x180); regmbc(0x253); regmbc(0x1d6c);
                 regmbc(0x1d80); regmbc(0x1e03); regmbc(0x1e05);
                 regmbc(0x1e07);
@@ -502,7 +502,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x63 | 0xe7 | 0x107 | 0x109 | 0x10b | 0x10d | 0x188 | 0x23c | 0x1e09 | 0xa793
             | 0xa794 => {
-                regmbc(b'c' as c_int); regmbc(0xe7); regmbc(0x107);
+                regmbc(b'c' as i32); regmbc(0xe7); regmbc(0x107);
                 regmbc(0x109); regmbc(0x10b); regmbc(0x10d);
                 regmbc(0x188); regmbc(0x23c); regmbc(0x1e09);
                 regmbc(0xa793); regmbc(0xa794);
@@ -510,7 +510,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x64 | 0x10f | 0x111 | 0x257 | 0x1d6d | 0x1d81 | 0x1d91 | 0x1e0b | 0x1e0d | 0x1e0f
             | 0x1e11 | 0x1e13 => {
-                regmbc(b'd' as c_int); regmbc(0x10f); regmbc(0x111);
+                regmbc(b'd' as i32); regmbc(0x10f); regmbc(0x111);
                 regmbc(0x257); regmbc(0x1d6d); regmbc(0x1d81);
                 regmbc(0x1d91); regmbc(0x1e0b); regmbc(0x1e0d);
                 regmbc(0x1e0f); regmbc(0x1e11); regmbc(0x1e13);
@@ -519,7 +519,7 @@ fn reg_equi_class(c: c_int) {
             0x65 | 0xe8 | 0xe9 | 0xea | 0xeb | 0x113 | 0x115 | 0x117 | 0x119 | 0x11b | 0x205
             | 0x207 | 0x229 | 0x247 | 0x1d92 | 0x1e15 | 0x1e17 | 0x1e19 | 0x1e1b | 0x1e1d
             | 0x1eb9 | 0x1ebb | 0x1ebd | 0x1ebf | 0x1ec1 | 0x1ec3 | 0x1ec5 | 0x1ec7 => {
-                regmbc(b'e' as c_int); regmbc(0xe8); regmbc(0xe9);
+                regmbc(b'e' as i32); regmbc(0xe8); regmbc(0xe9);
                 regmbc(0xea); regmbc(0xeb); regmbc(0x113);
                 regmbc(0x115); regmbc(0x117); regmbc(0x119);
                 regmbc(0x11b); regmbc(0x205); regmbc(0x207);
@@ -532,13 +532,13 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x66 | 0x192 | 0x1d6e | 0x1d82 | 0x1e1f | 0xa799 => {
-                regmbc(b'f' as c_int); regmbc(0x192); regmbc(0x1d6e);
+                regmbc(b'f' as i32); regmbc(0x192); regmbc(0x1d6e);
                 regmbc(0x1d82); regmbc(0x1e1f); regmbc(0xa799);
                 return;
             }
             0x67 | 0x11d | 0x11f | 0x121 | 0x123 | 0x1e5 | 0x1e7 | 0x1f5 | 0x260 | 0x1d83
             | 0x1e21 | 0xa7a1 => {
-                regmbc(b'g' as c_int); regmbc(0x11d); regmbc(0x11f);
+                regmbc(b'g' as i32); regmbc(0x11d); regmbc(0x11f);
                 regmbc(0x121); regmbc(0x123); regmbc(0x1e5);
                 regmbc(0x1e7); regmbc(0x1f5); regmbc(0x260);
                 regmbc(0x1d83); regmbc(0x1e21); regmbc(0xa7a1);
@@ -546,7 +546,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x68 | 0x125 | 0x127 | 0x21f | 0x1e23 | 0x1e25 | 0x1e27 | 0x1e29 | 0x1e2b | 0x1e96
             | 0x2c68 | 0xa795 => {
-                regmbc(b'h' as c_int); regmbc(0x125); regmbc(0x127);
+                regmbc(b'h' as i32); regmbc(0x125); regmbc(0x127);
                 regmbc(0x21f); regmbc(0x1e23); regmbc(0x1e25);
                 regmbc(0x1e27); regmbc(0x1e29); regmbc(0x1e2b);
                 regmbc(0x1e96); regmbc(0x2c68); regmbc(0xa795);
@@ -554,7 +554,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x69 | 0xec | 0xed | 0xee | 0xef | 0x129 | 0x12b | 0x12d | 0x12f | 0x1d0 | 0x209
             | 0x20b | 0x268 | 0x1d96 | 0x1e2d | 0x1e2f | 0x1ec9 | 0x1ecb => {
-                regmbc(b'i' as c_int); regmbc(0xec); regmbc(0xed);
+                regmbc(b'i' as i32); regmbc(0xec); regmbc(0xed);
                 regmbc(0xee); regmbc(0xef); regmbc(0x129);
                 regmbc(0x12b); regmbc(0x12d); regmbc(0x12f);
                 regmbc(0x1d0); regmbc(0x209); regmbc(0x20b);
@@ -563,12 +563,12 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x6a | 0x135 | 0x1f0 | 0x249 => {
-                regmbc(b'j' as c_int); regmbc(0x135); regmbc(0x1f0);
+                regmbc(b'j' as i32); regmbc(0x135); regmbc(0x1f0);
                 regmbc(0x249);
                 return;
             }
             0x6b | 0x137 | 0x199 | 0x1e9 | 0x1d84 | 0x1e31 | 0x1e33 | 0x1e35 | 0x2c6a | 0xa741 => {
-                regmbc(b'k' as c_int); regmbc(0x137); regmbc(0x199);
+                regmbc(b'k' as i32); regmbc(0x137); regmbc(0x199);
                 regmbc(0x1e9); regmbc(0x1d84); regmbc(0x1e31);
                 regmbc(0x1e33); regmbc(0x1e35); regmbc(0x2c6a);
                 regmbc(0xa741);
@@ -576,20 +576,20 @@ fn reg_equi_class(c: c_int) {
             }
             0x6c | 0x13a | 0x13c | 0x13e | 0x140 | 0x142 | 0x19a | 0x1e37 | 0x1e39 | 0x1e3b
             | 0x1e3d | 0x2c61 => {
-                regmbc(b'l' as c_int); regmbc(0x13a); regmbc(0x13c);
+                regmbc(b'l' as i32); regmbc(0x13a); regmbc(0x13c);
                 regmbc(0x13e); regmbc(0x140); regmbc(0x142);
                 regmbc(0x19a); regmbc(0x1e37); regmbc(0x1e39);
                 regmbc(0x1e3b); regmbc(0x1e3d); regmbc(0x2c61);
                 return;
             }
             0x6d | 0x1d6f | 0x1e3f | 0x1e41 | 0x1e43 => {
-                regmbc(b'm' as c_int); regmbc(0x1d6f); regmbc(0x1e3f);
+                regmbc(b'm' as i32); regmbc(0x1d6f); regmbc(0x1e3f);
                 regmbc(0x1e41); regmbc(0x1e43);
                 return;
             }
             0x6e | 0xf1 | 0x144 | 0x146 | 0x148 | 0x149 | 0x1f9 | 0x1d70 | 0x1d87 | 0x1e45
             | 0x1e47 | 0x1e49 | 0x1e4b | 0xa7a5 => {
-                regmbc(b'n' as c_int); regmbc(0xf1); regmbc(0x144);
+                regmbc(b'n' as i32); regmbc(0xf1); regmbc(0x144);
                 regmbc(0x146); regmbc(0x148); regmbc(0x149);
                 regmbc(0x1f9); regmbc(0x1d70); regmbc(0x1d87);
                 regmbc(0x1e45); regmbc(0x1e47); regmbc(0x1e49);
@@ -600,7 +600,7 @@ fn reg_equi_class(c: c_int) {
             | 0x1d2 | 0x1eb | 0x1ed | 0x1ff | 0x20d | 0x20f | 0x22b | 0x22d | 0x22f | 0x231
             | 0x275 | 0x1e4d | 0x1e4f | 0x1e51 | 0x1e53 | 0x1ecd | 0x1ecf | 0x1ed1 | 0x1ed3
             | 0x1ed5 | 0x1ed7 | 0x1ed9 | 0x1edb | 0x1edd | 0x1edf | 0x1ee1 | 0x1ee3 => {
-                regmbc(b'o' as c_int); regmbc(0xf2); regmbc(0xf3);
+                regmbc(b'o' as i32); regmbc(0xf2); regmbc(0xf3);
                 regmbc(0xf4); regmbc(0xf5); regmbc(0xf6);
                 regmbc(0xf8); regmbc(0x14d); regmbc(0x14f);
                 regmbc(0x151); regmbc(0x1a1); regmbc(0x1d2);
@@ -616,18 +616,18 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x70 | 0x1a5 | 0x1d71 | 0x1d7d | 0x1d88 | 0x1e55 | 0x1e57 => {
-                regmbc(b'p' as c_int); regmbc(0x1a5); regmbc(0x1d71);
+                regmbc(b'p' as i32); regmbc(0x1a5); regmbc(0x1d71);
                 regmbc(0x1d7d); regmbc(0x1d88); regmbc(0x1e55);
                 regmbc(0x1e57);
                 return;
             }
             0x71 | 0x24b | 0x2a0 => {
-                regmbc(b'q' as c_int); regmbc(0x24b); regmbc(0x2a0);
+                regmbc(b'q' as i32); regmbc(0x24b); regmbc(0x2a0);
                 return;
             }
             0x72 | 0x155 | 0x157 | 0x159 | 0x211 | 0x213 | 0x24d | 0x27d | 0x1d72 | 0x1d73
             | 0x1d89 | 0x1e59 | 0x1e5b | 0x1e5d | 0x1e5f | 0xa7a7 => {
-                regmbc(b'r' as c_int); regmbc(0x155); regmbc(0x157);
+                regmbc(b'r' as i32); regmbc(0x155); regmbc(0x157);
                 regmbc(0x159); regmbc(0x211); regmbc(0x213);
                 regmbc(0x24d); regmbc(0x1d72); regmbc(0x1d73);
                 regmbc(0x1d89); regmbc(0x1e59); regmbc(0x27d);
@@ -637,7 +637,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x73 | 0x15b | 0x15d | 0x15f | 0x161 | 0x219 | 0x23f | 0x1d74 | 0x1d8a | 0x1e61
             | 0x1e63 | 0x1e65 | 0x1e67 | 0x1e69 | 0xa7a9 => {
-                regmbc(b's' as c_int); regmbc(0x15b); regmbc(0x15d);
+                regmbc(b's' as i32); regmbc(0x15b); regmbc(0x15d);
                 regmbc(0x15f); regmbc(0x161); regmbc(0x23f);
                 regmbc(0x219); regmbc(0x1d74); regmbc(0x1d8a);
                 regmbc(0x1e61); regmbc(0x1e63); regmbc(0x1e65);
@@ -646,7 +646,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x74 | 0x163 | 0x165 | 0x167 | 0x1ab | 0x1ad | 0x21b | 0x288 | 0x1d75 | 0x1e6b
             | 0x1e6d | 0x1e6f | 0x1e71 | 0x1e97 | 0x2c66 => {
-                regmbc(b't' as c_int); regmbc(0x163); regmbc(0x165);
+                regmbc(b't' as i32); regmbc(0x163); regmbc(0x165);
                 regmbc(0x167); regmbc(0x1ab); regmbc(0x21b);
                 regmbc(0x1ad); regmbc(0x288); regmbc(0x1d75);
                 regmbc(0x1e6b); regmbc(0x1e6d); regmbc(0x1e6f);
@@ -657,7 +657,7 @@ fn reg_equi_class(c: c_int) {
             | 0x1b0 | 0x1d4 | 0x1d6 | 0x1d8 | 0x1da | 0x1dc | 0x215 | 0x217 | 0x289 | 0x1d7e
             | 0x1d99 | 0x1e73 | 0x1e75 | 0x1e77 | 0x1e79 | 0x1e7b | 0x1ee5 | 0x1ee7 | 0x1ee9
             | 0x1eeb | 0x1eed | 0x1eef | 0x1ef1 => {
-                regmbc(b'u' as c_int); regmbc(0xf9); regmbc(0xfa);
+                regmbc(b'u' as i32); regmbc(0xf9); regmbc(0xfa);
                 regmbc(0xfb); regmbc(0xfc); regmbc(0x169);
                 regmbc(0x16b); regmbc(0x16d); regmbc(0x16f);
                 regmbc(0x171); regmbc(0x173); regmbc(0x1d6);
@@ -672,23 +672,23 @@ fn reg_equi_class(c: c_int) {
                 return;
             }
             0x76 | 0x28b | 0x1d8c | 0x1e7d | 0x1e7f => {
-                regmbc(b'v' as c_int); regmbc(0x28b); regmbc(0x1d8c);
+                regmbc(b'v' as i32); regmbc(0x28b); regmbc(0x1d8c);
                 regmbc(0x1e7d); regmbc(0x1e7f);
                 return;
             }
             0x77 | 0x175 | 0x1e81 | 0x1e83 | 0x1e85 | 0x1e87 | 0x1e89 | 0x1e98 => {
-                regmbc(b'w' as c_int); regmbc(0x175); regmbc(0x1e81);
+                regmbc(b'w' as i32); regmbc(0x175); regmbc(0x1e81);
                 regmbc(0x1e83); regmbc(0x1e85); regmbc(0x1e87);
                 regmbc(0x1e89); regmbc(0x1e98);
                 return;
             }
             0x78 | 0x1e8b | 0x1e8d => {
-                regmbc(b'x' as c_int); regmbc(0x1e8b); regmbc(0x1e8d);
+                regmbc(b'x' as i32); regmbc(0x1e8b); regmbc(0x1e8d);
                 return;
             }
             0x79 | 0xfd | 0xff | 0x177 | 0x1b4 | 0x233 | 0x24f | 0x1e8f | 0x1e99 | 0x1ef3
             | 0x1ef5 | 0x1ef7 | 0x1ef9 => {
-                regmbc(b'y' as c_int); regmbc(0xfd); regmbc(0xff);
+                regmbc(b'y' as i32); regmbc(0xfd); regmbc(0xff);
                 regmbc(0x177); regmbc(0x1b4); regmbc(0x233);
                 regmbc(0x24f); regmbc(0x1e8f); regmbc(0x1e99);
                 regmbc(0x1ef3); regmbc(0x1ef5); regmbc(0x1ef7);
@@ -697,7 +697,7 @@ fn reg_equi_class(c: c_int) {
             }
             0x7a | 0x17a | 0x17c | 0x17e | 0x1b6 | 0x1d76 | 0x1d8e | 0x1e91 | 0x1e93 | 0x1e95
             | 0x2c6c => {
-                regmbc(b'z' as c_int); regmbc(0x17a); regmbc(0x17c);
+                regmbc(b'z' as i32); regmbc(0x17a); regmbc(0x17c);
                 regmbc(0x17e); regmbc(0x1b6); regmbc(0x1d76);
                 regmbc(0x1d8e); regmbc(0x1e91); regmbc(0x1e93);
                 regmbc(0x1e95); regmbc(0x2c6c);
@@ -708,7 +708,7 @@ fn reg_equi_class(c: c_int) {
         regmbc(c);
 }
 
-fn regnode(op: c_int) -> *mut u8 {
+fn regnode(op: i32) -> *mut u8 {
     unsafe {
         let ret = re_st().regcode;
         if ret == just_calc_size() {
@@ -764,14 +764,14 @@ fn regtail(p: *mut u8, val: *const u8) {
             scan = temp;
         }
         let offset = if op_fn(scan) == BACK {
-            scan.offset_from(val) as c_int
+            scan.offset_from(val) as i32
         } else {
-            val.offset_from(scan) as c_int
+            val.offset_from(scan) as i32
         };
         if offset > 0xffff {
             re_st().reg_toolong = 1;
         } else {
-            *scan.add(1) = (((offset as c_uint) >> 8) & 0o377) as u8;
+            *scan.add(1) = (((offset as u32) >> 8) & 0o377) as u8;
             *scan.add(2) = (offset & 0o377) as u8;
         }
     }
@@ -787,7 +787,7 @@ fn regoptail(p: *mut u8, val: *mut u8) {
     regtail(operand_fn(p), val);
 }
 
-fn reginsert(op: c_int, opnd: *mut u8) {
+fn reginsert(op: i32, opnd: *mut u8) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += 3;
@@ -807,7 +807,7 @@ fn reginsert(op: c_int, opnd: *mut u8) {
     }
 }
 
-fn reginsert_nr(op: c_int, val: i64, opnd: *mut u8) {
+fn reginsert_nr(op: i32, val: i64, opnd: *mut u8) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += 7;
@@ -828,7 +828,7 @@ fn reginsert_nr(op: c_int, val: i64, opnd: *mut u8) {
     }
 }
 
-fn reginsert_limits(op: c_int, minval: i64, maxval: i64, opnd: *mut u8) {
+fn reginsert_limits(op: i32, minval: i64, maxval: i64, opnd: *mut u8) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += 11;
@@ -851,11 +851,11 @@ fn reginsert_limits(op: c_int, minval: i64, maxval: i64, opnd: *mut u8) {
     }
 }
 
-fn regatom(flagp: &mut c_int) -> *mut u8 {
+fn regatom(flagp: &mut i32) -> *mut u8 {
     unsafe {
         let mut ret: *mut u8;
-        let mut flags: c_int = 0;
-        let mut extra: c_int = 0;
+        let mut flags: i32 = 0;
+        let mut extra: i32 = 0;
         let save_prev_at_start = re_st().prev_at_start;
 
         *flagp = WORST;
@@ -864,27 +864,27 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
         let mut goto_collection = false;
         let mut goto_multibyte = false;
 
-        if c == magic_fn(b'^' as c_int) {
+        if c == magic_fn(b'^' as i32) {
             return regnode(BOL);
-        } else if c == magic_fn(b'$' as c_int) {
+        } else if c == magic_fn(b'$' as i32) {
             re_st().had_eol = 1;
             return regnode(EOL);
-        } else if c == magic_fn(b'<' as c_int) {
+        } else if c == magic_fn(b'<' as i32) {
             return regnode(BOW);
-        } else if c == magic_fn(b'>' as c_int) {
+        } else if c == magic_fn(b'>' as i32) {
             return regnode(EOW);
-        } else if c == magic_fn(b'_' as c_int) {
+        } else if c == magic_fn(b'_' as i32) {
             c = no_magic(getchr());
-            if c == b'^' as c_int {
+            if c == b'^' as i32 {
                 return regnode(BOL);
             }
-            if c == b'$' as c_int {
+            if c == b'$' as i32 {
                 re_st().had_eol = 1;
                 return regnode(EOL);
             }
             extra = ADD_NL;
             *flagp |= HASNL;
-            if c == b'[' as c_int {
+            if c == b'[' as i32 {
                 goto_collection = true;
             } else {
                 // fallthrough to character classes
@@ -894,7 +894,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
-                if c == magic_fn(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
+                if c == magic_fn(b'.' as i32) && utf_iscomposing_legacy(peekchr()) {
                     c = getchr();
                     goto_multibyte = true;
                 } else {
@@ -909,33 +909,33 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
         if !goto_collection && !goto_multibyte {
             if matches!(
                 c,
-                x if x == magic_fn(b'.' as c_int)
-                    || x == magic_fn(b'i' as c_int)
-                    || x == magic_fn(b'I' as c_int)
-                    || x == magic_fn(b'k' as c_int)
-                    || x == magic_fn(b'K' as c_int)
-                    || x == magic_fn(b'f' as c_int)
-                    || x == magic_fn(b'F' as c_int)
-                    || x == magic_fn(b'p' as c_int)
-                    || x == magic_fn(b'P' as c_int)
-                    || x == magic_fn(b's' as c_int)
-                    || x == magic_fn(b'S' as c_int)
-                    || x == magic_fn(b'd' as c_int)
-                    || x == magic_fn(b'D' as c_int)
-                    || x == magic_fn(b'x' as c_int)
-                    || x == magic_fn(b'X' as c_int)
-                    || x == magic_fn(b'o' as c_int)
-                    || x == magic_fn(b'O' as c_int)
-                    || x == magic_fn(b'w' as c_int)
-                    || x == magic_fn(b'W' as c_int)
-                    || x == magic_fn(b'h' as c_int)
-                    || x == magic_fn(b'H' as c_int)
-                    || x == magic_fn(b'a' as c_int)
-                    || x == magic_fn(b'A' as c_int)
-                    || x == magic_fn(b'l' as c_int)
-                    || x == magic_fn(b'L' as c_int)
-                    || x == magic_fn(b'u' as c_int)
-                    || x == magic_fn(b'U' as c_int)
+                x if x == magic_fn(b'.' as i32)
+                    || x == magic_fn(b'i' as i32)
+                    || x == magic_fn(b'I' as i32)
+                    || x == magic_fn(b'k' as i32)
+                    || x == magic_fn(b'K' as i32)
+                    || x == magic_fn(b'f' as i32)
+                    || x == magic_fn(b'F' as i32)
+                    || x == magic_fn(b'p' as i32)
+                    || x == magic_fn(b'P' as i32)
+                    || x == magic_fn(b's' as i32)
+                    || x == magic_fn(b'S' as i32)
+                    || x == magic_fn(b'd' as i32)
+                    || x == magic_fn(b'D' as i32)
+                    || x == magic_fn(b'x' as i32)
+                    || x == magic_fn(b'X' as i32)
+                    || x == magic_fn(b'o' as i32)
+                    || x == magic_fn(b'O' as i32)
+                    || x == magic_fn(b'w' as i32)
+                    || x == magic_fn(b'W' as i32)
+                    || x == magic_fn(b'h' as i32)
+                    || x == magic_fn(b'H' as i32)
+                    || x == magic_fn(b'a' as i32)
+                    || x == magic_fn(b'A' as i32)
+                    || x == magic_fn(b'l' as i32)
+                    || x == magic_fn(b'L' as i32)
+                    || x == magic_fn(b'u' as i32)
+                    || x == magic_fn(b'U' as i32)
             ) {
                 let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_magic(c)).cast::<u8>();
                 if p.is_null() {
@@ -943,7 +943,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
-                if c == magic_fn(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
+                if c == magic_fn(b'.' as i32) && utf_iscomposing_legacy(peekchr()) {
                     c = getchr();
                     goto_multibyte = true;
                 } else {
@@ -952,18 +952,18 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     *flagp |= HASWIDTH | SIMPLE;
                     return ret;
                 }
-            } else if c == magic_fn(b'n' as c_int) {
+            } else if c == magic_fn(b'n' as i32) {
                 if re_st().reg_string != 0 {
                     ret = regnode(EXACTLY);
                     regc(NL);
-                    regc(NUL as c_int);
+                    regc(NUL as i32);
                     *flagp |= HASWIDTH | SIMPLE;
                 } else {
                     ret = regnode(NEWL);
                     *flagp |= HASWIDTH | HASNL;
                 }
                 return ret;
-            } else if c == magic_fn(b'(' as c_int) {
+            } else if c == magic_fn(b'(' as i32) {
                 if re_st().one_exactly {
                     semsg!(
                         tr(E_INVALID_ITEM_IN_STR_BRACKETS),
@@ -982,10 +982,10 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                 }
                 *flagp |= flags & (HASWIDTH | SPSTART | HASNL | HASLOOKBH);
                 return ret;
-            } else if c == NUL as c_int
-                || c == magic_fn(b'|' as c_int)
-                || c == magic_fn(b'&' as c_int)
-                || c == magic_fn(b')' as c_int)
+            } else if c == NUL as i32
+                || c == magic_fn(b'|' as i32)
+                || c == magic_fn(b'&' as i32)
+                || c == magic_fn(b')' as i32)
             {
                 if re_st().one_exactly {
                     semsg!(
@@ -1002,15 +1002,15 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                 iemsg(tr(E_INTERNAL_ERROR_IN_REGEXP));
                 g_st().rc_did_emsg = true;
                 return ptr::null_mut();
-            } else if c == magic_fn(b'=' as c_int)
-                || c == magic_fn(b'?' as c_int)
-                || c == magic_fn(b'+' as c_int)
-                || c == magic_fn(b'@' as c_int)
-                || c == magic_fn(b'{' as c_int)
-                || c == magic_fn(b'*' as c_int)
+            } else if c == magic_fn(b'=' as i32)
+                || c == magic_fn(b'?' as i32)
+                || c == magic_fn(b'+' as i32)
+                || c == magic_fn(b'@' as i32)
+                || c == magic_fn(b'{' as i32)
+                || c == magic_fn(b'*' as i32)
             {
                 c = no_magic(c);
-                let magic_cond = if c == b'*' as c_int {
+                let magic_cond = if c == b'*' as i32 {
                     re_st().reg_magic >= MAGIC_ON
                 } else {
                     re_st().reg_magic == MAGIC_ALL
@@ -1026,13 +1026,13 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                 );
                 g_st().rc_did_emsg = true;
                 return ptr::null_mut();
-            } else if c == magic_fn(b'~' as c_int) {
+            } else if c == magic_fn(b'~' as i32) {
                 if let Some(prev_sub) = reg_prev_sub_ref() {
                     ret = regnode(EXACTLY);
                     for &b in prev_sub.to_bytes() {
-                        regc(b as c_int);
+                        regc(b as i32);
                     }
-                    regc(NUL as c_int);
+                    regc(NUL as i32);
                     if !prev_sub.to_bytes().is_empty() {
                         *flagp |= HASWIDTH;
                         if prev_sub.to_bytes().len() == 1 {
@@ -1045,13 +1045,13 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
-            } else if (magic_fn(b'1' as c_int)..=magic_fn(b'9' as c_int)).contains(&c) {
-                let refnum = c - magic_fn(b'0' as c_int);
+            } else if (magic_fn(b'1' as i32)..=magic_fn(b'9' as i32)).contains(&c) {
+                let refnum = c - magic_fn(b'0' as i32);
                 if !seen_endbrace(refnum) {
                     return ptr::null_mut();
                 }
                 return regnode(BACKREF + refnum);
-            } else if c == magic_fn(b'z' as c_int) {
+            } else if c == magic_fn(b'z' as i32) {
                 c = no_magic(getchr());
                 match c as u8 {
                     b'(' => {
@@ -1086,7 +1086,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
-                        ret = regnode(ZREF + c - b'0' as c_int);
+                        ret = regnode(ZREF + c - b'0' as i32);
                         re_st().re_has_z = REX_USE;
                         return ret;
                     }
@@ -1110,7 +1110,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                         return ptr::null_mut();
                     }
                 }
-            } else if c == magic_fn(b'%' as c_int) {
+            } else if c == magic_fn(b'%' as i32) {
                 c = no_magic(getchr());
                 match c as u8 {
                     b'(' => {
@@ -1167,10 +1167,10 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                         ret = ptr::null_mut();
                         loop {
                             c = getchr();
-                            if c == b']' as c_int {
+                            if c == b']' as i32 {
                                 break;
                             }
-                            if c == NUL as c_int {
+                            if c == NUL as i32 {
                                 semsg!(
                                     tr(E_MISSING_SB),
                                     if re_st().reg_magic == MAGIC_ALL {
@@ -1241,7 +1241,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             b'U' => gethexchrs(8),
                             _ => -1,
                         };
-                        if i < 0 || i > i64::from(c_int::MAX) {
+                        if i < 0 || i > i64::from(i32::MAX) {
                             semsg!(
                                 tr(c"E678: Invalid character after %s%%[dxouU]"),
                                 if re_st().reg_magic == MAGIC_ALL {
@@ -1253,7 +1253,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
-                        if use_multibytecode(i as c_int) {
+                        if use_multibytecode(i as i32) {
                             ret = regnode(MULTIBYTECODE);
                         } else {
                             ret = regnode(EXACTLY);
@@ -1261,37 +1261,37 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                         if i == 0 {
                             regc(0x0a);
                         } else {
-                            regmbc(i as c_int);
+                            regmbc(i as i32);
                         }
-                        regc(NUL as c_int);
+                        regc(NUL as i32);
                         *flagp |= HASWIDTH;
                         return ret;
                     }
                     _ => {
                         if ascii_isdigit(c)
-                            || c == b'<' as c_int
-                            || c == b'>' as c_int
-                            || c == b'\'' as c_int
-                            || c == b'.' as c_int
+                            || c == b'<' as i32
+                            || c == b'>' as i32
+                            || c == b'\'' as i32
+                            || c == b'.' as i32
                         {
                             let mut n: u32 = 0;
                             let cmp = c;
                             let mut cur = false;
                             let mut got_digit = false;
 
-                            if cmp == b'<' as c_int || cmp == b'>' as c_int {
+                            if cmp == b'<' as i32 || cmp == b'>' as i32 {
                                 c = getchr();
                             }
-                            if no_magic(c) == b'.' as c_int {
+                            if no_magic(c) == b'.' as i32 {
                                 cur = true;
                                 c = getchr();
                             }
                             while ascii_isdigit(c) {
                                 got_digit = true;
-                                n = n.wrapping_mul(10).wrapping_add((c - b'0' as c_int) as u32);
+                                n = n.wrapping_mul(10).wrapping_add((c - b'0' as i32) as u32);
                                 c = getchr();
                             }
-                            if no_magic(c) == b'\'' as c_int && n == 0 {
+                            if no_magic(c) == b'\'' as i32 && n == 0 {
                                 c = getchr();
                                 ret = regnode(RE_MARK);
                                 if ret == just_calc_size() {
@@ -1302,9 +1302,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                     re_st().regcode = re_st().regcode.add(2);
                                 }
                                 return ret;
-                            } else if (c == b'l' as c_int
-                                || c == b'c' as c_int
-                                || c == b'v' as c_int)
+                            } else if (c == b'l' as i32 || c == b'c' as i32 || c == b'v' as i32)
                                 && (cur || got_digit)
                             {
                                 if cur && n != 0 {
@@ -1315,7 +1313,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                     g_st().rc_did_emsg = true;
                                     return ptr::null_mut();
                                 }
-                                if c == b'l' as c_int {
+                                if c == b'l' as i32 {
                                     if cur {
                                         n = crate::globals::curwin_mut().w_cursor.lnum as u32;
                                     }
@@ -1323,7 +1321,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                     if save_prev_at_start != 0 {
                                         re_st().at_start = 1;
                                     }
-                                } else if c == b'c' as c_int {
+                                } else if c == b'c' as i32 {
                                     if cur {
                                         n = crate::globals::curwin_mut().w_cursor.col as u32 + 1;
                                     }
@@ -1366,7 +1364,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                         return ptr::null_mut();
                     }
                 }
-            } else if c == magic_fn(b'[' as c_int) {
+            } else if c == magic_fn(b'[' as i32) {
                 goto_collection = true;
             }
         }
@@ -1374,7 +1372,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
         if goto_collection {
             let lp = skip_anyof(re_st().regparse).cast::<u8>();
             if *lp == b']' {
-                let mut startc: c_int = -1;
+                let mut startc: i32 = -1;
                 if extra == 0 {
                     let cl = bt_recognize_char_class(re_st().regparse.cast(), lp);
                     if cl != 0 {
@@ -1396,7 +1394,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                 if crate::memory::cstr_first_byte(re_st().regparse) == b']'
                     || crate::memory::cstr_first_byte(re_st().regparse) == b'-'
                 {
-                    startc = crate::memory::cstr_first_byte(re_st().regparse) as c_int;
+                    startc = crate::memory::cstr_first_byte(re_st().regparse) as i32;
                     regc(startc);
                     re_st().regparse = re_st().regparse.add(1);
                 }
@@ -1412,10 +1410,10 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             || (crate::memory::cstr_first_byte(re_st().regparse) == b'\\'
                                 && crate::memory::cstr_byte_at(re_st().regparse, 1) == b'n')
                         {
-                            regc(b'-' as c_int);
-                            startc = b'-' as c_int;
+                            regc(b'-' as i32);
+                            startc = b'-' as i32;
                         } else {
-                            let mut endc: c_int = 0;
+                            let mut endc: i32 = 0;
                             if crate::memory::cstr_first_byte(re_st().regparse) == b'[' {
                                 endc = get_coll_element(&raw mut re_st().regparse);
                             }
@@ -1424,7 +1422,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                 endc = mb_ptr2char_adv(&raw mut rp_const);
                                 re_st().regparse = rp_const.cast_mut();
                             }
-                            if endc == b'\\' as c_int && re_st().reg_cpo_lit == 0 {
+                            if endc == b'\\' as i32 && re_st().reg_cpo_lit == 0 {
                                 endc = coll_get_char();
                             }
                             if startc > endc {
@@ -1457,11 +1455,11 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     } else if crate::memory::cstr_first_byte(re_st().regparse) == b'\\'
                         && (crate::strings::vim_haschr(
                             REGEXP_INRANGE,
-                            crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
+                            crate::memory::cstr_byte_at(re_st().regparse, 1) as i32,
                         ) || (re_st().reg_cpo_lit == 0
                             && crate::strings::vim_haschr(
                                 REGEXP_ABBR,
-                                crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
+                                crate::memory::cstr_byte_at(re_st().regparse, 1) as i32,
                             )))
                     {
                         re_st().regparse = re_st().regparse.add(1);
@@ -1477,7 +1475,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             b'd' | b'o' | b'x' | b'u' | b'U'
                         ) {
                             startc = coll_get_char();
-                            if startc == c_int::MAX {
+                            if startc == i32::MAX {
                                 emsg(tr(E_UNICODE_VAL_TOO_LARGE));
                                 g_st().rc_did_emsg = true;
                                 return ptr::null_mut();
@@ -1490,7 +1488,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                         } else {
                             startc = backslash_trans(crate::memory::cstr_first_byte(
                                 re_st().regparse,
-                            ) as c_int);
+                            ) as i32);
                             re_st().regparse = re_st().regparse.add(1);
                             regc(startc);
                         }
@@ -1507,8 +1505,8 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                     if c_class != 0 {
                                         regmbc(c_class);
                                     } else {
-                                        startc = crate::memory::cstr_first_byte(re_st().regparse)
-                                            as c_int;
+                                        startc =
+                                            crate::memory::cstr_first_byte(re_st().regparse) as i32;
                                         re_st().regparse = re_st().regparse.add(1);
                                         regc(startc);
                                     }
@@ -1517,39 +1515,39 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             CLASS_ALNUM => {
                                 for cu in 1..128u8 {
                                     if cu.is_ascii_alphanumeric() {
-                                        regmbc(cu as c_int);
+                                        regmbc(cu as i32);
                                     }
                                 }
                             }
                             CLASS_ALPHA => {
                                 for cu in 1..128u8 {
                                     if cu.is_ascii_alphabetic() {
-                                        regmbc(cu as c_int);
+                                        regmbc(cu as i32);
                                     }
                                 }
                             }
                             CLASS_BLANK => {
-                                regc(b' ' as c_int);
-                                regc(b'\t' as c_int);
+                                regc(b' ' as i32);
+                                regc(b'\t' as i32);
                             }
                             CLASS_CNTRL => {
                                 for cu in 1..=127u8 {
                                     if cu.is_ascii_control() {
-                                        regmbc(cu as c_int);
+                                        regmbc(cu as i32);
                                     }
                                 }
                             }
                             CLASS_DIGIT => {
                                 for cu in 1..=127u8 {
-                                    if ascii_isdigit(cu as c_int) {
-                                        regmbc(cu as c_int);
+                                    if ascii_isdigit(cu as i32) {
+                                        regmbc(cu as i32);
                                     }
                                 }
                             }
                             CLASS_GRAPH => {
                                 for cu in 1..=127u8 {
                                     if cu.is_ascii_graphic() {
-                                        regmbc(cu as c_int);
+                                        regmbc(cu as i32);
                                     }
                                 }
                             }
@@ -1570,7 +1568,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             CLASS_PUNCT => {
                                 for cu in 1..128u8 {
                                     if cu.is_ascii_punctuation() {
-                                        regmbc(cu as c_int);
+                                        regmbc(cu as i32);
                                     }
                                 }
                             }
@@ -1578,7 +1576,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                 for cu in 9..=13 {
                                     regc(cu);
                                 }
-                                regc(b' ' as c_int);
+                                regc(b' ' as i32);
                             }
                             CLASS_UPPER => {
                                 for cu in 1..=255 {
@@ -1594,8 +1592,8 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                     }
                                 }
                             }
-                            CLASS_TAB => regc(b'\t' as c_int),
-                            CLASS_RETURN => regc(b'\r' as c_int),
+                            CLASS_TAB => regc(b'\t' as i32),
+                            CLASS_RETURN => regc(b'\r' as i32),
                             CLASS_BACKSPACE => regc(BS),
                             CLASS_ESCAPE => regc(ESC),
                             CLASS_IDENT => {
@@ -1631,12 +1629,12 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             len -= 1;
                             len >= 0
                         } {
-                            regc(crate::memory::cstr_first_byte(re_st().regparse) as c_int);
+                            regc(crate::memory::cstr_first_byte(re_st().regparse) as i32);
                             re_st().regparse = re_st().regparse.add(1);
                         }
                     }
                 }
-                regc(NUL as c_int);
+                regc(NUL as i32);
                 re_st().prevchr_len = 1;
                 if crate::memory::cstr_first_byte(re_st().regparse) != b']' {
                     emsg(tr(E_TOOMSBRA));
@@ -1668,8 +1666,8 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
         }
 
         ret = regnode(EXACTLY);
-        let mut len: c_int = 0;
-        while c != NUL as c_int
+        let mut len: i32 = 0;
+        while c != NUL as i32
             && (len == 0
                 || (re_multi_type(peekchr()) == NOT_MULTI
                     && !re_st().one_exactly
@@ -1695,7 +1693,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
         }
         ungetchr();
 
-        regc(NUL as c_int);
+        regc(NUL as i32);
         *flagp |= HASWIDTH;
         if len == 1 {
             *flagp |= SIMPLE;
@@ -1704,11 +1702,11 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
     }
 }
 
-fn regpiece(flagp: &mut c_int) -> *mut u8 {
+fn regpiece(flagp: &mut i32) -> *mut u8 {
     {
-        let mut flags: c_int = 0;
-        let mut minval: c_int = 0;
-        let mut maxval: c_int = 0;
+        let mut flags: i32 = 0;
+        let mut minval: i32 = 0;
+        let mut maxval: i32 = 0;
 
         let ret = regatom(&mut flags);
         if ret.is_null() {
@@ -1723,7 +1721,7 @@ fn regpiece(flagp: &mut c_int) -> *mut u8 {
         *flagp = WORST | SPSTART | (flags & (HASNL | HASLOOKBH));
 
         skipchr();
-        if op == magic_fn(b'*' as c_int) {
+        if op == magic_fn(b'*' as i32) {
             if (flags & SIMPLE) != 0 {
                 reginsert(STAR, ret);
             } else {
@@ -1733,7 +1731,7 @@ fn regpiece(flagp: &mut c_int) -> *mut u8 {
                 regtail(ret, regnode(BRANCH));
                 regtail(ret, regnode(NOTHING));
             }
-        } else if op == magic_fn(b'+' as c_int) {
+        } else if op == magic_fn(b'+' as i32) {
             if (flags & SIMPLE) != 0 {
                 reginsert(PLUS, ret);
             } else {
@@ -1744,7 +1742,7 @@ fn regpiece(flagp: &mut c_int) -> *mut u8 {
                 regtail(ret, regnode(NOTHING));
             }
             *flagp = WORST | HASWIDTH | (flags & (HASNL | HASLOOKBH));
-        } else if op == magic_fn(b'@' as c_int) {
+        } else if op == magic_fn(b'@' as i32) {
             let mut lop = END;
             let mut nr = getdecchrs();
             match no_magic(getchr()) as u8 {
@@ -1783,13 +1781,13 @@ fn regpiece(flagp: &mut c_int) -> *mut u8 {
             } else {
                 reginsert(lop, ret);
             }
-        } else if op == magic_fn(b'?' as c_int) || op == magic_fn(b'=' as c_int) {
+        } else if op == magic_fn(b'?' as i32) || op == magic_fn(b'=' as i32) {
             reginsert(BRANCH, ret);
             regtail(ret, regnode(BRANCH));
             let next = regnode(NOTHING);
             regtail(ret, next);
             regoptail(ret, next);
-        } else if op == magic_fn(b'{' as c_int) {
+        } else if op == magic_fn(b'{' as i32) {
             if !read_limits(&mut minval, &mut maxval) {
                 return ptr::null_mut();
             }
@@ -1821,7 +1819,7 @@ fn regpiece(flagp: &mut c_int) -> *mut u8 {
         }
 
         if re_multi_type(peekchr()) != NOT_MULTI {
-            if peekchr() == magic_fn(b'*' as c_int) {
+            if peekchr() == magic_fn(b'*' as i32) {
                 semsg!(
                     tr(c"E61: Nested %s*"),
                     if re_st().reg_magic >= MAGIC_ON {
@@ -1850,44 +1848,44 @@ fn regpiece(flagp: &mut c_int) -> *mut u8 {
     }
 }
 
-fn regconcat(flagp: &mut c_int) -> *mut u8 {
+fn regconcat(flagp: &mut i32) -> *mut u8 {
     let mut first: *mut u8 = ptr::null_mut();
     let mut chain: *mut u8 = ptr::null_mut();
-    let mut flags: c_int = 0;
+    let mut flags: i32 = 0;
     let mut cont = true;
 
     *flagp = WORST;
 
     while cont {
         let p = peekchr();
-        if p == NUL as c_int
-            || p == magic_fn(b'|' as c_int)
-            || p == magic_fn(b'&' as c_int)
-            || p == magic_fn(b')' as c_int)
+        if p == NUL as i32
+            || p == magic_fn(b'|' as i32)
+            || p == magic_fn(b'&' as i32)
+            || p == magic_fn(b')' as i32)
         {
             cont = false;
-        } else if p == magic_fn(b'Z' as c_int) {
+        } else if p == magic_fn(b'Z' as i32) {
             re_st().regflags |= RF_ICOMBINE;
             skipchr_keepstart();
-        } else if p == magic_fn(b'c' as c_int) {
+        } else if p == magic_fn(b'c' as i32) {
             re_st().regflags |= RF_ICASE;
             skipchr_keepstart();
-        } else if p == magic_fn(b'C' as c_int) {
+        } else if p == magic_fn(b'C' as i32) {
             re_st().regflags |= RF_NOICASE;
             skipchr_keepstart();
-        } else if p == magic_fn(b'v' as c_int) {
+        } else if p == magic_fn(b'v' as i32) {
             re_st().reg_magic = MAGIC_ALL;
             skipchr_keepstart();
             re_st().curchr = -1;
-        } else if p == magic_fn(b'm' as c_int) {
+        } else if p == magic_fn(b'm' as i32) {
             re_st().reg_magic = MAGIC_ON;
             skipchr_keepstart();
             re_st().curchr = -1;
-        } else if p == magic_fn(b'M' as c_int) {
+        } else if p == magic_fn(b'M' as i32) {
             re_st().reg_magic = MAGIC_OFF;
             skipchr_keepstart();
             re_st().curchr = -1;
-        } else if p == magic_fn(b'V' as c_int) {
+        } else if p == magic_fn(b'V' as i32) {
             re_st().reg_magic = MAGIC_NONE;
             skipchr_keepstart();
             re_st().curchr = -1;
@@ -1914,9 +1912,9 @@ fn regconcat(flagp: &mut c_int) -> *mut u8 {
     first
 }
 
-fn regbranch(flagp: &mut c_int) -> *mut u8 {
+fn regbranch(flagp: &mut i32) -> *mut u8 {
     let mut chain: *mut u8 = ptr::null_mut();
-    let mut flags: c_int = 0;
+    let mut flags: i32 = 0;
 
     *flagp = WORST | HASNL;
 
@@ -1931,7 +1929,7 @@ fn regbranch(flagp: &mut c_int) -> *mut u8 {
         if !chain.is_null() {
             regtail(chain, latest);
         }
-        if peekchr() != magic_fn(b'&' as c_int) {
+        if peekchr() != magic_fn(b'&' as i32) {
             break;
         }
         skipchr();
@@ -1945,16 +1943,16 @@ fn regbranch(flagp: &mut c_int) -> *mut u8 {
     ret
 }
 
-fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
+fn reg(paren: i32, flagp: &mut i32) -> *mut u8 {
     unsafe {
         let mut ret: *mut u8;
-        let mut parno: c_int = 0;
-        let mut flags: c_int = 0;
+        let mut parno: i32 = 0;
+        let mut flags: i32 = 0;
 
         *flagp = HASWIDTH;
 
         if paren == REG_ZPAREN {
-            if re_st().regnzpar >= NSUBEXP as c_int {
+            if re_st().regnzpar >= NSUBEXP as i32 {
                 emsg(tr(c"E50: Too many \\z("));
                 g_st().rc_did_emsg = true;
                 return ptr::null_mut();
@@ -1963,7 +1961,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
             re_st().regnzpar += 1;
             ret = regnode(ZOPEN + parno);
         } else if paren == REG_PAREN {
-            if re_st().regnpar >= NSUBEXP as c_int {
+            if re_st().regnpar >= NSUBEXP as i32 {
                 semsg!(
                     tr(c"E51: Too many %s("),
                     if re_st().reg_magic == MAGIC_ALL {
@@ -2005,7 +2003,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
             *flagp &= !HASWIDTH;
         }
         *flagp |= flags & (SPSTART | HASNL | HASLOOKBH);
-        while peekchr() == magic_fn(b'|' as c_int) {
+        while peekchr() == magic_fn(b'|' as i32) {
             skipchr();
             br = regbranch(&mut flags);
             if br.is_null() || re_st().reg_toolong != 0 {
@@ -2036,7 +2034,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
             br = regnext(br);
         }
 
-        if paren != REG_NOPAREN && getchr() != magic_fn(b')' as c_int) {
+        if paren != REG_NOPAREN && getchr() != magic_fn(b')' as i32) {
             if paren == REG_ZPAREN {
                 emsg(tr(E_UNMATCHED_Z));
             } else if paren == REG_NPAREN {
@@ -2061,8 +2059,8 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
             g_st().rc_did_emsg = true;
             re_st().bt_reg_parse_depth -= 1;
             return ptr::null_mut();
-        } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
-            if re_st().curchr == magic_fn(b')' as c_int) {
+        } else if paren == REG_NOPAREN && peekchr() != NUL as i32 {
+            if re_st().curchr == magic_fn(b')' as i32) {
                 semsg!(
                     tr(E_UNMATCHED_STR_CLOSE),
                     if re_st().reg_magic == MAGIC_ALL {
@@ -2090,9 +2088,9 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
     }
 }
 
-pub(super) fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<BtRegprog> {
+pub(super) fn bt_regcomp(expr: *mut u8, re_flags: i32) -> Option<BtRegprog> {
     unsafe {
-        let mut flags: c_int = 0;
+        let mut flags: i32 = 0;
 
         if expr.is_null() {
             iemsg(tr(E_NULL));
@@ -2130,7 +2128,7 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<BtRegprog> {
             return None;
         }
 
-        r.regstart = NUL as c_int;
+        r.regstart = NUL as i32;
         r.reganch = 0;
         r.regmust_off = None;
         r.regmlen = 0;
@@ -2172,13 +2170,13 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<BtRegprog> {
                 && (flags & HASNL) == 0
             {
                 let mut longest: *mut u8 = ptr::null_mut();
-                let mut len: c_int = 0;
+                let mut len: i32 = 0;
                 while !scan.is_null() {
                     if op_fn(scan) == EXACTLY {
                         let scanlen = crate::memory::cstr_len(operand_fn(scan).cast());
                         if scanlen >= len as usize {
                             longest = operand_fn(scan);
-                            len = scanlen as c_int;
+                            len = scanlen as i32;
                         }
                     }
                     scan = regnext(scan);
@@ -2195,7 +2193,7 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<BtRegprog> {
 
 fn reg_save(save: &mut Regsave) {
     unsafe {
-        let len = re_st().backpos.len() as c_int;
+        let len = re_st().backpos.len() as i32;
         if reg_multi() {
             save.rs_u = crate::regexp::RegPos::Pos(Lpos {
                 col: re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
@@ -2271,7 +2269,7 @@ fn restore_se(savep: *const SaveSe, posp: *mut Lpos, pp: *mut *mut u8) {
     }
 }
 
-fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
+fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
     unsafe {
         let mut count: i64 = 0;
         let mut testval: i16 = 0;
@@ -2340,7 +2338,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
             }
             while count < maxcount {
                 if vim_is_idc(utf_ptr2char(scan.cast()))
-                    && (testval != 0 || !ascii_isdigit(*scan as c_int))
+                    && (testval != 0 || !ascii_isdigit(*scan as i32))
                 {
                     mb_ptr_adv(&raw mut scan);
                 } else if *scan == NUL {
@@ -2369,7 +2367,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
             }
             while count < maxcount {
                 if vim_iswordp_buf(scan.cast(), &mut *re_st().rex.reg_buf)
-                    && (testval != 0 || !ascii_isdigit(*scan as c_int))
+                    && (testval != 0 || !ascii_isdigit(*scan as i32))
                 {
                     mb_ptr_adv(&raw mut scan);
                 } else if *scan == NUL {
@@ -2398,7 +2396,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
             }
             while count < maxcount {
                 if vim_isfilec(utf_ptr2char(scan.cast()))
-                    && (testval != 0 || !ascii_isdigit(*scan as c_int))
+                    && (testval != 0 || !ascii_isdigit(*scan as i32))
                 {
                     mb_ptr_adv(&raw mut scan);
                 } else if *scan == NUL {
@@ -2440,7 +2438,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                         break;
                     }
                 } else if vim_isprintc(utf_ptr2char(scan.cast()))
-                    && (testval != 0 || !ascii_isdigit(*scan as c_int))
+                    && (testval != 0 || !ascii_isdigit(*scan as i32))
                 {
                     mb_ptr_adv(&raw mut scan);
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
@@ -2488,9 +2486,9 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
             do_class(RI_UPPER, 0, &mut scan, &mut count);
         } else if op == EXACTLY {
             if re_st().rex.reg_ic {
-                let cu = mb_toupper(*opnd as c_int);
-                let cl = mb_tolower(*opnd as c_int);
-                while count < maxcount && (*scan as c_int == cu || *scan as c_int == cl) {
+                let cu = mb_toupper(*opnd as i32);
+                let cl = mb_tolower(*opnd as i32);
+                while count < maxcount && (*scan as i32 == cu || *scan as i32 == cl) {
                     count += 1;
                     scan = scan.add(1);
                 }
@@ -2551,7 +2549,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                         }
                         scan = scan.add(len as usize);
                     } else {
-                        if cstrchr(opnd.cast(), *scan as c_int).is_null() == is_anyof {
+                        if cstrchr(opnd.cast(), *scan as i32).is_null() == is_anyof {
                             break;
                         }
                         scan = scan.add(1);
@@ -2583,7 +2581,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
         }
 
         re_st().rex.input = scan;
-        count as c_int
+        count as i32
     }
 }
 
@@ -2594,7 +2592,7 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
         assert!(size_of::<Regbehind>().is_multiple_of(8));
     }
     unsafe {
-        if i64::from(((re_st().regstack.len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
+        if i64::from(((re_st().regstack.len() * 8) as u32) >> 10) >= opt_vars().p_mmp {
             emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
             return ptr::null_mut();
         }
@@ -2662,10 +2660,10 @@ fn restore_subexpr(bp: &mut Regbehind) {
     }
 }
 
-fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut c_int>) -> bool {
+fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut i32>) -> bool {
     unsafe {
-        let mut status: c_int;
-        let mut tm_count: c_int = 0;
+        let mut status: i32;
+        let mut tm_count: i32 = 0;
 
         re_st().regstack.clear();
         let bp = &mut re_st().backpos;
@@ -2718,7 +2716,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         EOL => {
-                            if c != NUL as c_int {
+                            if c != NUL as i32 {
                                 status = RA_NOMATCH;
                             }
                         }
@@ -2731,7 +2729,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         RE_EOF => {
-                            if re_st().rex.lnum != re_st().rex.reg_maxline || c != NUL as c_int {
+                            if re_st().rex.lnum != re_st().rex.reg_maxline || c != NUL as i32 {
                                 status = RA_NOMATCH;
                             }
                         }
@@ -2746,8 +2744,8 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         RE_MARK => {
-                            let mark = *operand_fn(scan) as c_int;
-                            let cmp = *operand_fn(scan).add(1) as c_int;
+                            let mark = *operand_fn(scan) as i32;
+                            let cmp = *operand_fn(scan).add(1) as i32;
                             let col = if reg_multi() {
                                 re_st().rex.input.offset_from(re_st().rex.line) as usize
                             } else {
@@ -2782,17 +2780,17 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     == re_st().rex.lnum + re_st().rex.reg_firstlnum
                                 {
                                     if pos_col == cur_col {
-                                        cmp == b'<' as c_int || cmp == b'>' as c_int
+                                        cmp == b'<' as i32 || cmp == b'>' as i32
                                     } else if pos_col < cur_col {
-                                        cmp != b'>' as c_int
+                                        cmp != b'>' as i32
                                     } else {
-                                        cmp != b'<' as c_int
+                                        cmp != b'<' as i32
                                     }
                                 } else if (*pos).lnum < re_st().rex.lnum + re_st().rex.reg_firstlnum
                                 {
-                                    cmp != b'>' as c_int
+                                    cmp != b'>' as i32
                                 } else {
-                                    cmp != b'<' as c_int
+                                    cmp != b'<' as i32
                                 };
                                 if nomatch {
                                     status = RA_NOMATCH;
@@ -2849,7 +2847,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         BOW => {
-                            if c == NUL as c_int {
+                            if c == NUL as i32 {
                                 status = RA_NOMATCH;
                             } else {
                                 let this_class = mb_get_class_tab(
@@ -2876,7 +2874,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         ANY => {
-                            if c == NUL as c_int {
+                            if c == NUL as i32 {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -2890,7 +2888,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         SIDENT => {
-                            if ascii_isdigit(*re_st().rex.input as c_int) || !vim_is_idc(c) {
+                            if ascii_isdigit(*re_st().rex.input as i32) || !vim_is_idc(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -2905,7 +2903,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         SKWORD => {
-                            if ascii_isdigit(*re_st().rex.input as c_int)
+                            if ascii_isdigit(*re_st().rex.input as i32)
                                 || !vim_iswordp_buf(
                                     re_st().rex.input.cast(),
                                     &mut *re_st().rex.reg_buf,
@@ -2924,7 +2922,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         SFNAME => {
-                            if ascii_isdigit(*re_st().rex.input as c_int) || !vim_isfilec(c) {
+                            if ascii_isdigit(*re_st().rex.input as i32) || !vim_isfilec(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -2938,7 +2936,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         SPRINT => {
-                            if ascii_isdigit(*re_st().rex.input as c_int)
+                            if ascii_isdigit(*re_st().rex.input as i32)
                                 || !vim_isprintc(utf_ptr2char(re_st().rex.input.cast()))
                             {
                                 status = RA_NOMATCH;
@@ -2954,7 +2952,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NWHITE => {
-                            if c == NUL as c_int || ascii_iswhite(c) {
+                            if c == NUL as i32 || ascii_iswhite(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -2968,7 +2966,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NDIGIT => {
-                            if c == NUL as c_int || ri_digit(c) {
+                            if c == NUL as i32 || ri_digit(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -2982,7 +2980,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NHEX => {
-                            if c == NUL as c_int || ri_hex(c) {
+                            if c == NUL as i32 || ri_hex(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -2996,7 +2994,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NOCTAL => {
-                            if c == NUL as c_int || ri_octal(c) {
+                            if c == NUL as i32 || ri_octal(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -3010,7 +3008,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NWORD => {
-                            if c == NUL as c_int || ri_word(c) {
+                            if c == NUL as i32 || ri_word(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -3024,7 +3022,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NHEAD => {
-                            if c == NUL as c_int || ri_head(c) {
+                            if c == NUL as i32 || ri_head(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -3038,7 +3036,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NALPHA => {
-                            if c == NUL as c_int || ri_alpha(c) {
+                            if c == NUL as i32 || ri_alpha(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -3052,7 +3050,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NLOWER => {
-                            if c == NUL as c_int || ri_lower(c) {
+                            if c == NUL as i32 || ri_lower(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -3066,7 +3064,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NUPPER => {
-                            if c == NUL as c_int || ri_upper(c) {
+                            if c == NUL as i32 || ri_upper(c) {
                                 status = RA_NOMATCH;
                             } else {
                                 advance_reginput();
@@ -3082,7 +3080,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 {
                                     1
                                 } else {
-                                    let mut l = crate::memory::cstr_len(opnd.cast()) as c_int;
+                                    let mut l = crate::memory::cstr_len(opnd.cast()) as i32;
                                     if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &mut l) != 0
                                     {
                                         status = RA_NOMATCH;
@@ -3107,8 +3105,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                         ANYOF | ANYBUT => {
                             let mut q = operand_fn(scan);
-                            if c == NUL as c_int
-                                || (cstrchr(q.cast(), c).is_null() == (op == ANYOF))
+                            if c == NUL as i32 || (cstrchr(q.cast(), c).is_null() == (op == ANYOF))
                             {
                                 status = RA_NOMATCH;
                             } else {
@@ -3148,7 +3145,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                                 break;
                                             }
                                         } else if opndc == inpc {
-                                            len = (i as c_int)
+                                            len = (i as i32)
                                                 + utfc_ptr2len(re_st().rex.input.add(i).cast());
                                             status = RA_MATCH;
                                             break;
@@ -3281,7 +3278,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                         x if (BACKREF + 1..=BACKREF + 9).contains(&x) => {
                             let no = (op - BACKREF) as usize;
-                            let mut len: c_int = 0;
+                            let mut len: i32 = 0;
                             cleanup_subexpr();
                             if !reg_multi() {
                                 if !(*re_st().rex.reg_startp.add(no)).is_null()
@@ -3289,7 +3286,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 {
                                     len = (*re_st().rex.reg_endp.add(no))
                                         .offset_from(*re_st().rex.reg_startp.add(no))
-                                        as c_int;
+                                        as i32;
                                     if cstrncmp(
                                         (*re_st().rex.reg_startp.add(no)).cast(),
                                         re_st().rex.input.cast(),
@@ -3335,7 +3332,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 && let Some(ref m_cstr) = em.matches[no]
                             {
                                 let m = m_cstr.as_ptr();
-                                let mut len = m_cstr.as_bytes().len() as c_int;
+                                let mut len = m_cstr.as_bytes().len() as i32;
                                 if cstrncmp(m, re_st().rex.input.cast(), &mut len) != 0 {
                                     status = RA_NOMATCH;
                                 } else {
@@ -3367,7 +3364,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     operand_min(scan);
                                 *(&raw mut re_st().brace_max).cast::<i64>().add(no) =
                                     operand_max(scan);
-                                *(&raw mut re_st().brace_count).cast::<c_int>().add(no) = 0;
+                                *(&raw mut re_st().brace_count).cast::<i32>().add(no) = 0;
                             } else {
                                 internal_error(c"BRACE_LIMITS");
                                 status = RA_FAIL;
@@ -3375,7 +3372,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                         x if (BRACE_COMPLEX..=BRACE_COMPLEX + 9).contains(&x) => {
                             let no = (op - BRACE_COMPLEX) as usize;
-                            let bcount = (&raw mut re_st().brace_count).cast::<c_int>().add(no);
+                            let bcount = (&raw mut re_st().brace_count).cast::<i32>().add(no);
                             let bmin = re_st().brace_min[no];
                             let bmax = re_st().brace_max[no];
                             *bcount += 1;
@@ -3412,7 +3409,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         BRACE_SIMPLE | STAR | PLUS => {
                             let mut rst = Regstar::new();
                             if op_fn(next) == EXACTLY {
-                                rst.nextb = *operand_fn(next) as c_int;
+                                rst.nextb = *operand_fn(next) as i32;
                                 if re_st().rex.reg_ic {
                                     if mb_isupper(rst.nextb) {
                                         rst.nextb_ic = mb_tolower(rst.nextb);
@@ -3423,8 +3420,8 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     rst.nextb_ic = rst.nextb;
                                 }
                             } else {
-                                rst.nextb = NUL as c_int;
-                                rst.nextb_ic = NUL as c_int;
+                                rst.nextb = NUL as i32;
+                                rst.nextb_ic = NUL as i32;
                             }
                             if op != BRACE_SIMPLE {
                                 rst.minval = if op == STAR { 0 } else { 1 };
@@ -3444,7 +3441,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             } else {
                                 rst.count >= rst.maxval
                             } {
-                                if i64::from(((re_st().regstack.len() * 8) as c_uint) >> 10)
+                                if i64::from(((re_st().regstack.len() * 8) as u32) >> 10)
                                     >= opt_vars().p_mmp
                                 {
                                     emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
@@ -3484,7 +3481,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         BEHIND | NOBEHIND => {
-                            if i64::from(((re_st().regstack.len() * 8) as c_uint) >> 10)
+                            if i64::from(((re_st().regstack.len() * 8) as u32) >> 10)
                                 >= opt_vars().p_mmp
                             {
                                 emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
@@ -3517,11 +3514,11 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                         }
                         NEWL => {
-                            if (c != NUL as c_int
+                            if (c != NUL as i32
                                 || !reg_multi()
                                 || re_st().rex.lnum > re_st().rex.reg_maxline
                                 || re_st().rex.reg_line_lbr)
-                                && (c != b'\n' as c_int || !re_st().rex.reg_line_lbr)
+                                && (c != b'\n' as i32 || !re_st().rex.reg_line_lbr)
                             {
                                 status = RA_NOMATCH;
                             } else if re_st().rex.reg_line_lbr {
@@ -3639,7 +3636,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         if status == RA_NOMATCH {
                             reg_restore(rp.rs_un.regsave_mut());
                             *(&raw mut re_st().brace_count)
-                                .cast::<c_int>()
+                                .cast::<i32>()
                                 .add(rp.rs_no as usize) -= 1;
                         }
                         regstack_pop(&raw mut scan);
@@ -3648,7 +3645,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         if status == RA_NOMATCH {
                             reg_restore(rp.rs_un.regsave_mut());
                             *(&raw mut re_st().brace_count)
-                                .cast::<c_int>()
+                                .cast::<i32>()
                                 .add(rp.rs_no as usize) -= 1;
                             status = RA_CONT;
                         }
@@ -3854,9 +3851,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     status = RA_NOMATCH;
                                 }
 
-                                if rst.nextb == NUL as c_int
-                                    || *re_st().rex.input as c_int == rst.nextb
-                                    || *re_st().rex.input as c_int == rst.nextb_ic
+                                if rst.nextb == NUL as i32
+                                    || *re_st().rex.input as i32 == rst.nextb
+                                    || *re_st().rex.input as i32 == rst.nextb_ic
                                 {
                                     reg_save(rp.rs_un.regsave_mut());
                                     scan = regnext(rp.rs_scan);
@@ -3905,12 +3902,12 @@ fn regtry(
     prog: &mut BtRegprog,
     col: Colnr,
     tm: Option<Proftime>,
-    timed_out: Option<&mut c_int>,
-) -> c_int {
+    timed_out: Option<&mut i32>,
+) -> i32 {
     unsafe {
         re_st().rex.input = re_st().rex.line.add(col as usize);
         re_st().rex.need_clear_subexpr = 1;
-        re_st().rex.need_clear_zsubexpr = c_int::from(prog.reghasz == REX_SET as u8);
+        re_st().rex.need_clear_zsubexpr = i32::from(prog.reghasz == REX_SET as u8);
 
         if !regmatch(
             prog.program.as_mut_ptr().add(1),
@@ -3976,11 +3973,11 @@ fn bt_regexec_both(
     mut line: *mut u8,
     startcol: Colnr,
     tm: Option<Proftime>,
-    mut timed_out: Option<&mut c_int>,
-) -> c_int {
+    mut timed_out: Option<&mut i32>,
+) -> i32 {
     unsafe {
         let mut col = startcol;
-        let mut retval: c_int = 0;
+        let mut retval: i32 = 0;
 
         if re_st().regstack.capacity() == 0 {
             re_st().regstack.reserve((REGSTACK_INITIAL as usize) / 8);
@@ -4066,7 +4063,7 @@ fn bt_regexec_both(
 
         if prog.reganch != 0 {
             let c = utf_ptr2char(re_st().rex.line.add(col as usize).cast());
-            if prog.regstart == NUL as c_int
+            if prog.regstart == NUL as i32
                 || prog.regstart == c
                 || (re_st().rex.reg_ic
                     && (utf_fold(prog.regstart) == utf_fold(c)
@@ -4084,9 +4081,9 @@ fn bt_regexec_both(
                 retval = 0;
             }
         } else {
-            let mut tm_count: c_int = 0;
+            let mut tm_count: i32 = 0;
             while !g_st().got_int {
-                if prog.regstart != NUL as c_int {
+                if prog.regstart != NUL as i32 {
                     let s = cstrchr(re_st().rex.line.add(col as usize).cast(), prog.regstart);
                     if s.is_null() {
                         retval = 0;
@@ -4137,7 +4134,7 @@ fn bt_regexec_both(
     }
 }
 
-fn finish_bt_regexec(retval: c_int, col: Colnr) -> c_int {
+fn finish_bt_regexec(retval: i32, col: Colnr) -> i32 {
     {
         if re_st().reg_tofree.capacity() > 400 {
             re_st().reg_tofree = Vec::new();
@@ -4169,12 +4166,7 @@ fn finish_bt_regexec(retval: c_int, col: Colnr) -> c_int {
     }
 }
 
-pub(super) fn bt_regexec_nl(
-    rmp: &mut Regmatch,
-    line: *mut u8,
-    col: Colnr,
-    line_lbr: bool,
-) -> c_int {
+pub(super) fn bt_regexec_nl(rmp: &mut Regmatch, line: *mut u8, col: Colnr, line_lbr: bool) -> i32 {
     unsafe {
         re_st().rex.reg_match = rmp;
         re_st().rex.reg_mmatch = ptr::null_mut();
@@ -4184,7 +4176,7 @@ pub(super) fn bt_regexec_nl(
         re_st().rex.reg_win = ptr::null_mut();
         re_st().rex.reg_ic = rmp.rm_ic;
         re_st().rex.reg_icombine = false;
-        re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
+        re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as u32)) != 0;
         re_st().rex.reg_maxcol = 0;
 
         bt_regexec_both(line, col, None, None)
@@ -4198,8 +4190,8 @@ pub(super) fn bt_regexec_multi(
     lnum: Linenr,
     col: Colnr,
     tm: Option<Proftime>,
-    timed_out: Option<&mut c_int>,
-) -> c_int {
+    timed_out: Option<&mut i32>,
+) -> i32 {
     init_regexec_multi(rmp, win, buf, lnum);
     bt_regexec_both(ptr::null_mut(), col, tm, timed_out)
 }

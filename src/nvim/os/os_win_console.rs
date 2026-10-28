@@ -13,7 +13,7 @@ use crate::strings::vim_snprintf;
 #[cfg(windows)]
 use crate::ui::ui_active;
 #[cfg(windows)]
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_void};
 
 #[cfg(windows)]
 pub type HANDLE = *mut c_void;
@@ -24,9 +24,9 @@ type HICON = *mut c_void;
 #[cfg(windows)]
 pub type DWORD = u32;
 #[cfg(windows)]
-pub type BOOL = c_int;
+pub type BOOL = i32;
 #[cfg(windows)]
-type UINT = c_uint;
+type UINT = u32;
 #[cfg(windows)]
 type WPARAM = usize;
 #[cfg(windows)]
@@ -47,7 +47,7 @@ const FILE_SHARE_WRITE: DWORD = 0x0000_0002;
 #[cfg(windows)]
 const OPEN_EXISTING: DWORD = 3;
 #[cfg(windows)]
-const SW_HIDE: c_int = 0;
+const SW_HIDE: i32 = 0;
 #[cfg(windows)]
 const ATTACH_PARENT_PROCESS: DWORD = 0xFFFF_FFFF;
 #[cfg(windows)]
@@ -65,7 +65,7 @@ const LR_LOADMAP3DCOLORS: UINT = 0x0000_1000;
 #[cfg(windows)]
 const ENABLE_VIRTUAL_TERMINAL_PROCESSING: DWORD = 0x0004;
 #[cfg(windows)]
-const UV_TTY_SUPPORTED: c_int = 0;
+const UV_TTY_SUPPORTED: i32 = 0;
 
 #[cfg(windows)]
 struct WinConsoleState {
@@ -168,22 +168,22 @@ unsafe extern "system" {
     pub fn GetProcessId(Process: HANDLE) -> DWORD;
     pub fn OpenProcess(dwDesiredAccess: DWORD, bInheritHandle: BOOL, dwProcessId: DWORD) -> HANDLE;
     pub fn TerminateProcess(hProcess: HANDLE, uExitCode: u32) -> BOOL;
-    pub fn DebugBreakProcess(Process: *mut c_void) -> c_int;
+    pub fn DebugBreakProcess(Process: *mut c_void) -> i32;
     pub fn ExitThread(dwExitCode: u32) -> !;
-    pub fn GetVersionExA(lpVersionInformation: &mut OsVersionInfoA) -> c_int;
+    pub fn GetVersionExA(lpVersionInformation: &mut OsVersionInfoA) -> i32;
 }
 
 #[cfg(windows)]
 #[link(name = "user32")]
 unsafe extern "system" {
-    fn ShowWindow(hWnd: HWND, nCmdShow: c_int) -> BOOL;
+    fn ShowWindow(hWnd: HWND, nCmdShow: i32) -> BOOL;
     fn SendMessageA(hWnd: HWND, Msg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT;
     fn LoadImageA(
         hInst: *mut c_void,
         name: *const c_char,
         r#type: UINT,
-        cx: c_int,
-        cy: c_int,
+        cx: i32,
+        cy: i32,
         fuLoad: UINT,
     ) -> HANDLE;
 }
@@ -206,7 +206,7 @@ pub fn os_enable_ctrl_c() {
 }
 
 #[cfg(windows)]
-pub fn os_open_conin_fd() -> c_int {
+pub fn os_open_conin_fd() -> i32 {
     unsafe {
         let conin_handle = CreateFileA(
             c"CONIN$".as_ptr(),
@@ -396,7 +396,7 @@ pub fn os_title_reset() {
 }
 
 #[cfg(windows)]
-pub fn os_tty_guess_term(term: *mut *const c_char, out_fd: c_int) {
+pub fn os_tty_guess_term(term: *mut *const c_char, out_fd: i32) {
     unsafe {
         let mut conemu_buf = [0 as c_char; 16];
         let conemu_env = os_getenv_buf(c"ConEmuANSI", conemu_buf.as_mut_ptr(), conemu_buf.len());

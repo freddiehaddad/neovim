@@ -18,7 +18,7 @@ use crate::ui::{
     ui_line,
 };
 use crate::window::{WinConfig, WinInfoInfo};
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 use std::ptr;
 
 pub type Schar = u32;
@@ -33,8 +33,8 @@ use crate::charset::NUL;
 use crate::drawline::{SLF_INC_VCOL, SLF_RIGHTLEFT, SLF_WRAP};
 use crate::drawscreen::DEFAULT_GRID_HANDLE;
 
-pub(crate) const K_OPT_RDB_FLAG_INVALID: c_uint = 0x04;
-const K_OPT_RDB_FLAG_NODELTA: c_uint = 0x08;
+pub(crate) const K_OPT_RDB_FLAG_INVALID: u32 = 0x04;
+const K_OPT_RDB_FLAG_NODELTA: u32 = 0x08;
 
 const HLF_BTITLE: usize = 68;
 const HLF_BFOOTER: usize = 69;
@@ -47,18 +47,18 @@ pub struct ScreenGrid {
     pub attrs: Vec<i32>,
     pub vcols: Vec<i32>,
     pub line_offset: Vec<usize>,
-    pub dirty_col: Vec<c_int>,
-    pub rows: c_int,
-    pub cols: c_int,
+    pub dirty_col: Vec<i32>,
+    pub rows: i32,
+    pub cols: i32,
     pub valid: bool,
     pub throttled: bool,
     pub blending: bool,
     pub mouse_enabled: bool,
-    pub zindex: c_int,
-    pub comp_row: c_int,
-    pub comp_col: c_int,
-    pub comp_width: c_int,
-    pub comp_height: c_int,
+    pub zindex: i32,
+    pub comp_row: i32,
+    pub comp_col: i32,
+    pub comp_width: i32,
+    pub comp_height: i32,
     pub comp_index: usize,
     pub comp_disabled: bool,
     pub pending_comp_index_update: bool,
@@ -68,8 +68,8 @@ pub struct ScreenGrid {
 #[derive(Clone, Copy)]
 pub struct GridView {
     pub target: *mut ScreenGrid,
-    pub row_offset: c_int,
-    pub col_offset: c_int,
+    pub row_offset: i32,
+    pub col_offset: i32,
 }
 
 #[repr(C)]
@@ -95,16 +95,16 @@ struct GridModuleState {
     glyph_cache_keys: Vec<c_char>,
     glyph_cache_offsets: std::collections::BTreeMap<Vec<u8>, u32>,
     grid_line_grid: *mut ScreenGrid,
-    grid_line_row: c_int,
-    grid_line_coloff: c_int,
-    grid_line_maxcol: c_int,
-    grid_line_first: c_int,
-    grid_line_last: c_int,
-    grid_line_clear_to: c_int,
-    grid_line_bg_attr: c_int,
-    grid_line_clear_attr: c_int,
-    grid_line_flags: c_int,
-    last_grid_handle: c_int,
+    grid_line_row: i32,
+    grid_line_coloff: i32,
+    grid_line_maxcol: i32,
+    grid_line_first: i32,
+    grid_line_last: i32,
+    grid_line_clear_to: i32,
+    grid_line_bg_attr: i32,
+    grid_line_clear_attr: i32,
+    grid_line_flags: i32,
+    last_grid_handle: i32,
 }
 
 impl GridModuleState {
@@ -117,7 +117,7 @@ impl GridModuleState {
             grid_line_row: -1,
             grid_line_coloff: 0,
             grid_line_maxcol: 0,
-            grid_line_first: c_int::MAX,
+            grid_line_first: i32::MAX,
             grid_line_last: 0,
             grid_line_clear_to: 0,
             grid_line_bg_attr: 0,
@@ -160,7 +160,7 @@ const fn schar_idx(sc: Schar) -> u32 {
 }
 
 #[inline]
-const fn arabic_char(ch: c_int) -> bool {
+const fn arabic_char(ch: i32) -> bool {
     (ch & 0xFF00) == 0x0600
 }
 
@@ -177,11 +177,7 @@ fn strnlen_4(p: *const u8) -> usize {
 }
 
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
-pub fn grid_adjust(
-    grid: &mut GridView,
-    row_off: &mut c_int,
-    col_off: &mut c_int,
-) -> *mut ScreenGrid {
+pub fn grid_adjust(grid: &mut GridView, row_off: &mut i32, col_off: &mut i32) -> *mut ScreenGrid {
     *row_off += grid.row_offset;
     *col_off += grid.col_offset;
     grid.target
@@ -319,7 +315,7 @@ fn schar_get_first_byte(sc: Schar) -> c_char {
     }
 }
 
-pub fn schar_get_first_codepoint(sc: Schar) -> c_int {
+pub fn schar_get_first_codepoint(sc: Schar) -> i32 {
     let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
     schar_get(sc_buf.as_mut_ptr(), sc);
     utf_ptr2char(sc_buf.as_ptr())
@@ -347,7 +343,7 @@ fn schar_in_arabic_block(sc: Schar) -> bool {
 }
 
 #[inline]
-fn schar_get_first_two_codepoints(sc: Schar, c0: &mut c_int, c1: &mut c_int) {
+fn schar_get_first_two_codepoints(sc: Schar, c0: &mut i32, c1: &mut i32) {
     unsafe {
         let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(sc_buf.as_mut_ptr(), sc);
@@ -362,9 +358,9 @@ fn schar_get_first_two_codepoints(sc: Schar, c0: &mut c_int, c1: &mut c_int) {
     }
 }
 
-pub fn line_do_arabic_shape(buf: *mut Schar, cols: c_int) {
+pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
     unsafe {
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         while i < cols {
             if schar_in_arabic_block(*buf.add(i as usize)) {
                 break;
@@ -376,14 +372,14 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: c_int) {
             return;
         }
 
-        let mut c0prev: c_int = 0;
-        let mut c0: c_int = 0;
-        let mut c1: c_int = 0;
+        let mut c0prev: i32 = 0;
+        let mut c0: i32 = 0;
+        let mut c1: i32 = 0;
         schar_get_first_two_codepoints(*buf.add(i as usize), &mut c0, &mut c1);
 
         while i < cols {
-            let mut c0next: c_int = 0;
-            let mut c1next: c_int = 0;
+            let mut c0next: i32 = 0;
+            let mut c1next: i32 = 0;
             let next_sc = if i + 1 < cols {
                 *buf.add((i + 1) as usize)
             } else {
@@ -438,7 +434,7 @@ pub fn grid_allocated(grid: &ScreenGrid) -> bool {
 }
 
 /// Clear a line in the grid starting at `off` until `width` characters are cleared (`grid_clear_line`).
-pub fn grid_clear_line(grid: &mut ScreenGrid, off: usize, width: c_int, valid: bool) {
+pub fn grid_clear_line(grid: &mut ScreenGrid, off: usize, width: i32, valid: bool) {
     {
         let len = width as usize;
         grid.chars[off..off + len].fill(schar_from_ascii(b' '));
@@ -456,12 +452,12 @@ pub fn grid_invalidate(grid: &mut ScreenGrid) {
 }
 
 #[inline]
-fn grid_invalid_row(grid: &mut ScreenGrid, row: c_int) -> bool {
+fn grid_invalid_row(grid: &mut ScreenGrid, row: i32) -> bool {
     grid.attrs[grid.line_offset[row as usize]] < 0
 }
 
 /// Get a single character directly from `grid.chars` (`grid_getchar`).
-pub fn grid_getchar(grid: &ScreenGrid, row: c_int, col: c_int, attrp: Option<&mut c_int>) -> Schar {
+pub fn grid_getchar(grid: &ScreenGrid, row: i32, col: i32, attrp: Option<&mut i32>) -> Schar {
     {
         if grid.chars.is_empty() || row >= grid.rows || col >= grid.cols {
             return 0;
@@ -475,13 +471,13 @@ pub fn grid_getchar(grid: &ScreenGrid, row: c_int, col: c_int, attrp: Option<&mu
     }
 }
 
-pub fn grid_line_start(view: *mut GridView, mut row: c_int) {
-    let mut col: c_int = 0;
+pub fn grid_line_start(view: *mut GridView, mut row: i32) {
+    let mut col: i32 = 0;
     let grid = grid_adjust(unsafe { &mut *view }, &mut row, &mut col);
     screengrid_line_start(unsafe { &mut *grid }, row, col);
 }
 
-pub fn screengrid_line_start(grid: &mut ScreenGrid, row: c_int, col: c_int) {
+pub fn screengrid_line_start(grid: &mut ScreenGrid, row: i32, col: i32) {
     {
         let linebuf_size = g_st().linebuf_char.len();
         grid_st().grid_line_maxcol = grid.cols;
@@ -489,7 +485,7 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: c_int, col: c_int) {
         grid_st().grid_line_row = row;
         grid_st().grid_line_grid = (&raw mut *grid);
         grid_st().grid_line_coloff = col;
-        grid_st().grid_line_first = linebuf_size as c_int;
+        grid_st().grid_line_first = linebuf_size as i32;
         grid_st().grid_line_maxcol = grid_st()
             .grid_line_maxcol
             .min(grid.cols - grid_st().grid_line_coloff);
@@ -509,7 +505,7 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: c_int, col: c_int) {
     }
 }
 
-pub fn grid_line_getchar(mut col: c_int, mut attr: Option<&mut c_int>) -> Schar {
+pub fn grid_line_getchar(mut col: i32, mut attr: Option<&mut i32>) -> Schar {
     unsafe {
         if col < grid_st().grid_line_maxcol {
             col += grid_st().grid_line_coloff;
@@ -525,7 +521,7 @@ pub fn grid_line_getchar(mut col: c_int, mut attr: Option<&mut c_int>) -> Schar 
     }
 }
 
-pub fn grid_line_put_schar(col: c_int, schar: Schar, attr: c_int) {
+pub fn grid_line_put_schar(col: i32, schar: Schar, attr: i32) {
     assert!(!grid_st().grid_line_grid.is_null());
     if col >= grid_st().grid_line_maxcol {
         return;
@@ -540,15 +536,15 @@ pub fn grid_line_put_schar(col: c_int, schar: Schar, attr: c_int) {
 }
 
 pub fn grid_line_puts(
-    mut col: c_int,
+    mut col: i32,
     text: impl crate::strings::IntoCCharPtr,
-    textlen: c_int,
-    attr: c_int,
-) -> c_int {
+    textlen: i32,
+    attr: i32,
+) -> i32 {
     let text = text.into_c_char_ptr();
     {
         assert!(!grid_st().grid_line_grid.is_null());
-        let mut len = if textlen >= 0 { textlen } else { c_int::MAX };
+        let mut len = if textlen >= 0 { textlen } else { i32::MAX };
 
         let start_col = col;
         let max_col = grid_st().grid_line_maxcol;
@@ -598,7 +594,7 @@ pub fn grid_line_puts(
     }
 }
 
-pub fn grid_line_fill(start_col: c_int, mut end_col: c_int, sc: Schar, attr: c_int) -> c_int {
+pub fn grid_line_fill(start_col: i32, mut end_col: i32, sc: Schar, attr: i32) -> i32 {
     end_col = end_col.min(grid_st().grid_line_maxcol);
     if start_col >= end_col {
         return end_col;
@@ -615,7 +611,7 @@ pub fn grid_line_fill(start_col: c_int, mut end_col: c_int, sc: Schar, attr: c_i
     end_col
 }
 
-pub fn grid_line_clear_end(start_col: c_int, end_col: c_int, bg_attr: c_int, clear_attr: c_int) {
+pub fn grid_line_clear_end(start_col: i32, end_col: i32, bg_attr: i32, clear_attr: i32) {
     if grid_st().grid_line_first > start_col {
         grid_st().grid_line_first = start_col;
         grid_st().grid_line_last = start_col;
@@ -625,7 +621,7 @@ pub fn grid_line_clear_end(start_col: c_int, end_col: c_int, bg_attr: c_int, cle
     grid_st().grid_line_clear_attr = clear_attr;
 }
 
-pub fn grid_line_cursor_goto(col: c_int) {
+pub fn grid_line_cursor_goto(col: i32) {
     unsafe {
         ui_grid_cursor_goto(
             (*grid_st().grid_line_grid).handle,
@@ -635,7 +631,7 @@ pub fn grid_line_cursor_goto(col: c_int) {
     }
 }
 
-pub fn grid_line_mirror(width: c_int) {
+pub fn grid_line_mirror(width: i32) {
     grid_st().grid_line_clear_to = grid_st().grid_line_last.max(grid_st().grid_line_clear_to);
     if grid_st().grid_line_first >= grid_st().grid_line_clear_to {
         return;
@@ -649,7 +645,7 @@ pub fn grid_line_mirror(width: c_int) {
     grid_st().grid_line_flags |= SLF_RIGHTLEFT;
 }
 
-pub fn linebuf_mirror(firstp: &mut c_int, lastp: &mut c_int, clearp: &mut c_int, width: c_int) {
+pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width: i32) {
     unsafe {
         let first = *firstp;
         let last = *lastp;
@@ -745,11 +741,11 @@ pub fn grid_line_flush_if_valid_row() {
 
 pub fn grid_clear(
     grid: *mut GridView,
-    start_row: c_int,
-    end_row: c_int,
-    start_col: c_int,
-    mut end_col: c_int,
-    attr: c_int,
+    start_row: i32,
+    end_row: i32,
+    start_col: i32,
+    mut end_col: i32,
+    attr: i32,
 ) {
     unsafe {
         for row in start_row..end_row {
@@ -766,7 +762,7 @@ pub fn grid_clear(
 }
 
 #[inline]
-fn grid_char_needs_redraw(grid: &mut ScreenGrid, col: c_int, off_to: usize, cols: c_int) -> bool {
+fn grid_char_needs_redraw(grid: &mut ScreenGrid, col: i32, off_to: usize, cols: i32) -> bool {
     {
         cols > 0
             && ((g_st().linebuf_char[col as usize] != grid.chars[off_to]
@@ -780,15 +776,15 @@ fn grid_char_needs_redraw(grid: &mut ScreenGrid, col: c_int, off_to: usize, cols
 
 pub fn grid_put_linebuf(
     grid: &mut ScreenGrid,
-    row: c_int,
-    coloff: c_int,
-    mut col: c_int,
-    mut endcol: c_int,
-    mut clear_width: c_int,
-    bg_attr: c_int,
-    mut clear_attr: c_int,
+    row: i32,
+    coloff: i32,
+    mut col: i32,
+    mut endcol: i32,
+    mut clear_width: i32,
+    bg_attr: i32,
+    mut clear_attr: i32,
     mut last_vcol: Colnr,
-    flags: c_int,
+    flags: i32,
 ) {
     let mut clear_next = false;
     assert!(0 <= row && row < grid.rows);
@@ -832,11 +828,11 @@ pub fn grid_put_linebuf(
 
     let mut redraw_next = grid_char_needs_redraw(grid, col, off_to + col as usize, endcol - col);
 
-    let mut start_dirty: c_int = -1;
-    let mut end_dirty: c_int = 0;
+    let mut start_dirty: i32 = -1;
+    let mut end_dirty: i32 = 0;
 
     while col < endcol {
-        let mut char_cells: c_int = 1;
+        let mut char_cells: i32 = 1;
         if col + 1 < endcol && g_st().linebuf_char[(col + 1) as usize] == 0 {
             char_cells = 2;
         }
@@ -891,8 +887,8 @@ pub fn grid_put_linebuf(
         clear_width += 1;
     }
 
-    let mut clear_dirty_start: c_int = -1;
-    let mut clear_end: c_int = -1;
+    let mut clear_dirty_start: i32 = -1;
+    let mut clear_end: i32 = -1;
     if (flags & SLF_RIGHTLEFT) != 0 {
         let mut c = clear_width - 1;
         while c >= clear_start {
@@ -973,7 +969,7 @@ pub fn grid_put_linebuf(
     }
 }
 
-pub fn grid_alloc(grid: &mut ScreenGrid, rows: c_int, columns: c_int, copy: bool, valid: bool) {
+pub fn grid_alloc(grid: &mut ScreenGrid, rows: i32, columns: i32, copy: bool, valid: bool) {
     {
         assert!(rows >= 0 && columns >= 0);
         let ncells = rows as usize * columns as usize;
@@ -1126,11 +1122,11 @@ pub fn grid_assign_handle(grid: &mut ScreenGrid) {
 
 pub fn grid_ins_lines(
     grid: &mut ScreenGrid,
-    row: c_int,
-    line_count: c_int,
-    end: c_int,
-    col: c_int,
-    width: c_int,
+    row: i32,
+    line_count: i32,
+    end: i32,
+    col: i32,
+    width: i32,
 ) {
     if line_count <= 0 {
         return;
@@ -1150,7 +1146,7 @@ pub fn grid_ins_lines(
             grid_clear_line(grid, clear_off, width, false);
         } else {
             let mut j = end - 1 - i;
-            let temp = grid.line_offset[j as usize] as c_uint as usize;
+            let temp = grid.line_offset[j as usize] as u32 as usize;
             while {
                 j -= line_count;
                 j >= row
@@ -1178,11 +1174,11 @@ pub fn grid_ins_lines(
 
 pub fn grid_del_lines(
     grid: &mut ScreenGrid,
-    row: c_int,
-    line_count: c_int,
-    end: c_int,
-    col: c_int,
-    width: c_int,
+    row: i32,
+    line_count: i32,
+    end: i32,
+    col: i32,
+    width: i32,
 ) {
     if line_count <= 0 {
         return;
@@ -1202,7 +1198,7 @@ pub fn grid_del_lines(
             grid_clear_line(grid, clear_off, width, false);
         } else {
             let mut j = row + i;
-            let temp = grid.line_offset[j as usize] as c_uint as usize;
+            let temp = grid.line_offset[j as usize] as u32 as usize;
             while {
                 j += line_count;
                 j < end
@@ -1230,12 +1226,12 @@ pub fn grid_del_lines(
 
 fn grid_draw_bordertext(
     vt: &[VirtTextChunk],
-    mut col: c_int,
-    winbl: c_int,
+    mut col: i32,
+    winbl: i32,
     hl_attr: Option<&crate::highlight::NSHlAttr>,
-    win_hl_attr_normal: c_int,
+    win_hl_attr_normal: i32,
     bt: BorderTextType,
-    mut overflow: c_int,
+    mut overflow: i32,
 ) {
     unsafe {
         let hlf_idx = if bt == K_BORDER_TEXT_TITLE {
@@ -1246,7 +1242,7 @@ fn grid_draw_bordertext(
         let mut default_attr = if let Some(tbl) = hl_attr {
             tbl[hlf_idx].get()
         } else {
-            crate::highlight::hl_attr(hlf_idx as c_int)
+            crate::highlight::hl_attr(hlf_idx as i32)
         };
         default_attr = hl_apply_winblend(winbl, default_attr);
         default_attr = hl_combine_attr(win_hl_attr_normal, default_attr);
@@ -1259,13 +1255,13 @@ fn grid_draw_bordertext(
 
         let mut i: usize = 0;
         while i < vt.len() {
-            let mut attr: c_int = -1;
+            let mut attr: i32 = -1;
             let mut text = next_virt_text_chunk(vt, &mut i, &mut attr);
             if text.is_null() {
                 break;
             }
             if overflow > 0 {
-                let cells = mb_string2cells(text) as c_int;
+                let cells = mb_string2cells(text) as i32;
                 if overflow >= cells {
                     overflow -= cells;
                     continue;
@@ -1288,7 +1284,7 @@ fn grid_draw_bordertext(
     }
 }
 
-fn get_bordertext_col(total_col: c_int, text_width: c_int, align: AlignTextPos) -> c_int {
+fn get_bordertext_col(total_col: i32, text_width: i32, align: AlignTextPos) -> i32 {
     match align {
         K_ALIGN_LEFT => 1,
         K_ALIGN_CENTER => ((total_col - text_width) / 2 + 1).max(1),
@@ -1301,18 +1297,18 @@ fn get_bordertext_col(total_col: c_int, text_width: c_int, align: AlignTextPos) 
 pub fn grid_draw_border(
     grid: &mut ScreenGrid,
     config: &mut WinConfig,
-    mut adj: *mut c_int,
-    winbl: c_int,
+    mut adj: *mut i32,
+    winbl: i32,
     hl_attr: Option<&crate::highlight::NSHlAttr>,
-    win_hl_attr_normal: c_int,
+    win_hl_attr_normal: i32,
 ) {
     unsafe {
-        let mut default_adj: [c_int; 4] = [1, 1, 1, 1];
+        let mut default_adj: [i32; 4] = [1, 1, 1, 1];
         if adj.is_null() {
             adj = default_adj.as_mut_ptr();
         }
         let mut chars = [0 as Schar; 8];
-        let mut border_attrs = [0 as c_int; 8];
+        let mut border_attrs = [0_i32; 8];
 
         for i in 0..8 {
             chars[i] = schar_from_str(config.border_chars[i].as_ptr());
@@ -1408,10 +1404,10 @@ pub fn grid_draw_border(
     }
 }
 
-fn linecopy(grid: &mut ScreenGrid, to: c_int, from: c_int, col: c_int, width: c_int) {
+fn linecopy(grid: &mut ScreenGrid, to: i32, from: i32, col: i32, width: i32) {
     {
-        let off_to = (grid.line_offset[to as usize] + col as usize) as c_uint as usize;
-        let off_from = (grid.line_offset[from as usize] + col as usize) as c_uint as usize;
+        let off_to = (grid.line_offset[to as usize] + col as usize) as u32 as usize;
+        let off_from = (grid.line_offset[from as usize] + col as usize) as u32 as usize;
         let len = width as usize;
 
         grid.chars.copy_within(off_from..off_from + len, off_to);
@@ -1432,7 +1428,7 @@ pub fn get_win_by_grid_handle(handle: ObjHandle) -> *mut WinInfoInfo {
 }
 
 /// Put a unicode character in a screen cell (`schar_from_char`).
-pub fn schar_from_char(mut c: c_int) -> Schar {
+pub fn schar_from_char(mut c: i32) -> Schar {
     let mut sc: Schar = 0;
     if c >= 0x20_0000 {
         c = 0xFFFD;
@@ -1495,7 +1491,7 @@ pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
 }
 
 #[cfg(test)]
-pub fn unittest_schar_from_cluster(buf: &std::ffi::CStr, firstc: &mut c_int) -> Schar {
+pub fn unittest_schar_from_cluster(buf: &std::ffi::CStr, firstc: &mut i32) -> Schar {
     let ci = crate::mbyte::utf_ptr2_str_char_info(buf.as_ptr());
     let cli = crate::mbyte::utf_cluster_info(ci);
     *firstc = ci.chr.value;

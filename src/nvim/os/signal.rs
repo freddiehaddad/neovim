@@ -14,38 +14,38 @@ use crate::main_init::preserve_exit;
 use crate::memline::ml_sync_all;
 use crate::option_vars::*;
 use crate::strings::vim_snprintf;
+use std::ffi::CStr;
 #[cfg(unix)]
 use std::ffi::c_void;
-use std::ffi::{CStr, c_int};
 use std::ptr;
 
 #[cfg(windows)]
 use crate::os::os_win_console::os_clear_hwnd;
 
-pub(crate) const SIGHUP: c_int = 1;
-pub(crate) const SIGINT: c_int = 2;
-pub(crate) const SIGQUIT: c_int = 3;
-pub(crate) const SIGKILL: c_int = 9;
-pub(crate) const SIGTERM: c_int = 15;
-pub(crate) const SIGWINCH: c_int = 28;
+pub(crate) const SIGHUP: i32 = 1;
+pub(crate) const SIGINT: i32 = 2;
+pub(crate) const SIGQUIT: i32 = 3;
+pub(crate) const SIGKILL: i32 = 9;
+pub(crate) const SIGTERM: i32 = 15;
+pub(crate) const SIGWINCH: i32 = 28;
 
 #[cfg(unix)]
-const SIGPIPE: c_int = 13;
+const SIGPIPE: i32 = 13;
 #[cfg(target_os = "linux")]
-const SIGUSR1: c_int = 10;
+const SIGUSR1: i32 = 10;
 #[cfg(all(unix, not(target_os = "linux")))]
-const SIGUSR1: c_int = 30;
+const SIGUSR1: i32 = 30;
 #[cfg(target_os = "linux")]
-const SIGTSTP: c_int = 20;
+const SIGTSTP: i32 = 20;
 #[cfg(all(unix, not(target_os = "linux")))]
-const SIGTSTP: c_int = 18;
+const SIGTSTP: i32 = 18;
 #[cfg(target_os = "linux")]
-const SIGPWR: c_int = 30;
+const SIGPWR: i32 = 30;
 
 #[cfg(target_os = "linux")]
-const SIG_SETMASK: c_int = 2;
+const SIG_SETMASK: i32 = 2;
 #[cfg(all(unix, not(target_os = "linux")))]
-const SIG_SETMASK: c_int = 3;
+const SIG_SETMASK: i32 = 3;
 #[cfg(unix)]
 const SIG_IGN: usize = 1;
 
@@ -93,11 +93,11 @@ fn sig_st() -> &'static mut SignalModuleState {
 
 unsafe extern "C" {
     #[cfg(unix)]
-    fn sigemptyset(set: *mut c_void) -> c_int;
+    fn sigemptyset(set: *mut c_void) -> i32;
     #[cfg(unix)]
-    fn pthread_sigmask(how: c_int, set: *const c_void, oldset: *mut c_void) -> c_int;
+    fn pthread_sigmask(how: i32, set: *const c_void, oldset: *mut c_void) -> i32;
     #[cfg(unix)]
-    pub fn signal(signum: c_int, handler: usize) -> usize;
+    pub fn signal(signum: i32, handler: usize) -> usize;
 }
 
 pub fn signal_init() {
@@ -111,7 +111,7 @@ pub fn signal_init() {
                     LOGLVL_ERR,
                     ptr::null(),
                     c"signal_init",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"Could not unblock signals, nvim might behave strangely.",
                 );
@@ -235,7 +235,7 @@ pub fn signal_accept_deadly() {
     sig_st().rejecting_deadly = false;
 }
 
-fn signal_name(signum: c_int) -> &'static CStr {
+fn signal_name(signum: i32) -> &'static CStr {
     #[cfg(target_os = "linux")]
     if signum == SIGPWR {
         return c"SIGPWR";
@@ -263,7 +263,7 @@ fn signal_name(signum: c_int) -> &'static CStr {
 }
 
 /// This function handles deadly signals.
-fn deadly_signal(signum: c_int) -> ! {
+fn deadly_signal(signum: i32) -> ! {
     // Set the v:dying variable.
     set_vim_var_nr(VV_DYING, 1);
     g_st().v_dying = 1;
@@ -284,7 +284,7 @@ fn deadly_signal(signum: c_int) -> ! {
     preserve_exit(io_buf);
 }
 
-pub(crate) fn on_signal(signum: c_int) {
+pub(crate) fn on_signal(signum: i32) {
     debug_assert!(signum >= 0);
     {
         #[cfg(target_os = "linux")]
@@ -341,7 +341,7 @@ pub(crate) fn on_signal(signum: c_int) {
                     LOGLVL_ERR,
                     ptr::null(),
                     c"on_signal",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"invalid signal: %d",
                     signum,

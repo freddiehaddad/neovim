@@ -132,7 +132,7 @@ use crate::window::{
     TabPageInfo, goto_tabpage, make_tabpages, make_windows, only_one_window, win_alloc_first,
     win_close, win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::io::Write;
 use std::ptr;
 
@@ -141,17 +141,17 @@ use crate::os::os_win_console::{os_icon_init, os_icon_reset, os_title_reset, os_
 
 pub const MAX_ARG_CMDS: usize = 10;
 
-const NO_BUFFERS: c_int = 1;
+const NO_BUFFERS: i32 = 1;
 
-const WIN_HOR: c_int = 1;
-const WIN_VER: c_int = 2;
-const WIN_TABS: c_int = 3;
+const WIN_HOR: i32 = 1;
+const WIN_VER: i32 = 2;
+const WIN_TABS: i32 = 3;
 
-const EDIT_NONE: c_int = 0;
-const EDIT_FILE: c_int = 1;
-const EDIT_STDIN: c_int = 2;
-const EDIT_TAG: c_int = 3;
-const EDIT_QF: c_int = 4;
+const EDIT_NONE: i32 = 0;
+const EDIT_FILE: i32 = 1;
+const EDIT_STDIN: i32 = 2;
+const EDIT_TAG: i32 = 3;
+const EDIT_QF: i32 = 4;
 
 const K_OPT_SHADAFILE: OptIndex = 259;
 const K_OPT_VERBOSEFILE: OptIndex = 344;
@@ -166,7 +166,7 @@ const ERR_EXTRA_CMD: &CStr =
     c"Too many \"+command\", \"-c command\" or \"--cmd command\" arguments";
 
 pub struct Mparm {
-    pub argc: c_int,
+    pub argc: i32,
     pub argv: *mut *mut c_char,
 
     pub use_vimrc: Option<std::ffi::CString>,
@@ -175,24 +175,24 @@ pub struct Mparm {
     pub commands: Vec<std::ffi::CString>,
     pub pre_commands: Vec<std::ffi::CString>,
     pub luaf: Option<std::ffi::CString>,
-    pub lua_arg0: c_int,
+    pub lua_arg0: i32,
 
-    pub edit_type: c_int,
+    pub edit_type: i32,
     pub tagname: Option<std::ffi::CString>,
     pub use_ef: Option<std::ffi::CString>,
 
     pub exmode: bool,
     pub input_istext: bool,
 
-    pub no_swap_file: c_int,
-    pub use_debug_break_level: c_int,
-    pub window_count: c_int,
-    pub window_layout: c_int,
+    pub no_swap_file: i32,
+    pub use_debug_break_level: i32,
+    pub window_count: i32,
+    pub window_layout: i32,
 
-    pub diff_mode: c_int,
+    pub diff_mode: i32,
 
     pub listen_addr: Option<std::ffi::CString>,
-    pub remote: c_int,
+    pub remote: i32,
     pub server_addr: Option<std::ffi::CString>,
     pub scriptin: Option<std::ffi::CString>,
     pub scriptout: Option<std::ffi::CString>,
@@ -393,7 +393,7 @@ fn early_init(paramp: &mut Mparm) {
     qf_init_stack();
 }
 
-pub fn nvim_main() -> c_int {
+pub fn nvim_main() -> i32 {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStringExt;
@@ -406,7 +406,7 @@ pub fn nvim_main() -> c_int {
         if c_args.is_empty() {
             c_args.push(c"nvim".to_owned());
         }
-        let argc = c_args.len() as c_int;
+        let argc = c_args.len() as i32;
         let mut c_argv: Vec<*mut c_char> =
             c_args.iter_mut().map(|s| s.as_ptr().cast_mut()).collect();
         c_argv.push(ptr::null_mut());
@@ -420,7 +420,7 @@ pub fn nvim_main() -> c_int {
         if c_args.is_empty() {
             c_args.push(c"nvim".to_owned());
         }
-        let argc = c_args.len() as c_int;
+        let argc = c_args.len() as i32;
         let mut c_argv: Vec<*mut c_char> =
             c_args.iter_mut().map(|s| s.as_ptr().cast_mut()).collect();
         c_argv.push(ptr::null_mut());
@@ -428,7 +428,7 @@ pub fn nvim_main() -> c_int {
     }
 }
 
-fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
+fn nvim_main_inner(argc: i32, argv: *mut *mut c_char) -> i32 {
     unsafe {
         main_init_st().argv0 = *argv;
         to_slash_if_needed(main_init_st().argv0);
@@ -467,7 +467,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         time_msg_if_enabled(c"init lua interpreter");
 
         #[cfg(windows)]
-        let mut startup_stderr_fd: c_int = -1;
+        let mut startup_stderr_fd: i32 = -1;
         #[cfg(windows)]
         if g_st().embedded_mode {
             startup_stderr_fd = os_dup_cloexec(STDERR_FILENO);
@@ -575,9 +575,9 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         assert!(
             opt_vars().p_ch >= 0
                 && i64::from(g_st().rows_global) >= opt_vars().p_ch
-                && i64::from(g_st().rows_global) - opt_vars().p_ch <= i64::from(c_int::MAX)
+                && i64::from(g_st().rows_global) - opt_vars().p_ch <= i64::from(i32::MAX)
         );
-        g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch as c_int;
+        g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch as i32;
         g_st().msg_row = g_st().cmdline_row;
         default_grid_alloc();
         set_init_2(g_st().headless_mode);
@@ -813,14 +813,14 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 LOGLVL_DBG,
                 ptr::null(),
                 c"main",
-                line!() as c_int,
+                line!() as i32,
                 true,
                 c"executing Lua -l script",
             );
             let lua_ok = nlua_exec_file(luaf.as_ptr());
             time_msg_if_enabled(c"executing Lua -l script");
             if g_st().msg_didout {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 g_st().msg_didout = false;
             }
             getout(if lua_ok { 0 } else { 1 });
@@ -832,7 +832,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                     LOGLVL_DBG,
                     ptr::null(),
                     c"main",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"executing stdin as Ex commands",
                 );
@@ -840,7 +840,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 nlua_call_typval(c"vim._core.exmode", c"run", args.as_mut_ptr(), None);
             }
             if g_st().msg_didout {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 g_st().msg_didout = false;
             }
             getout(0);
@@ -855,7 +855,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             LOGLVL_INF,
             ptr::null(),
             c"main",
-            line!() as c_int,
+            line!() as i32,
             true,
             c"starting main loop",
         );
@@ -871,7 +871,7 @@ pub fn input_unanswerable() -> bool {
     g_st().v_dying != 0 || (g_st().exiting && ui_active() == 0)
 }
 
-pub fn os_exit(mut r: c_int) -> ! {
+pub fn os_exit(mut r: i32) -> ! {
     g_st().exiting = true;
     signal_reject_deadly();
 
@@ -907,7 +907,7 @@ pub fn os_exit(mut r: c_int) -> ! {
         LOGLVL_INF,
         ptr::null(),
         c"os_exit",
-        line!() as c_int,
+        line!() as i32,
         true,
         msg.as_ptr().cast(),
     );
@@ -919,7 +919,7 @@ pub fn os_exit(mut r: c_int) -> ! {
     std::process::exit(r);
 }
 
-pub fn getout(mut exitval: c_int) -> ! {
+pub fn getout(mut exitval: i32) -> ! {
     unsafe {
         assert!(g_st().ui_client_channel_id == 0);
         g_st().exiting = true;
@@ -1034,7 +1034,7 @@ pub fn getout(mut exitval: c_int) -> ! {
                     LOGLVL_WRN,
                     ptr::null(),
                     c"getout",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"Exiting with error: \"%s\"",
                     get_vim_var_str(VV_ERRMSG),
@@ -1124,7 +1124,7 @@ pub fn __asan_default_options() -> *const c_char {
     c"handle_abort=1,handle_sigill=1".as_ptr()
 }
 
-fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut c_int, mut def: c_int) -> c_int {
+fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut i32, mut def: i32) -> i32 {
     let p = p.into_c_char_ptr();
     {
         let mut i = *idx as usize;
@@ -1133,10 +1133,10 @@ fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut c_int, mut def
             while ascii_isdigit(crate::memory::cstr_char_at(p, i)) {
                 def = def
                     .wrapping_mul(10)
-                    .wrapping_add((crate::memory::cstr_byte_at(p, i) - b'0') as c_int);
+                    .wrapping_add((crate::memory::cstr_byte_at(p, i) - b'0') as i32);
                 i += 1;
             }
-            *idx = i as c_int;
+            *idx = i as i32;
         }
         def
     }
@@ -1166,9 +1166,9 @@ fn server_connect(
 
 fn remote_request(
     params: &mut Mparm,
-    remote_args: c_int,
+    remote_args: i32,
     server_addr: impl crate::strings::IntoCCharPtr,
-    argc: c_int,
+    argc: i32,
     argv: *mut *mut c_char,
     ui_only: bool,
 ) {
@@ -1228,7 +1228,7 @@ fn remote_request(
 
         let mut err = Error::new();
         let mut a_items: [Object; 4] = [
-            integer_obj(Integer::from(chan as c_int)),
+            integer_obj(Integer::from(chan as i32)),
             cstr_as_obj(server_addr),
             cstr_as_obj(connect_error),
             Object {
@@ -1343,7 +1343,7 @@ fn command_line_scan(parmp: &mut Mparm) {
     unsafe {
         let mut argc = parmp.argc - 1;
         let mut argv = parmp.argv.add(1);
-        let mut argv_idx: c_int = 1;
+        let mut argv_idx: i32 = 1;
         let mut had_minmin = false;
 
         while argc > 0 {
@@ -1404,7 +1404,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                             if written_bytes < 0 {
                                 semsg!(
                                     gettext(c"E5420: Failed to write to file: %s"),
-                                    uv_strerror(written_bytes as c_int),
+                                    uv_strerror(written_bytes as i32),
                                 );
                             }
                             os_exit(0);
@@ -1561,7 +1561,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 cstr_as_obj(arg0.add(argv_idx as usize)),
                                 0,
                             );
-                            argv_idx = crate::memory::cstr_len(arg0) as c_int;
+                            argv_idx = crate::memory::cstr_len(arg0) as i32;
                         }
                     }
                     b'w' => {
@@ -1834,7 +1834,7 @@ fn set_argf_var() {
     }
 }
 
-fn init_params(paramp: &mut Mparm, argc: c_int, argv: *mut *mut c_char) {
+fn init_params(paramp: &mut Mparm, argc: i32, argv: *mut *mut c_char) {
     *paramp = Mparm::new();
     paramp.argc = argc;
     paramp.argv = argv;
@@ -1934,7 +1934,7 @@ fn handle_quickfix(paramp: &mut Mparm) {
             opt_vars().p_menc,
         ) < 0
         {
-            msg_putchar(b'\n' as c_int);
+            msg_putchar(b'\n' as i32);
             os_exit(3);
         }
         time_msg_if_enabled(c"reading errorfile");
@@ -2057,7 +2057,7 @@ fn create_windows(parmp: &mut Mparm) {
             }
             do_modelines(0);
         } else {
-            let mut done: c_int = 0;
+            let mut done: i32 = 0;
             g_st().autocmd_no_enter += 1;
             g_st().autocmd_no_leave += 1;
             let startup_curwin = curwin_ptr();
@@ -2139,7 +2139,7 @@ fn edit_buffers(parmp: &mut Mparm) {
             advance = false;
         }
 
-        let mut arg_idx: c_int = 1;
+        let mut arg_idx: i32 = 1;
         for i in 1..parmp.window_count {
             if curwin_mut().w_arg_idx == -1 {
                 arg_idx += 1;
@@ -2233,7 +2233,7 @@ fn edit_buffers(parmp: &mut Mparm) {
         g_st().autocmd_no_leave -= 1;
         time_msg_if_enabled(c"editing files in windows");
         if parmp.window_count > 1 && parmp.window_layout != WIN_TABS {
-            win_equal(curwin_ptr(), false, b'b' as c_int);
+            win_equal(curwin_ptr(), false, b'b' as i32);
         }
     }
 }
@@ -2535,7 +2535,7 @@ fn version() {
     nlua_init(ptr::null_mut(), 0, -1);
     g_st().info_message = true;
     list_version();
-    msg_putchar(b'\n' as c_int);
+    msg_putchar(b'\n' as i32);
     g_st().msg_didout = false;
 }
 
@@ -2659,7 +2659,7 @@ mod tests {
 
     #[test]
     fn get_number_arg_and_init_params_work() {
-        let mut idx: c_int = 1;
+        let mut idx: i32 = 1;
         let val = get_number_arg(c"o25x", &mut idx, 0);
         assert_eq!(val, 25);
         assert_eq!(idx, 3);

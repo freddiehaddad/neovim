@@ -57,10 +57,10 @@ use crate::strings::{gettext, vim_strchr};
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, prevwin_curwin, tabpage_index,
 };
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CStr, CString, c_char};
 use std::ptr;
 
-pub(crate) const UC_BUFFER: c_int = 1;
+pub(crate) const UC_BUFFER: i32 = 1;
 
 #[repr(C)]
 pub struct Ucmd {
@@ -68,7 +68,7 @@ pub struct Ucmd {
     pub uc_argt: u32,
     pub uc_rep: CString,
     pub uc_def: i64,
-    pub uc_compl: c_int,
+    pub uc_compl: i32,
     pub uc_addr_type: CmdAddr,
     pub uc_script_ctx: crate::runtime::Sctx,
     pub uc_compl_arg: Option<CString>,
@@ -127,7 +127,7 @@ pub(crate) fn ucmds_mut() -> &'static mut Vec<Ucmd> {
 
 const COMMAND_COMPLETE_LEN: usize = 64;
 
-fn command_complete_entry(idx: c_int) -> Option<&'static CStr> {
+fn command_complete_entry(idx: i32) -> Option<&'static CStr> {
     match idx {
         EXPAND_ARGLIST => Some(c"arglist"),
         EXPAND_AUGROUP => Some(c"augroup"),
@@ -237,13 +237,13 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 pub fn find_ucmd(
     eap: &mut Exarg,
     p: *mut c_char,
-    mut full: Option<&mut c_int>,
+    mut full: Option<&mut i32>,
     mut xp: Option<&mut ExpandCtx>,
-    mut complp: Option<&mut c_int>,
+    mut complp: Option<&mut i32>,
 ) -> *mut c_char {
     unsafe {
-        let len = p.offset_from(eap.cmd) as c_int;
-        let mut matchlen: c_int = 0;
+        let len = p.offset_from(eap.cmd) as i32;
+        let mut matchlen: i32 = 0;
         let mut found = false;
         let mut possible = false;
         let mut amb_local = false;
@@ -251,12 +251,12 @@ pub fn find_ucmd(
         let mut is_global = false;
         let mut gap: &[Ucmd] = &(*prevwin_curwin().w_buffer).b_ucmds;
         loop {
-            let mut j: c_int = 0;
+            let mut j: i32 = 0;
             while (j as usize) < gap.len() {
                 let uc = &gap[j as usize];
                 let mut cp = eap.cmd;
                 let mut np = uc.uc_name.as_ptr();
-                let mut k: c_int = 0;
+                let mut k: i32 = 0;
                 while k < len && !crate::memory::cstr_is_empty(np) && {
                     let c1 = *cp;
                     let c2 = *np;
@@ -405,7 +405,7 @@ pub fn set_context_in_user_cmdarg(
     cmd: impl crate::strings::IntoCCharPtr,
     arg: impl crate::strings::IntoCCharPtr,
     argt: u32,
-    context: c_int,
+    context: i32,
     xp: &mut ExpandCtx,
     forceit: bool,
 ) -> *const c_char {
@@ -457,16 +457,16 @@ pub fn set_context_in_user_cmdarg(
     }
 }
 
-pub fn expand_user_command_name(idx: c_int) -> *mut c_char {
+pub fn expand_user_command_name(idx: i32) -> *mut c_char {
     get_user_commands(&mut crate::os::env::ExpandCtx::new(), idx - CMD_SIZE)
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
-pub fn get_user_commands(_xp: &mut ExpandCtx, mut idx: c_int) -> *mut c_char {
+pub fn get_user_commands(_xp: &mut ExpandCtx, mut idx: i32) -> *mut c_char {
     {
         let buf = prevwin_curwin().w_buffer;
         let buf = unsafe { &mut *buf };
-        let b_len = buf.b_ucmds.len() as c_int;
+        let b_len = buf.b_ucmds.len() as i32;
 
         if idx < b_len {
             return (&buf.b_ucmds)[idx as usize].uc_name.as_ptr().cast_mut();
@@ -474,7 +474,7 @@ pub fn get_user_commands(_xp: &mut ExpandCtx, mut idx: c_int) -> *mut c_char {
 
         idx -= b_len;
         let u = ucmds_mut();
-        let u_len = u.len() as c_int;
+        let u_len = u.len() as i32;
         if idx < u_len {
             let name = (u)[idx as usize].uc_name.as_ptr().cast_mut();
 
@@ -492,10 +492,10 @@ pub fn get_user_commands(_xp: &mut ExpandCtx, mut idx: c_int) -> *mut c_char {
 }
 
 /// Get the name of user command `idx` (`get_user_command_name`).
-pub fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
+pub fn get_user_command_name(idx: i32, cmdidx: i32) -> *mut c_char {
     unsafe {
         let u = ucmds_mut();
-        let u_len = u.len() as c_int;
+        let u_len = u.len() as i32;
         if cmdidx == CMD_USER && idx < u_len {
             return (u)[idx as usize].uc_name.as_ptr().cast_mut();
         }
@@ -510,7 +510,7 @@ pub fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user address type names (`get_user_cmd_addr_type`).
-pub fn get_user_cmd_addr_type(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_addr_type(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx < 0 || (idx as usize) >= ADDR_TYPE_COMPLETE.len() {
         return ptr::null_mut();
     }
@@ -521,7 +521,7 @@ pub fn get_user_cmd_addr_type(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command attributes (`get_user_cmd_flags`).
-pub fn get_user_cmd_flags(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_flags(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     const USER_CMD_FLAGS: [&CStr; 10] = [
         c"addr",
         c"bang",
@@ -541,7 +541,7 @@ pub fn get_user_cmd_flags(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-nargs` (`get_user_cmd_nargs`).
-pub fn get_user_cmd_nargs(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_nargs(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     const USER_CMD_NARGS: [&CStr; 6] = [c"0", c"1", c"_", c"*", c"?", c"+"];
     if idx < 0 || (idx as usize) >= USER_CMD_NARGS.len() {
         return ptr::null_mut();
@@ -549,7 +549,7 @@ pub fn get_user_cmd_nargs(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     USER_CMD_NARGS[idx as usize].as_ptr().cast_mut()
 }
 
-fn get_command_complete(arg: c_int) -> *mut c_char {
+fn get_command_complete(arg: i32) -> *mut c_char {
     if arg < 0 || (arg as usize) >= COMMAND_COMPLETE_LEN {
         return ptr::null_mut();
     }
@@ -560,7 +560,7 @@ fn get_command_complete(arg: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-complete` (`get_user_cmd_complete`).
-pub fn get_user_cmd_complete(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_complete(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx < 0 || (idx as usize) >= COMMAND_COMPLETE_LEN {
         return ptr::null_mut();
     }
@@ -573,7 +573,7 @@ pub fn get_user_cmd_complete(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 
 /// Get the name of completion type `expand` as an allocated string (`cmdcomplete_type_to_str`).
 pub fn cmdcomplete_type_to_str(
-    expand: c_int,
+    expand: i32,
     compl_arg: impl crate::strings::IntoCCharPtr,
 ) -> Option<CString> {
     let compl_arg = compl_arg.into_c_char_ptr();
@@ -597,7 +597,7 @@ pub fn cmdcomplete_type_to_str(
     }
 }
 
-pub fn cmdcomplete_str_to_type(complete_str: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn cmdcomplete_str_to_type(complete_str: impl crate::strings::IntoCCharPtr) -> i32 {
     let complete_str = complete_str.into_c_char_ptr();
     {
         if crate::memory::cstr_prefix_bytes(complete_str, 7) == &b"custom,"[..7] {
@@ -607,7 +607,7 @@ pub fn cmdcomplete_str_to_type(complete_str: impl crate::strings::IntoCCharPtr) 
             return EXPAND_USER_LIST;
         }
 
-        for i in 0..(COMMAND_COMPLETE_LEN as c_int) {
+        for i in 0..(COMMAND_COMPLETE_LEN as i32) {
             let cmd_compl = get_command_complete(i);
             if cmd_compl.is_null() {
                 continue;
@@ -631,7 +631,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
         let mut is_global = false;
         let mut gap: &[Ucmd] = &(*prevwin_curwin().w_buffer).b_ucmds;
         loop {
-            let mut i: c_int = 0;
+            let mut i: i32 = 0;
             while (i as usize) < gap.len() {
                 let cmd = &gap[i as usize];
                 let a = cmd.uc_argt;
@@ -650,26 +650,26 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                     ));
                 }
                 found = true;
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 if g_st().got_int {
                     break;
                 }
 
                 let mut len: usize = 4;
                 if (a & EX_BANG) != 0 {
-                    msg_putchar(b'!' as c_int);
+                    msg_putchar(b'!' as i32);
                     len -= 1;
                 }
                 if (a & EX_REGSTR) != 0 {
-                    msg_putchar(b'"' as c_int);
+                    msg_putchar(b'"' as i32);
                     len -= 1;
                 }
                 if !is_global {
-                    msg_putchar(b'b' as c_int);
+                    msg_putchar(b'b' as i32);
                     len -= 1;
                 }
                 if (a & EX_TRLBAR) != 0 {
-                    msg_putchar(b'|' as c_int);
+                    msg_putchar(b'|' as i32);
                     len -= 1;
                 }
                 if len != 0 {
@@ -684,7 +684,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                     msg_puts(SPACES.as_ptr().add(len - 4));
                     len = 21;
                 }
-                msg_putchar(b' ' as c_int);
+                msg_putchar(b' ' as i32);
                 len += 1;
 
                 let over = (len as i64) - 22;
@@ -855,14 +855,14 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
 }
 
 /// Parse address type argument (`parse_addr_type_arg`).
-pub fn parse_addr_type_arg(value: *mut c_char, vallen: c_int, addr_type_arg: &mut CmdAddr) -> bool {
+pub fn parse_addr_type_arg(value: *mut c_char, vallen: i32, addr_type_arg: &mut CmdAddr) -> bool {
     unsafe {
         for entry in &ADDR_TYPE_COMPLETE {
             if entry.expand == ADDR_NONE {
                 break;
             }
             if let Some(name) = entry.name {
-                let a = name.to_bytes().len() as c_int == vallen;
+                let a = name.to_bytes().len() as i32 == vallen;
                 let b = crate::memory::cstr_prefix_bytes(value, vallen as usize)
                     == crate::memory::cstr_prefix_bytes(name.as_ptr(), vallen as usize);
                 if a && b {
@@ -888,8 +888,8 @@ pub fn parse_addr_type_arg(value: *mut c_char, vallen: c_int, addr_type_arg: &mu
 /// Parse a completion argument `value[vallen]` (`parse_compl_arg`).
 pub fn parse_compl_arg(
     value: impl crate::strings::IntoCCharPtr,
-    vallen: c_int,
-    complp: &mut c_int,
+    vallen: i32,
+    complp: &mut i32,
     argt: &mut u32,
     compl_arg: &mut Option<CString>,
 ) -> bool {
@@ -897,7 +897,7 @@ pub fn parse_compl_arg(
     unsafe {
         let mut arg: *const c_char = ptr::null();
         let mut arglen: usize = 0;
-        let mut valend: c_int = vallen;
+        let mut valend: i32 = vallen;
 
         for i in 0..vallen {
             if crate::memory::cstr_byte_at(value, i as usize) == b',' {
@@ -909,12 +909,12 @@ pub fn parse_compl_arg(
         }
 
         let mut matched = false;
-        for i in 0..(COMMAND_COMPLETE_LEN as c_int) {
+        for i in 0..(COMMAND_COMPLETE_LEN as i32) {
             let cmd_compl = get_command_complete(i);
             if cmd_compl.is_null() {
                 continue;
             }
-            if crate::memory::cstr_len(cmd_compl) as c_int == valend
+            if crate::memory::cstr_len(cmd_compl) as i32 == valend
                 && (crate::memory::cstr_prefix_bytes(value, valend as usize)
                     == crate::memory::cstr_prefix_bytes(cmd_compl, valend as usize))
             {
@@ -960,9 +960,9 @@ fn uc_scan_attr(
     attr: *mut c_char,
     len: usize,
     argt: &mut u32,
-    def: &mut c_int,
-    flags: &mut c_int,
-    complp: &mut c_int,
+    def: &mut i32,
+    flags: &mut i32,
+    complp: &mut i32,
     compl_arg: &mut Option<CString>,
     addr_type_arg: &mut CmdAddr,
 ) -> bool {
@@ -1084,7 +1084,7 @@ fn uc_scan_attr(
                     return false;
                 }
 
-                if !parse_compl_arg(val, vallen as c_int, complp, argt, compl_arg) {
+                if !parse_compl_arg(val, vallen as i32, complp, argt, compl_arg) {
                     return false;
                 }
             } else if crate::memory::cstr_prefix_bytes(attr, attrlen)
@@ -1095,7 +1095,7 @@ fn uc_scan_attr(
                     semsg!(gettext(E_ARGUMENT_REQUIRED_FOR_STR), c"-addr",);
                     return false;
                 }
-                if !parse_addr_type_arg(val, vallen as c_int, addr_type_arg) {
+                if !parse_addr_type_arg(val, vallen as i32, addr_type_arg) {
                     return false;
                 }
                 if *addr_type_arg != ADDR_LINES {
@@ -1122,7 +1122,7 @@ pub fn uc_validate_name(mut name: *mut c_char) -> *mut c_char {
                 name = name.add(1);
             }
         }
-        if ends_excmd(c_int::from(crate::memory::cstr_first_byte(name))) == 0
+        if ends_excmd(i32::from(crate::memory::cstr_first_byte(name))) == 0
             && !ascii_iswhite(crate::memory::cstr_first_char(name))
         {
             return ptr::null_mut();
@@ -1138,8 +1138,8 @@ pub fn uc_add_command(
     rep: impl crate::strings::IntoCCharPtr,
     argt: u32,
     def: i64,
-    flags: c_int,
-    context: c_int,
+    flags: i32,
+    context: i32,
     compl_arg: Option<CString>,
     mut compl_luaref: LuaRef,
     mut preview_luaref: LuaRef,
@@ -1153,7 +1153,7 @@ pub fn uc_add_command(
     let desc = desc.into_c_char_ptr();
     unsafe {
         let mut cmd: *mut Ucmd = ptr::null_mut();
-        let mut cmp: c_int = 1;
+        let mut cmp: i32 = 1;
         let rep_cstr = replace_termcodes(
             rep,
             crate::memory::cstr_len(rep),
@@ -1172,13 +1172,13 @@ pub fn uc_add_command(
             u
         };
 
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         while (i as usize) < gap.len() {
             cmd = &raw mut gap[i as usize];
             let len = (*cmd).uc_name.as_bytes().len();
             cmp = crate::memory::cstr_prefix_bytes(name, name_len).cmp(
                 crate::memory::cstr_prefix_bytes((*cmd).uc_name.as_ptr(), name_len),
-            ) as c_int;
+            ) as i32;
             if cmp == 0 {
                 if name_len < len {
                     cmp = -1;
@@ -1252,9 +1252,9 @@ pub fn uc_add_command(
 pub fn ex_command(eap: &mut Exarg) {
     unsafe {
         let mut argt: u32 = 0;
-        let mut def: c_int = -1;
-        let mut flags: c_int = 0;
-        let mut context: c_int = EXPAND_NOTHING;
+        let mut def: i32 = -1;
+        let mut flags: i32 = 0;
+        let mut context: i32 = EXPAND_NOTHING;
         let mut compl_arg: Option<CString> = None;
         let mut addr_type_arg: CmdAddr = ADDR_NONE;
         let has_attr = crate::memory::cstr_first_byte(eap.arg) == b'-';
@@ -1288,7 +1288,7 @@ pub fn ex_command(eap: &mut Exarg) {
         let name_len = end.offset_from(name) as usize;
 
         p = skipwhite(end);
-        if !has_attr && ends_excmd(c_int::from(crate::memory::cstr_first_byte(p))) != 0 {
+        if !has_attr && ends_excmd(i32::from(crate::memory::cstr_first_byte(p))) != 0 {
             uc_list(name, name_len);
         } else if !ascii_isupper(crate::memory::cstr_first_char(name)) {
             emsg(gettext(
@@ -1337,8 +1337,8 @@ pub fn ex_comclear(_eap: &mut Exarg) {
 
 pub fn ex_delcommand(eap: &mut Exarg) {
     unsafe {
-        let mut i: c_int;
-        let mut res: c_int = -1;
+        let mut i: i32;
+        let mut res: i32 = -1;
         let mut arg: *const c_char = eap.arg;
         let mut buffer_only = false;
 
@@ -1356,7 +1356,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
             while (i as usize) < gap.len() {
                 res = crate::memory::cstr_as_bytes(arg).cmp(crate::memory::cstr_as_bytes(
                     gap[i as usize].uc_name.as_ptr(),
-                )) as c_int;
+                )) as i32;
                 if res <= 0 {
                     break;
                 }
@@ -1462,7 +1462,7 @@ fn uc_split_args(
 ) -> CString {
     let arg = arg.into_c_char_ptr();
     unsafe {
-        let mut len: c_int = 2;
+        let mut len: i32 = 2;
         if args.is_empty() {
             let mut p = arg;
             while !crate::memory::cstr_is_empty(p) {
@@ -1659,7 +1659,7 @@ pub fn uc_mods(mut buf: *mut c_char, cmod: &Cmdmod, quote: bool) -> usize {
     unsafe {
         let mut multi_mods = false;
 
-        const MOD_ENTRIES: [(c_int, &CStr); 12] = [
+        const MOD_ENTRIES: [(i32, &CStr); 12] = [
             (CMOD_BROWSE, c"browse"),
             (CMOD_CONFIRM, c"confirm"),
             (CMOD_HIDE, c"hide"),
@@ -1747,10 +1747,10 @@ fn uc_check_code(
         let mut result: usize = 0;
         let mut p = code.add(1);
         let mut l = len - 2;
-        let mut quote: c_int = 0;
+        let mut quote: i32 = 0;
         let mut type_ = CodeType::None;
 
-        if crate::strings::vim_haschr(c"qQfF", c_int::from(crate::memory::cstr_first_byte(p)))
+        if crate::strings::vim_haschr(c"qQfF", i32::from(crate::memory::cstr_first_byte(p)))
             && crate::memory::cstr_byte_at(p, 1) == b'-'
         {
             quote = if crate::memory::cstr_first_byte(p) == b'q'
@@ -1963,7 +1963,7 @@ fn uc_check_code(
     }
 }
 
-pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> c_int {
+pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
     unsafe {
         let mut end: *mut c_char = ptr::null_mut();
         let mut split_len: usize = 0;
@@ -1994,9 +1994,9 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> c_int {
             let mut totlen: usize = 0;
 
             loop {
-                let start = vim_strchr(p, b'<' as c_int);
+                let start = vim_strchr(p, b'<' as i32);
                 if !start.is_null() {
-                    end = vim_strchr(start.add(1), b'>' as c_int);
+                    end = vim_strchr(start.add(1), b'>' as i32);
                 }
                 if !buf.is_null() {
                     let mut ksp = p;

@@ -17,7 +17,7 @@ use crate::os::fs::os_can_exe;
 #[cfg(any(test, windows))]
 use std::ffi::c_char;
 #[cfg(windows)]
-use std::ffi::{c_int, c_void};
+use std::ffi::c_void;
 #[cfg(any(test, windows))]
 use std::ptr;
 
@@ -134,8 +134,8 @@ mod win_impl {
     use crate::log::LOGLVL_ERR;
     use crate::os::fs::UV_ENOENT;
 
-    const UV_CONNECT: c_int = 2;
-    const UV_ENOSYS: c_int = -4054;
+    const UV_CONNECT: i32 = 2;
+    const UV_ENOSYS: i32 = -4054;
 
     const WAIT_TIMEOUT: DWORD = 258;
     const INFINITE: DWORD = 0xFFFF_FFFF;
@@ -213,7 +213,7 @@ mod win_impl {
     }
 
     /// @returns zero on success, or negative error code.
-    pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> c_int {
+    pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> i32 {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
@@ -223,7 +223,7 @@ mod win_impl {
             let s_in = &mut (*proc_).r#in;
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
-            let mut status: c_int;
+            let mut status: i32;
             let mut conpty_object: Option<Box<Conpty>> = None;
             let mut in_name: Option<std::ffi::CString> = None;
             let mut out_name: Option<std::ffi::CString> = None;
@@ -339,10 +339,10 @@ mod win_impl {
                     },
                 ) {
                     emsg = c"os_conpty_spawn failed".as_ptr();
-                    status = GetLastError() as c_int;
+                    status = GetLastError() as i32;
                     break 'cleanup;
                 }
-                hdr.pid = GetProcessId(proc_handle) as c_int;
+                hdr.pid = GetProcessId(proc_handle) as i32;
 
                 if RegisterWaitForSingleObject(
                     &raw mut ptail.finish_wait,
@@ -375,7 +375,7 @@ mod win_impl {
                     LOGLVL_ERR,
                     ptr::null(),
                     c"pty_proc_spawn",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"pty_proc_spawn(%s): %s: error code: %d",
                     hdr.argv.as_slice()[0].as_ptr(),
@@ -440,7 +440,7 @@ mod win_impl {
 
     pub fn pty_proc_teardown(_loop_: &mut Loop) {}
 
-    unsafe extern "C" fn pty_proc_connect_cb(req: *mut uv_connect_t, status: c_int) {
+    unsafe extern "C" fn pty_proc_connect_cb(req: *mut uv_connect_t, status: i32) {
         debug_assert_eq!(status, 0);
         unsafe {
             ptr::write_volatile(connect_req_handle_ptr(req), ptr::null_mut());
@@ -457,20 +457,16 @@ mod win_impl {
             let mut exit_code: DWORD = 0;
             GetExitCodeProcess((*ptail).proc_handle, &mut exit_code);
             hdr.status = if hdr.exit_signal != 0 {
-                128 + c_int::from(hdr.exit_signal)
+                128 + i32::from(hdr.exit_signal)
             } else {
-                exit_code as c_int
+                exit_code as i32
             };
 
             crate::event::proc::on_proc_exit(&mut *proc_);
         }
     }
 
-    fn build_cmd_line(
-        argv: &[std::ffi::CString],
-        cmd_line: &mut Vec<u16>,
-        is_cmdexe: bool,
-    ) -> c_int {
+    fn build_cmd_line(argv: &[std::ffi::CString], cmd_line: &mut Vec<u16>, is_cmdexe: bool) -> i32 {
         unsafe {
             let mut utf8_cmd_line: Vec<c_char> = Vec::new();
             let mut arg_buf: Vec<c_char> = Vec::new();
@@ -502,9 +498,9 @@ mod win_impl {
         }
     }
 
-    fn build_env_block(denv: Option<&TvDict>, env_block: &mut Vec<u16>) -> c_int {
+    fn build_env_block(denv: Option<&TvDict>, env_block: &mut Vec<u16>) -> i32 {
         env_block.clear();
-        let mut rc: c_int = 0;
+        let mut rc: i32 = 0;
         let env = tv_dict_to_env(denv);
         let mut str_utf16: Vec<u16> = Vec::new();
 

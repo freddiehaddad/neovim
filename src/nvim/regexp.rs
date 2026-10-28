@@ -29,7 +29,7 @@ use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{Proftime, profile_passed_limit};
 pub(super) use crate::strings::tr;
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 #[path = "regexp_bt.rs"]
@@ -42,85 +42,85 @@ use self::nfa::*;
 
 use crate::math::{FAIL, OK};
 use crate::option::OptInt;
-pub type RegMagic = c_int;
-pub type RegGetlineFlags = c_uint;
+pub type RegMagic = i32;
+pub type RegGetlineFlags = u32;
 
 pub const NSUBEXP: usize = 10;
 
-pub const RE_MAGIC: c_int = 1;
-pub const RE_STRING: c_int = 2;
-pub const RE_STRICT: c_int = 4;
-pub const RE_AUTO: c_int = 8;
-pub const RE_NOBREAK: c_int = 16;
+pub const RE_MAGIC: i32 = 1;
+pub const RE_STRING: i32 = 2;
+pub const RE_STRICT: i32 = 4;
+pub const RE_AUTO: i32 = 8;
+pub const RE_NOBREAK: i32 = 16;
 
-pub const REX_SET: c_int = 1;
-pub const REX_USE: c_int = 2;
-pub const REX_ALL: c_int = REX_SET | REX_USE;
+pub const REX_SET: i32 = 1;
+pub const REX_USE: i32 = 2;
+pub const REX_ALL: i32 = REX_SET | REX_USE;
 
 pub const MAGIC_NONE: RegMagic = 1;
 pub const MAGIC_OFF: RegMagic = 2;
 pub const MAGIC_ON: RegMagic = 3;
 pub const MAGIC_ALL: RegMagic = 4;
 
-pub const REGSUB_COPY: c_int = 1;
-pub const REGSUB_MAGIC: c_int = 2;
-pub const REGSUB_BACKSLASH: c_int = 4;
+pub const REGSUB_COPY: i32 = 1;
+pub const REGSUB_MAGIC: i32 = 2;
+pub const REGSUB_BACKSLASH: i32 = 4;
 
-pub(super) const CTRL_H_CONST: c_int = 0x08;
-pub(super) const CTRL_V_CONST: c_int = 0x16;
+pub(super) const CTRL_H_CONST: i32 = 0x08;
+pub(super) const CTRL_V_CONST: i32 = 0x16;
 
 pub(super) const MAXCOL: Colnr = 0x7fffffff;
 pub(super) const NUMBUFLEN: usize = 65;
-pub(super) const MB_MAXBYTES: c_int = 30;
+pub(super) const MB_MAXBYTES: i32 = 30;
 pub(super) const MAX_MCO: usize = 6;
 pub(super) const GRAPHEME_STATE_INIT: GraphemeState = 0;
-pub(super) const K_MARK_BUF_LOCAL: c_int = 0;
-pub(super) const K_CPO_LITERAL: c_int = b'l' as c_int;
+pub(super) const K_MARK_BUF_LOCAL: i32 = 0;
+pub(super) const K_CPO_LITERAL: i32 = b'l' as i32;
 
 pub(super) const RGLF_LINE: RegGetlineFlags = 0x01;
 pub(super) const RGLF_LENGTH: RegGetlineFlags = 0x02;
 pub(super) const RGLF_SUBMATCH: RegGetlineFlags = 0x04;
 
-pub(super) const NFA_MAX_STATES: c_int = 100000;
-pub(super) const NFA_TOO_EXPENSIVE: c_int = -1;
+pub(super) const NFA_MAX_STATES: i32 = 100000;
+pub(super) const NFA_TOO_EXPENSIVE: i32 = -1;
 
-pub(super) const AUTOMATIC_ENGINE: c_int = 0;
-pub(super) const BACKTRACKING_ENGINE: c_int = 1;
-pub(super) const NFA_ENGINE: c_int = 2;
+pub(super) const AUTOMATIC_ENGINE: i32 = 0;
+pub(super) const BACKTRACKING_ENGINE: i32 = 1;
+pub(super) const NFA_ENGINE: i32 = 2;
 
-pub(super) const REGMAGIC: c_int = 0o234;
-pub(super) const MAX_LIMIT: c_int = 32767 << 16;
+pub(super) const REGMAGIC: i32 = 0o234;
+pub(super) const MAX_LIMIT: i32 = 32767 << 16;
 
-pub(super) const NOT_MULTI: c_int = 0;
-pub(super) const MULTI_ONE: c_int = 1;
-pub(super) const MULTI_MULT: c_int = 2;
+pub(super) const NOT_MULTI: i32 = 0;
+pub(super) const MULTI_ONE: i32 = 1;
+pub(super) const MULTI_MULT: i32 = 2;
 
-pub(super) const RA_FAIL: c_int = 1;
-pub(super) const RA_CONT: c_int = 2;
-pub(super) const RA_BREAK: c_int = 3;
-pub(super) const RA_MATCH: c_int = 4;
-pub(super) const RA_NOMATCH: c_int = 5;
+pub(super) const RA_FAIL: i32 = 1;
+pub(super) const RA_CONT: i32 = 2;
+pub(super) const RA_BREAK: i32 = 3;
+pub(super) const RA_MATCH: i32 = 4;
+pub(super) const RA_NOMATCH: i32 = 5;
 
-pub(super) const CLASS_ALNUM: c_int = 0;
-pub(super) const CLASS_ALPHA: c_int = 1;
-pub(super) const CLASS_BLANK: c_int = 2;
-pub(super) const CLASS_CNTRL: c_int = 3;
-pub(super) const CLASS_DIGIT: c_int = 4;
-pub(super) const CLASS_GRAPH: c_int = 5;
-pub(super) const CLASS_LOWER: c_int = 6;
-pub(super) const CLASS_PRINT: c_int = 7;
-pub(super) const CLASS_PUNCT: c_int = 8;
-pub(super) const CLASS_SPACE: c_int = 9;
-pub(super) const CLASS_UPPER: c_int = 10;
-pub(super) const CLASS_XDIGIT: c_int = 11;
-pub(super) const CLASS_TAB: c_int = 12;
-pub(super) const CLASS_RETURN: c_int = 13;
-pub(super) const CLASS_BACKSPACE: c_int = 14;
-pub(super) const CLASS_ESCAPE: c_int = 15;
-pub(super) const CLASS_IDENT: c_int = 16;
-pub(super) const CLASS_KEYWORD: c_int = 17;
-pub(super) const CLASS_FNAME: c_int = 18;
-pub(super) const CLASS_NONE: c_int = 99;
+pub(super) const CLASS_ALNUM: i32 = 0;
+pub(super) const CLASS_ALPHA: i32 = 1;
+pub(super) const CLASS_BLANK: i32 = 2;
+pub(super) const CLASS_CNTRL: i32 = 3;
+pub(super) const CLASS_DIGIT: i32 = 4;
+pub(super) const CLASS_GRAPH: i32 = 5;
+pub(super) const CLASS_LOWER: i32 = 6;
+pub(super) const CLASS_PRINT: i32 = 7;
+pub(super) const CLASS_PUNCT: i32 = 8;
+pub(super) const CLASS_SPACE: i32 = 9;
+pub(super) const CLASS_UPPER: i32 = 10;
+pub(super) const CLASS_XDIGIT: i32 = 11;
+pub(super) const CLASS_TAB: i32 = 12;
+pub(super) const CLASS_RETURN: i32 = 13;
+pub(super) const CLASS_BACKSPACE: i32 = 14;
+pub(super) const CLASS_ESCAPE: i32 = 15;
+pub(super) const CLASS_IDENT: i32 = 16;
+pub(super) const CLASS_KEYWORD: i32 = 17;
+pub(super) const CLASS_FNAME: i32 = 18;
+pub(super) const CLASS_NONE: i32 = 99;
 
 pub(super) const RI_DIGIT: i16 = 0x01;
 pub(super) const RI_HEX: i16 = 0x02;
@@ -132,28 +132,28 @@ pub(super) const RI_LOWER: i16 = 0x40;
 pub(super) const RI_UPPER: i16 = 0x80;
 pub(super) const RI_WHITE: i16 = 0x100;
 
-pub(super) const RF_ICASE: c_uint = 1;
-pub(super) const RF_NOICASE: c_uint = 2;
-pub(super) const RF_HASNL: c_uint = 4;
-pub(super) const RF_ICOMBINE: c_uint = 8;
-pub(super) const RF_LOOKBH: c_uint = 16;
+pub(super) const RF_ICASE: u32 = 1;
+pub(super) const RF_NOICASE: u32 = 2;
+pub(super) const RF_HASNL: u32 = 4;
+pub(super) const RF_ICOMBINE: u32 = 8;
+pub(super) const RF_LOOKBH: u32 = 16;
 
-pub(super) const REG_NOPAREN: c_int = 0;
-pub(super) const REG_PAREN: c_int = 1;
-pub(super) const REG_ZPAREN: c_int = 2;
-pub(super) const REG_NPAREN: c_int = 3;
+pub(super) const REG_NOPAREN: i32 = 0;
+pub(super) const REG_PAREN: i32 = 1;
+pub(super) const REG_ZPAREN: i32 = 2;
+pub(super) const REG_NPAREN: i32 = 3;
 
-pub(super) const REG_MAX_PAREN_DEPTH: c_int = 1000;
+pub(super) const REG_MAX_PAREN_DEPTH: i32 = 1000;
 pub(super) const MAX_REGSUB_NESTING: usize = 4;
 
-pub(super) const CLASS_NOT: c_int = 0x80;
-pub(super) const CLASS_AF_CONST: c_int = 0x40;
-pub(super) const CLASS_AF: c_int = 0x20;
-pub(super) const CLASS_AZ_CONST: c_int = 0x10;
-pub(super) const CLASS_AZ: c_int = 0x08;
-pub(super) const CLASS_O7: c_int = 0x04;
-pub(super) const CLASS_O9: c_int = 0x02;
-pub(super) const CLASS_UNDERSCORE: c_int = 0x01;
+pub(super) const CLASS_NOT: i32 = 0x80;
+pub(super) const CLASS_AF_CONST: i32 = 0x40;
+pub(super) const CLASS_AF: i32 = 0x20;
+pub(super) const CLASS_AZ_CONST: i32 = 0x10;
+pub(super) const CLASS_AZ: i32 = 0x08;
+pub(super) const CLASS_O7: i32 = 0x04;
+pub(super) const CLASS_O9: i32 = 0x02;
+pub(super) const CLASS_UNDERSCORE: i32 = 0x01;
 
 pub(super) const REGEXP_INRANGE: &CStr = c"]^-n\\";
 pub(super) const REGEXP_ABBR: &CStr = c"nrtebdoxuU";
@@ -212,9 +212,9 @@ pub(super) enum RegProgEngine {
 }
 
 pub struct Regprog {
-    pub regflags: c_uint,
-    pub re_engine: c_uint,
-    pub re_flags: c_uint,
+    pub regflags: u32,
+    pub re_engine: u32,
+    pub re_flags: u32,
     pub re_in_use: bool,
     pub(super) engine: RegProgEngine,
 }
@@ -244,7 +244,7 @@ pub struct Regmmatch {
     pub startpos: [Lpos; NSUBEXP],
     pub endpos: [Lpos; NSUBEXP],
     pub rmm_matchcol: Colnr,
-    pub rmm_ic: c_int,
+    pub rmm_ic: i32,
     pub rmm_maxcol: Colnr,
 }
 
@@ -315,11 +315,11 @@ pub(super) fn cstring_from_bytes(
 }
 
 pub(super) struct BtRegprog {
-    pub regflags: c_uint,
-    pub regstart: c_int,
+    pub regflags: u32,
+    pub regstart: i32,
     pub reganch: u8,
     pub regmust_off: Option<usize>,
-    pub regmlen: c_int,
+    pub regmlen: i32,
     pub reghasz: u8,
     pub program: Vec<u8>,
 }
@@ -342,11 +342,11 @@ impl NfaOutSlot {
 
 #[derive(Clone, Copy)]
 pub(super) struct NfaState {
-    pub c: c_int,
+    pub c: i32,
     pub out: Option<usize>,
     pub out1: Option<usize>,
-    pub lastlist: [c_int; 2],
-    pub val: c_int,
+    pub lastlist: [i32; 2],
+    pub val: i32,
 }
 
 impl NfaState {
@@ -368,18 +368,18 @@ impl Default for NfaState {
 }
 
 pub(super) struct NfaRegprog {
-    pub regflags: c_uint,
-    pub re_engine: c_uint,
+    pub regflags: u32,
+    pub re_engine: u32,
     pub start: Option<usize>,
-    pub reganch: c_int,
-    pub regstart: c_int,
+    pub reganch: i32,
+    pub regstart: i32,
     pub match_text: Option<std::ffi::CString>,
-    pub has_zend: c_int,
-    pub has_backref: c_int,
-    pub reghasz: c_int,
+    pub has_zend: i32,
+    pub has_backref: i32,
+    pub reghasz: i32,
     pub pattern: std::ffi::CString,
-    pub nsubexp: c_int,
-    pub nstate: c_int,
+    pub nsubexp: i32,
+    pub nstate: i32,
     pub listbuf: [Vec<NfaThread>; 2],
     pub state: Vec<NfaState>,
 }
@@ -444,7 +444,7 @@ impl Default for RegPos {
 #[derive(Clone, Copy, Default)]
 pub(super) struct Regsave {
     pub rs_u: RegPos,
-    pub rs_len: c_int,
+    pub rs_len: i32,
 }
 
 impl Regsave {
@@ -470,7 +470,7 @@ impl SaveSe {
     }
 }
 
-pub(super) type Regstate = c_int;
+pub(super) type Regstate = i32;
 pub(super) const RS_NOPEN: Regstate = 0;
 pub(super) const RS_MOPEN: Regstate = 1;
 pub(super) const RS_MCLOSE: Regstate = 2;
@@ -573,7 +573,7 @@ impl Default for Regitem {
 pub(super) struct Regbehind {
     pub save_after: Regsave,
     pub save_behind: Regsave,
-    pub save_need_clear_subexpr: c_int,
+    pub save_need_clear_subexpr: i32,
     pub save_start: [SaveSe; NSUBEXP],
     pub save_end: [SaveSe; NSUBEXP],
 }
@@ -700,7 +700,7 @@ impl Default for RegSubList {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct Regsub {
-    pub in_use: c_int,
+    pub in_use: i32,
     pub list: RegSubList,
     pub orig_start_col: Colnr,
 }
@@ -733,7 +733,7 @@ impl Regsubs {
 
 #[derive(Clone, Copy)]
 pub(super) struct NfaPim {
-    pub result: c_int,
+    pub result: i32,
     pub state: Option<usize>,
     pub subs: Regsubs,
     pub end: RegPos,
@@ -759,7 +759,7 @@ impl Default for NfaPim {
 #[derive(Clone, Copy)]
 pub(super) struct NfaThread {
     pub state: Option<usize>,
-    pub count: c_int,
+    pub count: i32,
     pub pim: NfaPim,
     pub subs: Regsubs,
 }
@@ -784,9 +784,9 @@ impl Default for NfaThread {
 #[repr(C)]
 pub(super) struct NfaList {
     pub t: Vec<NfaThread>,
-    pub n: c_int,
-    pub id: c_int,
-    pub has_pim: c_int,
+    pub n: i32,
+    pub id: i32,
+    pub has_pim: i32,
 }
 
 #[derive(Clone, Copy)]
@@ -797,7 +797,7 @@ enum CaseConv {
 
 impl CaseConv {
     #[inline]
-    fn apply(self, c: c_int) -> c_int {
+    fn apply(self, c: i32) -> i32 {
         match self {
             Self::Upper => mb_toupper(c),
             Self::Lower => mb_tolower(c),
@@ -809,14 +809,14 @@ impl CaseConv {
 #[derive(Clone, Copy)]
 pub(super) struct ParseState {
     pub regparse: *mut c_char,
-    pub prevchr_len: c_int,
-    pub curchr: c_int,
-    pub prevchr: c_int,
-    pub prevprevchr: c_int,
-    pub nextchr: c_int,
-    pub at_start: c_int,
-    pub prev_at_start: c_int,
-    pub regnpar: c_int,
+    pub prevchr_len: i32,
+    pub curchr: i32,
+    pub prevchr: i32,
+    pub prevprevchr: i32,
+    pub nextchr: i32,
+    pub at_start: i32,
+    pub prev_at_start: i32,
+    pub regnpar: i32,
 }
 
 impl ParseState {
@@ -858,18 +858,18 @@ pub(super) struct Regexec {
     pub lnum: Linenr,
     pub line: *mut u8,
     pub input: *mut u8,
-    pub need_clear_subexpr: c_int,
-    pub need_clear_zsubexpr: c_int,
+    pub need_clear_subexpr: i32,
+    pub need_clear_zsubexpr: i32,
     pub reg_ic: bool,
     pub reg_icombine: bool,
     pub reg_nobreak: bool,
     pub reg_maxcol: Colnr,
-    pub nfa_has_zend: c_int,
-    pub nfa_has_backref: c_int,
-    pub nfa_nsubexpr: c_int,
-    pub nfa_listid: c_int,
-    pub nfa_alt_listid: c_int,
-    pub nfa_has_zsubexpr: c_int,
+    pub nfa_has_zend: i32,
+    pub nfa_has_backref: i32,
+    pub nfa_nsubexpr: i32,
+    pub nfa_listid: i32,
+    pub nfa_alt_listid: i32,
+    pub nfa_has_zsubexpr: i32,
 }
 
 impl Regexec {
@@ -918,7 +918,7 @@ pub(super) struct Regsubmatch {
     pub sm_mmatch: *mut Regmmatch,
     pub sm_firstlnum: Linenr,
     pub sm_maxline: Linenr,
-    pub sm_line_lbr: c_int,
+    pub sm_line_lbr: i32,
 }
 
 impl Regsubmatch {
@@ -941,9 +941,9 @@ impl Default for Regsubmatch {
 
 #[derive(Clone, Copy)]
 struct Decomp {
-    a: c_int,
-    b: c_int,
-    c: c_int,
+    a: i32,
+    b: i32,
+    c: i32,
 }
 
 static DECOMP_TABLE: [Decomp; 0xfb4f - 0xfb20 + 1] = [
@@ -993,7 +993,7 @@ static DECOMP_TABLE: [Decomp; 0xfb4f - 0xfb20 + 1] = [
         c: 0,
     }, // 0xfb28       alt tav
     Decomp {
-        a: b'+' as c_int,
+        a: b'+' as i32,
         b: 0,
         c: 0,
     }, // 0xfb29       alt plus
@@ -1195,24 +1195,24 @@ pub(super) struct RegexpState {
     pub(super) class_tab: [i16; 256],
     pub(super) init_class_tab_done: bool,
     pub(super) regparse: *mut c_char,
-    pub(super) regnpar: c_int,
+    pub(super) regnpar: i32,
     pub(super) wants_nfa: bool,
-    pub(super) regnzpar: c_int,
-    pub(super) re_has_z: c_int,
-    pub(super) regflags: c_uint,
-    pub(super) had_eol: c_int,
+    pub(super) regnzpar: i32,
+    pub(super) re_has_z: i32,
+    pub(super) regflags: u32,
+    pub(super) had_eol: i32,
     pub(super) reg_magic: RegMagic,
-    pub(super) reg_string: c_int,
-    pub(super) reg_strict: c_int,
-    pub(super) curchr: c_int,
-    pub(super) prevchr: c_int,
-    pub(super) prevprevchr: c_int,
-    pub(super) nextchr: c_int,
-    pub(super) prevchr_len: c_int,
-    pub(super) at_start: c_int,
-    pub(super) prev_at_start: c_int,
-    pub(super) peekchr_after_slash: c_int,
-    pub(super) reg_cpo_lit: c_int,
+    pub(super) reg_string: i32,
+    pub(super) reg_strict: i32,
+    pub(super) curchr: i32,
+    pub(super) prevchr: i32,
+    pub(super) prevprevchr: i32,
+    pub(super) nextchr: i32,
+    pub(super) prevchr_len: i32,
+    pub(super) at_start: i32,
+    pub(super) prev_at_start: i32,
+    pub(super) peekchr_after_slash: i32,
+    pub(super) reg_cpo_lit: i32,
     pub(super) reg_tofree: Vec<u8>,
     pub(super) rex: Regexec,
     pub(super) rex_in_use: bool,
@@ -1225,26 +1225,26 @@ pub(super) struct RegexpState {
     pub(super) eval_result: [Option<std::ffi::CString>; MAX_REGSUB_NESTING],
     pub(super) regsub_nesting: usize,
     pub(super) had_endbrace: [u8; NSUBEXP],
-    pub(super) num_complex_braces: c_int,
+    pub(super) num_complex_braces: i32,
     pub(super) regcode: *mut u8,
     pub(super) regsize: i64,
-    pub(super) reg_toolong: c_int,
-    pub(super) bt_reg_parse_depth: c_int,
+    pub(super) reg_toolong: i32,
+    pub(super) bt_reg_parse_depth: i32,
     pub(super) brace_min: [i64; 10],
     pub(super) brace_max: [i64; 10],
-    pub(super) brace_count: [c_int; 10],
+    pub(super) brace_count: [i32; 10],
     pub(super) one_exactly: bool,
     pub(super) regstack: Vec<u64>,
     backpos: Vec<Backpos>,
     pub(super) behind_pos: Regsave,
-    pub(super) nfa_re_flags: c_int,
-    pub(super) post_vec: Vec<c_int>,
-    pub(super) nfa_reg_parse_depth: c_int,
-    pub(super) nstate: c_int,
-    pub(super) istate: c_int,
+    pub(super) nfa_re_flags: i32,
+    pub(super) post_vec: Vec<i32>,
+    pub(super) nfa_reg_parse_depth: i32,
+    pub(super) nstate: i32,
+    pub(super) istate: i32,
     pub(super) nfa_endp: *mut SaveSe,
     pub(super) nfa_ll_index: usize,
-    pub(super) regexp_engine: c_int,
+    pub(super) regexp_engine: i32,
 }
 
 impl RegexpState {
@@ -1366,27 +1366,27 @@ pub(super) fn tv_list_ref(l: Option<&mut TvList>) {
 }
 
 #[inline]
-pub(super) const fn magic_fn(x: c_int) -> c_int {
+pub(super) const fn magic_fn(x: i32) -> i32 {
     x - 256
 }
 
 #[inline]
-pub(super) const fn un_magic(x: c_int) -> c_int {
+pub(super) const fn un_magic(x: i32) -> i32 {
     x + 256
 }
 
 #[inline]
-pub(super) const fn is_magic_fn(x: c_int) -> bool {
+pub(super) const fn is_magic_fn(x: i32) -> bool {
     x < 0
 }
 
 #[inline]
-pub(super) const fn no_magic(x: c_int) -> c_int {
+pub(super) const fn no_magic(x: i32) -> i32 {
     if is_magic_fn(x) { un_magic(x) } else { x }
 }
 
 #[inline]
-pub(super) const fn toggle_magic(x: c_int) -> c_int {
+pub(super) const fn toggle_magic(x: i32) -> i32 {
     if is_magic_fn(x) {
         un_magic(x)
     } else {
@@ -1395,8 +1395,8 @@ pub(super) const fn toggle_magic(x: c_int) -> c_int {
 }
 
 #[inline]
-pub(super) fn ucharat(p: *const u8) -> c_int {
-    unsafe { *p as c_int }
+pub(super) fn ucharat(p: *const u8) -> i32 {
+    unsafe { *p as i32 }
 }
 
 #[inline]
@@ -1416,13 +1416,11 @@ pub(super) fn mb_ptr_adv<T>(p: *mut *mut T) {
 /// Return MULTI_ONE if c is a single "multi" operator.
 /// Return MULTI_MULT if c is a multi "multi" operator.
 #[inline]
-pub(super) fn re_multi_type(c: c_int) -> c_int {
-    if c == magic_fn(b'@' as c_int) || c == magic_fn(b'=' as c_int) || c == magic_fn(b'?' as c_int)
-    {
+pub(super) fn re_multi_type(c: i32) -> i32 {
+    if c == magic_fn(b'@' as i32) || c == magic_fn(b'=' as i32) || c == magic_fn(b'?' as i32) {
         return MULTI_ONE;
     }
-    if c == magic_fn(b'*' as c_int) || c == magic_fn(b'+' as c_int) || c == magic_fn(b'{' as c_int)
-    {
+    if c == magic_fn(b'*' as i32) || c == magic_fn(b'+' as i32) || c == magic_fn(b'{' as i32) {
         return MULTI_MULT;
     }
     NOT_MULTI
@@ -1430,7 +1428,7 @@ pub(super) fn re_multi_type(c: c_int) -> c_int {
 
 /// Translate `\x` to its control character, except `\n`, which is Magic.
 #[inline]
-pub(super) fn backslash_trans(c: c_int) -> c_int {
+pub(super) fn backslash_trans(c: i32) -> i32 {
     match c as u8 {
         b'r' => CAR,
         b't' => TAB,
@@ -1441,8 +1439,8 @@ pub(super) fn backslash_trans(c: c_int) -> c_int {
 }
 
 /// Check for a character class name `[:name:]`. `pp` points to the `[`.
-pub(super) fn get_char_class(pp: *mut *mut c_char) -> c_int {
-    const CHAR_CLASS_TAB: &[(c_int, &[u8])] = &[
+pub(super) fn get_char_class(pp: *mut *mut c_char) -> i32 {
+    const CHAR_CLASS_TAB: &[(i32, &[u8])] = &[
         (CLASS_ALNUM, b"alnum:]"),
         (CLASS_ALPHA, b"alpha:]"),
         (CLASS_BACKSPACE, b"backspace:]"),
@@ -1518,45 +1516,45 @@ pub(super) fn init_class_tab() {
 }
 
 #[inline]
-pub(super) fn ri_digit(c: c_int) -> bool {
+pub(super) fn ri_digit(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_DIGIT) != 0
 }
 #[inline]
-pub(super) fn ri_hex(c: c_int) -> bool {
+pub(super) fn ri_hex(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_HEX) != 0
 }
 #[inline]
-pub(super) fn ri_octal(c: c_int) -> bool {
+pub(super) fn ri_octal(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_OCTAL) != 0
 }
 #[inline]
-pub(super) fn ri_word(c: c_int) -> bool {
+pub(super) fn ri_word(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_WORD) != 0
 }
 #[inline]
-pub(super) fn ri_head(c: c_int) -> bool {
+pub(super) fn ri_head(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_HEAD) != 0
 }
 #[inline]
-pub(super) fn ri_alpha(c: c_int) -> bool {
+pub(super) fn ri_alpha(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_ALPHA) != 0
 }
 #[inline]
-pub(super) fn ri_lower(c: c_int) -> bool {
+pub(super) fn ri_lower(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_LOWER) != 0
 }
 #[inline]
-pub(super) fn ri_upper(c: c_int) -> bool {
+pub(super) fn ri_upper(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_UPPER) != 0
 }
 
 /// Return true if compiled regular expression `prog` can match a line break.
-pub fn re_multiline(prog: &Regprog) -> c_int {
-    (prog.regflags & RF_HASNL) as c_int
+pub fn re_multiline(prog: &Regprog) -> i32 {
+    (prog.regflags & RF_HASNL) as i32
 }
 
 /// Check for an equivalence class name `[=a=]`. `pp` points to the `[`.
-pub(super) fn get_equi_class(pp: *mut *mut c_char) -> c_int {
+pub(super) fn get_equi_class(pp: *mut *mut c_char) -> i32 {
     unsafe {
         let p = *pp;
         if crate::memory::cstr_byte_at(p, 1) == b'=' && crate::memory::cstr_byte_at(p, 2) != 0 {
@@ -1574,7 +1572,7 @@ pub(super) fn get_equi_class(pp: *mut *mut c_char) -> c_int {
 }
 
 /// Check for a collating element `[.a.]`. `pp` points to the `[`.
-pub(super) fn get_coll_element(pp: *mut *mut c_char) -> c_int {
+pub(super) fn get_coll_element(pp: *mut *mut c_char) -> i32 {
     unsafe {
         let p = *pp;
         if !crate::memory::cstr_is_empty(p)
@@ -1595,7 +1593,7 @@ pub(super) fn get_coll_element(pp: *mut *mut c_char) -> c_int {
 }
 
 pub(super) fn get_cpo_flags() {
-    re_st().reg_cpo_lit = (crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LITERAL)) as c_int;
+    re_st().reg_cpo_lit = (crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LITERAL)) as i32;
 }
 
 /// Skip over a `[]` range.
@@ -1620,11 +1618,11 @@ pub(super) fn skip_anyof(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
             } else if crate::memory::cstr_first_byte(p) == b'\\'
                 && (crate::strings::vim_haschr(
                     REGEXP_INRANGE,
-                    crate::memory::cstr_byte_at(p, 1) as c_int,
+                    crate::memory::cstr_byte_at(p, 1) as i32,
                 ) || (re_st().reg_cpo_lit == 0
                     && crate::strings::vim_haschr(
                         REGEXP_ABBR,
-                        crate::memory::cstr_byte_at(p, 1) as c_int,
+                        crate::memory::cstr_byte_at(p, 1) as i32,
                     )))
             {
                 p = p.add(2);
@@ -1645,15 +1643,15 @@ pub(super) fn skip_anyof(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
 }
 
 /// Skip past regular expression.
-pub fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
+pub fn skip_regexp(startp: *mut c_char, delim: i32, magic: i32) -> *mut c_char {
     skip_regexp_ex(startp, delim, magic, false, None, None, None)
 }
 
 /// Call `skip_regexp()` and when the delimiter does not match give an error and return NULL.
-pub fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
+pub fn skip_regexp_err(startp: *mut c_char, delim: i32, magic: i32) -> *mut c_char {
     {
         let p = skip_regexp(startp, delim, magic);
-        if crate::memory::cstr_first_byte(p) as c_int != delim {
+        if crate::memory::cstr_first_byte(p) as i32 != delim {
             semsg!(tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR), startp,);
             return ptr::null_mut();
         }
@@ -1664,11 +1662,11 @@ pub fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut 
 /// `skip_regexp()` with extra arguments.
 pub fn skip_regexp_ex(
     mut startp: *mut c_char,
-    dirc: c_int,
-    magic: c_int,
+    dirc: i32,
+    magic: i32,
     in_place: bool,
     mut copy_buf: Option<&mut Vec<c_char>>,
-    mut dropped: Option<&mut c_int>,
+    mut dropped: Option<&mut i32>,
     mut magic_val: Option<&mut RegMagic>,
 ) -> *mut c_char {
     unsafe {
@@ -1679,7 +1677,7 @@ pub fn skip_regexp_ex(
         get_cpo_flags();
 
         while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) as c_int == dirc {
+            if crate::memory::cstr_first_byte(p) as i32 == dirc {
                 break;
             }
             if (crate::memory::cstr_first_byte(p) == b'[' && mymagic >= MAGIC_ON)
@@ -1694,7 +1692,7 @@ pub fn skip_regexp_ex(
             } else if crate::memory::cstr_first_byte(p) == b'\\'
                 && crate::memory::cstr_byte_at(p, 1) != 0
             {
-                if dirc == b'?' as c_int && in_place && crate::memory::cstr_byte_at(p, 1) == b'?' {
+                if dirc == b'?' as i32 && in_place && crate::memory::cstr_byte_at(p, 1) == b'?' {
                     if startplen == 0 {
                         startplen = crate::memory::cstr_len(startp);
                     }
@@ -1768,13 +1766,13 @@ pub(super) fn restore_parse_state(ps: &mut ParseState) {
     re_st().regnpar = ps.regnpar;
 }
 
-pub(super) fn peekchr() -> c_int {
+pub(super) fn peekchr() -> i32 {
     unsafe {
         if re_st().curchr != -1 {
             return re_st().curchr;
         }
 
-        re_st().curchr = crate::memory::cstr_first_byte(re_st().regparse) as c_int;
+        re_st().curchr = crate::memory::cstr_first_byte(re_st().regparse) as i32;
         match re_st().curchr as u8 {
             b'.' | b'[' | b'~' => {
                 if re_st().reg_magic >= MAGIC_ON {
@@ -1790,27 +1788,27 @@ pub(super) fn peekchr() -> c_int {
             b'*' => {
                 if re_st().reg_magic >= MAGIC_ON
                     && re_st().at_start == 0
-                    && !(re_st().prev_at_start != 0 && re_st().prevchr == magic_fn(b'^' as c_int))
+                    && !(re_st().prev_at_start != 0 && re_st().prevchr == magic_fn(b'^' as i32))
                     && (re_st().peekchr_after_slash != 0
-                        || (re_st().prevchr != magic_fn(b'(' as c_int)
-                            && re_st().prevchr != magic_fn(b'&' as c_int)
-                            && re_st().prevchr != magic_fn(b'|' as c_int)))
+                        || (re_st().prevchr != magic_fn(b'(' as i32)
+                            && re_st().prevchr != magic_fn(b'&' as i32)
+                            && re_st().prevchr != magic_fn(b'|' as i32)))
                 {
-                    re_st().curchr = magic_fn(b'*' as c_int);
+                    re_st().curchr = magic_fn(b'*' as i32);
                 }
             }
             b'^' => {
                 if re_st().reg_magic >= MAGIC_OFF
                     && (re_st().at_start != 0
                         || re_st().reg_magic == MAGIC_ALL
-                        || re_st().prevchr == magic_fn(b'(' as c_int)
-                        || re_st().prevchr == magic_fn(b'|' as c_int)
-                        || re_st().prevchr == magic_fn(b'&' as c_int)
-                        || re_st().prevchr == magic_fn(b'n' as c_int)
-                        || (no_magic(re_st().prevchr) == b'(' as c_int
-                            && re_st().prevprevchr == magic_fn(b'%' as c_int)))
+                        || re_st().prevchr == magic_fn(b'(' as i32)
+                        || re_st().prevchr == magic_fn(b'|' as i32)
+                        || re_st().prevchr == magic_fn(b'&' as i32)
+                        || re_st().prevchr == magic_fn(b'n' as i32)
+                        || (no_magic(re_st().prevchr) == b'(' as i32
+                            && re_st().prevprevchr == magic_fn(b'%' as i32)))
                 {
-                    re_st().curchr = magic_fn(b'^' as c_int);
+                    re_st().curchr = magic_fn(b'^' as i32);
                     re_st().at_start = 1;
                     re_st().prev_at_start = 0;
                 }
@@ -1835,15 +1833,15 @@ pub(super) fn peekchr() -> c_int {
                         || (is_magic_all && matches!(*p, b'|' | b'&' | b')'))
                         || re_st().reg_magic == MAGIC_ALL
                     {
-                        re_st().curchr = magic_fn(b'$' as c_int);
+                        re_st().curchr = magic_fn(b'$' as i32);
                     }
                 }
             }
             b'\\' => {
-                let c = crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int;
-                if c == NUL as c_int {
-                    re_st().curchr = b'\\' as c_int;
-                } else if c <= b'~' as c_int && META_FLAGS[c as usize] != 0 {
+                let c = crate::memory::cstr_byte_at(re_st().regparse, 1) as i32;
+                if c == NUL as i32 {
+                    re_st().curchr = b'\\' as i32;
+                } else if c <= b'~' as i32 && META_FLAGS[c as usize] != 0 {
                     re_st().curchr = -1;
                     re_st().prev_at_start = re_st().at_start;
                     re_st().at_start = 0;
@@ -1855,8 +1853,7 @@ pub(super) fn peekchr() -> c_int {
                     re_st().curchr = toggle_magic(re_st().curchr);
                 } else if crate::strings::vim_haschr(REGEXP_ABBR, c) {
                     re_st().curchr = backslash_trans(c);
-                } else if re_st().reg_magic == MAGIC_NONE
-                    && (c == b'$' as c_int || c == b'^' as c_int)
+                } else if re_st().reg_magic == MAGIC_NONE && (c == b'$' as i32 || c == b'^' as i32)
                 {
                     re_st().curchr = toggle_magic(c);
                 } else {
@@ -1914,7 +1911,7 @@ pub(super) fn skipchr_keepstart() {
     re_st().prevprevchr = prpr;
 }
 
-pub(super) fn getchr() -> c_int {
+pub(super) fn getchr() -> i32 {
     let chr = peekchr();
     skipchr();
     chr
@@ -1931,12 +1928,12 @@ pub(super) fn ungetchr() {
     }
 }
 
-pub(super) fn gethexchrs(maxinputlen: c_int) -> i64 {
+pub(super) fn gethexchrs(maxinputlen: i32) -> i64 {
     unsafe {
         let mut nr: i64 = 0;
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         while i < maxinputlen {
-            let c = crate::memory::cstr_first_byte(re_st().regparse) as c_int;
+            let c = crate::memory::cstr_first_byte(re_st().regparse) as i32;
             if !ascii_isxdigit(c) {
                 break;
             }
@@ -1952,7 +1949,7 @@ pub(super) fn gethexchrs(maxinputlen: c_int) -> i64 {
 pub(super) fn getdecchrs() -> i64 {
     unsafe {
         let mut nr: i64 = 0;
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         loop {
             let c = crate::memory::cstr_first_byte(re_st().regparse);
             if !c.is_ascii_digit() {
@@ -1970,14 +1967,14 @@ pub(super) fn getdecchrs() -> i64 {
 pub(super) fn getoctchrs() -> i64 {
     unsafe {
         let mut nr: i64 = 0;
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         while i < 3 && nr < 0o40 {
             let c = crate::memory::cstr_first_byte(re_st().regparse);
             if !(b'0'..=b'7').contains(&c) {
                 break;
             }
             nr <<= 3;
-            nr |= i64::from(hex2nr(c as c_int));
+            nr |= i64::from(hex2nr(c as i32));
             re_st().regparse = re_st().regparse.add(1);
             i += 1;
         }
@@ -1985,7 +1982,7 @@ pub(super) fn getoctchrs() -> i64 {
     }
 }
 
-pub(super) fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> bool {
+pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
     unsafe {
         let mut reverse = false;
         if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
@@ -1996,12 +1993,12 @@ pub(super) fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> bool {
         *minval = getdigits_int(&raw mut re_st().regparse, false, 0);
         if crate::memory::cstr_first_byte(re_st().regparse) == b',' {
             re_st().regparse = re_st().regparse.add(1);
-            if ascii_isdigit(crate::memory::cstr_first_byte(re_st().regparse) as c_int) {
+            if ascii_isdigit(crate::memory::cstr_first_byte(re_st().regparse) as i32) {
                 *maxval = getdigits_int(&raw mut re_st().regparse, false, MAX_LIMIT);
             } else {
                 *maxval = MAX_LIMIT;
             }
-        } else if ascii_isdigit(crate::memory::cstr_first_byte(first_char) as c_int) {
+        } else if ascii_isdigit(crate::memory::cstr_first_byte(first_char) as i32) {
             *maxval = *minval;
         } else {
             *maxval = MAX_LIMIT;
@@ -2036,7 +2033,7 @@ pub(super) fn reg_breakcheck() {
     }
 }
 
-pub(super) fn reg_iswordc(c: c_int) -> bool {
+pub(super) fn reg_iswordc(c: i32) -> bool {
     unsafe { vim_iswordc_buf(c, &mut *re_st().rex.reg_buf) }
 }
 
@@ -2096,7 +2093,7 @@ pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
     length
 }
 
-pub(super) fn reg_prev_class() -> c_int {
+pub(super) fn reg_prev_class() -> i32 {
     unsafe {
         if re_st().rex.input > re_st().rex.line {
             let prev = re_st().rex.input.sub(1).cast::<c_char>();
@@ -2153,7 +2150,7 @@ pub(super) fn reg_match_visual() -> bool {
         }
 
         let col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
-        if mode == b'v' as c_int {
+        if mode == b'v' as i32 {
             if (lnum == top.lnum && col < top.col)
                 || (lnum == bot.lnum
                     && col
@@ -2277,8 +2274,8 @@ pub(super) fn match_with_backref(
     start_col: Colnr,
     end_lnum: Linenr,
     end_col: Colnr,
-    bytelen: &mut c_int,
-) -> c_int {
+    bytelen: &mut i32,
+) -> i32 {
     unsafe {
         let mut clnum = start_lnum;
         let mut ccol = start_col;
@@ -2346,7 +2343,7 @@ pub(super) fn re_mult_next(what: &std::ffi::CStr) -> bool {
     true
 }
 
-fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
+fn mb_decompose(c: i32, c1: &mut i32, c2: &mut i32, c3: &mut i32) {
     if (0xfb20..=0xfb4f).contains(&c) {
         let d = DECOMP_TABLE[(c - 0xfb20) as usize];
         *c1 = d.a;
@@ -2362,17 +2359,17 @@ fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
 pub(super) fn cstrncmp(
     s1: impl crate::strings::IntoCCharPtr,
     s2: impl crate::strings::IntoCCharPtr,
-    n: &mut c_int,
-) -> c_int {
+    n: &mut i32,
+) -> i32 {
     let s1 = s1.into_c_char_ptr();
     let s2 = s2.into_c_char_ptr();
     unsafe {
         let mut result = if !re_st().rex.reg_ic {
             crate::memory::cstr_prefix_bytes(s1, *n as usize)
-                .cmp(crate::memory::cstr_prefix_bytes(s2, *n as usize)) as c_int
+                .cmp(crate::memory::cstr_prefix_bytes(s2, *n as usize)) as i32
         } else {
             let mut p = s1.cast_mut();
-            let mut n2: c_int = 0;
+            let mut n2: i32 = 0;
             let mut n1 = *n;
             while n1 > 0 && !crate::memory::cstr_is_empty(p) {
                 n1 -= utfc_ptr2len(p);
@@ -2384,7 +2381,7 @@ pub(super) fn cstrncmp(
                 n2 -= 1;
                 mb_ptr_adv(&raw mut p);
             }
-            n2 = p.offset_from(s2) as c_int;
+            n2 = p.offset_from(s2) as i32;
             let r = utf_strnicmp(s1, s2, *n as usize, n2 as usize);
             if r == 0 {
                 *n = n2;
@@ -2395,14 +2392,14 @@ pub(super) fn cstrncmp(
         if result != 0 && re_st().rex.reg_icombine {
             let mut str1: *const c_char = s1;
             let mut str2: *const c_char = s2;
-            let mut c1: c_int = 0;
-            let mut c2: c_int = 0;
-            let mut c11: c_int = 0;
-            let mut c12: c_int = 0;
-            let mut junk: c_int = 0;
-            let mut junk2: c_int = 0;
+            let mut c1: i32 = 0;
+            let mut c2: i32 = 0;
+            let mut c11: i32 = 0;
+            let mut c12: i32 = 0;
+            let mut junk: i32 = 0;
+            let mut junk2: i32 = 0;
 
-            while (str1.offset_from(s1) as c_int) < *n {
+            while (str1.offset_from(s1) as i32) < *n {
                 c1 = mb_ptr2char_adv(&raw mut str1);
                 c2 = mb_ptr2char_adv(&raw mut str2);
 
@@ -2418,7 +2415,7 @@ pub(super) fn cstrncmp(
             }
             result = c2 - c1;
             if result == 0 {
-                *n = str2.offset_from(s2) as c_int;
+                *n = str2.offset_from(s2) as i32;
             }
         }
 
@@ -2427,7 +2424,7 @@ pub(super) fn cstrncmp(
 }
 
 #[inline]
-pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: c_int) -> *mut c_char {
+pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: i32) -> *mut c_char {
     let s = s.into_c_char_ptr();
     unsafe {
         if !re_st().rex.reg_ic {
@@ -2438,10 +2435,10 @@ pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: c_int) -> *mut c_
             let f = utf_fold(c);
             (f, f)
         } else if (c as u8).is_ascii_uppercase() {
-            let l = (c as u8).to_ascii_lowercase() as c_int;
+            let l = (c as u8).to_ascii_lowercase() as i32;
             (l, l)
         } else if (c as u8).is_ascii_lowercase() {
-            let u = (c as u8).to_ascii_uppercase() as c_int;
+            let u = (c as u8).to_ascii_uppercase() as i32;
             (u, c)
         } else {
             return vim_strchr(s, c);
@@ -2451,13 +2448,13 @@ pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: c_int) -> *mut c_
         while !crate::memory::cstr_is_empty(p) {
             let uc = utf_ptr2char(p);
             if c > 0x80 || uc > 0x80 {
-                if (uc < 0x80 || uc != crate::memory::cstr_first_byte(p) as c_int)
+                if (uc < 0x80 || uc != crate::memory::cstr_first_byte(p) as i32)
                     && utf_fold(uc) == lc
                 {
                     return p.cast_mut();
                 }
-            } else if crate::memory::cstr_first_byte(p) as c_int == c
-                || crate::memory::cstr_first_byte(p) as c_int == cc
+            } else if crate::memory::cstr_first_byte(p) as i32 == c
+                || crate::memory::cstr_first_byte(p) as i32 == cc
             {
                 return p.cast_mut();
             }
@@ -2469,7 +2466,7 @@ pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: c_int) -> *mut c_
 
 /// Replace tildes in the pattern by the old pattern.
 /// Returns `Some(CString)` if a new string was allocated, or `None` if `source` was modified in place.
-pub fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> Option<std::ffi::CString> {
+pub fn regtilde(source: *mut c_char, magic: i32, preview: bool) -> Option<std::ffi::CString> {
     unsafe {
         let mut newsub_vec: Option<Vec<c_char>> = None;
         let mut newsub = source;
@@ -2556,14 +2553,14 @@ pub fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> Option<std:
 }
 
 pub(crate) fn fill_submatch_list(
-    _argc: c_int,
+    _argc: i32,
     argv: *mut TypVal,
-    argskip: c_int,
+    argskip: i32,
     fp: &mut UserFunc,
-) -> c_int {
+) -> i32 {
     unsafe {
         let listarg = argv.add(argskip as usize);
-        if fp.uf_varargs == 0 && (fp.uf_args.len() as c_int) <= argskip {
+        if fp.uf_varargs == 0 && (fp.uf_args.len() as i32) <= argskip {
             return argskip;
         }
 
@@ -2590,9 +2587,9 @@ pub fn vim_regsub(
     source: *mut c_char,
     expr: Option<&TypVal>,
     dest: *mut c_char,
-    destlen: c_int,
-    flags: c_int,
-) -> c_int {
+    destlen: i32,
+    flags: i32,
+) -> i32 {
     let mut rex_save = Regexec::new();
     let rex_in_use_save = re_st().rex_in_use;
 
@@ -2621,9 +2618,9 @@ pub fn vim_regsub_multi(
     lnum: Linenr,
     source: *mut c_char,
     dest: *mut c_char,
-    destlen: c_int,
-    flags: c_int,
-) -> c_int {
+    destlen: i32,
+    flags: i32,
+) -> i32 {
     {
         let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
@@ -2654,16 +2651,16 @@ fn vim_regsub_both(
     source: impl crate::strings::IntoCCharPtr,
     expr: Option<&TypVal>,
     dest: *mut c_char,
-    destlen: c_int,
-    flags: c_int,
-) -> c_int {
+    destlen: i32,
+    flags: i32,
+) -> i32 {
     let source = source.into_c_char_ptr();
     unsafe {
-        let mut no: c_int = -1;
+        let mut no: i32 = -1;
         let mut func_all: Option<CaseConv> = None;
         let mut func_one: Option<CaseConv> = None;
         let mut clnum: Linenr = 0;
-        let mut len: c_int = 0;
+        let mut len: i32 = 0;
         let copy = (flags & REGSUB_COPY) != 0;
 
         if (source.is_null() && expr.is_none()) || dest.is_null() {
@@ -2709,7 +2706,7 @@ fn vim_regsub_both(
                 re_st().rsm.sm_mmatch = re_st().rex.reg_mmatch;
                 re_st().rsm.sm_firstlnum = re_st().rex.reg_firstlnum;
                 re_st().rsm.sm_maxline = re_st().rex.reg_maxline;
-                re_st().rsm.sm_line_lbr = c_int::from(re_st().rex.reg_line_lbr);
+                re_st().rsm.sm_line_lbr = i32::from(re_st().rex.reg_line_lbr);
 
                 re_st().regsub_nesting += 1;
 
@@ -2793,23 +2790,23 @@ fn vim_regsub_both(
             }
         } else {
             loop {
-                let mut c = crate::memory::cstr_first_byte(src) as c_int;
+                let mut c = crate::memory::cstr_first_byte(src) as i32;
                 src = src.add(1);
-                if c == NUL as c_int {
+                if c == NUL as i32 {
                     break;
                 }
-                if c == b'&' as c_int && (flags & REGSUB_MAGIC) != 0 {
+                if c == b'&' as i32 && (flags & REGSUB_MAGIC) != 0 {
                     no = 0;
-                } else if c == b'\\' as c_int && !crate::memory::cstr_is_empty(src) {
+                } else if c == b'\\' as i32 && !crate::memory::cstr_is_empty(src) {
                     if crate::memory::cstr_first_byte(src) == b'&' && (flags & REGSUB_MAGIC) == 0 {
                         src = src.add(1);
                         no = 0;
                     } else if (crate::memory::cstr_first_byte(src)).is_ascii_digit() {
-                        no = (crate::memory::cstr_first_byte(src) - b'0') as c_int;
+                        no = (crate::memory::cstr_first_byte(src) - b'0') as i32;
                         src = src.add(1);
                     } else if crate::strings::vim_haschr(
                         c"uUlLeE",
-                        crate::memory::cstr_first_byte(src) as c_int,
+                        crate::memory::cstr_first_byte(src) as i32,
                     ) {
                         let ch = crate::memory::cstr_first_byte(src);
                         src = src.add(1);
@@ -2840,7 +2837,7 @@ fn vim_regsub_both(
                     }
                 }
                 if no < 0 {
-                    if c == c_int::from(K_SPECIAL)
+                    if c == i32::from(K_SPECIAL)
                         && !crate::memory::cstr_is_empty(src)
                         && crate::memory::cstr_byte_at(src, 1) != 0
                     {
@@ -2864,7 +2861,7 @@ fn vim_regsub_both(
                         continue;
                     }
 
-                    if c == b'\\' as c_int && !crate::memory::cstr_is_empty(src) {
+                    if c == b'\\' as i32 && !crate::memory::cstr_is_empty(src) {
                         match crate::memory::cstr_first_byte(src) {
                             b'r' => {
                                 c = CAR;
@@ -2893,7 +2890,7 @@ fn vim_regsub_both(
                                     }
                                     dst = dst.add(1);
                                 }
-                                c = crate::memory::cstr_first_byte(src) as c_int;
+                                c = crate::memory::cstr_first_byte(src) as i32;
                                 src = src.add(1);
                             }
                         }
@@ -2956,7 +2953,7 @@ fn vim_regsub_both(
                         if re_st().rex.match_mut().endp[no as usize].is_null() {
                             s = ptr::null_mut();
                         } else {
-                            len = re_st().rex.match_mut().endp[no as usize].offset_from(s) as c_int;
+                            len = re_st().rex.match_mut().endp[no as usize].offset_from(s) as i32;
                         }
                     }
                     if !s.is_null() {
@@ -2988,7 +2985,7 @@ fn vim_regsub_both(
                                 if copy {
                                     iemsg(tr(E_RE_DAMG));
                                 }
-                                return (dst.offset_from(dest) + 1) as c_int;
+                                return (dst.offset_from(dest) + 1) as i32;
                             } else {
                                 if (flags & REGSUB_BACKSLASH) != 0
                                     && (*s == CAR as c_char
@@ -3039,7 +3036,7 @@ fn vim_regsub_both(
         if copy {
             *dst = NUL as c_char;
         }
-        (dst.offset_from(dest) + 1) as c_int
+        (dst.offset_from(dest) + 1) as i32
     }
 }
 
@@ -3060,7 +3057,7 @@ fn reg_getline_submatch_len(lnum: Linenr) -> Colnr {
     length
 }
 
-pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
+pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
     unsafe {
         let mut retval_vec: Vec<c_char>;
         let mut retval: *mut c_char = ptr::null_mut();
@@ -3146,7 +3143,7 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
     }
 }
 
-pub fn reg_submatch_list(no: c_int) -> *mut TvList {
+pub fn reg_submatch_list(no: i32) -> *mut TvList {
     unsafe {
         if !re_st().can_f_submatch || no < 0 {
             return ptr::null_mut();
@@ -3213,14 +3210,14 @@ pub(super) fn init_regexec_multi(
         re_st().rex.reg_line_lbr = false;
         re_st().rex.reg_ic = rmp.rmm_ic != 0;
         re_st().rex.reg_icombine = false;
-        re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as c_uint)) != 0;
+        re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
         re_st().rex.reg_maxcol = rmp.rmm_maxcol;
     }
 }
 
-pub(super) fn get_char_class_bits(start: *const u8, end: *const u8, newl: &mut bool) -> c_int {
+pub(super) fn get_char_class_bits(start: *const u8, end: *const u8, newl: &mut bool) -> i32 {
     unsafe {
-        let mut config: c_int = 0;
+        let mut config: i32 = 0;
         *newl = false;
         if *end != b']' {
             return -1;
@@ -3288,7 +3285,7 @@ pub(super) fn get_char_class_bits(start: *const u8, end: *const u8, newl: &mut b
     }
 }
 
-pub(super) fn regcomp_start(expr: *mut u8, re_flags: c_int) {
+pub(super) fn regcomp_start(expr: *mut u8, re_flags: i32) {
     initchr(expr.cast());
     if (re_flags & RE_MAGIC) != 0 {
         re_st().reg_magic = MAGIC_ON;
@@ -3311,7 +3308,7 @@ pub(super) fn regcomp_start(expr: *mut u8, re_flags: c_int) {
     re_st().had_eol = 0;
 }
 
-pub(super) fn seen_endbrace(refnum: c_int) -> bool {
+pub(super) fn seen_endbrace(refnum: i32) -> bool {
     unsafe {
         if re_st().had_endbrace[refnum as usize] == 0 {
             let mut p = re_st().regparse.cast::<u8>();
@@ -3331,7 +3328,7 @@ pub(super) fn seen_endbrace(refnum: c_int) -> bool {
     }
 }
 
-pub(super) fn coll_get_char() -> c_int {
+pub(super) fn coll_get_char() -> i32 {
     unsafe {
         let mut nr: i64 = -1;
         let ch = crate::memory::cstr_first_byte(re_st().regparse);
@@ -3348,27 +3345,27 @@ pub(super) fn coll_get_char() -> c_int {
             re_st().regparse = re_st().regparse.sub(1);
             nr = i64::from(b'\\');
         }
-        if nr > i64::from(c_int::MAX) {
-            nr = i64::from(c_int::MAX);
+        if nr > i64::from(i32::MAX) {
+            nr = i64::from(i32::MAX);
         }
-        nr as c_int
+        nr as i32
     }
 }
 
-pub fn vim_regcomp_had_eol() -> c_int {
+pub fn vim_regcomp_had_eol() -> i32 {
     re_st().had_eol
 }
 
 /// Compile a regular expression into internal code.
-pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> *mut Regprog {
+pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: i32) -> *mut Regprog {
     let expr_arg = expr_arg.into_c_char_ptr();
     unsafe {
         let mut expr = expr_arg;
 
-        re_st().regexp_engine = opt_vars().p_re as c_int;
+        re_st().regexp_engine = opt_vars().p_re as i32;
 
         if crate::memory::cstr_prefix_bytes(expr, 4) == &b"\\%#="[..4] {
-            let newengine = (crate::memory::cstr_byte_at(expr, 4)).wrapping_sub(b'0') as c_int;
+            let newengine = (crate::memory::cstr_byte_at(expr, 4)).wrapping_sub(b'0') as i32;
             if newengine == AUTOMATIC_ENGINE
                 || newengine == BACKTRACKING_ENGINE
                 || newengine == NFA_ENGINE
@@ -3397,11 +3394,11 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int)
                     },
             )
             .map(|mut nfa| {
-                nfa.re_engine = re_st().regexp_engine as c_uint;
+                nfa.re_engine = re_st().regexp_engine as u32;
                 Regprog {
                     regflags: nfa.regflags,
-                    re_engine: re_st().regexp_engine as c_uint,
-                    re_flags: re_flags as c_uint,
+                    re_engine: re_st().regexp_engine as u32,
+                    re_flags: re_flags as u32,
                     re_in_use: false,
                     engine: RegProgEngine::Nfa(nfa),
                 }
@@ -3409,8 +3406,8 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int)
         } else {
             bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| Regprog {
                 regflags: bt.regflags,
-                re_engine: re_st().regexp_engine as c_uint,
-                re_flags: re_flags as c_uint,
+                re_engine: re_st().regexp_engine as u32,
+                re_flags: re_flags as u32,
                 re_in_use: false,
                 engine: RegProgEngine::Bt(bt),
             })
@@ -3424,8 +3421,8 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int)
             report_re_switch(expr);
             prog_opt = bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| Regprog {
                 regflags: bt.regflags,
-                re_engine: re_st().regexp_engine as c_uint,
-                re_flags: re_flags as c_uint,
+                re_engine: re_st().regexp_engine as u32,
+                re_flags: re_flags as u32,
                 re_in_use: false,
                 engine: RegProgEngine::Bt(bt),
             });
@@ -3442,7 +3439,7 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int)
 #[inline]
 pub fn vim_regcomp_box(
     expr_arg: impl crate::strings::IntoCCharPtr,
-    re_flags: c_int,
+    re_flags: i32,
 ) -> Option<Box<Regprog>> {
     let expr_arg = expr_arg.into_c_char_ptr();
     unsafe {
@@ -3523,9 +3520,9 @@ fn vim_regexec_string(
         };
         rmp.prog_mut().re_in_use = false;
 
-        if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE {
+        if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
             let save_p_re = opt_vars().p_re;
-            let re_flags = rmp.prog_mut().re_flags as c_int;
+            let re_flags = rmp.prog_mut().re_flags as i32;
             let prev_prog = rmp.regprog;
             let pat = (*prev_prog).nfa_mut().pattern.as_ptr();
 
@@ -3596,8 +3593,8 @@ pub fn vim_regexec_multi(
     lnum: Linenr,
     col: Colnr,
     tm: Option<Proftime>,
-    mut timed_out: Option<&mut c_int>,
-) -> c_int {
+    mut timed_out: Option<&mut i32>,
+) -> i32 {
     unsafe {
         let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
@@ -3635,9 +3632,9 @@ pub fn vim_regexec_multi(
         };
         rmp.prog_mut().re_in_use = false;
 
-        if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE {
+        if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
             let save_p_re = opt_vars().p_re;
-            let re_flags = rmp.prog_mut().re_flags as c_int;
+            let re_flags = rmp.prog_mut().re_flags as i32;
             let prev_prog = rmp.regprog;
             let pat = (*prev_prog).nfa_mut().pattern.as_ptr();
 
@@ -3736,7 +3733,7 @@ mod tests {
 
     #[test]
     fn magic_helpers_round_trip() {
-        let c = b'*' as c_int;
+        let c = b'*' as i32;
         let m = magic_fn(c);
         assert!(is_magic_fn(m));
         assert_eq!(un_magic(m), c);
@@ -3748,13 +3745,13 @@ mod tests {
 
     #[test]
     fn re_multi_type_classifies_operators() {
-        assert_eq!(re_multi_type(magic_fn(b'*' as c_int)), MULTI_MULT);
-        assert_eq!(re_multi_type(magic_fn(b'+' as c_int)), MULTI_MULT);
-        assert_eq!(re_multi_type(magic_fn(b'{' as c_int)), MULTI_MULT);
-        assert_eq!(re_multi_type(magic_fn(b'=' as c_int)), MULTI_ONE);
-        assert_eq!(re_multi_type(magic_fn(b'?' as c_int)), MULTI_ONE);
-        assert_eq!(re_multi_type(magic_fn(b'@' as c_int)), MULTI_ONE);
-        assert_eq!(re_multi_type(b'*' as c_int), NOT_MULTI);
+        assert_eq!(re_multi_type(magic_fn(b'*' as i32)), MULTI_MULT);
+        assert_eq!(re_multi_type(magic_fn(b'+' as i32)), MULTI_MULT);
+        assert_eq!(re_multi_type(magic_fn(b'{' as i32)), MULTI_MULT);
+        assert_eq!(re_multi_type(magic_fn(b'=' as i32)), MULTI_ONE);
+        assert_eq!(re_multi_type(magic_fn(b'?' as i32)), MULTI_ONE);
+        assert_eq!(re_multi_type(magic_fn(b'@' as i32)), MULTI_ONE);
+        assert_eq!(re_multi_type(b'*' as i32), NOT_MULTI);
     }
 
     #[test]

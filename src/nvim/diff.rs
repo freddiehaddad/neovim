@@ -59,52 +59,51 @@ use crate::window::{
 };
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{Mmfile, Xdemitcb, Xdemitconf, Xpparam};
-use std::ffi::{CString, c_char, c_int, c_uint};
+use std::ffi::{CString, c_char};
 use std::ptr;
 const DB_COUNT: usize = 8;
 const MAX_DIFF_ANCHORS: usize = 20;
 const LBUFLEN: usize = 50;
-const MAX_XDIFF_SIZE: c_int = 1024 * 1024 * 1023;
-const DIFF_FILLER: c_int = 0x001;
-const DIFF_IBLANK: c_int = 0x002;
-const DIFF_ICASE: c_int = 0x004;
-const DIFF_IWHITE: c_int = 0x008;
-const DIFF_IWHITEALL: c_int = 0x010;
-const DIFF_IWHITEEOL: c_int = 0x020;
-const DIFF_HORIZONTAL: c_int = 0x040;
-const DIFF_VERTICAL: c_int = 0x080;
-const DIFF_HIDDEN_OFF: c_int = 0x100;
-const DIFF_INTERNAL: c_int = 0x200;
-const DIFF_CLOSE_OFF: c_int = 0x400;
-const DIFF_FOLLOWWRAP: c_int = 0x800;
-const DIFF_LINEMATCH: c_int = 0x1000;
-const DIFF_INLINE_NONE: c_int = 0x2000;
-const DIFF_INLINE_SIMPLE: c_int = 0x4000;
-const DIFF_INLINE_CHAR: c_int = 0x8000;
-const DIFF_INLINE_WORD: c_int = 0x10000;
-const DIFF_ANCHOR: c_int = 0x20000;
-const ALL_WHITE_DIFF: c_int = DIFF_IWHITE | DIFF_IWHITEALL | DIFF_IWHITEEOL;
-const ALL_INLINE: c_int =
-    DIFF_INLINE_NONE | DIFF_INLINE_SIMPLE | DIFF_INLINE_CHAR | DIFF_INLINE_WORD;
-const ALL_INLINE_DIFF: c_int = DIFF_INLINE_CHAR | DIFF_INLINE_WORD;
-const XDF_NEED_MINIMAL: c_int = 1 << 0;
+const MAX_XDIFF_SIZE: i32 = 1024 * 1024 * 1023;
+const DIFF_FILLER: i32 = 0x001;
+const DIFF_IBLANK: i32 = 0x002;
+const DIFF_ICASE: i32 = 0x004;
+const DIFF_IWHITE: i32 = 0x008;
+const DIFF_IWHITEALL: i32 = 0x010;
+const DIFF_IWHITEEOL: i32 = 0x020;
+const DIFF_HORIZONTAL: i32 = 0x040;
+const DIFF_VERTICAL: i32 = 0x080;
+const DIFF_HIDDEN_OFF: i32 = 0x100;
+const DIFF_INTERNAL: i32 = 0x200;
+const DIFF_CLOSE_OFF: i32 = 0x400;
+const DIFF_FOLLOWWRAP: i32 = 0x800;
+const DIFF_LINEMATCH: i32 = 0x1000;
+const DIFF_INLINE_NONE: i32 = 0x2000;
+const DIFF_INLINE_SIMPLE: i32 = 0x4000;
+const DIFF_INLINE_CHAR: i32 = 0x8000;
+const DIFF_INLINE_WORD: i32 = 0x10000;
+const DIFF_ANCHOR: i32 = 0x20000;
+const ALL_WHITE_DIFF: i32 = DIFF_IWHITE | DIFF_IWHITEALL | DIFF_IWHITEEOL;
+const ALL_INLINE: i32 = DIFF_INLINE_NONE | DIFF_INLINE_SIMPLE | DIFF_INLINE_CHAR | DIFF_INLINE_WORD;
+const ALL_INLINE_DIFF: i32 = DIFF_INLINE_CHAR | DIFF_INLINE_WORD;
+const XDF_NEED_MINIMAL: i32 = 1 << 0;
 pub(crate) const XDF_IGNORE_WHITESPACE: u64 = 1 << 1;
 pub(crate) const XDF_IGNORE_WHITESPACE_CHANGE: u64 = 1 << 2;
 pub(crate) const XDF_IGNORE_WHITESPACE_AT_EOL: u64 = 1 << 3;
 pub(crate) const XDF_IGNORE_BLANK_LINES: u64 = 1 << 7;
-const XDF_PATIENCE_DIFF: c_int = 1 << 14;
-const XDF_HISTOGRAM_DIFF: c_int = 1 << 15;
-const XDF_INDENT_HEURISTIC: c_int = 1 << 23;
+const XDF_PATIENCE_DIFF: i32 = 1 << 14;
+const XDF_HISTOGRAM_DIFF: i32 = 1 << 15;
+const XDF_INDENT_HEURISTIC: i32 = 1 << 23;
 pub(crate) const K_OPT_DIFF: OptIndex = 70;
 pub(crate) const K_OPT_DIFFOPT: OptIndex = 73;
 pub(crate) const K_OPT_FOLDMETHOD: OptIndex = 109;
-const CMD_DIFFGET: c_int = 121;
-const CMD_DIFFPUT: c_int = 124;
-const CMD_SPLIT: c_int = 426;
-pub(crate) const K_SHELL_OPT_FILTER: c_int = 1;
-pub(crate) const K_SHELL_OPT_DO_OUT: c_int = 4;
-pub(crate) const K_SHELL_OPT_SILENT: c_int = 8;
-pub(crate) const K_OPT_BO_FLAG_OPERATOR: c_uint = 0x4000;
+const CMD_DIFFGET: i32 = 121;
+const CMD_DIFFPUT: i32 = 124;
+const CMD_SPLIT: i32 = 426;
+pub(crate) const K_SHELL_OPT_FILTER: i32 = 1;
+pub(crate) const K_SHELL_OPT_DO_OUT: i32 = 4;
+pub(crate) const K_SHELL_OPT_SILENT: i32 = 8;
+pub(crate) const K_OPT_BO_FLAG_OPERATOR: u32 = 0x4000;
 pub(crate) const HLF_ADD: Hlf = 30;
 pub(crate) const HLF_CHD: Hlf = 31;
 pub(crate) const HLF_TXD: Hlf = 33;
@@ -128,16 +127,16 @@ pub struct DiffBlock {
 pub struct DifflineChange {
     pub dc_start: [Colnr; DB_COUNT],
     pub dc_end: [Colnr; DB_COUNT],
-    pub dc_start_lnum_off: [c_int; DB_COUNT],
-    pub dc_end_lnum_off: [c_int; DB_COUNT],
+    pub dc_start_lnum_off: [i32; DB_COUNT],
+    pub dc_end_lnum_off: [i32; DB_COUNT],
 }
 #[repr(C)]
 #[derive(Clone, Default)]
 pub struct Diffline {
     pub changes: Vec<DifflineChange>,
     pub is_simple: bool,
-    pub bufidx: c_int,
-    pub lineoff: c_int,
+    pub bufidx: i32,
+    pub lineoff: i32,
 }
 #[repr(C)]
 struct Diffin {
@@ -154,16 +153,16 @@ pub(crate) struct Diffout {
 #[derive(Clone, Copy)]
 struct Diffhunk {
     lnum_orig: Linenr,
-    count_orig: c_int,
+    count_orig: i32,
     lnum_new: Linenr,
-    count_new: c_int,
+    count_new: i32,
 }
 #[repr(C)]
 struct Diffio {
     dio_orig: Diffin,
     dio_new: Diffin,
     dio_diff: Diffout,
-    dio_internal: c_int,
+    dio_internal: i32,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Diffstyle {
@@ -176,7 +175,7 @@ enum Diffstyle {
 struct LinemapEntry {
     byte_start: Colnr,
     num_bytes: Colnr,
-    lineoff: c_int,
+    lineoff: i32,
 }
 use crate::arglist::ML_EMPTY;
 use crate::charset::{NL, NUL};
@@ -188,26 +187,26 @@ use crate::option::OPT_LOCAL;
 use crate::os::fs::MAXPATHL;
 use crate::regexp::MAXCOL;
 use crate::search::{BACKWARD, FORWARD};
-const DIFF_WORD_GAP: c_int = 5;
+const DIFF_WORD_GAP: i32 = 5;
 
 struct DiffState {
     diff_busy: bool,
     diff_need_update: bool,
-    diff_flags: c_int,
-    diff_algorithm: c_int,
-    linematch_lines: c_int,
+    diff_flags: i32,
+    diff_algorithm: i32,
+    linematch_lines: i32,
     diff_a_works: TriState,
     next_diff_id: u64,
     diff_finger_dp_idx: Option<usize>,
     diff_finger_tp: *mut TabPageInfo,
-    diff_finger_idx: c_int,
+    diff_finger_idx: i32,
     diff_finger_lnum: Linenr,
     f_diff_hlid_prev_lnum: Linenr,
     f_diff_hlid_changedtick: Varnumber,
-    f_diff_hlid_fnum: c_int,
-    f_diff_hlid_prev_diff_flags: c_int,
-    f_diff_hlid_change_start: c_int,
-    f_diff_hlid_change_end: c_int,
+    f_diff_hlid_fnum: i32,
+    f_diff_hlid_prev_diff_flags: i32,
+    f_diff_hlid_change_start: i32,
+    f_diff_hlid_change_end: i32,
     f_diff_hlid_hl_id: Hlf,
 }
 
@@ -250,7 +249,7 @@ fn diff_st() -> &'static mut DiffState {
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
     (v.is_set_dip & (1u64 << idx)) != 0
 }
-fn diff_scan_start(tp: &mut TabPageInfo, idx: c_int, lnum: Linenr) -> usize {
+fn diff_scan_start(tp: &mut TabPageInfo, idx: i32, lnum: Linenr) -> usize {
     if let Some(dp_idx) = diff_st().diff_finger_dp_idx
         && diff_st().diff_finger_tp == tp
         && diff_st().diff_finger_idx == idx
@@ -261,7 +260,7 @@ fn diff_scan_start(tp: &mut TabPageInfo, idx: c_int, lnum: Linenr) -> usize {
     }
     0
 }
-fn diff_scan_remember(tp: &mut TabPageInfo, idx: c_int, lnum: Linenr, dp_idx: Option<usize>) {
+fn diff_scan_remember(tp: &mut TabPageInfo, idx: i32, lnum: Linenr, dp_idx: Option<usize>) {
     diff_st().diff_finger_tp = tp;
     diff_st().diff_finger_idx = idx;
     diff_st().diff_finger_lnum = lnum;
@@ -271,7 +270,7 @@ pub fn diff_buf_delete(buf: *mut FileBuf) {
     {
         for tp in for_all_tabpages_ptr() {
             let i = diff_buf_idx(buf, &mut *tp);
-            if i != DB_COUNT as c_int {
+            if i != DB_COUNT as i32 {
                 tp.tp_diffbuf[i as usize] = ptr::null_mut();
                 tp.tp_diff_invalid = 1;
                 if ptr::eq(tp, g_st().curtab) {
@@ -293,7 +292,7 @@ pub fn diff_buf_adjust(win: &mut WinInfoInfo) {
             }
             if !found_win {
                 let i = diff_buf_idx(win.w_buffer, curtab_mut());
-                if i != DB_COUNT as c_int {
+                if i != DB_COUNT as i32 {
                     curtab_mut().tp_diffbuf[i as usize] = ptr::null_mut();
                     curtab_mut().tp_diff_invalid = 1;
                     diff_redraw(true);
@@ -306,7 +305,7 @@ pub fn diff_buf_adjust(win: &mut WinInfoInfo) {
 }
 pub fn diff_buf_add(buf: *mut FileBuf) {
     {
-        if diff_buf_idx(buf, curtab_mut()) != DB_COUNT as c_int {
+        if diff_buf_idx(buf, curtab_mut()) != DB_COUNT as i32 {
             return;
         }
         for i in 0..DB_COUNT {
@@ -319,7 +318,7 @@ pub fn diff_buf_add(buf: *mut FileBuf) {
         }
         semsg!(
             gettext(c"E96: Cannot diff more than %d buffers"),
-            DB_COUNT as c_int,
+            DB_COUNT as i32,
         );
     }
 }
@@ -334,7 +333,7 @@ fn diff_buf_clear() {
         }
     }
 }
-fn diff_buf_idx(buf: *mut FileBuf, tp: &mut TabPageInfo) -> c_int {
+fn diff_buf_idx(buf: *mut FileBuf, tp: &mut TabPageInfo) -> i32 {
     let mut idx: usize = 0;
     while idx < DB_COUNT {
         if tp.tp_diffbuf[idx] == buf {
@@ -342,13 +341,13 @@ fn diff_buf_idx(buf: *mut FileBuf, tp: &mut TabPageInfo) -> c_int {
         }
         idx += 1;
     }
-    idx as c_int
+    idx as i32
 }
 pub fn diff_invalidate(buf: *mut FileBuf) {
     {
         for tp in for_all_tabpages_ptr() {
             let i = diff_buf_idx(buf, &mut *tp);
-            if i != DB_COUNT as c_int {
+            if i != DB_COUNT as i32 {
                 tp.tp_diff_invalid = 1;
                 if ptr::eq(tp, g_st().curtab) {
                     diff_redraw(true);
@@ -367,7 +366,7 @@ pub fn diff_mark_adjust(
     {
         for tp in for_all_tabpages_mut() {
             let idx = diff_buf_idx(buf, tp);
-            if idx != DB_COUNT as c_int {
+            if idx != DB_COUNT as i32 {
                 diff_mark_adjust_tp(tp, idx as usize, line1, line2, amount, amount_after);
             }
         }
@@ -736,17 +735,17 @@ fn diff_write_buffer(
         *backing = vec![0; len];
         let ptr = backing.as_mut_ptr();
         m.ptr = ptr;
-        m.size = len as c_int;
+        m.size = len as i32;
         len = 0;
         for lnum in start..=end {
             let mut s = ml_get_buf(buf, lnum);
             if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                 while !crate::memory::cstr_is_empty(s) {
-                    let c: c_int;
-                    let mut c_len: c_int = 1;
+                    let c: i32;
+                    let mut c_len: i32 = 1;
                     let mut cbuf: [c_char; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
                     if *s == NL {
-                        c = NUL as c_int;
+                        c = NUL as i32;
                     } else {
                         let ch = utf_ptr2char(s);
                         c_len = utf_char2len(ch);
@@ -823,7 +822,7 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
         false,
         true,
     );
-    g_st().cmdmod.cmod_flags = c_int::from(save_cmod_flags);
+    g_st().cmdmod.cmod_flags = i32::from(save_cmod_flags);
     free_string_option(buf.b_p_ff);
     buf.b_p_ff = save_ff;
     buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
@@ -865,7 +864,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
                     if curtab_mut().tp_diffbuf[idx].is_null() {
                         continue;
                     }
-                    let mut buf_num_anchors: c_int = 0;
+                    let mut buf_num_anchors: i32 = 0;
                     if !parse_diffanchors(
                         false,
                         &mut *(curtab_mut().tp_diffbuf[idx]),
@@ -954,8 +953,8 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
         }
     }
 }
-pub fn diff_internal() -> c_int {
-    c_int::from(
+pub fn diff_internal() -> i32 {
+    i32::from(
         (diff_st().diff_flags & DIFF_INTERNAL) != 0
             && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex)
                 == K_CALLBACK_NONE_CONST,
@@ -1066,7 +1065,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                     } else {
                         let mut linebuf: [c_char; LBUFLEN] = [0; LBUFLEN];
                         loop {
-                            if vim_fgets((&raw mut linebuf).cast(), LBUFLEN as c_int, fd) {
+                            if vim_fgets((&raw mut linebuf).cast(), LBUFLEN as i32, fd) {
                                 break;
                             }
                             if (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 3)
@@ -1496,7 +1495,7 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
         wp.w_onebuf_opt.wo_fdl = 0;
         fold_update_all(wp);
         changed_window_setting(wp);
-        if !crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as c_int) {
+        if !crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as i32) {
             do_cmdline_cmd(c"set sbo+=hor");
         }
         wp.w_onebuf_opt.wo_diff_saved = 1;
@@ -1575,14 +1574,14 @@ pub fn ex_diffoff(eap: &mut Exarg) {
             curtab_mut().tp_diff_update = 0;
             diff_clear(curtab_mut());
         }
-        if !diffwin && crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as c_int) {
+        if !diffwin && crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as i32) {
             do_cmdline_cmd(c"set sbo-=hor");
         }
     }
 }
-fn extract_hunk_internal(dout: &mut Diffout, hunk: &mut Diffhunk, line_idx: &mut c_int) -> bool {
+fn extract_hunk_internal(dout: &mut Diffout, hunk: &mut Diffhunk, line_idx: &mut i32) -> bool {
     {
-        let eof = *line_idx >= dout.dout_ga.len() as c_int;
+        let eof = *line_idx >= dout.dout_ga.len() as i32;
         if !eof {
             *hunk = (&dout.dout_ga)[*line_idx as usize];
             *line_idx += 1;
@@ -1594,7 +1593,7 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
     {
         loop {
             let mut line: [c_char; LBUFLEN] = [0; LBUFLEN];
-            if vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd) {
+            if vim_fgets((&raw mut line).cast(), LBUFLEN as i32, fd) {
                 return true;
             }
             if *diffstyle == Diffstyle::DiffNone {
@@ -1604,10 +1603,10 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -
                     == &b"@@ "[..3])
                     || ((crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4)
                         == &b"--- "[..4])
-                        && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
+                        && !vim_fgets((&raw mut line).cast(), LBUFLEN as i32, fd)
                         && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4)
                             == &b"+++ "[..4])
-                        && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
+                        && !vim_fgets((&raw mut line).cast(), LBUFLEN as i32, fd)
                         && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3)
                             == &b"@@ "[..3]))
                 {
@@ -1735,7 +1734,7 @@ fn process_hunk(
 fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
     unsafe {
         let mut fd: *mut FILE = ptr::null_mut();
-        let mut line_hunk_idx: c_int = 0;
+        let mut line_hunk_idx: i32 = 0;
         let mut dp_idx: usize = 0;
         let dout = &mut dio.dio_diff;
         let mut notset = true;
@@ -1799,7 +1798,7 @@ pub fn diff_linematch(dp: &DiffBlock) -> bool {
         if (diff_st().diff_flags & DIFF_LINEMATCH) == 0 {
             return false;
         }
-        let mut tsize: c_int = 0;
+        let mut tsize: i32 = 0;
         for i in 0..DB_COUNT {
             if !curtab_mut().tp_diffbuf[i].is_null() {
                 if dp.df_count[i] < 0 {
@@ -1811,9 +1810,9 @@ pub fn diff_linematch(dp: &DiffBlock) -> bool {
         tsize <= diff_st().linematch_lines
     }
 }
-fn get_max_diff_length(dp: &DiffBlock) -> c_int {
+fn get_max_diff_length(dp: &DiffBlock) -> i32 {
     {
-        let mut maxlength: c_int = 0;
+        let mut maxlength: i32 = 0;
         for k in 0..DB_COUNT {
             if !curtab_mut().tp_diffbuf[k].is_null() && dp.df_count[k] > maxlength {
                 maxlength = dp.df_count[k];
@@ -1826,7 +1825,7 @@ fn find_top_diff_block(
     thistopdiff: &mut Option<usize>,
     next_adjacent_blocks: &mut Option<usize>,
     fromidx: usize,
-    topline: c_int,
+    topline: i32,
 ) {
     {
         let mut localtopdiff: Option<usize> = None;
@@ -1863,15 +1862,15 @@ fn find_top_diff_block(
 fn calculate_topfill_and_topline(
     fromidx: usize,
     toidx: usize,
-    from_topline: c_int,
-    from_topfill: c_int,
-    topfill: &mut c_int,
+    from_topline: i32,
+    from_topfill: i32,
+    topfill: &mut i32,
     topline: &mut Linenr,
 ) {
     {
         let mut thistopdiff: Option<usize> = None;
         let mut next_adjacent_blocks: Option<usize> = None;
-        let mut virtual_lines_passed: c_int = 0;
+        let mut virtual_lines_passed: i32 = 0;
         find_top_diff_block(
             &mut thistopdiff,
             &mut next_adjacent_blocks,
@@ -1919,7 +1918,7 @@ fn calculate_topfill_and_topline(
                 None
             };
         }
-        let mut max_virt_lines: c_int = 0;
+        let mut max_virt_lines: i32 = 0;
         if let Some(start_idx) = thistopdiff {
             for dp in &diffs[start_idx..] {
                 if dp.df_lnum[toidx] + dp.df_count[toidx] <= curlinenum_to {
@@ -1938,7 +1937,7 @@ fn calculate_topfill_and_topline(
         *topline = curlinenum_to;
     }
 }
-fn apply_linematch_results(dp_idx: usize, decisions: &[c_int]) {
+fn apply_linematch_results(dp_idx: usize, decisions: &[i32]) {
     {
         let mut line_numbers: [Linenr; DB_COUNT] = [0; DB_COUNT];
         let mut outputmap: [usize; DB_COUNT] = [0; DB_COUNT];
@@ -1980,7 +1979,7 @@ fn run_linematch_algorithm(dp_idx: usize) {
             size: 0,
         }; DB_COUNT];
         let mut diffbufs_vec: [Vec<c_char>; DB_COUNT] = [const { Vec::new() }; DB_COUNT];
-        let mut diff_length: [c_int; DB_COUNT] = [0; DB_COUNT];
+        let mut diff_length: [i32; DB_COUNT] = [0; DB_COUNT];
         let mut ndiffs: usize = 0;
         let dp_lnum = (&curtab_mut().tp_diffs)[dp_idx].df_lnum;
         let dp_count = (&curtab_mut().tp_diffs)[dp_idx].df_count;
@@ -2012,8 +2011,8 @@ fn run_linematch_algorithm(dp_idx: usize) {
 pub fn diff_check_with_linestatus(
     wp: &mut WinInfoInfo,
     lnum: Linenr,
-    mut linestatus: Option<&mut c_int>,
-) -> c_int {
+    mut linestatus: Option<&mut i32>,
+) -> i32 {
     unsafe {
         let buf = wp.w_buffer;
         if let Some(linestatus) = linestatus.as_deref_mut() {
@@ -2029,7 +2028,7 @@ pub fn diff_check_with_linestatus(
             return 0;
         }
         let idx = diff_buf_idx(buf, curtab_mut());
-        if idx == DB_COUNT as c_int {
+        if idx == DB_COUNT as i32 {
             return 0;
         }
         let u_idx = idx as usize;
@@ -2064,7 +2063,7 @@ pub fn diff_check_with_linestatus(
         {
             run_linematch_algorithm(dp_idx);
         }
-        let mut num_fill: c_int = 0;
+        let mut num_fill: i32 = 0;
         while lnum
             == (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx]
                 + (&curtab_mut().tp_diffs)[dp_idx].df_count[u_idx]
@@ -2128,7 +2127,7 @@ pub fn diff_check_with_linestatus(
         num_fill
     }
 }
-pub fn diff_check_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
+pub fn diff_check_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     {
         if (diff_st().diff_flags & DIFF_FILLER) == 0 {
             return 0;
@@ -2167,7 +2166,7 @@ fn diff_equal_entry(dp: &DiffBlock, idx1: usize, idx2: usize) -> bool {
 fn diff_equal_char(
     p1: impl crate::strings::IntoCCharPtr,
     p2: impl crate::strings::IntoCCharPtr,
-    len: &mut c_int,
+    len: &mut i32,
 ) -> bool {
     let p1 = p1.into_c_char_ptr();
     let p2 = p2.into_c_char_ptr();
@@ -2198,7 +2197,7 @@ fn diff_equal_char(
         true
     }
 }
-fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> c_int {
+fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> i32 {
     let s1 = s1.into_c_char_ptr();
     let s2 = s2.into_c_char_ptr();
     unsafe {
@@ -2208,7 +2207,7 @@ fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::Into
             return 0;
         }
         if (diff_st().diff_flags & (DIFF_ICASE | ALL_WHITE_DIFF)) == 0 {
-            return crate::memory::cstr_as_bytes(s1).cmp(crate::memory::cstr_as_bytes(s2)) as c_int;
+            return crate::memory::cstr_as_bytes(s1).cmp(crate::memory::cstr_as_bytes(s2)) as i32;
         }
         if (diff_st().diff_flags & DIFF_ICASE) != 0 && (diff_st().diff_flags & ALL_WHITE_DIFF) == 0
         {
@@ -2227,7 +2226,7 @@ fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::Into
                 p1 = skipwhite(p1);
                 p2 = skipwhite(p2);
             } else {
-                let mut l: c_int = 0;
+                let mut l: i32 = 0;
                 if !diff_equal_char(p1, p2, &mut l) {
                     break;
                 }
@@ -2247,7 +2246,7 @@ pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
     unsafe {
         let frombuf = fromwin.w_buffer;
         let fromidx = diff_buf_idx(frombuf, curtab_mut());
-        if fromidx == DB_COUNT as c_int {
+        if fromidx == DB_COUNT as i32 {
             return;
         }
         let u_fromidx = fromidx as usize;
@@ -2262,7 +2261,7 @@ pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
             .find(|dp| lnum <= dp.df_lnum[u_fromidx] + dp.df_count[u_fromidx]);
         if let Some(dp) = dp_opt {
             let toidx = diff_buf_idx(towin.w_buffer, curtab_mut());
-            if toidx == DB_COUNT as c_int {
+            if toidx == DB_COUNT as i32 {
                 return;
             }
             let u_toidx = toidx as usize;
@@ -2305,7 +2304,7 @@ fn parse_diffanchors(
     check_only: bool,
     buf: &mut FileBuf,
     anchors: *mut Linenr,
-    num_anchors: Option<&mut c_int>,
+    num_anchors: Option<&mut i32>,
 ) -> bool {
     unsafe {
         let mut dia = if crate::memory::cstr_is_empty(buf.b_p_dia) {
@@ -2375,12 +2374,12 @@ fn parse_diffanchors(
         if i == MAX_DIFF_ANCHORS && !crate::memory::cstr_is_empty(dia) {
             semsg!(
                 gettext(E_CANNOT_HAVE_MORE_THAN_NR_DIFF_ANCHORS),
-                MAX_DIFF_ANCHORS as c_int,
+                MAX_DIFF_ANCHORS as i32,
             );
             return false;
         }
         if let Some(num_anchors) = num_anchors {
-            *num_anchors = i as c_int;
+            *num_anchors = i as i32;
         }
         true
     }
@@ -2463,19 +2462,19 @@ pub fn diffopt_changed() -> bool {
                 }
             }
             let context = if has_dip_key(v, KEYSET_OPTIDX_DIP_CONTEXT) {
-                v.context as c_int
+                v.context as i32
             } else {
                 6
             };
             diff_st().diff_flags = flags;
             g_st().diff_context = if context == 0 { 1 } else { context };
             diff_st().linematch_lines = if has_dip_key(v, KEYSET_OPTIDX_DIP_LINEMATCH) {
-                v.linematch as c_int
+                v.linematch as i32
             } else {
                 0
             };
             g_st().diff_foldcolumn = if has_dip_key(v, KEYSET_OPTIDX_DIP_FOLDCOLUMN) {
-                v.foldcolumn as c_int
+                v.foldcolumn as i32
             } else {
                 2
             };
@@ -2504,7 +2503,7 @@ pub fn diff_update_line(lnum: Linenr) {
             return;
         }
         let idx = diff_buf_idx(g_st().curbuf, curtab_mut());
-        if idx == DB_COUNT as c_int {
+        if idx == DB_COUNT as i32 {
             return;
         }
         let u_idx = idx as usize;
@@ -2521,8 +2520,8 @@ pub fn diff_update_line(lnum: Linenr) {
 pub fn diff_change_parse(
     diffline: &Diffline,
     change: &DifflineChange,
-    change_start: &mut c_int,
-    change_end: &mut c_int,
+    change_start: &mut i32,
+    change_end: &mut i32,
 ) -> bool {
     let bufidx = diffline.bufidx as usize;
     if change.dc_start_lnum_off[bufidx] < diffline.lineoff {
@@ -2531,7 +2530,7 @@ pub fn diff_change_parse(
         *change_start = change.dc_start[bufidx];
     }
     if change.dc_end_lnum_off[bufidx] > diffline.lineoff {
-        *change_end = c_int::MAX;
+        *change_end = i32::MAX;
     } else {
         *change_end = change.dc_end[bufidx];
     }
@@ -2555,8 +2554,8 @@ fn diff_find_change_simple(
     lnum: Linenr,
     dp: &DiffBlock,
     idx: usize,
-    startp: &mut c_int,
-    endp: &mut c_int,
+    startp: &mut i32,
+    endp: &mut i32,
 ) -> bool {
     unsafe {
         let line_org_owned = if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
@@ -2582,8 +2581,8 @@ fn diff_find_change_simple(
                     break;
                 }
                 let line_new = ml_get_buf(&mut *curtab_mut().tp_diffbuf[i], dp.df_lnum[i] + off);
-                let mut si_org: c_int = 0;
-                let mut si_new: c_int = 0;
+                let mut si_org: i32 = 0;
+                let mut si_new: i32 = 0;
                 while crate::memory::cstr_byte_at(line_org, si_org as usize) != 0 {
                     if ((diff_st().diff_flags & DIFF_IWHITE) != 0
                         && ascii_iswhite(crate::memory::cstr_char_at(line_org, si_org as usize))
@@ -2598,11 +2597,11 @@ fn diff_find_change_simple(
                             ))))
                     {
                         si_org =
-                            skipwhite(line_org.add(si_org as usize)).offset_from(line_org) as c_int;
+                            skipwhite(line_org.add(si_org as usize)).offset_from(line_org) as i32;
                         si_new =
-                            skipwhite(line_new.add(si_new as usize)).offset_from(line_new) as c_int;
+                            skipwhite(line_new.add(si_new as usize)).offset_from(line_new) as i32;
                     } else {
-                        let mut l: c_int = 0;
+                        let mut l: i32 = 0;
                         if !diff_equal_char(
                             line_org.add(si_org as usize),
                             line_new.add(si_new as usize),
@@ -2620,8 +2619,8 @@ fn diff_find_change_simple(
                 if crate::memory::cstr_byte_at(line_org, si_org as usize) != 0
                     || crate::memory::cstr_byte_at(line_new, si_new as usize) != 0
                 {
-                    let mut ei_org = crate::memory::cstr_len(line_org) as c_int;
-                    let mut ei_new = crate::memory::cstr_len(line_new) as c_int;
+                    let mut ei_org = crate::memory::cstr_len(line_org) as i32;
+                    let mut ei_new = crate::memory::cstr_len(line_new) as i32;
                     while ei_org >= *startp && ei_new >= si_new && ei_org >= 0 && ei_new >= 0 {
                         if ((diff_st().diff_flags & DIFF_IWHITE) != 0
                             && ascii_iswhite(crate::memory::cstr_char_at(
@@ -2662,7 +2661,7 @@ fn diff_find_change_simple(
                             let mut p2: *const c_char = line_new.add(ei_new as usize);
                             p1 = p1.sub(utf_head_off(line_org, p1) as usize);
                             p2 = p2.sub(utf_head_off(line_new, p2) as usize);
-                            let mut l: c_int = 0;
+                            let mut l: i32 = 0;
                             if !diff_equal_char(p1, p2, &mut l) {
                                 break;
                             }
@@ -2680,14 +2679,14 @@ fn diff_find_change_simple(
 }
 fn diff_refine_inline_char_highlight(linemap: &[Vec<LinemapEntry>; DB_COUNT], idx1: usize) {
     {
-        let mut pass: c_int = 1;
+        let mut pass: i32 = 1;
         loop {
             let mut has_unmerged_gaps = false;
             let mut has_merged_gaps = false;
             let mut di: usize = 0;
             while di + 1 < curtab_mut().tp_diffs.len() {
                 let lm = &linemap[idx1];
-                let lm_len = lm.len() as c_int;
+                let lm_len = lm.len() as i32;
                 if (&curtab_mut().tp_diffs)[di].df_lnum[idx1]
                     + (&curtab_mut().tp_diffs)[di].df_count[idx1]
                     > lm_len
@@ -2749,7 +2748,7 @@ fn diff_refine_inline_word_highlight(
     start_lnum: Linenr,
 ) {
     unsafe {
-        let mut pass: c_int = 1;
+        let mut pass: i32 = 1;
         loop {
             let mut di: usize = 0;
             while di + 1 < curtab_mut().tp_diffs.len() {
@@ -2758,7 +2757,7 @@ fn diff_refine_inline_word_highlight(
                     - 2;
                 let idx_entry2 = (&curtab_mut().tp_diffs)[di + 1].df_lnum[idx1] - 1;
                 let lm1 = &linemap[idx1];
-                let lm1_len = lm1.len() as c_int;
+                let lm1_len = lm1.len() as i32;
                 if idx_entry1 < 0
                     || idx_entry1 >= lm1_len
                     || idx_entry2 < 0
@@ -2787,7 +2786,7 @@ fn diff_refine_inline_word_highlight(
                 let gap_text = line.add(gap_start as usize);
                 let mut only_non_word = true;
                 let mut has_content = false;
-                let mut i: c_int = 0;
+                let mut i: i32 = 0;
                 while i < gap_size && crate::memory::cstr_byte_at(gap_text, i as usize) != 0 {
                     has_content = true;
                     let char_class = mb_get_class_tab(
@@ -2903,8 +2902,8 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     let curline = ml_get_buf(&mut *curtab_mut().tp_diffbuf[i], dp_lnum[i] + off);
                     let mut in_keyword = false;
                     let mut last_white = false;
-                    let mut eol_ga_len: c_int = -1;
-                    let mut eol_linemap_len: c_int = -1;
+                    let mut eol_ga_len: i32 = -1;
+                    let mut eol_linemap_len: i32 = -1;
                     let mut eol_numlines: Linenr = -1;
                     let mut s = curline;
                     while !crate::memory::cstr_is_empty(s) {
@@ -2930,8 +2929,8 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                                 || (diff_st().diff_flags & DIFF_IWHITE) != 0)
                                 && !last_white
                             {
-                                eol_ga_len = curstr.len() as c_int;
-                                eol_linemap_len = lm.len() as c_int;
+                                eol_ga_len = curstr.len() as i32;
+                                eol_linemap_len = lm.len() as i32;
                                 eol_numlines = numlines;
                                 last_white = true;
                             }
@@ -2943,7 +2942,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                             eol_linemap_len = -1;
                             eol_numlines = -1;
                         }
-                        let mut char_len: c_int = 1;
+                        let mut char_len: i32 = 1;
                         if *s == NL {
                             curstr.push(NUL as u8);
                         } else {
@@ -2951,7 +2950,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                             if ascii_iswhite(crate::memory::cstr_first_char(s))
                                 && (diff_st().diff_flags & DIFF_IWHITE) != 0
                             {
-                                char_len = skipwhite(s).offset_from(s) as c_int;
+                                char_len = skipwhite(s).offset_from(s) as i32;
                             }
                             if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                                 let mut c = utf_ptr2char(s);
@@ -3009,7 +3008,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         let _ = numlines;
                         lm.push(LinemapEntry {
                             byte_start: s.offset_from(curline) as Colnr,
-                            num_bytes: size_of::<c_int>() as Colnr,
+                            num_bytes: size_of::<i32>() as Colnr,
                             lineoff: off,
                         });
                     }
@@ -3021,10 +3020,10 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 };
                 if file1_idx != i as isize {
                     dio.dio_new.din_mmfile.ptr = ptr;
-                    dio.dio_new.din_mmfile.size = curstr.len() as c_int;
+                    dio.dio_new.din_mmfile.size = curstr.len() as i32;
                 } else {
                     dio.dio_orig.din_mmfile.ptr = ptr;
-                    dio.dio_orig.din_mmfile.size = curstr.len() as c_int;
+                    dio.dio_orig.din_mmfile.size = curstr.len() as i32;
                 }
                 if file1_idx != i as isize {
                     let diff_status = diff_file_internal(&mut dio);
@@ -3055,12 +3054,12 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     if new_diff.df_lnum[i] <= 0 {
                         continue;
                     }
-                    let lm_len = lm.len() as c_int;
+                    let lm_len = lm.len() as i32;
                     let diff_lnum = new_diff.df_lnum[i] - 1;
                     let diff_lnum_end = diff_lnum + new_diff.df_count[i];
                     if diff_lnum >= lm_len {
                         change.dc_start[i] = MAXCOL;
-                        change.dc_start_lnum_off[i] = c_int::MAX;
+                        change.dc_start_lnum_off[i] = i32::MAX;
                     } else {
                         let e = &lm[diff_lnum as usize];
                         change.dc_start[i] = e.byte_start;
@@ -3071,7 +3070,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         change.dc_end_lnum_off[i] = change.dc_start_lnum_off[i];
                     } else if diff_lnum_end > lm_len {
                         change.dc_end[i] = MAXCOL;
-                        change.dc_end_lnum_off[i] = c_int::MAX;
+                        change.dc_end_lnum_off[i] = i32::MAX;
                     } else {
                         let e = &lm[(diff_lnum_end - 1) as usize];
                         change.dc_end[i] = e.byte_start + e.num_bytes;
@@ -3093,7 +3092,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
 pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffline) -> bool {
     {
         let idx = diff_buf_idx(wp.w_buffer, curtab_mut());
-        if idx == DB_COUNT as c_int {
+        if idx == DB_COUNT as i32 {
             return false;
         }
         let u_idx = idx as usize;
@@ -3109,8 +3108,8 @@ pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffl
         }
         let off = lnum - (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx];
         if (diff_st().diff_flags & ALL_INLINE_DIFF) == 0 {
-            let mut change_start: c_int = MAXCOL;
-            let mut change_end: c_int = -1;
+            let mut change_start: i32 = MAXCOL;
+            let mut change_end: i32 = -1;
             let ret = diff_find_change_simple(
                 wp,
                 lnum,
@@ -3141,8 +3140,8 @@ pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffl
             diff_find_change_inline_diff(dp_idx);
         }
         let dp = &mut (&mut curtab_mut().tp_diffs)[dp_idx];
-        let changes_len = dp.df_changes.len() as c_int;
-        let mut change_idx: c_int = 0;
+        let changes_len = dp.df_changes.len() as i32;
+        let mut change_idx: i32 = 0;
         diffline.changes.clear();
         diffline.is_simple = false;
         while change_idx < changes_len {
@@ -3157,7 +3156,7 @@ pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffl
             diffline.changes.push(*change);
             change_idx += 1;
         }
-        let num_changes = diffline.changes.len() as c_int;
+        let num_changes = diffline.changes.len() as i32;
         diffline.bufidx = idx;
         diffline.lineoff = off;
         let mut added = false;
@@ -3171,7 +3170,7 @@ pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffl
                     continue;
                 }
                 let change = &dp.df_changes[(changes_len - 1) as usize];
-                if change.dc_start_lnum_off[i] != c_int::MAX {
+                if change.dc_start_lnum_off[i] != i32::MAX {
                     added = false;
                     break;
                 }
@@ -3185,11 +3184,11 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
         if wp.w_onebuf_opt.wo_diff == 0 {
             return false;
         }
-        let mut idx: c_int = -1;
+        let mut idx: i32 = -1;
         let mut other = false;
         for i in 0..DB_COUNT {
             if curtab_mut().tp_diffbuf[i] == wp.w_buffer {
-                idx = i as c_int;
+                idx = i as i32;
             } else if !curtab_mut().tp_diffbuf[i].is_null() {
                 other = true;
             }
@@ -3256,7 +3255,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
     unsafe {
         let idx_other: usize;
         let idx_cur_i = diff_buf_idx(g_st().curbuf, curtab_mut());
-        if idx_cur_i == DB_COUNT as c_int {
+        if idx_cur_i == DB_COUNT as i32 {
             emsg(gettext(c"E99: Current buffer is not in diff mode"));
             return;
         }
@@ -3305,7 +3304,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 i += 1;
             }
             let bufnr = if eap.arg.add(i) == p {
-                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int
+                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32
             } else {
                 let nr = buflist_findpat(eap.arg, p, false, true, false);
                 if nr < 0 {
@@ -3322,7 +3321,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 return;
             }
             let idx_o = diff_buf_idx(buf, curtab_mut());
-            if idx_o == DB_COUNT as c_int {
+            if idx_o == DB_COUNT as i32 {
                 semsg!(gettext(c"E103: Buffer \"%s\" is not in diff mode"), eap.arg,);
                 return;
             }
@@ -3330,7 +3329,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         }
         diff_st().diff_busy = true;
         if eap.addr_count == 0 {
-            let mut linestatus: c_int = 0;
+            let mut linestatus: i32 = 0;
             if eap.line1 == curbuf_mut().b_ml.ml_line_count
                 && diff_check_with_linestatus(curwin_mut(), eap.line1, Some(&mut linestatus)) == 0
                 && linestatus == 0
@@ -3370,7 +3369,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         'theend: {
             if curbuf_mut().b_changed == 0 {
                 change_warning(curbuf_mut(), 0);
-                if diff_buf_idx(g_st().curbuf, curtab_mut()) != idx_to as c_int {
+                if diff_buf_idx(g_st().curbuf, curtab_mut()) != idx_to as i32 {
                     emsg(gettext(E_BUFFER_CHANGED_UNEXPECTEDLY));
                     ctx_restore(&mut aco);
                     break 'theend;
@@ -3424,7 +3423,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
     }
 }
 fn diffgetput(
-    addr_count: c_int,
+    addr_count: i32,
     idx_cur: usize,
     idx_from: usize,
     idx_to: usize,
@@ -3497,7 +3496,7 @@ fn diffgetput(
                     }
                 }
                 let mut buf_empty = buf_is_empty(curbuf_mut());
-                let mut added: c_int = 0;
+                let mut added: i32 = 0;
                 for _ in 0..count {
                     buf_empty = curbuf_mut().b_ml.ml_line_count == 1;
                     if ml_delete(lnum) {
@@ -3610,18 +3609,18 @@ fn diff_fold_update(df_lnum: &[Linenr; DB_COUNT], df_count: &[Linenr; DB_COUNT],
 pub fn diff_mode_buf(buf: *mut FileBuf) -> bool {
     {
         for tp in for_all_tabpages_mut() {
-            if diff_buf_idx(buf, tp) != DB_COUNT as c_int {
+            if diff_buf_idx(buf, tp) != DB_COUNT as i32 {
                 return true;
             }
         }
         false
     }
 }
-pub fn diff_move_to(dir: c_int, mut count: c_int) -> bool {
+pub fn diff_move_to(dir: i32, mut count: i32) -> bool {
     {
         let mut lnum = curwin_mut().w_cursor.lnum;
         let idx = diff_buf_idx(g_st().curbuf, curtab_mut());
-        if idx == DB_COUNT as c_int || curtab_mut().tp_diffs.is_empty() {
+        if idx == DB_COUNT as i32 || curtab_mut().tp_diffs.is_empty() {
             return false;
         }
         let u_idx = idx as usize;
@@ -3664,10 +3663,7 @@ fn diff_get_corresponding_line_int(buf1: *mut FileBuf, lnum1: Linenr) -> Linenr 
         let mut baseline: Linenr = 0;
         let idx1 = diff_buf_idx(buf1, curtab_mut());
         let idx2 = diff_buf_idx(g_st().curbuf, curtab_mut());
-        if idx1 == DB_COUNT as c_int
-            || idx2 == DB_COUNT as c_int
-            || curtab_mut().tp_diffs.is_empty()
-        {
+        if idx1 == DB_COUNT as i32 || idx2 == DB_COUNT as i32 || curtab_mut().tp_diffs.is_empty() {
             return lnum1;
         }
         if curtab_mut().tp_diff_invalid != 0 {
@@ -3709,7 +3705,7 @@ pub fn diff_get_corresponding_line(buf1: *mut FileBuf, lnum1: Linenr) -> Linenr 
 pub fn diff_lnum_win(lnum: Linenr, wp: &mut WinInfoInfo) -> Linenr {
     {
         let idx = diff_buf_idx(g_st().curbuf, curtab_mut());
-        if idx == DB_COUNT as c_int {
+        if idx == DB_COUNT as i32 {
             return 0;
         }
         let u_idx = idx as usize;
@@ -3724,7 +3720,7 @@ pub fn diff_lnum_win(lnum: Linenr, wp: &mut WinInfoInfo) -> Linenr {
             return wp.buf_mut().b_ml.ml_line_count - (curbuf_mut().b_ml.ml_line_count - lnum);
         };
         let i = diff_buf_idx(wp.w_buffer, curtab_mut());
-        if i == DB_COUNT as c_int {
+        if i == DB_COUNT as i32 {
             return 0;
         }
         let u_i = i as usize;
@@ -3827,12 +3823,12 @@ fn parse_diff_unified(line: impl crate::strings::IntoCCharPtr, hunk: &mut Diffhu
     }
 }
 pub(crate) fn xdiff_out(
-    start_a: c_int,
-    count_a: c_int,
-    start_b: c_int,
-    count_b: c_int,
+    start_a: i32,
+    count_a: i32,
+    start_b: i32,
+    count_b: i32,
     dout: &mut Diffout,
-) -> c_int {
+) -> i32 {
     dout.dout_ga.push(Diffhunk {
         lnum_orig: start_a + 1,
         count_orig: count_a,
@@ -3862,7 +3858,7 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             || diff_st().f_diff_hlid_fnum != curbuf_mut().b_fnum
             || diff_st().diff_flags != diff_st().f_diff_hlid_prev_diff_flags
         {
-            let mut linestatus: c_int = 0;
+            let mut linestatus: i32 = 0;
             diff_check_with_linestatus(curwin_mut(), lnum, Some(&mut linestatus));
             if linestatus < 0 {
                 if linestatus == -1 {
@@ -3893,7 +3889,7 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             }
         }
         if diff_st().f_diff_hlid_hl_id == HLF_CHD || diff_st().f_diff_hlid_hl_id == HLF_TXD {
-            let col = tv_get_number(&argvars[1]) as c_int - 1;
+            let col = tv_get_number(&argvars[1]) as i32 - 1;
             if cache_results {
                 if col >= diff_st().f_diff_hlid_change_start
                     && col < diff_st().f_diff_hlid_change_end

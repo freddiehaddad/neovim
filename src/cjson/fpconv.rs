@@ -1,6 +1,6 @@
 //! Floating point conversion routines (`src/cjson/fpconv.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::io::Write;
 
 use crate::strings::strtod;
@@ -12,7 +12,7 @@ pub fn fpconv_strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut *mut 
     strtod(nptr, endptr)
 }
 
-pub fn fpconv_g_fmt(buf: &mut [u8; FPCONV_G_FMT_BUFSIZE], num: f64, precision: c_int) -> usize {
+pub fn fpconv_g_fmt(buf: &mut [u8; FPCONV_G_FMT_BUFSIZE], num: f64, precision: i32) -> usize {
     let prec = precision.max(1) as usize;
     let mut pos = 0usize;
 

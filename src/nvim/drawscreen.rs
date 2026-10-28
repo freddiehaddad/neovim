@@ -89,7 +89,7 @@ use crate::window::{
     Frame, MIN_COLUMNS, WinInfoInfo, frame2win, global_stl_height, last_stl_height, min_rows,
     min_rows_for_all_tabpages, win_fdccol_count, win_new_screensize, win_ui_flush,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 use crate::api::ui::NO_SCREEN;
@@ -98,35 +98,35 @@ use crate::api::win_config::{FR_COL, K_UIMULTIGRID};
 use crate::extmark::K_FALSE;
 use crate::os::fs::MAXPATHL;
 
-pub const UPD_VALID: c_int = 10;
-pub const UPD_INVERTED: c_int = 20;
-pub const UPD_INVERTED_ALL: c_int = 25;
-pub const UPD_REDRAW_TOP: c_int = 30;
-pub const UPD_SOME_VALID: c_int = 35;
-pub const UPD_NOT_VALID: c_int = 40;
-pub const UPD_CLEAR: c_int = 50;
+pub const UPD_VALID: i32 = 10;
+pub const UPD_INVERTED: i32 = 20;
+pub const UPD_INVERTED_ALL: i32 = 25;
+pub const UPD_REDRAW_TOP: i32 = 30;
+pub const UPD_SOME_VALID: i32 = 35;
+pub const UPD_NOT_VALID: i32 = 40;
+pub const UPD_CLEAR: i32 = 50;
 
 pub(crate) const DEFAULT_GRID_HANDLE: ObjHandle = 1;
-const COL_RULER: c_int = 18;
-pub(crate) const SHOWCMD_COLS: c_int = 10;
-pub(crate) const SIGN_WIDTH: c_int = 2;
+const COL_RULER: i32 = 18;
+pub(crate) const SHOWCMD_COLS: i32 = 10;
+pub(crate) const SIGN_WIDTH: i32 = 2;
 
 pub(crate) const FR_LEAF: c_char = 0;
 pub(crate) const FR_ROW: c_char = 1;
 
-pub(crate) const VALID_BOTLINE: c_int = 0x20;
+pub(crate) const VALID_BOTLINE: i32 = 0x20;
 
-pub(crate) const GETVCOL_END_EXCL_LBR: c_int = 1;
+pub(crate) const GETVCOL_END_EXCL_LBR: i32 = 1;
 
 const HLF_EOB: Hlf = 2;
-pub(crate) const HLF_C: c_int = 21;
+pub(crate) const HLF_C: i32 = 21;
 pub(crate) const HLF_MSG: usize = 63;
 
-pub(crate) const K_SHM_COMPLETIONMENU: c_int = b'c' as c_int;
-const K_SHM_RECORDING: c_int = b'q' as c_int;
-pub(crate) const K_OPT_VE_FLAG_BLOCK: c_uint = 0x05;
-const K_OPT_DY_FLAG_LASTLINE: c_uint = 0x01;
-const K_OPT_DY_FLAG_TRUNCATE: c_uint = 0x02;
+pub(crate) const K_SHM_COMPLETIONMENU: i32 = b'c' as i32;
+const K_SHM_RECORDING: i32 = b'q' as i32;
+pub(crate) const K_OPT_VE_FLAG_BLOCK: u32 = 0x05;
+const K_OPT_DY_FLAG_LASTLINE: u32 = 0x01;
+const K_OPT_DY_FLAG_TRUNCATE: u32 = 0x02;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WindowCorner {
@@ -148,8 +148,8 @@ enum DidUpdate {
 pub struct WinExtmark {
     pub ns_id: NS,
     pub mark_id: u64,
-    pub win_row: c_int,
-    pub win_col: c_int,
+    pub win_row: i32,
+    pub win_col: i32,
 }
 
 #[repr(C)]
@@ -157,9 +157,9 @@ pub struct WinExtmark {
 pub struct Spellvars {
     pub spv_has_spell: bool,
     pub spv_unchanged: bool,
-    pub spv_checked_col: c_int,
+    pub spv_checked_col: i32,
     pub spv_checked_lnum: Linenr,
-    pub spv_cap_col: c_int,
+    pub spv_cap_col: i32,
     pub spv_capcol_lnum: Linenr,
 }
 
@@ -206,12 +206,12 @@ fn ds_st() -> &'static mut DrawscreenState {
 }
 
 #[inline]
-pub fn w_endcol(wp: &WinInfoInfo) -> c_int {
+pub fn w_endcol(wp: &WinInfoInfo) -> i32 {
     wp.w_wincol + wp.w_width
 }
 
 #[inline]
-pub fn w_endrow(wp: &WinInfoInfo) -> c_int {
+pub fn w_endrow(wp: &WinInfoInfo) -> i32 {
     wp.w_winrow + wp.w_height
 }
 
@@ -324,7 +324,7 @@ pub fn screenclear() {
         msg_reset_scroll();
         g_st().msg_didany = false;
         g_st().msg_didout = false;
-        if crate::highlight::hl_attr(HLF_MSG as c_int) > 0
+        if crate::highlight::hl_attr(HLF_MSG as i32) > 0
             && msg_use_grid()
             && grid_allocated(&g_st().msg_grid)
         {
@@ -344,7 +344,7 @@ fn cmdline_number_prompt() -> bool {
     }
 }
 
-pub fn screen_resize(mut width: c_int, mut height: c_int) {
+pub fn screen_resize(mut width: i32, mut height: i32) {
     {
         if g_st().updating_screen || g_st().resizing_screen || cmdline_number_prompt() {
             return;
@@ -556,7 +556,7 @@ pub fn update_screen() -> bool {
             if type_ == UPD_NOT_VALID && !ui_has(K_UIMULTIGRID) && g_st().msg_scrolled != 0 {
                 was_invalidated = ui_comp_set_screen_valid(false);
                 let mut i = valid;
-                while i < g_st().rows_global - (opt_vars().p_ch as c_int) {
+                while i < g_st().rows_global - (opt_vars().p_ch as i32) {
                     grid_clear_line(
                         &mut g_st().default_grid,
                         g_st().default_grid.line_offset[i as usize],
@@ -575,11 +575,11 @@ pub fn update_screen() -> bool {
                         }
                     }
                 }
-                if is_stl_global && g_st().rows_global - (opt_vars().p_ch as c_int) - 1 > valid {
+                if is_stl_global && g_st().rows_global - (opt_vars().p_ch as i32) - 1 > valid {
                     curwin_mut().w_redr_status = true;
                 }
             }
-            msg_grid_set_pos(g_st().rows_global - (opt_vars().p_ch as c_int), false);
+            msg_grid_set_pos(g_st().rows_global - (opt_vars().p_ch as i32), false);
             ds_st().msg_grid_invalid = false;
             if was_invalidated {
                 ui_comp_set_screen_valid(true);
@@ -615,7 +615,7 @@ pub fn update_screen() -> bool {
         if type_ == UPD_NOT_VALID && g_st().clear_cmdline && !ui_has(K_UIMESSAGES) {
             grid_clear(
                 &raw mut g_st().default_gridview,
-                g_st().rows_global - (opt_vars().p_ch as c_int),
+                g_st().rows_global - (opt_vars().p_ch as i32),
                 g_st().rows_global,
                 0,
                 g_st().columns_global,
@@ -715,7 +715,7 @@ pub fn update_screen() -> bool {
                     &mut (*wp).w_grid_alloc,
                     &mut (*wp).w_config,
                     (*wp).w_border_adj.as_mut_ptr(),
-                    (*wp).w_onebuf_opt.wo_winbl as c_int,
+                    (*wp).w_onebuf_opt.wo_winbl as i32,
                     (*wp).w_ns_hl_attr.as_deref(),
                     (*wp).w_hl_attr_normal,
                 );
@@ -852,7 +852,7 @@ pub fn redraw_custom_title_later() -> bool {
 pub fn show_cursor_info_later(force: bool) {
     unsafe {
         let state = get_real_state();
-        let empty_line = c_int::from(
+        let empty_line = i32::from(
             (g_st().state_global & MODE_INSERT) == 0
                 && *ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum) == NUL,
         );
@@ -917,9 +917,9 @@ pub fn skip_showmode() -> bool {
     false
 }
 
-pub fn showmode() -> c_int {
+pub fn showmode() -> i32 {
     {
-        let mut length: c_int = 0;
+        let mut length: i32 = 0;
 
         msg_ext_ui_flush();
         msg_grid_validate();
@@ -955,7 +955,7 @@ pub fn showmode() -> c_int {
                 msg_puts_hl(c"--", hl_id, false);
                 if !g_st().edit_submode.is_null() && !shortmess(K_SHM_COMPLETIONMENU) {
                     length = if ui_has(K_UIMESSAGES) {
-                        c_int::MAX
+                        i32::MAX
                     } else {
                         (g_st().rows_global - g_st().msg_row) * g_st().columns_global - 3
                     };
@@ -994,19 +994,19 @@ pub fn showmode() -> c_int {
                             msg_puts_hl(gettext(c" REVERSE"), hl_id, false);
                         }
                         msg_puts_hl(gettext(c" INSERT"), hl_id, false);
-                    } else if g_st().restart_edit == c_int::from(b'I')
-                        || g_st().restart_edit == c_int::from(b'i')
-                        || g_st().restart_edit == c_int::from(b'a')
-                        || g_st().restart_edit == c_int::from(b'A')
+                    } else if g_st().restart_edit == i32::from(b'I')
+                        || g_st().restart_edit == i32::from(b'i')
+                        || g_st().restart_edit == i32::from(b'a')
+                        || g_st().restart_edit == i32::from(b'A')
                     {
                         if !curbuf_mut().terminal.is_null() {
                             msg_puts_hl(gettext(c" (terminal)"), hl_id, false);
                         } else {
                             msg_puts_hl(gettext(c" (insert)"), hl_id, false);
                         }
-                    } else if g_st().restart_edit == c_int::from(b'R') {
+                    } else if g_st().restart_edit == i32::from(b'R') {
                         msg_puts_hl(gettext(c" (replace)"), hl_id, false);
-                    } else if g_st().restart_edit == c_int::from(b'V') {
+                    } else if g_st().restart_edit == i32::from(b'V') {
                         msg_puts_hl(gettext(c" (vreplace)"), hl_id, false);
                     }
                     if (g_st().state_global & MODE_LANGMAP) != 0 {
@@ -1016,7 +1016,7 @@ pub fn showmode() -> c_int {
                             curwin_mut(),
                             c" (%s)",
                             g_st().name_buff.as_mut_ptr(),
-                            MAXPATHL as c_int,
+                            MAXPATHL as i32,
                         ) > 0
                         {
                             msg_puts_hl(g_st().name_buff.as_ptr(), hl_id, false);
@@ -1033,7 +1033,7 @@ pub fn showmode() -> c_int {
                             } else {
                                 0
                             })
-                            + (if g_st().visual_global.mode == c_int::from(b'V') {
+                            + (if g_st().visual_global.mode == i32::from(b'V') {
                                 1
                             } else {
                                 0
@@ -1119,7 +1119,7 @@ pub fn clearmode() {
     g_st().msg_row = save_msg_row;
 }
 
-fn recording_mode(hl_id: c_int) {
+fn recording_mode(hl_id: i32) {
     if shortmess(K_SHM_RECORDING) {
         return;
     }
@@ -1156,9 +1156,9 @@ pub fn comp_col() {
                 g_st().sc_col += 1;
             }
         }
-        assert!(g_st().sc_col >= 0 && c_int::MIN + g_st().sc_col <= g_st().columns_global);
+        assert!(g_st().sc_col >= 0 && i32::MIN + g_st().sc_col <= g_st().columns_global);
         g_st().sc_col = g_st().columns_global - g_st().sc_col;
-        assert!(g_st().ru_col >= 0 && c_int::MIN + g_st().ru_col <= g_st().columns_global);
+        assert!(g_st().ru_col >= 0 && i32::MIN + g_st().ru_col <= g_st().columns_global);
         g_st().ru_col = g_st().columns_global - g_st().ru_col;
         if g_st().sc_col <= 0 {
             g_st().sc_col = 1;
@@ -1195,7 +1195,7 @@ fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
         if rebuild_stc {
             wp.w_nrwidth_line_count = 0;
         } else if wp.w_minscwidth == 0 && wp.w_maxscwidth == 1 {
-            width = c_int::from(buf_meta_total(&*buf, K_MTMETA_SIGN_TEXT) > 0);
+            width = i32::from(buf_meta_total(&*buf, K_MTMETA_SIGN_TEXT) > 0);
         }
 
         let scwidth = wp.w_scwidth;
@@ -1410,14 +1410,14 @@ fn win_update(wp: &mut WinInfoInfo) {
             return;
         }
 
-        let mut top_end: c_int = 0;
-        let mut mid_start: c_int = 999;
-        let mut mid_end: c_int = 0;
-        let mut bot_start: c_int = 999;
+        let mut top_end: i32 = 0;
+        let mut mid_start: i32 = 999;
+        let mut mid_end: i32 = 0;
+        let mut bot_start: i32 = 999;
         let mut scrolled_down = false;
         let mut scrolled_for_mod = false;
         let mut top_to_mod = false;
-        let mut bot_scroll_start: c_int = 999;
+        let mut bot_scroll_start: i32 = 999;
         let mut did_update = DidUpdate::None;
 
         let mut syntax_last_parsed: Linenr = 0;
@@ -1489,7 +1489,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         init_search_hl(wp, &mut g_st().screen_search_hl);
 
         if wp.w_skipcol > 0 && wp.w_view_width > win_col_off(&raw mut *wp) {
-            let mut w: c_int = 0;
+            let mut w: i32 = 0;
             let width1 = wp.w_view_width - win_col_off(&raw mut *wp);
             let width2 = width1 + win_col_off2(wp);
             let mut add = width1;
@@ -1600,9 +1600,9 @@ fn win_update(wp: &mut WinInfoInfo) {
         g_st().search_hl_has_cursor_lnum = 0;
 
         if type_ == UPD_REDRAW_TOP {
-            let mut j: c_int = 0;
+            let mut j: i32 = 0;
             for i in 0..wp.w_lines_valid {
-                j += c_int::from(w_lines_at(&mut *wp, i as usize).wl_size);
+                j += i32::from(w_lines_at(&mut *wp, i as usize).wl_size);
                 if j >= wp.w_upd_rows {
                     top_end = j;
                     break;
@@ -1645,12 +1645,12 @@ fn win_update(wp: &mut WinInfoInfo) {
                 && (topline_conceal < wl0.wl_lnum
                     || (topline_conceal == wl0.wl_lnum && wp.w_topfill > wp.w_old_topfill))
             {
-                let mut j: c_int;
+                let mut j: i32;
                 if win_lines_concealed(&mut *wp) {
                     j = 0;
                     let mut ln = wp.w_topline;
                     while ln < wl0.wl_lnum {
-                        j += c_int::from(!decor_conceal_line(&mut *wp, ln - 1, false));
+                        j += i32::from(!decor_conceal_line(&mut *wp, ln - 1, false));
                         if j >= wp.w_view_height - 2 {
                             break;
                         }
@@ -1694,15 +1694,15 @@ fn win_update(wp: &mut WinInfoInfo) {
                     mid_start = 0;
                 }
             } else {
-                let mut j: c_int = -1;
-                let mut row: c_int = 0;
+                let mut j: i32 = -1;
+                let mut row: i32 = 0;
                 for i in 0..wp.w_lines_valid {
                     let wl = *w_lines_at(&mut *wp, i as usize);
                     if wl.wl_valid && wl.wl_lnum == wp.w_topline {
                         j = i;
                         break;
                     }
-                    row += c_int::from(wl.wl_size);
+                    row += i32::from(wl.wl_size);
                 }
                 if j == -1 {
                     mid_start = 0;
@@ -1720,17 +1720,17 @@ fn win_update(wp: &mut WinInfoInfo) {
                     }
                     if (row == 0 || bot_start < 999) && wp.w_lines_valid != 0 {
                         bot_start = 0;
-                        let mut idx: c_int = 0;
+                        let mut idx: i32 = 0;
                         loop {
                             let wlj = *w_lines_at(&mut *wp, j as usize);
                             *w_lines_at(&mut *wp, idx as usize) = wlj;
                             if row > 0
-                                && bot_start + row + c_int::from(wlj.wl_size) > wp.w_view_height
+                                && bot_start + row + i32::from(wlj.wl_size) > wp.w_view_height
                             {
                                 wp.w_lines_valid = idx + 1;
                                 break;
                             }
-                            bot_start += c_int::from(wlj.wl_size);
+                            bot_start += i32::from(wlj.wl_size);
                             idx += 1;
 
                             j += 1;
@@ -1769,7 +1769,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             let mut to: Linenr;
 
             if g_st().visual_global.active {
-                if g_st().visual_global.mode != c_int::from(wp.w_old_visual_mode as u8)
+                if g_st().visual_global.mode != i32::from(wp.w_old_visual_mode as u8)
                     || type_ == UPD_INVERTED_ALL
                 {
                     if curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum {
@@ -1869,15 +1869,15 @@ fn win_update(wp: &mut WinInfoInfo) {
 
             if mid_start > 0 {
                 let mut lnum = wp.w_topline;
-                let mut idx: c_int = 0;
-                let mut srow: c_int = 0;
+                let mut idx: i32 = 0;
+                let mut srow: i32 = 0;
                 mid_start = if scrolled_down { top_end } else { 0 };
                 while lnum < from && idx < wp.w_lines_valid {
                     let wl = *w_lines_at(&mut *wp, idx as usize);
                     if wl.wl_valid {
-                        mid_start += c_int::from(wl.wl_size);
+                        mid_start += i32::from(wl.wl_size);
                     } else if !scrolled_down {
-                        srow += c_int::from(wl.wl_size);
+                        srow += i32::from(wl.wl_size);
                     }
                     idx += 1;
                     if idx < wp.w_lines_valid && w_lines_at(&mut *wp, idx as usize).wl_valid {
@@ -1894,7 +1894,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                         mid_end = srow;
                         break;
                     }
-                    srow += c_int::from(wl.wl_size);
+                    srow += i32::from(wl.wl_size);
                     idx += 1;
                 }
             }
@@ -1928,9 +1928,9 @@ fn win_update(wp: &mut WinInfoInfo) {
             spv.spv_unchanged = mod_top == 0;
         }
 
-        let mut idx: c_int = 0;
-        let mut row: c_int = 0;
-        let mut srow: c_int = 0;
+        let mut idx: i32 = 0;
+        let mut row: i32 = 0;
+        let mut srow: i32 = 0;
 
         let mut eof = false;
         let mut didline = false;
@@ -1953,7 +1953,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                     || (row >= mid_start && row < mid_end)
                     || top_to_mod
                     || idx >= wp.w_lines_valid
-                    || (row + c_int::from(w_lines_at(&mut *wp, idx as usize).wl_size) > bot_start)
+                    || (row + i32::from(w_lines_at(&mut *wp, idx as usize).wl_size) > bot_start)
                     || (mod_top != 0
                         && (lnum == mod_top
                             || (lnum >= mod_top
@@ -2003,8 +2003,8 @@ fn win_update(wp: &mut WinInfoInfo) {
                     {
                         scrolled_for_mod = true;
 
-                        let mut old_cline_height: c_int = 0;
-                        let mut old_rows: c_int = 0;
+                        let mut old_cline_height: i32 = 0;
+                        let mut old_rows: i32 = 0;
                         let mut i = idx;
 
                         while i < wp.w_lines_valid {
@@ -2013,16 +2013,15 @@ fn win_update(wp: &mut WinInfoInfo) {
                                 break;
                             }
                             if wli.wl_lnum == wp.w_cursor.lnum {
-                                old_cline_height = c_int::from(wli.wl_size);
+                                old_cline_height = i32::from(wli.wl_size);
                             }
-                            old_rows += c_int::from(wli.wl_size);
+                            old_rows += i32::from(wli.wl_size);
                             if wli.wl_valid && wli.wl_lastlnum + 1 == mod_bot {
                                 i += 1;
                                 while i < wp.w_lines_valid
                                     && !w_lines_at(&mut *wp, i as usize).wl_valid
                                 {
-                                    old_rows +=
-                                        c_int::from(w_lines_at(&mut *wp, i as usize).wl_size);
+                                    old_rows += i32::from(w_lines_at(&mut *wp, i as usize).wl_size);
                                     i += 1;
                                 }
                                 break;
@@ -2034,7 +2033,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                             bot_start = 0;
                             bot_scroll_start = 0;
                         } else {
-                            let mut new_rows: c_int = 0;
+                            let mut new_rows: i32 = 0;
                             let mut j = idx;
                             let mut l = lnum;
                             while l < mod_bot {
@@ -2054,7 +2053,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                                         None,
                                     );
                                     new_rows += n;
-                                    j += c_int::from(n > 0);
+                                    j += i32::from(n > 0);
                                 }
                                 if new_rows > wp.w_view_height - row - 2 {
                                     new_rows = 9999;
@@ -2093,11 +2092,11 @@ fn win_update(wp: &mut WinInfoInfo) {
                                         }
                                         let wli = *w_lines_at(&mut *wp, i as usize);
                                         *w_lines_at(&mut *wp, j as usize) = wli;
-                                        if x + c_int::from(wli.wl_size) > wp.w_view_height {
+                                        if x + i32::from(wli.wl_size) > wp.w_view_height {
                                             wp.w_lines_valid = j + 1;
                                             break;
                                         }
-                                        x += c_int::from(wli.wl_size);
+                                        x += i32::from(wli.wl_size);
                                         j += 1;
                                         i += 1;
                                     }
@@ -2130,7 +2129,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                         && lnum > wp.w_topline
                         && (opt_vars().dy_flags & (K_OPT_DY_FLAG_LASTLINE | K_OPT_DY_FLAG_TRUNCATE))
                             == 0
-                        && srow + c_int::from(wl_cur.wl_size) > wp.w_view_height
+                        && srow + i32::from(wl_cur.wl_size) > wp.w_view_height
                         && win_get_fill(wp, lnum) == 0
                     {
                         row = wp.w_view_height + 1;
@@ -2232,11 +2231,11 @@ fn win_update(wp: &mut WinInfoInfo) {
                             fold_info(wp, lnum)
                         };
                         let view_height = wp.w_view_height;
-                        let wl_size = c_int::from(w_lines_at(&mut *wp, idx as usize).wl_size);
+                        let wl_size = i32::from(w_lines_at(&mut *wp, idx as usize).wl_size);
                         win_line(wp, lnum, srow, view_height, wl_size, false, &mut spv, info);
                     }
 
-                    row += c_int::from(w_lines_at(&mut *wp, idx as usize).wl_size);
+                    row += i32::from(w_lines_at(&mut *wp, idx as usize).wl_size);
                     idx += 1;
                     if row > wp.w_view_height {
                         break;
@@ -2438,14 +2437,14 @@ fn win_update(wp: &mut WinInfoInfo) {
     }
 }
 
-pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: c_int, line_count: c_int) {
+pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
     unsafe {
         if !redrawing() || line_count == 0 {
             return;
         }
 
-        let mut col: c_int = 0;
-        let mut row_off: c_int = 0;
+        let mut col: i32 = 0;
+        let mut row_off: i32 = 0;
         let grid = grid_adjust(&mut wp.w_grid, &mut row_off, &mut col);
 
         let checked_width = ((*grid).cols - col).min(wp.w_view_width);
@@ -2481,8 +2480,8 @@ pub fn win_draw_end(
     wp: &mut WinInfoInfo,
     c1: Schar,
     draw_margin: bool,
-    startrow: c_int,
-    endrow: c_int,
+    startrow: i32,
+    endrow: i32,
     hl: Hlf,
 ) {
     assert!((0..HLF_COUNT).contains(&hl));
@@ -2493,7 +2492,7 @@ pub fn win_draw_end(
     for row in startrow..endrow {
         grid_line_start(&raw mut wp.w_grid, row);
 
-        let mut n: c_int = 0;
+        let mut n: i32 = 0;
         if draw_margin {
             if fdc > 0 {
                 n = grid_line_fill(
@@ -2542,20 +2541,20 @@ pub fn win_draw_end(
     }
 }
 
-pub fn compute_foldcolumn(wp: &mut WinInfoInfo, col: c_int) -> c_int {
+pub fn compute_foldcolumn(wp: &mut WinInfoInfo, col: i32) -> i32 {
     {
         let fdc = win_fdccol_count(wp);
         let wmw = if ptr::eq((&raw mut *wp), curwin_ptr()) && opt_vars().p_wmw == 0 {
             1
         } else {
-            opt_vars().p_wmw as c_int
+            opt_vars().p_wmw as i32
         };
         let n = wp.w_view_width - (col + wmw);
         fdc.min(n)
     }
 }
 
-pub fn number_width(wp: &mut WinInfoInfo) -> c_int {
+pub fn number_width(wp: &mut WinInfoInfo) -> i32 {
     {
         let mut lnum = if wp.w_onebuf_opt.wo_rnu != 0 && wp.w_onebuf_opt.wo_nu == 0 {
             wp.w_view_height
@@ -2571,12 +2570,12 @@ pub fn number_width(wp: &mut WinInfoInfo) -> c_int {
         if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
             wp.w_statuscol_line_count = 0;
             wp.w_nrwidth_width =
-                c_int::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
-                    * (wp.w_onebuf_opt.wo_nuw as c_int);
+                i32::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
+                    * (wp.w_onebuf_opt.wo_nuw as i32);
             return wp.w_nrwidth_width;
         }
 
-        let mut n: c_int = 0;
+        let mut n: i32 = 0;
         loop {
             lnum /= 10;
             n += 1;
@@ -2585,7 +2584,7 @@ pub fn number_width(wp: &mut WinInfoInfo) -> c_int {
             }
         }
 
-        n = n.max((wp.w_onebuf_opt.wo_nuw as c_int) - 1);
+        n = n.max((wp.w_onebuf_opt.wo_nuw as i32) - 1);
 
         if n < 2
             && buf_meta_total(wp.buf_mut(), K_MTMETA_SIGN_TEXT) != 0
@@ -2599,7 +2598,7 @@ pub fn number_width(wp: &mut WinInfoInfo) -> c_int {
     }
 }
 
-pub fn redraw_later(mut wp: Option<&mut WinInfoInfo>, type_: c_int) {
+pub fn redraw_later(mut wp: Option<&mut WinInfoInfo>, type_: i32) {
     {
         assert!(wp.is_some() || g_st().exiting);
         if !g_st().exiting
@@ -2615,7 +2614,7 @@ pub fn redraw_later(mut wp: Option<&mut WinInfoInfo>, type_: c_int) {
     }
 }
 
-pub fn redraw_all_later(type_: c_int) {
+pub fn redraw_all_later(type_: i32) {
     {
         for wp in for_all_windows_ptr() {
             redraw_later(Some(&mut *wp), type_);
@@ -2624,7 +2623,7 @@ pub fn redraw_all_later(type_: c_int) {
     }
 }
 
-pub fn set_must_redraw(type_: c_int) {
+pub fn set_must_redraw(type_: i32) {
     if !g_st().redraw_not_allowed {
         g_st().must_redraw = g_st().must_redraw.max(type_);
     }
@@ -2639,11 +2638,11 @@ pub fn screen_invalidate_highlights() {
     }
 }
 
-pub fn redraw_curbuf_later(type_: c_int) {
+pub fn redraw_curbuf_later(type_: i32) {
     redraw_buf_later(g_st().curbuf, type_);
 }
 
-pub fn redraw_buf_later(buf: *mut FileBuf, type_: c_int) {
+pub fn redraw_buf_later(buf: *mut FileBuf, type_: i32) {
     {
         for wp in for_all_windows_ptr() {
             if ptr::eq(wp.w_buffer, buf) {
@@ -2804,13 +2803,13 @@ pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
             return false;
         }
         let c = if (get_real_state() & MODE_VISUAL) != 0 {
-            c_int::from(b'v')
+            i32::from(b'v')
         } else if (g_st().state_global & MODE_INSERT) != 0 {
-            c_int::from(b'i')
+            i32::from(b'i')
         } else if (g_st().state_global & MODE_NORMAL) != 0 {
-            c_int::from(b'n')
+            i32::from(b'n')
         } else if (g_st().state_global & MODE_CMDLINE) != 0 {
-            c_int::from(b'c')
+            i32::from(b'c')
         } else {
             return false;
         };

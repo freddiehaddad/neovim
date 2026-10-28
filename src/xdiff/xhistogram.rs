@@ -1,19 +1,17 @@
 //! Histogram diff algorithm (`src/xdiff/xhistogram.c`).
 
-use std::ffi::{c_int, c_uint};
-
 use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::{xdl_fall_back_diff, xdl_hashbits, xdl_recmatch};
 use crate::xdiff::{Mmfile, XDF_DIFF_ALGORITHM_MASK, Xdfenv, Xpparam, Xrecord, xdl_hashlong};
 
-const MAX_PTR: c_uint = c_int::MAX as c_uint;
-const MAX_CNT: c_uint = c_int::MAX as c_uint;
+const MAX_PTR: u32 = i32::MAX as u32;
+const MAX_CNT: u32 = i32::MAX as u32;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct Record {
-    ptr: c_uint,
-    cnt: c_uint,
+    ptr: u32,
+    cnt: u32,
     next: Option<usize>,
 }
 
@@ -21,12 +19,12 @@ struct HistIndex {
     records: Vec<Option<usize>>,
     line_map: Vec<Option<usize>>,
     rcha: Vec<Record>,
-    next_ptrs: Vec<c_uint>,
-    table_bits: c_uint,
-    max_chain_length: c_uint,
-    ptr_shift: c_uint,
-    cnt: c_uint,
-    has_common: c_uint,
+    next_ptrs: Vec<u32>,
+    table_bits: u32,
+    max_chain_length: u32,
+    ptr_shift: u32,
+    cnt: u32,
+    has_common: u32,
     env: *mut Xdfenv,
     xpp: *const Xpparam,
 }
@@ -34,14 +32,14 @@ struct HistIndex {
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 struct Region {
-    begin1: c_uint,
-    end1: c_uint,
-    begin2: c_uint,
-    end2: c_uint,
+    begin1: u32,
+    end1: u32,
+    begin2: u32,
+    end2: u32,
 }
 
 #[inline]
-fn get_rec(env: &Xdfenv, side: c_int, line: c_uint) -> Xrecord {
+fn get_rec(env: &Xdfenv, side: i32, line: u32) -> Xrecord {
     if side == 1 {
         env.xdf1.recs[(line as usize) - 1]
     } else {
@@ -55,7 +53,7 @@ fn cmp_recs(xpp: &Xpparam, r1: &Xrecord, r2: &Xrecord) -> bool {
 }
 
 #[inline]
-fn cmp_index(index: &HistIndex, s1: c_int, l1: c_uint, s2: c_int, l2: c_uint) -> bool {
+fn cmp_index(index: &HistIndex, s1: i32, l1: u32, s2: i32, l2: u32) -> bool {
     let env = unsafe { &*index.env };
     let xpp = unsafe { &*index.xpp };
     let r1 = get_rec(env, s1, l1);
@@ -64,24 +62,24 @@ fn cmp_index(index: &HistIndex, s1: c_int, l1: c_uint, s2: c_int, l2: c_uint) ->
 }
 
 #[inline]
-fn table_hash(index: &HistIndex, side: c_int, line: c_uint) -> usize {
+fn table_hash(index: &HistIndex, side: i32, line: u32) -> usize {
     let rec = get_rec(unsafe { &*index.env }, side, line);
     xdl_hashlong(rec.ha, index.table_bits) as usize
 }
 
 #[inline]
-fn line_map_idx(index: &HistIndex, ptr: c_uint) -> usize {
+fn line_map_idx(index: &HistIndex, ptr: u32) -> usize {
     (ptr - index.ptr_shift) as usize
 }
 
-fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
+fn scan_a(index: &mut HistIndex, line1: i32, count1: i32) -> i32 {
     let mut ptr = line1 + count1 - 1;
     while line1 <= ptr {
-        let uptr = ptr as c_uint;
+        let uptr = ptr as u32;
         let tbl_idx = table_hash(index, 1, uptr);
         let mut rec_idx = index.records[tbl_idx];
 
-        let mut chain_len: c_uint = 0;
+        let mut chain_len: u32 = 0;
         let mut matched = false;
         while let Some(ri) = rec_idx {
             let r_ptr = index.rcha[ri].ptr;
@@ -123,14 +121,14 @@ fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
 fn try_lcs(
     index: &mut HistIndex,
     lcs: &mut Region,
-    b_ptr: c_int,
-    line1: c_int,
-    count1: c_int,
-    line2: c_int,
-    count2: c_int,
-) -> c_int {
-    let mut b_next = (b_ptr + 1) as c_uint;
-    let ub_ptr = b_ptr as c_uint;
+    b_ptr: i32,
+    line1: i32,
+    count1: i32,
+    line2: i32,
+    count2: i32,
+) -> i32 {
+    let mut b_next = (b_ptr + 1) as u32;
+    let ub_ptr = b_ptr as u32;
     let line_end1 = line1 + count1 - 1;
     let line_end2 = line2 + count2 - 1;
 
@@ -139,7 +137,7 @@ fn try_lcs(
         let rec = index.rcha[ri];
         if rec.cnt > index.cnt {
             if index.has_common == 0 {
-                index.has_common = c_uint::from(cmp_index(index, 1, rec.ptr, 2, ub_ptr));
+                index.has_common = u32::from(cmp_index(index, 1, rec.ptr, 2, ub_ptr));
             }
             rec_idx = rec.next;
             continue;
@@ -160,8 +158,8 @@ fn try_lcs(
             let mut be = bs;
             let mut rc = rec.cnt;
 
-            while line1 < (as_ as c_int)
-                && line2 < (bs as c_int)
+            while line1 < (as_ as i32)
+                && line2 < (bs as i32)
                 && cmp_index(index, 1, as_ - 1, 2, bs - 1)
             {
                 as_ -= 1;
@@ -171,8 +169,8 @@ fn try_lcs(
                     rc = rc.min(index.rcha[lmi].cnt);
                 }
             }
-            while (ae as c_int) < line_end1
-                && (be as c_int) < line_end2
+            while (ae as i32) < line_end1
+                && (be as i32) < line_end2
                 && cmp_index(index, 1, ae + 1, 2, be + 1)
             {
                 ae += 1;
@@ -216,17 +214,17 @@ fn try_lcs(
         rec_idx = rec.next;
     }
 
-    b_next as c_int
+    b_next as i32
 }
 
 fn fall_back_to_classic_diff(
     xpp: &Xpparam,
     env: &mut Xdfenv,
-    line1: c_int,
-    count1: c_int,
-    line2: c_int,
-    count2: c_int,
-) -> c_int {
+    line1: i32,
+    count1: i32,
+    line2: i32,
+    count2: i32,
+) -> i32 {
     let xpparam = Xpparam {
         flags: xpp.flags & !XDF_DIFF_ALGORITHM_MASK,
     };
@@ -237,12 +235,12 @@ fn find_lcs(
     xpp: &Xpparam,
     env: &mut Xdfenv,
     lcs: &mut Region,
-    line1: c_int,
-    count1: c_int,
-    line2: c_int,
-    count2: c_int,
-) -> c_int {
-    let table_bits = xdl_hashbits(count1 as c_uint);
+    line1: i32,
+    count1: i32,
+    line2: i32,
+    count2: i32,
+) -> i32 {
+    let table_bits = xdl_hashbits(count1 as u32);
     let records_size = 1usize << table_bits;
     let line_map_size = count1 as usize;
     let mut index = HistIndex {
@@ -252,7 +250,7 @@ fn find_lcs(
         next_ptrs: vec![0; line_map_size],
         table_bits,
         max_chain_length: 64,
-        ptr_shift: line1 as c_uint,
+        ptr_shift: line1 as u32,
         cnt: 65,
         has_common: 0,
         env,
@@ -279,18 +277,18 @@ fn find_lcs(
 fn histogram_diff(
     xpp: &Xpparam,
     env: &mut Xdfenv,
-    mut line1: c_int,
-    mut count1: c_int,
-    mut line2: c_int,
-    mut count2: c_int,
-) -> c_int {
+    mut line1: i32,
+    mut count1: i32,
+    mut line2: i32,
+    mut count2: i32,
+) -> i32 {
     unsafe {
         loop {
             if count1 <= 0 && count2 <= 0 {
                 return 0;
             }
 
-            if ((line1 + count1 - 1) as c_uint) >= MAX_PTR {
+            if ((line1 + count1 - 1) as u32) >= MAX_PTR {
                 return -1;
             }
 
@@ -333,17 +331,17 @@ fn histogram_diff(
                     xpp,
                     env,
                     line1,
-                    (lcs.begin1 as c_int) - line1,
+                    (lcs.begin1 as i32) - line1,
                     line2,
-                    (lcs.begin2 as c_int) - line2,
+                    (lcs.begin2 as i32) - line2,
                 );
                 if res != 0 {
                     return res;
                 }
-                count1 = (line1 + count1 - 1) - (lcs.end1 as c_int);
-                line1 = (lcs.end1 as c_int) + 1;
-                count2 = (line2 + count2 - 1) - (lcs.end2 as c_int);
-                line2 = (lcs.end2 as c_int) + 1;
+                count1 = (line1 + count1 - 1) - (lcs.end1 as i32);
+                line1 = (lcs.end1 as i32) + 1;
+                count2 = (line2 + count2 - 1) - (lcs.end2 as i32);
+                line2 = (lcs.end2 as i32) + 1;
             }
         }
     }
@@ -354,7 +352,7 @@ pub fn xdl_do_histogram_diff(
     file2: &mut Mmfile,
     xpp: &Xpparam,
     env: &mut Xdfenv,
-) -> c_int {
+) -> i32 {
     if xdl_prepare_env(file1, file2, xpp, env) < 0 {
         return -1;
     }
@@ -362,9 +360,9 @@ pub fn xdl_do_histogram_diff(
     histogram_diff(
         xpp,
         env,
-        (env.xdf1.dstart + 1) as c_int,
-        (env.xdf1.dend - env.xdf1.dstart + 1) as c_int,
-        (env.xdf2.dstart + 1) as c_int,
-        (env.xdf2.dend - env.xdf2.dstart + 1) as c_int,
+        (env.xdf1.dstart + 1) as i32,
+        (env.xdf1.dend - env.xdf1.dstart + 1) as i32,
+        (env.xdf2.dstart + 1) as i32,
+        (env.xdf2.dend - env.xdf2.dstart + 1) as i32,
     )
 }

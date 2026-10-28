@@ -62,7 +62,7 @@ use crate::tui::ugrid::{
 use crate::ui_client::ui_client_set_size;
 #[cfg(unix)]
 use crate::ui_client::{ui_client_attach, ui_client_detach};
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 #[cfg(windows)]
@@ -70,10 +70,10 @@ use crate::os::os_win_console::{GetConsoleMode, HANDLE, os_tty_guess_term};
 use crate::tui::terminfo::*;
 
 use crate::msgpack_rpc::packer::Integer;
-pub type TermMode = c_int;
-pub type TermModeState = c_int;
-pub type ModeShape = c_int;
-pub type LineFlags = c_int;
+pub type TermMode = i32;
+pub type TermModeState = i32;
+pub type ModeShape = i32;
+pub type LineFlags = i32;
 pub type TerminfoDef = usize;
 
 pub const K_TERM_MODE_LEFT_AND_RIGHT_MARGINS: TermMode = 69;
@@ -101,11 +101,11 @@ const DEL: c_char = 0x7f;
 #[cfg(unix)]
 use crate::event::r#loop::UV_TTY_MODE_NORMAL;
 #[cfg(unix)]
-const UV_TTY_MODE_IO: c_int = 2;
+const UV_TTY_MODE_IO: i32 = 2;
 #[cfg(target_os = "linux")]
-const SIGSTOP: c_int = 19;
+const SIGSTOP: i32 = 19;
 #[cfg(all(unix, not(target_os = "linux")))]
-const SIGSTOP: c_int = 17;
+const SIGSTOP: i32 = 17;
 
 const LINUXSET0C: &[u8] = b"\x1b[?0c";
 const LINUXSET1C: &[u8] = b"\x1b[?1c";
@@ -123,10 +123,10 @@ const XTERM_SETAB_16: &CStr = c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Rect {
-    pub top: c_int,
-    pub bot: c_int,
-    pub left: c_int,
-    pub right: c_int,
+    pub top: i32,
+    pub bot: i32,
+    pub left: i32,
+    pub right: i32,
 }
 
 #[repr(C)]
@@ -160,10 +160,10 @@ pub struct TUIData {
     pub startup_delay_timer: [u64; 32],
     pub grid: UGrid,
     pub invalid_regions: Vec<Rect>,
-    pub row: c_int,
-    pub col: c_int,
-    pub out_fd: c_int,
-    pub pending_resize_events: c_int,
+    pub row: i32,
+    pub col: i32,
+    pub out_fd: i32,
+    pub pending_resize_events: i32,
     pub terminfo_found_in_db: bool,
     pub can_change_scroll_region: bool,
     pub has_left_and_right_margin_mode: bool,
@@ -193,7 +193,7 @@ pub struct TUIData {
     pub cursor_shapes: [Cursorentry; SHAPE_IDX_COUNT],
     pub clear_attrs: HlAttrs,
     pub attrs: Vec<HlAttrs>,
-    pub print_attr_id: c_int,
+    pub print_attr_id: i32,
     pub default_attr: bool,
     pub set_default_colors: bool,
     pub can_clear_attr: bool,
@@ -204,11 +204,11 @@ pub struct TUIData {
     pub can_set_underline_color: bool,
     pub can_resize_screen: bool,
     pub stopped: bool,
-    pub width: c_int,
-    pub height: c_int,
+    pub width: i32,
+    pub height: i32,
     pub rgb: bool,
     pub screen_or_tmux: bool,
-    pub url: c_int,
+    pub url: i32,
 }
 
 impl TUIData {
@@ -374,8 +374,8 @@ fn cstr_contains(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> 
 
 pub fn tui_start(
     tui_out: *mut Option<Box<TUIData>>,
-    width: &mut c_int,
-    height: &mut c_int,
+    width: &mut i32,
+    height: &mut i32,
     term: *mut Option<std::ffi::CString>,
     rgb: &mut bool,
 ) {
@@ -748,13 +748,13 @@ fn apply_termdefs(tui: &mut TUIData) {
                     tui.ti.su = val.data.boolean();
                 }
                 TermdefFieldTarget::IntMaxColors => {
-                    tui.ti.max_colors = val.data.integer() as c_int;
+                    tui.ti.max_colors = val.data.integer() as i32;
                 }
                 TermdefFieldTarget::IntLines => {
-                    tui.ti.lines = val.data.integer() as c_int;
+                    tui.ti.lines = val.data.integer() as i32;
                 }
                 TermdefFieldTarget::IntColumns => {
-                    tui.ti.columns = val.data.integer() as c_int;
+                    tui.ti.columns = val.data.integer() as i32;
                 }
                 TermdefFieldTarget::Def(idx) => {
                     tui.ti.defs[idx] = Some(std::borrow::Cow::Owned(
@@ -1236,7 +1236,7 @@ pub(crate) fn sigwinch_cb(tui: &mut TUIData) {
     tui_guess_size(tui);
 }
 
-fn attrs_differ(tui: &TUIData, id1: c_int, id2: c_int, rgb: bool) -> bool {
+fn attrs_differ(tui: &TUIData, id1: i32, id2: i32, rgb: bool) -> bool {
     if id1 == id2 {
         return false;
     } else if id1 < 0 || id2 < 0 {
@@ -1263,7 +1263,7 @@ fn attrs_differ(tui: &TUIData, id1: c_int, id2: c_int, rgb: bool) -> bool {
     }
 }
 
-fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
+fn update_attrs(tui: &mut TUIData, attr_id: i32) {
     {
         if !attrs_differ(tui, attr_id, tui.print_attr_id, tui.rgb) {
             tui.print_attr_id = attr_id;
@@ -1391,7 +1391,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
             }
         }
 
-        let fg: c_int;
+        let fg: i32;
         if tui.rgb && (attr & HL_FG_INDEXED) == 0 {
             fg = if attrs.rgb_fg_color != -1 {
                 attrs.rgb_fg_color
@@ -1409,16 +1409,16 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
             }
         } else {
             fg = if attrs.cterm_fg_color != 0 {
-                c_int::from(attrs.cterm_fg_color) - 1
+                i32::from(attrs.cterm_fg_color) - 1
             } else {
-                c_int::from(tui.clear_attrs.cterm_fg_color) - 1
+                i32::from(tui.clear_attrs.cterm_fg_color) - 1
             };
             if fg != -1 {
                 terminfo_print_num1(tui, K_TERM_SET_A_FOREGROUND, fg);
             }
         }
 
-        let bg: c_int;
+        let bg: i32;
         if tui.rgb && (attr & HL_BG_INDEXED) == 0 {
             bg = if attrs.rgb_bg_color != -1 {
                 attrs.rgb_bg_color
@@ -1436,9 +1436,9 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
             }
         } else {
             bg = if attrs.cterm_bg_color != 0 {
-                c_int::from(attrs.cterm_bg_color) - 1
+                i32::from(attrs.cterm_bg_color) - 1
             } else {
-                c_int::from(tui.clear_attrs.cterm_bg_color) - 1
+                i32::from(tui.clear_attrs.cterm_bg_color) - 1
             };
             if bg != -1 {
                 terminfo_print_num1(tui, K_TERM_SET_A_BACKGROUND, bg);
@@ -1509,7 +1509,7 @@ fn print_cell(tui: &mut TUIData, buf: impl crate::strings::IntoCCharPtr, attr: S
     }
 }
 
-fn cheap_to_print(tui: &TUIData, row: c_int, col: c_int, mut next: c_int) -> bool {
+fn cheap_to_print(tui: &TUIData, row: i32, col: i32, mut next: i32) -> bool {
     let cells = &tui.grid.cells;
     let row_cells = &cells[row as usize];
     let mut idx = col as usize;
@@ -1527,7 +1527,7 @@ fn cheap_to_print(tui: &TUIData, row: c_int, col: c_int, mut next: c_int) -> boo
     true
 }
 
-fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
+fn cursor_goto(tui: &mut TUIData, row: i32, col: i32) {
     if row == tui.grid.row && col == tui.grid.col {
         return;
     }
@@ -1619,7 +1619,7 @@ fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
     ugrid_goto(&mut tui.grid, row, col);
 }
 
-fn print_spaces(tui: &mut TUIData, width: c_int) {
+fn print_spaces(tui: &mut TUIData, width: i32) {
     unsafe {
         let mut left = width as usize;
         loop {
@@ -1640,7 +1640,7 @@ fn print_spaces(tui: &mut TUIData, width: c_int) {
     }
 }
 
-fn print_cell_at_pos(tui: &mut TUIData, row: c_int, col: c_int, cell: UCell, is_doublewidth: bool) {
+fn print_cell_at_pos(tui: &mut TUIData, row: i32, col: i32, cell: UCell, is_doublewidth: bool) {
     if tui.grid.row == -1 && cell.data == 0 {
         return;
     }
@@ -1665,14 +1665,7 @@ fn print_cell_at_pos(tui: &mut TUIData, row: c_int, col: c_int, cell: UCell, is_
     }
 }
 
-fn clear_region(
-    tui: &mut TUIData,
-    top: c_int,
-    bot: c_int,
-    left: c_int,
-    right: c_int,
-    attr_id: c_int,
-) {
+fn clear_region(tui: &mut TUIData, top: i32, bot: i32, left: i32, right: i32, attr_id: i32) {
     if tui.set_default_colors {
         update_attrs(tui, attr_id);
     } else {
@@ -1702,7 +1695,7 @@ fn clear_region(
     }
 }
 
-fn set_scroll_region(tui: &mut TUIData, top: c_int, bot: c_int, left: c_int, right: c_int) {
+fn set_scroll_region(tui: &mut TUIData, top: i32, bot: i32, left: i32, right: i32) {
     terminfo_print_num2(tui, K_TERM_CHANGE_SCROLL_REGION, top, bot);
     if left != 0 || right != tui.width - 1 {
         tui_set_term_mode(tui, K_TERM_MODE_LEFT_AND_RIGHT_MARGINS, true);
@@ -1725,7 +1718,7 @@ fn reset_scroll_region(tui: &mut TUIData, fullwidth: bool) {
 }
 
 pub fn tui_grid_resize(tui: &mut TUIData, _g: Integer, width: Integer, height: Integer) {
-    ugrid_resize(&mut tui.grid, width as c_int, height as c_int);
+    ugrid_resize(&mut tui.grid, width as i32, height as i32);
 
     let grid_height = tui.grid.height;
     let grid_width = tui.grid.width;
@@ -1735,7 +1728,7 @@ pub fn tui_grid_resize(tui: &mut TUIData, _g: Integer, width: Integer, height: I
     }
 
     if tui.pending_resize_events == 0 && !tui.is_starting {
-        let s = format!("\x1b[8;{};{}t", height as c_int, width as c_int);
+        let s = format!("\x1b[8;{};{}t", height as i32, width as i32);
         out_printf_str(tui, 64, &s);
     } else {
         tui.pending_resize_events = if tui.pending_resize_events > 0 {
@@ -1755,8 +1748,8 @@ pub fn tui_grid_clear(tui: &mut TUIData, _g: Integer) {
 }
 
 pub fn tui_grid_cursor_goto(tui: &mut TUIData, _grid: Integer, row: Integer, col: Integer) {
-    tui.row = row as c_int;
-    tui.col = col as c_int;
+    tui.row = row as i32;
+    tui.col = col as i32;
 }
 
 fn tui_cursor_decode_shape(shape_str: impl crate::strings::IntoCCharPtr) -> CursorShape {
@@ -1796,11 +1789,11 @@ fn decode_cursor_entry(args: Dict) -> Cursorentry {
         if crate::memory::cstr_as_opt_bytes(key) == Some(b"cursor_shape") {
             r.shape = tui_cursor_decode_shape(value.data.string().data);
         } else if crate::memory::cstr_as_opt_bytes(key) == Some(b"blinkon") {
-            r.blinkon = value.data.integer() as c_int;
+            r.blinkon = value.data.integer() as i32;
         } else if crate::memory::cstr_as_opt_bytes(key) == Some(b"blinkoff") {
-            r.blinkoff = value.data.integer() as c_int;
+            r.blinkoff = value.data.integer() as i32;
         } else if crate::memory::cstr_as_opt_bytes(key) == Some(b"attr_id") {
-            r.id = value.data.integer() as c_int;
+            r.id = value.data.integer() as i32;
         }
     }
     r
@@ -1895,7 +1888,7 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
         CursorShape::ShapeHor => 3,
         CursorShape::ShapeVer => 5,
     };
-    let steady = c_int::from(c.blinkon == 0 || c.blinkoff == 0);
+    let steady = i32::from(c.blinkon == 0 || c.blinkoff == 0);
     terminfo_print_num1(tui, K_TERM_SET_CURSOR_STYLE, shape + steady);
 }
 
@@ -1947,15 +1940,15 @@ pub fn tui_grid_scroll(
     rows: Integer,
     _cols: Integer,
 ) {
-    let top = startrow as c_int;
-    let bot = (endrow - 1) as c_int;
-    let left = startcol as c_int;
-    let right = (endcol - 1) as c_int;
+    let top = startrow as i32;
+    let bot = (endrow - 1) as i32;
+    let left = startcol as i32;
+    let right = (endcol - 1) as i32;
 
     let fullwidth = left == 0 && right == tui.width - 1;
     let full_screen_scroll = fullwidth && top == 0 && bot == tui.height - 1;
 
-    ugrid_scroll(&mut tui.grid, top, bot, left, right, rows as c_int);
+    ugrid_scroll(&mut tui.grid, top, bot, left, right, rows as i32);
 
     let has_lr_margins = tui.has_left_and_right_margin_mode && tui.can_set_lr_margin;
     let can_scroll = tui.can_scroll
@@ -1974,12 +1967,12 @@ pub fn tui_grid_scroll(
             if rows == 1 {
                 terminfo_out(tui, K_TERM_DELETE_LINE);
             } else {
-                terminfo_print_num1(tui, K_TERM_PARM_DELETE_LINE, rows as c_int);
+                terminfo_print_num1(tui, K_TERM_PARM_DELETE_LINE, rows as i32);
             }
         } else if rows == -1 {
             terminfo_out(tui, K_TERM_INSERT_LINE);
         } else {
-            terminfo_print_num1(tui, K_TERM_PARM_INSERT_LINE, -(rows as c_int));
+            terminfo_print_num1(tui, K_TERM_PARM_INSERT_LINE, -(rows as i32));
         }
 
         if !full_screen_scroll {
@@ -1993,10 +1986,10 @@ pub fn tui_grid_scroll(
         }
         invalidate(
             tui,
-            startrow as c_int,
-            endrow as c_int,
-            startcol as c_int,
-            endcol as c_int,
+            startrow as i32,
+            endrow as i32,
+            startcol as i32,
+            endcol as i32,
         );
     }
 }
@@ -2407,41 +2400,41 @@ pub fn tui_raw_line(
                 cell.attr = *attrs.add(idx);
             }
         }
-        for curcol in (startcol as c_int)..(endcol as c_int) {
+        for curcol in (startcol as i32)..(endcol as i32) {
             let (cell, is_double) = {
                 let cells = &tui.grid.cells;
                 let row_cells = &cells[linerow as usize];
                 (
                     row_cells[curcol as usize],
-                    curcol < (endcol as c_int) - 1 && row_cells[(curcol + 1) as usize].data == 0,
+                    curcol < (endcol as i32) - 1 && row_cells[(curcol + 1) as usize].data == 0,
                 )
             };
-            print_cell_at_pos(tui, linerow as c_int, curcol, cell, is_double);
+            print_cell_at_pos(tui, linerow as i32, curcol, cell, is_double);
         }
 
         if clearcol > endcol {
             ugrid_clear_chunk(
                 &mut tui.grid,
-                linerow as c_int,
-                endcol as c_int,
-                clearcol as c_int,
+                linerow as i32,
+                endcol as i32,
+                clearcol as i32,
                 clearattr as Sattr,
             );
             clear_region(
                 tui,
-                linerow as c_int,
-                (linerow as c_int) + 1,
-                endcol as c_int,
-                clearcol as c_int,
-                clearattr as c_int,
+                linerow as i32,
+                (linerow as i32) + 1,
+                endcol as i32,
+                clearcol as i32,
+                clearattr as i32,
             );
         }
 
         if (flags & K_LINE_FLAG_WRAP) != 0
             && tui.width == tui.grid.width
-            && (linerow as c_int) + 1 < tui.grid.height
+            && (linerow as i32) + 1 < tui.grid.height
         {
-            if endcol as c_int != tui.grid.width {
+            if endcol as i32 != tui.grid.width {
                 let last_col = (tui.grid.width - 1) as usize;
                 let (target_col, cell, size) = {
                     let cells = &tui.grid.cells;
@@ -2450,7 +2443,7 @@ pub fn tui_raw_line(
                     let target_col = tui.grid.width - size;
                     (target_col, row_cells[target_col as usize], size)
                 };
-                print_cell_at_pos(tui, linerow as c_int, target_col, cell, size == 2);
+                print_cell_at_pos(tui, linerow as i32, target_col, cell, size == 2);
             }
 
             final_column_wrap(tui);
@@ -2458,7 +2451,7 @@ pub fn tui_raw_line(
     }
 }
 
-fn invalidate(tui: &mut TUIData, top: c_int, bot: c_int, left: c_int, right: c_int) {
+fn invalidate(tui: &mut TUIData, top: i32, bot: i32, left: i32, right: i32) {
     if let Some(intersects) = tui
         .invalid_regions
         .iter_mut()
@@ -2478,14 +2471,14 @@ fn invalidate(tui: &mut TUIData, top: c_int, bot: c_int, left: c_int, right: c_i
     }
 }
 
-pub fn tui_set_size(tui: &mut TUIData, width: c_int, height: c_int) {
+pub fn tui_set_size(tui: &mut TUIData, width: i32, height: i32) {
     tui.pending_resize_events += 1;
     tui.width = width;
     tui.height = height;
     ui_client_set_size(width, height);
 }
 
-fn parse_sscanf_int(val: impl crate::strings::IntoCCharPtr, out: &mut c_int) -> bool {
+fn parse_sscanf_int(val: impl crate::strings::IntoCCharPtr, out: &mut i32) -> bool {
     let val = val.into_c_char_ptr();
     if val.is_null() {
         return false;
@@ -2510,7 +2503,7 @@ fn parse_sscanf_int(val: impl crate::strings::IntoCCharPtr, out: &mut c_int) -> 
         return false;
     }
     if let Ok(s) = std::str::from_utf8(&bytes[start..idx])
-        && let Ok(v) = s.parse::<c_int>()
+        && let Ok(v) = s.parse::<i32>()
     {
         *out = v;
         return true;
@@ -2520,8 +2513,8 @@ fn parse_sscanf_int(val: impl crate::strings::IntoCCharPtr, out: &mut c_int) -> 
 
 pub fn tui_guess_size(tui: &mut TUIData) {
     unsafe {
-        let mut width: c_int = 0;
-        let mut height: c_int = 0;
+        let mut width: i32 = 0;
+        let mut height: i32 = 0;
 
         let mut got_size = false;
         if tui.out_isatty
@@ -2603,15 +2596,15 @@ fn terminfo_out(tui: &mut TUIData, what: TerminfoDef) {
     terminfo_print(tui, what, null_params.as_mut_ptr());
 }
 
-fn terminfo_print_num1(tui: &mut TUIData, what: TerminfoDef, num: c_int) {
+fn terminfo_print_num1(tui: &mut TUIData, what: TerminfoDef, num: i32) {
     terminfo_print_num(tui, what, num, 0, 0);
 }
 
-fn terminfo_print_num2(tui: &mut TUIData, what: TerminfoDef, num1: c_int, num2: c_int) {
+fn terminfo_print_num2(tui: &mut TUIData, what: TerminfoDef, num1: i32, num2: i32) {
     terminfo_print_num(tui, what, num1, num2, 0);
 }
 
-fn terminfo_print_num(tui: &mut TUIData, what: TerminfoDef, num1: c_int, num2: c_int, num3: c_int) {
+fn terminfo_print_num(tui: &mut TUIData, what: TerminfoDef, num1: i32, num2: i32, num3: i32) {
     let mut params = [TPVAR::default(); 9];
     params[0].num = i64::from(num1);
     params[1].num = i64::from(num2);
@@ -2688,8 +2681,8 @@ fn patch_terminfo_bugs(
     tui: &mut TUIData,
     term: impl crate::strings::IntoCCharPtr,
     colorterm: impl crate::strings::IntoCCharPtr,
-    vte_version: c_int,
-    konsolev: c_int,
+    vte_version: i32,
+    konsolev: i32,
     iterm_env: bool,
     nsterm: bool,
 ) {
@@ -2866,8 +2859,8 @@ fn patch_terminfo_bugs(
 fn augment_terminfo(
     tui: &mut TUIData,
     term: impl crate::strings::IntoCCharPtr,
-    vte_version: c_int,
-    konsolev: c_int,
+    vte_version: i32,
+    konsolev: i32,
     weztermv: impl crate::strings::IntoCCharPtr,
     iterm_env: bool,
     nsterm: bool,
@@ -3095,7 +3088,7 @@ fn flush_buf_raw(
                     req.as_mut_ptr().cast(),
                     tui_output_handle(tui).cast(),
                     bufs.as_ptr(),
-                    nbufs as c_uint,
+                    nbufs as u32,
                     None,
                 );
                 if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {

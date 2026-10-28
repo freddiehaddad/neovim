@@ -1,7 +1,5 @@
 //! Diff `linematch` dynamic-programming alignment algorithm (`src/nvim/linematch.c`).
 
-use std::ffi::c_int;
-
 const LN_MAX_BUFS: usize = 8;
 const LN_DECISION_MAX: usize = (1 << LN_MAX_BUFS) - 1;
 const MATCH_CHAR_MAX_LEN: usize = 800;
@@ -11,10 +9,10 @@ use crate::cursor::Linenr;
 use crate::xdiff::Mmfile;
 
 struct DiffCmpPath {
-    df_lev_score: c_int,
+    df_lev_score: i32,
     df_path_n: usize,
-    df_choice_mem: [c_int; LN_DECISION_MAX + 1],
-    df_choice: [c_int; LN_DECISION_MAX],
+    df_choice_mem: [i32; LN_DECISION_MAX + 1],
+    df_choice: [i32; LN_DECISION_MAX],
     df_decision: [usize; LN_DECISION_MAX],
     df_optimal_choice: usize,
 }
@@ -46,10 +44,10 @@ fn line_slice<'a>(m: &Mmfile) -> &'a [u8] {
     &raw[..len.min(MATCH_CHAR_MAX_LEN - 1)]
 }
 
-fn matching_chars_slice(s1: &[u8], s2: &[u8]) -> c_int {
+fn matching_chars_slice(s1: &[u8], s2: &[u8]) -> i32 {
     let s1len = s1.len().min(MATCH_CHAR_MAX_LEN - 1);
     let s2len = s2.len().min(MATCH_CHAR_MAX_LEN - 1);
-    let mut matrix = [[0 as c_int; MATCH_CHAR_MAX_LEN]; 2];
+    let mut matrix = [[0_i32; MATCH_CHAR_MAX_LEN]; 2];
     let mut icur = 1usize;
 
     for &c1 in &s1[..s1len] {
@@ -79,7 +77,7 @@ fn matching_chars_slice(s1: &[u8], s2: &[u8]) -> c_int {
     matrix[icur][s2len]
 }
 
-fn matching_chars_iwhite(s1: &Mmfile, s2: &Mmfile) -> c_int {
+fn matching_chars_iwhite(s1: &Mmfile, s2: &Mmfile) -> i32 {
     let b1 = line_slice(s1);
     let b2 = line_slice(s2);
 
@@ -104,15 +102,15 @@ fn matching_chars_iwhite(s1: &Mmfile, s2: &Mmfile) -> c_int {
     matching_chars_slice(&p1[..len1], &p2[..len2])
 }
 
-fn matching_chars(m1: &Mmfile, m2: &Mmfile) -> c_int {
+fn matching_chars(m1: &Mmfile, m2: &Mmfile) -> i32 {
     let b1 = line_slice(m1);
     let b2 = line_slice(m2);
     matching_chars_slice(b1, b2)
 }
 
-fn count_n_matched_chars(sp: &[Mmfile], iwhite: bool) -> c_int {
-    let mut matched_chars: c_int = 0;
-    let mut matched: c_int = 0;
+fn count_n_matched_chars(sp: &[Mmfile], iwhite: bool) -> i32 {
+    let mut matched_chars: i32 = 0;
+    let mut matched: i32 = 0;
     let n = sp.len();
 
     for i in 0..n {
@@ -149,7 +147,7 @@ pub fn fastforward_buf_to_lnum(mut s: Mmfile, lnum: Linenr) -> Mmfile {
         let slice = { crate::memory::cstr_slice(s.ptr, s.size as usize) };
         if let Some(pos) = slice.iter().position(|&b| b == b'\n') {
             s.ptr = unsafe { s.ptr.add(pos + 1) };
-            s.size -= (pos as c_int) + 1;
+            s.size -= (pos as i32) + 1;
         } else {
             s.ptr = std::ptr::null_mut();
             s.size = 0;
@@ -159,7 +157,7 @@ pub fn fastforward_buf_to_lnum(mut s: Mmfile, lnum: Linenr) -> Mmfile {
     s
 }
 
-fn unwrap_indexes(values: &[c_int], diff_len: &[c_int]) -> usize {
+fn unwrap_indexes(values: &[i32], diff_len: &[i32]) -> usize {
     let mut num_unwrap_scalar = 1usize;
     for &dl in diff_len {
         num_unwrap_scalar *= (dl as usize) + 1;
@@ -174,19 +172,19 @@ fn unwrap_indexes(values: &[c_int], diff_len: &[c_int]) -> usize {
 }
 
 fn try_possible_paths(
-    df_iters: &[c_int],
+    df_iters: &[i32],
     paths: &[usize],
     path_idx: usize,
-    choice: &mut c_int,
+    choice: &mut i32,
     diffcmppath: &mut [DiffCmpPath],
-    diff_len: &[c_int],
+    diff_len: &[i32],
     diff_blk: &[Mmfile],
     iwhite: bool,
 ) {
     let ndiffs = diff_len.len();
     if path_idx == paths.len() {
         if *choice > 0 {
-            let mut from_vals = [0 as c_int; LN_MAX_BUFS];
+            let mut from_vals = [0_i32; LN_MAX_BUFS];
             let mut mm = [Mmfile {
                 ptr: std::ptr::null_mut(),
                 size: 0,
@@ -247,10 +245,10 @@ fn try_possible_paths(
 }
 
 fn populate_tensor(
-    df_iters: &mut [c_int; LN_MAX_BUFS],
+    df_iters: &mut [i32; LN_MAX_BUFS],
     ch_dim: usize,
     diffcmppath: &mut [DiffCmpPath],
-    diff_len: &[c_int],
+    diff_len: &[i32],
     diff_blk: &[Mmfile],
     iwhite: bool,
 ) {
@@ -264,7 +262,7 @@ fn populate_tensor(
                 npaths += 1;
             }
         }
-        let mut choice: c_int = 0;
+        let mut choice: i32 = 0;
         let unwrapped_idx_to = unwrap_indexes(&df_iters[..ndiffs], diff_len);
         diffcmppath[unwrapped_idx_to].df_lev_score = -1;
         try_possible_paths(
@@ -316,7 +314,7 @@ fn test_charmatch_paths(
                 }
             }
             diffcmppath[node_idx].df_optimal_choice = best_i;
-            diffcmppath[node_idx].df_choice_mem[lastdecision] = minimum_turns as c_int;
+            diffcmppath[node_idx].df_choice_mem[lastdecision] = minimum_turns as i32;
         }
     }
     diffcmppath[node_idx].df_choice_mem[lastdecision] as usize
@@ -327,7 +325,7 @@ fn test_charmatch_paths(
 /// # Safety
 /// Each `Mmfile` in `diff_blk` with a non-null `ptr` and `size > 0` must be valid for `size`
 /// bytes.
-pub fn linematch_nbuffers(diff_blk: &[&Mmfile], diff_len: &[c_int], iwhite: bool) -> Vec<c_int> {
+pub fn linematch_nbuffers(diff_blk: &[&Mmfile], diff_len: &[i32], iwhite: bool) -> Vec<i32> {
     let ndiffs = diff_blk.len();
     assert_eq!(ndiffs, diff_len.len());
     assert!(ndiffs <= LN_MAX_BUFS);
@@ -349,7 +347,7 @@ pub fn linematch_nbuffers(diff_blk: &[&Mmfile], diff_len: &[c_int], iwhite: bool
     let n = 1usize << ndiffs;
     let mut diffcmppath: Vec<DiffCmpPath> = (0..memsize).map(|_| DiffCmpPath::new(n)).collect();
 
-    let mut df_iters = [0 as c_int; LN_MAX_BUFS];
+    let mut df_iters = [0_i32; LN_MAX_BUFS];
     populate_tensor(
         &mut df_iters,
         0,
@@ -386,11 +384,11 @@ mod tests {
 
         let mm1 = Mmfile {
             ptr: buf1.as_ptr().cast::<c_char>().cast_mut(),
-            size: buf1.len() as c_int,
+            size: buf1.len() as i32,
         };
         let mm2 = Mmfile {
             ptr: buf2.as_ptr().cast::<c_char>().cast_mut(),
-            size: buf2.len() as c_int,
+            size: buf2.len() as i32,
         };
 
         let line2 = fastforward_buf_to_lnum(mm1, 2);

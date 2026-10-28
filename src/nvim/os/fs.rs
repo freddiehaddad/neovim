@@ -32,8 +32,7 @@ use crate::strings::gettext;
 use crate::strings::strerror;
 use crate::ui::ui_call_chdir;
 #[cfg(windows)]
-use std::ffi::c_uint;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_void};
 use std::ptr;
 
 pub(crate) const MAXPATHL: usize = 4096;
@@ -93,7 +92,7 @@ pub struct FileInfo {
     pub prefix_off: usize,
     pub root_off: usize,
     pub rest_off: usize,
-    pub r#type: c_int,
+    pub r#type: i32,
 }
 
 impl FileInfo {
@@ -160,42 +159,42 @@ pub type uv_fs_buf_t = [u64; 80];
 #[cfg(any(unix, test))]
 use crate::event::r#loop::{uv_fs_fchown, uv_gid_t, uv_uid_t};
 
-const NODE_NORMAL: c_int = 0;
-pub(crate) const NODE_OTHER: c_int = 2;
+const NODE_NORMAL: i32 = 0;
+pub(crate) const NODE_OTHER: i32 = 2;
 
-const K_PATH_GENERIC: c_int = 1;
+const K_PATH_GENERIC: i32 = 1;
 #[cfg(windows)]
-const K_PATH_DRIVE: c_int = 2;
+const K_PATH_DRIVE: i32 = 2;
 #[cfg(windows)]
-const K_PATH_UNC: c_int = 3;
+const K_PATH_UNC: i32 = 3;
 #[cfg(windows)]
-const K_PATH_DEVICE: c_int = 4;
+const K_PATH_DEVICE: i32 = 4;
 
-const UV_FS: c_int = 6;
+const UV_FS: i32 = 6;
 
-pub(crate) const UV_EOF: c_int = -4095;
-pub(crate) const UV_UNKNOWN: c_int = -4094;
+pub(crate) const UV_EOF: i32 = -4095;
+pub(crate) const UV_UNKNOWN: i32 = -4094;
 
-pub(crate) const UV_ENOENT: c_int = if cfg!(windows) { -4058 } else { -2 };
-pub(crate) const UV_EINTR: c_int = if cfg!(windows) { -4072 } else { -4 };
-pub(crate) const UV_EINVAL: c_int = if cfg!(windows) { -4071 } else { -22 };
-pub(crate) const UV_EIO: c_int = if cfg!(windows) { -4070 } else { -5 };
-pub(crate) const UV_EROFS: c_int = if cfg!(windows) { -4043 } else { -30 };
-pub(crate) const UV_ENOTSUP: c_int = if cfg!(windows) {
+pub(crate) const UV_ENOENT: i32 = if cfg!(windows) { -4058 } else { -2 };
+pub(crate) const UV_EINTR: i32 = if cfg!(windows) { -4072 } else { -4 };
+pub(crate) const UV_EINVAL: i32 = if cfg!(windows) { -4071 } else { -22 };
+pub(crate) const UV_EIO: i32 = if cfg!(windows) { -4070 } else { -5 };
+pub(crate) const UV_EROFS: i32 = if cfg!(windows) { -4043 } else { -30 };
+pub(crate) const UV_ENOTSUP: i32 = if cfg!(windows) {
     -4049
 } else if cfg!(target_os = "linux") {
     -95
 } else {
     -45
 };
-pub(crate) const UV_ENOBUFS: c_int = if cfg!(windows) {
+pub(crate) const UV_ENOBUFS: i32 = if cfg!(windows) {
     -4060
 } else if cfg!(target_os = "linux") {
     -105
 } else {
     -55
 };
-const UV_EAGAIN: c_int = if cfg!(windows) {
+const UV_EAGAIN: i32 = if cfg!(windows) {
     -4088
 } else if cfg!(target_os = "linux") {
     -11
@@ -206,38 +205,38 @@ const UV_EAGAIN: c_int = if cfg!(windows) {
 const S_IFBLK: u64 = 0o060000;
 pub(crate) const S_IFLNK: u64 = 0o120000;
 
-const R_OK: c_int = 4;
-const W_OK: c_int = 2;
+const R_OK: i32 = 4;
+const W_OK: i32 = 2;
 #[cfg(unix)]
-const X_OK: c_int = 1;
+const X_OK: i32 = 1;
 
-pub(crate) const O_WRONLY: c_int = 1;
-pub(crate) const O_RDWR: c_int = 2;
-pub(crate) const O_CREAT: c_int = if cfg!(windows) {
+pub(crate) const O_WRONLY: i32 = 1;
+pub(crate) const O_RDWR: i32 = 2;
+pub(crate) const O_CREAT: i32 = if cfg!(windows) {
     0x0100
 } else if cfg!(target_os = "linux") {
     0o100
 } else {
     0x0200
 };
-pub(crate) const O_TRUNC: c_int = if cfg!(any(windows, target_os = "linux")) {
+pub(crate) const O_TRUNC: i32 = if cfg!(any(windows, target_os = "linux")) {
     0x0200
 } else {
     0x0400
 };
-pub(crate) const O_EXCL: c_int = if cfg!(windows) {
+pub(crate) const O_EXCL: i32 = if cfg!(windows) {
     0x0400
 } else if cfg!(target_os = "linux") {
     0o200
 } else {
     0x0800
 };
-pub(crate) const O_APPEND: c_int = if cfg!(target_os = "linux") {
+pub(crate) const O_APPEND: i32 = if cfg!(target_os = "linux") {
     0o2000
 } else {
     0x0008
 };
-pub(crate) const O_NOFOLLOW: c_int = if cfg!(windows) {
+pub(crate) const O_NOFOLLOW: i32 = if cfg!(windows) {
     0
 } else if cfg!(all(
     target_os = "linux",
@@ -254,29 +253,29 @@ pub(crate) const CASE_INSENSITIVE_FILENAME: bool =
     cfg!(any(target_os = "windows", target_os = "macos"));
 
 #[cfg(windows)]
-pub(crate) const O_BINARY: c_int = 0x8000;
+pub(crate) const O_BINARY: i32 = 0x8000;
 pub(crate) const ENV_SEPCHAR: u8 = if cfg!(windows) { b';' } else { b':' };
 #[cfg_attr(not(windows), cfg(test))]
 pub(crate) const ENV_SEPSTR: &CStr = if cfg!(windows) { c";" } else { c":" };
 pub(crate) const PATHSEP: c_char = b'/' as c_char;
 pub(crate) const PATHSEPSTR: &CStr = c"/";
 #[cfg(not(windows))]
-const F_GETFD: c_int = 1;
+const F_GETFD: i32 = 1;
 #[cfg(not(windows))]
-const F_SETFD: c_int = 2;
+const F_SETFD: i32 = 2;
 #[cfg(not(windows))]
-const FD_CLOEXEC: c_int = 1;
+const FD_CLOEXEC: i32 = 1;
 
 #[cfg(target_os = "linux")]
-const E2BIG: c_int = 7;
+const E2BIG: i32 = 7;
 #[cfg(target_os = "linux")]
-const EACCES: c_int = 13;
+const EACCES: i32 = 13;
 #[cfg(target_os = "linux")]
-const EPERM: c_int = 1;
+const EPERM: i32 = 1;
 #[cfg(target_os = "linux")]
-const ERANGE: c_int = 34;
+const ERANGE: i32 = 34;
 #[cfg(target_os = "linux")]
-const ENOTSUP: c_int = 95;
+const ENOTSUP: i32 = 95;
 
 #[repr(C)]
 pub struct NvimStats {
@@ -288,7 +287,7 @@ pub struct NvimStats {
 #[repr(C)]
 pub struct uv_dirent_t {
     pub name: *const c_char,
-    pub r#type: c_int,
+    pub r#type: i32,
 }
 
 #[cfg(unix)]
@@ -346,7 +345,7 @@ struct IShellLinkWVtbl {
     get_path: unsafe extern "system" fn(
         this: *mut IShellLinkW,
         psz_file: *mut u16,
-        cch: c_int,
+        cch: i32,
         pfd: *mut c_void,
         f_flags: u32,
     ) -> i32,
@@ -410,10 +409,10 @@ unsafe extern "C" {
     #[cfg_attr(windows, link_name = "_errno")]
     #[cfg_attr(target_os = "linux", link_name = "__errno_location")]
     #[cfg_attr(all(not(windows), not(target_os = "linux")), link_name = "__error")]
-    pub fn errno_ptr() -> *mut c_int;
+    pub fn errno_ptr() -> *mut i32;
 
     #[cfg(not(windows))]
-    fn readv(fd: c_int, iov: *const iovec, iovcnt: c_int) -> isize;
+    fn readv(fd: i32, iov: *const iovec, iovcnt: i32) -> isize;
 
     #[cfg(target_os = "linux")]
     fn listxattr(path: *const c_char, list: *mut c_char, size: usize) -> isize;
@@ -426,13 +425,13 @@ unsafe extern "C" {
         name: *const c_char,
         value: *const c_void,
         size: usize,
-        flags: c_int,
-    ) -> c_int;
+        flags: i32,
+    ) -> i32;
 }
 
 #[cfg(windows)]
 unsafe extern "system" {
-    fn SetHandleInformation(hObject: *mut c_void, dwMask: u32, dwFlags: u32) -> c_int;
+    fn SetHandleInformation(hObject: *mut c_void, dwMask: u32, dwFlags: u32) -> i32;
     fn CoInitialize(pvReserved: *mut c_void) -> i32;
     fn CoUninitialize();
     fn CoCreateInstance(
@@ -476,19 +475,19 @@ pub const fn s_issock(m: u64) -> bool {
 }
 
 #[inline]
-pub fn os_errno() -> c_int {
+pub fn os_errno() -> i32 {
     unsafe { *errno_ptr() }
 }
 
 #[inline]
-pub fn os_set_errno(val: c_int) {
+pub fn os_set_errno(val: i32) {
     unsafe {
         *errno_ptr() = val;
     }
 }
 
 /// Changes the current directory to `path`.
-pub fn os_chdir(path: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn os_chdir(path: impl crate::strings::IntoCCharPtr) -> i32 {
     let path = path.into_c_char_ptr();
     unsafe {
         if opt_vars().p_verbose >= 5 {
@@ -546,7 +545,7 @@ pub fn os_isdir(name: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 /// Check what `name` is (`NODE_NORMAL`, `NODE_WRITABLE`, or `NODE_OTHER`).
-pub fn os_nodetype(name: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn os_nodetype(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
     #[cfg(not(windows))]
     {
@@ -583,7 +582,7 @@ pub fn os_nodetype(name: impl crate::strings::IntoCCharPtr) -> c_int {
 }
 
 /// Gets the absolute path of the currently running executable.
-pub fn os_exepath(buffer: *mut c_char, size: &mut usize) -> c_int {
+pub fn os_exepath(buffer: *mut c_char, size: &mut usize) -> i32 {
     unsafe {
         let r = uv_exepath(buffer, size);
         to_slash(buffer);
@@ -774,7 +773,7 @@ fn is_executable_in_path(
 }
 
 /// Opens or creates a file and returns a file descriptor, or negative libuv error code.
-pub fn os_open(path: impl crate::strings::IntoCCharPtr, flags: c_int, mode: c_int) -> c_int {
+pub fn os_open(path: impl crate::strings::IntoCCharPtr, flags: i32, mode: i32) -> i32 {
     let path = path.into_c_char_ptr();
     if path.is_null() {
         return UV_EINVAL;
@@ -860,7 +859,7 @@ pub fn os_fopen(
 }
 
 /// Sets file descriptor `fd` to close-on-exec (Unix) or non-inheritable (Windows).
-pub fn os_set_cloexec(fd: c_int) -> c_int {
+pub fn os_set_cloexec(fd: i32) -> i32 {
     #[cfg(not(windows))]
     unsafe {
         let fdflags = fcntl(fd, F_GETFD);
@@ -870,7 +869,7 @@ pub fn os_set_cloexec(fd: c_int) -> c_int {
                 4,
                 ptr::null(),
                 c"os_set_cloexec",
-                line!() as c_int,
+                line!() as i32,
                 true,
                 c"Failed to get flags on descriptor %d: %s",
                 fd,
@@ -885,7 +884,7 @@ pub fn os_set_cloexec(fd: c_int) -> c_int {
                 4,
                 ptr::null(),
                 c"os_set_cloexec",
-                line!() as c_int,
+                line!() as i32,
                 true,
                 c"Failed to set CLOEXEC on descriptor %d: %s",
                 fd,
@@ -907,7 +906,7 @@ pub fn os_set_cloexec(fd: c_int) -> c_int {
 }
 
 /// Close a file.
-pub fn os_close(fd: c_int) -> c_int {
+pub fn os_close(fd: i32) -> i32 {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_close(ptr::null_mut(), &raw mut req, fd, ptr::null());
@@ -917,7 +916,7 @@ pub fn os_close(fd: c_int) -> c_int {
 }
 
 /// Duplicate file descriptor.
-pub fn os_dup(fd: c_int) -> c_int {
+pub fn os_dup(fd: i32) -> i32 {
     unsafe {
         loop {
             let ret = dup(fd);
@@ -938,7 +937,7 @@ pub fn os_dup(fd: c_int) -> c_int {
 
 /// Duplicates file descriptor `fd` and marks the copy close-on-exec.
 #[cfg(windows)]
-pub fn os_dup_cloexec(fd: c_int) -> c_int {
+pub fn os_dup_cloexec(fd: i32) -> i32 {
     let newfd = os_dup(fd);
     if newfd >= 0 {
         let _ = os_set_cloexec(newfd);
@@ -947,7 +946,7 @@ pub fn os_dup_cloexec(fd: c_int) -> c_int {
 }
 
 /// Open the file descriptor for stdin.
-pub fn os_open_stdin_fd() -> c_int {
+pub fn os_open_stdin_fd() -> i32 {
     if g_st().stdin_fd > 0 {
         g_st().stdin_fd
     } else {
@@ -960,7 +959,7 @@ pub fn os_open_stdin_fd() -> c_int {
 
 /// Read from a file.
 pub fn os_read(
-    fd: c_int,
+    fd: i32,
     ret_eof: &mut bool,
     ret_buf: *mut c_char,
     size: usize,
@@ -980,7 +979,7 @@ pub fn os_read(
                 let cur_read_bytes = _read(
                     fd,
                     ret_buf.add(read_bytes).cast(),
-                    (size - read_bytes) as c_uint,
+                    (size - read_bytes) as u32,
                 ) as isize;
                 #[cfg(not(windows))]
                 let cur_read_bytes = read(fd, ret_buf.add(read_bytes).cast(), size - read_bytes);
@@ -1013,7 +1012,7 @@ pub fn os_read(
 /// Read from a file to multiple buffers at once.
 #[cfg(unix)]
 pub fn os_readv(
-    fd: c_int,
+    fd: i32,
     ret_eof: &mut bool,
     mut iov: *mut iovec,
     mut iov_size: usize,
@@ -1031,7 +1030,7 @@ pub fn os_readv(
                 toread += len;
             }
             while read_bytes < toread && iov_size != 0 && !*ret_eof {
-                let mut cur_read_bytes = readv(fd, iov, iov_size as c_int);
+                let mut cur_read_bytes = readv(fd, iov, iov_size as i32);
                 if cur_read_bytes == 0 {
                     *ret_eof = true;
                 }
@@ -1077,7 +1076,7 @@ pub fn os_readv(
 
 /// Write to a file.
 pub fn os_write(
-    fd: c_int,
+    fd: i32,
     buf: impl crate::strings::IntoCCharPtr,
     size: usize,
     non_blocking: bool,
@@ -1095,7 +1094,7 @@ pub fn os_write(
             let cur_written_bytes = _write(
                 fd,
                 buf.add(written_bytes).cast(),
-                (size - written_bytes) as c_uint,
+                (size - written_bytes) as u32,
             ) as isize;
             #[cfg(not(windows))]
             let cur_written_bytes = write(fd, buf.add(written_bytes).cast(), size - written_bytes);
@@ -1127,8 +1126,8 @@ pub fn os_write(
 pub fn os_copy(
     path: impl crate::strings::IntoCCharPtr,
     new_path: impl crate::strings::IntoCCharPtr,
-    flags: c_int,
-) -> c_int {
+    flags: i32,
+) -> i32 {
     let path = path.into_c_char_ptr();
     let new_path = new_path.into_c_char_ptr();
     unsafe {
@@ -1147,7 +1146,7 @@ pub fn os_copy(
 }
 
 /// Flushes file modifications to disk.
-pub fn os_fsync(fd: c_int) -> c_int {
+pub fn os_fsync(fd: i32) -> i32 {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fsync(ptr::null_mut(), &raw mut req, fd, ptr::null());
@@ -1157,7 +1156,7 @@ pub fn os_fsync(fd: c_int) -> c_int {
     }
 }
 
-fn os_stat(name: impl crate::strings::IntoCCharPtr, statbuf: &mut uv_stat_t) -> c_int {
+fn os_stat(name: impl crate::strings::IntoCCharPtr, statbuf: &mut uv_stat_t) -> i32 {
     let name = name.into_c_char_ptr();
     if name.is_null() {
         return UV_EINVAL;
@@ -1186,7 +1185,7 @@ pub fn os_getperm(name: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 /// Set the permission of a file.
-pub fn os_setperm(name: impl crate::strings::IntoCCharPtr, perm: c_int) -> bool {
+pub fn os_setperm(name: impl crate::strings::IntoCCharPtr, perm: i32) -> bool {
     let name = name.into_c_char_ptr();
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
@@ -1198,7 +1197,7 @@ pub fn os_setperm(name: impl crate::strings::IntoCCharPtr, perm: c_int) -> bool 
 
 /// Set the permission of the file referred to by the open file descriptor.
 #[cfg(unix)]
-pub fn os_fsetperm(fd: c_int, perm: c_int) -> bool {
+pub fn os_fsetperm(fd: i32, perm: i32) -> bool {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchmod(ptr::null_mut(), &raw mut req, fd, perm, ptr::null());
@@ -1326,11 +1325,7 @@ pub fn os_file_owned(fname: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// Changes the owner and group of a file, like `chown(2)`.
 #[cfg(unix)]
-pub fn os_chown(
-    path: impl crate::strings::IntoCCharPtr,
-    owner: uv_uid_t,
-    group: uv_gid_t,
-) -> c_int {
+pub fn os_chown(path: impl crate::strings::IntoCCharPtr, owner: uv_uid_t, group: uv_gid_t) -> i32 {
     let path = path.into_c_char_ptr();
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
@@ -1349,7 +1344,7 @@ pub fn os_chown(
 
 /// Changes the owner and group of an open file descriptor, like `fchown(2)`.
 #[cfg_attr(not(unix), cfg(test))]
-pub fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) -> c_int {
+pub fn os_fchown(fd: i32, owner: uv_uid_t, group: uv_gid_t) -> i32 {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchown(ptr::null_mut(), &raw mut req, fd, owner, group, ptr::null());
@@ -1367,7 +1362,7 @@ pub fn os_path_exists(path: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// Sets file access and modification times.
 #[cfg(unix)]
-pub fn os_file_settime(path: impl crate::strings::IntoCCharPtr, atime: f64, mtime: f64) -> c_int {
+pub fn os_file_settime(path: impl crate::strings::IntoCCharPtr, atime: f64, mtime: f64) -> i32 {
     let path = path.into_c_char_ptr();
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
@@ -1396,7 +1391,7 @@ pub fn os_file_is_readable(name: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 /// Check if a file is writable (`0` = not writable, `1` = writable file, `2` = writable dir).
-pub fn os_file_is_writable(name: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn os_file_is_writable(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
@@ -1426,7 +1421,7 @@ pub fn os_rename(
 }
 
 /// Make a directory.
-pub fn os_mkdir(path: impl crate::strings::IntoCCharPtr, mode: i32) -> c_int {
+pub fn os_mkdir(path: impl crate::strings::IntoCCharPtr, mode: i32) -> i32 {
     let path = path.into_c_char_ptr();
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
@@ -1442,7 +1437,7 @@ pub fn os_mkdir_recurse(
     mode: i32,
     failed_dir: &mut Option<std::ffi::CString>,
     mut created: Option<&mut Option<std::ffi::CString>>,
-) -> c_int {
+) -> i32 {
     let dir = dir.into_c_char_ptr();
     unsafe {
         let dirlen = crate::memory::cstr_len(dir);
@@ -1499,12 +1494,12 @@ pub fn os_mkdir_recurse(
 }
 
 /// Create the parent directory of a file if it does not exist.
-pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
+pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> i32 {
     unsafe {
         if !dir_of_file_exists(fname) {
             let tail = path_tail_with_sep(fname);
             let last_char = tail.add(crate::memory::cstr_len(tail)).sub(1);
-            if vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(last_char))) {
+            if vim_ispathsep(i32::from(crate::memory::cstr_first_byte(last_char))) {
                 emsg(gettext(E_NONAME));
                 return -1;
             }
@@ -1527,7 +1522,7 @@ pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
 }
 
 /// Create a unique temporary directory.
-pub fn os_mkdtemp(templ: impl crate::strings::IntoCCharPtr, path: *mut c_char) -> c_int {
+pub fn os_mkdtemp(templ: impl crate::strings::IntoCCharPtr, path: *mut c_char) -> i32 {
     let templ = templ.into_c_char_ptr();
     unsafe {
         let mut request: uv_fs_buf_t = [0; 80];
@@ -1546,7 +1541,7 @@ pub fn os_mkdtemp(templ: impl crate::strings::IntoCCharPtr, path: *mut c_char) -
 }
 
 /// Remove a directory.
-pub fn os_rmdir(path: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn os_rmdir(path: impl crate::strings::IntoCCharPtr) -> i32 {
     let path = path.into_c_char_ptr();
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
@@ -1595,7 +1590,7 @@ pub fn os_closedir(dir: &mut Directory) {
 }
 
 /// Remove a file.
-pub fn os_remove(path: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn os_remove(path: impl crate::strings::IntoCCharPtr) -> i32 {
     let path = path.into_c_char_ptr();
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
@@ -1636,7 +1631,7 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
             return true;
         }
         if leading_slashes >= 2 && (p0 == b'?' || p0 == b'.') {
-            if !vim_ispathsep_nocolon(c_int::from(p1)) {
+            if !vim_ispathsep_nocolon(i32::from(p1)) {
                 return true;
             }
             info.r#type = K_PATH_DEVICE;
@@ -1648,7 +1643,7 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
                 (crate::memory::cstr_byte_at(p, 2)).to_ascii_lowercase(),
             ];
             if &p_bytes == b"unc"
-                && vim_ispathsep_nocolon(c_int::from(crate::memory::cstr_byte_at(p, 3)))
+                && vim_ispathsep_nocolon(i32::from(crate::memory::cstr_byte_at(p, 3)))
             {
                 info.r#type = K_PATH_DEVICE_UNC;
                 p = path_skip_sep(p.add(4), false);
@@ -1709,7 +1704,7 @@ pub fn os_fileinfo_link(path: impl crate::strings::IntoCCharPtr, file_info: &mut
 }
 
 /// Get the file information for a given file descriptor.
-pub fn os_fileinfo_fd(file_descriptor: c_int, file_info: &mut FileInfo) -> bool {
+pub fn os_fileinfo_fd(file_descriptor: i32, file_info: &mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::new();
         {

@@ -27,23 +27,23 @@ use crate::vterm::screen::{
 use crate::vterm::vterm::{
     vterm_push_output_ctrl_bytes, vterm_push_output_str_bytes, vterm_scroll_rect,
 };
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
-pub type VTermSelectionMask = c_int;
+pub type VTermSelectionMask = i32;
 
 const C1_DCS: u8 = 0x90;
 
-const VTERM_VERSION_MAJOR: c_int = 0;
-const VTERM_VERSION_MINOR: c_int = 3;
+const VTERM_VERSION_MAJOR: i32 = 0;
+const VTERM_VERSION_MINOR: i32 = 3;
 
-const KEY_ENCODING_DISAMBIGUATE: c_int = 0x01;
-const KEY_ENCODING_REPORT_EVENTS: c_int = 0x02;
-const KEY_ENCODING_REPORT_ALTERNATE: c_int = 0x04;
-const KEY_ENCODING_REPORT_ALL_KEYS: c_int = 0x08;
-const KEY_ENCODING_REPORT_ASSOCIATED: c_int = 0x10;
+const KEY_ENCODING_DISAMBIGUATE: i32 = 0x01;
+const KEY_ENCODING_REPORT_EVENTS: i32 = 0x02;
+const KEY_ENCODING_REPORT_ALTERNATE: i32 = 0x04;
+const KEY_ENCODING_REPORT_ALL_KEYS: i32 = 0x08;
+const KEY_ENCODING_REPORT_ASSOCIATED: i32 = 0x10;
 
-const MOUSE_WANT_CLICK: c_int = 0x01;
+const MOUSE_WANT_CLICK: i32 = 0x01;
 
 pub(crate) const VTERM_PROP_CURSORVISIBLE: VTermProp = 1;
 pub(crate) const VTERM_PROP_CURSORBLINK: VTermProp = 2;
@@ -55,14 +55,14 @@ pub(crate) const VTERM_PROP_FOCUSREPORT: VTermProp = 9;
 pub(crate) const VTERM_PROP_THEMEUPDATES: VTermProp = 10;
 pub(crate) const VTERM_PROP_SYNCOUTPUT: VTermProp = 11;
 
-pub(crate) const VTERM_PROP_CURSORSHAPE_BLOCK: c_int = 1;
-pub(crate) const VTERM_PROP_CURSORSHAPE_UNDERLINE: c_int = 2;
-pub(crate) const VTERM_PROP_CURSORSHAPE_BAR_LEFT: c_int = 3;
+pub(crate) const VTERM_PROP_CURSORSHAPE_BLOCK: i32 = 1;
+pub(crate) const VTERM_PROP_CURSORSHAPE_UNDERLINE: i32 = 2;
+pub(crate) const VTERM_PROP_CURSORSHAPE_BAR_LEFT: i32 = 3;
 
-const VTERM_PROP_MOUSE_NONE: c_int = 0;
-const VTERM_PROP_MOUSE_CLICK: c_int = 1;
-const VTERM_PROP_MOUSE_DRAG: c_int = 2;
-const VTERM_PROP_MOUSE_MOVE: c_int = 3;
+const VTERM_PROP_MOUSE_NONE: i32 = 0;
+const VTERM_PROP_MOUSE_CLICK: i32 = 1;
+const VTERM_PROP_MOUSE_DRAG: i32 = 2;
+const VTERM_PROP_MOUSE_MOVE: i32 = 3;
 
 pub(crate) const VTERM_SELECTION_CLIPBOARD: u16 = 1 << 0;
 pub(crate) const VTERM_SELECTION_PRIMARY: u16 = 1 << 1;
@@ -77,15 +77,15 @@ const SELECTION_SET_INITIAL: u8 = 3;
 const SELECTION_SET: u8 = 4;
 const SELECTION_INVALID: u8 = 5;
 
-const NO_FORCE: c_int = 0;
-const FORCE: c_int = 1;
+const NO_FORCE: i32 = 0;
+const FORCE: i32 = 1;
 
-const DWL_OFF: c_int = 0;
-const DWL_ON: c_int = 1;
+const DWL_OFF: i32 = 0;
+const DWL_ON: i32 = 1;
 
-const DHL_OFF: c_int = 0;
-const DHL_TOP: c_int = 1;
-const DHL_BOTTOM: c_int = 2;
+const DHL_OFF: i32 = 0;
+const DHL_TOP: i32 = 1;
+const DHL_BOTTOM: i32 = 2;
 
 const MODE_KEYPAD: u32 = 1 << 0;
 const MODE_CURSOR: u32 = 1 << 1;
@@ -108,7 +108,7 @@ const MODE_SYNCHRONIZED_OUTPUT: u32 = 1 << 16;
 pub(crate) const VT_MODE_UTF8: u32 = 1 << 0;
 pub(crate) const VT_MODE_CTRL8BIT: u32 = 1 << 1;
 
-pub(crate) const CSI_ARG_MISSING: c_int = ((1u32 << 31) - 1) as c_int;
+pub(crate) const CSI_ARG_MISSING: i32 = ((1u32 << 31) - 1) as i32;
 
 /// Primary Device Attributes (DA1) response.
 #[unsafe(no_mangle)]
@@ -128,26 +128,25 @@ pub static vterm_primary_device_attr: crate::globals::GlobalState<[c_char; 9]> =
 
 #[repr(C)]
 pub struct VTermStateFallbacks {
-    pub control: Option<fn(control: u8, user: *mut Terminal) -> c_int>,
+    pub control: Option<fn(control: u8, user: *mut Terminal) -> i32>,
     pub csi: Option<crate::vterm::parser::VTermCsiFn<Terminal>>,
-    pub osc: Option<fn(command: c_int, frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
+    pub osc: Option<fn(command: i32, frag: VTermStringFragment, user: *mut Terminal) -> i32>,
     pub dcs: Option<crate::vterm::parser::VTermDcsFn<Terminal>>,
-    pub apc: Option<fn(frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
-    pub pm: Option<fn(frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
-    pub sos: Option<fn(frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
+    pub apc: Option<fn(frag: VTermStringFragment, user: *mut Terminal) -> i32>,
+    pub pm: Option<fn(frag: VTermStringFragment, user: *mut Terminal) -> i32>,
+    pub sos: Option<fn(frag: VTermStringFragment, user: *mut Terminal) -> i32>,
 }
 
 #[repr(C)]
 pub struct VTermSelectionCallbacks {
-    pub set: Option<
-        fn(mask: VTermSelectionMask, frag: VTermStringFragment, user: *mut Terminal) -> c_int,
-    >,
-    pub query: Option<fn(mask: VTermSelectionMask, user: *mut Terminal) -> c_int>,
+    pub set:
+        Option<fn(mask: VTermSelectionMask, frag: VTermStringFragment, user: *mut Terminal) -> i32>,
+    pub query: Option<fn(mask: VTermSelectionMask, user: *mut Terminal) -> i32>,
 }
 
 #[inline]
-pub(crate) const fn csi_arg(a: i64) -> c_int {
-    ((a as u32) & CSI_ARG_MASK_U32) as c_int
+pub(crate) const fn csi_arg(a: i64) -> i32 {
+    ((a as u32) & CSI_ARG_MASK_U32) as i32
 }
 
 #[inline]
@@ -161,7 +160,7 @@ pub(crate) const fn csi_arg_is_missing(a: i64) -> bool {
 }
 
 #[inline]
-const fn csi_arg_or(a: i64, def: c_int) -> c_int {
+const fn csi_arg_or(a: i64, def: i32) -> i32 {
     if csi_arg_is_missing(a) {
         def
     } else {
@@ -170,13 +169,13 @@ const fn csi_arg_or(a: i64, def: c_int) -> c_int {
 }
 
 #[inline]
-const fn csi_arg_count(a: i64) -> c_int {
+const fn csi_arg_count(a: i64) -> i32 {
     let v = csi_arg(a);
     if v == CSI_ARG_MISSING || v == 0 { 1 } else { v }
 }
 
 #[inline]
-fn scrollregion_bottom(state: &VTermStateFull) -> c_int {
+fn scrollregion_bottom(state: &VTermStateFull) -> i32 {
     if state.scrollregion_bottom > -1 {
         state.scrollregion_bottom
     } else {
@@ -185,7 +184,7 @@ fn scrollregion_bottom(state: &VTermStateFull) -> c_int {
 }
 
 #[inline]
-fn scrollregion_left(state: &VTermStateFull) -> c_int {
+fn scrollregion_left(state: &VTermStateFull) -> i32 {
     if (state.mode & MODE_LEFTRIGHTMARGIN) != 0 {
         state.scrollregion_left
     } else {
@@ -194,7 +193,7 @@ fn scrollregion_left(state: &VTermStateFull) -> c_int {
 }
 
 #[inline]
-fn scrollregion_right(state: &VTermStateFull) -> c_int {
+fn scrollregion_right(state: &VTermStateFull) -> i32 {
     if (state.mode & MODE_LEFTRIGHTMARGIN) != 0 && state.scrollregion_right > -1 {
         state.scrollregion_right
     } else {
@@ -203,7 +202,7 @@ fn scrollregion_right(state: &VTermStateFull) -> c_int {
 }
 
 #[inline]
-fn rowwidth(state: &VTermStateFull, row: c_int) -> c_int {
+fn rowwidth(state: &VTermStateFull, row: i32) -> i32 {
     if state.lineinfo()[row as usize].doublewidth() != 0 {
         state.cols / 2
     } else {
@@ -212,7 +211,7 @@ fn rowwidth(state: &VTermStateFull, row: c_int) -> c_int {
 }
 
 #[inline]
-fn thisrowwidth(state: &VTermStateFull) -> c_int {
+fn thisrowwidth(state: &VTermStateFull) -> i32 {
     rowwidth(state, state.pos.row)
 }
 
@@ -265,7 +264,7 @@ fn set_tmp_selection_recvpartial(state: &mut VTermStateFull, val: u32) {
     state.tmp.words[1] = val;
 }
 
-fn putglyph(state: &mut VTermStateFull, schar: Schar, width: c_int, pos: VTermPos) {
+fn putglyph(state: &mut VTermStateFull, schar: Schar, width: i32, pos: VTermPos) {
     let li = state.lineinfo()[pos.row as usize];
     let flags = (state.protected_cell & 0x01)
         | ((li.doublewidth() & 0x01) << 1)
@@ -283,7 +282,7 @@ fn putglyph(state: &mut VTermStateFull, schar: Schar, width: c_int, pos: VTermPo
     }
 }
 
-fn updatecursor(state: &mut VTermStateFull, oldpos: &VTermPos, cancel_phantom: c_int) {
+fn updatecursor(state: &mut VTermStateFull, oldpos: &VTermPos, cancel_phantom: i32) {
     if state.pos.col == oldpos.col && state.pos.row == oldpos.row {
         return;
     }
@@ -295,12 +294,12 @@ fn updatecursor(state: &mut VTermStateFull, oldpos: &VTermPos, cancel_phantom: c
     if let Some(callbacks) = state.callbacks
         && let Some(cb) = callbacks.movecursor
     {
-        let visible = c_int::from((state.mode & MODE_CURSOR_VISIBLE) != 0);
+        let visible = i32::from((state.mode & MODE_CURSOR_VISIBLE) != 0);
         let _ = cb(state.pos, *oldpos, visible, state.screen_ptr());
     }
 }
 
-fn erase(state: &mut VTermStateFull, rect: VTermRect, selective: c_int) {
+fn erase(state: &mut VTermStateFull, rect: VTermRect, selective: i32) {
     if rect.end_col == state.cols {
         let rows = state.rows;
         let lineinfo = state.lineinfo_mut();
@@ -388,7 +387,7 @@ fn vterm_state_new(vt: &mut VTerm) -> Box<VTermStateFull> {
     state
 }
 
-fn scroll(state: &mut VTermStateFull, rect: VTermRect, mut downward: c_int, mut rightward: c_int) {
+fn scroll(state: &mut VTermStateFull, rect: VTermRect, mut downward: i32, mut rightward: i32) {
     if downward == 0 && rightward == 0 {
         return;
     }
@@ -465,19 +464,19 @@ fn linefeed(state: &mut VTermStateFull) {
 }
 
 #[inline]
-fn set_col_tabstop(state: &mut VTermStateFull, col: c_int) {
+fn set_col_tabstop(state: &mut VTermStateFull, col: i32) {
     let mask = 1u8 << (col & 7);
     state.tabstops[(col >> 3) as usize] |= mask;
 }
 
 #[inline]
-fn clear_col_tabstop(state: &mut VTermStateFull, col: c_int) {
+fn clear_col_tabstop(state: &mut VTermStateFull, col: i32) {
     let mask = 1u8 << (col & 7);
     state.tabstops[(col >> 3) as usize] &= !mask;
 }
 
 #[inline]
-fn is_col_tabstop(state: &VTermStateFull, col: c_int) -> bool {
+fn is_col_tabstop(state: &VTermStateFull, col: i32) -> bool {
     let mask = 1u8 << (col & 7);
     (state.tabstops[(col >> 3) as usize] & mask) != 0
 }
@@ -494,7 +493,7 @@ fn is_cursor_in_scrollregion(state: &VTermStateFull) -> bool {
     true
 }
 
-fn tab(state: &mut VTermStateFull, mut count: c_int, direction: c_int) {
+fn tab(state: &mut VTermStateFull, mut count: i32, direction: i32) {
     while count > 0 {
         if direction > 0 {
             if state.pos.col >= thisrowwidth(state) - 1 {
@@ -514,7 +513,7 @@ fn tab(state: &mut VTermStateFull, mut count: c_int, direction: c_int) {
     }
 }
 
-fn set_lineinfo(state: &mut VTermStateFull, row: c_int, force: c_int, dwl: c_int, dhl: c_int) {
+fn set_lineinfo(state: &mut VTermStateFull, row: i32, force: i32, dwl: i32, dhl: i32) {
     let oldinfo = state.lineinfo()[row as usize];
     let mut info = oldinfo;
 
@@ -542,7 +541,7 @@ fn set_lineinfo(state: &mut VTermStateFull, row: c_int, force: c_int, dwl: c_int
     }
 }
 
-fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_int {
+fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 {
     unsafe {
         let state = &mut *state;
         let oldpos = state.pos;
@@ -550,7 +549,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
         let mut codepoints = [0u32; 1024];
         let maxpoints = codepoints.len();
 
-        let mut npoints: c_int = 0;
+        let mut npoints: i32 = 0;
         let mut eaten: usize = 0;
 
         let mut encoding = if state.gsingle_set != 0 {
@@ -577,7 +576,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
         );
 
         if npoints == 0 {
-            return eaten as c_int;
+            return eaten as i32;
         }
 
         if state.gsingle_set != 0 && npoints != 0 {
@@ -593,8 +592,8 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
             && state.pos.col >= state.combine_pos.col
             && state.pos.col <= state.combine_pos.col + state.combine_width
             && utf_iscomposing(
-                state.grapheme_last as c_int,
-                codepoints[i] as c_int,
+                state.grapheme_last as i32,
+                codepoints[i] as i32,
                 &mut state.grapheme_state,
             )
         {
@@ -609,15 +608,15 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
             loop {
                 if grapheme_len < state.grapheme_buf.len() - 4 {
                     grapheme_len += utf_char2bytes(
-                        codepoints[i] as c_int,
+                        codepoints[i] as i32,
                         state.grapheme_buf.as_mut_ptr().add(grapheme_len),
                     ) as usize;
                 }
                 i += 1;
                 if i >= npoints as usize
                     || !utf_iscomposing(
-                        codepoints[i - 1] as c_int,
-                        codepoints[i] as c_int,
+                        codepoints[i - 1] as i32,
+                        codepoints[i] as i32,
                         &mut grapheme_state,
                     )
                 {
@@ -625,7 +624,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
                 }
             }
 
-            let mut scratch = grapheme_len as c_int;
+            let mut scratch = grapheme_len as i32;
             let ci = utf_ptr2_str_char_info_len(state.grapheme_buf.as_ptr(), scratch);
             let cli = utf_cluster_info_len(ci, &mut scratch);
             let width = cli.cells;
@@ -673,11 +672,11 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
 
         updatecursor(state, &oldpos, 0);
 
-        eaten as c_int
+        eaten as i32
     }
 }
 
-fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
+fn on_control(control: u8, state: *mut VTermStateFull) -> i32 {
     unsafe {
         let state = &mut *state;
         let oldpos = state.pos;
@@ -774,13 +773,13 @@ fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
 }
 
 #[inline]
-fn settermprop_bool(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
+fn settermprop_bool(state: &mut VTermStateFull, prop: VTermProp, v: i32) -> i32 {
     let mut val = VTermValue::Boolean(v);
     vterm_state_set_termprop(state, prop, &mut val)
 }
 
 #[inline]
-fn settermprop_int(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
+fn settermprop_int(state: &mut VTermStateFull, prop: VTermProp, v: i32) -> i32 {
     let mut val = VTermValue::Number(v);
     vterm_state_set_termprop(state, prop, &mut val)
 }
@@ -790,12 +789,12 @@ fn settermprop_string(
     state: &mut VTermStateFull,
     prop: VTermProp,
     frag: VTermStringFragment,
-) -> c_int {
+) -> i32 {
     let mut val = VTermValue::String(frag);
     vterm_state_set_termprop(state, prop, &mut val)
 }
 
-fn savecursor(state: &mut VTermStateFull, save: c_int) {
+fn savecursor(state: &mut VTermStateFull, save: i32) {
     if save != 0 {
         state.saved.pos = state.pos;
         let cv = u32::from((state.mode & MODE_CURSOR_VISIBLE) != 0);
@@ -809,9 +808,9 @@ fn savecursor(state: &mut VTermStateFull, save: c_int) {
 
         state.pos = state.saved.pos;
 
-        let cv = (state.saved.mode & 0x01) as c_int;
-        let cb = ((state.saved.mode >> 1) & 0x01) as c_int;
-        let cs = ((state.saved.mode >> 2) & 0x03) as c_int;
+        let cv = (state.saved.mode & 0x01) as i32;
+        let cb = ((state.saved.mode >> 1) & 0x01) as i32;
+        let cs = ((state.saved.mode >> 2) & 0x03) as i32;
 
         let _ = settermprop_bool(state, VTERM_PROP_CURSORVISIBLE, cv);
         let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, cb);
@@ -823,7 +822,7 @@ fn savecursor(state: &mut VTermStateFull, save: c_int) {
     }
 }
 
-fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_int {
+fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 {
     unsafe {
         let state = &mut *state;
         match crate::memory::cstr_first_byte(bytes) {
@@ -928,7 +927,7 @@ fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_
                 if let Some(callbacks) = state.callbacks
                     && let Some(cb) = callbacks.movecursor
                 {
-                    let visible = c_int::from((state.mode & MODE_CURSOR_VISIBLE) != 0);
+                    let visible = i32::from((state.mode & MODE_CURSOR_VISIBLE) != 0);
                     let _ = cb(state.pos, oldpos, visible, state.screen_ptr());
                 }
                 1
@@ -963,7 +962,7 @@ fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_
     }
 }
 
-fn set_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
+fn set_mode(state: &mut VTermStateFull, num: i32, val: i32) {
     match num {
         4 => {
             // IRM - ECMA-48 7.2.10
@@ -977,7 +976,7 @@ fn set_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
     }
 }
 
-fn set_dec_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
+fn set_dec_mode(state: &mut VTermStateFull, num: i32, val: i32) {
     match num {
         1 => {
             set_mode_bit(&mut state.mode, MODE_CURSOR, val != 0);
@@ -1065,7 +1064,7 @@ fn set_dec_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
     }
 }
 
-fn request_dec_mode(state: &mut VTermStateFull, num: c_int) {
+fn request_dec_mode(state: &mut VTermStateFull, num: i32) {
     unsafe {
         let reply = match num {
             1 => (state.mode & MODE_CURSOR) != 0,
@@ -1115,7 +1114,7 @@ fn request_key_encoding_flags(state: &mut VTermStateFull) {
         let stack = &state.key_encoding_stacks[screen];
         debug_assert!(stack.size > 0);
         let flags = stack.items[(stack.size - 1) as usize];
-        let mut reply: c_int = 0;
+        let mut reply: i32 = 0;
 
         if (flags & (KEY_ENCODING_DISAMBIGUATE as u8)) != 0 {
             reply |= KEY_ENCODING_DISAMBIGUATE;
@@ -1138,7 +1137,7 @@ fn request_key_encoding_flags(state: &mut VTermStateFull) {
     }
 }
 
-fn set_key_encoding_flags(state: &mut VTermStateFull, arg: c_int, mode: c_int) {
+fn set_key_encoding_flags(state: &mut VTermStateFull, arg: i32, mode: i32) {
     let set = mode != 3;
     let reset_unset = mode == 1;
     let _ = reset_unset;
@@ -1170,7 +1169,7 @@ fn set_key_encoding_flags(state: &mut VTermStateFull, arg: c_int, mode: c_int) {
     stack.items[(stack.size - 1) as usize] = flags;
 }
 
-fn push_key_encoding_flags(state: &mut VTermStateFull, arg: c_int) {
+fn push_key_encoding_flags(state: &mut VTermStateFull, arg: i32) {
     let screen = if (state.mode & MODE_ALT_SCREEN) != 0 {
         BUFIDX_ALTSCREEN
     } else {
@@ -1190,14 +1189,14 @@ fn push_key_encoding_flags(state: &mut VTermStateFull, arg: c_int) {
     set_key_encoding_flags(state, arg, 1);
 }
 
-fn pop_key_encoding_flags(state: &mut VTermStateFull, arg: c_int) {
+fn pop_key_encoding_flags(state: &mut VTermStateFull, arg: i32) {
     let screen = if (state.mode & MODE_ALT_SCREEN) != 0 {
         BUFIDX_ALTSCREEN
     } else {
         BUFIDX_PRIMARY
     };
     let stack = &mut state.key_encoding_stacks[screen];
-    if arg >= c_int::from(stack.size) {
+    if arg >= i32::from(stack.size) {
         stack.size = 1;
         stack.items[0] = 0;
     } else if arg > 0 {
@@ -1206,28 +1205,28 @@ fn pop_key_encoding_flags(state: &mut VTermStateFull, arg: c_int) {
 }
 
 #[inline]
-const fn leader(l: c_int, b: c_int) -> c_int {
+const fn leader(l: i32, b: i32) -> i32 {
     (l << 8) | b
 }
 
 #[inline]
-const fn intermed(i: c_int, b: c_int) -> c_int {
+const fn intermed(i: i32, b: i32) -> i32 {
     (i << 16) | b
 }
 
 fn on_csi(
     leader_ptr: *const c_char,
     args: *const i64,
-    argcount: c_int,
+    argcount: i32,
     intermed_ptr: *const c_char,
     command: c_char,
     state: *mut VTermStateFull,
-) -> c_int {
+) -> i32 {
     unsafe {
         let state = &mut *state;
-        let mut leader_byte: c_int = 0;
-        let mut intermed_byte: c_int = 0;
-        let mut cancel_phantom: c_int = 1;
+        let mut leader_byte: i32 = 0;
+        let mut intermed_byte: i32 = 0;
+        let mut cancel_phantom: i32 = 1;
 
         if !leader_ptr.is_null() && *leader_ptr != 0 {
             if *leader_ptr.add(1) != 0 {
@@ -1235,7 +1234,7 @@ fn on_csi(
             }
             match crate::memory::cstr_first_byte(leader_ptr) {
                 b'?' | b'>' | b'<' | b'=' => {
-                    leader_byte = c_int::from(crate::memory::cstr_first_byte(leader_ptr));
+                    leader_byte = i32::from(crate::memory::cstr_first_byte(leader_ptr));
                 }
                 _ => return 0,
             }
@@ -1247,33 +1246,33 @@ fn on_csi(
             }
             match crate::memory::cstr_first_byte(intermed_ptr) {
                 b' ' | b'!' | b'"' | b'$' | b'\'' => {
-                    intermed_byte = c_int::from(crate::memory::cstr_first_byte(intermed_ptr));
+                    intermed_byte = i32::from(crate::memory::cstr_first_byte(intermed_ptr));
                 }
                 _ => return 0,
             }
         }
 
         let oldpos = state.pos;
-        let cmd_val = (intermed_byte << 16) | (leader_byte << 8) | c_int::from(command as u8);
+        let cmd_val = (intermed_byte << 16) | (leader_byte << 8) | i32::from(command as u8);
 
-        const CMD_DECSED: c_int = leader(b'?' as c_int, 0x4a);
-        const CMD_DECSEL: c_int = leader(b'?' as c_int, 0x4b);
-        const CMD_DA2: c_int = leader(b'>' as c_int, 0x63);
-        const CMD_DECSET: c_int = leader(b'?' as c_int, 0x68);
-        const CMD_DECRST: c_int = leader(b'?' as c_int, 0x6c);
-        const CMD_DECSGR: c_int = leader(b'?' as c_int, 0x6d);
-        const CMD_DECDSR: c_int = leader(b'?' as c_int, 0x6e);
-        const CMD_DECSTR: c_int = intermed(b'!' as c_int, 0x70);
-        const CMD_DECRQM: c_int = leader(b'?' as c_int, intermed(b'$' as c_int, 0x70));
-        const CMD_XTVERSION: c_int = leader(b'>' as c_int, 0x71);
-        const CMD_DECSCUSR: c_int = intermed(b' ' as c_int, 0x71);
-        const CMD_DECSCA: c_int = intermed(b'"' as c_int, 0x71);
-        const CMD_KITTY_QUERY: c_int = leader(b'?' as c_int, 0x75);
-        const CMD_KITTY_PUSH: c_int = leader(b'>' as c_int, 0x75);
-        const CMD_KITTY_POP: c_int = leader(b'<' as c_int, 0x75);
-        const CMD_KITTY_SET: c_int = leader(b'=' as c_int, 0x75);
-        const CMD_DECIC: c_int = intermed(b'\'' as c_int, 0x7d);
-        const CMD_DECDC: c_int = intermed(b'\'' as c_int, 0x7e);
+        const CMD_DECSED: i32 = leader(b'?' as i32, 0x4a);
+        const CMD_DECSEL: i32 = leader(b'?' as i32, 0x4b);
+        const CMD_DA2: i32 = leader(b'>' as i32, 0x63);
+        const CMD_DECSET: i32 = leader(b'?' as i32, 0x68);
+        const CMD_DECRST: i32 = leader(b'?' as i32, 0x6c);
+        const CMD_DECSGR: i32 = leader(b'?' as i32, 0x6d);
+        const CMD_DECDSR: i32 = leader(b'?' as i32, 0x6e);
+        const CMD_DECSTR: i32 = intermed(b'!' as i32, 0x70);
+        const CMD_DECRQM: i32 = leader(b'?' as i32, intermed(b'$' as i32, 0x70));
+        const CMD_XTVERSION: i32 = leader(b'>' as i32, 0x71);
+        const CMD_DECSCUSR: i32 = intermed(b' ' as i32, 0x71);
+        const CMD_DECSCA: i32 = intermed(b'"' as i32, 0x71);
+        const CMD_KITTY_QUERY: i32 = leader(b'?' as i32, 0x75);
+        const CMD_KITTY_PUSH: i32 = leader(b'>' as i32, 0x75);
+        const CMD_KITTY_POP: i32 = leader(b'<' as i32, 0x75);
+        const CMD_KITTY_SET: i32 = leader(b'=' as i32, 0x75);
+        const CMD_DECIC: i32 = intermed(b'\'' as i32, 0x7d);
+        const CMD_DECDC: i32 = intermed(b'\'' as i32, 0x7e);
 
         match cmd_val {
             0x40 => {
@@ -1361,7 +1360,7 @@ fn on_csi(
             }
             0x4a | CMD_DECSED => {
                 // ED / DECSED
-                let selective = c_int::from(leader_byte == b'?' as c_int);
+                let selective = i32::from(leader_byte == b'?' as i32);
                 match csi_arg(*args) {
                     CSI_ARG_MISSING | 0 => {
                         let mut rect = VTermRect {
@@ -1430,7 +1429,7 @@ fn on_csi(
             }
             0x4b | CMD_DECSEL => {
                 // EL / DECSEL
-                let selective = c_int::from(leader_byte == b'?' as c_int);
+                let selective = i32::from(leader_byte == b'?' as i32);
                 let mut rect = VTermRect {
                     start_row: state.pos.row,
                     end_row: state.pos.row + 1,
@@ -1700,11 +1699,7 @@ fn on_csi(
             0x6e | CMD_DECDSR => {
                 // DSR / DECDSR
                 let val = csi_arg_or(*args, 0);
-                let qmark = if leader_byte == b'?' as c_int {
-                    "?"
-                } else {
-                    ""
-                };
+                let qmark = if leader_byte == b'?' as i32 { "?" } else { "" };
                 let mut dark = false;
 
                 match val {
@@ -2046,7 +2041,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
                     true,
                     0 as VTermTerminator,
                 );
-                let _ = set_cb(c_int::from(tmp_selection_mask(state)), empty_frag, sel_user);
+                let _ = set_cb(i32::from(tmp_selection_mask(state)), empty_frag, sel_user);
             }
             return;
         }
@@ -2064,7 +2059,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
             if let Some(sel_cbs) = sel_callbacks
                 && let Some(query_cb) = sel_cbs.query
             {
-                let _ = query_cb(c_int::from(tmp_selection_mask(state)), sel_user);
+                let _ = query_cb(i32::from(tmp_selection_mask(state)), sel_user);
             }
             return;
         }
@@ -2080,11 +2075,11 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
             let buflen = state.selection.buffer.len();
 
             let mut x: u32 = 0;
-            let mut n: c_int = 0;
+            let mut n: i32 = 0;
 
             let recvpartial = tmp_selection_recvpartial(state);
             if recvpartial != 0 {
-                n = (recvpartial >> 24) as c_int;
+                n = (recvpartial >> 24) as i32;
                 x = recvpartial & 0x03ffff;
                 set_tmp_selection_recvpartial(state, 0);
             }
@@ -2118,7 +2113,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
                             true,
                             0 as VTermTerminator,
                         );
-                        let _ = set_cb(c_int::from(tmp_selection_mask(state)), err_frag, sel_user);
+                        let _ = set_cb(i32::from(tmp_selection_mask(state)), err_frag, sel_user);
                         break;
                     }
 
@@ -2147,8 +2142,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
                             frag_final && frag_len == 0,
                             0 as VTermTerminator,
                         );
-                        let _ =
-                            set_cb(c_int::from(tmp_selection_mask(state)), chunk_frag, sel_user);
+                        let _ = set_cb(i32::from(tmp_selection_mask(state)), chunk_frag, sel_user);
                         set_tmp_selection_state(state, SELECTION_SET);
                     }
 
@@ -2163,7 +2157,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
     }
 }
 
-fn on_osc(command: c_int, frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
+fn on_osc(command: i32, frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
     unsafe {
         let state = &mut *state;
         match command {
@@ -2272,7 +2266,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
             }
             KEY_SP_Q => {
                 // Query DECSCUSR
-                let mut reply: c_int = match get_cursor_shape(state.mode) as c_int {
+                let mut reply: i32 = match get_cursor_shape(state.mode) as i32 {
                     VTERM_PROP_CURSORSHAPE_BLOCK => 2,
                     VTERM_PROP_CURSORSHAPE_UNDERLINE => 4,
                     VTERM_PROP_CURSORSHAPE_BAR_LEFT => 6,
@@ -2286,7 +2280,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
             }
             KEY_QT_Q => {
                 // Query DECSCA
-                let reply: c_int = if state.protected_cell != 0 { 1 } else { 2 };
+                let reply: i32 = if state.protected_cell != 0 { 1 } else { 2 };
                 let s = format!("1$r{reply}\"q");
                 vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
             }
@@ -2302,7 +2296,7 @@ fn on_dcs(
     commandlen: usize,
     frag: VTermStringFragment,
     state: *mut VTermStateFull,
-) -> c_int {
+) -> i32 {
     unsafe {
         let state = &mut *state;
         if commandlen == 2
@@ -2322,7 +2316,7 @@ fn on_dcs(
     }
 }
 
-fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
+fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
     unsafe {
         let state = &mut *state;
         if let Some(fallbacks) = state.fallbacks
@@ -2335,7 +2329,7 @@ fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
     }
 }
 
-fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
+fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
     unsafe {
         let state = &mut *state;
         if let Some(fallbacks) = state.fallbacks
@@ -2348,7 +2342,7 @@ fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
     }
 }
 
-fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
+fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
     unsafe {
         let state = &mut *state;
         if let Some(fallbacks) = state.fallbacks
@@ -2361,7 +2355,7 @@ fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
     }
 }
 
-fn on_resize(rows: c_int, cols: c_int, state: *mut VTermStateFull) -> c_int {
+fn on_resize(rows: i32, cols: i32, state: *mut VTermStateFull) -> i32 {
     unsafe {
         let state = &mut *state;
         let state_ref = &mut *state;
@@ -2370,7 +2364,7 @@ fn on_resize(rows: c_int, cols: c_int, state: *mut VTermStateFull) -> c_int {
         if cols != state_ref.cols {
             let mut newtabstops = vec![0u8; (cols as usize).div_ceil(8)];
 
-            let mut col: c_int = 0;
+            let mut col: i32 = 0;
             while col < state_ref.cols && col < cols {
                 let mask = 1u8 << (col & 7);
                 if (state_ref.tabstops[(col >> 3) as usize] & mask) != 0 {
@@ -2471,7 +2465,7 @@ pub fn vterm_obtain_state(vt: &mut VTerm) -> &'static mut VTermStateFull {
     }
 }
 
-pub fn vterm_state_reset(state: &mut VTermStateFull, hard: c_int) {
+pub fn vterm_state_reset(state: &mut VTermStateFull, hard: i32) {
     unsafe {
         state.scrollregion_top = 0;
         state.scrollregion_bottom = -1;
@@ -2586,7 +2580,7 @@ pub fn vterm_state_set_termprop(
     state: &mut VTermStateFull,
     prop: VTermProp,
     val: &mut VTermValue,
-) -> c_int {
+) -> i32 {
     if let Some(callbacks) = state.callbacks
         && let Some(cb) = callbacks.settermprop
         && cb(prop, val, state.screen_ptr()) == 0
@@ -2674,7 +2668,7 @@ pub fn vterm_state_focus_out(state: &mut VTermStateFull) {
     }
 }
 
-pub fn vterm_state_get_lineinfo(state: &VTermStateFull, row: c_int) -> &VTermLineInfo {
+pub fn vterm_state_get_lineinfo(state: &VTermStateFull, row: i32) -> &VTermLineInfo {
     &state.lineinfo()[row as usize]
 }
 

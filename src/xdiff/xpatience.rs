@@ -1,6 +1,5 @@
 //! Patience diff algorithm (`src/xdiff/xpatience.c`).
 
-use std::ffi::c_int;
 use std::ptr;
 
 use crate::xdiff::xprepare::xdl_prepare_env;
@@ -32,8 +31,8 @@ impl Default for Entry {
 }
 
 struct HashMap {
-    nr: c_int,
-    alloc: c_int,
+    nr: i32,
+    alloc: i32,
     entries: Vec<Entry>,
     first: *mut Entry,
     last: *mut Entry,
@@ -44,7 +43,7 @@ struct HashMap {
     xpp: *const Xpparam,
 }
 
-fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
+fn insert_record(line: i32, map: &mut HashMap, pass: i32) {
     unsafe {
         let records = if pass == 1 {
             &(*map.env).xdf1.recs
@@ -96,10 +95,10 @@ fn fill_hashmap(
     file2: &mut Mmfile,
     xpp: &Xpparam,
     env: &mut Xdfenv,
-    mut line1: c_int,
-    mut count1: c_int,
-    mut line2: c_int,
-    mut count2: c_int,
+    mut line1: i32,
+    mut count1: i32,
+    mut line2: i32,
+    mut count2: i32,
 ) -> HashMap {
     let alloc = count1 * 2;
     let mut map = HashMap {
@@ -129,9 +128,9 @@ fn fill_hashmap(
     map
 }
 
-fn binary_search(sequence: &[*mut Entry], longest: c_int, entry: &Entry) -> c_int {
-    let mut left: c_int = -1;
-    let mut right: c_int = longest;
+fn binary_search(sequence: &[*mut Entry], longest: i32, entry: &Entry) -> i32 {
+    let mut left: i32 = -1;
+    let mut right: i32 = longest;
 
     unsafe {
         while left + 1 < right {
@@ -150,7 +149,7 @@ fn find_longest_common_sequence(map: &mut HashMap) -> *mut Entry {
     unsafe {
         let mut sequence = vec![ptr::null_mut::<Entry>(); map.nr as usize];
 
-        let mut longest: c_int = 0;
+        let mut longest: i32 = 0;
         let mut entry = map.first;
 
         while !entry.is_null() {
@@ -184,7 +183,7 @@ fn find_longest_common_sequence(map: &mut HashMap) -> *mut Entry {
     }
 }
 
-fn match_lines(map: &HashMap, line1: c_int, line2: c_int) -> bool {
+fn match_lines(map: &HashMap, line1: i32, line2: i32) -> bool {
     unsafe {
         let record1 = &(&(*map.env).xdf1.recs)[(line1 - 1) as usize];
         let record2 = &(&(*map.env).xdf2.recs)[(line2 - 1) as usize];
@@ -195,22 +194,22 @@ fn match_lines(map: &HashMap, line1: c_int, line2: c_int) -> bool {
 fn walk_common_sequence(
     map: &mut HashMap,
     mut first: *mut Entry,
-    mut line1: c_int,
-    count1: c_int,
-    mut line2: c_int,
-    count2: c_int,
-) -> c_int {
+    mut line1: i32,
+    count1: i32,
+    mut line2: i32,
+    count2: i32,
+) -> i32 {
     let end1 = line1 + count1;
     let end2 = line2 + count2;
 
     unsafe {
         loop {
-            let mut next1: c_int;
-            let mut next2: c_int;
+            let mut next1: i32;
+            let mut next2: i32;
             if !first.is_null() {
                 let first = { &mut *first };
-                next1 = first.line1 as c_int;
-                next2 = first.line2 as c_int;
+                next1 = first.line1 as i32;
+                next2 = first.line2 as i32;
                 while next1 > line1 && next2 > line2 && match_lines(map, next1 - 1, next2 - 1) {
                     next1 -= 1;
                     next2 -= 1;
@@ -250,8 +249,8 @@ fn walk_common_sequence(
                 first = (*first).next;
             }
 
-            line1 = ((*first).line1 + 1) as c_int;
-            line2 = ((*first).line2 + 1) as c_int;
+            line1 = ((*first).line1 + 1) as i32;
+            line2 = ((*first).line2 + 1) as i32;
 
             first = (*first).next;
         }
@@ -260,11 +259,11 @@ fn walk_common_sequence(
 
 fn fall_back_to_classic_diff(
     map: &HashMap,
-    line1: c_int,
-    count1: c_int,
-    line2: c_int,
-    count2: c_int,
-) -> c_int {
+    line1: i32,
+    count1: i32,
+    line2: i32,
+    count2: i32,
+) -> i32 {
     unsafe {
         let xpp = Xpparam {
             flags: (*map.xpp).flags & !XDF_DIFF_ALGORITHM_MASK,
@@ -278,11 +277,11 @@ fn patience_diff(
     file2: &mut Mmfile,
     xpp: &Xpparam,
     env: &mut Xdfenv,
-    mut line1: c_int,
-    mut count1: c_int,
-    mut line2: c_int,
-    mut count2: c_int,
-) -> c_int {
+    mut line1: i32,
+    mut count1: i32,
+    mut line2: i32,
+    mut count2: i32,
+) -> i32 {
     unsafe {
         if count1 == 0 {
             while count2 > 0 {
@@ -330,7 +329,7 @@ pub fn xdl_do_patience_diff(
     file2: &mut Mmfile,
     xpp: &Xpparam,
     env: &mut Xdfenv,
-) -> c_int {
+) -> i32 {
     if xdl_prepare_env(file1, file2, xpp, env) < 0 {
         return -1;
     }
@@ -341,8 +340,8 @@ pub fn xdl_do_patience_diff(
         xpp,
         env,
         1,
-        env.xdf1.nrec as c_int,
+        env.xdf1.nrec as i32,
         1,
-        env.xdf2.nrec as c_int,
+        env.xdf2.nrec as i32,
     )
 }

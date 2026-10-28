@@ -45,13 +45,13 @@ use crate::textformat::Oparg;
 use crate::textobject::{findpar, findsent};
 use crate::undo::u_update_named_mark;
 use crate::window::{WinInfoInfo, Winopt};
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 use std::ptr;
 
-pub type MarkMoveRes = c_int;
-pub type MarkMove = c_int;
-pub type MarkGet = c_int;
-pub type MarkAdjustMode = c_int;
+pub type MarkMoveRes = i32;
+pub type MarkMove = i32;
+pub type MarkGet = i32;
+pub type MarkAdjustMode = i32;
 
 pub(crate) const K_MARK_ADJUST_API: MarkAdjustMode = 1;
 pub(crate) const K_MARK_ALL_NO_RESOLVE: MarkGet = 2;
@@ -66,7 +66,7 @@ pub struct Fmarkv {
 #[derive(Clone)]
 pub struct Fmark {
     pub mark: CursorPos,
-    pub fnum: c_int,
+    pub fnum: i32,
     pub timestamp: u64,
     pub view: Fmarkv,
     pub additional_data: Option<crate::search::AdditionalData>,
@@ -144,7 +144,7 @@ pub struct WinInfo {
     pub wi_opt: Winopt,
     pub wi_fold_manual: bool,
     pub wi_folds: Vec<FoldEntry>,
-    pub wi_changelistidx: c_int,
+    pub wi_changelistidx: i32,
 }
 
 impl WinInfo {
@@ -171,8 +171,8 @@ impl Drop for WinInfo {
 
 pub(crate) const EXTRA_MARKS: usize = 10;
 const NGLOBALMARKS: usize = NMARKS + EXTRA_MARKS;
-const NMARK_LOCAL_MAX: c_int = 126;
-pub(crate) const JUMPLISTSIZE: c_int = 100;
+const NMARK_LOCAL_MAX: i32 = 126;
+pub(crate) const JUMPLISTSIZE: i32 = 100;
 
 pub(crate) const K_MARK_MOVE_SUCCESS: MarkMoveRes = 1;
 pub(crate) const K_MARK_MOVE_FAILED: MarkMoveRes = 2;
@@ -188,10 +188,10 @@ pub(crate) const K_MARK_JUMP_LIST: MarkMove = 16;
 
 pub(crate) const K_MARK_ADJUST_TERM: MarkAdjustMode = 2;
 
-const K_OPT_JOP_FLAG_STACK: c_uint = 0x01;
+const K_OPT_JOP_FLAG_STACK: u32 = 0x01;
 
-pub(crate) const BUF_HAS_QF_ENTRY: c_int = 1;
-pub(crate) const BUF_HAS_LL_ENTRY: c_int = 2;
+pub(crate) const BUF_HAS_QF_ENTRY: i32 = 1;
+pub(crate) const BUF_HAS_LL_ENTRY: i32 = 2;
 
 const INIT_XFMARK: Xfmark = Xfmark {
     fmark: INIT_FMARK,
@@ -221,19 +221,19 @@ fn mark_st() -> &'static mut MarkModuleState {
 }
 
 #[inline]
-pub const fn mark_global_index(name: c_char) -> c_int {
+pub const fn mark_global_index(name: c_char) -> i32 {
     let u = name as u8;
     if u.is_ascii_uppercase() {
-        (u - b'A') as c_int
+        (u - b'A') as i32
     } else if u.is_ascii_digit() {
-        (NMARKS as c_int) + ((u - b'0') as c_int)
+        (NMARKS as i32) + ((u - b'0') as i32)
     } else {
         -1
     }
 }
 
 #[inline]
-fn set_fmark(fmarkp: &mut Fmark, mark: CursorPos, fnum: c_int, view: Fmarkv) {
+fn set_fmark(fmarkp: &mut Fmark, mark: CursorPos, fnum: i32, view: Fmarkv) {
     fmarkp.mark = mark;
     fmarkp.fnum = fnum;
     fmarkp.timestamp = os_time();
@@ -242,7 +242,7 @@ fn set_fmark(fmarkp: &mut Fmark, mark: CursorPos, fnum: c_int, view: Fmarkv) {
 }
 
 #[inline]
-pub fn reset_fmark(fmarkp: &mut Fmark, mark: CursorPos, fnum: c_int, view: Fmarkv) {
+pub fn reset_fmark(fmarkp: &mut Fmark, mark: CursorPos, fnum: i32, view: Fmarkv) {
     set_fmark(fmarkp, mark, fnum, view);
 }
 
@@ -250,7 +250,7 @@ pub fn reset_fmark(fmarkp: &mut Fmark, mark: CursorPos, fnum: c_int, view: Fmark
 fn set_xfmark(
     xfmarkp: &mut Xfmark,
     mark: CursorPos,
-    fnum: c_int,
+    fnum: i32,
     view: Fmarkv,
     fname: Option<std::ffi::CString>,
 ) {
@@ -262,7 +262,7 @@ fn set_xfmark(
 fn reset_xfmark(
     xfmarkp: &mut Xfmark,
     mark: CursorPos,
-    fnum: c_int,
+    fnum: i32,
     view: Fmarkv,
     fname: Option<std::ffi::CString>,
 ) {
@@ -273,7 +273,7 @@ fn reset_xfmark(
 }
 
 /// Set named mark `c` at current cursor position (`setmark`).
-pub fn setmark(c: c_int) -> bool {
+pub fn setmark(c: i32) -> bool {
     {
         let view = mark_view_make(curwin_mut(), curwin_mut().w_cursor);
         setmark_pos(
@@ -361,7 +361,7 @@ fn do_markset_autocmd(c: c_char, pos: &CursorPos, buf: &mut FileBuf) {
 }
 
 /// Set named mark `c` to position `pos` (`setmark_pos`).
-pub fn setmark_pos(c: c_int, pos: &mut CursorPos, fnum: c_int, view_pt: Option<&Fmarkv>) -> bool {
+pub fn setmark_pos(c: i32, pos: &mut CursorPos, fnum: i32, view_pt: Option<&Fmarkv>) -> bool {
     unsafe {
         let view = if let Some(view_pt) = view_pt {
             *view_pt
@@ -373,7 +373,7 @@ pub fn setmark_pos(c: c_int, pos: &mut CursorPos, fnum: c_int, view_pt: Option<&
             return false;
         }
 
-        if c == b'\'' as c_int || c == b'`' as c_int {
+        if c == b'\'' as i32 || c == b'`' as i32 {
             if ptr::eq(pos, &raw const curwin_mut().w_cursor) {
                 setpcmark();
                 curwin_mut().w_prev_pcmark = curwin_mut().w_pcmark;
@@ -389,53 +389,53 @@ pub fn setmark_pos(c: c_int, pos: &mut CursorPos, fnum: c_int, view_pt: Option<&
         }
         let buf = { &mut *buf };
 
-        if c == b'"' as c_int {
+        if c == b'"' as i32 {
             reset_fmark(&mut buf.b_last_cursor, *pos, buf.b_fnum, view);
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;
         }
 
-        if c == b'[' as c_int {
+        if c == b'[' as i32 {
             buf.b_op_start = *pos;
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;
         }
-        if c == b']' as c_int {
+        if c == b']' as i32 {
             buf.b_op_end = *pos;
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;
         }
 
-        if c == b'<' as c_int || c == b'>' as c_int {
-            if c == b'<' as c_int {
+        if c == b'<' as i32 || c == b'>' as i32 {
+            if c == b'<' as i32 {
                 buf.b_visual.vi_start = *pos;
             } else {
                 buf.b_visual.vi_end = *pos;
             }
-            if buf.b_visual.vi_mode == c_int::from(NUL) {
-                buf.b_visual.vi_mode = b'v' as c_int;
+            if buf.b_visual.vi_mode == i32::from(NUL) {
+                buf.b_visual.vi_mode = b'v' as i32;
             }
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;
         }
 
-        if c == b':' as c_int && bt_prompt(Some(&*buf)) {
+        if c == b':' as i32 && bt_prompt(Some(&*buf)) {
             reset_fmark(&mut buf.b_prompt_start, *pos, buf.b_fnum, view);
             return true;
         }
 
         if ascii_islower(c) {
-            let i = (c - b'a' as c_int) as usize;
+            let i = (c - b'a' as i32) as usize;
             reset_fmark(&mut buf.b_namedm[i], *pos, fnum, view);
-            u_update_named_mark(&mut *buf, i as c_int);
+            u_update_named_mark(&mut *buf, i as i32);
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;
         }
         if ascii_isupper(c) || ascii_isdigit(c) {
             let i = if ascii_isdigit(c) {
-                (c - b'0' as c_int) as usize + NMARKS
+                (c - b'0' as i32) as usize + NMARKS
             } else {
-                (c - b'A' as c_int) as usize
+                (c - b'A' as i32) as usize
             };
             reset_xfmark(&mut g_st().namedfm[i], *pos, fnum, view, None);
             do_markset_autocmd(c as c_char, pos, &mut *buf);
@@ -446,7 +446,7 @@ pub fn setmark_pos(c: c_int, pos: &mut CursorPos, fnum: c_int, view_pt: Option<&
 }
 
 /// Remove every jump list entry referring to a given buffer (`mark_jumplist_forget_file`).
-pub fn mark_jumplist_forget_file(wp: &mut WinInfoInfo, fnum: c_int) {
+pub fn mark_jumplist_forget_file(wp: &mut WinInfoInfo, fnum: i32) {
     let mut i = wp.w_jumplistlen - 1;
     while i >= 0 {
         let idx = i as usize;
@@ -465,7 +465,7 @@ pub fn mark_jumplist_forget_file(wp: &mut WinInfoInfo, fnum: c_int) {
 }
 
 /// Delete every entry referring to file `fnum` from both the jumplist and the tag stack (`mark_forget_file`).
-pub fn mark_forget_file(wp: &mut WinInfoInfo, fnum: c_int) {
+pub fn mark_forget_file(wp: &mut WinInfoInfo, fnum: i32) {
     mark_jumplist_forget_file(wp, fnum);
 
     let mut i = wp.w_tagstacklen - 1;
@@ -535,7 +535,7 @@ pub fn checkpcmark() {
 }
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
-pub fn get_jumplist(win: &mut WinInfoInfo, mut count: c_int) -> *mut Fmark {
+pub fn get_jumplist(win: &mut WinInfoInfo, mut count: i32) -> *mut Fmark {
     {
         cleanup_jumplist(win, true);
 
@@ -572,7 +572,7 @@ pub fn get_jumplist(win: &mut WinInfoInfo, mut count: c_int) -> *mut Fmark {
 }
 
 /// Get mark in `count` position in the changelist relative to the current index (`get_changelist`).
-pub fn get_changelist(buf: &mut FileBuf, win: &mut WinInfoInfo, count: c_int) -> *mut Fmark {
+pub fn get_changelist(buf: &mut FileBuf, win: &mut WinInfoInfo, count: i32) -> *mut Fmark {
     unsafe {
         if buf.b_changelistlen == 0 {
             return ptr::null_mut();
@@ -605,7 +605,7 @@ pub fn mark_get(
     win: &mut WinInfoInfo,
     fmp: Option<&mut Fmark>,
     flag: MarkGet,
-    name: c_int,
+    name: i32,
 ) -> *mut Fmark {
     unsafe {
         let mut fm: *mut Fmark = ptr::null_mut();
@@ -637,12 +637,12 @@ pub fn mark_get(
 }
 
 /// Get a global mark `{A-Z0-9}` (`mark_get_global`).
-pub fn mark_get_global(resolve: bool, mut name: c_int) -> *mut Xfmark {
+pub fn mark_get_global(resolve: bool, mut name: i32) -> *mut Xfmark {
     unsafe {
         if ascii_isdigit(name) {
-            name = name - b'0' as c_int + NMARKS as c_int;
+            name = name - b'0' as i32 + NMARKS as i32;
         } else if ascii_isupper(name) {
-            name -= b'A' as c_int;
+            name -= b'A' as i32;
         } else {
             debug_assert!(false);
         }
@@ -655,25 +655,25 @@ pub fn mark_get_global(resolve: bool, mut name: c_int) -> *mut Xfmark {
 }
 
 /// Get a local mark (`mark_get_local`).
-pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: c_int) -> *mut Fmark {
+pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *mut Fmark {
     unsafe {
         let mark = if ascii_islower(name) {
-            &raw mut buf.b_namedm[(name - b'a' as c_int) as usize]
-        } else if name == b'[' as c_int {
+            &raw mut buf.b_namedm[(name - b'a' as i32) as usize]
+        } else if name == b'[' as i32 {
             pos_to_mark(buf, None, buf.b_op_start)
-        } else if name == b']' as c_int {
+        } else if name == b']' as i32 {
             pos_to_mark(buf, None, buf.b_op_end)
-        } else if name == b'<' as c_int || name == b'>' as c_int {
+        } else if name == b'<' as i32 || name == b'>' as i32 {
             mark_get_visual(buf, name)
-        } else if name == b'\'' as c_int || name == b'`' as c_int {
+        } else if name == b'\'' as i32 || name == b'`' as i32 {
             pos_to_mark(curbuf_mut(), None, win.w_pcmark)
-        } else if name == b'"' as c_int {
+        } else if name == b'"' as i32 {
             &raw mut buf.b_last_cursor
-        } else if name == b'^' as c_int {
+        } else if name == b'^' as i32 {
             &raw mut buf.b_last_insert
-        } else if name == b'.' as c_int {
+        } else if name == b'.' as i32 {
             &raw mut buf.b_last_change
-        } else if name == b':' as c_int && bt_prompt(Some(&*buf)) {
+        } else if name == b':' as i32 && bt_prompt(Some(&*buf)) {
             &raw mut buf.b_prompt_start
         } else {
             mark_get_motion(&mut *buf, win, name)
@@ -688,30 +688,30 @@ pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: c_int) -> 
 }
 
 /// Get marks that are actually motions (`mark_get_motion`).
-pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: c_int) -> *mut Fmark {
+pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *mut Fmark {
     {
         let mut mark: *mut Fmark = ptr::null_mut();
         let pos = curwin_mut().w_cursor;
         let slcb = g_st().listcmd_busy;
         g_st().listcmd_busy = true;
-        if name == b'{' as c_int || name == b'}' as c_int {
+        if name == b'{' as i32 || name == b'}' as i32 {
             let mut oa = Oparg::new();
             if findpar(
                 &mut oa.inclusive,
-                if name == b'}' as c_int {
+                if name == b'}' as i32 {
                     FORWARD
                 } else {
                     BACKWARD
                 },
                 1,
-                c_int::from(NUL),
+                i32::from(NUL),
                 false,
             ) {
                 mark = pos_to_mark(&*buf, None, win.w_cursor);
             }
-        } else if (name == b'(' as c_int || name == b')' as c_int)
+        } else if (name == b'(' as i32 || name == b')' as i32)
             && findsent(
-                if name == b')' as c_int {
+                if name == b')' as i32 {
                     FORWARD
                 } else {
                     BACKWARD
@@ -728,13 +728,13 @@ pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: c_int) ->
 }
 
 /// Get visual marks `'<'`, `'>'` (`mark_get_visual`).
-pub fn mark_get_visual(buf: &mut FileBuf, name: c_int) -> *mut Fmark {
+pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> *mut Fmark {
     unsafe {
         let mut mark: *mut Fmark = ptr::null_mut();
-        if name == b'<' as c_int || name == b'>' as c_int {
+        if name == b'<' as i32 || name == b'>' as i32 {
             let startp = buf.b_visual.vi_start;
             let endp = buf.b_visual.vi_end;
-            mark = if ((name == b'<' as c_int) == lt(startp, endp) || endp.lnum == 0)
+            mark = if ((name == b'<' as i32) == lt(startp, endp) || endp.lnum == 0)
                 && startp.lnum != 0
             {
                 pos_to_mark(&*buf, None, startp)
@@ -742,8 +742,8 @@ pub fn mark_get_visual(buf: &mut FileBuf, name: c_int) -> *mut Fmark {
                 pos_to_mark(&*buf, None, endp)
             };
 
-            if buf.b_visual.vi_mode == b'V' as c_int {
-                (*mark).mark.col = if name == b'<' as c_int { 0 } else { MAXCOL };
+            if buf.b_visual.vi_mode == b'V' as i32 {
+                (*mark).mark.col = if name == b'<' as i32 { 0 } else { MAXCOL };
                 (*mark).mark.coladd = 0;
             }
         }
@@ -858,7 +858,7 @@ pub fn mark_view_make(wp: &WinInfoInfo, pos: CursorPos) -> Fmarkv {
 }
 
 /// Search for the next named mark in the current file from a start position (`getnextmark`).
-pub fn getnextmark(startpos: &mut CursorPos, dir: c_int, begin_line: c_int) -> *mut Fmark {
+pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> *mut Fmark {
     unsafe {
         let mut result: *mut Fmark = ptr::null_mut();
         let mut pos = *startpos;
@@ -898,9 +898,9 @@ fn fname2fnum(fm: &mut Xfmark) {
         let fname = fname_cstr.as_ptr();
 
         if crate::memory::cstr_first_byte(fname) == b'~'
-            && vim_ispathsep_nocolon(c_int::from(crate::memory::cstr_byte_at(fname, 1)))
+            && vim_ispathsep_nocolon(i32::from(crate::memory::cstr_byte_at(fname, 1)))
         {
-            let len = expand_env(c"~/", g_st().name_buff.as_mut_ptr(), MAXPATHL as c_int);
+            let len = expand_env(c"~/", g_st().name_buff.as_mut_ptr(), MAXPATHL as i32);
             xstrlcpy(
                 (g_st().name_buff.as_mut_ptr()).add(len),
                 fname.add(2),
@@ -1012,7 +1012,7 @@ pub fn clrallmarks(buf: &mut FileBuf, timestamp: Timestamp) {
 }
 
 /// Get name of file from a filemark (`fm_getname`).
-pub fn fm_getname(fmark: &mut Fmark, lead_len: c_int) -> Option<std::ffi::CString> {
+pub fn fm_getname(fmark: &mut Fmark, lead_len: i32) -> Option<std::ffi::CString> {
     {
         if fmark.fnum == curbuf_mut().b_fnum {
             return Some(mark_line(&mut fmark.mark, lead_len));
@@ -1022,7 +1022,7 @@ pub fn fm_getname(fmark: &mut Fmark, lead_len: c_int) -> Option<std::ffi::CStrin
 }
 
 /// Return the line at mark `mp`, truncated to fit in window (`mark_line`).
-fn mark_line(mp: &mut CursorPos, lead_len: c_int) -> std::ffi::CString {
+fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
     unsafe {
         if mp.lnum == 0 || mp.lnum > curbuf_mut().b_ml.ml_line_count {
             return c"-invalid-".to_owned();
@@ -1031,7 +1031,7 @@ fn mark_line(mp: &mut CursorPos, lead_len: c_int) -> std::ffi::CString {
         let line = skipwhite(ml_get(mp.lnum));
         let max_bytes = crate::memory::cstr_len(line).min((g_st().columns_global as usize) * 5);
 
-        let mut len: c_int = 0;
+        let mut len: i32 = 0;
         let mut p = line;
         let end = line.add(max_bytes);
         while p < end && !crate::memory::cstr_is_empty(p) {
@@ -1090,15 +1090,15 @@ pub fn ex_delmarks(eap: &mut Exarg) {
             let timestamp = os_time();
             let mut p = eap.arg;
             while !crate::memory::cstr_is_empty(p) {
-                let ch = c_int::from(crate::memory::cstr_first_byte(p));
+                let ch = i32::from(crate::memory::cstr_first_byte(p));
                 let lower = ascii_islower(ch);
                 let digit = ascii_isdigit(ch);
                 if lower || digit || ascii_isupper(ch) {
-                    let from: c_int;
-                    let to: c_int;
+                    let from: i32;
+                    let to: i32;
                     if crate::memory::cstr_byte_at(p, 1) == b'-' {
                         from = ch;
-                        to = c_int::from(crate::memory::cstr_byte_at(p, 2));
+                        to = i32::from(crate::memory::cstr_byte_at(p, 2));
                         let valid_to = if lower {
                             ascii_islower(to)
                         } else if digit {
@@ -1118,7 +1118,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
 
                     for i in from..=to {
                         if lower {
-                            let idx = (i - b'a' as c_int) as usize;
+                            let idx = (i - b'a' as i32) as usize;
                             if curbuf_mut().b_namedm[idx].mark.lnum != 0 {
                                 do_markset_autocmd(i as c_char, &pos, curbuf_mut());
                             }
@@ -1126,9 +1126,9 @@ pub fn ex_delmarks(eap: &mut Exarg) {
                             curbuf_mut().b_namedm[idx].timestamp = timestamp;
                         } else {
                             let n = if digit {
-                                (i - b'0' as c_int) as usize + NMARKS
+                                (i - b'0' as i32) as usize + NMARKS
                             } else {
-                                (i - b'A' as c_int) as usize
+                                (i - b'A' as i32) as usize
                             };
                             if g_st().namedfm[n].fmark.mark.lnum != 0 {
                                 let mut buf = buflist_findnr(g_st().namedfm[n].fmark.fnum);
@@ -1207,7 +1207,7 @@ pub fn ex_jumps(_eap: &mut Exarg) {
         cleanup_jumplist(curwin_mut(), true);
         msg_ext_set_kind(c"list_cmd");
         msg_puts_title(gettext(c"\n jump line  col file/text"));
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         while i < curwin_mut().w_jumplistlen && !g_st().got_int {
             let idx = i as usize;
             if curwin_mut().w_jumplist[idx].fmark.mark.lnum != 0 {
@@ -1225,7 +1225,7 @@ pub fn ex_jumps(_eap: &mut Exarg) {
                     continue;
                 }
 
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 if g_st().got_int {
                     break;
                 }
@@ -1281,11 +1281,11 @@ pub fn ex_changes(_eap: &mut Exarg) {
         msg_ext_set_kind(c"list_cmd");
         msg_puts_title(gettext(c"\nchange line  col text"));
 
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         while i < curbuf_mut().b_changelistlen && !g_st().got_int {
             let idx = i as usize;
             if curbuf_mut().b_changelist[idx].mark.lnum != 0 {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 if g_st().got_int {
                     break;
                 }
@@ -1683,7 +1683,7 @@ fn col_adjust(
     mincol: Colnr,
     lnum_amount: Linenr,
     col_amount: Colnr,
-    spaces_removed: c_int,
+    spaces_removed: i32,
 ) {
     if posp.lnum == lnum && posp.col >= mincol {
         posp.lnum += lnum_amount;
@@ -1703,7 +1703,7 @@ pub fn mark_col_adjust(
     mincol: Colnr,
     lnum_amount: Linenr,
     col_amount: Colnr,
-    spaces_removed: c_int,
+    spaces_removed: i32,
 ) {
     unsafe {
         let fnum = curbuf_mut().b_fnum;
@@ -1885,7 +1885,7 @@ pub fn cleanup_jumplist(wp: &mut WinInfoInfo, loadfiles: bool) {
             }
         }
 
-        let mut to: c_int = 0;
+        let mut to: i32 = 0;
         for from in 0..wp.w_jumplistlen {
             let from_u = from as usize;
             if wp.w_jumplistidx == from {
@@ -2063,9 +2063,9 @@ pub fn mark_set_global(name: c_char, fm: Xfmark, update: bool) -> bool {
 /// Set local mark (`mark_set_local`).
 pub fn mark_set_local(name: c_char, buf: &mut FileBuf, fm: Fmark, update: bool) -> bool {
     unsafe {
-        let ch = c_int::from(name as u8);
+        let ch = i32::from(name as u8);
         let fm_tgt = if ascii_islower(ch) {
-            &raw mut buf.b_namedm[(ch - b'a' as c_int) as usize]
+            &raw mut buf.b_namedm[(ch - b'a' as i32) as usize]
         } else if name == b'"' as c_char {
             &raw mut buf.b_last_cursor
         } else if name == b'^' as c_char {
@@ -2146,7 +2146,7 @@ fn add_mark<S: crate::strings::IntoCCharPtr>(
     l: &mut TvList,
     mname: S,
     pos: &CursorPos,
-    bufnr: c_int,
+    bufnr: i32,
     fname: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let fname = fname.into_c_char_ptr();
@@ -2176,7 +2176,7 @@ fn add_mark<S: crate::strings::IntoCCharPtr>(
             &mut *d,
             c"mark",
             mname,
-            crate::memory::cstr_len(mname) as c_int,
+            crate::memory::cstr_len(mname) as i32,
         ) || !tv_dict_add_list(&mut *d, c"pos", lpos)
             || (!fname.is_null() && !tv_dict_add_str(&mut *d, c"file", fname))
         {

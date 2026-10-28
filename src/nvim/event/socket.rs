@@ -17,37 +17,37 @@ use crate::os::time::os_hrtime;
 use crate::path::path_tail;
 use crate::strings::{gettext, vim_snprintf};
 
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_void};
 use std::ptr;
 
 use crate::event::r#loop::UV_REQ;
 
 pub(crate) const ADDRESS_MAX_SIZE: usize = 256;
 
-const UV_GETADDRINFO: c_int = 8;
-const UV_PIPE_NO_TRUNCATE: c_uint = 1;
+const UV_GETADDRINFO: i32 = 8;
+const UV_PIPE_NO_TRUNCATE: u32 = 1;
 
-const AF_UNSPEC: c_int = 0;
-const SOCK_STREAM: c_int = 1;
+const AF_UNSPEC: i32 = 0;
+const SOCK_STREAM: i32 = 1;
 
 #[cfg(windows)]
-const AI_NUMERICSERV: c_int = 0x0008;
+const AI_NUMERICSERV: i32 = 0x0008;
 #[cfg(target_os = "linux")]
-const AI_NUMERICSERV: c_int = 0x0400;
+const AI_NUMERICSERV: i32 = 0x0400;
 #[cfg(not(any(windows, target_os = "linux")))]
-const AI_NUMERICSERV: c_int = 0x1000;
+const AI_NUMERICSERV: i32 = 0x1000;
 
 #[cfg(windows)]
-const UV_EACCES: c_int = -4092;
+const UV_EACCES: i32 = -4092;
 #[cfg(not(windows))]
-const UV_EACCES: c_int = -13;
+const UV_EACCES: i32 = -13;
 
 #[cfg(windows)]
-const UV_EADDRINUSE: c_int = -4091;
+const UV_EADDRINUSE: i32 = -4091;
 #[cfg(target_os = "linux")]
-const UV_EADDRINUSE: c_int = -98;
+const UV_EADDRINUSE: i32 = -98;
 #[cfg(not(any(windows, target_os = "linux")))]
-const UV_EADDRINUSE: c_int = -48;
+const UV_EADDRINUSE: i32 = -48;
 
 use crate::event::rstream::RStream;
 #[allow(non_camel_case_types)]
@@ -57,10 +57,10 @@ pub type uv_getaddrinfo_t = c_void;
 
 #[repr(C)]
 pub struct addrinfo {
-    pub ai_flags: c_int,
-    pub ai_family: c_int,
-    pub ai_socktype: c_int,
-    pub ai_protocol: c_int,
+    pub ai_flags: i32,
+    pub ai_family: i32,
+    pub ai_socktype: i32,
+    pub ai_protocol: i32,
     pub ai_addrlen: usize,
     #[cfg(target_os = "linux")]
     pub ai_addr: *mut c_void,
@@ -184,7 +184,7 @@ pub fn socket_watcher_init(
     loop_: &mut Loop,
     watcher: &mut SocketWatcher,
     endpoint: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let endpoint = endpoint.into_c_char_ptr();
     unsafe {
         let addr = watcher.addr.as_mut_ptr();
@@ -204,7 +204,7 @@ pub fn socket_watcher_init(
                     LOGLVL_ERR,
                     std::ptr::null(),
                     c"socket_watcher_init",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"Invalid port: %s",
                     port,
@@ -241,7 +241,7 @@ pub fn socket_watcher_init(
                     LOGLVL_ERR,
                     std::ptr::null(),
                     c"socket_watcher_init",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"Host lookup failed: %s",
                     endpoint,
@@ -293,11 +293,11 @@ unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
     }
 }
 
-pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: c_int) -> c_int {
+pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
     unsafe {
         let addr = watcher.addr.as_mut_ptr();
         let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
-        let mut result: c_int = UV_EINVAL;
+        let mut result: i32 = UV_EINVAL;
 
         if uv_handle_get_type(watcher.stream_ptr().cast()) == UV_TCP {
             let mut ai = watcher.tcp_addrinfo;
@@ -311,7 +311,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: c_int) -> c_in
                 result = uv_listen(watcher.stream_ptr(), backlog, Some(connection_cb));
                 if result == 0 {
                     let mut sas = SockaddrStorage { bytes: [0; 128] };
-                    let mut sas_len = size_of::<SockaddrStorage>() as c_int;
+                    let mut sas_len = size_of::<SockaddrStorage>() as i32;
                     uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &mut sas_len);
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
                     let len = crate::memory::cstr_len(addr);
@@ -319,7 +319,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: c_int) -> c_in
                         addr.add(len),
                         ADDRESS_MAX_SIZE - len,
                         c":%u",
-                        c_uint::from(port),
+                        u32::from(port),
                     );
                     break;
                 }
@@ -347,7 +347,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: c_int) -> c_in
                             LOGLVL_WRN,
                             std::ptr::null(),
                             c"socket_watcher_start",
-                            line!() as c_int,
+                            line!() as i32,
                             true,
                             c"Failed to remove stale socket %s: %s",
                             addr,
@@ -378,7 +378,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: c_int) -> c_in
                         LOGLVL_ERR,
                         std::ptr::null(),
                         c"socket_watcher_start",
-                        line!() as c_int,
+                        line!() as i32,
                         true,
                         c"Socket already in use by another Nvim instance: %s",
                         addr,
@@ -406,7 +406,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: c_int) -> c_in
     }
 }
 
-pub fn socket_watcher_accept(watcher: &mut SocketWatcher, stream: &mut RStream) -> c_int {
+pub fn socket_watcher_accept(watcher: &mut SocketWatcher, stream: &mut RStream) -> i32 {
     unsafe {
         let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
         let client: *mut uv_stream_t = (&raw mut stream.s.uv).cast();
@@ -438,11 +438,11 @@ pub fn socket_watcher_close(watcher: &mut SocketWatcher) {
     }
 }
 
-pub fn connection_event(watcher: *mut SocketWatcher, status: c_int) {
+pub fn connection_event(watcher: *mut SocketWatcher, status: i32) {
     crate::msgpack_rpc::server::connection_cb(watcher, status);
 }
 
-unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: c_int) {
+unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: i32) {
     unsafe {
         let watcher = *handle.cast::<*mut SocketWatcher>();
         if !(*watcher).events.is_null() {
@@ -463,9 +463,9 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     }
 }
 
-unsafe extern "C" fn connect_cb(req: *mut uv_connect_t, status: c_int) {
+unsafe extern "C" fn connect_cb(req: *mut uv_connect_t, status: i32) {
     unsafe {
-        let ret_status = *req.cast::<*mut c_int>();
+        let ret_status = *req.cast::<*mut i32>();
         *ret_status = status;
         let handle = connect_req_handle(req);
         if status != 0 {
@@ -480,19 +480,19 @@ pub fn socket_connect(
     stream: &mut RStream,
     is_tcp: bool,
     address: impl crate::strings::IntoCCharPtr,
-    timeout: c_int,
+    timeout: i32,
     error: *mut *const c_char,
 ) -> bool {
     let address = address.into_c_char_ptr();
     unsafe {
         let mut success = false;
         let mut closed = false;
-        let mut status: c_int = 1;
+        let mut status: i32 = 1;
         let mut req = UvConnectReq([0; 512]);
         let req_ptr = (&raw mut req).cast::<uv_connect_t>();
-        let status_ptr: *mut c_int = &raw mut status;
+        let status_ptr: *mut i32 = &raw mut status;
         let closed_ptr: *mut bool = &raw mut closed;
-        *req_ptr.cast::<*mut c_int>() = status_ptr;
+        *req_ptr.cast::<*mut i32>() = status_ptr;
 
         let s_ptr: *mut Stream = &raw mut stream.s;
         let uv_ptr: *mut c_void = (&raw mut (*s_ptr).uv).cast();

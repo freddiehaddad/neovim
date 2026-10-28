@@ -1,7 +1,7 @@
 //! Handling of a hashtable with Vim-specific properties (`src/nvim/hashtab.c`).
 
 use crate::message::siemsg;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 pub type HashVal = usize;
 
@@ -38,8 +38,8 @@ pub struct Hashtab {
     pub ht_mask: HashVal,
     pub ht_used: usize,
     pub ht_filled: usize,
-    pub ht_changed: c_int,
-    pub ht_locked: c_int,
+    pub ht_changed: i32,
+    pub ht_locked: i32,
     pub ht_array: Vec<Hashitem>,
 }
 

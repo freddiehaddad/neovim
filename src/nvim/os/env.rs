@@ -35,7 +35,7 @@ use crate::path::{
 };
 use crate::runtime::Sctx;
 use crate::strings::vim_strsave_escaped;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 pub(crate) const EXPAND_BUF_LEN: usize = 256;
@@ -50,23 +50,23 @@ use crate::os::fs::{ENV_SEPCHAR, ENV_SEPSTR};
 const MAX_ENVPATHLEN: usize = if cfg!(windows) {
     8192
 } else {
-    c_int::MAX as usize
+    i32::MAX as usize
 };
 #[repr(C)]
 pub struct ExpandCtx {
     pub xp_pattern: *mut c_char,
-    pub xp_context: c_int,
+    pub xp_context: i32,
     pub xp_pattern_len: usize,
-    pub xp_prefix: c_int,
+    pub xp_prefix: i32,
     pub xp_arg: *mut c_char,
     pub xp_luaref: LuaRef,
     pub xp_script_ctx: Sctx,
-    pub xp_backslash: c_int,
+    pub xp_backslash: i32,
     #[cfg(not(windows))]
     pub xp_shell: bool,
-    pub xp_numfiles: c_int,
-    pub xp_col: c_int,
-    pub xp_selected: c_int,
+    pub xp_numfiles: i32,
+    pub xp_col: i32,
+    pub xp_selected: i32,
     pub xp_orig: Option<std::ffi::CString>,
     pub xp_files: Vec<std::ffi::CString>,
     pub xp_files_abbr: Vec<Option<std::ffi::CString>>,
@@ -75,7 +75,7 @@ pub struct ExpandCtx {
     pub xp_files_info: Vec<Option<std::ffi::CString>>,
     pub xp_line: *mut c_char,
     pub xp_buf: [c_char; EXPAND_BUF_LEN],
-    pub xp_search_dir: c_int,
+    pub xp_search_dir: i32,
     pub xp_pre_incsearch_pos: CursorPos,
 }
 
@@ -165,10 +165,10 @@ unsafe extern "C" {
     static environ: *mut *mut c_char;
 
     #[cfg(windows)]
-    fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> c_int;
+    fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> i32;
 
     #[cfg(not(windows))]
-    fn gethostname(name: *mut c_char, len: usize) -> c_int;
+    fn gethostname(name: *mut c_char, len: usize) -> i32;
 }
 
 #[cfg(not(windows))]
@@ -194,8 +194,8 @@ use crate::os::os_win_console::GetLastError;
 #[cfg(windows)]
 unsafe extern "system" {
     fn GetEnvironmentStringsW() -> *mut u16;
-    fn FreeEnvironmentStringsW(lpszEnvironmentBlock: *mut u16) -> c_int;
-    fn GetComputerNameW(lpBuffer: *mut u16, nSize: &mut u32) -> c_int;
+    fn FreeEnvironmentStringsW(lpszEnvironmentBlock: *mut u16) -> i32;
+    fn GetComputerNameW(lpBuffer: *mut u16, nSize: &mut u32) -> i32;
 }
 
 #[inline]
@@ -326,8 +326,8 @@ pub fn os_env_exists<S: crate::strings::IntoCCharPtr>(name: S, nonempty: bool) -
 pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
     name: S1,
     value: S2,
-    overwrite: c_int,
-) -> c_int {
+    overwrite: i32,
+) -> i32 {
     let name = name.into_c_char_ptr();
     let value = value.into_c_char_ptr();
     unsafe {
@@ -367,7 +367,7 @@ pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCChar
 }
 
 /// Unset environment variable.
-pub fn os_unsetenv(name: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn os_unsetenv(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
     unsafe {
         if !env_name_valid(name) {
@@ -616,7 +616,7 @@ pub fn expand_env_save_opt(
     let _ = expand_env_esc(
         src,
         p.as_mut_ptr(),
-        MAXPATHL as c_int,
+        MAXPATHL as i32,
         esc_chars,
         one,
         ptr::null_mut(),
@@ -625,11 +625,7 @@ pub fn expand_env_save_opt(
 }
 
 /// Expand environment variable with path name.
-pub fn expand_env(
-    src: impl crate::strings::IntoCCharPtr,
-    dst: *mut c_char,
-    dstlen: c_int,
-) -> usize {
+pub fn expand_env(src: impl crate::strings::IntoCCharPtr, dst: *mut c_char, dstlen: i32) -> usize {
     let src = src.into_c_char_ptr().cast_mut();
     expand_env_esc(src, dst, dstlen, ptr::null_mut(), false, ptr::null_mut())
 }
@@ -638,7 +634,7 @@ pub fn expand_env(
 pub fn expand_env_esc(
     srcp: impl crate::strings::IntoCCharPtr,
     mut dst: *mut c_char,
-    mut dstlen: c_int,
+    mut dstlen: i32,
     esc_chars: impl crate::strings::IntoCCharPtr,
     one: bool,
     prefix: impl crate::strings::IntoCCharPtr,
@@ -673,7 +669,7 @@ pub fn expand_env_esc(
                 }
                 ptr::copy_nonoverlapping(var, dst, len);
                 dst = dst.add(len);
-                dstlen -= len as c_int;
+                dstlen -= len as i32;
                 continue;
             }
 
@@ -751,10 +747,10 @@ pub fn expand_env_esc(
                             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
                     }
                 } else if crate::memory::cstr_byte_at(src, 1) == 0
-                    || vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(src, 1)))
+                    || vim_ispathsep(i32::from(crate::memory::cstr_byte_at(src, 1)))
                     || crate::strings::vim_haschr(
                         c" ,\t\n",
-                        c_int::from(crate::memory::cstr_byte_at(src, 1)),
+                        i32::from(crate::memory::cstr_byte_at(src, 1)),
                     )
                 {
                     var = (&raw const env_st().homedir)
@@ -771,8 +767,8 @@ pub fn expand_env_esc(
                         let mut c = dstlen - 1;
                         while c > 0
                             && *tail != 0
-                            && vim_isfilec(c_int::from(crate::memory::cstr_first_byte(tail)))
-                            && !vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(tail)))
+                            && vim_isfilec(i32::from(crate::memory::cstr_first_byte(tail)))
+                            && !vim_ispathsep(i32::from(crate::memory::cstr_first_byte(tail)))
                         {
                             c -= 1;
                             *var = *tail;
@@ -811,7 +807,7 @@ pub fn expand_env_esc(
                     let c = crate::memory::cstr_len(var);
                     if c + crate::memory::cstr_len(tail) + 1 < (dstlen as usize) {
                         ptr::copy_nonoverlapping(var, dst, c + 1);
-                        dstlen -= c as c_int;
+                        dstlen -= c as i32;
                         let ends_with_sep = after_pathsep(dst, dst.add(c)) != 0;
                         #[cfg(windows)]
                         let not_colon = crate::memory::cstr_byte_at(dst, c - 1) != b':';
@@ -819,7 +815,7 @@ pub fn expand_env_esc(
                         let not_colon = true;
                         if ends_with_sep
                             && not_colon
-                            && vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(tail)))
+                            && vim_ispathsep(i32::from(crate::memory::cstr_first_byte(tail)))
                         {
                             tail = tail.add(1);
                         }
@@ -1037,7 +1033,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
             if vim_path_cstr.is_none() {
                 let mut vim_path: *mut c_char = ptr::null_mut();
                 if !opt_vars().p_hf.is_null()
-                    && !crate::strings::vim_haschr(opt_vars().p_hf, b'$' as c_int)
+                    && !crate::strings::vim_haschr(opt_vars().p_hf, b'$' as i32)
                 {
                     vim_path = opt_vars().p_hf;
                 }
@@ -1172,7 +1168,7 @@ pub fn home_replace(
                 homedir_env_mod = homedir_env_mod_vec.as_mut_ptr();
             }
             if flen > 0
-                && vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(
+                && vim_ispathsep(i32::from(crate::memory::cstr_byte_at(
                     homedir_env_mod,
                     flen - 1,
                 )))
@@ -1198,7 +1194,7 @@ pub fn home_replace(
                 let cmp_ok = len != 0 && path_cmp(opt_vars().p_fic != 0, src, p, len) == 0;
 
                 if cmp_ok
-                    && (vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(src, len)))
+                    && (vim_ispathsep(i32::from(crate::memory::cstr_byte_at(src, len)))
                         || (!one
                             && (crate::memory::cstr_byte_at(src, len) == b','
                                 || crate::memory::cstr_byte_at(src, len) == b' '))
@@ -1274,7 +1270,7 @@ pub fn home_replace_save(
 }
 
 /// Function given to `ExpandGeneric()` to obtain an environment variable name.
-pub fn get_env_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_env_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     assert!(idx >= 0);
     if let Some(envname) = os_getenvname_at_index(idx as usize) {
         xstrlcpy(xp.xp_buf.as_mut_ptr(), envname.as_ptr(), EXPAND_BUF_LEN);
@@ -1467,7 +1463,7 @@ mod tests {
             expand_env_esc(
                 c"$NVIM_RUST_ENV_TEST_KEY/sub",
                 buf.as_mut_ptr(),
-                buf.len() as c_int,
+                buf.len() as i32,
                 ptr::null_mut(),
                 true,
                 ptr::null_mut(),

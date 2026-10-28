@@ -28,9 +28,9 @@ use crate::regexp::NUMBUFLEN;
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use crate::viml::parser::expressions::{BS, CAR, ESC, NL, TAB};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
-const EOF_VAL: c_int = -1;
+const EOF_VAL: i32 = -1;
 
 pub(crate) const FF: u8 = 0x0c;
 
@@ -89,7 +89,7 @@ fn prepare_assert_error(gap: &mut Vec<u8>) {
     }
 }
 
-fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: c_int) {
+fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: i32) {
     let p = p.into_c_char_ptr();
     {
         if clen > 1 {
@@ -128,7 +128,7 @@ fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCC
 
         let mut p = str_ptr;
         while *p != 0 {
-            let mut same_len: c_int = 1;
+            let mut same_len: i32 = 1;
             let mut s = p;
             let c = mb_cptr2char_adv(&mut s);
             let clen = (s as usize) - (p as usize);
@@ -138,12 +138,12 @@ fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCC
             }
             if same_len > 20 {
                 ga_concat_literal(gap, b"\\[");
-                ga_concat_esc(gap, p, clen as c_int);
+                ga_concat_esc(gap, p, clen as i32);
                 let tail = format!(" occurs {same_len} times]");
                 ga_concat_literal(gap, tail.as_bytes());
                 p = s;
             } else {
-                ga_concat_esc(gap, p, clen as c_int);
+                ga_concat_esc(gap, p, clen as i32);
                 p = p.add(clen);
             }
         }
@@ -164,7 +164,7 @@ fn fill_assert_error(
         let exp_tv = { &mut *exp_tv };
         let got_tv = got_tv_arg;
         let mut did_copy = false;
-        let mut omitted: c_int = 0;
+        let mut omitted: i32 = 0;
 
         if opt_msg_tv.v_type != VarType::VarUnknown
             && !(opt_msg_tv.v_type == VarType::VarString
@@ -199,7 +199,7 @@ fn fill_assert_error(
                 exp_tv.vval = crate::eval::typval::TypvalVval::Dict(new_exp_d);
                 got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d);
 
-                let mut todo = (*exp_d).dv_hashtab.ht_used as c_int;
+                let mut todo = (*exp_d).dv_hashtab.ht_used as i32;
                 let mut hi = (*exp_d).dv_hashtab.array_ptr();
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
@@ -225,7 +225,7 @@ fn fill_assert_error(
                     hi = hi.add(1);
                 }
 
-                todo = (*got_d).dv_hashtab.ht_used as c_int;
+                todo = (*got_d).dv_hashtab.ht_used as i32;
                 hi = (*got_d).dv_hashtab.array_ptr();
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
@@ -282,7 +282,7 @@ fn fill_assert_error(
     }
 }
 
-fn assert_equal_common(argvars: &mut [TypVal], atype: AssertType) -> c_int {
+fn assert_equal_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
     if tv_equal(&argvars[0], &argvars[1], false) != (atype == AssertType::Equal) {
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
@@ -296,7 +296,7 @@ fn assert_equal_common(argvars: &mut [TypVal], atype: AssertType) -> c_int {
     0
 }
 
-fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> c_int {
+fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
     let mut buf1 = [0 as c_char; NUMBUFLEN];
     let mut buf2 = [0 as c_char; NUMBUFLEN];
     let pat = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr());
@@ -318,7 +318,7 @@ fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> c_int {
     0
 }
 
-fn assert_bool(argvars: &mut [TypVal], is_true: bool) -> c_int {
+fn assert_bool(argvars: &mut [TypVal], is_true: bool) -> i32 {
     let mut error = false;
     let arg0 = &argvars[0];
     let expected_bool = if is_true {
@@ -329,7 +329,7 @@ fn assert_bool(argvars: &mut [TypVal], is_true: bool) -> c_int {
     if (arg0.v_type != VarType::VarNumber
         || (tv_get_number_chk(&argvars[0], Some(&mut error)) == 0) == is_true
         || error)
-        && (arg0.v_type != VarType::VarBool || arg0.vval.v_bool() != expected_bool as c_int)
+        && (arg0.v_type != VarType::VarBool || arg0.vval.v_bool() != expected_bool as i32)
     {
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
@@ -368,9 +368,9 @@ fn assert_append_cmd_or_arg(
     }
 }
 
-fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> c_int {
+fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> i32 {
     let cmd = tv_get_string_chk(&argvars[0]);
-    let mut ret: c_int = 0;
+    let mut ret: i32 = 0;
 
     let beeps = g_st().did_beep;
     g_st().suppress_errthrow = true;
@@ -413,7 +413,7 @@ pub fn f_assert_equal(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     ) as i64);
 }
 
-fn assert_equalfile(argvars: &mut [TypVal]) -> c_int {
+fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
@@ -470,7 +470,7 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> c_int {
                             break;
                         }
                     }
-                    if c1 == (NL as c_int) {
+                    if c1 == (NL as i32) {
                         linecount += 1;
                         lineidx = 0;
                     } else if lineidx + 2 == line1.len() {
@@ -782,7 +782,7 @@ pub fn f_assert_false(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_bool(argvars, false) as i64);
 }
 
-fn assert_inrange(argvars: &mut [TypVal]) -> c_int {
+fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
     let mut error = false;
     let arg0 = &argvars[0];
     let arg1 = &argvars[1];

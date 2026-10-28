@@ -6,21 +6,21 @@ use crate::memory::xstrlcpy;
 #[cfg(unix)]
 use crate::os::env::os_getenv_buf;
 use crate::os::input::os_input_ready;
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 
 pub type Timestamp = u64;
 #[allow(non_camel_case_types)]
 pub type time_t = i64;
 
 pub const NS_PER_SEC: i64 = 1_000_000_000;
-const UV_CLOCK_REALTIME: c_int = 1;
+const UV_CLOCK_REALTIME: i32 = 1;
 
 use crate::event::r#loop::{UvTimespec64, uv_clock_gettime, uv_hrtime, uv_now, uv_sleep};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Tm {
-    pub _fields: [c_int; 16],
+    pub _fields: [i32; 16],
 }
 
 #[cfg(unix)]
@@ -61,7 +61,7 @@ unsafe extern "C" {
 
     #[cfg(target_os = "windows")]
     #[link_name = "_localtime64"]
-    fn win_localtime64(clock: &time_t) -> *mut [c_int; 9];
+    fn win_localtime64(clock: &time_t) -> *mut [i32; 9];
 }
 
 /// High-resolution monotonic clock in nanoseconds (`os_hrtime`).
@@ -91,7 +91,7 @@ pub fn os_now() -> u64 {
 /// Sleep for `ms` milliseconds while polling the main event loop (`os_delay`).
 pub fn os_delay(ms: u64, ignoreinput: bool) {
     {
-        let clamped = ms.min(u64::from(c_int::MAX as u32)) as i64;
+        let clamped = ms.min(u64::from(i32::MAX as u32)) as i64;
         let mut remaining = clamped;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
 
@@ -122,7 +122,7 @@ pub fn os_delay(ms: u64, ignoreinput: bool) {
 /// Block for `ms` milliseconds without processing events (`os_sleep`).
 pub fn os_sleep(ms: u64) {
     unsafe {
-        let clamped = ms.min(u64::from(c_uint::MAX)) as c_uint;
+        let clamped = ms.min(u64::from(u32::MAX)) as u32;
         uv_sleep(clamped);
     }
 }
@@ -158,7 +158,7 @@ pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
         if local_time.is_null() {
             return std::ptr::null_mut();
         }
-        *result.cast::<[c_int; 9]>() = *local_time;
+        *result.cast::<[i32; 9]>() = *local_time;
         result
     }
 }

@@ -12,10 +12,10 @@ use crate::eval::typval::{
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
 use crate::message::{emsg, semsg};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
-const K_CHANNEL_PART_RPC: c_int = 3;
-const K_CHANNEL_STDIN_PIPE: c_int = 0;
+const K_CHANNEL_PART_RPC: i32 = 3;
+const K_CHANNEL_STDIN_PIPE: i32 = 0;
 
 #[inline]
 const fn callback_none() -> Callback {
@@ -47,17 +47,15 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
 
         let mut args: *mut TvList = std::ptr::null_mut();
-        let mut argsl: c_int = 0;
+        let mut argsl: i32 = 0;
         if arg1.v_type == VarType::VarList {
             args = arg1.vval.v_list();
             argsl = if args.is_null() { 0 } else { (*args).lv_len };
-            for (i, li) in
-                (0 as c_int..).zip(crate::eval::typval::list_iter_mut(if args.is_null() {
-                    std::ptr::null_mut()
-                } else {
-                    (*args).lv_first
-                }))
-            {
+            for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(if args.is_null() {
+                std::ptr::null_mut()
+            } else {
+                (*args).lv_first
+            })) {
                 if li.li_tv.v_type != VarType::VarString {
                     semsg!(
                         c"E5010: List item %d of the second argument is not a string",
@@ -137,7 +135,7 @@ pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData)
 /// `"last_buffer_nr()"` function (`f_last_buffer_nr`).
 pub fn f_last_buffer_nr(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     {
-        let mut n: c_int = 0;
+        let mut n: i32 = 0;
         for buf in for_all_buffers_mut() {
             if n < buf.b_fnum {
                 n = buf.b_fnum;
@@ -167,7 +165,7 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
     }
 
     let dict = arg1.vval.v_dict();
-    tv_dict_add_bool(unsafe { &mut *dict }, c"term", K_BOOL_VAR_TRUE as c_int);
+    tv_dict_add_bool(unsafe { &mut *dict }, c"term", K_BOOL_VAR_TRUE as i32);
     f_jobstart(argvars, rettv, fptr);
     if must_free {
         tv_dict_free(dict);

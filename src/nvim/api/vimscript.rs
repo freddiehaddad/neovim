@@ -29,7 +29,7 @@ use crate::viml::parser::expressions::{
 use crate::viml::parser::parser::{
     ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
 };
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 
 const API_INTEGER_MAX: u64 = i64::MAX as u64;
 
@@ -42,8 +42,8 @@ pub struct KeyDict_exec_opts {
 use crate::eval::funcs::MAX_FUNC_ARGS;
 
 struct ApiVimscriptState {
-    eval_recursive: c_int,
-    call_func_recursive: c_int,
+    eval_recursive: i32,
+    call_func_recursive: i32,
 }
 
 impl ApiVimscriptState {
@@ -223,7 +223,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
                     err,
                     ErrorType::ErrorTypeException,
                     c"Failed to evaluate expression: '%.*s'",
-                    256 as c_int,
+                    256_i32,
                     expr.data,
                 );
             } else {
@@ -292,9 +292,9 @@ fn call_function_impl(
         let save_current_sctx = api_set_sctx(channel_id);
         let _ = call_func(
             fn_name.data,
-            fn_name.size as c_int,
+            fn_name.size as i32,
             &mut rettv,
-            args.size as c_int,
+            args.size as i32,
             vim_args.as_mut_ptr(),
             &mut funcexe,
         );
@@ -540,7 +540,7 @@ pub fn nvim_parse_expression(
     err: &mut Error,
 ) -> Dict {
     unsafe {
-        let mut pflags: c_int = 0;
+        let mut pflags: i32 = 0;
         for i in 0..flags.size {
             let b = crate::memory::cstr_byte_at(flags.data, i);
             match b {
@@ -552,7 +552,7 @@ pub fn nvim_parse_expression(
                         err,
                         ErrorType::ErrorTypeValidation,
                         c"Invalid flag: '\\0' (%u)",
-                        c_uint::from(b),
+                        u32::from(b),
                     );
                     return Dict::new();
                 }
@@ -561,8 +561,8 @@ pub fn nvim_parse_expression(
                         err,
                         ErrorType::ErrorTypeValidation,
                         c"Invalid flag: '%c' (%u)",
-                        c_int::from(b as c_char),
-                        c_uint::from(b),
+                        i32::from(b as c_char),
+                        u32::from(b),
                     );
                     return Dict::new();
                 }

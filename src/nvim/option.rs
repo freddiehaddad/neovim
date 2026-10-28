@@ -141,16 +141,16 @@ use crate::window::{
     win_find_tabpage, win_new_screen_rows, win_setheight, win_setwidth,
 };
 use crate::winfloat::win_float_update_statusline;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_void};
 use std::ptr;
 
 pub type OptInt = i64;
-pub type OptScope = c_int;
-pub type SetOp = c_int;
-pub type SetPrefix = c_int;
+pub type OptScope = i32;
+pub type SetOp = i32;
+pub type SetPrefix = i32;
 
-pub(crate) const OPT_GLOBAL: c_int = 0x01;
-pub(crate) const OPT_LOCAL: c_int = 0x02;
+pub(crate) const OPT_GLOBAL: i32 = 0x01;
+pub(crate) const OPT_LOCAL: i32 = 0x02;
 pub(crate) const PREFIX_NONE: SetPrefix = 1;
 pub(crate) const K_OPT_SCOPE_GLOBAL: OptScope = 0;
 pub(crate) const K_OPT_SCOPE_WIN: OptScope = 1;
@@ -188,7 +188,7 @@ use crate::insert::{BS_EOL, BS_NOSTOP, BS_START};
 use crate::os::fs::MAXPATHL;
 use crate::state::MODE_TERMINAL;
 
-const OPT_ONECOLUMN: c_int = 0x20;
+const OPT_ONECOLUMN: i32 = 0x20;
 
 const PREFIX_NO: SetPrefix = 0;
 const PREFIX_INV: SetPrefix = 2;
@@ -458,11 +458,11 @@ const K_BUF_OPT_VARSOFTTABSTOP: usize = 90;
 const K_BUF_OPT_VARTABSTOP: usize = 91;
 const K_BUF_OPT_WRAPMARGIN: usize = 92;
 
-const K_CPO_BUFOPT: c_int = b's' as c_int;
-const K_CPO_BUFOPTGLOB: c_int = b'S' as c_int;
+const K_CPO_BUFOPT: i32 = b's' as i32;
+const K_CPO_BUFOPTGLOB: i32 = b'S' as i32;
 
-const K_OPT_VE_FLAG_NONE: c_uint = 0x10;
-const K_OPT_VE_FLAG_NONE_U: c_uint = 0x20;
+const K_OPT_VE_FLAG_NONE: u32 = 0x10;
+const K_OPT_VE_FLAG_NONE_U: u32 = 0x20;
 
 pub(crate) const SB_MAX: OptInt = 1_000_000;
 const MAX_NUMBERWIDTH: OptInt = 20;
@@ -495,26 +495,26 @@ const W_ARABIC: *const c_char = c"W17: Arabic requires UTF-8, do ':set encoding=
 struct OptionModuleState {
     p_term: Option<std::ffi::CString>,
     p_ttytype: Option<std::ffi::CString>,
-    p_et_nobin: c_int,
-    p_ml_nobin: c_int,
+    p_et_nobin: i32,
+    p_ml_nobin: i32,
     p_tw_nobin: OptInt,
     p_wm_nobin: OptInt,
-    p_ai_nopaste: c_int,
-    p_et_nopaste: c_int,
+    p_ai_nopaste: i32,
+    p_et_nopaste: i32,
     p_sts_nopaste: OptInt,
     p_tw_nopaste: OptInt,
     p_wm_nopaste: OptInt,
     p_vsts_nopaste: Option<std::ffi::CString>,
-    old_p_paste: c_int,
-    save_sm: c_int,
-    save_sta: c_int,
-    save_ru: c_int,
-    save_ri: c_int,
-    syn_recursive: c_int,
+    old_p_paste: i32,
+    save_sm: i32,
+    save_sta: i32,
+    save_ru: i32,
+    save_ri: i32,
+    syn_recursive: i32,
     expand_option_idx: OptIndex,
-    expand_option_start_col: c_int,
+    expand_option_start_col: i32,
     expand_option_name: [c_char; 5],
-    expand_option_flags: c_int,
+    expand_option_flags: i32,
     expand_option_append: bool,
 }
 
@@ -555,14 +555,14 @@ fn opt_st() -> &'static mut OptionModuleState {
     unsafe { &mut *OPT_STATE.as_ptr() }
 }
 
-const P_BIN_DEP_OPTS: &[c_int] = &[
+const P_BIN_DEP_OPTS: &[i32] = &[
     K_OPT_TEXTWIDTH,
     K_OPT_WRAPMARGIN,
     K_OPT_MODELINE,
     K_OPT_EXPANDTAB,
 ];
 
-const P_PASTE_DEP_OPTS: &[c_int] = &[
+const P_PASTE_DEP_OPTS: &[i32] = &[
     K_OPT_AUTOINDENT,
     K_OPT_EXPANDTAB,
     K_OPT_RULER,
@@ -652,7 +652,7 @@ pub fn opt_error(
 pub fn opt_error_int(
     errbuf: Option<CharBuf>,
     fmt: impl crate::strings::IntoCCharPtr,
-    arg: c_int,
+    arg: i32,
 ) -> *const c_char {
     let fmt = fmt.into_c_char_ptr();
     let Some(errbuf) = errbuf else {
@@ -733,7 +733,7 @@ pub fn set_init_tablocal() {
 fn set_init_default_shell() {
     if let Some(shell) = os_getenv_cstr(c"SHELL") {
         let shell_ptr = shell.as_ptr();
-        if crate::strings::vim_haschr(shell_ptr, b' ' as c_int) {
+        if crate::strings::vim_haschr(shell_ptr, b' ' as i32) {
             let len = shell.as_bytes().len() + 3;
             let mut cmd = vec![0 as c_char; len];
             vim_snprintf!(cmd.as_mut_ptr(), len, c"\"%s\"", shell_ptr);
@@ -860,7 +860,7 @@ fn set_init_default_cdpath() {
         let mut i: usize = 0;
         while crate::memory::cstr_byte_at(cdpath, i) != 0 {
             let ch = *cdpath.add(i);
-            if vim_ispathlistsep(ch as c_int) {
+            if vim_ispathlistsep(ch as i32) {
                 *buf.add(j) = b',' as c_char;
                 j += 1;
             } else {
@@ -985,7 +985,7 @@ pub fn set_init_1(clean_arg: bool) {
 }
 
 /// Get default value for option, based on the option's type and scope.
-pub fn get_option_default(opt_idx: OptIndex, opt_flags: c_int) -> Object {
+pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
     {
         let opt = get_option(opt_idx);
         let is_global_local_option = option_is_global_local(opt_idx);
@@ -1036,7 +1036,7 @@ fn change_option_default(opt_idx: OptIndex, value: Object) {
 }
 
 /// Set an option to its default value.
-fn set_option_default(opt_idx: OptIndex, opt_flags: c_int) {
+fn set_option_default(opt_idx: OptIndex, opt_flags: i32) {
     {
         let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
         let def_val = get_option_default(opt_idx, opt_flags);
@@ -1057,7 +1057,7 @@ fn set_option_default(opt_idx: OptIndex, opt_flags: c_int) {
 }
 
 /// Set all options (except terminal options) to their default value.
-fn set_options_default(opt_flags: c_int) {
+fn set_options_default(opt_flags: i32) {
     {
         for opt_idx in 0..K_OPT_COUNT {
             if (get_option(opt_idx).flags & K_OPT_FLAG_NO_DEFAULT) == 0 {
@@ -1096,7 +1096,7 @@ fn find_dup_item(
             return ptr::null();
         }
 
-        let mut bs: c_int = 0;
+        let mut bs: i32 = 0;
         let mut s = origval;
         while !crate::memory::cstr_is_empty(s) {
             if ((flags & K_OPT_FLAG_COMMA) == 0
@@ -1281,11 +1281,11 @@ pub fn set_title_defaults() {
 }
 
 pub fn ex_set(eap: &mut Exarg) {
-    let mut flags: c_int = 0;
+    let mut flags: i32 = 0;
 
-    if eap.cmdidx == Cmdidx::CmdSetlocal as c_int {
+    if eap.cmdidx == Cmdidx::CmdSetlocal as i32 {
         flags = OPT_LOCAL;
-    } else if eap.cmdidx == Cmdidx::CmdSetglobal as c_int {
+    } else if eap.cmdidx == Cmdidx::CmdSetglobal as i32 {
         flags = OPT_GLOBAL;
     }
     if eap.forceit != 0 {
@@ -1320,7 +1320,7 @@ fn stropt_copy_value(
             let remove_bs = crate::memory::cstr_first_byte(arg) == b'\\'
                 && crate::memory::cstr_byte_at(arg, 1) != 0
                 && !((flags & K_OPT_FLAG_EXPAND) != 0
-                    && vim_isfilec(crate::memory::cstr_byte_at(arg, 1) as c_int)
+                    && vim_isfilec(crate::memory::cstr_byte_at(arg, 1) as i32)
                     && !ascii_iswhite(crate::memory::cstr_char_at(arg, 1))
                     && (crate::memory::cstr_byte_at(arg, 1) != b'\\'
                         || (s == newval && crate::memory::cstr_byte_at(arg, 2) != b'\\')));
@@ -1425,7 +1425,7 @@ fn stropt_remove_val(
     newval: *mut c_char,
     flags: u32,
     strval: impl crate::strings::IntoCCharPtr,
-    mut len: c_int,
+    mut len: i32,
 ) {
     let origval = origval.into_c_char_ptr();
     let mut strval = strval.into_c_char_ptr();
@@ -1466,7 +1466,7 @@ fn find_key_item(
                 && (crate::memory::cstr_prefix_bytes(p, keylen as usize)
                     == crate::memory::cstr_prefix_bytes(key, keylen as usize))
             {
-                let mut end = vim_strchr(p, b',' as c_int);
+                let mut end = vim_strchr(p, b',' as i32);
                 if end.is_null() {
                     end = p.add(crate::memory::cstr_len(p));
                 }
@@ -1572,8 +1572,8 @@ fn stropt_handle_keymatch(
 ) -> bool {
     let origval = origval.into_c_char_ptr();
     unsafe {
-        if !crate::strings::vim_haschr(newval, b':' as c_int)
-            && !crate::strings::vim_haschr(newval, b',' as c_int)
+        if !crate::strings::vim_haschr(newval, b':' as i32)
+            && !crate::strings::vim_haschr(newval, b',' as i32)
         {
             return false;
         }
@@ -1583,7 +1583,7 @@ fn stropt_handle_keymatch(
 
         let mut item_start = newval_copy.as_ptr().cast_mut();
         loop {
-            let p = vim_strchr(item_start, b',' as c_int);
+            let p = vim_strchr(item_start, b',' as i32);
             let item_len = if p.is_null() {
                 crate::memory::cstr_len(item_start) as isize
             } else {
@@ -1591,7 +1591,7 @@ fn stropt_handle_keymatch(
             };
 
             if item_len > 0 {
-                let colon = vim_strchr(item_start, b':' as c_int);
+                let colon = vim_strchr(item_start, b':' as i32);
                 if !colon.is_null() && colon < item_start.offset(item_len) {
                     let keylen = colon.offset_from(item_start) + 1;
 
@@ -1664,7 +1664,7 @@ fn stropt_remove_dupflags(newval: impl crate::strings::IntoCCharPtr, flags: u32)
                     && crate::memory::cstr_byte_at(s, 1) == b','
                     && crate::strings::vim_haschr(
                         s.add(2),
-                        crate::memory::cstr_first_byte(s) as c_int,
+                        crate::memory::cstr_first_byte(s) as i32,
                     )
                 {
                     let src = s.add(2);
@@ -1672,7 +1672,7 @@ fn stropt_remove_dupflags(newval: impl crate::strings::IntoCCharPtr, flags: u32)
                     continue;
                 }
             } else if ((flags & K_OPT_FLAG_COMMA) == 0 || crate::memory::cstr_first_byte(s) != b',')
-                && crate::strings::vim_haschr(s.add(1), crate::memory::cstr_first_byte(s) as c_int)
+                && crate::strings::vim_haschr(s.add(1), crate::memory::cstr_first_byte(s) as i32)
             {
                 let src = s.add(1);
                 ptr::copy(src, s, crate::memory::cstr_len(src) + 1);
@@ -1722,9 +1722,9 @@ fn stropt_get_newval(
         {
             // fully handled
         } else {
-            let mut len: c_int = 0;
+            let mut len: i32 = 0;
             if op == OP_REMOVING || (flags & K_OPT_FLAG_NO_DUP) != 0 {
-                len = crate::memory::cstr_len(newval) as c_int;
+                len = crate::memory::cstr_len(newval) as i32;
                 s = find_dup_item(origval, newval, len as usize, flags);
 
                 if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
@@ -1792,7 +1792,7 @@ fn get_option_prefix(argp: *mut *mut c_char) -> SetPrefix {
 fn validate_opt_idx(
     win: &mut WinInfoInfo,
     opt_idx: OptIndex,
-    opt_flags: c_int,
+    opt_flags: i32,
     flags: u32,
     prefix: SetPrefix,
     errmsg: *mut *const c_char,
@@ -1905,10 +1905,10 @@ pub fn find_option_end(
 /// Get new option value from argp. Allocated Object must be freed by caller.
 pub fn get_option_newval(
     opt_idx: OptIndex,
-    opt_flags: c_int,
+    opt_flags: i32,
     prefix: SetPrefix,
     argp: *mut *mut c_char,
-    nextchar: c_int,
+    nextchar: i32,
     mut op: SetOp,
     varp: *mut c_void,
     mut oldval_override: Option<&mut Object>,
@@ -1921,9 +1921,9 @@ pub fn get_option_newval(
         let mut arg = *argp;
         let mut newval = nil_obj();
 
-        if nextchar == b'&' as c_int {
+        if nextchar == b'&' as i32 {
             return optval_own(opt_idx, get_option_default(opt_idx, OPT_GLOBAL));
-        } else if nextchar == b'<' as c_int {
+        } else if nextchar == b'<' as i32 {
             if option_is_global_local(opt_idx) && (opt_flags & OPT_LOCAL) == 0 {
                 unset_option_local_value(opt_idx);
             }
@@ -1950,7 +1950,7 @@ pub fn get_option_newval(
         match oldval.obj_type {
             ObjectType::ObjectTypeNil => std::process::abort(),
             ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeBoolean => {
-                let newval_bool: TriState = if nextchar == b'!' as c_int {
+                let newval_bool: TriState = if nextchar == b'!' as i32 {
                     if oldval.obj_type == ObjectType::ObjectTypeUnset {
                         K_NONE
                     } else if oldval.data.boolean() {
@@ -1959,7 +1959,7 @@ pub fn get_option_newval(
                         K_TRUE
                     }
                 } else if prefix == PREFIX_INV {
-                    *(varp.cast::<c_int>()) ^ 1
+                    *(varp.cast::<i32>()) ^ 1
                 } else if prefix == PREFIX_NO {
                     0
                 } else {
@@ -1993,7 +1993,7 @@ pub fn get_option_newval(
                 } else if crate::memory::cstr_first_byte(arg) == b'-'
                     || ascii_isdigit(crate::memory::cstr_first_char(arg))
                 {
-                    let mut i: c_int = 0;
+                    let mut i: i32 = 0;
                     vim_str2nr(
                         arg,
                         None,
@@ -2055,7 +2055,7 @@ pub fn get_option_newval(
 }
 
 fn do_one_set_option(
-    opt_flags: c_int,
+    opt_flags: i32,
     argp: *mut *mut c_char,
     did_show: &mut bool,
     errbuf: Option<CharBuf>,
@@ -2087,7 +2087,7 @@ fn do_one_set_option(
             p = p.add(1);
         }
 
-        let nextchar = crate::memory::cstr_first_byte(p) as c_int;
+        let nextchar = crate::memory::cstr_first_byte(p) as i32;
         let opt = get_option(opt_idx);
         let flags = opt.flags;
         let varp = get_varp_scope(opt, opt_flags);
@@ -2100,7 +2100,7 @@ fn do_one_set_option(
         if crate::strings::vim_haschr(c"?=:!&<", nextchar) {
             *argp = p;
 
-            if nextchar == b'&' as c_int
+            if nextchar == b'&' as i32
                 && crate::memory::cstr_byte_at(*argp, 1) == b'v'
                 && crate::memory::cstr_byte_at(*argp, 2) == b'i'
             {
@@ -2118,13 +2118,13 @@ fn do_one_set_option(
             }
         }
 
-        if nextchar == b'?' as c_int
+        if nextchar == b'?' as i32
             || (prefix == PREFIX_NONE
                 && !crate::strings::vim_haschr(c"=:&<", nextchar)
                 && !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean))
         {
             if *did_show {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
             } else {
                 msg_ext_set_kind(c"list_cmd");
                 gotocmdline(true);
@@ -2148,7 +2148,7 @@ fn do_one_set_option(
                 }
             }
 
-            if nextchar != b'?' as c_int && nextchar != NUL as c_int && !ascii_iswhite(afterchar) {
+            if nextchar != b'?' as i32 && nextchar != NUL as i32 && !ascii_iswhite(afterchar) {
                 return E_TRAILING.as_ptr();
             }
             return ptr::null();
@@ -2160,7 +2160,7 @@ fn do_one_set_option(
             }
 
             if !crate::strings::vim_haschr(c"!&<", nextchar)
-                && nextchar != NUL as c_int
+                && nextchar != NUL as i32
                 && !ascii_iswhite(afterchar)
             {
                 return E_TRAILING.as_ptr();
@@ -2190,7 +2190,7 @@ fn do_one_set_option(
 }
 
 /// Parse 'arg' for option settings.
-pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
+pub fn do_set(mut arg: *mut c_char, opt_flags: i32) -> bool {
     unsafe {
         let mut did_show = false;
 
@@ -2248,7 +2248,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
                             ptr::copy(startarg, iobuf_ptr.offset(i), arg_len as usize);
                             *iobuf_ptr.offset(i + arg_len) = NUL;
                         }
-                        trans_characters(iobuf_ptr, IOSIZE as c_int);
+                        trans_characters(iobuf_ptr, IOSIZE as i32);
 
                         g_st().no_wait_return += 1;
                         emsg(iobuf_ptr);
@@ -2265,7 +2265,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
         if g_st().silent_mode && did_show {
             g_st().silent_mode = false;
             g_st().info_message = true;
-            msg_putchar(b'\n' as c_int);
+            msg_putchar(b'\n' as i32);
             g_st().silent_mode = true;
             g_st().info_message = false;
         }
@@ -2274,10 +2274,10 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
     }
 }
 
-fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: bool) -> c_int {
+fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: bool) -> i32 {
     let arg_arg = arg_arg.into_c_char_ptr();
     unsafe {
-        let mut key: c_int = 0;
+        let mut key: i32 = 0;
         let mut arg = arg_arg;
 
         if len >= 4
@@ -2286,13 +2286,13 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
         {
             if !has_lt || crate::memory::cstr_byte_at(arg, 4) == b'>' {
                 key = termcap2key(
-                    crate::memory::cstr_byte_at(arg, 2) as c_int,
-                    crate::memory::cstr_byte_at(arg, 3) as c_int,
+                    crate::memory::cstr_byte_at(arg, 2) as i32,
+                    crate::memory::cstr_byte_at(arg, 3) as i32,
                 );
             }
         } else if has_lt {
             arg = arg.offset(-1);
-            let mut modifiers: c_int = 0;
+            let mut modifiers: i32 = 0;
             key = find_special_key(
                 &raw mut arg,
                 len + 1,
@@ -2309,20 +2309,20 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
 }
 
 /// Convert a key name or string into a key value.
-pub fn string_to_key(arg: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn string_to_key(arg: impl crate::strings::IntoCCharPtr) -> i32 {
     let arg = arg.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(arg) == b'<' && crate::memory::cstr_byte_at(arg, 1) != 0 {
             return find_key_len(arg.add(1), crate::memory::cstr_len(arg), true);
         }
         if crate::memory::cstr_first_byte(arg) == b'^' && crate::memory::cstr_byte_at(arg, 1) != 0 {
-            let mut key = ctrl_chr(c_int::from(crate::memory::cstr_byte_at(arg, 1)));
+            let mut key = ctrl_chr(i32::from(crate::memory::cstr_byte_at(arg, 1)));
             if key == 0 {
                 key = K_ZERO;
             }
             return key;
         }
-        crate::memory::cstr_first_byte(arg) as c_int
+        crate::memory::cstr_first_byte(arg) as i32
     }
 }
 
@@ -2335,7 +2335,7 @@ pub fn did_set_title() {
 }
 
 /// set_options_bin - called when 'bin' changes value.
-pub fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int) {
+pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
     {
         if newval != 0 {
             if oldval == 0 {
@@ -2408,7 +2408,7 @@ fn option_expand(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) -> *
         expand_env_esc(
             val,
             namebuf_ptr,
-            MAXPATHL as c_int,
+            MAXPATHL as i32,
             if esc {
                 c" \t".as_ptr().cast_mut()
             } else {
@@ -2438,8 +2438,8 @@ fn didset_options() {
 
         didset_string_options();
 
-        let mut sps_flags: c_int = 0;
-        let mut sps_limit: c_int = 0;
+        let mut sps_flags: i32 = 0;
+        let mut sps_limit: i32 = 0;
         if spell_check_sps(opt_vars().p_sps, &mut sps_flags, &mut sps_limit) {
             spell_apply_sps(sps_flags, sps_limit);
         }
@@ -2508,15 +2508,11 @@ pub fn check_options() {
 }
 
 /// Check if option was set insecurely.
-pub fn was_set_insecurely(
-    wp: Option<&mut WinInfoInfo>,
-    opt_idx: OptIndex,
-    opt_flags: c_int,
-) -> c_int {
+pub fn was_set_insecurely(wp: Option<&mut WinInfoInfo>, opt_idx: OptIndex, opt_flags: i32) -> i32 {
     {
         assert!(opt_idx != K_OPT_INVALID);
         let flagp = insecure_flag(wp, opt_idx, opt_flags);
-        c_int::from((*flagp & K_OPT_FLAG_INSECURE) != 0)
+        i32::from((*flagp & K_OPT_FLAG_INSECURE) != 0)
     }
 }
 
@@ -2524,7 +2520,7 @@ pub fn was_set_insecurely(
 pub fn insecure_flag(
     wp: Option<&mut WinInfoInfo>,
     opt_idx: OptIndex,
-    opt_flags: c_int,
+    opt_flags: i32,
 ) -> &'static mut u32 {
     unsafe {
         if (opt_flags & OPT_LOCAL) != 0 {
@@ -2576,8 +2572,8 @@ pub fn valid_name(val: impl crate::strings::IntoCCharPtr, allowed: &std::ffi::CS
     {
         let s = val;
         for &s_byte in crate::memory::cstr_as_bytes(s) {
-            if !ascii_isalnum(s_byte as c_char as c_int)
-                && !crate::strings::vim_haschr(allowed.as_ptr(), s_byte as c_int)
+            if !ascii_isalnum(s_byte as c_char as i32)
+                && !crate::strings::vim_haschr(allowed.as_ptr(), s_byte as i32)
             {
                 return false;
             }
@@ -2616,13 +2612,13 @@ pub fn parse_winhl_opt(
             return true;
         }
 
-        let mut ns_hl: c_int = 0;
+        let mut ns_hl: i32 = 0;
         if wp.is_some() {
             if wp.as_deref_mut().unwrap().w_ns_hl_winhl == 0 {
                 wp.as_deref_mut().unwrap().w_ns_hl_winhl = nvim_create_namespace(NvimString {
                     data: ptr::null_mut(),
                     size: 0,
-                }) as c_int;
+                }) as i32;
             } else {
                 let dp = get_decor_provider(wp.as_deref_mut().unwrap().w_ns_hl_winhl, true);
                 (*dp).hl_valid += 1;
@@ -2695,7 +2691,7 @@ pub fn get_option_sctx(opt_idx: OptIndex) -> &'static mut Sctx {
 }
 
 /// Set the script_ctx for an option.
-pub fn set_option_sctx(opt_idx: OptIndex, opt_flags: c_int, mut script_ctx: Sctx) {
+pub fn set_option_sctx(opt_idx: OptIndex, opt_flags: i32, mut script_ctx: Sctx) {
     {
         let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
 
@@ -2725,7 +2721,7 @@ pub fn set_option_sctx(opt_idx: OptIndex, opt_flags: c_int, mut script_ctx: Sctx
 /// Execute OptionSet autocmd now (not deferred).
 pub fn apply_optionset_autocmd_now(
     opt_idx: OptIndex,
-    opt_flags: c_int,
+    opt_flags: i32,
     oldval: Object,
     oldval_g: Object,
     oldval_l: Object,
@@ -2791,7 +2787,7 @@ pub fn apply_optionset_autocmd_now(
 /// For 'modified', the event is deferred.
 fn apply_optionset_autocmd(
     opt_idx: OptIndex,
-    opt_flags: c_int,
+    opt_flags: i32,
     oldval: Object,
     oldval_g: Object,
     oldval_l: Object,
@@ -2871,7 +2867,7 @@ pub fn did_set_autochdir(_args: &mut Optset) -> *const c_char {
 pub fn did_set_binary(args: &mut Optset) -> *const c_char {
     unsafe {
         set_options_bin(
-            c_int::from(args.os_oldval.data.boolean()),
+            i32::from(args.os_oldval.data.boolean()),
             (*args.os_buf).b_p_bin,
             args.os_flags,
         );
@@ -2885,7 +2881,7 @@ pub fn did_set_buflisted(args: &mut Optset) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
 
-        if c_int::from(args.os_oldval.data.boolean()) != (*buf).b_p_bl {
+        if i32::from(args.os_oldval.data.boolean()) != (*buf).b_p_bl {
             apply_autocmds(
                 if (*buf).b_p_bl != 0 {
                     EVENT_BUFADD
@@ -2956,7 +2952,7 @@ pub fn did_set_foldenable(args: &mut Optset) -> *const c_char {
         let win = args.os_win;
         let win = unsafe { &mut *win };
         if args.os_varp == (&raw mut win.w_onebuf_opt.wo_fen).cast::<c_void>()
-            && c_int::from(args.os_oldval.data.boolean()) != win.w_onebuf_opt.wo_fen
+            && i32::from(args.os_oldval.data.boolean()) != win.w_onebuf_opt.wo_fen
             && foldmethod_is_diff(&mut *win)
             && win.w_onebuf_opt.wo_scb != 0
         {
@@ -3014,7 +3010,7 @@ pub fn did_set_helpheight(_args: &mut Optset) -> *const c_char {
             && curbuf_mut().b_help
             && OptInt::from(curwin_mut().w_height) < opt_vars().p_hh
         {
-            win_setheight(opt_vars().p_hh as c_int);
+            win_setheight(opt_vars().p_hh as i32);
         }
         ptr::null()
     }
@@ -3043,13 +3039,13 @@ pub fn did_set_iminsert(_args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'langnoremap' option value.
 pub fn did_set_langnoremap(_args: &mut Optset) -> *const c_char {
-    opt_vars().p_lrm = c_int::from(opt_vars().p_lnr == 0);
+    opt_vars().p_lrm = i32::from(opt_vars().p_lnr == 0);
     ptr::null()
 }
 
 /// Process the updated 'langremap' option value.
 pub fn did_set_langremap(_args: &mut Optset) -> *const c_char {
-    opt_vars().p_lnr = c_int::from(opt_vars().p_lrm == 0);
+    opt_vars().p_lnr = i32::from(opt_vars().p_lrm == 0);
     ptr::null()
 }
 
@@ -3097,12 +3093,12 @@ pub fn did_set_lines_or_columns(args: &mut Optset) -> *const c_char {
             let oldval = integer_obj(args.os_oldval.data.integer());
             set_option_varp(args.os_idx, args.os_varp, oldval);
         } else if g_st().full_screen {
-            screen_resize(opt_vars().p_columns as c_int, opt_vars().p_lines as c_int);
+            screen_resize(opt_vars().p_columns as i32, opt_vars().p_lines as i32);
         } else {
-            g_st().rows_global = opt_vars().p_lines as c_int;
-            g_st().columns_global = opt_vars().p_columns as c_int;
+            g_st().rows_global = opt_vars().p_lines as i32;
+            g_st().columns_global = opt_vars().p_columns as i32;
             check_screensize();
-            let new_row = (OptInt::from(g_st().rows_global) - opt_vars().p_ch.max(1)) as c_int;
+            let new_row = (OptInt::from(g_st().rows_global) - opt_vars().p_ch.max(1)) as i32;
             if g_st().cmdline_row > new_row && OptInt::from(g_st().rows_global) > opt_vars().p_ch {
                 g_st().cmdline_row = new_row;
             }
@@ -3563,7 +3559,7 @@ pub fn did_set_winheight(_args: &mut Optset) -> *const c_char {
     {
         if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_height) < opt_vars().p_wh
         {
-            win_setheight(opt_vars().p_wh as c_int);
+            win_setheight(opt_vars().p_wh as i32);
         }
         ptr::null()
     }
@@ -3574,7 +3570,7 @@ pub fn did_set_winwidth(_args: &mut Optset) -> *const c_char {
     {
         if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw
         {
-            win_setwidth(opt_vars().p_wiw as c_int);
+            win_setwidth(opt_vars().p_wiw as i32);
         }
         ptr::null()
     }
@@ -3605,9 +3601,9 @@ pub fn did_set_xhistory(args: &mut Optset) -> *const c_char {
         };
 
         if is_p_chi {
-            qf_resize_stack(*arg as c_int);
+            qf_resize_stack(*arg as i32);
         } else {
-            ll_resize_stack(&mut *args.os_win, *arg as c_int);
+            ll_resize_stack(&mut *args.os_win, *arg as i32);
         }
 
         ptr::null()
@@ -3651,7 +3647,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
                 fname.as_mut_ptr(),
                 fname.len(),
                 c"spell/%.*s.*",
-                p.offset_from(q) as c_int,
+                p.offset_from(q) as i32,
                 q,
             );
             source_runtime_vim_lua(fname.as_mut_ptr(), DIP_ALL);
@@ -3676,14 +3672,14 @@ fn check_num_option_bounds(
                     errmsg = opt_error_int(errbuf, c"E593: Need at least %d lines", min_r);
                     *newval = OptInt::from(min_r);
                 }
-                *newval = (*newval).min(OptInt::from(c_int::MAX));
+                *newval = (*newval).min(OptInt::from(i32::MAX));
             }
             K_OPT_COLUMNS => {
                 if *newval < OptInt::from(MIN_COLUMNS) && g_st().full_screen {
                     errmsg = opt_error_int(errbuf, c"E594: Need at least %d columns", MIN_COLUMNS);
                     *newval = OptInt::from(MIN_COLUMNS);
                 }
-                *newval = (*newval).min(OptInt::from(c_int::MAX));
+                *newval = (*newval).min(OptInt::from(i32::MAX));
             }
             K_OPT_PUMBLEND => {
                 *newval = (*newval).clamp(0, 100);
@@ -3723,7 +3719,7 @@ fn validate_num_option(
     unsafe {
         let value = *newval;
 
-        if value < OptInt::from(c_int::MIN) || value > OptInt::from(c_int::MAX) {
+        if value < OptInt::from(i32::MIN) || value > OptInt::from(i32::MAX) {
             return E_INVARG.as_ptr();
         }
 
@@ -5349,7 +5345,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
             };
         }
 
-        if varp.cast::<c_int>() == &raw mut curbuf_mut().b_changed {
+        if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
             return boolean_obj(curbuf_is_changed_fn());
         }
 
@@ -5359,7 +5355,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
 
         match opt.opt_type {
             ObjectType::ObjectTypeBoolean => {
-                opt_from_tristate(tristate_from_int(OptInt::from(*(varp.cast::<c_int>()))))
+                opt_from_tristate(tristate_from_int(OptInt::from(*(varp.cast::<i32>()))))
             }
             ObjectType::ObjectTypeInteger => integer_obj(*(varp.cast::<OptInt>())),
             ObjectType::ObjectTypeString => {
@@ -5389,7 +5385,7 @@ fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
             ObjectType::ObjectTypeUnset => {
                 assert!(option_is_global_local(opt_idx));
                 if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-                    *(varp.cast::<c_int>()) = K_NONE;
+                    *(varp.cast::<i32>()) = K_NONE;
                 } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
                     let pp = varp.cast::<*mut c_char>();
                     free_string_option(*pp);
@@ -5407,7 +5403,7 @@ fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
             }
             ObjectType::ObjectTypeBoolean => {
                 assert!(option_has_type(opt_idx, ObjectType::ObjectTypeBoolean));
-                *(varp.cast::<c_int>()) = c_int::from(value.data.boolean());
+                *(varp.cast::<i32>()) = i32::from(value.data.boolean());
             }
             ObjectType::ObjectTypeInteger => {
                 assert!(option_has_type(opt_idx, ObjectType::ObjectTypeInteger));
@@ -5632,7 +5628,7 @@ pub fn option_scope_idx(opt_idx: OptIndex, scope: OptScope) -> isize {
 }
 
 /// Gets the value for an option.
-pub fn get_option_value(opt_idx: OptIndex, opt_flags: c_int) -> Object {
+pub fn get_option_value(opt_idx: OptIndex, opt_flags: i32) -> Object {
     if opt_idx == K_OPT_INVALID {
         return nil_obj();
     }
@@ -5908,7 +5904,7 @@ pub fn validate_and_prepare_option_value(args: &mut Optset) -> *const c_char {
 fn set_option(
     opt_idx: OptIndex,
     mut value: Object,
-    opt_flags: c_int,
+    opt_flags: i32,
     set_sid: Scid,
     direct: bool,
     value_replaced: bool,
@@ -6085,7 +6081,7 @@ fn set_option(
 }
 
 /// Set option value directly, without processing any side effects.
-pub fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: c_int, set_sid: Scid) {
+pub fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: i32, set_sid: Scid) {
     if is_option_hidden(opt_idx) {
         return;
     }
@@ -6106,7 +6102,7 @@ pub fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: c_int, set
 pub fn set_option_direct_for(
     opt_idx: OptIndex,
     value: Object,
-    opt_flags: c_int,
+    opt_flags: i32,
     set_sid: Scid,
     target: OptTarget,
 ) {
@@ -6137,7 +6133,7 @@ pub fn set_option_direct_for(
 pub fn set_option_value(
     opt_idx: OptIndex,
     value: Object,
-    opt_flags: c_int,
+    opt_flags: i32,
     value_replaced: bool,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
@@ -6168,7 +6164,7 @@ fn unset_option_local_value(opt_idx: OptIndex) -> *const c_char {
 }
 
 /// Call set_option_value() and when an error is returned, report it.
-pub fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int) {
+pub fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: i32) {
     let mut errbuf_storage = [0 as c_char; IOSIZE];
     let errbuf = CharBuf {
         data: errbuf_storage.as_mut_ptr(),
@@ -6281,7 +6277,7 @@ fn restore_option_context(ctx: &mut OptSavedCtx, scope: OptScope) {
 /// Get option value for buffer / window.
 pub fn get_option_value_for(
     opt_idx: OptIndex,
-    opt_flags: c_int,
+    opt_flags: i32,
     scope: OptScope,
     from: OptTarget,
     err: &mut Error,
@@ -6306,7 +6302,7 @@ pub fn get_option_value_for(
 pub fn set_option_value_for(
     opt_idx: OptIndex,
     value: Object,
-    opt_flags: c_int,
+    opt_flags: i32,
     scope: OptScope,
     from: OptTarget,
     value_replaced: bool,
@@ -6352,10 +6348,10 @@ pub fn set_option_value_for(
     }
 }
 
-fn showoptions(all: bool, opt_flags: c_int) {
+fn showoptions(all: bool, opt_flags: i32) {
     unsafe {
-        const INC: c_int = 20;
-        const GAP: c_int = 3;
+        const INC: i32 = 20;
+        const GAP: i32 = 3;
 
         let mut items: Vec<*mut Vimoption> = Vec::with_capacity(K_OPT_COUNT as usize);
 
@@ -6392,7 +6388,7 @@ fn showoptions(all: bool, opt_flags: c_int) {
                         1
                     } else {
                         optval_fmt(opt_idx, opt_flags);
-                        (opt.fullname.to_bytes().len() as c_int)
+                        (opt.fullname.to_bytes().len() as i32)
                             + vim_strsize(g_st().name_buff.as_ptr())
                             + 1
                     };
@@ -6408,18 +6404,18 @@ fn showoptions(all: bool, opt_flags: c_int) {
                 if cols == 0 {
                     cols = 1;
                 }
-                (item_count as c_int + cols - 1) / cols
+                (item_count as i32 + cols - 1) / cols
             } else {
-                item_count as c_int
+                item_count as i32
             };
 
             let mut row = 0;
             while row < rows && !g_st().got_int {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 if g_st().got_int {
                     break;
                 }
-                let mut col: c_int = 0;
+                let mut col: i32 = 0;
                 let mut i = row as usize;
                 while i < item_count {
                     msg_advance(col);
@@ -6435,7 +6431,7 @@ fn showoptions(all: bool, opt_flags: c_int) {
     }
 }
 
-fn optval_default(opt_idx: OptIndex, varp: *mut c_void) -> c_int {
+fn optval_default(opt_idx: OptIndex, varp: *mut c_void) -> i32 {
     {
         if is_option_hidden(opt_idx) {
             return 1;
@@ -6446,7 +6442,7 @@ fn optval_default(opt_idx: OptIndex, varp: *mut c_void) -> c_int {
 
         let is_default = option_equal(current_val, default_val);
         optval_free_read(opt_idx, current_val);
-        c_int::from(is_default)
+        i32::from(is_default)
     }
 }
 
@@ -6468,7 +6464,7 @@ pub fn ui_refresh_options() {
     }
 }
 
-fn showoneopt(opt: &mut Vimoption, opt_flags: c_int) {
+fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
     unsafe {
         let save_silent = g_st().silent_mode;
 
@@ -6480,11 +6476,11 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: c_int) {
 
         if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
             let val_int = if opt.immutable {
-                c_int::from(opt.def_val.data.boolean())
-            } else if varp.cast::<c_int>() == &raw mut curbuf_mut().b_changed {
-                c_int::from(curbuf_is_changed_fn())
+                i32::from(opt.def_val.data.boolean())
+            } else if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
+                i32::from(curbuf_is_changed_fn())
             } else {
-                *(varp.cast::<c_int>())
+                *(varp.cast::<i32>())
             };
             if val_int == 0 {
                 msg_puts(c"no");
@@ -6498,7 +6494,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: c_int) {
         }
         msg_puts(opt.fullname.as_ptr());
         if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-            msg_putchar(b'=' as c_int);
+            msg_putchar(b'=' as i32);
             optval_fmt(opt_idx, opt_flags);
             let namebuf_ptr = g_st().name_buff.as_ptr();
             if !crate::memory::cstr_is_empty(namebuf_ptr) {
@@ -6512,7 +6508,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: c_int) {
 }
 
 /// Write modified options as ":set" commands to a file.
-pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> bool {
+pub fn makeset(fd: *mut FILE, opt_flags: i32, local_only: i32) -> bool {
     unsafe {
         for pri in (0..=1).rev() {
             for opt_idx in 0..K_OPT_COUNT {
@@ -6544,7 +6540,7 @@ pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> bool {
                         continue;
                     }
 
-                    let mut round: c_int = 2;
+                    let mut round: i32 = 2;
                     let mut varp_local: *mut c_void = ptr::null_mut();
                     if option_is_window_local(opt_idx) {
                         if (opt_flags & OPT_LOCAL) == 0 {
@@ -6691,7 +6687,7 @@ fn put_set_value(
                 let value_num = value.data.integer();
                 let mut wc: OptInt = 0;
                 if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
-                    if fputs(get_special_key_name(wc as c_int, 0), fd) < 0 {
+                    if fputs(get_special_key_name(wc as i32, 0), fd) < 0 {
                         return false;
                     }
                 } else {
@@ -6715,7 +6711,7 @@ fn put_set_value(
 
                         if size >= MAXPATHL
                             && (flags & K_OPT_FLAG_COMMA) != 0
-                            && crate::strings::vim_haschr(value_str, b',' as c_int)
+                            && crate::strings::vim_haschr(value_str, b',' as i32)
                         {
                             let mut part_vec = vec![0 as c_char; size];
                             let part = part_vec.as_mut_ptr();
@@ -6771,7 +6767,7 @@ fn put_set(
 
 pub fn get_varp_scope_from(
     p: *mut Vimoption,
-    opt_flags: c_int,
+    opt_flags: i32,
     buf: &mut FileBuf,
     win: &mut WinInfoInfo,
 ) -> *mut c_void {
@@ -6835,14 +6831,14 @@ pub fn get_varp_scope_from(
 }
 
 /// Get pointer to option variable, depending on local or global scope.
-pub fn get_varp_scope(p: *mut Vimoption, opt_flags: c_int) -> *mut c_void {
+pub fn get_varp_scope(p: *mut Vimoption, opt_flags: i32) -> *mut c_void {
     get_varp_scope_from(p, opt_flags, curbuf_mut(), curwin_mut())
 }
 
 /// Get pointer to option variable at 'opt_idx', depending on local or global scope.
 pub fn get_option_varp_scope_from(
     opt_idx: OptIndex,
-    opt_flags: c_int,
+    opt_flags: i32,
     buf: &mut FileBuf,
     win: *mut WinInfoInfo,
 ) -> *mut c_void {
@@ -7411,7 +7407,7 @@ pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
         }
         check_colorcolumn(ptr::null_mut(), Some(&mut *wp));
         briopt_check(Some(&mut *wp));
-        let mut culopt_flags: c_uint = 0;
+        let mut culopt_flags: u32 = 0;
         if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt, &mut culopt_flags) {
             wp.w_p_culopt_flags = culopt_flags as u8;
         }
@@ -7450,7 +7446,7 @@ fn copy_opt_insecure(bv: usize) -> u32 {
 }
 
 /// Copy global option values to local options for one buffer.
-pub fn buf_copy_options(buf: &mut FileBuf, flags: c_int) {
+pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
     {
         let mut should_copy = true;
         let mut save_p_isk: *mut c_char = ptr::null_mut();
@@ -7728,7 +7724,7 @@ pub fn set_imsearch_global(buf: &mut FileBuf) {
     opt_vars().p_imsearch = buf.b_p_imsearch;
 }
 
-pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flags: c_int) {
+pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flags: i32) {
     unsafe {
         opt_st().expand_option_flags = opt_flags;
 
@@ -7858,7 +7854,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         }
 
         xp.xp_pattern = p.add(1);
-        opt_st().expand_option_start_col = p.add(1).offset_from(xp.xp_line) as c_int;
+        opt_st().expand_option_start_col = p.add(1).offset_from(xp.xp_line) as i32;
 
         let opt_var = get_option(opt_idx).var;
         if opt_var == (&raw mut opt_vars().p_syn).cast::<c_void>() {
@@ -7999,7 +7995,7 @@ fn match_str(
         } else {
             let score = fuzzy_match_str(str_arg, fuzzystr);
             if score != FUZZY_SCORE_NONE {
-                let idx = fuzmatch.len() as c_int;
+                let idx = fuzmatch.len() as i32;
                 fuzmatch.push(FuzmatchStr {
                     idx,
                     str_cstr: crate::memory::cstr_to_cstring(str_arg),
@@ -8079,7 +8075,7 @@ pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> 
                 && crate::memory::cstr_byte_at(var, 1) == b'\\'
                 && opt_st().expand_option_idx != K_OPT_INVALID
                 && (get_option(opt_st().expand_option_idx).flags & K_OPT_FLAG_EXPAND) != 0
-                && vim_isfilec(crate::memory::cstr_byte_at(var, 2) as c_int)
+                && vim_isfilec(crate::memory::cstr_byte_at(var, 2) as i32)
                 && (crate::memory::cstr_byte_at(var, 2) != b'\\'
                     || (var == buf && crate::memory::cstr_byte_at(var, 4) != b'\\'))
             {
@@ -8200,10 +8196,10 @@ pub fn expand_setting_subtract(
 
             loop {
                 let item = next_val;
-                let mut comma = vim_strchr(next_val, b',' as c_int);
+                let mut comma = vim_strchr(next_val, b',' as i32);
                 while !comma.is_null() && comma != next_val && *comma.offset(-1) == b'\\' as c_char
                 {
-                    comma = vim_strchr(comma.add(1), b',' as c_int);
+                    comma = vim_strchr(comma.add(1), b',' as i32);
                 }
                 if !comma.is_null() {
                     *comma = NUL;
@@ -8253,7 +8249,7 @@ pub fn expand_setting_subtract(
     }
 }
 
-fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
+fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     unsafe {
         let opt = get_option(opt_idx);
         let varp = get_varp_scope(opt, opt_flags);
@@ -8262,11 +8258,11 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
         let namebuf_ptr = g_st().name_buff.as_mut_ptr();
         let mut wc: OptInt = 0;
         if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
-            xstrlcpy(namebuf_ptr, get_special_key_name(wc as c_int, 0), MAXPATHL);
+            xstrlcpy(namebuf_ptr, get_special_key_name(wc as i32, 0), MAXPATHL);
             return;
         }
         if wc != 0 {
-            xstrlcpy(namebuf_ptr, transchar(wc as c_int), MAXPATHL);
+            xstrlcpy(namebuf_ptr, transchar(wc as i32), MAXPATHL);
             return;
         }
         if (opt.flags & K_OPT_FLAG_EXPAND) != 0
@@ -8290,11 +8286,11 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
     }
 }
 
-fn wc_use_keyname(p: *const OptInt, wcp: &mut OptInt) -> c_int {
+fn wc_use_keyname(p: *const OptInt, wcp: &mut OptInt) -> i32 {
     unsafe {
         if p == &raw const opt_vars().p_wc || p == &raw const opt_vars().p_wcm {
             *wcp = *p;
-            if is_special(*wcp as c_int) || find_special_key_in_table(*wcp as c_int) >= 0 {
+            if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32) >= 0 {
                 return 1;
             }
         }
@@ -8302,10 +8298,10 @@ fn wc_use_keyname(p: *const OptInt, wcp: &mut OptInt) -> c_int {
     }
 }
 
-pub fn shortmess(x: c_int) -> bool {
+pub fn shortmess(x: i32) -> bool {
     !opt_vars().p_shm.is_null()
         && (crate::strings::vim_haschr(opt_vars().p_shm, x)
-            || (crate::strings::vim_haschr(opt_vars().p_shm, b'a' as c_int)
+            || (crate::strings::vim_haschr(opt_vars().p_shm, b'a' as i32)
                 && crate::strings::vim_haschr(SHM_ALL_ABBREVIATIONS, x)))
 }
 
@@ -8336,7 +8332,7 @@ pub fn reset_option_was_set(opt_idx: OptIndex) {
 }
 
 /// Parse 'cursorlineopt', writing flags only when the value is valid.
-pub fn fill_culopt_flags(val: impl crate::strings::IntoCCharPtr, flags: &mut c_uint) -> bool {
+pub fn fill_culopt_flags(val: impl crate::strings::IntoCCharPtr, flags: &mut u32) -> bool {
     let val = val.into_c_char_ptr();
     unsafe {
         let mut p = val;
@@ -8370,7 +8366,7 @@ pub fn fill_culopt_flags(val: impl crate::strings::IntoCCharPtr, flags: &mut c_u
         {
             return false;
         }
-        *flags = c_uint::from(culopt_flags_new);
+        *flags = u32::from(culopt_flags_new);
 
         true
     }
@@ -8415,14 +8411,14 @@ pub fn option_set_callback_func(
     }
 }
 
-fn didset_options_sctx(opt_flags: c_int, opts: &[c_int]) {
+fn didset_options_sctx(opt_flags: i32, opts: &[i32]) {
     for &opt_idx in opts {
         set_option_sctx(opt_idx, opt_flags, g_st().current_sctx);
     }
 }
 
 /// Check if backspacing over something is allowed.
-pub fn can_bs(what: c_int) -> bool {
+pub fn can_bs(what: i32) -> bool {
     {
         if what == BS_START && bt_prompt(Some(crate::globals::curbuf_mut())) {
             return false;
@@ -8441,7 +8437,7 @@ pub fn can_bs(what: c_int) -> bool {
 }
 
 /// Get the local or global value of 'backupcopy' flags.
-pub fn get_bkc_flags(buf: &mut FileBuf) -> c_uint {
+pub fn get_bkc_flags(buf: &mut FileBuf) -> u32 {
     {
         if buf.b_bkc_flags != 0 {
             buf.b_bkc_flags
@@ -8463,7 +8459,7 @@ pub fn get_flp_value(buf: &mut FileBuf) -> *mut c_char {
 }
 
 /// Get the local or global value of 'virtualedit' flags.
-pub fn get_ve_flags(wp: &mut WinInfoInfo) -> c_uint {
+pub fn get_ve_flags(wp: &mut WinInfoInfo) -> u32 {
     {
         let f = if wp.w_onebuf_opt.wo_ve_flags != 0 {
             wp.w_onebuf_opt.wo_ve_flags
@@ -8489,7 +8485,7 @@ pub fn get_showbreak_value(win: &mut WinInfoInfo) -> *mut c_char {
 }
 
 /// Return the current end-of-line type: EOL_DOS, EOL_UNIX or EOL_MAC.
-pub fn get_fileformat(buf: &FileBuf) -> c_int {
+pub fn get_fileformat(buf: &FileBuf) -> i32 {
     {
         let c = crate::memory::cstr_first_byte(buf.b_p_ff);
         if buf.b_p_bin != 0 || c == b'u' {
@@ -8503,7 +8499,7 @@ pub fn get_fileformat(buf: &FileBuf) -> c_int {
 }
 
 /// Like get_fileformat(), but override 'fileformat' with "p" for "++opt=val" argument.
-pub fn get_fileformat_force(buf: &FileBuf, eap: Option<&Exarg>) -> c_int {
+pub fn get_fileformat_force(buf: &FileBuf, eap: Option<&Exarg>) -> i32 {
     {
         let c = if let Some(eap) = eap
             && eap.force_ff != 0
@@ -8533,7 +8529,7 @@ pub fn get_fileformat_force(buf: &FileBuf, eap: Option<&Exarg>) -> c_int {
 }
 
 /// Return the default fileformat from 'fileformats'.
-pub fn default_fileformat() -> c_int {
+pub fn default_fileformat() -> i32 {
     {
         match crate::memory::cstr_first_byte(opt_vars().p_ffs) {
             b'm' => EOL_MAC,
@@ -8544,7 +8540,7 @@ pub fn default_fileformat() -> c_int {
 }
 
 /// Set the current end-of-line type to EOL_UNIX, EOL_MAC, or EOL_DOS.
-pub fn set_fileformat(eol_style: c_int, opt_flags: c_int) {
+pub fn set_fileformat(eol_style: i32, opt_flags: i32) {
     let p: *const c_char = match eol_style {
         EOL_UNIX => c"unix".as_ptr(),
         EOL_MAC => c"mac".as_ptr(),
@@ -8594,13 +8590,13 @@ pub fn copy_option_part(
         while !crate::memory::cstr_is_empty(p)
             && !crate::strings::vim_haschr(
                 sep_chars.as_ptr(),
-                crate::memory::cstr_first_byte(p) as c_int,
+                crate::memory::cstr_first_byte(p) as i32,
             )
         {
             if crate::memory::cstr_first_byte(p) == b'\\'
                 && crate::strings::vim_haschr(
                     sep_chars.as_ptr(),
-                    crate::memory::cstr_byte_at(p, 1) as c_int,
+                    crate::memory::cstr_byte_at(p, 1) as i32,
                 )
             {
                 p = p.add(1);
@@ -8637,13 +8633,13 @@ pub fn option_next_keyval(
             return false;
         }
 
-        let comma = vim_strchr(s, b',' as c_int);
+        let comma = vim_strchr(s, b',' as i32);
         let end = if !comma.is_null() {
             comma as *const c_char
         } else {
             s.add(crate::memory::cstr_len(s))
         };
-        let colon = vim_strchr(s, b':' as c_int) as *const c_char;
+        let colon = vim_strchr(s, b':' as i32) as *const c_char;
 
         *key = s;
         if !colon.is_null() && colon < end {
@@ -8679,8 +8675,8 @@ pub fn option_slice_eq(
 }
 
 /// Return true when 'shell' has "csh" in the tail.
-pub fn csh_like_shell() -> c_int {
-    c_int::from(c_str_contains(path_tail(opt_vars().p_sh), b"csh"))
+pub fn csh_like_shell() -> i32 {
+    i32::from(c_str_contains(path_tail(opt_vars().p_sh), b"csh"))
 }
 
 /// Return true when 'shell' has "fish" in the tail.
@@ -8689,7 +8685,7 @@ pub fn fish_like_shell() -> bool {
 }
 
 /// Get window or buffer local options.
-pub fn get_winbuf_options(bufopt: c_int) -> &'static mut TvDict {
+pub fn get_winbuf_options(bufopt: i32) -> &'static mut TvDict {
     {
         let d = tv_dict_alloc();
 
@@ -8758,7 +8754,7 @@ pub fn get_sidescrolloff_value(wp: &mut WinInfoInfo) -> i64 {
 /// Metadata Dict for option `name`; errors if `name` is unknown.
 pub fn get_option_info(
     name: NvimString,
-    opt_flags: c_int,
+    opt_flags: i32,
     buf: *mut FileBuf,
     win: &mut WinInfoInfo,
     arena: &mut Arena,
@@ -8796,7 +8792,7 @@ pub fn get_all_options_info(arena: &mut Arena) -> Dict {
 
 fn option_info_dict(
     opt: &mut Vimoption,
-    opt_flags: c_int,
+    opt_flags: i32,
     buf: &mut FileBuf,
     win: &mut WinInfoInfo,
     arena: &mut Arena,

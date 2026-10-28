@@ -1,6 +1,6 @@
 //! MessagePack primitive value packing and unpacking (`src/mpack/conv.c`).
 
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 
 use crate::mpack::mpack_core::{
     MpackSintmax, MpackToken, MpackTokenArray, MpackTokenBin, MpackTokenBoolean, MpackTokenChunk,
@@ -9,7 +9,7 @@ use crate::mpack::mpack_core::{
 };
 
 #[inline]
-fn pow2(n: c_uint) -> f64 {
+fn pow2(n: u32) -> f64 {
     f64::from(1u32 << (n / 2)) * f64::from(1u32 << (n / 2)) * f64::from(1u32 << (n % 2))
 }
 
@@ -21,7 +21,7 @@ pub fn mpack_pack_nil() -> MpackToken {
     }
 }
 
-pub fn mpack_pack_boolean(v: c_uint) -> MpackToken {
+pub fn mpack_pack_boolean(v: u32) -> MpackToken {
     MpackToken {
         r#type: MpackTokenBoolean,
         length: 0,
@@ -137,7 +137,7 @@ pub fn mpack_pack_bin(l: MpackUint32) -> MpackToken {
     }
 }
 
-pub fn mpack_pack_ext(t: c_int, l: MpackUint32) -> MpackToken {
+pub fn mpack_pack_ext(t: i32, l: MpackUint32) -> MpackToken {
     MpackToken {
         r#type: MpackTokenExt,
         length: l,

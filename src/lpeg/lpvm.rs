@@ -1,6 +1,6 @@
 //! LPeg virtual machine (`src/lpeg/lpvm.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::mem::size_of;
 use std::ptr;
 
@@ -35,17 +35,17 @@ fn getoffset(p: *const Instruction) -> isize {
     unsafe { (*p.add(1)).offset as isize }
 }
 
-pub fn charinset(i: &Instruction, buff: *const LpegByte, mut c: LpegUint) -> c_int {
+pub fn charinset(i: &Instruction, buff: *const LpegByte, mut c: LpegUint) -> i32 {
     unsafe {
         c = c.wrapping_sub(LpegUint::from(i.i.aux2.set.offset));
         if c >= (LpegUint::from(i.i.aux2.set.size) * (size_of::<Instruction>() as LpegUint) * 8) {
-            return c_int::from(i.i.aux1);
+            return i32::from(i.i.aux1);
         }
         testchar(buff, c)
     }
 }
 
-fn utf8_decode(o: *const c_char, val: &mut c_int) -> *const c_char {
+fn utf8_decode(o: *const c_char, val: &mut i32) -> *const c_char {
     const LIMITS: [LpegUint; 4] = [0xFF, 0x7F, 0x7FF, 0xFFFF];
     let mut s = o.cast::<u8>();
     unsafe {
@@ -70,7 +70,7 @@ fn utf8_decode(o: *const c_char, val: &mut c_int) -> *const c_char {
             }
             s = s.add(count);
         }
-        *val = res as c_int;
+        *val = res as i32;
         s.add(1).cast::<c_char>()
     }
 }
@@ -80,17 +80,17 @@ fn utf8_decode(o: *const c_char, val: &mut c_int) -> *const c_char {
 struct Stack {
     s: *const c_char,
     p: *const Instruction,
-    caplevel: c_int,
+    caplevel: i32,
 }
 
 #[inline]
-fn getstackbase(l: *mut lua_State, ptop: c_int) -> *mut Stack {
+fn getstackbase(l: *mut lua_State, ptop: i32) -> *mut Stack {
     unsafe { lua_touserdata(l, stackidx(ptop)).cast::<Stack>() }
 }
 
 const MAXNEWSIZE: usize = {
     let max_by_type = usize::MAX / size_of::<Capture>();
-    let int_max = c_int::MAX as usize;
+    let int_max = i32::MAX as usize;
     if int_max <= max_by_type {
         int_max
     } else {
@@ -101,10 +101,10 @@ const MAXNEWSIZE: usize = {
 fn growcap(
     l: *mut lua_State,
     capture: *mut Capture,
-    capsize: &mut c_int,
-    captop: c_int,
-    n: c_int,
-    ptop: c_int,
+    capsize: &mut i32,
+    captop: i32,
+    n: i32,
+    ptop: i32,
 ) -> *mut Capture {
     unsafe {
         if *capsize - captop > n {
@@ -121,19 +121,19 @@ fn growcap(
             let newc =
                 lua_newuserdata(l, (newsize as usize) * size_of::<Capture>()).cast::<Capture>();
             ptr::copy_nonoverlapping(capture, newc, captop as usize);
-            *capsize = newsize as c_int;
+            *capsize = newsize as i32;
             lua_replace(l, caplistidx(ptop));
             newc
         }
     }
 }
 
-fn doublestack(l: *mut lua_State, stacklimit: &mut *mut Stack, ptop: c_int) -> *mut Stack {
+fn doublestack(l: *mut lua_State, stacklimit: &mut *mut Stack, ptop: i32) -> *mut Stack {
     unsafe {
         let stack = getstackbase(l, ptop);
-        let n = (*stacklimit).offset_from(stack) as c_int;
+        let n = (*stacklimit).offset_from(stack) as i32;
         lua_getfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
-        let max = lua_tointeger(l, -1) as c_int;
+        let max = lua_tointeger(l, -1) as i32;
         lua_pop(l, 1);
         if n >= max {
             luaL_error(
@@ -154,7 +154,7 @@ fn doublestack(l: *mut lua_State, stacklimit: &mut *mut Stack, ptop: c_int) -> *
     }
 }
 
-fn resdyncaptures(l: *mut lua_State, fr: c_int, curr: c_int, limit: c_int) -> c_int {
+fn resdyncaptures(l: *mut lua_State, fr: i32, curr: i32, limit: i32) -> i32 {
     unsafe {
         let res: lua_Integer;
         if lua_toboolean(l, fr) == 0 {
@@ -172,11 +172,11 @@ fn resdyncaptures(l: *mut lua_State, fr: c_int, curr: c_int, limit: c_int) -> c_
             }
         }
         lua_remove(l, fr);
-        res as c_int
+        res as i32
     }
 }
 
-fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: c_int, fd: c_int) {
+fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: i32, fd: i32) {
     unsafe {
         let prev = capture.sub(1);
         let prev = { &mut *prev };
@@ -187,7 +187,7 @@ fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: c_int, fd: c_int) 
             let cap = { &mut *cap };
             cap.kind = CRUNTIME;
             cap.siz = 1;
-            cap.idx = (fd + i as c_int) as u16;
+            cap.idx = (fd + i as i32) as u16;
             cap.index = index;
         }
         let close = capture.add(n as usize);
@@ -198,7 +198,7 @@ fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: c_int, fd: c_int) 
     }
 }
 
-fn removedyncap(l: *mut lua_State, capture: *mut Capture, level: c_int, last: c_int) -> c_int {
+fn removedyncap(l: *mut lua_State, capture: *mut Capture, level: i32, last: i32) -> i32 {
     unsafe {
         let id = finddyncap(capture.add(level as usize), capture.add(last as usize));
         let top = lua_gettop(l);
@@ -237,7 +237,7 @@ pub fn r#match(
     e: *const c_char,
     op: *mut Instruction,
     mut capture: *mut Capture,
-    ptop: c_int,
+    ptop: i32,
 ) -> *const c_char {
     unsafe {
         let mut stackbase = [Stack {
@@ -247,9 +247,9 @@ pub fn r#match(
         }; INITBACK];
         let mut stacklimit = stackbase.as_mut_ptr().add(INITBACK);
         let mut stack = stackbase.as_mut_ptr();
-        let mut capsize = INITCAPSIZE as c_int;
-        let mut captop: c_int = 0;
-        let mut ndyncap: c_int = 0;
+        let mut capsize = INITCAPSIZE as i32;
+        let mut captop: i32 = 0;
+        let mut ndyncap: i32 = 0;
         let mut p: *const Instruction = op;
 
         (*stack).p = &raw const GIVEUP;
@@ -288,7 +288,7 @@ pub fn r#match(
                 }
                 IUTFR => {
                     if s < e {
-                        let mut codepoint: c_int = 0;
+                        let mut codepoint: i32 = 0;
                         s = utf8_decode(s, &mut codepoint);
                         if !s.is_null()
                             && (*p.add(1)).offset <= codepoint
@@ -427,14 +427,14 @@ pub fn r#match(
                         valuecached: 0,
                         reclevel: 0,
                     };
-                    let mut rem: c_int = 0;
+                    let mut rem: i32 = 0;
                     let mut fr = lua_gettop(l) + 1;
                     let mut n = runtimecap(&mut cs, capture.add(captop as usize), s, &mut rem);
                     captop -= n;
                     ndyncap -= rem;
                     fr -= rem;
                     let res =
-                        resdyncaptures(l, fr, s.offset_from(o) as c_int, e.offset_from(o) as c_int);
+                        resdyncaptures(l, fr, s.offset_from(o) as i32, e.offset_from(o) as i32);
                     if res != -1 {
                         s = o.add(res as usize);
                         n = lua_gettop(l) - fr + 1;
@@ -442,7 +442,7 @@ pub fn r#match(
                         if n == 0 {
                             captop -= 1;
                         } else {
-                            if fr + n >= c_int::from(i16::MAX) {
+                            if fr + n >= i32::from(i16::MAX) {
                                 luaL_error(l, c"too many results in match-time capture".as_ptr());
                             }
                             capture = growcap(l, capture, &mut capsize, captop, n + 1, ptop);
@@ -494,7 +494,7 @@ pub fn r#match(
                     let off = getoff(&*p);
                     let cap = capture.add(captop as usize);
                     (*cap).siz = (off + 1) as LpegByte;
-                    (*cap).index = (s.offset_from(o) as c_int - off) as LpegIndex;
+                    (*cap).index = (s.offset_from(o) as i32 - off) as LpegIndex;
                     (*cap).idx = (*p).i.aux2.key as u16;
                     (*cap).kind = getkind(&*p) as LpegByte;
                     captop += 1;

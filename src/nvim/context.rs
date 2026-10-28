@@ -41,32 +41,32 @@ use crate::window::{
     win_append, win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
 };
 use crate::winfloat::win_config_float;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::api::buffer::VIML_INTERNAL_CALL;
 use crate::api::win_config::{K_CTX_NO_DISPLAY, K_CTX_NO_EVENTS};
 use crate::api::window::{K_CTX_KEEP_CWD, K_CTX_VALIDATE};
 use crate::keycodes::K_SPECIAL;
-pub type CtxStateFlags = c_int;
-pub type CtxLoadFlags = c_int;
-pub type CtxSwitchFlags = c_int;
-pub type CdCause = c_int;
+pub type CtxStateFlags = i32;
+pub type CtxLoadFlags = i32;
+pub type CtxSwitchFlags = i32;
+pub type CdCause = i32;
 
 #[repr(C)]
 pub struct CtxSwitch {
-    pub cs_flags: c_int,
-    pub cs_mode: c_int,
+    pub cs_flags: i32,
+    pub cs_mode: i32,
     pub cs_curwin: ObjHandle,
     pub cs_curwin_xtab: bool,
     pub cs_prevwin: ObjHandle,
     pub cs_curtab: *mut TabPageInfo,
     pub cs_same_win: bool,
     pub cs_visual_active: bool,
-    pub cs_prompt_insert: c_int,
+    pub cs_prompt_insert: i32,
     pub cs_new_curwin: ObjHandle,
     pub cs_new_curbuf: crate::buffer::Bufref,
-    pub cs_ctxwin_idx: c_int,
+    pub cs_ctxwin_idx: i32,
     pub cs_target_win: ObjHandle,
     pub cs_target_old_pos: CursorPos,
     pub cs_did_chdir: bool,
@@ -115,7 +115,7 @@ impl Default for CtxSwitch {
     }
 }
 
-const NUM_SAVED_REGISTERS: c_int = 37;
+const NUM_SAVED_REGISTERS: i32 = 37;
 
 pub(crate) const K_CD_CAUSE_WINDOW: CdCause = 1;
 
@@ -133,17 +133,17 @@ pub(crate) const K_CTX_MERGE_REG: CtxLoadFlags = 1;
 
 pub(crate) const K_CTX_KEEP_DIRS: CtxSwitchFlags = 2;
 
-const K_CTX_SWITCH_NONE: c_int = 0;
-const K_CTX_SWITCH_WIN: c_int = 1;
-const K_CTX_SWITCH_BUF: c_int = 2;
-const K_CTX_SWITCH_DIRS: c_int = 3;
+const K_CTX_SWITCH_NONE: i32 = 0;
+const K_CTX_SWITCH_WIN: i32 = 1;
+const K_CTX_SWITCH_BUF: i32 = 2;
+const K_CTX_SWITCH_DIRS: i32 = 3;
 
 #[derive(Clone)]
 pub struct Context {
     pub pos: CursorPos,
     pub mark: u32,
     pub curswant: Colnr,
-    pub visual_mode_eval: c_int,
+    pub visual_mode_eval: i32,
     pub visual: Visualinfo,
     pub op_start: CursorPos,
     pub op_end: CursorPos,
@@ -209,7 +209,7 @@ pub const CONTEXT_INIT: Context = Context {
 };
 
 struct ContextModuleState {
-    ctx_switch_depth: c_int,
+    ctx_switch_depth: i32,
     ctx_saved_curwin: ObjHandle,
     ctx_did_chdir: bool,
     ctx_marks_ns_id: u32,
@@ -738,13 +738,13 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> *mut WinInfoInfo {
                 idx
             });
         if g_st().ctx_win_vec.as_slice()[idx].cw_win.is_null() {
-            win_alloc_ctx_win(idx as c_int);
+            win_alloc_ctx_win(idx as i32);
             need_append = false;
         }
         let cw_win = g_st().ctx_win_vec.as_slice()[idx].cw_win;
         let cw_win = unsafe { &mut *cw_win };
         g_st().ctx_win_vec.as_mut_slice()[idx].cw_used = true;
-        cs.cs_ctxwin_idx = idx as c_int;
+        cs.cs_ctxwin_idx = idx as i32;
 
         cw_win.w_buffer = (&raw mut *buf);
         buf.b_nwindows += 1;

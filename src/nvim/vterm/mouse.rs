@@ -1,6 +1,6 @@
 //! VTerm mouse event encoding (`src/nvim/vterm/mouse.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 use crate::math::xctz;
 use crate::terminal::Terminal;
@@ -12,27 +12,27 @@ const CSI_ARGS_MAX: usize = 32;
 pub(crate) const CSI_LEADER_MAX: usize = 16;
 pub(crate) const INTERMED_MAX: usize = 16;
 
-pub(crate) const MOUSE_WANT_DRAG: c_int = 0x02;
-pub(crate) const MOUSE_WANT_MOVE: c_int = 0x04;
+pub(crate) const MOUSE_WANT_DRAG: i32 = 0x02;
+pub(crate) const MOUSE_WANT_MOVE: i32 = 0x04;
 
-pub(crate) const MOUSE_X10: c_int = 0;
-pub(crate) const MOUSE_UTF8: c_int = 1;
-pub(crate) const MOUSE_SGR: c_int = 2;
-pub(crate) const MOUSE_RXVT: c_int = 3;
+pub(crate) const MOUSE_X10: i32 = 0;
+pub(crate) const MOUSE_UTF8: i32 = 1;
+pub(crate) const MOUSE_SGR: i32 = 2;
+pub(crate) const MOUSE_RXVT: i32 = 3;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermPos {
-    pub row: c_int,
-    pub col: c_int,
+    pub row: i32,
+    pub col: i32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct VTermParserCsi {
-    pub leaderlen: c_int,
+    pub leaderlen: i32,
     pub leader: [c_char; CSI_LEADER_MAX],
-    pub argi: c_int,
+    pub argi: i32,
     pub args: [i64; CSI_ARGS_MAX],
 }
 
@@ -56,7 +56,7 @@ impl Default for VTermParserCsi {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermParserOsc {
-    pub command: c_int,
+    pub command: i32,
 }
 
 impl VTermParserOsc {
@@ -68,7 +68,7 @@ impl VTermParserOsc {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct VTermParserDcs {
-    pub commandlen: c_int,
+    pub commandlen: i32,
     pub command: [c_char; CSI_LEADER_MAX],
 }
 
@@ -90,9 +90,9 @@ impl Default for VTermParserDcs {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct VTermParser {
-    pub state: c_int,
+    pub state: i32,
     pub in_esc: u8,
-    pub intermedlen: c_int,
+    pub intermedlen: i32,
     pub intermed: [c_char; INTERMED_MAX],
     pub csi: VTermParserCsi,
     pub osc: VTermParserOsc,
@@ -127,8 +127,8 @@ impl Default for VTermParser {
 
 #[repr(C)]
 pub struct VTerm {
-    pub rows: c_int,
-    pub cols: c_int,
+    pub rows: i32,
+    pub cols: i32,
     pub mode: u32,
     pub parser: VTermParser,
     pub outfunc: VTermOutputCallback,
@@ -181,11 +181,11 @@ impl Default for VTerm {
 
 fn output_mouse(
     state: &mut VTermStateFull,
-    mut code: c_int,
-    pressed: c_int,
-    mut modifiers: c_int,
-    mut col: c_int,
-    mut row: c_int,
+    mut code: i32,
+    pressed: i32,
+    mut modifiers: i32,
+    mut col: i32,
+    mut row: i32,
 ) {
     unsafe {
         modifiers <<= 2;
@@ -250,7 +250,7 @@ fn output_mouse(
     }
 }
 
-pub fn vterm_mouse_move(vt: &mut VTerm, row: c_int, col: c_int, mod_: VTermModifier) {
+pub fn vterm_mouse_move(vt: &mut VTerm, row: i32, col: i32, mod_: VTermModifier) {
     unsafe {
         let state = &mut *vt.state_mut_ptr();
 
@@ -278,7 +278,7 @@ pub fn vterm_mouse_move(vt: &mut VTerm, row: c_int, col: c_int, mod_: VTermModif
     }
 }
 
-pub fn vterm_mouse_button(vt: &mut VTerm, button: c_int, pressed: bool, mod_: VTermModifier) {
+pub fn vterm_mouse_button(vt: &mut VTerm, button: i32, pressed: bool, mod_: VTermModifier) {
     unsafe {
         let state = &mut *vt.state_mut_ptr();
 
@@ -304,7 +304,7 @@ pub fn vterm_mouse_button(vt: &mut VTerm, button: c_int, pressed: bool, mod_: VT
             output_mouse(
                 state,
                 button - 1,
-                c_int::from(pressed),
+                i32::from(pressed),
                 mod_,
                 state.mouse_col,
                 state.mouse_row,
@@ -313,7 +313,7 @@ pub fn vterm_mouse_button(vt: &mut VTerm, button: c_int, pressed: bool, mod_: VT
             output_mouse(
                 state,
                 button - 4 + 0x40,
-                c_int::from(pressed),
+                i32::from(pressed),
                 mod_,
                 state.mouse_col,
                 state.mouse_row,
@@ -322,7 +322,7 @@ pub fn vterm_mouse_button(vt: &mut VTerm, button: c_int, pressed: bool, mod_: VT
             output_mouse(
                 state,
                 button - 8 + 0x80,
-                c_int::from(pressed),
+                i32::from(pressed),
                 mod_,
                 state.mouse_col,
                 state.mouse_row,

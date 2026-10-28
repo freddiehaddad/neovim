@@ -25,7 +25,7 @@ use crate::tag::{do_tag, find_tags};
 use crate::window::{
     WSP_BOT, WSP_HELP, WSP_TOP, WinInfoInfo, win_close, win_enter, win_setheight, win_split,
 };
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::cmdexpand::TAG_MANY;
@@ -33,13 +33,13 @@ use crate::diff::K_OPT_FOLDMETHOD;
 use crate::globals::IOSIZE;
 use crate::math::OK;
 
-pub(crate) const DT_HELP: c_int = 8;
-pub(crate) const TAG_HELP: c_int = 1;
-pub(crate) const TAG_NAMES: c_int = 2;
-pub(crate) const TAG_REGEXP: c_int = 4;
-pub(crate) const TAG_VERBOSE: c_int = 32;
-pub(crate) const TAG_KEEP_LANG: c_int = 128;
-pub(crate) const TAG_NO_TAGFUNC: c_int = 256;
+pub(crate) const DT_HELP: i32 = 8;
+pub(crate) const TAG_HELP: i32 = 1;
+pub(crate) const TAG_NAMES: i32 = 2;
+pub(crate) const TAG_REGEXP: i32 = 4;
+pub(crate) const TAG_VERBOSE: i32 = 32;
+pub(crate) const TAG_KEEP_LANG: i32 = 128;
+pub(crate) const TAG_NO_TAGFUNC: i32 = 256;
 
 pub(crate) const K_OPT_ISKEYWORD: OptIndex = 155;
 
@@ -50,8 +50,8 @@ pub fn ex_help(eap: &mut Exarg) {
     unsafe {
         let mut arg: *mut c_char;
         let mut wp: *mut WinInfoInfo;
-        let mut empty_fnum: c_int = 0;
-        let mut alt_fnum: c_int = 0;
+        let mut empty_fnum: i32 = 0;
+        let mut alt_fnum: i32 = 0;
         let old_key_typed = g_st().key_typed;
 
         if !eap.arg.is_null() {
@@ -209,7 +209,7 @@ pub fn ex_help(eap: &mut Exarg) {
                         early_ret = true;
                     } else {
                         if (curwin_mut().w_height as OptInt) < opt_vars().p_hh {
-                            win_setheight(opt_vars().p_hh as c_int);
+                            win_setheight(opt_vars().p_hh as i32);
                         }
 
                         alt_fnum = curbuf_mut().b_fnum;
@@ -287,15 +287,15 @@ pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
 /// Return a heuristic indicating how well the given string matches (`help_heuristic`).
 pub fn help_heuristic(
     matched_string: impl crate::strings::IntoCCharPtr,
-    mut offset: c_int,
+    mut offset: i32,
     wrong_case: bool,
-) -> c_int {
+) -> i32 {
     let matched_string = matched_string.into_c_char_ptr().cast_mut();
     unsafe {
-        let mut num_letters: c_int = 0;
+        let mut num_letters: i32 = 0;
         let p = matched_string;
         for &p_byte in crate::memory::cstr_as_bytes(p) {
-            if ascii_isalnum(p_byte as c_char as c_int) {
+            if ascii_isalnum(p_byte as c_char as i32) {
                 num_letters += 1;
             }
         }
@@ -316,7 +316,7 @@ pub fn help_heuristic(
         {
             offset += 100;
         }
-        let len = crate::memory::cstr_len(matched_string) as c_int;
+        let len = crate::memory::cstr_len(matched_string) as i32;
         100 * num_letters + len + offset
     }
 }

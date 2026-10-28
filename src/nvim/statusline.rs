@@ -56,15 +56,15 @@ use crate::strings::{tr, vim_snprintf, vim_snprintf_safelen};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::buf_is_changed_fn;
 use crate::window::{WinInfoInfo, global_stl_height, lastwin_nofloating, tabline_height};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::ex_getln::Hlf;
-pub type StlFlag = c_int;
+pub type StlFlag = i32;
 use crate::api::win_config::{FR_COL, UIExtension};
 
 const TMPLEN: usize = 70;
-const MAX_STL_EVAL_DEPTH: c_int = 100;
+const MAX_STL_EVAL_DEPTH: i32 = 100;
 
 const K_OPT_RULERFORMAT: OptIndex = 244;
 const K_OPT_TABLINE: OptIndex = 306;
@@ -158,7 +158,7 @@ impl Default for StlClickRecord {
 #[derive(Clone, Copy)]
 pub struct StlHlrec {
     pub start: *mut c_char,
-    pub userhl: c_int,
+    pub userhl: i32,
     pub item: StlFlag,
 }
 
@@ -202,8 +202,8 @@ pub enum StlItemType {
 pub struct StlItem {
     pub start: *mut c_char,
     pub cmd: Option<std::ffi::CString>,
-    pub minwid: c_int,
-    pub maxwid: c_int,
+    pub minwid: i32,
+    pub maxwid: i32,
     pub type_: StlItemType,
 }
 
@@ -229,8 +229,8 @@ impl Default for StlItem {
 #[derive(Clone, Copy)]
 pub struct Foldinfo {
     pub fi_lnum: Linenr,
-    pub fi_level: c_int,
-    pub fi_low_level: c_int,
+    pub fi_level: i32,
+    pub fi_low_level: i32,
     pub fi_lines: Linenr,
 }
 
@@ -264,9 +264,9 @@ use crate::state::MODE_INSERT;
 
 #[repr(C)]
 pub struct Statuscol {
-    pub width: c_int,
+    pub width: i32,
     pub lnum: Linenr,
-    pub sign_cul_id: c_int,
+    pub sign_cul_id: i32,
     pub draw: bool,
     pub hlrec: Vec<StlHlrec>,
     pub foldinfo: Foldinfo,
@@ -305,10 +305,10 @@ struct StatuslineState {
     winbar_entered: bool,
     did_show_ruler: bool,
     stl_items_vec: Vec<StlItem>,
-    stl_groupitems_vec: Vec<c_int>,
+    stl_groupitems_vec: Vec<i32>,
     stl_hltab_vec: Vec<StlHlrec>,
     stl_tabtab_vec: Vec<StlClickRecord>,
-    curitem: c_int,
+    curitem: i32,
 }
 
 impl StatuslineState {
@@ -391,7 +391,7 @@ pub fn get_trans_bufname(buf: &mut FileBuf) {
         } else {
             home_replace(Some(&*buf), buf.b_fname, name_buff, MAXPATHL, true);
         }
-        trans_characters(name_buff, MAXPATHL as c_int);
+        trans_characters(name_buff, MAXPATHL as i32);
     }
 }
 
@@ -422,7 +422,7 @@ pub fn stl_clear_click_defs(defs: &mut [StlClickDefinition]) {
 /// Allocate or resize the click definitions array if needed.
 pub fn stl_alloc_click_defs(
     defs: &mut Vec<StlClickDefinition>,
-    width: c_int,
+    width: i32,
 ) -> *mut StlClickDefinition {
     if defs.len() < width as usize {
         defs.resize(width as usize, StlClickDefinition::default());
@@ -435,7 +435,7 @@ pub fn stl_fill_click_defs(
     click_defs: *mut StlClickDefinition,
     click_recs: *mut StlClickRecord,
     buf: impl crate::strings::IntoCCharPtr,
-    width: c_int,
+    width: i32,
     tabline: bool,
 ) {
     let mut buf = buf.into_c_char_ptr();
@@ -444,8 +444,8 @@ pub fn stl_fill_click_defs(
             return;
         }
 
-        let mut col: c_int = 0;
-        let mut len: c_int = 0;
+        let mut col: i32 = 0;
+        let mut len: i32 = 0;
 
         let mut cur_click_def = StlClickDefinition {
             type_: K_STL_CLICK_DISABLED,
@@ -456,7 +456,7 @@ pub fn stl_fill_click_defs(
         while !(*click_recs.add(i)).start.is_null() {
             len += vim_strnsize(
                 buf.cast_mut(),
-                (*click_recs.add(i)).start.offset_from(buf) as c_int,
+                (*click_recs.add(i)).start.offset_from(buf) as i32,
             );
             debug_assert!(len <= width);
             if col < len {
@@ -487,17 +487,17 @@ pub fn stl_fill_click_defs(
 /// Redraws the statusline, winbar, ruler or tabline.
 fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, ui_event: bool) {
     unsafe {
-        let mut col: c_int = 0;
-        let attr: c_int;
-        let mut row: c_int = 0;
-        let maxwidth: c_int;
+        let mut col: i32 = 0;
+        let attr: i32;
+        let mut row: i32 = 0;
+        let maxwidth: i32;
         let mut group: Hlf = 0;
         let fillchar: Schar;
         let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut transbuf: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut stl: *mut c_char;
         let opt_idx: OptIndex;
-        let mut opt_scope: c_int = 0;
+        let mut opt_scope: i32 = 0;
         let mut hltab: *mut StlHlrec = ptr::null_mut();
         let click_defs: *mut StlClickDefinition;
         let is_stl_global = global_stl_height() > 0;
@@ -589,8 +589,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 if crate::memory::cstr_first_byte(stl) == b'-' {
                     stl = stl.add(1);
                 }
-                if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl)) as c_int != 0
-                {
+                if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl)) as i32 != 0 {
                     while ascii_isdigit(crate::memory::cstr_first_char(stl)) {
                         stl = stl.add(1);
                     }
@@ -622,7 +621,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 0
             };
             if is_stl_global {
-                row = g_st().rows_global - (opt_vars().p_ch as c_int) - 1;
+                row = g_st().rows_global - (opt_vars().p_ch as i32) - 1;
                 col = 0;
                 maxwidth = g_st().columns_global;
             } else if (*wp).w_status_height == 0 {
@@ -707,7 +706,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 let tsize =
                     transstr_buf(src_p, textlen, transbuf.as_mut_ptr(), transbuf.len(), true);
                 if !ui_event {
-                    col += grid_line_puts(col, transbuf.as_ptr(), tsize as c_int, curattr);
+                    col += grid_line_puts(col, transbuf.as_ptr(), tsize as i32, curattr);
                 } else {
                     let mut chunk = Array::new();
                     chunk.push(Object {
@@ -739,7 +738,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                     curgroup = group;
                 } else if (*sp).userhl < 0 {
                     let new_attr = syn_id2attr(-(*sp).userhl);
-                    if (*sp).item == c_int::from(STL_HIGHLIGHT_COMB as u8) {
+                    if (*sp).item == i32::from(STL_HIGHLIGHT_COMB as u8) {
                         curattr = hl_combine_attr(curattr, new_attr);
                     } else {
                         curattr = new_attr;
@@ -993,8 +992,8 @@ pub fn draw_tabline() {
         if !crate::memory::cstr_is_empty(opt_vars().p_tal) {
             win_redr_stl_expr(ptr::null_mut(), false, false, false);
         } else {
-            let mut tabcount: c_int = 0;
-            let mut col: c_int = 0;
+            let mut tabcount: i32 = 0;
+            let mut col: i32 = 0;
             grid_line_start(&raw mut g_st().default_gridview, 0);
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
@@ -1041,7 +1040,7 @@ pub fn draw_tabline() {
                 col += 1;
 
                 let mut modified = false;
-                let mut wincount: c_int = 0;
+                let mut wincount: i32 = 0;
                 while !wp.is_null() {
                     if !(*wp).w_config.focusable || (*wp).w_config.hide {
                         wincount -= 1;
@@ -1118,12 +1117,12 @@ pub fn draw_tabline() {
             grid_line_fill(col, g_st().columns_global, schar_from_ascii(c), attr_fill);
 
             if opt_vars().p_sc != 0 && crate::memory::cstr_first_byte(opt_vars().p_sloc) == b't' {
-                let n = g_st().columns_global - col - c_int::from(tabcount > 1) * 3;
+                let n = g_st().columns_global - col - i32::from(tabcount > 1) * 3;
                 let sc_width = 10.min(n);
 
                 if sc_width > 0 {
                     grid_line_puts(
-                        g_st().columns_global - sc_width - c_int::from(tabcount > 1) * 2,
+                        g_st().columns_global - sc_width - i32::from(tabcount > 1) * 2,
                         (&raw const g_st().showcmd_buf).cast(),
                         sc_width,
                         attr_nosel,
@@ -1157,11 +1156,11 @@ pub fn draw_tabline() {
 pub fn build_statuscol_str(
     wp: &mut WinInfoInfo,
     lnum: Linenr,
-    relnum: c_int,
-    virtnum: c_int,
+    relnum: i32,
+    virtnum: i32,
     buf: CharBuf,
     stcp: &mut Statuscol,
-) -> c_int {
+) -> i32 {
     unsafe {
         if relnum >= 0 {
             set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
@@ -1211,13 +1210,13 @@ pub fn build_statuscol_str(
 
 /// Truncates the statusline at the first truncation marker (`%<`) if present.
 fn stl_truncate(
-    width: &mut c_int,
-    mut minwid: c_int,
-    maxwid: c_int,
+    width: &mut i32,
+    mut minwid: i32,
+    maxwid: i32,
     fillchar: Schar,
     stl_items: &mut [StlItem],
-    startitem: c_int,
-    curitem: &mut c_int,
+    startitem: i32,
+    curitem: &mut i32,
     start_p: impl crate::strings::IntoCCharPtr,
     out_p: *mut *mut c_char,
 ) {
@@ -1270,7 +1269,7 @@ fn stl_truncate(
             trunc_p = trunc_p.add(1);
             *out_p = trunc_p;
         } else {
-            let mut trunc_len: c_int = 0;
+            let mut trunc_len: i32 = 0;
             while *width >= maxwid {
                 *width -= ptr2cells(trunc_p.add(trunc_len as usize));
                 trunc_len += utfc_ptr2len(trunc_p.add(trunc_len as usize));
@@ -1307,23 +1306,23 @@ fn stl_truncate(
 /// Expands the statusline at separation markers (`%=`) if present,
 /// or otherwise according to padding choice.
 fn stl_expand(
-    width: &mut c_int,
-    target_width: c_int,
+    width: &mut i32,
+    target_width: i32,
     padding: StlPadding,
-    remaining_capacity: c_int,
+    remaining_capacity: i32,
     fillchar: Schar,
     stl_items: &mut [StlItem],
-    startitem: c_int,
-    curitem: c_int,
+    startitem: i32,
+    curitem: i32,
     mut start_p: *mut c_char,
     out_p: *mut *mut c_char,
 ) {
     unsafe {
-        let fillchar_bytes = schar_len(fillchar) as c_int;
+        let fillchar_bytes = schar_len(fillchar) as i32;
         let mut added_cells = (target_width - *width).min(remaining_capacity / fillchar_bytes);
         let added_bytes = added_cells * fillchar_bytes;
 
-        let mut num_separators: c_int = 0;
+        let mut num_separators: i32 = 0;
         for item in &stl_items[(startitem as usize)..(curitem as usize)] {
             if item.type_ == StlItemType::Separate {
                 num_separators += 1;
@@ -1396,14 +1395,14 @@ pub unsafe extern "C" fn build_stl_str_hl(
     out: CharBuf,
     fmt: *mut c_char,
     opt_idx: OptIndex,
-    opt_scope: c_int,
+    opt_scope: i32,
     mut fillchar: Schar,
-    maxwidth: c_int,
+    maxwidth: i32,
     hltab: *mut *mut StlHlrec,
     hltab_len: *mut usize,
     tabtab: *mut *mut StlClickRecord,
     stcp: *mut Statuscol,
-) -> c_int {
+) -> i32 {
     unsafe {
         let wp = &mut *wp;
         let mut buf_tmp: [c_char; TMPLEN] = [0; TMPLEN];
@@ -1502,8 +1501,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
         };
 
         let mut groupdepth: usize = 0;
-        let mut evaldepth: c_int = 0;
-        let mut curr_hl_pos: c_int = -1;
+        let mut evaldepth: i32 = 0;
+        let mut curr_hl_pos: i32 = -1;
         let evalstart = stl_st().curitem;
 
         let mut prevchar_isflag = true;
@@ -1661,7 +1660,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         &mut group_len,
                         minwid,
                         padding,
-                        out_end_p.offset_from(out_p) as c_int,
+                        out_end_p.offset_from(out_p) as i32,
                         fillchar,
                         stl_items!(),
                         gidx + 1,
@@ -1680,9 +1679,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            let mut minwid: c_int = 0;
-            let mut maxwid: c_int = 9999;
-            let mut foldsignitem: c_int = -1;
+            let mut minwid: i32 = 0;
+            let mut maxwid: i32 = 9999;
+            let mut foldsignitem: i32 = -1;
             let mut left_align_num = false;
             let mut left_align = false;
 
@@ -1858,7 +1857,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
             if !crate::strings::vim_haschr(
                 STL_ALL,
-                c_int::from(crate::memory::cstr_first_byte(fmt_p)),
+                i32::from(crate::memory::cstr_first_byte(fmt_p)),
             ) {
                 if crate::memory::cstr_is_empty(fmt_p) {
                     break;
@@ -1873,7 +1872,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             let mut base = NumberBase::NumBaseDecimal;
             let mut itemisflag = false;
             let mut fillable = true;
-            let mut num: c_int = -1;
+            let mut num: i32 = -1;
             let mut str: *mut c_char = ptr::null_mut();
             let mut owned_str: Option<std::ffi::CString> = None;
 
@@ -1892,7 +1891,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         };
                         home_replace((wp.w_buffer).as_ref(), t, name_buff, MAXPATHL, true);
                     }
-                    trans_characters(name_buff, MAXPATHL as c_int);
+                    trans_characters(name_buff, MAXPATHL as i32);
                     if opt != STL_FILENAME {
                         str = name_buff;
                     } else {
@@ -1968,7 +1967,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         {
                             num =
                                 crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str))
-                                    as c_int;
+                                    as i32;
                             owned_str = None;
                             str = ptr::null_mut();
                             itemisflag = false;
@@ -1976,7 +1975,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
                         if reevaluate
                             && !crate::memory::cstr_is_empty(str)
-                            && crate::strings::vim_haschr(str, b'%' as c_int)
+                            && crate::strings::vim_haschr(str, b'%' as i32)
                             && evaldepth < MAX_STL_EVAL_DEPTH
                         {
                             let parsed_usefmt = block_start.offset_from(usefmt) as usize;
@@ -2012,11 +2011,11 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         if wp.w_maxscwidth == SCL_NUM && (*stcp).sattrs[0].text[0] != 0 {
                             handle_stcsign = true;
                         } else {
-                            let relnum = get_vim_var_nr(VV_RELNUM) as c_int;
+                            let relnum = get_vim_var_nr(VV_RELNUM) as i32;
                             num = if wp.w_onebuf_opt.wo_rnu == 0
                                 || (wp.w_onebuf_opt.wo_nu != 0 && relnum == 0)
                             {
-                                get_vim_var_nr(VV_LNUM) as c_int
+                                get_vim_var_nr(VV_LNUM) as i32
                             } else {
                                 relnum
                             };
@@ -2067,7 +2066,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     );
                 }
                 STL_ALTPERCENT => {
-                    get_rel_pos(&mut *wp, buf_tmp.as_mut_ptr(), TMPLEN as c_int);
+                    get_rel_pos(&mut *wp, buf_tmp.as_mut_ptr(), TMPLEN as i32);
                     str = buf_tmp.as_mut_ptr();
                 }
                 STL_SHOWCMD => {
@@ -2086,8 +2085,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_KEYMAP => {
                     fillable = false;
-                    if get_keymap_str(&mut *wp, c"<%s>", buf_tmp.as_mut_ptr(), TMPLEN as c_int) > 0
-                    {
+                    if get_keymap_str(&mut *wp, c"<%s>", buf_tmp.as_mut_ptr(), TMPLEN as i32) > 0 {
                         str = buf_tmp.as_mut_ptr();
                     }
                 }
@@ -2190,9 +2188,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_MODIFIED | STL_MODIFIED_ALT => {
                     itemisflag = true;
-                    let code = c_int::from(opt == STL_MODIFIED_ALT)
-                        + c_int::from(buf_is_changed_fn((*wp).buf_mut())) * 2
-                        + c_int::from((*wp).buf_mut().b_p_ma == 0) * 4;
+                    let code = i32::from(opt == STL_MODIFIED_ALT)
+                        + i32::from(buf_is_changed_fn((*wp).buf_mut())) * 2
+                        + i32::from((*wp).buf_mut().b_p_ma == 0) * 4;
                     str = match code {
                         2 => c"[+]".as_ptr().cast_mut(),
                         3 => c",+".as_ptr().cast_mut(),
@@ -2234,7 +2232,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     0
                 };
                 let width = if opt == STL_FOLDCOL {
-                    c_int::from(fdc > 0)
+                    i32::from(fdc > 0)
                 } else if opt == STL_SIGNCOL {
                     wp.w_scwidth
                 } else {
@@ -2419,10 +2417,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 };
                 *t.add(1) = NUL;
 
-                let mut num_chars: c_int = 1;
+                let mut num_chars: i32 = 1;
                 let mut n_tmp = num;
-                while n_tmp >= base as c_int {
-                    n_tmp /= base as c_int;
+                while n_tmp >= base as i32 {
+                    n_tmp /= base as i32;
                     num_chars += 1;
                 }
                 if opt == STL_VIRTCOL_ALT {
@@ -2434,7 +2432,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     num_chars += 2;
                     let n = num_chars - maxwid;
                     while num_chars > maxwid {
-                        num /= base as c_int;
+                        num /= base as i32;
                         num_chars -= 1;
                     }
                     let base_ch = *t;
@@ -2448,7 +2446,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         out_p,
                         remaining_buf_len,
                         nstr.as_ptr(),
-                        0 as c_int,
+                        0_i32,
                         num,
                         n,
                     ));
@@ -2501,7 +2499,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 &mut width,
                 maxwidth,
                 StlPadding::PaddingNone,
-                out_end_p.offset_from(out_p) as c_int,
+                out_end_p.offset_from(out_p) as i32,
                 fillchar,
                 stl_items!(),
                 evalstart,
@@ -2525,9 +2523,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     stl_hltab!()[sp_idx].start = item.start;
                     stl_hltab!()[sp_idx].userhl = item.minwid;
                     stl_hltab!()[sp_idx].item = match item.type_ {
-                        StlItemType::HighlightSign => c_int::from(STL_SIGNCOL as u8),
-                        StlItemType::HighlightFold => c_int::from(STL_FOLDCOL as u8),
-                        StlItemType::HighlightCombining => c_int::from(STL_HIGHLIGHT_COMB as u8),
+                        StlItemType::HighlightSign => i32::from(STL_SIGNCOL as u8),
+                        StlItemType::HighlightFold => i32::from(STL_FOLDCOL as u8),
+                        StlItemType::HighlightCombining => i32::from(STL_HIGHLIGHT_COMB as u8),
                         _ => 0,
                     };
                     sp_idx += 1;
@@ -2621,12 +2619,12 @@ mod tests {
             crate::main_init::ensure_test_editor_init();
             g_st().emsg_skip += 1;
 
-            let check = |max_cells: c_int,
+            let check = |max_cells: i32,
                          pat: &str,
                          expected: &str,
                          file_name: Option<&str>,
                          fill: Option<&str>,
-                         exp_cells: Option<c_int>| {
+                         exp_cells: Option<i32>| {
                 if let Some(fname) = file_name {
                     let mut fn_c = CString::new(fname).unwrap().into_bytes_with_nul();
                     setfname(

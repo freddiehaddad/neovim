@@ -1,6 +1,6 @@
 //! String buffer routines (`src/cjson/strbuf.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 pub const STRBUF_DEFAULT_SIZE: usize = 1023;
 
@@ -32,7 +32,7 @@ pub fn strbuf_ensure_empty_length(s: &mut Strbuf, len: usize) {
 }
 
 #[inline]
-pub fn strbuf_set_length(s: &mut Strbuf, len: c_int) {
+pub fn strbuf_set_length(s: &mut Strbuf, len: i32) {
     s.buf.truncate(len as usize);
 }
 

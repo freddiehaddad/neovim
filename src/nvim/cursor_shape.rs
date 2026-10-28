@@ -13,7 +13,7 @@ use crate::log::{LOGLVL_WRN, logmsg};
 use crate::memory::Arena;
 use crate::option_vars::*;
 use crate::ui::ui_mode_info_set;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 
 pub const SHAPE_IDX_N: usize = 0;
 pub const SHAPE_IDX_V: usize = 1;
@@ -28,8 +28,8 @@ pub const SHAPE_IDX_SM: usize = 16;
 pub const SHAPE_IDX_TERM: usize = 17;
 pub const SHAPE_IDX_COUNT: usize = 18;
 
-pub const SHAPE_MOUSE: c_int = 1;
-pub const SHAPE_CURSOR: c_int = 2;
+pub const SHAPE_MOUSE: i32 = 1;
+pub const SHAPE_CURSOR: i32 = 2;
 const SHAPE_BOTH: c_char = (SHAPE_CURSOR + SHAPE_MOUSE) as c_char;
 
 #[repr(C)]
@@ -45,13 +45,13 @@ pub enum CursorShape {
 pub struct Cursorentry {
     pub full_name: &'static CStr,
     pub shape: CursorShape,
-    pub mshape: c_int,
-    pub percentage: c_int,
-    pub blinkwait: c_int,
-    pub blinkon: c_int,
-    pub blinkoff: c_int,
-    pub id: c_int,
-    pub id_lm: c_int,
+    pub mshape: i32,
+    pub percentage: i32,
+    pub blinkwait: i32,
+    pub blinkon: i32,
+    pub blinkoff: i32,
+    pub id: i32,
+    pub id_lm: i32,
     pub name: &'static CStr,
     pub used_for: c_char,
 }
@@ -62,9 +62,9 @@ use crate::state::{
 
 const fn entry(
     full_name: &'static CStr,
-    blinkwait: c_int,
-    blinkon: c_int,
-    blinkoff: c_int,
+    blinkwait: i32,
+    blinkon: i32,
+    blinkoff: i32,
     name: &'static CStr,
     used_for: c_char,
 ) -> Cursorentry {
@@ -144,7 +144,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
         let tbl = &*std::ptr::addr_of!((*shape_table_mut()));
 
         for cur in tbl.iter() {
-            let is_cursor = (cur.used_for as c_int & SHAPE_CURSOR) != 0;
+            let is_cursor = (cur.used_for as i32 & SHAPE_CURSOR) != 0;
             let mut dic = arena_dict(arena, 3 + if is_cursor { 9 } else { 0 });
             dict_put_c(
                 &mut dic,
@@ -162,7 +162,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                     data: ObjectData::String(cstr_as_string(cur.name.as_ptr())),
                 },
             );
-            if (cur.used_for as c_int & SHAPE_MOUSE) != 0 {
+            if (cur.used_for as i32 & SHAPE_MOUSE) != 0 {
                 dict_put_c(
                     &mut dic,
                     c"mouse_shape",
@@ -271,7 +271,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
 }
 
 /// Parses the `'guicursor'` option (`parse_shape_opt`).
-pub fn parse_shape_opt(what: c_int) -> *const c_char {
+pub fn parse_shape_opt(what: i32) -> *const c_char {
     unsafe {
         let mut p: *const c_char = std::ptr::null();
         let mut idx: usize = 0;
@@ -332,7 +332,7 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                                     break;
                                 }
                             }
-                            if idx == SHAPE_IDX_COUNT || (tbl[idx].used_for as c_int & what) == 0 {
+                            if idx == SHAPE_IDX_COUNT || (tbl[idx].used_for as i32 & what) == 0 {
                                 return c"E546: Illegal mode".as_ptr();
                             }
                             if len == 2
@@ -424,7 +424,7 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                                 .iter()
                                 .position(|&b| b == b'/')
                                 .map_or(std::ptr::null(), |i| p.add(i));
-                            let mut saved_hl_id = first_byte as c_int;
+                            let mut saved_hl_id = first_byte as i32;
                             if !slashp.is_null() && (slashp as usize) < (endp as usize) {
                                 saved_hl_id = syn_check_group(p, (slashp as usize) - (p as usize));
                                 p = slashp.add(1);
@@ -468,12 +468,12 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
 
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).
 #[cfg(test)]
-pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> c_int {
+pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
     let mode_bytes = { mode.to_bytes() };
     let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
     for (mode_idx, entry) in tbl.iter().enumerate() {
         if entry.full_name.to_bytes() == mode_bytes {
-            return mode_idx as c_int;
+            return mode_idx as i32;
         }
     }
     logmsg!(
@@ -489,7 +489,7 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> c_int {
 }
 
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
-pub fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
+pub fn cursor_mode_uses_syn_id(syn_id: i32) -> bool {
     unsafe {
         if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
             return false;
@@ -505,36 +505,36 @@ pub fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
 }
 
 /// Return the index into `(*shape_table_mut())[]` for the current mode (`cursor_get_mode_idx`).
-pub fn cursor_get_mode_idx() -> c_int {
+pub fn cursor_get_mode_idx() -> i32 {
     {
         if g_st().state_global == MODE_SHOWMATCH {
-            SHAPE_IDX_SM as c_int
+            SHAPE_IDX_SM as i32
         } else if g_st().state_global == MODE_TERMINAL {
-            SHAPE_IDX_TERM as c_int
+            SHAPE_IDX_TERM as i32
         } else if (g_st().state_global & VREPLACE_FLAG) != 0
             || (g_st().state_global & REPLACE_FLAG) != 0
         {
-            SHAPE_IDX_R as c_int
+            SHAPE_IDX_R as i32
         } else if (g_st().state_global & MODE_INSERT) != 0 {
-            SHAPE_IDX_I as c_int
+            SHAPE_IDX_I as i32
         } else if (g_st().state_global & MODE_CMDLINE) != 0 {
             if cmdline_at_end() {
-                SHAPE_IDX_C as c_int
+                SHAPE_IDX_C as i32
             } else if cmdline_overstrike() {
-                SHAPE_IDX_CR as c_int
+                SHAPE_IDX_CR as i32
             } else {
-                SHAPE_IDX_CI as c_int
+                SHAPE_IDX_CI as i32
             }
         } else if g_st().finish_op {
-            SHAPE_IDX_O as c_int
+            SHAPE_IDX_O as i32
         } else if g_st().visual_global.active {
             if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
-                SHAPE_IDX_VE as c_int
+                SHAPE_IDX_VE as i32
             } else {
-                SHAPE_IDX_V as c_int
+                SHAPE_IDX_V as i32
             }
         } else {
-            SHAPE_IDX_N as c_int
+            SHAPE_IDX_N as i32
         }
     }
 }
@@ -545,8 +545,8 @@ mod tests {
 
     #[test]
     fn cursor_mode_str2int_finds_modes() {
-        assert_eq!(cursor_mode_str2int(c"normal"), SHAPE_IDX_N as c_int);
-        assert_eq!(cursor_mode_str2int(c"terminal"), SHAPE_IDX_TERM as c_int);
+        assert_eq!(cursor_mode_str2int(c"normal"), SHAPE_IDX_N as i32);
+        assert_eq!(cursor_mode_str2int(c"terminal"), SHAPE_IDX_TERM as i32);
         assert_eq!(cursor_mode_str2int(c"nonexistent"), -1);
     }
 }

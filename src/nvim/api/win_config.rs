@@ -43,24 +43,24 @@ use crate::window::{
 use crate::winfloat::{
     win_config_float, win_float_find_altwin, win_new_float, win_set_minimal_style,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
-pub type FloatAnchor = c_int;
-pub type FloatRelative = c_int;
-pub type WinSplit = c_int;
-pub type WinStyle = c_int;
-pub type AlignTextPos = c_int;
-pub type BorderTextType = c_int;
-pub type UIExtension = c_int;
+pub type FloatAnchor = i32;
+pub type FloatRelative = i32;
+pub type WinSplit = i32;
+pub type WinStyle = i32;
+pub type AlignTextPos = i32;
+pub type BorderTextType = i32;
+pub type UIExtension = i32;
 
 pub(crate) const K_UIMULTIGRID: UIExtension = 6;
-pub(crate) const K_ZINDEX_FLOAT_DEFAULT: c_int = 50;
+pub(crate) const K_ZINDEX_FLOAT_DEFAULT: i32 = 50;
 
 pub(crate) const FR_COL: c_char = 2;
 
-pub(crate) const K_CTX_NO_DISPLAY: c_int = 4;
-pub(crate) const K_CTX_NO_EVENTS: c_int = 8;
+pub(crate) const K_CTX_NO_DISPLAY: i32 = 4;
+pub(crate) const K_CTX_NO_EVENTS: i32 = 8;
 
 pub(crate) const K_FLOAT_ANCHOR_EAST: FloatAnchor = 1;
 pub(crate) const K_FLOAT_ANCHOR_SOUTH: FloatAnchor = 2;
@@ -176,7 +176,7 @@ pub const WIN_CONFIG_INIT: WinConfig = WinConfig {
     noautocmd: false,
     fixed: false,
     hide: false,
-    _cmdline_offset: c_int::MAX,
+    _cmdline_offset: i32::MAX,
 };
 
 /// Opens a new split window, floating window, or external window.
@@ -468,7 +468,7 @@ pub fn nvim_open_win(
                 break 'cleanup;
             }
 
-            if fconfig._cmdline_offset < c_int::MAX {
+            if fconfig._cmdline_offset < i32::MAX {
                 g_st().cmdline_win = wp;
             }
 
@@ -559,7 +559,7 @@ fn win_split_dir(win: &WinInfoInfo) -> WinSplit {
     }
 }
 
-const fn win_split_flags(split: WinSplit, toplevel: bool) -> c_int {
+const fn win_split_flags(split: WinSplit, toplevel: bool) -> i32 {
     let mut flags = 0;
     if split == K_WIN_SPLIT_ABOVE || split == K_WIN_SPLIT_BELOW {
         flags |= WSP_HOR;
@@ -628,7 +628,7 @@ fn win_find_altwin(win: *mut WinInfoInfo, tp: &mut TabPageInfo) -> *mut WinInfoI
         if (*win).w_floating {
             win_float_find_altwin(&*win, tp_arg.as_ref())
         } else {
-            let mut dir: c_int = 0;
+            let mut dir: i32 = 0;
             winframe_find_altwin(&mut *win, &mut dir, tp_arg, ptr::null_mut())
         }
     }
@@ -741,7 +741,7 @@ fn win_config_split(
                     }
                 }
 
-                let mut dir: c_int = 0;
+                let mut dir: i32 = 0;
                 let mut unflat_altfr: *mut Frame = ptr::null_mut();
                 let altwin: *mut WinInfoInfo;
 
@@ -1080,9 +1080,9 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
             didset_window_options(w, true);
             changed_window_setting(w);
         }
-        if fconfig._cmdline_offset < c_int::MAX {
+        if fconfig._cmdline_offset < i32::MAX {
             g_st().cmdline_win = (&raw mut *w);
-        } else if (&raw mut *w) == g_st().cmdline_win && fconfig._cmdline_offset == c_int::MAX {
+        } else if (&raw mut *w) == g_st().cmdline_win && fconfig._cmdline_offset == i32::MAX {
             g_st().cmdline_win = ptr::null_mut();
         }
     }
@@ -1237,7 +1237,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
         };
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_RELATIVE;
         rv.relative = cstr_as_string(rel);
-        if config._cmdline_offset < c_int::MAX {
+        if config._cmdline_offset < i32::MAX {
             rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET;
             rv._cmdline_offset = i64::from(config._cmdline_offset);
         }
@@ -1394,7 +1394,7 @@ pub fn parse_bordertext(
             return;
         }
         let text_cstr = transstr(bordertext.data.string().data, true);
-        *width = mb_string2cells(text_cstr.as_ptr()) as c_int;
+        *width = mb_string2cells(text_cstr.as_ptr()) as i32;
         chunks.clear();
         chunks.push(VirtTextChunk {
             text: Some(text_cstr),
@@ -1482,7 +1482,7 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
             for i in 0..size {
                 let iytem = arr[i];
                 let string: NvimString;
-                let mut hl_id: c_int = 0;
+                let mut hl_id: i32 = 0;
                 if iytem.obj_type == ObjectType::ObjectTypeArray {
                     let iarr = iytem.data.array();
                     if iarr.size == 0 || iarr.size > 2 {
@@ -1760,7 +1760,7 @@ fn parse_win_config(
                     api_err_exp(err, c"width", c"positive Integer", ptr::null());
                     break 'fail;
                 }
-                fconfig.width = config.width as c_int;
+                fconfig.width = config.width as i32;
             } else if !reconf && !is_split {
                 api_err_required(err, c"width");
                 break 'fail;
@@ -1771,7 +1771,7 @@ fn parse_win_config(
                     api_err_exp(err, c"height", c"positive Integer", ptr::null());
                     break 'fail;
                 }
-                fconfig.height = config.height as c_int;
+                fconfig.height = config.height as i32;
             } else if !reconf && !is_split {
                 api_err_required(err, c"height");
                 break 'fail;
@@ -1853,7 +1853,7 @@ fn parse_win_config(
                     api_err_exp(err, c"zindex", c"positive Integer", ptr::null());
                     break 'fail;
                 }
-                fconfig.zindex = config.zindex as c_int;
+                fconfig.zindex = config.zindex as i32;
             }
 
             if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_TITLE) {
@@ -1966,7 +1966,7 @@ fn parse_win_config(
             }
 
             if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET) {
-                fconfig._cmdline_offset = config._cmdline_offset as c_int;
+                fconfig._cmdline_offset = config._cmdline_offset as i32;
             }
 
             return true;

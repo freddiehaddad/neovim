@@ -56,10 +56,10 @@ use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
 };
 use crate::ui_client::ui_client_attach_to_restarted_server;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
-pub type ChannelStdinMode = c_int;
+pub type ChannelStdinMode = i32;
 
 #[repr(C)]
 pub struct CallbackReader {
@@ -97,12 +97,12 @@ use crate::option::OptInt;
 
 pub(crate) const CHAN_STDERR: u64 = 2;
 
-pub(crate) const STDIN_FILENO: c_int = 0;
-pub(crate) const STDOUT_FILENO: c_int = 1;
-pub(crate) const STDERR_FILENO: c_int = 2;
+pub(crate) const STDIN_FILENO: i32 = 0;
+pub(crate) const STDOUT_FILENO: i32 = 1;
+pub(crate) const STDERR_FILENO: i32 = 2;
 
-pub(crate) const K_PROC_TYPE_UV: c_int = 0;
-pub(crate) const K_PROC_TYPE_PTY: c_int = 1;
+pub(crate) const K_PROC_TYPE_UV: i32 = 0;
+pub(crate) const K_PROC_TYPE_PTY: i32 = 1;
 
 pub(crate) const K_CHANNEL_STREAM_PROC: ChannelStreamType = 0;
 pub(crate) const K_CHANNEL_STREAM_SOCKET: ChannelStreamType = 1;
@@ -117,16 +117,16 @@ pub(crate) const K_CHANNEL_PART_RPC_CONST: ChannelPart = 3;
 pub(crate) const K_CHANNEL_STDIN_PIPE_CONST: ChannelStdinMode = 0;
 
 #[cfg(target_os = "linux")]
-const F_DUPFD_CLOEXEC: c_int = 1030;
+const F_DUPFD_CLOEXEC: i32 = 1030;
 #[cfg(target_os = "macos")]
-const F_DUPFD_CLOEXEC: c_int = 67;
+const F_DUPFD_CLOEXEC: i32 = 67;
 #[cfg(target_os = "freebsd")]
-const F_DUPFD_CLOEXEC: c_int = 17;
+const F_DUPFD_CLOEXEC: i32 = 17;
 #[cfg(all(
     not(windows),
     not(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))
 ))]
-const F_DUPFD_CLOEXEC: c_int = 12;
+const F_DUPFD_CLOEXEC: i32 = 12;
 
 struct ChannelModuleState {
     did_stdio: bool,
@@ -608,7 +608,7 @@ pub fn channel_connect(
     address: impl crate::strings::IntoCCharPtr,
     rpc: bool,
     on_output: CallbackReader,
-    timeout: c_int,
+    timeout: i32,
     error: *mut *const c_char,
 ) -> u64 {
     let address = address.into_c_char_ptr();
@@ -943,7 +943,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
     }
 }
 
-pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan: &mut Channel) {
+pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: i32, chan: &mut Channel) {
     {
         if !chan.term.is_null() {
             terminal_close(&raw mut chan.term, status);

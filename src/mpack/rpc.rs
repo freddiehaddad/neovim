@@ -1,6 +1,6 @@
 //! MessagePack-RPC session state machine (`src/mpack/rpc.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_OK, MpackTokbuf, MpackToken, MpackTokenArray, MpackTokenUint, MpackUint32,
@@ -10,22 +10,22 @@ use crate::mpack::object::{MPACK_NOMEM, MpackData};
 
 pub const MPACK_RPC_MAX_REQUESTS: usize = 32;
 
-pub const MPACK_RPC_REQUEST: c_int = MPACK_NOMEM + 1;
-pub const MPACK_RPC_RESPONSE: c_int = MPACK_RPC_REQUEST + 1;
-pub const MPACK_RPC_NOTIFICATION: c_int = MPACK_RPC_REQUEST + 2;
-pub const MPACK_RPC_ERROR: c_int = MPACK_RPC_REQUEST + 3;
+pub const MPACK_RPC_REQUEST: i32 = MPACK_NOMEM + 1;
+pub const MPACK_RPC_RESPONSE: i32 = MPACK_RPC_REQUEST + 1;
+pub const MPACK_RPC_NOTIFICATION: i32 = MPACK_RPC_REQUEST + 2;
+pub const MPACK_RPC_ERROR: i32 = MPACK_RPC_REQUEST + 3;
 
-pub const MPACK_RPC_EARRAY: c_int = MPACK_RPC_ERROR;
-pub const MPACK_RPC_EARRAYL: c_int = MPACK_RPC_ERROR + 1;
-pub const MPACK_RPC_ETYPE: c_int = MPACK_RPC_ERROR + 2;
-pub const MPACK_RPC_EMSGID: c_int = MPACK_RPC_ERROR + 3;
-pub const MPACK_RPC_ERESPID: c_int = MPACK_RPC_ERROR + 4;
+pub const MPACK_RPC_EARRAY: i32 = MPACK_RPC_ERROR;
+pub const MPACK_RPC_EARRAYL: i32 = MPACK_RPC_ERROR + 1;
+pub const MPACK_RPC_ETYPE: i32 = MPACK_RPC_ERROR + 2;
+pub const MPACK_RPC_EMSGID: i32 = MPACK_RPC_ERROR + 3;
+pub const MPACK_RPC_ERESPID: i32 = MPACK_RPC_ERROR + 4;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct MpackRpcHeader {
     pub toks: [MpackToken; 3],
-    pub index: c_int,
+    pub index: i32,
 }
 
 impl MpackRpcHeader {
@@ -53,7 +53,7 @@ pub struct MpackRpcMessage {
 #[repr(C)]
 #[derive(Clone)]
 pub struct MpackRpcSlot {
-    pub used: c_int,
+    pub used: i32,
     pub msg: MpackRpcMessage,
 }
 
@@ -117,7 +117,7 @@ pub fn mpack_rpc_receive_tok(
     session: &mut MpackRpcSession,
     tok: MpackToken,
     msg: &mut MpackRpcMessage,
-) -> c_int {
+) -> i32 {
     if session.receive.index == 0 {
         if tok.r#type != MpackTokenArray {
             return MPACK_RPC_EARRAY;
@@ -161,7 +161,7 @@ pub fn mpack_rpc_receive_tok(
 
     msg.id = tok.data.value().lo;
     msg.data = MpackData::Null;
-    let r#type = (session.receive.toks[1].data.value().lo as c_int) + MPACK_RPC_REQUEST;
+    let r#type = (session.receive.toks[1].data.value().lo as i32) + MPACK_RPC_REQUEST;
 
     if r#type == MPACK_RPC_RESPONSE && mpack_rpc_pop(session, msg) == 0 {
         return MPACK_RPC_ERESPID;
@@ -175,7 +175,7 @@ pub fn mpack_rpc_request_tok(
     session: &mut MpackRpcSession,
     tok: &mut MpackToken,
     data: MpackData,
-) -> c_int {
+) -> i32 {
     if session.send.index == 0 {
         loop {
             let msg = MpackRpcMessage {
@@ -216,7 +216,7 @@ pub fn mpack_rpc_reply_tok(
     session: &mut MpackRpcSession,
     tok: &mut MpackToken,
     id: MpackUint32,
-) -> c_int {
+) -> i32 {
     if session.send.index == 0 {
         session.send = mpack_rpc_reply_hdr();
         session.send.toks[2].r#type = MpackTokenUint;
@@ -239,7 +239,7 @@ pub fn mpack_rpc_reply_tok(
     MPACK_OK
 }
 
-pub fn mpack_rpc_notify_tok(session: &mut MpackRpcSession, tok: &mut MpackToken) -> c_int {
+pub fn mpack_rpc_notify_tok(session: &mut MpackRpcSession, tok: &mut MpackToken) -> i32 {
     if session.send.index == 0 {
         session.send = mpack_rpc_notify_hdr();
         *tok = session.send.toks[0];
@@ -258,8 +258,8 @@ pub fn mpack_rpc_receive(
     buf: &mut *const c_char,
     buflen: &mut usize,
     msg: &mut MpackRpcMessage,
-) -> c_int {
-    let mut status: c_int;
+) -> i32 {
+    let mut status: i32;
     loop {
         let mut tok = MpackToken::new();
         status = mpack_read(&mut session.reader, buf, buflen, &mut tok);
@@ -279,7 +279,7 @@ pub fn mpack_rpc_request(
     buf: &mut *mut c_char,
     buflen: &mut usize,
     data: MpackData,
-) -> c_int {
+) -> i32 {
     let mut status = MPACK_EOF;
     let mut tok = MpackToken::new();
     while status != 0 && *buflen != 0 {
@@ -302,7 +302,7 @@ pub fn mpack_rpc_reply(
     buf: &mut *mut c_char,
     buflen: &mut usize,
     id: MpackUint32,
-) -> c_int {
+) -> i32 {
     let mut status = MPACK_EOF;
     let mut tok = MpackToken::new();
     while status != 0 && *buflen != 0 {
@@ -321,7 +321,7 @@ pub fn mpack_rpc_notify(
     session: &mut MpackRpcSession,
     buf: &mut *mut c_char,
     buflen: &mut usize,
-) -> c_int {
+) -> i32 {
     let mut status = MPACK_EOF;
     let mut tok = MpackToken::new();
     while status != 0 && *buflen != 0 {
@@ -361,7 +361,7 @@ fn mpack_rpc_notify_hdr() -> MpackRpcHeader {
     hdr
 }
 
-fn mpack_rpc_put(session: &mut MpackRpcSession, msg: MpackRpcMessage) -> c_int {
+fn mpack_rpc_put(session: &mut MpackRpcSession, msg: MpackRpcMessage) -> i32 {
     let slots = &mut session.slots;
     let cap = slots.len() as MpackUint32;
     let mut hash = msg.id % cap;
@@ -387,7 +387,7 @@ fn mpack_rpc_put(session: &mut MpackRpcSession, msg: MpackRpcMessage) -> c_int {
     1
 }
 
-fn mpack_rpc_pop(session: &mut MpackRpcSession, msg: &mut MpackRpcMessage) -> c_int {
+fn mpack_rpc_pop(session: &mut MpackRpcSession, msg: &mut MpackRpcMessage) -> i32 {
     let slots = &mut session.slots;
     let cap = slots.len() as MpackUint32;
     let mut hash = msg.id % cap;

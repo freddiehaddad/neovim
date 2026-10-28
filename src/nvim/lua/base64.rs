@@ -5,9 +5,9 @@ use crate::lua::converter::{
     LUA_TSTRING, lua_State, lua_createtable, lua_gettop, lua_pushlstring, lua_tolstring, lua_type,
     luaL_Reg, luaL_argerror, luaL_error, luaL_register,
 };
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
-unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> i32 {
     unsafe {
         if lua_gettop(lstate) < 1 {
             return luaL_error(lstate, c"Expected 1 argument".as_ptr());
@@ -30,7 +30,7 @@ unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> c_int 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_base64_decode(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_base64_decode(lstate: *mut lua_State) -> i32 {
     unsafe {
         if lua_gettop(lstate) < 1 {
             return luaL_error(lstate, c"Expected 1 argument".as_ptr());
@@ -76,7 +76,7 @@ static BASE64_FUNCTIONS: [luaL_Reg; 3] = [
 /// # Safety
 /// `lstate` must be a valid `lua_State` pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaopen_base64(lstate: *mut lua_State) -> c_int {
+pub unsafe extern "C" fn luaopen_base64(lstate: *mut lua_State) -> i32 {
     unsafe {
         lua_createtable(lstate, 0, 0);
         luaL_register(lstate, std::ptr::null(), BASE64_FUNCTIONS.as_ptr());

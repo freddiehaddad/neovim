@@ -121,7 +121,7 @@ use crate::ui::{ui_array, ui_call_screenshot, ui_call_set_restart_on_crash_exit,
 use crate::window::{
     WinInfoInfo, global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_find_tabpage,
 };
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 use std::ptr;
 
 #[cfg(windows)]
@@ -133,21 +133,21 @@ use crate::os::fs::MAXPATHL;
 pub(crate) const ERR_BUFLEN: usize = 256;
 pub(crate) const SIGN_SHOW_MAX: usize = 9;
 
-pub(crate) const K_CD_SCOPE_GLOBAL: c_int = 3;
+pub(crate) const K_CD_SCOPE_GLOBAL: i32 = 3;
 
-pub(crate) const K_OPT_COT_FLAG_POPUP: c_uint = 0x200;
+pub(crate) const K_OPT_COT_FLAG_POPUP: u32 = 0x200;
 
 pub(crate) const K_CHANNEL_STREAM_INTERNAL: ChannelStreamType = 4;
 
 const K_CTX_ALL: CtxStateFlags =
     K_CTX_REGS | K_CTX_JUMPS | K_CTX_BUFS | K_CTX_GVARS | K_CTX_SFUNCS | K_CTX_FUNCS;
 
-pub(crate) const HLF_N: c_int = 12;
-pub(crate) const HLF_LNA: c_int = 13;
-pub(crate) const HLF_LNB: c_int = 14;
-pub(crate) const HLF_CLN: c_int = 15;
-pub(crate) const HLF_CLS: c_int = 16;
-pub(crate) const HLF_SC: c_int = 35;
+pub(crate) const HLF_N: i32 = 12;
+pub(crate) const HLF_LNA: i32 = 13;
+pub(crate) const HLF_LNB: i32 = 14;
+pub(crate) const HLF_CLN: i32 = 15;
+pub(crate) const HLF_CLS: i32 = 16;
+pub(crate) const HLF_SC: i32 = 35;
 
 use crate::highlight::{KEYSET_OPTIDX_HIGHLIGHT_UPDATE, KEYSET_OPTIDX_HIGHLIGHT_URL};
 use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
@@ -468,7 +468,7 @@ pub fn nvim_set_hl(
         if error_set(err) || hl_id == 0 {
             return;
         }
-        let mut link_id: c_int = -1;
+        let mut link_id: i32 = -1;
 
         if (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"Invalid key: 'url'",);
@@ -479,7 +479,7 @@ pub fn nvim_set_hl(
             (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_UPDATE)) != 0 && val.update;
         let mut base: *mut HlAttrs = ptr::null_mut();
         let mut base_attrs = HlAttrs::default();
-        if update && hl_ns_get_attrs(ns_id as c_int, hl_id, None, &mut base_attrs) {
+        if update && hl_ns_get_attrs(ns_id as i32, hl_id, None, &mut base_attrs) {
             base = &mut base_attrs;
         }
 
@@ -696,44 +696,43 @@ pub fn nvim_input_mouse(
                 break 'check None;
             }
 
-            let mut code: c_int = if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"left")
-            {
-                c_int::from(KE_LEFTMOUSE)
+            let mut code: i32 = if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"left") {
+                i32::from(KE_LEFTMOUSE)
             } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"middle") {
-                c_int::from(KE_MIDDLEMOUSE)
+                i32::from(KE_MIDDLEMOUSE)
             } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"right") {
-                c_int::from(KE_RIGHTMOUSE)
+                i32::from(KE_RIGHTMOUSE)
             } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"wheel") {
-                c_int::from(KE_MOUSEDOWN)
+                i32::from(KE_MOUSEDOWN)
             } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x1") {
-                c_int::from(KE_X1MOUSE)
+                i32::from(KE_X1MOUSE)
             } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x2") {
-                c_int::from(KE_X2MOUSE)
+                i32::from(KE_X2MOUSE)
             } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"move") {
-                c_int::from(KE_MOUSEMOVE)
+                i32::from(KE_MOUSEMOVE)
             } else {
                 break 'check None;
             };
 
-            if code == c_int::from(KE_MOUSEDOWN) {
+            if code == i32::from(KE_MOUSEDOWN) {
                 if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"down") {
-                    code = c_int::from(KE_MOUSEUP);
+                    code = i32::from(KE_MOUSEUP);
                 } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"up") {
                     // code = KE_MOUSEDOWN
                 } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"left") {
-                    code = c_int::from(KE_MOUSERIGHT);
+                    code = i32::from(KE_MOUSERIGHT);
                 } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"right") {
-                    code = c_int::from(KE_MOUSELEFT);
+                    code = i32::from(KE_MOUSELEFT);
                 } else {
                     break 'check None;
                 }
-            } else if code != c_int::from(KE_MOUSEMOVE) {
+            } else if code != i32::from(KE_MOUSEMOVE) {
                 if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"press") {
                     // pass
                 } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"drag") {
-                    code += c_int::from(KE_LEFTDRAG) - c_int::from(KE_LEFTMOUSE);
+                    code += i32::from(KE_LEFTDRAG) - i32::from(KE_LEFTMOUSE);
                 } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"release") {
-                    code += c_int::from(KE_LEFTRELEASE) - c_int::from(KE_LEFTMOUSE);
+                    code += i32::from(KE_LEFTRELEASE) - i32::from(KE_LEFTMOUSE);
                 } else {
                     break 'check None;
                 }
@@ -751,32 +750,26 @@ pub fn nvim_input_mouse(
             return;
         };
 
-        let mut modmask: c_int = 0;
+        let mut modmask: i32 = 0;
         for i in 0..modifier.size {
             let byte = *modifier.data.add(i);
             if byte == (b'-' as c_char) {
                 continue;
             }
-            let m = name_to_mod_mask(c_int::from(byte as u8));
+            let m = name_to_mod_mask(i32::from(byte as u8));
             if m == 0 {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
                     c"Invalid modifier: %c",
-                    c_int::from(byte),
+                    i32::from(byte),
                 );
                 return;
             }
             modmask |= m;
         }
 
-        input_enqueue_mouse(
-            code,
-            modmask as u8,
-            grid as c_int,
-            row as c_int,
-            col as c_int,
-        );
+        input_enqueue_mouse(code, modmask as u8, grid as i32, row as i32, col as i32);
     }
 }
 
@@ -806,7 +799,7 @@ pub fn nvim_replace_termcodes(
         };
     }
 
-    let mut flags: c_int = 0;
+    let mut flags: i32 = 0;
     if from_part {
         flags |= REPTERM_FROM_PART;
     }
@@ -894,7 +887,7 @@ pub fn nvim_exec_lua_fast(
 // DLLEXPORT Integer nvim_strwidth(String text, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
     if !validate_s(
-        text.size <= (c_int::MAX as usize),
+        text.size <= (i32::MAX as usize),
         c"text length",
         c"(too long)",
         err,
@@ -1934,7 +1927,7 @@ pub fn nvim_put(
         let visual_was_active = g_st().visual_global.active;
         g_st().msg_silent += 1;
         do_put(
-            b'_' as c_int,
+            b'_' as i32,
             &mut reg,
             if after { FORWARD } else { BACKWARD },
             1,
@@ -1960,7 +1953,7 @@ pub fn nvim_put(
 /// @return 24-bit RGB value, or -1 for invalid argument.
 // DLLEXPORT Integer nvim_get_color_by_name(String name) FUNC_API_SINCE(1);
 pub fn nvim_get_color_by_name(name: NvimString) -> Integer {
-    let mut dummy: c_int = 0;
+    let mut dummy: i32 = 0;
     Integer::from(name_to_color(name.data, &mut dummy))
 }
 
@@ -2316,7 +2309,7 @@ pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
         if error_set(err) {
             return;
         }
-        g_st().cmdwin_type = c_int::from(crate::memory::cstr_first_byte(type_str.data));
+        g_st().cmdwin_type = i32::from(crate::memory::cstr_first_byte(type_str.data));
         g_st().cmdwin_buf = b;
     }
 }
@@ -2488,16 +2481,11 @@ pub fn nvim_get_proc_children(pid: Integer, arena: &mut Arena, err: &mut Error) 
     unsafe {
         let mut rvobj = Array::new();
 
-        if !validate_int(
-            pid > 0 && pid <= Integer::from(c_int::MAX),
-            c"pid",
-            pid,
-            err,
-        ) {
+        if !validate_int(pid > 0 && pid <= Integer::from(i32::MAX), c"pid", pid, err) {
             return rvobj;
         }
 
-        match os_proc_children(pid as c_int) {
+        match os_proc_children(pid as i32) {
             Err(rv) => {
                 let mut a_items = [integer_obj(pid)];
                 let a = Array {
@@ -2542,19 +2530,14 @@ pub fn nvim_get_proc_children(pid: Integer, arena: &mut Arena, err: &mut Error) 
 /// @return Map of process properties, or NIL if process not found.
 // DLLEXPORT Object nvim_get_proc(Integer pid, Arena *arena, Error *err) FUNC_API_SINCE(4);
 pub fn nvim_get_proc(pid: Integer, arena: &mut Arena, err: &mut Error) -> Object {
-    if !validate_int(
-        pid > 0 && pid <= Integer::from(c_int::MAX),
-        c"pid",
-        pid,
-        err,
-    ) {
+    if !validate_int(pid > 0 && pid <= Integer::from(i32::MAX), c"pid", pid, err) {
         return nil_obj();
     }
 
     #[cfg(windows)]
     {
         let _ = err;
-        let rvobj = dict_obj(os_proc_info(pid as c_int, arena));
+        let rvobj = dict_obj(os_proc_info(pid as i32, arena));
         if rvobj.data.dict().size == 0 {
             return nil_obj();
         }
@@ -2620,7 +2603,7 @@ pub fn nvim_select_popupmenu_item(
     if finish {
         insert = true;
     }
-    pum_ext_select_item(item as c_int, insert, finish);
+    pum_ext_select_item(item as i32, insert, finish);
 }
 
 /// NB: if your UI doesn't use hlstate, this will not return hlstate first time.
@@ -2768,7 +2751,7 @@ pub fn nvim_get_mark(
         let mark = mark_get_global(false, crate::memory::cstr_first_char(name.data));
         let mark = unsafe { &mut *mark };
         let pos = mark.fmark.mark;
-        let mut bufnr: c_int;
+        let mut bufnr: i32;
         let mut filename: *mut c_char;
 
         let owned_filename = if mark.fmark.fnum != 0 {
@@ -2847,7 +2830,7 @@ pub fn nvim_eval_statusline(
     unsafe {
         let mut result = Dict::new();
         let mut fillchar: Schar = 0;
-        let mut statuscol_lnum: c_int = 0;
+        let mut statuscol_lnum: i32 = 0;
 
         if str_.size < 2
             || *str_.data != (b'%' as c_char)
@@ -2877,7 +2860,7 @@ pub fn nvim_eval_statusline(
             fillchar = crate::grid::schar_from_cluster(ci, cli);
         }
 
-        let mut use_bools = c_int::from(opts.use_winbar) + c_int::from(opts.use_tabline);
+        let mut use_bools = i32::from(opts.use_winbar) + i32::from(opts.use_tabline);
 
         let wp = if opts.use_tabline {
             curwin_ptr()
@@ -2893,7 +2876,7 @@ pub fn nvim_eval_statusline(
             & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
             != 0
         {
-            statuscol_lnum = opts.use_statuscol_lnum as c_int;
+            statuscol_lnum = opts.use_statuscol_lnum as i32;
             if !validate_range(
                 statuscol_lnum > 0 && statuscol_lnum <= (*wp).buf_mut().b_ml.ml_line_count,
                 c"use_statuscol_lnum",
@@ -2913,14 +2896,14 @@ pub fn nvim_eval_statusline(
             return result;
         }
 
-        let mut stc_hl_id: c_int = 0;
-        let mut scl_hl_id: c_int = 0;
+        let mut stc_hl_id: i32 = 0;
+        let mut scl_hl_id: i32 = 0;
         let mut statuscol = Statuscol::new();
 
         if statuscol_lnum != 0 {
-            let mut line_id: c_int = 0;
-            let mut cul_id: c_int = 0;
-            let mut num_id: c_int = 0;
+            let mut line_id: i32 = 0;
+            let mut cul_id: i32 = 0;
+            let mut num_id: i32 = 0;
             let lnum = statuscol_lnum as Linenr;
             let mut cursorline_fi = Foldinfo::new();
             decor_redraw_signs(
@@ -2970,7 +2953,7 @@ pub fn nvim_eval_statusline(
             & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_MAXWIDTH))
             != 0
         {
-            opts.maxwidth as c_int
+            opts.maxwidth as i32
         } else if statuscol_lnum != 0 {
             win_col_off(wp)
         } else if opts.use_tabline || (!opts.use_winbar && global_stl_height() > 0) {
@@ -3058,9 +3041,9 @@ pub fn nvim_eval_statusline(
                     arena_strdup(arena, user_str.as_ptr().cast::<c_char>())
                 };
 
-                let combine = if (*sp).item == c_int::from(STL_SIGNCOL as u8) {
+                let combine = if (*sp).item == i32::from(STL_SIGNCOL as u8) {
                     syn_id2name(scl_hl_id)
-                } else if (*sp).item == c_int::from(STL_FOLDCOL as u8) {
+                } else if (*sp).item == i32::from(STL_FOLDCOL as u8) {
                     grpname
                 } else {
                     dfltname
@@ -3119,7 +3102,7 @@ pub fn nvim_complete_set(
             return rv;
         }
         if (opts.is_set_complete_set & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0 {
-            let wp = pum_set_info(index as c_int, opts.info.data);
+            let wp = pum_set_info(index as i32, opts.info.data);
             if !wp.is_null() {
                 let wp = unsafe { &mut *wp };
                 put_c(&mut rv, c"winid", window_obj(wp.handle));
@@ -3212,7 +3195,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         }
 
         let count = u32::from(!win.is_null()) + u32::from(!buf.is_null());
-        if (xpopcount(opts.is_set_redraw) as u32) <= count {
+        if xpopcount(opts.is_set_redraw) <= count {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -3264,11 +3247,11 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
                 g_st().curbuf
             };
             let line_count = i64::from((*rbuf).b_ml.ml_line_count);
-            let begin = begin_raw.min(line_count) as c_int;
+            let begin = begin_raw.min(line_count) as i32;
             let end = if end_raw == -1 {
-                line_count as c_int
+                line_count as i32
             } else {
-                end_raw.max(i64::from(begin)).min(line_count) as c_int
+                end_raw.max(i64::from(begin)).min(line_count) as i32
             };
 
             if begin < end {

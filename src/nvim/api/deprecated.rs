@@ -39,7 +39,7 @@ use crate::option::{
     set_option_value_for,
 };
 use crate::window::{win_setheight_win, win_setwidth_win};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
@@ -224,7 +224,7 @@ pub fn nvim_buf_add_highlight(
             return ns_id;
         };
 
-        let mut end_line = line as c_int;
+        let mut end_line = line as i32;
         if col_end == MAXCOL {
             col_end = 0;
             end_line += 1;
@@ -239,7 +239,7 @@ pub fn nvim_buf_add_highlight(
             buf,
             ns,
             None,
-            line as c_int,
+            line as i32,
             col_start as Colnr,
             end_line,
             col_end as Colnr,
@@ -295,14 +295,14 @@ pub fn nvim_buf_set_virtual_text(
         }
 
         let ns_id = src2ns(&mut src_id);
-        let mut width: c_int = 0;
+        let mut width: i32 = 0;
 
         let virt_text = parse_virt_text(chunks, err, &mut width, false);
         if error_set(err) {
             return 0;
         }
 
-        let existing = decor_find_virttext(buf, line as c_int, u64::from(ns_id));
+        let existing = decor_find_virttext(buf, line as i32, u64::from(ns_id));
         if !existing.is_null() {
             let existing = unsafe { &mut *existing };
             existing.data = DecorVirtTextData::VirtText(virt_text);
@@ -335,7 +335,7 @@ pub fn nvim_buf_set_virtual_text(
             buf,
             ns_id,
             None,
-            line as c_int,
+            line as i32,
             0,
             -1,
             -1,
@@ -364,11 +364,11 @@ pub fn nvim_buf_set_virtual_text(
 //   FUNC_API_DEPRECATED_SINCE(9);
 pub fn nvim_get_hl_by_id(hl_id: Integer, rgb: Boolean, arena: &mut Arena, err: &mut Error) -> Dict {
     let dic = Dict::new();
-    if syn_get_final_id(hl_id as c_int) == 0 {
+    if syn_get_final_id(hl_id as i32) == 0 {
         api_err_invalid(err, c"highlight id", ptr::null(), hl_id, false);
         return dic;
     }
-    let attrcode = syn_id2attr(hl_id as c_int);
+    let attrcode = syn_id2attr(hl_id as i32);
     crate::highlight::hl_get_attr_by_id(i64::from(attrcode), rgb, arena, err)
 }
 
@@ -1313,7 +1313,7 @@ pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
             return;
         }
         try_wrap(err, || {
-            win_setheight_win(height as c_int, unsafe { &mut *w }, true);
+            win_setheight_win(height as i32, unsafe { &mut *w }, true);
         });
     }
 }
@@ -1338,7 +1338,7 @@ pub fn nvim_win_set_width(win: Window, width: Integer, err: &mut Error) {
             return;
         }
         try_wrap(err, || {
-            win_setwidth_win(width as c_int, unsafe { &mut *w }, true);
+            win_setwidth_win(width as i32, unsafe { &mut *w }, true);
         });
     }
 }

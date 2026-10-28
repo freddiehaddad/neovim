@@ -1,6 +1,6 @@
 //! Core diff algorithm (`src/xdiff/xdiffi.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 use crate::xdiff::xemit::{xdl_emit_diff, xdl_get_hunk};
 use crate::xdiff::xhistogram::xdl_do_histogram_diff;
@@ -19,19 +19,19 @@ const XDL_LINE_MAX: i64 = i64::MAX;
 const XDL_SNAKE_CNT: i64 = 20;
 const XDL_K_HEUR: i64 = 4;
 
-const MAX_INDENT: c_int = 200;
-const MAX_BLANKS: c_int = 20;
-const START_OF_FILE_PENALTY: c_int = 1;
-const END_OF_FILE_PENALTY: c_int = 21;
-const TOTAL_BLANK_WEIGHT: c_int = -30;
-const POST_BLANK_WEIGHT: c_int = 6;
-const RELATIVE_INDENT_PENALTY: c_int = -4;
-const RELATIVE_INDENT_WITH_BLANK_PENALTY: c_int = 10;
-const RELATIVE_OUTDENT_PENALTY: c_int = 24;
-const RELATIVE_OUTDENT_WITH_BLANK_PENALTY: c_int = 17;
-const RELATIVE_DEDENT_PENALTY: c_int = 23;
-const RELATIVE_DEDENT_WITH_BLANK_PENALTY: c_int = 17;
-const INDENT_WEIGHT: c_int = 60;
+const MAX_INDENT: i32 = 200;
+const MAX_BLANKS: i32 = 20;
+const START_OF_FILE_PENALTY: i32 = 1;
+const END_OF_FILE_PENALTY: i32 = 21;
+const TOTAL_BLANK_WEIGHT: i32 = -30;
+const POST_BLANK_WEIGHT: i32 = 6;
+const RELATIVE_INDENT_PENALTY: i32 = -4;
+const RELATIVE_INDENT_WITH_BLANK_PENALTY: i32 = 10;
+const RELATIVE_OUTDENT_PENALTY: i32 = 24;
+const RELATIVE_OUTDENT_WITH_BLANK_PENALTY: i32 = 17;
+const RELATIVE_DEDENT_PENALTY: i32 = 23;
+const RELATIVE_DEDENT_WITH_BLANK_PENALTY: i32 = 17;
+const INDENT_WEIGHT: i32 = 60;
 const INDENT_HEURISTIC_MAX_SLIDING: i64 = 100;
 
 #[repr(C)]
@@ -39,8 +39,8 @@ const INDENT_HEURISTIC_MAX_SLIDING: i64 = 100;
 struct Xdpsplit {
     i1: i64,
     i2: i64,
-    min_lo: c_int,
-    min_hi: c_int,
+    min_lo: i32,
+    min_hi: i32,
 }
 
 fn xdl_split(
@@ -52,7 +52,7 @@ fn xdl_split(
     lim2: i64,
     kvdf: *mut i64,
     kvdb: *mut i64,
-    need_min: c_int,
+    need_min: i32,
     spl: &mut Xdpsplit,
     xenv: &Xdalgoenv,
 ) -> i64 {
@@ -296,9 +296,9 @@ pub fn xdl_recs_cmp(
     mut lim2: i64,
     kvdf: &mut i64,
     kvdb: *mut i64,
-    need_min: c_int,
+    need_min: i32,
     xenv: &Xdalgoenv,
-) -> c_int {
+) -> i32 {
     unsafe {
         let ha1 = dd1.ha;
         let ha2 = dd2.ha;
@@ -369,7 +369,7 @@ pub fn xdl_recs_cmp(
     0
 }
 
-pub fn xdl_do_diff(mf1: &mut Mmfile, mf2: &mut Mmfile, xpp: &Xpparam, xe: &mut Xdfenv) -> c_int {
+pub fn xdl_do_diff(mf1: &mut Mmfile, mf2: &mut Mmfile, xpp: &Xpparam, xe: &mut Xdfenv) -> i32 {
     unsafe {
         if xdf_diff_alg(xpp.flags) == XDF_PATIENCE_DIFF {
             return xdl_do_patience_diff(mf1, mf2, xpp, xe);
@@ -421,7 +421,7 @@ pub fn xdl_do_diff(mf1: &mut Mmfile, mf2: &mut Mmfile, xpp: &Xpparam, xe: &mut X
             dd2_nrec,
             &mut *kvdf,
             kvdb,
-            c_int::from((xpp.flags & XDF_NEED_MINIMAL) != 0),
+            i32::from((xpp.flags & XDF_NEED_MINIMAL) != 0),
             &xenv,
         ) < 0
         {
@@ -436,8 +436,8 @@ fn recs_match(rec1: &Xrecord, rec2: &Xrecord, flags: i64) -> bool {
     rec1.ha == rec2.ha && xdl_recmatch(rec1.ptr, rec1.size, rec2.ptr, rec2.size, flags) != 0
 }
 
-fn xget_indent(rec: &Xrecord) -> c_int {
-    let mut ret: c_int = 0;
+fn xget_indent(rec: &Xrecord) -> i32 {
+    let mut ret: i32 = 0;
     unsafe {
         for i in 0..rec.size {
             let c = *rec.ptr.offset(i as isize);
@@ -459,18 +459,18 @@ fn xget_indent(rec: &Xrecord) -> c_int {
 
 #[derive(Copy, Clone, Default)]
 struct SplitMeasurement {
-    end_of_file: c_int,
-    indent: c_int,
-    pre_blank: c_int,
-    pre_indent: c_int,
-    post_blank: c_int,
-    post_indent: c_int,
+    end_of_file: i32,
+    indent: i32,
+    pre_blank: i32,
+    pre_indent: i32,
+    post_blank: i32,
+    post_indent: i32,
 }
 
 #[derive(Copy, Clone, Default)]
 struct SplitScore {
-    effective_indent: c_int,
-    penalty: c_int,
+    effective_indent: i32,
+    penalty: i32,
 }
 
 fn measure_split(xdf: &Xdfile, split: i64, m: &mut SplitMeasurement) {
@@ -563,9 +563,9 @@ fn score_add_split(m: &SplitMeasurement, s: &mut SplitScore) {
     }
 }
 
-fn score_cmp(s1: &SplitScore, s2: &SplitScore) -> c_int {
-    let cmp_indents = c_int::from(s1.effective_indent > s2.effective_indent)
-        - c_int::from(s1.effective_indent < s2.effective_indent);
+fn score_cmp(s1: &SplitScore, s2: &SplitScore) -> i32 {
+    let cmp_indents = i32::from(s1.effective_indent > s2.effective_indent)
+        - i32::from(s1.effective_indent < s2.effective_indent);
     INDENT_WEIGHT * cmp_indents + (s1.penalty - s2.penalty)
 }
 
@@ -586,7 +586,7 @@ fn group_init(xdf: &mut Xdfile, g: &mut XdlGroup) {
 }
 
 #[inline]
-fn group_next(xdf: &mut Xdfile, g: &mut XdlGroup) -> c_int {
+fn group_next(xdf: &mut Xdfile, g: &mut XdlGroup) -> i32 {
     unsafe {
         if g.end == xdf.nrec {
             return -1;
@@ -601,7 +601,7 @@ fn group_next(xdf: &mut Xdfile, g: &mut XdlGroup) -> c_int {
 }
 
 #[inline]
-fn group_previous(xdf: &mut Xdfile, g: &mut XdlGroup) -> c_int {
+fn group_previous(xdf: &mut Xdfile, g: &mut XdlGroup) -> i32 {
     if g.start == 0 {
         return -1;
     }
@@ -615,7 +615,7 @@ fn group_previous(xdf: &mut Xdfile, g: &mut XdlGroup) -> c_int {
     0
 }
 
-fn group_slide_down(xdf: &mut Xdfile, g: &mut XdlGroup, flags: i64) -> c_int {
+fn group_slide_down(xdf: &mut Xdfile, g: &mut XdlGroup, flags: i64) -> i32 {
     unsafe {
         let recs = &xdf.recs;
         if g.end < xdf.nrec && recs_match(&recs[g.start as usize], &recs[g.end as usize], flags) {
@@ -634,7 +634,7 @@ fn group_slide_down(xdf: &mut Xdfile, g: &mut XdlGroup, flags: i64) -> c_int {
     }
 }
 
-fn group_slide_up(xdf: &mut Xdfile, g: &mut XdlGroup, flags: i64) -> c_int {
+fn group_slide_up(xdf: &mut Xdfile, g: &mut XdlGroup, flags: i64) -> i32 {
     unsafe {
         let recs = &xdf.recs;
         if g.start > 0
@@ -664,7 +664,7 @@ fn xdl_bug(msg: &str) -> ! {
     std::process::exit(1);
 }
 
-pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: i64) -> c_int {
+pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: i64) -> i32 {
     let mut g = XdlGroup::default();
     let mut go = XdlGroup::default();
 
@@ -772,7 +772,7 @@ pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: i64) -> c_
     0
 }
 
-pub fn xdl_build_script(xe: &mut Xdfenv, xscr: &mut Vec<Xdchange>) -> c_int {
+pub fn xdl_build_script(xe: &mut Xdfenv, xscr: &mut Vec<Xdchange>) -> i32 {
     xscr.clear();
     unsafe {
         let rchg1 = xe.xdf1.rchg;
@@ -813,16 +813,16 @@ fn xdl_call_hunk_func(
     xscr: &[Xdchange],
     ecb: &mut Xdemitcb,
     xecfg: &Xdemitconf,
-) -> c_int {
+) -> i32 {
     let mut idx = 0;
     while let Some(end_idx) = xdl_get_hunk(xscr, &mut idx, xecfg) {
         let xch = &xscr[idx];
         let xche = &xscr[end_idx];
         if ecb.call_hunk(
-            xch.i1 as c_int,
-            (xche.i1 + xche.chg1 - xch.i1) as c_int,
-            xch.i2 as c_int,
-            (xche.i2 + xche.chg2 - xch.i2) as c_int,
+            xch.i1 as i32,
+            (xche.i1 + xche.chg1 - xch.i1) as i32,
+            xch.i2 as i32,
+            (xche.i2 + xche.chg2 - xch.i2) as i32,
         ) < 0
         {
             return -1;
@@ -836,7 +836,7 @@ fn xdl_mark_ignorable_lines(xscr: &mut [Xdchange], xe: &Xdfenv, flags: i64) {
     let recs1 = &xe.xdf1.recs;
     let recs2 = &xe.xdf2.recs;
     for xch in xscr {
-        let mut ignore: c_int = 1;
+        let mut ignore: i32 = 1;
         let mut i: i64 = 0;
         while i < xch.chg1 && ignore != 0 {
             let r = &recs1[(xch.i1 + i) as usize];
@@ -860,7 +860,7 @@ fn xdl_emit_diff_wrapper(
     xscr: &[Xdchange],
     ecb: &mut Xdemitcb,
     xecfg: &Xdemitconf,
-) -> c_int {
+) -> i32 {
     xdl_emit_diff(xe, xscr, ecb, xecfg)
 }
 
@@ -870,7 +870,7 @@ pub fn xdl_diff(
     xpp: &Xpparam,
     xecfg: &Xdemitconf,
     ecb: &mut Xdemitcb,
-) -> c_int {
+) -> i32 {
     let mut xscr: Vec<Xdchange> = Vec::new();
     let mut xe = Xdfenv::new();
     let ef: EmitFunc = if ecb.has_hunk_func() {

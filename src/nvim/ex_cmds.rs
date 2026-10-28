@@ -139,7 +139,7 @@ use crate::undo::{
     u_inssub, u_save, u_save_cursor, u_savecommon, u_savedel, u_savesub, u_sync, u_unchanged,
 };
 use crate::winfloat::{win_float_anchor_preview, win_float_special, win_float_update_preview};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 #[cfg(not(unix))]
@@ -151,59 +151,59 @@ use crate::api::vim::HLF_N;
 use crate::eval::funcs::{RE_SEARCH, VIM_QUESTION};
 use crate::eval::userfunc::MSG_BUF_LEN;
 
-pub(crate) const CTRL_C_CONST: c_int = 3;
-pub(crate) const CTRL_E: c_int = 5;
-pub(crate) const CTRL_Y: c_int = 25;
+pub(crate) const CTRL_C_CONST: i32 = 3;
+pub(crate) const CTRL_E: i32 = 5;
+pub(crate) const CTRL_Y: i32 = 25;
 
 pub(crate) const DIALOG_MSG_SIZE: usize = 1000;
 
-pub(crate) const BL_WHITE: c_int = 1;
-pub(crate) const BL_SOL: c_int = 2;
-pub(crate) const BL_FIX: c_int = 4;
+pub(crate) const BL_WHITE: i32 = 1;
+pub(crate) const BL_SOL: i32 = 2;
+pub(crate) const BL_FIX: i32 = 4;
 
-pub(crate) const RE_SUBST: c_int = 1;
-pub(crate) const RE_BOTH: c_int = 2;
-pub(crate) const SEARCH_HIS: c_int = 0x20;
+pub(crate) const RE_SUBST: i32 = 1;
+pub(crate) const RE_BOTH: i32 = 2;
+pub(crate) const SEARCH_HIS: i32 = 0x20;
 
-pub(crate) const EXFLAG_LIST: c_int = 0x01;
-pub(crate) const EXFLAG_NR: c_int = 0x02;
-pub(crate) const EXFLAG_PRINT: c_int = 0x04;
+pub(crate) const EXFLAG_LIST: i32 = 0x01;
+pub(crate) const EXFLAG_NR: i32 = 0x02;
+pub(crate) const EXFLAG_PRINT: i32 = 0x04;
 
-pub(crate) const K_SHELL_OPT_READ: c_int = 16;
-pub(crate) const K_SHELL_OPT_WRITE: c_int = 32;
+pub(crate) const K_SHELL_OPT_READ: i32 = 16;
+pub(crate) const K_SHELL_OPT_WRITE: i32 = 32;
 
-pub(crate) const HLF_R: c_int = 18;
+pub(crate) const HLF_R: i32 = 18;
 
-pub(crate) const K_SHM_OVERALL: c_int = b'O' as c_int;
+pub(crate) const K_SHM_OVERALL: i32 = b'O' as i32;
 
-const K_CPO_ALTWRITE: c_int = b'A' as c_int;
-const K_CPO_OVERNEW: c_int = b'O' as c_int;
-const K_CPO_REMMARK: c_int = b'R' as c_int;
-pub(crate) const K_CPO_UNDO: c_int = b'u' as c_int;
+const K_CPO_ALTWRITE: i32 = b'A' as i32;
+const K_CPO_OVERNEW: i32 = b'O' as i32;
+const K_CPO_REMMARK: i32 = b'R' as i32;
+pub(crate) const K_CPO_UNDO: i32 = b'u' as i32;
 
-pub(crate) const OPT_WINONLY: c_int = 0x08;
+pub(crate) const OPT_WINONLY: i32 = 0x08;
 pub(crate) const B_IMODE_LMAP: OptInt = 1;
-pub(crate) const K_WIN_PREVIEW: c_int = 2;
+pub(crate) const K_WIN_PREVIEW: i32 = 2;
 
 pub(crate) const K_OPT_FOLDCOLUMN: OptIndex = 102;
 pub(crate) const K_OPT_INCCOMMAND: OptIndex = 145;
 pub(crate) const K_OPT_SHORTMESS: OptIndex = 271;
 
-pub const ECMD_HIDE: c_int = 0x01;
-pub const ECMD_SET_HELP: c_int = 0x02;
-pub const ECMD_OLDBUF: c_int = 0x04;
-pub const ECMD_FORCEIT: c_int = 0x08;
-pub const ECMD_ADDBUF: c_int = 0x10;
-pub const ECMD_ALTBUF: c_int = 0x20;
-pub const ECMD_NOWINENTER: c_int = 0x40;
+pub const ECMD_HIDE: i32 = 0x01;
+pub const ECMD_SET_HELP: i32 = 0x02;
+pub const ECMD_OLDBUF: i32 = 0x04;
+pub const ECMD_FORCEIT: i32 = 0x08;
+pub const ECMD_ADDBUF: i32 = 0x10;
+pub const ECMD_ALTBUF: i32 = 0x20;
+pub const ECMD_NOWINENTER: i32 = 0x40;
 
 pub const ECMD_LASTL: Linenr = 0;
 pub const ECMD_LAST: Linenr = -1;
 pub const ECMD_ONE: Linenr = 1;
 
-pub const VGR_GLOBAL: c_int = 1;
-pub const VGR_NOJUMP: c_int = 2;
-pub const VGR_FUZZY: c_int = 4;
+pub const VGR_GLOBAL: i32 = 1;
+pub const VGR_NOJUMP: i32 = 2;
+pub const VGR_FUZZY: i32 = 4;
 
 const E_NON_NUMERIC_ARGUMENT_TO_Z: &CStr = c"E144: Non-numeric argument to :z";
 
@@ -267,12 +267,12 @@ struct Sorti {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct LineData {
-    start_col: c_int,
+    start_col: i32,
     start: Lpos,
     end: Lpos,
-    matchcols: c_int,
+    matchcols: i32,
     matchbytes: Bcount,
-    subcols: c_int,
+    subcols: i32,
     subbytes: Bcount,
     lnum_before: Linenr,
     lnum_after: Linenr,
@@ -281,17 +281,17 @@ struct LineData {
 struct ExCmdsState {
     sort_lc: bool,
     sort_ic: bool,
-    sort_nr: c_int,
+    sort_nr: i32,
     sort_rx: bool,
     sort_flt: bool,
     sort_abort: bool,
     prevcmd: Option<std::ffi::CString>,
     global_need_msg_kind: bool,
-    append_indent: c_int,
+    append_indent: i32,
     old_sub: SubReplacementString,
     global_need_beginline: bool,
     subflags: Subflags,
-    pre_hl_id: c_int,
+    pre_hl_id: i32,
 }
 
 impl ExCmdsState {
@@ -358,7 +358,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
 
         if c < 0x80 {
             if c == NL {
-                c = NUL as c_int;
+                c = NUL as i32;
             }
             let cval = if c == CAR && get_fileformat(curbuf_mut()) == EOL_MAC {
                 NL
@@ -366,7 +366,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
                 c
             };
             let mut buf1: [c_char; 20] = [0; 20];
-            if vim_isprintc(c) && (c < b' ' as c_int || c > b'~' as c_int) {
+            if vim_isprintc(c) && (c < b' ' as i32 || c > b'~' as i32) {
                 let mut buf3: [c_char; 7] = [0; 7];
                 transchar_nonprint(Some(crate::globals::curbuf_mut()), buf3.as_mut_ptr(), c);
                 vim_snprintf!(buf1.as_mut_ptr(), 20, c"  <%s>", buf3.as_ptr());
@@ -471,30 +471,30 @@ pub fn do_ascii(_eap: &mut Exarg) {
 /// `":left"`, `":center"` and `":right"`: align text.
 pub fn ex_align(eap: &mut Exarg) {
     {
-        let mut indent: c_int = 0;
-        let mut new_indent: c_int;
+        let mut indent: i32 = 0;
+        let mut new_indent: i32;
 
         if curwin_mut().w_onebuf_opt.wo_rl != 0 {
-            if eap.cmdidx == Cmdidx::CmdRight as c_int {
-                eap.cmdidx = Cmdidx::CmdLeft as c_int;
-            } else if eap.cmdidx == Cmdidx::CmdLeft as c_int {
-                eap.cmdidx = Cmdidx::CmdRight as c_int;
+            if eap.cmdidx == Cmdidx::CmdRight as i32 {
+                eap.cmdidx = Cmdidx::CmdLeft as i32;
+            } else if eap.cmdidx == Cmdidx::CmdLeft as i32 {
+                eap.cmdidx = Cmdidx::CmdRight as i32;
             }
         }
 
         let mut width =
-            crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int;
+            crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32;
         let save_curpos = curwin_mut().w_cursor;
-        if eap.cmdidx == Cmdidx::CmdLeft as c_int {
+        if eap.cmdidx == Cmdidx::CmdLeft as i32 {
             if width >= 0 {
                 indent = width;
             }
         } else {
             if width <= 0 {
-                width = curbuf_mut().b_p_tw as c_int;
+                width = curbuf_mut().b_p_tw as i32;
             }
             if width == 0 && curbuf_mut().b_p_wm > 0 {
-                width = curwin_mut().w_view_width - curbuf_mut().b_p_wm as c_int;
+                width = curwin_mut().w_view_width - curbuf_mut().b_p_wm as i32;
             }
             if width <= 0 {
                 width = 80;
@@ -507,11 +507,11 @@ pub fn ex_align(eap: &mut Exarg) {
 
         curwin_mut().w_cursor.lnum = eap.line1;
         while curwin_mut().w_cursor.lnum <= eap.line2 {
-            if eap.cmdidx == Cmdidx::CmdLeft as c_int {
+            if eap.cmdidx == Cmdidx::CmdLeft as i32 {
                 new_indent = indent;
             } else {
-                let mut has_tab: c_int = 0;
-                let len = linelen(if eap.cmdidx == Cmdidx::CmdRight as c_int {
+                let mut has_tab: i32 = 0;
+                let len = linelen(if eap.cmdidx == Cmdidx::CmdRight as i32 {
                     &raw mut has_tab
                 } else {
                     ptr::null_mut()
@@ -522,7 +522,7 @@ pub fn ex_align(eap: &mut Exarg) {
                     continue;
                 }
 
-                if eap.cmdidx == Cmdidx::CmdCenter as c_int {
+                if eap.cmdidx == Cmdidx::CmdCenter as i32 {
                     new_indent = (width - len) / 2;
                 } else {
                     new_indent = width - len;
@@ -557,7 +557,7 @@ pub fn ex_align(eap: &mut Exarg) {
 }
 
 /// @return the length of the current line, excluding trailing white space.
-fn linelen(has_tab: *mut c_int) -> c_int {
+fn linelen(has_tab: *mut i32) -> i32 {
     unsafe {
         let line = get_cursor_line_ptr();
         if crate::memory::cstr_is_empty(line) {
@@ -566,14 +566,14 @@ fn linelen(has_tab: *mut c_int) -> c_int {
         let first = skipwhite(line);
 
         let mut last = first.add(crate::memory::cstr_len(first));
-        while last > first && ascii_iswhite(*last.sub(1) as c_int) {
+        while last > first && ascii_iswhite(*last.sub(1) as i32) {
             last = last.sub(1);
         }
         let save = *last;
         *last = NUL;
         let len = linetabsize_col(0, line);
         if !has_tab.is_null() {
-            *has_tab = c_int::from(crate::strings::vim_haschr(first, TAB));
+            *has_tab = i32::from(crate::strings::vim_haschr(first, TAB));
         }
         *last = save;
 
@@ -584,7 +584,7 @@ fn linelen(has_tab: *mut c_int) -> c_int {
 fn string_compare(
     s1: impl crate::strings::IntoCCharPtr,
     s2: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let s1 = s1.into_c_char_ptr();
     let s2 = s2.into_c_char_ptr();
     unsafe {
@@ -599,18 +599,18 @@ fn string_compare(
                     crate::memory::cstr_as_bytes(s2)
                         .iter()
                         .map(u8::to_ascii_lowercase),
-                ) as c_int
+                ) as i32
         } else {
-            crate::memory::cstr_as_bytes(s1).cmp(crate::memory::cstr_as_bytes(s2)) as c_int
+            crate::memory::cstr_as_bytes(s1).cmp(crate::memory::cstr_as_bytes(s2)) as i32
         }
     }
 }
 
-fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: *mut c_char, sortbuf2: *mut c_char) -> c_int {
+fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: *mut c_char, sortbuf2: *mut c_char) -> i32 {
     unsafe {
         let l1 = *l1;
         let l2 = *l2;
-        let result: c_int;
+        let result: i32;
 
         if excmds_st().sort_abort {
             return 0;
@@ -684,11 +684,11 @@ fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: *mut c_char, sortbuf2: *mut c_
 pub fn ex_sort(eap: &mut Exarg) {
     unsafe {
         let mut regmatch: Regmatch = Regmatch::new();
-        let mut maxlen: c_int = 0;
+        let mut maxlen: i32 = 0;
         let mut count = (eap.line2 - eap.line1) as usize + 1;
         let mut i: usize = 0;
         let mut unique = false;
-        let mut sort_what: c_int = 0;
+        let mut sort_what: i32 = 0;
 
         if count <= 1 {
             return;
@@ -746,7 +746,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                     && regmatch.regprog.is_null()
                 {
                     let s =
-                        skip_regexp_err(p.add(1), (crate::memory::cstr_first_byte(p)) as c_int, 1);
+                        skip_regexp_err(p.add(1), (crate::memory::cstr_first_byte(p)) as i32, 1);
                     if s.is_null() {
                         break 'sortend;
                     }
@@ -934,7 +934,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                     curbuf_mut(),
                     eap.line1 - 1,
                     0,
-                    count as c_int,
+                    count as i32,
                     0,
                     old_count,
                     lnum - eap.line2,
@@ -961,7 +961,7 @@ pub fn ex_sort(eap: &mut Exarg) {
 pub fn ex_uniq(eap: &mut Exarg) {
     unsafe {
         let mut regmatch: Regmatch = Regmatch::new();
-        let mut maxlen: c_int = 0;
+        let mut maxlen: i32 = 0;
         let mut count = eap.line2 - eap.line1 + 1;
         let mut keep_only_unique = false;
         let keep_only_not_unique = eap.forceit != 0;
@@ -1008,7 +1008,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                     && regmatch.regprog.is_null()
                 {
                     let s =
-                        skip_regexp_err(p.add(1), (crate::memory::cstr_first_byte(p)) as c_int, 1);
+                        skip_regexp_err(p.add(1), (crate::memory::cstr_first_byte(p)) as i32, 1);
                     if s.is_null() {
                         break 'uniqend;
                     }
@@ -1225,7 +1225,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         );
         g_st().disable_fold_update -= 1;
 
-        let mut line_off: c_int = 0;
+        let mut line_off: i32 = 0;
         let mut byte_off: Bcount = 0;
         if dest >= line2 {
             mark_adjust_nofold(line2 + 1, dest, -num_lines, 0, K_EXTMARK_NOOP);
@@ -1390,7 +1390,7 @@ fn prevcmd_is_set() -> bool {
 }
 
 /// Handle the `":!cmd"` command.
-pub fn do_bang(addr_count: c_int, eap: &mut Exarg, forceit: bool, do_in: bool, do_out: bool) {
+pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_out: bool) {
     unsafe {
         let arg = eap.arg;
         let line1 = eap.line1;
@@ -1516,8 +1516,8 @@ pub fn do_bang(addr_count: c_int, eap: &mut Exarg, forceit: bool, do_in: bool, d
                 msg_start();
                 msg_ext_no_fast();
                 msg_ext_set_kind(c"shell_cmd");
-                msg_putchar(b':' as c_int);
-                msg_putchar(b'!' as c_int);
+                msg_putchar(b':' as i32);
+                msg_putchar(b'!' as i32);
                 msg_outtrans(newcmd.as_ptr(), 0, false);
                 msg_clr_eos();
                 ui_cursor_goto(g_st().msg_row, g_st().msg_col);
@@ -1551,7 +1551,7 @@ fn do_filter(
         let mut itmp_owned: Option<std::ffi::CString> = None;
         let mut otmp_owned: Option<std::ffi::CString> = None;
         let old_curbuf = g_st().curbuf;
-        let mut shell_flags: c_int = 0;
+        let mut shell_flags: i32 = 0;
         let orig_start = curbuf_mut().b_op_start;
         let orig_end = curbuf_mut().b_op_end;
         let stmp = opt_vars().p_stmp;
@@ -1627,7 +1627,7 @@ fn do_filter(
                 ) == FAIL
             {
                 if !ui_has(K_UIMESSAGES) {
-                    msg_putchar(b'\n' as c_int);
+                    msg_putchar(b'\n' as i32);
                 }
                 g_st().no_wait_return -= 1;
                 if !aborting() {
@@ -1640,7 +1640,7 @@ fn do_filter(
             }
 
             if !do_out && !ui_has(K_UIMESSAGES) {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
             }
 
             let cmd_buf = make_filter_cmd(cmd, itmp, otmp, do_in);
@@ -1682,7 +1682,7 @@ fn do_filter(
                         ) != OK
                         {
                             if !aborting() {
-                                msg_putchar(b'\n' as c_int);
+                                msg_putchar(b'\n' as i32);
                                 semsg!(gettext(E_CANT_READ_FILE_STR), otmp);
                             }
                             break 'error;
@@ -1800,7 +1800,7 @@ fn do_filter(
 }
 
 /// Call a shell to execute a command.
-pub fn do_shell(cmd: impl crate::strings::IntoCCharPtr, flags: c_int) {
+pub fn do_shell(cmd: impl crate::strings::IntoCCharPtr, flags: i32) {
     let cmd = cmd.into_c_char_ptr();
     {
         if check_secure() {
@@ -1808,8 +1808,8 @@ pub fn do_shell(cmd: impl crate::strings::IntoCCharPtr, flags: c_int) {
             return;
         }
 
-        msg_putchar(b'\r' as c_int);
-        msg_putchar(b'\n' as c_int);
+        msg_putchar(b'\r' as i32);
+        msg_putchar(b'\n' as i32);
 
         if opt_vars().p_warn != 0 && !g_st().autocmd_busy && g_st().msg_silent == 0 {
             for buf in for_all_buffers_mut() {
@@ -2114,11 +2114,11 @@ pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
         msg_ext_set_kind(c"list_cmd");
         excmds_st().global_need_msg_kind = false;
     } else if !save_silent {
-        msg_putchar(b'\n' as c_int);
+        msg_putchar(b'\n' as i32);
     }
     print_line_no_prefix(lnum, use_number, list);
     if save_silent {
-        msg_putchar(b'\n' as c_int);
+        msg_putchar(b'\n' as i32);
         g_st().silent_mode = save_silent;
     }
     g_st().info_message = false;
@@ -2210,7 +2210,7 @@ pub fn ex_update(eap: &mut Exarg) {
 /// `":write"` and `":saveas"`.
 pub fn ex_write(eap: &mut Exarg) {
     {
-        if eap.cmdidx == Cmdidx::CmdSaveas as c_int {
+        if eap.cmdidx == Cmdidx::CmdSaveas as i32 {
             eap.line1 = 1;
             eap.line2 = curbuf_mut().b_ml.ml_line_count;
         }
@@ -2261,7 +2261,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
 
         'theend: {
             if crate::memory::cstr_is_empty(ffname) {
-                if eap.cmdidx == Cmdidx::CmdSaveas as c_int {
+                if eap.cmdidx == Cmdidx::CmdSaveas as i32 {
                     emsg(gettext(E_ARGREQ));
                     break 'theend;
                 }
@@ -2277,7 +2277,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
 
             if other {
                 if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ALTWRITE)
-                    || eap.cmdidx == Cmdidx::CmdSaveas as c_int
+                    || eap.cmdidx == Cmdidx::CmdSaveas as i32
                 {
                     alt_buf = setaltfname(ffname, fname, 1);
                 } else {
@@ -2329,7 +2329,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             }
 
             if check_overwrite(eap, curbuf_mut(), fname, ffname, other) {
-                if eap.cmdidx == Cmdidx::CmdSaveas as c_int && !alt_buf.is_null() {
+                if eap.cmdidx == Cmdidx::CmdSaveas as i32 && !alt_buf.is_null() {
                     let was_curbuf = g_st().curbuf;
 
                     apply_autocmds(
@@ -2411,12 +2411,12 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                     false,
                 ) == OK;
 
-                if eap.cmdidx == Cmdidx::CmdSaveas as c_int && retval {
+                if eap.cmdidx == Cmdidx::CmdSaveas as i32 && retval {
                     curbuf_mut().b_p_ro = 0;
                     g_st().redraw_tabline = true;
                 }
 
-                if eap.cmdidx == Cmdidx::CmdSaveas as c_int || name_was_missing {
+                if eap.cmdidx == Cmdidx::CmdSaveas as i32 || name_was_missing {
                     do_autochdir();
                 }
             }
@@ -2516,9 +2516,9 @@ pub fn check_overwrite(
 pub fn ex_wnext(eap: &mut Exarg) {
     {
         let i = if crate::memory::cstr_byte_at(eap.cmd, 1) == b'n' {
-            curwin_mut().w_arg_idx + eap.line2 as c_int
+            curwin_mut().w_arg_idx + eap.line2
         } else {
-            curwin_mut().w_arg_idx - eap.line2 as c_int
+            curwin_mut().w_arg_idx - eap.line2
         };
         eap.line1 = 1;
         eap.line2 = curbuf_mut().b_ml.ml_line_count;
@@ -2531,11 +2531,11 @@ pub fn ex_wnext(eap: &mut Exarg) {
 /// `":wall"`, `":wqall"` and `":xall"`: Write all changed files (and exit).
 pub fn do_wqall(eap: &mut Exarg) {
     unsafe {
-        let mut error: c_int = 0;
+        let mut error: i32 = 0;
         let save_forceit = eap.forceit;
         let save_exiting = g_st().exiting;
 
-        if eap.cmdidx == Cmdidx::CmdXall as c_int || eap.cmdidx == Cmdidx::CmdWqall as c_int {
+        if eap.cmdidx == Cmdidx::CmdXall as i32 || eap.cmdidx == Cmdidx::CmdWqall as i32 {
             if !before_quit_all(eap) {
                 return;
             }
@@ -2613,7 +2613,7 @@ fn not_writing() -> bool {
 }
 
 /// Check if a buffer is read-only.
-fn check_readonly(forceit: &mut c_int, buf: &mut FileBuf) -> bool {
+fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
     if *forceit == 0
         && (buf.b_p_ro != 0
             || (os_path_exists(buf.b_ffname) && os_file_is_writable(buf.b_ffname) == 0))
@@ -2666,22 +2666,22 @@ fn check_readonly(forceit: &mut c_int, buf: &mut FileBuf) -> bool {
 
 /// Try to abandon the current file and edit a new or existing file.
 pub fn getfile(
-    fnum: c_int,
+    fnum: i32,
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
     setpm: bool,
     lnum: Linenr,
     forceit: bool,
-) -> c_int {
+) -> i32 {
     {
-        if !check_can_set_curbuf_forceit(c_int::from(forceit)) {
+        if !check_can_set_curbuf_forceit(i32::from(forceit)) {
             return GETFILE_ERROR;
         }
 
         let mut ffname = ffname_arg;
         let mut sfname = sfname_arg;
         let other: bool;
-        let retval: c_int;
+        let retval: i32;
         let mut free_me: Option<std::ffi::CString> = None;
 
         if text_locked() {
@@ -2779,12 +2779,12 @@ pub fn set_swapcommand(command: impl crate::strings::IntoCCharPtr, newlnum: Line
 
 /// Start editing a new file.
 pub fn do_ecmd(
-    fnum: c_int,
+    fnum: i32,
     mut ffname: *mut c_char,
     mut sfname: *mut c_char,
     eap: Option<&Exarg>,
     mut newlnum: Linenr,
-    flags: c_int,
+    flags: i32,
     mut oldwin: *mut WinInfoInfo,
 ) -> bool {
     unsafe {
@@ -2799,11 +2799,11 @@ pub fn do_ecmd(
         let mut free_fname: Option<std::ffi::CString> = None;
         let mut retval = false;
         let mut topline: Linenr = 0;
-        let mut newcol: c_int = -1;
-        let mut solcol: c_int = -1;
+        let mut newcol: i32 = -1;
+        let mut solcol: i32 = -1;
         let mut command: *mut c_char = ptr::null_mut();
         let mut did_get_winopts = false;
-        let mut readfile_flags: c_int = 0;
+        let mut readfile_flags: i32 = 0;
         let mut did_inc_redrawing_disabled = false;
         let so_ptr: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_so >= 0 {
             &raw mut curwin_mut().w_onebuf_opt.wo_so
@@ -3214,7 +3214,7 @@ pub fn do_ecmd(
                     let text = get_cursor_line_ptr();
 
                     if curwin_mut().w_cursor.lnum != orig_pos.lnum
-                        || curwin_mut().w_cursor.col != skipwhite(text).offset_from(text) as c_int
+                        || curwin_mut().w_cursor.col != skipwhite(text).offset_from(text) as i32
                     {
                         newlnum = curwin_mut().w_cursor.lnum;
                         newcol = curwin_mut().w_cursor.col;
@@ -3352,7 +3352,7 @@ fn delbuf_msg(name: Option<std::ffi::CString>) {
 }
 
 /// Get the next line of text for `":append"`, `":insert"` and `":change"`.
-fn get_append_line(eap: &mut Exarg, indent: c_int) -> Option<Vec<c_char>> {
+fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<c_char>> {
     unsafe {
         if crate::memory::cstr_first_byte(eap.arg) == b'|' {
             let theline = cstr_to_cstring(eap.arg.add(1))
@@ -3390,7 +3390,7 @@ fn get_append_line(eap: &mut Exarg, indent: c_int) -> Option<Vec<c_char>> {
                 if cstack.cs_looplevel > 0 {
                     -1
                 } else {
-                    NUL as c_int
+                    NUL as i32
                 },
                 indent,
                 true,
@@ -3411,7 +3411,7 @@ pub fn ex_append(eap: &mut Exarg) {
     unsafe {
         let mut did_undo = false;
         let mut lnum = eap.line2;
-        let mut indent: c_int = 0;
+        let mut indent: i32 = 0;
         let mut empty = (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
 
         if eap.skip != 0 {
@@ -3427,11 +3427,11 @@ pub fn ex_append(eap: &mut Exarg) {
             curbuf_mut().b_p_ai = if curbuf_mut().b_p_ai != 0 { 0 } else { 1 };
         }
 
-        if eap.cmdidx != Cmdidx::CmdChange as c_int && curbuf_mut().b_p_ai != 0 && lnum > 0 {
+        if eap.cmdidx != Cmdidx::CmdChange as i32 && curbuf_mut().b_p_ai != 0 && lnum > 0 {
             excmds_st().append_indent = get_indent_lnum(lnum);
         }
 
-        if eap.cmdidx != Cmdidx::CmdAppend as c_int {
+        if eap.cmdidx != Cmdidx::CmdAppend as i32 {
             lnum -= 1;
         }
 
@@ -3463,7 +3463,7 @@ pub fn ex_append(eap: &mut Exarg) {
             };
             let theline = theline_v.as_mut_ptr();
 
-            let mut vcol: c_int = 0;
+            let mut vcol: i32 = 0;
             let mut p = theline;
             while indent > vcol {
                 if crate::memory::cstr_first_byte(p) == b' ' {
@@ -3513,7 +3513,7 @@ pub fn ex_append(eap: &mut Exarg) {
             } else {
                 curbuf_mut().b_ml.ml_line_count
             };
-            if eap.cmdidx != Cmdidx::CmdAppend as c_int {
+            if eap.cmdidx != Cmdidx::CmdAppend as i32 {
                 curbuf_mut().b_op_start.lnum -= 1;
             }
             curbuf_mut().b_op_end.lnum = if eap.line2 < lnum {
@@ -3572,7 +3572,7 @@ pub fn ex_change(eap: &mut Exarg) {
 pub fn ex_z(eap: &mut Exarg) {
     unsafe {
         let mut bigness: i64;
-        let mut minus: c_int = 0;
+        let mut minus: i32 = 0;
         let mut start: Linenr;
         let mut end: Linenr;
         let mut curs: Linenr;
@@ -3613,7 +3613,7 @@ pub fn ex_z(eap: &mut Exarg) {
                 bigness = 2 * (curbuf_mut().b_ml.ml_line_count as i64);
             }
 
-            opt_vars().p_window = bigness as c_int as OptInt;
+            opt_vars().p_window = bigness as i32 as OptInt;
             if crate::memory::cstr_first_byte(kind) == b'=' {
                 bigness += 2;
             }
@@ -3672,9 +3672,9 @@ pub fn ex_z(eap: &mut Exarg) {
 
         for i in start..=end {
             if minus != 0 && i == lnum {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 for _ in 1..g_st().columns_global {
-                    msg_putchar(b'-' as c_int);
+                    msg_putchar(b'-' as i32);
                 }
             }
 
@@ -3686,9 +3686,9 @@ pub fn ex_z(eap: &mut Exarg) {
             );
 
             if minus != 0 && i == lnum {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 for _ in 1..g_st().columns_global {
-                    msg_putchar(b'-' as c_int);
+                    msg_putchar(b'-' as i32);
                 }
             }
         }
@@ -3780,7 +3780,7 @@ fn sub_joining_lines(
                 if !keeppatterns {
                     save_re_pat(RE_SUBST, pat.data, pat.size, opt_vars().p_magic);
                 }
-                add_to_history(HIST_SEARCH, pat.data, pat.size, true, NUL as c_int);
+                add_to_history(HIST_SEARCH, pat.data, pat.size, true, NUL as i32);
             }
 
             return true;
@@ -3862,7 +3862,7 @@ fn sub_grow_buf(new_start: &mut SubBuf, new_start_size: &mut usize, mut needed_s
 fn sub_parse_flags(
     cmd: impl crate::strings::IntoCCharPtr,
     subflags_arg: &mut Subflags,
-    which_pat: &mut c_int,
+    which_pat: &mut i32,
 ) -> *mut c_char {
     let mut cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
@@ -3916,7 +3916,7 @@ fn sub_parse_flags(
 
 /// Skip over the `"sub"` part in `:s/pat/sub/` where `"delimiter"` is the separating
 /// character.
-fn skip_substitute(start: impl crate::strings::IntoCCharPtr, delimiter: c_int) -> *mut c_char {
+fn skip_substitute(start: impl crate::strings::IntoCCharPtr, delimiter: i32) -> *mut c_char {
     let start = start.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = start;
@@ -3935,7 +3935,7 @@ fn skip_substitute(start: impl crate::strings::IntoCCharPtr, delimiter: c_int) -
     }
 }
 
-fn check_regexp_delim(c: c_int) -> bool {
+fn check_regexp_delim(c: i32) -> bool {
     if ascii_isalpha(c) {
         emsg(gettext(
             c"E146: Regular expressions can't be delimited by letters",
@@ -3946,7 +3946,7 @@ fn check_regexp_delim(c: c_int) -> bool {
 }
 
 fn push_preview_lines(
-    cmdpreview_ns: c_int,
+    cmdpreview_ns: i32,
     preview_lines: &mut PreviewLines,
     current_match: SubResult,
 ) {
@@ -3966,14 +3966,9 @@ fn push_preview_lines(
 }
 
 /// Perform a substitution from line `eap->line1` to line `eap->line2`.
-fn do_sub(
-    eap: &mut Exarg,
-    tm: Proftime,
-    cmdpreview_ns: c_int,
-    cmdpreview_bufnr: ObjHandle,
-) -> c_int {
+fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: ObjHandle) -> i32 {
     unsafe {
-        let mut i: c_int;
+        let mut i: i32;
         let mut regmatch: Regmmatch = Regmmatch::new();
         let mut sub: *mut c_char = ptr::null_mut();
         let mut sub_owned: Option<std::ffi::CString> = None;
@@ -3981,11 +3976,11 @@ fn do_sub(
             data: ptr::null_mut(),
             size: 0,
         };
-        let delimiter: c_int;
+        let delimiter: i32;
         let mut has_second_delim = false;
         let mut got_quit = false;
         let mut got_match = false;
-        let mut which_pat: c_int;
+        let mut which_pat: i32;
         let mut cmd = eap.arg;
         let mut first_line: Linenr = 0;
         let mut last_line: Linenr = 0;
@@ -4007,7 +4002,7 @@ fn do_sub(
         }
         let start_nsubs = g_st().sub_nsubs;
 
-        if eap.cmdidx == Cmdidx::CmdTilde as c_int {
+        if eap.cmdidx == Cmdidx::CmdTilde as i32 {
             which_pat = RE_LAST;
         } else {
             which_pat = RE_SUBST;
@@ -4018,19 +4013,17 @@ fn do_sub(
             && !ascii_iswhite(crate::memory::cstr_first_char(cmd))
             && !crate::strings::vim_haschr(
                 c"0123456789cegriIp|\"",
-                (crate::memory::cstr_first_byte(cmd)) as c_int,
+                (crate::memory::cstr_first_byte(cmd)) as i32,
             )
         {
-            if !check_regexp_delim((crate::memory::cstr_first_byte(cmd)) as c_int) {
+            if !check_regexp_delim((crate::memory::cstr_first_byte(cmd)) as i32) {
                 return 0;
             }
 
             if crate::memory::cstr_first_byte(cmd) == b'\\' {
                 cmd = cmd.add(1);
-                if !crate::strings::vim_haschr(
-                    c"/?&",
-                    (crate::memory::cstr_first_byte(cmd)) as c_int,
-                ) {
+                if !crate::strings::vim_haschr(c"/?&", (crate::memory::cstr_first_byte(cmd)) as i32)
+                {
                     emsg(gettext(E_BACKSLASH));
                     return 0;
                 }
@@ -4041,12 +4034,12 @@ fn do_sub(
                     data: c"".as_ptr().cast_mut(),
                     size: 0,
                 };
-                delimiter = (crate::memory::cstr_first_byte(cmd)) as c_int;
+                delimiter = (crate::memory::cstr_first_byte(cmd)) as i32;
                 cmd = cmd.add(1);
                 has_second_delim = true;
             } else {
                 which_pat = RE_LAST;
-                delimiter = (crate::memory::cstr_first_byte(cmd)) as c_int;
+                delimiter = (crate::memory::cstr_first_byte(cmd)) as i32;
                 cmd = cmd.add(1);
                 pat.data = cmd;
                 cmd = skip_regexp_ex(cmd, delimiter, opt_vars().p_magic, true, None, None, None);
@@ -4099,14 +4092,14 @@ fn do_sub(
         cmd = skipwhite(cmd);
         if ascii_isdigit(crate::memory::cstr_first_char(cmd)) {
             let count_arg = cmd;
-            i = getdigits_int(&raw mut cmd, false, c_int::MAX);
+            i = getdigits_int(&raw mut cmd, false, i32::MAX);
             if i <= 0 && eap.skip == 0 && excmds_st().subflags.do_error {
                 emsg(gettext(E_ZEROCOUNT));
                 return 0;
-            } else if i == c_int::MAX {
+            } else if i == i32::MAX {
                 semsg!(
                     gettext(E_VAL_TOO_LARGE_LEN),
-                    cmd.offset_from(count_arg) as c_int,
+                    cmd.offset_from(count_arg) as i32,
                     count_arg,
                 );
                 return 0;
@@ -4134,9 +4127,9 @@ fn do_sub(
             return 0;
         }
 
-        let magic = if eap.cmdidx == Cmdidx::CmdSmagic as c_int {
+        let magic = if eap.cmdidx == Cmdidx::CmdSmagic as i32 {
             true
-        } else if eap.cmdidx == Cmdidx::CmdSnomagic as c_int {
+        } else if eap.cmdidx == Cmdidx::CmdSnomagic as i32 {
             false
         } else {
             opt_vars().p_magic != 0
@@ -4176,7 +4169,7 @@ fn do_sub(
         }
 
         let mut line2 = eap.line2;
-        let mut timed_out: c_int = 0;
+        let mut timed_out: i32 = 0;
 
         let mut lnum = eap.line1;
         while lnum <= line2
@@ -4285,7 +4278,7 @@ fn do_sub(
                         }
 
                         if excmds_st().subflags.do_ask && cmdpreview_ns <= 0 {
-                            let mut typed: c_int = 0;
+                            let mut typed: i32 = 0;
                             let save_state = g_st().state_global;
                             curwin_mut().w_cursor.col = regmatch.startpos[0].col;
 
@@ -4299,7 +4292,7 @@ fn do_sub(
 
                             while excmds_st().subflags.do_ask {
                                 let mut orig_line = SubBuf::new();
-                                let mut len_change: c_int = 0;
+                                let mut len_change: i32 = 0;
                                 let save_p_lz = opt_vars().p_lz;
                                 let save_p_fen = curwin_mut().w_onebuf_opt.wo_fen;
 
@@ -4319,7 +4312,7 @@ fn do_sub(
                                     let new_line_size =
                                         new_start.size + (sub_firstline.size - copycol as usize);
 
-                                    len_change = new_line_size as c_int - orig_line.size as c_int;
+                                    len_change = new_line_size as i32 - orig_line.size as i32;
                                     curwin_mut().w_cursor.col += len_change;
                                     crate::memline::ml_replace_len(
                                         lnum,
@@ -4374,22 +4367,22 @@ fn do_sub(
                                 }
 
                                 g_st().need_wait_return = false;
-                                if typed == b'q' as c_int || typed == ESC || typed == CTRL_C_CONST {
+                                if typed == b'q' as i32 || typed == ESC || typed == CTRL_C_CONST {
                                     got_quit = true;
                                     break;
                                 }
-                                if typed == b'n' as c_int {
+                                if typed == b'n' as i32 {
                                     break;
                                 }
-                                if typed == b'y' as c_int {
+                                if typed == b'y' as i32 {
                                     break;
                                 }
-                                if typed == b'l' as c_int {
+                                if typed == b'l' as i32 {
                                     excmds_st().subflags.do_all = false;
                                     line2 = lnum;
                                     break;
                                 }
-                                if typed == b'a' as c_char as c_int {
+                                if typed == b'a' as c_char as i32 {
                                     excmds_st().subflags.do_ask = false;
                                     break;
                                 }
@@ -4405,7 +4398,7 @@ fn do_sub(
                                 g_st().no_u_sync -= 1;
                             }
 
-                            if typed == b'n' as c_int {
+                            if typed == b'n' as i32 {
                                 if nmatch > 1 {
                                     matchcol = sub_firstline.size as Colnr;
                                     skip_match = true;
@@ -4523,7 +4516,7 @@ fn do_sub(
                                 sublen = new_start_size - copy_len - 1;
                             }
 
-                            let start_col = new_start.size as c_int;
+                            let start_col = new_start.size as i32;
                             current_match.start.col = start_col;
 
                             g_st().textlock += 1;
@@ -4856,7 +4849,7 @@ fn do_sub(
         excmds_st().subflags.do_all = save_do_all;
         excmds_st().subflags.do_ask = save_do_ask;
 
-        let mut retv: c_int = 0;
+        let mut retv: i32 = 0;
 
         if cmdpreview_ns > 0 && !aborting() {
             if got_quit || profile_passed_limit(tm) {
@@ -4971,17 +4964,17 @@ pub fn ex_global(eap: &mut Exarg) {
             return;
         }
 
-        let type_char: c_int = if eap.forceit != 0 {
-            b'v' as c_int
+        let type_char: i32 = if eap.forceit != 0 {
+            b'v' as i32
         } else {
-            (crate::memory::cstr_first_byte(eap.cmd)) as c_int
+            (crate::memory::cstr_first_byte(eap.cmd)) as i32
         };
         cmd = eap.arg;
         let mut which_pat = RE_LAST;
 
         if crate::memory::cstr_first_byte(cmd) == b'\\' {
             cmd = cmd.add(1);
-            if !crate::strings::vim_haschr(c"/?&", (crate::memory::cstr_first_byte(cmd)) as c_int) {
+            if !crate::strings::vim_haschr(c"/?&", (crate::memory::cstr_first_byte(cmd)) as i32) {
                 emsg(gettext(E_BACKSLASH));
                 return;
             }
@@ -4996,7 +4989,7 @@ pub fn ex_global(eap: &mut Exarg) {
         } else if crate::memory::cstr_is_empty(cmd) {
             emsg(gettext(c"E148: Regular expression missing from global"));
             return;
-        } else if !check_regexp_delim((crate::memory::cstr_first_byte(cmd)) as c_int) {
+        } else if !check_regexp_delim((crate::memory::cstr_first_byte(cmd)) as i32) {
             return;
         } else {
             delim = *cmd;
@@ -5004,7 +4997,7 @@ pub fn ex_global(eap: &mut Exarg) {
             pat = cmd;
             cmd = skip_regexp_ex(
                 cmd,
-                (delim as u8) as c_int,
+                (delim as u8) as i32,
                 opt_vars().p_magic,
                 true,
                 None,
@@ -5044,13 +5037,13 @@ pub fn ex_global(eap: &mut Exarg) {
                 None,
                 None,
             );
-            if (type_char == b'g' as c_int && matched != 0)
-                || (type_char == b'v' as c_int && matched == 0)
+            if (type_char == b'g' as i32 && matched != 0)
+                || (type_char == b'v' as i32 && matched == 0)
             {
                 global_exe_one(cmd, lnum);
             }
         } else {
-            let mut ndone: c_int = 0;
+            let mut ndone: i32 = 0;
             lnum = eap.line1;
             while lnum <= eap.line2 && !g_st().got_int {
                 let matched = vim_regexec_multi(
@@ -5065,8 +5058,8 @@ pub fn ex_global(eap: &mut Exarg) {
                 if regmatch.regprog.is_null() {
                     break;
                 }
-                if (type_char == b'g' as c_int && matched != 0)
-                    || (type_char == b'v' as c_int && matched == 0)
+                if (type_char == b'g' as i32 && matched != 0)
+                    || (type_char == b'v' as i32 && matched == 0)
                 {
                     ml_setmarked(lnum);
                     ndone += 1;
@@ -5078,7 +5071,7 @@ pub fn ex_global(eap: &mut Exarg) {
             if g_st().got_int {
                 msg(gettext(E_INTERR), 0);
             } else if ndone == 0 {
-                if type_char == b'v' as c_int {
+                if type_char == b'v' as i32 {
                     smsg!(0, gettext(c"Pattern found in every line: %s"), used_pat,);
                 } else {
                     smsg!(0, gettext(c"Pattern not found: %s"), used_pat);
@@ -5204,10 +5197,10 @@ fn show_sub(
     eap: &mut Exarg,
     old_cusr: CursorPos,
     preview_lines: &mut PreviewLines,
-    hl_id: c_int,
-    cmdpreview_ns: c_int,
+    hl_id: i32,
+    cmdpreview_ns: i32,
     cmdpreview_bufnr: ObjHandle,
-) -> c_int {
+) -> i32 {
     unsafe {
         let save_shm_p = cstr_to_cstring(opt_vars().p_shm);
         let subresults = &preview_lines.subresults;
@@ -5226,7 +5219,7 @@ fn show_sub(
 
         update_topline(curwin_mut());
 
-        let mut col_width: c_int = 0;
+        let mut col_width: i32 = 0;
         let preview = (crate::memory::cstr_first_byte(opt_vars().p_icm) == b's')
             && (eap.line1 != old_cusr.lnum || eap.line2 != old_cusr.lnum);
 
@@ -5237,7 +5230,7 @@ fn show_sub(
             if let Some(last_match) = subresults.last() {
                 let highest_lnum = last_match.start.lnum.max(last_match.end.lnum);
                 debug_assert!(highest_lnum > 0);
-                col_width = (f64::from(highest_lnum).log10() as c_int) + 1 + 3;
+                col_width = (f64::from(highest_lnum).log10() as i32) + 1 + 3;
             }
         }
 
@@ -5339,9 +5332,9 @@ pub fn ex_substitute(eap: &mut Exarg) {
 /// `:substitute` command preview callback.
 pub fn ex_substitute_preview(
     eap: &mut Exarg,
-    cmdpreview_ns: c_int,
+    cmdpreview_ns: i32,
     cmdpreview_bufnr: ObjHandle,
-) -> c_int {
+) -> i32 {
     {
         if !crate::memory::cstr_is_empty(eap.arg)
             && !ascii_isalnum(crate::memory::cstr_first_char(eap.arg))
@@ -5365,10 +5358,10 @@ pub fn ex_substitute_preview(
 pub fn skip_vimgrep_pat(
     mut p: *mut c_char,
     s: *mut *mut c_char,
-    mut flags: Option<&mut c_int>,
+    mut flags: Option<&mut i32>,
 ) -> *mut c_char {
     unsafe {
-        if vim_is_idc((crate::memory::cstr_first_byte(p)) as c_int) {
+        if vim_is_idc((crate::memory::cstr_first_byte(p)) as i32) {
             if !s.is_null() {
                 *s = p;
             }
@@ -5381,9 +5374,9 @@ pub fn skip_vimgrep_pat(
             if !s.is_null() {
                 *s = p.add(1);
             }
-            let c = (crate::memory::cstr_first_byte(p)) as c_int;
+            let c = (crate::memory::cstr_first_byte(p)) as i32;
             p = skip_regexp(p.add(1), c, 1);
-            if (crate::memory::cstr_first_byte(p)) as c_int != c {
+            if (crate::memory::cstr_first_byte(p)) as i32 != c {
                 return ptr::null_mut();
             }
 

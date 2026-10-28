@@ -15,10 +15,10 @@ use crate::xdiff::{
     Mmbuffer, Mmfile, XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC,
     XDF_NEED_MINIMAL, XDF_PATIENCE_DIFF, Xdemitcb, Xdemitconf, Xpparam,
 };
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
-const COMPARED_BUFFER0: c_int = 1 << 0;
-const COMPARED_BUFFER1: c_int = 1 << 1;
+const COMPARED_BUFFER0: i32 = 1 << 0;
+const COMPARED_BUFFER1: i32 = 1 << 1;
 
 const KEYSET_OPTIDX_CTXLEN: u64 = 1;
 const KEYSET_OPTIDX_ON_HUNK: u64 = 2;
@@ -38,7 +38,7 @@ enum NluaXdiffMode {
 #[derive(Default)]
 pub struct KeyDict_xdl_diff {
     pub is_set_xdl_diff: u64,
-    pub on_hunk: c_int,
+    pub on_hunk: i32,
     pub result_type: NvimString,
     pub algorithm: NvimString,
     pub ctxlen: i64,
@@ -125,7 +125,7 @@ fn lua_pushhunk(
         lua_rawseti(lstate, -2, 3);
         lua_pushinteger(lstate, count_b);
         lua_rawseti(lstate, -2, 4);
-        let next_idx = (lua_objlen(lstate, -2) as c_int) + 1;
+        let next_idx = (lua_objlen(lstate, -2) as i32) + 1;
         lua_rawseti(lstate, -2, next_idx);
     }
 }
@@ -134,10 +134,10 @@ fn get_linematch_results(
     lstate: *mut lua_State,
     ma: *mut Mmfile,
     mb: *mut Mmfile,
-    start_a: c_int,
-    count_a: c_int,
-    start_b: c_int,
-    count_b: c_int,
+    start_a: i32,
+    count_a: i32,
+    start_b: i32,
+    count_b: i32,
     iwhite: bool,
 ) {
     unsafe {
@@ -187,7 +187,7 @@ fn get_linematch_results(
     }
 }
 
-pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer]) -> c_int {
+pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer]) -> i32 {
     for chunk in mb {
         if chunk.size > 0 && !chunk.ptr.is_null() {
             let slice = { crate::memory::cstr_slice(chunk.ptr, chunk.size as usize) };
@@ -198,12 +198,12 @@ pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer]) -> c_int {
 }
 
 pub(crate) fn hunk_locations_cb(
-    start_a: c_int,
-    count_a: c_int,
-    start_b: c_int,
-    count_b: c_int,
+    start_a: i32,
+    count_a: i32,
+    start_b: i32,
+    count_b: i32,
     cb_data: &mut HunkPriv,
-) -> c_int {
+) -> i32 {
     let priv_ref = { cb_data };
     let lstate = priv_ref.lstate;
     if priv_ref.linematch > 0 && i64::from(count_a) + i64::from(count_b) <= priv_ref.linematch {
@@ -230,12 +230,12 @@ pub(crate) fn hunk_locations_cb(
 }
 
 pub(crate) fn call_on_hunk_cb(
-    mut start_a: c_int,
-    count_a: c_int,
-    mut start_b: c_int,
-    count_b: c_int,
+    mut start_a: i32,
+    count_a: i32,
+    mut start_b: i32,
+    count_b: i32,
     cb_data: &mut HunkPriv,
-) -> c_int {
+) -> i32 {
     if count_a > 0 {
         start_a += 1;
     }
@@ -263,26 +263,26 @@ pub(crate) fn call_on_hunk_cb(
 
         let mut r = 0;
         if lua_isnumber(lstate, -1) != 0 {
-            r = lua_tonumber(lstate, -1) as c_int;
+            r = lua_tonumber(lstate, -1) as i32;
         }
         lua_settop(lstate, fidx);
         r
     }
 }
 
-fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> Mmfile {
+fn get_string_arg(lstate: *mut lua_State, idx: i32) -> Mmfile {
     unsafe {
         if lua_type(lstate, idx) != LUA_TSTRING {
             luaL_argerror(lstate, idx, c"expected string");
         }
         let mut size: usize = 0;
         let ptr = lua_tolstring(lstate, idx, &mut size).cast_mut();
-        if size > (c_int::MAX as usize) {
+        if size > (i32::MAX as usize) {
             luaL_argerror(lstate, idx, c"string too long");
         }
         Mmfile {
             ptr,
-            size: size as c_int,
+            size: size as i32,
         }
     }
 }
@@ -425,7 +425,7 @@ fn process_xdl_diff_opts(
 }
 
 /// Lua `vim.diff(a, b, opts)` implementation (`nlua_xdl_diff`).
-pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
+pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
     unsafe {
         if lua_gettop(lstate) < 2 {
             return luaL_error(lstate, c"Expected at least 2 arguments".as_ptr());

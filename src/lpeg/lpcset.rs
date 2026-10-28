@@ -1,13 +1,11 @@
 //! Character set operations (`src/lpeg/lpcset.c`).
 
-use std::ffi::c_int;
-
 use crate::lpeg::{
     BITSPERCHAR, CHARSETSIZE, Charset, CharsetInfo, IANY, ICHAR, IFAIL, ISET, LpegByte, Opcode,
     TANY, TCHAR, TFALSE, TSET, TTree, clearset, fillset, setchar, treebuffer,
 };
 
-fn onlybit(mut c: c_int, mut b: c_int) -> c_int {
+fn onlybit(mut c: i32, mut b: i32) -> i32 {
     if (b & 0xF0) != 0 {
         c += 4;
         b >>= 4;
@@ -35,9 +33,9 @@ pub fn charsettype(cs: &[LpegByte; CHARSETSIZE], info: &mut CharsetInfo) -> Opco
         high1 -= 1;
     }
     if low1 == high1 {
-        let b = c_int::from(cs[low1]);
+        let b = i32::from(cs[low1]);
         if (b & (b - 1)) == 0 {
-            info.offset = onlybit((low1 * BITSPERCHAR) as c_int, b);
+            info.offset = onlybit((low1 * BITSPERCHAR) as i32, b);
             return ICHAR;
         }
     }
@@ -53,19 +51,19 @@ pub fn charsettype(cs: &[LpegByte; CHARSETSIZE], info: &mut CharsetInfo) -> Opco
         high0 -= 1;
     }
     if high1 - low1 <= high0 - low0 {
-        info.offset = low1 as c_int;
-        info.size = (high1 - low1 + 1) as c_int;
+        info.offset = low1 as i32;
+        info.size = (high1 - low1 + 1) as i32;
         info.deflt = 0;
     } else {
-        info.offset = low0 as c_int;
-        info.size = (high0 - low0 + 1) as c_int;
+        info.offset = low0 as i32;
+        info.size = (high0 - low0 + 1) as i32;
         info.deflt = 0xFF;
     }
     info.cs = unsafe { cs.as_ptr().add(info.offset as usize) };
     ISET
 }
 
-pub fn getbytefromcharset(info: &CharsetInfo, index: c_int) -> LpegByte {
+pub fn getbytefromcharset(info: &CharsetInfo, index: i32) -> LpegByte {
     if index < info.size {
         unsafe { *info.cs.add(index as usize) }
     } else {
@@ -73,11 +71,11 @@ pub fn getbytefromcharset(info: &CharsetInfo, index: c_int) -> LpegByte {
     }
 }
 
-pub fn tocharset(tree: &mut TTree, cs: &mut Charset) -> c_int {
+pub fn tocharset(tree: &mut TTree, cs: &mut Charset) -> i32 {
     unsafe {
         match tree.tag {
             TCHAR => {
-                debug_assert!(0 <= tree.u.n && tree.u.n <= c_int::from(u8::MAX));
+                debug_assert!(0 <= tree.u.n && tree.u.n <= i32::from(u8::MAX));
                 clearset(&mut cs.cs);
                 setchar(&mut cs.cs, tree.u.n as usize);
                 1
@@ -106,9 +104,9 @@ pub fn tocharset(tree: &mut TTree, cs: &mut Charset) -> c_int {
 pub fn tree2cset(tree: &mut TTree, info: &mut CharsetInfo) {
     unsafe {
         debug_assert_eq!(tree.tag, TSET);
-        info.offset = c_int::from(tree.u.set.offset);
-        info.size = c_int::from(tree.u.set.size);
-        info.deflt = c_int::from(tree.u.set.deflt);
+        info.offset = i32::from(tree.u.set.offset);
+        info.size = i32::from(tree.u.set.size);
+        info.deflt = i32::from(tree.u.set.deflt);
         info.cs = treebuffer(&raw mut *tree);
     }
 }

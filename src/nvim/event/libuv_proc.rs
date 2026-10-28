@@ -11,25 +11,25 @@ use crate::os::env::os_shell_is_cmdexe;
 use crate::os::fs::os_close;
 #[cfg(windows)]
 use crate::path::path_to_backslash;
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_void};
 use std::ptr;
 
-const UV_IGNORE: c_int = 0x00;
+const UV_IGNORE: i32 = 0x00;
 #[cfg(windows)]
-const UV_CREATE_PIPE: c_int = 0x01;
-const UV_INHERIT_FD: c_int = 0x02;
+const UV_CREATE_PIPE: i32 = 0x01;
+const UV_INHERIT_FD: i32 = 0x02;
 #[cfg(windows)]
-const UV_READABLE_PIPE: c_int = 0x10;
+const UV_READABLE_PIPE: i32 = 0x10;
 #[cfg(windows)]
-const UV_WRITABLE_PIPE: c_int = 0x20;
-const UV_NONBLOCK_PIPE: c_int = 0x40;
+const UV_WRITABLE_PIPE: i32 = 0x20;
+const UV_NONBLOCK_PIPE: i32 = 0x40;
 #[cfg(windows)]
-const UV_OVERLAPPED_PIPE: c_int = 0x40;
+const UV_OVERLAPPED_PIPE: i32 = 0x40;
 
 #[cfg(windows)]
-const UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS: c_uint = 1 << 2;
-const UV_PROCESS_DETACHED: c_uint = 1 << 3;
-const UV_PROCESS_WINDOWS_HIDE: c_uint = 1 << 4;
+const UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS: u32 = 1 << 2;
+const UV_PROCESS_DETACHED: u32 = 1 << 3;
+const UV_PROCESS_WINDOWS_HIDE: u32 = 1 << 4;
 
 use crate::ui_client::UI_CLIENT_STDIN_FD;
 
@@ -37,19 +37,19 @@ use crate::ui_client::UI_CLIENT_STDIN_FD;
 pub type uv_process_t = c_void;
 #[allow(non_camel_case_types)]
 type uv_exit_cb =
-    Option<unsafe extern "C" fn(handle: *mut uv_process_t, exit_status: i64, term_signal: c_int)>;
+    Option<unsafe extern "C" fn(handle: *mut uv_process_t, exit_status: i64, term_signal: i32)>;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union UvStdioData {
     pub stream: *mut uv_stream_t,
-    pub fd: c_int,
+    pub fd: i32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct uv_stdio_container_t {
-    pub flags: c_int,
+    pub flags: i32,
     pub data: UvStdioData,
 }
 
@@ -60,8 +60,8 @@ pub struct uv_process_options_t {
     pub args: *mut *mut c_char,
     pub env: *mut *mut c_char,
     pub cwd: *const c_char,
-    pub flags: c_uint,
-    pub stdio_count: c_int,
+    pub flags: u32,
+    pub stdio_count: i32,
     pub stdio: *mut uv_stdio_container_t,
     pub uid: uv_uid_t,
     pub gid: uv_gid_t,
@@ -128,7 +128,7 @@ fn libuv_proc_stdio(
     child_readable: bool,
     overlapped: bool,
     win_create_pipe: bool,
-    to_close: &mut [c_int; 3],
+    to_close: &mut [i32; 3],
 ) {
     unsafe {
         let ltail = uvproc;
@@ -158,7 +158,7 @@ fn libuv_proc_stdio(
         #[cfg(not(windows))]
         let child_flags = 0;
 
-        let mut pipe_pair = [-1 as c_int; 2];
+        let mut pipe_pair = [-1_i32; 2];
         uv_pipe(
             pipe_pair.as_mut_ptr(),
             if child_readable {
@@ -191,7 +191,7 @@ fn libuv_proc_stdio(
 }
 
 /// @returns zero on success, or negative error code
-pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
+pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
     unsafe {
         let proc_: *mut Proc = &raw mut uvproc.proc_;
         let proc_ = &mut *proc_;
@@ -252,7 +252,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
             uvproc.uvopts.env = ptr::null_mut();
         }
 
-        let mut to_close = [-1 as c_int; 3];
+        let mut to_close = [-1_i32; 3];
 
         if !proc_.r#in.closed {
             libuv_proc_stdio(
@@ -329,17 +329,17 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     }
 }
 
-unsafe extern "C" fn exit_cb(handle: *mut uv_process_t, status: i64, term_signal: c_int) {
+unsafe extern "C" fn exit_cb(handle: *mut uv_process_t, status: i64, term_signal: i32) {
     unsafe {
         let proc_ = *handle.cast::<*mut Proc>();
         #[cfg(windows)]
         let sig = {
             let _ = term_signal;
-            c_int::from((*proc_).exit_signal)
+            i32::from((*proc_).exit_signal)
         };
         #[cfg(not(windows))]
         let sig = term_signal;
-        (*proc_).status = if sig != 0 { 128 + sig } else { status as c_int };
+        (*proc_).status = if sig != 0 { 128 + sig } else { status as i32 };
         crate::event::proc::on_proc_exit(&mut *proc_);
     }
 }

@@ -41,16 +41,16 @@ use crate::tui::tui::{
     tui_set_icon, tui_set_title, tui_start, tui_stop, tui_suspend, tui_ui_send, tui_update_menu,
     tui_visual_bell,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
-pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
+pub(crate) const UI_CLIENT_STDIN_FD: i32 = 3;
 use crate::highlight::KEYSET_OPTIDX_HIGHLIGHT_URL;
 
 struct UiClientState {
     tui: Option<Box<TUIData>>,
-    tui_width: c_int,
-    tui_height: c_int,
+    tui_width: i32,
+    tui_height: i32,
     tui_term: Option<std::ffi::CString>,
     tui_rgb: bool,
     restart_args: Array,
@@ -145,7 +145,7 @@ pub fn ui_client_start_server(
 }
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
-pub fn ui_client_attach(width: c_int, height: c_int, term: Option<&std::ffi::CStr>, rgb: bool) {
+pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, rgb: bool) {
     unsafe {
         let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
         let mut opts = Dict {
@@ -316,7 +316,7 @@ pub fn ui_client_stop() {
     }
 }
 
-pub fn ui_client_set_size(width: c_int, height: c_int) {
+pub fn ui_client_set_size(width: i32, height: i32) {
     if g_st().ui_client_attached {
         let mut args_items: [Object; 2] = [
             integer_obj(Integer::from(width)),
@@ -641,7 +641,7 @@ pub fn ui_client_event_error_exit(args: Array) {
             );
             return;
         }
-        g_st().ui_client_error_exit = args[0].data.integer() as c_int;
+        g_st().ui_client_error_exit = args[0].data.integer() as i32;
     }
 }
 
@@ -1007,7 +1007,7 @@ const EVENT_HANDLERS: [UIClientHandler; 28] = [
     },
 ];
 
-pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: usize) -> c_int {
+pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: usize) -> i32 {
     let str_in = str_in.into_c_char_ptr();
     if str_in.is_null() {
         return -1;
@@ -1068,7 +1068,7 @@ pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: us
     if bytes != EVENT_HANDLERS[low as usize].name.to_bytes() {
         return -1;
     }
-    low as c_int
+    low as i32
 }
 
 pub fn ui_client_get_redraw_handler(

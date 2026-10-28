@@ -9,7 +9,7 @@ use crate::os::env::os_get_pid;
 #[cfg(windows)]
 use crate::os::os_win_console::INVALID_HANDLE_VALUE;
 #[cfg(windows)]
-use std::ffi::{CString, c_char, c_int, c_void};
+use std::ffi::{CString, c_char, c_void};
 
 #[cfg(windows)]
 use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
@@ -188,7 +188,7 @@ struct ConptyModuleState {
     #[allow(non_snake_case)]
     HAS_CONPTY: TriState,
     #[allow(non_snake_case)]
-    CONPTY_COUNT: c_int,
+    CONPTY_COUNT: i32,
 }
 
 #[cfg(windows)]
@@ -455,7 +455,7 @@ pub fn os_conpty_init(
             true,
             c"os_conpty_init:%s : error code: %d",
             emsg,
-            uv_translate_sys_error(GetLastError() as c_int),
+            uv_translate_sys_error(GetLastError() as i32),
         );
         drop(conpty_object);
         if in_read != INVALID_HANDLE_VALUE {
@@ -521,7 +521,7 @@ pub fn os_conpty_set_size(conpty_object: &Conpty, width: u16, height: u16) {
                 177,
                 true,
                 c"ResizePseudoConsole failed: error code: %d",
-                uv_translate_sys_error(GetLastError() as c_int),
+                uv_translate_sys_error(GetLastError() as i32),
             );
         }
     }

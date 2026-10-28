@@ -65,10 +65,10 @@ use crate::terminal::terminal_notify_theme;
 use crate::ui::ui_has;
 use crate::window::{FcsChars, LcsChars, WinInfoInfo, check_colorcolumn, global_stl_height};
 use crate::winfloat::{win_config_float, win_previewpopup_config};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_void};
 use std::ptr;
 
-pub type OptIndex = c_int;
+pub type OptIndex = i32;
 pub type OptScopeFlags = u8;
 use crate::highlight::OptionalKeys;
 
@@ -121,8 +121,8 @@ pub struct OptDictSchema {
 
 pub enum OptSetPrep {
     None,
-    Flags(c_uint),
-    Spellsuggest([c_int; 2]),
+    Flags(u32),
+    Spellsuggest([i32; 2]),
     Wildmode([u8; 4]),
     Encoding(std::ffi::CString),
     SpellcapProg(Option<Box<Regprog>>),
@@ -131,7 +131,7 @@ pub enum OptSetPrep {
 
 impl OptSetPrep {
     #[inline]
-    pub fn as_flags(&self) -> c_uint {
+    pub fn as_flags(&self) -> u32 {
         match *self {
             Self::Flags(f) => f,
             _ => 0,
@@ -167,7 +167,7 @@ impl OptSetPrep {
 pub struct Optset {
     pub os_varp: *mut c_void,
     pub os_idx: OptIndex,
-    pub os_flags: c_int,
+    pub os_flags: i32,
     pub os_oldval: Object,
     pub os_newval: Object,
     pub os_prep: OptSetPrep,
@@ -228,7 +228,7 @@ pub struct Vimoption {
     pub opt_type: ObjectType,
     pub scope_flags: OptScopeFlags,
     pub var: *mut c_void,
-    pub flags_var: *mut c_uint,
+    pub flags_var: *mut u32,
     pub scope_idx: [isize; 4],
     pub immutable: bool,
     pub values: &'static [&'static std::ffi::CStr],
@@ -343,25 +343,25 @@ const K_OPT_TERMPASTEFILTER: OptIndex = 319;
 const K_OPT_VIEWOPTIONS: OptIndex = 346;
 const K_OPT_WILDOPTIONS: OptIndex = 357;
 
-pub(crate) const K_OPT_BKC_FLAG_YES: c_uint = 0x01;
-pub(crate) const K_OPT_BKC_FLAG_AUTO: c_uint = 0x02;
-const K_OPT_BKC_FLAG_NO: c_uint = 0x04;
+pub(crate) const K_OPT_BKC_FLAG_YES: u32 = 0x01;
+pub(crate) const K_OPT_BKC_FLAG_AUTO: u32 = 0x02;
+const K_OPT_BKC_FLAG_NO: u32 = 0x04;
 
 const KEYSET_OPTIDX_MOUSESCROLL_HOR: u32 = 1;
 const KEYSET_OPTIDX_MOUSESCROLL_VER: u32 = 2;
 const MOUSESCROLL_VERT_DFLT: i64 = 3;
 const MOUSESCROLL_HOR_DFLT: i64 = 6;
 
-const SCL_NO: c_int = -1;
+const SCL_NO: i32 = -1;
 
 pub(crate) const STL_SEPARATE: c_char = b'=' as c_char;
 pub(crate) const STL_TRUNCMARK: c_char = b'<' as c_char;
 pub(crate) const STL_USER_HL: c_char = b'*' as c_char;
 pub(crate) const STL_HIGHLIGHT: c_char = b'#' as c_char;
 
-const CPT_ABBR: c_uint = 0;
-const CPT_KIND: c_uint = 1;
-const CPT_MENU: c_uint = 2;
+const CPT_ABBR: u32 = 0;
+const CPT_KIND: u32 = 1;
+const CPT_MENU: u32 = 2;
 
 const HIGHLIGHT_INIT: &CStr = c"8:SpecialKey,~:EndOfBuffer,z:TermCursor,@:NonText,d:Directory,e:ErrorMsg,i:IncSearch,l:Search,y:CurSearch,m:MoreMsg,M:ModeMsg,n:LineNr,a:LineNrAbove,b:LineNrBelow,N:CursorLineNr,G:CursorLineSign,O:CursorLineFold,r:Question,s:StatusLine,S:StatusLineNC,c:VertSplit,t:Title,v:Visual,V:VisualNOS,w:WarningMsg,W:WildMenu,f:Folded,F:FoldColumn,A:DiffAdd,C:DiffChange,D:DiffDelete,T:DiffText,E:DiffTextAdd,>:SignColumn,-:Conceal,B:SpellBad,P:SpellCap,R:SpellRare,L:SpellLocal,+:Pmenu,=:PmenuSel,k:PmenuMatch,<:PmenuMatchSel,[:PmenuKind,]:PmenuKindSel,{:PmenuExtra,}:PmenuExtraSel,x:PmenuSbar,X:PmenuThumb,*:TabLine,#:TabLineSel,_:TabLineFill,!:CursorColumn,.:CursorLine,o:ColorColumn,q:QuickFixLine,z:StatusLineTerm,Z:StatusLineTermNC,g:MsgArea,h:ComplMatchIns,0:Whitespace,I:PreInsert";
 
@@ -419,42 +419,42 @@ static BRIOPT_TABLE: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"min"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, min),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sbr"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, sbr),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"list"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, list),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"shift"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, shift),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"column"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, column),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -464,140 +464,140 @@ static DIP_TABLE: [KeySetLink; 20] = [
     KeySetLink {
         str: Some(c"icase"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, icase),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"iblank"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iblank),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"filler"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, filler),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"anchor"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, anchor),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"inline"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, inline_),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"iwhite"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhite),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"context"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, context),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"closeoff"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, closeoff),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"internal"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, internal),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"vertical"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, vertical),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"linematch"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, linematch),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hiddenoff"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, hiddenoff),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"algorithm"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, algorithm),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"iwhiteall"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhiteall),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"iwhiteeol"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhiteeol),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"foldcolumn"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, foldcolumn),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"horizontal"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, horizontal),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"followwrap"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, followwrap),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"indent-heuristic"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, indent_heuristic),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -607,56 +607,56 @@ static MOPT_TABLE: [KeySetLink; 8] = [
     KeySetLink {
         str: Some(c"wait"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, wait),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pager"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, pager),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"history"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, history),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"timeout"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, timeout),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"progress"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, progress),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hit-enter"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, hit_enter),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"maxheight"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, maxheight),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -666,21 +666,21 @@ static MOUSESCROLL_TABLE: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"hor"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mousescroll, hor),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ver"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mousescroll, ver),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -690,28 +690,28 @@ static PVP_TABLE: [KeySetLink; 4] = [
     KeySetLink {
         str: Some(c"width"),
         ptr_off: std::mem::offset_of!(OptKeyDict_pvp, width),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"border"),
         ptr_off: std::mem::offset_of!(OptKeyDict_pvp, border),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"height"),
         ptr_off: std::mem::offset_of!(OptKeyDict_pvp, height),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
@@ -916,7 +916,7 @@ pub fn didset_string_options() {
     check_str_opt(K_OPT_CLIPBOARD, ptr::null_mut(), None);
 }
 
-fn illegal_char(errbuf: Option<CharBuf>, c: c_int) -> *const c_char {
+fn illegal_char(errbuf: Option<CharBuf>, c: i32) -> *const c_char {
     if errbuf.is_none() {
         return c"".as_ptr();
     }
@@ -1047,7 +1047,7 @@ pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> b
                 wp.as_deref_mut().unwrap().w_minscwidth = SCL_NUM;
                 wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NUM;
             } else if crate::memory::cstr_prefix_bytes(val, 4) == &b"yes:"[..4] {
-                let n = (crate::memory::cstr_char_at(val, 4)) - (b'0' as c_int);
+                let n = (crate::memory::cstr_char_at(val, 4)) - (b'0' as i32);
                 wp.as_deref_mut().unwrap().w_minscwidth = n;
                 wp.as_deref_mut().unwrap().w_maxscwidth = n;
             } else if crate::memory::cstr_first_byte(val) == b'y' {
@@ -1056,7 +1056,7 @@ pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> b
             } else if crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5] {
                 wp.as_deref_mut().unwrap().w_minscwidth = 0;
                 wp.as_deref_mut().unwrap().w_maxscwidth =
-                    (crate::memory::cstr_char_at(val, 5)) - (b'0' as c_int);
+                    (crate::memory::cstr_char_at(val, 5)) - (b'0' as i32);
             } else {
                 wp.as_deref_mut().unwrap().w_minscwidth = 0;
                 wp.as_deref_mut().unwrap().w_maxscwidth = 1;
@@ -1070,8 +1070,8 @@ pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> b
             {
                 return false;
             }
-            let min = (crate::memory::cstr_char_at(val, 5)) - (b'0' as c_int);
-            let max = (crate::memory::cstr_char_at(val, 7)) - (b'0' as c_int);
+            let min = (crate::memory::cstr_char_at(val, 5)) - (b'0' as i32);
+            let max = (crate::memory::cstr_char_at(val, 7)) - (b'0' as i32);
             if min < 1 || max < 2 || min > 8 || min >= max {
                 return false;
             }
@@ -1151,7 +1151,7 @@ fn check_stl_str_adv_scope(
             if **s == b'-' as c_char {
                 *s = (*s).add(1);
             }
-            while ascii_isdigit(**s as c_int) {
+            while ascii_isdigit(**s as i32) {
                 *s = (*s).add(1);
             }
             if **s == STL_USER_HL {
@@ -1159,7 +1159,7 @@ fn check_stl_str_adv_scope(
             }
             if **s == b'.' as c_char {
                 *s = (*s).add(1);
-                while **s != NUL && ascii_isdigit(**s as c_int) {
+                while **s != NUL && ascii_isdigit(**s as i32) {
                     *s = (*s).add(1);
                 }
             }
@@ -1172,8 +1172,8 @@ fn check_stl_str_adv_scope(
                     return err;
                 }
             }
-            if !crate::strings::vim_haschr(STL_ALL, **s as u8 as c_int) {
-                return illegal_char(errbuf, **s as u8 as c_int);
+            if !crate::strings::vim_haschr(STL_ALL, **s as u8 as i32) {
+                return illegal_char(errbuf, **s as u8 as i32);
             }
             if **s == b'{' as c_char {
                 *s = (*s).add(1);
@@ -1182,7 +1182,7 @@ fn check_stl_str_adv_scope(
                 if reevaluate {
                     *s = (*s).add(1);
                     if **s == b'}' as c_char {
-                        return illegal_char(errbuf, b'}' as c_int);
+                        return illegal_char(errbuf, b'}' as i32);
                     }
                 }
                 while (**s != b'}' as c_char || (reevaluate && *(*s).sub(1) != b'%' as c_char))
@@ -1298,8 +1298,8 @@ fn check_option_listflag(
     {
         let s = val;
         for &s_byte in crate::memory::cstr_as_bytes(s) {
-            if !crate::strings::vim_haschr(flags, s_byte as c_int) {
-                return illegal_char(errbuf, s_byte as c_int);
+            if !crate::strings::vim_haschr(flags, s_byte as i32) {
+                return illegal_char(errbuf, s_byte as i32);
             }
         }
         ptr::null()
@@ -1344,7 +1344,7 @@ fn expand_set_opt_string(
 }
 
 /// Callback used by expand_set_opt_generic to also include the original value.
-fn expand_set_opt_callback(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+fn expand_set_opt_callback(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx == 0 {
         if !optstr_st().set_opt_callback_orig_option.is_null() {
             return optstr_st().set_opt_callback_orig_option;
@@ -1413,17 +1413,15 @@ fn expand_set_opt_listflag(
             if append
                 && crate::strings::vim_haschr(
                     option_val,
-                    crate::memory::cstr_first_byte(flag) as c_int,
+                    crate::memory::cstr_first_byte(flag) as i32,
                 )
             {
                 flag = flag.add(1);
                 continue;
             }
 
-            if !crate::strings::vim_haschr(
-                cmdline_val,
-                crate::memory::cstr_first_byte(flag) as c_int,
-            ) {
+            if !crate::strings::vim_haschr(cmdline_val, crate::memory::cstr_first_byte(flag) as i32)
+            {
                 if include_orig_val
                     && crate::memory::cstr_byte_at(option_val, 1) == 0
                     && *flag == *option_val
@@ -1521,7 +1519,7 @@ pub fn validate_backspace(args: &mut Optset) -> *const c_char {
 }
 
 pub fn validate_backupcopy(args: &mut Optset) -> *const c_char {
-    let mut flags: c_uint = 0;
+    let mut flags: u32 = 0;
     let errmsg = opt_strings_flags(
         args.os_newval.data.string().data,
         &OPT_BKC_VALUES,
@@ -1721,7 +1719,7 @@ fn did_set_global_chars_option(
     win: &mut WinInfoInfo,
     val: impl crate::strings::IntoCCharPtr,
     what: CharsOption,
-    opt_flags: c_int,
+    opt_flags: i32,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
     let val = val.into_c_char_ptr();
@@ -1865,12 +1863,11 @@ pub fn validate_comments(args: &mut Optset) -> *const c_char {
         let mut s = args.os_newval.data.string().data;
         while !crate::memory::cstr_is_empty(s) {
             while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b':' {
-                if !crate::strings::vim_haschr(COM_ALL, crate::memory::cstr_first_byte(s) as c_int)
+                if !crate::strings::vim_haschr(COM_ALL, crate::memory::cstr_first_byte(s) as i32)
                     && !ascii_isdigit(crate::memory::cstr_first_char(s))
                     && crate::memory::cstr_first_byte(s) != b'-'
                 {
-                    errmsg =
-                        illegal_char(args.os_errbuf, crate::memory::cstr_first_byte(s) as c_int);
+                    errmsg = illegal_char(args.os_errbuf, crate::memory::cstr_first_byte(s) as i32);
                     break;
                 }
                 s = s.add(1);
@@ -1945,17 +1942,17 @@ pub fn validate_complete(args: &mut Optset) -> *const c_char {
             }
             buffer[buf_idx] = NUL;
 
-            if !crate::strings::vim_haschr(c".wbuksid]tUfFo", buffer[0] as u8 as c_int) {
-                return illegal_char(args.os_errbuf, buffer[0] as u8 as c_int);
+            if !crate::strings::vim_haschr(c".wbuksid]tUfFo", buffer[0] as u8 as i32) {
+                return illegal_char(args.os_errbuf, buffer[0] as u8 as i32);
             }
 
-            if !crate::strings::vim_haschr(c"ksF", buffer[0] as u8 as c_int)
+            if !crate::strings::vim_haschr(c"ksF", buffer[0] as u8 as i32)
                 && buffer[1] != NUL
                 && buffer[1] != b'^' as c_char
             {
                 char_before = buffer[0] as u8;
             } else {
-                let mut t = vim_strchr(buffer.as_ptr(), b'^' as c_int);
+                let mut t = vim_strchr(buffer.as_ptr(), b'^' as i32);
                 if !t.is_null() {
                     *t = NUL;
                     t = t.add(1);
@@ -1963,7 +1960,7 @@ pub fn validate_complete(args: &mut Optset) -> *const c_char {
                         char_before = b'^';
                     } else {
                         for &t_byte in crate::memory::cstr_as_bytes(t) {
-                            if !ascii_isdigit(t_byte as c_char as c_int) {
+                            if !ascii_isdigit(t_byte as c_char as i32) {
                                 char_before = b'^';
                                 break;
                             }
@@ -1975,7 +1972,7 @@ pub fn validate_complete(args: &mut Optset) -> *const c_char {
                 return crate::option::opt_error_int(
                     args.os_errbuf,
                     E_ILLEGAL_CHARACTER_AFTER_CHR,
-                    c_int::from(char_before),
+                    i32::from(char_before),
                 );
             }
             while crate::memory::cstr_first_byte(p) == b','
@@ -1995,7 +1992,7 @@ pub fn did_set_complete(args: &mut Optset) -> *const c_char {
         return crate::option::opt_error_int(
             args.os_errbuf,
             E_ILLEGAL_CHARACTER_AFTER_CHR,
-            b'F' as c_int,
+            b'F' as i32,
         );
     }
     ptr::null()
@@ -2005,7 +2002,7 @@ pub fn did_set_complete(args: &mut Optset) -> *const c_char {
 pub fn validate_completeitemalign(args: &mut Optset) -> *const c_char {
     {
         let mut p = args.os_newval.data.string().data;
-        let mut new_cia_flags: c_uint = 0;
+        let mut new_cia_flags: u32 = 0;
         let mut seen = [false; 3];
         let mut count = 0;
         let mut buf = [0 as c_char; 10];
@@ -2108,7 +2105,7 @@ pub fn expand_set_cpoptions(args: &mut Optexpand, matches: &mut Vec<std::ffi::CS
 pub fn validate_cursorlineopt(args: &mut Optset) -> *const c_char {
     {
         let value = args.os_newval.data.string().data;
-        let mut flags: c_uint = 0;
+        let mut flags: u32 = 0;
         if crate::memory::cstr_is_empty(value) || !fill_culopt_flags(value, &mut flags) {
             return E_INVARG.as_ptr();
         }
@@ -2190,7 +2187,7 @@ pub fn validate_encoding(args: &mut Optset) -> *const c_char {
                 return E_MODIFIABLE.as_ptr();
             }
 
-            if crate::strings::vim_haschr(args.os_newval.data.string().data, b',' as c_int) {
+            if crate::strings::vim_haschr(args.os_newval.data.string().data, b',' as i32) {
                 return E_INVARG.as_ptr();
             }
         }
@@ -2241,7 +2238,7 @@ pub fn validate_eventignore(args: &mut Optset) -> *const c_char {
     ptr::null()
 }
 
-fn get_eventignore_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     {
         let subtract = crate::memory::cstr_first_byte(xp.xp_pattern) == b'-';
         if !subtract && idx == 0 {
@@ -2249,7 +2246,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
         }
 
         let name =
-            get_event_name_no_group(xp, idx - 1 + c_int::from(subtract), optstr_st().expand_eiw);
+            get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw);
         if name.is_null() {
             return ptr::null_mut();
         }
@@ -2301,7 +2298,7 @@ pub fn did_set_fileformat(args: &mut Optset) -> *const c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of fileformat options.
-pub fn get_fileformat_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_fileformat_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
@@ -2356,7 +2353,7 @@ pub fn did_set_foldignore(args: &mut Optset) -> *const c_char {
 pub fn validate_foldmarker(args: &mut Optset) -> *const c_char {
     {
         let value = args.os_newval.data.string().data;
-        let p = vim_strchr(value, b',' as c_int);
+        let p = vim_strchr(value, b',' as i32);
         if p.is_null() {
             return E_COMMA_REQUIRED.as_ptr();
         }
@@ -2550,8 +2547,8 @@ pub fn did_set_keymap(args: &mut Optset) -> *const c_char {
 
 /// The 'keymodel' option is changed.
 pub fn did_set_keymodel(_args: &mut Optset) -> *const c_char {
-    g_st().km_stopsel = crate::strings::vim_haschr(opt_vars().p_km, b'o' as c_int);
-    g_st().km_startsel = crate::strings::vim_haschr(opt_vars().p_km, b'a' as c_int);
+    g_st().km_stopsel = crate::strings::vim_haschr(opt_vars().p_km, b'o' as i32);
+    g_st().km_startsel = crate::strings::vim_haschr(opt_vars().p_km, b'a' as i32);
     ptr::null()
 }
 
@@ -2575,19 +2572,19 @@ pub fn validate_matchpairs(args: &mut Optset) -> *const c_char {
     unsafe {
         let mut p = args.os_newval.data.string().data;
         while !crate::memory::cstr_is_empty(p) {
-            let mut x2: c_int = -1;
-            let mut x3: c_int = -1;
+            let mut x2: i32 = -1;
+            let mut x3: i32 = -1;
 
             p = p.add(utfc_ptr2len(p) as usize);
             if !crate::memory::cstr_is_empty(p) {
-                x2 = crate::memory::cstr_first_byte(p) as c_int;
+                x2 = crate::memory::cstr_first_byte(p) as i32;
                 p = p.add(1);
             }
             if !crate::memory::cstr_is_empty(p) {
                 x3 = utf_ptr2char(p);
                 p = p.add(utfc_ptr2len(p) as usize);
             }
-            if x2 != b':' as c_int
+            if x2 != b':' as i32
                 || x3 == -1
                 || (!crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b',')
             {
@@ -2648,12 +2645,12 @@ pub fn did_set_mousescroll(_args: &mut Optset) -> *const c_char {
         let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
         let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
         opt_vars().p_mousescroll_hor = if has_hor {
-            i64::from(v.hor as c_int)
+            i64::from(v.hor as i32)
         } else {
             MOUSESCROLL_HOR_DFLT
         };
         opt_vars().p_mousescroll_vert = if has_ver {
-            i64::from(v.ver as c_int)
+            i64::from(v.ver as i32)
         } else {
             MOUSESCROLL_VERT_DFLT
         };
@@ -2676,7 +2673,7 @@ pub fn did_set_selection(_args: &mut Optset) -> *const c_char {
 
 /// Validate the 'sessionoptions' option.
 pub fn validate_sessionoptions(args: &mut Optset) -> *const c_char {
-    let mut flags: c_uint = 0;
+    let mut flags: u32 = 0;
     let errmsg = opt_strings_flags(
         args.os_newval.data.string().data,
         &OPT_SSOP_VALUES,
@@ -2708,9 +2705,9 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
             }
             if !crate::strings::vim_haschr(
                 c"!\"%'/:<@cfhnrs",
-                crate::memory::cstr_first_byte(s) as c_int,
+                crate::memory::cstr_first_byte(s) as i32,
             ) {
-                return illegal_char(errbuf, crate::memory::cstr_first_byte(s) as c_int);
+                return illegal_char(errbuf, crate::memory::cstr_first_byte(s) as i32);
             }
             if crate::memory::cstr_first_byte(s) == b'n' {
                 break;
@@ -2742,12 +2739,12 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
                     }
                 }
 
-                if !ascii_isdigit(*s.sub(1) as c_int) {
+                if !ascii_isdigit(*s.sub(1) as i32) {
                     if errbuf.is_some() {
                         return opt_error(
                             errbuf,
                             c"E526: Missing number after <%s>",
-                            transchar_byte(c_int::from(*s.sub(1) as u8)),
+                            transchar_byte(i32::from(*s.sub(1) as u8)),
                         );
                     } else {
                         return c"".as_ptr();
@@ -2766,7 +2763,7 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
         }
         if !crate::memory::cstr_is_empty(value)
             && (marks.is_null()
-                || (crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(marks)) as c_int)
+                || (crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(marks)) as i32)
                     < 0)
         {
             return c"E528: Must specify a ' value".as_ptr();
@@ -2982,7 +2979,7 @@ pub fn did_set_spelloptions(args: &mut Optset) -> *const c_char {
 
 /// Validate the 'spellsuggest' option.
 pub fn validate_spellsuggest(args: &mut Optset) -> *const c_char {
-    let mut sps: [c_int; 2] = [0, 0];
+    let mut sps: [i32; 2] = [0, 0];
     let [s0, s1] = &mut sps;
     if !spell_check_sps(args.os_newval.data.string().data, s0, s1) {
         return E_INVARG.as_ptr();
@@ -3113,12 +3110,11 @@ pub fn did_set_tagcase(args: &mut Optset) -> *const c_char {
 }
 
 /// The 'titlestring' or the 'iconstring' option is changed.
-fn did_set_titleiconstring(args: &mut Optset, flagval: c_int) -> *const c_char {
+fn did_set_titleiconstring(args: &mut Optset, flagval: i32) -> *const c_char {
     unsafe {
         let varp = args.os_varp.cast::<*mut c_char>();
 
-        if crate::strings::vim_haschr(*varp, b'%' as c_int)
-            && check_stl_option(*varp, None).is_null()
+        if crate::strings::vim_haschr(*varp, b'%' as i32) && check_stl_option(*varp, None).is_null()
         {
             g_st().stl_syntax |= flagval;
         } else {
@@ -3344,13 +3340,13 @@ fn opt_values_err(
 fn opt_strings_flags(
     val: impl crate::strings::IntoCCharPtr,
     values: &[&CStr],
-    flagp: *mut c_uint,
+    flagp: *mut u32,
     list: bool,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
     let mut val = val.into_c_char_ptr();
     unsafe {
-        let mut new_flags: c_uint = 0;
+        let mut new_flags: u32 = 0;
         let iter_one = (crate::memory::cstr_is_empty(val)) && !list;
 
         while !crate::memory::cstr_is_empty(val) || iter_one {
@@ -3363,7 +3359,7 @@ fn opt_strings_flags(
                         || crate::memory::cstr_byte_at(val, len) == 0)
                 {
                     val = val.add(len + usize::from(crate::memory::cstr_byte_at(val, len) == b','));
-                    debug_assert!(i < std::mem::size_of::<c_uint>() * 8);
+                    debug_assert!(i < std::mem::size_of::<u32>() * 8);
                     new_flags |= 1u32 << i;
                     matched = true;
                     break;
@@ -3456,7 +3452,7 @@ pub fn opt_strings_check(
                     };
                     let mut ok = !v.is_null() && vlen > i;
                     while ok && i < vlen {
-                        ok = ascii_isdigit(crate::memory::cstr_byte_at(v, i) as c_int);
+                        ok = ascii_isdigit(crate::memory::cstr_byte_at(v, i) as i32);
                         i += 1;
                     }
                     if !ok {
@@ -3470,8 +3466,8 @@ pub fn opt_strings_check(
                     let mut end = v.cast_mut();
                     let mut n: i64 = 0;
                     if !try_getdigits(&raw mut end, &mut n)
-                        || n < i64::from(c_int::MIN)
-                        || n > i64::from(c_int::MAX)
+                        || n < i64::from(i32::MIN)
+                        || n > i64::from(i32::MAX)
                     {
                         return opt_schema_err(
                             errbuf,
@@ -3543,12 +3539,12 @@ pub fn opt_fill(
                 continue;
             };
             let field = out.cast::<u8>().add(f.ptr_off);
-            if f.key_type == ObjectType::ObjectTypeBoolean as c_int {
+            if f.key_type == ObjectType::ObjectTypeBoolean as i32 {
                 *field.cast::<Boolean>() = true;
-            } else if f.key_type == ObjectType::ObjectTypeInteger as c_int {
+            } else if f.key_type == ObjectType::ObjectTypeInteger as i32 {
                 let mut end = v.cast_mut();
                 *field.cast::<Integer>() = Integer::from(getdigits_int(&raw mut end, false, 0));
-            } else if f.key_type == ObjectType::ObjectTypeString as c_int {
+            } else if f.key_type == ObjectType::ObjectTypeString as i32 {
                 ptr::copy_nonoverlapping(v.cast::<u8>(), field, vlen);
                 *field.add(vlen) = 0;
             }
@@ -3611,10 +3607,10 @@ fn get_encoded_char_adv(p: *mut *const c_char) -> Schar {
                 bytes -= 1;
             }
             *p = (*p).add(2);
-            return if char2cells(num as c_int) > 1 {
+            return if char2cells(num as i32) > 1 {
                 0
             } else {
-                schar_from_char(num as c_int)
+                schar_from_char(num as i32)
             };
         }
 
@@ -4171,7 +4167,7 @@ pub fn set_chars_option(
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'fillchars' option.
-pub fn get_fillchars_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_fillchars_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx < 0 || (idx as usize) >= FCS_TAB.len() {
         return ptr::null_mut();
     }
@@ -4179,7 +4175,7 @@ pub fn get_fillchars_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'listchars' option.
-pub fn get_listchars_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_listchars_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if idx < 0 || (idx as usize) >= LCS_TAB.len() {
         return ptr::null_mut();
     }

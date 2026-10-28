@@ -15,13 +15,13 @@ use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
 use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 #[cfg(not(windows))]
 use crate::os::stdpaths::{XDGVarType, stdpaths_get_xdg_var};
 
-const MAX_CONNECTIONS: c_int = 32;
+const MAX_CONNECTIONS: i32 = 32;
 
 const ENV_LISTEN: &CStr = c"NVIM_LISTEN_ADDRESS";
 const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
@@ -214,7 +214,7 @@ pub fn server_owns_pipe_address(address: impl crate::strings::IntoCCharPtr) -> b
     }
 }
 
-pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> i32 {
     let addr = addr.into_c_char_ptr();
     unsafe {
         if addr.is_null() || *addr == 0 {
@@ -346,7 +346,7 @@ pub fn server_address_list() -> Vec<std::ffi::CString> {
     }
 }
 
-pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
+pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: i32) {
     unsafe {
         if result != 0 {
             logmsg!(

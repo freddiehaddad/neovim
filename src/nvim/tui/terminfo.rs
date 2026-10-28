@@ -6,7 +6,7 @@ use crate::tui::termkey::driver_ti::{
     K_TERM_COUNT, K_TERM_KEY_COUNT, K_TERMINFO_FUNC_KEY_MAX, TerminfoEntry,
 };
 use std::borrow::Cow;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::io::Read;
 use std::ptr;
 
@@ -616,9 +616,9 @@ struct BuiltinTerminfoEntry {
     tc: bool,
     rgb: bool,
     su: bool,
-    max_colors: c_int,
-    lines: c_int,
-    columns: c_int,
+    max_colors: i32,
+    lines: i32,
+    columns: i32,
     defs: [Option<&'static CStr>; K_TERM_COUNT],
     keys: [[Option<&'static CStr>; 2]; K_TERM_KEY_COUNT],
     f_keys: [Option<&'static CStr>; K_TERMINFO_FUNC_KEY_MAX],
@@ -662,9 +662,9 @@ impl TerminfoEntry {
 
 const fn empty_entry(
     back_color_erase: bool,
-    max_colors: c_int,
-    lines: c_int,
-    columns: c_int,
+    max_colors: i32,
+    lines: i32,
+    columns: i32,
 ) -> BuiltinTerminfoEntry {
     BuiltinTerminfoEntry {
         back_color_erase,
@@ -2270,7 +2270,7 @@ const UNIBI_TERMINFO_DIRS: &str = if cfg!(windows) {
 
 struct UnibiTerm {
     bools: [bool; UNIBI_BOOL_COUNT],
-    nums: [c_int; UNIBI_NUM_COUNT],
+    nums: [i32; UNIBI_NUM_COUNT],
     str_offs: [i16; UNIBI_STR_COUNT],
     str_table: Vec<u8>,
     ext_bool_count: usize,
@@ -2292,9 +2292,9 @@ fn get_short16(buf: &[u8], off: usize) -> i16 {
 }
 
 #[inline]
-fn get_int32(buf: &[u8], off: usize) -> c_int {
+fn get_int32(buf: &[u8], off: usize) -> i32 {
     let n = u32::from_le_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]]);
-    if n <= MAX31BITS { n as c_int } else { -1 }
+    if n <= MAX31BITS { n as i32 } else { -1 }
 }
 
 impl UnibiTerm {
@@ -2337,7 +2337,7 @@ impl UnibiTerm {
         let mut nums = [-1; UNIBI_NUM_COUNT];
         for (i, slot) in nums.iter_mut().enumerate().take(numlen) {
             *slot = if numsize == 2 {
-                c_int::from(get_short16(data, pos + i * 2))
+                i32::from(get_short16(data, pos + i * 2))
             } else {
                 get_int32(data, pos + i * 4)
             };
@@ -2466,7 +2466,7 @@ impl UnibiTerm {
     }
 
     #[inline]
-    fn get_num(&self, v: UnibiNumeric) -> c_int {
+    fn get_num(&self, v: UnibiNumeric) -> i32 {
         let idx = (v as usize).wrapping_sub((UnibiNumeric::UnibiNumericBeginMarker as usize) + 1);
         self.nums.get(idx).copied().unwrap_or(-1)
     }
@@ -2887,7 +2887,7 @@ pub fn terminfo_info_msg(ti: &TerminfoEntry, termname: Option<&CStr>, from_db: b
     data
 }
 
-fn push(num: i64, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> c_int {
+fn push(num: i64, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> i32 {
     if stack.offset >= stack.nums.len() {
         return -1;
     }
@@ -2897,7 +2897,7 @@ fn push(num: i64, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> c_int {
     0
 }
 
-fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> c_int {
+fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> i32 {
     unsafe {
         if stack.offset == 0 {
             if !num.is_null() {
@@ -2919,7 +2919,7 @@ fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPST
     }
 }
 
-fn ochar(buf: *mut *mut c_char, buf_end: impl crate::strings::IntoCCharPtr, mut c: c_int) -> bool {
+fn ochar(buf: *mut *mut c_char, buf_end: impl crate::strings::IntoCCharPtr, mut c: i32) -> bool {
     let buf_end = buf_end.into_c_char_ptr();
     unsafe {
         if c == 0 {
@@ -2938,7 +2938,7 @@ fn onum(
     buf: *mut *mut c_char,
     buf_end: impl crate::strings::IntoCCharPtr,
     fmt: impl crate::strings::IntoCCharPtr,
-    num: c_int,
+    num: i32,
     mut len: usize,
 ) -> bool {
     let buf_end = buf_end.into_c_char_ptr();
@@ -2999,7 +2999,7 @@ pub fn terminfo_fmt(
                 if c == NUL {
                     break;
                 }
-                if !ochar(&mut buf, buf_end, c as c_int) {
+                if !ochar(&mut buf, buf_end, c as i32) {
                     return 0;
                 }
                 continue;
@@ -3091,7 +3091,7 @@ pub fn terminfo_fmt(
             match c as u8 {
                 b'c' => {
                     pop(&mut val, None, &mut stack);
-                    if !ochar(&mut buf, buf_end, (val as u8) as c_int) {
+                    if !ochar(&mut buf, buf_end, (val as u8) as i32) {
                         return 0;
                     }
                 }
@@ -3121,7 +3121,7 @@ pub fn terminfo_fmt(
                 }
                 b'd' | b'o' | b'x' | b'X' => {
                     pop(&mut val, None, &mut stack);
-                    if !onum(&mut buf, buf_end, fmt.as_ptr(), val as c_int, olen) {
+                    if !onum(&mut buf, buf_end, fmt.as_ptr(), val as i32, olen) {
                         return 0;
                     }
                 }

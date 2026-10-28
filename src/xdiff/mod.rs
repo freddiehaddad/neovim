@@ -7,7 +7,7 @@ pub mod xpatience;
 pub mod xprepare;
 pub mod xutils;
 
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 
 pub const XDF_NEED_MINIMAL: u64 = 1 << 0;
 
@@ -39,14 +39,14 @@ pub const XDL_EMIT_NO_HUNK_HDR: u64 = 1 << 1;
 #[derive(Copy, Clone, Debug)]
 pub struct Mmfile {
     pub ptr: *mut c_char,
-    pub size: c_int,
+    pub size: i32,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Mmbuffer {
     pub ptr: *mut c_char,
-    pub size: c_int,
+    pub size: i32,
 }
 
 #[repr(C)]
@@ -72,7 +72,7 @@ impl Xdemitcb {
     }
 
     #[inline]
-    pub fn out_line(self, mb: &[Mmbuffer]) -> c_int {
+    pub fn out_line(self, mb: &[Mmbuffer]) -> i32 {
         match self {
             Self::Unified(out) => crate::lua::xdiff::write_string(unsafe { &mut *out }, mb),
             _ => 0,
@@ -80,13 +80,7 @@ impl Xdemitcb {
     }
 
     #[inline]
-    pub fn call_hunk(
-        self,
-        start_a: c_int,
-        count_a: c_int,
-        start_b: c_int,
-        count_b: c_int,
-    ) -> c_int {
+    pub fn call_hunk(self, start_a: i32, count_a: i32, start_b: i32, count_b: i32) -> i32 {
         match self {
             Self::Diff(dout) => unsafe {
                 crate::diff::xdiff_out(start_a, count_a, start_b, count_b, &mut *dout)
@@ -197,14 +191,14 @@ pub struct Xdchange {
     pub i2: i64,
     pub chg1: i64,
     pub chg2: i64,
-    pub ignore: c_int,
+    pub ignore: i32,
 }
 
 pub type EmitFunc =
-    fn(xe: &mut Xdfenv, xscr: &[Xdchange], ecb: &mut Xdemitcb, xecfg: &Xdemitconf) -> c_int;
+    fn(xe: &mut Xdfenv, xscr: &[Xdchange], ecb: &mut Xdemitcb, xecfg: &Xdemitconf) -> i32;
 
 #[inline]
-pub fn xdl_hashlong(v: u64, b: c_uint) -> u64 {
+pub fn xdl_hashlong(v: u64, b: u32) -> u64 {
     v.wrapping_add(v >> b) & (1_u64 << b).wrapping_sub(1)
 }
 

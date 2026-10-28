@@ -8,7 +8,7 @@ use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len}
 use crate::viml::parser::parser::{
     ParserHighlightChunk, ParserLine, ParserPosition, ParserState, viml_parser_get_remaining_line,
 };
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 use crate::eval::STR2NR_ALL;
 use crate::eval::typval::TvFloat;
@@ -26,12 +26,12 @@ pub(crate) const CTRL_H_CONST: u8 = 8;
 const CTRL_K_CONST_CONST: u8 = 11;
 const CTRL_Z_CONST_CONST: u8 = 26;
 
-pub type ExprCaseCompareStrategy = c_int;
+pub type ExprCaseCompareStrategy = i32;
 pub const K_CCSTRATEGY_USE_OPTION: ExprCaseCompareStrategy = 0;
-pub const K_CCSTRATEGY_MATCH_CASE: ExprCaseCompareStrategy = b'#' as c_int;
-pub const K_CCSTRATEGY_IGNORE_CASE: ExprCaseCompareStrategy = b'?' as c_int;
+pub const K_CCSTRATEGY_MATCH_CASE: ExprCaseCompareStrategy = b'#' as i32;
+pub const K_CCSTRATEGY_IGNORE_CASE: ExprCaseCompareStrategy = b'?' as i32;
 
-pub type LexExprTokenType = c_int;
+pub type LexExprTokenType = i32;
 pub const K_EXPR_LEX_INVALID: LexExprTokenType = 0;
 pub const K_EXPR_LEX_MISSING: LexExprTokenType = 1;
 pub const K_EXPR_LEX_SPACING: LexExprTokenType = 2;
@@ -60,37 +60,37 @@ pub const K_EXPR_LEX_COMMA: LexExprTokenType = 24;
 pub const K_EXPR_LEX_ARROW: LexExprTokenType = 25;
 pub const K_EXPR_LEX_ASSIGNMENT: LexExprTokenType = 26;
 
-pub type ExprComparisonType = c_int;
+pub type ExprComparisonType = i32;
 pub const K_EXPR_CMP_EQUAL: ExprComparisonType = 0;
 pub const K_EXPR_CMP_MATCHES: ExprComparisonType = 1;
 pub const K_EXPR_CMP_GREATER: ExprComparisonType = 2;
 pub const K_EXPR_CMP_GREATER_OR_EQUAL: ExprComparisonType = 3;
 pub const K_EXPR_CMP_IDENTICAL: ExprComparisonType = 4;
 
-pub type ExprOptScope = c_int;
+pub type ExprOptScope = i32;
 pub const K_EXPR_OPT_SCOPE_UNSPECIFIED: ExprOptScope = 0;
 
-pub type ExprAssignmentType = c_int;
+pub type ExprAssignmentType = i32;
 pub const K_EXPR_ASGN_PLAIN: ExprAssignmentType = 0;
 pub const K_EXPR_ASGN_ADD: ExprAssignmentType = 1;
 pub const K_EXPR_ASGN_SUBTRACT: ExprAssignmentType = 2;
 pub const K_EXPR_ASGN_CONCAT: ExprAssignmentType = 3;
 
-pub type ExprVarScope = c_int;
+pub type ExprVarScope = i32;
 pub const K_EXPR_VAR_SCOPE_MISSING: ExprVarScope = 0;
 
-pub type LexExprMulType = c_int;
+pub type LexExprMulType = i32;
 pub const K_EXPR_LEX_MUL_MUL: LexExprMulType = 0;
 pub const K_EXPR_LEX_MUL_DIV: LexExprMulType = 1;
 pub const K_EXPR_LEX_MUL_MOD: LexExprMulType = 2;
 
-pub const K_ELFLAG_PEEK: c_int = 1 << 0;
-pub const K_ELFLAG_FORBID_SCOPE: c_int = 1 << 1;
-pub const K_ELFLAG_ALLOW_FLOAT: c_int = 1 << 2;
-pub const K_ELFLAG_IS_NOT_CMP: c_int = 1 << 3;
-pub const K_ELFLAG_FORBID_EOC: c_int = 1 << 4;
+pub const K_ELFLAG_PEEK: i32 = 1 << 0;
+pub const K_ELFLAG_FORBID_SCOPE: i32 = 1 << 1;
+pub const K_ELFLAG_ALLOW_FLOAT: i32 = 1 << 2;
+pub const K_ELFLAG_IS_NOT_CMP: i32 = 1 << 3;
+pub const K_ELFLAG_FORBID_EOC: i32 = 1 << 4;
 
-pub type ExprASTNodeType = c_int;
+pub type ExprASTNodeType = i32;
 pub const K_EXPR_NODE_MISSING: ExprASTNodeType = 0;
 pub const K_EXPR_NODE_OP_MISSING: ExprASTNodeType = 1;
 pub const K_EXPR_NODE_TERNARY: ExprASTNodeType = 2;
@@ -131,9 +131,9 @@ pub const K_EXPR_NODE_OPTION: ExprASTNodeType = 36;
 pub const K_EXPR_NODE_ENVIRONMENT: ExprASTNodeType = 37;
 pub const K_EXPR_NODE_ASSIGNMENT: ExprASTNodeType = 38;
 
-pub const K_EXPR_FLAGS_MULTI: c_int = 1 << 0;
-pub const K_EXPR_FLAGS_DISALLOW_EOC: c_int = 1 << 1;
-pub const K_EXPR_FLAGS_PARSE_LET: c_int = 1 << 2;
+pub const K_EXPR_FLAGS_MULTI: i32 = 1 << 0;
+pub const K_EXPR_FLAGS_DISALLOW_EOC: i32 = 1 << 1;
+pub const K_EXPR_FLAGS_PARSE_LET: i32 = 1 << 2;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -180,7 +180,7 @@ impl LexExprTokenBrc {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenReg {
-    pub name: c_int,
+    pub name: i32,
 }
 
 impl LexExprTokenReg {
@@ -570,7 +570,7 @@ impl LexExprToken {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeReg {
-    pub name: c_int,
+    pub name: i32,
 }
 
 impl ExprASTNodeReg {
@@ -1016,7 +1016,7 @@ impl ExprASTNode {
 pub struct ExprASTError {
     pub msg: Option<&'static std::ffi::CStr>,
     pub arg: *const c_char,
-    pub arg_len: c_int,
+    pub arg_len: i32,
 }
 
 #[repr(C)]
@@ -1268,7 +1268,7 @@ fn scale_number(num: TvFloat, base: u8, exponent: Uvarnumber, exponent_negative:
 fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
     if ret.len < bytes.len() && (bytes[ret.len] == b'?' || bytes[ret.len] == b'#') {
         if ret.r#type == K_EXPR_LEX_COMPARISON {
-            ret.data.cmp_mut().ccs = c_int::from(bytes[ret.len]);
+            ret.data.cmp_mut().ccs = i32::from(bytes[ret.len]);
         }
         ret.len += 1;
     } else if ret.r#type == K_EXPR_LEX_COMPARISON {
@@ -1277,7 +1277,7 @@ fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
 }
 
 /// Get next token for the Vimscript expression input (`viml_pexpr_next_token`).
-pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexExprToken {
+pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: i32) -> LexExprToken {
     unsafe {
         let mut ret = LexExprToken::new();
         ret.r#type = K_EXPR_LEX_INVALID;
@@ -1424,7 +1424,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                             0,
                             None,
                             Some(&mut exp_part),
-                            (ret.len - exp_start) as c_int,
+                            (ret.len - exp_start) as i32,
                             false,
                             None,
                         );
@@ -1444,8 +1444,8 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                         exp_negative,
                     ));
                 } else {
-                    let mut len: c_int = 0;
-                    let mut prep: c_int = 0;
+                    let mut len: i32 = 0;
+                    let mut prep: i32 = 0;
                     let mut int_val: Uvarnumber = 0;
                     vim_str2nr(
                         pline.data,
@@ -1454,7 +1454,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                         STR2NR_ALL,
                         None,
                         Some(&mut int_val),
-                        pline.size as c_int,
+                        pline.size as i32,
                         false,
                         None,
                     );
@@ -1497,7 +1497,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                     && (flags & K_ELFLAG_FORBID_SCOPE) == 0
                 {
                     ret.len += 1;
-                    ret.data.var_mut().scope = c_int::from(schar);
+                    ret.data.var_mut().scope = i32::from(schar);
                     ret.r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
                     while ret.len < bytes.len()
                         && (ascii_isident(bytes[ret.len]) || bytes[ret.len] == AUTOLOAD_CHAR)
@@ -1528,7 +1528,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                     let p_offset: usize =
                         if bytes.len() > 2 && bytes[2] == b':' && is_opt_scope(bytes[1]) {
                             ret.len += 2;
-                            ret.data.opt_mut().scope = c_int::from(bytes[1]);
+                            ret.data.opt_mut().scope = i32::from(bytes[1]);
                             ret.data.opt_mut().name = pline.data.add(3);
                             3
                         } else {
@@ -1562,7 +1562,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                 ret.r#type = K_EXPR_LEX_REGISTER;
                 if bytes.len() > 1 {
                     ret.len += 1;
-                    ret.data.reg_mut().name = c_int::from(bytes[1]);
+                    ret.data.reg_mut().name = i32::from(bytes[1]);
                 } else {
                     ret.data.reg_mut().name = -1;
                 }
@@ -1687,7 +1687,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                 }
             }
             _ => {
-                ret.len = utfc_ptr2len_len(pline.data, pline.size as c_int) as usize;
+                ret.len = utfc_ptr2len_len(pline.data, pline.size as i32) as usize;
                 ret.r#type = K_EXPR_LEX_INVALID;
                 ret.data.err_mut().r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
                 ret.data.err_mut().msg = Some(c"E15: Unidentified character: %.*s");
@@ -1761,7 +1761,7 @@ fn east_set_error(
         }
         let pline = pstate.reader.lines.as_slice()[start.line];
         ret_ast_err.msg = Some(msg);
-        ret_ast_err.arg_len = (pline.size - start.col) as c_int;
+        ret_ast_err.arg_len = (pline.size - start.col) as i32;
         ret_ast_err.arg = if pline.data.is_null() {
             std::ptr::null()
         } else {
@@ -1980,7 +1980,7 @@ fn parse_quoted_string(
                             } else {
                                 8
                             };
-                            let mut nr: c_int = 0;
+                            let mut nr: i32 = 0;
                             p = p.add(1);
                             while (p.add(1) as usize) < (e as usize)
                                 && n != 0
@@ -1989,7 +1989,7 @@ fn parse_quoted_string(
                                 n -= 1;
                                 p = p.add(1);
                                 nr = (nr << 4)
-                                    + hex2nr(c_int::from(crate::memory::cstr_first_byte(p)));
+                                    + hex2nr(i32::from(crate::memory::cstr_first_byte(p)));
                             }
                             let esc_len = (p as usize) - (esc_start as usize - 1);
                             let char_len = utf_char2len(nr) as usize;
@@ -2100,7 +2100,7 @@ fn parse_quoted_string(
                                 } else {
                                     8
                                 };
-                                let mut nr: c_int = 0;
+                                let mut nr: i32 = 0;
                                 while (p.add(1) as usize) < (e as usize)
                                     && n != 0
                                     && ascii_isxdigit(crate::memory::cstr_byte_at(p, 1))
@@ -2108,7 +2108,7 @@ fn parse_quoted_string(
                                     n -= 1;
                                     p = p.add(1);
                                     nr = (nr << 4)
-                                        + hex2nr(c_int::from(crate::memory::cstr_first_byte(p)));
+                                        + hex2nr(i32::from(crate::memory::cstr_first_byte(p)));
                                 }
                                 p = p.add(1);
                                 if is_hex {
@@ -2277,7 +2277,7 @@ fn parse_quoted_string(
     }
 }
 
-const WANT_NODE_TO_LEXER_FLAGS: [c_int; 2] = [
+const WANT_NODE_TO_LEXER_FLAGS: [i32; 2] = [
     K_ELFLAG_FORBID_SCOPE, // Operator
     K_ELFLAG_IS_NOT_CMP,   // Value
 ];
@@ -2285,7 +2285,7 @@ const WANT_NODE_TO_LEXER_FLAGS: [c_int; 2] = [
 const BASE_TO_PREFIX_LENGTH: [usize; 17] = [0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2];
 
 /// Parse one Vimscript expression (`viml_pexpr_parse`).
-pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
+pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
     unsafe {
         let mut ast = ExprAST {
             err: ExprASTError {
@@ -2724,7 +2724,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                                 pline.data.add(cur_token.start.col + cur_token.len);
                             cur_node.data.opt_mut().ident_len = 0;
                             cur_node.data.opt_mut().scope = if cur_token.len == 3 {
-                                c_int::from(crate::memory::cstr_byte_at(
+                                i32::from(crate::memory::cstr_byte_at(
                                     pline.data,
                                     cur_token.start.col + 1,
                                 ))
@@ -4266,7 +4266,7 @@ mod tests {
         f(&mut pstate)
     }
 
-    fn lex_one(input: &[u8], flags: c_int) -> LexExprToken {
+    fn lex_one(input: &[u8], flags: i32) -> LexExprToken {
         with_pstate(input, |pstate| viml_pexpr_next_token(pstate, flags))
     }
 
@@ -4339,7 +4339,7 @@ mod tests {
         // Scope and K_ELFLAG_FORBID_SCOPE
         let t = lex_one(b"g:test#var", 0);
         assert_eq!(t.r#type, K_EXPR_LEX_PLAIN_IDENTIFIER);
-        assert_eq!(t.data.var().scope, b'g' as c_int);
+        assert_eq!(t.data.var().scope, b'g' as i32);
         assert!(t.data.var().autoload);
 
         let t = lex_one(b"g:test", K_ELFLAG_FORBID_SCOPE);
@@ -4350,7 +4350,7 @@ mod tests {
         // Options, registers, env, strings, assignments
         let t = lex_one(b"&l:opt", 0);
         assert_eq!(t.r#type, K_EXPR_LEX_OPTION);
-        assert_eq!(t.data.opt().scope, b'l' as c_int);
+        assert_eq!(t.data.opt().scope, b'l' as i32);
         assert_eq!(t.data.opt().len, 3);
 
         let t = lex_one(b"&g:", 0);
@@ -4362,7 +4362,7 @@ mod tests {
 
         let t = lex_one(b"@a", 0);
         assert_eq!(t.r#type, K_EXPR_LEX_REGISTER);
-        assert_eq!(t.data.reg().name, b'a' as c_int);
+        assert_eq!(t.data.reg().name, b'a' as i32);
 
         let t = lex_one(b"'x'''", 0);
         assert_eq!(t.r#type, K_EXPR_LEX_SINGLE_QUOTED_STRING);

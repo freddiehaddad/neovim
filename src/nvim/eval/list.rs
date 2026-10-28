@@ -24,7 +24,7 @@ use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
 use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
 use crate::message::{emsg, semsg};
 use crate::strings::reverse_text;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FilterMap {
@@ -35,7 +35,7 @@ enum FilterMap {
 }
 
 #[inline]
-fn tv_blob_set(b: &mut TvBlob, idx: c_int, c: u8) {
+fn tv_blob_set(b: &mut TvBlob, idx: i32, c: u8) {
     (&mut b.bv_ga)[idx as usize] = c;
 }
 
@@ -130,7 +130,7 @@ fn filter_map_dict(
                 let di = crate::eval::typval::tv_dict_hi2di(hi);
                 if filtermap == FilterMap::Map
                     && (value_check_lock(di.di_tv.v_lock, arg_errmsg, TV_TRANSLATE)
-                        || var_check_ro(di.di_flags as c_int, arg_errmsg, TV_TRANSLATE))
+                        || var_check_ro(di.di_flags as i32, arg_errmsg, TV_TRANSLATE))
                 {
                     break;
                 }
@@ -160,8 +160,8 @@ fn filter_map_dict(
                         break;
                     }
                 } else if filtermap == FilterMap::Filter && rem {
-                    if var_check_fixed(di.di_flags as c_int, arg_errmsg, TV_TRANSLATE)
-                        || var_check_ro(di.di_flags as c_int, arg_errmsg, TV_TRANSLATE)
+                    if var_check_fixed(di.di_flags as i32, arg_errmsg, TV_TRANSLATE)
+                        || var_check_ro(di.di_flags as i32, arg_errmsg, TV_TRANSLATE)
                     {
                         break;
                     }
@@ -210,9 +210,9 @@ fn filter_map_blob(
             (*b).bv_lock = VAR_LOCKED;
         }
 
-        let mut i: c_int = 0;
+        let mut i: i32 = 0;
         let mut idx: i64 = 0;
-        while i < (*b).bv_ga.len() as c_int {
+        while i < (*b).bv_ga.len() as i32 {
             let val = tv_blob_get(&*b, i) as i64;
             let mut tv = TypVal {
                 v_type: VarType::VarNumber,
@@ -569,7 +569,7 @@ fn count_list(l: Option<&mut TvList>, needle: &TypVal, idx: i64, ic: bool) -> i6
         if tv_list_len(l.as_deref()) == 0 {
             return 0;
         }
-        let mut li = tv_list_find(l, idx as c_int);
+        let mut li = tv_list_find(l, idx as i32);
         if li.is_null() {
             semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, idx);
             return 0;
@@ -745,7 +745,7 @@ fn extend_list(
             let mut item: *mut Listitem = std::ptr::null_mut();
             let arg2 = &argvars[2];
             if arg2.v_type != VarType::VarUnknown {
-                let before = tv_get_number_chk(arg2, Some(&mut error)) as c_int;
+                let before = tv_get_number_chk(arg2, Some(&mut error)) as i32;
                 if error {
                     if is_new {
                         tv_list_unref(l1);
@@ -828,11 +828,11 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 return;
             }
 
-            let mut before: c_int = 0;
+            let mut before: i32 = 0;
             let len = tv_blob_len(b.as_ref());
 
             if arg2.v_type != VarType::VarUnknown {
-                before = tv_get_number_chk(arg2, Some(&mut error)) as c_int;
+                before = tv_get_number_chk(arg2, Some(&mut error)) as i32;
                 if error {
                     return;
                 }
@@ -841,7 +841,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                     return;
                 }
             }
-            let val = tv_get_number_chk(arg1, Some(&mut error)) as c_int;
+            let val = tv_get_number_chk(arg1, Some(&mut error)) as i32;
             if error {
                 return;
             }
@@ -877,7 +877,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
             let mut item: *mut Listitem = std::ptr::null_mut();
             if before != (tv_list_len(l.as_ref()) as i64) {
-                item = tv_list_find(l.as_mut(), before as c_int);
+                item = tv_list_find(l.as_mut(), before as i32);
                 if item.is_null() {
                     semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before);
                     l = std::ptr::null_mut();

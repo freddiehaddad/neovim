@@ -16,34 +16,34 @@ use crate::os::env::{expand_env_save, home_replace};
 use crate::path::fix_fname;
 use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp_box, vim_regexec_prog};
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
-use std::ffi::{CString, c_char, c_int};
+use std::ffi::{CString, c_char};
 
-const DBG_FUNC: c_int = 1;
-const DBG_FILE: c_int = 2;
-const DBG_EXPR: c_int = 3;
+const DBG_FUNC: i32 = 1;
+const DBG_FILE: i32 = 2;
+const DBG_EXPR: i32 = 3;
 
-const CMD_BREAKDEL: c_int = 38;
-const CMD_PROFILE: c_int = 338;
-const CMD_PROFDEL: c_int = 339;
+const CMD_BREAKDEL: i32 = 38;
+const CMD_PROFILE: i32 = 338;
+const CMD_PROFDEL: i32 = 339;
 
-const CMD_CONT: c_int = 1;
-const CMD_NEXT: c_int = 2;
-const CMD_STEP: c_int = 3;
-const CMD_FINISH: c_int = 4;
-const CMD_QUIT: c_int = 5;
-const CMD_INTERRUPT: c_int = 6;
-const CMD_BACKTRACE: c_int = 7;
-const CMD_FRAME: c_int = 8;
-const CMD_UP: c_int = 9;
-const CMD_DOWN: c_int = 10;
+const CMD_CONT: i32 = 1;
+const CMD_NEXT: i32 = 2;
+const CMD_STEP: i32 = 3;
+const CMD_FINISH: i32 = 4;
+const CMD_QUIT: i32 = 5;
+const CMD_INTERRUPT: i32 = 6;
+const CMD_BACKTRACE: i32 = 7;
+const CMD_FRAME: i32 = 8;
+const CMD_UP: i32 = 9;
+const CMD_DOWN: i32 = 10;
 
 struct DebuggerState {
     debug_greedy: bool,
-    last_cmd: c_int,
-    last_breakp: c_int,
+    last_cmd: i32,
+    last_breakp: i32,
     has_expr_breakpoint: bool,
     debug_skipped: bool,
-    debug_breakpoint_lnum: c_int,
+    debug_breakpoint_lnum: i32,
     debug_oldval: Option<CString>,
     debug_newval: Option<CString>,
     debug_breakpoint_name: *mut c_char,
@@ -89,14 +89,14 @@ fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<Debuggy> {
 
 #[repr(C)]
 pub struct Debuggy {
-    pub dbg_nr: c_int,
-    pub dbg_type: c_int,
+    pub dbg_nr: i32,
+    pub dbg_type: i32,
     pub dbg_name: std::ffi::CString,
     pub dbg_prog: Option<Box<crate::regexp::Regprog>>,
     pub dbg_lnum: i32,
-    pub dbg_forceit: c_int,
+    pub dbg_forceit: i32,
     pub dbg_val: Option<TypVal>,
-    pub dbg_level: c_int,
+    pub dbg_level: i32,
 }
 
 impl Drop for Debuggy {
@@ -113,13 +113,13 @@ use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
 use crate::os::fs::MAXPATHL;
 use crate::state::MODE_NORMAL;
 
-fn get_maxbacktrace_level(sname: impl crate::strings::IntoCCharPtr) -> c_int {
+fn get_maxbacktrace_level(sname: impl crate::strings::IntoCCharPtr) -> i32 {
     let sname = sname.into_c_char_ptr();
     if sname.is_null() {
         return 0;
     }
     let bytes = { crate::memory::cstr_as_bytes(sname) };
-    let mut count: c_int = 0;
+    let mut count: i32 = 0;
     let mut i = 0usize;
     while i + 1 < bytes.len() {
         if bytes[i] == b'.' && bytes[i + 1] == b'.' {
@@ -149,7 +149,7 @@ fn do_checkbacktracelevel() {
 fn do_setdebugtracelevel(arg: impl crate::strings::IntoCCharPtr) {
     let arg = arg.into_c_char_ptr();
     {
-        let level = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
+        let level = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as i32;
         if crate::memory::cstr_first_byte(arg) == b'+' || level < 0 {
             g_st().debug_backtrace_level += level;
         } else {
@@ -171,7 +171,7 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) {
                 .iter()
                 .map(|&b| b as c_char)
                 .collect();
-            let mut i: c_int = 0;
+            let mut i: i32 = 0;
             let mut cur = sname_vec.as_mut_ptr();
             while !g_st().got_int {
                 let cur_bytes = crate::memory::cstr_as_bytes(cur);
@@ -268,7 +268,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
             g_st().debug_break_level = -1;
 
             cmdline_cstr = getcmdline_prompt(
-                b'>' as c_int,
+                b'>' as i32,
                 std::ptr::null(),
                 0,
                 EXPAND_NOTHING,
@@ -295,7 +295,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
                 if *p != 0 {
                     let b0 = crate::memory::cstr_first_byte(p);
                     let b1 = crate::memory::cstr_byte_at(p, 1);
-                    let (mut lcmd, mut tail): (c_int, &[u8]) = match b0 {
+                    let (mut lcmd, mut tail): (i32, &[u8]) = match b0 {
                         b'c' => (CMD_CONT, b"ont"),
                         b'n' => (CMD_NEXT, b"ext"),
                         b's' => (CMD_STEP, b"tep"),
@@ -638,8 +638,7 @@ pub fn ex_breakdel(eap: &mut Exarg) {
 
         let first_byte = crate::memory::cstr_first_byte(eap.arg);
         if first_byte.is_ascii_digit() {
-            let nr =
-                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int;
+            let nr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32;
             if let Some(idx) = gap.iter().position(|bp| bp.dbg_nr == nr) {
                 todel = idx as isize;
             }

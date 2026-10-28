@@ -43,21 +43,21 @@ use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::syntax::syn_get_foldlevel;
 use crate::undo::u_save;
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 use crate::state::MODE_INSERT;
 
 pub const FOLD_TEXT_LEN: usize = 51;
-const MAX_LEVEL: c_int = 20;
+const MAX_LEVEL: i32 = 20;
 
 const FD_OPEN: c_char = 0;
 const FD_CLOSED: c_char = 1;
 const FD_LEVEL: c_char = 2;
 
-const DONE_NOTHING: c_int = 0;
-const DONE_ACTION: c_int = 1;
-const DONE_FOLD: c_int = 2;
+const DONE_NOTHING: i32 = 0;
+const DONE_ACTION: i32 = 1;
+const DONE_FOLD: i32 = 2;
 
 const K_WIN_OPT_FOLDTEXT: usize = 22;
 
@@ -85,11 +85,11 @@ struct Fline {
     lnum: Linenr,
     off: Linenr,
     lnum_save: Linenr,
-    lvl: c_int,
-    lvl_next: c_int,
-    start: c_int,
-    end: c_int,
-    had_end: c_int,
+    lvl: i32,
+    lvl_next: i32,
+    start: i32,
+    end: i32,
+    had_end: i32,
 }
 
 struct FoldModuleState {
@@ -97,7 +97,7 @@ struct FoldModuleState {
     invalid_top: Linenr,
     invalid_bot: Linenr,
     prev_lnum: Linenr,
-    prev_lnum_lvl: c_int,
+    prev_lnum_lvl: i32,
     foldstartmarkerlen: usize,
     foldendmarker: *mut c_char,
     foldendmarkerlen: usize,
@@ -146,9 +146,9 @@ pub fn copy_folding_state(wp_from: &mut WinInfoInfo, wp_to: &mut WinInfoInfo) {
 }
 
 /// True if there may be folded lines in window `win`.
-pub fn has_any_folding(win: &mut WinInfoInfo) -> c_int {
+pub fn has_any_folding(win: &mut WinInfoInfo) -> i32 {
     {
-        c_int::from(
+        i32::from(
             win.buf_mut().terminal.is_null()
                 && win.w_onebuf_opt.wo_fen != 0
                 && !mc_replaying()
@@ -201,8 +201,8 @@ pub fn has_folding_win(
         }
 
         let mut lnum_rel = lnum;
-        let mut level: c_int = 0;
-        let mut low_level: c_int = 0;
+        let mut level: i32 = 0;
+        let mut low_level: i32 = 0;
         let mut maybe_small = false;
         let mut use_level = false;
 
@@ -261,7 +261,7 @@ pub fn has_folding_win(
     }
 }
 
-fn fold_level(lnum: Linenr) -> c_int {
+fn fold_level(lnum: Linenr) -> i32 {
     {
         if fold_st().invalid_top == 0 {
             checkupdate(curwin_mut());
@@ -343,7 +343,7 @@ pub fn foldmethod_is_diff(wp: &mut WinInfoInfo) -> bool {
 }
 
 /// Close fold for current window at position "pos".
-pub fn close_fold(pos: CursorPos, count: c_int) {
+pub fn close_fold(pos: CursorPos, count: i32) {
     set_fold_repeat(pos, count, false);
 }
 
@@ -356,8 +356,8 @@ pub fn close_fold_recurse(pos: CursorPos) {
 pub fn op_fold_range(
     firstpos: CursorPos,
     lastpos: CursorPos,
-    opening: c_int,
-    recurse: c_int,
+    opening: i32,
+    recurse: i32,
     had_visual: bool,
 ) {
     {
@@ -392,7 +392,7 @@ pub fn op_fold_range(
 }
 
 /// Open fold for current window at position "pos".
-pub fn open_fold(pos: CursorPos, count: c_int) {
+pub fn open_fold(pos: CursorPos, count: i32) {
     set_fold_repeat(pos, count, true);
 }
 
@@ -458,14 +458,14 @@ pub fn fold_check_close() {
         if check_close_rec(
             &mut curwin_mut().w_folds,
             curwin_mut().w_cursor.lnum,
-            curwin_mut().w_onebuf_opt.wo_fdl as c_int,
+            curwin_mut().w_onebuf_opt.wo_fdl as i32,
         ) {
             changed_window_setting(curwin_mut());
         }
     }
 }
 
-fn check_close_rec(gap: &mut [FoldEntry], lnum: Linenr, level: c_int) -> bool {
+fn check_close_rec(gap: &mut [FoldEntry], lnum: Linenr, level: i32) -> bool {
     let mut retval = false;
     for entry in gap {
         if entry.fd_flags == FD_OPEN {
@@ -480,7 +480,7 @@ fn check_close_rec(gap: &mut [FoldEntry], lnum: Linenr, level: c_int) -> bool {
     retval
 }
 
-pub fn fold_manual_allowed(create: bool) -> c_int {
+pub fn fold_manual_allowed(create: bool) -> i32 {
     {
         if foldmethod_is_manual(curwin_mut()) || foldmethod_is_marker(curwin_mut()) {
             return 1;
@@ -503,7 +503,7 @@ pub fn fold_manual_allowed(create: bool) -> c_int {
 pub fn fold_create(wp: &mut WinInfoInfo, mut start: CursorPos, mut end: CursorPos) {
     let mut use_level = false;
     let mut closed = false;
-    let mut level: c_int = 0;
+    let mut level: i32 = 0;
     let mut start_rel = start;
     let mut end_rel = end;
 
@@ -596,14 +596,14 @@ pub fn delete_fold(
     wp: &mut WinInfoInfo,
     start: Linenr,
     end: Linenr,
-    recursive: c_int,
+    recursive: i32,
     had_visual: bool,
 ) {
     unsafe {
         let mut found_fp: *mut FoldEntry = ptr::null_mut();
         let mut found_off: Linenr = 0;
         let mut maybe_small = false;
-        let mut level: c_int = 0;
+        let mut level: i32 = 0;
         let mut lnum = start;
         let mut did_one = false;
         let mut first_lnum = MAXLNUM;
@@ -643,7 +643,7 @@ pub fn delete_fold(
                 lnum = (*found_fp).fd_top + (*found_fp).fd_len + found_off;
 
                 if foldmethod_is_manual(&mut *wp) {
-                    let idx = found_fp.offset_from((*found_ga).as_ptr()) as c_int;
+                    let idx = found_fp.offset_from((*found_ga).as_ptr()) as i32;
                     delete_fold_entry(&mut *found_ga, idx, recursive != 0);
                 } else {
                     first_lnum = first_lnum.min((*found_fp).fd_top + found_off);
@@ -742,7 +742,7 @@ pub fn fold_update_all(win: &mut WinInfoInfo) {
     redraw_later(Some(&mut *win), UPD_NOT_VALID);
 }
 
-pub fn fold_move_to(updown: bool, dir: c_int, count: c_int) -> bool {
+pub fn fold_move_to(updown: bool, dir: i32, count: i32) -> bool {
     {
         let mut retval = false;
 
@@ -757,7 +757,7 @@ pub fn fold_move_to(updown: bool, dir: c_int, count: c_int) -> bool {
             let mut use_level = false;
             let mut maybe_small = false;
             let mut lnum_found = curwin_mut().w_cursor.lnum;
-            let mut level: c_int = 0;
+            let mut level: i32 = 0;
             let mut last = false;
             loop {
                 let (found, idx) = fold_find(gap, curwin_mut().w_cursor.lnum - lnum_off);
@@ -862,7 +862,7 @@ pub fn fold_init_win(new_win: &mut WinInfoInfo) {
 }
 
 /// Find an entry in the win->w_lines[] array for buffer line "lnum".
-pub fn find_wl_entry(win: &mut WinInfoInfo, lnum: Linenr) -> c_int {
+pub fn find_wl_entry(win: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     let valid_len = win.w_lines_valid.max(0) as usize;
     for (i, wl) in (&win.w_lines)[..valid_len].iter().enumerate() {
         if wl.wl_valid {
@@ -870,7 +870,7 @@ pub fn find_wl_entry(win: &mut WinInfoInfo, lnum: Linenr) -> c_int {
                 return -1;
             }
             if lnum <= wl.wl_foldend {
-                return i as c_int;
+                return i as i32;
             }
         }
     }
@@ -943,9 +943,9 @@ fn fold_find(gap: &[FoldEntry], lnum: Linenr) -> (bool, usize) {
     (false, low)
 }
 
-fn fold_level_win(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
+fn fold_level_win(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     let mut lnum_rel = lnum;
-    let mut level: c_int = 0;
+    let mut level: i32 = 0;
 
     let mut gap: &[FoldEntry] = &wp.w_folds;
     while let (true, idx) = fold_find(gap, lnum_rel) {
@@ -968,7 +968,7 @@ fn checkupdate(wp: &mut WinInfoInfo) {
     }
 }
 
-fn set_fold_repeat(pos: CursorPos, count: c_int, do_open: bool) {
+fn set_fold_repeat(pos: CursorPos, count: i32, do_open: bool) {
     for n in 0..count {
         let mut done = DONE_NOTHING;
         set_manual_fold(pos, do_open, false, Some(&mut done));
@@ -985,7 +985,7 @@ fn set_manual_fold(
     pos: CursorPos,
     opening: bool,
     recurse: bool,
-    donep: Option<&mut c_int>,
+    donep: Option<&mut i32>,
 ) -> Linenr {
     {
         if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
@@ -1011,16 +1011,16 @@ fn set_manual_fold_win(
     mut lnum: Linenr,
     opening: bool,
     recurse: bool,
-    mut donep: Option<&mut c_int>,
+    mut donep: Option<&mut i32>,
 ) -> Linenr {
     unsafe {
         let mut found: *mut FoldEntry = ptr::null_mut();
-        let mut level: c_int = 0;
+        let mut level: i32 = 0;
         let mut use_level = false;
         let mut found_fold = false;
         let mut next = MAXLNUM;
         let mut off: Linenr = 0;
-        let mut done: c_int = 0;
+        let mut done: i32 = 0;
 
         checkupdate(wp);
 
@@ -1105,7 +1105,7 @@ fn fold_open_nested(fpr: &mut FoldEntry) {
     }
 }
 
-fn delete_fold_entry(gap: &mut Vec<FoldEntry>, idx: c_int, recursive: bool) {
+fn delete_fold_entry(gap: &mut Vec<FoldEntry>, idx: i32, recursive: bool) {
     let idx = idx as usize;
     if recursive || gap[idx].fd_nested.is_empty() {
         gap.remove(idx);
@@ -1179,7 +1179,7 @@ fn fold_mark_adjust_recurse(
             gap[i].fd_top += amount_after;
         } else if gap[i].fd_top >= top && last <= line2 {
             if amount == MAXLNUM {
-                delete_fold_entry(gap, i as c_int, true);
+                delete_fold_entry(gap, i as i32, true);
                 continue;
             } else {
                 gap[i].fd_top += amount;
@@ -1232,13 +1232,13 @@ fn fold_mark_adjust_recurse(
 
 /// Get the lowest 'foldlevel' value that makes the deepest nested fold in
 /// window `wp`.
-pub fn get_deepest_nesting(wp: &mut WinInfoInfo) -> c_int {
+pub fn get_deepest_nesting(wp: &mut WinInfoInfo) -> i32 {
     checkupdate(&mut *wp);
     get_deepest_nesting_recurse(&wp.w_folds)
 }
 
-fn get_deepest_nesting_recurse(gap: &[FoldEntry]) -> c_int {
-    let mut maxlevel: c_int = 0;
+fn get_deepest_nesting_recurse(gap: &[FoldEntry]) -> i32 {
+    let mut maxlevel: i32 = 0;
     for entry in gap {
         let level = get_deepest_nesting_recurse(&entry.fd_nested) + 1;
         maxlevel = maxlevel.max(level);
@@ -1250,7 +1250,7 @@ fn check_closed(
     wp: &mut WinInfoInfo,
     fp: &mut FoldEntry,
     use_levelp: &mut bool,
-    level: c_int,
+    level: i32,
     maybe_smallp: &mut bool,
     lnum_off: Linenr,
 ) -> bool {
@@ -1293,7 +1293,7 @@ fn check_small(wp: &mut WinInfoInfo, fp: &mut FoldEntry, lnum_off: Linenr) {
         if i64::from(fp.fd_len) > wp.w_onebuf_opt.wo_fml {
             fp.fd_small = K_FALSE;
         } else {
-            let mut count: c_int = 0;
+            let mut count: i32 = 0;
             for n in 0..fp.fd_len {
                 count += plines_win_nofold(wp, fp.fd_top + lnum_off + n);
                 if i64::from(count) > wp.w_onebuf_opt.wo_fml {
@@ -1448,7 +1448,7 @@ fn fold_del_marker(
                 continue;
             }
             let mut len = markerlen;
-            if ascii_isdigit(crate::memory::cstr_byte_at(p, len) as c_int) {
+            if ascii_isdigit(crate::memory::cstr_byte_at(p, len) as i32) {
                 len += 1;
             }
             if !crate::memory::cstr_is_empty(cms) {
@@ -1525,7 +1525,7 @@ pub fn get_foldtext(
             set_vim_var_nr(VV_FOLDSTART, Varnumber::from(lnum));
             set_vim_var_nr(VV_FOLDEND, Varnumber::from(lnume));
 
-            let level = foldinfo.fi_level.min((dashes.len() - 1) as c_int).max(0);
+            let level = foldinfo.fi_level.min((dashes.len() - 1) as i32).max(0);
             ptr::write_bytes(dashes.as_mut_ptr().cast::<u8>(), b'-', level as usize);
             dashes[level as usize] = NUL;
             set_vim_var_string(VV_FOLDDASHES, dashes.as_ptr(), level as isize);
@@ -1616,7 +1616,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
         let cms_start = skipwhite(curbuf_mut().b_p_cms);
         let mut cms_slen = crate::memory::cstr_len(cms_start);
         while cms_slen > 0
-            && ascii_iswhite(crate::memory::cstr_byte_at(cms_start, cms_slen - 1) as c_int)
+            && ascii_iswhite(crate::memory::cstr_byte_at(cms_start, cms_slen - 1) as i32)
         {
             cms_slen -= 1;
         }
@@ -1632,7 +1632,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
             cms_slen = start_off;
 
             while cms_slen > 0
-                && ascii_iswhite(crate::memory::cstr_byte_at(cms_start, cms_slen - 1) as c_int)
+                && ascii_iswhite(crate::memory::cstr_byte_at(cms_start, cms_slen - 1) as i32)
             {
                 cms_slen -= 1;
             }
@@ -1663,12 +1663,12 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
                 len = fold_st().foldendmarkerlen;
             }
             if len > 0 {
-                if ascii_isdigit(crate::memory::cstr_byte_at(s, len) as c_int) {
+                if ascii_isdigit(crate::memory::cstr_byte_at(s, len) as i32) {
                     len += 1;
                 }
 
                 let mut p = s;
-                while (p as usize) > (str_ptr as usize) && ascii_iswhite(*p.sub(1) as u8 as c_int) {
+                while (p as usize) > (str_ptr as usize) && ascii_iswhite(*p.sub(1) as u8 as i32) {
                     p = p.sub(1);
                 }
                 if (p as usize) >= (str_ptr as usize) + cms_slen
@@ -1694,7 +1694,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
                 }
             }
             if len != 0 {
-                while ascii_iswhite(crate::memory::cstr_byte_at(s, len) as c_int) {
+                while ascii_iswhite(crate::memory::cstr_byte_at(s, len) as i32) {
                     len += 1;
                 }
                 let rem = crate::memory::cstr_as_bytes(s)[len..].len() + 1;
@@ -1811,7 +1811,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
         if getlevel == LevelGetterKind::Syntax {
             let mut gap: &[FoldEntry] = &wp.w_folds;
             let mut fpn: Option<&FoldEntry> = None;
-            let mut current_fdl: c_int = 0;
+            let mut current_fdl: i32 = 0;
             let mut fold_start_lnum: Linenr = 0;
             let mut lnum_rel = fline.lnum;
 
@@ -1912,7 +1912,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
 
 fn fold_update_iemsrecurse(
     gap: &mut Vec<FoldEntry>,
-    level: c_int,
+    level: i32,
     startlnum: Linenr,
     flp: &mut Fline,
     getlevel: LevelGetterKind,
@@ -1954,7 +1954,7 @@ fn fold_update_iemsrecurse(
                 {
                     break;
                 }
-                let mut i: c_int = 0;
+                let mut i: i32 = 0;
                 if lvl >= level {
                     let mut ll = flp.lnum - gap[fpi].fd_top;
                     let mut cur_nested: &[FoldEntry] = &gap[fpi].fd_nested;
@@ -2047,7 +2047,7 @@ fn fold_update_iemsrecurse(
                                     breakstart - fp_top,
                                     breakend - fp_top,
                                 );
-                                fold_split(gap, fpi as c_int, breakstart, breakend - 1);
+                                fold_split(gap, fpi as i32, breakstart, breakend - 1);
                                 fpi += 1;
                                 if getlevel == LevelGetterKind::Marker
                                     || getlevel == LevelGetterKind::Expr
@@ -2068,7 +2068,7 @@ fn fold_update_iemsrecurse(
                             break;
                         }
                         if gap[cand_idx].fd_top >= startlnum {
-                            delete_fold_entry(gap, cand_idx as c_int, true);
+                            delete_fold_entry(gap, cand_idx as i32, true);
                         } else {
                             let fp = &mut gap[cand_idx];
                             fp.fd_len = startlnum - fp.fd_top;
@@ -2083,7 +2083,7 @@ fn fold_update_iemsrecurse(
                         }
                     } else {
                         let i = cand_idx;
-                        fold_insert(gap, i as c_int);
+                        fold_insert(gap, i as i32);
                         let prev_flags = if i > 0 { gap[i - 1].fd_flags } else { 0 };
                         let fp = &mut gap[i];
                         fp.fd_top = firstlnum;
@@ -2196,7 +2196,7 @@ fn fold_update_iemsrecurse(
                     bot = gap[fpi].fd_top + gap[fpi].fd_len - 1;
                     gap[fpi].fd_len = flp.lnum - gap[fpi].fd_top;
                 } else {
-                    fold_split(gap, fpi as c_int, flp.lnum, bot);
+                    fold_split(gap, fpi as i32, flp.lnum, bot);
                 }
             } else {
                 gap[fpi].fd_len = flp.lnum - gap[fpi].fd_top;
@@ -2230,7 +2230,7 @@ fn fold_update_iemsrecurse(
                 break;
             }
             fold_st().fold_changed = true;
-            delete_fold_entry(gap, next_idx as c_int, true);
+            delete_fold_entry(gap, next_idx as i32, true);
         }
 
         bot = bot.max(flp.lnum - 1);
@@ -2238,7 +2238,7 @@ fn fold_update_iemsrecurse(
     }
 }
 
-fn fold_insert(gap: &mut Vec<FoldEntry>, i: c_int) {
+fn fold_insert(gap: &mut Vec<FoldEntry>, i: i32) {
     gap.insert(
         i as usize,
         FoldEntry {
@@ -2251,7 +2251,7 @@ fn fold_insert(gap: &mut Vec<FoldEntry>, i: c_int) {
     );
 }
 
-fn fold_split(gap: &mut Vec<FoldEntry>, i: c_int, top: Linenr, bot: Linenr) {
+fn fold_split(gap: &mut Vec<FoldEntry>, i: i32, top: Linenr, bot: Linenr) {
     fold_insert(gap, i + 1);
 
     let gap_slice = gap.as_mut_slice();
@@ -2291,7 +2291,7 @@ fn fold_remove(gap: &mut Vec<FoldEntry>, top: Linenr, bot: Linenr) {
             let fp_top = gap[idx].fd_top;
             fold_remove(&mut gap[idx].fd_nested, top - fp_top, bot - fp_top);
             if gap[idx].fd_top + gap[idx].fd_len - 1 > bot {
-                fold_split(gap, idx as c_int, top, bot);
+                fold_split(gap, idx as i32, top, bot);
             } else {
                 gap[idx].fd_len = top - gap[idx].fd_top;
             }
@@ -2317,7 +2317,7 @@ fn fold_remove(gap: &mut Vec<FoldEntry>, top: Linenr, bot: Linenr) {
                 break;
             }
 
-            delete_fold_entry(gap, idx as c_int, true);
+            delete_fold_entry(gap, idx as i32, true);
         }
     }
 }
@@ -2470,7 +2470,7 @@ fn foldlevel_indent(flp: &mut Fline) {
         if crate::memory::cstr_is_empty(s)
             || crate::strings::vim_haschr(
                 { &mut *flp.wp }.w_onebuf_opt.wo_fdi,
-                crate::memory::cstr_first_byte(s) as c_int,
+                crate::memory::cstr_first_byte(s) as i32,
             )
         {
             flp.lvl = if lnum == 1 || lnum == (*buf).b_ml.ml_line_count {
@@ -2483,13 +2483,13 @@ fn foldlevel_indent(flp: &mut Fline) {
         }
         flp.lvl = flp
             .lvl
-            .min({ &mut *flp.wp }.w_onebuf_opt.wo_fdn.max(0) as c_int);
+            .min({ &mut *flp.wp }.w_onebuf_opt.wo_fdn.max(0) as i32);
     }
 }
 
 fn foldlevel_diff(flp: &mut Fline) {
     unsafe {
-        flp.lvl = c_int::from(diff_infold(&mut *flp.wp, flp.lnum + flp.off));
+        flp.lvl = i32::from(diff_infold(&mut *flp.wp, flp.lnum + flp.off));
     }
 }
 
@@ -2510,7 +2510,7 @@ fn foldlevel_expr(flp: &mut Fline) {
         }
 
         let save_keytyped = g_st().key_typed;
-        let mut c: c_int = 0;
+        let mut c: i32 = 0;
         let n = eval_foldexpr(&mut *flp.wp, &mut c);
         g_st().key_typed = save_keytyped;
 
@@ -2572,7 +2572,7 @@ fn foldlevel_expr(flp: &mut Fline) {
 fn parse_marker(wp: &mut WinInfoInfo) {
     unsafe {
         let fmr = wp.w_onebuf_opt.wo_fmr;
-        let comma = vim_strchr(fmr, b',' as c_int);
+        let comma = vim_strchr(fmr, b',' as i32);
         fold_st().foldstartmarkerlen = (comma as usize) - (fmr as usize);
         fold_st().foldendmarker = comma.add(1);
         fold_st().foldendmarkerlen = crate::memory::cstr_len(fold_st().foldendmarker);
@@ -2601,9 +2601,9 @@ fn foldlevel_marker(flp: &mut Fline) {
             let rem_bytes = &crate::memory::cstr_as_bytes(s)[1..];
             if *s == cstart && rem_bytes.starts_with(start_rest) {
                 s = s.add(fold_st().foldstartmarkerlen);
-                if ascii_isdigit(crate::memory::cstr_first_byte(s) as c_int) {
+                if ascii_isdigit(crate::memory::cstr_first_byte(s) as i32) {
                     let n =
-                        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as c_int;
+                        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as i32;
                     if n > 0 {
                         flp.lvl = n;
                         flp.lvl_next = n;
@@ -2616,9 +2616,9 @@ fn foldlevel_marker(flp: &mut Fline) {
                 }
             } else if *s == cend && rem_bytes.starts_with(end_rest) {
                 s = s.add(fold_st().foldendmarkerlen);
-                if ascii_isdigit(crate::memory::cstr_first_byte(s) as c_int) {
+                if ascii_isdigit(crate::memory::cstr_first_byte(s) as i32) {
                     let n =
-                        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as c_int;
+                        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as i32;
                     if n > 0 {
                         flp.lvl = n;
                         flp.lvl_next = (n - 1).min(start_lvl);
@@ -2863,7 +2863,7 @@ pub fn f_foldtextresult(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
                 debug_assert!(text_bytes.is_empty());
                 let mut i: usize = 0;
                 while i < vt.len() {
-                    let mut attr: c_int = 0;
+                    let mut attr: i32 = 0;
                     let new_text = next_virt_text_chunk(&vt, &mut i, &mut attr);
                     if new_text.is_null() {
                         break;

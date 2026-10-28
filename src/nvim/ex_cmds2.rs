@@ -44,7 +44,7 @@ use crate::undo::buf_is_changed_fn;
 use crate::window::{
     goto_tabpage_tp, goto_tabpage_win, valid_tabpage, win_goto, win_split, win_valid,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 use crate::cursor::Linenr;
@@ -55,24 +55,24 @@ use crate::search::FORWARD;
 
 const MAXLNUM: usize = 0x7fffffff;
 
-const CCGD_ALLBUF: c_int = 8;
+const CCGD_ALLBUF: i32 = 8;
 
-const CMD_BUFDO: c_int = 42;
-pub(crate) const CMD_CDO: c_int = 64;
-pub(crate) const CMD_CFDO: c_int = 68;
-const CMD_FIRST: c_int = 164;
-pub(crate) const CMD_LDO: c_int = 231;
-pub(crate) const CMD_LFDO: c_int = 237;
-const CMD_SFIRST: c_int = 410;
-const CMD_TABDO: c_int = 461;
-const CMD_WINDO: c_int = 535;
+const CMD_BUFDO: i32 = 42;
+pub(crate) const CMD_CDO: i32 = 64;
+pub(crate) const CMD_CFDO: i32 = 68;
+const CMD_FIRST: i32 = 164;
+pub(crate) const CMD_LDO: i32 = 231;
+pub(crate) const CMD_LFDO: i32 = 237;
+const CMD_SFIRST: i32 = 410;
+const CMD_TABDO: i32 = 461;
+const CMD_WINDO: i32 = 535;
 
-pub(crate) const BF_SYN_SET: c_int = 0x200;
+pub(crate) const BF_SYN_SET: i32 = 0x200;
 
 const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 
 #[inline]
-fn curwin_argcount() -> c_int {
+fn curwin_argcount() -> i32 {
     crate::arglist::argcount()
 }
 
@@ -161,7 +161,7 @@ pub fn autowrite_all() {
 }
 
 /// Return true if buffer was changed and cannot be abandoned (`check_changed`).
-pub fn check_changed(buf: &mut FileBuf, flags: c_int) -> bool {
+pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
     {
         let forceit = (flags & CCGD_FORCEIT) != 0;
         let mut bufref: Bufref = Bufref::new();
@@ -175,7 +175,7 @@ pub fn check_changed(buf: &mut FileBuf, flags: c_int) -> bool {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
                 && opt_vars().p_write != 0
             {
-                let mut count: c_int = 0;
+                let mut count: i32 = 0;
 
                 if (flags & CCGD_ALLBUF) != 0 {
                     for buf2 in for_all_buffers_mut() {
@@ -307,7 +307,7 @@ pub fn can_abandon(buf: &mut FileBuf, forceit: bool) -> bool {
         || forceit
 }
 
-fn add_bufnum(bufnrs: &mut Vec<c_int>, nr: c_int) {
+fn add_bufnum(bufnrs: &mut Vec<i32>, nr: i32) {
     if !bufnrs.contains(&nr) {
         bufnrs.push(nr);
     }
@@ -442,7 +442,7 @@ pub fn check_fname() -> bool {
 }
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
-pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> c_int {
+pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> i32 {
     let old_curbuf = g_st().curbuf;
     let retval = buf_write(
         &raw mut *buf,
@@ -510,8 +510,8 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
             )
         {
-            let mut next_fnum: c_int = 0;
-            let mut i: c_int = 0;
+            let mut next_fnum: i32 = 0;
+            let mut i: i32 = 0;
             let mut wp = g_st().firstwin;
             let mut tp = g_st().first_tabpage;
             match eap.cmdidx {
@@ -769,7 +769,7 @@ pub fn ex_checktime(eap: &mut Exarg) {
         if eap.addr_count == 0 {
             check_timestamps(0);
         } else {
-            let buf = buflist_findnr(eap.line2 as c_int);
+            let buf = buflist_findnr(eap.line2);
             if !buf.is_null() {
                 buf_check_timestamp(&mut *buf);
             }

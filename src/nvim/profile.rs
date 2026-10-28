@@ -15,14 +15,14 @@ use crate::os::env::{ExpandCtx, expand_env_save_opt};
 use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
 use crate::runtime::{get_scriptname, script_id_valid, script_item, sourcing_lnum};
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CStr, CString, c_char};
 
 pub type Proftime = u64;
 
 const NS_PER_SEC: f64 = 1_000_000_000.0;
-const PROF_PAUSED: c_int = 2;
+const PROF_PAUSED: i32 = 2;
 
-const IOFBF: c_int = 0;
+const IOFBF: i32 = 0;
 
 const PEXP_SUBCMD: i32 = 0;
 
@@ -74,7 +74,7 @@ const PEXPAND_CMDS: [&CStr; 7] = [
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SnPrl {
-    pub snp_count: c_int,
+    pub snp_count: i32,
     pub sn_prl_total: Proftime,
     pub sn_prl_self: Proftime,
 }
@@ -87,8 +87,8 @@ pub struct Scriptitem {
     pub sn_prof_on: bool,
     pub sn_pr_force: bool,
     pub sn_pr_child: Proftime,
-    pub sn_pr_nest: c_int,
-    pub sn_pr_count: c_int,
+    pub sn_pr_nest: i32,
+    pub sn_pr_count: i32,
     pub sn_pr_total: Proftime,
     pub sn_pr_self: Proftime,
     pub sn_pr_start: Proftime,
@@ -98,7 +98,7 @@ pub struct Scriptitem {
     pub sn_prl_children: Proftime,
     pub sn_prl_wait: Proftime,
     pub sn_prl_idx: i32,
-    pub sn_prl_execed: c_int,
+    pub sn_prl_execed: i32,
 }
 
 impl Scriptitem {
@@ -146,7 +146,7 @@ impl EStackInfo {
 pub struct Estack {
     pub es_lnum: i32,
     pub es_name: Option<std::ffi::CString>,
-    pub es_type: c_int,
+    pub es_type: i32,
     pub es_info: EStackInfo,
 }
 
@@ -162,8 +162,8 @@ impl Estack {
 #[repr(C)]
 pub struct Funccall {
     pub fc_func: *mut UserFunc,
-    pub fc_linenr: c_int,
-    pub fc_returned: c_int,
+    pub fc_linenr: i32,
+    pub fc_returned: i32,
     pub fc_l_vars: TvDict,
     pub fc_l_vars_var: Dictitem,
     pub fc_l_avars: TvDict,
@@ -172,13 +172,13 @@ pub struct Funccall {
     pub fc_l_listitems: [Listitem; MAX_FUNC_ARGS],
     pub fc_rettv: *mut TypVal,
     pub fc_breakpoint: i32,
-    pub fc_dbg_tick: c_int,
-    pub fc_level: c_int,
+    pub fc_dbg_tick: i32,
+    pub fc_level: i32,
     pub fc_defer: Vec<DeferCall>,
     pub fc_prof_child: Proftime,
     pub fc_caller: *mut Funccall,
-    pub fc_refcount: c_int,
-    pub fc_copy_id: c_int,
+    pub fc_refcount: i32,
+    pub fc_copy_id: i32,
     pub fc_ufuncs: Vec<*mut UserFunc>,
 }
 
@@ -258,7 +258,7 @@ pub const fn profile_zero() -> Proftime {
 }
 
 /// Divides time `tm` by `count` (`profile_divide`).
-pub fn profile_divide(tm: Proftime, count: c_int) -> Proftime {
+pub fn profile_divide(tm: Proftime, count: i32) -> Proftime {
     if count <= 0 {
         return profile_zero();
     }
@@ -314,7 +314,7 @@ pub const fn profile_signed(tm: Proftime) -> i64 {
 }
 
 /// Compares profiling times (`profile_cmp`).
-pub const fn profile_cmp(tm1: Proftime, tm2: Proftime) -> c_int {
+pub const fn profile_cmp(tm1: Proftime, tm2: Proftime) -> i32 {
     if tm1 == tm2 {
         return 0;
     }
@@ -417,7 +417,7 @@ pub fn ex_profile(eap: &mut Exarg) {
 }
 
 /// Command-line completion item getter for `:profile` (`get_profile_name`).
-pub fn get_profile_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_profile_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     if prof_st().pexpand_what == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
         PEXPAND_CMDS[idx as usize].as_ptr().cast_mut()
     } else {
@@ -475,7 +475,7 @@ pub fn prof_def_func() -> bool {
 
 fn prof_func_line(
     fd: *mut FILE,
-    count: c_int,
+    count: i32,
     total: &Proftime,
     self_time: &Proftime,
     prefer_self: bool,
@@ -500,7 +500,7 @@ fn prof_func_line(
 fn prof_sort_list(
     fd: *mut FILE,
     sorttab: *mut *mut UserFunc,
-    st_len: c_int,
+    st_len: i32,
     title: &std::ffi::CStr,
     prefer_self: bool,
 ) {
@@ -539,7 +539,7 @@ fn prof_self_cmp(&s1: &*mut UserFunc, &s2: &*mut UserFunc) -> std::cmp::Ordering
 /// Start profiling function `fp` (`func_do_profile`).
 pub fn func_do_profile(fp: *mut UserFunc) {
     let fp = unsafe { &mut *fp };
-    let mut len = fp.uf_lines.len() as c_int;
+    let mut len = fp.uf_lines.len() as i32;
 
     if fp.uf_prof_initialized == 0 {
         if len == 0 {
@@ -599,7 +599,7 @@ pub fn func_line_start(fcp: &mut Funccall) {
         let fp = &mut *fcp.fc_func;
         let slnum = sourcing_lnum();
 
-        if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as c_int {
+        if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as i32 {
             fp.uf_tml_idx = slnum - 1;
             while fp.uf_tml_idx > 0 && fp.uf_lines[fp.uf_tml_idx as usize].is_none() {
                 fp.uf_tml_idx -= 1;
@@ -676,7 +676,7 @@ fn func_dump_profile(fd: *mut FILE) {
                 fprintf!(fd, c"\n");
                 fprintf!(fd, c"count  total (s)   self (s)\n");
 
-                for i in 0..(*fp).uf_lines.len() as c_int {
+                for i in 0..(*fp).uf_lines.len() as i32 {
                     let Some(ref line) = (&(*fp).uf_lines)[i as usize] else {
                         continue;
                     };
@@ -695,7 +695,7 @@ fn func_dump_profile(fd: *mut FILE) {
         }
 
         if !sorttab.is_empty() {
-            let st_len = sorttab.len() as c_int;
+            let st_len = sorttab.len() as i32;
             sorttab.sort_unstable_by(prof_total_cmp);
             prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"TOTAL", false);
             sorttab.sort_unstable_by(prof_self_cmp);
@@ -777,9 +777,9 @@ fn script_dump_profile(fd: *mut FILE) {
                 if sfd.is_null() {
                     fprintf!(fd, c"Cannot open file!\n");
                 } else {
-                    let mut i: c_int = 0;
+                    let mut i: i32 = 0;
                     loop {
-                        if vim_fgets(iobuf.as_mut_ptr(), IOSIZE as c_int, sfd) {
+                        if vim_fgets(iobuf.as_mut_ptr(), IOSIZE as i32, sfd) {
                             break;
                         }
                         if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL {

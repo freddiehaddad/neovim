@@ -15,7 +15,6 @@ use crate::window::{
     WinInfoInfo, tabpage_index, tabpage_win_valid, valid_tabpage, win_goto, win_new_tabpage,
     win_set_buf,
 };
-use std::ffi::c_int;
 
 pub type Buffer = ObjHandle;
 pub type Window = ObjHandle;
@@ -237,11 +236,11 @@ pub fn nvim_open_tabpage(
             return 0;
         };
 
-        let after: c_int = if has_key(
+        let after: i32 = if has_key(
             config.is_set_tabpage_config,
             KEYSET_OPTIDX_TABPAGE_CONFIG_AFTER,
         ) {
-            config.after as c_int
+            config.after as i32
         } else {
             -1
         };

@@ -60,7 +60,7 @@ use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
 #[cfg(unix)]
 use std::ffi::CStr;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::autocmd::PROF_YES;
@@ -76,24 +76,24 @@ const MAX_CHUNK_SIZE: usize = OUT_DATA_THRESHOLD / 2;
 #[cfg(unix)]
 const SHELL_SPECIAL: &CStr = c"\t \"&'$;<>()\\|\n";
 
-const K_SHELL_OPT_EXPAND: c_int = 2;
-const K_SHELL_OPT_HIDE_MESS: c_int = 64;
+const K_SHELL_OPT_EXPAND: i32 = 2;
+const K_SHELL_OPT_HIDE_MESS: i32 = 64;
 
 #[cfg(unix)]
-const STYLE_ECHO: c_int = 0;
+const STYLE_ECHO: i32 = 0;
 #[cfg(unix)]
-const STYLE_GLOB: c_int = 1;
+const STYLE_GLOB: i32 = 1;
 #[cfg(unix)]
-const STYLE_VIMGLOB: c_int = 2;
+const STYLE_VIMGLOB: i32 = 2;
 #[cfg(unix)]
-const STYLE_PRINT: c_int = 3;
+const STYLE_PRINT: i32 = 3;
 #[cfg(unix)]
-const STYLE_BT: c_int = 4;
+const STYLE_BT: i32 = 4;
 #[cfg(unix)]
-const STYLE_GLOBSTAR: c_int = 5;
+const STYLE_GLOBSTAR: i32 = 5;
 
-const HLF_SE: c_int = 72;
-const HLF_SO: c_int = 73;
+const HLF_SE: i32 = 72;
+const HLF_SO: i32 = 73;
 
 struct ShellModuleState {
     #[cfg(unix)]
@@ -133,12 +133,12 @@ fn sh_st() -> &'static mut ShellModuleState {
 unsafe extern "system" {
     fn GetConsoleOutputCP() -> u32;
     fn GetConsoleCP() -> u32;
-    fn SetConsoleOutputCP(wCodePageID: u32) -> c_int;
-    fn SetConsoleCP(wCodePageID: u32) -> c_int;
+    fn SetConsoleOutputCP(wCodePageID: u32) -> i32;
+    fn SetConsoleCP(wCodePageID: u32) -> i32;
 }
 
 #[cfg(unix)]
-fn save_patterns(num_pat: c_int, pat: *mut *mut c_char, file: &mut Vec<std::ffi::CString>) {
+fn save_patterns(num_pat: i32, pat: *mut *mut c_char, file: &mut Vec<std::ffi::CString>) {
     unsafe {
         file.clear();
         file.reserve(num_pat as usize);
@@ -151,7 +151,7 @@ fn save_patterns(num_pat: c_int, pat: *mut *mut c_char, file: &mut Vec<std::ffi:
 }
 
 #[cfg(unix)]
-fn have_wildcard(num: c_int, file: *mut *mut c_char) -> bool {
+fn have_wildcard(num: i32, file: *mut *mut c_char) -> bool {
     unsafe {
         for i in 0..(num as usize) {
             if path_has_wildcard(*file.add(i), true) {
@@ -163,10 +163,10 @@ fn have_wildcard(num: c_int, file: *mut *mut c_char) -> bool {
 }
 
 #[cfg(unix)]
-fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
+fn have_dollars(num: i32, file: *mut *mut c_char) -> bool {
     unsafe {
         for i in 0..(num as usize) {
-            if crate::strings::vim_haschr(*file.add(i), b'$' as c_int) {
+            if crate::strings::vim_haschr(*file.add(i), b'$' as i32) {
                 return true;
             }
         }
@@ -177,10 +177,10 @@ fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
 /// Performs wildcard pattern matching using the shell.
 #[cfg(unix)]
 pub fn os_expand_wildcards(
-    num_pat: c_int,
+    num_pat: i32,
     pat: *mut *mut c_char,
     file: &mut Vec<std::ffi::CString>,
-    flags: c_int,
+    flags: i32,
 ) -> bool {
     const SH_VIMGLOB_FUNC: &CStr =
         c"vimglob() { while [ $# -ge 1 ]; do printf '%s\\n' \"$1\"; shift; done }; vimglob >";
@@ -188,8 +188,8 @@ pub fn os_expand_wildcards(
 
     unsafe {
         let mut extra_shell_arg: *mut c_char = ptr::null_mut();
-        let mut shellopts: c_int = K_SHELL_OPT_EXPAND | K_SHELL_OPT_SILENT;
-        let mut shell_style: c_int = STYLE_ECHO;
+        let mut shellopts: i32 = K_SHELL_OPT_EXPAND | K_SHELL_OPT_SILENT;
+        let mut shell_style: i32 = STYLE_ECHO;
         let mut ampersand = false;
 
         #[cfg(unix)]
@@ -214,7 +214,7 @@ pub fn os_expand_wildcards(
 
         if g_st().secure != 0 {
             for i in 0..(num_pat as usize) {
-                if crate::strings::vim_haschr(*pat.add(i), b'`' as c_int) && check_secure() {
+                if crate::strings::vim_haschr(*pat.add(i), b'`' as i32) && check_secure() {
                     return false;
                 }
             }
@@ -266,7 +266,7 @@ pub fn os_expand_wildcards(
             while crate::memory::cstr_byte_at(p_i, j) != 0 {
                 if crate::strings::vim_haschr(
                     SHELL_SPECIAL,
-                    crate::memory::cstr_byte_at(p_i, j) as c_int,
+                    crate::memory::cstr_byte_at(p_i, j) as i32,
                 ) {
                     len += 1;
                 }
@@ -373,7 +373,7 @@ pub fn os_expand_wildcards(
                     {
                         let next_ch = *p_i.add(j + 1);
                         if intick
-                            || crate::strings::vim_haschr(SHELL_SPECIAL, next_ch as u8 as c_int)
+                            || crate::strings::vim_haschr(SHELL_SPECIAL, next_ch as u8 as i32)
                             || next_ch == b'`' as c_char
                         {
                             *p = b'\\' as c_char;
@@ -382,7 +382,7 @@ pub fn os_expand_wildcards(
                         j += 1;
                     } else if !intick
                         && ((flags & EW_KEEPDOLLAR) == 0 || ch != b'$' as c_char)
-                        && crate::strings::vim_haschr(SHELL_SPECIAL, ch as u8 as c_int)
+                        && crate::strings::vim_haschr(SHELL_SPECIAL, ch as u8 as i32)
                     {
                         *p = b'\\' as c_char;
                         p = p.add(1);
@@ -421,7 +421,7 @@ pub fn os_expand_wildcards(
         if res != 0 {
             os_remove(tempname);
             if (flags & EW_SILENT) == 0 {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 g_st().cmdline_row = g_st().rows_global - 1;
                 msg(gettext(E_WILDEXPAND), 0);
                 msg_start();
@@ -472,7 +472,7 @@ pub fn os_expand_wildcards(
         }
         drop(tempname_cstr);
 
-        let mut count: c_int = 0;
+        let mut count: i32 = 0;
         if shell_style == STYLE_ECHO {
             *buffer.add(len) = b'\n' as c_char;
             let mut p = buffer;
@@ -506,7 +506,7 @@ pub fn os_expand_wildcards(
             let mut check_spaces = false;
             if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
                 *buffer.add(len) = NUL;
-                if len != 0 && (crate::memory::cstr_len(buffer) as c_int) < (len as c_int) {
+                if len != 0 && (crate::memory::cstr_len(buffer) as i32) < (len as i32) {
                     sh_st().did_find_nul = true;
                 } else {
                     check_spaces = true;
@@ -689,9 +689,9 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
 /// Calls the user-configured 'shell' (opt_vars().p_sh) for running a command or wildcard expansion.
 pub fn os_call_shell(
     cmd: impl crate::strings::IntoCCharPtr,
-    opts: c_int,
+    opts: i32,
     extra_args: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let cmd = cmd.into_c_char_ptr();
     let extra_args = extra_args.into_c_char_ptr();
     let mut input: Vec<c_char> = Vec::new();
@@ -742,7 +742,7 @@ pub fn os_call_shell(
         msg_ext_set_kind(c"shell_ret");
         msg_ext_no_fast();
         if !ui_has(K_UIMESSAGES) {
-            msg_putchar(b'\n' as c_int);
+            msg_putchar(b'\n' as i32);
         }
         msg_puts(gettext(c"shell returned "));
         msg_outnum(exitcode);
@@ -757,9 +757,9 @@ pub fn os_call_shell(
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
 pub fn call_shell(
     cmd: impl crate::strings::IntoCCharPtr,
-    opts: c_int,
+    opts: i32,
     extra_shell_arg: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let cmd = cmd.into_c_char_ptr();
     let extra_shell_arg = extra_shell_arg.into_c_char_ptr();
     {
@@ -773,7 +773,7 @@ pub fn call_shell(
                 if cmd.is_null() { opt_vars().p_sh } else { cmd },
             );
             if !ui_has(K_UIMESSAGES) {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
             }
             verbose_leave();
         }
@@ -803,7 +803,7 @@ pub fn call_shell(
 pub fn get_cmd_output(
     cmd: impl crate::strings::IntoCCharPtr,
     infile: impl crate::strings::IntoCCharPtr,
-    flags: c_int,
+    flags: i32,
 ) -> Option<std::ffi::CString> {
     let infile = infile.into_c_char_ptr();
     let cmd = cmd.into_c_char_ptr().cast_mut();
@@ -876,7 +876,7 @@ pub fn os_system(
     input: impl crate::strings::IntoCCharPtr,
     len: usize,
     output: Option<&mut Vec<c_char>>,
-) -> c_int {
+) -> i32 {
     let input = input.into_c_char_ptr();
     do_os_system(argv, input, len, output, true, false)
 }
@@ -888,10 +888,10 @@ fn do_os_system(
     output: Option<&mut Vec<c_char>>,
     silent: bool,
     forward_output: bool,
-) -> c_int {
+) -> i32 {
     let input = input.into_c_char_ptr();
     unsafe {
-        let mut exitcode: c_int = -1;
+        let mut exitcode: i32 = -1;
 
         #[cfg(windows)]
         let (oldval, old_output_cp, old_input_cp) = {
@@ -943,7 +943,7 @@ fn do_os_system(
                     msg_outtrans(uv_strerror(status), 0, false);
                     msg_puts(c": ");
                     msg_outtrans(prog.as_ptr(), 0, false);
-                    msg_putchar(b'\n' as c_int);
+                    msg_putchar(b'\n' as i32);
                 }
                 break 'end;
             }
@@ -1074,9 +1074,9 @@ fn out_data_decide_throttle(size: usize) -> bool {
     if sh_st().throttle_visit == 1 {
         msg_puts(c"...\n");
     }
-    msg_putchar(b'\r' as c_int);
+    msg_putchar(b'\r' as i32);
     msg_puts((&raw const sh_st().throttle_pulse_msg).cast());
-    msg_putchar(b'\r' as c_int);
+    msg_putchar(b'\r' as i32);
     ui_flush();
     true
 }
@@ -1113,7 +1113,7 @@ fn out_data_ring(output: impl crate::strings::IntoCCharPtr, size: usize) {
     }
 }
 
-pub fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
+pub fn out_data_event(mut str_copy: Vec<c_char>, fd: i32) {
     let mut need_clear = true;
     let hl = if fd == STDERR_FILENO { HLF_SE } else { HLF_SO };
     msg_ext_set_kind(if fd == STDERR_FILENO {
@@ -1135,7 +1135,7 @@ pub fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
 fn out_data_append_to_screen(
     output: impl crate::strings::IntoCCharPtr,
     count: &mut usize,
-    fd: c_int,
+    fd: i32,
     eof: bool,
 ) {
     let output = output.into_c_char_ptr();
@@ -1145,7 +1145,7 @@ fn out_data_append_to_screen(
         while (p as usize) < (end as usize) {
             let off = (p as usize).wrapping_sub(output as usize);
             let i = if !crate::memory::cstr_is_empty(p) {
-                utfc_ptr2len_len(p, (*count - off) as c_int)
+                utfc_ptr2len_len(p, (*count - off) as i32)
             } else {
                 1
             };
@@ -1251,7 +1251,7 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
                 *output.add(off) = NUL;
                 let lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
-                ml_append(lnum, output, off as c_int + 1, false);
+                ml_append(lnum, output, off as i32 + 1, false);
                 let skip = off + 2;
                 output = output.add(skip);
                 remaining -= skip;
@@ -1263,7 +1263,7 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
                 *output.add(off) = NUL;
                 let lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
-                ml_append(lnum, output, off as c_int + 1, false);
+                ml_append(lnum, output, off as i32 + 1, false);
                 let skip = off + 1;
                 output = output.add(skip);
                 remaining -= skip;
@@ -1295,7 +1295,7 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
     }
 }
 
-pub(crate) fn shell_write_cb(stream: &mut Stream, status: c_int) {
+pub(crate) fn shell_write_cb(stream: &mut Stream, status: i32) {
     unsafe {
         if status != 0 {
             msg_schedule_semsg!(

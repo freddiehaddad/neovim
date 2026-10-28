@@ -15,20 +15,20 @@ use crate::os::stdpaths::{get_xdg_home, stdpaths_user_state_subpath};
 use crate::os::time::{Tm, os_localtime, strftime};
 use crate::path::{concat_fnames_cstr, path_tail};
 use crate::strings::strerror;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::io::Write;
 use std::ptr;
 
-pub const LOGLVL_DBG: c_int = 1;
-pub const LOGLVL_INF: c_int = 2;
-pub const LOGLVL_WRN: c_int = 3;
-pub const LOGLVL_ERR: c_int = 4;
+pub const LOGLVL_DBG: i32 = 1;
+pub const LOGLVL_INF: i32 = 2;
+pub const LOGLVL_WRN: i32 = 3;
+pub const LOGLVL_ERR: i32 = 4;
 
 #[repr(C, align(8))]
 struct UvMutex([u8; 128]);
 
 pub(crate) struct LogModuleState {
-    pub(crate) g_min_log_level: c_int,
+    pub(crate) g_min_log_level: i32,
     log_file_path: [c_char; MAXPATHL + 1],
     did_log_init: bool,
     mutex: UvMutex,
@@ -132,7 +132,7 @@ macro_rules! logmsg {
                 fmt_ptr,
                 $($arg),+
             );
-            if len >= stack_buf.len() as std::ffi::c_int {
+            if len >= stack_buf.len() as i32 {
                 let cap = (len as usize) + 1;
                 let mut heap_buf = vec![0 as std::ffi::c_char; cap];
                 $crate::strings::vim_snprintf!(heap_buf.as_mut_ptr(), cap, fmt_ptr, $($arg),+);
@@ -183,7 +183,7 @@ fn log_path_init() {
     unsafe {
         let size = MAXPATHL + 1;
         let path_ptr = (&raw mut log_st().log_file_path).cast::<c_char>();
-        expand_env(c"$NVIM_LOG_FILE", path_ptr, (size - 1) as c_int);
+        expand_env(c"$NVIM_LOG_FILE", path_ptr, (size - 1) as i32);
         let user_set = crate::memory::cstr_as_bytes(path_ptr) != b"$NVIM_LOG_FILE";
 
         if !user_set
@@ -198,7 +198,7 @@ fn log_path_init() {
                 get_xdg_home(crate::os::stdpaths::XDGVarType::XDGStateHome).unwrap_or_default();
             let loghome = concat_fnames_cstr(state_home.as_ptr(), c"logs", true);
             let mut failed_dir: Option<std::ffi::CString> = None;
-            let mut log_dir_failure: c_int = 0;
+            let mut log_dir_failure: i32 = 0;
             if !os_isdir(loghome.as_ptr()) {
                 log_dir_failure = os_mkdir_recurse(loghome.as_ptr(), 0o700, &mut failed_dir, None);
             }
@@ -239,7 +239,7 @@ fn log_path_init() {
                     LOGLVL_WRN,
                     ptr::null(),
                     c"log_path_init",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     msg.as_ptr().cast(),
                 );
@@ -268,7 +268,7 @@ pub fn log_unlock() {
     }
 }
 
-pub fn log_should_log(log_level: c_int) -> bool {
+pub fn log_should_log(log_level: i32) -> bool {
     if !log_st().did_log_init {
         g_st().g_stats.log_skip += 1;
         return false;
@@ -277,10 +277,10 @@ pub fn log_should_log(log_level: c_int) -> bool {
 }
 
 pub fn logmsg_str(
-    log_level: c_int,
+    log_level: i32,
     context: impl crate::strings::IntoCCharPtr,
     func_name: impl crate::strings::IntoCCharPtr,
-    line_num: c_int,
+    line_num: i32,
     eol: bool,
     msg: impl crate::strings::IntoCCharPtr,
 ) -> bool {
@@ -360,7 +360,7 @@ pub fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
 pub fn open_log_file() -> *mut FILE {
     unsafe {
         let path_ptr = (&raw const log_st().log_file_path).cast::<c_char>();
-        let mut errnum: c_int = 0;
+        let mut errnum: i32 = 0;
         if !crate::memory::cstr_is_empty(path_ptr) {
             let f = fopen(path_ptr, c"a".as_ptr());
             if !f.is_null() {
@@ -384,7 +384,7 @@ pub fn open_log_file() -> *mut FILE {
             LOGLVL_ERR,
             ptr::null(),
             c"open_log_file",
-            line!() as c_int,
+            line!() as i32,
             true,
             msg.as_ptr().cast(),
         );
@@ -394,10 +394,10 @@ pub fn open_log_file() -> *mut FILE {
 
 fn do_log_to_file_str(
     log_file: *mut FILE,
-    log_level: c_int,
+    log_level: i32,
     context: impl crate::strings::IntoCCharPtr,
     func_name: impl crate::strings::IntoCCharPtr,
-    line_num: c_int,
+    line_num: i32,
     eol: bool,
     msg: impl crate::strings::IntoCCharPtr,
 ) -> bool {
@@ -423,7 +423,7 @@ fn do_log_to_file_str(
             return false;
         }
 
-        let mut millis: c_int = 0;
+        let mut millis: i32 = 0;
         let mut curtime = UvTimeval64 {
             tv_sec: 0,
             tv_usec: 0,
@@ -507,7 +507,7 @@ fn do_log_to_file_str(
             return false;
         }
         if eol {
-            fputc(b'\n' as c_int, log_file);
+            fputc(b'\n' as i32, log_file);
         }
         if fflush(log_file) == EOF {
             return false;

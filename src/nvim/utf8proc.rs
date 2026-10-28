@@ -1,20 +1,18 @@
 //! Pure-Rust port of utf8proc Unicode property, case-mapping, decomposition,
 //! and extended grapheme cluster break routines (`utf8proc.c` / `utf8proc_data.c`).
 
-use std::ffi::c_int;
-
-pub const UTF8PROC_COMPAT: c_int = 1 << 2;
-pub const UTF8PROC_COMPOSE: c_int = 1 << 3;
-pub const UTF8PROC_DECOMPOSE: c_int = 1 << 4;
-pub const UTF8PROC_IGNORE: c_int = 1 << 5;
-pub const UTF8PROC_REJECTNA: c_int = 1 << 6;
-pub const UTF8PROC_NLF2LS: c_int = 1 << 7;
-pub const UTF8PROC_NLF2PS: c_int = 1 << 8;
-pub const UTF8PROC_CASEFOLD: c_int = 1 << 10;
-pub const UTF8PROC_CHARBOUND: c_int = 1 << 11;
-pub const UTF8PROC_LUMP: c_int = 1 << 12;
-pub const UTF8PROC_STRIPMARK: c_int = 1 << 13;
-pub const UTF8PROC_STRIPNA: c_int = 1 << 14;
+pub const UTF8PROC_COMPAT: i32 = 1 << 2;
+pub const UTF8PROC_COMPOSE: i32 = 1 << 3;
+pub const UTF8PROC_DECOMPOSE: i32 = 1 << 4;
+pub const UTF8PROC_IGNORE: i32 = 1 << 5;
+pub const UTF8PROC_REJECTNA: i32 = 1 << 6;
+pub const UTF8PROC_NLF2LS: i32 = 1 << 7;
+pub const UTF8PROC_NLF2PS: i32 = 1 << 8;
+pub const UTF8PROC_CASEFOLD: i32 = 1 << 10;
+pub const UTF8PROC_CHARBOUND: i32 = 1 << 11;
+pub const UTF8PROC_LUMP: i32 = 1 << 12;
+pub const UTF8PROC_STRIPMARK: i32 = 1 << 13;
+pub const UTF8PROC_STRIPNA: i32 = 1 << 14;
 
 pub const UTF8PROC_ERROR_NOTASSIGNED: isize = -4;
 
@@ -254,8 +252,8 @@ fn seqindex_decode_index(seqindex: u32) -> i32 {
 fn seqindex_write_char_decomposed(
     seqindex: u16,
     dst: &mut [i32],
-    options: c_int,
-    mut last_boundclass: Option<&mut c_int>,
+    options: i32,
+    mut last_boundclass: Option<&mut i32>,
 ) -> isize {
     let mut written: isize = 0;
     let mut idx = (seqindex & 0x3FFF) as usize;
@@ -306,8 +304,8 @@ pub fn utf8proc_toupper(c: i32) -> i32 {
 pub fn utf8proc_decompose_char(
     uc: i32,
     dst: &mut [i32],
-    options: c_int,
-    last_boundclass: Option<&mut c_int>,
+    options: i32,
+    last_boundclass: Option<&mut i32>,
 ) -> isize {
     if !(0..0x110000).contains(&uc) {
         return UTF8PROC_ERROR_NOTASSIGNED;

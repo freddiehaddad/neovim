@@ -42,14 +42,14 @@ use crate::usercmd::{
     UC_BUFFER, commands_array, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
     uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds_mut,
 };
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::cmdexpand::{CmdAddr, EXPAND_NOTHING, EXPAND_USER_LUA};
 use crate::cursor::Linenr;
 
-const CMD_IPUT: c_int = 200;
-const CMD_PUT: c_int = 350;
+const CMD_IPUT: i32 = 200;
+const CMD_PUT: i32 = 350;
 
 const KEYSET_OPTIDX_CMD_CMD: u64 = 1;
 const KEYSET_OPTIDX_CMD_REG: u64 = 2;
@@ -193,7 +193,7 @@ pub trait CmdIdxVal {
     fn check_user_cmd(self) -> bool;
 }
 
-impl CmdIdxVal for c_int {
+impl CmdIdxVal for i32 {
     #[inline]
     fn check_user_cmd(self) -> bool {
         self < 0
@@ -203,7 +203,7 @@ impl CmdIdxVal for c_int {
 impl CmdIdxVal for crate::cmdexpand::Cmdidx {
     #[inline]
     fn check_user_cmd(self) -> bool {
-        (self as c_int) < 0
+        (self as i32) < 0
     }
 }
 
@@ -838,7 +838,7 @@ pub fn nvim_cmd(
                 }
 
                 let range = cmd.range;
-                ea.addr_count = range.size as c_int;
+                ea.addr_count = range.size as i32;
 
                 for i in 0..range.size {
                     let elem = range[i];
@@ -954,21 +954,21 @@ pub fn nvim_cmd(
                     break 'end;
                 }
                 if !valid_yank_reg(
-                    c_int::from(regname as u8),
+                    i32::from(regname as u8),
                     !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CMD_PUT && ea.cmdidx != CMD_IPUT,
                 ) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
                         c"Invalid register: \"%c",
-                        c_int::from(regname),
+                        i32::from(regname),
                     );
                     break 'end;
                 }
-                ea.regname = c_int::from(regname as u8);
+                ea.regname = i32::from(regname as u8);
             }
 
-            ea.forceit = c_int::from(cmd.bang);
+            ea.forceit = i32::from(cmd.bang);
             if ea.forceit != 0 && (ea.argt & EX_BANG) == 0 {
                 api_set_error!(
                     err,
@@ -1052,14 +1052,13 @@ pub fn nvim_cmd(
                     }
                 }
 
-                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_TAB) && (mods.tab as c_int) >= 0 {
-                    cmod.cmod_tab = (mods.tab as c_int) + 1;
+                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_TAB) && (mods.tab as i32) >= 0 {
+                    cmod.cmod_tab = (mods.tab as i32) + 1;
                 }
 
-                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_VERBOSE)
-                    && (mods.verbose as c_int) >= 0
+                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_VERBOSE) && (mods.verbose as i32) >= 0
                 {
-                    cmod.cmod_verbose = (mods.verbose as c_int) + 1;
+                    cmod.cmod_verbose = (mods.verbose as i32) + 1;
                 }
 
                 if mods.vertical {
@@ -1419,14 +1418,14 @@ pub fn create_user_command(
     name: NvimString,
     cmd: Object,
     opts: &mut KeyDict_user_command,
-    flags: c_int,
+    flags: i32,
     err: &mut Error,
 ) {
     unsafe {
         let mut argt: u32 = 0;
         let mut def: i64 = -1;
         let mut addr_type_arg: CmdAddr = ADDR_NONE;
-        let mut context: c_int = EXPAND_NOTHING;
+        let mut context: i32 = EXPAND_NOTHING;
         let mut compl_arg: Option<std::ffi::CString> = None;
         let rep: *const c_char;
         let mut luaref: LuaRef = LUA_NOREF;
@@ -1438,7 +1437,7 @@ pub fn create_user_command(
                 api_err_invalid(err, c"command name", name.data, 0, true);
                 break 'err;
             }
-            if mb_islower(c_int::from(*name.data.cast::<u8>())) {
+            if mb_islower(i32::from(*name.data.cast::<u8>())) {
                 api_err_invalid(
                     err,
                     c"command name (must start with uppercase)",
@@ -1552,7 +1551,7 @@ pub fn create_user_command(
                 }
                 if !parse_addr_type_arg(
                     opts.addr.data.string().data,
-                    opts.addr.data.string().size as c_int,
+                    opts.addr.data.string().size as i32,
                     &mut addr_type_arg,
                 ) {
                     api_err_invalid(err, c"addr", opts.addr.data.string().data, 0, true);
@@ -1593,7 +1592,7 @@ pub fn create_user_command(
             } else if opts.complete.obj_type == ObjectType::ObjectTypeString {
                 if !parse_compl_arg(
                     opts.complete.data.string().data,
-                    opts.complete.data.string().size as c_int,
+                    opts.complete.data.string().size as i32,
                     &mut context,
                     &mut argt,
                     &mut compl_arg,

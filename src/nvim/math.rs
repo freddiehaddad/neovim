@@ -1,12 +1,10 @@
 //! Mathematical and bit-manipulation utilities (`src/nvim/math.c`).
 
-use std::ffi::{c_int, c_uint};
-
 /// Return value from Neovim functions (`src/nvim/vim_defs.h`).
-pub const OK: c_int = 1;
-pub const FAIL: c_int = 0;
+pub const OK: i32 = 1;
+pub const FAIL: i32 = 0;
 
-pub const FP_NAN: c_int = if cfg!(any(
+pub const FP_NAN: i32 = if cfg!(any(
     target_os = "windows",
     target_os = "freebsd",
     target_os = "openbsd",
@@ -19,9 +17,9 @@ pub const FP_NAN: c_int = if cfg!(any(
     0
 };
 
-pub const FP_INFINITE: c_int = if cfg!(target_os = "macos") { 2 } else { 1 };
+pub const FP_INFINITE: i32 = if cfg!(target_os = "macos") { 2 } else { 1 };
 
-pub const FP_ZERO: c_int = if cfg!(target_os = "windows") {
+pub const FP_ZERO: i32 = if cfg!(target_os = "windows") {
     0
 } else if cfg!(target_os = "macos") {
     3
@@ -35,7 +33,7 @@ pub const FP_ZERO: c_int = if cfg!(target_os = "windows") {
     2
 };
 
-pub const FP_SUBNORMAL: c_int = if cfg!(target_os = "windows") {
+pub const FP_SUBNORMAL: i32 = if cfg!(target_os = "windows") {
     -2
 } else if cfg!(target_os = "macos") {
     5
@@ -49,10 +47,10 @@ pub const FP_SUBNORMAL: c_int = if cfg!(target_os = "windows") {
     3
 };
 
-pub const FP_NORMAL: c_int = if cfg!(target_os = "windows") { -1 } else { 4 };
+pub const FP_NORMAL: i32 = if cfg!(target_os = "windows") { -1 } else { 4 };
 
 /// Classify a `f64` into platform `<math.h>` `FP_*` categories (`xfpclassify`).
-pub fn xfpclassify(d: f64) -> c_int {
+pub fn xfpclassify(d: f64) -> i32 {
     let bits = d.to_bits();
     let e = (bits >> 52) & 0x7ff;
     let m = bits & 0x000f_ffff_ffff_ffff;
@@ -77,39 +75,39 @@ pub fn xfpclassify(d: f64) -> c_int {
 }
 
 /// Return non-zero (1) if `d` is positive or negative infinity (`xisinf`).
-pub fn xisinf(d: f64) -> c_int {
-    c_int::from(xfpclassify(d) == FP_INFINITE)
+pub fn xisinf(d: f64) -> i32 {
+    i32::from(xfpclassify(d) == FP_INFINITE)
 }
 
 /// Return non-zero (1) if `d` is NaN (`xisnan`).
-pub fn xisnan(d: f64) -> c_int {
-    c_int::from(xfpclassify(d) == FP_NAN)
+pub fn xisnan(d: f64) -> i32 {
+    i32::from(xfpclassify(d) == FP_NAN)
 }
 
 /// Count trailing zeroes at the end of 64-bit bitfield (`xctz`).
-pub fn xctz(x: u64) -> c_int {
-    x.trailing_zeros() as c_int
+pub fn xctz(x: u64) -> i32 {
+    x.trailing_zeros() as i32
 }
 
 /// Count number of set bits in 64-bit bitfield (`xpopcount`).
-pub fn xpopcount(x: u64) -> c_uint {
-    x.count_ones() as c_uint
+pub fn xpopcount(x: u64) -> u32 {
+    x.count_ones()
 }
 
-/// Append a decimal digit (`0..=9`) to `*value`, returning `FAIL` on `c_int` overflow
+/// Append a decimal digit (`0..=9`) to `*value`, returning `FAIL` on `i32` overflow
 /// (`vim_append_digit_int`).
-pub fn vim_append_digit_int(value: &mut c_int, digit: c_int) -> bool {
+pub fn vim_append_digit_int(value: &mut i32, digit: i32) -> bool {
     let x = *value;
-    if x > (c_int::MAX - digit) / 10 {
+    if x > (i32::MAX - digit) / 10 {
         return false;
     }
     *value = x * 10 + digit;
     true
 }
 
-/// Clamp a 64-bit signed integer into the range of `c_int` (`trim_to_int`).
-pub fn trim_to_int(x: i64) -> c_int {
-    x.clamp(i64::from(c_int::MIN), i64::from(c_int::MAX)) as c_int
+/// Clamp a 64-bit signed integer into the range of `i32` (`trim_to_int`).
+pub fn trim_to_int(x: i64) -> i32 {
+    x.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
 }
 
 #[cfg(test)]
@@ -153,17 +151,17 @@ mod tests {
 
     #[test]
     fn append_digit_and_trim() {
-        let mut v: c_int = 0;
+        let mut v: i32 = 0;
         for &d in &[2, 1, 4, 7, 4, 8, 3, 6, 4, 7] {
             assert!(vim_append_digit_int(&mut v, d));
         }
-        assert_eq!(v, c_int::MAX);
+        assert_eq!(v, i32::MAX);
         assert!(!vim_append_digit_int(&mut v, 0));
-        assert_eq!(v, c_int::MAX);
+        assert_eq!(v, i32::MAX);
 
         assert_eq!(trim_to_int(0), 0);
-        assert_eq!(trim_to_int(i64::MAX), c_int::MAX);
-        assert_eq!(trim_to_int(i64::MIN), c_int::MIN);
+        assert_eq!(trim_to_int(i64::MAX), i32::MAX);
+        assert_eq!(trim_to_int(i64::MIN), i32::MIN);
         assert_eq!(trim_to_int(12345), 12345);
     }
 }

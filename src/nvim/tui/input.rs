@@ -38,12 +38,12 @@ use crate::tui::tui::{
     TUIData, tui_enable_extended_underline, tui_handle_primary_device_attr, tui_handle_term_mode,
     tui_query_bg_color, tui_set_size,
 };
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::channel::STDIN_FILENO;
 use crate::option::OptInt;
-pub type KeyEncoding = c_int;
+pub type KeyEncoding = i32;
 
 const INPUT_BUFFER_SIZE: usize = 256;
 const KEY_BUFFER_SIZE: usize = 0x1000;
@@ -54,9 +54,9 @@ pub(crate) const K_KEY_ENCODING_LEGACY: KeyEncoding = 0;
 pub(crate) const K_KEY_ENCODING_KITTY: KeyEncoding = 1;
 pub(crate) const K_KEY_ENCODING_XTERM: KeyEncoding = 2;
 
-const KEYMOD_SUPER: c_int = 1 << 3;
-const KEYMOD_META: c_int = 1 << 5;
-const KEYMOD_RECOGNIZED: c_int =
+const KEYMOD_SUPER: i32 = 1 << 3;
+const KEYMOD_META: i32 = 1 << 5;
+const KEYMOD_RECOGNIZED: i32 =
     TERMKEY_KEYMOD_SHIFT | TERMKEY_KEYMOD_ALT | TERMKEY_KEYMOD_CTRL | KEYMOD_SUPER | KEYMOD_META;
 
 const START_PASTE: &[u8; 6] = b"\x1b[200~";
@@ -71,7 +71,7 @@ pub enum PrimaryDeviceAttrAction {
 }
 
 pub struct TermInput {
-    pub in_fd: c_int,
+    pub in_fd: i32,
     pub paste: i8,
     pub ttimeout: bool,
     pub primary_device_attr: Option<PrimaryDeviceAttrAction>,
@@ -119,7 +119,7 @@ impl TermInput {
 }
 
 struct TuiInputModuleState {
-    last_pressed_button: c_int,
+    last_pressed_button: i32,
 }
 
 impl TuiInputModuleState {
@@ -141,7 +141,7 @@ fn tui_inp_st() -> &'static mut TuiInputModuleState {
 use crate::event::r#loop::uv_timer_get_due_in;
 
 #[inline]
-const fn kitty_key_name(key: c_int) -> Option<&'static str> {
+const fn kitty_key_name(key: i32) -> Option<&'static str> {
     match key {
         57344 => Some("Esc"),
         57345 => Some("CR"),
@@ -342,7 +342,7 @@ fn tinput_enqueue(input: &mut TermInput, buf: impl crate::strings::IntoCCharPtr,
 }
 
 #[inline]
-fn push_termkey_modifiers(modifiers: c_int, out: &mut String) {
+fn push_termkey_modifiers(modifiers: i32, out: &mut String) {
     if (modifiers & TERMKEY_KEYMOD_SHIFT) != 0 {
         out.push_str("S-");
     }
@@ -355,7 +355,7 @@ fn push_termkey_modifiers(modifiers: c_int, out: &mut String) {
 }
 
 #[inline]
-fn push_more_modifiers(modifiers: c_int, out: &mut String) {
+fn push_more_modifiers(modifiers: i32, out: &mut String) {
     if (modifiers & KEYMOD_SUPER) != 0 {
         out.push_str("D-");
     }
@@ -365,7 +365,7 @@ fn push_more_modifiers(modifiers: c_int, out: &mut String) {
 }
 
 fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
-    if let Some(name) = kitty_key_name(key.code.codepoint as c_int) {
+    if let Some(name) = kitty_key_name(key.code.codepoint) {
         let mut buf = String::with_capacity(32);
         buf.push('<');
         push_termkey_modifiers(key.modifiers, &mut buf);
@@ -378,7 +378,7 @@ fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
 
 fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
-        let cp = key.code.codepoint as c_int;
+        let cp = key.code.codepoint;
         if (0xE000..=0xF8FF).contains(&cp) && kitty_key_name(cp).is_some() {
             handle_kitty_key_protocol(input, key);
             return;
@@ -422,7 +422,7 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
             );
         } else {
             assert!(key.modifiers != 0);
-            let cp = key.code.codepoint as c_int;
+            let cp = key.code.codepoint;
             if (0xE000..=0xF8FF).contains(&cp) && kitty_key_name(cp).is_some() {
                 handle_kitty_key_protocol(input, key);
                 return;
@@ -436,7 +436,7 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
             );
             if (key.modifiers & TERMKEY_KEYMOD_CTRL) != 0
                 && (key.modifiers & TERMKEY_KEYMOD_SHIFT) == 0
-                && (b'A' as c_int..=b'Z' as c_int).contains(&cp)
+                && (b'A' as i32..=b'Z' as i32).contains(&cp)
             {
                 assert!(len + 2 < buf.len());
                 ptr::copy(buf.as_ptr().add(1), buf.as_mut_ptr().add(3), len - 1);
@@ -471,9 +471,9 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
 
 fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
     {
-        let mut button: c_int = 0;
-        let mut row: c_int = 0;
-        let mut col: c_int = 0;
+        let mut button: i32 = 0;
+        let mut row: i32 = 0;
+        let mut col: i32 = 0;
         let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;
 
         termkey_interpret_mouse(input.tk(), key, &mut ev, &mut button, &mut row, &mut col);
@@ -738,7 +738,7 @@ fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam],
 
         let mut response = String::from("\x1b[?");
         for (i, &param) in params.iter().enumerate().take(nparams) {
-            let mut arg: c_int = 0;
+            let mut arg: i32 = 0;
             if termkey_interpret_csi_param(param, &mut arg, None, None) != TERMKEY_RES_KEY {
                 return;
             }
@@ -757,9 +757,9 @@ fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam],
 
 fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
-        let mut initial: c_int = 0;
-        let mut mode: c_int = 0;
-        let mut value: c_int = 0;
+        let mut initial: i32 = 0;
+        let mut mode: i32 = 0;
+        let mut value: i32 = 0;
         if termkey_interpret_modereport(input.tk(), key, &mut initial, &mut mode, &mut value)
             == TERMKEY_RES_KEY
         {
@@ -772,7 +772,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
         let mut params = [TermKeyCsiParam::new(); 16];
         let mut nparams: usize = 16;
-        let mut cmd: c_uint = 0;
+        let mut cmd: u32 = 0;
         if termkey_interpret_csi(input.tk(), key, &mut params, &mut nparams, &mut cmd)
             != TERMKEY_RES_KEY
         {
@@ -788,7 +788,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                 if initial == b'>' && intermediate == b' ' {
                     let mut response = String::from("\x1b[>");
                     for (i, param) in params.iter().enumerate().take(nparams) {
-                        let mut arg: c_int = 0;
+                        let mut arg: i32 = 0;
                         if termkey_interpret_csi_param(*param, &mut arg, None, None)
                             != TERMKEY_RES_KEY
                         {
@@ -818,7 +818,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
             }
             b't' => {
                 if nparams == 5 {
-                    let mut args = [0 as c_int; 3];
+                    let mut args = [0_i32; 3];
                     for i in 0..args.len() {
                         if termkey_interpret_csi_param(params[i], &mut args[i], None, None)
                             != TERMKEY_RES_KEY
@@ -835,7 +835,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
             }
             b'n' => {
                 if nparams == 1 {
-                    let mut arg: c_int = 0;
+                    let mut arg: i32 = 0;
                     if termkey_interpret_csi_param(params[0], &mut arg, None, None)
                         != TERMKEY_RES_KEY
                     {
@@ -845,7 +845,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                     bytes.push(0);
                     send_termresponse(&bytes[..bytes.len() - 1]);
                 } else if nparams == 2 {
-                    let mut args = [0 as c_int; 2];
+                    let mut args = [0_i32; 2];
                     for i in 0..args.len() {
                         if termkey_interpret_csi_param(params[i], &mut args[i], None, None)
                             != TERMKEY_RES_KEY

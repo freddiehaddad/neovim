@@ -15,7 +15,6 @@ use crate::memline::ml_flush_deleted_bytes;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
-use std::ffi::c_int;
 use std::ptr;
 
 pub(crate) const ARENA_EMPTY: Arena = Arena {
@@ -26,7 +25,7 @@ pub(crate) const ARENA_EMPTY: Arena = Arena {
 
 use crate::cursor::{Colnr, Linenr};
 
-const LOG_ERROR: c_int = 3;
+const LOG_ERROR: i32 = 3;
 
 #[inline]
 pub fn luaret_truthy(res: Object) -> bool {
@@ -317,13 +316,13 @@ pub fn buf_updates_send_changes(
 
 pub fn buf_updates_send_splice(
     buf: &mut FileBuf,
-    start_row: c_int,
+    start_row: i32,
     start_col: Colnr,
     start_byte: Bcount,
-    old_row: c_int,
+    old_row: i32,
     old_col: Colnr,
     old_byte: Bcount,
-    new_row: c_int,
+    new_row: i32,
     new_col: Colnr,
     new_byte: Bcount,
 ) {

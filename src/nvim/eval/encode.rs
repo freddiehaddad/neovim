@@ -28,7 +28,7 @@ use crate::msgpack_rpc::packer::{
 use crate::regexp::NUMBUFLEN;
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use crate::testing::ga_concat_literal;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 pub(crate) const K_MP_NIL: usize = 0;
 pub(crate) const K_MP_BOOLEAN: usize = 1;
@@ -36,7 +36,7 @@ pub(crate) const K_MP_FLOAT: usize = 3;
 pub(crate) const K_MP_STRING: usize = 4;
 pub(crate) const K_MP_ARRAY: usize = 5;
 
-const FF: c_int = 0x0c;
+const FF: i32 = 0x0c;
 
 pub const ENCODE_BOOL_VAR_NAMES: [*const c_char; 2] = [c"v:false".as_ptr(), c"v:true".as_ptr()];
 pub const ENCODE_SPECIAL_VAR_NAMES: [*const c_char; 1] = [c"v:null".as_ptr()];
@@ -114,7 +114,7 @@ pub(crate) enum MPConvStackData {
 #[derive(Clone, Copy)]
 pub(crate) struct MPConvStackVal {
     pub(crate) tv: *mut TypVal,
-    pub(crate) saved_copy_id: c_int,
+    pub(crate) saved_copy_id: i32,
     pub(crate) data: MPConvStackData,
 }
 
@@ -266,7 +266,7 @@ pub fn encode_read_from_list(
     buf: *mut c_char,
     nbuf: usize,
     read_bytes: &mut usize,
-) -> c_int {
+) -> i32 {
     let state = unsafe { &mut *state };
     let buf_end = unsafe { buf.add(nbuf) };
     let mut p = buf;
@@ -401,7 +401,7 @@ fn conv_error(
     msg: &std::ffi::CStr,
     mpstack: &[MPConvStackVal],
     objname: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let objname = objname.into_c_char_ptr();
     unsafe {
         let mut msg_ga: Vec<u8> = Vec::with_capacity(80);
@@ -474,7 +474,7 @@ fn conv_error(
                     }
                 },
                 MPConvStackData::PartialList { arg, argv, .. } => {
-                    let idx = (arg.offset_from(argv) as c_int) - 1;
+                    let idx = (arg.offset_from(argv) as i32) - 1;
                     vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"argument %i", idx,);
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }
@@ -562,7 +562,7 @@ fn convert_to_json_string(
                         let start = i - shift;
                         semsg!(
                             c"E474: String \"%.*s\" contains byte that does not start any UTF-8 character",
-                            (len - start) as c_int,
+                            (len - start) as i32,
                             buf.add(start),
                         );
                         return false;
@@ -572,7 +572,7 @@ fn convert_to_json_string(
                         let start = i - shift;
                         semsg!(
                             c"E474: UTF-8 string contains code point which belongs to a surrogate pair: %.*s",
-                            (len - start) as c_int,
+                            (len - start) as i32,
                             buf.add(start),
                         );
                         return false;
@@ -908,7 +908,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_blob(&mut self, blob: Option<&TvBlob>, len: c_int) {
+    fn conv_blob(&mut self, blob: Option<&TvBlob>, len: i32) {
         unsafe {
             match self {
                 Self::Text {
@@ -929,7 +929,7 @@ impl EncodeBackend<'_> {
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%02X",
-                                tv_blob_get(blob.unwrap(), i) as c_int,
+                                tv_blob_get(blob.unwrap(), i) as i32,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);
                         }
@@ -952,7 +952,7 @@ impl EncodeBackend<'_> {
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%d",
-                                tv_blob_get(blob.unwrap(), i) as c_int,
+                                tv_blob_get(blob.unwrap(), i) as i32,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);
                         }
@@ -985,7 +985,7 @@ impl EncodeBackend<'_> {
         prefix: &[u8],
         mpstack: &[MPConvStackVal],
         objname: impl crate::strings::IntoCCharPtr,
-    ) -> c_int {
+    ) -> i32 {
         let fun = fun.into_c_char_ptr();
         let objname = objname.into_c_char_ptr();
         unsafe {
@@ -1033,7 +1033,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_func_before_args(&mut self, len: c_int) {
+    fn conv_func_before_args(&mut self, len: i32) {
         if let Self::Text { gap, .. } = self
             && len != 0
         {
@@ -1068,7 +1068,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_list_start(&mut self, len: c_int) {
+    fn conv_list_start(&mut self, len: i32) {
         unsafe {
             match self {
                 Self::Text { gap, .. } => gap.push(b'['),
@@ -1151,11 +1151,11 @@ impl EncodeBackend<'_> {
     fn check_self_reference(
         &mut self,
         container: MPContainerRef,
-        val_copy_id: &mut c_int,
+        val_copy_id: &mut i32,
         mpstack: &[MPConvStackVal],
-        copy_id: c_int,
+        copy_id: i32,
         objname: impl crate::strings::IntoCCharPtr,
-    ) -> c_int {
+    ) -> i32 {
         let objname = objname.into_c_char_ptr();
         if *val_copy_id != copy_id {
             *val_copy_id = copy_id;
@@ -1234,9 +1234,9 @@ fn convert_one_value(
     backend: &mut EncodeBackend,
     mpstack: &mut Vec<MPConvStackVal>,
     tv: *mut TypVal,
-    copy_id: c_int,
+    copy_id: i32,
     objname: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let objname = objname.into_c_char_ptr();
     unsafe {
         backend.check_before();
@@ -1329,10 +1329,10 @@ fn convert_one_value(
                 }
             }
             VarType::VarBool => {
-                backend.conv_bool(tv_ref.vval.v_bool() == K_BOOL_VAR_TRUE as c_int);
+                backend.conv_bool(tv_ref.vval.v_bool() == K_BOOL_VAR_TRUE as i32);
             }
             VarType::VarSpecial => {
-                if tv_ref.vval.v_special() == K_SPECIAL_VAR_NULL as c_int {
+                if tv_ref.vval.v_special() == K_SPECIAL_VAR_NULL as i32 {
                     backend.conv_nil();
                 }
             }
@@ -1680,7 +1680,7 @@ fn encode_vim_with_backend(
                             let argc = if pt.is_null() {
                                 0
                             } else {
-                                (*pt).pt_argv.len() as c_int
+                                (*pt).pt_argv.len() as i32
                             };
                             backend.conv_func_before_args(argc);
                             if let MPConvStackData::Partial {

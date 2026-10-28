@@ -13,7 +13,7 @@ use crate::hashtab::hashitem_empty;
 use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
 use crate::message::{emsg, semsg};
 use crate::mpack::object::MpackData;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 pub(crate) const K_LIST_LEN_MAY_KNOW: isize = -3;
 
@@ -21,11 +21,11 @@ pub(crate) const K_MP_INTEGER: usize = 2;
 pub(crate) const K_MP_MAP: usize = 6;
 pub(crate) const K_MP_EXT: usize = 7;
 
-pub(crate) const SURROGATE_HI_START: c_int = 0xD800;
-pub(crate) const SURROGATE_HI_END: c_int = 0xDBFF;
-pub(crate) const SURROGATE_LO_START: c_int = 0xDC00;
-pub(crate) const SURROGATE_LO_END: c_int = 0xDFFF;
-pub(crate) const SURROGATE_FIRST_CHAR: c_int = 0x10000;
+pub(crate) const SURROGATE_HI_START: i32 = 0xD800;
+pub(crate) const SURROGATE_HI_END: i32 = 0xDBFF;
+pub(crate) const SURROGATE_LO_START: i32 = 0xDC00;
+pub(crate) const SURROGATE_LO_END: i32 = 0xDFFF;
+pub(crate) const SURROGATE_FIRST_CHAR: i32 = 0x10000;
 
 use crate::mpack::mpack_core::{MPACK_OK, MpackTokenType};
 use crate::mpack::object::{
@@ -268,7 +268,7 @@ fn parse_json_string(
                 if p == e {
                     semsg!(
                         c"E474: Unfinished escape sequence: %.*s",
-                        buf_len as c_int,
+                        buf_len as i32,
                         buf,
                     );
                     *pp = p;
@@ -279,7 +279,7 @@ fn parse_json_string(
                         if p.add(4) >= e {
                             semsg!(
                                 c"E474: Unfinished unicode escape sequence: %.*s",
-                                buf_len as c_int,
+                                buf_len as i32,
                                 buf,
                             );
                             *pp = p;
@@ -293,7 +293,7 @@ fn parse_json_string(
                             let start = p.sub(1);
                             semsg!(
                                 c"E474: Expected four hex digits after \\u: %.*s",
-                                ((e as usize) - (start as usize)) as c_int,
+                                ((e as usize) - (start as usize)) as i32,
                                 start,
                             );
                             *pp = p;
@@ -310,7 +310,7 @@ fn parse_json_string(
                         let start = p.sub(1);
                         semsg!(
                             c"E474: Unknown escape sequence: %.*s",
-                            ((e as usize) - (start as usize)) as c_int,
+                            ((e as usize) - (start as usize)) as i32,
                             start,
                         );
                         *pp = p;
@@ -322,7 +322,7 @@ fn parse_json_string(
                 if p_byte < 0x20 {
                     semsg!(
                         c"E474: ASCII control characters cannot be present inside string: %.*s",
-                        ((e as usize) - (p as usize)) as c_int,
+                        ((e as usize) - (p as usize)) as i32,
                         p,
                     );
                     *pp = p;
@@ -330,12 +330,12 @@ fn parse_json_string(
                 }
                 let ch = utf_ptr2char(p);
                 if ch >= 0x80
-                    && c_int::from(p_byte) == ch
+                    && i32::from(p_byte) == ch
                     && !(ch == 0xC3 && p.add(1) < e && (crate::memory::cstr_byte_at(p, 1)) == 0x83)
                 {
                     semsg!(
                         c"E474: Only UTF-8 strings allowed: %.*s",
-                        ((e as usize) - (p as usize)) as c_int,
+                        ((e as usize) - (p as usize)) as i32,
                         p,
                     );
                     *pp = p;
@@ -343,7 +343,7 @@ fn parse_json_string(
                 } else if ch > 0x10FFFF {
                     semsg!(
                         c"E474: Only UTF-8 code points up to U+10FFFF are allowed to appear unescaped: %.*s",
-                        ((e as usize) - (p as usize)) as c_int,
+                        ((e as usize) - (p as usize)) as i32,
                         p,
                     );
                     *pp = p;
@@ -357,14 +357,14 @@ fn parse_json_string(
         }
 
         if p == e || crate::memory::cstr_first_byte(p) != b'"' {
-            semsg!(c"E474: Expected string end: %.*s", buf_len as c_int, buf,);
+            semsg!(c"E474: Expected string end: %.*s", buf_len as i32, buf,);
             *pp = p;
             return false;
         }
 
         let mut str_buf_vec: Vec<c_char> = vec![0; len + 1];
         let str_buf = str_buf_vec.as_mut_ptr();
-        let mut fst_in_pair: c_int = 0;
+        let mut fst_in_pair: i32 = 0;
         let mut str_end = str_buf;
         let mut t = s;
 
@@ -388,7 +388,7 @@ fn parse_json_string(
                         ];
                         t = t.add(4);
                         let hex_str = std::str::from_utf8_unchecked(&ubuf);
-                        let ch = c_int::from(u16::from_str_radix(hex_str, 16).unwrap_or(0));
+                        let ch = i32::from(u16::from_str_radix(hex_str, 16).unwrap_or(0));
                         if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch) {
                             if fst_in_pair != 0 {
                                 str_end =
@@ -510,7 +510,7 @@ fn parse_json_number(
             if p != ints.add(1) && crate::memory::cstr_first_byte(ints) == b'0' {
                 semsg!(
                     c"E474: Leading zeroes are not allowed: %.*s",
-                    ((e as usize) - (s as usize)) as c_int,
+                    ((e as usize) - (s as usize)) as i32,
                     s,
                 );
                 *pp = p;
@@ -544,7 +544,7 @@ fn parse_json_number(
         if p == ints {
             semsg!(
                 c"E474: Missing number after minus sign: %.*s",
-                ((e as usize) - (s as usize)) as c_int,
+                ((e as usize) - (s as usize)) as i32,
                 s,
             );
             *pp = p;
@@ -552,7 +552,7 @@ fn parse_json_number(
         } else if p == fracs || (!fracs.is_null() && exps_s == fracs.add(1)) {
             semsg!(
                 c"E474: Missing number after decimal dot: %.*s",
-                ((e as usize) - (s as usize)) as c_int,
+                ((e as usize) - (s as usize)) as i32,
                 s,
             );
             *pp = p;
@@ -560,7 +560,7 @@ fn parse_json_number(
         } else if p == exps {
             semsg!(
                 c"E474: Missing exponent: %.*s",
-                ((e as usize) - (s as usize)) as c_int,
+                ((e as usize) - (s as usize)) as i32,
                 s,
             );
             *pp = p;
@@ -579,7 +579,7 @@ fn parse_json_number(
             if exp_num_len != num_len {
                 semsg!(
                     c"E685: internal error: while converting number \"%.*s\" to float string2float consumed %zu bytes in place of %zu",
-                    exp_num_len as c_int,
+                    exp_num_len as i32,
                     s,
                     num_len,
                     exp_num_len,
@@ -589,7 +589,7 @@ fn parse_json_number(
             tv.vval = TypvalVval::Float(flt);
         } else {
             let mut nr: i64 = 0;
-            let mut num_len: c_int = 0;
+            let mut num_len: i32 = 0;
             vim_str2nr(
                 s,
                 None,
@@ -597,14 +597,14 @@ fn parse_json_number(
                 0,
                 Some(&mut nr),
                 None,
-                exp_num_len as c_int,
+                exp_num_len as i32,
                 true,
                 None,
             );
-            if (exp_num_len as c_int) != num_len {
+            if (exp_num_len as i32) != num_len {
                 semsg!(
                     c"E685: internal error: while converting number \"%.*s\" to integer vim_str2nr consumed %i bytes in place of %zu",
-                    exp_num_len as c_int,
+                    exp_num_len as i32,
                     s,
                     num_len,
                     exp_num_len,
@@ -678,7 +678,7 @@ pub fn json_decode_string(
         'outer: while p < e {
             loop {
                 debug_assert!(crate::memory::cstr_first_byte(p) == b'{' || !next_map_special);
-                let len_rem = ((e as usize) - (p as usize)) as c_int;
+                let len_rem = ((e as usize) - (p as usize)) as i32;
                 match crate::memory::cstr_first_byte(p) {
                     b'}' | b']' => {
                         if container_stack.is_empty() {
@@ -998,7 +998,7 @@ pub fn json_decode_string(
             match crate::memory::cstr_first_byte(p) {
                 b'\n' | b' ' | b'\t' | b'\r' => p = p.add(1),
                 _ => {
-                    let len_rem = ((e as usize) - (p as usize)) as c_int;
+                    let len_rem = ((e as usize) - (p as usize)) as i32;
                     semsg!(c"E474: Trailing characters: %.*s", len_rem, p);
                     return fail_cleanup(stack);
                 }
@@ -1009,11 +1009,7 @@ pub fn json_decode_string(
             *rettv = stack.pop().unwrap().val;
             return true;
         }
-        semsg!(
-            c"E474: Unexpected end of input: %.*s",
-            buf_len as c_int,
-            buf,
-        );
+        semsg!(c"E474: Unexpected end of input: %.*s", buf_len as i32, buf,);
         fail_cleanup(stack)
     }
 }
@@ -1270,7 +1266,7 @@ pub fn mpack_parse_typval(
     parser: &mut MpackParser,
     data: &mut *const c_char,
     size: &mut usize,
-) -> c_int {
+) -> i32 {
     mpack_parse(
         parser,
         data,
@@ -1281,7 +1277,7 @@ pub fn mpack_parse_typval(
 }
 
 /// Unpack msgpack buffer `*data[..*size]` into `*ret` (`unpack_typval`).
-pub fn unpack_typval(data: &mut *const c_char, size: &mut usize, ret: &mut TypVal) -> c_int {
+pub fn unpack_typval(data: &mut *const c_char, size: &mut usize, ret: &mut TypVal) -> i32 {
     ret.v_type = VarType::VarUnknown;
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
@@ -1378,7 +1374,7 @@ mod tests {
 
         assert!(json_decode_string(c"true", 4, &mut rettv));
         assert_eq!(rettv.v_type, VarType::VarBool);
-        assert_eq!(rettv.vval.v_bool(), K_BOOL_VAR_TRUE as c_int);
+        assert_eq!(rettv.vval.v_bool(), K_BOOL_VAR_TRUE as i32);
         tv_clear(&mut rettv);
 
         crate::globals::g_st().emsg_skip -= 1;

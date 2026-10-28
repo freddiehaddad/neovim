@@ -1,6 +1,6 @@
 //! CSI / SS3 / DCS / OSC / APC driver for libtermkey (`src/nvim/tui/termkey/driver-csi.c`).
 
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 
 use crate::tui::termkey::driver_ti::{
     TERMKEY_EVENT_PRESS, TERMKEY_EVENT_RELEASE, TERMKEY_EVENT_REPEAT, TERMKEY_EVENT_UNKNOWN,
@@ -20,19 +20,19 @@ use crate::tui::termkey::driver_ti::{
 };
 use crate::tui::termkey::termkey::{emit_codepoint, peekkey_mouse};
 
-pub type TermKeyMouseEvent = c_int;
+pub type TermKeyMouseEvent = i32;
 pub const TERMKEY_MOUSE_UNKNOWN: TermKeyMouseEvent = 0;
 pub const TERMKEY_MOUSE_PRESS: TermKeyMouseEvent = 1;
 pub const TERMKEY_MOUSE_DRAG: TermKeyMouseEvent = 2;
 pub const TERMKEY_MOUSE_RELEASE: TermKeyMouseEvent = 3;
 
-pub const TERMKEY_FLAG_CONVERTKP: c_int = 1 << 1;
+pub const TERMKEY_FLAG_CONVERTKP: i32 = 1 << 1;
 
 #[derive(Clone, Copy)]
 pub struct TermKeyCsiParam {
     pub present: bool,
-    pub param: c_int,
-    pub subparams: [c_int; 4],
+    pub param: i32,
+    pub subparams: [i32; 4],
     pub nsubparams: usize,
 }
 
@@ -47,9 +47,9 @@ impl TermKeyCsiParam {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        let mut arg: c_int = 0;
-        let mut param: c_int = 0;
-        let mut subparams = [0 as c_int; 4];
+        let mut arg: i32 = 0;
+        let mut param: i32 = 0;
+        let mut subparams = [0_i32; 4];
         let mut length = 0usize;
         for &c in bytes {
             if c == b':' {
@@ -63,7 +63,7 @@ impl TermKeyCsiParam {
                 continue;
             }
             debug_assert!(c.is_ascii_digit());
-            arg = (10 * arg) + c_int::from(c - b'0');
+            arg = (10 * arg) + i32::from(c - b'0');
         }
         if length == 0 {
             param = arg;
@@ -87,7 +87,7 @@ impl Default for TermKeyCsiParam {
 
 #[derive(Default)]
 pub struct TermKeyCsi {
-    pub saved_string_id: c_int,
+    pub saved_string_id: i32,
     pub saved_string: Vec<c_char>,
 }
 
@@ -210,15 +210,13 @@ const CSIFUNCS: [TiKeyInfo; NCSIFUNCS] = {
 };
 
 #[inline]
-pub fn termkey_key_get_linecol(key: &TermKeyKey, line: &mut c_int, col: &mut c_int) {
-    *col =
-        c_int::from(key.code.mouse[1] as u8) | (c_int::from(key.code.mouse[3] as u8 & 0x0f) << 8);
-    *line =
-        c_int::from(key.code.mouse[2] as u8) | (c_int::from(key.code.mouse[3] as u8 & 0x70) << 4);
+pub fn termkey_key_get_linecol(key: &TermKeyKey, line: &mut i32, col: &mut i32) {
+    *col = i32::from(key.code.mouse[1] as u8) | (i32::from(key.code.mouse[3] as u8 & 0x0f) << 8);
+    *line = i32::from(key.code.mouse[2] as u8) | (i32::from(key.code.mouse[3] as u8 & 0x70) << 4);
 }
 
 #[inline]
-pub fn termkey_key_set_linecol(key: &mut TermKeyKey, mut line: c_int, mut col: c_int) {
+pub fn termkey_key_set_linecol(key: &mut TermKeyKey, mut line: i32, mut col: i32) {
     if line > 0xfff {
         line = 0xfff;
     }
@@ -231,7 +229,7 @@ pub fn termkey_key_set_linecol(key: &mut TermKeyKey, mut line: c_int, mut col: c
 }
 
 #[inline]
-fn parse_key_event(n: c_int) -> TermKeyEvent {
+fn parse_key_event(n: i32) -> TermKeyEvent {
     match n {
         1 => TERMKEY_EVENT_PRESS,
         2 => TERMKEY_EVENT_REPEAT,
@@ -243,9 +241,9 @@ fn parse_key_event(n: c_int) -> TermKeyEvent {
 fn handle_csi_ss3_full(
     _tk: &mut TermKey,
     key: &mut TermKeyKey,
-    cmd: c_int,
+    cmd: i32,
     params: &[TermKeyCsiParam],
-    nparams: c_int,
+    nparams: i32,
 ) -> TermKeyResult {
     let mut result = TERMKEY_RES_KEY;
 
@@ -254,8 +252,8 @@ fn handle_csi_ss3_full(
     }
 
     if nparams > 1 && params[1].present {
-        let mut arg: c_int = 0;
-        let mut subparam: c_int = 0;
+        let mut arg: i32 = 0;
+        let mut subparam: i32 = 0;
         let mut nsubparams: usize = 1;
         result = termkey_interpret_csi_param(
             params[1],
@@ -296,19 +294,19 @@ fn handle_csi_ss3_full(
 fn handle_csifunc(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
-    _cmd: c_int,
+    _cmd: i32,
     params: &[TermKeyCsiParam],
-    nparams: c_int,
+    nparams: i32,
 ) -> TermKeyResult {
     if nparams == 0 {
         return TERMKEY_RES_NONE;
     }
 
     let mut result: TermKeyResult;
-    let mut args = [0 as c_int; 3];
+    let mut args = [0_i32; 3];
 
     if nparams > 1 && params[1].present {
-        let mut subparam: c_int = 0;
+        let mut subparam: i32 = 0;
         let mut nsubparams: usize = 1;
         result = termkey_interpret_csi_param(
             params[1],
@@ -369,16 +367,16 @@ fn handle_csifunc(
 fn handle_csi_u(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
-    cmd: c_int,
+    cmd: i32,
     params: &[TermKeyCsiParam],
-    nparams: c_int,
+    nparams: i32,
 ) -> TermKeyResult {
-    if cmd != b'u' as c_int {
+    if cmd != b'u' as i32 {
         return TERMKEY_RES_NONE;
     }
-    let mut args = [0 as c_int; 2];
+    let mut args = [0_i32; 2];
     if nparams > 1 && params[1].present {
-        let mut subparam: c_int = 0;
+        let mut subparam: i32 = 0;
         let mut nsubparams: usize = 1;
         if termkey_interpret_csi_param(
             params[1],
@@ -417,14 +415,14 @@ fn handle_csi_u(
 fn handle_csi_m(
     _tk: &mut TermKey,
     key: &mut TermKeyKey,
-    mut cmd: c_int,
+    mut cmd: i32,
     params: &[TermKeyCsiParam],
-    nparams: c_int,
+    nparams: i32,
 ) -> TermKeyResult {
     let initial = cmd >> 8;
     cmd &= 0xff;
 
-    if cmd != b'M' as c_int && cmd != b'm' as c_int {
+    if cmd != b'M' as i32 && cmd != b'm' as i32 {
         return TERMKEY_RES_NONE;
     }
 
@@ -432,7 +430,7 @@ fn handle_csi_m(
         return TERMKEY_RES_NONE;
     }
 
-    let mut args = [0 as c_int; 3];
+    let mut args = [0_i32; 3];
     for (i, arg) in args.iter_mut().enumerate() {
         if termkey_interpret_csi_param(params[i], arg, None, None) != TERMKEY_RES_KEY {
             return TERMKEY_RES_ERROR;
@@ -442,19 +440,19 @@ fn handle_csi_m(
     if initial == 0 {
         key.r#type = TERMKEY_TYPE_MOUSE;
         key.code.mouse[0] = args[0] as u8 as c_char;
-        key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
+        key.modifiers = i32::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
         key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
         termkey_key_set_linecol(key, args[1], args[2]);
         return TERMKEY_RES_KEY;
     }
 
-    if initial == b'<' as c_int {
+    if initial == b'<' as i32 {
         key.r#type = TERMKEY_TYPE_MOUSE;
         key.code.mouse[0] = args[0] as u8 as c_char;
-        key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
+        key.modifiers = i32::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
         key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
         termkey_key_set_linecol(key, args[1], args[2]);
-        if cmd == b'm' as c_int {
+        if cmd == b'm' as i32 {
             key.code.mouse[3] = (key.code.mouse[3] as u8 | 0x80) as c_char;
         }
         return TERMKEY_RES_KEY;
@@ -467,9 +465,9 @@ pub fn termkey_interpret_mouse(
     _tk: &TermKey,
     key: &TermKeyKey,
     event: &mut TermKeyMouseEvent,
-    button: &mut c_int,
-    line: &mut c_int,
-    col: &mut c_int,
+    button: &mut i32,
+    line: &mut i32,
+    col: &mut i32,
 ) -> TermKeyResult {
     {
         if key.r#type != TERMKEY_TYPE_MOUSE {
@@ -482,8 +480,8 @@ pub fn termkey_interpret_mouse(
 
         termkey_key_get_linecol(key, line, col);
 
-        let mut btn: c_int = 0;
-        let mut code = c_int::from(key.code.mouse[0] as u8);
+        let mut btn: i32 = 0;
+        let mut code = i32::from(key.code.mouse[0] as u8);
         let drag = (code & 0x20) != 0;
         code &= !0x3c;
 
@@ -535,15 +533,15 @@ pub fn termkey_interpret_mouse(
 fn handle_csi_r(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
-    cmd: c_int,
+    cmd: i32,
     params: &[TermKeyCsiParam],
-    nparams: c_int,
+    nparams: i32,
 ) -> TermKeyResult {
-    if cmd == (b'R' as c_int | ((b'?' as c_int) << 8)) {
+    if cmd == (b'R' as i32 | ((b'?' as i32) << 8)) {
         if nparams < 2 {
             return TERMKEY_RES_NONE;
         }
-        let mut args = [0 as c_int; 2];
+        let mut args = [0_i32; 2];
         if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
             return TERMKEY_RES_ERROR;
         }
@@ -562,8 +560,8 @@ fn handle_csi_r(
 pub fn termkey_interpret_position(
     _tk: &TermKey,
     key: &TermKeyKey,
-    line: &mut c_int,
-    col: &mut c_int,
+    line: &mut i32,
+    col: &mut i32,
 ) -> TermKeyResult {
     if key.r#type != TERMKEY_TYPE_POSITION {
         return TERMKEY_RES_NONE;
@@ -575,17 +573,17 @@ pub fn termkey_interpret_position(
 fn handle_csi_y(
     _tk: &mut TermKey,
     key: &mut TermKeyKey,
-    cmd: c_int,
+    cmd: i32,
     params: &[TermKeyCsiParam],
-    nparams: c_int,
+    nparams: i32,
 ) -> TermKeyResult {
-    const CMD_ANSI: c_int = (b'y' as c_int) | ((b'$' as c_int) << 16);
-    const CMD_DEC: c_int = CMD_ANSI | ((b'?' as c_int) << 8);
+    const CMD_ANSI: i32 = (b'y' as i32) | ((b'$' as i32) << 16);
+    const CMD_DEC: i32 = CMD_ANSI | ((b'?' as i32) << 8);
     if cmd == CMD_ANSI || cmd == CMD_DEC {
         if nparams < 2 {
             return TERMKEY_RES_NONE;
         }
-        let mut args = [0 as c_int; 2];
+        let mut args = [0_i32; 2];
         if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
             return TERMKEY_RES_ERROR;
         }
@@ -606,23 +604,22 @@ fn handle_csi_y(
 pub fn termkey_interpret_modereport(
     _tk: &TermKey,
     key: &TermKeyKey,
-    initial: &mut c_int,
-    mode: &mut c_int,
-    value: &mut c_int,
+    initial: &mut i32,
+    mode: &mut i32,
+    value: &mut i32,
 ) -> TermKeyResult {
     {
         if key.r#type != TERMKEY_TYPE_MODEREPORT {
             return TERMKEY_RES_NONE;
         }
         {
-            *initial = c_int::from(key.code.mouse[0] as u8);
+            *initial = i32::from(key.code.mouse[0] as u8);
         }
         {
-            *mode =
-                (c_int::from(key.code.mouse[1] as u8) << 8) | c_int::from(key.code.mouse[2] as u8);
+            *mode = (i32::from(key.code.mouse[1] as u8) << 8) | i32::from(key.code.mouse[2] as u8);
         }
         {
-            *value = c_int::from(key.code.mouse[3] as u8);
+            *value = i32::from(key.code.mouse[3] as u8);
         }
         TERMKEY_RES_KEY
     }
@@ -634,7 +631,7 @@ fn parse_csi(
     csi_len: &mut usize,
     params: &mut [TermKeyCsiParam; 16],
     nargs: &mut usize,
-    commandp: &mut c_uint,
+    commandp: &mut u32,
 ) -> TermKeyResult {
     let mut csi_end = introlen;
     let slice = &tk.buffer[tk.buffstart..tk.buffstart + tk.buffcount];
@@ -652,14 +649,14 @@ fn parse_csi(
     }
 
     let cmd = slice[csi_end];
-    *commandp = c_uint::from(cmd);
+    *commandp = u32::from(cmd);
 
     let mut param_start: Option<usize> = None;
     let mut argi = 0usize;
     let mut p = introlen;
 
     if (slice[p] >= b'<') && (slice[p] <= b'?') {
-        *commandp |= c_uint::from(slice[p]) << 8;
+        *commandp |= u32::from(slice[p]) << 8;
         p += 1;
     }
 
@@ -680,7 +677,7 @@ fn parse_csi(
                 break;
             }
         } else if (0x20..=0x2f).contains(&c) {
-            *commandp |= c_uint::from(c) << 16;
+            *commandp |= u32::from(c) << 16;
             break;
         }
 
@@ -703,7 +700,7 @@ pub fn termkey_interpret_csi(
     key: &TermKeyKey,
     params: &mut [TermKeyCsiParam; 16],
     nparams: &mut usize,
-    cmd: &mut c_uint,
+    cmd: &mut u32,
 ) -> TermKeyResult {
     let mut dummy: usize = 0;
     if tk.hightide == 0 {
@@ -717,8 +714,8 @@ pub fn termkey_interpret_csi(
 
 pub fn termkey_interpret_csi_param(
     param: TermKeyCsiParam,
-    paramp: &mut c_int,
-    subparams: Option<&mut [c_int]>,
+    paramp: &mut i32,
+    subparams: Option<&mut [i32]>,
     nsubparams: Option<&mut usize>,
 ) -> TermKeyResult {
     if !param.present {
@@ -748,14 +745,14 @@ fn peekkey_csi_csi(
     tk: &mut TermKey,
     introlen: usize,
     key: &mut TermKeyKey,
-    force: c_int,
+    force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
     {
         let mut csi_len: usize = 0;
         let mut nparams: usize = 16;
         let mut params = [TermKeyCsiParam::new(); 16];
-        let mut cmd: c_uint = 0;
+        let mut cmd: u32 = 0;
 
         let ret = parse_csi(
             tk,
@@ -770,13 +767,13 @@ fn peekkey_csi_csi(
             if force == 0 {
                 return TERMKEY_RES_AGAIN;
             }
-            emit_codepoint(tk, b'[' as c_int, key);
+            emit_codepoint(tk, b'[' as i32, key);
             key.modifiers |= TERMKEY_KEYMOD_ALT;
             *nbytep = introlen;
             return TERMKEY_RES_KEY;
         }
 
-        if cmd == b'M' as c_uint && nparams < 3 {
+        if cmd == b'M' as u32 && nparams < 3 {
             tk.buffstart += csi_len;
             tk.buffcount -= csi_len;
 
@@ -792,8 +789,8 @@ fn peekkey_csi_csi(
             return mouse_result;
         }
 
-        let cmd_i32 = cmd as c_int;
-        let np_i32 = nparams as c_int;
+        let cmd_i32 = cmd as i32;
+        let np_i32 = nparams as i32;
         let result = match (cmd & 0xff) as u8 {
             b'u' => handle_csi_u(tk, key, cmd_i32, &params, np_i32),
             b'M' | b'm' => handle_csi_m(tk, key, cmd_i32, &params, np_i32),
@@ -808,7 +805,7 @@ fn peekkey_csi_csi(
 
         if result == TERMKEY_RES_NONE {
             key.r#type = TERMKEY_TYPE_UNKNOWN_CSI;
-            key.code.number = cmd as c_int;
+            key.code.number = cmd as i32;
             key.modifiers = 0;
 
             tk.hightide = csi_len - introlen;
@@ -825,7 +822,7 @@ fn peekkey_ss3(
     tk: &mut TermKey,
     introlen: usize,
     key: &mut TermKeyKey,
-    force: c_int,
+    force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
     {
@@ -833,7 +830,7 @@ fn peekkey_ss3(
             if force == 0 {
                 return TERMKEY_RES_AGAIN;
             }
-            emit_codepoint(tk, b'O' as c_int, key);
+            emit_codepoint(tk, b'O' as i32, key);
             key.modifiers |= TERMKEY_KEYMOD_ALT;
             *nbytep = tk.buffcount;
             return TERMKEY_RES_KEY;
@@ -853,7 +850,7 @@ fn peekkey_ss3(
         if key.code.sym == TERMKEY_SYM_UNKNOWN {
             if (tk.flags & TERMKEY_FLAG_CONVERTKP) != 0 && SS3_KPALTS[idx] != 0 {
                 key.r#type = TERMKEY_TYPE_UNICODE;
-                key.code.codepoint = c_int::from(SS3_KPALTS[idx] as u8);
+                key.code.codepoint = i32::from(SS3_KPALTS[idx] as u8);
                 key.modifiers = 0;
                 key.utf8[0] = SS3_KPALTS[idx];
                 key.utf8[1] = 0;
@@ -878,7 +875,7 @@ fn peekkey_ctrlstring(
     tk: &mut TermKey,
     introlen: usize,
     key: &mut TermKeyKey,
-    _force: c_int,
+    _force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
     {
@@ -947,7 +944,7 @@ fn peekkey_ctrlstring(
 pub fn peekkey_csi(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
-    force: c_int,
+    force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
     if tk.buffcount == 0 {
@@ -986,8 +983,8 @@ mod tests {
     #[test]
     fn interpret_csi_param_parses_params_and_subparams() {
         let param = TermKeyCsiParam::from_bytes(b"12:3:4");
-        let mut p: c_int = 0;
-        let mut sub = [0 as c_int; 2];
+        let mut p: i32 = 0;
+        let mut sub = [0_i32; 2];
         let mut nsub: usize = 2;
         assert_eq!(
             termkey_interpret_csi_param(param, &mut p, Some(&mut sub), Some(&mut nsub)),

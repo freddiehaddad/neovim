@@ -1,6 +1,6 @@
 //! VTerm screen buffer and damage management (`src/nvim/vterm/screen.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::terminal::Terminal;
@@ -20,7 +20,7 @@ use crate::vterm::state::{
 use crate::vterm::vterm::{vterm_get_size, vterm_scroll_rect};
 
 use crate::grid::Schar;
-pub type VTermDamageSize = c_int;
+pub type VTermDamageSize = i32;
 
 const VTERM_DAMAGE_CELL: VTermDamageSize = 0;
 const VTERM_DAMAGE_ROW: VTermDamageSize = 1;
@@ -151,7 +151,7 @@ pub struct VTermScreenCell {
     pub attrs: VTermScreenCellAttrs,
     pub fg: VTermColor,
     pub bg: VTermColor,
-    pub uri: c_int,
+    pub uri: i32,
 }
 
 #[repr(C)]
@@ -159,7 +159,7 @@ pub struct VTermScreenCell {
 pub struct ScreenPen {
     pub fg: VTermColor,
     pub bg: VTermColor,
-    pub uri: c_int,
+    pub uri: i32,
     pub flags: u32,
 }
 
@@ -297,7 +297,7 @@ pub struct ScreenCell {
 #[derive(Clone, Copy, Default)]
 pub struct VTermGlyphInfo {
     pub schar: Schar,
-    pub width: c_int,
+    pub width: i32,
     pub flags: u32,
 }
 
@@ -357,17 +357,16 @@ pub struct VTermStateFields {
 
 #[repr(C)]
 pub struct VTermScreenCallbacks {
-    pub damage: Option<fn(rect: VTermRect, user: *mut Terminal) -> c_int>,
-    pub moverect: Option<fn(dest: VTermRect, src: VTermRect, user: *mut Terminal) -> c_int>,
+    pub damage: Option<fn(rect: VTermRect, user: *mut Terminal) -> i32>,
+    pub moverect: Option<fn(dest: VTermRect, src: VTermRect, user: *mut Terminal) -> i32>,
     pub movecursor: Option<crate::vterm::pen::VTermMoveCursorFn<Terminal>>,
-    pub settermprop:
-        Option<fn(prop: VTermProp, val: &mut VTermValue, user: *mut Terminal) -> c_int>,
-    pub bell: Option<fn(user: *mut Terminal) -> c_int>,
-    pub resize: Option<fn(rows: c_int, cols: c_int, user: *mut Terminal) -> c_int>,
-    pub theme: Option<fn(dark: &mut bool, user: *mut Terminal) -> c_int>,
-    pub sb_pushline: Option<fn(cells: &[VTermScreenCell], user: *mut Terminal) -> c_int>,
-    pub sb_popline: Option<fn(cells: &mut [VTermScreenCell], user: *mut Terminal) -> c_int>,
-    pub sb_clear: Option<fn(user: *mut Terminal) -> c_int>,
+    pub settermprop: Option<fn(prop: VTermProp, val: &mut VTermValue, user: *mut Terminal) -> i32>,
+    pub bell: Option<fn(user: *mut Terminal) -> i32>,
+    pub resize: Option<fn(rows: i32, cols: i32, user: *mut Terminal) -> i32>,
+    pub theme: Option<fn(dark: &mut bool, user: *mut Terminal) -> i32>,
+    pub sb_pushline: Option<fn(cells: &[VTermScreenCell], user: *mut Terminal) -> i32>,
+    pub sb_popline: Option<fn(cells: &mut [VTermScreenCell], user: *mut Terminal) -> i32>,
+    pub sb_clear: Option<fn(user: *mut Terminal) -> i32>,
 }
 
 #[repr(C)]
@@ -377,10 +376,10 @@ pub struct VTermScreen {
     pub damage_merge: VTermDamageSize,
     pub damaged: VTermRect,
     pub pending_scrollrect: VTermRect,
-    pub pending_scroll_downward: c_int,
-    pub pending_scroll_rightward: c_int,
-    pub rows: c_int,
-    pub cols: c_int,
+    pub pending_scroll_downward: i32,
+    pub pending_scroll_rightward: i32,
+    pub rows: i32,
+    pub cols: i32,
     pub flags: u32,
     pub buffers: [Vec<ScreenCell>; 2],
     pub bufidx: usize,
@@ -424,14 +423,14 @@ fn clearcell(screen: &VTermScreen, cell: &mut ScreenCell) {
 }
 
 #[inline]
-fn vterm_rect_move(rect: &mut VTermRect, row_delta: c_int, col_delta: c_int) {
+fn vterm_rect_move(rect: &mut VTermRect, row_delta: i32, col_delta: i32) {
     rect.start_row += row_delta;
     rect.end_row += row_delta;
     rect.start_col += col_delta;
     rect.end_col += col_delta;
 }
 
-pub fn getcell(screen: &VTermScreen, row: c_int, col: c_int) -> *mut ScreenCell {
+pub fn getcell(screen: &VTermScreen, row: i32, col: i32) -> *mut ScreenCell {
     if row < 0 || row >= screen.rows || col < 0 || col >= screen.cols {
         return ptr::null_mut();
     }
@@ -439,7 +438,7 @@ pub fn getcell(screen: &VTermScreen, row: c_int, col: c_int) -> *mut ScreenCell 
     (&raw const screen.buffers[screen.bufidx][idx]).cast_mut()
 }
 
-fn alloc_buffer(screen: &mut VTermScreen, rows: c_int, cols: c_int) -> Vec<ScreenCell> {
+fn alloc_buffer(screen: &mut VTermScreen, rows: i32, cols: i32) -> Vec<ScreenCell> {
     let count = (rows as usize) * (cols as usize);
     let mut new_buffer = vec![ScreenCell::default(); count];
 
@@ -502,7 +501,7 @@ fn damagescreen(screen: &mut VTermScreen) {
     damagerect(screen, rect);
 }
 
-fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) -> c_int {
+fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         let cell = getcell(screen, pos.row, pos.col);
@@ -542,7 +541,7 @@ fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) 
     }
 }
 
-fn sb_pushline_from_row(screen: &mut VTermScreen, row: c_int) {
+fn sb_pushline_from_row(screen: &mut VTermScreen, row: i32) {
     let mut pos = VTermPos { row, col: 0 };
     while pos.col < screen.cols {
         let col_idx = pos.col as usize;
@@ -559,7 +558,7 @@ fn sb_pushline_from_row(screen: &mut VTermScreen, row: c_int) {
     }
 }
 
-fn moverect_internal(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> c_int {
+fn moverect_internal(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         if screen
@@ -598,7 +597,7 @@ fn moverect_internal(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) 
     }
 }
 
-fn moverect_user(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> c_int {
+fn moverect_user(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         if let Some(callbacks) = screen.callbacks
@@ -619,7 +618,7 @@ fn moverect_user(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> c
     }
 }
 
-fn erase_internal(rect: VTermRect, selective: c_int, screen: *mut VTermScreen) -> c_int {
+fn erase_internal(rect: VTermRect, selective: i32, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         let mut row = rect.start_row;
@@ -652,7 +651,7 @@ fn erase_internal(rect: VTermRect, selective: c_int, screen: *mut VTermScreen) -
     }
 }
 
-fn erase_user(rect: VTermRect, _selective: c_int, screen: *mut VTermScreen) -> c_int {
+fn erase_user(rect: VTermRect, _selective: i32, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         damagerect(screen, rect);
@@ -660,7 +659,7 @@ fn erase_user(rect: VTermRect, _selective: c_int, screen: *mut VTermScreen) -> c
     }
 }
 
-fn erase(rect: VTermRect, selective: c_int, screen: *mut VTermScreen) -> c_int {
+fn erase(rect: VTermRect, selective: i32, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         erase_internal(rect, selective, screen);
@@ -668,12 +667,7 @@ fn erase(rect: VTermRect, selective: c_int, screen: *mut VTermScreen) -> c_int {
     }
 }
 
-fn scrollrect(
-    mut rect: VTermRect,
-    downward: c_int,
-    rightward: c_int,
-    screen: *mut VTermScreen,
-) -> c_int {
+fn scrollrect(mut rect: VTermRect, downward: i32, rightward: i32, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         if screen.damage_merge != VTERM_DAMAGE_SCROLL {
@@ -767,7 +761,7 @@ fn scrollrect(
     }
 }
 
-fn movecursor(pos: VTermPos, oldpos: VTermPos, visible: c_int, screen: *mut VTermScreen) -> c_int {
+fn movecursor(pos: VTermPos, oldpos: VTermPos, visible: i32, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         if let Some(callbacks) = screen.callbacks
@@ -779,7 +773,7 @@ fn movecursor(pos: VTermPos, oldpos: VTermPos, visible: c_int, screen: *mut VTer
     }
 }
 
-fn setpenattr(attr: VTermAttr, val: &mut VTermValue, screen: *mut VTermScreen) -> c_int {
+fn setpenattr(attr: VTermAttr, val: &mut VTermValue, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         match attr {
@@ -848,7 +842,7 @@ fn setpenattr(attr: VTermAttr, val: &mut VTermValue, screen: *mut VTermScreen) -
     }
 }
 
-fn settermprop(prop: VTermProp, val: &mut VTermValue, screen: *mut VTermScreen) -> c_int {
+fn settermprop(prop: VTermProp, val: &mut VTermValue, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         match prop {
@@ -882,7 +876,7 @@ fn settermprop(prop: VTermProp, val: &mut VTermValue, screen: *mut VTermScreen) 
     }
 }
 
-fn bell(screen: *mut VTermScreen) -> c_int {
+fn bell(screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         if let Some(callbacks) = screen.callbacks
@@ -894,7 +888,7 @@ fn bell(screen: *mut VTermScreen) -> c_int {
     }
 }
 
-fn line_popcount(buffer: &[ScreenCell], row: c_int, _rows: c_int, cols: c_int) -> c_int {
+fn line_popcount(buffer: &[ScreenCell], row: i32, _rows: i32, cols: i32) -> i32 {
     let mut col = cols - 1;
     while col >= 0 && buffer[(row * cols + col) as usize].schar == 0 {
         col -= 1;
@@ -905,8 +899,8 @@ fn line_popcount(buffer: &[ScreenCell], row: c_int, _rows: c_int, cols: c_int) -
 fn resize_buffer(
     screen: &mut VTermScreen,
     bufidx: usize,
-    new_rows: c_int,
-    new_cols: c_int,
+    new_rows: i32,
+    new_cols: i32,
     active: bool,
     statefields: &mut VTermStateFields,
 ) {
@@ -941,7 +935,7 @@ fn resize_buffer(
             }
             let old_row_start = old_row;
 
-            let mut width: c_int = 0;
+            let mut width: i32 = 0;
             for row in old_row_start..=old_row_end {
                 if do_reflow
                     && row < (old_rows - 1)
@@ -971,7 +965,7 @@ fn resize_buffer(
             let mut new_row_start = new_row - new_height + 1;
 
             old_row = old_row_start;
-            let mut old_col: c_int = 0;
+            let mut old_col: i32 = 0;
 
             let spare_rows = new_rows - final_blank_row;
 
@@ -1019,7 +1013,7 @@ fn resize_buffer(
                 let mut count = if width >= new_cols { new_cols } else { width };
                 width -= count;
 
-                let mut new_col: c_int = 0;
+                let mut new_col: i32 = 0;
 
                 while count != 0 {
                     new_buffer_vec[(new_row * new_cols + new_col) as usize] =
@@ -1136,7 +1130,7 @@ fn resize_buffer(
                 dst.pen.bg = src.bg;
                 dst.pen.uri = src.uri;
 
-                let width = c_int::from(src.width);
+                let width = i32::from(src.width);
                 if width == 2 && pos.col < (new_cols - 1) {
                     new_buffer_vec[dst_idx + 1].schar = u32::MAX;
                 }
@@ -1183,11 +1177,11 @@ fn resize_buffer(
 }
 
 fn resize(
-    new_rows: c_int,
-    new_cols: c_int,
+    new_rows: i32,
+    new_cols: i32,
     fields: &mut VTermStateFields,
     screen: *mut VTermScreen,
-) -> c_int {
+) -> i32 {
     unsafe {
         let screen = &mut *screen;
         let altscreen_active =
@@ -1233,7 +1227,7 @@ fn resize(
     }
 }
 
-fn theme(dark: &mut bool, screen: *mut VTermScreen) -> c_int {
+fn theme(dark: &mut bool, screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         if let Some(callbacks) = screen.callbacks
@@ -1246,11 +1240,11 @@ fn theme(dark: &mut bool, screen: *mut VTermScreen) -> c_int {
 }
 
 fn setlineinfo(
-    row: c_int,
+    row: i32,
     newinfo: &VTermLineInfo,
     oldinfo: &VTermLineInfo,
     screen: *mut VTermScreen,
-) -> c_int {
+) -> i32 {
     unsafe {
         let screen = &mut *screen;
 
@@ -1286,7 +1280,7 @@ fn setlineinfo(
     }
 }
 
-fn sb_clear(screen: *mut VTermScreen) -> c_int {
+fn sb_clear(screen: *mut VTermScreen) -> i32 {
     unsafe {
         let screen = &mut *screen;
         if let Some(callbacks) = screen.callbacks
@@ -1322,8 +1316,8 @@ fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
             return None;
         }
 
-        let mut rows: c_int = 0;
-        let mut cols: c_int = 0;
+        let mut rows: i32 = 0;
+        let mut cols: i32 = 0;
         vterm_get_size(vt, &mut rows, &mut cols);
 
         let mut screen = Box::new(VTermScreen {
@@ -1363,7 +1357,7 @@ fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
     }
 }
 
-pub fn vterm_screen_reset(screen: &mut VTermScreen, hard: c_int) {
+pub fn vterm_screen_reset(screen: &mut VTermScreen, hard: i32) {
     unsafe {
         screen.damaged.start_row = -1;
         screen.pending_scrollrect.start_row = -1;
@@ -1376,7 +1370,7 @@ pub fn vterm_screen_get_cell(
     screen: &VTermScreen,
     pos: VTermPos,
     cell: &mut VTermScreenCell,
-) -> c_int {
+) -> i32 {
     unsafe {
         let intcell = getcell(screen, pos.row, pos.col);
         if intcell.is_null() {
@@ -1439,11 +1433,11 @@ pub fn vterm_screen_enable_reflow(screen: &mut VTermScreen, reflow: bool) {
     screen.set_reflow(reflow);
 }
 
-pub fn vterm_screen_enable_altscreen(screen: &mut VTermScreen, altscreen: c_int) {
+pub fn vterm_screen_enable_altscreen(screen: &mut VTermScreen, altscreen: i32) {
     unsafe {
         if screen.buffers[BUFIDX_ALTSCREEN].is_empty() && altscreen != 0 {
-            let mut rows: c_int = 0;
-            let mut cols: c_int = 0;
+            let mut rows: i32 = 0;
+            let mut cols: i32 = 0;
             vterm_get_size(&*screen.vt, &mut rows, &mut cols);
 
             screen.buffers[BUFIDX_ALTSCREEN] = alloc_buffer(screen, rows, cols);
@@ -1547,8 +1541,8 @@ pub fn rect_clip(dst: &mut VTermRect, bounds: &mut VTermRect) {
     }
 }
 
-pub fn rect_equal(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
-    c_int::from(
+pub fn rect_equal(a: &mut VTermRect, b: &mut VTermRect) -> i32 {
+    i32::from(
         a.start_row == b.start_row
             && a.start_col == b.start_col
             && a.end_row == b.end_row
@@ -1556,7 +1550,7 @@ pub fn rect_equal(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
     )
 }
 
-pub fn rect_contains(big: &mut VTermRect, small: &mut VTermRect) -> c_int {
+pub fn rect_contains(big: &mut VTermRect, small: &mut VTermRect) -> i32 {
     if small.start_row < big.start_row
         || small.start_col < big.start_col
         || small.end_row > big.end_row
@@ -1568,7 +1562,7 @@ pub fn rect_contains(big: &mut VTermRect, small: &mut VTermRect) -> c_int {
     }
 }
 
-pub fn rect_intersects(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
+pub fn rect_intersects(a: &mut VTermRect, b: &mut VTermRect) -> i32 {
     if a.start_row > b.end_row
         || b.start_row > a.end_row
         || a.start_col > b.end_col

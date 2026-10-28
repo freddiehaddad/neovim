@@ -4,7 +4,7 @@ use crate::event::r#loop::{
     Loop, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop, uv_write,
 };
 use crate::event::stream::{Stream, stream_close_handle, stream_init};
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_void};
 #[cfg(windows)]
 use u64;
 
@@ -12,9 +12,9 @@ use crate::os::fs::UV_UNKNOWN;
 
 const DEFAULT_MAXMEM: usize = 1024 * 1024 * 2000;
 #[cfg(windows)]
-const UV_ENOMEM: c_int = -4057;
+const UV_ENOMEM: i32 = -4057;
 #[cfg(not(windows))]
-const UV_ENOMEM: c_int = -12;
+const UV_ENOMEM: i32 = -12;
 
 #[allow(non_camel_case_types)]
 pub type uv_write_t = c_void;
@@ -81,7 +81,7 @@ struct WRequest {
 
 use crate::event::r#loop::uv_fs_write;
 
-pub fn wstream_init_fd(loop_: &mut Loop, stream: &mut Stream, fd: c_int, maxmem: usize) {
+pub fn wstream_init_fd(loop_: &mut Loop, stream: &mut Stream, fd: i32, maxmem: usize) {
     stream_init(&raw mut *loop_, stream, fd, false);
     wstream_init(stream, maxmem);
 }
@@ -94,7 +94,7 @@ pub fn wstream_set_write_cb(stream: &mut Stream) {
     stream.notify_write = true;
 }
 
-pub fn wstream_write(stream: &mut Stream, buffer: std::rc::Rc<WBuffer>) -> c_int {
+pub fn wstream_write(stream: &mut Stream, buffer: std::rc::Rc<WBuffer>) -> i32 {
     unsafe {
         assert!(stream.maxmem != 0);
         assert!(!stream.closed);
@@ -148,7 +148,7 @@ pub fn wstream_new_vec_buffer(buf: Vec<c_char>) -> std::rc::Rc<WBuffer> {
     std::rc::Rc::new(WBuffer { data: buf })
 }
 
-unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
+unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: i32) {
     unsafe {
         let data = Box::from_raw(*req.cast::<*mut WRequest>());
         let stream = data.stream;

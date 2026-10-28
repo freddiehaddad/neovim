@@ -117,11 +117,10 @@ use crate::shada::{
     KeyDict__shada_search_pat,
 };
 use crate::ui_client::handle_ui_client_redraw;
-use std::ffi::c_int;
 use std::mem::offset_of;
 use std::ptr;
 
-const K_UNPACK_TYPE_STRING_ARRAY_CONST: c_int = -1;
+const K_UNPACK_TYPE_STRING_ARRAY_CONST: i32 = -1;
 
 pub type ApiDispatchWrapper =
     Option<fn(channel_id: u64, args: Array, arena: &mut Arena, error: &mut Error) -> Object>;
@@ -338,34 +337,34 @@ pub static _SHADA_BUFLIST_ITEM_TABLE: [KeySetLink; 4] = [
     KeySetLink {
         str: Some(c"c"),
         ptr_off: offset_of!(KeyDict__shada_buflist_item, c),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"f"),
         ptr_off: offset_of!(KeyDict__shada_buflist_item, f),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"l"),
         ptr_off: offset_of!(KeyDict__shada_buflist_item, l),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn _shada_buflist_item_hash(key: &[u8]) -> c_int {
+pub fn _shada_buflist_item_hash(key: &[u8]) -> i32 {
     match key {
         b"c" => 0,
         b"f" => 1,
@@ -383,41 +382,41 @@ pub static _SHADA_MARK_TABLE: [KeySetLink; 5] = [
     KeySetLink {
         str: Some(c"c"),
         ptr_off: offset_of!(KeyDict__shada_mark, c),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"f"),
         ptr_off: offset_of!(KeyDict__shada_mark, f),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"l"),
         ptr_off: offset_of!(KeyDict__shada_mark, l),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"n"),
         ptr_off: offset_of!(KeyDict__shada_mark, n),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn _shada_mark_hash(key: &[u8]) -> c_int {
+pub fn _shada_mark_hash(key: &[u8]) -> i32 {
     match key {
         b"c" => 0,
         b"f" => 1,
@@ -436,7 +435,7 @@ pub static _SHADA_REGISTER_TABLE: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"n"),
         ptr_off: offset_of!(KeyDict__shada_register, n),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
@@ -450,34 +449,34 @@ pub static _SHADA_REGISTER_TABLE: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"rt"),
         ptr_off: offset_of!(KeyDict__shada_register, rt),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ru"),
         ptr_off: offset_of!(KeyDict__shada_register, ru),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"rw"),
         ptr_off: offset_of!(KeyDict__shada_register, rw),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn _shada_register_hash(key: &[u8]) -> c_int {
+pub fn _shada_register_hash(key: &[u8]) -> i32 {
     match key {
         b"n" => 0,
         b"rc" => 1,
@@ -497,83 +496,83 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink; 11] = [
     KeySetLink {
         str: Some(c"sb"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, search_backward),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sc"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, smartcase),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"se"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, place_cursor_at_end),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sh"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, highlighted),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sl"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, has_line_offset),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sm"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, magic),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"so"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, offset),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sp"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, pat),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ss"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, is_substitute_pattern),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"su"),
         ptr_off: offset_of!(KeyDict__shada_search_pat, is_last_used),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn _shada_search_pat_hash(key: &[u8]) -> c_int {
+pub fn _shada_search_pat_hash(key: &[u8]) -> i32 {
     match key {
         b"sb" => 0,
         b"sc" => 1,
@@ -598,62 +597,62 @@ pub static BUF_ATTACH_TABLE: [KeySetLink; 8] = [
     KeySetLink {
         str: Some(c"preview"),
         ptr_off: offset_of!(KeyDict_buf_attach, preview),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_bytes"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_bytes),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_lines"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_lines),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"utf_sizes"),
         ptr_off: offset_of!(KeyDict_buf_attach, utf_sizes),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_detach"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_detach),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_reload"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_reload),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_changedtick"),
         ptr_off: offset_of!(KeyDict_buf_attach, on_changedtick),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn buf_attach_hash(key: &[u8]) -> c_int {
+pub fn buf_attach_hash(key: &[u8]) -> i32 {
     match key {
         b"preview" => 0,
         b"on_bytes" => 1,
@@ -675,27 +674,27 @@ pub static BUF_DELETE_TABLE: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"force"),
         ptr_off: offset_of!(KeyDict_buf_delete, force),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"unload"),
         ptr_off: offset_of!(KeyDict_buf_delete, unload),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn buf_delete_hash(key: &[u8]) -> c_int {
+pub fn buf_delete_hash(key: &[u8]) -> i32 {
     match key {
         b"force" => 0,
         b"unload" => 1,
@@ -712,20 +711,20 @@ pub static CHAN_SET_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"detach"),
         ptr_off: offset_of!(KeyDict_chan_set, detach),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn chan_set_hash(key: &[u8]) -> c_int {
+pub fn chan_set_hash(key: &[u8]) -> i32 {
     match key {
         b"detach" => 0,
         _ => -1,
@@ -741,48 +740,48 @@ pub static CLEAR_AUTOCMDS_TABLE: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, buf),
-        key_type: ObjectType::ObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"event"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, event),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"group"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, group),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buffer"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, buffer),
-        key_type: ObjectType::ObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_clear_autocmds, pattern),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn clear_autocmds_hash(key: &[u8]) -> c_int {
+pub fn clear_autocmds_hash(key: &[u8]) -> i32 {
     match key {
         b"buf" => 0,
         b"event" => 1,
@@ -802,90 +801,90 @@ pub static CMD_TABLE: [KeySetLink; 12] = [
     KeySetLink {
         str: Some(c"cmd"),
         ptr_off: offset_of!(KeyDict_cmd, cmd),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"reg"),
         ptr_off: offset_of!(KeyDict_cmd, reg),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bang"),
         ptr_off: offset_of!(KeyDict_cmd, bang),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"addr"),
         ptr_off: offset_of!(KeyDict_cmd, addr),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"mods"),
         ptr_off: offset_of!(KeyDict_cmd, mods),
-        key_type: ObjectType::ObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"args"),
         ptr_off: offset_of!(KeyDict_cmd, args),
-        key_type: ObjectType::ObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"count"),
         ptr_off: offset_of!(KeyDict_cmd, count),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"magic"),
         ptr_off: offset_of!(KeyDict_cmd, magic),
-        key_type: ObjectType::ObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nargs"),
         ptr_off: offset_of!(KeyDict_cmd, nargs),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"range"),
         ptr_off: offset_of!(KeyDict_cmd, range),
-        key_type: ObjectType::ObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nextcmd"),
         ptr_off: offset_of!(KeyDict_cmd, nextcmd),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn cmd_hash(key: &[u8]) -> c_int {
+pub fn cmd_hash(key: &[u8]) -> i32 {
     match key {
         b"cmd" => 0,
         b"reg" => 1,
@@ -911,27 +910,27 @@ pub static CMD_MAGIC_TABLE: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"bar"),
         ptr_off: offset_of!(KeyDict_cmd_magic, bar),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"file"),
         ptr_off: offset_of!(KeyDict_cmd_magic, file),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn cmd_magic_hash(key: &[u8]) -> c_int {
+pub fn cmd_magic_hash(key: &[u8]) -> i32 {
     match key {
         b"bar" => 0,
         b"file" => 1,
@@ -948,153 +947,153 @@ pub static CMD_MODS_TABLE: [KeySetLink; 21] = [
     KeySetLink {
         str: Some(c"tab"),
         ptr_off: offset_of!(KeyDict_cmd_mods, tab),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hide"),
         ptr_off: offset_of!(KeyDict_cmd_mods, hide),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"split"),
         ptr_off: offset_of!(KeyDict_cmd_mods, split),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"browse"),
         ptr_off: offset_of!(KeyDict_cmd_mods, browse),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"filter"),
         ptr_off: offset_of!(KeyDict_cmd_mods, filter),
-        key_type: ObjectType::ObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"silent"),
         ptr_off: offset_of!(KeyDict_cmd_mods, silent),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"confirm"),
         ptr_off: offset_of!(KeyDict_cmd_mods, confirm),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keepalt"),
         ptr_off: offset_of!(KeyDict_cmd_mods, keepalt),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sandbox"),
         ptr_off: offset_of!(KeyDict_cmd_mods, sandbox),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"verbose"),
         ptr_off: offset_of!(KeyDict_cmd_mods, verbose),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"unsilent"),
         ptr_off: offset_of!(KeyDict_cmd_mods, unsilent),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"vertical"),
         ptr_off: offset_of!(KeyDict_cmd_mods, vertical),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keepjumps"),
         ptr_off: offset_of!(KeyDict_cmd_mods, keepjumps),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keepmarks"),
         ptr_off: offset_of!(KeyDict_cmd_mods, keepmarks),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"lockmarks"),
         ptr_off: offset_of!(KeyDict_cmd_mods, lockmarks),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"noautocmd"),
         ptr_off: offset_of!(KeyDict_cmd_mods, noautocmd),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"horizontal"),
         ptr_off: offset_of!(KeyDict_cmd_mods, horizontal),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"noswapfile"),
         ptr_off: offset_of!(KeyDict_cmd_mods, noswapfile),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"emsg_silent"),
         ptr_off: offset_of!(KeyDict_cmd_mods, emsg_silent),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keeppatterns"),
         ptr_off: offset_of!(KeyDict_cmd_mods, keeppatterns),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 20,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn cmd_mods_hash(key: &[u8]) -> c_int {
+pub fn cmd_mods_hash(key: &[u8]) -> i32 {
     match key {
         b"tab" => 0,
         b"hide" => 1,
@@ -1129,27 +1128,27 @@ pub static CMD_MODS_FILTER_TABLE: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"force"),
         ptr_off: offset_of!(KeyDict_cmd_mods_filter, force),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_cmd_mods_filter, pattern),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn cmd_mods_filter_hash(key: &[u8]) -> c_int {
+pub fn cmd_mods_filter_hash(key: &[u8]) -> i32 {
     match key {
         b"force" => 0,
         b"pattern" => 1,
@@ -1166,20 +1165,20 @@ pub static CMD_OPTS_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"output"),
         ptr_off: offset_of!(KeyDict_cmd_opts, output),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn cmd_opts_hash(key: &[u8]) -> c_int {
+pub fn cmd_opts_hash(key: &[u8]) -> i32 {
     match key {
         b"output" => 0,
         _ => -1,
@@ -1195,20 +1194,20 @@ pub static COMPLETE_SET_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"info"),
         ptr_off: offset_of!(KeyDict_complete_set, info),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn complete_set_hash(key: &[u8]) -> c_int {
+pub fn complete_set_hash(key: &[u8]) -> i32 {
     match key {
         b"info" => 0,
         _ => -1,
@@ -1224,20 +1223,20 @@ pub static CONTEXT_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"types"),
         ptr_off: offset_of!(KeyDict_context, types),
-        key_type: ObjectType::ObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn context_hash(key: &[u8]) -> c_int {
+pub fn context_hash(key: &[u8]) -> i32 {
     match key {
         b"types" => 0,
         _ => -1,
@@ -1253,20 +1252,20 @@ pub static CREATE_AUGROUP_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"clear"),
         ptr_off: offset_of!(KeyDict_create_augroup, clear),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn create_augroup_hash(key: &[u8]) -> c_int {
+pub fn create_augroup_hash(key: &[u8]) -> i32 {
     match key {
         b"clear" => 0,
         _ => -1,
@@ -1282,76 +1281,76 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink; 10] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_create_autocmd, buf),
-        key_type: ObjectType::ObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"desc"),
         ptr_off: offset_of!(KeyDict_create_autocmd, desc),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"once"),
         ptr_off: offset_of!(KeyDict_create_autocmd, once),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"group"),
         ptr_off: offset_of!(KeyDict_create_autocmd, group),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buffer"),
         ptr_off: offset_of!(KeyDict_create_autocmd, buffer),
-        key_type: ObjectType::ObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nested"),
         ptr_off: offset_of!(KeyDict_create_autocmd, nested),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"command"),
         ptr_off: offset_of!(KeyDict_create_autocmd, command),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_create_autocmd, pattern),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"callback"),
         ptr_off: offset_of!(KeyDict_create_autocmd, callback),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn create_autocmd_hash(key: &[u8]) -> c_int {
+pub fn create_autocmd_hash(key: &[u8]) -> i32 {
     match key {
         b"buf" => 0,
         b"desc" => 1,
@@ -1375,83 +1374,83 @@ pub static ECHO_OPTS_TABLE: [KeySetLink; 11] = [
     KeySetLink {
         str: Some(c"id"),
         ptr_off: offset_of!(KeyDict_echo_opts, id),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"err"),
         ptr_off: offset_of!(KeyDict_echo_opts, err),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"data"),
         ptr_off: offset_of!(KeyDict_echo_opts, data),
-        key_type: ObjectType::ObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"kind"),
         ptr_off: offset_of!(KeyDict_echo_opts, kind),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"title"),
         ptr_off: offset_of!(KeyDict_echo_opts, title),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"source"),
         ptr_off: offset_of!(KeyDict_echo_opts, source),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"status"),
         ptr_off: offset_of!(KeyDict_echo_opts, status),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"percent"),
         ptr_off: offset_of!(KeyDict_echo_opts, percent),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"verbose"),
         ptr_off: offset_of!(KeyDict_echo_opts, verbose),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_truncate"),
         ptr_off: offset_of!(KeyDict_echo_opts, _truncate),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn echo_opts_hash(key: &[u8]) -> c_int {
+pub fn echo_opts_hash(key: &[u8]) -> i32 {
     match key {
         b"id" => 0,
         b"err" => 1,
@@ -1475,12 +1474,12 @@ pub fn key_dict_echo_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
 pub static EMPTY_TABLE: [KeySetLink; 1] = [KeySetLink {
     str: None,
     ptr_off: 0,
-    key_type: ObjectType::ObjectTypeNil as c_int,
+    key_type: ObjectType::ObjectTypeNil as i32,
     opt_index: -1,
     is_hlgroup: false,
 }];
 
-pub fn empty_hash(key: &[u8]) -> c_int {
+pub fn empty_hash(key: &[u8]) -> i32 {
     let _ = key;
     -1
 }
@@ -1494,62 +1493,62 @@ pub static EVAL_STATUSLINE_TABLE: [KeySetLink; 8] = [
     KeySetLink {
         str: Some(c"winid"),
         ptr_off: offset_of!(KeyDict_eval_statusline, winid),
-        key_type: ObjectType::ObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fillchar"),
         ptr_off: offset_of!(KeyDict_eval_statusline, fillchar),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"maxwidth"),
         ptr_off: offset_of!(KeyDict_eval_statusline, maxwidth),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"highlights"),
         ptr_off: offset_of!(KeyDict_eval_statusline, highlights),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"use_winbar"),
         ptr_off: offset_of!(KeyDict_eval_statusline, use_winbar),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"use_tabline"),
         ptr_off: offset_of!(KeyDict_eval_statusline, use_tabline),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"use_statuscol_lnum"),
         ptr_off: offset_of!(KeyDict_eval_statusline, use_statuscol_lnum),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn eval_statusline_hash(key: &[u8]) -> c_int {
+pub fn eval_statusline_hash(key: &[u8]) -> i32 {
     match key {
         b"winid" => 0,
         b"fillchar" => 1,
@@ -1571,55 +1570,55 @@ pub static EXEC_AUTOCMDS_TABLE: [KeySetLink; 7] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, buf),
-        key_type: ObjectType::ObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"data"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, data),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"group"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, group),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buffer"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, buffer),
-        key_type: ObjectType::ObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, pattern),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"modeline"),
         ptr_off: offset_of!(KeyDict_exec_autocmds, modeline),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn exec_autocmds_hash(key: &[u8]) -> c_int {
+pub fn exec_autocmds_hash(key: &[u8]) -> i32 {
     match key {
         b"buf" => 0,
         b"data" => 1,
@@ -1640,20 +1639,20 @@ pub static EXEC_OPTS_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"output"),
         ptr_off: offset_of!(KeyDict_exec_opts, output),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn exec_opts_hash(key: &[u8]) -> c_int {
+pub fn exec_opts_hash(key: &[u8]) -> i32 {
     match key {
         b"output" => 0,
         _ => -1,
@@ -1669,55 +1668,55 @@ pub static GET_AUTOCMDS_TABLE: [KeySetLink; 7] = [
     KeySetLink {
         str: Some(c"id"),
         ptr_off: offset_of!(KeyDict_get_autocmds, id),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_get_autocmds, buf),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"event"),
         ptr_off: offset_of!(KeyDict_get_autocmds, event),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"group"),
         ptr_off: offset_of!(KeyDict_get_autocmds, group),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"buffer"),
         ptr_off: offset_of!(KeyDict_get_autocmds, buffer),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"pattern"),
         ptr_off: offset_of!(KeyDict_get_autocmds, pattern),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn get_autocmds_hash(key: &[u8]) -> c_int {
+pub fn get_autocmds_hash(key: &[u8]) -> i32 {
     match key {
         b"id" => 0,
         b"buf" => 1,
@@ -1738,20 +1737,20 @@ pub static GET_COMMANDS_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"builtin"),
         ptr_off: offset_of!(KeyDict_get_commands, builtin),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn get_commands_hash(key: &[u8]) -> c_int {
+pub fn get_commands_hash(key: &[u8]) -> i32 {
     match key {
         b"builtin" => 0,
         _ => -1,
@@ -1767,27 +1766,27 @@ pub static GET_EXTMARK_TABLE: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"details"),
         ptr_off: offset_of!(KeyDict_get_extmark, details),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_name"),
         ptr_off: offset_of!(KeyDict_get_extmark, hl_name),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn get_extmark_hash(key: &[u8]) -> c_int {
+pub fn get_extmark_hash(key: &[u8]) -> i32 {
     match key {
         b"details" => 0,
         b"hl_name" => 1,
@@ -1804,48 +1803,48 @@ pub static GET_EXTMARKS_TABLE: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"type"),
         ptr_off: offset_of!(KeyDict_get_extmarks, type_),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"limit"),
         ptr_off: offset_of!(KeyDict_get_extmarks, limit),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"details"),
         ptr_off: offset_of!(KeyDict_get_extmarks, details),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_name"),
         ptr_off: offset_of!(KeyDict_get_extmarks, hl_name),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"overlap"),
         ptr_off: offset_of!(KeyDict_get_extmarks, overlap),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn get_extmarks_hash(key: &[u8]) -> c_int {
+pub fn get_extmarks_hash(key: &[u8]) -> i32 {
     match key {
         b"type" => 0,
         b"limit" => 1,
@@ -1865,41 +1864,41 @@ pub static GET_HIGHLIGHT_TABLE: [KeySetLink; 5] = [
     KeySetLink {
         str: Some(c"id"),
         ptr_off: offset_of!(KeyDict_get_highlight, id),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"link"),
         ptr_off: offset_of!(KeyDict_get_highlight, link),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"name"),
         ptr_off: offset_of!(KeyDict_get_highlight, name),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"create"),
         ptr_off: offset_of!(KeyDict_get_highlight, create),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn get_highlight_hash(key: &[u8]) -> c_int {
+pub fn get_highlight_hash(key: &[u8]) -> i32 {
     match key {
         b"id" => 0,
         b"link" => 1,
@@ -1918,20 +1917,20 @@ pub static GET_NS_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"winid"),
         ptr_off: offset_of!(KeyDict_get_ns, winid),
-        key_type: ObjectType::ObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn get_ns_hash(key: &[u8]) -> c_int {
+pub fn get_ns_hash(key: &[u8]) -> i32 {
     match key {
         b"winid" => 0,
         _ => -1,
@@ -1947,265 +1946,265 @@ pub static HIGHLIGHT_TABLE: [KeySetLink; 37] = [
     KeySetLink {
         str: Some(c"bg"),
         ptr_off: offset_of!(KeyDict_highlight, bg),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fg"),
         ptr_off: offset_of!(KeyDict_highlight, fg),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sp"),
         ptr_off: offset_of!(KeyDict_highlight, sp),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"dim"),
         ptr_off: offset_of!(KeyDict_highlight, dim),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"url"),
         ptr_off: offset_of!(KeyDict_highlight, url),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bold"),
         ptr_off: offset_of!(KeyDict_highlight, bold),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"font"),
         ptr_off: offset_of!(KeyDict_highlight, font),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"link"),
         ptr_off: offset_of!(KeyDict_highlight, link),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 8,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"blend"),
         ptr_off: offset_of!(KeyDict_highlight, blend),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"force"),
         ptr_off: offset_of!(KeyDict_highlight, force),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"blink"),
         ptr_off: offset_of!(KeyDict_highlight, blink),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"cterm"),
         ptr_off: offset_of!(KeyDict_highlight, cterm),
-        key_type: ObjectType::ObjectTypeDict as c_int,
+        key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"italic"),
         ptr_off: offset_of!(KeyDict_highlight, italic),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"update"),
         ptr_off: offset_of!(KeyDict_highlight, update),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"reverse"),
         ptr_off: offset_of!(KeyDict_highlight, reverse),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"default"),
         ptr_off: offset_of!(KeyDict_highlight, default_),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"altfont"),
         ptr_off: offset_of!(KeyDict_highlight, altfont),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"conceal"),
         ptr_off: offset_of!(KeyDict_highlight, conceal),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"special"),
         ptr_off: offset_of!(KeyDict_highlight, special),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ctermfg"),
         ptr_off: offset_of!(KeyDict_highlight, ctermfg),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 20,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ctermbg"),
         ptr_off: offset_of!(KeyDict_highlight, ctermbg),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 21,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fallback"),
         ptr_off: offset_of!(KeyDict_highlight, fallback),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 22,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"overline"),
         ptr_off: offset_of!(KeyDict_highlight, overline),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 23,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"standout"),
         ptr_off: offset_of!(KeyDict_highlight, standout),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 24,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nocombine"),
         ptr_off: offset_of!(KeyDict_highlight, nocombine),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 25,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"undercurl"),
         ptr_off: offset_of!(KeyDict_highlight, undercurl),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 26,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underline"),
         ptr_off: offset_of!(KeyDict_highlight, underline),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 27,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"background"),
         ptr_off: offset_of!(KeyDict_highlight, background),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 28,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bg_indexed"),
         ptr_off: offset_of!(KeyDict_highlight, bg_indexed),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 29,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"foreground"),
         ptr_off: offset_of!(KeyDict_highlight, foreground),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 30,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fg_indexed"),
         ptr_off: offset_of!(KeyDict_highlight, fg_indexed),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 31,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"link_global"),
         ptr_off: offset_of!(KeyDict_highlight, link_global),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 32,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"underdashed"),
         ptr_off: offset_of!(KeyDict_highlight, underdashed),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 33,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdotted"),
         ptr_off: offset_of!(KeyDict_highlight, underdotted),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 34,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdouble"),
         ptr_off: offset_of!(KeyDict_highlight, underdouble),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 35,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"strikethrough"),
         ptr_off: offset_of!(KeyDict_highlight, strikethrough),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 36,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn highlight_hash(key: &[u8]) -> c_int {
+pub fn highlight_hash(key: &[u8]) -> i32 {
     match key {
         b"bg" => 0,
         b"fg" => 1,
@@ -2256,125 +2255,125 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink; 17] = [
     KeySetLink {
         str: Some(c"dim"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, dim),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bold"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, bold),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"blink"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, blink),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"italic"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, italic),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"altfont"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, altfont),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"conceal"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, conceal),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"reverse"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, reverse),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"overline"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, overline),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"standout"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, standout),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nocombine"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, nocombine),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"undercurl"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, undercurl),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underline"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, underline),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdashed"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, underdashed),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdotted"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, underdotted),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"underdouble"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, underdouble),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"strikethrough"),
         ptr_off: offset_of!(KeyDict_highlight_cterm, strikethrough),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn highlight_cterm_hash(key: &[u8]) -> c_int {
+pub fn highlight_cterm_hash(key: &[u8]) -> i32 {
     match key {
         b"dim" => 0,
         b"bold" => 1,
@@ -2405,76 +2404,76 @@ pub static KEYMAP_TABLE: [KeySetLink; 10] = [
     KeySetLink {
         str: Some(c"desc"),
         ptr_off: offset_of!(KeyDict_keymap, desc),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"expr"),
         ptr_off: offset_of!(KeyDict_keymap, expr),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"script"),
         ptr_off: offset_of!(KeyDict_keymap, script),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"silent"),
         ptr_off: offset_of!(KeyDict_keymap, silent),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"unique"),
         ptr_off: offset_of!(KeyDict_keymap, unique),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nowait"),
         ptr_off: offset_of!(KeyDict_keymap, nowait),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"noremap"),
         ptr_off: offset_of!(KeyDict_keymap, noremap),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"callback"),
         ptr_off: offset_of!(KeyDict_keymap, callback),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"replace_keycodes"),
         ptr_off: offset_of!(KeyDict_keymap, replace_keycodes),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn keymap_hash(key: &[u8]) -> c_int {
+pub fn keymap_hash(key: &[u8]) -> i32 {
     match key {
         b"desc" => 0,
         b"expr" => 1,
@@ -2498,20 +2497,20 @@ pub static KEYMAP_DEL_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"lhs"),
         ptr_off: offset_of!(KeyDict_keymap_del, lhs),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn keymap_del_hash(key: &[u8]) -> c_int {
+pub fn keymap_del_hash(key: &[u8]) -> i32 {
     match key {
         b"lhs" => 0,
         _ => -1,
@@ -2527,20 +2526,20 @@ pub static NS_OPTS_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"wins"),
         ptr_off: offset_of!(KeyDict_ns_opts, wins),
-        key_type: ObjectType::ObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn ns_opts_hash(key: &[u8]) -> c_int {
+pub fn ns_opts_hash(key: &[u8]) -> i32 {
     match key {
         b"wins" => 0,
         _ => -1,
@@ -2556,27 +2555,27 @@ pub static OPEN_TERM_TABLE: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"on_input"),
         ptr_off: offset_of!(KeyDict_open_term, on_input),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"force_crlf"),
         ptr_off: offset_of!(KeyDict_open_term, force_crlf),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn open_term_hash(key: &[u8]) -> c_int {
+pub fn open_term_hash(key: &[u8]) -> i32 {
     match key {
         b"on_input" => 0,
         b"force_crlf" => 1,
@@ -2593,62 +2592,62 @@ pub static OPTION_TABLE: [KeySetLink; 8] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_option, buf),
-        key_type: ObjectType::ObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"tab"),
         ptr_off: offset_of!(KeyDict_option, tab),
-        key_type: ObjectType::ObjectTypeTabpage as c_int,
+        key_type: ObjectType::ObjectTypeTabpage as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"win"),
         ptr_off: offset_of!(KeyDict_option, win),
-        key_type: ObjectType::ObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"scope"),
         ptr_off: offset_of!(KeyDict_option, scope),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"dry_run"),
         ptr_off: offset_of!(KeyDict_option, dry_run),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"filetype"),
         ptr_off: offset_of!(KeyDict_option, filetype),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"operation"),
         ptr_off: offset_of!(KeyDict_option, operation),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn option_hash(key: &[u8]) -> c_int {
+pub fn option_hash(key: &[u8]) -> i32 {
     match key {
         b"buf" => 0,
         b"tab" => 1,
@@ -2670,83 +2669,83 @@ pub static REDRAW_TABLE: [KeySetLink; 11] = [
     KeySetLink {
         str: Some(c"buf"),
         ptr_off: offset_of!(KeyDict_redraw, buf),
-        key_type: ObjectType::ObjectTypeBuffer as c_int,
+        key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"win"),
         ptr_off: offset_of!(KeyDict_redraw, win),
-        key_type: ObjectType::ObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"flush"),
         ptr_off: offset_of!(KeyDict_redraw, flush),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"range"),
         ptr_off: offset_of!(KeyDict_redraw, range),
-        key_type: ObjectType::ObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"valid"),
         ptr_off: offset_of!(KeyDict_redraw, valid),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"cursor"),
         ptr_off: offset_of!(KeyDict_redraw, cursor),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"winbar"),
         ptr_off: offset_of!(KeyDict_redraw, winbar),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"tabline"),
         ptr_off: offset_of!(KeyDict_redraw, tabline),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"statusline"),
         ptr_off: offset_of!(KeyDict_redraw, statusline),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"statuscolumn"),
         ptr_off: offset_of!(KeyDict_redraw, statuscolumn),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn redraw_hash(key: &[u8]) -> c_int {
+pub fn redraw_hash(key: &[u8]) -> i32 {
     match key {
         b"buf" => 0,
         b"win" => 1,
@@ -2771,27 +2770,27 @@ pub static RUNTIME_TABLE: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"is_lua"),
         ptr_off: offset_of!(KeyDict_runtime, is_lua),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"do_source"),
         ptr_off: offset_of!(KeyDict_runtime, do_source),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn runtime_hash(key: &[u8]) -> c_int {
+pub fn runtime_hash(key: &[u8]) -> i32 {
     match key {
         b"is_lua" => 0,
         b"do_source" => 1,
@@ -2808,76 +2807,76 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink; 10] = [
     KeySetLink {
         str: Some(c"on_buf"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_buf),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_end"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_end),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_win"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_win),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_line"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_line),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_range"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_range),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_start"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, on_start),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_on_hl_def"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_hl_def),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_on_spell_nav"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_spell_nav),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_on_conceal_line"),
         ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_conceal_line),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn set_decoration_provider_hash(key: &[u8]) -> c_int {
+pub fn set_decoration_provider_hash(key: &[u8]) -> i32 {
     match key {
         b"on_buf" => 0,
         b"on_end" => 1,
@@ -2901,258 +2900,258 @@ pub static SET_EXTMARK_TABLE: [KeySetLink; 36] = [
     KeySetLink {
         str: Some(c"id"),
         ptr_off: offset_of!(KeyDict_set_extmark, id),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"url"),
         ptr_off: offset_of!(KeyDict_set_extmark, url),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"spell"),
         ptr_off: offset_of!(KeyDict_set_extmark, spell),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"scoped"),
         ptr_off: offset_of!(KeyDict_set_extmark, scoped),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_eol"),
         ptr_off: offset_of!(KeyDict_set_extmark, hl_eol),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"strict"),
         ptr_off: offset_of!(KeyDict_set_extmark, strict),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_col"),
         ptr_off: offset_of!(KeyDict_set_extmark, end_col),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"conceal"),
         ptr_off: offset_of!(KeyDict_set_extmark, conceal),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_mode"),
         ptr_off: offset_of!(KeyDict_set_extmark, hl_mode),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_row"),
         ptr_off: offset_of!(KeyDict_set_extmark, end_row),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_line"),
         ptr_off: offset_of!(KeyDict_set_extmark, end_line),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, hl_group),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"priority"),
         ptr_off: offset_of!(KeyDict_set_extmark, priority),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ephemeral"),
         ptr_off: offset_of!(KeyDict_set_extmark, ephemeral),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sign_text"),
         ptr_off: offset_of!(KeyDict_set_extmark, sign_text),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_text"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text),
-        key_type: ObjectType::ObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"invalidate"),
         ptr_off: offset_of!(KeyDict_set_extmark, invalidate),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ui_watched"),
         ptr_off: offset_of!(KeyDict_set_extmark, ui_watched),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_lines"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_lines),
-        key_type: ObjectType::ObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_subpriority"),
         ptr_off: offset_of!(KeyDict_set_extmark, _subpriority),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 20,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"undo_restore"),
         ptr_off: offset_of!(KeyDict_set_extmark, undo_restore),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 21,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"conceal_lines"),
         ptr_off: offset_of!(KeyDict_set_extmark, conceal_lines),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 22,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"line_hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, line_hl_group),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 23,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"right_gravity"),
         ptr_off: offset_of!(KeyDict_set_extmark, right_gravity),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 24,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"sign_hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, sign_hl_group),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 25,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"virt_text_pos"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text_pos),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 26,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_text_hide"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text_hide),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 27,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"number_hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, number_hl_group),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 28,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"virt_lines_above"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_lines_above),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 29,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_right_gravity"),
         ptr_off: offset_of!(KeyDict_set_extmark, end_right_gravity),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 30,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_text_win_col"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text_win_col),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 31,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_lines_leftcol"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_lines_leftcol),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 32,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"cursorline_hl_group"),
         ptr_off: offset_of!(KeyDict_set_extmark, cursorline_hl_group),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 33,
         is_hlgroup: true,
     },
     KeySetLink {
         str: Some(c"virt_lines_overflow"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_lines_overflow),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 34,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"virt_text_repeat_linebreak"),
         ptr_off: offset_of!(KeyDict_set_extmark, virt_text_repeat_linebreak),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 35,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn set_extmark_hash(key: &[u8]) -> c_int {
+pub fn set_extmark_hash(key: &[u8]) -> i32 {
     match key {
         b"id" => 0,
         b"url" => 1,
@@ -3202,20 +3201,20 @@ pub static TABPAGE_CONFIG_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"after"),
         ptr_off: offset_of!(KeyDict_tabpage_config, after),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn tabpage_config_hash(key: &[u8]) -> c_int {
+pub fn tabpage_config_hash(key: &[u8]) -> i32 {
     match key {
         b"after" => 0,
         _ => -1,
@@ -3231,97 +3230,97 @@ pub static USER_COMMAND_TABLE: [KeySetLink; 13] = [
     KeySetLink {
         str: Some(c"bar"),
         ptr_off: offset_of!(KeyDict_user_command, bar),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"addr"),
         ptr_off: offset_of!(KeyDict_user_command, addr),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bang"),
         ptr_off: offset_of!(KeyDict_user_command, bang),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"desc"),
         ptr_off: offset_of!(KeyDict_user_command, desc),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"count"),
         ptr_off: offset_of!(KeyDict_user_command, count),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"force"),
         ptr_off: offset_of!(KeyDict_user_command, force),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nargs"),
         ptr_off: offset_of!(KeyDict_user_command, nargs),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"range"),
         ptr_off: offset_of!(KeyDict_user_command, range),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"preview"),
         ptr_off: offset_of!(KeyDict_user_command, preview),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"complete"),
         ptr_off: offset_of!(KeyDict_user_command, complete),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"register"),
         ptr_off: offset_of!(KeyDict_user_command, register_),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"keepscript"),
         ptr_off: offset_of!(KeyDict_user_command, keepscript),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn user_command_hash(key: &[u8]) -> c_int {
+pub fn user_command_hash(key: &[u8]) -> i32 {
     match key {
         b"bar" => 0,
         b"addr" => 1,
@@ -3348,181 +3347,181 @@ pub static WIN_CONFIG_TABLE: [KeySetLink; 25] = [
     KeySetLink {
         str: Some(c"col"),
         ptr_off: offset_of!(KeyDict_win_config, col),
-        key_type: ObjectType::ObjectTypeFloat as c_int,
+        key_type: ObjectType::ObjectTypeFloat as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"row"),
         ptr_off: offset_of!(KeyDict_win_config, row),
-        key_type: ObjectType::ObjectTypeFloat as c_int,
+        key_type: ObjectType::ObjectTypeFloat as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"win"),
         ptr_off: offset_of!(KeyDict_win_config, win),
-        key_type: ObjectType::ObjectTypeWindow as c_int,
+        key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"hide"),
         ptr_off: offset_of!(KeyDict_win_config, hide),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"width"),
         ptr_off: offset_of!(KeyDict_win_config, width),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"split"),
         ptr_off: offset_of!(KeyDict_win_config, split),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"title"),
         ptr_off: offset_of!(KeyDict_win_config, title),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"mouse"),
         ptr_off: offset_of!(KeyDict_win_config, mouse),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"fixed"),
         ptr_off: offset_of!(KeyDict_win_config, fixed),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"style"),
         ptr_off: offset_of!(KeyDict_win_config, style),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"anchor"),
         ptr_off: offset_of!(KeyDict_win_config, anchor),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bufpos"),
         ptr_off: offset_of!(KeyDict_win_config, bufpos),
-        key_type: ObjectType::ObjectTypeArray as c_int,
+        key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"height"),
         ptr_off: offset_of!(KeyDict_win_config, height),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"zindex"),
         ptr_off: offset_of!(KeyDict_win_config, zindex),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"footer"),
         ptr_off: offset_of!(KeyDict_win_config, footer),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"border"),
         ptr_off: offset_of!(KeyDict_win_config, border),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"external"),
         ptr_off: offset_of!(KeyDict_win_config, external),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"relative"),
         ptr_off: offset_of!(KeyDict_win_config, relative),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"vertical"),
         ptr_off: offset_of!(KeyDict_win_config, vertical),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"focusable"),
         ptr_off: offset_of!(KeyDict_win_config, focusable),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 20,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"noautocmd"),
         ptr_off: offset_of!(KeyDict_win_config, noautocmd),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 21,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"title_pos"),
         ptr_off: offset_of!(KeyDict_win_config, title_pos),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 22,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"footer_pos"),
         ptr_off: offset_of!(KeyDict_win_config, footer_pos),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 23,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"_cmdline_offset"),
         ptr_off: offset_of!(KeyDict_win_config, _cmdline_offset),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 24,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn win_config_hash(key: &[u8]) -> c_int {
+pub fn win_config_hash(key: &[u8]) -> i32 {
     match key {
         b"col" => 0,
         b"row" => 1,
@@ -3561,20 +3560,20 @@ pub static WIN_RESIZE_TABLE: [KeySetLink; 2] = [
     KeySetLink {
         str: Some(c"anchor"),
         ptr_off: offset_of!(KeyDict_win_resize, anchor),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn win_resize_hash(key: &[u8]) -> c_int {
+pub fn win_resize_hash(key: &[u8]) -> i32 {
     match key {
         b"anchor" => 0,
         _ => -1,
@@ -3590,48 +3589,48 @@ pub static WIN_TEXT_HEIGHT_TABLE: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"end_row"),
         ptr_off: offset_of!(KeyDict_win_text_height, end_row),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"end_vcol"),
         ptr_off: offset_of!(KeyDict_win_text_height, end_vcol),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"start_row"),
         ptr_off: offset_of!(KeyDict_win_text_height, start_row),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"max_height"),
         ptr_off: offset_of!(KeyDict_win_text_height, max_height),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"start_vcol"),
         ptr_off: offset_of!(KeyDict_win_text_height, start_vcol),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn win_text_height_hash(key: &[u8]) -> c_int {
+pub fn win_text_height_hash(key: &[u8]) -> i32 {
     match key {
         b"end_row" => 0,
         b"end_vcol" => 1,
@@ -3651,97 +3650,97 @@ pub static XDL_DIFF_TABLE: [KeySetLink; 13] = [
     KeySetLink {
         str: Some(c"ctxlen"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ctxlen),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"on_hunk"),
         ptr_off: offset_of!(KeyDict_xdl_diff, on_hunk),
-        key_type: ObjectType::ObjectTypeLuaRef as c_int,
+        key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"algorithm"),
         ptr_off: offset_of!(KeyDict_xdl_diff, algorithm),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"linematch"),
         ptr_off: offset_of!(KeyDict_xdl_diff, linematch),
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"result_type"),
         ptr_off: offset_of!(KeyDict_xdl_diff, result_type),
-        key_type: ObjectType::ObjectTypeString as c_int,
+        key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"interhunkctxlen"),
         ptr_off: offset_of!(KeyDict_xdl_diff, interhunkctxlen),
-        key_type: ObjectType::ObjectTypeInteger as c_int,
+        key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_cr_at_eol"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_cr_at_eol),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"indent_heuristic"),
         ptr_off: offset_of!(KeyDict_xdl_diff, indent_heuristic),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_whitespace"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_whitespace),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_blank_lines"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_blank_lines),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_whitespace_change"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_whitespace_change),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"ignore_whitespace_change_at_eol"),
         ptr_off: offset_of!(KeyDict_xdl_diff, ignore_whitespace_change_at_eol),
-        key_type: ObjectType::ObjectTypeBoolean as c_int,
+        key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
         str: None,
         ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as c_int,
+        key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: -1,
         is_hlgroup: false,
     },
 ];
 
-pub fn xdl_diff_hash(key: &[u8]) -> c_int {
+pub fn xdl_diff_hash(key: &[u8]) -> i32 {
     match key {
         b"ctxlen" => 0,
         b"on_hunk" => 1,
@@ -15519,7 +15518,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
 ];
 
-pub fn msgpack_rpc_get_handler_for_hash(key: &[u8]) -> c_int {
+pub fn msgpack_rpc_get_handler_for_hash(key: &[u8]) -> i32 {
     match key {
         b"redraw" => 0,
         b"nvim__id" => 1,
@@ -15808,7 +15807,7 @@ pub fn msgpack_rpc_get_handler_for_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn msgpack_rpc_get_handler_at(hash: c_int) -> MsgpackRpcRequestHandler {
+pub fn msgpack_rpc_get_handler_at(hash: i32) -> MsgpackRpcRequestHandler {
     METHOD_HANDLERS[hash as usize]
 }
 
@@ -15832,9 +15831,9 @@ pub fn msgpack_rpc_get_handler_for(
                 ErrorType::ErrorTypeException,
                 c"Invalid method: %.*s",
                 if name_len > 0 {
-                    name_len as c_int
+                    name_len as i32
                 } else {
-                    (empty.to_bytes_with_nul().len()) as c_int
+                    (empty.to_bytes_with_nul().len()) as i32
                 },
                 if name_len > 0 { name } else { empty.as_ptr() },
             );
@@ -15853,11 +15852,11 @@ use crate::errors::E_FAST_API_DISABLED;
 use crate::lua::converter::lua_State;
 use crate::lua::executor::{api_free_luaref, nlua_is_deferred_safe, nlua_st};
 
-const K_NLUA_PUSH_SPECIAL_CONST: c_int = 0x01;
-const K_NLUA_PUSH_FREE_REFS_CONST: c_int = 0x02;
+const K_NLUA_PUSH_SPECIAL_CONST: i32 = 0x01;
+const K_NLUA_PUSH_FREE_REFS_CONST: i32 = 0x02;
 
 #[inline]
-unsafe fn nlua_fast_api_disabled_error(lstate: *mut lua_State, fn_name: &std::ffi::CStr) -> c_int {
+unsafe fn nlua_fast_api_disabled_error(lstate: *mut lua_State, fn_name: &std::ffi::CStr) -> i32 {
     unsafe { luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), fn_name.as_ptr()) }
 }
 
@@ -15867,8 +15866,8 @@ fn nlua_finish_api_call(
     arena: &mut Arena,
     err: &mut Error,
     err_param: Option<&'static std::ffi::CStr>,
-    nret: c_int,
-) -> c_int {
+    nret: i32,
+) -> i32 {
     unsafe {
         arena_mem_free(arena_finish(arena));
         if err.err_type != ErrorType::ErrorTypeNone {
@@ -15887,7 +15886,7 @@ fn nlua_finish_api_call(
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -15938,7 +15937,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -15994,7 +15993,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16026,7 +16025,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16072,7 +16071,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16129,7 +16128,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16161,7 +16160,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_Sta
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16193,7 +16192,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_S
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16246,7 +16245,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16283,7 +16282,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16348,7 +16347,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16419,7 +16418,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16500,7 +16499,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16593,7 +16592,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16697,7 +16696,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16742,7 +16741,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16787,7 +16786,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16824,7 +16823,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_S
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16869,7 +16868,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -16956,7 +16955,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17031,7 +17030,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17080,7 +17079,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17120,7 +17119,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17157,7 +17156,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17197,7 +17196,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17234,7 +17233,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17294,7 +17293,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17331,7 +17330,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17376,7 +17375,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17458,7 +17457,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17503,7 +17502,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17545,7 +17544,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_stats(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_stats(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17582,7 +17581,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_stats(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17636,7 +17635,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17711,7 +17710,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17772,7 +17771,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_S
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17804,7 +17803,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17883,7 +17882,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut l
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17923,7 +17922,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -17974,7 +17973,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18031,7 +18030,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18077,7 +18076,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> c_int 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18115,7 +18114,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18152,7 +18151,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18211,7 +18210,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_S
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18293,7 +18292,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_Sta
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18379,7 +18378,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18424,7 +18423,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18469,7 +18468,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18506,7 +18505,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18547,7 +18546,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18585,7 +18584,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18631,7 +18630,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18680,7 +18679,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18726,7 +18725,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18775,7 +18774,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18807,7 +18806,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18839,7 +18838,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18871,7 +18870,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18924,7 +18923,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> c_in
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -18964,7 +18963,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19004,7 +19003,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19041,7 +19040,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19072,7 +19071,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19150,7 +19149,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19238,7 +19237,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19323,7 +19322,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19376,7 +19375,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19435,7 +19434,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_S
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19487,7 +19486,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut l
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19541,7 +19540,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_St
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19593,7 +19592,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> c_in
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_ns_get(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_ns_get(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19630,7 +19629,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_ns_get(lstate: *mut lua_State) -> c_in
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_option_to_object(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_option_to_object(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19672,7 +19671,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_option_to_object(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19730,7 +19729,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19803,7 +19802,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19834,7 +19833,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19887,7 +19886,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19924,7 +19923,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_Sta
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -19969,7 +19968,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20018,7 +20017,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20058,7 +20057,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20095,7 +20094,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20135,7 +20134,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20172,7 +20171,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_St
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20209,7 +20208,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20276,7 +20275,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20308,7 +20307,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> c_i
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20345,7 +20344,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_Sta
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20398,7 +20397,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20456,7 +20455,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> c_in
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20503,7 +20502,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20535,7 +20534,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20564,7 +20563,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20612,7 +20611,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20646,7 +20645,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> c_int
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20715,7 +20714,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20774,7 +20773,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_Sta
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20811,7 +20810,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20842,7 +20841,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_St
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_runtime_inspect(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_runtime_inspect(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20873,7 +20872,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_runtime_inspect(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20915,7 +20914,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_lib_dir(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_lib_dir(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -20947,7 +20946,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_lib_dir(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21009,7 +21008,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21041,7 +21040,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21072,7 +21071,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21112,7 +21111,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21146,7 +21145,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21183,7 +21182,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> c_i
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21224,7 +21223,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> c_i
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21256,7 +21255,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> c_i
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21293,7 +21292,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21334,7 +21333,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21399,7 +21398,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21430,7 +21429,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21461,7 +21460,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21501,7 +21500,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21532,7 +21531,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21563,7 +21562,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21603,7 +21602,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21648,7 +21647,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21713,7 +21712,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21753,7 +21752,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21784,7 +21783,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21815,7 +21814,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_S
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21855,7 +21854,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_S
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21916,7 +21915,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> c_int
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -21980,7 +21979,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22017,7 +22016,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_Sta
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22048,7 +22047,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22099,7 +22098,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22136,7 +22135,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22164,7 +22163,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22201,7 +22200,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22269,7 +22268,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22329,7 +22328,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22376,7 +22375,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_cmdwin_set(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_cmdwin_set(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22416,7 +22415,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmdwin_set(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22453,7 +22452,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22484,7 +22483,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22522,7 +22521,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_id_array(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_id_array(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22559,7 +22558,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_id_array(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_id_dict(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_id_dict(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22596,7 +22595,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_id_dict(lstate: *mut lua_State) -> c_i
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_id_float(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_id_float(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22633,7 +22632,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_id_float(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_stats(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_stats(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22664,7 +22663,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_stats(lstate: *mut lua_State) -> c_int
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22695,7 +22694,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22732,7 +22731,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_Sta
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22769,7 +22768,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22840,7 +22839,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_inspect_cell(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_inspect_cell(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22893,7 +22892,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_inspect_cell(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_screenshot(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_screenshot(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22922,7 +22921,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_screenshot(lstate: *mut lua_State) -> 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_invalidate_glyph_cache(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_invalidate_glyph_cache(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22948,7 +22947,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_invalidate_glyph_cache(lstate: *mut lu
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_unpack(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_unpack(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -22982,7 +22981,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_unpack(lstate: *mut lua_State) -> c_in
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23019,7 +23018,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23076,7 +23075,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23130,7 +23129,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23187,7 +23186,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23233,7 +23232,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> c_in
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_set_restart_on_crash(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_set_restart_on_crash(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23273,7 +23272,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_restart_on_crash(lstate: *mut lua_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23327,7 +23326,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23359,7 +23358,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> c_i
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23396,7 +23395,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> c_int 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23442,7 +23441,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23503,7 +23502,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_St
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23553,7 +23552,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23624,7 +23623,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23674,7 +23673,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23711,7 +23710,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23748,7 +23747,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23796,7 +23795,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23833,7 +23832,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23873,7 +23872,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23910,7 +23909,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23947,7 +23946,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -23992,7 +23991,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24041,7 +24040,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24081,7 +24080,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) ->
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24118,7 +24117,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_Stat
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24155,7 +24154,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24192,7 +24191,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24229,7 +24228,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24269,7 +24268,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24317,7 +24316,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> c
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24359,7 +24358,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> c_
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24399,7 +24398,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) 
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24452,7 +24451,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State
     }
 }
 
-unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let mut arena: Arena = Default::default();
@@ -24907,8 +24906,8 @@ mod tests {
     fn rpc_handler_lookup_resolves_all_methods() {
         for (idx, handler) in METHOD_HANDLERS.iter().enumerate() {
             let name = handler.name.to_bytes();
-            assert_eq!(msgpack_rpc_get_handler_for_hash(name), idx as c_int);
-            let got = msgpack_rpc_get_handler_at(idx as c_int);
+            assert_eq!(msgpack_rpc_get_handler_for_hash(name), idx as i32);
+            let got = msgpack_rpc_get_handler_at(idx as i32);
             assert_eq!(got.name, handler.name);
             assert_eq!(got.fast, handler.fast);
             assert_eq!(got.ret_alloc, handler.ret_alloc);

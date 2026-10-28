@@ -20,7 +20,7 @@ use crate::plines::{
 use crate::regexp::MAXCOL;
 use crate::state::{MODE_INSERT, MODE_TERMINAL, virtual_active};
 use crate::window::WinInfoInfo;
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 use std::ptr;
 
 pub type Colnr = i32;
@@ -87,12 +87,12 @@ pub const fn ltoreq(a: CursorPos, b: CursorPos) -> bool {
     lt(a, b) || equalpos(a, b)
 }
 
-pub(crate) const VALID_VIRTCOL: c_int = 0x04;
+pub(crate) const VALID_VIRTCOL: i32 = 0x04;
 
-pub(crate) const K_OPT_VE_FLAG_ALL: c_uint = 0x04;
+pub(crate) const K_OPT_VE_FLAG_ALL: u32 = 0x04;
 
 /// Return the screen position of the cursor (`getviscol`).
-pub fn getviscol() -> c_int {
+pub fn getviscol() -> i32 {
     {
         let mut x: Colnr = 0;
         getvvcol(
@@ -103,12 +103,12 @@ pub fn getviscol() -> c_int {
             None,
             0,
         );
-        x as c_int
+        x as i32
     }
 }
 
 /// Return the screen position of character `col` with a `coladd` in the cursor line (`getviscol2`).
-pub fn getviscol2(col: Colnr, coladd: Colnr) -> c_int {
+pub fn getviscol2(col: Colnr, coladd: Colnr) -> i32 {
     {
         let mut x: Colnr = 0;
         let mut pos = CursorPos {
@@ -124,7 +124,7 @@ pub fn getviscol2(col: Colnr, coladd: Colnr) -> c_int {
             None,
             0,
         );
-        x as c_int
+        x as i32
     }
 }
 
@@ -167,11 +167,11 @@ fn coladvance2(
     unsafe {
         debug_assert!(ptr::eq(wp, curwin_ptr()) || !addspaces);
         let mut wcol = wcol_arg;
-        let mut idx: c_int;
+        let mut idx: i32;
         let mut col: Colnr;
-        let mut head: c_int = 0;
+        let mut head: i32 = 0;
 
-        let one_more = c_int::from(
+        let one_more = i32::from(
             (g_st().state_global & MODE_INSERT) != 0
                 || (g_st().state_global & MODE_TERMINAL) != 0
                 || g_st().restart_edit != 0
@@ -195,7 +195,7 @@ fn coladvance2(
             }
         } else {
             let width = wp.w_view_width - win_col_off(wp);
-            let mut csize: c_int = 0;
+            let mut csize: i32 = 0;
 
             if finetune
                 && wp.w_onebuf_opt.wo_wrap != 0
@@ -228,7 +228,7 @@ fn coladvance2(
                 col += cs.width;
                 ci = cli.next;
             }
-            idx = ci.ptr.offset_from(line) as c_int;
+            idx = ci.ptr.offset_from(line) as i32;
 
             if col > wcol || (!virtual_active(&mut *wp) && one_more == 0) {
                 idx -= 1;
@@ -323,12 +323,12 @@ pub fn getvpos(wp: *mut WinInfoInfo, pos: &mut CursorPos, wcol: Colnr) -> bool {
 }
 
 /// Increment the cursor position (`inc_cursor`).
-pub fn inc_cursor() -> c_int {
+pub fn inc_cursor() -> i32 {
     inc(&mut curwin_mut().w_cursor)
 }
 
 /// Decrement the cursor position (`dec_cursor`).
-pub fn dec_cursor() -> c_int {
+pub fn dec_cursor() -> i32 {
     dec(&mut curwin_mut().w_cursor)
 }
 
@@ -529,12 +529,12 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
     }
 }
 
-pub fn gchar_cursor() -> c_int {
+pub fn gchar_cursor() -> i32 {
     utf_ptr2char(get_cursor_pos_ptr())
 }
 
 /// Return the character immediately before the cursor (`char_before_cursor`).
-pub fn char_before_cursor() -> c_int {
+pub fn char_before_cursor() -> i32 {
     unsafe {
         if curwin_mut().w_cursor.col == 0 {
             return -1;

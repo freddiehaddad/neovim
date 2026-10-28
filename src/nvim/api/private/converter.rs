@@ -15,7 +15,7 @@ use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
 use crate::memory::{Arena, arena_memdupz_opt};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
@@ -56,14 +56,14 @@ enum ConvStackEntry {
     List {
         list: *mut TvList,
         li: *mut Listitem,
-        saved_copy_id: c_int,
+        saved_copy_id: i32,
         first: bool,
     },
     Dict {
         dict: *mut TvDict,
         hi: *mut Hashitem,
         todo: usize,
-        saved_copy_id: c_int,
+        saved_copy_id: i32,
         first: bool,
     },
 }
@@ -74,7 +74,7 @@ fn convert_one_value(
     arena: Option<&mut Arena>,
     reuse_strdata: bool,
     tv: *mut TypVal,
-    copy_id: c_int,
+    copy_id: i32,
 ) {
     let tv = unsafe { &mut *tv };
     match tv.v_type {
@@ -187,7 +187,7 @@ fn convert_one_value(
             }
         }
         VarType::VarBool => {
-            let b = tv.vval.v_bool() == K_BOOL_VAR_TRUE as c_int;
+            let b = tv.vval.v_bool() == K_BOOL_VAR_TRUE as i32;
             stack.push(Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
                 data: ObjectData::Boolean(b),

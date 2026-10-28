@@ -57,7 +57,7 @@ use crate::sha256::ContextSha256;
 use crate::strings::{gettext, vim_snprintf, vim_snprintf_add};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use crate::undo::{curbuf_is_changed_fn, u_unchanged, u_update_save_nr, u_write_undo};
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 use crate::api::private::helpers::HLF_E;
@@ -75,23 +75,23 @@ const CAR_CHAR: c_char = b'\r' as c_char;
 
 const ICONV_MULT: usize = 8;
 
-pub(crate) const NODE_WRITABLE: c_int = 1;
+pub(crate) const NODE_WRITABLE: i32 = 1;
 
 #[cfg(unix)]
-const K_OPT_BKC_FLAG_BREAKSYMLINK: c_uint = 0x08;
+const K_OPT_BKC_FLAG_BREAKSYMLINK: u32 = 0x08;
 #[cfg(unix)]
-const K_OPT_BKC_FLAG_BREAKHARDLINK: c_uint = 0x10;
+const K_OPT_BKC_FLAG_BREAKHARDLINK: u32 = 0x10;
 
-const K_CPO_FNAMEAPP: c_int = b'P' as c_int;
-const K_CPO_FNAMEW: c_int = b'F' as c_int;
-const K_CPO_FWRITE: c_int = b'W' as c_int;
-const K_CPO_KEEPRO: c_int = b'Z' as c_int;
-const K_CPO_PLUS: c_int = b'+' as c_int;
+const K_CPO_FNAMEAPP: i32 = b'P' as i32;
+const K_CPO_FNAMEW: i32 = b'F' as i32;
+const K_CPO_FWRITE: i32 = b'W' as i32;
+const K_CPO_KEEPRO: i32 = b'Z' as i32;
+const K_CPO_PLUS: i32 = b'+' as i32;
 
-const K_SHM_WRI: c_int = b'w' as c_int;
-const K_SHM_WRITE: c_int = b'W' as c_int;
+const K_SHM_WRI: i32 = b'w' as i32;
+const K_SHM_WRITE: i32 = b'W' as i32;
 
-const UV_FS_COPYFILE_FICLONE: c_int = 0x0002;
+const UV_FS_COPYFILE_FICLONE: i32 = 0x0002;
 
 use crate::os::fs::UV_ENOTSUP;
 
@@ -99,25 +99,25 @@ use crate::os::fs::UV_ENOTSUP;
 struct BwError {
     num: Option<&'static CStr>,
     msg: Option<std::ffi::CString>,
-    arg: c_int,
+    arg: i32,
 }
 
 #[repr(C)]
 struct BwInfo {
-    bw_fd: c_int,
+    bw_fd: i32,
     bw_buf: Vec<c_char>,
-    bw_len: c_int,
-    bw_flags: c_int,
-    bw_first: c_int,
+    bw_len: i32,
+    bw_flags: i32,
+    bw_first: i32,
     bw_conv_buf: Vec<c_char>,
-    bw_conv_error: c_int,
+    bw_conv_error: i32,
     bw_conv_error_lnum: Linenr,
     bw_start_lnum: Linenr,
     bw_iconv_fd: iconv_t,
 }
 
 /// Convert a Unicode character to bytes.
-fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: c_int) -> bool {
+fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: i32) -> bool {
     unsafe {
         let mut p = (*pp).cast::<u8>();
         let mut error = false;
@@ -178,11 +178,7 @@ fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: c_int) -> bool {
     }
 }
 
-fn buf_write_convert_with_iconv(
-    ip: &mut BwInfo,
-    bufp: *mut *mut c_char,
-    lenp: &mut c_int,
-) -> c_int {
+fn buf_write_convert_with_iconv(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut i32) -> i32 {
     unsafe {
         let len = *lenp;
         let mut from: *const c_char = *bufp;
@@ -221,13 +217,13 @@ fn buf_write_convert_with_iconv(
         }
 
         *bufp = conv_buf;
-        *lenp = ((to as usize) - (conv_buf as usize)) as c_int;
+        *lenp = ((to as usize) - (conv_buf as usize)) as i32;
 
-        len - (fromlen as c_int)
+        len - (fromlen as i32)
     }
 }
 
-fn buf_write_convert(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut c_int) -> c_int {
+fn buf_write_convert(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut i32) -> i32 {
     unsafe {
         let flags = ip.bw_flags;
         let mut wlen = *lenp;
@@ -272,10 +268,10 @@ fn buf_write_convert(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut c_int) 
                 wlen += n;
             }
             if (flags & FIO_LATIN1) != 0 {
-                *lenp = ((p as usize) - (*bufp as usize)) as c_int;
+                *lenp = ((p as usize) - (*bufp as usize)) as i32;
             } else {
                 *bufp = conv_buf;
-                *lenp = ((p as usize) - (conv_buf as usize)) as c_int;
+                *lenp = ((p as usize) - (conv_buf as usize)) as i32;
             }
         }
 
@@ -301,7 +297,7 @@ fn buf_write_bytes(ip: &mut BwInfo) -> bool {
         ip.bw_len = remaining;
 
         if ip.bw_fd >= 0 {
-            let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
+            let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as i32;
             if wlen < len {
                 return false;
             }
@@ -315,7 +311,7 @@ fn buf_write_bytes(ip: &mut BwInfo) -> bool {
     } else {
         ip.bw_len = 0;
         if ip.bw_fd >= 0 {
-            let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
+            let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as i32;
             if wlen < len {
                 return false;
             }
@@ -334,7 +330,7 @@ fn check_mtime(buf: &mut FileBuf, file_info: &FileInfo) -> bool {
                 gettext(c"WARNING: The file has been changed since reading it!!!"),
                 HLF_E,
             );
-            if ask_yesno(gettext(c"Do you really want to write to it")) == b'n' as c_int {
+            if ask_yesno(gettext(c"Do you really want to write to it")) == b'n' as i32 {
                 return false;
             }
             g_st().msg_scroll = 0;
@@ -343,7 +339,7 @@ fn check_mtime(buf: &mut FileBuf, file_info: &FileInfo) -> bool {
     true
 }
 
-fn make_bom(buf_in: *mut c_char, name: impl crate::strings::IntoCCharPtr) -> c_int {
+fn make_bom(buf_in: *mut c_char, name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let buf = buf_in.cast::<u8>();
@@ -360,7 +356,7 @@ fn make_bom(buf_in: *mut c_char, name: impl crate::strings::IntoCCharPtr) -> c_i
         }
         let mut p = buf_in;
         let _ = ucs2bytes(0xfeff, &raw mut p, flags);
-        ((p as usize) - (buf_in as usize)) as c_int
+        ((p as usize) - (buf_in as usize)) as i32
     }
 }
 
@@ -379,7 +375,7 @@ fn buf_write_do_autocmds(
     whole: bool,
     orig_start: CursorPos,
     orig_end: CursorPos,
-) -> c_int {
+) -> i32 {
     unsafe {
         let old_line_count = (*buf).b_ml.ml_line_count;
         let msg_save = g_st().msg_scroll;
@@ -669,7 +665,7 @@ fn set_err(msg: impl crate::strings::IntoCCharPtr) -> BwError {
 }
 
 #[inline]
-fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: c_int) -> BwError {
+fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: i32) -> BwError {
     let msg = msg.into_c_char_ptr();
     {
         BwError {
@@ -739,7 +735,7 @@ fn get_fileinfo_os(
     fname: impl crate::strings::IntoCCharPtr,
     file_info_old: &mut FileInfo,
     _overwriting: bool,
-    perm: *mut c_int,
+    perm: *mut i32,
     device: *mut bool,
     newfile: *mut bool,
     err: *mut BwError,
@@ -750,7 +746,7 @@ fn get_fileinfo_os(
         if !os_fileinfo(fname, file_info_old) {
             *newfile = true;
         } else {
-            *perm = file_info_old.stat.st_mode as c_int;
+            *perm = file_info_old.stat.st_mode as i32;
             if !s_isreg(file_info_old.stat.st_mode) {
                 if s_isdir(file_info_old.stat.st_mode) {
                     {
@@ -778,7 +774,7 @@ fn get_fileinfo_os(
     fname: impl crate::strings::IntoCCharPtr,
     file_info_old: &mut FileInfo,
     overwriting: bool,
-    perm: *mut c_int,
+    perm: *mut i32,
     device: *mut bool,
     newfile: *mut bool,
     err: *mut BwError,
@@ -824,7 +820,7 @@ fn get_fileinfo(
     overwriting: bool,
     forceit: bool,
     file_info_old: &mut FileInfo,
-    perm: &mut c_int,
+    perm: &mut i32,
     device: &mut bool,
     newfile: &mut bool,
     readonly: &mut bool,
@@ -914,8 +910,8 @@ fn buf_write_make_backup(
     append: bool,
     file_info_old: &mut FileInfo,
     acl: VimAcl,
-    perm: c_int,
-    bkc: c_uint,
+    perm: i32,
+    bkc: u32,
     file_readonly: bool,
     forceit: bool,
     backup_copyp: &mut bool,
@@ -940,7 +936,7 @@ fn buf_write_make_backup(
                 assert!(dirlen < MAXPATHL);
                 let mut tmp_fname = [0 as c_char; MAXPATHL];
                 crate::memory::cstr_ncpy(tmp_fname.as_mut_ptr(), fname, dirlen);
-                let mut i: c_int = 4913;
+                let mut i: i32 = 4913;
                 loop {
                     let suffix = format!(".{i}.swp\0");
                     ptr::copy_nonoverlapping(
@@ -972,7 +968,7 @@ fn buf_write_make_backup(
                         if !os_fileinfo(tmp_fname.as_ptr(), &mut file_info)
                             || file_info.stat.st_uid != file_info_old.stat.st_uid
                             || file_info.stat.st_gid != file_info_old.stat.st_gid
-                            || (file_info.stat.st_mode as c_int) != perm
+                            || (file_info.stat.st_mode as i32) != perm
                         {
                             *backup_copyp = true;
                         }
@@ -1165,7 +1161,7 @@ pub fn buf_write(
     forceit: bool,
     reset_changed: bool,
     filtering: bool,
-) -> c_int {
+) -> i32 {
     unsafe {
         let mut retval = OK;
         let msg_save = g_st().msg_scroll;
@@ -1280,7 +1276,7 @@ pub fn buf_write(
             buf.b_op_end = orig_end;
         }
 
-        g_st().msg_scroll = c_int::from(!(shortmess(K_SHM_OVER) && !g_st().exiting));
+        g_st().msg_scroll = i32::from(!(shortmess(K_SHM_OVER) && !g_st().exiting));
 
         let mut msg_id = [0 as c_char; MAXPATHL + 32];
         #[cfg(windows)]
@@ -1304,17 +1300,17 @@ pub fn buf_write(
             filemess_bufwrite(buf, msgname, msg_id.as_ptr());
         }
 
-        let mut progress: c_int = -1;
+        let mut progress: i32 = -1;
         let mut progress_nchars: i64 = 0;
         let write_start = os_hrtime();
         let write_tick = buf_get_changedtick(&*buf);
         g_st().msg_scroll = 0;
 
         write_info.bw_buf = vec![0; WRITEBUFSIZE];
-        let bufsize: c_int = WRITEBUFSIZE as c_int;
+        let bufsize: i32 = WRITEBUFSIZE as i32;
 
         let mut err = set_err(ptr::null());
-        let mut perm: c_int = -1;
+        let mut perm: i32 = -1;
         let mut newfile = false;
         let mut device = false;
         let mut file_readonly = false;
@@ -1442,7 +1438,7 @@ pub fn buf_write(
                     };
 
                     let converted = need_conversion(fenc);
-                    let mut wb_flags: c_int = 0;
+                    let mut wb_flags: i32 = 0;
 
                     if converted {
                         wb_flags = get_fio_flags(fenc);
@@ -1493,9 +1489,9 @@ pub fn buf_write(
                     let mut no_eol = false;
                     let mut nchars: i64;
                     let mut lnum: Linenr;
-                    let mut fileformat: c_int;
+                    let mut fileformat: i32;
                     let mut checking_conversion = true;
-                    let mut fd: c_int;
+                    let mut fd: i32;
 
                     loop {
                         if !converted || dobackup {
@@ -1718,7 +1714,7 @@ pub fn buf_write(
                                 progress_nchars = nchars;
                                 let percent = (i64::from(lnum - start) * 100
                                     / i64::from(end - start + 1))
-                                    as c_int;
+                                    as i32;
                                 if percent != progress
                                     && (progress >= 0 || os_hrtime() - write_start > slow_io_ns())
                                 {
@@ -1983,7 +1979,7 @@ pub fn buf_write(
                         if msg_add_fileformat(fileformat) {
                             insert_space = true;
                         }
-                        msg_add_lines(c_int::from(insert_space), lnum, nchars);
+                        msg_add_lines(i32::from(insert_space), lnum, nchars);
                         if !shortmess(K_SHM_WRITE) {
                             if append {
                                 {

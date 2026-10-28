@@ -15,43 +15,43 @@ use crate::os::fs::{
 use crate::os::input::{os_breakcheck, os_char_avail};
 use crate::path::FullName_save;
 use crate::strings::{gettext, strerror};
-use std::ffi::{c_int, c_uint};
+
 use std::ptr;
 
 pub type Blocknr = i64;
-pub type Mfdirty = c_int;
+pub type Mfdirty = i32;
 
-const MEMFILE_PAGE_SIZE: c_uint = 4096;
-pub(crate) const MIN_SWAP_PAGE_SIZE: c_uint = 1048;
+const MEMFILE_PAGE_SIZE: u32 = 4096;
+pub(crate) const MIN_SWAP_PAGE_SIZE: u32 = 1048;
 const MAX_SWAP_PAGE_SIZE: u64 = 50000;
 
-pub(crate) const BH_DIRTY: c_uint = 1;
-const BH_LOCKED: c_uint = 2;
+pub(crate) const BH_DIRTY: u32 = 1;
+const BH_LOCKED: u32 = 2;
 
 const MF_DIRTY_NO: Mfdirty = 0;
 
-pub(crate) const MFS_ALL: c_int = 1;
-pub(crate) const MFS_STOP: c_int = 2;
-pub(crate) const MFS_ZERO: c_int = 8;
+pub(crate) const MFS_ALL: i32 = 1;
+pub(crate) const MFS_STOP: i32 = 2;
+pub(crate) const MFS_ZERO: i32 = 8;
 #[cfg(windows)]
-const S_IREAD: c_int = 0x0100;
+const S_IREAD: i32 = 0x0100;
 #[cfg(windows)]
-const S_IWRITE: c_int = 0x0080;
+const S_IWRITE: i32 = 0x0080;
 #[cfg(target_os = "linux")]
-const S_IREAD: c_int = 0o400;
+const S_IREAD: i32 = 0o400;
 #[cfg(target_os = "linux")]
-const S_IWRITE: c_int = 0o200;
+const S_IWRITE: i32 = 0o200;
 #[cfg(not(any(windows, target_os = "linux")))]
-const S_IREAD: c_int = 0o400;
+const S_IREAD: i32 = 0o400;
 #[cfg(not(any(windows, target_os = "linux")))]
-const S_IWRITE: c_int = 0o200;
+const S_IWRITE: i32 = 0o200;
 
 #[repr(C)]
 pub struct Bhdr {
     pub bh_bnum: Blocknr,
     pub bh_data: Vec<u8>,
-    pub bh_page_count: c_uint,
-    pub bh_flags: c_uint,
+    pub bh_page_count: u32,
+    pub bh_flags: u32,
 }
 
 impl Bhdr {
@@ -65,8 +65,8 @@ impl Bhdr {
 pub struct Memfile {
     pub mf_fname: Option<std::ffi::CString>,
     pub mf_ffname: Option<std::ffi::CString>,
-    pub mf_fd: c_int,
-    pub mf_flags: c_int,
+    pub mf_fd: i32,
+    pub mf_flags: i32,
     pub mf_reopen: bool,
     pub mf_free_list: Vec<Bhdr>,
     pub mf_hash: std::collections::HashMap<i64, Box<Bhdr>>,
@@ -75,7 +75,7 @@ pub struct Memfile {
     pub mf_blocknr_min: Blocknr,
     pub mf_neg_count: Blocknr,
     pub mf_infile_count: Blocknr,
-    pub mf_page_size: c_uint,
+    pub mf_page_size: u32,
     pub mf_dirty: Mfdirty,
 }
 
@@ -94,7 +94,7 @@ pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<Bhdr>>, key: i64) 
 }
 
 /// Open a new or existing memory block file.
-pub fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<Memfile>> {
+pub fn mf_open(fname: Option<std::ffi::CString>, flags: i32) -> Option<Box<Memfile>> {
     unsafe {
         let mut mfp = Box::new(Memfile {
             mf_fname: None,
@@ -124,7 +124,7 @@ pub fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<Mem
             if os_fileinfo_fd(mfp.mf_fd, &mut file_info) {
                 let blocksize = os_fileinfo_blocksize(&file_info);
                 if (u64::from(MIN_SWAP_PAGE_SIZE)..=MAX_SWAP_PAGE_SIZE).contains(&blocksize) {
-                    mfp.mf_page_size = blocksize as c_uint;
+                    mfp.mf_page_size = blocksize as u32;
                 }
             }
         }
@@ -202,12 +202,12 @@ pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
 }
 
 /// Set new size for a memfile.
-pub fn mf_new_page_size(mfp: &mut Memfile, new_size: c_uint) {
+pub fn mf_new_page_size(mfp: &mut Memfile, new_size: u32) {
     mfp.mf_page_size = new_size;
 }
 
 /// Get a new block.
-pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: c_uint) -> *mut Bhdr {
+pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> *mut Bhdr {
     let bnum: Blocknr = if !negative
         && let Some(freep) = mfp.mf_free_list.last_mut()
         && freep.bh_page_count >= page_count
@@ -240,7 +240,7 @@ pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: c_uint) -> *mut Bhd
 }
 
 /// Get existing block `nr` with `page_count` pages.
-pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: c_uint) -> *mut Bhdr {
+pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> *mut Bhdr {
     unsafe {
         if nr >= mfp.mf_blocknr_max || nr <= mfp.mf_blocknr_min {
             return ptr::null_mut();
@@ -306,7 +306,7 @@ pub fn mf_free(mfp: &mut Memfile, hp: &mut Bhdr) {
 }
 
 /// Sync memory file to disk.
-pub fn mf_sync(mfp: &mut Memfile, flags: c_int) -> bool {
+pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
     unsafe {
         let got_int_save = g_st().got_int;
 
@@ -417,7 +417,7 @@ pub fn mf_release_all() -> bool {
     retval
 }
 
-fn mf_alloc_bhdr(mfp: &mut Memfile, bnum: Blocknr, page_count: c_uint, flags: c_uint) -> Box<Bhdr> {
+fn mf_alloc_bhdr(mfp: &mut Memfile, bnum: Blocknr, page_count: u32, flags: u32) -> Box<Bhdr> {
     let len = (mfp.mf_page_size as usize) * (page_count as usize);
     Box::new(Bhdr {
         bh_bnum: bnum,
@@ -439,7 +439,7 @@ fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
             perror_msg(c"E294: Seek error in swap file read");
             return false;
         }
-        assert!(hp.bh_page_count <= c_uint::MAX / page_size);
+        assert!(hp.bh_page_count <= u32::MAX / page_size);
         let size = (page_size * hp.bh_page_count) as usize;
         let nread = read_eintr(mfp.mf_fd, hp.data_ptr().cast(), size);
         if (nread as usize) != size {
@@ -618,7 +618,7 @@ pub fn mf_need_trans(mfp: &mut Memfile) -> bool {
     mfp.mf_fname.is_some() && mfp.mf_neg_count > 0
 }
 
-fn mf_do_open(mfp: &mut Memfile, fname: std::ffi::CString, mut flags: c_int) -> bool {
+fn mf_do_open(mfp: &mut Memfile, fname: std::ffi::CString, mut flags: i32) -> bool {
     mf_set_fnames(mfp, fname);
     let fname_ptr = mfp.mf_fname.as_ref().unwrap().as_ptr();
 

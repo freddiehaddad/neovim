@@ -31,7 +31,7 @@ use crate::ui::{
     ui_active, ui_attach_impl, ui_call_ui_send, ui_can_attach_more, ui_detach_impl, ui_grid_resize,
     ui_refresh, ui_set_ext_option,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 #[cfg(windows)]
@@ -43,10 +43,10 @@ pub(crate) const MAX_SCHAR_SIZE: usize = 32;
 const UI_BUF_SIZE: usize = 4096;
 const EVENT_BUF_SIZE: usize = 256;
 pub(crate) const HLATTRS_DICT_SIZE: usize = 24;
-pub(crate) const NO_SCREEN: c_int = 2;
+pub(crate) const NO_SCREEN: i32 = 2;
 pub(crate) const CHAN_STDIO: u64 = 1;
 
-pub(crate) const K_CHANNEL_PART_ALL: c_int = 4;
+pub(crate) const K_CHANNEL_PART_ALL: i32 = 4;
 
 pub(crate) const K_UICMDLINE: usize = 0;
 const K_UIPOPUPMENU: usize = 1;
@@ -58,7 +58,7 @@ pub(crate) const K_UIHL_STATE: usize = 7;
 pub(crate) const K_UITERM_COLORS: usize = 8;
 pub(crate) const K_UIEXT_COUNT: usize = 10;
 
-pub(crate) const K_LINE_FLAG_WRAP: c_int = 1;
+pub(crate) const K_LINE_FLAG_WRAP: i32 = 1;
 
 pub(crate) const ARRAY_INIT: Array = Array {
     items: ptr::null_mut(),
@@ -309,8 +309,8 @@ pub fn nvim_ui_attach(
             r#override: false,
             composed: false,
             ui_ext: [false; K_UIEXT_COUNT],
-            width: width as c_int,
-            height: height as c_int,
+            width: width as i32,
+            height: height as i32,
             pum_nlines: 0,
             pum_pos: false,
             pum_row: -1.0,
@@ -500,8 +500,8 @@ pub fn nvim_ui_try_resize(channel_id: u64, width: Integer, height: Integer, err:
         );
         return;
     }
-    ui.width = width as c_int;
-    ui.height = height as c_int;
+    ui.width = width as i32;
+    ui.height = height as i32;
     ui_refresh();
 }
 
@@ -579,8 +579,8 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
                 );
                 return;
             }
-            g_st().t_colors = value.data.integer() as c_int;
-            ui.term_colors = value.data.integer() as c_int;
+            g_st().t_colors = value.data.integer() as i32;
+            ui.term_colors = value.data.integer() as i32;
             return;
         }
 
@@ -612,7 +612,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
                 );
                 return;
             }
-            g_st().stdin_fd = value.data.integer() as c_int;
+            g_st().stdin_fd = value.data.integer() as i32;
             return;
         }
 
@@ -713,7 +713,7 @@ pub fn nvim_ui_try_resize_grid(
         if grid == Integer::from(crate::drawscreen::DEFAULT_GRID_HANDLE) {
             nvim_ui_try_resize(channel_id, width, height, err);
         } else {
-            ui_grid_resize(grid as ObjHandle, width as c_int, height as c_int, err);
+            ui_grid_resize(grid as ObjHandle, width as i32, height as i32, err);
         }
     }
 }
@@ -746,7 +746,7 @@ pub fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error)
         );
         return;
     }
-    ui.pum_nlines = height as c_int;
+    ui.pum_nlines = height as i32;
 }
 
 /// Tells Nvim the geometry of the popupmenu, to align floating windows with an
@@ -1124,7 +1124,7 @@ pub fn remote_ui_hl_attr_define(
 }
 
 // DLLEXPORT void remote_ui_highlight_set(RemoteUI *ui, int id);
-pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: c_int) {
+pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: i32) {
     if ui.hl_id == id {
         return;
     }
@@ -1204,7 +1204,7 @@ pub fn remote_ui_raw_line(
     endcol: Integer,
     clearcol: Integer,
     clearattr: Integer,
-    flags: c_int,
+    flags: i32,
     chunk: *const Schar,
     attrs: *const Sattr,
 ) {
@@ -1221,7 +1221,7 @@ pub fn remote_ui_raw_line(
 
             let mut repeat: u32 = 0;
             let ncells = (endcol - startcol) as usize;
-            let mut last_hl: c_int = -1;
+            let mut last_hl: i32 = -1;
             let mut nelem: u32 = 0;
             let mut was_space = false;
 
@@ -1257,7 +1257,7 @@ pub fn remote_ui_raw_line(
                     }
                     let csize: u32 = if repeat > 1 {
                         3
-                    } else if c_int::from(*attrs.add(i)) != last_hl {
+                    } else if (*attrs.add(i)) != last_hl {
                         2
                     } else {
                         1
@@ -1275,7 +1275,7 @@ pub fn remote_ui_raw_line(
                         }
                     }
                     ui.ncells_pending += repeat.min(2) as usize;
-                    last_hl = c_int::from(*attrs.add(i));
+                    last_hl = (*attrs.add(i));
                     repeat = 0;
                     was_space = *chunk.add(i) == schar_from_ascii(b' ');
                 }
@@ -1295,7 +1295,7 @@ pub fn remote_ui_raw_line(
             let count = (endcol - startcol) as usize;
             for i in 0..count {
                 remote_ui_cursor_goto(ui, row, startcol + i as Integer);
-                remote_ui_highlight_set(ui, c_int::from(*attrs.add(i)));
+                remote_ui_highlight_set(ui, (*attrs.add(i)));
                 let mut sc_buf: [c_char; MAX_SCHAR_SIZE] = [0; MAX_SCHAR_SIZE];
                 schar_get(sc_buf.as_mut_ptr(), *chunk.add(i));
                 remote_ui_put(ui, sc_buf.as_ptr());
@@ -1305,7 +1305,7 @@ pub fn remote_ui_raw_line(
             }
             if endcol < clearcol {
                 remote_ui_cursor_goto(ui, row, endcol);
-                remote_ui_highlight_set(ui, clearattr as c_int);
+                remote_ui_highlight_set(ui, clearattr as i32);
                 if clearattr == 0 && clearcol == Integer::from(g_st().columns_global) {
                     push_call(ui, c"eol_clear", ARRAY_INIT);
                 } else {
@@ -1399,7 +1399,7 @@ fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> 
         for i in 0..contents.size {
             let item = contents[i].data.array();
             let mut new_item = arena_array(arena, 2);
-            let attr = item[0].data.integer() as c_int;
+            let attr = item[0].data.integer() as i32;
             if attr != 0 {
                 let mut rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
                 hlattrs2dict(&mut rgb_attrs, None, syn_attr2entry(attr), ui.rgb, false);

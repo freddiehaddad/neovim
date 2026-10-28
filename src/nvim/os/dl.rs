@@ -3,7 +3,7 @@
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::memory::cstr_to_cstring;
 use crate::message::semsg;
-use std::ffi::{CString, c_char, c_int, c_void};
+use std::ffi::{CString, c_char, c_void};
 
 #[repr(C)]
 pub struct UvLib {
@@ -19,9 +19,9 @@ pub fn os_libcall(
     libname: impl crate::strings::IntoCCharPtr,
     funcname: impl crate::strings::IntoCCharPtr,
     argv: impl crate::strings::IntoCCharPtr,
-    argi: c_int,
+    argi: i32,
     str_out: Option<&mut Option<CString>>,
-    int_out: Option<&mut c_int>,
+    int_out: Option<&mut i32>,
 ) -> bool {
     let argv = argv.into_c_char_ptr();
     let funcname = funcname.into_c_char_ptr();
@@ -54,7 +54,7 @@ pub fn os_libcall(
                     std::mem::transmute(fn_ptr);
                 sfn(argv)
             } else {
-                let ifn: unsafe extern "C" fn(c_int) -> *const c_char = std::mem::transmute(fn_ptr);
+                let ifn: unsafe extern "C" fn(i32) -> *const c_char = std::mem::transmute(fn_ptr);
                 ifn(argi)
             };
 
@@ -66,10 +66,10 @@ pub fn os_libcall(
             };
         } else if let Some(int_out) = int_out {
             *int_out = if !argv.is_null() {
-                let sfn: unsafe extern "C" fn(*const c_char) -> c_int = std::mem::transmute(fn_ptr);
+                let sfn: unsafe extern "C" fn(*const c_char) -> i32 = std::mem::transmute(fn_ptr);
                 sfn(argv)
             } else {
-                let ifn: unsafe extern "C" fn(c_int) -> c_int = std::mem::transmute(fn_ptr);
+                let ifn: unsafe extern "C" fn(i32) -> i32 = std::mem::transmute(fn_ptr);
                 ifn(argi)
             };
         }

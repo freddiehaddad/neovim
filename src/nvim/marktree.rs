@@ -1,7 +1,6 @@
 //! B-tree data structure for storing marks at `(row, col)` positions and updating them
 //! to arbitrary text changes (`src/nvim/marktree.c`).
 
-use std::ffi::c_int;
 use std::fmt::Write as _;
 
 use crate::api::private::helpers::cbuf_to_string;
@@ -11,8 +10,8 @@ use crate::cursor::Colnr;
 
 pub const MT_MAX_DEPTH: usize = 20;
 pub const MT_BRANCH_FACTOR: usize = 10;
-pub const MT_LOG2_BRANCH: c_int = 5;
-const T: c_int = MT_BRANCH_FACTOR as c_int;
+pub const MT_LOG2_BRANCH: i32 = 5;
+const T: i32 = MT_BRANCH_FACTOR as i32;
 const T_USIZE: usize = MT_BRANCH_FACTOR;
 
 pub const K_MTMETA_INLINE: usize = 0;
@@ -77,7 +76,7 @@ pub struct MTPos {
 pub struct DecorHighlightInline {
     pub flags: u16,
     pub priority: u16,
-    pub hl_id: c_int,
+    pub hl_id: i32,
     pub conceal_char: u32,
 }
 
@@ -203,17 +202,17 @@ pub struct MTNode {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct MarkTreeIterState {
-    pub oldcol: c_int,
-    pub i: c_int,
+    pub oldcol: i32,
+    pub i: i32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct MarkTreeIter {
     pub pos: MTPos,
-    pub lvl: c_int,
+    pub lvl: i32,
     pub x: Option<usize>,
-    pub i: c_int,
+    pub i: i32,
     pub s: [MarkTreeIterState; MT_MAX_DEPTH],
     pub intersect_idx: usize,
     pub intersect_pos: MTPos,
@@ -248,8 +247,8 @@ impl Default for MarkTreeIter {
 pub struct MTDamage {
     pub old: Option<usize>,
     pub new: Option<usize>,
-    pub old_i: c_int,
-    pub new_i: c_int,
+    pub old_i: i32,
+    pub new_i: i32,
 }
 
 #[repr(C)]
@@ -428,19 +427,19 @@ fn compose(base: &mut MTPos, val: MTPos) {
 }
 
 #[inline]
-fn key_cmp(a: MTKey, b: MTKey) -> c_int {
-    let cmp_row = c_int::from(a.pos.row > b.pos.row) - c_int::from(a.pos.row < b.pos.row);
+fn key_cmp(a: MTKey, b: MTKey) -> i32 {
+    let cmp_row = i32::from(a.pos.row > b.pos.row) - i32::from(a.pos.row < b.pos.row);
     if cmp_row != 0 {
         return cmp_row;
     }
-    let cmp_col = c_int::from(a.pos.col > b.pos.col) - c_int::from(a.pos.col < b.pos.col);
+    let cmp_col = i32::from(a.pos.col > b.pos.col) - i32::from(a.pos.col < b.pos.col);
     if cmp_col != 0 {
         return cmp_col;
     }
     const CMP_MASK: u16 = MT_FLAG_RIGHT_GRAVITY | MT_FLAG_END | MT_FLAG_REAL | MT_FLAG_LAST;
     let af = a.flags & CMP_MASK;
     let bf = b.flags & CMP_MASK;
-    c_int::from(af > bf) - c_int::from(af < bf)
+    i32::from(af > bf) - i32::from(af < bf)
 }
 
 #[inline]
@@ -485,7 +484,7 @@ fn rawkey_mut<'a>(b: &'a mut MarkTree, itr: &MarkTreeIter) -> &'a mut MTKey {
 }
 
 #[inline]
-fn marktree_getp_aux(b: &MarkTree, x: usize, k: MTKey, match_out: Option<&mut bool>) -> c_int {
+fn marktree_getp_aux(b: &MarkTree, x: usize, k: MTKey, match_out: Option<&mut bool>) -> i32 {
     let mut dummy_match = false;
     let m = match_out.unwrap_or(&mut dummy_match);
 
@@ -494,8 +493,8 @@ fn marktree_getp_aux(b: &MarkTree, x: usize, k: MTKey, match_out: Option<&mut bo
         *m = false;
         return -1;
     }
-    let mut begin: c_int = 0;
-    let mut end: c_int = xn;
+    let mut begin: i32 = 0;
+    let mut end: i32 = xn;
     while begin < end {
         let mid = (begin + end) >> 1;
         if key_cmp(b.nodes[x].key[mid as usize], k) < 0 {
@@ -516,7 +515,7 @@ fn marktree_getp_aux(b: &MarkTree, x: usize, k: MTKey, match_out: Option<&mut bo
 }
 
 #[inline]
-fn refkey(b: &mut MarkTree, x: usize, i: c_int) {
+fn refkey(b: &mut MarkTree, x: usize, i: i32) {
     let key_id = mt_lookup_key(b.nodes[x].key[i as usize]);
     b.id2node.insert(key_id, x);
 }
@@ -526,7 +525,7 @@ fn id2node(b: &MarkTree, id: u64) -> Option<usize> {
     b.id2node.get(&id).copied()
 }
 
-fn split_node(b: &mut MarkTree, x: usize, i: c_int, next: MTKey) {
+fn split_node(b: &mut MarkTree, x: usize, i: i32, next: MTKey) {
     let y = node_ptr(b, x)[i as usize].unwrap();
     let y_level = b.nodes[y].level;
     let z = marktree_alloc_node(b, y_level != 0);
@@ -670,13 +669,7 @@ fn marktree_putp_aux(b: &mut MarkTree, x: usize, mut k: MTKey, meta_inc: &[u32; 
     }
 }
 
-pub fn marktree_put(
-    b: &mut MarkTree,
-    mut key: MTKey,
-    end_row: c_int,
-    end_col: c_int,
-    end_right: bool,
-) {
+pub fn marktree_put(b: &mut MarkTree, mut key: MTKey, end_row: i32, end_col: i32, end_right: bool) {
     debug_assert_eq!(
         key.flags & !(MT_FLAG_EXTERNAL_MASK | MT_FLAG_RIGHT_GRAVITY),
         0
@@ -738,7 +731,7 @@ pub fn marktree_intersect_pair(
     delete: bool,
 ) {
     let maxlvl = itr.lvl.min(end_itr.lvl);
-    let iat = |it: &MarkTreeIter, l: c_int, q: c_int| -> c_int {
+    let iat = |it: &MarkTreeIter, l: i32, q: i32| -> i32 {
         if l == it.lvl {
             it.i + q
         } else {
@@ -961,7 +954,7 @@ pub fn marktree_del_itr(b: &mut MarkTree, itr: &mut MarkTreeIter, rev: bool) -> 
 
             let c0 = node_ptr(b, p)[0].unwrap();
             if p != cur && start_id != 0 && intersection_has(&b.nodes[c0].intersect, start_id) {
-                let last = c_int::from(lnode != x);
+                let last = i32::from(lnode != x);
                 let pn = b.nodes[p].n;
                 for c_idx in 0..(pn + last) as usize {
                     let child = node_ptr(b, p)[c_idx].unwrap();
@@ -1373,7 +1366,7 @@ fn bubble_up(b: &mut MarkTree, x: usize) {
     }
 }
 
-fn merge_node(b: &mut MarkTree, p: usize, i: c_int) -> usize {
+fn merge_node(b: &mut MarkTree, p: usize, i: i32) -> usize {
     let i_usize = i as usize;
     let x = node_ptr(b, p)[i_usize].unwrap();
     let y = node_ptr(b, p)[i_usize + 1].unwrap();
@@ -1388,7 +1381,7 @@ fn merge_node(b: &mut MarkTree, p: usize, i: c_int) -> usize {
     let xn = b.nodes[x].n as usize;
     let yn = b.nodes[y].n as usize;
     b.nodes[x].key[xn] = b.nodes[p].key[i_usize];
-    refkey(b, x, xn as c_int);
+    refkey(b, x, xn as i32);
     if i > 0 {
         let prev_pos = b.nodes[p].key[i_usize - 1].pos;
         relative(prev_pos, &mut b.nodes[x].key[xn].pos);
@@ -1399,8 +1392,8 @@ fn merge_node(b: &mut MarkTree, p: usize, i: c_int) -> usize {
     let y_keys: Vec<MTKey> = b.nodes[y].key[..yn].to_vec();
     b.nodes[x].key[(xn + 1)..(xn + 1 + yn)].copy_from_slice(&y_keys);
     let mid_pos = b.nodes[x].key[xn].pos;
-    for k in 0..(yn as c_int) {
-        refkey(b, x, (xn as c_int) + 1 + k);
+    for k in 0..(yn as i32) {
+        refkey(b, x, (xn as i32) + 1 + k);
         unrelative(mid_pos, &mut b.nodes[x].key[xn + 1 + k as usize].pos);
     }
     if b.nodes[x].level != 0 {
@@ -1426,7 +1419,7 @@ fn merge_node(b: &mut MarkTree, p: usize, i: c_int) -> usize {
             }
         }
     }
-    b.nodes[x].n += (yn as c_int) + 1;
+    b.nodes[x].n += (yn as i32) + 1;
     {
         let p_inner = node_inner_mut(b, p);
         for (m, &inc) in meta_inc.iter().enumerate() {
@@ -1460,7 +1453,7 @@ fn merge_node(b: &mut MarkTree, p: usize, i: c_int) -> usize {
     x
 }
 
-fn pivot_right(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
+fn pivot_right(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: i32) {
     let i_usize = i as usize;
     let x = node_ptr(b, p)[i_usize].unwrap();
     let y = node_ptr(b, p)[i_usize + 1].unwrap();
@@ -1563,7 +1556,7 @@ fn pivot_right(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
     }
 }
 
-fn pivot_left(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
+fn pivot_left(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: i32) {
     let i_usize = i as usize;
     let x = node_ptr(b, p)[i_usize].unwrap();
     let y = node_ptr(b, p)[i_usize + 1].unwrap();
@@ -1582,7 +1575,7 @@ fn pivot_left(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
     let xn = b.nodes[x].n as usize;
     let yn = b.nodes[y].n as usize;
     b.nodes[x].key[xn] = b.nodes[p].key[i_usize];
-    refkey(b, x, xn as c_int);
+    refkey(b, x, xn as i32);
     b.nodes[p].key[i_usize] = b.nodes[y].key[0];
     refkey(b, p, i);
 
@@ -1684,7 +1677,7 @@ fn marktree_free_node(b: &mut MarkTree, x: usize) {
     b.n_nodes -= 1;
 }
 
-pub fn marktree_move(b: &mut MarkTree, itr: &mut MarkTreeIter, row: c_int, col: c_int) {
+pub fn marktree_move(b: &mut MarkTree, itr: &mut MarkTreeIter, row: i32, col: i32) {
     let mut key = *rawkey(b, itr);
     let x = itr.x.unwrap();
     if b.nodes[x].level == 0 {
@@ -1752,7 +1745,7 @@ pub fn marktree_restore_pair(b: &mut MarkTree, key: MTKey) {
     marktree_intersect_pair(b, mt_lookup_key_side(key, false), &mut itr, &end_itr, false);
 }
 
-pub fn marktree_itr_get(b: &MarkTree, row: i32, col: c_int, itr: &mut MarkTreeIter) -> bool {
+pub fn marktree_itr_get(b: &MarkTree, row: i32, col: i32, itr: &mut MarkTreeIter) -> bool {
     marktree_itr_get_ext(b, MTPos { row, col }, itr, false, false, None, None)
 }
 
@@ -1928,9 +1921,9 @@ fn marktree_itr_next_skip(
 pub fn marktree_itr_get_filter(
     b: &MarkTree,
     row: i32,
-    col: c_int,
-    stop_row: c_int,
-    stop_col: c_int,
+    col: i32,
+    stop_row: i32,
+    stop_col: i32,
     meta_filter: &MetaFilter,
     itr: &mut MarkTreeIter,
 ) -> bool {
@@ -1979,8 +1972,8 @@ pub fn marktree_itr_step_out_filter(
 pub fn marktree_itr_next_filter(
     b: &MarkTree,
     itr: &mut MarkTreeIter,
-    stop_row: c_int,
-    stop_col: c_int,
+    stop_row: i32,
+    stop_col: i32,
     meta_filter: &MetaFilter,
 ) -> bool {
     if !marktree_itr_next_skip(b, itr, false, false, None, Some(meta_filter)) {
@@ -1992,8 +1985,8 @@ pub fn marktree_itr_next_filter(
 fn marktree_itr_check_filter(
     b: &MarkTree,
     itr: &mut MarkTreeIter,
-    stop_row: c_int,
-    stop_col: c_int,
+    stop_row: i32,
+    stop_col: i32,
     meta_filter: &MetaFilter,
 ) -> bool {
     let stop_pos = MTPos {
@@ -2088,12 +2081,7 @@ fn itr_eq(itr1: &MarkTreeIter, itr2: &MarkTreeIter) -> bool {
     itr1.x == itr2.x && itr1.i == itr2.i
 }
 
-pub fn marktree_itr_get_overlap(
-    b: &MarkTree,
-    row: c_int,
-    col: c_int,
-    itr: &mut MarkTreeIter,
-) -> bool {
+pub fn marktree_itr_get_overlap(b: &MarkTree, row: i32, col: i32, itr: &mut MarkTreeIter) -> bool {
     if b.n_keys == 0 {
         itr.x = None;
         return false;
@@ -2274,11 +2262,11 @@ fn swap_keys(
 pub fn marktree_splice(
     b: &mut MarkTree,
     start_line: i32,
-    start_col: c_int,
-    old_extent_line: c_int,
-    old_extent_col: c_int,
-    new_extent_line: c_int,
-    new_extent_col: c_int,
+    start_col: i32,
+    old_extent_line: i32,
+    old_extent_col: i32,
+    new_extent_line: i32,
+    new_extent_col: i32,
 ) -> bool {
     let start = MTPos {
         row: start_line,
@@ -2475,11 +2463,11 @@ pub fn marktree_splice(
 
 pub fn marktree_move_region(
     b: &mut MarkTree,
-    start_row: c_int,
+    start_row: i32,
     start_col: Colnr,
-    extent_row: c_int,
+    extent_row: i32,
     extent_col: Colnr,
-    new_row: c_int,
+    new_row: i32,
     new_col: Colnr,
 ) {
     let start = MTPos {
@@ -2531,15 +2519,15 @@ pub fn marktree_lookup_ns(
     marktree_lookup(b, mt_lookup_id(ns, id, end), itr)
 }
 
-fn pseudo_index(b: &MarkTree, x: usize, mut i: c_int) -> u64 {
-    let mut off = MT_LOG2_BRANCH * c_int::from(b.nodes[x].level);
+fn pseudo_index(b: &MarkTree, x: usize, mut i: i32) -> u64 {
+    let mut off = MT_LOG2_BRANCH * i32::from(b.nodes[x].level);
     let mut index = 0u64;
 
     let mut cur = Some(x);
     while let Some(cur_idx) = cur {
         index |= ((i + 1) as u64) << off;
         off += MT_LOG2_BRANCH;
-        i = c_int::from(b.nodes[cur_idx].p_idx);
+        i = i32::from(b.nodes[cur_idx].p_idx);
         cur = b.nodes[cur_idx].parent;
     }
 
@@ -2588,17 +2576,17 @@ pub fn marktree_itr_set_node(
     b: &MarkTree,
     mut itr: Option<&mut MarkTreeIter>,
     mut n: usize,
-    mut i: c_int,
+    mut i: i32,
 ) -> MTKey {
     let root_level = b.nodes[b.root.unwrap()].level;
     let mut key = b.nodes[n].key[i as usize];
     if let Some(ref mut itr) = itr {
         itr.i = i;
         itr.x = Some(n);
-        itr.lvl = c_int::from(root_level - b.nodes[n].level);
+        itr.lvl = i32::from(root_level - b.nodes[n].level);
     }
     while let Some(p) = b.nodes[n].parent {
-        i = c_int::from(b.nodes[n].p_idx);
+        i = i32::from(b.nodes[n].p_idx);
         debug_assert_eq!(node_ptr(b, p)[i as usize], Some(n));
 
         if let Some(ref mut itr) = itr {
@@ -2647,11 +2635,11 @@ pub fn marktree_put_test(
     b: &mut MarkTree,
     ns: u32,
     id: u32,
-    row: c_int,
-    col: c_int,
+    row: i32,
+    col: i32,
     right_gravity: bool,
-    end_row: c_int,
-    end_col: c_int,
+    end_row: i32,
+    end_col: i32,
     end_right: bool,
     meta_inline: bool,
 ) {
@@ -2955,11 +2943,11 @@ mod tests {
                 &mut tree,
                 1,
                 i,
-                (i / 3) as c_int,
-                (i % 5) as c_int,
+                (i / 3) as i32,
+                (i % 5) as i32,
                 i % 2 == 0,
-                (i / 3 + 1) as c_int,
-                (i % 5 + 2) as c_int,
+                (i / 3 + 1) as i32,
+                (i % 5 + 2) as i32,
                 true,
                 i % 3 == 0,
             );
@@ -3009,11 +2997,10 @@ mod tests {
 
         // Edge case splicing overlapping ranges (#37867)
         let mut nid = 0u32;
-        let mut put_range =
-            |t: &mut MarkTree, r1: c_int, c1: c_int, g1: bool, r2: c_int, c2: c_int| {
-                nid += 1;
-                marktree_put_test(t, 10, nid, r1, c1, g1, r2, c2, false, false);
-            };
+        let mut put_range = |t: &mut MarkTree, r1: i32, c1: i32, g1: bool, r2: i32, c2: i32| {
+            nid += 1;
+            marktree_put_test(t, 10, nid, r1, c1, g1, r2, c2, false, false);
+        };
         put_range(&mut tree, 190, 48, false, -1, -1);
         put_range(&mut tree, 48, 48, true, -1, -1);
         put_range(&mut tree, 190, 48, false, -1, -1);

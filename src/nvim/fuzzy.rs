@@ -23,10 +23,10 @@ use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
-use std::ffi::{CString, c_char, c_int};
+use std::ffi::{CString, c_char};
 
 pub const FUZZY_MATCH_MAX_LEN: usize = 1024;
-pub const FUZZY_SCORE_NONE: c_int = c_int::MIN;
+pub const FUZZY_SCORE_NONE: i32 = i32::MIN;
 
 const MATCH_MAX_LEN: usize = FUZZY_MATCH_MAX_LEN;
 const SCORE_MAX: f64 = f64::INFINITY;
@@ -42,31 +42,31 @@ const SCORE_MATCH_WORD: f64 = 0.8;
 const SCORE_MATCH_CAPITAL: f64 = 0.7;
 const SCORE_MATCH_DOT: f64 = 0.6;
 
-const K_CALLBACK_NONE: c_int = 0;
+const K_CALLBACK_NONE: i32 = 0;
 
 #[repr(C)]
 #[derive(Clone)]
 pub struct FuzmatchStr {
-    pub idx: c_int,
+    pub idx: i32,
     pub str_cstr: CString,
-    pub score: c_int,
+    pub score: i32,
 }
 
 #[derive(Clone)]
 struct FuzzyItem {
-    idx: c_int,
+    idx: i32,
     item: *mut Listitem,
-    score: c_int,
+    score: i32,
     matchpos: Vec<i64>,
     itemstr: CString,
-    startpos: c_int,
+    startpos: i32,
 }
 
 struct MatchStruct {
     needle_len: usize,
     haystack_len: usize,
-    lower_needle: [c_int; MATCH_MAX_LEN],
-    lower_haystack: [c_int; MATCH_MAX_LEN],
+    lower_needle: [i32; MATCH_MAX_LEN],
+    lower_haystack: [i32; MATCH_MAX_LEN],
     match_bonus: [f64; MATCH_MAX_LEN],
 }
 
@@ -110,15 +110,15 @@ fn has_match(
     }
 }
 
-fn compute_bonus_codepoint(last_c: c_int, c: c_int) -> f64 {
+fn compute_bonus_codepoint(last_c: i32, c: i32) -> f64 {
     if ascii_isalnum(c) || vim_iswordc(c) {
-        if last_c == (b'/' as c_int) {
+        if last_c == (b'/' as i32) {
             return SCORE_MATCH_SLASH;
         }
-        if last_c == (b'-' as c_int) || last_c == (b'_' as c_int) || last_c == (b' ' as c_int) {
+        if last_c == (b'-' as i32) || last_c == (b'_' as i32) || last_c == (b' ' as i32) {
             return SCORE_MATCH_WORD;
         }
-        if last_c == (b'.' as c_int) {
+        if last_c == (b'.' as i32) {
             return SCORE_MATCH_DOT;
         }
         if mb_isupper(c) && mb_islower(last_c) {
@@ -148,7 +148,7 @@ fn setup_match_struct(
 
         i = 0;
         p = haystack;
-        let mut prev_c = b'/' as c_int;
+        let mut prev_c = b'/' as i32;
         while *p != 0 && i < MATCH_MAX_LEN {
             let c = utf_ptr2char(p);
             match_st.lower_haystack[i] = mb_tolower(c);
@@ -302,15 +302,15 @@ pub fn fuzzy_match(
     str_ptr: impl crate::strings::IntoCCharPtr,
     pat_arg: impl crate::strings::IntoCCharPtr,
     matchseq: bool,
-    out_score: &mut c_int,
+    out_score: &mut i32,
     matches: *mut u32,
-    max_matches: c_int,
+    max_matches: i32,
 ) -> bool {
     let str_ptr = str_ptr.into_c_char_ptr();
     let pat_arg = pat_arg.into_c_char_ptr();
     unsafe {
         let mut complete = false;
-        let mut num_matches: c_int = 0;
+        let mut num_matches: i32 = 0;
 
         *out_score = 0;
 
@@ -351,11 +351,11 @@ pub fn fuzzy_match(
                 let fzy_score = match_positions(pat, str_ptr, matches.add(num_matches as usize));
                 if fzy_score != SCORE_MIN {
                     score = if fzy_score == SCORE_MAX {
-                        c_int::MAX
+                        i32::MAX
                     } else if fzy_score < 0.0 {
-                        (fzy_score * SCORE_SCALE - 0.5).ceil() as c_int
+                        (fzy_score * SCORE_SCALE - 0.5).ceil() as i32
                     } else {
-                        (fzy_score * SCORE_SCALE + 0.5).floor() as c_int
+                        (fzy_score * SCORE_SCALE + 0.5).floor() as i32
                     };
                 }
             }
@@ -366,10 +366,10 @@ pub fn fuzzy_match(
                 break;
             }
 
-            if score > 0 && *out_score > c_int::MAX - score {
-                *out_score = c_int::MAX;
-            } else if score < 0 && *out_score < c_int::MIN + 1 - score {
-                *out_score = c_int::MIN + 1;
+            if score > 0 && *out_score > i32::MAX - score {
+                *out_score = i32::MAX;
+            } else if score < 0 && *out_score < i32::MIN + 1 - score {
+                *out_score = i32::MIN + 1;
             } else {
                 *out_score += score;
             }
@@ -426,7 +426,7 @@ fn fuzzy_match_in_list(
     item_cb: &mut Callback,
     retmatchpos: bool,
     fmatchlist: &mut TvList,
-    max_matches: c_int,
+    max_matches: i32,
 ) {
     let str_ptr = str_ptr.into_c_char_ptr();
     let key = key.into_c_char_ptr();
@@ -440,7 +440,7 @@ fn fuzzy_match_in_list(
         }
 
         let mut items: Vec<FuzzyItem> = Vec::with_capacity(len as usize);
-        let mut match_count: c_int = 0;
+        let mut match_count: i32 = 0;
         let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
         for li in crate::eval::typval::list_iter_ptr(l.map_or(std::ptr::null_mut(), |l| l.lv_first))
@@ -488,7 +488,7 @@ fn fuzzy_match_in_list(
                 }
             }
 
-            let mut score: c_int = 0;
+            let mut score: i32 = 0;
             if !itemstr.is_null()
                 && fuzzy_match(
                     itemstr,
@@ -496,7 +496,7 @@ fn fuzzy_match_in_list(
                     matchseq,
                     &mut score,
                     matches.as_mut_ptr(),
-                    FUZZY_MATCH_MAX_LEN as c_int,
+                    FUZZY_MATCH_MAX_LEN as i32,
                 )
             {
                 let itemstr_copy = crate::memory::cstr_to_cstring(itemstr);
@@ -518,7 +518,7 @@ fn fuzzy_match_in_list(
                     idx: match_count,
                     item: li,
                     score,
-                    startpos: matches[0] as c_int,
+                    startpos: matches[0] as i32,
                     itemstr: itemstr_copy,
                     matchpos,
                 });
@@ -594,7 +594,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         let mut cb = Callback::NONE;
         let mut key: *const c_char = std::ptr::null();
         let mut matchseq = false;
-        let mut max_matches: c_int = 0;
+        let mut max_matches: i32 = 0;
 
         if arg2.v_type != VarType::VarUnknown {
             if !tv_check_for_nonnull_dict_arg(argvars, 2) {
@@ -627,7 +627,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
                     semsg!(E_INVARGVAL, c"limit");
                     return;
                 }
-                max_matches = tv_get_number_chk(&di_limit.di_tv, None) as c_int;
+                max_matches = tv_get_number_chk(&di_limit.di_tv, None) as i32;
             }
 
             if tv_dict_has_key(d.as_ref(), c"matchseq") {
@@ -675,7 +675,7 @@ fn fuzzy_match_str_compare(f1: &FuzmatchStr, f2: &FuzmatchStr) -> std::cmp::Orde
     f2.score.cmp(&f1.score).then_with(|| f1.idx.cmp(&f2.idx))
 }
 
-fn fuzzy_match_func_compare(f1: &FuzmatchStr, f2: &FuzmatchStr) -> c_int {
+fn fuzzy_match_func_compare(f1: &FuzmatchStr, f2: &FuzmatchStr) -> i32 {
     let b1 = f1.str_cstr.as_bytes().first().copied().unwrap_or(0);
     let b2 = f2.str_cstr.as_bytes().first().copied().unwrap_or(0);
 
@@ -686,7 +686,7 @@ fn fuzzy_match_func_compare(f1: &FuzmatchStr, f2: &FuzmatchStr) -> c_int {
         return 1;
     }
     if f1.score == f2.score {
-        return f1.idx.cmp(&f2.idx) as c_int;
+        return f1.idx.cmp(&f2.idx) as i32;
     }
     if f1.score > f2.score { -1 } else { 1 }
 }
@@ -695,7 +695,7 @@ fn fuzzy_match_func_compare(f1: &FuzmatchStr, f2: &FuzmatchStr) -> c_int {
 pub fn fuzzy_match_str(
     str_ptr: impl crate::strings::IntoCCharPtr,
     pat: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let str_ptr = str_ptr.into_c_char_ptr();
     let pat = pat.into_c_char_ptr();
     if str_ptr.is_null() || pat.is_null() {
@@ -710,7 +710,7 @@ pub fn fuzzy_match_str(
         true,
         &mut score,
         matchpos.as_mut_ptr(),
-        FUZZY_MATCH_MAX_LEN as c_int,
+        FUZZY_MATCH_MAX_LEN as i32,
     );
     score
 }
@@ -735,7 +735,7 @@ pub fn fuzzy_match_str_with_pos(
             false,
             &mut score,
             matches.as_mut_ptr(),
-            FUZZY_MATCH_MAX_LEN as c_int,
+            FUZZY_MATCH_MAX_LEN as i32,
         ) || score == FUZZY_SCORE_NONE
         {
             return None;
@@ -760,9 +760,9 @@ pub fn fuzzy_match_str_with_pos(
 pub fn fuzzy_match_str_in_line(
     ptr: *mut *mut c_char,
     pat: impl crate::strings::IntoCCharPtr,
-    len: &mut c_int,
+    len: &mut i32,
     current_pos: Option<&mut CursorPos>,
-    score: &mut c_int,
+    score: &mut i32,
 ) -> bool {
     let pat = pat.into_c_char_ptr();
     unsafe {
@@ -788,11 +788,11 @@ pub fn fuzzy_match_str_in_line(
             *end = save_end;
 
             if *score != FUZZY_SCORE_NONE {
-                *len = ((end as usize) - (start as usize)) as c_int;
+                *len = ((end as usize) - (start as usize)) as i32;
                 found = true;
                 *ptr = start;
                 if let Some(current_pos) = current_pos {
-                    current_pos.col += ((end as usize) - (str_begin as usize)) as c_int;
+                    current_pos.col += ((end as usize) - (str_begin as usize)) as i32;
                 }
                 break;
             }
@@ -816,11 +816,11 @@ pub fn search_for_fuzzy_match(
     buf: &mut FileBuf,
     pos: &mut CursorPos,
     pattern: impl crate::strings::IntoCCharPtr,
-    dir: c_int,
+    dir: i32,
     start_pos: &CursorPos,
-    len: &mut c_int,
+    len: &mut i32,
     ptr: *mut *mut c_char,
-    score: &mut c_int,
+    score: &mut i32,
 ) -> bool {
     let pattern = pattern.into_c_char_ptr();
     unsafe {
@@ -883,7 +883,7 @@ pub fn search_for_fuzzy_match(
                             *pos = current_pos;
                             *ptr = p;
                             *len = ml_get_buf_len(buf, current_pos.lnum)
-                                - (((p as usize) - (line as usize)) as c_int);
+                                - (((p as usize) - (line as usize)) as i32);
                             break;
                         }
                     }

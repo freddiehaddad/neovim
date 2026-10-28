@@ -21,7 +21,6 @@ use crate::os::pty_proc::{
     pty_proc_close, pty_proc_close_master, pty_proc_flush_master, pty_proc_spawn, pty_proc_teardown,
 };
 use crate::os::time::os_hrtime;
-use std::ffi::c_int;
 use std::ptr;
 
 const KILL_TIMEOUT_MS: u64 = 2000;
@@ -31,12 +30,12 @@ use crate::os::signal::{SIGHUP, SIGKILL, SIGTERM};
 
 #[repr(C)]
 pub struct Proc {
-    pub r#type: c_int,
+    pub r#type: i32,
     pub loop_: *mut Loop,
     pub data: *mut crate::channel::Channel,
-    pub pid: c_int,
-    pub status: c_int,
-    pub refcount: c_int,
+    pub pid: i32,
+    pub status: i32,
+    pub refcount: i32,
     pub exit_signal: u8,
     pub stopped_time: u64,
     pub cwd: Option<std::ffi::CString>,
@@ -57,7 +56,7 @@ pub struct Proc {
     #[cfg(unix)]
     pub winsize: crate::os::pty_proc_unix::winsize,
     #[cfg(unix)]
-    pub tty_fd: c_int,
+    pub tty_fd: i32,
     #[cfg(windows)]
     pub conpty: Option<Box<crate::os::pty_conpty_win::Conpty>>,
     #[cfg(windows)]
@@ -115,8 +114,8 @@ pub type PtyProc = Proc;
 
 struct ProcModuleState {
     proc_is_tearing_down: bool,
-    exit_need_delay: c_int,
-    exit_delay_status: c_int,
+    exit_need_delay: i32,
+    exit_delay_status: i32,
 }
 
 impl ProcModuleState {
@@ -186,7 +185,7 @@ fn loop_process_events_until<F: FnMut() -> bool>(
 }
 
 /// @returns zero on success, or negative error code
-pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c_int {
+pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
     unsafe {
         let s_in = &raw mut proc_.r#in;
         let s_in = { &mut *s_in };
@@ -298,7 +297,7 @@ pub fn proc_close_streams(proc_: &mut Proc) {
 }
 
 /// Synchronously wait for a process to finish
-pub fn proc_wait(proc_: &mut Proc, ms: c_int, mut events: *mut MultiQueue) -> c_int {
+pub fn proc_wait(proc_: &mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 {
     unsafe {
         if proc_.refcount == 0 {
             let status = proc_.status;
@@ -466,10 +465,10 @@ fn flush_stream(proc_: &mut Proc, stream: &mut RStream) {
             proc_.r#type != K_PROC_TYPE_PTY || proc_st().proc_is_tearing_down
         };
         if limit_bytes {
-            let mut system_buffer_size: c_int = 0;
+            let mut system_buffer_size: i32 = 0;
             let err = uv_recv_buffer_size((&raw mut stream.s.uv).cast(), &mut system_buffer_size);
             if err != 0 {
-                system_buffer_size = ARENA_BLOCK_SIZE as c_int;
+                system_buffer_size = ARENA_BLOCK_SIZE as i32;
             }
             max_bytes = stream.num_bytes + system_buffer_size as usize;
         }
@@ -522,7 +521,7 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
     }
 }
 
-pub fn exit_event(status: c_int) {
+pub fn exit_event(status: i32) {
     unsafe {
         if proc_st().exit_need_delay != 0 {
             let mloop = main_loop_ptr();
@@ -545,7 +544,7 @@ pub fn exit_event(status: c_int) {
 }
 
 /// Performs self-exit because the primary RPC channel was closed.
-pub fn exit_on_closed_chan(status: c_int) {
+pub fn exit_on_closed_chan(status: i32) {
     unsafe {
         let qc = loop_queues(&mut *main_loop_ptr());
         multiqueue_put_event(&mut *qc.fast_events, Event::ProcExit(status));

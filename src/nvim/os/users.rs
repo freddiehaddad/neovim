@@ -9,7 +9,7 @@ use crate::os::env::os_getenv_buf;
 use crate::strings::vim_snprintf;
 #[cfg(windows)]
 use std::ffi::c_void;
-use std::ffi::{CString, c_char, c_int};
+use std::ffi::{CString, c_char};
 
 use crate::event::r#loop::uv_uid_t;
 
@@ -219,7 +219,7 @@ pub fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> bool {
         }
     }
 
-    vim_snprintf!(s, len, c"%d", uid as c_int);
+    vim_snprintf!(s, len, c"%d", uid as i32);
     false
 }
 
@@ -266,7 +266,7 @@ fn init_users() {
 ///
 /// # Safety
 /// Caller must ensure single-threaded access to user completion cache.
-pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: i32) -> *mut c_char {
     if idx < 0 {
         return std::ptr::null_mut();
     }
@@ -283,7 +283,7 @@ pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: c_int) -> *mut c_char
 ///
 /// # Safety
 /// `name` must be a valid C string.
-pub fn match_user(name: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn match_user(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
     {
         init_users();

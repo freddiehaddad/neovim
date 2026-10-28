@@ -78,37 +78,37 @@ use crate::runtime::{
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::ui::ui_has;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 pub type VimLFunc = Option<fn(&mut [TypVal], &mut TypVal, EvalFuncData)>;
 
 #[repr(C)]
 pub struct UserFunc {
-    pub uf_varargs: c_int,
-    pub uf_flags: c_int,
-    pub uf_calls: c_int,
+    pub uf_varargs: i32,
+    pub uf_flags: i32,
+    pub uf_calls: i32,
     pub uf_cleared: bool,
     pub uf_args: Vec<std::ffi::CString>,
     pub uf_def_args: Vec<std::ffi::CString>,
     pub uf_lines: Vec<Option<std::ffi::CString>>,
-    pub uf_profiling: c_int,
-    pub uf_prof_initialized: c_int,
-    pub uf_luaref: c_int,
-    pub uf_tm_count: c_int,
+    pub uf_profiling: i32,
+    pub uf_prof_initialized: i32,
+    pub uf_luaref: i32,
+    pub uf_tm_count: i32,
     pub uf_tm_total: u64,
     pub uf_tm_self: u64,
     pub uf_tm_children: u64,
-    pub uf_tml_count: Vec<c_int>,
+    pub uf_tml_count: Vec<i32>,
     pub uf_tml_total: Vec<u64>,
     pub uf_tml_self: Vec<u64>,
     pub uf_tml_start: u64,
     pub uf_tml_children: u64,
     pub uf_tml_wait: u64,
-    pub uf_tml_idx: c_int,
-    pub uf_tml_execed: c_int,
+    pub uf_tml_idx: i32,
+    pub uf_tml_execed: i32,
     pub uf_script_ctx: crate::runtime::Sctx,
-    pub uf_refcount: c_int,
+    pub uf_refcount: i32,
     pub uf_scoped: *mut crate::profile::Funccall,
     pub uf_name_exp: Option<std::ffi::CString>,
     pub uf_namelen: usize,
@@ -118,31 +118,31 @@ use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
 use crate::globals::IOSIZE;
 
-pub const FC_ABORT: c_int = 0x01;
-pub const FC_RANGE: c_int = 0x02;
-pub const FC_DICT: c_int = 0x04;
-pub const FC_CLOSURE: c_int = 0x08;
-pub const FC_DELETED: c_int = 0x10;
-pub const FC_REMOVED: c_int = 0x20;
-pub const FC_SANDBOX: c_int = 0x40;
-pub const FC_NOARGS: c_int = 0x200;
-pub const FC_LUAREF: c_int = 0x800;
+pub const FC_ABORT: i32 = 0x01;
+pub const FC_RANGE: i32 = 0x02;
+pub const FC_DICT: i32 = 0x04;
+pub const FC_CLOSURE: i32 = 0x08;
+pub const FC_DELETED: i32 = 0x10;
+pub const FC_REMOVED: i32 = 0x20;
+pub const FC_SANDBOX: i32 = 0x40;
+pub const FC_NOARGS: i32 = 0x200;
+pub const FC_LUAREF: i32 = 0x800;
 
-pub const FCERR_UNKNOWN: c_int = 0;
-pub const FCERR_TOOMANY: c_int = 1;
-pub const FCERR_TOOFEW: c_int = 2;
-pub const FCERR_SCRIPT: c_int = 3;
-pub const FCERR_DICT: c_int = 4;
-pub const FCERR_NONE: c_int = 5;
-pub const FCERR_OTHER: c_int = 6;
-pub const FCERR_DELETED: c_int = 7;
-pub const FCERR_NOTMETHOD: c_int = 8;
+pub const FCERR_UNKNOWN: i32 = 0;
+pub const FCERR_TOOMANY: i32 = 1;
+pub const FCERR_TOOFEW: i32 = 2;
+pub const FCERR_SCRIPT: i32 = 3;
+pub const FCERR_DICT: i32 = 4;
+pub const FCERR_NONE: i32 = 5;
+pub const FCERR_OTHER: i32 = 6;
+pub const FCERR_DELETED: i32 = 7;
+pub const FCERR_NOTMETHOD: i32 = 8;
 
 const FLEN_FIXED: usize = 40;
-const MAX_FUNC_NESTING: c_int = 50;
+const MAX_FUNC_NESTING: i32 = 50;
 
 pub(crate) const MSG_BUF_LEN: usize = 480;
-const MSG_BUF_CLEN: c_int = (MSG_BUF_LEN / 6) as c_int;
+const MSG_BUF_CLEN: i32 = (MSG_BUF_LEN / 6) as i32;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -234,18 +234,18 @@ struct RetainedFunccall(Box<Funccall>);
 
 struct UserfuncState {
     func_hashtab: std::collections::BTreeMap<Vec<u8>, *mut UserFunc>,
-    func_hashtab_changed: c_int,
+    func_hashtab_changed: i32,
     funcargs: Vec<*mut TypVal>,
     current_funccal: *mut Funccall,
     previous_funccal: Vec<RetainedFunccall>,
     funccal_stack: Vec<*mut Funccall>,
     lambda_name: [c_char; 8 + NUMBUFLEN],
-    lambda_no: c_int,
-    made_copy: c_int,
-    call_depth: c_int,
-    func_nr: c_int,
+    lambda_no: i32,
+    made_copy: i32,
+    call_depth: i32,
+    func_nr: i32,
     get_uf_done: usize,
-    get_uf_changed: c_int,
+    get_uf_changed: i32,
     get_uf_items: Vec<*mut UserFunc>,
 }
 
@@ -290,7 +290,7 @@ const E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER: &CStr =
     c"E1300: Cannot use a partial with dictionary for :defer";
 
 #[inline]
-pub const fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
+pub const fn ascii_iswhite_nl_or_nul(c: i32) -> bool {
     matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | 0)
 }
 
@@ -316,7 +316,7 @@ fn func_hashtab_add(fp: &mut UserFunc) -> bool {
 }
 
 #[inline]
-fn funcarg(fp: &UserFunc, j: c_int) -> &std::ffi::CStr {
+fn funcarg(fp: &UserFunc, j: i32) -> &std::ffi::CStr {
     (&fp.uf_args)[j as usize].as_c_str()
 }
 
@@ -380,7 +380,7 @@ fn get_function_args(
     argp: *mut *mut c_char,
     endchar: c_char,
     mut newargs: Option<&mut Vec<std::ffi::CString>>,
-    mut varargs: Option<&mut c_int>,
+    mut varargs: Option<&mut i32>,
     mut default_args: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
 ) -> bool {
@@ -419,7 +419,7 @@ fn get_function_args(
                     p = skipwhite(p);
                     let expr = p;
                     if eval1(&raw mut p, &mut rettv, None) {
-                        while p > expr && ascii_iswhite(*p.sub(1) as c_int) {
+                        while p > expr && ascii_iswhite(*p.sub(1) as i32) {
                             p = p.sub(1);
                         }
                         if let Some(default_args) = default_args.as_deref_mut() {
@@ -566,13 +566,13 @@ pub fn get_lambda_tv(
     arg: *mut *mut c_char,
     rettv: &mut TypVal,
     evalarg: Option<&mut Evalarg>,
-) -> c_int {
+) -> i32 {
     unsafe {
         let evaluate = evalarg
             .as_ref()
             .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         let mut newargs: Vec<std::ffi::CString> = Vec::new();
-        let mut varargs: c_int = 0;
+        let mut varargs: i32 = 0;
         let old_eval_lavars = eval_st().eval_lavars_used;
         let mut eval_lavars = false;
 
@@ -634,7 +634,7 @@ pub fn get_lambda_tv(
             }
             let newlines = vec![Some(line_cstr)];
 
-            let newlines_len = newlines.len() as c_int;
+            let newlines_len = newlines.len() as i32;
             fp.uf_refcount = 1;
             func_hashtab_add(&mut *fp);
             fp.uf_args = newargs;
@@ -673,7 +673,7 @@ pub fn get_lambda_tv(
 /// Return name of the function corresponding to `name`.
 pub fn deref_func_name(
     name: impl crate::strings::IntoCCharPtr,
-    lenp: &mut c_int,
+    lenp: &mut i32,
     partialp: *mut *mut TvPartial,
     no_autoload: bool,
     found_var: Option<&mut bool>,
@@ -684,7 +684,7 @@ pub fn deref_func_name(
             *partialp = ptr::null_mut();
         }
 
-        let v = find_var(name, *lenp as usize, ptr::null_mut(), no_autoload as c_int);
+        let v = find_var(name, *lenp as usize, ptr::null_mut(), no_autoload as i32);
         if v.is_null() {
             return name.cast_mut();
         }
@@ -698,7 +698,7 @@ pub fn deref_func_name(
                 *lenp = 0;
                 return c"".as_ptr().cast_mut();
             }
-            *lenp = crate::memory::cstr_len(tv.vval.v_string()) as c_int;
+            *lenp = crate::memory::cstr_len(tv.vval.v_string()) as i32;
             return tv.vval.v_string();
         }
 
@@ -712,7 +712,7 @@ pub fn deref_func_name(
                 *partialp = pt;
             }
             let s = partial_name(pt.as_ref());
-            *lenp = crate::memory::cstr_len(s) as c_int;
+            *lenp = crate::memory::cstr_len(s) as i32;
             return s;
         }
 
@@ -751,15 +751,15 @@ pub fn emsg_funcname<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoC
 fn get_func_arguments(
     arg: *mut *mut c_char,
     mut evalarg: Option<&mut Evalarg>,
-    partial_argc: c_int,
+    partial_argc: i32,
     argvars: *mut TypVal,
-    argcount: &mut c_int,
+    argcount: &mut i32,
 ) -> bool {
     unsafe {
         let mut argp = *arg;
         let mut ret = true;
 
-        while *argcount < MAX_FUNC_ARGS as c_int - partial_argc {
+        while *argcount < MAX_FUNC_ARGS as i32 - partial_argc {
             argp = skipwhite(argp.add(1));
 
             if crate::memory::cstr_first_byte(argp) == b')'
@@ -796,7 +796,7 @@ fn get_func_arguments(
 /// Call a function and put the result in `rettv`.
 pub fn get_func_tv(
     name: impl crate::strings::IntoCCharPtr,
-    len: c_int,
+    len: i32,
     rettv: &mut TypVal,
     arg: *mut *mut c_char,
     evalarg: Option<&mut Evalarg>,
@@ -805,7 +805,7 @@ pub fn get_func_tv(
     let name = name.into_c_char_ptr();
     unsafe {
         let mut argvars: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
-        let mut argcount: c_int = 0;
+        let mut argcount: i32 = 0;
         let evaluate = evalarg
             .as_ref()
             .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
@@ -814,7 +814,7 @@ pub fn get_func_tv(
         let partial_argc = if funcexe.fe_partial.is_null() {
             0
         } else {
-            (*funcexe.fe_partial).pt_argv.len() as c_int
+            (*funcexe.fe_partial).pt_argv.len() as i32
         };
         let mut ret = get_func_arguments(
             &raw mut argp,
@@ -828,7 +828,7 @@ pub fn get_func_tv(
             let mut i = 0usize;
 
             if get_vim_var_nr(VV_TESTING) != 0 {
-                while (i as c_int) < argcount {
+                while (i as i32) < argcount {
                     uf_st().funcargs.push(&raw mut argvars[i]);
                     i += 1;
                 }
@@ -840,7 +840,7 @@ pub fn get_func_tv(
                 uf_st().funcargs.truncate(new_len);
             }
         } else if !aborting() && evaluate {
-            if argcount == MAX_FUNC_ARGS as c_int {
+            if argcount == MAX_FUNC_ARGS as i32 {
                 emsg_funcname(c"E740: Too many arguments for function %s", name);
             } else {
                 emsg_funcname(c"E116: Invalid arguments for function %s", name);
@@ -862,7 +862,7 @@ pub fn get_func_tv(
 fn eval_fname_sid(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
     crate::memory::cstr_first_byte(name) == b's'
-        || toupper_asc(crate::memory::cstr_char_at(name, 2)) == b'I' as c_int
+        || toupper_asc(crate::memory::cstr_char_at(name, 2)) == b'I' as i32
 }
 
 /// In a script transform script-local names into actually used names.
@@ -870,7 +870,7 @@ fn fname_trans_sid(
     name: impl crate::strings::IntoCCharPtr,
     fname_buf: *mut c_char,
     tofree: &mut Option<std::ffi::CString>,
-    error: &mut c_int,
+    error: &mut i32,
 ) -> *mut c_char {
     let name = name.into_c_char_ptr();
     unsafe {
@@ -919,20 +919,20 @@ fn fname_trans_sid(
 
 pub fn get_func_arity(
     name: impl crate::strings::IntoCCharPtr,
-    required: &mut c_int,
-    optional: &mut c_int,
+    required: &mut i32,
+    optional: &mut i32,
     varargs: &mut bool,
 ) -> bool {
     let name = name.into_c_char_ptr();
     unsafe {
-        let argcount: c_int;
-        let min_argcount: c_int;
+        let argcount: i32;
+        let min_argcount: i32;
 
         let fdef = find_internal_func(name);
         if !fdef.is_null() {
             let fdef = { &*fdef };
-            argcount = fdef.max_argc as c_int;
-            min_argcount = fdef.min_argc as c_int;
+            argcount = fdef.max_argc as i32;
+            min_argcount = fdef.min_argc as i32;
             *varargs = false;
         } else {
             let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
@@ -950,8 +950,8 @@ pub fn get_func_arity(
                 return false;
             }
 
-            argcount = (*ufunc).uf_args.len() as c_int;
-            min_argcount = argcount - (*ufunc).uf_def_args.len() as c_int;
+            argcount = (*ufunc).uf_args.len() as i32;
+            min_argcount = argcount - (*ufunc).uf_def_args.len() as i32;
             *varargs = (*ufunc).uf_varargs != 0;
         }
 
@@ -982,7 +982,7 @@ fn func_is_global(ufunc: &UserFunc) -> bool {
     ufunc.uf_name.as_slice()[0] as u8 != K_SPECIAL
 }
 
-fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: &UserFunc) -> c_int {
+fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: &UserFunc) -> i32 {
     unsafe {
         let uflen = fp.uf_namelen;
         debug_assert!(uflen > 0);
@@ -994,8 +994,8 @@ fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: &UserFunc) -> c_int {
         };
 
         debug_assert!(len > 0);
-        if len >= bufsize as c_int {
-            bufsize as c_int - 1
+        if len >= bufsize as i32 {
+            bufsize as i32 - 1
         } else {
             len
         }
@@ -1093,7 +1093,7 @@ fn cleanup_function_call(fc: &mut Funccall) {
                 uf_st().made_copy = 0;
             } else {
                 uf_st().made_copy += 1;
-                if uf_st().made_copy >= ((4096 * 1024) / std::mem::size_of::<Funccall>()) as c_int {
+                if uf_st().made_copy >= ((4096 * 1024) / std::mem::size_of::<Funccall>()) as i32 {
                     uf_st().made_copy = 0;
                     g_st().want_garbage_collect = true;
                 }
@@ -1206,7 +1206,7 @@ pub fn create_funccal(fp: *mut UserFunc, rettv: &mut TypVal) -> &'static mut Fun
 /// Call a user function.
 pub fn call_user_func(
     fp: &mut UserFunc,
-    argcount: c_int,
+    argcount: i32,
     argvars: *mut TypVal,
     rettv: &mut TypVal,
     firstline: Linenr,
@@ -1273,8 +1273,8 @@ pub fn call_user_func(
             &mut *(&raw mut fc.fc_l_avars_var).cast(),
             VAR_SCOPE,
         );
-        let uf_args_len = fp.uf_args.len() as c_int;
-        let uf_def_args_len = fp.uf_def_args.len() as c_int;
+        let uf_args_len = fp.uf_args.len() as i32;
+        let uf_def_args_len = fp.uf_def_args.len() as i32;
         if (fp.uf_flags & FC_NOARGS) == 0 {
             add_nr_var(
                 &mut fc.fc_l_avars,
@@ -1384,7 +1384,7 @@ pub fn call_user_func(
         }
 
         estack_push_ufunc(&mut *fp, 1);
-        let estack_len_before = rt_st().exestack.len() as c_int;
+        let estack_len_before = rt_st().exestack.len() as i32;
         if opt_vars().p_verbose >= 12 {
             g_st().no_wait_return += 1;
             verbose_enter_scroll();
@@ -1398,7 +1398,7 @@ pub fn call_user_func(
                     }
                     let arg_tv = argvars.add(i as usize);
                     if (*arg_tv).v_type == VarType::VarNumber {
-                        msg_outnum((*arg_tv).vval.v_number() as c_int);
+                        msg_outnum((*arg_tv).vval.v_number() as i32);
                     } else {
                         g_st().emsg_off += 1;
                         let tf = encode_tv2string(&mut *arg_tv, None);
@@ -1406,7 +1406,7 @@ pub fn call_user_func(
                         let mut s = tf.as_ptr().cast_mut();
                         let mut buf = [0 as c_char; MSG_BUF_LEN];
                         if vim_strsize(s) > MSG_BUF_CLEN {
-                            trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as c_int);
+                            trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as i32);
                             s = buf.as_mut_ptr();
                         }
                         msg_puts(s);
@@ -1516,7 +1516,7 @@ pub fn call_user_func(
                 g_st().emsg_off -= 1;
                 let mut s = tf.as_ptr().cast_mut();
                 if vim_strsize(s) > MSG_BUF_CLEN {
-                    trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as c_int);
+                    trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as i32);
                     s = buf.as_mut_ptr();
                 }
                 smsg!(0, gettext(c"%s returning %s"), sourcing_name(), s);
@@ -1576,9 +1576,9 @@ fn func_name_refcount(name: impl crate::strings::IntoCCharPtr) -> bool {
     }
 }
 
-fn check_user_func_argcount(fp: &mut UserFunc, argcount: c_int) -> c_int {
-    let regular_args = fp.uf_args.len() as c_int;
-    if argcount < regular_args - fp.uf_def_args.len() as c_int {
+fn check_user_func_argcount(fp: &mut UserFunc, argcount: i32) -> i32 {
+    let regular_args = fp.uf_args.len() as i32;
+    if argcount < regular_args - fp.uf_def_args.len() as i32 {
         FCERR_TOOFEW
     } else if fp.uf_varargs == 0 && argcount > regular_args {
         FCERR_TOOMANY
@@ -1589,12 +1589,12 @@ fn check_user_func_argcount(fp: &mut UserFunc, argcount: c_int) -> c_int {
 
 fn call_user_func_check(
     fp: &mut UserFunc,
-    argcount: c_int,
+    argcount: i32,
     argvars: *mut TypVal,
     rettv: &mut TypVal,
     funcexe: &mut Funcexe,
     selfdict: *mut TvDict,
-) -> c_int {
+) -> i32 {
     {
         if (fp.uf_flags & FC_LUAREF) != 0 {
             return nlua_exec_typval_callable(fp.uf_luaref, argcount, argvars, rettv);
@@ -1708,7 +1708,7 @@ pub fn free_all_functions() {
 }
 
 /// Checks if a builtin function with the given name exists.
-fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: c_int) -> bool {
+fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: i32) -> bool {
     let name = name.into_c_char_ptr();
     {
         if !ascii_islower(crate::memory::cstr_first_char(name))
@@ -1740,11 +1740,11 @@ pub fn func_call(
         let mut r = false;
 
         let list = args.vval.v_list();
-        let max_argc = MAX_FUNC_ARGS as c_int
+        let max_argc = MAX_FUNC_ARGS as i32
             - if partial.is_null() {
                 0
             } else {
-                (*partial).pt_argv.len() as c_int
+                (*partial).pt_argv.len() as i32
             };
         let mut skip_call = false;
         if !list.is_null() {
@@ -1780,7 +1780,7 @@ pub fn func_call(
 
 pub fn callback_call_retnr(
     callback: &mut Callback,
-    argcount: c_int,
+    argcount: i32,
     argvars: *mut TypVal,
 ) -> Varnumber {
     let mut rettv: TypVal = TypVal::new();
@@ -1793,7 +1793,7 @@ pub fn callback_call_retnr(
     retval
 }
 
-fn user_func_error(error: c_int, name: impl crate::strings::IntoCCharPtr, found_var: bool) {
+fn user_func_error(error: i32, name: impl crate::strings::IntoCCharPtr, found_var: bool) {
     let name = name.into_c_char_ptr();
     match error {
         FCERR_UNKNOWN => {
@@ -1828,9 +1828,9 @@ fn user_func_error(error: c_int, name: impl crate::strings::IntoCCharPtr, found_
 fn argv_add_base(
     basetv: *mut TypVal,
     argvars: *mut *mut TypVal,
-    argcount: &mut c_int,
+    argcount: &mut i32,
     new_argvars: *mut TypVal,
-    argv_base: &mut c_int,
+    argv_base: &mut i32,
 ) {
     unsafe {
         if !basetv.is_null() {
@@ -1846,9 +1846,9 @@ fn argv_add_base(
 /// Call a function with its resolved parameters.
 pub fn call_func(
     funcname: impl crate::strings::IntoCCharPtr,
-    mut len: c_int,
+    mut len: i32,
     rettv: &mut TypVal,
-    argcount_in: c_int,
+    argcount_in: i32,
     argvars_in: *mut TypVal,
     funcexe: &mut Funcexe,
 ) -> bool {
@@ -1872,7 +1872,7 @@ pub fn call_func(
         rettv.v_type = VarType::VarUnknown;
 
         if len <= 0 {
-            len = crate::memory::cstr_len(funcname) as c_int;
+            len = crate::memory::cstr_len(funcname) as i32;
         }
         if !partial.is_null() {
             fp = (*partial).pt_func;
@@ -1895,10 +1895,10 @@ pub fn call_func(
             if !partial.pt_dict.is_null() && (selfdict.is_null() || !partial.pt_auto) {
                 selfdict = partial.pt_dict;
             }
-            let pt_argc = partial.pt_argv.len() as c_int;
+            let pt_argc = partial.pt_argv.len() as i32;
             if error == FCERR_NONE && pt_argc > 0 {
                 while argv_clear < pt_argc {
-                    if argv_clear + argcount_in >= MAX_FUNC_ARGS as c_int {
+                    if argv_clear + argcount_in >= MAX_FUNC_ARGS as i32 {
                         error = FCERR_TOOMANY;
                         skip_eval = true;
                         break;
@@ -2023,7 +2023,7 @@ pub fn call_simple_luafunc(
     funcname: impl crate::strings::IntoCCharPtr,
     len: usize,
     rettv: &mut TypVal,
-) -> c_int {
+) -> i32 {
     let funcname = funcname.into_c_char_ptr();
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -2038,7 +2038,7 @@ pub fn call_simple_func(
     funcname: impl crate::strings::IntoCCharPtr,
     len: usize,
     rettv: &mut TypVal,
-) -> c_int {
+) -> i32 {
     let funcname = funcname.into_c_char_ptr();
     unsafe {
         let mut ret = FAIL;
@@ -2101,7 +2101,7 @@ pub fn printable_func_name(fp: &mut UserFunc) -> *mut c_char {
     }
 }
 
-fn function_list_modified(prev_ht_changed: c_int) -> bool {
+fn function_list_modified(prev_ht_changed: i32) -> bool {
     if prev_ht_changed != uf_st().func_hashtab_changed {
         emsg(gettext(E_FUNCTION_LIST_WAS_MODIFIED));
         return true;
@@ -2131,9 +2131,9 @@ fn list_func_head(fp: &mut UserFunc, indent: bool, force: bool) -> bool {
     } else {
         msg_puts(uf2hikey(fp));
     }
-    msg_putchar(b'(' as c_int);
-    let uf_args_len = fp.uf_args.len() as c_int;
-    let uf_def_args_len = fp.uf_def_args.len() as c_int;
+    msg_putchar(b'(' as i32);
+    let uf_args_len = fp.uf_args.len() as i32;
+    let uf_def_args_len = fp.uf_def_args.len() as i32;
     let mut j = 0;
     while j < uf_args_len {
         if j != 0 {
@@ -2152,7 +2152,7 @@ fn list_func_head(fp: &mut UserFunc, indent: bool, force: bool) -> bool {
         }
         msg_puts(c"...");
     }
-    msg_putchar(b')' as c_int);
+    msg_putchar(b')' as i32);
     if (fp.uf_flags & FC_ABORT) != 0 {
         msg_puts(c" abort");
     }
@@ -2177,13 +2177,13 @@ fn list_func_head(fp: &mut UserFunc, indent: bool, force: bool) -> bool {
 pub fn trans_function_name(
     pp: *mut *mut c_char,
     skip: bool,
-    flags: c_int,
+    flags: i32,
     mut fdp: Option<&mut Funcdict>,
     partial: *mut *mut TvPartial,
 ) -> Option<std::ffi::CString> {
     unsafe {
         let mut name: *mut c_char = ptr::null_mut();
-        let mut len: c_int;
+        let mut len: i32;
         let mut lv: Lval = Lval::new();
 
         if fdp.is_some() {
@@ -2286,7 +2286,7 @@ pub fn trans_function_name(
 
         if let Some(ref exp_name) = lv.ll_exp_name {
             let exp_ptr = exp_name.as_ptr().cast_mut();
-            len = exp_name.as_bytes().len() as c_int;
+            len = exp_name.as_bytes().len() as i32;
             name = deref_func_name(
                 exp_ptr,
                 &mut len,
@@ -2298,7 +2298,7 @@ pub fn trans_function_name(
                 name = ptr::null_mut();
             }
         } else if (flags & TFN_NO_DEREF) == 0 {
-            len = end.offset_from(*pp) as c_int;
+            len = end.offset_from(*pp) as i32;
             name = deref_func_name(*pp, &mut len, partial, (flags & TFN_NO_AUTOLOAD) != 0, None);
             if name == *pp {
                 name = ptr::null_mut();
@@ -2317,7 +2317,7 @@ pub fn trans_function_name(
         }
 
         if let Some(ref exp_name) = lv.ll_exp_name {
-            len = exp_name.as_bytes().len() as c_int;
+            len = exp_name.as_bytes().len() as i32;
             if lead <= 2
                 && lv.ll_name == exp_name.as_ptr()
                 && lv.ll_name_len >= 2
@@ -2336,7 +2336,7 @@ pub fn trans_function_name(
                 lv.ll_name = lv.ll_name.add(2);
                 lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
             }
-            len = end.offset_from(lv.ll_name) as c_int;
+            len = end.offset_from(lv.ll_name) as i32;
         }
 
         let mut sid_buflen = 0usize;
@@ -2362,9 +2362,9 @@ pub fn trans_function_name(
                     c"%d_",
                     g_st().current_sctx.sc_sid,
                 ) as usize;
-                lead += sid_buflen as c_int;
+                lead += sid_buflen as i32;
             }
-        } else if (flags & TFN_INT) == 0 && builtin_function(lv.ll_name, lv.ll_name_len as c_int) {
+        } else if (flags & TFN_INT) == 0 && builtin_function(lv.ll_name, lv.ll_name_len as i32) {
             semsg!(
                 gettext(c"E128: Function name must start with a capital or \"s:\": %s"),
                 start,
@@ -2467,7 +2467,7 @@ pub fn get_scriptlocal_funcname(
 pub fn save_function_name(
     name: *mut *mut c_char,
     skip: bool,
-    flags: c_int,
+    flags: i32,
     mut fudi: Option<&mut Funcdict>,
 ) -> Option<std::ffi::CString> {
     unsafe {
@@ -2528,7 +2528,7 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
 
 fn list_functions_matching_pat(eap: &mut Exarg) -> *mut c_char {
     unsafe {
-        let mut p = skip_regexp(eap.arg.add(1), b'/' as c_int, 1);
+        let mut p = skip_regexp(eap.arg.add(1), b'/' as i32, 1);
         if eap.skip == 0 {
             let mut regmatch: Regmatch = Regmatch::new();
 
@@ -2557,7 +2557,7 @@ fn list_one_function(
 ) -> *mut UserFunc {
     let name = name.into_c_char_ptr();
     unsafe {
-        if ends_excmd(*skipwhite(p) as c_int) == 0 {
+        if ends_excmd(*skipwhite(p) as i32) == 0 {
             semsg!(gettext(E_TRAILING_ARG), p);
             return ptr::null_mut();
         }
@@ -2587,20 +2587,20 @@ fn list_one_function(
         }
 
         let mut j = 0;
-        while j < fp.uf_lines.len() as c_int && !g_st().got_int {
+        while j < fp.uf_lines.len() as i32 && !g_st().got_int {
             let Some(ref line_cstr) = (&fp.uf_lines)[j as usize] else {
                 j += 1;
                 continue;
             };
             let line = line_cstr.as_ptr();
-            msg_putchar(b'\n' as c_int);
+            msg_putchar(b'\n' as i32);
             if eap.forceit == 0 {
                 msg_outnum(j + 1);
                 if j < 9 {
-                    msg_putchar(b' ' as c_int);
+                    msg_putchar(b' ' as i32);
                 }
                 if j < 99 {
-                    msg_putchar(b' ' as c_int);
+                    msg_putchar(b' ' as i32);
                 }
                 if function_list_modified(prev_ht_changed) {
                     break;
@@ -2612,7 +2612,7 @@ fn list_one_function(
         }
 
         if !g_st().got_int {
-            msg_putchar(b'\n' as c_int);
+            msg_putchar(b'\n' as i32);
             if !function_list_modified(prev_ht_changed) {
                 msg_puts(if eap.forceit != 0 {
                     c"endfunction".as_ptr()
@@ -2637,8 +2637,8 @@ fn get_function_body(
         let mut saved_wait_return = g_st().need_wait_return;
         let mut line_arg = line_arg_in;
         let mut line_to_free: Option<std::ffi::CString> = None;
-        let mut indent: c_int = 2;
-        let mut nesting: c_int = 0;
+        let mut indent: i32 = 2;
+        let mut nesting: i32 = 0;
         let mut skip_until: Option<std::ffi::CString> = None;
         let mut ret = false;
         let mut is_heredoc = false;
@@ -2659,7 +2659,7 @@ fn get_function_body(
 
             if !line_arg.is_null() {
                 theline = line_arg;
-                p = vim_strchr(theline, b'\n' as c_int);
+                p = vim_strchr(theline, b'\n' as i32);
                 if p.is_null() {
                     line_arg = line_arg.add(crate::memory::cstr_len(line_arg));
                 } else {
@@ -2668,9 +2668,9 @@ fn get_function_body(
                 }
             } else {
                 line_to_free = if eap.ea_getline.is_none() {
-                    getcmdline(b':' as c_int, 0, indent, do_concat)
+                    getcmdline(b':' as i32, 0, indent, do_concat)
                 } else {
-                    eap.ea_getline.call(b':' as c_int, indent, do_concat)
+                    eap.ea_getline.call(b':' as i32, indent, do_concat)
                 };
                 theline = line_to_free
                     .as_ref()
@@ -2835,7 +2835,7 @@ fn get_function_body(
                     && crate::memory::cstr_byte_at(arg, 1) == b'<'
                     && ((p0 == b'p'
                         && p1 == b'y'
-                        && (!ascii_isalnum(p2 as c_int)
+                        && (!ascii_isalnum(p2 as i32)
                             || p2 == b't'
                             || ((p2 == b'3' || p2 == b'x') && !p3.is_ascii_alphabetic())))
                         || (p0 == b'p' && p1 == b'e' && (!p2.is_ascii_alphabetic() || p2 == b'r'))
@@ -2950,8 +2950,8 @@ pub fn ex_function(eap: &mut Exarg) {
         let mut newargs: Vec<std::ffi::CString> = Vec::new();
         let mut default_args: Vec<std::ffi::CString> = Vec::new();
         let mut newlines: Vec<Option<std::ffi::CString>> = Vec::new();
-        let mut varargs: c_int = 0;
-        let mut flags: c_int = 0;
+        let mut varargs: i32 = 0;
+        let mut flags: i32 = 0;
         let mut fp: *mut UserFunc = ptr::null_mut();
         let mut free_fp = false;
         let mut overwrite = false;
@@ -2979,7 +2979,7 @@ pub fn ex_function(eap: &mut Exarg) {
         let mut name = name_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let paren = !vim_strchr(p, b'(' as c_int).is_null();
+        let paren = !vim_strchr(p, b'(' as i32).is_null();
         if name.is_null() && (fudi.fd_dict.is_null() || !paren) && eap.skip == 0 {
             if !aborting() {
                 if let Some(ref newkey) = fudi.fd_newkey {
@@ -3038,7 +3038,7 @@ pub fn ex_function(eap: &mut Exarg) {
                 semsg!(gettext(c"E124: Missing '(': %s"), eap.arg);
                 ret_free!();
             }
-            let open_paren = vim_strchr(p, b'(' as c_int);
+            let open_paren = vim_strchr(p, b'(' as i32);
             if !open_paren.is_null() {
                 p = open_paren;
             }
@@ -3059,7 +3059,7 @@ pub fn ex_function(eap: &mut Exarg) {
                 let mut name_base = arg;
                 if arg != fudi_newkey_ptr {
                     if crate::memory::cstr_first_byte(arg) == K_SPECIAL {
-                        name_base = vim_strchr(arg, b'_' as c_int);
+                        name_base = vim_strchr(arg, b'_' as i32);
                         if name_base.is_null() {
                             name_base = arg.add(3);
                         } else {
@@ -3154,7 +3154,7 @@ pub fn ex_function(eap: &mut Exarg) {
             }
 
             if !ui_has(K_UICMDLINE) {
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
             }
             g_st().cmdline_row = g_st().msg_row;
         }
@@ -3229,14 +3229,14 @@ pub fn ex_function(eap: &mut Exarg) {
         }
 
         if fp.is_null() {
-            if fudi.fd_dict.is_null() && !vim_strchr(name, AUTOLOAD_CHAR as c_int).is_null() {
+            if fudi.fd_dict.is_null() && !vim_strchr(name, AUTOLOAD_CHAR as i32).is_null() {
                 let mut j = FAIL;
                 let sname = sourcing_name();
                 if !sname.is_null() {
                     let sn = autoload_name(name, crate::memory::cstr_len(name));
-                    p = vim_strchr(sn.as_ptr(), b'/' as c_int);
-                    let plen = crate::memory::cstr_len(p) as c_int;
-                    let slen = crate::memory::cstr_len(sname) as c_int;
+                    p = vim_strchr(sn.as_ptr(), b'/' as i32);
+                    let plen = crate::memory::cstr_len(p) as i32;
+                    let slen = crate::memory::cstr_len(sname) as i32;
                     if slen > plen
                         && path_equal(p, sname.add((slen - plen) as usize), K_PATH_CMP_LITERAL)
                     {
@@ -3311,7 +3311,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
 /// Return 5 if `p` starts with `<SID>` or `<SNR>` (ignoring case),
 /// 2 if `p` starts with `s:`, 0 otherwise.
-pub fn eval_fname_script(p: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn eval_fname_script(p: impl crate::strings::IntoCCharPtr) -> i32 {
     let p = p.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(p) == b'<'
@@ -3358,7 +3358,7 @@ pub fn function_exists(name: impl crate::strings::IntoCCharPtr, no_deref: bool) 
 
 /// Function given to `ExpandGeneric()` to obtain the list of user defined
 /// function names.
-pub fn get_user_func_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
+pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
     unsafe {
         if idx == 0 {
             uf_st().get_uf_done = 0;
@@ -3418,7 +3418,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
             return;
         };
         let name = name_cstr.as_ptr();
-        if ends_excmd(*skipwhite(p) as c_int) == 0 {
+        if ends_excmd(*skipwhite(p) as i32) == 0 {
             semsg!(gettext(E_TRAILING_ARG), p);
             return;
         }
@@ -3548,7 +3548,7 @@ fn fc_referenced(fc: &Funccall) -> bool {
     }
 }
 
-fn can_free_funccal(fc: &Funccall, copy_id: c_int) -> bool {
+fn can_free_funccal(fc: &Funccall, copy_id: i32) -> bool {
     fc.fc_l_varlist.lv_copy_id != copy_id
         && fc.fc_l_vars.dv_copy_id != copy_id
         && fc.fc_l_avars.dv_copy_id != copy_id
@@ -3686,7 +3686,7 @@ fn ex_defer_inner(
                 return false;
             }
             if !partial.pt_argv.is_empty() {
-                partial_argc = partial.pt_argv.len() as c_int;
+                partial_argc = partial.pt_argv.len() as i32;
                 for i in 0..partial_argc {
                     tv_copy(&(&partial.pt_argv)[i as usize], &mut argvars[i as usize]);
                 }
@@ -3742,11 +3742,7 @@ pub fn can_add_defer() -> bool {
     true
 }
 
-pub fn add_defer(
-    name: impl crate::strings::IntoCCharPtr,
-    argcount_arg: c_int,
-    argvars: *mut TypVal,
-) {
+pub fn add_defer(name: impl crate::strings::IntoCCharPtr, argcount_arg: i32, argvars: *mut TypVal) {
     let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let dr_name_cstr = cstr_to_cstring(name);
@@ -3778,7 +3774,7 @@ fn handle_defer_one(funccal: &mut Funccall) {
         let mut rettv: TypVal = TypVal::new();
         rettv.v_type = VarType::VarUnknown;
 
-        let argcount = (dr.dr_argvars.len() - 1) as c_int;
+        let argcount = (dr.dr_argvars.len() - 1) as i32;
 
         let mut estate = ExceptionState::new();
         exception_state_save(&mut estate);
@@ -3897,7 +3893,7 @@ pub fn ex_call(eap: &mut Exarg) {
             (*fudi.fd_dict).dv_refcount += 1;
         }
 
-        let mut len = tofree_cstr.as_bytes().len() as c_int;
+        let mut len = tofree_cstr.as_bytes().len() as i32;
         let mut found_var = false;
         let name = deref_func_name(
             tofree,
@@ -3919,7 +3915,7 @@ pub fn ex_call(eap: &mut Exarg) {
             return;
         }
 
-        let failed = if eap.cmdidx == Cmdidx::CmdDefer as c_int {
+        let failed = if eap.cmdidx == Cmdidx::CmdDefer as i32 {
             arg = startarg;
             !ex_defer_inner(name, &raw mut arg, partial.as_ref(), &mut evalarg)
         } else {
@@ -4022,9 +4018,9 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
 
 /// Get next function line.
 pub fn get_func_line(
-    _c: c_int,
+    _c: i32,
     fcp: &mut Funccall,
-    _indent: c_int,
+    _indent: i32,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
@@ -4040,7 +4036,7 @@ pub fn get_func_line(
         }
 
         let lines = &(*fp).uf_lines;
-        let lines_len = lines.len() as c_int;
+        let lines_len = lines.len() as i32;
         if (((*fp).uf_flags & FC_ABORT) != 0 && g_st().did_emsg != 0 && !aborted_in_try())
             || fcp.fc_returned != 0
         {
@@ -4073,7 +4069,7 @@ pub fn get_func_line(
     }
 }
 
-pub fn func_has_ended(fcp: &mut Funccall) -> c_int {
+pub fn func_has_ended(fcp: &mut Funccall) -> i32 {
     unsafe {
         if (((*fcp.fc_func).uf_flags & FC_ABORT) != 0 && g_st().did_emsg != 0 && !aborted_in_try())
             || fcp.fc_returned != 0
@@ -4085,7 +4081,7 @@ pub fn func_has_ended(fcp: &mut Funccall) -> c_int {
     }
 }
 
-pub fn func_has_abort(fcp: &mut Funccall) -> c_int {
+pub fn func_has_abort(fcp: &mut Funccall) -> i32 {
     unsafe { (*fcp.fc_func).uf_flags & FC_ABORT }
 }
 
@@ -4164,19 +4160,19 @@ pub fn func_breakpoint(fcp: &mut Funccall) -> *mut Linenr {
     &raw mut fcp.fc_breakpoint
 }
 
-pub fn func_dbg_tick(fcp: &mut Funccall) -> *mut c_int {
+pub fn func_dbg_tick(fcp: &mut Funccall) -> *mut i32 {
     &raw mut fcp.fc_dbg_tick
 }
 
-pub fn func_level(fcp: &mut Funccall) -> c_int {
+pub fn func_level(fcp: &mut Funccall) -> i32 {
     fcp.fc_level
 }
 
-pub fn current_func_returned() -> c_int {
+pub fn current_func_returned() -> i32 {
     cur_funccal_mut().fc_returned
 }
 
-pub fn free_unref_funccal(copy_id: c_int, testing: c_int) -> bool {
+pub fn free_unref_funccal(copy_id: i32, testing: i32) -> bool {
     {
         let mut did_free = false;
         let mut did_free_funccal = false;
@@ -4296,7 +4292,7 @@ pub fn get_funccal_args_var() -> *mut Dictitem {
     }
 }
 
-pub fn list_func_vars(first: &mut c_int) {
+pub fn list_func_vars(first: &mut i32) {
     {
         if !uf_st().current_funccal.is_null() && cur_funccal_mut().fc_l_vars.dv_refcount > 0 {
             list_hashtable_vars(
@@ -4359,7 +4355,7 @@ pub fn find_hi_in_scoped_ht(
 pub fn find_var_in_scoped_ht(
     name: impl crate::strings::IntoCCharPtr,
     namelen: usize,
-    no_autoload: c_int,
+    no_autoload: i32,
 ) -> *mut Dictitem {
     let name = name.into_c_char_ptr();
     unsafe {
@@ -4397,7 +4393,7 @@ pub fn find_var_in_scoped_ht(
     }
 }
 
-pub fn set_ref_in_previous_funccal(copy_id: c_int) -> bool {
+pub fn set_ref_in_previous_funccal(copy_id: i32) -> bool {
     {
         for item in uf_st().previous_funccal.as_mut_slice() {
             let fc = &mut *item.0;
@@ -4419,7 +4415,7 @@ pub fn set_ref_in_previous_funccal(copy_id: c_int) -> bool {
     }
 }
 
-fn set_ref_in_funccal(fc: &mut Funccall, copy_id: c_int) -> bool {
+fn set_ref_in_funccal(fc: &mut Funccall, copy_id: i32) -> bool {
     if fc.fc_copy_id != copy_id {
         fc.fc_copy_id = copy_id;
         if set_ref_in_ht(&raw mut fc.fc_l_vars.dv_hashtab, copy_id, ptr::null_mut())
@@ -4433,7 +4429,7 @@ fn set_ref_in_funccal(fc: &mut Funccall, copy_id: c_int) -> bool {
     false
 }
 
-pub fn set_ref_in_call_stack(copy_id: c_int) -> bool {
+pub fn set_ref_in_call_stack(copy_id: i32) -> bool {
     for fc in FunccalCallerMutIter(uf_st().current_funccal) {
         if set_ref_in_funccal(fc, copy_id) {
             return true;
@@ -4451,7 +4447,7 @@ pub fn set_ref_in_call_stack(copy_id: c_int) -> bool {
     false
 }
 
-pub fn set_ref_in_functions(copy_id: c_int) -> bool {
+pub fn set_ref_in_functions(copy_id: i32) -> bool {
     unsafe {
         for &fp in uf_st().func_hashtab.values() {
             if g_st().got_int {
@@ -4466,7 +4462,7 @@ pub fn set_ref_in_functions(copy_id: c_int) -> bool {
     }
 }
 
-pub fn set_ref_in_func_args(copy_id: c_int) -> bool {
+pub fn set_ref_in_func_args(copy_id: i32) -> bool {
     unsafe {
         for &tv in &uf_st().funcargs {
             if set_ref_in_item(&mut *tv, copy_id, ptr::null_mut(), ptr::null_mut()) {
@@ -4480,7 +4476,7 @@ pub fn set_ref_in_func_args(copy_id: c_int) -> bool {
 pub fn set_ref_in_func(
     name: impl crate::strings::IntoCCharPtr,
     fp_in: *mut UserFunc,
-    copy_id: c_int,
+    copy_id: i32,
 ) -> bool {
     let name = name.into_c_char_ptr();
     unsafe {

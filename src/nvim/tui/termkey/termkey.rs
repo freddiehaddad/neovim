@@ -27,18 +27,18 @@ use crate::tui::termkey::driver_ti::{
     TERMKEY_TYPE_UNICODE, TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyKey, TermKeyResult, TermKeySym,
     TermKeyTI, TerminfoEntry, TiKeyInfo, peekkey_ti, start_driver_ti,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 
-pub const TERMKEY_FLAG_NOINTERPRET: c_int = 1 << 0;
-pub const TERMKEY_FLAG_UTF8: c_int = 1 << 3;
-pub const TERMKEY_FLAG_SPACESYMBOL: c_int = 1 << 5;
-pub const TERMKEY_FLAG_NOSTART: c_int = 1 << 8;
-pub const TERMKEY_FLAG_KEEPC0: c_int = 1 << 9;
+pub const TERMKEY_FLAG_NOINTERPRET: i32 = 1 << 0;
+pub const TERMKEY_FLAG_UTF8: i32 = 1 << 3;
+pub const TERMKEY_FLAG_SPACESYMBOL: i32 = 1 << 5;
+pub const TERMKEY_FLAG_NOSTART: i32 = 1 << 8;
+pub const TERMKEY_FLAG_KEEPC0: i32 = 1 << 9;
 
-pub const TERMKEY_CANON_SPACESYMBOL: c_int = 1 << 0;
-pub const TERMKEY_CANON_DELBS: c_int = 1 << 1;
+pub const TERMKEY_CANON_SPACESYMBOL: i32 = 1 << 0;
+pub const TERMKEY_CANON_DELBS: i32 = 1 << 1;
 
-pub type TermKeyFormat = c_int;
+pub type TermKeyFormat = i32;
 pub const TERMKEY_FORMAT_LONGMOD: TermKeyFormat = 1 << 0;
 pub const TERMKEY_FORMAT_CARETCTRL: TermKeyFormat = 1 << 1;
 pub const TERMKEY_FORMAT_ALTISMETA: TermKeyFormat = 1 << 2;
@@ -48,7 +48,7 @@ pub const TERMKEY_FORMAT_LOWERMOD: TermKeyFormat = 1 << 5;
 pub const TERMKEY_FORMAT_LOWERSPACE: TermKeyFormat = 1 << 6;
 pub const TERMKEY_FORMAT_MOUSE_POS: TermKeyFormat = 1 << 8;
 
-const UNICODE_INVALID: c_int = 0xFFFD;
+const UNICODE_INVALID: i32 = 0xFFFD;
 
 struct KeyNameInit {
     sym: TermKeySym,
@@ -323,7 +323,7 @@ pub fn termkey_interpret_string(
 }
 
 #[cfg(test)]
-fn strpncmp_camel(strp: *mut *const c_char, strcamelp: *mut *const c_char, mut n: usize) -> c_int {
+fn strpncmp_camel(strp: *mut *const c_char, strcamelp: *mut *const c_char, mut n: usize) -> i32 {
     unsafe {
         let mut s = *strp;
         let mut sc = *strcamelp;
@@ -356,7 +356,7 @@ fn strpncmp_camel(strp: *mut *const c_char, strcamelp: *mut *const c_char, mut n
     }
 }
 
-pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -> Option<TermKey> {
+pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: i32) -> Option<TermKey> {
     let mut tk = TermKey {
         flags: 0,
         canonflags: 0,
@@ -398,7 +398,7 @@ pub fn termkey_start(
     tk: &mut TermKey,
     term: Option<&TerminfoEntry>,
     input: Option<&mut crate::tui::input::TermInput>,
-) -> c_int {
+) -> i32 {
     if tk.is_started != 0 {
         return 1;
     }
@@ -412,7 +412,7 @@ pub fn termkey_start(
 }
 
 #[cfg(test)]
-pub fn termkey_stop(tk: &mut TermKey) -> c_int {
+pub fn termkey_stop(tk: &mut TermKey) -> i32 {
     if tk.is_started == 0 {
         return 1;
     }
@@ -421,7 +421,7 @@ pub fn termkey_stop(tk: &mut TermKey) -> c_int {
     1
 }
 
-pub fn termkey_set_flags(tk: &mut TermKey, newflags: c_int) {
+pub fn termkey_set_flags(tk: &mut TermKey, newflags: i32) {
     tk.flags = newflags;
     if (tk.flags & TERMKEY_FLAG_SPACESYMBOL) != 0 {
         tk.canonflags |= TERMKEY_CANON_SPACESYMBOL;
@@ -430,11 +430,11 @@ pub fn termkey_set_flags(tk: &mut TermKey, newflags: c_int) {
     }
 }
 
-pub const fn termkey_get_canonflags(tk: &TermKey) -> c_int {
+pub const fn termkey_get_canonflags(tk: &TermKey) -> i32 {
     tk.canonflags
 }
 
-pub fn termkey_set_canonflags(tk: &mut TermKey, flags: c_int) {
+pub fn termkey_set_canonflags(tk: &mut TermKey, flags: i32) {
     tk.canonflags = flags;
     if (tk.canonflags & TERMKEY_CANON_SPACESYMBOL) != 0 {
         tk.flags |= TERMKEY_FLAG_SPACESYMBOL;
@@ -447,7 +447,7 @@ pub fn termkey_get_buffer_size(tk: &TermKey) -> usize {
     tk.buffer.len()
 }
 
-pub fn termkey_set_buffer_size(tk: &mut TermKey, size: usize) -> c_int {
+pub fn termkey_set_buffer_size(tk: &mut TermKey, size: usize) -> i32 {
     tk.buffer.resize(size, 0);
     1
 }
@@ -467,7 +467,7 @@ fn eat_bytes(tk: &mut TermKey, count: usize) {
     }
 }
 
-pub fn fill_utf8(codepoint: c_int, str_out: *mut c_char) -> c_int {
+pub fn fill_utf8(codepoint: i32, str_out: *mut c_char) -> i32 {
     unsafe {
         let nbytes = utf_char2bytes(codepoint, str_out);
         *str_out.add(nbytes as usize) = 0;
@@ -475,12 +475,12 @@ pub fn fill_utf8(codepoint: c_int, str_out: *mut c_char) -> c_int {
     }
 }
 
-fn parse_utf8(bytes: &[u8], cp: &mut c_int, nbytep: &mut usize) -> TermKeyResult {
+fn parse_utf8(bytes: &[u8], cp: &mut i32, nbytep: &mut usize) -> TermKeyResult {
     let b0 = bytes[0];
     let nbytes: usize;
 
     if b0 < 0x80 {
-        *cp = c_int::from(b0);
+        *cp = i32::from(b0);
         *nbytep = 1;
         return TERMKEY_RES_KEY;
     } else if b0 < 0xc0 {
@@ -489,19 +489,19 @@ fn parse_utf8(bytes: &[u8], cp: &mut c_int, nbytep: &mut usize) -> TermKeyResult
         return TERMKEY_RES_KEY;
     } else if b0 < 0xe0 {
         nbytes = 2;
-        *cp = c_int::from(b0 & 0x1f);
+        *cp = i32::from(b0 & 0x1f);
     } else if b0 < 0xf0 {
         nbytes = 3;
-        *cp = c_int::from(b0 & 0x0f);
+        *cp = i32::from(b0 & 0x0f);
     } else if b0 < 0xf8 {
         nbytes = 4;
-        *cp = c_int::from(b0 & 0x07);
+        *cp = i32::from(b0 & 0x07);
     } else if b0 < 0xfc {
         nbytes = 5;
-        *cp = c_int::from(b0 & 0x03);
+        *cp = i32::from(b0 & 0x03);
     } else if b0 < 0xfe {
         nbytes = 6;
-        *cp = c_int::from(b0 & 0x01);
+        *cp = i32::from(b0 & 0x01);
     } else {
         *cp = UNICODE_INVALID;
         *nbytep = 1;
@@ -514,13 +514,13 @@ fn parse_utf8(bytes: &[u8], cp: &mut c_int, nbytep: &mut usize) -> TermKeyResult
             *nbytep = b;
             return TERMKEY_RES_KEY;
         }
-        *cp = (*cp << 6) | c_int::from(cb & 0x3f);
+        *cp = (*cp << 6) | i32::from(cb & 0x3f);
     }
     if bytes.len() < nbytes {
         return TERMKEY_RES_AGAIN;
     }
 
-    if (nbytes as c_int) > utf_char2len(*cp) {
+    if (nbytes as i32) > utf_char2len(*cp) {
         *cp = UNICODE_INVALID;
     }
 
@@ -532,7 +532,7 @@ fn parse_utf8(bytes: &[u8], cp: &mut c_int, nbytep: &mut usize) -> TermKeyResult
     TERMKEY_RES_KEY
 }
 
-pub(crate) fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: &mut TermKeyKey) {
+pub(crate) fn emit_codepoint(tk: &TermKey, codepoint: i32, key: &mut TermKeyKey) {
     if codepoint == 0 {
         key.r#type = TERMKEY_TYPE_KEYSYM;
         key.code.sym = TERMKEY_SYM_SPACE;
@@ -549,7 +549,7 @@ pub(crate) fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: &mut TermKeyKe
 
         if key.code.sym == 0 {
             key.r#type = TERMKEY_TYPE_UNICODE;
-            if (b'A' as c_int..=b'Z' as c_int).contains(&(codepoint + 0x40)) {
+            if (b'A' as i32..=b'Z' as i32).contains(&(codepoint + 0x40)) {
                 key.code.codepoint = codepoint + 0x60;
             } else {
                 key.code.codepoint = codepoint + 0x40;
@@ -608,7 +608,7 @@ pub fn termkey_canonicalise(tk: &TermKey, key: &mut TermKeyKey) {
 fn peekkey(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
-    force: c_int,
+    force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
     let mut again = false;
@@ -656,7 +656,7 @@ fn peekkey(
 fn peekkey_simple(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
-    force: c_int,
+    force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
     {
@@ -675,7 +675,7 @@ fn peekkey_simple(
                 if force == 0 {
                     return TERMKEY_RES_AGAIN;
                 }
-                emit_codepoint(tk, c_int::from(b0), key);
+                emit_codepoint(tk, i32::from(b0), key);
                 *nbytep = 1;
                 return TERMKEY_RES_KEY;
             }
@@ -696,7 +696,7 @@ fn peekkey_simple(
                     || key.r#type == TERMKEY_TYPE_APC
                 {
                     key.event = TERMKEY_EVENT_PRESS;
-                    emit_codepoint(tk, c_int::from(b0), key);
+                    emit_codepoint(tk, i32::from(b0), key);
                     *nbytep = 1;
                     return TERMKEY_RES_KEY;
                 }
@@ -706,11 +706,11 @@ fn peekkey_simple(
 
             metakey_result
         } else if b0 < 0xa0 {
-            emit_codepoint(tk, c_int::from(b0), key);
+            emit_codepoint(tk, i32::from(b0), key);
             *nbytep = 1;
             TERMKEY_RES_KEY
         } else if (tk.flags & TERMKEY_FLAG_UTF8) != 0 {
-            let mut codepoint: c_int = 0;
+            let mut codepoint: i32 = 0;
             let start = tk.buffstart;
             let count = tk.buffcount;
             let slice = &tk.buffer[start..start + count];
@@ -728,7 +728,7 @@ fn peekkey_simple(
             res
         } else {
             key.r#type = TERMKEY_TYPE_UNICODE;
-            key.code.codepoint = c_int::from(b0);
+            key.code.codepoint = i32::from(b0);
             key.modifiers = 0;
             key.utf8[0] = b0 as c_char;
             key.utf8[1] = 0;
@@ -758,7 +758,7 @@ pub(crate) fn peekkey_mouse(
         key.code.mouse[2] = b2.wrapping_sub(0x20) as c_char;
         key.code.mouse[3] = 0;
 
-        key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
+        key.modifiers = i32::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
         key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
 
         *nbytep = 3;
@@ -831,7 +831,7 @@ pub fn termkey_register_keyname(
     name: Option<&'static CStr>,
 ) -> TermKeySym {
     if sym == 0 {
-        sym = tk.keynames.len() as c_int;
+        sym = tk.keynames.len() as i32;
     }
 
     let idx = sym as usize;
@@ -915,8 +915,8 @@ fn register_c0(
 fn register_c0_full(
     tk: &mut TermKey,
     mut sym: TermKeySym,
-    modifier_set: c_int,
-    modifier_mask: c_int,
+    modifier_set: i32,
+    modifier_mask: i32,
     ctrl: u8,
     name: Option<&'static CStr>,
 ) -> TermKeySym {
@@ -1043,7 +1043,7 @@ pub fn termkey_strfkey(
             && key.modifiers == TERMKEY_KEYMOD_CTRL
         {
             let codepoint = key.code.codepoint;
-            if (b'a' as c_int..=b'z' as c_int).contains(&codepoint) {
+            if (b'a' as i32..=b'z' as i32).contains(&codepoint) {
                 let ch = (codepoint as u8 - 0x20) as char;
                 let s = if wrapbracket {
                     format!("<^{ch}>")
@@ -1052,8 +1052,8 @@ pub fn termkey_strfkey(
                 };
                 let _ = append_str(buffer, len, &mut pos, s.as_bytes());
                 return pos;
-            } else if (b'@' as c_int..b'A' as c_int).contains(&codepoint)
-                || (b'Z' as c_int + 1..=b'_' as c_int).contains(&codepoint)
+            } else if (b'@' as i32..b'A' as i32).contains(&codepoint)
+                || (b'Z' as i32 + 1..=b'_' as i32).contains(&codepoint)
             {
                 let ch = codepoint as u8 as char;
                 let s = if wrapbracket {
@@ -1127,9 +1127,9 @@ pub fn termkey_strfkey(
             }
             TERMKEY_TYPE_MOUSE => {
                 let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;
-                let mut button: c_int = 0;
-                let mut line: c_int = 0;
-                let mut col: c_int = 0;
+                let mut button: i32 = 0;
+                let mut line: i32 = 0;
+                let mut col: i32 = 0;
                 termkey_interpret_mouse(tk, key, &mut ev, &mut button, &mut line, &mut col);
 
                 let s = format!("Mouse{}({button})", EVNAMES[ev as usize]);
@@ -1145,9 +1145,9 @@ pub fn termkey_strfkey(
             }
             TERMKEY_TYPE_POSITION => append_str(buffer, len, &mut pos, b"Position"),
             TERMKEY_TYPE_MODEREPORT => {
-                let mut initial: c_int = 0;
-                let mut mode: c_int = 0;
-                let mut value: c_int = 0;
+                let mut initial: i32 = 0;
+                let mut mode: i32 = 0;
+                let mut value: i32 = 0;
                 termkey_interpret_modereport(tk, key, &mut initial, &mut mode, &mut value);
                 let s = if initial != 0 {
                     format!("Mode({}{mode}={value})", initial as u8 as char)
@@ -1413,9 +1413,9 @@ mod tests {
             let tk = &mut tk;
             let mut key = TermKeyKey::new();
             let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;
-            let mut button: c_int = 0;
-            let mut line: c_int = 0;
-            let mut col: c_int = 0;
+            let mut button: i32 = 0;
+            let mut line: i32 = 0;
+            let mut col: i32 = 0;
             let mut buf = [0 as c_char; 32];
 
             // Classic X10 mouse press, drag, release
@@ -1471,9 +1471,9 @@ mod tests {
             assert_eq!(key.code.number, 3);
 
             // Mode report
-            let mut initial: c_int = 0;
-            let mut mode: c_int = 0;
-            let mut value: c_int = 0;
+            let mut initial: i32 = 0;
+            let mut mode: i32 = 0;
+            let mut value: i32 = 0;
             push(tk, b"\x1b[?1;2$y\x1b[4;1$y");
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
             assert_eq!(key.r#type, TERMKEY_TYPE_MODEREPORT);
@@ -1481,7 +1481,7 @@ mod tests {
                 termkey_interpret_modereport(tk, &key, &mut initial, &mut mode, &mut value),
                 TERMKEY_RES_KEY
             );
-            assert_eq!((initial, mode, value), (b'?' as c_int, 1, 2));
+            assert_eq!((initial, mode, value), (b'?' as i32, 1, 2));
 
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
             termkey_interpret_modereport(tk, &key, &mut initial, &mut mode, &mut value);
@@ -1490,7 +1490,7 @@ mod tests {
             // Unknown CSI
             let mut args: [TermKeyCsiParam; 16] = [TermKeyCsiParam::new(); 16];
             let mut nargs: usize = 16;
-            let mut command: std::ffi::c_uint = 0;
+            let mut command: u32 = 0;
             push(tk, b"\x1b[5;25v");
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
             assert_eq!(key.r#type, TERMKEY_TYPE_UNKNOWN_CSI);

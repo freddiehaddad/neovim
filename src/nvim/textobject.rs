@@ -22,12 +22,12 @@ use crate::search::{
 };
 use crate::strings::vim_strchr;
 use crate::textformat::Oparg;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::regexp::MAXCOL;
 
-const K_CPO_ENDOFSENT: c_int = b'J' as c_int;
+const K_CPO_ENDOFSENT: i32 = b'J' as i32;
 
 struct TextobjectState {
     cls_bigword: bool,
@@ -49,10 +49,10 @@ fn tobj_st() -> &'static mut TextobjectState {
 
 /// Find the start of the next sentence, searching in the direction specified
 /// by the `dir` argument (`findsent`).
-pub fn findsent(dir: Direction, mut count: c_int) -> bool {
+pub fn findsent(dir: Direction, mut count: i32) -> bool {
     {
-        let mut c: c_int;
-        let func: fn(&mut CursorPos) -> c_int = if dir == FORWARD { incl } else { decl };
+        let mut c: i32;
+        let func: fn(&mut CursorPos) -> i32 = if dir == FORWARD { incl } else { decl };
         let mut noskip = false;
 
         let mut pos = curwin_mut().w_cursor;
@@ -66,20 +66,19 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
             let mut goto_found = false;
 
             // if on an empty line, skip up to a non-empty line
-            if gchar_pos(&mut pos) == c_int::from(NUL) {
+            if gchar_pos(&mut pos) == i32::from(NUL) {
                 loop {
                     if func(&mut pos) == -1 {
                         break;
                     }
-                    if gchar_pos(&mut pos) != c_int::from(NUL) {
+                    if gchar_pos(&mut pos) != i32::from(NUL) {
                         break;
                     }
                 }
                 if dir == FORWARD {
                     goto_found = true;
                 }
-            } else if dir == FORWARD && pos.col == 0 && start_ps(pos.lnum, c_int::from(NUL), false)
-            {
+            } else if dir == FORWARD && pos.col == 0 && start_ps(pos.lnum, i32::from(NUL), false) {
                 // if on the start of a paragraph or a section and searching forward,
                 // go to the next line
                 if pos.lnum == curbuf_mut().b_ml.ml_line_count {
@@ -122,15 +121,15 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
 
                 loop {
                     c = gchar_pos(&mut pos);
-                    if c == c_int::from(NUL)
-                        || (pos.col == 0 && start_ps(pos.lnum, c_int::from(NUL), false))
+                    if c == i32::from(NUL)
+                        || (pos.col == 0 && start_ps(pos.lnum, i32::from(NUL), false))
                     {
                         if dir == BACKWARD && pos.lnum != startlnum {
                             pos.lnum += 1;
                         }
                         break;
                     }
-                    if c == b'.' as c_int || c == b'!' as c_int || c == b'?' as c_int {
+                    if c == b'.' as i32 || c == b'!' as i32 || c == b'?' as i32 {
                         let mut tpos = pos;
                         loop {
                             c = inc(&mut tpos);
@@ -143,15 +142,15 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
                             }
                         }
                         if c == -1
-                            || (!cpo_j && (c == b' ' as c_int || c == b'\t' as c_int))
-                            || c == c_int::from(NUL)
+                            || (!cpo_j && (c == b' ' as i32 || c == b'\t' as i32))
+                            || c == i32::from(NUL)
                             || (cpo_j
-                                && c == b' ' as c_int
+                                && c == b' ' as i32
                                 && inc(&mut tpos) >= 0
-                                && gchar_pos(&mut tpos) == b' ' as c_int)
+                                && gchar_pos(&mut tpos) == b' ' as i32)
                         {
                             pos = tpos;
-                            if gchar_pos(&mut pos) == c_int::from(NUL) {
+                            if gchar_pos(&mut pos) == i32::from(NUL) {
                                 inc(&mut pos);
                             }
                             break;
@@ -170,7 +169,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
             // skip white space
             while !noskip && {
                 c = gchar_pos(&mut pos);
-                c == b' ' as c_int || c == b'\t' as c_int
+                c == b' ' as i32 || c == b'\t' as i32
             } {
                 if incl(&mut pos) == -1 {
                     break;
@@ -196,7 +195,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
 }
 
 /// Find the next paragraph or section in direction `dir` (`findpar`).
-pub fn findpar(pincl: &mut bool, dir: c_int, mut count: c_int, what: c_int, both: bool) -> bool {
+pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool) -> bool {
     unsafe {
         let mut fold_first: Linenr = 0;
         let mut fold_last: Linenr = 0;
@@ -251,7 +250,7 @@ pub fn findpar(pincl: &mut bool, dir: c_int, mut count: c_int, what: c_int, both
             curr += 1;
         }
         curwin_mut().w_cursor.lnum = curr;
-        if curr == curbuf_mut().b_ml.ml_line_count && what != b'}' as c_int && dir == FORWARD {
+        if curr == curbuf_mut().b_ml.ml_line_count && what != b'}' as i32 && dir == FORWARD {
             let line = ml_get(curr);
 
             // Put the cursor on the last character in the last line and make the
@@ -300,10 +299,10 @@ fn inmacro(opt: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoC
 }
 
 /// Return true if line `lnum` is the start of a section or paragraph (`startPS`).
-pub fn start_ps(lnum: Linenr, para: c_int, both: bool) -> bool {
+pub fn start_ps(lnum: Linenr, para: i32, both: bool) -> bool {
     unsafe {
         let s = ml_get(lnum);
-        if c_int::from(crate::memory::cstr_first_byte(s)) == para
+        if i32::from(crate::memory::cstr_first_byte(s)) == para
             || crate::memory::cstr_first_byte(s) == b'\x0c'
             || (both && crate::memory::cstr_first_byte(s) == b'}')
         {
@@ -320,9 +319,9 @@ pub fn start_ps(lnum: Linenr, para: c_int, both: bool) -> bool {
 }
 
 /// Return the class of character at `curwin->w_cursor` (`cls`).
-fn cls() -> c_int {
+fn cls() -> i32 {
     let mut c = gchar_cursor();
-    if c == b' ' as c_int || c == b'\t' as c_int || c == c_int::from(NUL) {
+    if c == b' ' as i32 || c == b'\t' as i32 || c == i32::from(NUL) {
         return 0;
     }
 
@@ -335,7 +334,7 @@ fn cls() -> c_int {
 }
 
 /// Move forward `count` words (`fwd_word`).
-pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
+pub fn fwd_word(mut count: i32, bigword: bool, eol: bool) -> bool {
     {
         curwin_mut().w_cursor.coladd = 0;
         tobj_st().cls_bigword = bigword;
@@ -389,7 +388,7 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
 }
 
 /// Move backward `count` words (`bck_word`).
-pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> bool {
+pub fn bck_word(mut count: i32, bigword: bool, mut stop: bool) -> bool {
     {
         curwin_mut().w_cursor.coladd = 0;
         tobj_st().cls_bigword = bigword;
@@ -438,14 +437,14 @@ pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> bool {
 }
 
 /// Move to the end of the word (`end_word`).
-pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) -> bool {
+pub fn end_word(mut count: i32, bigword: bool, mut stop: bool, empty: bool) -> bool {
     {
         curwin_mut().w_cursor.coladd = 0;
         tobj_st().cls_bigword = bigword;
 
         if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
             && g_st().visual_global.active
-            && g_st().visual_global.mode == b'v' as c_int
+            && g_st().visual_global.mode == b'v' as i32
             && g_st().visual_global.select_exclu_adj
         {
             unadjust_for_sel();
@@ -501,7 +500,7 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
 }
 
 /// Move back to the end of the word (`bckend_word`).
-pub fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
+pub fn bckend_word(mut count: i32, bigword: bool, eol: bool) -> bool {
     {
         curwin_mut().w_cursor.coladd = 0;
         tobj_st().cls_bigword = bigword;
@@ -543,7 +542,7 @@ pub fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
 }
 
 /// Skip a row of characters of the same class (`skip_chars`).
-fn skip_chars(cclass: c_int, dir: Direction) -> bool {
+fn skip_chars(cclass: i32, dir: Direction) -> bool {
     while cls() == cclass {
         if (if dir == FORWARD {
             inc_cursor()
@@ -585,7 +584,7 @@ fn find_first_blank(posp: &mut CursorPos) {
 }
 
 /// Skip `count/2` sentences and `count/2` separating white spaces (`findsent_forward`).
-fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
+fn findsent_forward(mut count: i32, mut at_start_sent: bool) {
     {
         while {
             let old = count;
@@ -605,7 +604,7 @@ fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
 }
 
 /// Find word under cursor, cursor at end (`current_word`).
-pub fn current_word(oap: &mut Oparg, mut count: c_int, include: bool, bigword: bool) -> bool {
+pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: bool) -> bool {
     {
         let mut start_pos = CursorPos {
             lnum: 0,
@@ -716,8 +715,8 @@ pub fn current_word(oap: &mut Oparg, mut count: c_int, include: bool, bigword: b
             {
                 inc_cursor();
             }
-            if g_st().visual_global.mode == b'V' as c_int {
-                g_st().visual_global.mode = b'v' as c_int;
+            if g_st().visual_global.mode == b'V' as i32 {
+                g_st().visual_global.mode = b'v' as i32;
                 g_st().redraw_cmdline = true;
             }
         } else {
@@ -736,7 +735,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
                 g_st().visual_global.start.lnum = 1;
                 g_st().visual_global.start.col = 0;
                 g_st().visual_global.start.coladd = 0;
-                g_st().visual_global.mode = b'V' as c_int;
+                g_st().visual_global.mode = b'V' as i32;
                 redraw_curbuf_later(UPD_INVERTED);
                 showmode();
             } else {
@@ -758,7 +757,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
         let mut end = line.add(crate::memory::cstr_len(line));
         while end > start {
             let prev = mb_prevptr(line, end);
-            if !ascii_iswhite(c_int::from(crate::memory::cstr_first_byte(prev))) {
+            if !ascii_iswhite(i32::from(crate::memory::cstr_first_byte(prev))) {
                 break;
             }
             end = prev;
@@ -783,7 +782,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
             {
                 inc_cursor();
             }
-            g_st().visual_global.mode = b'v' as c_int;
+            g_st().visual_global.mode = b'v' as i32;
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
@@ -798,7 +797,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
 }
 
 /// Find sentence(s) under the cursor, cursor at end (`current_sent`).
-pub fn current_sent(oap: &mut Oparg, mut count: c_int, include: bool) -> bool {
+pub fn current_sent(oap: &mut Oparg, mut count: i32, include: bool) -> bool {
     {
         let mut start_pos = curwin_mut().w_cursor;
         let mut pos = start_pos;
@@ -852,7 +851,7 @@ pub fn current_sent(oap: &mut Oparg, mut count: c_int, include: bool) -> bool {
                         curwin_mut().w_cursor.col += 1;
                     }
                     g_st().visual_global.start = start_pos;
-                    g_st().visual_global.mode = b'v' as c_int;
+                    g_st().visual_global.mode = b'v' as i32;
                     g_st().redraw_cmdline = true;
                     redraw_curbuf_later(UPD_INVERTED);
                     return true;
@@ -938,10 +937,10 @@ pub fn current_sent(oap: &mut Oparg, mut count: c_int, include: bool) -> bool {
 /// Find block under the cursor, cursor at end (`current_block`).
 pub fn current_block(
     oap: &mut Oparg,
-    mut count: c_int,
+    mut count: i32,
     include: bool,
-    what: c_int,
-    other: c_int,
+    what: i32,
+    other: i32,
 ) -> bool {
     unsafe {
         let mut pos: *mut CursorPos;
@@ -961,7 +960,7 @@ pub fn current_block(
             || equalpos(g_st().visual_global.start, curwin_mut().w_cursor)
         {
             setpcmark();
-            if what == b'{' as c_int {
+            if what == b'{' as i32 {
                 while inindent(1) {
                     if inc_cursor() != 0 {
                         break;
@@ -1070,11 +1069,11 @@ pub fn current_block(
             if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 inc(&mut curwin_mut().w_cursor);
             }
-            if sol && gchar_cursor() != c_int::from(NUL) {
+            if sol && gchar_cursor() != i32::from(NUL) {
                 inc(&mut curwin_mut().w_cursor);
             }
             g_st().visual_global.start = start_pos;
-            g_st().visual_global.mode = b'v' as c_int;
+            g_st().visual_global.mode = b'v' as i32;
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
@@ -1099,7 +1098,7 @@ fn in_html_tag(end_tag: bool) -> bool {
     unsafe {
         let line = get_cursor_line_ptr();
         let mut p = line.add(curwin_mut().w_cursor.col as usize);
-        let mut lc: c_int = c_int::from(NUL);
+        let mut lc: i32 = i32::from(NUL);
 
         while p > line {
             if crate::memory::cstr_first_byte(p) == b'<' {
@@ -1134,18 +1133,18 @@ fn in_html_tag(end_tag: bool) -> bool {
             if inc(&mut pos) < 0 {
                 return false;
             }
-            let c = c_int::from(*ml_get_pos(&pos) as u8);
-            if c == b'>' as c_int {
+            let c = i32::from(*ml_get_pos(&pos) as u8);
+            if c == b'>' as i32 {
                 break;
             }
             lc = c;
         }
-        lc != b'/' as c_int
+        lc != b'/' as i32
     }
 }
 
 /// Find tag block under the cursor, cursor at end (`current_tagblock`).
-pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> bool {
+pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool {
     unsafe {
         let mut count = count_arg;
         let mut do_include = include;
@@ -1222,7 +1221,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> boo
             let mut cp = p;
             while !crate::memory::cstr_is_empty(cp)
                 && crate::memory::cstr_first_byte(cp) != b'>'
-                && !ascii_iswhite(c_int::from(crate::memory::cstr_first_byte(cp)))
+                && !ascii_iswhite(i32::from(crate::memory::cstr_first_byte(cp)))
             {
                 cp = cp.add(utfc_ptr2len(cp) as usize);
             }
@@ -1316,7 +1315,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> boo
                     inc_cursor();
                 }
                 g_st().visual_global.start = start_pos;
-                g_st().visual_global.mode = b'v' as c_int;
+                g_st().visual_global.mode = b'v' as i32;
                 redraw_curbuf_later(UPD_INVERTED);
                 showmode();
             } else {
@@ -1339,12 +1338,12 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> boo
 }
 
 /// Find paragraph under the cursor (`current_par`).
-pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -> bool {
+pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bool {
     {
         let mut retval = true;
         let mut do_white = false;
 
-        if type_ == b'S' as c_int {
+        if type_ == b'S' as i32 {
             return false;
         }
 
@@ -1416,14 +1415,14 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
             }
 
             if g_st().visual_global.active {
-                if !(g_st().visual_global.mode == b'V' as c_int
+                if !(g_st().visual_global.mode == b'V' as i32
                     && start_lnum == curwin_mut().w_cursor.lnum)
                 {
                     if g_st().visual_global.start.lnum != start_lnum {
                         g_st().visual_global.start.lnum = start_lnum;
                         g_st().visual_global.start.col = 0;
                     }
-                    g_st().visual_global.mode = b'V' as c_int;
+                    g_st().visual_global.mode = b'V' as i32;
                     redraw_curbuf_later(UPD_INVERTED);
                     showmode();
                     curwin_mut().w_cursor.lnum = end_lnum;
@@ -1462,11 +1461,11 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
                 break;
             }
 
-            let mut prev_start_is_white: c_int = -1;
+            let mut prev_start_is_white: i32 = -1;
             for _ in 0..2 {
                 start_lnum += dir;
                 let start_is_white = linewhite(start_lnum);
-                if prev_start_is_white == c_int::from(start_is_white) {
+                if prev_start_is_white == i32::from(start_is_white) {
                     start_lnum -= dir;
                     break;
                 }
@@ -1500,7 +1499,7 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
                 {
                     break;
                 }
-                prev_start_is_white = c_int::from(start_is_white);
+                prev_start_is_white = i32::from(start_is_white);
             }
         }
         curwin_mut().w_cursor.lnum = start_lnum;
@@ -1512,16 +1511,16 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
 /// Search quote char from string `line[col]` (`find_next_quote`).
 fn find_next_quote(
     line: impl crate::strings::IntoCCharPtr,
-    mut col: c_int,
-    quotechar: c_int,
+    mut col: i32,
+    quotechar: i32,
     escape: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let line = line.into_c_char_ptr();
     let escape = escape.into_c_char_ptr();
     unsafe {
         loop {
-            let c = c_int::from(crate::memory::cstr_byte_at(line, col as usize));
-            if c == c_int::from(NUL) {
+            let c = i32::from(crate::memory::cstr_byte_at(line, col as usize));
+            if c == i32::from(NUL) {
                 return -1;
             } else if !escape.is_null() && crate::strings::vim_haschr(escape, c) {
                 col += 1;
@@ -1540,10 +1539,10 @@ fn find_next_quote(
 /// Search backwards in `line` from column `col_start` to find `quotechar` (`find_prev_quote`).
 fn find_prev_quote(
     line: impl crate::strings::IntoCCharPtr,
-    mut col_start: c_int,
-    quotechar: c_int,
+    mut col_start: i32,
+    quotechar: i32,
     escape: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let line = line.into_c_char_ptr();
     let escape = escape.into_c_char_ptr();
     unsafe {
@@ -1555,7 +1554,7 @@ fn find_prev_quote(
                 while col_start - n > 0
                     && crate::strings::vim_haschr(
                         escape,
-                        c_int::from(*line.add((col_start - n - 1) as usize) as u8),
+                        i32::from(*line.add((col_start - n - 1) as usize) as u8),
                     )
                 {
                     n += 1;
@@ -1563,8 +1562,7 @@ fn find_prev_quote(
             }
             if (n & 1) != 0 {
                 col_start -= n;
-            } else if c_int::from(crate::memory::cstr_byte_at(line, col_start as usize))
-                == quotechar
+            } else if i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar
             {
                 break;
             }
@@ -1574,11 +1572,11 @@ fn find_prev_quote(
 }
 
 /// Find quote under the cursor, cursor at end (`current_quote`).
-pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_int) -> bool {
+pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32) -> bool {
     unsafe {
         let line = get_cursor_line_ptr();
-        let mut col_end: c_int;
-        let mut col_start: c_int = curwin_mut().w_cursor.col;
+        let mut col_end: i32;
+        let mut col_start: i32 = curwin_mut().w_cursor.col;
         let mut inclusive = false;
         let mut vis_empty = true;
         let mut vis_bef_curs = false;
@@ -1632,22 +1630,22 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
         }
 
         if !vis_empty {
-            let mut i: c_int;
+            let mut i: i32;
             if vis_bef_curs {
                 inside_quotes = g_st().visual_global.start.col > 0
-                    && c_int::from(*line.add((g_st().visual_global.start.col - 1) as usize) as u8)
+                    && i32::from(*line.add((g_st().visual_global.start.col - 1) as usize) as u8)
                         == quotechar
                     && *line.add(curwin_mut().w_cursor.col as usize) != NUL
-                    && c_int::from(*line.add((curwin_mut().w_cursor.col + 1) as usize) as u8)
+                    && i32::from(*line.add((curwin_mut().w_cursor.col + 1) as usize) as u8)
                         == quotechar;
                 i = g_st().visual_global.start.col;
                 col_end = curwin_mut().w_cursor.col;
             } else {
                 inside_quotes = curwin_mut().w_cursor.col > 0
-                    && c_int::from(*line.add((curwin_mut().w_cursor.col - 1) as usize) as u8)
+                    && i32::from(*line.add((curwin_mut().w_cursor.col - 1) as usize) as u8)
                         == quotechar
                     && *line.add(g_st().visual_global.start.col as usize) != NUL
-                    && c_int::from(*line.add((g_st().visual_global.start.col + 1) as usize) as u8)
+                    && i32::from(*line.add((g_st().visual_global.start.col + 1) as usize) as u8)
                         == quotechar;
                 i = curwin_mut().w_cursor.col;
                 col_end = g_st().visual_global.start.col;
@@ -1657,7 +1655,7 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
                 if crate::memory::cstr_byte_at(line, i as usize) == 0 {
                     break;
                 }
-                let ch = c_int::from(crate::memory::cstr_byte_at(line, i as usize));
+                let ch = i32::from(crate::memory::cstr_byte_at(line, i as usize));
                 i += 1;
                 if ch == quotechar {
                     selected_quote = true;
@@ -1667,7 +1665,7 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
         }
 
         if !vis_empty
-            && c_int::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar
+            && i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar
         {
             if vis_bef_curs {
                 col_start = find_next_quote(line, col_start + 1, quotechar, ptr::null_mut());
@@ -1681,16 +1679,16 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
                 }
             } else {
                 col_end = find_prev_quote(line, col_start, quotechar, ptr::null_mut());
-                if c_int::from(crate::memory::cstr_byte_at(line, col_end as usize)) != quotechar {
+                if i32::from(crate::memory::cstr_byte_at(line, col_end as usize)) != quotechar {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
                 col_start = find_prev_quote(line, col_end, quotechar, curbuf_mut().b_p_qe);
-                if c_int::from(crate::memory::cstr_byte_at(line, col_start as usize)) != quotechar {
+                if i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) != quotechar {
                     col_start = col_end;
                     col_end = curwin_mut().w_cursor.col;
                 }
             }
-        } else if c_int::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar
+        } else if i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) == quotechar
             || !vis_empty
         {
             let mut first_col = col_start;
@@ -1719,7 +1717,7 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
             }
         } else {
             col_start = find_prev_quote(line, col_start, quotechar, curbuf_mut().b_p_qe);
-            if c_int::from(crate::memory::cstr_byte_at(line, col_start as usize)) != quotechar {
+            if i32::from(crate::memory::cstr_byte_at(line, col_start as usize)) != quotechar {
                 col_start = find_next_quote(line, col_start, quotechar, ptr::null_mut());
                 if col_start < 0 {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
@@ -1733,13 +1731,13 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
         }
 
         if include {
-            if ascii_iswhite(c_int::from(*line.add((col_end + 1) as usize) as u8)) {
-                while ascii_iswhite(c_int::from(*line.add((col_end + 1) as usize) as u8)) {
+            if ascii_iswhite(i32::from(*line.add((col_end + 1) as usize) as u8)) {
+                while ascii_iswhite(i32::from(*line.add((col_end + 1) as usize) as u8)) {
                     col_end += 1;
                 }
             } else {
                 while col_start > 0
-                    && ascii_iswhite(c_int::from(*line.add((col_start - 1) as usize) as u8))
+                    && ascii_iswhite(i32::from(*line.add((col_start - 1) as usize) as u8))
                 {
                     col_start -= 1;
                 }
@@ -1755,10 +1753,10 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
                 || (vis_bef_curs
                     && !selected_quote
                     && (inside_quotes
-                        || (c_int::from(*line.add(g_st().visual_global.start.col as usize) as u8)
+                        || (i32::from(*line.add(g_st().visual_global.start.col as usize) as u8)
                             != quotechar
                             && (g_st().visual_global.start.col == 0
-                                || c_int::from(
+                                || i32::from(
                                     *line.add((g_st().visual_global.start.col - 1) as usize) as u8,
                                 ) != quotechar))))
             {
@@ -1782,11 +1780,11 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
             } else {
                 if inside_quotes
                     || (!selected_quote
-                        && c_int::from(*line.add(g_st().visual_global.start.col as usize) as u8)
+                        && i32::from(*line.add(g_st().visual_global.start.col as usize) as u8)
                             != quotechar
                         && (*line.add(g_st().visual_global.start.col as usize) == NUL
-                            || c_int::from(
-                                *line.add((g_st().visual_global.start.col + 1) as usize) as u8,
+                            || i32::from(
+                                *line.add((g_st().visual_global.start.col + 1) as usize) as u8
                             ) != quotechar))
                 {
                     dec_cursor();
@@ -1794,8 +1792,8 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
                 }
                 curwin_mut().w_cursor.col = col_start;
             }
-            if g_st().visual_global.mode == b'V' as c_int {
-                g_st().visual_global.mode = b'v' as c_int;
+            if g_st().visual_global.mode == b'V' as i32 {
+                g_st().visual_global.mode = b'v' as i32;
                 g_st().redraw_cmdline = true;
             }
         } else {

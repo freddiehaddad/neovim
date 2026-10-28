@@ -1,6 +1,6 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::mpack::mpack_core::{
@@ -9,8 +9,8 @@ use crate::mpack::mpack_core::{
 };
 
 pub const MPACK_MAX_OBJECT_DEPTH: usize = 32;
-pub const MPACK_EXCEPTION: c_int = -1;
-pub const MPACK_NOMEM: c_int = MPACK_ERROR + 1;
+pub const MPACK_EXCEPTION: i32 = -1;
+pub const MPACK_NOMEM: i32 = MPACK_ERROR + 1;
 
 #[derive(Clone, Default)]
 pub enum MpackData {
@@ -135,7 +135,7 @@ impl MpackData {
 pub struct MpackNode {
     pub tok: MpackToken,
     pub pos: usize,
-    pub key_visited: c_int,
+    pub key_visited: i32,
     pub data: [MpackData; 2],
 }
 
@@ -162,8 +162,8 @@ pub struct MpackParser {
     pub data: MpackData,
     pub size: MpackUint32,
     pub capacity: MpackUint32,
-    pub status: c_int,
-    pub exiting: c_int,
+    pub status: i32,
+    pub exiting: i32,
     pub tokbuf: MpackTokbuf,
     pub items: Vec<MpackNode>,
 }
@@ -230,7 +230,7 @@ pub fn mpack_parse_tok(
     tok: MpackToken,
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,
-) -> c_int {
+) -> i32 {
     unsafe {
         if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
@@ -278,7 +278,7 @@ pub fn mpack_unparse_tok(
     tok: &mut MpackToken,
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,
-) -> c_int {
+) -> i32 {
     unsafe {
         if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
@@ -327,7 +327,7 @@ pub fn mpack_parse(
     buflen: &mut usize,
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,
-) -> c_int {
+) -> i32 {
     let mut status = MPACK_EOF;
     if parser.status == MPACK_EXCEPTION {
         return MPACK_EXCEPTION;
@@ -373,7 +373,7 @@ pub fn mpack_unparse(
     buflen: &mut usize,
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,
-) -> c_int {
+) -> i32 {
     let mut status = MPACK_EOF;
     if parser.status == MPACK_EXCEPTION {
         return MPACK_EXCEPTION;
@@ -447,7 +447,7 @@ fn mpack_parser_pop(parser: &mut MpackParser) -> *mut MpackNode {
                 if parent.key_visited != 0 {
                     parent.pos += 1;
                 }
-                parent.key_visited = c_int::from(parent.key_visited == 0);
+                parent.key_visited = i32::from(parent.key_visited == 0);
             } else {
                 parent.pos += 1;
             }

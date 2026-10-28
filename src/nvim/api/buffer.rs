@@ -45,7 +45,7 @@ use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
 use crate::undo::{u_save_buf, uhp_ref};
 use crate::window::{VALID_BOTLINE_AP, WinInfoInfo};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::charset::{NL, NUL};
@@ -591,12 +591,12 @@ pub fn nvim_buf_set_lines(
 
             extmark_splice(
                 &mut *b,
-                (start as c_int) - 1,
+                (start as i32) - 1,
                 0,
-                (end - start) as c_int,
+                (end - start) as i32,
                 0,
                 deleted_bytes,
-                new_len as c_int,
+                new_len as i32,
                 0,
                 inserted_bytes,
                 K_EXTMARK_UNDO,
@@ -947,12 +947,12 @@ pub fn nvim_buf_set_text(
 
             extmark_splice(
                 &mut *b,
-                (start_row as c_int) - 1,
+                (start_row as i32) - 1,
                 start_col as Colnr,
-                (end_row - start_row) as c_int,
+                (end_row - start_row) as i32,
                 col_extent,
                 old_byte,
-                (new_len as c_int) - 1,
+                (new_len as i32) - 1,
                 last_item.size as Colnr,
                 new_byte,
                 K_EXTMARK_UNDO,
@@ -1117,7 +1117,7 @@ pub fn nvim_buf_get_text(
             &mut rv,
             str_val.data,
             str_val.size,
-            (size - 1) as c_int,
+            (size - 1) as i32,
             replace_nl,
             arena,
         );
@@ -1441,7 +1441,7 @@ pub fn nvim_buf_delete(buf: Buffer, opts: &mut KeyDict_buf_delete, err: &mut Err
             DOBUF_FIRST,
             FORWARD,
             b.b_fnum,
-            c_int::from(force),
+            i32::from(force),
         );
 
         if !result {
@@ -1504,7 +1504,7 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
             curwin_mut(),
             None,
             K_MARK_ALL_NO_RESOLVE,
-            c_int::from(*name.data.cast::<u8>()),
+            i32::from(*name.data.cast::<u8>()),
         );
         if fm.is_null() {
             api_err_invalid(err, c"mark name", name.data, 0, true);
@@ -1603,7 +1603,7 @@ pub fn nvim_buf_get_mark(
             return rv;
         }
 
-        let mark = c_int::from(*name.data.cast::<u8>());
+        let mark = i32::from(*name.data.cast::<u8>());
         let fm = mark_get(b, curwin_mut(), None, K_MARK_ALL_NO_RESOLVE, mark);
         if fm.is_null() {
             api_err_invalid(err, c"mark name", name.data, 0, true);
@@ -1835,7 +1835,7 @@ fn fix_cursor_cols(
 fn init_line_array(lstate: *mut lua_State, a: &mut Array, size: usize, arena: &mut Arena) {
     unsafe {
         if !lstate.is_null() {
-            lua_createtable(lstate, size as c_int, 0);
+            lua_createtable(lstate, size as i32, 0);
         } else {
             *a = arena_array(arena, size);
         }
@@ -1847,7 +1847,7 @@ fn push_linestr(
     a: &mut Array,
     s: impl crate::strings::IntoCCharPtr,
     len: usize,
-    idx: c_int,
+    idx: i32,
     replace_nl: bool,
     arena: &mut Arena,
 ) {
@@ -1913,7 +1913,7 @@ pub fn buf_collect_lines(
     buf: &mut FileBuf,
     n: usize,
     start: Linenr,
-    start_idx: c_int,
+    start_idx: i32,
     replace_nl: bool,
     l: &mut Array,
     lstate: *mut lua_State,
@@ -1928,7 +1928,7 @@ pub fn buf_collect_lines(
             l,
             bufstr,
             bufstrlen,
-            start_idx + (i as c_int),
+            start_idx + (i as i32),
             replace_nl,
             arena,
         );

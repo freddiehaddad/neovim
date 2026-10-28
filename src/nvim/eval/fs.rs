@@ -59,7 +59,7 @@ use crate::path::{path_to_slash_save, slash_adjust};
 use crate::runtime::script_is_lua;
 use crate::strings::{gettext, vim_strchr, vim_strsave_shellescape};
 use crate::window::{TabPageInfo, WinInfoInfo, find_tabpage};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 use crate::api::vim::K_CD_SCOPE_GLOBAL;
@@ -68,13 +68,13 @@ use crate::regexp::NUMBUFLEN;
 
 pub(crate) const K_LIST_LEN_UNKNOWN: isize = -1;
 
-pub(crate) const VALID_PATH: c_int = 1;
-pub(crate) const VALID_HEAD: c_int = 2;
+pub(crate) const VALID_PATH: i32 = 1;
+pub(crate) const VALID_HEAD: i32 = 2;
 
-const K_CD_SCOPE_INVALID: c_int = -1;
-pub(crate) const K_CD_SCOPE_BUFFER: c_int = 0;
-pub(crate) const K_CD_SCOPE_WINDOW: c_int = 1;
-pub(crate) const K_CD_SCOPE_TABPAGE: c_int = 2;
+const K_CD_SCOPE_INVALID: i32 = -1;
+pub(crate) const K_CD_SCOPE_BUFFER: i32 = 0;
+pub(crate) const K_CD_SCOPE_WINDOW: i32 = 1;
+pub(crate) const K_CD_SCOPE_TABPAGE: i32 = 2;
 
 const S_IFMT_MASK: u64 = 0xF000;
 const S_IFCHR_VAL: u64 = 0x2000;
@@ -115,10 +115,10 @@ pub fn modify_fname(
     bufp: &mut Option<Vec<c_char>>,
     fnamelen: &mut usize,
     use_shellslash: bool,
-) -> c_int {
+) -> i32 {
     let src = src.into_c_char_ptr().cast_mut();
     unsafe {
-        let mut valid: c_int = 0;
+        let mut valid: i32 = 0;
         let mut s: *mut c_char = ptr::null_mut();
         let mut p: *mut c_char;
         let mut pbuf: Option<Vec<c_char>>;
@@ -152,13 +152,13 @@ pub fn modify_fname(
                 // When "/." or "/.." is used: force expansion to get rid of it.
                 p = *fnamep;
                 while !crate::memory::cstr_is_empty(p) {
-                    if vim_ispathsep(crate::memory::cstr_first_byte(p) as c_int)
+                    if vim_ispathsep(crate::memory::cstr_first_byte(p) as i32)
                         && crate::memory::cstr_byte_at(p, 1) == b'.'
                         && (crate::memory::cstr_byte_at(p, 2) == 0
-                            || vim_ispathsep(crate::memory::cstr_byte_at(p, 2) as c_int)
+                            || vim_ispathsep(crate::memory::cstr_byte_at(p, 2) as i32)
                             || (crate::memory::cstr_byte_at(p, 2) == b'.'
                                 && (crate::memory::cstr_byte_at(p, 3) == 0
-                                    || vim_ispathsep(crate::memory::cstr_byte_at(p, 3) as c_int))))
+                                    || vim_ispathsep(crate::memory::cstr_byte_at(p, 3) as i32))))
                     {
                         break;
                     }
@@ -192,17 +192,17 @@ pub fn modify_fname(
                 }
             }
 
-            let mut c: c_int;
+            let mut c: i32;
 
             // ":." - path relative to the current directory
             // ":~" - path relative to the home directory
             // ":8" - shortname path - postponed till after
             while crate::memory::cstr_byte_at(src, *usedlen) == b':' && {
-                c = crate::memory::cstr_byte_at(src, *usedlen + 1) as c_int;
-                c == b'.' as c_int || c == b'~' as c_int || c == b'8' as c_int
+                c = crate::memory::cstr_byte_at(src, *usedlen + 1) as i32;
+                c == b'.' as i32 || c == b'~' as i32 || c == b'8' as i32
             } {
                 *usedlen += 2;
-                if c == b'8' as c_int {
+                if c == b'8' as i32 {
                     continue;
                 }
                 pbuf = None;
@@ -228,7 +228,7 @@ pub fn modify_fname(
                 if !p.is_null() {
                     let mut dirnamelen: usize = 0;
 
-                    if c == b'.' as c_int {
+                    if c == b'.' as i32 {
                         os_dirname(dirname.as_mut_ptr(), MAXPATHL);
                         if has_homerelative {
                             let s_cstr = cstr_to_cstring(dirname.as_ptr());
@@ -249,9 +249,9 @@ pub fn modify_fname(
                         // even though the path does not have a prefix.
                         if path_cmp(opt_vars().p_fic != 0, p, dirname.as_ptr(), dirnamelen) == 0 {
                             p = p.add(dirnamelen);
-                            if vim_ispathsep(crate::memory::cstr_first_byte(p) as c_int) {
+                            if vim_ispathsep(crate::memory::cstr_first_byte(p) as i32) {
                                 while !crate::memory::cstr_is_empty(p)
-                                    && vim_ispathsep(crate::memory::cstr_first_byte(p) as c_int)
+                                    && vim_ispathsep(crate::memory::cstr_first_byte(p) as i32)
                                 {
                                     p = p.add(1);
                                 }
@@ -402,7 +402,7 @@ pub fn modify_fname(
                     s = s.add(1);
                 }
 
-                let sep = crate::memory::cstr_first_byte(s) as c_int;
+                let sep = crate::memory::cstr_first_byte(s) as i32;
                 s = s.add(1);
                 if sep != 0 {
                     // find end of pattern
@@ -452,12 +452,12 @@ pub fn modify_fname(
                 && crate::memory::cstr_byte_at(src, *usedlen + 1) == b'S'
             {
                 // vim_strsave_shellescape() needs a NUL terminated string.
-                c = crate::memory::cstr_byte_at(*fnamep, *fnamelen) as c_int;
-                if c != NUL as c_int {
+                c = crate::memory::cstr_byte_at(*fnamep, *fnamelen) as i32;
+                if c != NUL as i32 {
                     *(*fnamep).add(*fnamelen) = NUL;
                 }
                 let esc = vim_strsave_shellescape(*fnamep, false, false);
-                if c != NUL as c_int {
+                if c != NUL as i32 {
                     *(*fnamep).add(*fnamelen) = c as c_char;
                 }
                 *fnamelen = esc.as_bytes().len();
@@ -496,7 +496,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             crate::eval::typval::tv_set_string(rettv, cwd.as_ptr());
         }
 
-        let mut scope: c_int = K_CD_SCOPE_GLOBAL;
+        let mut scope: i32 = K_CD_SCOPE_GLOBAL;
         if argvars[1].v_type != VarType::VarUnknown {
             let s = tv_get_string(&argvars[1]);
             let s_bytes = crate::memory::cstr_as_bytes(s);
@@ -653,7 +653,7 @@ pub fn f_filewritable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         crate::eval::typval::TypvalVval::Number(Varnumber::from(os_file_is_writable(filename)));
 }
 
-fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: c_int) {
+fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
     unsafe {
         let mut fresult: Option<std::ffi::CString> = None;
         let mut path = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
@@ -661,7 +661,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: c_int) {
         } else {
             curbuf_mut().b_p_path
         };
-        let mut count: c_int = 1;
+        let mut count: i32 = 1;
         let mut first = true;
         let mut error = false;
 
@@ -681,7 +681,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: c_int) {
                 }
 
                 if argvars[2].v_type != VarType::VarUnknown {
-                    count = tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int;
+                    count = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
                 }
             }
         }
@@ -707,7 +707,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: c_int) {
                         0
                     },
                     0,
-                    c_int::from(first),
+                    i32::from(first),
                     path,
                     find_what,
                     curbuf_mut().b_ffname,
@@ -801,8 +801,8 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// requested scope and the scope objects to inspect.
 fn getcwd_scope_args(
     argvars: &mut [TypVal],
-    default_scope: c_int,
-    scope: &mut c_int,
+    default_scope: i32,
+    scope: &mut i32,
     win: *mut *mut WinInfoInfo,
     tp: *mut *mut TabPageInfo,
     buf: *mut *mut FileBuf,
@@ -811,7 +811,7 @@ fn getcwd_scope_args(
         const K_WIN_ARG: usize = 0;
         const K_TAB_ARG: usize = 1;
         const K_BUF_ARG: usize = 2;
-        let mut argv = [0 as c_int; 3];
+        let mut argv = [0_i32; 3];
         let mut argc: usize = 0;
 
         *scope = default_scope;
@@ -828,7 +828,7 @@ fn getcwd_scope_args(
                 emsg(gettext(E_INVARG));
                 return false;
             }
-            argv[argc] = argvars[argc].vval.v_number() as c_int;
+            argv[argc] = argvars[argc].vval.v_number() as i32;
             // It is an error for the scope number to be less than `-1`.
             if argv[argc] < -1 {
                 emsg(gettext(E_INVARG));
@@ -921,7 +921,7 @@ fn getcwd_scope_args(
 /// `getcwd([{win}[, {tab}[, {buf}]]])` function
 pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
-        let mut scope: c_int = K_CD_SCOPE_INVALID;
+        let mut scope: i32 = K_CD_SCOPE_INVALID;
         let mut win: *mut WinInfoInfo = ptr::null_mut();
         let mut tp: *mut TabPageInfo = ptr::null_mut();
         let mut buf: *mut FileBuf = ptr::null_mut();
@@ -1088,7 +1088,7 @@ pub fn f_getftype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 /// "glob()" function
 pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     {
-        let mut options: c_int = WILD_SILENT | WILD_USE_NL;
+        let mut options: i32 = WILD_SILENT | WILD_USE_NL;
         let mut xpc = ExpandCtx::new();
         let mut error = false;
 
@@ -1153,7 +1153,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 /// "globpath()" function
 pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     {
-        let mut flags: c_int = 0; // Flags for globpath.
+        let mut flags: i32 = 0; // Flags for globpath.
         let mut error = false;
 
         // Return a string, or a list if the optional third argument is non-zero.
@@ -1223,7 +1223,7 @@ pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
 pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
-        let mut scope: c_int = K_CD_SCOPE_WINDOW;
+        let mut scope: i32 = K_CD_SCOPE_WINDOW;
         let mut win: *mut WinInfoInfo = ptr::null_mut();
         let mut tp: *mut TabPageInfo = ptr::null_mut();
         let mut buf: *mut FileBuf = ptr::null_mut();
@@ -1284,7 +1284,7 @@ pub fn f_isdirectory(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// "mkdir()" function
 pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
-        let mut prot: c_int = 0o755;
+        let mut prot: i32 = 0o755;
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(FAIL));
         if check_secure() {
@@ -1307,19 +1307,19 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         let mut created: Option<std::ffi::CString> = None;
         if argvars[1].v_type != VarType::VarUnknown {
             if argvars[2].v_type != VarType::VarUnknown {
-                prot = tv_get_number_chk(&argvars[2], None) as c_int;
+                prot = tv_get_number_chk(&argvars[2], None) as i32;
                 if prot == -1 {
                     return;
                 }
             }
             let arg2 = tv_get_string(&argvars[1]);
-            defer = crate::strings::vim_haschr(arg2, b'D' as c_int);
-            defer_recurse = crate::strings::vim_haschr(arg2, b'R' as c_int);
+            defer = crate::strings::vim_haschr(arg2, b'D' as i32);
+            defer_recurse = crate::strings::vim_haschr(arg2, b'R' as i32);
             if (defer || defer_recurse) && !can_add_defer() {
                 return;
             }
 
-            if crate::strings::vim_haschr(arg2, b'p' as c_int) {
+            if crate::strings::vim_haschr(arg2, b'p' as i32) {
                 let mut failed_dir: Option<std::ffi::CString> = None;
                 let ret = os_mkdir_recurse(
                     dir,
@@ -1370,10 +1370,10 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 /// "pathshorten()" function
 pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     {
-        let mut trim_len: c_int = 1;
+        let mut trim_len: i32 = 1;
 
         if argvars[1].v_type != VarType::VarUnknown {
-            trim_len = tv_get_number(&argvars[1]) as c_int;
+            trim_len = tv_get_number(&argvars[1]) as i32;
             if trim_len < 1 {
                 trim_len = 1;
             }
@@ -1591,7 +1591,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                         }
                     }
                     if prev.is_empty() {
-                        debug_assert!(len < c_int::MAX as usize);
+                        debug_assert!(len < i32::MAX as usize);
                         tv_list_append_string(&mut *l, start, len as isize);
                     } else {
                         prev.extend_from_slice(std::slice::from_raw_parts(start, len));
@@ -1725,15 +1725,15 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     unsafe {
         let mut is_relative_to_current = false;
         let mut has_trailing_pathsep = false;
-        let mut limit: c_int = 100;
+        let mut limit: i32 = 100;
 
         let mut p_vec = cstr_into_char_vec(cstr_to_cstring(fname));
         let mut p = p_vec.as_mut_ptr();
 
         if crate::memory::cstr_first_byte(p) == b'.'
-            && (vim_ispathsep(crate::memory::cstr_byte_at(p, 1) as c_int)
+            && (vim_ispathsep(crate::memory::cstr_byte_at(p, 1) as i32)
                 || (crate::memory::cstr_byte_at(p, 1) == b'.'
-                    && vim_ispathsep(crate::memory::cstr_byte_at(p, 2) as c_int)))
+                    && vim_ispathsep(crate::memory::cstr_byte_at(p, 2) as i32)))
         {
             is_relative_to_current = true;
         }
@@ -1780,7 +1780,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
                 // Separate the first path component in the link value and
                 // concatenate the remainders.
-                let start_comp = if vim_ispathsep(crate::memory::cstr_first_byte(buf) as c_int) {
+                let start_comp = if vim_ispathsep(crate::memory::cstr_first_byte(buf) as i32) {
                     buf.add(1)
                 } else {
                     buf
@@ -1855,15 +1855,15 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         // If the result is a relative path name, make it explicitly relative to
         // the current directory if and only if the argument had this form.
-        if !vim_ispathsep(crate::memory::cstr_first_byte(p) as c_int) {
+        if !vim_ispathsep(crate::memory::cstr_first_byte(p) as i32) {
             if is_relative_to_current
                 && !crate::memory::cstr_is_empty(p)
                 && !(crate::memory::cstr_first_byte(p) == b'.'
                     && (crate::memory::cstr_byte_at(p, 1) == 0
-                        || vim_ispathsep(crate::memory::cstr_byte_at(p, 1) as c_int)
+                        || vim_ispathsep(crate::memory::cstr_byte_at(p, 1) as i32)
                         || (crate::memory::cstr_byte_at(p, 1) == b'.'
                             && (crate::memory::cstr_byte_at(p, 2) == 0
-                                || vim_ispathsep(crate::memory::cstr_byte_at(p, 2) as c_int)))))
+                                || vim_ispathsep(crate::memory::cstr_byte_at(p, 2) as i32)))))
             {
                 // Prepend "./".
                 let p_len = crate::memory::cstr_len(p);
@@ -1877,7 +1877,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 // Strip leading "./".
                 q = p;
                 while crate::memory::cstr_first_byte(q) == b'.'
-                    && vim_ispathsep(crate::memory::cstr_byte_at(q, 1) as c_int)
+                    && vim_ispathsep(crate::memory::cstr_byte_at(q, 1) as i32)
                 {
                     q = q.add(2);
                 }
@@ -1925,7 +1925,7 @@ pub fn f_tempname(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// Write "list" of strings to file "fp".
 fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> bool {
     unsafe {
-        let mut error: c_int = 0;
+        let mut error: i32 = 0;
         let mut li = tv_list_first(list);
         'outer: while !li.is_null() {
             let s = tv_get_string_chk(&(*li).li_tv);
@@ -1943,7 +1943,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                             (p as usize).wrapping_sub(hunk_start as usize),
                         );
                         if written < 0 {
-                            error = written as c_int;
+                            error = written as i32;
                             break 'outer;
                         }
                     }
@@ -1954,7 +1954,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                         let nul_byte: c_char = NUL;
                         let written = file_write(fp, &raw const nul_byte, 1);
                         if written < 0 {
-                            error = written as c_int;
+                            error = written as i32;
                             break;
                         }
                     }
@@ -1965,7 +1965,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                 let nl_byte: c_char = NL;
                 let written = file_write(fp, &raw const nl_byte, 1);
                 if written < 0 {
-                    error = written as c_int;
+                    error = written as i32;
                     break 'outer;
                 }
             }
@@ -1993,7 +1993,7 @@ fn write_data(
         if len > 0 {
             let written = file_write(fp, data, len);
             if written < len as isize {
-                let error = written as c_int;
+                let error = written as i32;
                 semsg!(gettext(E_ERROR_WHILE_WRITING_STR), uv_strerror(error),);
                 return false;
             }

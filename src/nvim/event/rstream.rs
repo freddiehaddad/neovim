@@ -13,7 +13,7 @@ use crate::event::wstream::uv_buf_t;
 use crate::log::{LOGLVL_DBG, log_st, logmsg};
 use crate::memory::ARENA_BLOCK_SIZE;
 use crate::os::fs::{UV_ENOBUFS, UV_EOF};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 #[repr(C)]
@@ -68,7 +68,7 @@ fn rstream_space(stream: &mut RStream) -> usize {
     stream.buffer.len().saturating_sub(stream.write_pos)
 }
 
-pub fn rstream_init_fd(loop_: *mut Loop, stream: &mut RStream, fd: c_int) {
+pub fn rstream_init_fd(loop_: *mut Loop, stream: &mut RStream, fd: i32) {
     {
         stream_init(loop_, &mut stream.s, fd, false);
         rstream_init(stream);
@@ -135,7 +135,7 @@ unsafe extern "C" fn read_cb(uvstream: *mut uv_stream_t, cnt: isize, _buf: *cons
                 invoke_read_cb(&mut *stream, true);
             } else {
                 if log_st().g_min_log_level <= LOGLVL_DBG {
-                    let err_code = cnt as c_int;
+                    let err_code = cnt as i32;
                     logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),

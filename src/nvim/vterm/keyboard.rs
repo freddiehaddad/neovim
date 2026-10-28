@@ -1,7 +1,7 @@
 //! VTerm keyboard event encoding (`src/nvim/vterm/keyboard.c`).
 
 use crate::input::NUL;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 use crate::terminal::Terminal;
 use crate::tui::termkey::termkey::fill_utf8;
@@ -12,8 +12,8 @@ use crate::vterm::vterm::{
     vterm_push_output_bytes, vterm_push_output_bytes_slice, vterm_push_output_ctrl_bytes,
 };
 
-pub type VTermModifier = c_int;
-pub type VTermKey = c_int;
+pub type VTermModifier = i32;
+pub type VTermKey = i32;
 
 const C1_SS3: u8 = 0x8f;
 pub(crate) const C1_CSI: u8 = 0x9b;
@@ -21,18 +21,18 @@ pub(crate) const C1_CSI: u8 = 0x9b;
 pub(crate) const BUFIDX_PRIMARY: usize = 0;
 pub(crate) const BUFIDX_ALTSCREEN: usize = 1;
 
-pub(crate) const VTERM_MOD_NONE: c_int = 0x00;
-pub(crate) const VTERM_MOD_SHIFT: c_int = 0x01;
-pub(crate) const VTERM_MOD_ALT: c_int = 0x02;
-pub(crate) const VTERM_MOD_CTRL: c_int = 0x04;
+pub(crate) const VTERM_MOD_NONE: i32 = 0x00;
+pub(crate) const VTERM_MOD_SHIFT: i32 = 0x01;
+pub(crate) const VTERM_MOD_ALT: i32 = 0x02;
+pub(crate) const VTERM_MOD_CTRL: i32 = 0x04;
 
-pub(crate) const VTERM_KEY_NONE: c_int = 0;
-pub(crate) const VTERM_KEY_ENTER: c_int = 1;
-pub(crate) const VTERM_KEY_TAB: c_int = 2;
-pub(crate) const VTERM_KEY_BACKSPACE: c_int = 3;
-pub(crate) const VTERM_KEY_FUNCTION_0: c_int = 256;
-const VTERM_KEY_FUNCTION_MAX: c_int = VTERM_KEY_FUNCTION_0 + 255;
-pub(crate) const VTERM_KEY_KP_0: c_int = VTERM_KEY_FUNCTION_MAX + 1;
+pub(crate) const VTERM_KEY_NONE: i32 = 0;
+pub(crate) const VTERM_KEY_ENTER: i32 = 1;
+pub(crate) const VTERM_KEY_TAB: i32 = 2;
+pub(crate) const VTERM_KEY_BACKSPACE: i32 = 3;
+pub(crate) const VTERM_KEY_FUNCTION_0: i32 = 256;
+const VTERM_KEY_FUNCTION_MAX: i32 = VTERM_KEY_FUNCTION_0 + 255;
+pub(crate) const VTERM_KEY_KP_0: i32 = VTERM_KEY_FUNCTION_MAX + 1;
 
 const MODE_KEYPAD_BIT: u32 = 1 << 0;
 const MODE_CURSOR_BIT: u32 = 1 << 1;
@@ -51,7 +51,7 @@ pub struct VTermColor {
 pub struct VTermPen {
     pub fg: VTermColor,
     pub bg: VTermColor,
-    pub uri: c_int,
+    pub uri: i32,
     pub flags: u32,
 }
 
@@ -87,38 +87,38 @@ pub struct VTermStateFull {
     pub vt: *mut VTerm,
     pub callbacks: Option<&'static crate::vterm::pen::VTermStateCallbacks>,
     pub fallbacks: Option<&'static crate::vterm::state::VTermStateFallbacks>,
-    pub rows: c_int,
-    pub cols: c_int,
+    pub rows: i32,
+    pub cols: i32,
     pub pos: VTermPos,
-    pub at_phantom: c_int,
-    pub scrollregion_top: c_int,
-    pub scrollregion_bottom: c_int,
-    pub scrollregion_left: c_int,
-    pub scrollregion_right: c_int,
+    pub at_phantom: i32,
+    pub scrollregion_top: i32,
+    pub scrollregion_bottom: i32,
+    pub scrollregion_left: i32,
+    pub scrollregion_right: i32,
     pub tabstops: Vec<u8>,
     pub lineinfos: [Vec<crate::vterm::screen::VTermLineInfo>; 2],
-    pub mouse_col: c_int,
-    pub mouse_row: c_int,
-    pub mouse_buttons: c_int,
-    pub mouse_flags: c_int,
-    pub mouse_protocol: c_int,
+    pub mouse_col: i32,
+    pub mouse_row: i32,
+    pub mouse_buttons: i32,
+    pub mouse_flags: i32,
+    pub mouse_protocol: i32,
     pub grapheme_buf: [c_char; 32],
     pub grapheme_len: usize,
     pub grapheme_last: u32,
     pub grapheme_state: i32,
-    pub combine_width: c_int,
+    pub combine_width: i32,
     pub combine_pos: VTermPos,
     pub mode: u32,
     pub encoding: [VTermEncodingInstance; 4],
     pub encoding_utf8: VTermEncodingInstance,
-    pub gl_set: c_int,
-    pub gr_set: c_int,
-    pub gsingle_set: c_int,
+    pub gl_set: i32,
+    pub gr_set: i32,
+    pub gsingle_set: i32,
     pub pen: VTermPen,
     pub default_fg: VTermColor,
     pub default_bg: VTermColor,
     pub colors: [VTermColor; 16],
-    pub bold_is_highbright: c_int,
+    pub bold_is_highbright: i32,
     pub protected_cell: u32,
     pub saved: VTermStateSaved,
     pub tmp: VTermStateTmp,
@@ -173,8 +173,8 @@ enum KeycodeType {
 #[derive(Clone, Copy)]
 struct KeycodeEntry {
     r#type: KeycodeType,
-    literal: c_int,
-    csinum: c_int,
+    literal: i32,
+    csinum: i32,
 }
 
 const KEYCODES: [KeycodeEntry; 15] = [
@@ -185,12 +185,12 @@ const KEYCODES: [KeycodeEntry; 15] = [
     }, // NONE
     KeycodeEntry {
         r#type: KeycodeType::Enter,
-        literal: b'\r' as c_int,
+        literal: b'\r' as i32,
         csinum: 0,
     }, // ENTER
     KeycodeEntry {
         r#type: KeycodeType::Tab,
-        literal: b'\t' as c_int,
+        literal: b'\t' as i32,
         csinum: 0,
     }, // TAB
     KeycodeEntry {
@@ -205,52 +205,52 @@ const KEYCODES: [KeycodeEntry; 15] = [
     }, // ESCAPE
     KeycodeEntry {
         r#type: KeycodeType::CsiCursor,
-        literal: b'A' as c_int,
+        literal: b'A' as i32,
         csinum: 0,
     }, // UP
     KeycodeEntry {
         r#type: KeycodeType::CsiCursor,
-        literal: b'B' as c_int,
+        literal: b'B' as i32,
         csinum: 0,
     }, // DOWN
     KeycodeEntry {
         r#type: KeycodeType::CsiCursor,
-        literal: b'D' as c_int,
+        literal: b'D' as i32,
         csinum: 0,
     }, // LEFT
     KeycodeEntry {
         r#type: KeycodeType::CsiCursor,
-        literal: b'C' as c_int,
+        literal: b'C' as i32,
         csinum: 0,
     }, // RIGHT
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 2,
     }, // INS
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 3,
     }, // DEL
     KeycodeEntry {
         r#type: KeycodeType::CsiCursor,
-        literal: b'H' as c_int,
+        literal: b'H' as i32,
         csinum: 0,
     }, // HOME
     KeycodeEntry {
         r#type: KeycodeType::CsiCursor,
-        literal: b'F' as c_int,
+        literal: b'F' as i32,
         csinum: 0,
     }, // END
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 5,
     }, // PAGEUP
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 6,
     }, // PAGEDOWN
 ];
@@ -263,62 +263,62 @@ const KEYCODES_FN: [KeycodeEntry; 13] = [
     }, // F0
     KeycodeEntry {
         r#type: KeycodeType::Ss3,
-        literal: b'P' as c_int,
+        literal: b'P' as i32,
         csinum: 0,
     }, // F1
     KeycodeEntry {
         r#type: KeycodeType::Ss3,
-        literal: b'Q' as c_int,
+        literal: b'Q' as i32,
         csinum: 0,
     }, // F2
     KeycodeEntry {
         r#type: KeycodeType::Ss3,
-        literal: b'R' as c_int,
+        literal: b'R' as i32,
         csinum: 0,
     }, // F3
     KeycodeEntry {
         r#type: KeycodeType::Ss3,
-        literal: b'S' as c_int,
+        literal: b'S' as i32,
         csinum: 0,
     }, // F4
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 15,
     }, // F5
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 17,
     }, // F6
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 18,
     }, // F7
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 19,
     }, // F8
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 20,
     }, // F9
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 21,
     }, // F10
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 23,
     }, // F11
     KeycodeEntry {
         r#type: KeycodeType::CsiNum,
-        literal: b'~' as c_int,
+        literal: b'~' as i32,
         csinum: 24,
     }, // F12
 ];
@@ -326,93 +326,93 @@ const KEYCODES_FN: [KeycodeEntry; 13] = [
 const KEYCODES_KP: [KeycodeEntry; 18] = [
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'0' as c_int,
-        csinum: b'p' as c_int,
+        literal: b'0' as i32,
+        csinum: b'p' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'1' as c_int,
-        csinum: b'q' as c_int,
+        literal: b'1' as i32,
+        csinum: b'q' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'2' as c_int,
-        csinum: b'r' as c_int,
+        literal: b'2' as i32,
+        csinum: b'r' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'3' as c_int,
-        csinum: b's' as c_int,
+        literal: b'3' as i32,
+        csinum: b's' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'4' as c_int,
-        csinum: b't' as c_int,
+        literal: b'4' as i32,
+        csinum: b't' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'5' as c_int,
-        csinum: b'u' as c_int,
+        literal: b'5' as i32,
+        csinum: b'u' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'6' as c_int,
-        csinum: b'v' as c_int,
+        literal: b'6' as i32,
+        csinum: b'v' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'7' as c_int,
-        csinum: b'w' as c_int,
+        literal: b'7' as i32,
+        csinum: b'w' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'8' as c_int,
-        csinum: b'x' as c_int,
+        literal: b'8' as i32,
+        csinum: b'x' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'9' as c_int,
-        csinum: b'y' as c_int,
+        literal: b'9' as i32,
+        csinum: b'y' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'*' as c_int,
-        csinum: b'j' as c_int,
+        literal: b'*' as i32,
+        csinum: b'j' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'+' as c_int,
-        csinum: b'k' as c_int,
+        literal: b'+' as i32,
+        csinum: b'k' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b',' as c_int,
-        csinum: b'l' as c_int,
+        literal: b',' as i32,
+        csinum: b'l' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'-' as c_int,
-        csinum: b'm' as c_int,
+        literal: b'-' as i32,
+        csinum: b'm' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'.' as c_int,
-        csinum: b'n' as c_int,
+        literal: b'.' as i32,
+        csinum: b'n' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'/' as c_int,
-        csinum: b'o' as c_int,
+        literal: b'/' as i32,
+        csinum: b'o' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'\n' as c_int,
-        csinum: b'M' as c_int,
+        literal: b'\n' as i32,
+        csinum: b'M' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
-        literal: b'=' as c_int,
-        csinum: b'X' as c_int,
+        literal: b'=' as i32,
+        csinum: b'X' as i32,
     },
 ];
 
@@ -420,92 +420,92 @@ const KEYCODES_KP_CSIU: [KeycodeEntry; 18] = [
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57399,
-        csinum: b'p' as c_int,
+        csinum: b'p' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57400,
-        csinum: b'q' as c_int,
+        csinum: b'q' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57401,
-        csinum: b'r' as c_int,
+        csinum: b'r' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57402,
-        csinum: b's' as c_int,
+        csinum: b's' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57403,
-        csinum: b't' as c_int,
+        csinum: b't' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57404,
-        csinum: b'u' as c_int,
+        csinum: b'u' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57405,
-        csinum: b'v' as c_int,
+        csinum: b'v' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57406,
-        csinum: b'w' as c_int,
+        csinum: b'w' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57407,
-        csinum: b'x' as c_int,
+        csinum: b'x' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57408,
-        csinum: b'y' as c_int,
+        csinum: b'y' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57411,
-        csinum: b'j' as c_int,
+        csinum: b'j' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57413,
-        csinum: b'k' as c_int,
+        csinum: b'k' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57416,
-        csinum: b'l' as c_int,
+        csinum: b'l' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57412,
-        csinum: b'm' as c_int,
+        csinum: b'm' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57409,
-        csinum: b'n' as c_int,
+        csinum: b'n' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57410,
-        csinum: b'o' as c_int,
+        csinum: b'o' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57414,
-        csinum: b'M' as c_int,
+        csinum: b'M' as i32,
     },
     KeycodeEntry {
         r#type: KeycodeType::Keypad,
         literal: 57415,
-        csinum: b'X' as c_int,
+        csinum: b'X' as i32,
     },
 ];
 
@@ -531,7 +531,7 @@ pub fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifie
 
         if passthru {
             let mut str_buf = [0 as c_char; 6];
-            let seqlen = fill_utf8(c as c_int, str_buf.as_mut_ptr());
+            let seqlen = fill_utf8(c as i32, str_buf.as_mut_ptr());
             vterm_push_output_bytes(vt, str_buf.as_ptr(), seqlen as usize);
             return;
         }
@@ -587,7 +587,7 @@ fn emit_literal(
     key: VTermKey,
     mod_: VTermModifier,
     mut disambiguate: bool,
-    literal: c_int,
+    literal: i32,
 ) {
     if disambiguate && matches!(key, VTERM_KEY_TAB | VTERM_KEY_ENTER | VTERM_KEY_BACKSPACE) {
         disambiguate = mod_ != VTERM_MOD_NONE;
@@ -603,7 +603,7 @@ fn emit_literal(
     }
 }
 
-fn emit_csi(vt: &mut VTerm, mod_: VTermModifier, literal: c_int) {
+fn emit_csi(vt: &mut VTerm, mod_: VTermModifier, literal: i32) {
     if mod_ == 0 {
         vterm_push_output_ctrl_bytes(vt, C1_CSI, &[literal as u8]);
     } else {
@@ -612,7 +612,7 @@ fn emit_csi(vt: &mut VTerm, mod_: VTermModifier, literal: c_int) {
     }
 }
 
-fn emit_ss3(vt: &mut VTerm, mod_: VTermModifier, literal: c_int) {
+fn emit_ss3(vt: &mut VTerm, mod_: VTermModifier, literal: i32) {
     if mod_ == 0 {
         vterm_push_output_ctrl_bytes(vt, C1_SS3, &[literal as u8]);
     } else {

@@ -24,7 +24,7 @@ use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_realtime};
 use crate::profile::{prof_input_end, prof_input_start};
 use crate::state::{MODE_INSERT, MODE_MAX_LENGTH, get_mode, get_real_state};
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::eval::typval::Varnumber;
@@ -33,13 +33,13 @@ const READ_BUFFER_SIZE: usize = 0xfff;
 const MAX_KEY_CODE_LEN: usize = 6;
 const INPUT_BUFFER_SIZE: usize = (READ_BUFFER_SIZE * 4) + MAX_KEY_CODE_LEN;
 
-const KE_LEFTMOUSE: c_int = 44;
-const KE_RIGHTRELEASE: c_int = 52;
-const KE_MOUSEDOWN: c_int = 75;
-const KE_MOUSERIGHT: c_int = 78;
-const KE_X1MOUSE: c_int = 89;
-const KE_X2RELEASE: c_int = 94;
-const KE_MOUSEMOVE: c_int = 100;
+const KE_LEFTMOUSE: i32 = 44;
+const KE_RIGHTRELEASE: i32 = 52;
+const KE_MOUSEDOWN: i32 = 75;
+const KE_MOUSERIGHT: i32 = 78;
+const KE_X1MOUSE: i32 = 89;
+const KE_X2RELEASE: i32 = 94;
+const KE_MOUSEMOVE: i32 = 100;
 
 const MOD_MASK_CTRL: u8 = 0x04;
 const MOD_MASK_2CLICK: u8 = 0x20;
@@ -48,21 +48,21 @@ const MOD_MASK_4CLICK: u8 = 0x60;
 
 const CTRL_C_CONST_CONST_CONST: u8 = 3;
 
-const BREAKCHECK_SKIP: c_int = 1000;
+const BREAKCHECK_SKIP: i32 = 1000;
 
 struct OsInputState {
     input_buffer: [c_char; INPUT_BUFFER_SIZE],
     input_read_pos: *mut c_char,
     input_write_pos: *mut c_char,
     blocking: bool,
-    cursorhold_time: c_int,
-    cursorhold_tb_change_cnt: c_int,
-    breakcheck_count: c_int,
-    orig_num_clicks: c_int,
-    orig_mouse_code: c_int,
-    orig_mouse_grid: c_int,
-    orig_mouse_col: c_int,
-    orig_mouse_row: c_int,
+    cursorhold_time: i32,
+    cursorhold_tb_change_cnt: i32,
+    breakcheck_count: i32,
+    orig_num_clicks: i32,
+    orig_mouse_code: i32,
+    orig_mouse_grid: i32,
+    orig_mouse_col: i32,
+    orig_mouse_row: i32,
     orig_mouse_time: u64,
     push_event_key_idx: usize,
 }
@@ -108,14 +108,14 @@ fn ensure_input_ptrs_init() {
     }
 }
 
-fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(c_int, c_int, usize)> {
+fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(i32, i32, usize)> {
     let s = s.into_c_char_ptr();
     unsafe {
         if s.is_null() || crate::memory::cstr_first_byte(s) != b'<' {
             return None;
         }
         let mut p = s.add(1);
-        let parse_int = |mut cur: *const c_char| -> Option<(c_int, *const c_char)> {
+        let parse_int = |mut cur: *const c_char| -> Option<(i32, *const c_char)> {
             while matches!(
                 crate::memory::cstr_first_byte(cur),
                 b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c
@@ -141,7 +141,7 @@ fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(c_int, c_
                     .saturating_add(i64::from((crate::memory::cstr_first_byte(cur)) - b'0'));
                 cur = cur.add(1);
             }
-            let val = if neg { -acc } else { acc } as c_int;
+            let val = if neg { -acc } else { acc } as i32;
             Some((val, cur))
         };
         let (col, after_col) = parse_int(p)?;
@@ -184,7 +184,7 @@ fn create_cursorhold_event(events_enabled: bool) {
     multiqueue_put_event(unsafe { &mut *events }, Event::CursorHold);
 }
 
-fn reset_cursorhold_wait(tb_change_cnt: c_int) {
+fn reset_cursorhold_wait(tb_change_cnt: i32) {
     osi_st().cursorhold_time = 0;
     osi_st().cursorhold_tb_change_cnt = tb_change_cnt;
 }
@@ -192,11 +192,11 @@ fn reset_cursorhold_wait(tb_change_cnt: c_int) {
 /// Reads OS input into `buf`, and consumes pending events while waiting (if `ms != 0`).
 pub fn input_get(
     buf: *mut u8,
-    maxlen: c_int,
-    ms: c_int,
-    tb_change_cnt: c_int,
+    maxlen: i32,
+    ms: i32,
+    tb_change_cnt: i32,
     events: *mut MultiQueue,
-) -> c_int {
+) -> i32 {
     unsafe {
         ensure_input_ptrs_init();
         debug_assert!((maxlen > 0 && !buf.is_null()) || maxlen == 0);
@@ -210,8 +210,8 @@ pub fn input_get(
             let to_read = (maxlen as usize).min(input_available());
             ptr::copy_nonoverlapping(osi_st().input_read_pos.cast::<u8>(), buf, to_read);
             osi_st().input_read_pos = osi_st().input_read_pos.add(to_read);
-            debug_assert!(to_read <= c_int::MAX as usize);
-            return to_read as c_int;
+            debug_assert!(to_read <= i32::MAX as usize);
+            return to_read as i32;
         }
 
         // No risk of a UI flood, so disable CTRL-C "interrupt" behavior if it's mapped.
@@ -225,7 +225,7 @@ pub fn input_get(
             }
         } else {
             let wait_start = os_hrtime();
-            osi_st().cursorhold_time = osi_st().cursorhold_time.min(opt_vars().p_ut as c_int);
+            osi_st().cursorhold_time = osi_st().cursorhold_time.min(opt_vars().p_ut as i32);
             let delay_pending = ins_compl_autocomplete_pending()
                 && opt_vars().p_acl > 0
                 && g_st().typebuf.tb_len == 0
@@ -236,7 +236,7 @@ pub fn input_get(
                 let delay_left = opt_vars().p_acl - ins_compl_autocomplete_elapsed();
                 wait_time = delay_left.max(0).min(wait_time);
             }
-            if !inbuf_poll(wait_time as c_int, events) {
+            if !inbuf_poll(wait_time as i32, events) {
                 if g_st().silent_mode {
                     // Ran out of input: exit silent/batch-mode (-es/-Es).
                     getout(0);
@@ -264,7 +264,7 @@ pub fn input_get(
                     inbuf_poll(-1, events);
                 }
             } else {
-                osi_st().cursorhold_time += ((os_hrtime() - wait_start) / 1_000_000) as c_int;
+                osi_st().cursorhold_time += ((os_hrtime() - wait_start) / 1_000_000) as i32;
             }
         }
 
@@ -280,8 +280,8 @@ pub fn input_get(
             let to_read = (maxlen as usize).min(input_available());
             ptr::copy_nonoverlapping(osi_st().input_read_pos.cast::<u8>(), buf, to_read);
             osi_st().input_read_pos = osi_st().input_read_pos.add(to_read);
-            debug_assert!(to_read <= c_int::MAX as usize);
-            return to_read as c_int;
+            debug_assert!(to_read <= i32::MAX as usize);
+            return to_read as i32;
         }
 
         // If there are events, return the keys directly
@@ -340,7 +340,7 @@ pub fn veryfast_breakcheck() {
 }
 
 /// Test whether a file descriptor refers to a terminal.
-pub fn os_isatty(fd: c_int) -> bool {
+pub fn os_isatty(fd: i32) -> bool {
     unsafe { uv_guess_handle(fd) == UV_TTY }
 }
 
@@ -453,7 +453,7 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
     }
 }
 
-fn check_multiclick(code: c_int, grid: c_int, row: c_int, col: c_int, skip_event: &mut bool) -> u8 {
+fn check_multiclick(code: i32, grid: i32, row: i32, col: i32, skip_event: &mut bool) -> u8 {
     {
         if (KE_MOUSEDOWN..=KE_MOUSERIGHT).contains(&code) {
             return 0;
@@ -512,21 +512,21 @@ fn check_multiclick(code: c_int, grid: c_int, row: c_int, col: c_int, skip_event
 }
 
 /// Mouse event handling code (extract row/col if available and detect multiple clicks)
-fn handle_mouse_event(ptr_p: *mut *const c_char, buf: *mut u8, mut bufsize: c_uint) -> c_uint {
+fn handle_mouse_event(ptr_p: *mut *const c_char, buf: *mut u8, mut bufsize: u32) -> u32 {
     unsafe {
-        let mut mouse_code: c_int = 0;
-        let mut key_type: c_int = 0;
+        let mut mouse_code: i32 = 0;
+        let mut key_type: i32 = 0;
 
         if bufsize == 3 {
-            mouse_code = c_int::from(*buf.add(2));
-            key_type = c_int::from(*buf.add(1));
+            mouse_code = i32::from(*buf.add(2));
+            key_type = i32::from(*buf.add(1));
         } else if bufsize == 6 {
             // prefixed with K_SPECIAL KS_MODIFIER mod
-            mouse_code = c_int::from(*buf.add(5));
-            key_type = c_int::from(*buf.add(4));
+            mouse_code = i32::from(*buf.add(5));
+            key_type = i32::from(*buf.add(4));
         }
 
-        if key_type != c_int::from(KS_EXTRA)
+        if key_type != i32::from(KS_EXTRA)
             || !((KE_LEFTMOUSE..=KE_RIGHTRELEASE).contains(&mouse_code)
                 || (KE_X1MOUSE..=KE_X2RELEASE).contains(&mouse_code)
                 || (KE_MOUSEDOWN..=KE_MOUSERIGHT).contains(&mouse_code)
@@ -580,7 +580,7 @@ fn handle_mouse_event(ptr_p: *mut *const c_char, buf: *mut u8, mut bufsize: c_ui
     }
 }
 
-pub fn input_enqueue_mouse(code: c_int, mut modifier: u8, grid: c_int, row: c_int, col: c_int) {
+pub fn input_enqueue_mouse(code: i32, mut modifier: u8, grid: i32, row: i32, col: i32) {
     unsafe {
         let mut skip_event = false;
         modifier |= check_multiclick(code, grid, row, col, &mut skip_event);
@@ -614,7 +614,7 @@ pub fn input_blocking() -> bool {
 }
 
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.
-fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
+fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
     unsafe {
         if os_input_ready(events.as_ref()) {
             return true;
@@ -669,7 +669,7 @@ fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
                     LOGLVL_WRN,
                     ptr::null(),
                     c"inbuf_poll",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"Interrupted prompt (mode=%s): user input is unlikely",
                     mode.as_ptr(),
@@ -717,10 +717,10 @@ fn process_ctrl_c() {
 
 /// Pushes bytes from the "event" key sequence (KE_EVENT) partially between calls to input_get when
 /// `maxlen < 3`.
-fn push_event_key(buf: *mut u8, maxlen: c_int) -> c_int {
+fn push_event_key(buf: *mut u8, maxlen: i32) -> i32 {
     const KEY: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_EVENT];
     unsafe {
-        let mut buf_idx: c_int = 0;
+        let mut buf_idx: i32 = 0;
 
         loop {
             *buf.add(buf_idx as usize) = KEY[osi_st().push_event_key_idx];

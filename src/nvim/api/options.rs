@@ -33,7 +33,7 @@ use crate::option::{
     set_option_direct, set_option_value_for, validate_and_prepare_option_value,
 };
 use crate::window::close_windows;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::highlight::OptionalKeys;
@@ -68,7 +68,7 @@ fn validate_option_value_args(
     name: impl crate::strings::IntoCCharPtr,
     allow_tab: bool,
     opt_idxp: &mut OptIndex,
-    opt_flags: &mut c_int,
+    opt_flags: &mut i32,
     scope: &mut OptScope,
     from: &mut OptTarget,
     filetype: *mut *mut c_char,
@@ -298,9 +298,9 @@ fn do_ft_buf(
         );
         assert!((*(*ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
         *(get_option_varp_scope_from(K_OPT_SWAPFILE, OPT_LOCAL, &mut *ftbuf, ptr::null_mut())
-            as *mut c_int) = 0;
+            as *mut i32) = 0;
         *(get_option_varp_scope_from(K_OPT_MODELINE, OPT_LOCAL, &mut *ftbuf, ptr::null_mut())
-            as *mut c_int) = 0;
+            as *mut i32) = 0;
         *(get_option_varp_scope_from(K_OPT_FILETYPE, OPT_LOCAL, &mut *ftbuf, ptr::null_mut())
             as *mut *mut c_char) = crate::optionstr::alloc_string_option(filetype);
 
@@ -387,7 +387,7 @@ pub fn nvim_get_option_value(
 ) -> Object {
     unsafe {
         let mut opt_idx: OptIndex = 0;
-        let mut opt_flags: c_int = 0;
+        let mut opt_flags: i32 = 0;
         let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
         let mut from = OptTarget::Global;
         let mut filetype: *mut c_char = ptr::null_mut();
@@ -585,7 +585,7 @@ pub fn nvim_set_option_value(
 ) -> Object {
     unsafe {
         let mut opt_idx: OptIndex = 0;
-        let mut opt_flags: c_int = 0;
+        let mut opt_flags: i32 = 0;
         let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
         let mut operation: SetOp = OP_NONE;
         let mut to = OptTarget::Global;
@@ -840,7 +840,7 @@ pub fn nvim_get_option_info2(
 ) -> Dict {
     {
         let mut opt_idx: OptIndex = 0;
-        let mut opt_flags: c_int = 0;
+        let mut opt_flags: i32 = 0;
         let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
         let mut from = OptTarget::Global;
 

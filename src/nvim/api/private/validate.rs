@@ -1,6 +1,6 @@
 //! API argument validation helpers (`src/nvim/api/private/validate.c`).
 
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 
 use crate::memory::realloc_items;
 
@@ -47,7 +47,7 @@ pub enum ErrorType {
 
 impl ErrorType {
     #[inline]
-    pub const fn from_raw(v: c_int) -> Option<Self> {
+    pub const fn from_raw(v: i32) -> Option<Self> {
         match v {
             -1 => Some(Self::ErrorTypeNone),
             0 => Some(Self::ErrorTypeException),
@@ -107,7 +107,7 @@ pub enum ObjectType {
 
 impl ObjectType {
     #[inline]
-    pub const fn from_raw(v: c_int) -> Option<Self> {
+    pub const fn from_raw(v: i32) -> Option<Self> {
         match v {
             0 => Some(Self::ObjectTypeNil),
             1 => Some(Self::ObjectTypeBoolean),
@@ -296,7 +296,7 @@ pub enum ObjectData {
     String(NvimString),
     Array(Array),
     Dict(Dict),
-    LuaRef(c_int),
+    LuaRef(i32),
 }
 
 impl ObjectData {
@@ -377,10 +377,10 @@ impl ObjectData {
     }
 
     #[inline]
-    pub const fn luaref(self) -> c_int {
+    pub const fn luaref(self) -> i32 {
         match self {
             Self::LuaRef(r) => r,
-            Self::Integer(i) => i as c_int,
+            Self::Integer(i) => i as i32,
             _ => 0,
         }
     }

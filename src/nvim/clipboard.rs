@@ -12,10 +12,10 @@ use crate::register::{
     EMPTY_YANKREG, MotionType, PLUS_REGISTER, STAR_REGISTER, Yankreg, get_y_previous,
     get_y_register, update_yankreg_width,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 
-const K_OPT_CB_FLAG_UNNAMED: c_uint = 0x01;
-const K_OPT_CB_FLAG_UNNAMEDPLUS: c_uint = 0x02;
+const K_OPT_CB_FLAG_UNNAMED: u32 = 0x01;
+const K_OPT_CB_FLAG_UNNAMEDPLUS: u32 = 0x02;
 
 const CTRL_V: u8 = 0x16;
 
@@ -48,10 +48,10 @@ fn clip_st() -> &'static mut ClipboardModuleState {
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
 
 /// Determine if register `*name` should be used as a clipboard (`adjust_clipboard_name`).
-pub fn adjust_clipboard_name(name: &mut c_int, quiet: bool, writing: bool) -> *mut Yankreg {
+pub fn adjust_clipboard_name(name: &mut i32, quiet: bool, writing: bool) -> *mut Yankreg {
     let reg_char = *name;
     let flags = opt_vars().cb_flags;
-    let explicit_cb_reg = reg_char == b'*' as c_int || reg_char == b'+' as c_int;
+    let explicit_cb_reg = reg_char == b'*' as i32 || reg_char == b'+' as i32;
     let implicit_cb_reg =
         reg_char == 0 && (flags & (K_OPT_CB_FLAG_UNNAMED | K_OPT_CB_FLAG_UNNAMEDPLUS)) != 0;
     if !explicit_cb_reg && !implicit_cb_reg {
@@ -70,12 +70,12 @@ pub fn adjust_clipboard_name(name: &mut c_int, quiet: bool, writing: bool) -> *m
     }
 
     if explicit_cb_reg {
-        let target = get_y_register(if reg_char == b'*' as c_int {
+        let target = get_y_register(if reg_char == b'*' as i32 {
             STAR_REGISTER
         } else {
             PLUS_REGISTER
         });
-        let match_flag = if reg_char == b'*' as c_int {
+        let match_flag = if reg_char == b'*' as i32 {
             K_OPT_CB_FLAG_UNNAMED
         } else {
             K_OPT_CB_FLAG_UNNAMEDPLUS
@@ -94,20 +94,20 @@ pub fn adjust_clipboard_name(name: &mut c_int, quiet: bool, writing: bool) -> *m
 
         if (flags & K_OPT_CB_FLAG_UNNAMEDPLUS) != 0 {
             *name = if (flags & K_OPT_CB_FLAG_UNNAMED) != 0 && writing {
-                b'"' as c_int
+                b'"' as i32
             } else {
-                b'+' as c_int
+                b'+' as i32
             };
             get_y_register(PLUS_REGISTER)
         } else {
-            *name = b'*' as c_int;
+            *name = b'*' as i32;
             get_y_register(STAR_REGISTER)
         }
     }
 }
 
 /// Read clipboard contents into `*target` (`get_clipboard`).
-pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) -> bool {
+pub fn get_clipboard(mut name: i32, target: *mut *mut Yankreg, quiet: bool) -> bool {
     unsafe {
         let implicit = name == 0;
         let mut errmsg = true;
@@ -221,7 +221,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
 }
 
 /// Write `reg` to the clipboard provider (`set_clipboard`).
-pub fn set_clipboard(mut name: c_int, reg: &Yankreg) {
+pub fn set_clipboard(mut name: i32, reg: &Yankreg) {
     {
         if mc_replaying() || adjust_clipboard_name(&mut name, false, true).is_null() {
             return;

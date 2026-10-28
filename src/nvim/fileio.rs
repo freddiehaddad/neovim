@@ -91,7 +91,7 @@ use crate::undo::{
     buf_is_changed_fn, u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed,
     u_read_undo, u_savecommon, u_sync, u_unchanged, u_write_undo,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_void};
 use std::ptr;
 
 #[cfg(windows)]
@@ -102,25 +102,25 @@ pub type Off = i64;
 pub type iconv_t = isize;
 pub type FILE = c_void;
 
-pub const READ_NEW: c_int = 0x01;
-pub const READ_FILTER: c_int = 0x02;
-pub const READ_STDIN: c_int = 0x04;
-pub const READ_BUFFER: c_int = 0x08;
-pub const READ_DUMMY: c_int = 0x10;
-pub const READ_KEEP_UNDO: c_int = 0x20;
-pub const READ_FIFO: c_int = 0x40;
-pub const READ_NOWINENTER: c_int = 0x80;
-pub const READ_NOFILE: c_int = 0x100;
+pub const READ_NEW: i32 = 0x01;
+pub const READ_FILTER: i32 = 0x02;
+pub const READ_STDIN: i32 = 0x04;
+pub const READ_BUFFER: i32 = 0x08;
+pub const READ_DUMMY: i32 = 0x10;
+pub const READ_KEEP_UNDO: i32 = 0x20;
+pub const READ_FIFO: i32 = 0x40;
+pub const READ_NOWINENTER: i32 = 0x80;
+pub const READ_NOFILE: i32 = 0x100;
 
-pub const FIO_LATIN1: c_int = 0x01;
-pub const FIO_UTF8: c_int = 0x02;
-pub const FIO_UCS2: c_int = 0x04;
-pub const FIO_UCS4: c_int = 0x08;
-pub const FIO_UTF16: c_int = 0x10;
-pub const FIO_ENDIAN_L: c_int = 0x80;
-pub const FIO_NOCONVERT: c_int = 0x2000;
-pub const FIO_UCSBOM: c_int = 0x4000;
-pub const FIO_ALL: c_int = -1;
+pub const FIO_LATIN1: i32 = 0x01;
+pub const FIO_UTF8: i32 = 0x02;
+pub const FIO_UCS2: i32 = 0x04;
+pub const FIO_UCS4: i32 = 0x08;
+pub const FIO_UTF16: i32 = 0x10;
+pub const FIO_ENDIAN_L: i32 = 0x80;
+pub const FIO_NOCONVERT: i32 = 0x2000;
+pub const FIO_UCSBOM: i32 = 0x4000;
+pub const FIO_ALL: i32 = -1;
 
 pub const CONV_RESTLEN: usize = 30;
 pub const WRITEBUFSIZE: usize = 8192;
@@ -128,35 +128,35 @@ pub const ICONV_MULT: isize = 8;
 
 const CTRL_Z: c_char = 0x1a;
 
-pub(crate) const EOF: c_int = -1;
+pub(crate) const EOF: i32 = -1;
 
 const MAXCOL: isize = 0x7fffffff;
 
-pub(crate) const EOL_UNKNOWN: c_int = -1;
-pub(crate) const EOL_UNIX: c_int = 0;
-pub(crate) const EOL_DOS: c_int = 1;
+pub(crate) const EOL_UNKNOWN: i32 = -1;
+pub(crate) const EOL_UNIX: i32 = 0;
+pub(crate) const EOL_DOS: i32 = 1;
 
-const BAD_REPLACE: c_int = b'?' as c_int;
+const BAD_REPLACE: i32 = b'?' as i32;
 
-pub(crate) const K_OPT_FILEENCODING: c_int = 92;
+pub(crate) const K_OPT_FILEENCODING: i32 = 92;
 
-pub(crate) const ENC_UNICODE: c_int = 0x04;
-pub(crate) const ENC_ENDIAN_L: c_int = 0x20;
-pub(crate) const ENC_2BYTE: c_int = 0x40;
-pub(crate) const ENC_4BYTE: c_int = 0x80;
-pub(crate) const ENC_2WORD: c_int = 0x100;
-pub(crate) const ENC_LATIN1: c_int = 0x200;
+pub(crate) const ENC_UNICODE: i32 = 0x04;
+pub(crate) const ENC_ENDIAN_L: i32 = 0x20;
+pub(crate) const ENC_2BYTE: i32 = 0x40;
+pub(crate) const ENC_4BYTE: i32 = 0x80;
+pub(crate) const ENC_2WORD: i32 = 0x100;
+pub(crate) const ENC_LATIN1: i32 = 0x200;
 
-const BF_NEW_W: c_int = 0x20;
+const BF_NEW_W: i32 = 0x20;
 
-const K_CPO_FNAMER: c_int = b'f' as c_int;
-pub(crate) const K_SHM_OVER: c_int = b'o' as c_int;
-const K_SHM_LINES: c_int = b'l' as c_int;
+const K_CPO_FNAMER: i32 = b'f' as i32;
+pub(crate) const K_SHM_OVER: i32 = b'o' as i32;
+const K_SHM_LINES: i32 = b'l' as i32;
 
-pub(crate) const O_RDONLY: c_int = 0;
-pub(crate) const EINTR: c_int = 4;
-pub(crate) const ICONV_EINVAL: c_int = 22;
-const UV_FS_COPYFILE_EXCL: c_int = 0x0001;
+pub(crate) const O_RDONLY: i32 = 0;
+pub(crate) const EINTR: i32 = 4;
+pub(crate) const ICONV_EINVAL: i32 = 22;
+const UV_FS_COPYFILE_EXCL: i32 = 0x0001;
 
 pub(crate) const S_IFMT: u64 = 0o170000;
 pub(crate) const S_IFIFO: u64 = 0o010000;
@@ -164,21 +164,21 @@ pub(crate) const S_IFDIR: u64 = 0o040000;
 pub(crate) const S_IFREG: u64 = 0o100000;
 pub(crate) const S_IFSOCK: u64 = 0o140000;
 
-const LOG_DEBUG: c_int = 1;
-const LOG_WARN: c_int = 3;
-const LOG_ERR: c_int = 4;
+const LOG_DEBUG: i32 = 1;
+const LOG_WARN: i32 = 3;
+const LOG_ERR: i32 = 4;
 
 const NONASCII_MASK: u64 = (u64::MAX / 0xFF) * 0x80;
 
 #[cfg(windows)]
-const UV_EFBIG: c_int = -4036;
+const UV_EFBIG: i32 = -4036;
 #[cfg(not(windows))]
-const UV_EFBIG: c_int = -27;
+const UV_EFBIG: i32 = -27;
 
 #[cfg(target_os = "linux")]
-const EOVERFLOW: c_int = 75;
+const EOVERFLOW: i32 = 75;
 #[cfg(all(unix, not(target_os = "linux")))]
-const EOVERFLOW: c_int = 84;
+const EOVERFLOW: i32 = 84;
 
 #[cfg(windows)]
 const BASENAMELEN: usize = 260 - 5;
@@ -189,9 +189,9 @@ use crate::os::fs::PATHSEPSTR;
 const BACKSLASH_IN_FILENAME_BOOL: bool = cfg!(windows);
 
 #[cfg(unix)]
-const LOCK_SH: c_int = 1;
-pub(crate) const SEEK_SET: c_int = 0;
-pub(crate) const SEEK_END: c_int = 2;
+const LOCK_SH: i32 = 1;
+pub(crate) const SEEK_SET: i32 = 0;
+pub(crate) const SEEK_END: i32 = 2;
 
 static E_AUCHANGEDBUF: &CStr = c"E812: Autocommands changed buffer or buffer name";
 static MSG_IS_A_DIRECTORY: &CStr = c"is a directory";
@@ -204,7 +204,7 @@ struct FileioModuleState {
     vim_tempdir: Option<std::ffi::CString>,
     #[cfg(unix)]
     vim_tempdir_dp: *mut DIR,
-    notfound: c_int,
+    notfound: i32,
 }
 
 impl FileioModuleState {
@@ -243,28 +243,28 @@ unsafe extern "C" {
         mode: *const c_char,
         stream: *mut c_void,
     ) -> *mut c_void;
-    pub fn fclose(stream: *mut FILE) -> c_int;
+    pub fn fclose(stream: *mut FILE) -> i32;
     pub fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     pub fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
-    pub fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
+    pub fn fgets(s: *mut c_char, n: i32, stream: *mut FILE) -> *mut c_char;
     #[link_name = "fputs"]
-    fn c_fputs(s: *const c_char, stream: *mut FILE) -> c_int;
-    pub fn fgetc(stream: *mut FILE) -> c_int;
-    pub fn fputc(c: c_int, stream: *mut FILE) -> c_int;
-    pub fn ungetc(c: c_int, stream: *mut FILE) -> c_int;
-    pub fn fflush(stream: *mut FILE) -> c_int;
+    fn c_fputs(s: *const c_char, stream: *mut FILE) -> i32;
+    pub fn fgetc(stream: *mut FILE) -> i32;
+    pub fn fputc(c: i32, stream: *mut FILE) -> i32;
+    pub fn ungetc(c: i32, stream: *mut FILE) -> i32;
+    pub fn fflush(stream: *mut FILE) -> i32;
     pub fn setbuf(stream: *mut FILE, buffer: *mut c_char);
-    pub fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: c_int, size: usize) -> c_int;
-    pub fn ferror(stream: *mut FILE) -> c_int;
-    pub fn feof(stream: *mut FILE) -> c_int;
+    pub fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: i32, size: usize) -> i32;
+    pub fn ferror(stream: *mut FILE) -> i32;
+    pub fn feof(stream: *mut FILE) -> i32;
     #[cfg(unix)]
-    pub fn tcdrain(fd: c_int) -> c_int;
+    pub fn tcdrain(fd: i32) -> i32;
     #[cfg(unix)]
-    pub fn getppid() -> c_int;
+    pub fn getppid() -> i32;
     #[cfg(unix)]
-    pub fn getpgid(pid: c_int) -> c_int;
+    pub fn getpgid(pid: i32) -> i32;
     #[cfg(unix)]
-    pub fn getpgrp() -> c_int;
+    pub fn getpgrp() -> i32;
 
     #[cfg(not(windows))]
     #[link_name = "iconv_open"]
@@ -278,72 +278,72 @@ unsafe extern "C" {
         outbytesleft: *mut usize,
     ) -> usize;
     #[cfg(not(windows))]
-    pub fn iconv_close(cd: iconv_t) -> c_int;
+    pub fn iconv_close(cd: iconv_t) -> i32;
     #[cfg_attr(windows, link_name = "_close")]
-    pub fn close(fd: c_int) -> c_int;
+    pub fn close(fd: i32) -> i32;
     #[cfg_attr(windows, link_name = "_dup")]
-    pub fn dup(oldfd: c_int) -> c_int;
+    pub fn dup(oldfd: i32) -> i32;
     #[cfg_attr(windows, link_name = "_dup2")]
-    pub fn dup2(oldfd: c_int, newfd: c_int) -> c_int;
+    pub fn dup2(oldfd: i32, newfd: i32) -> i32;
     #[cfg_attr(windows, link_name = "_lseeki64")]
     #[cfg_attr(not(windows), link_name = "lseek")]
-    pub fn vim_lseek(fd: c_int, offset: Off, whence: c_int) -> Off;
+    pub fn vim_lseek(fd: i32, offset: Off, whence: i32) -> Off;
     #[cfg_attr(windows, link_name = "_fseeki64")]
     #[cfg_attr(not(windows), link_name = "fseeko")]
-    pub fn vim_fseek(stream: *mut FILE, offset: Off, whence: c_int) -> c_int;
+    pub fn vim_fseek(stream: *mut FILE, offset: Off, whence: i32) -> i32;
     #[cfg_attr(windows, link_name = "_ftelli64")]
     #[cfg_attr(not(windows), link_name = "ftello")]
     pub fn vim_ftell(stream: *mut FILE) -> Off;
     #[cfg_attr(windows, link_name = "_fdopen")]
-    pub fn fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
+    pub fn fdopen(fd: i32, mode: *const c_char) -> *mut FILE;
     #[cfg_attr(windows, link_name = "_fileno")]
-    pub fn fileno(stream: *mut FILE) -> c_int;
+    pub fn fileno(stream: *mut FILE) -> i32;
 
     #[cfg(windows)]
-    pub fn _get_osfhandle(fd: c_int) -> isize;
+    pub fn _get_osfhandle(fd: i32) -> isize;
     #[cfg(windows)]
-    pub fn _open_osfhandle(osfhandle: isize, flags: c_int) -> c_int;
+    pub fn _open_osfhandle(osfhandle: isize, flags: i32) -> i32;
     #[cfg(windows)]
-    pub fn _setmode(fd: c_int, mode: c_int) -> c_int;
+    pub fn _setmode(fd: i32, mode: i32) -> i32;
     #[cfg(windows)]
-    pub fn _getdrive() -> c_int;
+    pub fn _getdrive() -> i32;
     #[cfg(windows)]
-    pub fn _read(fd: c_int, buf: *mut c_void, count: c_uint) -> c_int;
+    pub fn _read(fd: i32, buf: *mut c_void, count: u32) -> i32;
     #[cfg(windows)]
-    pub fn _write(fd: c_int, buf: *const c_void, count: c_uint) -> c_int;
+    pub fn _write(fd: i32, buf: *const c_void, count: u32) -> i32;
     #[cfg(windows)]
-    fn _umask(pmode: c_int) -> c_int;
+    fn _umask(pmode: i32) -> i32;
 
     #[cfg(not(windows))]
-    pub fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
+    pub fn fcntl(fd: i32, cmd: i32, ...) -> i32;
     #[cfg(not(windows))]
     pub fn getuid() -> u32;
     #[cfg(not(windows))]
     pub fn getgid() -> u32;
     #[cfg(not(windows))]
-    pub fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
+    pub fn read(fd: i32, buf: *mut c_void, count: usize) -> isize;
     #[cfg(not(windows))]
-    pub fn write(fd: c_int, buf: *const c_void, count: usize) -> isize;
+    pub fn write(fd: i32, buf: *const c_void, count: usize) -> isize;
     #[cfg(not(windows))]
-    pub fn kill(pid: c_int, sig: c_int) -> c_int;
+    pub fn kill(pid: i32, sig: i32) -> i32;
     #[cfg(not(windows))]
-    pub fn umask(mask: c_uint) -> c_uint;
+    pub fn umask(mask: u32) -> u32;
     #[cfg(not(windows))]
     pub fn readlink(path: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
     #[cfg(not(windows))]
-    fn symlink(target: *const c_char, linkpath: *const c_char) -> c_int;
+    fn symlink(target: *const c_char, linkpath: *const c_char) -> i32;
     #[cfg(not(windows))]
     fn opendir(name: *const c_char) -> *mut DIR;
     #[cfg(not(windows))]
-    fn closedir(dirp: *mut DIR) -> c_int;
+    fn closedir(dirp: *mut DIR) -> i32;
     #[cfg(not(windows))]
-    fn dirfd(dirp: *mut DIR) -> c_int;
+    fn dirfd(dirp: *mut DIR) -> i32;
     #[cfg(not(windows))]
-    fn flock(fd: c_int, operation: c_int) -> c_int;
+    fn flock(fd: i32, operation: i32) -> i32;
 }
 
 #[inline]
-pub unsafe fn fputs<S: crate::strings::IntoCCharPtr>(s: S, stream: *mut FILE) -> c_int {
+pub unsafe fn fputs<S: crate::strings::IntoCCharPtr>(s: S, stream: *mut FILE) -> i32 {
     unsafe { c_fputs(s.into_c_char_ptr(), stream) }
 }
 
@@ -360,34 +360,34 @@ mod win_iconv {
     use super::*;
     use crate::os::fs::errno_ptr;
 
-    const E2BIG: c_int = 7;
-    const EINVAL: c_int = 22;
-    const EILSEQ: c_int = 42;
+    const E2BIG: i32 = 7;
+    const EINVAL: i32 = 22;
+    const EILSEQ: i32 = 42;
     const MB_ERR_INVALID_CHARS: u32 = 0x08;
     const WC_ERR_INVALID_CHARS: u32 = 0x80;
     const WC_NO_BEST_FIT_CHARS: u32 = 0x0400;
 
     unsafe extern "system" {
-        fn IsValidCodePage(CodePage: u32) -> c_int;
-        fn IsDBCSLeadByteEx(CodePage: u32, TestChar: u8) -> c_int;
+        fn IsValidCodePage(CodePage: u32) -> i32;
+        fn IsDBCSLeadByteEx(CodePage: u32, TestChar: u8) -> i32;
         fn MultiByteToWideChar(
             CodePage: u32,
             dwFlags: u32,
             lpMultiByteStr: *const c_char,
-            cbMultiByte: c_int,
+            cbMultiByte: i32,
             lpWideCharStr: *mut u16,
-            cchWideChar: c_int,
-        ) -> c_int;
+            cchWideChar: i32,
+        ) -> i32;
         fn WideCharToMultiByte(
             CodePage: u32,
             dwFlags: u32,
             lpWideCharStr: *const u16,
-            cchWideChar: c_int,
+            cchWideChar: i32,
             lpMultiByteStr: *mut c_char,
-            cbMultiByte: c_int,
+            cbMultiByte: i32,
             lpDefaultChar: *const c_char,
-            lpUsedDefaultChar: *mut c_int,
-        ) -> c_int;
+            lpUsedDefaultChar: *mut i32,
+        ) -> i32;
     }
 
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -687,7 +687,7 @@ mod win_iconv {
                     return None;
                 }
                 let mut wide = [0u16; 2];
-                let wlen = ch.encode_utf16(&mut wide).len() as c_int;
+                let wlen = ch.encode_utf16(&mut wide).len() as i32;
                 if cp == 54936 || cp == 65001 {
                     let n = unsafe {
                         WideCharToMultiByte(
@@ -703,7 +703,7 @@ mod win_iconv {
                     };
                     if n <= 0 { None } else { Some(n as usize) }
                 } else {
-                    let mut used_def: c_int = 0;
+                    let mut used_def: i32 = 0;
                     let n = unsafe {
                         WideCharToMultiByte(
                             cp,
@@ -815,7 +815,7 @@ mod win_iconv {
         0
     }
 
-    pub fn close(cd: iconv_t) -> c_int {
+    pub fn close(cd: iconv_t) -> i32 {
         if cd != -1 && cd != 0 {
             let _ = unsafe { Box::from_raw(cd as *mut WinIconvDesc) };
         }
@@ -848,7 +848,7 @@ pub fn call_iconv<T: IntoIconvT>(
 }
 
 #[inline]
-pub fn call_iconv_close<T: IntoIconvT>(cd: T) -> c_int {
+pub fn call_iconv_close<T: IntoIconvT>(cd: T) -> i32 {
     #[cfg(windows)]
     {
         win_iconv::close(cd.into_iconv_t())
@@ -876,10 +876,10 @@ impl IntoIconvT for *mut c_void {
 }
 
 #[inline]
-fn call_umask(mask: c_uint) -> c_uint {
+fn call_umask(mask: u32) -> u32 {
     #[cfg(windows)]
     unsafe {
-        _umask(mask as c_int) as c_uint
+        _umask(mask as i32) as u32
     }
     #[cfg(not(windows))]
     unsafe {
@@ -927,7 +927,7 @@ fn filemess(
         }
         msg_start();
         if prev_msg_col != 0 && g_st().msg_col == 0 {
-            msg_putchar(b'\r' as c_int);
+            msg_putchar(b'\r' as i32);
         }
         g_st().msg_scroll = msg_scroll_save;
         g_st().msg_scrolled_ign = true;
@@ -977,7 +977,7 @@ fn readfile_progress(
     s: impl crate::strings::IntoCCharPtr,
     msg_id: impl crate::strings::IntoCCharPtr,
     status: impl crate::strings::IntoCCharPtr,
-    percent: c_int,
+    percent: i32,
     hist: bool,
 ) -> *mut c_char {
     let s = s.into_c_char_ptr();
@@ -1009,14 +1009,14 @@ pub fn readfile(
     lines_to_skip: Linenr,
     lines_to_read: Linenr,
     eap: Option<&Exarg>,
-    flags: c_int,
+    flags: i32,
     silent: bool,
-) -> c_int {
+) -> i32 {
     #[cfg(unix)]
     let mut fname = fname;
     unsafe {
         let mut retval = FAIL;
-        let mut fd: c_int = if g_st().stdin_fd >= 0 {
+        let mut fd: i32 = if g_st().stdin_fd >= 0 {
             g_st().stdin_fd
         } else {
             0
@@ -1040,14 +1040,14 @@ pub fn readfile(
         let mut skip_read = false;
         let mut sha_ctx = ContextSha256::new();
         let mut read_undo_file = false;
-        let mut split: c_int = 0;
+        let mut split: i32 = 0;
         let mut error = false;
-        let mut ff_error: c_int = EOL_UNKNOWN;
+        let mut ff_error: i32 = EOL_UNKNOWN;
         let mut linerest: isize = 0;
         let mut perm: i32 = 0;
         #[cfg(unix)]
-        let mut swap_mode: c_int = -1;
-        let mut fileformat: c_int = 0;
+        let mut swap_mode: i32 = -1;
+        let mut fileformat: i32 = 0;
         let mut keep_fileformat = false;
         let mut file_info: FileInfo = FileInfo::new();
         let mut skip_count: Linenr = 0;
@@ -1058,20 +1058,20 @@ pub fn readfile(
         let mut conv_error: Linenr = 0;
         let mut illegal_byte: Linenr = 0;
         let mut keep_dest_enc = false;
-        let mut bad_char_behavior: c_int = BAD_REPLACE;
+        let mut bad_char_behavior: i32 = BAD_REPLACE;
         let mut tmpname: Option<std::ffi::CString> = None;
-        let mut fio_flags: c_int;
+        let mut fio_flags: i32;
         let mut fenc: *mut c_char;
         let mut fenc_owned: Option<std::ffi::CString> = None;
         let mut fenc_next: *mut c_char = ptr::null_mut();
         let mut advance_fenc = false;
-        let mut real_size: c_int = 0;
+        let mut real_size: i32 = 0;
         let mut iconv_fd: iconv_t = -1;
         let mut did_iconv = false;
         let mut converted = false;
         let mut notconverted = false;
         let mut conv_rest: [c_char; CONV_RESTLEN] = [0; CONV_RESTLEN];
-        let mut conv_restlen: c_int = 0;
+        let mut conv_restlen: i32 = 0;
         let mut orig_start: CursorPos;
 
         curbuf_mut().b_au_did_filetype = false;
@@ -1250,7 +1250,7 @@ pub fn readfile(
                     curbuf_mut().b_mtime_read_ns = curbuf_mut().b_mtime_ns;
                     #[cfg(unix)]
                     {
-                        swap_mode = ((file_info.stat.st_mode as c_int) & 0o644) | 0o600;
+                        swap_mode = ((file_info.stat.st_mode as i32) & 0o644) | 0o600;
                     }
                 } else {
                     curbuf_mut().b_mtime = 0;
@@ -1406,12 +1406,9 @@ pub fn readfile(
             curbuf_mut().b_op_start.lnum = if from == 0 { 1 } else { from };
             curbuf_mut().b_op_start.col = 0;
 
-            let mut try_mac =
-                c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'm' as c_int));
-            let mut try_dos =
-                c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'd' as c_int));
-            let mut try_unix =
-                c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'x' as c_int));
+            let mut try_mac = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'm' as i32));
+            let mut try_dos = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'd' as i32));
+            let mut try_unix = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'x' as i32));
 
             if !read_buffer {
                 let m = g_st().msg_scroll;
@@ -1460,9 +1457,9 @@ pub fn readfile(
                     );
                 }
 
-                try_mac = c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'm' as c_int));
-                try_dos = c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'd' as c_int));
-                try_unix = c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'x' as c_int));
+                try_mac = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'm' as i32));
+                try_dos = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'd' as i32));
+                try_unix = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'x' as i32));
                 curbuf_mut().b_op_start = orig_start;
 
                 if g_st().msg_scrolled == n {
@@ -1520,7 +1517,7 @@ pub fn readfile(
                 sfname,
             );
             let mut progress = false;
-            let mut percent: c_int = -1;
+            let mut percent: i32 = -1;
             let read_start = os_hrtime();
 
             g_st().msg_scroll = 0;
@@ -1706,7 +1703,7 @@ pub fn readfile(
                             ptr = buffer.offset(linerest);
                             line_start = buffer;
 
-                            real_size = size as c_int;
+                            real_size = size as i32;
                             if iconv_fd != -1 {
                                 size /= ICONV_MULT;
                             } else if (fio_flags & FIO_LATIN1) != 0 {
@@ -1830,13 +1827,13 @@ pub fn readfile(
                                     && (crate::memory::cstr_first_byte(fenc) == b'u'
                                         || crate::memory::cstr_is_empty(fenc))))
                         {
-                            let mut blen: c_int = 0;
+                            let mut blen: i32 = 0;
                             let ccname = if size < 2 || curbuf_mut().b_p_bin != 0 {
                                 ptr::null()
                             } else {
                                 check_for_bom(
                                     ptr,
-                                    size as c_int,
+                                    size as i32,
                                     &mut blen,
                                     if fio_flags == FIO_UCSBOM {
                                         FIO_ALL
@@ -1922,7 +1919,7 @@ pub fn readfile(
 
                             if from_size > 0 {
                                 ptr::copy(fromp, conv_rest.as_mut_ptr(), from_size);
-                                conv_restlen = from_size as c_int;
+                                conv_restlen = from_size as i32;
                             }
 
                             line_start = ptr.offset(-linerest);
@@ -1931,7 +1928,7 @@ pub fn readfile(
                         }
 
                         if fio_flags != 0 {
-                            let mut u8c: c_uint;
+                            let mut u8c: u32;
                             let mut tail: *mut c_char = ptr::null_mut();
 
                             let mut dest = ptr.offset(real_size as isize);
@@ -1945,7 +1942,7 @@ pub fn readfile(
                                         tail = tail.sub(1);
                                     }
                                     if tail.offset(utf_byte2len(
-                                        crate::memory::cstr_first_byte(tail) as c_int,
+                                        crate::memory::cstr_first_byte(tail) as i32,
                                     ) as isize)
                                         <= ptr.offset(size)
                                     {
@@ -1962,14 +1959,14 @@ pub fn readfile(
                                 if (fio_flags & FIO_UTF16) != 0 && p > ptr.cast::<u8>() {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
                                         p = p.sub(1);
-                                        u8c = c_uint::from(*p) << 8;
+                                        u8c = u32::from(*p) << 8;
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p);
+                                        u8c += u32::from(*p);
                                     } else {
                                         p = p.sub(1);
-                                        u8c = c_uint::from(*p);
+                                        u8c = u32::from(*p);
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p) << 8;
+                                        u8c += u32::from(*p) << 8;
                                     }
                                     if (0xd800..=0xdbff).contains(&u8c) {
                                         tail = p.cast::<c_char>();
@@ -1985,7 +1982,7 @@ pub fn readfile(
                             }
 
                             if !tail.is_null() {
-                                conv_restlen = ptr.offset(size).offset_from(tail) as c_int;
+                                conv_restlen = ptr.offset(size).offset_from(tail) as i32;
                                 ptr::copy(tail, conv_rest.as_mut_ptr(), conv_restlen as usize);
                                 size -= conv_restlen as isize;
                             }
@@ -1993,18 +1990,18 @@ pub fn readfile(
                             while p > ptr.cast::<u8>() {
                                 if (fio_flags & FIO_LATIN1) != 0 {
                                     p = p.sub(1);
-                                    u8c = c_uint::from(*p);
+                                    u8c = u32::from(*p);
                                 } else if (fio_flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
                                         p = p.sub(1);
-                                        u8c = c_uint::from(*p) << 8;
+                                        u8c = u32::from(*p) << 8;
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p);
+                                        u8c += u32::from(*p);
                                     } else {
                                         p = p.sub(1);
-                                        u8c = c_uint::from(*p);
+                                        u8c = u32::from(*p);
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p) << 8;
+                                        u8c += u32::from(*p) << 8;
                                     }
                                     if (fio_flags & FIO_UTF16) != 0
                                         && (0xdc00..=0xdfff).contains(&u8c)
@@ -2031,24 +2028,24 @@ pub fn readfile(
                                                 continue;
                                             }
                                             if bad_char_behavior != BAD_KEEP {
-                                                u8c = bad_char_behavior as c_uint;
+                                                u8c = bad_char_behavior as u32;
                                             }
                                         }
 
-                                        let mut u16c: c_int;
+                                        let mut u16c: i32;
                                         if (fio_flags & FIO_ENDIAN_L) != 0 {
                                             p = p.sub(1);
-                                            u16c = c_int::from(*p) << 8;
+                                            u16c = i32::from(*p) << 8;
                                             p = p.sub(1);
-                                            u16c += c_int::from(*p);
+                                            u16c += i32::from(*p);
                                         } else {
                                             p = p.sub(1);
-                                            u16c = c_int::from(*p);
+                                            u16c = i32::from(*p);
                                             p = p.sub(1);
-                                            u16c += c_int::from(*p) << 8;
+                                            u16c += i32::from(*p) << 8;
                                         }
                                         u8c = 0x10000
-                                            + (((u16c as c_uint) & 0x3ff) << 10)
+                                            + (((u16c as u32) & 0x3ff) << 10)
                                             + (u8c & 0x3ff);
 
                                         if !(0xd800..=0xdbff).contains(&u16c) {
@@ -2073,41 +2070,41 @@ pub fn readfile(
                                                 continue;
                                             }
                                             if bad_char_behavior != BAD_KEEP {
-                                                u8c = bad_char_behavior as c_uint;
+                                                u8c = bad_char_behavior as u32;
                                             }
                                         }
                                     }
                                 } else if (fio_flags & FIO_UCS4) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
                                         p = p.sub(1);
-                                        u8c = c_uint::from(*p) << 24;
+                                        u8c = u32::from(*p) << 24;
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p) << 16;
+                                        u8c += u32::from(*p) << 16;
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p) << 8;
+                                        u8c += u32::from(*p) << 8;
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p);
+                                        u8c += u32::from(*p);
                                     } else {
                                         p = p.sub(1);
-                                        u8c = c_uint::from(*p);
+                                        u8c = u32::from(*p);
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p) << 8;
+                                        u8c += u32::from(*p) << 8;
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p) << 16;
+                                        u8c += u32::from(*p) << 16;
                                         p = p.sub(1);
-                                        u8c += c_uint::from(*p) << 24;
+                                        u8c += u32::from(*p) << 24;
                                     }
-                                    if u8c > c_int::MAX as c_uint {
+                                    if u8c > i32::MAX as u32 {
                                         u8c = 0xfffd;
                                     }
                                 } else {
                                     p = p.sub(1);
                                     if *p < 0x80 {
-                                        u8c = c_uint::from(*p);
+                                        u8c = u32::from(*p);
                                     } else {
                                         let len = utf_head_off(ptr, p.cast());
                                         p = p.offset(-(len as isize));
-                                        u8c = utf_ptr2char(p.cast()) as c_uint;
+                                        u8c = utf_ptr2char(p.cast()) as u32;
                                         if len == 0 {
                                             if can_retry {
                                                 if crate::eval::typval::Callback::raw_cb_type(
@@ -2130,14 +2127,14 @@ pub fn readfile(
                                                 continue;
                                             }
                                             if bad_char_behavior != BAD_KEEP {
-                                                u8c = bad_char_behavior as c_uint;
+                                                u8c = bad_char_behavior as u32;
                                             }
                                         }
                                     }
                                 }
-                                debug_assert!(u8c <= c_int::MAX as c_uint);
-                                dest = dest.offset(-(utf_char2len(u8c as c_int) as isize));
-                                utf_char2bytes(u8c as c_int, dest);
+                                debug_assert!(u8c <= i32::MAX as u32);
+                                dest = dest.offset(-(utf_char2len(u8c as i32) as isize));
+                                utf_char2bytes(u8c as i32, dest);
                             }
 
                             line_start = dest.offset(-linerest);
@@ -2163,7 +2160,7 @@ pub fn readfile(
                                     }
                                 }
 
-                                let todo = ptr.cast::<u8>().offset(size).offset_from(p) as c_int;
+                                let todo = ptr.cast::<u8>().offset(size).offset_from(p) as i32;
                                 if todo <= 0 {
                                     break;
                                 }
@@ -2424,7 +2421,7 @@ pub fn readfile(
                         };
                         let pct = ((filesize as u64) * 100)
                             .checked_div(total)
-                            .map_or(-1, |v| (v.min(100)) as c_int);
+                            .map_or(-1, |v| (v.min(100)) as i32);
                         if !progress || pct != percent {
                             progress = true;
                             percent = pct;
@@ -2560,13 +2557,13 @@ pub fn readfile(
                     add_quoted_fname(iobuf_ptr, IOSIZE, g_st().curbuf, sfname);
                     let mut c = false;
 
-                    let mut buflen = crate::memory::cstr_len(iobuf_ptr) as c_int;
+                    let mut buflen = crate::memory::cstr_len(iobuf_ptr) as i32;
                     #[cfg(unix)]
                     {
                         if s_isfifo(perm as u64) {
                             buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
-                                (IOSIZE as c_int - buflen) as usize,
+                                (IOSIZE as i32 - buflen) as usize,
                                 c"%s",
                                 tr(c"[fifo]"),
                             );
@@ -2575,7 +2572,7 @@ pub fn readfile(
                         if s_issock(perm as u64) {
                             buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
-                                (IOSIZE as c_int - buflen) as usize,
+                                (IOSIZE as i32 - buflen) as usize,
                                 c"%s",
                                 tr(c"[socket]"),
                             );
@@ -2591,7 +2588,7 @@ pub fn readfile(
                         if s_ischr(perm) {
                             buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
-                                (IOSIZE as c_int - buflen) as usize,
+                                (IOSIZE as i32 - buflen) as usize,
                                 c"%s",
                                 tr(c"[character special]"),
                             );
@@ -2601,7 +2598,7 @@ pub fn readfile(
                     if curbuf_mut().b_p_ro != 0 {
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
-                            (IOSIZE as c_int - buflen) as usize,
+                            (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             if shortmess(K_SHM_RO) {
                                 tr(c"[RO]")
@@ -2614,7 +2611,7 @@ pub fn readfile(
                     if read_no_eol_lnum != 0 {
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
-                            (IOSIZE as c_int - buflen) as usize,
+                            (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[noeol]"),
                         );
@@ -2623,7 +2620,7 @@ pub fn readfile(
                     if ff_error == EOL_DOS {
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
-                            (IOSIZE as c_int - buflen) as usize,
+                            (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[CR missing]"),
                         );
@@ -2632,7 +2629,7 @@ pub fn readfile(
                     if split != 0 {
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
-                            (IOSIZE as c_int - buflen) as usize,
+                            (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[long lines split]"),
                         );
@@ -2641,7 +2638,7 @@ pub fn readfile(
                     if notconverted {
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
-                            (IOSIZE as c_int - buflen) as usize,
+                            (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[NOT converted]"),
                         );
@@ -2649,7 +2646,7 @@ pub fn readfile(
                     } else if converted {
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
-                            (IOSIZE as c_int - buflen) as usize,
+                            (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[converted]"),
                         );
@@ -2658,7 +2655,7 @@ pub fn readfile(
                     if conv_error != 0 {
                         vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
-                            (IOSIZE as c_int - buflen) as usize,
+                            (IOSIZE as i32 - buflen) as usize,
                             tr(c"[CONVERSION ERROR in line %lld]"),
                             i64::from(conv_error),
                         );
@@ -2666,7 +2663,7 @@ pub fn readfile(
                     } else if illegal_byte > 0 {
                         vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
-                            (IOSIZE as c_int - buflen) as usize,
+                            (IOSIZE as i32 - buflen) as usize,
                             tr(c"[ILLEGAL BYTE in line %lld]"),
                             i64::from(illegal_byte),
                         );
@@ -2674,7 +2671,7 @@ pub fn readfile(
                     } else if error {
                         vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
-                            (IOSIZE as c_int - buflen) as usize,
+                            (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[READ ERRORS]"),
                         );
@@ -2684,7 +2681,7 @@ pub fn readfile(
                         c = true;
                     }
 
-                    msg_add_lines(c_int::from(c), linecnt, filesize);
+                    msg_add_lines(i32::from(c), linecnt, filesize);
 
                     g_st().keep_msg = None;
                     p = ptr::null_mut();
@@ -2692,7 +2689,7 @@ pub fn readfile(
 
                     if !read_stdin && !read_buffer {
                         if g_st().msg_col > 0 {
-                            msg_putchar(b'\r' as c_int);
+                            msg_putchar(b'\r' as i32);
                         }
                         p = (if progress {
                             readfile_progress(
@@ -2910,7 +2907,7 @@ pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
         eap.cmd = cmd_cstr.as_ptr().cast_mut();
         eap.force_enc = 8;
         eap.bad_char = buf.b_bad_char;
-        eap.force_ff = (crate::memory::cstr_first_byte(buf.b_p_ff)) as c_int;
+        eap.force_ff = (crate::memory::cstr_first_byte(buf.b_p_ff)) as i32;
         eap.force_bin = if buf.b_p_bin != 0 {
             FORCE_BIN
         } else {
@@ -2940,7 +2937,7 @@ pub fn set_file_options(set_options: bool, eap: Option<&Exarg>) {
             && eap.force_bin != 0
         {
             let oldval = curbuf_mut().b_p_bin;
-            curbuf_mut().b_p_bin = c_int::from(eap.force_bin == FORCE_BIN);
+            curbuf_mut().b_p_bin = i32::from(eap.force_bin == FORCE_BIN);
             set_options_bin(oldval, curbuf_mut().b_p_bin, OPT_LOCAL);
         }
     }
@@ -2965,7 +2962,7 @@ fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
             *pp = ptr::null_mut();
             return std::ffi::CString::default();
         }
-        let p = vim_strchr(*pp, b',' as c_int);
+        let p = vim_strchr(*pp, b',' as i32);
         if p.is_null() {
             let res = enc_canonize(*pp);
             *pp = (*pp).add(crate::memory::cstr_len(*pp));
@@ -2984,7 +2981,7 @@ fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
 fn readfile_charconvert(
     fname: impl crate::strings::IntoCCharPtr,
     fenc: impl crate::strings::IntoCCharPtr,
-    fdp: &mut c_int,
+    fdp: &mut i32,
 ) -> Option<std::ffi::CString> {
     let fname = fname.into_c_char_ptr();
     let fenc = fenc.into_c_char_ptr();
@@ -3142,7 +3139,7 @@ pub fn fname_msg_id(
 }
 
 /// Append message for text mode to IObuff.
-pub fn msg_add_fileformat(eol_type: c_int) -> bool {
+pub fn msg_add_fileformat(eol_type: i32) -> bool {
     unsafe {
         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         #[cfg(not(windows))]
@@ -3179,7 +3176,7 @@ pub fn msg_add_fileformat(eol_type: c_int) -> bool {
 }
 
 /// Append line and character count to IObuff.
-pub fn msg_add_lines(insert_space: c_int, lnum: Linenr, nchars: Off) {
+pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
     unsafe {
         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         let mut len = crate::memory::cstr_len(iobuf_ptr);
@@ -3234,7 +3231,7 @@ pub fn need_conversion(fenc: impl crate::strings::IntoCCharPtr) -> bool {
     let fenc = fenc.into_c_char_ptr();
     unsafe {
         let same_encoding: bool;
-        let fenc_flags: c_int;
+        let fenc_flags: i32;
 
         if crate::memory::cstr_is_empty(fenc)
             || CStr::from_ptr(opt_vars().p_enc) == CStr::from_ptr(fenc)
@@ -3256,7 +3253,7 @@ pub fn need_conversion(fenc: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// Return the FIO_ flags needed for the internal conversion if 'name' was
 /// unicode or latin1, otherwise 0.
-pub fn get_fio_flags(name: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn get_fio_flags(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let mut name = name.into_c_char_ptr();
     {
         if crate::memory::cstr_is_empty(name) {
@@ -3298,15 +3295,15 @@ pub fn get_fio_flags(name: impl crate::strings::IntoCCharPtr) -> c_int {
 /// Check for a Unicode BOM (Byte Order Mark) at the start of p[size].
 fn check_for_bom(
     p_in: impl crate::strings::IntoCCharPtr,
-    size: c_int,
-    lenp: &mut c_int,
-    flags: c_int,
+    size: i32,
+    lenp: &mut i32,
+    flags: i32,
 ) -> *const c_char {
     let p_in = p_in.into_c_char_ptr();
     unsafe {
         let p = p_in.cast::<u8>();
         let mut name: *const c_char = ptr::null();
-        let mut len: c_int = 2;
+        let mut len: i32 = 2;
 
         if *p == 0xef
             && *p.add(1) == 0xbb
@@ -3355,7 +3352,7 @@ fn check_for_bom(
 }
 
 /// Shorten filename of a buffer.
-pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: *mut c_char, force: c_int) -> bool {
+pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: *mut c_char, force: i32) -> bool {
     unsafe {
         if buf.b_fname.is_null()
             || bt_nofilename(Some(&*buf))
@@ -3386,7 +3383,7 @@ pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: *mut c_char, force: c_int) 
 }
 
 /// Shortens filenames for all buffers.
-pub fn shorten_fnames(force: c_int) {
+pub fn shorten_fnames(force: i32) {
     {
         let mut dirname: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut changed = false;
@@ -3480,7 +3477,7 @@ pub fn modname(
 
 /// Like fgets(), but if the file line is too long, it is truncated and the
 /// rest of the line is thrown away.
-pub fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool {
+pub fn vim_fgets(buf: *mut c_char, size: i32, fp: *mut FILE) -> bool {
     unsafe {
         if size < 2 {
             if size == 1 {
@@ -3509,7 +3506,7 @@ pub fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool {
             loop {
                 tbuf[tbuf.len() - 2] = NUL;
                 os_set_errno(0);
-                retval = fgets(tbuf.as_mut_ptr(), tbuf.len() as c_int, fp);
+                retval = fgets(tbuf.as_mut_ptr(), tbuf.len() as i32, fp);
                 if retval.is_null() && (feof(fp) != 0 || os_errno() != EINTR) {
                     break;
                 }
@@ -3523,7 +3520,7 @@ pub fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool {
 }
 
 /// Read 2 bytes from "fd" and turn them into an int, MSB first.
-pub fn get2c(fd: *mut FILE) -> c_int {
+pub fn get2c(fd: *mut FILE) -> i32 {
     unsafe {
         let n = fgetc(fd);
         if n == EOF {
@@ -3538,7 +3535,7 @@ pub fn get2c(fd: *mut FILE) -> c_int {
 }
 
 /// Read 3 bytes from "fd" and turn them into an int, MSB first.
-pub fn get3c(fd: *mut FILE) -> c_int {
+pub fn get3c(fd: *mut FILE) -> i32 {
     unsafe {
         let mut n = fgetc(fd);
         if n == EOF {
@@ -3558,29 +3555,29 @@ pub fn get3c(fd: *mut FILE) -> c_int {
 }
 
 /// Read 4 bytes from "fd" and turn them into an int, MSB first.
-pub fn get4c(fd: *mut FILE) -> c_int {
+pub fn get4c(fd: *mut FILE) -> i32 {
     unsafe {
         let mut c = fgetc(fd);
         if c == EOF {
             return -1;
         }
-        let mut n = c as c_uint;
+        let mut n = c as u32;
         c = fgetc(fd);
         if c == EOF {
             return -1;
         }
-        n = (n << 8) + (c as c_uint);
+        n = (n << 8) + (c as u32);
         c = fgetc(fd);
         if c == EOF {
             return -1;
         }
-        n = (n << 8) + (c as c_uint);
+        n = (n << 8) + (c as u32);
         c = fgetc(fd);
         if c == EOF {
             return -1;
         }
-        n = (n << 8) + (c as c_uint);
-        n as c_int
+        n = (n << 8) + (c as u32);
+        n as i32
     }
 }
 
@@ -3621,7 +3618,7 @@ pub fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
     unsafe {
         debug_assert!(len > 0);
         for i in (0..len).rev() {
-            if fputc(((number >> (i * 8)) & 0xff) as c_int, fd) == EOF {
+            if fputc(((number >> (i * 8)) & 0xff) as i32, fd) == EOF {
                 return false;
             }
         }
@@ -3640,7 +3637,7 @@ pub fn put_time(fd: *mut FILE, time_: time_t) -> bool {
 fn rename_with_tmp(
     from: impl crate::strings::IntoCCharPtr,
     to: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let from = from.into_c_char_ptr();
     let to = to.into_c_char_ptr();
     unsafe {
@@ -3685,7 +3682,7 @@ fn rename_with_tmp(
 pub fn vim_rename(
     from: impl crate::strings::IntoCCharPtr,
     to: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let from = from.into_c_char_ptr();
     let to = to.into_c_char_ptr();
     unsafe {
@@ -3771,7 +3768,7 @@ pub fn vim_copyfile(
 }
 
 /// Check if any not hidden buffer has been changed.
-pub fn check_timestamps(focus: c_int) -> c_int {
+pub fn check_timestamps(focus: i32) -> i32 {
     unsafe {
         if g_st().no_check_timestamps > 0 {
             return 0;
@@ -3782,7 +3779,7 @@ pub fn check_timestamps(focus: c_int) -> c_int {
             return 0;
         }
 
-        let mut didit: c_int = 0;
+        let mut didit: i32 = 0;
 
         if !stuff_empty()
             || g_st().global_busy != 0
@@ -3854,19 +3851,19 @@ fn move_lines(frombuf: &mut FileBuf, tobuf: *mut FileBuf) -> bool {
 }
 
 /// Check if buffer "buf" has been changed.
-pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
+pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     unsafe {
         static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-        const RELOAD_NONE: c_int = 0;
-        const RELOAD_NORMAL: c_int = 1;
-        const RELOAD_DETECT: c_int = 2;
+        const RELOAD_NONE: i32 = 0;
+        const RELOAD_NORMAL: i32 = 1;
+        const RELOAD_DETECT: i32 = 2;
 
-        let mut retval: c_int = 0;
+        let mut retval: i32 = 0;
         let mut mesg: *mut c_char = ptr::null_mut();
         let mut mesg2: *mut c_char = c"".as_ptr().cast_mut();
         let mut helpmesg = false;
-        let mut reload: c_int = RELOAD_NONE;
+        let mut reload: i32 = RELOAD_NONE;
         let mut can_reload = false;
         let orig_size = buf.b_orig_size;
         let orig_mode = buf.b_orig_mode;
@@ -3892,7 +3889,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
                 file_info_ok = os_fileinfo(buf.b_ffname, &mut file_info);
                 !file_info_ok
                     || time_differs(&file_info, buf.b_mtime, buf.b_mtime_ns)
-                    || (file_info.stat.st_mode as c_int) != buf.b_orig_mode
+                    || (file_info.stat.st_mode as i32) != buf.b_orig_mode
             })
         {
             let prev_b_mtime = buf.b_mtime;
@@ -4092,7 +4089,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
 }
 
 /// Reload a buffer that is already loaded.
-pub fn buf_reload(buf: &mut FileBuf, orig_mode: c_int, reload_options: bool) {
+pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     unsafe {
         let mut ea: Exarg = Exarg::new();
         let old_ro = buf.b_p_ro;
@@ -4229,7 +4226,7 @@ pub fn buf_store_file_info(buf: &mut FileBuf, file_info: &mut FileInfo) {
     buf.b_mtime = file_info.stat.st_mtim.tv_sec as _;
     buf.b_mtime_ns = file_info.stat.st_mtim.tv_nsec as _;
     buf.b_orig_size = os_fileinfo_size(file_info);
-    buf.b_orig_mode = file_info.stat.st_mode as c_int;
+    buf.b_orig_mode = file_info.stat.st_mode as i32;
 }
 
 /// Adjust the line with missing eol, used for the next write.
@@ -4286,7 +4283,7 @@ fn vim_mktempdir() {
             let mut tmplen = expand_env(
                 temp_dir.as_ptr().cast_mut(),
                 tmp.as_mut_ptr(),
-                (TEMP_FILE_PATH_MAXLEN - 64) as c_int,
+                (TEMP_FILE_PATH_MAXLEN - 64) as i32,
             );
             if !os_isdir(tmp.as_ptr()) {
                 if crate::memory::cstr_as_opt_bytes(temp_dir.as_ptr()) == Some(b"$TMPDIR") {
@@ -4467,10 +4464,10 @@ pub fn readdir_core(
 }
 
 /// Delete "name" and everything in it, recursively.
-pub fn delete_recursive(name: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn delete_recursive(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
     unsafe {
-        let mut result: c_int = 0;
+        let mut result: i32 = 0;
 
         if os_isrealdir(name) {
             let exp = crate::memory::cstr_to_cstring(name);
@@ -4654,7 +4651,7 @@ pub fn match_file_pat(
     fname: impl crate::strings::IntoCCharPtr,
     sfname: impl crate::strings::IntoCCharPtr,
     tail: impl crate::strings::IntoCCharPtr,
-    allow_dirs: c_int,
+    allow_dirs: i32,
 ) -> bool {
     let pattern = pattern.into_c_char_ptr();
     let fname = fname.into_c_char_ptr();
@@ -4706,7 +4703,7 @@ pub fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_ch
                 ffname,
                 sfname,
                 tail,
-                c_int::from(allow_dirs),
+                i32::from(allow_dirs),
             );
             if matched {
                 return true;
@@ -4722,7 +4719,7 @@ pub fn file_pat_to_reg_pat(
     pat: impl crate::strings::IntoCCharPtr,
     pat_end: impl crate::strings::IntoCCharPtr,
     allow_dirs: *mut c_char,
-    no_bslash: c_int,
+    no_bslash: i32,
 ) -> Option<std::ffi::CString> {
     let mut pat = pat.into_c_char_ptr();
     let mut pat_end = pat_end.into_c_char_ptr();
@@ -4772,7 +4769,7 @@ pub fn file_pat_to_reg_pat(
             }
             add_dollar = false;
         }
-        let mut nested: c_int = 0;
+        let mut nested: i32 = 0;
         p = pat;
         while !crate::memory::cstr_is_empty(p) && nested >= 0 && p <= endp {
             match crate::memory::cstr_first_byte(p) {
@@ -4802,7 +4799,7 @@ pub fn file_pat_to_reg_pat(
                     #[cfg(windows)]
                     if no_bslash == 0 {
                         let next_ch = crate::memory::cstr_byte_at(p, 1);
-                        if (vim_isfilec(c_int::from(next_ch)) || next_ch == b'*' || next_ch == b'?')
+                        if (vim_isfilec(i32::from(next_ch)) || next_ch == b'*' || next_ch == b'?')
                             && next_ch != b'+'
                         {
                             *reg_pat.add(i) = b'[' as c_char;
@@ -4845,7 +4842,7 @@ pub fn file_pat_to_reg_pat(
                         p = p.add(2);
                     } else {
                         if !allow_dirs.is_null()
-                            && vim_ispathsep(c_int::from(ch))
+                            && vim_ispathsep(i32::from(ch))
                             && (!BACKSLASH_IN_FILENAME_BOOL
                                 || no_bslash != 0
                                 || ch != b'\\' as c_char)
@@ -4925,11 +4922,11 @@ pub fn file_pat_to_reg_pat(
 }
 
 /// Version of read() that retries when interrupted by EINTR.
-pub fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize {
+pub fn read_eintr(fd: i32, buf: *mut c_void, bufsize: usize) -> isize {
     unsafe {
         loop {
             #[cfg(windows)]
-            let ret = _read(fd, buf, bufsize as c_uint) as isize;
+            let ret = _read(fd, buf, bufsize as u32) as isize;
             #[cfg(not(windows))]
             let ret = read(fd, buf, bufsize);
             if ret >= 0 || os_errno() != EINTR {
@@ -4940,14 +4937,14 @@ pub fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize {
 }
 
 /// Version of write() that retries when interrupted by EINTR.
-pub fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usize) -> isize {
+pub fn write_eintr(fd: i32, buf: *const c_void, bufsize: usize) -> isize {
     unsafe {
         let mut ret: isize = 0;
 
         while (ret as usize) < bufsize {
             let rem = bufsize - (ret as usize);
             #[cfg(windows)]
-            let wlen = _write(fd, buf.cast::<u8>().offset(ret).cast(), rem as c_uint) as isize;
+            let wlen = _write(fd, buf.cast::<u8>().offset(ret).cast(), rem as u32) as isize;
             #[cfg(not(windows))]
             let wlen = write(fd, buf.cast::<u8>().offset(ret).cast(), rem);
             if wlen < 0 {
@@ -4966,7 +4963,7 @@ pub fn vim_fprintf_fmt(
     stream: *mut FILE,
     fmt: impl crate::strings::IntoCCharPtr,
     args: &[crate::strings::FmtVal],
-) -> c_int {
+) -> i32 {
     let fmt = fmt.into_c_char_ptr();
     unsafe {
         if args.is_empty() && !crate::memory::cstr_as_bytes(fmt).contains(&b'%') {
@@ -4975,7 +4972,7 @@ pub fn vim_fprintf_fmt(
                 return 0;
             }
             return if fwrite(bytes.as_ptr().cast(), 1, bytes.len(), stream) == bytes.len() {
-                bytes.len() as c_int
+                bytes.len() as i32
             } else {
                 -1
             };
@@ -5013,7 +5010,7 @@ pub fn vim_fprintf_fmt(
 pub fn vim_printf_fmt(
     fmt: impl crate::strings::IntoCCharPtr,
     args: &[crate::strings::FmtVal],
-) -> c_int {
+) -> i32 {
     let fmt = fmt.into_c_char_ptr();
     vim_fprintf_fmt(crate::log::log_get_stdout(), fmt, args)
 }

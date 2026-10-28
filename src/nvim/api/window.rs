@@ -30,13 +30,12 @@ use crate::window::{
     win_close, win_close_othertab, win_find_tabpage, win_get_tabwin, win_set_buf,
     win_setheight_win, win_setwidth_win,
 };
-use std::ffi::c_int;
 use std::ptr;
 
 use crate::api::win_config::{K_CTX_NO_DISPLAY, K_CTX_NO_EVENTS};
 
-pub(crate) const K_CTX_KEEP_CWD: c_int = 1;
-pub(crate) const K_CTX_VALIDATE: c_int = 16;
+pub(crate) const K_CTX_KEEP_CWD: i32 = 1;
+pub(crate) const K_CTX_VALIDATE: i32 = 16;
 
 const KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW: u64 = 1;
 const KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_VCOL: u64 = 2;
@@ -321,11 +320,11 @@ pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_number(win: Window, err: &mut Error) -> Integer {
     {
-        let mut rv: c_int = 0;
+        let mut rv: i32 = 0;
         let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
             return i64::from(rv);
         };
-        let mut tabnr: c_int = 0;
+        let mut tabnr: i32 = 0;
         win_get_tabwin(w.handle, &mut tabnr, &mut rv);
         i64::from(rv)
     }
@@ -395,7 +394,7 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
         let tabpage = win_find_tabpage(&raw mut *w);
         try_wrap(err, || {
             ex_win_close(
-                c_int::from(force),
+                i32::from(force),
                 w,
                 if tabpage == g_st().curtab {
                     ptr::null_mut()
@@ -480,7 +479,7 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
             return;
         }
 
-        w.w_ns_hl = ns_id as c_int;
+        w.w_ns_hl = ns_id as i32;
         w.w_hl_needs_update = 1;
         redraw_later(Some(&mut *(w)), UPD_NOT_VALID);
     }
@@ -737,12 +736,12 @@ pub fn nvim_win_resize(
         }
         if height >= 0 {
             try_wrap(err, || {
-                win_setheight_win(height as c_int, unsafe { &mut *w }, from_top);
+                win_setheight_win(height as i32, unsafe { &mut *w }, from_top);
             });
         }
         if !error_set(err) && width >= 0 {
             try_wrap(err, || {
-                win_setwidth_win(width as c_int, unsafe { &mut *w }, from_left);
+                win_setwidth_win(width as i32, unsafe { &mut *w }, from_left);
             });
         }
     }

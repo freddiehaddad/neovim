@@ -10,7 +10,6 @@ use crate::lua::converter::{
 use crate::message::emsg;
 use crate::spell::{parse_spelllang, spell_check};
 use crate::strings::gettext;
-use std::ffi::c_int;
 use std::ptr;
 
 use crate::drawline::HLF_COUNT;
@@ -18,7 +17,7 @@ use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
 use crate::ex_getln::Hlf;
 
 /// Check spelling in `str` (`nlua_spell_check`).
-pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_int {
+pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 {
     unsafe {
         if lua_gettop(lstate) < 1 {
             return luaL_error(lstate, c"Expected 1 argument".as_ptr());
@@ -45,8 +44,8 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
         }
 
         let mut pos: usize = 0;
-        let mut capcol: c_int = -1;
-        let mut no_res: c_int = 0;
+        let mut capcol: i32 = -1;
+        let mut no_res: i32 = 0;
 
         lua_createtable(lstate, 0, 0);
 
@@ -59,7 +58,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
                 Some(&mut capcol),
                 false,
             );
-            assert!(len <= c_int::MAX as usize);
+            assert!(len <= i32::MAX as usize);
 
             if attr != HLF_COUNT {
                 lua_createtable(lstate, 3, 0);
@@ -88,7 +87,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
 
             str_ = str_.add(len);
             pos += len;
-            capcol -= len as c_int;
+            capcol -= len as i32;
         }
 
         curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
@@ -98,7 +97,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
 
 /// Open the `vim.spell` Lua library (`luaopen_spell`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn luaopen_spell(lstate: *mut lua_State) -> c_int {
+pub unsafe extern "C" fn luaopen_spell(lstate: *mut lua_State) -> i32 {
     const SPELL_FUNCTIONS: [luaL_Reg; 2] = [
         luaL_Reg {
             name: c"check".as_ptr(),

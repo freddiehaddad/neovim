@@ -1,7 +1,6 @@
 //! TUI screen cell grid (`src/nvim/tui/ugrid.c`).
 
 use crate::grid::{Sattr, Schar, schar_from_ascii};
-use std::ffi::c_int;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -12,14 +11,14 @@ pub struct UCell {
 
 #[derive(Debug, Default)]
 pub struct UGrid {
-    pub row: c_int,
-    pub col: c_int,
-    pub width: c_int,
-    pub height: c_int,
+    pub row: i32,
+    pub col: i32,
+    pub width: i32,
+    pub height: i32,
     pub cells: Vec<Vec<UCell>>,
 }
 
-fn clear_region(grid: &mut UGrid, top: c_int, bot: c_int, left: c_int, right: c_int, attr: Sattr) {
+fn clear_region(grid: &mut UGrid, top: i32, bot: i32, left: i32, right: i32, attr: Sattr) {
     let space = schar_from_ascii(b' ');
     if right < left || bot < top {
         return;
@@ -32,7 +31,7 @@ fn clear_region(grid: &mut UGrid, top: c_int, bot: c_int, left: c_int, right: c_
 }
 
 /// Resize `grid` to `width` x `height` cells (`ugrid_resize`).
-pub fn ugrid_resize(grid: &mut UGrid, width: c_int, height: c_int) {
+pub fn ugrid_resize(grid: &mut UGrid, width: i32, height: i32) {
     let h = height.max(0) as usize;
     let w = width.max(0) as usize;
     grid.cells = vec![vec![UCell::default(); w]; h];
@@ -46,25 +45,18 @@ pub fn ugrid_clear(grid: &mut UGrid) {
 }
 
 /// Clear `row` from `col` to `endcol - 1` with `attr` (`ugrid_clear_chunk`).
-pub fn ugrid_clear_chunk(grid: &mut UGrid, row: c_int, col: c_int, endcol: c_int, attr: Sattr) {
+pub fn ugrid_clear_chunk(grid: &mut UGrid, row: i32, col: i32, endcol: i32, attr: Sattr) {
     clear_region(grid, row, row, col, endcol - 1, attr);
 }
 
 /// Move `grid` cursor to `(row, col)` (`ugrid_goto`).
-pub fn ugrid_goto(grid: &mut UGrid, row: c_int, col: c_int) {
+pub fn ugrid_goto(grid: &mut UGrid, row: i32, col: i32) {
     grid.row = row;
     grid.col = col;
 }
 
 /// Scroll region `(top..=bot, left..=right)` by `count` rows (`ugrid_scroll`).
-pub fn ugrid_scroll(
-    grid: &mut UGrid,
-    top: c_int,
-    bot: c_int,
-    left: c_int,
-    right: c_int,
-    count: c_int,
-) {
+pub fn ugrid_scroll(grid: &mut UGrid, top: i32, bot: i32, left: i32, right: i32, count: i32) {
     let (start, stop, step) = if count > 0 {
         (top, bot - count + 1, 1)
     } else {

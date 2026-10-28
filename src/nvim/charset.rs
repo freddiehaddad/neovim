@@ -12,7 +12,7 @@ use crate::memory::cstr_from_bytes;
 use crate::option::{get_fileformat, skip_to_option_part};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
-use std::ffi::{CString, c_char, c_int, c_uint};
+use std::ffi::{CString, c_char};
 use std::ptr;
 
 use crate::change::TAB;
@@ -25,26 +25,26 @@ pub(crate) const NUL: c_char = 0;
 pub(crate) const NL: c_char = b'\n' as c_char;
 
 pub trait AsciiInt {
-    fn into_ascii_int(self) -> c_int;
+    fn into_ascii_int(self) -> i32;
 }
 
 impl AsciiInt for u8 {
     #[inline]
-    fn into_ascii_int(self) -> c_int {
-        c_int::from(self)
+    fn into_ascii_int(self) -> i32 {
+        i32::from(self)
     }
 }
 
 impl AsciiInt for i8 {
     #[inline]
-    fn into_ascii_int(self) -> c_int {
-        c_int::from(self)
+    fn into_ascii_int(self) -> i32 {
+        i32::from(self)
     }
 }
 
-impl AsciiInt for c_int {
+impl AsciiInt for i32 {
     #[inline]
-    fn into_ascii_int(self) -> c_int {
+    fn into_ascii_int(self) -> i32 {
         self
     }
 }
@@ -52,19 +52,19 @@ impl AsciiInt for c_int {
 #[inline]
 pub fn ascii_iswhite<C: AsciiInt>(c: C) -> bool {
     let ch = c.into_ascii_int();
-    ch == b' ' as c_int || ch == b'\t' as c_int
+    ch == b' ' as i32 || ch == b'\t' as i32
 }
 
 #[inline]
 pub fn ascii_isdigit<C: AsciiInt>(c: C) -> bool {
     let ch = c.into_ascii_int();
-    (b'0' as c_int..=b'9' as c_int).contains(&ch)
+    (b'0' as i32..=b'9' as i32).contains(&ch)
 }
 
 #[inline]
 pub fn ascii_isalpha<C: AsciiInt>(c: C) -> bool {
     let ch = c.into_ascii_int();
-    (b'a' as c_int..=b'z' as c_int).contains(&ch) || (b'A' as c_int..=b'Z' as c_int).contains(&ch)
+    (b'a' as i32..=b'z' as i32).contains(&ch) || (b'A' as i32..=b'Z' as i32).contains(&ch)
 }
 
 #[inline]
@@ -77,26 +77,26 @@ pub fn ascii_isalnum<C: AsciiInt>(c: C) -> bool {
 pub fn ascii_isxdigit<C: AsciiInt>(c: C) -> bool {
     let ch = c.into_ascii_int();
     ascii_isdigit(ch)
-        || (b'a' as c_int..=b'f' as c_int).contains(&ch)
-        || (b'A' as c_int..=b'F' as c_int).contains(&ch)
+        || (b'a' as i32..=b'f' as i32).contains(&ch)
+        || (b'A' as i32..=b'F' as i32).contains(&ch)
 }
 
 #[inline]
 pub fn ascii_isspace<C: AsciiInt>(c: C) -> bool {
     let ch = c.into_ascii_int();
-    (9..=13).contains(&ch) || ch == b' ' as c_int
+    (9..=13).contains(&ch) || ch == b' ' as i32
 }
 
 #[inline]
 pub fn ascii_isupper<C: AsciiInt>(c: C) -> bool {
     let ch = c.into_ascii_int();
-    (b'A' as c_int..=b'Z' as c_int).contains(&ch)
+    (b'A' as i32..=b'Z' as i32).contains(&ch)
 }
 
 #[inline]
 pub fn ascii_islower<C: AsciiInt>(c: C) -> bool {
     let ch = c.into_ascii_int();
-    (b'a' as c_int..=b'z' as c_int).contains(&ch)
+    (b'a' as i32..=b'z' as i32).contains(&ch)
 }
 
 #[inline]
@@ -108,12 +108,12 @@ pub fn ascii_iswhite_or_nul<C: AsciiInt>(c: C) -> bool {
 #[inline]
 pub fn ascii_isident<C: AsciiInt>(c: C) -> bool {
     let ch = c.into_ascii_int();
-    ascii_isalnum(ch) || ch == b'_' as c_int
+    ascii_isalnum(ch) || ch == b'_' as i32
 }
 
 #[inline]
-pub const fn toupper_asc(c: c_int) -> c_int {
-    if c >= b'a' as c_int && c <= b'z' as c_int {
+pub const fn toupper_asc(c: i32) -> i32 {
+    if c >= b'a' as i32 && c <= b'z' as i32 {
         c - 0x20
     } else {
         c
@@ -121,8 +121,8 @@ pub const fn toupper_asc(c: c_int) -> c_int {
 }
 
 #[inline]
-pub const fn tolower_asc(c: c_int) -> c_int {
-    if c >= b'A' as c_int && c <= b'Z' as c_int {
+pub const fn tolower_asc(c: i32) -> i32 {
+    if c >= b'A' as i32 && c <= b'Z' as i32 {
         c + 0x20
     } else {
         c
@@ -130,12 +130,12 @@ pub const fn tolower_asc(c: c_int) -> c_int {
 }
 
 #[inline]
-pub const fn is_special(c: c_int) -> bool {
+pub const fn is_special(c: i32) -> bool {
     c < 0
 }
 
 #[inline]
-pub const fn to_special(a: c_int, b: c_int) -> c_int {
+pub const fn to_special(a: i32, b: i32) -> i32 {
     if a == KS_SPECIAL {
         K_SPECIAL
     } else if a == KS_ZERO {
@@ -147,19 +147,19 @@ pub const fn to_special(a: c_int, b: c_int) -> c_int {
 
 pub(crate) const CTRL_V_CONST: c_char = 22;
 
-pub(crate) const EOL_MAC: c_int = 2;
-pub(crate) const K_OPT_DY_FLAG_UHEX: c_uint = 0x04;
+pub(crate) const EOL_MAC: i32 = 2;
+pub(crate) const K_OPT_DY_FLAG_UHEX: u32 = 0x04;
 
-const K_SPECIAL: c_int = 0x80;
-const KS_SPECIAL: c_int = 254;
-const KS_ZERO: c_int = 255;
+const K_SPECIAL: i32 = 0x80;
+const KS_SPECIAL: i32 = 254;
+const KS_ZERO: i32 = 255;
 
-pub(crate) const STR2NR_BIN: c_int = 1 << 0;
-pub(crate) const STR2NR_OCT: c_int = 1 << 1;
-pub(crate) const STR2NR_HEX: c_int = 1 << 2;
-pub(crate) const STR2NR_OOCT: c_int = 1 << 3;
-pub(crate) const STR2NR_QUOTE: c_int = 1 << 4;
-pub(crate) const STR2NR_FORCE: c_int = 1 << 7;
+pub(crate) const STR2NR_BIN: i32 = 1 << 0;
+pub(crate) const STR2NR_OCT: i32 = 1 << 1;
+pub(crate) const STR2NR_HEX: i32 = 1 << 2;
+pub(crate) const STR2NR_OOCT: i32 = 1 << 3;
+pub(crate) const STR2NR_QUOTE: i32 = 1 << 4;
+pub(crate) const STR2NR_FORCE: i32 = 1 << 7;
 
 const VARNUMBER_MAX: Uvarnumber = i64::MAX as u64;
 pub(crate) const VARNUMBER_MIN: Varnumber = i64::MIN;
@@ -190,7 +190,7 @@ fn charset_st() -> &'static mut CharsetModuleState {
 }
 
 #[inline]
-fn set_chartab(chartab: *mut u64, c: c_int) {
+fn set_chartab(chartab: *mut u64, c: i32) {
     unsafe {
         let idx = ((c as u32) >> 6) as usize;
         *chartab.add(idx) |= 1u64 << (c & 0x3f);
@@ -198,7 +198,7 @@ fn set_chartab(chartab: *mut u64, c: c_int) {
 }
 
 #[inline]
-fn reset_chartab(chartab: *mut u64, c: c_int) {
+fn reset_chartab(chartab: *mut u64, c: i32) {
     unsafe {
         let idx = ((c as u32) >> 6) as usize;
         *chartab.add(idx) &= !(1u64 << (c & 0x3f));
@@ -206,7 +206,7 @@ fn reset_chartab(chartab: *mut u64, c: c_int) {
 }
 
 #[inline]
-fn get_chartab(chartab: *const u64, c: c_int) -> u64 {
+fn get_chartab(chartab: *const u64, c: i32) -> u64 {
     unsafe {
         let idx = ((c as u32) >> 6) as usize;
         *chartab.add(idx) & (1u64 << (c & 0x3f))
@@ -214,18 +214,18 @@ fn get_chartab(chartab: *const u64, c: c_int) -> u64 {
 }
 
 #[inline]
-pub const fn ascii_isbdigit(c: c_int) -> bool {
-    c == b'0' as c_int || c == b'1' as c_int
+pub const fn ascii_isbdigit(c: i32) -> bool {
+    c == b'0' as i32 || c == b'1' as i32
 }
 
 #[inline]
-const fn ascii_isodigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'7' as c_int
+const fn ascii_isodigit(c: i32) -> bool {
+    c >= b'0' as i32 && c <= b'7' as i32
 }
 
 #[inline]
-pub fn ascii2cells(b: c_int) -> c_int {
-    if (b' ' as c_int..=b'~' as c_int).contains(&b) {
+pub fn ascii2cells(b: i32) -> i32 {
+    if (b' ' as i32..=b'~' as i32).contains(&b) {
         1
     } else {
         opt_vars().dy_escape_width
@@ -244,7 +244,7 @@ pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
     let save_chartab = buf.b_chartab;
     buf.b_chartab = [0; 4];
     if buf.b_p_lisp != 0 {
-        set_chartab(buf.b_chartab.as_mut_ptr(), b'-' as c_int);
+        set_chartab(buf.b_chartab.as_mut_ptr(), b'-' as i32);
     }
     if !parse_isopt(buf.b_p_isk, buf.b_chartab.as_mut_ptr()) {
         buf.b_chartab = save_chartab;
@@ -303,7 +303,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
             } else {
                 mb_ptr2char_adv(&raw mut p)
             };
-            let mut c2: c_int = -1;
+            let mut c2: i32 = -1;
 
             if crate::memory::cstr_first_byte(p) == b'-' && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
@@ -334,7 +334,7 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
             }
 
             if c2 == -1 {
-                if c == b'@' as c_int {
+                if c == b'@' as i32 {
                     do_isalpha = true;
                     c = 1;
                     c2 = 255;
@@ -359,9 +359,9 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
     }
 }
 
-pub fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
+pub fn trans_characters(mut buf: *mut c_char, bufsize: i32) {
     unsafe {
-        let mut len = crate::memory::cstr_len(buf) as c_int;
+        let mut len = crate::memory::cstr_len(buf) as i32;
         let mut room = bufsize - len;
 
         while !crate::memory::cstr_is_empty(buf) {
@@ -369,8 +369,8 @@ pub fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
             if trs_len > 1 {
                 len -= trs_len;
             } else {
-                let trs = transchar_byte(c_int::from(crate::memory::cstr_first_byte(buf)));
-                trs_len = crate::memory::cstr_len(trs) as c_int;
+                let trs = transchar_byte(i32::from(crate::memory::cstr_first_byte(buf)));
+                trs_len = crate::memory::cstr_len(trs) as i32;
 
                 if trs_len > 1 {
                     room -= trs_len - 1;
@@ -415,7 +415,7 @@ pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize 
                 let c = crate::memory::cstr_first_byte(p);
                 p = p.add(1);
                 len += if c < 0x80 {
-                    ascii2cells(c_int::from(c)) as usize
+                    ascii2cells(i32::from(c)) as usize
                 } else {
                     4
                 };
@@ -473,7 +473,7 @@ pub fn transstr_buf(
             } else {
                 let c = crate::memory::cstr_first_byte(p);
                 p = p.add(1);
-                let tb = transchar_byte(c_int::from(c));
+                let tb = transchar_byte(i32::from(c));
                 let tb_len = crate::memory::cstr_len(tb);
                 if buf_p.add(tb_len) > buf_e {
                     break;
@@ -521,9 +521,9 @@ pub fn kv_transstr(str_: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, unt
 
 pub fn str_foldcase(
     str_: impl crate::strings::IntoCCharPtr,
-    orglen: c_int,
+    orglen: i32,
     buf: *mut c_char,
-    buflen: c_int,
+    buflen: i32,
 ) -> Option<CString> {
     let str_ = str_.into_c_char_ptr();
     unsafe {
@@ -602,11 +602,11 @@ pub fn str_foldcase(
     }
 }
 
-pub fn transchar(c: c_int) -> *mut c_char {
+pub fn transchar(c: i32) -> *mut c_char {
     transchar_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_buf(buf: Option<&FileBuf>, mut c: c_int) -> *mut c_char {
+pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> *mut c_char {
     unsafe {
         let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
         let mut i: usize = 0;
@@ -614,7 +614,7 @@ pub fn transchar_buf(buf: Option<&FileBuf>, mut c: c_int) -> *mut c_char {
             *charbuf_ptr = b'~';
             *charbuf_ptr.add(1) = b'@';
             i = 2;
-            c = c_int::from(k_second(c));
+            c = i32::from(k_second(c));
         }
 
         if c <= 0xFF && vim_isprintc(c) {
@@ -629,11 +629,11 @@ pub fn transchar_buf(buf: Option<&FileBuf>, mut c: c_int) -> *mut c_char {
     }
 }
 
-pub fn transchar_byte(c: c_int) -> *mut c_char {
+pub fn transchar_byte(c: i32) -> *mut c_char {
     transchar_byte_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: c_int) -> *mut c_char {
+pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> *mut c_char {
     if c >= 0x80 {
         let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<c_char>();
         transchar_nonprint(buf, charbuf_ptr, c);
@@ -642,12 +642,12 @@ pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: c_int) -> *mut c_char {
     transchar_buf(buf, c)
 }
 
-pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: c_int) {
+pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: i32) {
     unsafe {
-        if c == c_int::from(NL) {
+        if c == i32::from(NL) {
             c = 0;
         } else if buf.is_some() && c == CAR && get_fileformat(buf.unwrap()) == EOL_MAC {
-            c = c_int::from(NL);
+            c = i32::from(NL);
         }
         assert!(c <= 0xff);
 
@@ -661,7 +661,7 @@ pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: c_
     }
 }
 
-pub fn transchar_hex(buf: *mut c_char, c: c_int) -> usize {
+pub fn transchar_hex(buf: *mut c_char, c: i32) -> usize {
     unsafe {
         let mut i: usize = 0;
         let uc = c as u32;
@@ -708,43 +708,43 @@ pub fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
     }
 }
 
-pub fn char2cells(c: c_int) -> c_int {
+pub fn char2cells(c: i32) -> i32 {
     if c >= 0x80 {
         return utf_char2cells(c);
     }
     ascii2cells(c)
 }
 
-pub fn vim_strsize(s: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn vim_strsize(s: impl crate::strings::IntoCCharPtr) -> i32 {
     let s = s.into_c_char_ptr();
     vim_strnsize(s, MAXCOL)
 }
 
-pub fn vim_strnsize(s: impl crate::strings::IntoCCharPtr, mut len: c_int) -> c_int {
+pub fn vim_strnsize(s: impl crate::strings::IntoCCharPtr, mut len: i32) -> i32 {
     let s = s.into_c_char_ptr();
     unsafe {
         assert!(!s.is_null());
-        let mut size: c_int = 0;
+        let mut size: i32 = 0;
         let mut ci = utf_ptr2_str_char_info(s);
         while !crate::memory::cstr_is_empty(ci.ptr) && len > 0 {
             let cli = utf_cluster_info(ci);
             size += cli.cells;
-            len -= cli.next.ptr.offset_from(ci.ptr) as c_int;
+            len -= cli.next.ptr.offset_from(ci.ptr) as i32;
             ci = cli.next;
         }
         size
     }
 }
 
-pub fn vim_is_idc(c: c_int) -> bool {
+pub fn vim_is_idc(c: i32) -> bool {
     c > 0 && c < 0x100 && get_chartab((&raw const charset_st().isi_chartab).cast::<u64>(), c) != 0
 }
 
-pub fn vim_iswordc(c: c_int) -> bool {
+pub fn vim_iswordc(c: i32) -> bool {
     vim_iswordc_buf(c, curbuf_mut())
 }
 
-pub fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {
+pub fn vim_iswordc_tab(c: i32, chartab: *const u64) -> bool {
     if c >= 0x100 {
         utf_class_tab(c, chartab) >= 2
     } else {
@@ -752,7 +752,7 @@ pub fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {
     }
 }
 
-pub fn vim_iswordc_buf(c: c_int, buf: &mut FileBuf) -> bool {
+pub fn vim_iswordc_buf(c: i32, buf: &mut FileBuf) -> bool {
     vim_iswordc_tab(c, buf.b_chartab.as_ptr())
 }
 
@@ -764,7 +764,7 @@ pub fn vim_iswordp(p: impl crate::strings::IntoCCharPtr) -> bool {
 pub fn vim_iswordp_buf(p: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) -> bool {
     let p = p.into_c_char_ptr();
     {
-        let mut c = c_int::from(crate::memory::cstr_first_byte(p));
+        let mut c = i32::from(crate::memory::cstr_first_byte(p));
         if UTF8LEN_TAB[c as usize] > 1 {
             c = utf_ptr2char(p);
         }
@@ -772,25 +772,21 @@ pub fn vim_iswordp_buf(p: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) 
     }
 }
 
-pub fn vim_isfilec(c: c_int) -> bool {
+pub fn vim_isfilec(c: i32) -> bool {
     c >= 0x100
         || (c > 0 && get_chartab((&raw const charset_st().isf_chartab).cast::<u64>(), c) != 0)
 }
 
-pub fn vim_is_fname_char(c: c_int) -> bool {
-    vim_isfilec(c)
-        || c == b',' as c_int
-        || c == b' ' as c_int
-        || c == b'@' as c_int
-        || c == b':' as c_int
+pub fn vim_is_fname_char(c: i32) -> bool {
+    vim_isfilec(c) || c == b',' as i32 || c == b' ' as i32 || c == b'@' as i32 || c == b':' as i32
 }
 
-pub fn vim_isfilec_or_wc(c: c_int) -> bool {
+pub fn vim_isfilec_or_wc(c: i32) -> bool {
     let buf: [c_char; 2] = [c as c_char, NUL];
-    vim_isfilec(c) || c == b']' as c_int || path_has_wildcard(buf.as_ptr(), true)
+    vim_isfilec(c) || c == b']' as i32 || path_has_wildcard(buf.as_ptr(), true)
 }
 
-pub fn vim_isprintc(c: c_int) -> bool {
+pub fn vim_isprintc(c: i32) -> bool {
     if c >= 0x100 {
         return utf_printable(c);
     }
@@ -1036,9 +1032,9 @@ pub fn getdigits(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
     if ok { number } else { def }
 }
 
-pub fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: c_int) -> c_int {
+pub fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: i32) -> i32 {
     let number = getdigits(pp, strict, i64::from(def));
-    match c_int::try_from(number) {
+    match i32::try_from(number) {
         Ok(v) => v,
         Err(_) => {
             assert!(!strict);
@@ -1074,22 +1070,21 @@ pub fn vim_isblankline(lbuf: impl crate::strings::IntoCCharPtr) -> bool {
 
 pub fn vim_str2nr(
     start: impl crate::strings::IntoCCharPtr,
-    prep: Option<&mut c_int>,
-    mut len: Option<&mut c_int>,
-    what: c_int,
+    prep: Option<&mut i32>,
+    mut len: Option<&mut i32>,
+    what: i32,
     nptr: Option<&mut Varnumber>,
     unptr: Option<&mut Uvarnumber>,
-    maxlen: c_int,
+    maxlen: i32,
     strict: bool,
     mut overflow: Option<&mut bool>,
 ) {
     let start = start.into_c_char_ptr();
     unsafe {
         let mut ptr = start;
-        let string_ended = |p: *const c_char| -> bool {
-            !(maxlen == 0 || (p.offset_from(start) as c_int) < maxlen)
-        };
-        let mut pre: c_int = 0;
+        let string_ended =
+            |p: *const c_char| -> bool { !(maxlen == 0 || (p.offset_from(start) as i32) < maxlen) };
+        let mut pre: i32 = 0;
         let negative = crate::memory::cstr_first_byte(ptr) == b'-';
         let mut un: Uvarnumber = 0;
 
@@ -1148,24 +1143,24 @@ pub fn vim_str2nr(
             && crate::memory::cstr_byte_at(ptr, 1) != b'8'
             && crate::memory::cstr_byte_at(ptr, 1) != b'9'
         {
-            pre = c_int::from(crate::memory::cstr_byte_at(ptr, 1));
+            pre = i32::from(crate::memory::cstr_byte_at(ptr, 1));
             if (what & STR2NR_HEX) != 0
                 && !string_ended(ptr.add(2))
-                && (pre == b'X' as c_int || pre == b'x' as c_int)
+                && (pre == b'X' as i32 || pre == b'x' as i32)
                 && ascii_isxdigit(crate::memory::cstr_char_at(ptr, 2))
             {
                 ptr = ptr.add(2);
                 base = 16;
             } else if (what & STR2NR_BIN) != 0
                 && !string_ended(ptr.add(2))
-                && (pre == b'B' as c_int || pre == b'b' as c_int)
+                && (pre == b'B' as i32 || pre == b'b' as i32)
                 && ascii_isbdigit(crate::memory::cstr_char_at(ptr, 2))
             {
                 ptr = ptr.add(2);
                 base = 2;
             } else if (what & STR2NR_OOCT) != 0
                 && !string_ended(ptr.add(2))
-                && (pre == b'O' as c_int || pre == b'o' as c_int)
+                && (pre == b'O' as i32 || pre == b'o' as i32)
                 && ascii_isodigit(crate::memory::cstr_char_at(ptr, 2))
             {
                 ptr = ptr.add(2);
@@ -1188,7 +1183,7 @@ pub fn vim_str2nr(
                         i += 1;
                     }
                     if is_oct {
-                        pre = b'0' as c_int;
+                        pre = b'0' as i32;
                         base = 8;
                     } else {
                         base = 10;
@@ -1201,9 +1196,9 @@ pub fn vim_str2nr(
 
         let after_prefix = ptr;
         while !string_ended(ptr) {
-            let check_cond = |c: c_int| -> bool {
+            let check_cond = |c: i32| -> bool {
                 match base {
-                    2 => c == b'0' as c_int || c == b'1' as c_int,
+                    2 => c == b'0' as i32 || c == b'1' as i32,
                     8 => ascii_isodigit(c),
                     10 => ascii_isdigit(c),
                     16 => ascii_isxdigit(c),
@@ -1227,7 +1222,7 @@ pub fn vim_str2nr(
             let digit = if base == 16 {
                 hex2nr(c) as Uvarnumber
             } else {
-                (c - b'0' as c_int) as Uvarnumber
+                (c - b'0' as i32) as Uvarnumber
             };
             if un < UVARNUMBER_MAX / base
                 || (un == UVARNUMBER_MAX / base && (base != 10 || digit <= UVARNUMBER_MAX % 10))
@@ -1243,7 +1238,7 @@ pub fn vim_str2nr(
         }
 
         if strict
-            && (ptr.offset_from(start) as c_int) != maxlen
+            && (ptr.offset_from(start) as i32) != maxlen
             && ascii_isalnum(crate::memory::cstr_first_char(ptr))
         {
             return;
@@ -1254,7 +1249,7 @@ pub fn vim_str2nr(
         }
 
         if let Some(len) = len {
-            *len = ptr.offset_from(start) as c_int;
+            *len = ptr.offset_from(start) as i32;
         }
 
         if let Some(nptr) = nptr {
@@ -1284,17 +1279,17 @@ pub fn vim_str2nr(
     }
 }
 
-pub const fn hex2nr(c: c_int) -> c_int {
-    if c >= b'a' as c_int && c <= b'f' as c_int {
-        c - b'a' as c_int + 10
-    } else if c >= b'A' as c_int && c <= b'F' as c_int {
-        c - b'A' as c_int + 10
+pub const fn hex2nr(c: i32) -> i32 {
+    if c >= b'a' as i32 && c <= b'f' as i32 {
+        c - b'a' as i32 + 10
+    } else if c >= b'A' as i32 && c <= b'F' as i32 {
+        c - b'A' as i32 + 10
     } else {
-        c - b'0' as c_int
+        c - b'0' as i32
     }
 }
 
-pub fn hexhex2nr(p: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn hexhex2nr(p: impl crate::strings::IntoCCharPtr) -> i32 {
     let p = p.into_c_char_ptr();
     {
         if !ascii_isxdigit(crate::memory::cstr_first_char(p))
@@ -1316,7 +1311,7 @@ pub fn rem_backslash(str_: impl crate::strings::IntoCCharPtr) -> bool {
             b0 == b'\\'
                 && b1 < 0x80
                 && (b1 == b' '
-                    || (b1 != 0 && b1 != b'*' && b1 != b'?' && !vim_isfilec(c_int::from(b1))))
+                    || (b1 != 0 && b1 != b'*' && b1 != b'?' && !vim_isfilec(i32::from(b1))))
         }
         #[cfg(not(windows))]
         {
@@ -1378,23 +1373,23 @@ mod tests {
 
     #[test]
     fn to_special_handles_ks_special_and_ks_zero() {
-        assert_eq!(to_special(KS_SPECIAL, KE_FILLER as c_int), K_SPECIAL);
-        assert_eq!(to_special(KS_ZERO, KE_FILLER as c_int), K_ZERO);
-        assert_eq!(to_special(b'k' as c_int, b'u' as c_int), K_UP);
+        assert_eq!(to_special(KS_SPECIAL, KE_FILLER as i32), K_SPECIAL);
+        assert_eq!(to_special(KS_ZERO, KE_FILLER as i32), K_ZERO);
+        assert_eq!(to_special(b'k' as i32, b'u' as i32), K_UP);
     }
 
     #[test]
     fn vim_str2nr_parses_dec_bin_oct_hex_and_quotes() {
         let check = |s: &CStr,
-                     what: c_int,
-                     maxlen: c_int,
+                     what: i32,
+                     maxlen: i32,
                      strict: bool,
-                     exp_len: c_int,
+                     exp_len: i32,
                      exp_num: Option<Varnumber>,
                      exp_unum: Option<Uvarnumber>,
-                     exp_pre: Option<c_int>| {
-            let mut pre: c_int = -99;
-            let mut len: c_int = -99;
+                     exp_pre: Option<i32>| {
+            let mut pre: i32 = -99;
+            let mut len: i32 = -99;
             let mut num: Varnumber = -99;
             let mut unum: Uvarnumber = 99;
             vim_str2nr(
@@ -1451,7 +1446,7 @@ mod tests {
             5,
             Some(5),
             Some(5),
-            Some(b'b' as c_int),
+            Some(b'b' as i32),
         );
         check(
             c"-0B101",
@@ -1461,7 +1456,7 @@ mod tests {
             6,
             Some(-5),
             Some(5),
-            Some(b'B' as c_int),
+            Some(b'B' as i32),
         );
         check(
             c"054",
@@ -1471,7 +1466,7 @@ mod tests {
             3,
             Some(44),
             Some(44),
-            Some(b'0' as c_int),
+            Some(b'0' as i32),
         );
         check(
             c"0o054",
@@ -1481,7 +1476,7 @@ mod tests {
             5,
             Some(44),
             Some(44),
-            Some(b'o' as c_int),
+            Some(b'o' as i32),
         );
         check(
             c"0xABCDEF",
@@ -1491,7 +1486,7 @@ mod tests {
             8,
             Some(11259375),
             Some(11259375),
-            Some(b'x' as c_int),
+            Some(b'x' as i32),
         );
         check(
             c"-0X101",
@@ -1501,7 +1496,7 @@ mod tests {
             6,
             Some(-257),
             Some(257),
-            Some(b'X' as c_int),
+            Some(b'X' as i32),
         );
         check(
             c"1'2'3'4",
@@ -1531,7 +1526,7 @@ mod tests {
             4,
             Some(171),
             Some(171),
-            Some(b'x' as c_int),
+            Some(b'x' as i32),
         );
     }
 }

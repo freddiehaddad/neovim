@@ -8,20 +8,20 @@ use crate::event::r#loop::{
 use crate::event::r#loop::{uv_handle_size, uv_tty_init, uv_tty_set_mode};
 use crate::event::multiqueue::MultiQueue;
 use crate::log::{LOGLVL_DBG, LOGLVL_WRN, log_st, logmsg};
-use std::ffi::{c_int, c_void};
+use std::ffi::c_void;
 use std::ptr;
 
-pub const UV_NAMED_PIPE: c_int = 7;
+pub const UV_NAMED_PIPE: i32 = 7;
 #[cfg(windows)]
-pub const UV_STREAM: c_int = 11;
-pub const UV_TCP: c_int = 12;
-pub const UV_TTY: c_int = 14;
-pub const UV_FILE: c_int = 17;
+pub const UV_STREAM: i32 = 11;
+pub const UV_TCP: i32 = 12;
+pub const UV_TTY: i32 = 14;
+pub const UV_FILE: i32 = 17;
 
 #[cfg(windows)]
 use crate::event::r#loop::UV_TTY_MODE_NORMAL;
 #[cfg(windows)]
-const UV_TTY_MODE_RAW: c_int = 1;
+const UV_TTY_MODE_RAW: i32 = 1;
 
 #[cfg(windows)]
 pub(crate) const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
@@ -136,7 +136,7 @@ pub struct Stream {
     pub closed: bool,
     pub uv: UvStreamHandle,
     pub has_uvstream: bool,
-    pub fd: c_int,
+    pub fd: i32,
     pub fpos: i64,
     pub cb_data: StreamCbData,
     pub is_rstream: bool,
@@ -186,7 +186,7 @@ use crate::event::r#loop::{uv_idle_init, uv_stream_get_write_queue_size, uv_stre
 #[cfg(windows)]
 use crate::os::os_win_console::{GetConsoleMode, SetConsoleMode};
 
-pub fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
+pub fn stream_set_blocking(fd: i32, blocking: bool) -> i32 {
     unsafe {
         let mut loop_buf = [0u64; 256];
         let mut pipe_buf = [0u64; 128];
@@ -195,7 +195,7 @@ pub fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
         uv_loop_init(loop_ptr);
         uv_pipe_init(loop_ptr, pipe_ptr, 0);
         uv_pipe_open(pipe_ptr, fd);
-        let retval = uv_stream_set_blocking(pipe_ptr.cast(), c_int::from(blocking));
+        let retval = uv_stream_set_blocking(pipe_ptr.cast(), i32::from(blocking));
         uv_close(pipe_ptr.cast(), None);
         uv_run(loop_ptr, UV_RUN_NOWAIT);
         uv_loop_close(loop_ptr);
@@ -203,7 +203,7 @@ pub fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
     }
 }
 
-pub fn stream_init(loop_: *mut Loop, stream: &mut Stream, fd: c_int, has_uvstream: bool) {
+pub fn stream_init(loop_: *mut Loop, stream: &mut Stream, fd: i32, has_uvstream: bool) {
     unsafe {
         assert!(if !has_uvstream {
             fd >= 0 && !loop_.is_null()

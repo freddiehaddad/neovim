@@ -1,7 +1,6 @@
 //! Functions for Arabic language shaping (`src/nvim/arabic.c`).
 
 use crate::option_vars::*;
-use std::ffi::c_int;
 
 #[inline]
 fn arshape_enabled() -> bool {
@@ -64,14 +63,14 @@ const A_FKAF: u32 = 0x06a9;
 const A_GAF: u32 = 0x06af;
 const A_FYEH: u32 = 0x06cc;
 
-const A_S_LAM_ALEF_MADDA_ABOVE: c_int = 0xfef5;
-const A_F_LAM_ALEF_MADDA_ABOVE: c_int = 0xfef6;
-const A_S_LAM_ALEF_HAMZA_ABOVE: c_int = 0xfef7;
-const A_F_LAM_ALEF_HAMZA_ABOVE: c_int = 0xfef8;
-const A_S_LAM_ALEF_HAMZA_BELOW: c_int = 0xfef9;
-const A_F_LAM_ALEF_HAMZA_BELOW: c_int = 0xfefa;
-const A_S_LAM_ALEF: c_int = 0xfefb;
-const A_F_LAM_ALEF: c_int = 0xfefc;
+const A_S_LAM_ALEF_MADDA_ABOVE: i32 = 0xfef5;
+const A_F_LAM_ALEF_MADDA_ABOVE: i32 = 0xfef6;
+const A_S_LAM_ALEF_HAMZA_ABOVE: i32 = 0xfef7;
+const A_F_LAM_ALEF_HAMZA_ABOVE: i32 = 0xfef8;
+const A_S_LAM_ALEF_HAMZA_BELOW: i32 = 0xfef9;
+const A_F_LAM_ALEF_HAMZA_BELOW: i32 = 0xfefa;
+const A_S_LAM_ALEF: i32 = 0xfefb;
+const A_F_LAM_ALEF: i32 = 0xfefc;
 
 const A_BYTE_ORDER_MARK: u32 = 0xfeff;
 
@@ -466,7 +465,7 @@ const ACHARS: [AChar; 54] = [
 ];
 
 #[inline]
-fn find_achar(c: c_int) -> Option<&'static AChar> {
+fn find_achar(c: i32) -> Option<&'static AChar> {
     let target = c as u32;
     ACHARS
         .binary_search_by_key(&target, |a| a.c)
@@ -475,7 +474,7 @@ fn find_achar(c: c_int) -> Option<&'static AChar> {
 }
 
 #[inline]
-const fn chg_c_laa2i(hid_c: c_int) -> c_int {
+const fn chg_c_laa2i(hid_c: i32) -> i32 {
     match hid_c as u32 {
         A_ALEF_MADDA => A_S_LAM_ALEF_MADDA_ABOVE,
         A_ALEF_HAMZA_ABOVE => A_S_LAM_ALEF_HAMZA_ABOVE,
@@ -486,7 +485,7 @@ const fn chg_c_laa2i(hid_c: c_int) -> c_int {
 }
 
 #[inline]
-const fn chg_c_laa2f(hid_c: c_int) -> c_int {
+const fn chg_c_laa2f(hid_c: i32) -> i32 {
     match hid_c as u32 {
         A_ALEF_MADDA => A_F_LAM_ALEF_MADDA_ABOVE,
         A_ALEF_HAMZA_ABOVE => A_F_LAM_ALEF_HAMZA_ABOVE,
@@ -497,7 +496,7 @@ const fn chg_c_laa2f(hid_c: c_int) -> c_int {
 }
 
 #[inline]
-fn can_join(c1: c_int, c2: c_int) -> bool {
+fn can_join(c1: i32, c2: i32) -> bool {
     let (Some(a1), Some(a2)) = (find_achar(c1), find_achar(c2)) else {
         return false;
     };
@@ -505,7 +504,7 @@ fn can_join(c1: c_int, c2: c_int) -> bool {
 }
 
 /// Check whether `two` could be an Arabic combining character (`arabic_maycombine`).
-pub fn arabic_maycombine(two: c_int) -> bool {
+pub fn arabic_maycombine(two: i32) -> bool {
     if arshape_enabled() {
         matches!(
             two as u32,
@@ -517,7 +516,7 @@ pub fn arabic_maycombine(two: c_int) -> bool {
 }
 
 /// Check whether `(one, two)` are Arabic combining characters (`arabic_combine`).
-pub fn arabic_combine(one: c_int, two: c_int) -> bool {
+pub fn arabic_combine(one: i32, two: i32) -> bool {
     if one as u32 == A_LAM {
         arabic_maycombine(two)
     } else {
@@ -526,28 +525,22 @@ pub fn arabic_combine(one: c_int, two: c_int) -> bool {
 }
 
 #[inline]
-fn a_is_iso(c: c_int) -> bool {
+fn a_is_iso(c: i32) -> bool {
     find_achar(c).is_some()
 }
 
 #[inline]
-fn a_is_ok(c: c_int) -> bool {
+fn a_is_ok(c: i32) -> bool {
     a_is_iso(c) || (c as u32) == A_BYTE_ORDER_MARK
 }
 
 #[inline]
-fn a_is_valid(c: c_int) -> bool {
+fn a_is_valid(c: i32) -> bool {
     a_is_ok(c) && (c as u32) != A_HAMZA
 }
 
 /// Perform Arabic shaping on character `c` (`arabic_shape`).
-pub fn arabic_shape(
-    c: c_int,
-    c1p: &mut c_int,
-    prev_c: c_int,
-    prev_c1: c_int,
-    next_c: c_int,
-) -> c_int {
+pub fn arabic_shape(c: i32, c1p: &mut i32, prev_c: i32, prev_c1: i32, next_c: i32) -> i32 {
     if !a_is_ok(c) {
         return c;
     }
@@ -557,7 +550,7 @@ pub fn arabic_shape(
     let prev_laa = arabic_combine(prev_c, prev_c1);
 
     let mut curr_c = if curr_laa {
-        let shaped = if a_is_valid(prev_c) && can_join(prev_c, A_LAM as c_int) && !prev_laa {
+        let shaped = if a_is_valid(prev_c) && can_join(prev_c, A_LAM as i32) && !prev_laa {
             chg_c_laa2f(c1)
         } else {
             chg_c_laa2i(c1)
@@ -577,7 +570,7 @@ pub fn arabic_shape(
             (false, true) => curr_a.initial,
             (false, false) => curr_a.isolated,
         };
-        shaped as c_int
+        shaped as i32
     };
 
     if curr_c == 0 {
@@ -603,35 +596,35 @@ mod tests {
         opt_vars().p_arshape = 1;
         opt_vars().p_tbidi = 0;
 
-        assert!(arabic_maycombine(A_ALEF as c_int));
-        assert!(arabic_combine(A_LAM as c_int, A_ALEF as c_int));
-        assert!(!arabic_combine(A_BEH as c_int, A_ALEF as c_int));
+        assert!(arabic_maycombine(A_ALEF as i32));
+        assert!(arabic_combine(A_LAM as i32, A_ALEF as i32));
+        assert!(!arabic_combine(A_BEH as i32, A_ALEF as i32));
 
         // LAM + ALEF isolated -> 0xfefb, clearing *c1p
-        let mut c1: c_int = A_ALEF as c_int;
-        let shaped = arabic_shape(A_LAM as c_int, &mut c1, 0, 0, 0);
+        let mut c1: i32 = A_ALEF as i32;
+        let shaped = arabic_shape(A_LAM as i32, &mut c1, 0, 0, 0);
         assert_eq!(shaped, A_S_LAM_ALEF);
         assert_eq!(c1, 0);
 
         // BEH followed by LAM+ALEF: LAM+ALEF becomes final form 0xfefc
-        let mut c1_final: c_int = A_ALEF as c_int;
-        let shaped_final = arabic_shape(A_LAM as c_int, &mut c1_final, A_BEH as c_int, 0, 0);
+        let mut c1_final: i32 = A_ALEF as i32;
+        let shaped_final = arabic_shape(A_LAM as i32, &mut c1_final, A_BEH as i32, 0, 0);
         assert_eq!(shaped_final, A_F_LAM_ALEF);
         assert_eq!(c1_final, 0);
 
         // BEH contextual forms: isolated (0xfe8f), initial (0xfe91), medial (0xfe92), final (0xfe90)
-        let mut zero: c_int = 0;
-        assert_eq!(arabic_shape(A_BEH as c_int, &mut zero, 0, 0, 0), 0xfe8f);
+        let mut zero: i32 = 0;
+        assert_eq!(arabic_shape(A_BEH as i32, &mut zero, 0, 0, 0), 0xfe8f);
         assert_eq!(
-            arabic_shape(A_BEH as c_int, &mut zero, 0, 0, A_TEH as c_int),
+            arabic_shape(A_BEH as i32, &mut zero, 0, 0, A_TEH as i32),
             0xfe91
         );
         assert_eq!(
-            arabic_shape(A_BEH as c_int, &mut zero, A_TEH as c_int, 0, A_TEH as c_int),
+            arabic_shape(A_BEH as i32, &mut zero, A_TEH as i32, 0, A_TEH as i32),
             0xfe92
         );
         assert_eq!(
-            arabic_shape(A_BEH as c_int, &mut zero, A_TEH as c_int, 0, 0),
+            arabic_shape(A_BEH as i32, &mut zero, A_TEH as i32, 0, 0),
             0xfe90
         );
     }

@@ -25,10 +25,10 @@ use crate::os::input::fast_breakcheck;
 use crate::runtime::source_runtime;
 use crate::strings::{gettext, vim_snprintf};
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CStr, CString, c_char};
 use std::ptr;
 
-pub type DigrResult = c_int;
+pub type DigrResult = i32;
 use crate::autocmd::HLF_8;
 use crate::buffer::KEYMAP_INIT;
 use crate::change::MB_MAXCHAR;
@@ -49,10 +49,10 @@ pub struct Kmap {
     pub to: std::ffi::CString,
 }
 
-pub(crate) const HLF_CM: c_int = 11;
+pub(crate) const HLF_CM: i32 = 11;
 
-pub(crate) const K_BOOL_VAR_FALSE_CONST: c_int = 0;
-pub(crate) const K_BOOL_VAR_TRUE_CONST: c_int = 1;
+pub(crate) const K_BOOL_VAR_FALSE_CONST: i32 = 0;
+pub(crate) const K_BOOL_VAR_TRUE_CONST: i32 = 1;
 
 const KEYMAP_LOADED: i16 = 2;
 
@@ -95,8 +95,8 @@ const E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS: &CStr =
 
 struct DigraphModuleState {
     user_digraphs: Vec<DigraphEntry>,
-    backspaced: c_int,
-    lastchar: c_int,
+    backspaced: i32,
+    lastchar: i32,
     digraph_for_char_buf: [c_char; 3],
 }
 
@@ -1612,7 +1612,7 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 ];
 
 /// Handle digraphs after typing a character (`do_digraph`).
-pub fn do_digraph(mut c: c_int) -> c_int {
+pub fn do_digraph(mut c: i32) -> i32 {
     if c == -1 {
         digr_st().backspaced = -1;
     } else if opt_vars().p_dg != 0 {
@@ -1630,7 +1630,7 @@ pub fn do_digraph(mut c: c_int) -> c_int {
 }
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
-pub fn get_digraph_for_char(val: c_int) -> *mut c_char {
+pub fn get_digraph_for_char(val: i32) -> *mut c_char {
     {
         for dp in digr_st().user_digraphs.iter().chain(DIGRAPHDEFAULT.iter()) {
             if dp.result == val {
@@ -1645,7 +1645,7 @@ pub fn get_digraph_for_char(val: c_int) -> *mut c_char {
 }
 
 /// Get a digraph (`get_digraph`).
-pub fn get_digraph(cmdline: bool) -> c_int {
+pub fn get_digraph(cmdline: bool) -> i32 {
     g_st().no_mapping += 1;
     g_st().allow_keys += 1;
     let c = plain_vgetc();
@@ -1653,7 +1653,7 @@ pub fn get_digraph(cmdline: bool) -> c_int {
     g_st().allow_keys -= 1;
 
     if c == ESC {
-        return c_int::from(NUL);
+        return i32::from(NUL);
     }
 
     if is_special(c) {
@@ -1676,18 +1676,18 @@ pub fn get_digraph(cmdline: bool) -> c_int {
     if cc != ESC {
         return digraph_get(c, cc, true);
     }
-    c_int::from(NUL)
+    i32::from(NUL)
 }
 
 /// Lookup the pair `char1`, `char2` in the digraph tables (`getexactdigraph`).
-fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
+fn getexactdigraph(char1: i32, char2: i32, meta_char: bool) -> i32 {
     if is_special(char1) || is_special(char2) {
         return char2;
     }
 
     let user_slice = digr_st().user_digraphs.as_slice();
     for dp in user_slice.iter().chain(DIGRAPHDEFAULT.iter()) {
-        if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
+        if i32::from(dp.char1) == char1 && i32::from(dp.char2) == char2 {
             if dp.result != 0 {
                 return dp.result;
             }
@@ -1695,7 +1695,7 @@ fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
         }
     }
 
-    if char1 == b' ' as c_int && meta_char {
+    if char1 == b' ' as i32 && meta_char {
         char2 | 0x80
     } else {
         char2
@@ -1703,7 +1703,7 @@ fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
 }
 
 /// Get digraph (`digraph_get`).
-pub fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
+pub fn digraph_get(char1: i32, char2: i32, meta_char: bool) -> i32 {
     let mut retval = getexactdigraph(char1, char2, meta_char);
     if retval == char2 && char1 != char2 {
         retval = getexactdigraph(char2, char1, meta_char);
@@ -1715,11 +1715,11 @@ pub fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
 }
 
 /// Add a digraph to the digraph table (`registerdigraph`).
-fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
+fn registerdigraph(char1: i32, char2: i32, n: i32) {
     {
         let user_vec = &mut digr_st().user_digraphs;
         for dp in user_vec.iter_mut() {
-            if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
+            if i32::from(dp.char1) == char1 && i32::from(dp.char2) == char2 {
                 dp.result = n;
                 return;
             }
@@ -1734,7 +1734,7 @@ fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
 }
 
 /// Check the characters are valid for a digraph (`check_digraph_chars_valid`).
-pub fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
+pub fn check_digraph_chars_valid(char1: i32, char2: i32) -> bool {
     if char2 == 0 {
         let mut msg = [0 as c_char; MB_MAXCHAR + 1];
         let len = utf_char2bytes(char1, msg.as_mut_ptr()) as usize;
@@ -1765,7 +1765,7 @@ pub fn putdigraph(mut str: *mut c_char) {
             let char2 = crate::memory::cstr_first_byte(str);
             str = str.add(1);
 
-            if !check_digraph_chars_valid(c_int::from(char1), c_int::from(char2)) {
+            if !check_digraph_chars_valid(i32::from(char1), i32::from(char2)) {
                 return;
             }
 
@@ -1777,7 +1777,7 @@ pub fn putdigraph(mut str: *mut c_char) {
             }
             let n = getdigits_int(&raw mut str, true, 0);
 
-            registerdigraph(c_int::from(char1), c_int::from(char2), n);
+            registerdigraph(i32::from(char1), i32::from(char2), n);
         }
     }
 }
@@ -1785,10 +1785,10 @@ pub fn putdigraph(mut str: *mut c_char) {
 fn digraph_header(msg: impl crate::strings::IntoCCharPtr) {
     let msg = msg.into_c_char_ptr();
     if g_st().msg_col > 0 {
-        msg_putchar(b'\n' as c_int);
+        msg_putchar(b'\n' as i32);
     }
     msg_outtrans(msg, HLF_CM, false);
-    msg_putchar(b'\n' as c_int);
+    msg_putchar(b'\n' as i32);
 }
 
 pub fn listdigraphs(use_headers: bool) {
@@ -1796,7 +1796,7 @@ pub fn listdigraphs(use_headers: bool) {
         let mut previous: DigrResult = 0;
 
         msg_ext_set_kind(c"list_cmd");
-        msg_putchar(b'\n' as c_int);
+        msg_putchar(b'\n' as i32);
 
         for dp in DIGRAPHDEFAULT {
             if g_st().got_int {
@@ -1805,10 +1805,10 @@ pub fn listdigraphs(use_headers: bool) {
             let tmp = DigraphEntry {
                 char1: dp.char1,
                 char2: dp.char2,
-                result: getexactdigraph(c_int::from(dp.char1), c_int::from(dp.char2), false),
+                result: getexactdigraph(i32::from(dp.char1), i32::from(dp.char2), false),
             };
 
-            if tmp.result != 0 && tmp.result != c_int::from(tmp.char2) {
+            if tmp.result != 0 && tmp.result != i32::from(tmp.char2) {
                 printdigraph(
                     &tmp,
                     if use_headers {
@@ -1866,9 +1866,9 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
                 let tmp = DigraphEntry {
                     char1: dp.char1,
                     char2: dp.char2,
-                    result: getexactdigraph(c_int::from(dp.char1), c_int::from(dp.char2), false),
+                    result: getexactdigraph(i32::from(dp.char1), i32::from(dp.char2), false),
                 };
-                if tmp.result != 0 && tmp.result != c_int::from(tmp.char2) {
+                if tmp.result != 0 && tmp.result != i32::from(tmp.char2) {
                     digraph_getlist_appendpair(&tmp, &mut *rettv.vval.v_list());
                 }
             }
@@ -1886,7 +1886,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
 fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
     unsafe {
         let mut buf = [0 as c_char; 30];
-        let list_width: c_int = 13;
+        let list_width: i32 = 13;
 
         if dp.result == 0 {
             return;
@@ -1908,7 +1908,7 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
             *previous = dp.result;
         }
         if g_st().msg_col > g_st().columns_global - list_width {
-            msg_putchar(b'\n' as c_int);
+            msg_putchar(b'\n' as i32);
         }
 
         if g_st().msg_col % list_width != 0 {
@@ -1942,7 +1942,7 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
 }
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
-fn get_digraph_chars(arg: &TypVal, char1: &mut c_int, char2: &mut c_int) -> bool {
+fn get_digraph_chars(arg: &TypVal, char1: &mut i32, char2: &mut i32) -> bool {
     {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
         let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
@@ -1967,8 +1967,8 @@ fn get_digraph_chars(arg: &TypVal, char1: &mut c_int, char2: &mut c_int) -> bool
 
 fn digraph_set_common(argchars: &TypVal, argdigraph: &TypVal) -> bool {
     {
-        let mut char1: c_int = 0;
-        let mut char2: c_int = 0;
+        let mut char1: i32 = 0;
+        let mut char2: i32 = 0;
         if !get_digraph_chars(argchars, &mut char1, &mut char2) {
             return false;
         }
@@ -2232,8 +2232,8 @@ pub fn get_keymap_str(
     wp: &mut WinInfoInfo,
     fmt: &std::ffi::CStr,
     buf: *mut c_char,
-    len: c_int,
-) -> c_int {
+    len: i32,
+) -> i32 {
     unsafe {
         if wp.buf_mut().b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
             return 0;
@@ -2274,11 +2274,8 @@ mod tests {
 
     #[test]
     fn builtin_digraph_lookup_and_char_validation() {
-        assert!(check_digraph_chars_valid(b'a' as c_int, b':' as c_int));
-        assert_eq!(getexactdigraph(b'a' as c_int, b':' as c_int, false), 0x00e4);
-        assert_eq!(
-            getexactdigraph(b'e' as c_int, b'\'' as c_int, false),
-            0x00e9
-        );
+        assert!(check_digraph_chars_valid(b'a' as i32, b':' as i32));
+        assert_eq!(getexactdigraph(b'a' as i32, b':' as i32, false), 0x00e4);
+        assert_eq!(getexactdigraph(b'e' as i32, b'\'' as i32, false), 0x00e9);
     }
 }

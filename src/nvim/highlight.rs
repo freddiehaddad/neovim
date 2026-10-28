@@ -28,19 +28,19 @@ use crate::popupmenu::pum_drawn;
 use crate::strings::gettext;
 use crate::ui::ui_call_hl_attr_define;
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 pub type RgbValue = i32;
 pub type OptionalKeys = u64;
 use crate::msgpack_rpc::channel::RemoteUI;
-pub type HlKind = c_int;
+pub type HlKind = i32;
 
 const MAX_TYPENR: u32 = 65535;
 
 pub(crate) const HLF_NONE: usize = 0;
-pub(crate) const HLF_PNI: c_int = 41;
-pub(crate) const HLF_PST: c_int = 50;
+pub(crate) const HLF_PNI: i32 = 41;
+pub(crate) const HLF_PST: i32 = 50;
 pub(crate) const HLF_INACTIVE: usize = 60;
 const HLF_NFLOAT: usize = 62;
 const HLF_BORDER: usize = 64;
@@ -192,30 +192,30 @@ pub struct HlAttrs {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HlEntry {
     pub attr: HlAttrs,
-    pub kind: c_int,
-    pub id1: c_int,
-    pub id2: c_int,
-    pub winid: c_int,
+    pub kind: i32,
+    pub id1: i32,
+    pub id2: i32,
+    pub winid: i32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ColorKey {
-    pub ns_id: c_int,
-    pub syn_id: c_int,
+    pub ns_id: i32,
+    pub syn_id: i32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct ColorItem {
-    pub attr_id: c_int,
-    pub link_id: c_int,
-    pub version: c_int,
+    pub attr_id: i32,
+    pub link_id: i32,
+    pub version: i32,
     pub is_default: bool,
     pub link_global: bool,
 }
 
-pub type NSHlAttr = [std::cell::Cell<c_int>; HLF_COUNT];
+pub type NSHlAttr = [std::cell::Cell<i32>; HLF_COUNT];
 
 use crate::api::private::helpers::has_key;
 
@@ -223,15 +223,15 @@ struct HighlightModuleState {
     hlstate_active: bool,
     attr_entries: Vec<HlEntry>,
     attr_entry_ids: std::collections::BTreeMap<HlEntry, u32>,
-    combine_attr_entries: std::collections::BTreeMap<u64, c_int>,
-    blend_attr_entries: std::collections::BTreeMap<u64, c_int>,
-    blendthrough_attr_entries: std::collections::BTreeMap<u64, c_int>,
+    combine_attr_entries: std::collections::BTreeMap<u64, i32>,
+    blend_attr_entries: std::collections::BTreeMap<u64, i32>,
+    blendthrough_attr_entries: std::collections::BTreeMap<u64, i32>,
     urls: Vec<std::ffi::CString>,
     fonts: Vec<std::ffi::CString>,
     ns_hls: std::collections::BTreeMap<ColorKey, ColorItem>,
-    ns_hl_attr: std::collections::BTreeMap<c_int, std::rc::Rc<NSHlAttr>>,
+    ns_hl_attr: std::collections::BTreeMap<i32, std::rc::Rc<NSHlAttr>>,
     get_attr_entry_recursive: bool,
-    ns_get_hl_recursive: c_int,
+    ns_get_hl_recursive: i32,
 }
 
 impl HighlightModuleState {
@@ -277,7 +277,7 @@ use crate::eval::funcs::{
 use crate::lua::converter::LUA_NOREF;
 
 #[inline]
-pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: c_int) -> c_int {
+pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: i32) -> i32 {
     {
         if let Some(ref tbl) = wp.w_ns_hl_attr
             && g_st().ns_hl_fast < 0
@@ -290,7 +290,7 @@ pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: c_int) -> c_int {
 }
 
 #[inline]
-pub fn hl_attr(n: c_int) -> c_int {
+pub fn hl_attr(n: i32) -> i32 {
     unsafe {
         let ha = &raw const g_st().hl_attr_active;
         if let Some(ref tbl) = *ha {
@@ -302,7 +302,7 @@ pub fn hl_attr(n: c_int) -> c_int {
 }
 
 #[inline]
-const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
+const fn hl_attr_key(a: i32, b: i32) -> u64 {
     ((a as u32 as u64) << 32) | (b as u32 as u64)
 }
 
@@ -331,7 +331,7 @@ pub fn highlight_use_hlstate() -> bool {
     true
 }
 
-fn get_attr_entry(mut entry: HlEntry) -> c_int {
+fn get_attr_entry(mut entry: HlEntry) -> i32 {
     {
         let mut retried = false;
         if !hl_st().hlstate_active {
@@ -342,7 +342,7 @@ fn get_attr_entry(mut entry: HlEntry) -> c_int {
 
         loop {
             if let Some(&k) = hl_st().attr_entry_ids.get(&entry) {
-                return k as c_int;
+                return k as i32;
             }
 
             if hl_st().attr_entries.len() as u32 >= MAX_TYPENR {
@@ -367,7 +367,7 @@ fn get_attr_entry(mut entry: HlEntry) -> c_int {
             hl_st().attr_entries.push(entry);
             hl_st().attr_entry_ids.insert(entry, k);
 
-            let id = k as c_int;
+            let id = k as i32;
             let mut arena = Arena {
                 cur_blk: ptr::null_mut(),
                 pos: 0,
@@ -390,7 +390,7 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
                 pos: 0,
                 size: 0,
             };
-            let inspect = hl_inspect(i as c_int, &mut arena);
+            let inspect = hl_inspect(i as i32, &mut arena);
             let attr = hl_st().attr_entries.as_slice()[i].attr;
             remote_ui_hl_attr_define(ui, i as Integer, attr, attr, inspect);
             arena_mem_free(arena_finish(&mut arena));
@@ -405,7 +405,7 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
     }
 }
 
-pub fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttrs) -> c_int {
+pub fn hl_get_syn_attr(ns_id: i32, idx: i32, at_en: HlAttrs) -> i32 {
     if at_en.cterm_fg_color != 0
         || at_en.cterm_bg_color != 0
         || at_en.rgb_fg_color != -1
@@ -429,9 +429,9 @@ pub fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttrs) -> c_int {
 
 pub fn ns_hl_def(
     ns_id: NS,
-    hl_id: c_int,
+    hl_id: i32,
     attrs: HlAttrs,
-    link_id: c_int,
+    link_id: i32,
     dict: Option<&KeyDict_highlight>,
 ) {
     unsafe {
@@ -465,7 +465,7 @@ pub fn ns_hl_def(
     }
 }
 
-pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c_int {
+pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32 {
     unsafe {
         if *ns_hl == 0 {
             return -1;
@@ -549,7 +549,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
             } else {
                 hl_get_syn_attr(ns_id, hl_id, attrs)
             };
-            it.version = (*p).hl_valid - c_int::from(tmp);
+            it.version = (*p).hl_valid - i32::from(tmp);
             it.is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
             it.link_global = (attrs.rgb_ae_attr & HL_GLOBAL) != 0;
             hl_st().ns_hls.insert(key, it);
@@ -607,8 +607,8 @@ pub fn win_check_ns_hl(wp: Option<&WinInfoInfo>) -> bool {
 }
 
 pub fn hl_ns_get_attrs(
-    ns_id: c_int,
-    hl_id: c_int,
+    ns_id: i32,
+    hl_id: i32,
     mut optional: Option<&mut bool>,
     attrs: &mut HlAttrs,
 ) -> bool {
@@ -630,7 +630,7 @@ pub fn hl_ns_get_attrs(
     }
 }
 
-pub fn hl_get_ui_attr(ns_id: c_int, idx: c_int, final_id: c_int, mut optional: bool) -> c_int {
+pub fn hl_get_ui_attr(ns_id: i32, idx: i32, final_id: i32, mut optional: bool) -> i32 {
     let mut attrs = HLATTRS_INIT;
     let mut available = false;
 
@@ -659,7 +659,7 @@ pub fn hl_get_ui_attr(ns_id: c_int, idx: c_int, final_id: c_int, mut optional: b
     })
 }
 
-pub fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
+pub fn hl_apply_winblend(winbl: i32, mut attr: i32) -> i32 {
     {
         let mut entry = hl_st().attr_entries.as_slice()[attr as usize];
         if entry.attr.hl_blend == -1 && winbl > 0 {
@@ -682,11 +682,11 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
         }
 
         let w_ns_hl_attr = wp.w_ns_hl_attr.clone();
-        let hl_def_get = |idx: usize| -> c_int {
+        let hl_def_get = |idx: usize| -> i32 {
             if let Some(ref tbl) = w_ns_hl_attr {
                 tbl[idx].get()
             } else {
-                hl_attr(idx as c_int)
+                hl_attr(idx as i32)
             }
         };
 
@@ -701,8 +701,8 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
         } else if hl_def_get(HLF_NONE) > 0 {
             wp.w_hl_attr_normal = hl_def_get(HLF_NONE);
         } else if float_win {
-            wp.w_hl_attr_normal = if hl_attr(HLF_NFLOAT as c_int) > 0 {
-                hl_attr(HLF_NFLOAT as c_int)
+            wp.w_hl_attr_normal = if hl_attr(HLF_NFLOAT as i32) > 0 {
+                hl_attr(HLF_NFLOAT as i32)
             } else {
                 g_st().highlight_attr[HLF_NFLOAT]
             };
@@ -712,7 +712,7 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
 
         if wp.w_floating {
             wp.w_hl_attr_normal =
-                hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as c_int, wp.w_hl_attr_normal);
+                hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as i32, wp.w_hl_attr_normal);
         }
 
         wp.w_config.shadow = false;
@@ -722,12 +722,12 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
                 if wp.w_config.border_hl_ids[i] != 0 {
                     attr = hl_get_ui_attr(
                         ns_id,
-                        HLF_BORDER as c_int,
+                        HLF_BORDER as i32,
                         wp.w_config.border_hl_ids[i],
                         false,
                     );
                 }
-                attr = hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as c_int, attr);
+                attr = hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as i32, attr);
                 if syn_attr2entry(attr).hl_blend > 0 {
                     wp.w_config.shadow = true;
                 }
@@ -739,19 +739,19 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
 
         if hl_def_get(HLF_INACTIVE) == 0 {
             wp.w_hl_attr_normalnc =
-                hl_combine_attr(hl_attr(HLF_INACTIVE as c_int), wp.w_hl_attr_normal);
+                hl_combine_attr(hl_attr(HLF_INACTIVE as i32), wp.w_hl_attr_normal);
         } else {
             wp.w_hl_attr_normalnc = hl_def_get(HLF_INACTIVE);
         }
 
         if wp.w_floating {
             wp.w_hl_attr_normalnc =
-                hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as c_int, wp.w_hl_attr_normalnc);
+                hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as i32, wp.w_hl_attr_normalnc);
         }
     }
 }
 
-pub fn update_ns_hl(ns_id: c_int) {
+pub fn update_ns_hl(ns_id: i32) {
     unsafe {
         if ns_id <= 0 {
             return;
@@ -771,7 +771,7 @@ pub fn update_ns_hl(ns_id: c_int) {
             let name_cstr = HLF_NAMES[hlf].unwrap();
             let id = syn_check_group(name_cstr.as_ptr(), name_cstr.to_bytes().len());
             let optional = hlf == HLF_INACTIVE || hlf == HLF_NFLOAT;
-            alloc[hlf].set(hl_get_ui_attr(ns_id, hlf as c_int, id, optional));
+            alloc[hlf].set(hl_get_ui_attr(ns_id, hlf as i32, id, optional));
         }
 
         let normality = syn_check_group(c"Normal", 6);
@@ -782,7 +782,7 @@ pub fn update_ns_hl(ns_id: c_int) {
     }
 }
 
-pub fn win_bg_attr(wp: &mut WinInfoInfo) -> c_int {
+pub fn win_bg_attr(wp: &mut WinInfoInfo) -> i32 {
     {
         if g_st().ns_hl_fast < 0 {
             let local = if ptr::eq(wp, curwin_ptr()) {
@@ -795,15 +795,15 @@ pub fn win_bg_attr(wp: &mut WinInfoInfo) -> c_int {
             }
         }
 
-        if ptr::eq(wp, curwin_ptr()) || hl_attr(HLF_INACTIVE as c_int) == 0 {
-            hl_attr(HLF_NONE as c_int)
+        if ptr::eq(wp, curwin_ptr()) || hl_attr(HLF_INACTIVE as i32) == 0 {
+            hl_attr(HLF_NONE as i32)
         } else {
-            hl_attr(HLF_INACTIVE as c_int)
+            hl_attr(HLF_INACTIVE as i32)
         }
     }
 }
 
-pub fn hl_get_underline() -> c_int {
+pub fn hl_get_underline() -> i32 {
     let mut attrs = HLATTRS_INIT;
     attrs.cterm_ae_attr = HL_UNDERLINE;
     attrs.rgb_ae_attr = HL_UNDERLINE;
@@ -816,7 +816,7 @@ pub fn hl_get_underline() -> c_int {
     })
 }
 
-pub fn hl_add_url(attr: c_int, url: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn hl_add_url(attr: i32, url: impl crate::strings::IntoCCharPtr) -> i32 {
     let url = url.into_c_char_ptr();
     unsafe {
         let mut attrs = HLATTRS_INIT;
@@ -870,7 +870,7 @@ pub fn hl_get_font(index: i32) -> *const c_char {
     }
 }
 
-pub fn hl_get_term_attr(aep: &mut HlAttrs) -> c_int {
+pub fn hl_get_term_attr(aep: &mut HlAttrs) -> i32 {
     {
         get_attr_entry(HlEntry {
             attr: *aep,
@@ -927,7 +927,7 @@ const fn hl_combine_ae(char_ae: i32, prim_ae: i32) -> i32 {
     (char_ae & !HL_UNDERLINE_MASK) | (prim_ae & !HL_UNDERLINE_MASK) | new_ul
 }
 
-pub fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
+pub fn hl_combine_attr(char_attr: i32, prim_attr: i32) -> i32 {
     {
         if char_attr == 0 {
             return prim_attr;
@@ -1043,7 +1043,7 @@ fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
     }
 }
 
-pub fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: &mut bool) -> c_int {
+pub fn hl_blend_attrs(back_attr: i32, front_attr: i32, through: &mut bool) -> i32 {
     unsafe {
         if front_attr < 0 || back_attr < 0 {
             return front_attr;
@@ -1129,7 +1129,7 @@ pub fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: &mut bool) -
     }
 }
 
-const fn rgb_blend(ratio: c_int, rgb1: c_int, rgb2: c_int) -> c_int {
+const fn rgb_blend(ratio: i32, rgb1: i32, rgb2: i32) -> i32 {
     let a = ratio;
     let b = 100 - ratio;
     let r1 = (rgb1 & 0xFF0000) >> 16;
@@ -1144,14 +1144,14 @@ const fn rgb_blend(ratio: c_int, rgb1: c_int, rgb2: c_int) -> c_int {
     (mr << 16) + (mg << 8) + mb
 }
 
-const fn cterm_blend(ratio: c_int, c1: i16, c2: i16) -> c_int {
-    let rgb1 = hl_cterm2rgb_color(c1 as c_int);
-    let rgb2 = hl_cterm2rgb_color(c2 as c_int);
+const fn cterm_blend(ratio: i32, c1: i16, c2: i16) -> i32 {
+    let rgb1 = hl_cterm2rgb_color(c1 as i32);
+    let rgb2 = hl_cterm2rgb_color(c2 as i32);
     let rgb_blended = rgb_blend(ratio, rgb1, rgb2);
     hl_rgb2cterm_color(rgb_blended)
 }
 
-const fn hl_rgb2cterm_color(rgb: c_int) -> c_int {
+const fn hl_rgb2cterm_color(rgb: i32) -> i32 {
     let r = (rgb & 0xFF0000) >> 16;
     let g = (rgb & 0x00FF00) >> 8;
     let b = rgb & 0x0000FF;
@@ -1159,9 +1159,9 @@ const fn hl_rgb2cterm_color(rgb: c_int) -> c_int {
     (r * 6 / 256) * 36 + (g * 6 / 256) * 6 + (b * 6 / 256)
 }
 
-const fn hl_cterm2rgb_color(nr: c_int) -> c_int {
-    const CUBE_VALUE: [c_int; 6] = [0x00, 0x5F, 0x87, 0xAF, 0xD7, 0xFF];
-    const GREY_RAMP: [c_int; 24] = [
+const fn hl_cterm2rgb_color(nr: i32) -> i32 {
+    const CUBE_VALUE: [i32; 6] = [0x00, 0x5F, 0x87, 0xAF, 0xD7, 0xFF];
+    const GREY_RAMP: [i32; 24] = [
         0x08, 0x12, 0x1C, 0x26, 0x30, 0x3A, 0x44, 0x4E, 0x58, 0x62, 0x6C, 0x76, 0x80, 0x8A, 0x94,
         0x9E, 0xA8, 0xB2, 0xBC, 0xC6, 0xD0, 0xDA, 0xE4, 0xEE,
     ];
@@ -1189,9 +1189,9 @@ const fn hl_cterm2rgb_color(nr: c_int) -> c_int {
     let mut b = 0;
 
     if nr >= 0 && nr < 16 {
-        r = ANSI_TABLE[nr as usize][0] as c_int;
-        g = ANSI_TABLE[nr as usize][1] as c_int;
-        b = ANSI_TABLE[nr as usize][2] as c_int;
+        r = ANSI_TABLE[nr as usize][0] as i32;
+        g = ANSI_TABLE[nr as usize][1] as i32;
+        b = ANSI_TABLE[nr as usize][2] as i32;
     } else if nr >= 16 && nr < 232 {
         let idx = (nr - 16) as usize;
         r = CUBE_VALUE[(idx / 36) % 6];
@@ -1206,7 +1206,7 @@ const fn hl_cterm2rgb_color(nr: c_int) -> c_int {
     (r << 16) + (g << 8) + b
 }
 
-pub fn syn_attr2entry(attr: c_int) -> HlAttrs {
+pub fn syn_attr2entry(attr: i32) -> HlAttrs {
     {
         if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
             return HLATTRS_INIT;
@@ -1245,7 +1245,7 @@ pub fn hl_get_attr_by_id(
         hlattrs2dict(
             &mut retval,
             None,
-            syn_attr2entry(attr_id as c_int),
+            syn_attr2entry(attr_id as i32),
             rgb,
             false,
         );
@@ -1411,7 +1411,7 @@ const fn apply_cterm_flag(val: bool, mut m: i32, flag: i32) -> i32 {
 pub fn dict2hlattrs(
     dict: &mut KeyDict_highlight,
     use_rgb: bool,
-    mut link_id: Option<&mut c_int>,
+    mut link_id: Option<&mut i32>,
     base: Option<&HlAttrs>,
     err: &mut Error,
 ) -> HlAttrs {
@@ -1652,10 +1652,10 @@ pub fn dict2hlattrs(
                 return hlattrs;
             }
             if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
-                *link_id.as_deref_mut().unwrap() = dict.link_global as c_int;
+                *link_id.as_deref_mut().unwrap() = dict.link_global as i32;
                 mask |= HL_GLOBAL;
             } else {
-                *link_id.unwrap() = dict.link as c_int;
+                *link_id.unwrap() = dict.link as i32;
             }
 
             if err.err_type != ErrorType::ErrorTypeNone {
@@ -1748,16 +1748,16 @@ pub fn dict2hlattrs(
     }
 }
 
-pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut Error) -> c_int {
+pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut Error) -> i32 {
     if val.obj_type == ObjectType::ObjectTypeInteger {
-        val.data.integer() as c_int
+        val.data.integer() as i32
     } else if val.obj_type == ObjectType::ObjectTypeString {
         let str_ = val.data.string();
         if str_.size == 0 || is_none_str(str_.data) {
             return -1;
         }
         let color = if rgb {
-            let mut dummy: c_int = 0;
+            let mut dummy: i32 = 0;
             name_to_color(str_.data, &raw mut dummy)
         } else {
             name_to_ctermcolor(str_.data)
@@ -1778,7 +1778,7 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
     }
 }
 
-pub fn hl_inspect(attr: c_int, arena: &mut Arena) -> Array {
+pub fn hl_inspect(attr: i32, arena: &mut Arena) -> Array {
     if !hl_st().hlstate_active {
         return Array {
             size: 0,
@@ -1791,7 +1791,7 @@ pub fn hl_inspect(attr: c_int, arena: &mut Arena) -> Array {
     ret
 }
 
-fn hl_inspect_size(attr: c_int) -> usize {
+fn hl_inspect_size(attr: i32) -> usize {
     {
         if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
             return 0;
@@ -1805,7 +1805,7 @@ fn hl_inspect_size(attr: c_int) -> usize {
     }
 }
 
-fn hl_inspect_impl(arr: &mut Array, attr: c_int, arena: &mut Arena) {
+fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
     {
         if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
             return;

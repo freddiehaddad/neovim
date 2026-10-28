@@ -44,7 +44,7 @@ use crate::strings::vim_snprintf;
 use crate::textformat::Oparg;
 use crate::viml::parser::expressions::ESC;
 use crate::window::{WinInfoInfo, win_valid};
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 pub type CmdAtomVec = Vec<CmdAtom>;
@@ -63,16 +63,16 @@ use crate::regexp::{CTRL_H_CONST, CTRL_V_CONST, NUMBUFLEN};
 #[derive(Clone)]
 pub struct Cmdarg {
     pub oap: *mut Oparg,
-    pub cmdchar: c_int,
-    pub nchar: c_int,
+    pub cmdchar: i32,
+    pub nchar: i32,
     pub nchar_composing: [c_char; MAX_SCHAR_SIZE],
-    pub nchar_len: c_int,
-    pub extra_char: c_int,
-    pub opcount: c_int,
-    pub count0: c_int,
-    pub count1: c_int,
-    pub arg: c_int,
-    pub retval: c_int,
+    pub nchar_len: i32,
+    pub extra_char: i32,
+    pub opcount: i32,
+    pub count0: i32,
+    pub count1: i32,
+    pub arg: i32,
+    pub retval: i32,
     pub searchbuf: Option<std::ffi::CString>,
 }
 
@@ -113,37 +113,37 @@ impl Default for Cmdarg {
     }
 }
 
-const K_CPO_REDO: c_int = b'r' as c_int;
+const K_CPO_REDO: i32 = b'r' as i32;
 
-pub const K_ACOMP: c_int = 0;
-pub const K_AEXCMD: c_int = 1;
-pub const K_AINSERT: c_int = 2;
-pub const K_AINSERT_SPAN: c_int = 3;
-pub const K_AJUMP: c_int = 4;
-pub const K_AMOTION: c_int = 5;
-pub const K_AMOUSE: c_int = 6;
-pub const K_ANORMAL: c_int = 7;
-pub const K_AOPERATOR: c_int = 8;
-pub const K_ASCROLL: c_int = 9;
-pub const K_AVISUAL: c_int = 10;
-pub const K_AVISUAL_SPAN: c_int = 11;
-pub type CmdAtomType = c_int;
+pub const K_ACOMP: i32 = 0;
+pub const K_AEXCMD: i32 = 1;
+pub const K_AINSERT: i32 = 2;
+pub const K_AINSERT_SPAN: i32 = 3;
+pub const K_AJUMP: i32 = 4;
+pub const K_AMOTION: i32 = 5;
+pub const K_AMOUSE: i32 = 6;
+pub const K_ANORMAL: i32 = 7;
+pub const K_AOPERATOR: i32 = 8;
+pub const K_ASCROLL: i32 = 9;
+pub const K_AVISUAL: i32 = 10;
+pub const K_AVISUAL_SPAN: i32 = 11;
+pub type CmdAtomType = i32;
 
-pub const K_VINS_NONE: c_int = 0;
-pub const K_VINS_KEYS: c_int = 1;
-pub const K_VINS_MOTION: c_int = 2;
-pub const K_VINS_OTHER: c_int = 3;
-pub type VisualIns = c_int;
+pub const K_VINS_NONE: i32 = 0;
+pub const K_VINS_KEYS: i32 = 1;
+pub const K_VINS_MOTION: i32 = 2;
+pub const K_VINS_OTHER: i32 = 3;
+pub type VisualIns = i32;
 
-pub const K_KEY_OPAQUE: c_uint = 1 << 0;
-pub const K_KEY_SYNTHETIC: c_uint = 1 << 1;
-pub const K_KEY_PAYLOAD: c_uint = 1 << 2;
-pub const K_KEY_SCROLL_MOVE: c_uint = 1 << 3;
-pub const K_KEY_SCROLL_VIEW: c_uint = 1 << 4;
-pub const K_KEY_JUMP: c_uint = 1 << 5;
-pub const K_KEY_MOTION: c_uint = 1 << 6;
-pub const K_KEY_INS_FLUSH: c_uint = 1 << 7;
-pub const K_KEY_MOUSE: c_uint = 1 << 8;
+pub const K_KEY_OPAQUE: u32 = 1 << 0;
+pub const K_KEY_SYNTHETIC: u32 = 1 << 1;
+pub const K_KEY_PAYLOAD: u32 = 1 << 2;
+pub const K_KEY_SCROLL_MOVE: u32 = 1 << 3;
+pub const K_KEY_SCROLL_VIEW: u32 = 1 << 4;
+pub const K_KEY_JUMP: u32 = 1 << 5;
+pub const K_KEY_MOTION: u32 = 1 << 6;
+pub const K_KEY_INS_FLUSH: u32 = 1 << 7;
+pub const K_KEY_MOUSE: u32 = 1 << 8;
 
 const K_VATOM_NONE: u32 = 0;
 const K_VATOM_TYPED: u32 = 1;
@@ -169,13 +169,13 @@ const TYPE_NAMES: [&CStr; 12] = [
 #[derive(Clone)]
 pub struct CmdSpec {
     pub count: i64,
-    pub regname: c_int,
-    pub op: c_int,
-    pub op_extra: c_int,
-    pub motion_force: c_int,
-    pub cmd: c_int,
-    pub cmd2: c_int,
-    pub cmdarg: c_int,
+    pub regname: i32,
+    pub op: i32,
+    pub op_extra: i32,
+    pub motion_force: i32,
+    pub cmd: i32,
+    pub cmd2: i32,
+    pub cmdarg: i32,
     pub body: Vec<c_char>,
 }
 
@@ -223,7 +223,7 @@ pub struct CmdOrigin {
     pub pos: CursorPos,
     pub mcursor: u32,
     pub tick: Varnumber,
-    pub maptick: c_int,
+    pub maptick: i32,
 }
 
 impl CmdOrigin {
@@ -271,7 +271,7 @@ pub struct CmdAtom {
     pub keys: Option<std::ffi::CString>,
     pub text: Option<std::ffi::CString>,
     pub lhs: Option<std::ffi::CString>,
-    pub undoseq: c_int,
+    pub undoseq: i32,
     pub changed: bool,
     pub moved: bool,
     pub remap: bool,
@@ -309,8 +309,8 @@ pub struct CmdFrame {
     pub staged: CmdAtom,
     pub visual: VisualState,
     pub keytyped: bool,
-    pub keyclass: c_uint,
-    pub ex_normal: c_int,
+    pub keyclass: u32,
+    pub ex_normal: i32,
     pub captures: u64,
     pub global_ops: u64,
     pub beeps: u64,
@@ -520,7 +520,7 @@ fn atom_origin_moved(origin: CmdOrigin) -> bool {
 }
 
 #[inline]
-fn atom_origin_undoseq(origin: CmdOrigin) -> c_int {
+fn atom_origin_undoseq(origin: CmdOrigin) -> i32 {
     unsafe {
         if bufref_valid(Some(&origin.buf)) {
             (*origin.buf.br_buf).b_u_seq_cur
@@ -576,7 +576,7 @@ fn atom_from_cmdline(
     let cmdline = cmdline.into_c_char_ptr();
     {
         let mut sb: Vec<c_char> = Vec::new();
-        if ca.cmdchar != b':' as c_int && ca.count0 != 0 {
+        if ca.cmdchar != b':' as i32 && ca.count0 != 0 {
             let mut num_buf = [0 as c_char; 32];
             let n = vim_snprintf!(num_buf.as_mut_ptr(), num_buf.len(), c"%d", ca.count0,);
             if n > 0 {
@@ -584,7 +584,7 @@ fn atom_from_cmdline(
             }
         }
         sb_add_char(&mut sb, ca.cmdchar);
-        if vis && ca.cmdchar == b':' as c_int {
+        if vis && ca.cmdchar == b':' as i32 {
             sb_add_char(&mut sb, CTRL_U);
         }
         if is_special(ca.cmdchar) {
@@ -612,7 +612,7 @@ fn atom_from_frame(ca: &mut Cmdarg, frame: &mut CmdFrame) -> CmdAtom {
         let root = root_frame();
         let mut atom = CmdAtom::default();
         if let Some(ref cmdline) = root.cmdline
-            && (ca.cmdchar == b':' as c_int || ca.cmdchar == K_COMMAND)
+            && (ca.cmdchar == b':' as i32 || ca.cmdchar == K_COMMAND)
         {
             atom = atom_from_cmdline(K_AEXCMD, ca, cmdline.as_ptr(), frame.visual.active);
         } else if ca.cmdchar == K_LUA {
@@ -643,11 +643,11 @@ fn atoms_concat_keys(atoms: &[CmdAtom], from: usize) -> std::ffi::CString {
     }
 }
 
-fn atom_key_name(c: c_int) -> std::ffi::CString {
+fn atom_key_name(c: i32) -> std::ffi::CString {
     if c == NUL || c == K_LUA {
         return std::ffi::CString::default();
     }
-    if is_special(c) || c < b' ' as c_int {
+    if is_special(c) || c < b' ' as i32 {
         return cstr_to_cstring(get_special_key_name(c, 0));
     }
     if c == DEL {
@@ -1020,15 +1020,14 @@ fn atom_buf_has_consumers() -> bool {
     mc_buf_has_cursors(curbuf_mut()) || has_event(EVENT_CMDATOM)
 }
 
-pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
+pub fn atom_key_class(cmd: i32, arg: i32, arg2: i32) -> u32 {
     if cmd == K_EVENT || cmd == K_IGNORE {
         return K_KEY_OPAQUE | K_KEY_SYNTHETIC;
     }
     if cmd == K_COMMAND || cmd == K_LUA {
         return K_KEY_OPAQUE;
     }
-    if cmd == b'/' as c_int || cmd == b'?' as c_int || cmd == b':' as c_int || cmd == b'!' as c_int
-    {
+    if cmd == b'/' as i32 || cmd == b'?' as i32 || cmd == b':' as i32 || cmd == b'!' as i32 {
         return K_KEY_PAYLOAD;
     }
     if cmd == CTRL_D_CONST || cmd == CTRL_U {
@@ -1043,8 +1042,8 @@ pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
     if cmd == CTRL_T_CONST {
         return K_KEY_INS_FLUSH;
     }
-    if cmd == b'g' as c_int {
-        if arg == b'\'' as c_int || arg == b'`' as c_int {
+    if cmd == b'g' as i32 {
+        if arg == b'\'' as i32 || arg == b'`' as i32 {
             return atom_key_class(arg, arg2, NUL);
         }
         if b";,go".contains(&(arg as u8)) {
@@ -1056,8 +1055,8 @@ pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
             0
         };
     }
-    if cmd == b'[' as c_int || cmd == b']' as c_int {
-        if arg == b'C' as c_int {
+    if cmd == b'[' as i32 || cmd == b']' as i32 {
+        if arg == b'C' as i32 {
             return K_KEY_JUMP;
         }
         return if b"[](){}mMcsz#*/".contains(&(arg as u8)) {
@@ -1066,14 +1065,14 @@ pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
             0
         };
     }
-    if cmd == b'z' as c_int {
-        return if arg == b'j' as c_int || arg == b'k' as c_int {
+    if cmd == b'z' as i32 {
+        return if arg == b'j' as i32 || arg == b'k' as i32 {
             K_KEY_MOTION
         } else {
             0
         };
     }
-    if cmd == b'\'' as c_int || cmd == b'`' as c_int {
+    if cmd == b'\'' as i32 || cmd == b'`' as i32 {
         return if arg != NUL && b"<>[].^(){}".contains(&(arg as u8)) {
             K_KEY_MOTION
         } else {
@@ -1115,13 +1114,13 @@ pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
     0
 }
 
-pub fn atom_cmdline_set(firstc: c_int, line: impl crate::strings::IntoCCharPtr, len: usize) {
+pub fn atom_cmdline_set(firstc: i32, line: impl crate::strings::IntoCCharPtr, len: usize) {
     let line = line.into_c_char_ptr();
     {
         let cur_frame = cur_frame_ptr();
         if cur_frame.is_null()
             || !atom_is_user_cmd()
-            || (firstc != b':' as c_int && firstc != K_COMMAND)
+            || (firstc != b':' as i32 && firstc != K_COMMAND)
         {
             return;
         }
@@ -1198,7 +1197,7 @@ pub fn atom_typed_add(chars: *const u8, len: usize) {
         if len == 3
             && *chars == K_SPECIAL
             && (atom_key_class(
-                termcap2key(c_int::from(*chars.add(1)), c_int::from(*chars.add(2))),
+                termcap2key(i32::from(*chars.add(1)), i32::from(*chars.add(2))),
                 NUL,
                 NUL,
             ) & K_KEY_SYNTHETIC)
@@ -1262,7 +1261,7 @@ pub fn atom_redo_cancel() {
     }
 }
 
-pub fn atom_macro_start(regname: c_int) {
+pub fn atom_macro_start(regname: i32) {
     if atom_is_user_input() {
         atom_st().composite.r#macro = true;
         if !atom_composite_active() {
@@ -1347,7 +1346,7 @@ pub fn atom_visual_redoable() -> bool {
             return false;
         }
         for atom in &atom_st().vatom.atoms {
-            if atom.spec.cmd == b'g' as c_int && atom.spec.cmd2 == b'v' as c_int {
+            if atom.spec.cmd == b'g' as i32 && atom.spec.cmd2 == b'v' as i32 {
                 return false;
             }
         }
@@ -1521,9 +1520,9 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
             oap.op_type == OP_CHANGE || oap.op_type == OP_INSERT || oap.op_type == OP_APPEND;
         let payload_motion =
             cap.cmdchar >= 0x100 || (cap.cmdchar != NUL && b"/?:!".contains(&(cap.cmdchar as u8)));
-        let excmd = cap.cmdchar == b':' as c_int || cap.cmdchar == K_COMMAND;
+        let excmd = cap.cmdchar == b':' as i32 || cap.cmdchar == K_COMMAND;
         if !ins_op && !payload_motion {
-            let prep_exempt = !redoable || cap.cmdchar == b'D' as c_int;
+            let prep_exempt = !redoable || cap.cmdchar == b'D' as i32;
             let mut spec = CmdSpec {
                 regname: oap.regname,
                 count: i64::from(cap.count0),
@@ -1568,14 +1567,14 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
                 };
                 if (oap.op_type == OP_NR_ADD || oap.op_type == OP_NR_SUB) && cap.arg != 0 {
                     spec.op_extra = spec.op;
-                    spec.op = b'g' as c_int;
+                    spec.op = b'g' as i32;
                 }
                 atom_visual_end(spec, redoable);
             }
         }
 
         if redoable
-            && cap.cmdchar != b'D' as c_int
+            && cap.cmdchar != b'D' as i32
             && ((!g_st().visual_global.active || oap.motion_force != 0)
                 || excmd
                 || cap.cmdchar == K_LUA)
@@ -1594,7 +1593,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
                     ..CmdSpec::default()
                 },
             );
-            if cap.cmdchar == b'/' as c_int || cap.cmdchar == b'?' as c_int {
+            if cap.cmdchar == b'/' as i32 || cap.cmdchar == b'?' as i32 {
                 if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_REDO) {
                     redo_append_lit(cap.searchbuf_ptr(), -1);
                 }
@@ -1602,7 +1601,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
             } else if excmd {
                 let rc = g_st().repeat_cmdline.take();
                 if let Some(ref rc) = rc {
-                    if cap.cmdchar == b':' as c_int {
+                    if cap.cmdchar == b':' as i32 {
                         redo_append_lit(rc.as_ptr(), -1);
                     } else {
                         redo_append_spec(rc.as_ptr());
@@ -1664,7 +1663,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
     }
 }
 
-pub fn atom_ins_start(cmd: c_int, count: i64, vis: VisualIns, vblock: bool) -> InsSession {
+pub fn atom_ins_start(cmd: i32, count: i64, vis: VisualIns, vblock: bool) -> InsSession {
     unsafe {
         let cur_frame = cur_frame_ptr();
         let mut session = InsSession {
@@ -1689,10 +1688,8 @@ pub fn atom_ins_start(cmd: c_int, count: i64, vis: VisualIns, vblock: bool) -> I
             atom_visual_reset();
         }
 
-        let repl = cmd == b'R' as c_int
-            || cmd == b'V' as c_int
-            || cmd == b'r' as c_int
-            || cmd == b'v' as c_int;
+        let repl =
+            cmd == b'R' as i32 || cmd == b'V' as i32 || cmd == b'r' as i32 || cmd == b'v' as i32;
         let reexec = vis == K_VINS_NONE
             || vis == K_VINS_KEYS
             || session.vsel.is_some()
@@ -1759,8 +1756,8 @@ fn atom_ins_push(session: &InsSession, cascade: bool) {
         return;
     };
     let key_bytes = cur_keys.as_bytes();
-    let replace = atom.spec.cmd == b'r' as c_int
-        || (atom.spec.cmd == b'g' as c_int && atom.spec.cmd2 == b'r' as c_int);
+    let replace = atom.spec.cmd == b'r' as i32
+        || (atom.spec.cmd == b'g' as i32 && atom.spec.cmd2 == b'r' as i32);
     if key_bytes.is_empty() || (!replace && key_bytes[key_bytes.len() - 1] != ESC) {
         return;
     }
@@ -1769,7 +1766,7 @@ fn atom_ins_push(session: &InsSession, cascade: bool) {
     atom_push_raw(cascade, &mut atom);
 }
 
-pub fn atom_cmd_start(cmdchar: c_int) {
+pub fn atom_cmd_start(cmdchar: i32) {
     {
         let consumers = atom_buf_has_consumers();
         atom_st().frame_id += 1;
@@ -1870,8 +1867,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
             {
                 atom_st().vatom.state = (atom_st().vatom.state & K_VATOM_VOID) | K_VATOM_TYPED;
             }
-            vis =
-                atom_visual_pending() && ca.cmdchar != b'Q' as c_int && ca.cmdchar != b'q' as c_int;
+            vis = atom_visual_pending() && ca.cmdchar != b'Q' as i32 && ca.cmdchar != b'q' as i32;
             if vis
                 && (g_st().visual_global.select
                     || ((keycls & (K_KEY_SCROLL_MOVE | K_KEY_SCROLL_VIEW | K_KEY_MOUSE)) != 0
@@ -1915,11 +1911,11 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
             let mouse_cmd = (keycls & K_KEY_MOUSE) != 0;
             let jump_cmd = nv_is(ca.cmdchar, NV_JUMP)
                 || (keycls & K_KEY_JUMP) != 0
-                || (ca.cmdchar == b'%' as c_int && ca.count0 > 0);
+                || (ca.cmdchar == b'%' as i32 && ca.count0 > 0);
             let replayable = (ca.cmdchar > 0
                 && ca.cmdchar < 0x100
-                && ca.cmdchar != b'"' as c_int
-                && ca.cmdchar != b'@' as c_int
+                && ca.cmdchar != b'"' as i32
+                && ca.cmdchar != b'@' as i32
                 && !scroll_cmd)
                 || special_motion;
             let changed = atom_origin_changed(old.origin);
@@ -1943,7 +1939,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
                     atom_push(effect, &mut atom);
                 }
             } else if ca.searchbuf.is_some()
-                && (ca.cmdchar == b'/' as c_int || ca.cmdchar == b'?' as c_int)
+                && (ca.cmdchar == b'/' as i32 || ca.cmdchar == b'?' as i32)
                 && !(vis && unchanged)
             {
                 let mut atom =
@@ -1951,7 +1947,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
                 atom.origin = old.origin;
                 atom_push(false, &mut atom);
             } else if (root.cmdline.is_some()
-                && (ca.cmdchar == b':' as c_int || ca.cmdchar == K_COMMAND))
+                && (ca.cmdchar == b':' as i32 || ca.cmdchar == K_COMMAND))
                 || (vis && ca.cmdchar == K_LUA)
             {
                 let mut atom = atom_from_frame(ca, old);

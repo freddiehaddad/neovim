@@ -40,17 +40,16 @@ use crate::sign::{buf_has_signs, get_buffer_signs};
 use crate::strings::concat_str;
 use crate::undo::{buf_is_changed_fn, u_clearallandblockfree, u_save, u_savesub, u_sync};
 use crate::window::WinInfoInfo;
-use std::ffi::c_int;
 use std::ptr;
 
-pub(crate) const SEA_READONLY: c_int = 4;
+pub(crate) const SEA_READONLY: i32 = 4;
 
 #[repr(C)]
 struct Cob {
     cob_curwin_save: *mut WinInfoInfo,
     cob_aco: CtxSwitch,
-    cob_using_aco: c_int,
-    cob_save_visual_active: c_int,
+    cob_using_aco: i32,
+    cob_save_visual_active: i32,
 }
 
 impl Cob {
@@ -76,7 +75,7 @@ pub fn find_buffer(avar: &mut TypVal) -> *mut FileBuf {
         let mut buf: *mut FileBuf = ptr::null_mut();
 
         if avar.v_type == VarType::VarNumber {
-            buf = buflist_findnr(avar.vval.v_number() as c_int);
+            buf = buflist_findnr(avar.vval.v_number() as i32);
         } else if avar.v_type == VarType::VarString && !avar.vval.v_string().is_null() {
             buf = buflist_findname_exp(avar.vval.v_string());
             if buf.is_null() {
@@ -113,7 +112,7 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: *mut FileBuf) {
     {
         *cob = Cob::new();
 
-        cob.cob_save_visual_active = c_int::from(g_st().visual_global.active);
+        cob.cob_save_visual_active = i32::from(g_st().visual_global.active);
         g_st().visual_global.active = false;
         cob.cob_curwin_save = curwin_ptr();
         g_st().curbuf = buf;
@@ -149,7 +148,7 @@ fn set_buffer_lines(
 ) {
     unsafe {
         let mut lnum = lnum_arg + if append { 1 } else { 0 };
-        let mut added: c_int = 0;
+        let mut added: i32 = 0;
 
         let is_curbuf = buf == g_st().curbuf;
         if buf.is_null() || (!is_curbuf && (*buf).b_ml.ml_mfp.is_none()) || lnum < 1 {
@@ -207,9 +206,9 @@ fn set_buffer_lines(
             }
 
             if !append && lnum <= curbuf_mut().b_ml.ml_line_count {
-                let old_len = crate::memory::cstr_len(ml_get(lnum)) as c_int;
+                let old_len = crate::memory::cstr_len(ml_get(lnum)) as i32;
                 if u_savesub(lnum) && ml_replace(lnum, line_cstr.as_ptr().cast_mut(), true) {
-                    let new_len = line_cstr.to_bytes().len() as c_int;
+                    let new_len = line_cstr.to_bytes().len() as i32;
                     inserted_bytes(lnum, 0, old_len, new_len);
                     if is_curbuf && lnum == curwin_mut().w_cursor.lnum {
                         check_cursor_col(curwin_mut());
@@ -611,11 +610,11 @@ fn buf_win_common(argvars: &mut [TypVal], rettv: &mut TypVal, get_nr: bool) {
             return;
         }
 
-        let mut winnr: c_int = 0;
-        let mut winid: c_int = 0;
+        let mut winnr: i32 = 0;
+        let mut winid: i32 = 0;
         let mut found_buf = false;
         for wp in for_all_windows_mut() {
-            winnr += c_int::from(win_has_winnr(wp, curtab_mut()));
+            winnr += i32::from(win_has_winnr(wp, curtab_mut()));
             if ptr::eq(wp.w_buffer, buf) && (!get_nr || win_has_winnr(wp, curtab_mut())) {
                 found_buf = true;
                 winid = wp.handle;
@@ -675,7 +674,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         if last > curbuf_mut().b_ml.ml_line_count {
             last = curbuf_mut().b_ml.ml_line_count;
         }
-        let count: c_int = last - first + 1;
+        let count: i32 = last - first + 1;
 
         if g_st().u_sync_once == 2 {
             g_st().u_sync_once = 1;
@@ -1044,7 +1043,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         let buf = { &mut *buf };
 
         let new_prompt = tv_get_string(&argvars[1]);
-        let new_prompt_len = crate::memory::cstr_len(new_prompt) as c_int;
+        let new_prompt_len = crate::memory::cstr_len(new_prompt) as i32;
 
         if bt_prompt(Some(&*buf)) && buf.b_ml.ml_mfp.is_some() {
             if buf.b_prompt_start.mark.lnum < 1
@@ -1065,7 +1064,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             let old_line_len = ml_get_buf_len(&mut *buf, prompt_lno);
 
             let old_prompt_bytes = crate::memory::cstr_as_bytes(old_prompt);
-            let old_prompt_len = old_prompt_bytes.len() as c_int;
+            let old_prompt_len = old_prompt_bytes.len() as i32;
             let mut cursor_col = curwin_mut().w_cursor.col;
 
             let mark_col = buf.b_prompt_start.mark.col;

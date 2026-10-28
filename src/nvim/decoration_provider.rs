@@ -18,21 +18,20 @@ use crate::message::msg_schedule_semsg_multiline;
 use crate::r#move::validate_botline_win;
 use crate::msgpack_rpc::packer::Integer;
 use crate::window::WinInfoInfo;
-use std::ffi::c_int;
 use std::ptr;
 
 pub(crate) const CB_MAX_ERROR: u8 = 3;
-pub(crate) const K_DECOR_PROVIDER_ACTIVE: c_int = 1;
-const K_DECOR_PROVIDER_WIN_DISABLED: c_int = 2;
-const K_DECOR_PROVIDER_REDRAW_DISABLED: c_int = 3;
-const K_DECOR_PROVIDER_DISABLED: c_int = 4;
+pub(crate) const K_DECOR_PROVIDER_ACTIVE: i32 = 1;
+const K_DECOR_PROVIDER_WIN_DISABLED: i32 = 2;
+const K_DECOR_PROVIDER_REDRAW_DISABLED: i32 = 3;
+const K_DECOR_PROVIDER_DISABLED: i32 = 4;
 
 #[repr(C)]
 pub struct DecorProvider {
     pub ns_id: NS,
-    pub state: c_int,
-    pub win_skip_row: c_int,
-    pub win_skip_col: c_int,
+    pub state: i32,
+    pub win_skip_row: i32,
+    pub win_skip_col: i32,
     pub redraw_start: LuaRef,
     pub redraw_buf: LuaRef,
     pub redraw_win: LuaRef,
@@ -42,7 +41,7 @@ pub struct DecorProvider {
     pub hl_def: LuaRef,
     pub spell_nav: LuaRef,
     pub conceal_line: LuaRef,
-    pub hl_valid: c_int,
+    pub hl_valid: i32,
     pub hl_cached: bool,
     pub error_count: u8,
 }
@@ -127,7 +126,7 @@ fn decor_provider_error(
 /// Note we pass in a provider index as this function may cause `decor_prov_st().decor_providers` to be
 /// reallocated so we need to be careful with `DecorProvider` pointers (`decor_provider_invoke`).
 fn decor_provider_invoke(
-    provider_idx: c_int,
+    provider_idx: i32,
     name: &std::ffi::CStr,
     ref_: LuaRef,
     args: Array,
@@ -182,10 +181,10 @@ fn decor_provider_invoke(
 
 pub fn decor_providers_invoke_spell(
     wp: &mut WinInfoInfo,
-    start_row: c_int,
-    start_col: c_int,
-    end_row: c_int,
-    end_col: c_int,
+    start_row: i32,
+    start_col: i32,
+    end_row: i32,
+    end_col: i32,
 ) {
     {
         let mut i = 0usize;
@@ -206,7 +205,7 @@ pub fn decor_providers_invoke_spell(
                     size: 6,
                     capacity: 0,
                 };
-                decor_provider_invoke(i as c_int, c"spell", spell_nav, args, true, None);
+                decor_provider_invoke(i as i32, c"spell", spell_nav, args, true, None);
             }
             i += 1;
         }
@@ -214,7 +213,7 @@ pub fn decor_providers_invoke_spell(
 }
 
 /// Return whether a provider placed any marks in the callback (`decor_providers_invoke_conceal_line`).
-pub fn decor_providers_invoke_conceal_line(wp: &mut WinInfoInfo, row: c_int) -> bool {
+pub fn decor_providers_invoke_conceal_line(wp: &mut WinInfoInfo, row: i32) -> bool {
     {
         let keys = wp.buf_mut().b_marktree.n_keys;
         let mut i = 0usize;
@@ -232,7 +231,7 @@ pub fn decor_providers_invoke_conceal_line(wp: &mut WinInfoInfo, row: c_int) -> 
                     size: 3,
                     capacity: 0,
                 };
-                decor_provider_invoke(i as c_int, c"conceal_line", conceal_line, args, true, None);
+                decor_provider_invoke(i as i32, c"conceal_line", conceal_line, args, true, None);
             }
             i += 1;
         }
@@ -248,14 +247,14 @@ pub fn decor_providers_start() {
             let p = &providers_mut()[i];
             if p.state != K_DECOR_PROVIDER_DISABLED && p.redraw_start != LUA_NOREF {
                 let redraw_start = p.redraw_start;
-                let mut args_buf = [integer_obj((display_tick_val() as c_int) as Integer)];
+                let mut args_buf = [integer_obj((display_tick_val() as i32) as Integer)];
                 let args = Array {
                     items: args_buf.as_mut_ptr(),
                     size: 1,
                     capacity: 0,
                 };
                 let active =
-                    decor_provider_invoke(i as c_int, c"start", redraw_start, args, true, None);
+                    decor_provider_invoke(i as i32, c"start", redraw_start, args, true, None);
                 providers_mut()[i].state = if active {
                     K_DECOR_PROVIDER_ACTIVE
                 } else {
@@ -274,7 +273,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
     {
         debug_assert!(
             g_st().decor_state.current_end == 0
-                && g_st().decor_state.future_begin == g_st().decor_state.ranges_i.len() as c_int
+                && g_st().decor_state.future_begin == g_st().decor_state.ranges_i.len() as i32
         );
 
         if !providers_mut().is_empty() {
@@ -305,7 +304,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
                     size: 4,
                     capacity: 0,
                 };
-                if !decor_provider_invoke(i as c_int, c"win", redraw_win, args, true, None) {
+                if !decor_provider_invoke(i as i32, c"win", redraw_win, args, true, None) {
                     providers_mut()[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
                 }
             }
@@ -315,7 +314,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
 }
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
-pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: c_int) {
+pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: i32) {
     {
         g_st().decor_state.running_decor_provider = true;
         let mut i = 0usize;
@@ -333,7 +332,7 @@ pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: c_int) {
                     size: 3,
                     capacity: 0,
                 };
-                if !decor_provider_invoke(i as c_int, c"line", redraw_line, args, true, None) {
+                if !decor_provider_invoke(i as i32, c"line", redraw_line, args, true, None) {
                     providers_mut()[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
                 }
 
@@ -347,10 +346,10 @@ pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: c_int) {
 
 pub fn decor_providers_invoke_range(
     wp: &mut WinInfoInfo,
-    start_row: c_int,
-    start_col: c_int,
-    end_row: c_int,
-    end_col: c_int,
+    start_row: i32,
+    start_col: i32,
+    end_row: i32,
+    end_col: i32,
 ) {
     unsafe {
         g_st().decor_state.running_decor_provider = true;
@@ -381,7 +380,7 @@ pub fn decor_providers_invoke_range(
                 };
                 let mut res = Array::new();
                 let status = decor_provider_invoke(
-                    i as c_int,
+                    i as i32,
                     c"range",
                     redraw_range,
                     args,
@@ -407,8 +406,8 @@ pub fn decor_providers_invoke_range(
                                 col = second.data.integer();
                             }
                         }
-                        p.win_skip_row = row as c_int;
-                        p.win_skip_col = col as c_int;
+                        p.win_skip_row = row as i32;
+                        p.win_skip_col = col as i32;
                     }
                 }
 
@@ -439,7 +438,7 @@ pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
                     size: 2,
                     capacity: 0,
                 };
-                decor_provider_invoke(i as c_int, c"buf", redraw_buf, args, true, None);
+                decor_provider_invoke(i as i32, c"buf", redraw_buf, args, true, None);
             }
             i += 1;
         }
@@ -454,13 +453,13 @@ pub fn decor_providers_invoke_end() {
             let p = &providers_mut()[i];
             if p.state != K_DECOR_PROVIDER_DISABLED && p.redraw_end != LUA_NOREF {
                 let redraw_end = p.redraw_end;
-                let mut args_buf = [integer_obj((display_tick_val() as c_int) as Integer)];
+                let mut args_buf = [integer_obj((display_tick_val() as i32) as Integer)];
                 let args = Array {
                     items: args_buf.as_mut_ptr(),
                     size: 1,
                     capacity: 0,
                 };
-                decor_provider_invoke(i as c_int, c"end", redraw_end, args, true, None);
+                decor_provider_invoke(i as i32, c"end", redraw_end, args, true, None);
             }
             i += 1;
         }

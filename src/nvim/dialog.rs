@@ -15,21 +15,21 @@ use crate::message::{HLF_M, display_confirm_msg, msg_end_prompt, msg_putchar, se
 use crate::mouse::setmouse;
 use crate::os::input::input_available;
 use crate::ui::{ui_active, ui_call_busy_stop, ui_flush, ui_has, ui_mouse_has};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 const DLG_BUTTON_SEP: u8 = b'\n';
 const DLG_HOTKEY_CHAR: u8 = b'&';
 
-const CTRL_C: c_int = 0x03;
+const CTRL_C: i32 = 0x03;
 
-const K_UI_MESSAGES: c_int = 4;
-const K_MOUSE_COMMAND: c_int = b'c' as c_int;
+const K_UI_MESSAGES: i32 = 4;
+const K_MOUSE_COMMAND: i32 = b'c' as i32;
 
-pub(crate) const VIM_YES: c_int = 2;
-pub(crate) const VIM_NO: c_int = 3;
-const VIM_CANCEL: c_int = 4;
-pub(crate) const VIM_ALL: c_int = 5;
-pub(crate) const VIM_DISCARDALL: c_int = 6;
+pub(crate) const VIM_YES: i32 = 2;
+pub(crate) const VIM_NO: i32 = 3;
+const VIM_CANCEL: i32 = 4;
+pub(crate) const VIM_ALL: i32 = 5;
+pub(crate) const VIM_DISCARDALL: i32 = 6;
 
 const HAS_HOTKEY_LEN: usize = 30;
 const HOTK_LEN: usize = 4;
@@ -130,7 +130,7 @@ fn console_dialog_alloc(
 
 fn copy_confirm_hotkeys(
     buttons: impl crate::strings::IntoCCharPtr,
-    mut default_button_idx: c_int,
+    mut default_button_idx: i32,
     has_hotkey: &[bool; HAS_HOTKEY_LEN],
     mut hotkeys_ptr: *mut c_char,
 ) {
@@ -212,7 +212,7 @@ fn copy_confirm_hotkeys(
 fn msg_show_console_dialog(
     message: impl crate::strings::IntoCCharPtr,
     buttons: impl crate::strings::IntoCCharPtr,
-    dfltbutton: c_int,
+    dfltbutton: i32,
 ) -> Vec<c_char> {
     let message = message.into_c_char_ptr();
     let buttons = buttons.into_c_char_ptr();
@@ -224,7 +224,7 @@ fn msg_show_console_dialog(
 }
 
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
-pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> i32 {
     let str_ptr = str_ptr.into_c_char_ptr();
     {
         let save_state = g_st().state_global;
@@ -236,11 +236,11 @@ pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int {
         prompt.extend_from_slice(s_bytes);
         prompt.extend_from_slice(suffix);
 
-        let mut r: c_int = b' ' as c_int;
-        while r != (b'y' as c_int) && r != (b'n' as c_int) {
+        let mut r: i32 = b' ' as i32;
+        while r != (b'y' as i32) && r != (b'n' as i32) {
             r = prompt_for_input(prompt.as_mut_ptr().cast::<c_char>(), HLF_R, true, None);
             if r == CTRL_C || r == ESC {
-                r = b'n' as c_int;
+                r = b'n' as i32;
                 if !ui_has(K_UI_MESSAGES) {
                     msg_putchar(r);
                 }
@@ -258,10 +258,10 @@ pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int {
 /// Ask the user for input through a cmdline prompt (`prompt_for_input`).
 pub fn prompt_for_input(
     prompt: impl crate::strings::IntoCCharPtr,
-    hl_id: c_int,
+    hl_id: i32,
     one_key: bool,
     mouse_used: Option<&mut bool>,
-) -> c_int {
+) -> i32 {
     let prompt = prompt.into_c_char_ptr().cast_mut();
     {
         let mut ret = if one_key { ESC } else { 0 };
@@ -302,7 +302,7 @@ pub fn prompt_for_input(
             } else {
                 let s = resp_cstr.to_string_lossy();
                 let trimmed = s.trim_start();
-                let mut sign: c_int = 1;
+                let mut sign: i32 = 1;
                 let digits = if let Some(rest) = trimmed.strip_prefix('-') {
                     sign = -1;
                     rest
@@ -311,10 +311,10 @@ pub fn prompt_for_input(
                 } else {
                     trimmed
                 };
-                let mut val: c_int = 0;
+                let mut val: i32 = 0;
                 for b in digits.bytes() {
                     if b.is_ascii_digit() {
-                        val = val.wrapping_mul(10).wrapping_add((b - b'0') as c_int);
+                        val = val.wrapping_mul(10).wrapping_add((b - b'0') as i32);
                     } else {
                         break;
                     }
@@ -333,14 +333,14 @@ pub fn prompt_for_input(
 
 /// Generic console dialog handler (`do_dialog`).
 pub fn do_dialog(
-    _dlg_type: c_int,
+    _dlg_type: i32,
     _title: *const c_char,
     message: impl crate::strings::IntoCCharPtr,
     buttons: impl crate::strings::IntoCCharPtr,
-    dfltbutton: c_int,
+    dfltbutton: i32,
     _textfield: *const c_char,
-    ex_cmd: c_int,
-) -> c_int {
+    ex_cmd: i32,
+) -> i32 {
     let message = message.into_c_char_ptr();
     let buttons = buttons.into_c_char_ptr();
     unsafe {
@@ -355,7 +355,7 @@ pub fn do_dialog(
 
         let hotkeys_vec = msg_show_console_dialog(message, buttons, dfltbutton);
         let hotkeys = hotkeys_vec.as_ptr();
-        let retval: c_int;
+        let retval: i32;
 
         loop {
             if (ui_active() == 0 || input_unanswerable()) && input_available() == 0 {
@@ -379,14 +379,14 @@ pub fn do_dialog(
                         g_st().msg_didany = false;
                         continue;
                     }
-                    if c == (b':' as c_int) && ex_cmd != 0 {
+                    if c == (b':' as i32) && ex_cmd != 0 {
                         retval = dfltbutton;
                         ins_typebuf(c":", REMAP_YES, 0, false, false);
                         break;
                     }
 
                     c = mb_tolower(c);
-                    let mut candidate = 1 as c_int;
+                    let mut candidate = 1_i32;
                     let mut i = 0usize;
                     while *hotkeys.add(i) != 0 {
                         if utf_ptr2char(hotkeys.add(i)) == c {
@@ -420,11 +420,11 @@ pub fn do_dialog(
 
 /// Yes/No dialog (`vim_dialog_yesno`).
 pub fn vim_dialog_yesno(
-    dlg_type: c_int,
+    dlg_type: i32,
     title: *mut c_char,
     message: impl crate::strings::IntoCCharPtr,
-    dflt: c_int,
-) -> c_int {
+    dflt: i32,
+) -> i32 {
     let message = message.into_c_char_ptr().cast_mut();
     let t = if title.is_null() {
         c"Question".as_ptr()
@@ -449,11 +449,11 @@ pub fn vim_dialog_yesno(
 
 /// Yes/No/Cancel dialog (`vim_dialog_yesnocancel`).
 pub fn vim_dialog_yesnocancel(
-    dlg_type: c_int,
+    dlg_type: i32,
     title: *mut c_char,
     message: impl crate::strings::IntoCCharPtr,
-    dflt: c_int,
-) -> c_int {
+    dflt: i32,
+) -> i32 {
     let message = message.into_c_char_ptr();
     let t = if title.is_null() {
         c"Question".as_ptr()
@@ -477,11 +477,11 @@ pub fn vim_dialog_yesnocancel(
 
 /// Yes/No/Save All/Discard All/Cancel dialog (`vim_dialog_yesnoallcancel`).
 pub fn vim_dialog_yesnoallcancel(
-    dlg_type: c_int,
+    dlg_type: i32,
     title: *mut c_char,
     message: impl crate::strings::IntoCCharPtr,
-    dflt: c_int,
-) -> c_int {
+    dflt: i32,
+) -> i32 {
     let message = message.into_c_char_ptr();
     let t = if title.is_null() {
         c"Question".as_ptr()

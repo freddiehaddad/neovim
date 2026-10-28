@@ -1,6 +1,5 @@
 //! Core VTerm instance management and output buffering (`src/nvim/vterm/vterm.c`).
 
-use std::ffi::c_int;
 use std::ptr;
 
 use crate::terminal::Terminal;
@@ -19,7 +18,7 @@ use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8};
 pub type VTermOutputCallback = Option<fn(s: &[u8], user: *mut Terminal)>;
 
 /// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
-pub fn vterm_new(rows: c_int, cols: c_int) -> VTerm {
+pub fn vterm_new(rows: i32, cols: i32) -> VTerm {
     let mut vt = VTerm::new();
     vt.rows = rows;
     vt.cols = cols;
@@ -31,12 +30,12 @@ pub fn vterm_new(rows: c_int, cols: c_int) -> VTerm {
     vt
 }
 
-pub fn vterm_get_size(vt: &VTerm, rowsp: &mut c_int, colsp: &mut c_int) {
+pub fn vterm_get_size(vt: &VTerm, rowsp: &mut i32, colsp: &mut i32) {
     *rowsp = vt.rows;
     *colsp = vt.cols;
 }
 
-pub fn vterm_set_size(vt: &mut VTerm, rows: c_int, cols: c_int) {
+pub fn vterm_set_size(vt: &mut VTerm, rows: i32, cols: i32) {
     if rows < 1 || cols < 1 {
         return;
     }
@@ -51,7 +50,7 @@ pub fn vterm_set_size(vt: &mut VTerm, rows: c_int, cols: c_int) {
     }
 }
 
-pub fn vterm_set_utf8(vt: &mut VTerm, is_utf8: c_int) {
+pub fn vterm_set_utf8(vt: &mut VTerm, is_utf8: i32) {
     if is_utf8 != 0 {
         vt.mode |= VT_MODE_UTF8;
     } else {
@@ -141,10 +140,10 @@ pub fn vterm_get_attr_type(attr: VTermAttr) -> VTermValueType {
 
 pub fn vterm_scroll_rect(
     mut rect: VTermRect,
-    downward: c_int,
-    rightward: c_int,
-    moverect: Option<fn(src: VTermRect, dest: VTermRect, user: *mut VTermScreen) -> c_int>,
-    eraserect: Option<fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
+    downward: i32,
+    rightward: i32,
+    moverect: Option<fn(src: VTermRect, dest: VTermRect, user: *mut VTermScreen) -> i32>,
+    eraserect: Option<fn(rect: VTermRect, selective: i32, user: *mut VTermScreen) -> i32>,
     user: *mut VTermScreen,
 ) {
     if downward.abs() >= rect.end_row - rect.start_row

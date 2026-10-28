@@ -21,15 +21,14 @@ use crate::marktree::{
 use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
 use crate::memline::ml_find_line_or_offset;
 use crate::undo::u_force_get_undo_header;
-use std::ffi::c_int;
 use std::ptr;
 
 pub type Bcount = isize;
-pub type ExtmarkOp = c_int;
+pub type ExtmarkOp = i32;
 pub type ExtmarkType = u16;
 pub type ExtmarkInfoArray = Vec<MTPair>;
-pub type UndoObjectType = c_int;
-pub type TriState = c_int;
+pub type UndoObjectType = i32;
+pub type TriState = i32;
 pub type ExtmarkUndoVec = Vec<ExtmarkUndoObject>;
 
 pub(crate) const K_EXTMARK_NOOP: ExtmarkOp = 0;
@@ -39,9 +38,9 @@ pub(crate) const K_EXTMARK_SIGN: ExtmarkType = 0x2;
 pub(crate) const K_EXTMARK_VIRT_TEXT: ExtmarkType = 0x8;
 pub(crate) const K_EXTMARK_VIRT_LINES: ExtmarkType = 0x10;
 pub(crate) const K_EXTMARK_HIGHLIGHT: ExtmarkType = 0x20;
-pub(crate) const K_NONE: c_int = -1;
-pub(crate) const K_FALSE: c_int = 0;
-pub(crate) const K_TRUE: c_int = 1;
+pub(crate) const K_NONE: i32 = -1;
+pub(crate) const K_FALSE: i32 = 0;
+pub(crate) const K_TRUE: i32 = 1;
 
 pub(crate) const K_EXTMARK_SPLICE: UndoObjectType = 0;
 pub(crate) const K_EXTMARK_MOVE: UndoObjectType = 1;
@@ -49,11 +48,11 @@ pub(crate) const K_EXTMARK_MOVE: UndoObjectType = 1;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct ExtmarkSplice {
-    pub start_row: c_int,
+    pub start_row: i32,
     pub start_col: Colnr,
-    pub old_row: c_int,
+    pub old_row: i32,
     pub old_col: Colnr,
-    pub new_row: c_int,
+    pub new_row: i32,
     pub new_col: Colnr,
     pub start_byte: Bcount,
     pub old_byte: Bcount,
@@ -79,12 +78,12 @@ impl ExtmarkSplice {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct ExtmarkMove {
-    pub start_row: c_int,
-    pub start_col: c_int,
-    pub extent_row: c_int,
-    pub extent_col: c_int,
-    pub new_row: c_int,
-    pub new_col: c_int,
+    pub start_row: i32,
+    pub start_col: i32,
+    pub extent_row: i32,
+    pub extent_col: i32,
+    pub new_row: i32,
+    pub new_col: i32,
     pub start_byte: Bcount,
     pub extent_byte: Bcount,
     pub new_byte: Bcount,
@@ -110,9 +109,9 @@ impl ExtmarkMove {
 #[derive(Clone, Copy)]
 pub struct ExtmarkSavePos {
     pub mark: u64,
-    pub undo_row: c_int,
+    pub undo_row: i32,
     pub undo_col: Colnr,
-    pub redo_row: c_int,
+    pub redo_row: i32,
     pub redo_col: Colnr,
     pub invalidated: bool,
 }
@@ -128,9 +127,9 @@ pub enum ExtmarkUndoObject {
 fn extmark_push_savepos(
     buf: &mut FileBuf,
     mark: u64,
-    undo_row: c_int,
+    undo_row: i32,
     undo_col: Colnr,
-    redo_row: c_int,
+    redo_row: i32,
     redo_col: Colnr,
 ) {
     {
@@ -155,9 +154,9 @@ pub fn extmark_set(
     buf: &mut FileBuf,
     ns_id: u32,
     mut idp: Option<&mut u32>,
-    row: c_int,
+    row: i32,
     col: Colnr,
-    end_row: c_int,
+    end_row: i32,
     end_col: Colnr,
     decor: DecorInline,
     decor_flags: u16,
@@ -289,7 +288,7 @@ pub fn extmark_set(
 }
 
 /// Moves a raw mark back to a recorded position (`extmark_setraw`).
-fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: c_int, col: Colnr, revive: bool) {
+fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: i32, col: Colnr, revive: bool) {
     {
         let mut itr = MarkTreeIter::new();
         let key = marktree_lookup(&buf.b_marktree, mark, Some(&mut itr));
@@ -309,8 +308,8 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: c_int, col: Colnr, revive: 
             );
         }
 
-        let mut row1: c_int = 0;
-        let mut row2: c_int = 0;
+        let mut row1: i32 = 0;
+        let mut row2: i32 = 0;
         let mut altitr = itr;
         let alt = marktree_get_alt(&buf.b_marktree, key, Some(&mut altitr));
 
@@ -413,9 +412,9 @@ pub fn extmark_del(buf: &mut FileBuf, itr: &mut MarkTreeIter, mut key: MTKey, re
 pub fn extmark_clear(
     buf: &mut FileBuf,
     ns_id: u32,
-    l_row: c_int,
+    l_row: i32,
     l_col: Colnr,
-    u_row: c_int,
+    u_row: i32,
     u_col: Colnr,
 ) -> bool {
     {
@@ -475,9 +474,9 @@ pub fn extmark_clear(
 pub fn extmark_get(
     buf: &mut FileBuf,
     ns_id: u32,
-    l_row: c_int,
+    l_row: i32,
     l_col: Colnr,
-    u_row: c_int,
+    u_row: i32,
     u_col: Colnr,
     amount: i64,
     type_filter: ExtmarkType,
@@ -635,9 +634,9 @@ pub fn extmark_free_all(buf: &mut FileBuf) {
 /// Invalidate extmarks between range and copy to undo header (`extmark_splice_delete`).
 pub fn extmark_splice_delete(
     buf: &mut FileBuf,
-    l_row: c_int,
+    l_row: i32,
     l_col: Colnr,
-    u_row: c_int,
+    u_row: i32,
     u_col: Colnr,
     mut uvp: Option<&mut ExtmarkUndoVec>,
     only_copy: bool,
@@ -653,12 +652,12 @@ pub fn extmark_splice_delete(
             }
 
             let mut copy = true;
-            if mark.pos.row == l_row && mark.pos.col - c_int::from(!mt_right(mark)) < l_col {
+            if mark.pos.row == l_row && mark.pos.col - i32::from(!mt_right(mark)) < l_col {
                 copy = false;
             } else if mark.pos.row == u_row {
                 if mark.pos.col > u_col + 1 {
                     break;
-                } else if mark.pos.col + c_int::from(mt_right(mark)) > u_col {
+                } else if mark.pos.col + i32::from(mt_right(mark)) > u_col {
                     copy = false;
                 }
             }
@@ -812,8 +811,8 @@ pub fn extmark_adjust(
         let start_byte = ml_find_line_or_offset(buf, line1, None, true) as Bcount;
         let mut old_byte: Bcount = 0;
         let mut new_byte: Bcount = 0;
-        let old_row: c_int;
-        let new_row: c_int;
+        let old_row: i32;
+        let new_row: i32;
         if amount == MAXLNUM {
             old_row = line2 - line1 + 1;
             old_byte = buf.deleted_bytes2 as Bcount;
@@ -821,7 +820,7 @@ pub fn extmark_adjust(
         } else {
             debug_assert_eq!(line2, MAXLNUM);
             old_row = 0;
-            new_row = amount as c_int;
+            new_row = amount;
         }
         if new_row > 0 {
             new_byte =
@@ -846,12 +845,12 @@ pub fn extmark_adjust(
 /// Adjusts extmarks after a text edit, and emits the `on_bytes` event (`extmark_splice`).
 pub fn extmark_splice(
     buf: &mut FileBuf,
-    start_row: c_int,
+    start_row: i32,
     start_col: Colnr,
-    old_row: c_int,
+    old_row: i32,
     old_col: Colnr,
     old_byte: Bcount,
-    new_row: c_int,
+    new_row: i32,
     new_col: Colnr,
     new_byte: Bcount,
     undo: ExtmarkOp,
@@ -879,13 +878,13 @@ pub fn extmark_splice(
 
 pub fn extmark_splice_impl(
     buf: &mut FileBuf,
-    start_row: c_int,
+    start_row: i32,
     start_col: Colnr,
     start_byte: Bcount,
-    old_row: c_int,
+    old_row: i32,
     old_col: Colnr,
     old_byte: Bcount,
-    new_row: c_int,
+    new_row: i32,
     new_col: Colnr,
     new_byte: Bcount,
     undo: ExtmarkOp,
@@ -1003,7 +1002,7 @@ pub fn extmark_splice_impl(
 
 pub fn extmark_splice_cols(
     buf: &mut FileBuf,
-    start_row: c_int,
+    start_row: i32,
     start_col: Colnr,
     old_col: Colnr,
     new_col: Colnr,
@@ -1025,13 +1024,13 @@ pub fn extmark_splice_cols(
 
 pub fn extmark_move_region(
     buf: &mut FileBuf,
-    start_row: c_int,
+    start_row: i32,
     start_col: Colnr,
     start_byte: Bcount,
-    extent_row: c_int,
+    extent_row: i32,
     extent_col: Colnr,
     extent_byte: Bcount,
-    new_row: c_int,
+    new_row: i32,
     new_col: Colnr,
     new_byte: Bcount,
     undo: ExtmarkOp,

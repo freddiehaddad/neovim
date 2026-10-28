@@ -1,6 +1,6 @@
 //! VTerm character encodings (`src/nvim/vterm/encoding.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 const UNICODE_INVALID: u32 = 0xFFFD;
 
@@ -20,9 +20,9 @@ pub enum VTermEncoding {
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct VTermEncodingInstance {
     pub enc: Option<VTermEncoding>,
-    bytes_remaining: c_int,
-    bytes_total: c_int,
-    this_cp: c_int,
+    bytes_remaining: i32,
+    bytes_total: i32,
+    this_cp: i32,
 }
 
 const DEC_DRAWING_CHARS: [u32; 128] = {
@@ -70,11 +70,11 @@ impl VTermEncodingInstance {
         self.this_cp = 0;
     }
 
-    pub fn decode(&mut self, cp: &mut [u32], cpi: &mut c_int, bytes: &[u8], pos: &mut usize) {
+    pub fn decode(&mut self, cp: &mut [u32], cpi: &mut i32, bytes: &[u8], pos: &mut usize) {
         let Some(enc) = self.enc else {
             return;
         };
-        let cplen = cp.len() as c_int;
+        let cplen = cp.len() as i32;
         let bytelen = bytes.len();
 
         match enc {
@@ -102,25 +102,21 @@ impl VTermEncodingInstance {
                             continue;
                         }
 
-                        self.this_cp = (self.this_cp << 6) | c_int::from(c & 0x3f);
+                        self.this_cp = (self.this_cp << 6) | i32::from(c & 0x3f);
                         self.bytes_remaining -= 1;
 
                         if self.bytes_remaining == 0 {
                             match self.bytes_total {
-                                2 if self.this_cp < 0x0080 => {
-                                    self.this_cp = UNICODE_INVALID as c_int
-                                }
-                                3 if self.this_cp < 0x0800 => {
-                                    self.this_cp = UNICODE_INVALID as c_int
-                                }
+                                2 if self.this_cp < 0x0080 => self.this_cp = UNICODE_INVALID as i32,
+                                3 if self.this_cp < 0x0800 => self.this_cp = UNICODE_INVALID as i32,
                                 4 if self.this_cp < 0x10000 => {
-                                    self.this_cp = UNICODE_INVALID as c_int
+                                    self.this_cp = UNICODE_INVALID as i32
                                 }
                                 5 if self.this_cp < 0x200000 => {
-                                    self.this_cp = UNICODE_INVALID as c_int
+                                    self.this_cp = UNICODE_INVALID as i32
                                 }
                                 6 if self.this_cp < 0x4000000 => {
-                                    self.this_cp = UNICODE_INVALID as c_int
+                                    self.this_cp = UNICODE_INVALID as i32
                                 }
                                 _ => {}
                             }
@@ -128,7 +124,7 @@ impl VTermEncodingInstance {
                                 || self.this_cp == 0xFFFE
                                 || self.this_cp == 0xFFFF
                             {
-                                self.this_cp = UNICODE_INVALID as c_int;
+                                self.this_cp = UNICODE_INVALID as i32;
                             }
                             cp[*cpi as usize] = self.this_cp as u32;
                             *cpi += 1;
@@ -138,7 +134,7 @@ impl VTermEncodingInstance {
                             cp[*cpi as usize] = UNICODE_INVALID;
                             *cpi += 1;
                         }
-                        self.this_cp = c_int::from(c & 0x1f);
+                        self.this_cp = i32::from(c & 0x1f);
                         self.bytes_total = 2;
                         self.bytes_remaining = 1;
                     } else if (0xe0..0xf0).contains(&c) {
@@ -146,7 +142,7 @@ impl VTermEncodingInstance {
                             cp[*cpi as usize] = UNICODE_INVALID;
                             *cpi += 1;
                         }
-                        self.this_cp = c_int::from(c & 0x0f);
+                        self.this_cp = i32::from(c & 0x0f);
                         self.bytes_total = 3;
                         self.bytes_remaining = 2;
                     } else if (0xf0..0xf8).contains(&c) {
@@ -154,7 +150,7 @@ impl VTermEncodingInstance {
                             cp[*cpi as usize] = UNICODE_INVALID;
                             *cpi += 1;
                         }
-                        self.this_cp = c_int::from(c & 0x07);
+                        self.this_cp = i32::from(c & 0x07);
                         self.bytes_total = 4;
                         self.bytes_remaining = 3;
                     } else if (0xf8..0xfc).contains(&c) {
@@ -162,7 +158,7 @@ impl VTermEncodingInstance {
                             cp[*cpi as usize] = UNICODE_INVALID;
                             *cpi += 1;
                         }
-                        self.this_cp = c_int::from(c & 0x03);
+                        self.this_cp = i32::from(c & 0x03);
                         self.bytes_total = 5;
                         self.bytes_remaining = 4;
                     } else if (0xfc..0xfe).contains(&c) {
@@ -170,7 +166,7 @@ impl VTermEncodingInstance {
                             cp[*cpi as usize] = UNICODE_INVALID;
                             *cpi += 1;
                         }
-                        self.this_cp = c_int::from(c & 0x01);
+                        self.this_cp = i32::from(c & 0x01);
                         self.bytes_total = 6;
                         self.bytes_remaining = 5;
                     } else {
@@ -247,7 +243,7 @@ mod tests {
         inst.init(utf8);
         let input = "Aé€𐍈";
         let mut cp = [0u32; 8];
-        let mut cpi: c_int = 0;
+        let mut cpi: i32 = 0;
         let mut pos: usize = 0;
         inst.decode(&mut cp, &mut cpi, input.as_bytes(), &mut pos);
         assert_eq!(pos, input.len());
@@ -259,7 +255,7 @@ mod tests {
         dec_inst.init(dec);
         let dec_in = b"Aq";
         let mut dec_cp = [0u32; 4];
-        let mut dec_cpi: c_int = 0;
+        let mut dec_cpi: i32 = 0;
         let mut dec_pos: usize = 0;
         dec_inst.decode(&mut dec_cp, &mut dec_cpi, dec_in, &mut dec_pos);
         assert_eq!(dec_cpi, 2);

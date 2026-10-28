@@ -55,7 +55,7 @@ use crate::regexp::{
 use crate::runtime::script_autoload;
 use crate::viml::parser::parser::CONV_NONE;
 use crate::window::{WinInfoInfo, win_find_tabpage};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 static REGEX_META: [luaL_Reg; 5] = [
@@ -94,7 +94,7 @@ fn regex_match(
     lstate: *mut lua_State,
     prog: *mut *mut Regprog,
     str_: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut rm: Regmatch = Regmatch::new();
@@ -118,7 +118,7 @@ fn regex_match(
     }
 }
 
-unsafe extern "C-unwind" fn regex_match_str(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn regex_match_str(lstate: *mut lua_State) -> i32 {
     unsafe {
         let prog = regex_check(lstate);
         let str_ = luaL_checkstring(lstate, 2);
@@ -132,7 +132,7 @@ unsafe extern "C-unwind" fn regex_match_str(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
     unsafe {
         let prog = regex_check(lstate);
 
@@ -143,13 +143,13 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> c_int {
 
         let bufnr = luaL_checkinteger(lstate, 2) as ObjHandle;
         let rownr = luaL_checkinteger(lstate, 3) as Linenr;
-        let mut start: c_int = 0;
-        let mut end: c_int = -1;
+        let mut start: i32 = 0;
+        let mut end: i32 = -1;
         if narg >= 4 {
-            start = luaL_checkinteger(lstate, 4) as c_int;
+            start = luaL_checkinteger(lstate, 4) as i32;
         }
         if narg >= 5 {
-            end = luaL_checkinteger(lstate, 5) as c_int;
+            end = luaL_checkinteger(lstate, 5) as i32;
             if end < 0 {
                 return luaL_error(lstate, c"invalid end".as_ptr());
             }
@@ -198,7 +198,7 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> i32 {
     unsafe {
         let prog = regex_check(lstate);
         vim_regfree(*prog);
@@ -206,7 +206,7 @@ unsafe extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> c_int {
     0
 }
 
-unsafe extern "C-unwind" fn regex_tostring(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn regex_tostring(lstate: *mut lua_State) -> i32 {
     unsafe {
         lua_pushstring(lstate, c"<regex>");
     }
@@ -214,7 +214,7 @@ unsafe extern "C-unwind" fn regex_tostring(lstate: *mut lua_State) -> c_int {
 }
 
 /// Convert byte index to UTF-32 and UTF-16 indices.
-pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> c_int {
+pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut s1_len: usize = 0;
         let s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
@@ -241,16 +241,16 @@ pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> c_i
     }
 }
 
-unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut s1_len: usize = 0;
         let s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
         lua_newtable(lstate);
 
-        let mut idx: c_int = 1;
+        let mut idx: i32 = 1;
         let mut i: usize = 0;
         while i < s1_len && crate::memory::cstr_byte_at(s1, i) != 0 {
-            let clen = utf_ptr2len_len(s1.add(i), (s1_len - i) as c_int) as usize;
+            let clen = utf_ptr2len_len(s1.add(i), (s1_len - i) as i32) as usize;
             lua_pushinteger(lstate, (i as lua_Integer) + 1);
             lua_rawseti(lstate, -2, idx);
             idx += 1;
@@ -261,7 +261,7 @@ unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn nlua_str_utf_start(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_str_utf_start(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut s1_len: usize = 0;
         let s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
@@ -271,13 +271,13 @@ unsafe extern "C-unwind" fn nlua_str_utf_start(lstate: *mut lua_State) -> c_int 
         }
         let off = (offset as usize) - 1;
         let head_off =
-            -c_int::from(utf_cp_bounds_len(s1, s1.add(off), (s1_len - off) as c_int).begin_off);
+            -i32::from(utf_cp_bounds_len(s1, s1.add(off), (s1_len - off) as i32).begin_off);
         lua_pushinteger(lstate, head_off as lua_Integer);
         1
     }
 }
 
-unsafe extern "C-unwind" fn nlua_str_utf_end(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_str_utf_end(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut s1_len: usize = 0;
         let s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
@@ -287,14 +287,14 @@ unsafe extern "C-unwind" fn nlua_str_utf_end(lstate: *mut lua_State) -> c_int {
         }
         let off = (offset as usize) - 1;
         let tail_off =
-            c_int::from(utf_cp_bounds_len(s1, s1.add(off), (s1_len - off) as c_int).end_off) - 1;
+            i32::from(utf_cp_bounds_len(s1, s1.add(off), (s1_len - off) as i32).end_off) - 1;
         lua_pushinteger(lstate, tail_off as lua_Integer);
         1
     }
 }
 
 /// Convert UTF-32 or UTF-16 indices to byte index.
-pub unsafe extern "C-unwind" fn nlua_str_byteindex(lstate: *mut lua_State) -> c_int {
+pub unsafe extern "C-unwind" fn nlua_str_byteindex(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut s1_len: usize = 0;
         let s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
@@ -319,7 +319,7 @@ pub unsafe extern "C-unwind" fn nlua_str_byteindex(lstate: *mut lua_State) -> c_
     }
 }
 
-pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
+pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut err = Error::new();
         let text = luaL_checkstring(lstate, 1);
@@ -399,7 +399,7 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut TvDict {
     }
 }
 
-pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
+pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
     unsafe {
         let dict = nlua_get_var_scope(lstate);
         let mut key_size: usize = 0;
@@ -479,7 +479,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
     }
 }
 
-pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> c_int {
+pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
     unsafe {
         let dict = nlua_get_var_scope(lstate);
         let mut len: usize = 0;
@@ -500,13 +500,13 @@ pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut s1_len: usize = 0;
         let mut s2_len: usize = 0;
         let mut s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
         let mut s2 = luaL_checklstring(lstate, 2, &raw mut s2_len);
-        let mut ret: c_int;
+        let mut ret: i32;
         assert_eq!(*s1.add(s1_len), NUL);
         assert_eq!(*s2.add(s2_len), NUL);
 
@@ -518,7 +518,7 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> c_int {
             ret = mb_stricmp(s1, s2);
             if ret == 0 {
                 if nul1.is_some() != nul2.is_some() {
-                    ret = c_int::from(nul1.is_some()) - c_int::from(nul2.is_some());
+                    ret = i32::from(nul1.is_some()) - i32::from(nul2.is_some());
                     break;
                 }
                 if let (Some(p1), Some(p2)) = (nul1, nul2) {
@@ -535,15 +535,12 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> c_int {
         }
 
         lua_pop(lstate, 2);
-        lua_pushnumber(
-            lstate,
-            f64::from(c_int::from(ret > 0) - c_int::from(ret < 0)),
-        );
+        lua_pushnumber(lstate, f64::from(i32::from(ret > 0) - i32::from(ret < 0)));
         1
     }
 }
 
-unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
     unsafe {
         let narg = lua_gettop(lstate);
         if narg < 3 {
@@ -591,7 +588,7 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> i32 {
     unsafe {
         let window = luaL_checkinteger(lstate, 1) as ObjHandle;
         let win = handle_get_window(window);
@@ -612,13 +609,13 @@ unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
     unsafe {
-        let mut flags: c_int = 0;
+        let mut flags: i32 = 0;
         let mut buf: *mut FileBuf = ptr::null_mut();
         let mut win: *mut WinInfoInfo = ptr::null_mut();
         let mut keepcwd = false;
-        let mut log_level: c_int = -1;
+        let mut log_level: i32 = -1;
 
         if !lua_istable(lstate, 1) {
             return luaL_argerror(lstate, 1, c"table expected");
@@ -629,10 +626,10 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
                 let k = crate::memory::cstr_as_bytes(lua_tostring(lstate, -2));
                 let v = lua_toboolean(lstate, -1) != 0;
                 match k {
-                    b"buf" => buf = handle_get_buffer(luaL_checkinteger(lstate, -1) as c_int),
-                    b"win" => win = handle_get_window(luaL_checkinteger(lstate, -1) as c_int),
+                    b"buf" => buf = handle_get_buffer(luaL_checkinteger(lstate, -1) as i32),
+                    b"win" => win = handle_get_window(luaL_checkinteger(lstate, -1) as i32),
                     b"keepcwd" => keepcwd = v,
-                    b"log_level" => log_level = luaL_checkinteger(lstate, -1) as c_int,
+                    b"log_level" => log_level = luaL_checkinteger(lstate, -1) as i32,
                     b"sandbox" if v => flags |= CMOD_SANDBOX,
                     b"silent" if v => flags |= CMOD_SILENT,
                     b"emsg_silent" if v => flags |= CMOD_ERRSILENT,
@@ -650,8 +647,8 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
             lua_pop(lstate, 1);
         }
 
-        let mut status: c_int = 0;
-        let mut rets: c_int = 0;
+        let mut status: i32 = 0;
+        let mut rets: i32 = 0;
 
         if (flags & CMOD_ERRSILENT) != 0 {
             flags |= CMOD_SILENT;
@@ -727,7 +724,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
     unsafe {
         if lua_isstring(lstate, 1) == 0 {
             return luaL_argerror(lstate, 1, c"string expected");
@@ -748,11 +745,11 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
             lua_newtable(lstate);
             let mut i: usize = 0;
             while MOD_MASK_TABLE[i].name != b'A' as c_char {
-                if (data.mods & c_int::from(MOD_MASK_TABLE[i].mod_mask))
-                    == c_int::from(MOD_MASK_TABLE[i].mod_flag)
+                if (data.mods & i32::from(MOD_MASK_TABLE[i].mod_mask))
+                    == i32::from(MOD_MASK_TABLE[i].mod_flag)
                 {
                     lua_pushlstring(lstate, &raw const MOD_MASK_TABLE[i].name, 1);
-                    lua_rawseti(lstate, -2, (lua_objlen(lstate, -2) as c_int) + 1);
+                    lua_rawseti(lstate, -2, (lua_objlen(lstate, -2) as i32) + 1);
                 }
                 i += 1;
             }
@@ -769,7 +766,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
                 lua_setfield(lstate, -2, c"key_alt");
             }
 
-            lua_rawseti(lstate, -2, (lua_objlen(lstate, -2) as c_int) + 1);
+            lua_rawseti(lstate, -2, (lua_objlen(lstate, -2) as i32) + 1);
         }
 
         1

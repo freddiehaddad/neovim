@@ -13,7 +13,6 @@ use crate::os::fs::{os_errno, os_set_cloexec};
 #[cfg(unix)]
 use crate::strings::strerror;
 #[cfg(any(unix, test))]
-use std::ffi::c_int;
 #[cfg(unix)]
 use std::ffi::{c_char, c_ulong, c_ushort};
 #[cfg(unix)]
@@ -31,37 +30,37 @@ pub struct winsize {
 
 #[cfg(any(unix, test))]
 #[inline]
-pub const fn wifstopped(stat: c_int) -> bool {
+pub const fn wifstopped(stat: i32) -> bool {
     (stat & 0xff) == 0x7f
 }
 
 #[cfg(any(unix, test))]
 #[inline]
-pub const fn wifcontinued(stat: c_int) -> bool {
+pub const fn wifcontinued(stat: i32) -> bool {
     stat == 0xffff
 }
 
 #[cfg(any(unix, test))]
 #[inline]
-pub const fn wifexited(stat: c_int) -> bool {
+pub const fn wifexited(stat: i32) -> bool {
     (stat & 0x7f) == 0
 }
 
 #[cfg(any(unix, test))]
 #[inline]
-pub const fn wexitstatus(stat: c_int) -> c_int {
+pub const fn wexitstatus(stat: i32) -> i32 {
     (stat >> 8) & 0xff
 }
 
 #[cfg(any(unix, test))]
 #[inline]
-pub const fn wifsignaled(stat: c_int) -> bool {
+pub const fn wifsignaled(stat: i32) -> bool {
     (((stat & 0x7f) + 1) as i8 >> 1) > 0
 }
 
 #[cfg(any(unix, test))]
 #[inline]
-pub const fn wtermsig(stat: c_int) -> c_int {
+pub const fn wtermsig(stat: i32) -> i32 {
     stat & 0x7f
 }
 
@@ -90,33 +89,33 @@ mod unix_impl {
     use crate::log::LOGLVL_ERR;
     use crate::os::signal::{SIGHUP, SIGINT, SIGKILL, SIGQUIT, SIGTERM};
 
-    const SIGALRM: c_int = 14;
+    const SIGALRM: i32 = 14;
     #[cfg(target_os = "linux")]
-    const SIGCHLD: c_int = 17;
+    const SIGCHLD: i32 = 17;
     #[cfg(not(target_os = "linux"))]
-    const SIGCHLD: c_int = 20;
+    const SIGCHLD: i32 = 20;
     #[cfg(target_os = "linux")]
-    const SIGCONT: c_int = 18;
+    const SIGCONT: i32 = 18;
     #[cfg(not(target_os = "linux"))]
-    const SIGCONT: c_int = 19;
+    const SIGCONT: i32 = 19;
 
     const SIG_DFL: usize = 0;
 
-    const F_GETFL: c_int = 3;
-    const F_SETFL: c_int = 4;
+    const F_GETFL: i32 = 3;
+    const F_SETFL: i32 = 4;
     #[cfg(target_os = "linux")]
-    const O_NONBLOCK: c_int = 0o4000;
+    const O_NONBLOCK: i32 = 0o4000;
     #[cfg(not(target_os = "linux"))]
-    const O_NONBLOCK: c_int = 0x0004;
+    const O_NONBLOCK: i32 = 0x0004;
 
     const POLLIN: i16 = 1;
 
-    const WNOHANG: c_int = 1;
-    const WUNTRACED: c_int = 2;
+    const WNOHANG: i32 = 1;
+    const WUNTRACED: i32 = 2;
     #[cfg(target_os = "linux")]
-    const WCONTINUED: c_int = 8;
+    const WCONTINUED: i32 = 8;
     #[cfg(not(target_os = "linux"))]
-    const WCONTINUED: c_int = 0x10;
+    const WCONTINUED: i32 = 0x10;
 
     #[cfg(target_os = "linux")]
     const TIOCSWINSZ: c_ulong = 0x5414;
@@ -240,7 +239,7 @@ mod unix_impl {
 
     #[repr(C)]
     struct pollfd {
-        fd: c_int,
+        fd: i32,
         events: i16,
         revents: i16,
     }
@@ -255,23 +254,23 @@ mod unix_impl {
 
     unsafe extern "C" {
         fn forkpty(
-            amaster: *mut c_int,
+            amaster: *mut i32,
             name: *mut c_char,
             termp: *const termios,
             winp: *const winsize,
-        ) -> c_int;
-        fn ptsname(fd: c_int) -> *mut c_char;
-        fn cfsetispeed(termios_p: *mut termios, speed: speed_t) -> c_int;
-        fn cfsetospeed(termios_p: *mut termios, speed: speed_t) -> c_int;
-        pub fn tcgetattr(fd: c_int, termios_p: *mut termios) -> c_int;
-        fn ioctl(fd: c_int, request: c_ulong, ...) -> c_int;
-        fn killpg(pgrp: c_int, sig: c_int) -> c_int;
-        fn waitpid(pid: c_int, wstatus: *mut c_int, options: c_int) -> c_int;
-        fn setsid() -> c_int;
-        fn execvp(file: *const c_char, argv: *const *mut c_char) -> c_int;
-        fn _exit(status: c_int) -> !;
+        ) -> i32;
+        fn ptsname(fd: i32) -> *mut c_char;
+        fn cfsetispeed(termios_p: *mut termios, speed: speed_t) -> i32;
+        fn cfsetospeed(termios_p: *mut termios, speed: speed_t) -> i32;
+        pub fn tcgetattr(fd: i32, termios_p: *mut termios) -> i32;
+        fn ioctl(fd: i32, request: c_ulong, ...) -> i32;
+        fn killpg(pgrp: i32, sig: i32) -> i32;
+        fn waitpid(pid: i32, wstatus: *mut i32, options: i32) -> i32;
+        fn setsid() -> i32;
+        fn execvp(file: *const c_char, argv: *const *mut c_char) -> i32;
+        fn _exit(status: i32) -> !;
         #[cfg(target_os = "linux")]
-        fn poll(fds: *mut pollfd, nfds: c_ulong, timeout: c_int) -> c_int;
+        fn poll(fds: *mut pollfd, nfds: c_ulong, timeout: i32) -> i32;
     }
 
     #[inline]
@@ -280,7 +279,7 @@ mod unix_impl {
     }
 
     /// @returns zero on success, or negative error code
-    pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> c_int {
+    pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> i32 {
         unsafe {
             let termios_default_ptr = TERMIOS_DEFAULT.as_ptr();
             if (*termios_default_ptr).c_cflag == 0 {
@@ -323,7 +322,7 @@ mod unix_impl {
                 .map(|s| s.as_ptr().cast_mut())
                 .chain(std::iter::once(ptr::null_mut()))
                 .collect();
-            let mut master: c_int = -1;
+            let mut master: i32 = -1;
             let pid = forkpty(
                 &raw mut master,
                 ptr::null_mut(),
@@ -338,7 +337,7 @@ mod unix_impl {
                     LOGLVL_ERR,
                     ptr::null(),
                     c"pty_proc_spawn",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"forkpty failed: %s",
                     strerror(err),
@@ -351,7 +350,7 @@ mod unix_impl {
             drop(new_env);
             drop(argv_ptrs);
 
-            let mut status: c_int;
+            let mut status: i32;
             'error: {
                 let master_status_flags = fcntl(master, F_GETFL);
                 if master_status_flags == -1 {
@@ -361,7 +360,7 @@ mod unix_impl {
                         LOGLVL_ERR,
                         ptr::null(),
                         c"pty_proc_spawn",
-                        line!() as c_int,
+                        line!() as i32,
                         true,
                         c"Failed to get master descriptor status flags: %s",
                         strerror(err),
@@ -375,7 +374,7 @@ mod unix_impl {
                         LOGLVL_ERR,
                         ptr::null(),
                         c"pty_proc_spawn",
-                        line!() as c_int,
+                        line!() as i32,
                         true,
                         c"Failed to make master descriptor non-blocking: %s",
                         strerror(err),
@@ -389,7 +388,7 @@ mod unix_impl {
                         LOGLVL_ERR,
                         ptr::null(),
                         c"pty_proc_spawn",
-                        line!() as c_int,
+                        line!() as i32,
                         true,
                         c"Failed to set CLOEXEC on ptmx file descriptor",
                     );
@@ -519,7 +518,7 @@ mod unix_impl {
                         LOGLVL_ERR,
                         ptr::null(),
                         c"init_child",
-                        line!() as c_int,
+                        line!() as i32,
                         true,
                         c"chdir(%s) failed: %s",
                         cwd.as_ptr(),
@@ -536,7 +535,7 @@ mod unix_impl {
                 LOGLVL_ERR,
                 ptr::null(),
                 c"init_child",
-                line!() as c_int,
+                line!() as i32,
                 true,
                 c"execvp(%s) failed: %s",
                 prog,
@@ -574,7 +573,7 @@ mod unix_impl {
         }
     }
 
-    fn set_duplicating_descriptor(fd: c_int, pipe: *mut uv_pipe_t) -> c_int {
+    fn set_duplicating_descriptor(fd: i32, pipe: *mut uv_pipe_t) -> i32 {
         unsafe {
             let fd_dup = dup(fd);
             if fd_dup < 0 {
@@ -583,7 +582,7 @@ mod unix_impl {
                     LOGLVL_ERR,
                     ptr::null(),
                     c"set_duplicating_descriptor",
-                    line!() as c_int,
+                    line!() as i32,
                     true,
                     c"Failed to dup descriptor %d: %s",
                     fd,
@@ -592,7 +591,7 @@ mod unix_impl {
                 return -err;
             }
 
-            let status: c_int;
+            let status: i32;
             'error: {
                 if os_set_cloexec(fd_dup) == -1 {
                     status = -os_errno();
@@ -600,7 +599,7 @@ mod unix_impl {
                         LOGLVL_ERR,
                         ptr::null(),
                         c"set_duplicating_descriptor",
-                        line!() as c_int,
+                        line!() as i32,
                         true,
                         c"Failed to set CLOEXEC on duplicate fd",
                     );
@@ -613,7 +612,7 @@ mod unix_impl {
                         LOGLVL_ERR,
                         ptr::null(),
                         c"set_duplicating_descriptor",
-                        line!() as c_int,
+                        line!() as i32,
                         true,
                         c"Failed to set pipe to descriptor %d: %s",
                         fd_dup,
@@ -629,9 +628,9 @@ mod unix_impl {
         }
     }
 
-    unsafe extern "C" fn chld_handler(handle: *mut uv_signal_t, _signum: c_int) {
+    unsafe extern "C" fn chld_handler(handle: *mut uv_signal_t, _signum: i32) {
         unsafe {
-            let mut stat: c_int = 0;
+            let mut stat: i32 = 0;
             let uv_loop = uv_handle_get_loop(handle.cast());
             let loop_ = *uv_loop.cast::<*mut Loop>();
             let qc = loop_queues(&mut *loop_);
@@ -641,7 +640,7 @@ mod unix_impl {
                 let hdr = unsafe { &mut *hdr };
                 let proc_t = proc_;
 
-                let mut pid: c_int;
+                let mut pid: i32;
                 loop {
                     pid = waitpid((*hdr).pid, &raw mut stat, WNOHANG | WUNTRACED | WCONTINUED);
                     if !(pid < 0 && os_errno() == EINTR) {

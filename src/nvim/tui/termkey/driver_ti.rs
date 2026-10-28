@@ -1,17 +1,17 @@
 //! Terminfo driver for libtermkey (`src/nvim/tui/termkey/driver-ti.c`).
 
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 
 use crate::tui::termkey::termkey::peekkey_mouse;
 
-pub type TermKeyResult = c_int;
+pub type TermKeyResult = i32;
 pub const TERMKEY_RES_NONE: TermKeyResult = 0;
 pub const TERMKEY_RES_KEY: TermKeyResult = 1;
 pub const TERMKEY_RES_EOF: TermKeyResult = 2;
 pub const TERMKEY_RES_AGAIN: TermKeyResult = 3;
 pub const TERMKEY_RES_ERROR: TermKeyResult = 4;
 
-pub type TermKeySym = c_int;
+pub type TermKeySym = i32;
 pub const TERMKEY_SYM_UNKNOWN: TermKeySym = -1;
 pub const TERMKEY_SYM_NONE: TermKeySym = 0;
 pub const TERMKEY_SYM_BACKSPACE: TermKeySym = 1;
@@ -74,7 +74,7 @@ pub const TERMKEY_SYM_KPCOMMA: TermKeySym = 57;
 pub const TERMKEY_SYM_KPPERIOD: TermKeySym = 58;
 pub const TERMKEY_SYM_KPEQUALS: TermKeySym = 59;
 
-pub type TermKeyType = c_int;
+pub type TermKeyType = i32;
 pub const TERMKEY_TYPE_UNKNOWN_CSI: TermKeyType = -1;
 pub const TERMKEY_TYPE_UNICODE: TermKeyType = 0;
 pub const TERMKEY_TYPE_FUNCTION: TermKeyType = 1;
@@ -86,19 +86,19 @@ pub const TERMKEY_TYPE_DCS: TermKeyType = 6;
 pub const TERMKEY_TYPE_OSC: TermKeyType = 7;
 pub const TERMKEY_TYPE_APC: TermKeyType = 8;
 
-pub type TermKeyEvent = c_int;
+pub type TermKeyEvent = i32;
 pub const TERMKEY_EVENT_UNKNOWN: TermKeyEvent = 0;
 pub const TERMKEY_EVENT_PRESS: TermKeyEvent = 1;
 pub const TERMKEY_EVENT_REPEAT: TermKeyEvent = 2;
 pub const TERMKEY_EVENT_RELEASE: TermKeyEvent = 3;
 
-pub const TERMKEY_KEYMOD_SHIFT: c_int = 1 << 0;
-pub const TERMKEY_KEYMOD_ALT: c_int = 1 << 1;
-pub const TERMKEY_KEYMOD_CTRL: c_int = 1 << 2;
+pub const TERMKEY_KEYMOD_SHIFT: i32 = 1 << 0;
+pub const TERMKEY_KEYMOD_ALT: i32 = 1 << 1;
+pub const TERMKEY_KEYMOD_CTRL: i32 = 1 << 2;
 
 pub const K_TERM_COUNT: usize = 49;
 
-pub type TerminfoKey = c_int;
+pub type TerminfoKey = i32;
 pub const K_TERM_KEY_BACKSPACE: TerminfoKey = 0;
 pub const K_TERM_KEY_BEG: TerminfoKey = 1;
 pub const K_TERM_KEY_BTAB: TerminfoKey = 2;
@@ -125,9 +125,9 @@ pub struct TerminfoEntry {
     pub tc: bool,
     pub rgb: bool,
     pub su: bool,
-    pub max_colors: c_int,
-    pub lines: c_int,
-    pub columns: c_int,
+    pub max_colors: i32,
+    pub lines: i32,
+    pub columns: i32,
     pub defs: [Option<std::borrow::Cow<'static, CStr>>; K_TERM_COUNT],
     pub keys: [[Option<std::borrow::Cow<'static, CStr>>; 2]; K_TERM_KEY_COUNT],
     pub f_keys: [Option<std::borrow::Cow<'static, CStr>>; K_TERMINFO_FUNC_KEY_MAX],
@@ -136,8 +136,8 @@ pub struct TerminfoEntry {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TermKeyKeyCode {
-    pub codepoint: c_int,
-    pub number: c_int,
+    pub codepoint: i32,
+    pub number: i32,
     pub sym: TermKeySym,
     pub mouse: [c_char; 4],
 }
@@ -147,7 +147,7 @@ pub struct TermKeyKeyCode {
 pub struct TermKeyKey {
     pub r#type: TermKeyType,
     pub code: TermKeyKeyCode,
-    pub modifiers: c_int,
+    pub modifiers: i32,
     pub event: TermKeyEvent,
     pub utf8: [c_char; 7],
 }
@@ -180,13 +180,13 @@ impl Default for TermKeyKey {
 pub struct TiKeyInfo {
     pub r#type: TermKeyType,
     pub sym: TermKeySym,
-    pub modifier_mask: c_int,
-    pub modifier_set: c_int,
+    pub modifier_mask: i32,
+    pub modifier_set: i32,
 }
 
 pub struct TermKey {
-    pub flags: c_int,
-    pub canonflags: c_int,
+    pub flags: i32,
+    pub canonflags: i32,
     pub buffer: Vec<u8>,
     pub buffstart: usize,
     pub buffcount: usize,
@@ -265,7 +265,7 @@ struct TiFuncEntry {
     funcname: &'static str,
     r#type: TermKeyType,
     sym: TermKeySym,
-    mods: c_int,
+    mods: i32,
 }
 
 const FUNCS: &[TiFuncEntry] = &[
@@ -516,7 +516,7 @@ fn load_terminfo(
 
             let fn_info = TiKeyInfo {
                 r#type: TERMKEY_TYPE_FUNCTION,
-                sym: i as c_int,
+                sym: i as i32,
                 modifier_mask: 0,
                 modifier_set: 0,
             };
@@ -548,7 +548,7 @@ pub fn start_driver_ti(
     tk: &mut TermKey,
     ti: Option<&TerminfoEntry>,
     input: Option<&mut crate::tui::input::TermInput>,
-) -> c_int {
+) -> i32 {
     if tk.ti.root.is_none() {
         load_terminfo(tk, ti, input);
     }
@@ -558,7 +558,7 @@ pub fn start_driver_ti(
 pub fn peekkey_ti(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
-    force: c_int,
+    force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
     {

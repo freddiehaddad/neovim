@@ -80,19 +80,19 @@ use crate::regexp::{RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim
 use crate::strings::{gettext, vim_snprintf, vim_snprintf_safelen};
 use crate::usercmd::add_win_cmd_modifiers;
 use crate::viml::parser::expressions::AUTOLOAD_CHAR;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 use std::sync::Mutex;
 
-pub type Etype = c_int;
-pub type EstackArg = c_int;
+pub type Etype = i32;
+pub type EstackArg = i32;
 pub(crate) const SID_NONE: Scid = -6;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Sctx {
-    pub sc_sid: c_int,
-    pub sc_seq: c_int,
+    pub sc_sid: i32,
+    pub sc_seq: i32,
     pub sc_lnum: i32,
     pub sc_chan: u64,
 }
@@ -130,7 +130,7 @@ impl RuntimeCallback<'_> {
     fn invoke(&mut self, fnames: &[std::ffi::CString], all: bool) {
         match self {
             Self::Source { skip_if_loaded } => {
-                let mut sid: c_int = 0;
+                let mut sid: i32 = 0;
                 let cookie = if *skip_if_loaded {
                     &raw mut sid
                 } else {
@@ -180,20 +180,20 @@ pub const ESTACK_SFILE: EstackArg = 1;
 pub const ESTACK_STACK: EstackArg = 2;
 pub const ESTACK_SCRIPT: EstackArg = 3;
 
-pub const DOSO_NONE: c_int = 0;
-pub const DOSO_VIMRC: c_int = 1;
+pub const DOSO_NONE: i32 = 0;
+pub const DOSO_VIMRC: i32 = 1;
 
-pub const DIP_ALL: c_int = 0x01;
-pub const DIP_DIR: c_int = 0x02;
-pub const DIP_ERR: c_int = 0x04;
-pub const DIP_START: c_int = 0x08;
-pub const DIP_OPT: c_int = 0x10;
-pub const DIP_NORTP: c_int = 0x20;
-pub const DIP_NOAFTER: c_int = 0x40;
-pub const DIP_AFTER: c_int = 0x80;
-pub const DIP_DIRFILE: c_int = 0x200;
+pub const DIP_ALL: i32 = 0x01;
+pub const DIP_DIR: i32 = 0x02;
+pub const DIP_ERR: i32 = 0x04;
+pub const DIP_START: i32 = 0x08;
+pub const DIP_OPT: i32 = 0x10;
+pub const DIP_NORTP: i32 = 0x20;
+pub const DIP_NOAFTER: i32 = 0x40;
+pub const DIP_AFTER: i32 = 0x80;
+pub const DIP_DIRFILE: i32 = 0x200;
 
-const K_CPO_CONCAT: c_int = b'C' as c_int;
+const K_CPO_CONCAT: i32 = b'C' as i32;
 
 pub(crate) const SID_CMDARG: Scid = -2;
 pub(crate) const SID_CARG: Scid = -3;
@@ -205,7 +205,7 @@ pub(crate) const SID_WINLAYOUT: Scid = -7;
 const HLF_W: usize = 26;
 
 #[cfg(windows)]
-const O_NOINHERIT: c_int = 0x0080;
+const O_NOINHERIT: i32 = 0x0080;
 
 #[repr(C)]
 pub struct Scriptvar {
@@ -228,16 +228,16 @@ pub struct SourceCookie {
     sourcing_lnum: Linenr,
     finished: bool,
     source_from_buf_or_str: bool,
-    buf_lnum: c_int,
+    buf_lnum: i32,
     buflines: Vec<std::ffi::CString>,
     #[cfg(windows)]
-    fileformat: c_int,
+    fileformat: i32,
     #[cfg(windows)]
     error: bool,
     breakpoint: Linenr,
     fname: Option<std::ffi::CString>,
-    dbg_tick: c_int,
-    level: c_int,
+    dbg_tick: i32,
+    level: i32,
     conv: Vimconv,
 }
 
@@ -287,7 +287,7 @@ pub(crate) struct RuntimeModuleState {
     pub(crate) exestack: Vec<Estack>,
     pub(crate) script_items: Vec<Scriptitem>,
     ga_loaded: Vec<std::ffi::CString>,
-    last_current_sid_seq: c_int,
+    last_current_sid_seq: i32,
     last_current_sid: Scid,
     runtime_search_path_valid: bool,
     runtime_search_path_valid_thread: bool,
@@ -295,7 +295,7 @@ pub(crate) struct RuntimeModuleState {
     runtime_search_path_old: Vec<RuntimeSearchPath>,
     runtime_search_path: RuntimeSearchPath,
     runtime_search_path_thread: RuntimeSearchPath,
-    runtime_expand_flags: c_int,
+    runtime_expand_flags: i32,
     get_named_buf: [c_char; MAXPATHL],
     get_named_thread_buf: [c_char; MAXPATHL],
     pack_entry_buf: [c_char; MAXPATHL],
@@ -586,7 +586,7 @@ pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     l.lv_refcount += 1;
 }
 
-fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_int {
+fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> i32 {
     unsafe {
         let arg = *argp;
         if where_len == 0 {
@@ -650,7 +650,7 @@ pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::
     }
 }
 
-fn source_callback_vim_lua(fnames: &[std::ffi::CString], all: bool, cookie: *mut c_int) -> bool {
+fn source_callback_vim_lua(fnames: &[std::ffi::CString], all: bool, cookie: *mut i32) -> bool {
     let mut did_one = false;
 
     for fname_cstr in fnames {
@@ -678,7 +678,7 @@ fn source_callback_vim_lua(fnames: &[std::ffi::CString], all: bool, cookie: *mut
     did_one
 }
 
-fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut c_int) -> bool {
+fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut i32) -> bool {
     let mut did_one = source_callback_vim_lua(fnames, all, cookie);
 
     if !all && did_one {
@@ -704,7 +704,7 @@ pub fn do_in_path(
     path: impl crate::strings::IntoCCharPtr,
     prefix: &std::ffi::CStr,
     name: impl crate::strings::IntoCCharPtr,
-    flags: c_int,
+    flags: i32,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
     let path = path.into_c_char_ptr();
@@ -835,7 +835,7 @@ fn runtime_search_path_unref() {
 
 fn do_in_cached_path(
     name: impl crate::strings::IntoCCharPtr,
-    flags: c_int,
+    flags: i32,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
     let name = name.into_c_char_ptr().cast_mut();
@@ -1034,7 +1034,7 @@ fn runtime_get_named_common(
 pub fn do_in_path_and_pp(
     path: impl crate::strings::IntoCCharPtr,
     name: impl crate::strings::IntoCCharPtr,
-    flags: c_int,
+    flags: i32,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
     let path = path.into_c_char_ptr();
@@ -1172,7 +1172,7 @@ fn path_is_after(buf: impl crate::strings::IntoCCharPtr, buflen: usize) -> bool 
     let buf = buf.into_c_char_ptr();
     {
         buflen >= 5
-            && (buflen < 6 || vim_ispathsep(crate::memory::cstr_byte_at(buf, buflen - 6) as c_int))
+            && (buflen < 6 || vim_ispathsep(crate::memory::cstr_byte_at(buf, buflen - 6) as i32))
             && (&crate::memory::cstr_as_bytes(buf)[buflen - 5..]) == b"after"
     }
 }
@@ -1180,7 +1180,7 @@ fn path_is_after(buf: impl crate::strings::IntoCCharPtr, buflen: usize) -> bool 
 fn runtime_search_path_build() -> RuntimeSearchPath {
     {
         let mut pack_entries: Vec<NvimString> = Vec::new();
-        let mut pack_used: std::collections::HashMap<Vec<u8>, c_int> =
+        let mut pack_used: std::collections::HashMap<Vec<u8>, i32> =
             std::collections::HashMap::new();
         let mut rtp_used: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         let mut search_path = RuntimeSearchPath::new();
@@ -1318,7 +1318,7 @@ pub fn update_runtime_search_path_thread(force: bool) {
 /// Just like do_in_path_and_pp(), using 'runtimepath' for "path".
 pub fn do_in_runtimepath(
     name: impl crate::strings::IntoCCharPtr,
-    mut flags: c_int,
+    mut flags: i32,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
     let name = name.into_c_char_ptr().cast_mut();
@@ -1341,7 +1341,7 @@ pub fn do_in_runtimepath(
 }
 
 /// Source the file "name" from all directories in 'runtimepath'.
-pub fn source_runtime(name: impl crate::strings::IntoCCharPtr, flags: c_int) -> bool {
+pub fn source_runtime(name: impl crate::strings::IntoCCharPtr, flags: i32) -> bool {
     let name = name.into_c_char_ptr().cast_mut();
     do_in_runtimepath(
         name,
@@ -1353,7 +1353,7 @@ pub fn source_runtime(name: impl crate::strings::IntoCCharPtr, flags: c_int) -> 
 }
 
 /// Just like source_runtime(), but only source vim and lua files.
-pub fn source_runtime_vim_lua(name: impl crate::strings::IntoCCharPtr, flags: c_int) -> bool {
+pub fn source_runtime_vim_lua(name: impl crate::strings::IntoCCharPtr, flags: i32) -> bool {
     let name = name.into_c_char_ptr();
     do_in_runtimepath(name, flags, &mut RuntimeCallback::SourceVimLua)
 }
@@ -1362,7 +1362,7 @@ pub fn source_runtime_vim_lua(name: impl crate::strings::IntoCCharPtr, flags: c_
 pub fn source_in_path_vim_lua(
     path: impl crate::strings::IntoCCharPtr,
     name: impl crate::strings::IntoCCharPtr,
-    flags: c_int,
+    flags: i32,
 ) -> bool {
     let path = path.into_c_char_ptr();
     let name = name.into_c_char_ptr();
@@ -1370,9 +1370,9 @@ pub fn source_in_path_vim_lua(
 }
 
 fn gen_expand_wildcards_and_cb(
-    num_pat: c_int,
+    num_pat: i32,
     pats: *mut *mut c_char,
-    flags: c_int,
+    flags: i32,
     all: bool,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
@@ -1398,7 +1398,7 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
         let mut p4 = p1;
         let mut p = p1;
         while !crate::memory::cstr_is_empty(p) {
-            if vim_ispathsep_nocolon(crate::memory::cstr_first_byte(p) as c_int) {
+            if vim_ispathsep_nocolon(crate::memory::cstr_first_byte(p) as i32) {
                 p4 = p3;
                 p3 = p2;
                 p2 = p1;
@@ -1448,8 +1448,8 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
                     .map_or(ptr::null_mut(), |i| buf.data.add(i));
                 let is_after = !p_after.is_null()
                     && (p_after as usize) > (buf.data as usize)
-                    && vim_ispathsep(*p_after.sub(1) as u8 as c_int)
-                    && (vim_ispathsep(crate::memory::cstr_byte_at(p_after, 5) as c_int)
+                    && vim_ispathsep(*p_after.sub(1) as u8 as i32)
+                    && (vim_ispathsep(crate::memory::cstr_byte_at(p_after, 5) as i32)
                         || crate::memory::cstr_byte_at(p_after, 5) == 0
                         || crate::memory::cstr_byte_at(p_after, 5) == b',');
 
@@ -1867,7 +1867,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
 fn expand_rtdir_int(
     pat: impl crate::strings::IntoCCharPtr,
     pat_len: usize,
-    flags: c_int,
+    flags: i32,
     keep_ext: bool,
     gap: &mut Vec<std::ffi::CString>,
     dirnames: *mut *mut c_char,
@@ -1880,7 +1880,7 @@ fn expand_rtdir_int(
             let buf_len = crate::memory::cstr_len(dir) + pat_len + 64;
             let mut buf_vec = vec![0 as c_char; buf_len];
             let buf = buf_vec.as_mut_ptr();
-            let mut glob_flags: c_int = 0;
+            let mut glob_flags: i32 = 0;
             let mut expand_dirs = false;
             let dir_str = if !crate::memory::cstr_is_empty(dir) {
                 dir
@@ -1973,9 +1973,9 @@ fn expand_rtdir_int(
             i += 1;
         }
 
-        let mut pat_pathsep_cnt: c_int = 0;
+        let mut pat_pathsep_cnt: i32 = 0;
         for idx in 0..pat_len {
-            if vim_ispathsep(crate::memory::cstr_byte_at(pat, idx) as c_int) {
+            if vim_ispathsep(crate::memory::cstr_byte_at(pat, idx) as i32) {
                 pat_pathsep_cnt += 1;
             }
         }
@@ -1999,7 +1999,7 @@ fn expand_rtdir_int(
                 };
             s = e;
             while (s as usize) > (match_ptr as usize) {
-                if vim_ispathsep(crate::memory::cstr_first_byte(s) as c_int) {
+                if vim_ispathsep(crate::memory::cstr_first_byte(s) as i32) {
                     match_pathsep_cnt += 1;
                     if match_pathsep_cnt > pat_pathsep_cnt {
                         break;
@@ -2023,7 +2023,7 @@ fn expand_rtdir_int(
 /// Expand color scheme, compiler or filetype names.
 pub fn expand_rtdir(
     pat: impl crate::strings::IntoCCharPtr,
-    flags: c_int,
+    flags: i32,
     file: &mut Vec<std::ffi::CString>,
     dirnames: *mut *mut c_char,
 ) -> bool {
@@ -2545,11 +2545,11 @@ pub fn source_breakpoint(sp: &mut SourceCookie) -> *mut Linenr {
     &raw mut sp.breakpoint
 }
 
-pub fn source_dbg_tick(sp: &mut SourceCookie) -> *mut c_int {
+pub fn source_dbg_tick(sp: &mut SourceCookie) -> *mut i32 {
     &raw mut sp.dbg_tick
 }
 
-pub fn source_level(sp: &mut SourceCookie) -> c_int {
+pub fn source_level(sp: &mut SourceCookie) -> i32 {
     sp.level
 }
 
@@ -2736,8 +2736,8 @@ pub fn do_source_str(
 fn do_source_ext(
     fname: impl crate::strings::IntoCCharPtr,
     check_other: bool,
-    is_vimrc: c_int,
-    ret_sid: *mut c_int,
+    is_vimrc: i32,
+    ret_sid: *mut i32,
     eap: Option<&Exarg>,
     ex_lua: bool,
     str_ptr: impl crate::strings::IntoCCharPtr,
@@ -3077,8 +3077,8 @@ fn do_source_ext(
 pub fn do_source(
     fname: impl crate::strings::IntoCCharPtr,
     check_other: bool,
-    is_vimrc: c_int,
-    ret_sid: *mut c_int,
+    is_vimrc: i32,
+    ret_sid: *mut i32,
 ) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
     do_source_ext(
@@ -3106,7 +3106,7 @@ pub fn script_is_lua(sid: Scid) -> bool {
 }
 
 /// Find an already loaded script "name".
-pub fn find_script_by_name(name: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn find_script_by_name(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
     {
         let mut sid = script_items_len();
@@ -3135,7 +3135,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                 if eap.addr_count > 0 {
                     eap.arg = script_item(eap.line2).name_ptr();
                 } else {
-                    expand_env(eap.arg, namebuff, MAXPATHL as c_int);
+                    expand_env(eap.arg, namebuff, MAXPATHL as i32);
                     eap.arg = namebuff;
                     to_slash(eap.arg);
                 }
@@ -3153,7 +3153,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                 vim_snprintf!(iobuff, IOSIZE, c"%3d: %s", i, namebuff);
                 if !message_filtered(iobuff) {
                     if g_st().msg_col > 0 {
-                        msg_putchar(b'\n' as c_int);
+                        msg_putchar(b'\n' as i32);
                     }
                     msg_outtrans(iobuff, 0, false);
                     line_breakcheck();
@@ -3323,9 +3323,9 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// Get one full line from a sourced file.
 pub fn getsourceline(
-    _c: c_int,
+    _c: i32,
     sp: &mut SourceCookie,
-    _indent: c_int,
+    _indent: i32,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
     {
@@ -3493,7 +3493,7 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<c_char>> {
                             buf.truncate(len);
                         } else {
                             if !sp.error {
-                                msg_source(crate::highlight::hl_attr(HLF_W as c_int));
+                                msg_source(crate::highlight::hl_attr(HLF_W as i32));
                                 emsg(gettext(
                                     c"W15: Warning: Wrong line separator, ^M may be missing",
                                 ));
@@ -3532,8 +3532,8 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<c_char>> {
 }
 
 /// Returns true if sourcing a script either from a file or a buffer or a string.
-pub fn sourcing_a_script(eap: &mut Exarg) -> c_int {
-    c_int::from(eap.ea_getline.is_source())
+pub fn sourcing_a_script(eap: &mut Exarg) -> i32 {
+    i32::from(eap.ea_getline.is_source())
 }
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.

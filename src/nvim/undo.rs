@@ -67,7 +67,7 @@ use crate::sha256::ContextSha256;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_add};
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 #[cfg(unix)]
@@ -80,22 +80,22 @@ use crate::charset::NUL;
 use crate::eval::K_LIST_LEN_MAY_KNOW_CONST;
 use crate::ex_cmds::{BL_FIX, BL_SOL, K_CPO_UNDO};
 
-const UH_CHANGED: c_int = 0x01;
-const UH_EMPTYBUF: c_int = 0x02;
-const UH_RELOAD: c_int = 0x04;
+const UH_CHANGED: i32 = 0x01;
+const UH_EMPTYBUF: i32 = 0x02;
+const UH_RELOAD: i32 = 0x04;
 
-const K_SHM_UNDO: c_int = b'u' as c_int;
-const K_OPT_FDO_FLAG_UNDO: c_uint = 0x200;
+const K_SHM_UNDO: i32 = b'u' as i32;
+const K_OPT_FDO_FLAG_UNDO: u32 = 0x200;
 
 const UF_START_MAGIC: &[u8; 9] = b"Vim\x9fUnDo\xe5";
 const UF_START_MAGIC_LEN: usize = 9;
-const UF_HEADER_MAGIC: c_int = 0x5fd0;
-const UF_HEADER_END_MAGIC: c_int = 0xe7aa;
-const UF_ENTRY_MAGIC: c_int = 0xf518;
-const UF_ENTRY_END_MAGIC: c_int = 0x3581;
-const UF_VERSION: c_int = 3;
-const UF_LAST_SAVE_NR: c_int = 1;
-const UHP_SAVE_NR: c_int = 1;
+const UF_HEADER_MAGIC: i32 = 0x5fd0;
+const UF_HEADER_END_MAGIC: i32 = 0xe7aa;
+const UF_ENTRY_MAGIC: i32 = 0xf518;
+const UF_ENTRY_END_MAGIC: i32 = 0x3581;
+const UF_VERSION: i32 = 3;
+const UF_LAST_SAVE_NR: i32 = 1;
+const UHP_SAVE_NR: i32 = 1;
 
 const E_UNDO_LIST_CORRUPT: &CStr = c"E439: Undo list corrupt";
 const E_UNDO_LINE_MISSING: &CStr = c"E440: Undo line missing";
@@ -123,19 +123,19 @@ pub struct UHeader {
     pub uh_prev: Option<usize>,
     pub uh_alt_next: Option<usize>,
     pub uh_alt_prev: Option<usize>,
-    pub uh_seq: c_int,
-    pub uh_walk: c_int,
+    pub uh_seq: i32,
+    pub uh_walk: i32,
     pub uh_entries: Vec<UEntry>,
     pub uh_getbot_entry: bool,
     pub uh_cursor: CursorPos,
     pub uh_cursor_after: CursorPos,
     pub uh_cursor_vcol: Colnr,
-    pub uh_flags: c_int,
+    pub uh_flags: i32,
     pub uh_namedm: [Fmark; NMARKS],
     pub uh_extmark: ExtmarkUndoVec,
     pub uh_visual: Visualinfo,
     pub uh_time: time_t,
-    pub uh_save_nr: c_int,
+    pub uh_save_nr: i32,
 }
 
 impl UHeader {
@@ -194,13 +194,13 @@ pub struct UndoCheckpoint {
     pub uc_oldhead: Option<usize>,
     pub uc_newhead: Option<usize>,
     pub uc_curhead: Option<usize>,
-    pub uc_numhead: c_int,
+    pub uc_numhead: i32,
     pub uc_synced: bool,
-    pub uc_seq_last: c_int,
-    pub uc_save_nr_last: c_int,
-    pub uc_seq_cur: c_int,
+    pub uc_seq_last: i32,
+    pub uc_save_nr_last: i32,
+    pub uc_seq_cur: i32,
     pub uc_time_cur: time_t,
-    pub uc_save_nr_cur: c_int,
+    pub uc_save_nr_cur: i32,
     pub uc_line_ptr: Option<std::ffi::CString>,
     pub uc_line_lnum: Linenr,
     pub uc_line_colnr: Colnr,
@@ -243,10 +243,10 @@ struct Bufinfo {
 }
 
 struct UndoModuleState {
-    u_newcount: c_int,
-    u_oldcount: c_int,
+    u_newcount: i32,
+    u_oldcount: i32,
     undo_undoes: bool,
-    lastmark: c_int,
+    lastmark: i32,
 }
 
 impl UndoModuleState {
@@ -646,7 +646,7 @@ pub fn u_get_undo_file_name(
             } else {
                 dir_name[dir_len] = NUL;
 
-                while dir_len > 1 && vim_ispathsep_nocolon(dir_name[dir_len - 1] as c_int) {
+                while dir_len > 1 && vim_ispathsep_nocolon(dir_name[dir_len - 1] as i32) {
                     dir_len -= 1;
                     dir_name[dir_len] = NUL;
                 }
@@ -816,7 +816,7 @@ fn serialize_uhp(bi: &mut Bufinfo, uhp: usize) -> bool {
     }
 }
 
-fn unserialize_uhp(bi: &mut Bufinfo, file_name: *const c_char) -> Option<(UHeader, [c_int; 4])> {
+fn unserialize_uhp(bi: &mut Bufinfo, file_name: *const c_char) -> Option<(UHeader, [i32; 4])> {
     let mut uhp = UHeader::new();
     let seqs = [
         undo_read_4c(bi),
@@ -1062,7 +1062,7 @@ pub fn u_write_undo(
             name.cast_mut()
         };
 
-        let mut perm: c_int = 0o600;
+        let mut perm: i32 = 0o600;
         if !buf.b_ffname.is_null() {
             perm = os_getperm(buf.b_ffname);
             if perm < 0 {
@@ -1238,9 +1238,9 @@ pub fn u_write_undo(
     }
 }
 
-fn uhp_table_find(uhp_table: &[(UHeader, [c_int; 4])], seq: c_int) -> c_int {
-    let mut lo: c_int = 0;
-    let mut hi: c_int = uhp_table.len() as c_int - 1;
+fn uhp_table_find(uhp_table: &[(UHeader, [i32; 4])], seq: i32) -> i32 {
+    let mut lo: i32 = 0;
+    let mut hi: i32 = uhp_table.len() as i32 - 1;
 
     while lo <= hi {
         let mid = lo + (hi - lo) / 2;
@@ -1267,9 +1267,9 @@ pub fn u_read_undo(
     unsafe {
         #[cfg(not(unix))]
         let _ = orig_name;
-        let mut uhp_table: Vec<(UHeader, [c_int; 4])> = Vec::new();
+        let mut uhp_table: Vec<(UHeader, [i32; 4])> = Vec::new();
         let mut line_ptr: Option<std::ffi::CString> = None;
-        let mut num_read_uhps: c_int = 0;
+        let mut num_read_uhps: i32 = 0;
 
         let f_owned: Option<std::ffi::CString>;
         let file_name = if name.is_null() {
@@ -1401,7 +1401,7 @@ pub fn u_read_undo(
                 let seq_cur = undo_read_4c(&mut bi);
                 let seq_time = undo_read_time(&mut bi);
 
-                let mut last_save_nr: c_int = 0;
+                let mut last_save_nr: i32 = 0;
                 loop {
                     let mut len = undo_read_byte(&mut bi);
                     if len == 0 || len == EOF {
@@ -1557,7 +1557,7 @@ fn put_header_ptr(bi: &mut Bufinfo, uhp: Option<usize>) {
     }
 }
 
-fn undo_read_4c(bi: &mut Bufinfo) -> c_int {
+fn undo_read_4c(bi: &mut Bufinfo) -> i32 {
     get4c(bi.bi_fp.as_ptr())
 }
 
@@ -1565,7 +1565,7 @@ fn undo_read_len(
     bi: &mut Bufinfo,
     what: &std::ffi::CStr,
     file_name: impl crate::strings::IntoCCharPtr,
-) -> c_int {
+) -> i32 {
     let file_name = file_name.into_c_char_ptr();
     unsafe {
         let len = undo_read_4c(bi);
@@ -1579,11 +1579,11 @@ fn undo_read_len(
     }
 }
 
-fn undo_read_2c(bi: &mut Bufinfo) -> c_int {
+fn undo_read_2c(bi: &mut Bufinfo) -> i32 {
     get2c(bi.bi_fp.as_ptr())
 }
 
-fn undo_read_byte(bi: &mut Bufinfo) -> c_int {
+fn undo_read_byte(bi: &mut Bufinfo) -> i32 {
     unsafe { fgetc(bi.bi_fp.as_ptr()) }
 }
 
@@ -1615,7 +1615,7 @@ fn undo_read_string(bi: &mut Bufinfo, len: usize) -> Option<std::ffi::CString> {
 }
 
 /// Undo `count` times.
-pub fn u_undo(mut count: c_int) {
+pub fn u_undo(mut count: i32) {
     {
         if !curbuf_mut().b_u_synced {
             u_sync(true);
@@ -1632,7 +1632,7 @@ pub fn u_undo(mut count: c_int) {
 }
 
 /// Redo `count` times.
-pub fn u_redo(count: c_int) {
+pub fn u_redo(count: i32) {
     if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_UNDO) {
         undo_st().undo_undoes = false;
     }
@@ -1641,7 +1641,7 @@ pub fn u_redo(count: c_int) {
 }
 
 /// Undo and remove the branch from the undo tree.
-pub fn u_undo_and_forget(mut count: c_int, do_buf_event: bool) -> bool {
+pub fn u_undo_and_forget(mut count: i32, do_buf_event: bool) -> bool {
     {
         if !curbuf_mut().b_u_synced {
             u_sync(true);
@@ -1659,7 +1659,7 @@ pub fn u_undo_and_forget(mut count: c_int, do_buf_event: bool) -> bool {
     }
 }
 
-fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
+fn u_doit(startcount: i32, quiet: bool, do_buf_event: bool) {
     {
         if !undo_allowed(curbuf_mut()) {
             return;
@@ -1728,7 +1728,7 @@ fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
 }
 
 /// Undo or redo over the timeline.
-pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
+pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
     {
         if text_locked() {
             text_locked_msg();
@@ -1746,8 +1746,8 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
             undo_st().u_oldcount = -1;
         }
 
-        let mut target: c_int;
-        let mut closest: c_int;
+        let mut target: i32;
+        let mut closest: i32;
         let mut uhp: Option<usize> = None;
         let mut dosec = sec;
         let mut dofile = file;
@@ -1759,7 +1759,7 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
             closest = -1;
         } else {
             if dosec {
-                target = (curbuf_mut().b_u_time_cur as c_int) + step;
+                target = (curbuf_mut().b_u_time_cur as i32) + step;
             } else if dofile {
                 if step < 0 {
                     uhp = if let Some(ch) = curbuf_mut().b_u_curhead {
@@ -1790,7 +1790,7 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                 closest = -1;
             } else {
                 if dosec {
-                    closest = (os_time() + 1) as c_int;
+                    closest = (os_time() + 1) as i32;
                 } else if dofile {
                     closest = curbuf_mut().b_u_save_nr_last + 2;
                 } else {
@@ -1804,7 +1804,7 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
         let closest_start = closest;
         let mut closest_seq = curbuf_mut().b_u_seq_cur;
         let mut mark = undo_st().lastmark;
-        let mut nomark: c_int = 0;
+        let mut nomark: i32 = 0;
 
         if target != 0 {
             for round in 1..=2 {
@@ -1818,7 +1818,7 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                 while let Some(uh) = uhp {
                     uhp_mut(curbuf_mut(), uh).uh_walk = mark;
                     let val = if dosec {
-                        uhp_ref(curbuf_mut(), uh).uh_time as c_int
+                        uhp_ref(curbuf_mut(), uh).uh_time as i32
                     } else if dofile {
                         uhp_ref(curbuf_mut(), uh).uh_save_nr
                     } else {
@@ -2435,7 +2435,7 @@ pub fn u_sync(force: bool) {
 /// `":undolist"`: List the leafs of the undo tree.
 pub fn ex_undolist(_eap: &mut Exarg) {
     unsafe {
-        let mut changes: c_int = 1;
+        let mut changes: i32 = 1;
 
         undo_st().lastmark += 1;
         let mark = undo_st().lastmark;
@@ -2519,7 +2519,7 @@ pub fn ex_undolist(_eap: &mut Exarg) {
                 if g_st().got_int {
                     break;
                 }
-                msg_putchar(b'\n' as c_int);
+                msg_putchar(b'\n' as i32);
                 if g_st().got_int {
                     break;
                 }
@@ -3018,7 +3018,7 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 }
 
 /// Drops named mark `idx` from the pending undo snapshot.
-pub fn u_update_named_mark(buf: &mut FileBuf, idx: c_int) {
+pub fn u_update_named_mark(buf: &mut FileBuf, idx: i32) {
     let uhp = buf.b_u_curhead.or(buf.b_u_newhead);
     if let Some(uh) = uhp {
         uhp_mut(&mut *buf, uh).uh_namedm[idx as usize].mark.lnum = 0;
@@ -3061,14 +3061,14 @@ pub fn u_checkpoint(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
     uc.uc_changedtick = buf_get_changedtick(&*buf);
 
     u_clearall(&mut *buf);
-    buf.b_p_ul = OptInt::from(c_int::MAX);
+    buf.b_p_ul = OptInt::from(i32::MAX);
 }
 
 /// Reverts `buf` from a checkpoint.
 pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
     {
         if buf.b_u_seq_cur != uc.uc_seq_cur {
-            let mut count: c_int = 0;
+            let mut count: i32 = 0;
             let mut uhp = buf.b_u_curhead.or(buf.b_u_newhead);
             while let Some(uh) = uhp {
                 uhp = uhp_ref(&*buf, uh).uh_next;

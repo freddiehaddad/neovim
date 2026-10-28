@@ -7,7 +7,6 @@ use crate::eval::funcs::PROCESS_ALL_ACCESS;
 use crate::event::r#loop::uv_kill;
 #[cfg(windows)]
 use crate::memory::Arena;
-use std::ffi::c_int;
 #[cfg(target_os = "windows")]
 use std::ffi::c_void;
 #[cfg(windows)]
@@ -19,12 +18,12 @@ use crate::api::private::validate::{Dict, NvimString};
 use crate::api::private::validate::{KeyValuePair, Object, ObjectData, ObjectType};
 
 #[cfg(target_os = "windows")]
-const UV_ESRCH: c_int = -4040;
+const UV_ESRCH: i32 = -4040;
 #[cfg(not(target_os = "windows"))]
-const UV_ESRCH: c_int = -3;
+const UV_ESRCH: i32 = -3;
 
-const SIGTERM_NUM: c_int = 15;
-const SIGKILL_NUM: c_int = 9;
+const SIGTERM_NUM: i32 = 15;
+const SIGKILL_NUM: i32 = 9;
 
 #[cfg(target_os = "windows")]
 const TH32CS_SNAPPROCESS: u32 = 0x0000_0002;
@@ -82,7 +81,7 @@ unsafe extern "system" {
 }
 
 #[cfg(target_os = "windows")]
-fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: c_int) -> bool {
+fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: i32) -> bool {
     if proc_handle.is_null() {
         return false;
     }
@@ -116,7 +115,7 @@ fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: c_int) -> bool {
 }
 
 /// Kill process `pid` and its process group / descendants (`os_proc_tree_kill`).
-pub fn os_proc_tree_kill(pid: c_int, sig: c_int) -> bool {
+pub fn os_proc_tree_kill(pid: i32, sig: i32) -> bool {
     assert!(sig == SIGTERM_NUM || sig == SIGKILL_NUM);
     #[cfg(target_os = "windows")]
     {
@@ -143,13 +142,13 @@ pub fn os_proc_tree_kill(pid: c_int, sig: c_int) -> bool {
 }
 
 /// Get the immediate child PIDs of `ppid` (`os_proc_children`).
-pub fn os_proc_children(ppid: c_int) -> Result<Vec<c_int>, c_int> {
+pub fn os_proc_children(ppid: i32) -> Result<Vec<i32>, i32> {
     if ppid < 0 {
         return Err(2);
     }
 
     #[allow(unused_mut)]
-    let mut temp: Vec<c_int> = Vec::new();
+    let mut temp: Vec<i32> = Vec::new();
 
     #[cfg(target_os = "windows")]
     unsafe {
@@ -164,7 +163,7 @@ pub fn os_proc_children(ppid: c_int) -> Result<Vec<c_int>, c_int> {
         }
         loop {
             if pe.th32_parent_process_id == ppid as u32 {
-                temp.push(pe.th32_process_id as c_int);
+                temp.push(pe.th32_process_id as i32);
             }
             if Process32Next(h, &mut pe) == 0 {
                 break;
@@ -180,7 +179,7 @@ pub fn os_proc_children(ppid: c_int) -> Result<Vec<c_int>, c_int> {
             return Err(2);
         };
         for tok in contents.split_ascii_whitespace() {
-            if let Ok(match_pid) = tok.parse::<c_int>() {
+            if let Ok(match_pid) = tok.parse::<i32>() {
                 temp.push(match_pid);
             }
         }
@@ -194,7 +193,7 @@ pub fn os_proc_children(ppid: c_int) -> Result<Vec<c_int>, c_int> {
 ///
 /// # Safety
 /// `arena` must be a valid pointer to an initialized `Arena`.
-pub fn os_proc_info(pid: c_int, arena: &mut Arena) -> Dict {
+pub fn os_proc_info(pid: i32, arena: &mut Arena) -> Dict {
     let mut pinfo = Dict {
         size: 0,
         capacity: 0,
@@ -248,7 +247,7 @@ pub fn os_proc_info(pid: c_int, arena: &mut Arena) -> Dict {
                 c"ppid",
                 Object {
                     obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(i64::from(pe.th32_parent_process_id as c_int)),
+                    data: ObjectData::Integer(i64::from(pe.th32_parent_process_id as i32)),
                 },
             );
             let exe_ptr = pe.sz_exe_file.as_ptr();
@@ -275,7 +274,7 @@ pub fn os_proc_info(pid: c_int, arena: &mut Arena) -> Dict {
 }
 
 /// Return true if process `pid` is running (`os_proc_running`).
-pub fn os_proc_running(pid: c_int) -> bool {
+pub fn os_proc_running(pid: i32) -> bool {
     let err = unsafe { uv_kill(pid, 0) };
     if err == 0 {
         return true;
@@ -293,7 +292,7 @@ mod tests {
     #[test]
     fn negative_ppid_returns_error_and_running_checks_pid() {
         assert_eq!(os_proc_children(-1), Err(2));
-        assert!(os_proc_running(std::process::id() as c_int));
-        assert!(!os_proc_running(c_int::MAX));
+        assert!(os_proc_running(std::process::id() as i32));
+        assert!(!os_proc_running(i32::MAX));
     }
 }

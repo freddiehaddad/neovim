@@ -79,14 +79,14 @@ use crate::state::{MODE_INSERT, virtual_active};
 use crate::strings::vim_snprintf;
 use crate::textformat::{InsState, Oparg};
 use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 const DECOR_INLINE_INIT: DecorInline = DecorInline {
     data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
 };
 
-pub(crate) const K_OPT_FOLLOW: c_int = 114;
+pub(crate) const K_OPT_FOLLOW: i32 = 114;
 
 const MC_REGS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789\"-\0";
 
@@ -418,15 +418,15 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
             regs_ts = reg_max_ts(false);
         }
 
-        let mark_cmd = if atom_cmd == b'g' as c_int {
+        let mark_cmd = if atom_cmd == b'g' as i32 {
             atom_cmd2
         } else {
             atom_cmd
         };
         let swap_marks = atom_type != K_AMOTION
             || atom_remap
-            || mark_cmd == b'\'' as c_int
-            || mark_cmd == b'`' as c_int;
+            || mark_cmd == b'\'' as i32
+            || mark_cmd == b'`' as i32;
 
         ctx_load(
             &mut ctx,
@@ -901,11 +901,11 @@ fn mc_ins_keys_nonliteral(keys: impl crate::strings::IntoCCharPtr, len: usize) -
     {
         let mut i = 0;
         while i < len {
-            let mut key = c_int::from(crate::memory::cstr_byte_at(keys, i));
-            if key == c_int::from(K_SPECIAL) && i + 2 < len {
+            let mut key = i32::from(crate::memory::cstr_byte_at(keys, i));
+            if key == i32::from(K_SPECIAL) && i + 2 < len {
                 key = to_special(
-                    c_int::from(crate::memory::cstr_byte_at(keys, i + 1)),
-                    c_int::from(crate::memory::cstr_byte_at(keys, i + 2)),
+                    i32::from(crate::memory::cstr_byte_at(keys, i + 1)),
+                    i32::from(crate::memory::cstr_byte_at(keys, i + 2)),
                 );
                 i += 2;
             }
@@ -1078,7 +1078,7 @@ fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
     }
 }
 
-fn mc_reg_read(reg: c_int) -> std::ffi::CString {
+fn mc_reg_read(reg: i32) -> std::ffi::CString {
     let Some(s) = get_reg_contents_str(reg, 0) else {
         return std::ffi::CString::default();
     };
@@ -1098,8 +1098,8 @@ fn mc_reg_gather() {
         let mut any = false;
         let mut i = 0;
         while MC_REGS[i] != 0 {
-            let r = c_int::from(MC_REGS[i]);
-            let idx = if r == b'"' as c_int {
+            let r = i32::from(MC_REGS[i]);
+            let idx = if r == b'"' as i32 {
                 get_unname_register()
             } else {
                 op_reg_index(r)
@@ -1146,7 +1146,7 @@ fn mc_reg_gather() {
             let mut idx = 0;
             while MC_REGS[idx] != 0 {
                 if gather[idx] {
-                    let text = mc_reg_read(c_int::from(MC_REGS[idx]));
+                    let text = mc_reg_read(i32::from(MC_REGS[idx]));
                     let text_bytes = text.to_bytes();
                     if !text_bytes.is_empty() {
                         if !joined[idx].is_empty() {
@@ -1168,7 +1168,7 @@ fn mc_reg_gather() {
         let mut idx = 0;
         while MC_REGS[idx] != 0 {
             if gather[idx] && !joined[idx].is_empty() {
-                let r = c_int::from(MC_REGS[idx]);
+                let r = i32::from(MC_REGS[idx]);
                 write_reg_contents_ex(
                     r,
                     joined[idx].as_ptr(),
@@ -1177,7 +1177,7 @@ fn mc_reg_gather() {
                     crate::register::MotionType::MtLineWise,
                     0,
                 );
-                if r == b'"' as c_int {
+                if r == b'"' as i32 {
                     set_clipboard(NUL, &*get_y_previous());
                 }
             }
@@ -1256,7 +1256,7 @@ pub fn mc_vsel_refresh() {
             }
             let mut s = g_st().visual_global.start;
             let mut e = curwin_mut().w_cursor;
-            let r_type: c_int = if g_st().visual_global.mode == b'V' as c_int {
+            let r_type: i32 = if g_st().visual_global.mode == b'V' as i32 {
                 MT_LINE_WISE
             } else if g_st().visual_global.mode == CTRL_V_CONST {
                 MT_BLOCK_WISE
@@ -1265,7 +1265,7 @@ pub fn mc_vsel_refresh() {
             };
             let mut inclusive = true;
             let mut oa = Oparg::new();
-            g_st().virtual_op = c_int::from(virtual_active(curwin_mut()));
+            g_st().virtual_op = i32::from(virtual_active(curwin_mut()));
             getregionpos_prep(
                 &mut s,
                 &mut e,
@@ -1460,7 +1460,7 @@ fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: CursorPos) -> Cursor
 fn mc_zq_target(
     step: CursorPos,
     search: bool,
-    motion_type: c_int,
+    motion_type: i32,
     ctx: Option<&mut Context>,
 ) -> Visualinfo {
     {
@@ -1472,9 +1472,9 @@ fn mc_zq_target(
                 vi_end: step,
                 vi_curswant: step.col,
                 vi_mode: if motion_type == MT_LINE_WISE {
-                    b'V' as c_int
+                    b'V' as i32
                 } else {
-                    b'v' as c_int
+                    b'v' as i32
                 },
             };
         } else if mc_zq_step(c"gn\x1b", step).lnum == 0 {
@@ -1500,7 +1500,7 @@ fn mc_zq_target(
 fn mc_zq_first(
     keys: impl crate::strings::IntoCCharPtr,
     search: bool,
-    motion_type: c_int,
+    motion_type: i32,
     bounds: *const CursorPos,
     step: &mut CursorPos,
 ) -> bool {
@@ -1559,15 +1559,15 @@ fn mc_zq_first(
 fn mc_zq_run(
     keys: impl crate::strings::IntoCCharPtr,
     search: bool,
-    motion_type: c_int,
+    motion_type: i32,
     end: CursorPos,
     first: CursorPos,
-) -> c_int {
+) -> i32 {
     let keys = keys.into_c_char_ptr();
     {
         let wrap = end.lnum == MAXLNUM;
         let mut wrapped = false;
-        let mut placed: c_int = 0;
+        let mut placed: i32 = 0;
         let mut step = first;
         let curswant = curwin_mut().w_curswant;
         while !g_st().got_int {
@@ -1620,11 +1620,11 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
         atom_did_global_op();
         if mc_replaying()
             || oap.motion_type == MT_UNKNOWN
-            || cap.cmdchar == b'i' as c_int
-            || cap.cmdchar == b'a' as c_int
+            || cap.cmdchar == b'i' as i32
+            || cap.cmdchar == b'a' as i32
             || cap.cmdchar == K_LUA
             || cap.cmdchar == K_COMMAND
-            || cap.cmdchar == b':' as c_int
+            || cap.cmdchar == b':' as i32
         {
             beep_flush();
             curwin_mut().w_cursor = origin;
@@ -1642,8 +1642,8 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
             },
         ];
         if oap.from_visual {
-            bounds[0] = (*mark_get_visual(curbuf_mut(), b'<' as c_int)).mark;
-            bounds[1] = (*mark_get_visual(curbuf_mut(), b'>' as c_int)).mark;
+            bounds[0] = (*mark_get_visual(curbuf_mut(), b'<' as i32)).mark;
+            bounds[1] = (*mark_get_visual(curbuf_mut(), b'>' as i32)).mark;
         }
 
         let lines = oap.motion_type == MT_LINE_WISE;
@@ -1676,10 +1676,10 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
         save_search_patterns();
 
         let search = (cap.cmdchar != NUL && b"*#/?nN".contains(&(cap.cmdchar as u8)))
-            || (cap.cmdchar == b'g' as c_int
+            || (cap.cmdchar == b'g' as i32
                 && cap.nchar != NUL
                 && b"*#nN".contains(&(cap.nchar as u8)));
-        let mut placed: c_int = 0;
+        let mut placed: i32 = 0;
         let mut first = INIT_POS;
         let mut spec = atom_cmd_spec(cap);
         spec.regname = 0;

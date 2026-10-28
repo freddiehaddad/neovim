@@ -39,7 +39,7 @@ use crate::window::{
     win_find_tabpage, win_free, win_init, win_remove, win_remove_status_line, win_set_buf,
     win_set_inner_size, win_valid, winframe_remove,
 };
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 const KEYSET_OPTIDX_PVP_WIDTH: u64 = 1;
@@ -116,7 +116,7 @@ pub fn win_new_float(
             } else {
                 win_tp
             };
-            let mut dir: c_int = 0;
+            let mut dir: i32 = 0;
             winframe_remove(&mut *wp, &mut dir, tp, ptr::null_mut());
             if !(*wp).w_frame.is_null() {
                 drop(Box::from_raw((*wp).w_frame));
@@ -215,11 +215,11 @@ pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
     }
 }
 
-pub fn win_border_height(wp: &mut WinInfoInfo) -> c_int {
+pub fn win_border_height(wp: &mut WinInfoInfo) -> i32 {
     wp.w_border_adj[0] + wp.w_border_adj[2]
 }
 
-pub fn win_border_width(wp: &mut WinInfoInfo) -> c_int {
+pub fn win_border_width(wp: &mut WinInfoInfo) -> i32 {
     wp.w_border_adj[1] + wp.w_border_adj[3]
 }
 
@@ -264,7 +264,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 
         let has_border = wp.w_floating && wp.w_config.border;
         for i in 0..4 {
-            let new_adj = c_int::from(has_border && wp.w_config.border_chars[2 * i + 1][0] != 0);
+            let new_adj = i32::from(has_border && wp.w_config.border_chars[2 * i + 1][0] != 0);
             if new_adj != wp.w_border_adj[i] {
                 change_border = true;
                 wp.w_border_adj[i] = new_adj;
@@ -273,7 +273,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 
         if !ui_has(K_UIMULTIGRID) {
             let above_ch = if wp.w_config.zindex < K_ZINDEX_MESSAGES {
-                opt_vars().p_ch as c_int
+                opt_vars().p_ch as i32
             } else {
                 0
             };
@@ -294,8 +294,8 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 
         // compute initial position
         if wp.w_config.relative == K_FLOAT_RELATIVE_WINDOW {
-            let mut row = wp.w_config.row as c_int;
-            let mut col = wp.w_config.col as c_int;
+            let mut row = wp.w_config.row as i32;
+            let mut col = wp.w_config.col as i32;
             let mut dummy = error_init();
             let parent = find_window_by_handle(wp.w_config.window, &mut dummy);
             if !parent.is_null() {
@@ -311,10 +311,10 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
                         col: wp.w_config.bufpos.col,
                         coladd: 0,
                     };
-                    let mut trow: c_int = 0;
-                    let mut tcol: c_int = 0;
-                    let mut tcolc: c_int = 0;
-                    let mut tcole: c_int = 0;
+                    let mut trow: i32 = 0;
+                    let mut tcol: i32 = 0;
+                    let mut tcolc: i32 = 0;
+                    let mut tcole: i32 = 0;
                     textpos2screenpos(
                         &mut *parent,
                         &mut pos,
@@ -332,8 +332,8 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
             wp.w_winrow = row;
             wp.w_wincol = col;
         } else {
-            wp.w_winrow = wp.w_config.row as c_int;
-            wp.w_wincol = wp.w_config.col as c_int;
+            wp.w_winrow = wp.w_config.row as i32;
+            wp.w_wincol = wp.w_config.col as i32;
         }
 
         // changing border style while keeping border only requires redrawing border
@@ -344,7 +344,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
     }
 }
 
-pub fn win_float_remove(bang: bool, mut count: c_int) {
+pub fn win_float_remove(bang: bool, mut count: i32) {
     unsafe {
         let mut float_win_arr: Vec<*mut WinInfoInfo> = Vec::new();
         let mut wp = g_st().lastwin;
@@ -600,12 +600,12 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
             .cast::<OptKeyDict_pvp>();
         let v = unsafe { &mut *v };
         let mut want_w = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
-            v.width as c_int
+            v.width as i32
         } else {
             0
         };
         let mut want_h = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) {
-            v.height as c_int
+            v.height as i32
         } else {
             0
         };
@@ -627,7 +627,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 
         let need_h = want_h + border_h;
         let need_w = want_w + border_w;
-        let space_below = g_st().rows_global - row - 1 - (opt_vars().p_ch as c_int);
+        let space_below = g_st().rows_global - row - 1 - (opt_vars().p_ch as i32);
         let space_above = row - 1;
         let space_right = g_st().columns_global - col - 1;
         let space_left = col;
@@ -665,12 +665,12 @@ pub fn win_previewpopup_config(
             return false;
         }
         config.height = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) {
-            v.height as c_int
+            v.height as i32
         } else {
             0
         };
         config.width = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
-            v.width as c_int
+            v.width as i32
         } else {
             0
         };

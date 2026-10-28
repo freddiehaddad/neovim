@@ -35,15 +35,15 @@ use crate::regexp::MAXCOL;
 use crate::sign::{buf_has_signs, describe_sign_text};
 use crate::window::WinInfoInfo;
 use std::cmp::Ordering;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 pub type NS = crate::msgpack_rpc::packer::ObjHandle;
 pub type HLGroupID = Integer;
 pub type DecorPriority = u16;
 pub type DecorPriorityInternal = u32;
-pub type VirtTextPos = c_int;
-pub type VirtLineOverflow = c_int;
+pub type VirtTextPos = i32;
+pub type VirtLineOverflow = i32;
 
 pub(crate) const DECOR_ID_INVALID: u32 = u32::MAX;
 pub(crate) const K_HL_MODE_UNKNOWN: u8 = 0;
@@ -54,7 +54,7 @@ pub(crate) const K_VPOS_OVERLAY: VirtTextPos = 3;
 pub(crate) const K_VPOS_RIGHT_ALIGN: VirtTextPos = 4;
 pub(crate) const K_VPOS_WIN_COL: VirtTextPos = 5;
 
-pub(crate) const K_VLLEFTCOL: c_int = 1;
+pub(crate) const K_VLLEFTCOL: i32 = 1;
 
 pub(crate) const K_VLOVERFLOW_TRUNC: VirtLineOverflow = 0;
 pub(crate) const K_VLOVERFLOW_SCROLL: VirtLineOverflow = 1;
@@ -81,13 +81,13 @@ pub(crate) const K_VTREPEAT_LINEBREAK: u8 = 8;
 pub struct DecorSignHighlight {
     pub flags: u16,
     pub priority: DecorPriority,
-    pub hl_id: c_int,
+    pub hl_id: i32,
     pub text: [u32; 2],
     pub sign_name: Option<std::ffi::CString>,
-    pub sign_add_id: c_int,
-    pub number_hl_id: c_int,
-    pub line_hl_id: c_int,
-    pub cursorline_hl_id: c_int,
+    pub sign_add_id: i32,
+    pub number_hl_id: i32,
+    pub line_hl_id: i32,
+    pub cursorline_hl_id: i32,
     pub next: u32,
     pub url: Option<std::ffi::CString>,
 }
@@ -164,16 +164,16 @@ impl DecorRangeData {
 }
 
 pub struct DecorRange {
-    pub start_row: c_int,
-    pub start_col: c_int,
-    pub end_row: c_int,
-    pub end_col: c_int,
-    pub ordering: c_int,
+    pub start_row: i32,
+    pub start_col: i32,
+    pub end_row: i32,
+    pub end_col: i32,
+    pub ordering: i32,
     pub priority_internal: u32,
     pub owned: bool,
     pub data: DecorRangeData,
-    pub attr_id: c_int,
-    pub draw_col: c_int,
+    pub attr_id: i32,
+    pub draw_col: i32,
 }
 
 impl Drop for DecorRange {
@@ -192,7 +192,7 @@ impl Drop for DecorRange {
 
 pub enum DecorRangeSlot {
     Occupied(DecorRange),
-    Free(c_int),
+    Free(i32),
 }
 
 impl DecorRangeSlot {
@@ -213,7 +213,7 @@ impl DecorRangeSlot {
     }
 
     #[inline]
-    pub const fn next_free_i(&self) -> c_int {
+    pub const fn next_free_i(&self) -> i32 {
         match self {
             Self::Free(i) => *i,
             Self::Occupied(_) => unreachable!(),
@@ -224,22 +224,22 @@ impl DecorRangeSlot {
 pub struct DecorState {
     pub itr: MarkTreeIter,
     pub slots: Vec<DecorRangeSlot>,
-    pub ranges_i: Vec<c_int>,
-    pub current_end: c_int,
-    pub future_begin: c_int,
-    pub free_slot_i: c_int,
-    pub new_range_ordering: c_int,
+    pub ranges_i: Vec<i32>,
+    pub current_end: i32,
+    pub future_begin: i32,
+    pub free_slot_i: i32,
+    pub new_range_ordering: i32,
     pub win: *mut WinInfoInfo,
-    pub top_row: c_int,
-    pub row: c_int,
-    pub col_last: c_int,
-    pub current: c_int,
-    pub current_hl_eol: c_int,
-    pub eol_col: c_int,
-    pub conceal: c_int,
+    pub top_row: i32,
+    pub row: i32,
+    pub col_last: i32,
+    pub current: i32,
+    pub current_hl_eol: i32,
+    pub eol_col: i32,
+    pub conceal: i32,
     pub conceal_char: u32,
-    pub conceal_attr: c_int,
-    pub spell: c_int,
+    pub conceal_attr: i32,
+    pub spell: i32,
     pub running_decor_provider: bool,
     pub itr_valid: bool,
 }
@@ -288,7 +288,7 @@ impl DecorInline {
 #[derive(Clone)]
 pub struct VirtTextChunk {
     pub text: Option<std::ffi::CString>,
-    pub hl_id: c_int,
+    pub hl_id: i32,
 }
 
 pub type VirtText = Vec<VirtTextChunk>;
@@ -297,7 +297,7 @@ pub type VirtText = Vec<VirtTextChunk>;
 #[derive(Clone)]
 pub struct VirtLine {
     pub line: VirtText,
-    pub flags: c_int,
+    pub flags: i32,
     pub overflow: VirtLineOverflow,
 }
 
@@ -365,8 +365,8 @@ pub struct DecorVirtText {
     pub flags: u8,
     pub hl_mode: u8,
     pub priority: u16,
-    pub width: c_int,
-    pub col: c_int,
+    pub width: i32,
+    pub col: i32,
     pub pos: VirtTextPos,
     pub data: DecorVirtTextData,
     pub next: Option<Box<DecorVirtText>>,
@@ -434,8 +434,8 @@ use crate::extmark::{
 };
 
 pub(crate) const SIGN_WIDTH: usize = 2;
-const SIGN_SHOW_MAX: c_int = 9;
-pub(crate) const SCL_NUM: c_int = -2;
+const SIGN_SHOW_MAX: i32 = 9;
+pub(crate) const SCL_NUM: i32 = -2;
 
 pub(crate) const K_MTFILTER_SELECT: u32 = u32::MAX;
 
@@ -448,7 +448,7 @@ static LINES_FILTER: [u32; K_MTMETA_COUNT] = [0, K_MTFILTER_SELECT, 0, 0, 0];
 #[derive(Clone, Copy)]
 pub struct SignTextAttrs {
     pub text: [Schar; SIGN_WIDTH],
-    pub hl_id: c_int,
+    pub hl_id: i32,
 }
 
 #[derive(Clone, Copy)]
@@ -461,7 +461,7 @@ struct DecorationModuleState {
     decor_freelist: u32,
     to_free_virt: Vec<DecorVirtText>,
     to_free_sh: u32,
-    sign_add_id: c_int,
+    sign_add_id: i32,
 }
 
 impl DecorationModuleState {
@@ -499,8 +499,8 @@ const fn mt_decor_virt(mark: MTKey) -> *mut DecorVirtText {
 
 pub fn bufhl_add_hl_pos_offset(
     buf: &mut FileBuf,
-    src_id: c_int,
-    hl_id: c_int,
+    src_id: i32,
+    hl_id: i32,
     pos_start: Lpos,
     pos_end: Lpos,
     offset: Colnr,
@@ -516,7 +516,7 @@ pub fn bufhl_add_hl_pos_offset(
         };
 
         for lnum in pos_start.lnum..=pos_end.lnum {
-            let mut end_off: c_int = 0;
+            let mut end_off: i32 = 0;
             if pos_start.lnum < lnum && lnum < pos_end.lnum {
                 hl_start = (offset - 1).max(0);
                 end_off = 1;
@@ -552,12 +552,12 @@ pub fn bufhl_add_hl_pos_offset(
     }
 }
 
-pub fn decor_redraw(buf: &mut FileBuf, row1: c_int, row2: c_int, col1: c_int, decor: DecorInline) {
+pub fn decor_redraw(buf: &mut FileBuf, row1: i32, row2: i32, col1: i32, decor: DecorInline) {
     {
         if decor.is_ext() {
             for vt in virt_text_iter_mut(decor.data.ext().vt) {
                 let below = (vt.flags & K_VTIS_LINES) != 0 && (vt.flags & K_VTLINES_ABOVE) == 0;
-                let vt_lnum = row1 + 1 + c_int::from(below);
+                let vt_lnum = row1 + 1 + i32::from(below);
                 redraw_buf_line_later(buf, vt_lnum, true);
                 if (vt.flags & K_VTIS_LINES) != 0 || vt.pos == K_VPOS_INLINE {
                     let vt_col = if (vt.flags & K_VTIS_LINES) != 0 {
@@ -582,7 +582,7 @@ pub fn decor_redraw(buf: &mut FileBuf, row1: c_int, row2: c_int, col1: c_int, de
     }
 }
 
-pub fn decor_redraw_sh(buf: &mut FileBuf, row1: c_int, row2: c_int, sh: DecorSignHighlight) {
+pub fn decor_redraw_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: DecorSignHighlight) {
     {
         if (sh.hl_id != 0
             || sh.url.is_some()
@@ -644,7 +644,7 @@ pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
     }
 }
 
-pub fn buf_put_decor(buf: &mut FileBuf, decor: DecorInline, row: c_int, mut row2: c_int) {
+pub fn buf_put_decor(buf: &mut FileBuf, decor: DecorInline, row: i32, mut row2: i32) {
     {
         if decor.is_ext() && row < buf.b_ml.ml_line_count {
             let mut idx = decor.data.ext().sh_idx;
@@ -679,7 +679,7 @@ fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
     }
 }
 
-pub fn buf_put_decor_sh(buf: &mut FileBuf, sh: &mut DecorSignHighlight, row1: c_int, row2: c_int) {
+pub fn buf_put_decor_sh(buf: &mut FileBuf, sh: &mut DecorSignHighlight, row1: i32, row2: i32) {
     if (sh.flags & K_SHIS_SIGN) != 0 {
         sh.sign_add_id = decor_st().sign_add_id;
         decor_st().sign_add_id += 1;
@@ -692,9 +692,9 @@ pub fn buf_put_decor_sh(buf: &mut FileBuf, sh: &mut DecorSignHighlight, row1: c_
 
 pub fn buf_decor_remove(
     buf: &mut FileBuf,
-    row1: c_int,
-    mut row2: c_int,
-    col1: c_int,
+    row1: i32,
+    mut row2: i32,
+    col1: i32,
     decor: DecorInline,
     free: bool,
 ) {
@@ -716,7 +716,7 @@ pub fn buf_decor_remove(
     }
 }
 
-pub fn buf_remove_decor_sh(buf: &mut FileBuf, row1: c_int, row2: c_int, sh: &DecorSignHighlight) {
+pub fn buf_remove_decor_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: &DecorSignHighlight) {
     {
         if (sh.flags & K_SHIS_SIGN) != 0 && sh.text[0] != 0 {
             if buf_meta_total(&*buf, K_MTMETA_SIGN_TEXT) != 0 {
@@ -818,11 +818,7 @@ pub fn decor_check_invalid_glyphs() {
     }
 }
 
-pub fn next_virt_text_chunk(
-    vt: &[VirtTextChunk],
-    pos: &mut usize,
-    attr: &mut c_int,
-) -> *mut c_char {
+pub fn next_virt_text_chunk(vt: &[VirtTextChunk], pos: &mut usize, attr: &mut i32) -> *mut c_char {
     let mut text: *mut c_char = ptr::null_mut();
     while text.is_null() && *pos < vt.len() {
         let chunk = &vt[*pos];
@@ -842,7 +838,7 @@ pub fn next_virt_text_chunk(
     text
 }
 
-pub fn decor_find_virttext(buf: &mut FileBuf, row: c_int, ns_id: u64) -> *mut DecorVirtText {
+pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> *mut DecorVirtText {
     unsafe {
         let mut itr = MarkTreeIter::new();
         marktree_itr_get(&buf.b_marktree, row, 0, &mut itr);
@@ -895,7 +891,7 @@ pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     }
 }
 
-pub fn decor_redraw_start(wp: &mut WinInfoInfo, top_row: c_int, state: &mut DecorState) -> bool {
+pub fn decor_redraw_start(wp: &mut WinInfoInfo, top_row: i32, state: &mut DecorState) -> bool {
     unsafe {
         let buf = wp.w_buffer;
         state.top_row = top_row;
@@ -930,7 +926,7 @@ pub fn decor_redraw_start(wp: &mut WinInfoInfo, top_row: c_int, state: &mut Deco
 }
 
 fn decor_state_pack(state: &mut DecorState) {
-    let mut count = state.ranges_i.len() as c_int;
+    let mut count = state.ranges_i.len() as i32;
     let cur_end = state.current_end;
     let mut fut_beg = state.future_begin;
 
@@ -949,7 +945,7 @@ fn decor_state_pack(state: &mut DecorState) {
     state.future_begin = fut_beg;
 }
 
-pub fn decor_redraw_line(wp: &mut WinInfoInfo, row: c_int, state: &mut DecorState) {
+pub fn decor_redraw_line(wp: &mut WinInfoInfo, row: i32, state: &mut DecorState) {
     {
         decor_state_pack(state);
 
@@ -966,9 +962,9 @@ pub fn decor_redraw_line(wp: &mut WinInfoInfo, row: c_int, state: &mut DecorStat
     }
 }
 
-pub fn decor_has_more_decorations(state: &mut DecorState, row: c_int) -> bool {
+pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
     unsafe {
-        if state.current_end != 0 || state.future_begin != state.ranges_i.len() as c_int {
+        if state.current_end != 0 || state.future_begin != state.ranges_i.len() as i32 {
             return true;
         }
 
@@ -979,10 +975,10 @@ pub fn decor_has_more_decorations(state: &mut DecorState, row: c_int) -> bool {
 
 fn decor_range_add_from_inline(
     state: &mut DecorState,
-    start_row: c_int,
-    start_col: c_int,
-    end_row: c_int,
-    end_col: c_int,
+    start_row: i32,
+    start_col: i32,
+    end_row: i32,
+    end_col: i32,
     decor: DecorInline,
     owned: bool,
     ns: u32,
@@ -1017,18 +1013,18 @@ fn decor_range_insert(state: &mut DecorState, mut range: DecorRange) {
     range.ordering = state.new_range_ordering;
     state.new_range_ordering += 1;
 
-    let index: c_int;
+    let index: i32;
     if state.free_slot_i >= 0 {
         index = state.free_slot_i;
         let slot = &mut (&mut state.slots)[index as usize];
         state.free_slot_i = slot.next_free_i();
         *slot = DecorRangeSlot::Occupied(range);
     } else {
-        index = state.slots.len() as c_int;
+        index = state.slots.len() as i32;
         state.slots.push(DecorRangeSlot::Occupied(range));
     }
 
-    let count = state.ranges_i.len() as c_int;
+    let count = state.ranges_i.len() as i32;
 
     let mut begin = state.future_begin;
     let mut end = count;
@@ -1054,10 +1050,10 @@ fn decor_range_insert(state: &mut DecorState, mut range: DecorRange) {
 
 pub fn decor_range_add_virt(
     state: &mut DecorState,
-    start_row: c_int,
-    start_col: c_int,
-    end_row: c_int,
-    end_col: c_int,
+    start_row: i32,
+    start_col: i32,
+    end_row: i32,
+    end_col: i32,
     vt: *mut DecorVirtText,
     owned: bool,
 ) {
@@ -1085,10 +1081,10 @@ pub fn decor_range_add_virt(
 
 pub fn decor_range_add_sh(
     state: &mut DecorState,
-    start_row: c_int,
-    start_col: c_int,
-    end_row: c_int,
-    end_col: c_int,
+    start_row: i32,
+    start_col: i32,
+    end_row: i32,
+    end_col: i32,
     sh: &DecorSignHighlight,
     owned: bool,
     ns: u32,
@@ -1155,7 +1151,7 @@ pub fn decor_range_add_sh(
     }
 }
 
-pub fn decor_init_draw_col(win_col: c_int, hidden: bool, item: &mut DecorRange) {
+pub fn decor_init_draw_col(win_col: i32, hidden: bool, item: &mut DecorRange) {
     unsafe {
         let vt = if item.data.is_vt() {
             item.data.vt()
@@ -1167,7 +1163,7 @@ pub fn decor_init_draw_col(win_col: c_int, hidden: bool, item: &mut DecorRange) 
             item.draw_col = win_col;
         } else if pos == K_VPOS_OVERLAY {
             item.draw_col = if !vt.is_null() && ((*vt).flags & K_VTHIDE) != 0 && hidden {
-                c_int::MIN
+                i32::MIN
             } else {
                 win_col
             };
@@ -1177,7 +1173,7 @@ pub fn decor_init_draw_col(win_col: c_int, hidden: bool, item: &mut DecorRange) 
     }
 }
 
-pub fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: &mut DecorState) {
+pub fn decor_recheck_draw_col(win_col: i32, hidden: bool, state: &mut DecorState) {
     {
         let end = state.current_end;
 
@@ -1193,12 +1189,12 @@ pub fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: &mut DecorSta
 
 pub fn decor_redraw_col_impl(
     wp: &mut WinInfoInfo,
-    col: c_int,
-    win_col: c_int,
+    col: i32,
+    win_col: i32,
     hidden: bool,
     state: &mut DecorState,
-    max_col_last: c_int,
-) -> c_int {
+    max_col_last: i32,
+) -> i32 {
     unsafe {
         let buf = wp.w_buffer;
         let buf = { &mut *buf };
@@ -1236,7 +1232,7 @@ pub fn decor_redraw_col_impl(
             marktree_itr_next(&buf.b_marktree, &mut state.itr);
         }
 
-        let mut count = state.ranges_i.len() as c_int;
+        let mut count = state.ranges_i.len() as i32;
         let mut cur_end = state.current_end;
         let mut fut_beg = state.future_begin;
 
@@ -1249,7 +1245,7 @@ pub fn decor_redraw_col_impl(
             let ordering = r.ordering;
             let priority = r.priority_internal;
 
-            let mut begin: c_int = 0;
+            let mut begin: i32 = 0;
             let mut end = cur_end;
             while begin < end {
                 let mid = begin + ((end - begin) >> 1);
@@ -1280,13 +1276,13 @@ pub fn decor_redraw_col_impl(
             }
         }
 
-        let mut new_cur_end: c_int = 0;
+        let mut new_cur_end: i32 = 0;
 
-        let mut attr: c_int = 0;
-        let mut hl_eol_attr: c_int = 0;
-        let mut conceal: c_int = 0;
+        let mut attr: i32 = 0;
+        let mut hl_eol_attr: i32 = 0;
+        let mut conceal: i32 = 0;
         let mut conceal_char: Schar = 0;
-        let mut conceal_attr: c_int = 0;
+        let mut conceal_attr: i32 = 0;
         let mut spell: TriState = K_NONE;
 
         for i in 0..cur_end {
@@ -1372,7 +1368,7 @@ pub fn decor_redraw_col_impl(
     }
 }
 
-pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: c_int, check_cursor: bool) -> bool {
+pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) -> bool {
     {
         if row < 0
             || wp.w_onebuf_opt.wo_cole < 2
@@ -1451,11 +1447,11 @@ pub fn sign_item_cmp(s1: &SignItem<'_>, s2: &SignItem<'_>) -> Ordering {
 pub fn decor_redraw_signs(
     wp: *mut WinInfoInfo,
     buf: *mut FileBuf,
-    row: c_int,
+    row: i32,
     sattrs: *mut SignTextAttrs,
-    mut line_id: Option<&mut c_int>,
-    mut cul_id: Option<&mut c_int>,
-    mut num_id: Option<&mut c_int>,
+    mut line_id: Option<&mut i32>,
+    mut cul_id: Option<&mut i32>,
+    mut num_id: Option<&mut i32>,
 ) {
     unsafe {
         let wp = &mut *wp;
@@ -1465,7 +1461,7 @@ pub fn decor_redraw_signs(
         }
 
         let mut pair: MTPair = MTPair::new();
-        let mut num_text: c_int = 0;
+        let mut num_text: i32 = 0;
         let mut itr = MarkTreeIter::new();
         let mut signs: Vec<SignItem<'_>> = Vec::new();
         let b = &buf.b_marktree;
@@ -1477,7 +1473,7 @@ pub fn decor_redraw_signs(
                 && ns_in_win(pair.start.ns, &mut *wp)
             {
                 let sh = decor_find_sign(mt_decor(pair.start)).unwrap();
-                num_text += c_int::from(sh.text[0] != 0);
+                num_text += i32::from(sh.text[0] != 0);
                 signs.push(SignItem {
                     sh,
                     id: pair.start.id,
@@ -1498,7 +1494,7 @@ pub fn decor_redraw_signs(
                 && ns_in_win(mark.ns, &mut *wp)
             {
                 let sh = decor_find_sign(mt_decor(mark)).unwrap();
-                num_text += c_int::from(sh.text[0] != 0);
+                num_text += i32::from(sh.text[0] != 0);
                 signs.push(SignItem { sh, id: mark.id });
             }
 
@@ -1517,7 +1513,7 @@ pub fn decor_redraw_signs(
 
             for item in &signs {
                 let sh = item.sh;
-                if !sattrs.is_null() && (idx as c_int) < len && sh.text[0] != 0 {
+                if !sattrs.is_null() && (idx as i32) < len && sh.text[0] != 0 {
                     (*sattrs.add(idx)).text = sh.text;
                     (*sattrs.add(idx)).hl_id = sh.hl_id;
                     idx += 1;
@@ -1557,9 +1553,9 @@ pub fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight
 
 pub fn buf_signcols_count_range(
     buf: &mut FileBuf,
-    row1: c_int,
-    row2: c_int,
-    add: c_int,
+    row1: i32,
+    row2: i32,
+    add: i32,
     clear: TriState,
 ) {
     {
@@ -1567,7 +1563,7 @@ pub fn buf_signcols_count_range(
             return;
         }
 
-        let mut count = vec![0 as c_int; (row2 + 1 - row1) as usize];
+        let mut count = vec![0_i32; (row2 + 1 - row1) as usize];
         let mut itr = MarkTreeIter::new();
         let mut pair: MTPair = MTPair::new();
         let b = &buf.b_marktree;
@@ -1617,12 +1613,12 @@ pub fn buf_signcols_count_range(
 #[inline]
 pub fn decor_redraw_col(
     wp: &mut WinInfoInfo,
-    col: c_int,
-    win_col: c_int,
+    col: i32,
+    win_col: i32,
     hidden: bool,
     state: &mut DecorState,
-    max_col_last: c_int,
-) -> c_int {
+    max_col_last: i32,
+) -> i32 {
     {
         if col <= state.col_last {
             return state.current;
@@ -1634,8 +1630,8 @@ pub fn decor_redraw_col(
 pub fn decor_redraw_eol(
     wp: &mut WinInfoInfo,
     state: &mut DecorState,
-    eol_attr: &mut c_int,
-    eol_col: c_int,
+    eol_attr: &mut i32,
+    eol_col: i32,
 ) -> bool {
     {
         decor_redraw_col(wp, MAXCOL, MAXCOL, false, state, MAXCOL);
@@ -1665,9 +1661,9 @@ fn decor_virt_line_wrap(wp: &mut WinInfoInfo, overflow: VirtLineOverflow) -> boo
 pub fn decor_virt_line_rows(
     wp: &mut WinInfoInfo,
     vl: &VirtLine,
-    target_row: c_int,
-    mut skip_cells: Option<&mut c_int>,
-) -> c_int {
+    target_row: i32,
+    mut skip_cells: Option<&mut i32>,
+) -> i32 {
     unsafe {
         if let Some(ref mut p) = skip_cells {
             **p = 0;
@@ -1686,9 +1682,9 @@ pub fn decor_virt_line_rows(
         }
         let vt = &vl.line;
         let buf = wp.w_buffer;
-        let mut vcol: c_int = 0;
-        let mut row_cells: c_int = 0;
-        let mut row: c_int = 0;
+        let mut vcol: i32 = 0;
+        let mut row_cells: i32 = 0;
+        let mut row: i32 = 0;
         for chunk in vt {
             let Some(ref text) = chunk.text else {
                 continue;
@@ -1720,12 +1716,12 @@ pub fn decor_virt_line_rows(
 
 pub fn decor_virt_lines(
     wp: &mut WinInfoInfo,
-    start_row: c_int,
-    end_row: c_int,
-    mut num_below: Option<&mut c_int>,
+    start_row: i32,
+    end_row: i32,
+    mut num_below: Option<&mut i32>,
     mut lines: Option<&mut VirtLines>,
     apply_folds: bool,
-) -> c_int {
+) -> i32 {
     unsafe {
         let buf = wp.w_buffer;
         if buf_meta_total(&*buf, K_MTMETA_LINES) == 0 {
@@ -1748,7 +1744,7 @@ pub fn decor_virt_lines(
 
         assert!(start_row >= 0);
 
-        let mut n_virt_lines: c_int = 0;
+        let mut n_virt_lines: i32 = 0;
         loop {
             let mark = marktree_itr_current(b, &itr);
             let mut vt = mt_decor_virt(mark);
@@ -1774,9 +1770,9 @@ pub fn decor_virt_lines(
                                     }
                                 }
                             } else {
-                                n_virt_lines += virt_lines.len() as c_int;
+                                n_virt_lines += virt_lines.len() as i32;
                                 if num_below.is_some() && !above {
-                                    *num_below.as_deref_mut().unwrap() += virt_lines.len() as c_int;
+                                    *num_below.as_deref_mut().unwrap() += virt_lines.len() as i32;
                                 }
                             }
                             if lines.is_some() {
@@ -1904,7 +1900,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
             let virt_lines = { &mut *virt_lines };
             let vl_vec = virt_lines.data.virt_lines();
             let mut all_chunks = arena_array(arena, vl_vec.len());
-            let mut virt_lines_flags: c_int = 0;
+            let mut virt_lines_flags: i32 = 0;
             let mut virt_lines_overflow: VirtLineOverflow = K_VLOVERFLOW_TRUNC;
             for vl in vl_vec {
                 virt_lines_flags = vl.flags;
@@ -1995,7 +1991,7 @@ pub fn decor_type_flags(decor: DecorInline) -> u16 {
     }
 }
 
-pub fn hl_group_name(hl_id: c_int, hl_name: bool) -> Object {
+pub fn hl_group_name(hl_id: i32, hl_name: bool) -> Object {
     if hl_name {
         cstr_as_obj(syn_id2name(hl_id))
     } else {

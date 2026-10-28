@@ -20,11 +20,11 @@ use crate::ui_client::{
     UIClientHandler, handle_ui_client_redraw, ui_client_event_grid_line,
     ui_client_get_redraw_handler,
 };
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 const MAX_EXT_LEN: usize = 9;
-const EXT_OBJECT_TYPE_MAX: c_int = (ObjectType::ObjectTypeTabpage as c_int) - EXT_OBJECT_TYPE_SHIFT;
-const K_UNPACK_TYPE_STRING_ARRAY: c_int = -1;
+const EXT_OBJECT_TYPE_MAX: i32 = (ObjectType::ObjectTypeTabpage as i32) - EXT_OBJECT_TYPE_SHIFT;
+const K_UNPACK_TYPE_STRING_ARRAY: i32 = -1;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AdditionalData {
@@ -46,7 +46,7 @@ pub enum MessageType {
 
 impl MessageType {
     #[inline]
-    pub const fn from_raw(v: c_int) -> Option<Self> {
+    pub const fn from_raw(v: i32) -> Option<Self> {
         match v {
             0 => Some(Self::MessageTypeRequest),
             1 => Some(Self::MessageTypeResponse),
@@ -60,12 +60,12 @@ impl MessageType {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct GridLineEvent {
-    pub args: [c_int; 3],
-    pub icell: c_int,
-    pub ncells: c_int,
-    pub coloff: c_int,
-    pub cur_attr: c_int,
-    pub clear_width: c_int,
+    pub args: [i32; 3],
+    pub icell: i32,
+    pub ncells: i32,
+    pub coloff: i32,
+    pub cur_attr: i32,
+    pub clear_width: i32,
     pub wrap: bool,
 }
 
@@ -76,7 +76,7 @@ pub struct Unpacker {
     pub read_ptr: *const c_char,
     pub read_size: usize,
     pub ext_buf: [c_char; MAX_EXT_LEN],
-    pub state: c_int,
+    pub state: i32,
     pub msg_type: MessageType,
     pub request_id: u32,
     pub method_name_len: usize,
@@ -85,8 +85,8 @@ pub struct Unpacker {
     pub result: Object,
     pub unpack_error: Error,
     pub arena: Arena,
-    pub nevents: c_int,
-    pub ncalls: c_int,
+    pub nevents: i32,
+    pub ncalls: i32,
     pub ui_handler: UIClientHandler,
     pub grid_line_event: GridLineEvent,
     pub has_grid_line_event: bool,
@@ -436,7 +436,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
                 let Some(mt) = (if bad_type {
                     None
                 } else {
-                    MessageType::from_raw(msg_type as c_int)
+                    MessageType::from_raw(msg_type as i32)
                 }) else {
                     api_set_error!(
                         &mut p.unpack_error,
@@ -654,7 +654,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             ) {
                 return false;
             }
-            p.nevents = tok.length as c_int;
+            p.nevents = tok.length as i32;
             p.state = 11;
         }
 
@@ -668,7 +668,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             ) {
                 return false;
             }
-            p.ncalls = tok.length as c_int;
+            p.ncalls = tok.length as i32;
             let prev_ncalls = p.ncalls;
             p.ncalls -= 1;
             if prev_ncalls == 0 {
@@ -719,7 +719,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             ) {
                 return false;
             }
-            let eventarrsize = tok.length as c_int;
+            let eventarrsize = tok.length as i32;
             if eventarrsize != 5 {
                 p.state = -1;
                 return false;
@@ -735,7 +735,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                 ) {
                     return false;
                 }
-                p.grid_line_event.args[i] = tok.data.value().lo as c_int;
+                p.grid_line_event.args[i] = tok.data.value().lo as i32;
             }
 
             if !next_type(
@@ -747,7 +747,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             ) {
                 return false;
             }
-            p.grid_line_event.ncells = tok.length as c_int;
+            p.grid_line_event.ncells = tok.length as i32;
             p.grid_line_event.icell = 0;
             p.grid_line_event.coloff = 0;
             p.grid_line_event.cur_attr = -1;
@@ -770,7 +770,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                 ) {
                     return false;
                 }
-                let cellarrsize = tok.length as c_int;
+                let cellarrsize = tok.length as i32;
                 if !(1..=3).contains(&cellarrsize) {
                     p.state = -1;
                     return false;
@@ -804,10 +804,10 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                     ) {
                         return false;
                     }
-                    p.grid_line_event.cur_attr = tok.data.value().lo as c_int;
+                    p.grid_line_event.cur_attr = tok.data.value().lo as i32;
                 }
 
-                let mut repeat = 1 as c_int;
+                let mut repeat = 1_i32;
                 if cellarrsize >= 3 {
                     if !next_type(
                         p,
@@ -818,7 +818,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                     ) {
                         return false;
                     }
-                    repeat = tok.data.value().lo as c_int;
+                    repeat = tok.data.value().lo as i32;
                 }
 
                 p.grid_line_event.clear_width = 0;
@@ -831,7 +831,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                 } else {
                     let sc = schar_from_buf(cellbuf, cellsize);
                     for _ in 0..repeat {
-                        if p.grid_line_event.coloff >= (g_st().grid_line_buf_char.len() as c_int) {
+                        if p.grid_line_event.coloff >= (g_st().grid_line_buf_char.len() as i32) {
                             p.state = -1;
                             return false;
                         }
@@ -940,7 +940,7 @@ pub fn unpack_uint_or_sint(tok: MpackToken, res: &mut Integer) -> bool {
 }
 
 /// Skip one msgpack value (`unpack_skip`).
-pub fn unpack_skip(data: &mut *const c_char, size: &mut usize) -> c_int {
+pub fn unpack_skip(data: &mut *const c_char, size: &mut usize) -> i32 {
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
     mpack_parse(&mut parser, data, size, Some(parse_nop), Some(parse_nop))
@@ -1031,7 +1031,7 @@ pub fn unpack_keydict(
             (*ks).is_set_ |= flag;
 
             let mem = retval.cast::<u8>().add(field.ptr_off);
-            if field.key_type == (ObjectType::ObjectTypeBoolean as c_int) {
+            if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
                 let cur_byte = if *size > 0 { **data as u8 } else { 0 };
                 if *size == 0 || (cur_byte & 0xfe) != 0xc2 {
                     *error = alloc_key_error(key, b" key value which is not a boolean");
@@ -1040,12 +1040,12 @@ pub fn unpack_keydict(
                 *mem.cast::<Boolean>() = (cur_byte & 0x01) != 0;
                 *data = (*data).add(1);
                 *size -= 1;
-            } else if field.key_type == (ObjectType::ObjectTypeInteger as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
                 if !unpack_integer(data, size, &mut *mem.cast::<Integer>()) {
                     *error = alloc_key_error(key, b" key value which is not an integer");
                     return false;
                 }
-            } else if field.key_type == (ObjectType::ObjectTypeString as c_int) {
+            } else if field.key_type == (ObjectType::ObjectTypeString as i32) {
                 let val = unpack_string(data, size);
                 if val.data.is_null() {
                     *error = alloc_key_error(key, b" key value which is not a binary");

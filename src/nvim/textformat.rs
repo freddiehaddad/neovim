@@ -44,23 +44,23 @@ use crate::textobject::start_ps;
 use crate::ui::ui_cursor_shape;
 use crate::undo::{u_save, u_save_cursor};
 use crate::window::win_fdccol_count;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
-const INSCHAR_DO_COM: c_int = 2;
-const INSCHAR_COM_LIST: c_int = 16;
+const INSCHAR_DO_COM: i32 = 2;
+const INSCHAR_COM_LIST: i32 = 16;
 
-const K_FO_INS_VI: c_int = b'v' as c_int;
-const K_FO_MBYTE_BREAK: c_int = b'm' as c_int;
-const K_FO_ONE_LETTER: c_int = b'1' as c_int;
-const K_FO_PERIOD_ABBR: c_int = b'p' as c_int;
-const K_FO_QNUMBER: c_int = b'n' as c_int;
-const K_FO_QSECOND: c_int = b'2' as c_int;
-const K_FO_RIGOROUS_TW: c_int = b']' as c_int;
-const K_FO_WRAP: c_int = b't' as c_int;
-const K_FO_WRAP_COMS: c_int = b'c' as c_int;
+const K_FO_INS_VI: i32 = b'v' as i32;
+const K_FO_MBYTE_BREAK: i32 = b'm' as i32;
+const K_FO_ONE_LETTER: i32 = b'1' as i32;
+const K_FO_PERIOD_ABBR: i32 = b'p' as i32;
+const K_FO_QNUMBER: i32 = b'n' as i32;
+const K_FO_QSECOND: i32 = b'2' as i32;
+const K_FO_RIGOROUS_TW: i32 = b']' as i32;
+const K_FO_WRAP: i32 = b't' as i32;
+const K_FO_WRAP_COMS: i32 = b'c' as i32;
 
-pub type InsArrow = c_int;
+pub type InsArrow = i32;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_docmd::CMOD_LOCKMARKS;
 use crate::extmark::TriState;
@@ -71,10 +71,10 @@ use crate::state::{MODE_INSERT, MODE_NORMAL, VREPLACE_FLAG};
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Oparg {
-    pub op_type: c_int,
-    pub regname: c_int,
-    pub motion_type: c_int,
-    pub motion_force: c_int,
+    pub op_type: i32,
+    pub regname: i32,
+    pub motion_type: i32,
+    pub motion_force: i32,
     pub use_reg_one: bool,
     pub inclusive: bool,
     pub end_adjusted: bool,
@@ -88,8 +88,8 @@ pub struct Oparg {
     pub from_visual: bool,
     pub start_vcol: Colnr,
     pub end_vcol: Colnr,
-    pub prev_opcount: c_int,
-    pub prev_count0: c_int,
+    pub prev_opcount: i32,
+    pub prev_count0: i32,
     pub excl_tr_ws: bool,
 }
 
@@ -139,17 +139,17 @@ pub struct InsState {
     pub need_undo: bool,
     pub did_ai: bool,
     pub ai_col: Colnr,
-    pub end_comment_pending: c_int,
+    pub end_comment_pending: i32,
     pub did_si: bool,
     pub can_si: bool,
     pub can_si_back: bool,
     pub update_start_orig: bool,
-    pub new_insert_skip: c_int,
-    pub did_restart_edit: c_int,
+    pub new_insert_skip: i32,
+    pub did_restart_edit: i32,
     pub revins_on: bool,
-    pub revins_chars: c_int,
-    pub revins_legal: c_int,
-    pub revins_scol: c_int,
+    pub revins_chars: i32,
+    pub revins_legal: i32,
+    pub revins_scol: i32,
     pub dont_sync_undo: TriState,
     pub o_lnum: Linenr,
 }
@@ -175,14 +175,14 @@ fn tf_st() -> &'static mut TextformatState {
 }
 
 #[inline]
-fn whitechar(cc: c_int) -> bool {
+fn whitechar(cc: i32) -> bool {
     unsafe {
         ascii_iswhite(cc) && !utf_iscomposing_first(utf_ptr2char(get_cursor_pos_ptr().add(1)))
     }
 }
 
 /// Return true if format option `x` is in effect (`has_format_option`).
-pub fn has_format_option(x: c_int) -> bool {
+pub fn has_format_option(x: i32) -> bool {
     {
         if opt_vars().p_paste != 0 {
             return false;
@@ -193,14 +193,14 @@ pub fn has_format_option(x: c_int) -> bool {
 
 /// Format text at the current insert position (`internal_format`).
 pub fn internal_format(
-    textwidth: c_int,
-    mut second_indent: c_int,
-    flags: c_int,
+    textwidth: i32,
+    mut second_indent: i32,
+    flags: i32,
     format_only: bool,
-    c: c_int,
+    c: i32,
 ) {
     unsafe {
-        let mut cc: c_int;
+        let mut cc: i32;
         let mut save_char: c_char = NUL;
         let mut haveto_redraw = false;
         let fo_ins_blank = has_format_option(K_FO_INS_BLANK);
@@ -224,10 +224,10 @@ pub fn internal_format(
         }
 
         while !g_st().got_int {
-            let mut startcol: c_int;
-            let mut foundcol: c_int;
-            let mut end_foundcol: c_int = 0;
-            let mut orig_col: c_int = 0;
+            let mut startcol: i32;
+            let mut foundcol: i32;
+            let mut end_foundcol: i32 = 0;
+            let mut orig_col: i32 = 0;
             let mut saved_text: Vec<c_char> = Vec::new();
             let mut col: Colnr;
             let mut did_do_comment = false;
@@ -281,7 +281,7 @@ pub fn internal_format(
 
             curwin_mut().w_cursor.col = startcol;
             foundcol = 0;
-            let mut skip_pos: c_int = 0;
+            let mut skip_pos: i32 = 0;
 
             while (!fo_ins_blank && !has_format_option(K_FO_INS_VI))
                 || (flags & INSCHAR_FORMAT) != 0
@@ -309,7 +309,7 @@ pub fn internal_format(
                         break;
                     }
 
-                    if has_format_option(K_FO_PERIOD_ABBR) && cc == b'.' as c_int && wcc < 2 {
+                    if has_format_option(K_FO_PERIOD_ABBR) && cc == b'.' as i32 && wcc < 2 {
                         continue;
                     }
 
@@ -342,7 +342,7 @@ pub fn internal_format(
                         break;
                     }
                 } else if (cc >= 0x100 || !utf_allow_break_before(cc)) && fo_multibyte {
-                    let mut ncc: c_int;
+                    let mut ncc: i32;
                     let mut allow_break: bool;
 
                     if curwin_mut().w_cursor.col != startcol {
@@ -553,7 +553,7 @@ pub fn internal_format(
 
 fn fmt_check_par(
     lnum: Linenr,
-    leader_len: &mut c_int,
+    leader_len: &mut i32,
     leader_flags: *mut *mut c_char,
     do_comments: bool,
 ) -> bool {
@@ -589,15 +589,15 @@ fn ends_in_white(lnum: Linenr) -> bool {
             return false;
         }
         let l = ml_get_len(lnum) - 1;
-        ascii_iswhite(crate::memory::cstr_byte_at(s, l as usize) as c_int)
+        ascii_iswhite(crate::memory::cstr_byte_at(s, l as usize) as i32)
     }
 }
 
 fn same_leader(
     lnum: Linenr,
-    leader1_len: c_int,
+    leader1_len: i32,
     leader1_flags: impl crate::strings::IntoCCharPtr,
-    leader2_len: c_int,
+    leader2_len: i32,
     leader2_flags: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let leader1_flags = leader1_flags.into_c_char_ptr();
@@ -641,12 +641,12 @@ fn same_leader(
 
         let line1 =
             std::slice::from_raw_parts(ml_get(lnum), ml_get_len(lnum) as usize + 1).to_vec();
-        let mut idx1: c_int = 0;
-        while ascii_iswhite(line1[idx1 as usize] as c_int) {
+        let mut idx1: i32 = 0;
+        while ascii_iswhite(line1[idx1 as usize] as i32) {
             idx1 += 1;
         }
         let line2 = ml_get(lnum + 1);
-        let mut idx2: c_int = 0;
+        let mut idx2: i32 = 0;
         while idx2 < leader2_len {
             if !ascii_iswhite(crate::memory::cstr_char_at(line2, idx2 as usize)) {
                 let c1 = line1[idx1 as usize];
@@ -655,7 +655,7 @@ fn same_leader(
                     break;
                 }
             } else {
-                while ascii_iswhite(line1[idx1 as usize] as c_int) {
+                while ascii_iswhite(line1[idx1 as usize] as i32) {
                     idx1 += 1;
                 }
             }
@@ -668,9 +668,9 @@ fn same_leader(
 
 fn paragraph_start(lnum: Linenr) -> bool {
     {
-        let mut leader_len: c_int = 0;
+        let mut leader_len: i32 = 0;
         let mut leader_flags: *mut c_char = ptr::null_mut();
-        let mut next_leader_len: c_int = 0;
+        let mut next_leader_len: i32 = 0;
         let mut next_leader_flags: *mut c_char = ptr::null_mut();
 
         if lnum <= 1 {
@@ -753,7 +753,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             && (g_st().state_global & MODE_INSERT) != 0
         {
             let line = get_cursor_line_ptr();
-            if whitechar(*line.add((pos.col - 1) as usize) as c_int) {
+            if whitechar(*line.add((pos.col - 1) as usize) as i32) {
                 curwin_mut().w_cursor = pos;
                 return;
             }
@@ -814,7 +814,7 @@ pub fn check_auto_format(end_insert: bool) {
     if !whitechar(cc) {
         tf_st().did_add_space = false;
     } else {
-        let mut c = b' ' as c_int;
+        let mut c = b' ' as i32;
         if !end_insert {
             inc_cursor();
             c = gchar_cursor();
@@ -828,11 +828,11 @@ pub fn check_auto_format(end_insert: bool) {
 }
 
 /// Find out textwidth to be used for formatting (`comp_textwidth`).
-pub fn comp_textwidth(ff: bool) -> c_int {
+pub fn comp_textwidth(ff: bool) -> i32 {
     {
-        let mut textwidth = curbuf_mut().b_p_tw as c_int;
+        let mut textwidth = curbuf_mut().b_p_tw as i32;
         if textwidth == 0 && curbuf_mut().b_p_wm != 0 {
-            textwidth = curwin_mut().w_view_width - curbuf_mut().b_p_wm as c_int;
+            textwidth = curwin_mut().w_view_width - curbuf_mut().b_p_wm as i32;
             textwidth -= win_fdccol_count(curwin_mut());
             textwidth -= curwin_mut().w_scwidth;
 
@@ -917,7 +917,7 @@ pub fn op_formatexpr(oap: &mut Oparg) {
 }
 
 /// Evaluate `'formatexpr'` (`fex_format`).
-pub fn fex_format(lnum: Linenr, count: i64, c: c_int) -> c_int {
+pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
     {
         let use_sandbox = was_set_insecurely(
             Some(crate::globals::curwin_mut()),
@@ -949,12 +949,12 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
         let mut is_end_par: bool;
         let mut prev_is_end_par: bool;
         let mut next_is_start_par = false;
-        let mut leader_len: c_int = 0;
-        let mut next_leader_len: c_int = 0;
+        let mut leader_len: i32 = 0;
+        let mut next_leader_len: i32 = 0;
         let mut leader_flags: *mut c_char = ptr::null_mut();
         let mut next_leader_flags: *mut c_char = ptr::null_mut();
         let mut advance = true;
-        let mut second_indent: c_int = -1;
+        let mut second_indent: i32 = -1;
         let mut first_par_line = true;
         let mut need_set_indent = true;
         let first_line = curwin_mut().w_cursor.lnum;
@@ -964,7 +964,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
         let max_len = comp_textwidth(true) * 3;
 
         let do_comments = has_format_option(K_FO_QCOMS);
-        let mut do_comments_list: c_int = 0;
+        let mut do_comments_list: i32 = 0;
         let do_second_indent = has_format_option(K_FO_QSECOND);
         let do_number_indent = has_format_option(K_FO_QNUMBER);
         let do_trail_white = has_format_option(K_FO_WHITE_PAR);
@@ -1134,7 +1134,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                         del_bytes(next_leader_len, false, false);
                         mark_col_adjust(curwin_mut().w_cursor.lnum, 0, 0, -next_leader_len, 0);
                     } else if second_indent > 0 {
-                        let indent = getwhitecols_curline() as c_int;
+                        let indent = getwhitecols_curline() as i32;
                         if indent > 0 {
                             del_bytes(indent, false, false);
                             mark_col_adjust(curwin_mut().w_cursor.lnum, 0, 0, -indent, 0);

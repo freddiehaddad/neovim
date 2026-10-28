@@ -130,7 +130,7 @@ use crate::vterm::vterm::{
     vterm_get_size, vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
 };
 use crate::window::{Winopt, may_trigger_win_scrolled_resized, win_valid};
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
@@ -149,15 +149,15 @@ const REFRESH_DELAY: u64 = 10;
 const TEXTBUF_SIZE: usize = 0x1fff;
 const SELECTIONBUF_SIZE: usize = 0x0400;
 
-const K_OPT_BO_FLAG_TERM: c_uint = 0x40000;
+const K_OPT_BO_FLAG_TERM: u32 = 0x40000;
 
-const K_OPT_TPF_FLAG_BS: c_uint = 0x01;
-const K_OPT_TPF_FLAG_HT: c_uint = 0x02;
-const K_OPT_TPF_FLAG_FF: c_uint = 0x04;
-const K_OPT_TPF_FLAG_ESC: c_uint = 0x08;
-const K_OPT_TPF_FLAG_DEL: c_uint = 0x10;
-const K_OPT_TPF_FLAG_C0: c_uint = 0x20;
-const K_OPT_TPF_FLAG_C1: c_uint = 0x40;
+const K_OPT_TPF_FLAG_BS: u32 = 0x01;
+const K_OPT_TPF_FLAG_HT: u32 = 0x02;
+const K_OPT_TPF_FLAG_FF: u32 = 0x04;
+const K_OPT_TPF_FLAG_ESC: u32 = 0x08;
+const K_OPT_TPF_FLAG_DEL: u32 = 0x10;
+const K_OPT_TPF_FLAG_C0: u32 = 0x20;
+const K_OPT_TPF_FLAG_C1: u32 = 0x40;
 
 const VTERM_UNDERLINE_OFF: u32 = 0;
 
@@ -188,15 +188,15 @@ const VTERM_KEY_KP_PERIOD: VTermKey = 526;
 const VTERM_KEY_KP_DIVIDE: VTermKey = 527;
 const VTERM_KEY_KP_ENTER: VTermKey = 528;
 
-const CTRL_AT: c_int = 0;
-const CTRL_M: c_int = 13;
+const CTRL_AT: i32 = 0;
+const CTRL_M: i32 = 13;
 
-const TERM_ATTRS_MAX: c_int = 1024;
+const TERM_ATTRS_MAX: i32 = 1024;
 
 #[repr(C)]
 struct TerminalState {
     term: *mut Terminal,
-    save_rd: c_int,
+    save_rd: i32,
     close: bool,
     got_bsl: bool,
     got_bsl_o: bool,
@@ -205,7 +205,7 @@ struct TerminalState {
     save_w_p_cul: bool,
     save_w_p_culopt: Option<std::ffi::CString>,
     save_w_p_culopt_flags: u8,
-    save_w_p_cuc: c_int,
+    save_w_p_cuc: i32,
     save_w_p_so: OptInt,
     save_w_p_siso: OptInt,
 }
@@ -231,11 +231,11 @@ impl TerminalState {
 }
 
 impl EditorState for TerminalState {
-    fn check(&mut self) -> c_int {
+    fn check(&mut self) -> i32 {
         terminal_check(self)
     }
 
-    fn execute(&mut self, key: c_int) -> c_int {
+    fn execute(&mut self, key: i32) -> i32 {
         terminal_execute(self, key)
     }
 }
@@ -249,9 +249,9 @@ impl Default for TerminalState {
 #[repr(C)]
 #[derive(Default)]
 struct TermCursor {
-    row: c_int,
-    col: c_int,
-    shape: c_int,
+    row: i32,
+    col: i32,
+    shape: i32,
     visible: bool,
     blink: bool,
 }
@@ -301,10 +301,10 @@ pub struct Terminal {
     sb_buffer: Vec<Vec<VTermScreenCell>>,
     sb_allocated: bool,
     sb_size: usize,
-    sb_pending: c_int,
+    sb_pending: i32,
     sb_deleted: usize,
     old_sb_deleted: usize,
-    old_height: c_int,
+    old_height: i32,
     title: Vec<c_char>,
     buf_handle: ObjHandle,
     in_altscreen: bool,
@@ -312,8 +312,8 @@ pub struct Terminal {
     closed: bool,
     destroy: bool,
     forward_mouse: bool,
-    invalid_start: c_int,
-    invalid_end: c_int,
+    invalid_start: i32,
+    invalid_end: i32,
     cursor: TermCursor,
     pending: TermPending,
     streamed_paste: bool,
@@ -397,7 +397,7 @@ fn invalidate_terminal_add(term: &mut Terminal) {
 }
 
 #[inline]
-const fn vterm_key_function(n: c_int) -> VTermKey {
+const fn vterm_key_function(n: i32) -> VTermKey {
     VTERM_KEY_FUNCTION_0 + n
 }
 
@@ -418,8 +418,8 @@ pub struct TermRequestEvent {
     pub buf_handle: ObjHandle,
     pub sequence: Vec<c_char>,
     pub pending_send: std::rc::Rc<std::cell::RefCell<Vec<c_char>>>,
-    pub row: c_int,
-    pub col: c_int,
+    pub row: i32,
+    pub col: i32,
     pub sb_deleted: usize,
     pub terminator: VTermTerminator,
 }
@@ -557,7 +557,7 @@ fn schedule_termrequest(term: &mut Terminal) {
     }
 }
 
-fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut c_int) -> c_int {
+fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut i32) -> i32 {
     let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut i: usize = 0;
@@ -584,7 +584,7 @@ fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut c_int) -> c_in
     }
 }
 
-fn on_osc(command: c_int, frag: VTermStringFragment, term: *mut Terminal) -> c_int {
+fn on_osc(command: i32, frag: VTermStringFragment, term: *mut Terminal) -> i32 {
     unsafe {
         let term = &mut *term;
         if frag.str_.is_null() || frag.is_empty() {
@@ -616,7 +616,7 @@ fn on_osc(command: c_int, frag: VTermStringFragment, term: *mut Terminal) -> c_i
             if command == 8 {
                 term.termrequest_buffer.push(NUL);
                 let off = b"\x1b]8;".len();
-                let mut attr: c_int = 0;
+                let mut attr: i32 = 0;
                 if parse_osc8(term.termrequest_buffer.as_ptr().add(off), &mut attr) != 0 {
                     let state = vterm_obtain_state(&mut term.vt);
                     let mut value = VTermValue::Number(attr);
@@ -633,7 +633,7 @@ fn on_dcs(
     commandlen: usize,
     frag: VTermStringFragment,
     term: *mut Terminal,
-) -> c_int {
+) -> i32 {
     unsafe {
         let term = &mut *term;
         if command.is_null() || frag.str_.is_null() {
@@ -664,7 +664,7 @@ fn on_dcs(
     }
 }
 
-fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> c_int {
+fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> i32 {
     unsafe {
         let term = &mut *term;
         if frag.str_.is_null() || frag.is_empty() {
@@ -752,7 +752,7 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static 
 
         let term = Box::into_raw(Box::new(Terminal {
             opts,
-            vt: vterm_new(c_int::from(opts.height), c_int::from(opts.width)),
+            vt: vterm_new(i32::from(opts.height), i32::from(opts.width)),
             textbuf: [0; TEXTBUF_SIZE],
             sb_buffer: Vec::new(),
             sb_allocated: false,
@@ -811,14 +811,14 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static 
         let mut cursor_shape = VTermValue::Number(shape_num);
         vterm_state_set_termprop(state, VTERM_PROP_CURSORSHAPE, &mut cursor_shape);
 
-        let mut cursor_blink = VTermValue::Boolean(c_int::from(
+        let mut cursor_blink = VTermValue::Boolean(i32::from(
             (*shape_table_mut())[SHAPE_IDX_TERM].blinkon != 0
                 && (*shape_table_mut())[SHAPE_IDX_TERM].blinkoff != 0,
         ));
         vterm_state_set_termprop(state, VTERM_PROP_CURSORBLINK, &mut cursor_blink);
 
         term_ref.invalid_start = 0;
-        term_ref.invalid_end = c_int::from(opts.height);
+        term_ref.invalid_end = i32::from(opts.height);
 
         term_ref.pending.events = multiqueue_new(ptr::null_mut());
 
@@ -898,15 +898,10 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
         let state = vterm_obtain_state(&mut term.vt);
         for i in 0..16 {
             let mut var = [0 as c_char; 64];
-            vim_snprintf!(
-                var.as_mut_ptr(),
-                var.len(),
-                c"terminal_color_%d",
-                i as c_int,
-            );
+            vim_snprintf!(var.as_mut_ptr(), var.len(), c"terminal_color_%d", i as i32,);
             let name = get_config_string(buf, var.as_mut_ptr());
             if !name.is_null() {
-                let mut dummy: c_int = 0;
+                let mut dummy: i32 = 0;
                 let color_val = name_to_color(name, &mut dummy);
                 if color_val != -1 {
                     let color = VTermColor {
@@ -917,7 +912,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
                             (color_val & 0xFF) as u8,
                         ],
                     };
-                    vterm_state_set_palette_color(state, i as c_int, &color);
+                    vterm_state_set_palette_color(state, i as i32, &color);
                     term.color_set[i] = true;
                 }
             }
@@ -925,7 +920,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
     }
 }
 
-pub fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
+pub fn terminal_close(termpp: *mut *mut Terminal, status: i32) {
     unsafe {
         let term = &mut **termpp;
         if term.destroy {
@@ -939,8 +934,8 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
             only_destroy = true;
         } else {
             if !g_st().exiting {
-                let mut height: c_int = 0;
-                let mut width: c_int = 0;
+                let mut height: i32 = 0;
+                let mut width: i32 = 0;
                 vterm_get_size(&term.vt, &mut height, &mut width);
                 if status != -1 && term.cursor.row == height - 1 {
                     fetch_row(term, term.cursor.row, width);
@@ -1051,8 +1046,8 @@ pub fn terminal_check_size(term: &mut Terminal) {
             return;
         }
 
-        let mut curwidth: c_int = 0;
-        let mut curheight: c_int = 0;
+        let mut curwidth: i32 = 0;
+        let mut curheight: i32 = 0;
         vterm_get_size(&term.vt, &mut curheight, &mut curwidth);
         let mut width: u16 = 0;
         let mut height: u16 = 0;
@@ -1067,14 +1062,14 @@ pub fn terminal_check_size(term: &mut Terminal) {
             }
         }
 
-        if (curheight == c_int::from(height) && curwidth == c_int::from(width))
+        if (curheight == i32::from(height) && curwidth == i32::from(width))
             || height == 0
             || width == 0
         {
             return;
         }
 
-        vterm_set_size(&mut term.vt, c_int::from(height), c_int::from(width));
+        vterm_set_size(&mut term.vt, i32::from(height), i32::from(width));
         vterm_screen_flush_damage(&mut *term.vt.screen_mut_ptr());
         term.pending.resize = true;
         invalidate_terminal(term, -1, -1);
@@ -1162,7 +1157,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
                     free_string_option(winopts.wo_culopt);
                     winopts.wo_culopt = alloc_string_option(saved.as_ptr());
                 }
-                winopts.wo_cul = c_int::from(s.save_w_p_cul);
+                winopts.wo_cul = i32::from(s.save_w_p_cul);
                 winopts.wo_cuc = s.save_w_p_cuc;
                 winopts.wo_so = s.save_w_p_so;
                 winopts.wo_siso = s.save_w_p_siso;
@@ -1326,7 +1321,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
     }
 }
 
-fn terminal_check(s: &mut TerminalState) -> c_int {
+fn terminal_check(s: &mut TerminalState) -> i32 {
     unsafe {
         debug_assert!(
             !s.close || ({ &mut *s.term }.buf_handle == 0 && s.term != curbuf_mut().terminal)
@@ -1383,7 +1378,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
     }
 }
 
-fn terminal_execute(s: &mut TerminalState, key: c_int) -> c_int {
+fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
     unsafe {
         let mut tmp_mod_mask = g_st().mod_mask;
         let mod_key = merge_modifiers(key, &mut tmp_mod_mask);
@@ -1421,7 +1416,7 @@ fn terminal_execute(s: &mut TerminalState, key: c_int) -> c_int {
                 }
                 if mod_key == CTRL_O && s.got_bsl {
                     s.got_bsl_o = true;
-                    g_st().restart_edit = b'I' as c_int;
+                    g_st().restart_edit = b'I' as i32;
                     return 0;
                 }
                 if mod_key == CTRL_C_CONST {
@@ -1494,7 +1489,7 @@ fn terminal_send(term: &mut Terminal, data: impl crate::strings::IntoCCharPtr, s
     }
 }
 
-fn is_filter_char(c: c_int) -> bool {
+fn is_filter_char(c: i32) -> bool {
     let flag = match c {
         0x08 => K_OPT_TPF_FLAG_BS,
         0x09 => K_OPT_TPF_FLAG_HT,
@@ -1503,7 +1498,7 @@ fn is_filter_char(c: c_int) -> bool {
         0x1b => K_OPT_TPF_FLAG_ESC,
         0x7F => K_OPT_TPF_FLAG_DEL,
         _ => {
-            if c < b' ' as c_int {
+            if c < b' ' as i32 {
                 K_OPT_TPF_FLAG_C0
             } else if (0x80..=0x9F).contains(&c) {
                 K_OPT_TPF_FLAG_C1
@@ -1529,7 +1524,7 @@ pub fn terminal_set_streamed_paste(term: &mut Terminal, streamed: bool) {
     }
 }
 
-pub fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
+pub fn terminal_paste(count: i32, y_array: *mut NvimString, y_size: usize) {
     unsafe {
         if y_size == 0 {
             return;
@@ -1571,7 +1566,7 @@ pub fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
     }
 }
 
-fn terminal_send_key(term: &mut Terminal, mut c: c_int) {
+fn terminal_send_key(term: &mut Terminal, mut c: i32) {
     let mut mod_: VTermModifier = VTERM_MOD_NONE;
     if c == K_ZERO {
         c = CTRL_AT;
@@ -1626,8 +1621,8 @@ pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCha
 
         if term.sync_flush_pending {
             term.sync_flush_pending = false;
-            let mut height: c_int = 0;
-            let mut width: c_int = 0;
+            let mut height: i32 = 0;
+            let mut width: i32 = 0;
             vterm_get_size(&term.vt, &mut height, &mut width);
             term.invalid_start = 0;
             term.invalid_end = height;
@@ -1639,15 +1634,15 @@ pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCha
     }
 }
 
-fn get_rgb(state: &VTermStateFull, mut color: VTermColor) -> c_int {
+fn get_rgb(state: &VTermStateFull, mut color: VTermColor) -> i32 {
     vterm_state_convert_color_to_rgb(state, &mut color);
-    let r = c_int::from(color.bytes[1]);
-    let g = c_int::from(color.bytes[2]);
-    let b = c_int::from(color.bytes[3]);
+    let r = i32::from(color.bytes[1]);
+    let g = i32::from(color.bytes[2]);
+    let b = i32::from(color.bytes[3]);
     (r << 16) | (g << 8) | b
 }
 
-const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> c_int {
+const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> i32 {
     match attrs.underline() {
         VTERM_UNDERLINE_OFF => 0,
         VTERM_UNDERLINE_SINGLE => HL_UNDERLINE,
@@ -1657,10 +1652,10 @@ const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> c_int {
     }
 }
 
-pub fn terminal_get_line_attributes(term: &mut Terminal, linenr: c_int, term_attrs: *mut c_int) {
+pub fn terminal_get_line_attributes(term: &mut Terminal, linenr: i32, term_attrs: *mut i32) {
     unsafe {
-        let mut height: c_int = 0;
-        let mut width: c_int = 0;
+        let mut height: i32 = 0;
+        let mut width: i32 = 0;
         vterm_get_size(&term.vt, &mut height, &mut width);
         let state = vterm_obtain_state(&mut term.vt);
         debug_assert!(linenr != 0);
@@ -1748,7 +1743,7 @@ pub fn terminal_get_line_attributes(term: &mut Terminal, linenr: c_int, term_att
                     0
                 });
 
-            let mut attr_id: c_int = 0;
+            let mut attr_id: i32 = 0;
             if hl_attrs != 0 || !fg_default || !bg_default {
                 let mut attrs = HlAttrs {
                     cterm_ae_attr: hl_attrs,
@@ -1807,7 +1802,7 @@ fn terminal_focus(term: &mut Terminal, focus: bool) {
     }
 }
 
-fn term_damage(rect: VTermRect, term: *mut Terminal) -> c_int {
+fn term_damage(rect: VTermRect, term: *mut Terminal) -> i32 {
     unsafe {
         let term = &mut *term;
         invalidate_terminal(term, rect.start_row, rect.end_row);
@@ -1815,7 +1810,7 @@ fn term_damage(rect: VTermRect, term: *mut Terminal) -> c_int {
     }
 }
 
-fn term_moverect(dest: VTermRect, src: VTermRect, term: *mut Terminal) -> c_int {
+fn term_moverect(dest: VTermRect, src: VTermRect, term: *mut Terminal) -> i32 {
     unsafe {
         let term = &mut *term;
         invalidate_terminal(
@@ -1830,9 +1825,9 @@ fn term_moverect(dest: VTermRect, src: VTermRect, term: *mut Terminal) -> c_int 
 fn term_movecursor(
     new_pos: VTermPos,
     _old_pos: VTermPos,
-    _visible: c_int,
+    _visible: i32,
     term: *mut Terminal,
-) -> c_int {
+) -> i32 {
     unsafe {
         let term = &mut *term;
         term.cursor.row = new_pos.row;
@@ -1869,7 +1864,7 @@ fn buf_set_term_title(buf: *mut FileBuf, title: impl crate::strings::IntoCCharPt
     }
 }
 
-fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Terminal) -> c_int {
+fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Terminal) -> i32 {
     unsafe {
         let term = &mut *term;
         match prop {
@@ -1932,19 +1927,19 @@ fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Terminal) 
     }
 }
 
-fn term_bell(_data: *mut Terminal) -> c_int {
+fn term_bell(_data: *mut Terminal) -> i32 {
     vim_beep(K_OPT_BO_FLAG_TERM);
     1
 }
 
-fn term_theme(dark: &mut bool, _data: *mut Terminal) -> c_int {
+fn term_theme(dark: &mut bool, _data: *mut Terminal) -> i32 {
     {
         *dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
     }
     1
 }
 
-fn term_sb_push(cells: &[VTermScreenCell], term: *mut Terminal) -> c_int {
+fn term_sb_push(cells: &[VTermScreenCell], term: *mut Terminal) -> i32 {
     unsafe {
         let term = &mut *term;
         if !term_may_alloc_scrollback(term, ptr::null_mut()) {
@@ -1964,7 +1959,7 @@ fn term_sb_push(cells: &[VTermScreenCell], term: *mut Terminal) -> c_int {
         sbrow.extend_from_slice(cells);
         term.sb_buffer.insert(0, sbrow);
 
-        if term.sb_pending < term.sb_size as c_int {
+        if term.sb_pending < term.sb_size as i32 {
             term.sb_pending += 1;
         }
 
@@ -1976,7 +1971,7 @@ fn term_sb_push(cells: &[VTermScreenCell], term: *mut Terminal) -> c_int {
     }
 }
 
-fn term_sb_pop(cells: &mut [VTermScreenCell], term: *mut Terminal) -> c_int {
+fn term_sb_pop(cells: &mut [VTermScreenCell], term: *mut Terminal) -> i32 {
     unsafe {
         let term = &mut *term;
         if term.sb_buffer.is_empty() {
@@ -2008,7 +2003,7 @@ fn term_sb_pop(cells: &mut [VTermScreenCell], term: *mut Terminal) -> c_int {
     }
 }
 
-fn term_sb_clear(term: *mut Terminal) -> c_int {
+fn term_sb_clear(term: *mut Terminal) -> i32 {
     unsafe {
         let term = &mut *term;
         if term.in_altscreen || term.sb_size == 0 || term.sb_buffer.is_empty() {
@@ -2062,7 +2057,7 @@ fn term_selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
     term: *mut Terminal,
-) -> c_int {
+) -> i32 {
     unsafe {
         let term = &mut *term;
         if frag.initial() {
@@ -2088,27 +2083,27 @@ fn term_selection_set(
     }
 }
 
-fn convert_modifiers(key: &mut c_int, modifiers: c_int, statep: &mut VTermModifier) {
+fn convert_modifiers(key: &mut i32, modifiers: i32, statep: &mut VTermModifier) {
     {
-        if (modifiers & c_int::from(MOD_MASK_SHIFT)) != 0 {
+        if (modifiers & i32::from(MOD_MASK_SHIFT)) != 0 {
             *statep |= VTERM_MOD_SHIFT;
         }
-        if (modifiers & c_int::from(MOD_MASK_CTRL)) != 0 {
+        if (modifiers & i32::from(MOD_MASK_CTRL)) != 0 {
             *statep |= VTERM_MOD_CTRL;
-            if (modifiers & c_int::from(MOD_MASK_SHIFT)) == 0
-                && *key >= b'A' as c_int
-                && *key <= b'Z' as c_int
+            if (modifiers & i32::from(MOD_MASK_SHIFT)) == 0
+                && *key >= b'A' as i32
+                && *key <= b'Z' as i32
             {
-                *key += (b'a' - b'A') as c_int;
+                *key += (b'a' - b'A') as i32;
             }
         }
-        if (modifiers & c_int::from(MOD_MASK_ALT)) != 0 {
+        if (modifiers & i32::from(MOD_MASK_ALT)) != 0 {
             *statep |= VTERM_MOD_ALT;
         }
     }
 }
 
-fn convert_key(key: &mut c_int, mut modifiers: c_int, statep: &mut VTermModifier) -> VTermKey {
+fn convert_key(key: &mut i32, mut modifiers: i32, statep: &mut VTermModifier) -> VTermKey {
     *key = unsimplify_key(*key, &mut modifiers);
     convert_modifiers(key, modifiers, statep);
 
@@ -2212,9 +2207,9 @@ fn convert_key(key: &mut c_int, mut modifiers: c_int, statep: &mut VTermModifier
 
 fn mouse_action(
     term: &mut Terminal,
-    button: c_int,
-    row: c_int,
-    col: c_int,
+    button: i32,
+    row: i32,
+    col: i32,
     pressed: bool,
     mod_: VTermModifier,
 ) {
@@ -2224,7 +2219,7 @@ fn mouse_action(
     }
 }
 
-fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
+fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
     unsafe {
         let mut row = g_st().mouse_row;
         let mut col = g_st().mouse_col;
@@ -2232,7 +2227,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
         let mouse_win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if !mouse_win.is_null() {
             let mouse_win = { &mut *mouse_win };
-            let offset: c_int;
+            let offset: i32;
             if !term.suspended
                 && !term.closed
                 && term.forward_mouse
@@ -2309,9 +2304,9 @@ fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
     }
 }
 
-fn fetch_row(term: &mut Terminal, row: c_int, end_col: c_int) {
+fn fetch_row(term: &mut Terminal, row: i32, end_col: i32) {
     unsafe {
-        let mut col: c_int = 0;
+        let mut col: i32 = 0;
         let mut line_len: usize = 0;
         let textbuf_ptr = (&raw mut term.textbuf).cast::<c_char>();
         let mut ptr = textbuf_ptr;
@@ -2326,14 +2321,14 @@ fn fetch_row(term: &mut Terminal, row: c_int, end_col: c_int) {
                 *ptr = b' ' as c_char;
                 ptr = ptr.add(1);
             }
-            col += c_int::from(cell.width);
+            col += i32::from(cell.width);
         }
 
         *textbuf_ptr.add(line_len) = NUL;
     }
 }
 
-fn fetch_cell(term: &mut Terminal, row: c_int, col: c_int, cell: &mut VTermScreenCell) -> bool {
+fn fetch_cell(term: &mut Terminal, row: i32, col: i32, cell: &mut VTermScreenCell) -> bool {
     unsafe {
         if row < 0 {
             let sbrow = &term.sb_buffer.as_slice()[(-row - 1) as usize];
@@ -2354,7 +2349,7 @@ fn fetch_cell(term: &mut Terminal, row: c_int, col: c_int, cell: &mut VTermScree
     }
 }
 
-fn invalidate_terminal(term: &mut Terminal, start_row: c_int, end_row: c_int) {
+fn invalidate_terminal(term: &mut Terminal, start_row: i32, end_row: i32) {
     {
         if start_row != -1 && end_row != -1 {
             term.invalid_start = term.invalid_start.min(start_row);
@@ -2487,8 +2482,8 @@ fn refresh_size(term: &mut Terminal) -> bool {
         }
 
         term.pending.resize = false;
-        let mut width: c_int = 0;
-        let mut height: c_int = 0;
+        let mut width: i32 = 0;
+        let mut height: i32 = 0;
         vterm_get_size(&term.vt, &mut height, &mut width);
         term.invalid_start = 0;
         term.invalid_end = height;
@@ -2554,8 +2549,8 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
         term.old_sb_deleted = term.sb_deleted;
 
         let mut old_height = term.old_height;
-        let mut width: c_int = 0;
-        let mut height: c_int = 0;
+        let mut width: i32 = 0;
+        let mut height: i32 = 0;
         vterm_get_size(&term.vt, &mut height, &mut width);
 
         while deleted > 0 && buf.b_ml.ml_line_count > old_height {
@@ -2574,7 +2569,7 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
             term.sb_pending -= 1;
         }
 
-        let max_line_count = term.sb_buffer.len() as c_int + height;
+        let max_line_count = term.sb_buffer.len() as i32 + height;
         loop {
             if buf.b_ml.ml_line_count <= max_line_count {
                 break;
@@ -2590,15 +2585,15 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
 }
 
 fn refresh_screen(term: &mut Terminal, buf: &mut FileBuf) {
-    let mut changed: c_int = 0;
-    let mut added: c_int = 0;
-    let mut height: c_int = 0;
-    let mut width: c_int = 0;
+    let mut changed: i32 = 0;
+    let mut added: i32 = 0;
+    let mut height: i32 = 0;
+    let mut width: i32 = 0;
     vterm_get_size(&term.vt, &mut height, &mut width);
     term.invalid_end = term.invalid_end.min(height);
 
     if term.invalid_start >= term.invalid_end {
-        term.invalid_start = c_int::MAX;
+        term.invalid_start = i32::MAX;
         term.invalid_end = -1;
         return;
     }
@@ -2623,12 +2618,12 @@ fn refresh_screen(term: &mut Terminal, buf: &mut FileBuf) {
 
     let change_start = row_to_linenr(term, term.invalid_start);
     let change_end = change_start + changed;
-    term.invalid_start = c_int::MAX;
+    term.invalid_start = i32::MAX;
     term.invalid_end = -1;
     changed_lines(buf, change_start, 0, change_end, added, true);
 }
 
-fn adjust_topline_cursor(term: &mut Terminal, buf: &mut FileBuf, added: c_int) {
+fn adjust_topline_cursor(term: &mut Terminal, buf: &mut FileBuf, added: i32) {
     {
         let ml_end = buf.b_ml.ml_line_count;
 
@@ -2665,17 +2660,17 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut FileBuf, added: c_int) {
 }
 
 #[inline]
-fn row_to_linenr(term: &mut Terminal, row: c_int) -> c_int {
-    if row != c_int::MAX {
-        row + term.sb_buffer.len() as c_int + 1
+fn row_to_linenr(term: &mut Terminal, row: i32) -> i32 {
+    if row != i32::MAX {
+        row + term.sb_buffer.len() as i32 + 1
     } else {
-        c_int::MAX
+        i32::MAX
     }
 }
 
 #[inline]
-fn linenr_to_row(term: &mut Terminal, linenr: c_int) -> c_int {
-    linenr - term.sb_buffer.len() as c_int - 1
+fn linenr_to_row(term: &mut Terminal, linenr: i32) -> i32 {
+    linenr - term.sb_buffer.len() as i32 - 1
 }
 
 #[inline]

@@ -1,6 +1,6 @@
 //! XDiff utility functions (`src/xdiff/xutils.c`).
 
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::xdiff::xdiffi::xdl_do_diff;
@@ -24,7 +24,7 @@ pub fn xdl_emit_diffrec(
     pre: *const c_char,
     psize: i64,
     ecb: &mut Xdemitcb,
-) -> c_int {
+) -> i32 {
     let mut i: usize = 2;
     let mut mb = [Mmbuffer {
         ptr: ptr::null_mut(),
@@ -32,13 +32,13 @@ pub fn xdl_emit_diffrec(
     }; 3];
 
     mb[0].ptr = pre.cast_mut();
-    mb[0].size = psize as c_int;
+    mb[0].size = psize as i32;
     mb[1].ptr = rec.cast_mut();
-    mb[1].size = size as c_int;
+    mb[1].size = size as i32;
     if size > 0 && unsafe { *rec.offset((size - 1) as isize) } != b'\n' as c_char {
         const NO_NL: &[u8] = b"\n\\ No newline at end of file\n\0";
         mb[2].ptr = NO_NL.as_ptr().cast::<c_char>().cast_mut();
-        mb[2].size = (NO_NL.len() - 1) as c_int;
+        mb[2].size = (NO_NL.len() - 1) as i32;
         i += 1;
     }
     if ecb.out_line(&mb[..i]) < 0 {
@@ -87,9 +87,9 @@ pub fn xdl_guess_lines(mf: &Mmfile, sample: i64) -> i64 {
     nl + 1
 }
 
-pub fn xdl_blankline_slice(line: &[u8], flags: u64) -> c_int {
+pub fn xdl_blankline_slice(line: &[u8], flags: u64) -> i32 {
     if (flags & XDF_WHITESPACE_FLAGS) == 0 {
-        return c_int::from(line.len() <= 1);
+        return i32::from(line.len() <= 1);
     }
 
     let mut i = 0usize;
@@ -97,10 +97,10 @@ pub fn xdl_blankline_slice(line: &[u8], flags: u64) -> c_int {
         i += 1;
     }
 
-    c_int::from(i == line.len())
+    i32::from(i == line.len())
 }
 
-pub fn xdl_blankline(line: *const c_char, size: i64, flags: i64) -> c_int {
+pub fn xdl_blankline(line: *const c_char, size: i64, flags: i64) -> i32 {
     let slice = unsafe { std::slice::from_raw_parts(line.cast::<u8>(), size.max(0) as usize) };
     xdl_blankline_slice(slice, flags as u64)
 }
@@ -121,7 +121,7 @@ fn ends_with_optional_cr_slice(l: &[u8], i: usize) -> bool {
     false
 }
 
-pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> c_int {
+pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> i32 {
     if b1 == b2 {
         return 1;
     }
@@ -185,7 +185,7 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> c_int {
             i1 += 1;
             i2 += 1;
         }
-        return c_int::from(
+        return i32::from(
             ends_with_optional_cr_slice(b1, i1) && ends_with_optional_cr_slice(b2, i2),
         );
     }
@@ -202,12 +202,12 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> c_int {
         while i2 < s2 && xdl_isspace(b2[i2] as c_char) {
             i2 += 1;
         }
-        return c_int::from(s2 == i2);
+        return i32::from(s2 == i2);
     }
     1
 }
 
-pub fn xdl_recmatch(l1: *const c_char, s1: i64, l2: *const c_char, s2: i64, flags: i64) -> c_int {
+pub fn xdl_recmatch(l1: *const c_char, s1: i64, l2: *const c_char, s2: i64, flags: i64) -> i32 {
     let b1 = unsafe { std::slice::from_raw_parts(l1.cast::<u8>(), s1.max(0) as usize) };
     let b2 = unsafe { std::slice::from_raw_parts(l2.cast::<u8>(), s2.max(0) as usize) };
     xdl_recmatch_slice(b1, b2, flags as u64)
@@ -290,10 +290,10 @@ pub fn xdl_hash_record(data: &mut *const c_char, top: *const c_char, flags: i64)
     ha
 }
 
-pub fn xdl_hashbits(size: c_uint) -> c_uint {
-    let mut val: c_uint = 1;
-    let mut bits: c_uint = 0;
-    let max_bits = c_uint::BITS;
+pub fn xdl_hashbits(size: u32) -> u32 {
+    let mut val: u32 = 1;
+    let mut bits: u32 = 0;
+    let max_bits = u32::BITS;
 
     while val < size && bits < max_bits {
         val <<= 1;
@@ -302,7 +302,7 @@ pub fn xdl_hashbits(size: c_uint) -> c_uint {
     if bits != 0 { bits } else { 1 }
 }
 
-fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -> c_int {
+fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -> i32 {
     use std::io::Write as _;
     let mut buf = [0u8; 128];
     let mut cursor = std::io::Cursor::new(&mut buf[..]);
@@ -315,7 +315,7 @@ fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -
         let _ = write!(cursor, ",{c2}");
     }
     let _ = writeln!(cursor, " @@");
-    let nb = cursor.position() as c_int;
+    let nb = cursor.position() as i32;
 
     let mb = [Mmbuffer {
         ptr: buf.as_mut_ptr().cast::<c_char>(),
@@ -327,18 +327,18 @@ fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -
     0
 }
 
-pub fn xdl_emit_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -> c_int {
+pub fn xdl_emit_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -> i32 {
     xdl_format_hunk_hdr(s1, c1, s2, c2, ecb)
 }
 
 pub fn xdl_fall_back_diff(
     diff_env: &mut Xdfenv,
     xpp: &Xpparam,
-    line1: c_int,
-    count1: c_int,
-    line2: c_int,
-    count2: c_int,
-) -> c_int {
+    line1: i32,
+    count1: i32,
+    line2: i32,
+    count2: i32,
+) -> i32 {
     unsafe {
         let mut subfile1 = Mmfile {
             ptr: diff_env.xdf1.recs[(line1 - 1) as usize].ptr.cast_mut(),
@@ -348,7 +348,7 @@ pub fn xdl_fall_back_diff(
         subfile1.size = end_rec1
             .ptr
             .offset(end_rec1.size as isize)
-            .offset_from(subfile1.ptr) as c_int;
+            .offset_from(subfile1.ptr) as i32;
 
         let mut subfile2 = Mmfile {
             ptr: diff_env.xdf2.recs[(line2 - 1) as usize].ptr.cast_mut(),
@@ -358,7 +358,7 @@ pub fn xdl_fall_back_diff(
         subfile2.size = end_rec2
             .ptr
             .offset(end_rec2.size as isize)
-            .offset_from(subfile2.ptr) as c_int;
+            .offset_from(subfile2.ptr) as i32;
 
         let mut env = Xdfenv::new();
         if xdl_do_diff(&mut subfile1, &mut subfile2, xpp, &mut env) < 0 {

@@ -33,7 +33,7 @@ use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::{Sctx, script_is_lua};
 use crate::window::{TabPageInfo, WinInfoInfo};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 use std::mem::size_of;
 use std::ptr;
 
@@ -43,7 +43,7 @@ pub(crate) const DI_FLAGS_RO: u8 = 1;
 pub(crate) const DI_FLAGS_FIX: u8 = 4;
 pub(crate) const DI_FLAGS_LOCK: u8 = 8;
 
-pub(crate) const HLF_E: c_int = 6;
+pub(crate) const HLF_E: i32 = 6;
 
 pub(crate) const SID_API_CLIENT: Scid = -9;
 pub(crate) const SID_LUA: Scid = -8;
@@ -174,10 +174,10 @@ pub fn array_add(a: &mut Array, item: Object) {
 pub struct TryState {
     pub current_exception: Option<std::rc::Rc<Except>>,
     pub msg_list: Option<Vec<Msglist>>,
-    pub got_int: c_int,
+    pub got_int: i32,
     pub did_throw: bool,
-    pub need_rethrow: c_int,
-    pub did_emsg: c_int,
+    pub need_rethrow: i32,
+    pub did_emsg: i32,
 }
 
 impl TryState {
@@ -198,7 +198,7 @@ pub type ArrayBuilder = Vec<Object>;
 #[repr(C)]
 pub struct HlMessageChunk {
     pub text: NvimString,
-    pub hl_id: c_int,
+    pub hl_id: i32,
 }
 
 impl Drop for HlMessageChunk {
@@ -383,9 +383,9 @@ pub fn try_enter(tstate: &mut TryState) {
             TryState {
                 current_exception: saved_excp,
                 msg_list: saved_msg_list,
-                got_int: c_int::from(g_st().got_int),
+                got_int: i32::from(g_st().got_int),
                 did_throw: g_st().did_throw,
-                need_rethrow: c_int::from(g_st().need_rethrow),
+                need_rethrow: i32::from(g_st().need_rethrow),
                 did_emsg: g_st().did_emsg,
             },
         );
@@ -523,7 +523,7 @@ pub fn dict_check_writable(
             api_set_error!(err, ErrorType::ErrorTypeException, c"Dict is locked",);
         } else if key.size == 0 {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is empty",);
-        } else if key.size > c_int::MAX as usize {
+        } else if key.size > i32::MAX as usize {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is too long",);
         }
         di
@@ -1119,7 +1119,7 @@ pub fn object_to_hl_id(
     obj: Object,
     what: impl crate::strings::IntoCCharPtr,
     err: &mut Error,
-) -> c_int {
+) -> i32 {
     let what = what.into_c_char_ptr();
     unsafe {
         match obj.obj_type {
@@ -1132,7 +1132,7 @@ pub fn object_to_hl_id(
                 }
             }
             ObjectType::ObjectTypeInteger => {
-                let id = obj.data.integer() as c_int;
+                let id = obj.data.integer() as i32;
                 if (1..=highlight_num_groups()).contains(&id) {
                     id
                 } else {
@@ -1233,7 +1233,7 @@ pub fn api_dict_to_keydict(
                     err,
                     ErrorType::ErrorTypeValidation,
                     c"Invalid key: '%.*s'",
-                    k.size as c_int,
+                    k.size as i32,
                     k.data,
                 );
                 return false;
@@ -1256,7 +1256,7 @@ pub fn api_dict_to_keydict(
                 }
                 ObjectType::ObjectTypeInteger => {
                     if field.is_hlgroup {
-                        let mut hl_id: c_int = 0;
+                        let mut hl_id: i32 = 0;
                         if value.obj_type != ObjectType::ObjectTypeNil {
                             hl_id = object_to_hl_id(*value, k.data, err);
                             if error_set(err) {
@@ -1366,7 +1366,7 @@ pub fn api_dict_to_keydict(
                         err,
                         ErrorType::ErrorTypeValidation,
                         c"Invalid key: '%.*s' is only allowed from Lua",
-                        k.size as c_int,
+                        k.size as i32,
                         k.data,
                     );
                     return false;
@@ -1553,11 +1553,7 @@ pub fn set_mark(
     }
 }
 
-pub fn get_default_stl_hl(
-    wp: *mut WinInfoInfo,
-    use_winbar: bool,
-    stc_hl_id: c_int,
-) -> *const c_char {
+pub fn get_default_stl_hl(wp: *mut WinInfoInfo, use_winbar: bool, stc_hl_id: i32) -> *const c_char {
     {
         if wp.is_null() {
             c"TabLineFill".as_ptr()

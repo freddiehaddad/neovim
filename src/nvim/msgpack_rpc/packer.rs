@@ -3,12 +3,12 @@
 use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
 pub const MPACK_ITEM_SIZE: usize = 9;
-pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::ObjectTypeBuffer as c_int;
+pub(crate) const EXT_OBJECT_TYPE_SHIFT: i32 = ObjectType::ObjectTypeBuffer as i32;
 
-pub type ObjHandle = c_int;
+pub type ObjHandle = i32;
 pub type Integer = i64;
 
 #[derive(Clone, Copy, Debug)]
@@ -348,7 +348,7 @@ pub fn mpack_ext(
 /// # Safety
 /// `packer` must be a valid writable pointer to a `PackerBuffer`.
 pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut PackerBuffer) {
-    let exttype = ((obj_type as c_int) - EXT_OBJECT_TYPE_SHIFT) as u8;
+    let exttype = ((obj_type as i32) - EXT_OBJECT_TYPE_SHIFT) as u8;
     unsafe {
         if (-0x1f..=0x7f).contains(&handle) {
             mpack_w(&mut packer.ptr, 0xd4);

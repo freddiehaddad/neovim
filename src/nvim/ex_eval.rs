@@ -23,50 +23,50 @@ use crate::regexp::{
 };
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
 use crate::strings::{concat_str, gettext, vim_snprintf, vim_snprintf_safelen};
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CStr, CString, c_char};
 use std::ptr;
 
 const CSTACK_LEN: usize = 50;
 
-const CMD_ELSE: c_int = 142;
-const CMD_ELSEIF: c_int = 143;
-const CMD_ENDWHILE: c_int = 149;
-const CMD_WHILE: c_int = 532;
+const CMD_ELSE: i32 = 142;
+const CMD_ELSEIF: i32 = 143;
+const CMD_ENDWHILE: i32 = 149;
+const CMD_WHILE: i32 = 532;
 
-pub const CSF_TRUE: c_int = 0x0001;
-pub const CSF_ACTIVE: c_int = 0x0002;
-pub const CSF_ELSE: c_int = 0x0004;
-pub const CSF_WHILE: c_int = 0x0008;
-pub const CSF_FOR: c_int = 0x0010;
-pub const CSF_TRY: c_int = 0x0100;
-pub const CSF_FINALLY: c_int = 0x0200;
-pub const CSF_THROWN: c_int = 0x0800;
-pub const CSF_CAUGHT: c_int = 0x1000;
-pub const CSF_FINISHED: c_int = 0x2000;
-pub const CSF_SILENT: c_int = 0x4000;
+pub const CSF_TRUE: i32 = 0x0001;
+pub const CSF_ACTIVE: i32 = 0x0002;
+pub const CSF_ELSE: i32 = 0x0004;
+pub const CSF_WHILE: i32 = 0x0008;
+pub const CSF_FOR: i32 = 0x0010;
+pub const CSF_TRY: i32 = 0x0100;
+pub const CSF_FINALLY: i32 = 0x0200;
+pub const CSF_THROWN: i32 = 0x0800;
+pub const CSF_CAUGHT: i32 = 0x1000;
+pub const CSF_FINISHED: i32 = 0x2000;
+pub const CSF_SILENT: i32 = 0x4000;
 
-pub const CSTP_NONE: c_int = 0;
-pub const CSTP_ERROR: c_int = 1;
-pub const CSTP_INTERRUPT: c_int = 2;
-pub const CSTP_THROW: c_int = 4;
-pub const CSTP_BREAK: c_int = 8;
-pub const CSTP_CONTINUE: c_int = 16;
-pub const CSTP_RETURN: c_int = 24;
-pub const CSTP_FINISH: c_int = 32;
+pub const CSTP_NONE: i32 = 0;
+pub const CSTP_ERROR: i32 = 1;
+pub const CSTP_INTERRUPT: i32 = 2;
+pub const CSTP_THROW: i32 = 4;
+pub const CSTP_BREAK: i32 = 8;
+pub const CSTP_CONTINUE: i32 = 16;
+pub const CSTP_RETURN: i32 = 24;
+pub const CSTP_FINISH: i32 = 32;
 
-pub const CSL_HAD_LOOP: c_int = 1;
-pub const CSL_HAD_ENDLOOP: c_int = 2;
-pub const CSL_HAD_CONT: c_int = 4;
-pub const CSL_HAD_FINA: c_int = 8;
+pub const CSL_HAD_LOOP: i32 = 1;
+pub const CSL_HAD_ENDLOOP: i32 = 2;
+pub const CSL_HAD_CONT: i32 = 4;
+pub const CSL_HAD_FINA: i32 = 8;
 
-pub const ET_USER: c_int = 0;
-pub const ET_ERROR: c_int = 1;
-pub const ET_INTERRUPT: c_int = 2;
-pub type ExceptType = c_int;
+pub const ET_USER: i32 = 0;
+pub const ET_ERROR: i32 = 1;
+pub const ET_INTERRUPT: i32 = 2;
+pub type ExceptType = i32;
 
-const RP_MAKE: c_int = 0;
-const RP_RESUME: c_int = 1;
-const RP_DISCARD: c_int = 2;
+const RP_MAKE: i32 = 0;
+const RP_RESUME: i32 = 1;
+const RP_DISCARD: i32 = 2;
 
 use crate::errors::{
     E_ARGREQ, E_ENDFOR, E_ENDIF, E_ENDTRY, E_ENDWHILE, E_FOR, E_INVARG2, E_INVEXPR2,
@@ -78,17 +78,17 @@ const E_MULTIPLE_FINALLY: &CStr = c"E607: Multiple :finally";
 
 #[repr(C)]
 pub struct Cstack {
-    pub cs_flags: [c_int; CSTACK_LEN],
+    pub cs_flags: [i32; CSTACK_LEN],
     pub cs_pending: [c_char; CSTACK_LEN],
     pub cs_rettv: [Option<TypVal>; CSTACK_LEN],
     pub cs_exception: [Option<std::rc::Rc<Except>>; CSTACK_LEN],
     pub cs_forinfo: [Option<Box<Forinfo>>; CSTACK_LEN],
-    pub cs_line: [c_int; CSTACK_LEN],
-    pub cs_idx: c_int,
-    pub cs_looplevel: c_int,
-    pub cs_trylevel: c_int,
-    pub cs_emsg_silent_list: Vec<c_int>,
-    pub cs_lflags: c_int,
+    pub cs_line: [i32; CSTACK_LEN],
+    pub cs_idx: i32,
+    pub cs_looplevel: i32,
+    pub cs_trylevel: i32,
+    pub cs_emsg_silent_list: Vec<i32>,
+    pub cs_lflags: i32,
 }
 
 impl Default for Cstack {
@@ -145,7 +145,7 @@ pub enum PendingVal {
 
 #[repr(C)]
 pub struct ExCleanup {
-    pub pending: c_int,
+    pub pending: i32,
     pub exception: Option<std::rc::Rc<Except>>,
 }
 
@@ -171,8 +171,8 @@ pub struct ExceptionState {
     pub estate_current_exception: Option<std::rc::Rc<Except>>,
     pub estate_did_throw: bool,
     pub estate_need_rethrow: bool,
-    pub estate_trylevel: c_int,
-    pub estate_did_emsg: c_int,
+    pub estate_trylevel: i32,
+    pub estate_did_emsg: i32,
 }
 
 impl ExceptionState {
@@ -240,7 +240,7 @@ pub fn update_force_abort() {
     }
 }
 
-pub fn should_abort(retcode: c_int) -> bool {
+pub fn should_abort(retcode: i32) -> bool {
     (retcode == FAIL && g_st().trylevel != 0 && g_st().emsg_silent == 0) || aborting()
 }
 
@@ -724,7 +724,7 @@ pub fn exception_state_clear() {
     g_st().did_emsg = 0;
 }
 
-fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
+fn report_pending(action: i32, pending: i32, value: PendingVal) {
     {
         let mut mesg = match action {
             RP_MAKE => gettext(c"%s made pending"),
@@ -792,7 +792,7 @@ fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
     }
 }
 
-pub fn report_make_pending(pending: c_int, value: PendingVal) {
+pub fn report_make_pending(pending: i32, value: PendingVal) {
     if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
         if g_st().debug_break_level <= 0 {
             verbose_enter();
@@ -804,7 +804,7 @@ pub fn report_make_pending(pending: c_int, value: PendingVal) {
     }
 }
 
-fn report_resume_pending(pending: c_int, value: PendingVal) {
+fn report_resume_pending(pending: i32, value: PendingVal) {
     if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
         if g_st().debug_break_level <= 0 {
             verbose_enter();
@@ -816,7 +816,7 @@ fn report_resume_pending(pending: c_int, value: PendingVal) {
     }
 }
 
-fn report_discard_pending(pending: c_int, value: PendingVal) {
+fn report_discard_pending(pending: i32, value: PendingVal) {
     if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
         if g_st().debug_break_level <= 0 {
             verbose_enter();
@@ -843,7 +843,7 @@ pub fn ex_if(eap: &mut Exarg) {
     unsafe {
         let cstack = &mut *eap.cstack.cast::<Cstack>();
 
-        if cstack.cs_idx == (CSTACK_LEN - 1) as c_int {
+        if cstack.cs_idx == (CSTACK_LEN - 1) as i32 {
             eap.errmsg = gettext(c"E579: :if nesting too deep");
         } else {
             cstack.cs_idx += 1;
@@ -925,7 +925,7 @@ pub fn ex_else(eap: &mut Exarg) {
             let mut error = false;
             if skip
                 && crate::memory::cstr_first_byte(eap.arg) != b'"'
-                && ends_excmd(c_int::from(crate::memory::cstr_first_byte(eap.arg))) != 0
+                && ends_excmd(i32::from(crate::memory::cstr_first_byte(eap.arg))) != 0
             {
                 semsg!(gettext(E_INVEXPR2), eap.arg);
             } else {
@@ -952,7 +952,7 @@ pub fn ex_while(eap: &mut Exarg) {
         let mut error = false;
         let cstack = &mut *eap.cstack.cast::<Cstack>();
 
-        if cstack.cs_idx == (CSTACK_LEN - 1) as c_int {
+        if cstack.cs_idx == (CSTACK_LEN - 1) as i32 {
             eap.errmsg = gettext(c"E585: :while/:for nesting too deep");
         } else {
             if (cstack.cs_lflags & CSL_HAD_LOOP) == 0 {
@@ -1147,7 +1147,7 @@ pub fn ex_try(eap: &mut Exarg) {
     unsafe {
         let cstack = &mut *eap.cstack.cast::<Cstack>();
 
-        if cstack.cs_idx == (CSTACK_LEN - 1) as c_int {
+        if cstack.cs_idx == (CSTACK_LEN - 1) as i32 {
             eap.errmsg = gettext(c"E601: :try nesting too deep");
         } else {
             cstack.cs_idx += 1;
@@ -1172,7 +1172,7 @@ pub fn ex_try(eap: &mut Exarg) {
 
 pub fn ex_catch(eap: &mut Exarg) {
     unsafe {
-        let mut idx: c_int = 0;
+        let mut idx: i32 = 0;
         let mut give_up = false;
         let mut skip = false;
         let cstack = &mut *eap.cstack.cast::<Cstack>();
@@ -1203,13 +1203,13 @@ pub fn ex_catch(eap: &mut Exarg) {
         }
 
         let (pat, end): (*const c_char, *mut c_char) =
-            if ends_excmd(c_int::from(crate::memory::cstr_first_byte(eap.arg))) != 0 {
+            if ends_excmd(i32::from(crate::memory::cstr_first_byte(eap.arg))) != 0 {
                 eap.nextcmd = find_nextcmd(eap.arg);
                 (c".*".as_ptr(), ptr::null_mut())
             } else {
                 let pat = eap.arg.add(1);
                 let end =
-                    skip_regexp_err(pat, c_int::from(crate::memory::cstr_first_byte(eap.arg)), 1);
+                    skip_regexp_err(pat, i32::from(crate::memory::cstr_first_byte(eap.arg)), 1);
                 if end.is_null() {
                     give_up = true;
                 }
@@ -1228,7 +1228,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 && (cstack.cs_flags[u_idx] & CSF_CAUGHT) == 0
             {
                 if !crate::memory::cstr_is_empty(end)
-                    && ends_excmd(c_int::from(*skipwhite(end.add(1)) as u8)) == 0
+                    && ends_excmd(i32::from(*skipwhite(end.add(1)) as u8)) == 0
                 {
                     semsg!(gettext(E_TRAILING_ARG), end);
                     return;
@@ -1343,7 +1343,7 @@ pub fn ex_finally(eap: &mut Exarg) {
 
             let cur_idx = cstack.cs_idx as usize;
             if pending == CSTP_ERROR || g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw {
-                if c_int::from(cstack.cs_pending[cur_idx]) == CSTP_RETURN {
+                if i32::from(cstack.cs_pending[cur_idx]) == CSTP_RETURN {
                     report_discard_pending(
                         CSTP_RETURN,
                         PendingVal::Return(cstack.cs_rettv[cur_idx]),
@@ -1383,7 +1383,7 @@ pub fn ex_finally(eap: &mut Exarg) {
 pub fn ex_endtry(eap: &mut Exarg) {
     unsafe {
         let mut rethrow = false;
-        let mut pending: c_int = CSTP_NONE;
+        let mut pending: i32 = CSTP_NONE;
         let mut rettv: Option<TypVal> = None;
         let cstack = &mut *eap.cstack.cast::<Cstack>();
 
@@ -1440,7 +1440,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
         }
 
         if !skip {
-            pending = c_int::from(cstack.cs_pending[u_idx]);
+            pending = i32::from(cstack.cs_pending[u_idx]);
             cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
             if pending == CSTP_RETURN {
                 rettv = (&mut cstack.cs_rettv)[u_idx].take();
@@ -1575,7 +1575,7 @@ pub fn leave_cleanup(csp: &mut ExCleanup) {
     }
 }
 
-pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: c_int, inclusive: c_int) -> c_int {
+pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: i32) -> i32 {
     let mut idx = cstack.cs_idx;
     let mut stop = false;
 
@@ -1584,7 +1584,7 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: c_int, inclusive
         if (cstack.cs_flags[u_idx] & CSF_TRY) != 0 {
             if g_st().did_emsg != 0 || g_st().got_int || (cstack.cs_flags[u_idx] & CSF_FINALLY) != 0
             {
-                let pend = c_int::from(cstack.cs_pending[u_idx]);
+                let pend = i32::from(cstack.cs_pending[u_idx]);
                 match pend {
                     CSTP_NONE => {}
                     CSTP_CONTINUE | CSTP_BREAK | CSTP_FINISH => {
@@ -1665,12 +1665,7 @@ fn get_end_emsg(cstack: &Cstack) -> *mut c_char {
     gettext(E_ENDIF)
 }
 
-pub fn rewind_conditionals(
-    cstack: &mut Cstack,
-    idx: c_int,
-    cond_type: c_int,
-    cond_level: &mut c_int,
-) {
+pub fn rewind_conditionals(cstack: &mut Cstack, idx: i32, cond_type: i32, cond_level: &mut i32) {
     while cstack.cs_idx > idx {
         let cur_idx = cstack.cs_idx as usize;
         if (cstack.cs_flags[cur_idx] & cond_type) != 0 {

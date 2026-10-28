@@ -1,8 +1,8 @@
 //! Buffered file descriptor reading and writing (`src/nvim/os/fileio.c`).
 
+use std::ffi::c_char;
 #[cfg(unix)]
 use std::ffi::c_void;
-use std::ffi::{c_char, c_int};
 
 use crate::fileio::O_RDONLY;
 use crate::memory::ARENA_BLOCK_SIZE;
@@ -13,20 +13,20 @@ use crate::os::fs::{
 #[cfg(unix)]
 use crate::os::fs::{iovec, os_readv};
 
-pub const K_FILE_READ_ONLY: c_int = 1;
-pub const K_FILE_CREATE: c_int = 2;
-pub const K_FILE_WRITE_ONLY: c_int = 4;
-pub const K_FILE_NO_SYMLINK: c_int = 8;
-pub const K_FILE_CREATE_ONLY: c_int = 16;
-pub const K_FILE_TRUNCATE: c_int = 32;
-pub const K_FILE_APPEND: c_int = 64;
-pub const K_FILE_NON_BLOCKING: c_int = 128;
-pub const K_FILE_MK_DIR: c_int = 256;
+pub const K_FILE_READ_ONLY: i32 = 1;
+pub const K_FILE_CREATE: i32 = 2;
+pub const K_FILE_WRITE_ONLY: i32 = 4;
+pub const K_FILE_NO_SYMLINK: i32 = 8;
+pub const K_FILE_CREATE_ONLY: i32 = 16;
+pub const K_FILE_TRUNCATE: i32 = 32;
+pub const K_FILE_APPEND: i32 = 64;
+pub const K_FILE_NON_BLOCKING: i32 = 128;
+pub const K_FILE_MK_DIR: i32 = 256;
 
 #[repr(C)]
 #[derive(Debug)]
 pub struct FileDescriptor {
-    pub fd: c_int,
+    pub fd: i32,
     pub buffer: Vec<c_char>,
     pub read_pos: usize,
     pub write_pos: usize,
@@ -69,11 +69,11 @@ pub fn file_space(fp: &FileDescriptor) -> usize {
 pub fn file_open(
     ret_fp: &mut FileDescriptor,
     fname: impl crate::strings::IntoCCharPtr,
-    flags: c_int,
-    mode: c_int,
-) -> c_int {
+    flags: i32,
+    mode: i32,
+) -> i32 {
     let fname = fname.into_c_char_ptr();
-    let mut os_open_flags: c_int = 0;
+    let mut os_open_flags: i32 = 0;
     let mut wr: Option<bool> = None;
 
     if (flags & K_FILE_WRITE_ONLY) != 0 {
@@ -131,7 +131,7 @@ pub fn file_open(
 ///
 /// # Safety
 /// `ret_fp` must be a valid writable pointer.
-pub fn file_open_fd(ret_fp: &mut FileDescriptor, fd: c_int, flags: c_int) -> c_int {
+pub fn file_open_fd(ret_fp: &mut FileDescriptor, fd: i32, flags: i32) -> i32 {
     ret_fp.wr = (flags
         & (K_FILE_CREATE
             | K_FILE_CREATE_ONLY
@@ -154,7 +154,7 @@ pub fn file_open_fd(ret_fp: &mut FileDescriptor, fd: c_int, flags: c_int) -> c_i
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer.
-pub fn file_open_stdin(fp: &mut FileDescriptor) -> c_int {
+pub fn file_open_stdin(fp: &mut FileDescriptor) -> i32 {
     let fd = os_open_stdin_fd();
     file_open_fd(fp, fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING)
 }
@@ -187,7 +187,7 @@ pub fn file_open_buffer(
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-pub fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> c_int {
+pub fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> i32 {
     if fp.fd < 0 {
         return 0;
     }
@@ -211,7 +211,7 @@ pub fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> c_int {
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-pub fn file_fsync(fp: &mut FileDescriptor) -> c_int {
+pub fn file_fsync(fp: &mut FileDescriptor) -> i32 {
     if !fp.wr {
         return 0;
     }
@@ -230,7 +230,7 @@ pub fn file_fsync(fp: &mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-pub fn file_flush(fp: *mut FileDescriptor) -> c_int {
+pub fn file_flush(fp: *mut FileDescriptor) -> i32 {
     let fp = unsafe { &mut *fp };
     if !fp.wr {
         return 0;
@@ -245,7 +245,7 @@ pub fn file_flush(fp: *mut FileDescriptor) -> c_int {
     fp.read_pos = 0;
     fp.write_pos = 0;
     if wres != to_write as isize {
-        return if wres >= 0 { UV_EIO } else { wres as c_int };
+        return if wres >= 0 { UV_EIO } else { wres as i32 };
     }
     0
 }

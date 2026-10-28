@@ -1,12 +1,12 @@
 //! VTerm input byte stream parser (`src/nvim/vterm/parser.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::vterm::keyboard::VTermStateFull;
 use crate::vterm::mouse::{CSI_LEADER_MAX, INTERMED_MAX, VTerm};
 
-pub type VTermTerminator = c_int;
+pub type VTermTerminator = i32;
 
 pub(crate) const VTERM_TERMINATOR_BEL: VTermTerminator = 0;
 const VTERM_TERMINATOR_ST: VTermTerminator = 1;
@@ -14,17 +14,17 @@ const VTERM_TERMINATOR_ST: VTermTerminator = 1;
 pub(crate) const CSI_ARG_FLAG_MORE: i64 = (1u32 << 31) as i64;
 pub(crate) const CSI_ARG_MISSING: i64 = ((1u32 << 31) - 1) as i64;
 
-pub(crate) const NORMAL: c_int = 0;
-const CSI_LEADER: c_int = 1;
-const CSI_ARGS: c_int = 2;
-const CSI_INTERMED: c_int = 3;
-const DCS_COMMAND: c_int = 4;
-const OSC_COMMAND: c_int = 5;
-const OSC: c_int = 6;
-const DCS_VTERM: c_int = 7;
-const APC: c_int = 8;
-const PM: c_int = 9;
-const SOS: c_int = 10;
+pub(crate) const NORMAL: i32 = 0;
+const CSI_LEADER: i32 = 1;
+const CSI_ARGS: i32 = 2;
+const CSI_INTERMED: i32 = 3;
+const DCS_COMMAND: i32 = 4;
+const OSC_COMMAND: i32 = 5;
+const OSC: i32 = 6;
+const DCS_VTERM: i32 = 7;
+const APC: i32 = 8;
+const PM: i32 = 9;
+const SOS: i32 = 10;
 
 #[derive(Clone, Copy)]
 pub struct VTermStringFragment {
@@ -77,28 +77,27 @@ impl VTermStringFragment {
 pub type VTermCsiFn<T> = fn(
     leader: *const c_char,
     args: *const i64,
-    argcount: c_int,
+    argcount: i32,
     intermed: *const c_char,
     command: c_char,
     user: *mut T,
-) -> c_int;
+) -> i32;
 
 pub type VTermDcsFn<T> =
-    fn(command: *const c_char, commandlen: usize, frag: VTermStringFragment, user: *mut T) -> c_int;
+    fn(command: *const c_char, commandlen: usize, frag: VTermStringFragment, user: *mut T) -> i32;
 
 #[repr(C)]
 pub struct VTermParserCallbacks {
-    pub text: Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
-    pub control: Option<fn(control: u8, user: *mut VTermStateFull) -> c_int>,
-    pub escape: Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
+    pub text: Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> i32>,
+    pub control: Option<fn(control: u8, user: *mut VTermStateFull) -> i32>,
+    pub escape: Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> i32>,
     pub csi: Option<VTermCsiFn<VTermStateFull>>,
-    pub osc:
-        Option<fn(command: c_int, frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
+    pub osc: Option<fn(command: i32, frag: VTermStringFragment, user: *mut VTermStateFull) -> i32>,
     pub dcs: Option<VTermDcsFn<VTermStateFull>>,
-    pub apc: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
-    pub pm: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
-    pub sos: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
-    pub resize: Option<fn(rows: c_int, cols: c_int, user: *mut VTermStateFull) -> c_int>,
+    pub apc: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> i32>,
+    pub pm: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> i32>,
+    pub sos: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> i32>,
+    pub resize: Option<fn(rows: i32, cols: i32, user: *mut VTermStateFull) -> i32>,
 }
 
 #[inline]
@@ -107,7 +106,7 @@ fn is_intermed(c: u8) -> bool {
 }
 
 #[inline]
-fn is_string_state(state: c_int) -> bool {
+fn is_string_state(state: i32) -> bool {
     state >= OSC_COMMAND
 }
 
@@ -387,7 +386,7 @@ pub fn vterm_input_write(
                         } else {
                             vt.parser.osc.command *= 10;
                         }
-                        vt.parser.osc.command += c_int::from(c - b'0');
+                        vt.parser.osc.command += i32::from(c - b'0');
                         break 'state_machine;
                     }
                     if c == b';' {

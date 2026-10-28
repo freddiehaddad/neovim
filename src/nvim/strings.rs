@@ -26,27 +26,27 @@ use crate::option::{csh_like_shell, fish_like_shell};
 #[cfg(windows)]
 use crate::option_vars::*;
 use crate::plines::linetabsize_col;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_void};
 use std::ptr;
 
 const CTRL_V: c_char = 0x16;
 
-pub const TYPE_UNKNOWN: c_int = -1;
-pub const TYPE_INT: c_int = 0;
-pub const TYPE_LONGINT: c_int = 1;
-pub const TYPE_LONGLONGINT: c_int = 2;
-pub const TYPE_SIGNEDSIZET: c_int = 3;
-pub const TYPE_UNSIGNEDINT: c_int = 4;
-pub const TYPE_UNSIGNEDLONGINT: c_int = 5;
-pub const TYPE_UNSIGNEDLONGLONGINT: c_int = 6;
-pub const TYPE_SIZET: c_int = 7;
-pub const TYPE_POINTER: c_int = 8;
-pub const TYPE_PERCENT: c_int = 9;
-pub const TYPE_CHAR: c_int = 10;
-pub const TYPE_STRING: c_int = 11;
-pub const TYPE_FLOAT: c_int = 12;
+pub const TYPE_UNKNOWN: i32 = -1;
+pub const TYPE_INT: i32 = 0;
+pub const TYPE_LONGINT: i32 = 1;
+pub const TYPE_LONGLONGINT: i32 = 2;
+pub const TYPE_SIGNEDSIZET: i32 = 3;
+pub const TYPE_UNSIGNEDINT: i32 = 4;
+pub const TYPE_UNSIGNEDLONGINT: i32 = 5;
+pub const TYPE_UNSIGNEDLONGLONGINT: i32 = 6;
+pub const TYPE_SIZET: i32 = 7;
+pub const TYPE_POINTER: i32 = 8;
+pub const TYPE_PERCENT: i32 = 9;
+pub const TYPE_CHAR: i32 = 10;
+pub const TYPE_STRING: i32 = 11;
+pub const TYPE_FLOAT: i32 = 12;
 
-pub const MAX_ALLOWED_STRING_WIDTH: c_uint = 1_048_576;
+pub const MAX_ALLOWED_STRING_WIDTH: u32 = 1_048_576;
 
 const E_PRINTF: &CStr = c"E766: Insufficient arguments for printf()";
 const E_CANNOT_MIX_POSITIONAL: &CStr =
@@ -60,8 +60,8 @@ const E_POSITIONAL_TYPE_INCONSISTENT: &CStr =
 const E_INVALID_FORMAT_SPECIFIER: &CStr = c"E1505: Invalid format specifier: %s";
 
 unsafe extern "C" {
-    pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
-    pub fn strerror(errnum: c_int) -> *mut c_char;
+    pub fn strcoll(s1: *const c_char, s2: *const c_char) -> i32;
+    pub fn strerror(errnum: i32) -> *mut c_char;
 }
 
 pub trait IntoCCharPtr {
@@ -382,7 +382,7 @@ pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
                 p = p.add(l);
                 continue;
             }
-            if !vim_strchr(esc_chars, (*p as u8) as c_int).is_null() || (bsl && rem_backslash(p)) {
+            if !vim_strchr(esc_chars, (*p as u8) as i32).is_null() || (bsl && rem_backslash(p)) {
                 length += 1;
             }
             length += 1;
@@ -398,7 +398,7 @@ pub fn vim_strsave_escaped_ext<S1: IntoCCharPtr, S2: IntoCCharPtr>(
                 p = p.add(l);
                 continue;
             }
-            if !vim_strchr(esc_chars, (*p as u8) as c_int).is_null() || (bsl && rem_backslash(p)) {
+            if !vim_strchr(esc_chars, (*p as u8) as i32).is_null() || (bsl && rem_backslash(p)) {
                 escaped.push(cc as u8);
             }
             escaped.push(*p as u8);
@@ -561,7 +561,7 @@ pub fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
         while *p != NUL {
             let ci = utf_ptr2_str_char_info(p).chr;
             let c = if ci.value < 0 {
-                (*p as u8) as c_int
+                (*p as u8) as i32
             } else {
                 ci.value
             };
@@ -582,7 +582,7 @@ pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString 
         while *p != NUL {
             let char_info = utf_ptr2_str_char_info(p).chr;
             let c = if char_info.value < 0 {
-                (*p as u8) as c_int
+                (*p as u8) as i32
             } else {
                 char_info.value
             };
@@ -619,11 +619,11 @@ pub fn del_trailing_spaces(ptr: *mut c_char) {
 }
 
 #[inline]
-pub fn vim_haschr<S: IntoCCharPtr>(string: S, c: c_int) -> bool {
+pub fn vim_haschr<S: IntoCCharPtr>(string: S, c: i32) -> bool {
     !vim_strchr(string, c).is_null()
 }
 
-pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: c_int) -> *mut c_char {
+pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: i32) -> *mut c_char {
     let string = string.into_c_char_ptr();
     unsafe {
         if string.is_null() || c <= 0 {
@@ -631,7 +631,7 @@ pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: c_int) -> *mut c_char {
         } else if c < 0x80 {
             let mut p = string;
             while *p != NUL {
-                if (*p as u8) as c_int == c {
+                if (*p as u8) as i32 == c {
                     return p.cast_mut();
                 }
                 p = p.add(1);
@@ -666,7 +666,7 @@ pub fn concat_str<S1: IntoCCharPtr, S2: IntoCCharPtr>(str1: S1, str2: S2) -> std
     crate::memory::cstr_from_bytes(&dest)
 }
 
-pub fn tv_nr(tvs: *mut TypVal, idxp: &mut c_int) -> Varnumber {
+pub fn tv_nr(tvs: *mut TypVal, idxp: &mut i32) -> Varnumber {
     unsafe {
         let idx = (*idxp - 1) as usize;
         let mut n: Varnumber = 0;
@@ -686,7 +686,7 @@ pub fn tv_nr(tvs: *mut TypVal, idxp: &mut c_int) -> Varnumber {
 
 pub fn tv_str(
     tvs: *mut TypVal,
-    idxp: &mut c_int,
+    idxp: &mut i32,
     tofree: &mut Option<std::ffi::CString>,
 ) -> *const c_char {
     unsafe {
@@ -710,7 +710,7 @@ pub fn tv_str(
     }
 }
 
-pub fn tv_ptr(tvs: *const TypVal, idxp: &mut c_int) -> *const c_void {
+pub fn tv_ptr(tvs: *const TypVal, idxp: &mut i32) -> *const c_void {
     unsafe {
         let idx = (*idxp - 1) as usize;
         if (*tvs.add(idx)).v_type == VarType::VarUnknown {
@@ -722,7 +722,7 @@ pub fn tv_ptr(tvs: *const TypVal, idxp: &mut c_int) -> *const c_void {
     }
 }
 
-pub fn tv_float(tvs: *mut TypVal, idxp: &mut c_int) -> TvFloat {
+pub fn tv_float(tvs: *mut TypVal, idxp: &mut i32) -> TvFloat {
     unsafe {
         let idx = (*idxp - 1) as usize;
         let mut f: TvFloat = 0.0;
@@ -747,8 +747,8 @@ pub fn tv_float(tvs: *mut TypVal, idxp: &mut c_int) -> TvFloat {
 pub fn infinity_str(
     positive: bool,
     fmt_spec: c_char,
-    force_sign: c_int,
-    space_for_positive: c_int,
+    force_sign: i32,
+    space_for_positive: i32,
 ) -> &'static CStr {
     const TABLE: [&CStr; 8] = [
         c"-inf", c"inf", c"+inf", c" inf", c"-INF", c"INF", c"+INF", c" INF",
@@ -764,7 +764,7 @@ pub fn infinity_str(
     TABLE[idx]
 }
 
-pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> i32 {
     let mut type_ = type_.into_c_char_ptr();
     unsafe {
         let mut length_modifier: u8 = 0;
@@ -847,7 +847,7 @@ fn format_typename(type_: impl crate::strings::IntoCCharPtr) -> *const c_char {
 
 fn adjust_types(
     ap_types: &mut Vec<*const c_char>,
-    arg: c_int,
+    arg: i32,
     type_: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let type_ = type_.into_c_char_ptr();
@@ -902,7 +902,7 @@ pub fn format_overflow_error(pstart: impl crate::strings::IntoCCharPtr) {
         }
         semsg!(
             gettext(E_VAL_TOO_LARGE_LEN),
-            p.offset_from(pstart) as c_int,
+            p.offset_from(pstart) as i32,
             pstart,
         );
     }
@@ -911,16 +911,16 @@ pub fn format_overflow_error(pstart: impl crate::strings::IntoCCharPtr) {
 pub fn get_unsigned_int(
     pstart: impl crate::strings::IntoCCharPtr,
     p: *mut *const c_char,
-    uj: &mut c_uint,
+    uj: &mut u32,
     overflow_err: bool,
 ) -> bool {
     let pstart = pstart.into_c_char_ptr();
     unsafe {
-        *uj = ((**p as u8) - b'0') as c_uint;
+        *uj = ((**p as u8) - b'0') as u32;
         *p = (*p).add(1);
 
         while ascii_isdigit(**p) && *uj < MAX_ALLOWED_STRING_WIDTH {
-            *uj = 10 * (*uj) + (((**p as u8) - b'0') as c_uint);
+            *uj = 10 * (*uj) + (((**p as u8) - b'0') as u32);
             *p = (*p).add(1);
         }
 
@@ -937,7 +937,7 @@ pub fn get_unsigned_int(
 }
 
 pub fn parse_fmt_types(
-    num_posarg: &mut c_int,
+    num_posarg: &mut i32,
     fmt: impl crate::strings::IntoCCharPtr,
     tvs: *mut TypVal,
 ) -> bool {
@@ -975,7 +975,7 @@ pub fn parse_fmt_types(
                     p = p.add(1);
                 }
             } else {
-                let mut pos_arg: c_int = -1;
+                let mut pos_arg: i32 = -1;
                 let pstart = p.add(1);
                 p = p.add(1);
 
@@ -989,11 +989,11 @@ pub fn parse_fmt_types(
                         semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                         fail!();
                     }
-                    let mut uj: c_uint = 0;
+                    let mut uj: u32 = 0;
                     if !get_unsigned_int(pstart, &raw mut p, &mut uj, !tvs.is_null()) {
                         fail!();
                     }
-                    pos_arg = uj as c_int;
+                    pos_arg = uj as i32;
                     any_pos = true;
                     check_pos_arg!();
                     p = p.add(1);
@@ -1007,7 +1007,7 @@ pub fn parse_fmt_types(
                 if *arg == b'*' as c_char {
                     p = p.add(1);
                     if ascii_isdigit(*p) {
-                        let mut uj: c_uint = 0;
+                        let mut uj: u32 = 0;
                         if !get_unsigned_int(arg.add(1), &raw mut p, &mut uj, !tvs.is_null()) {
                             fail!();
                         }
@@ -1018,7 +1018,7 @@ pub fn parse_fmt_types(
                         p = p.add(1);
                         any_pos = true;
                         check_pos_arg!();
-                        if !adjust_types(&mut ap_types, uj as c_int, arg) {
+                        if !adjust_types(&mut ap_types, uj as i32, arg) {
                             fail!();
                         }
                     } else {
@@ -1027,7 +1027,7 @@ pub fn parse_fmt_types(
                     }
                 } else if ascii_isdigit(*p) {
                     let digstart = p;
-                    let mut uj: c_uint = 0;
+                    let mut uj: u32 = 0;
                     if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                         fail!();
                     }
@@ -1043,7 +1043,7 @@ pub fn parse_fmt_types(
                     if *arg == b'*' as c_char {
                         p = p.add(1);
                         if ascii_isdigit(*p) {
-                            let mut uj: c_uint = 0;
+                            let mut uj: u32 = 0;
                             if !get_unsigned_int(arg.add(1), &raw mut p, &mut uj, !tvs.is_null()) {
                                 fail!();
                             }
@@ -1051,7 +1051,7 @@ pub fn parse_fmt_types(
                                 any_pos = true;
                                 check_pos_arg!();
                                 p = p.add(1);
-                                if !adjust_types(&mut ap_types, uj as c_int, arg) {
+                                if !adjust_types(&mut ap_types, uj as i32, arg) {
                                     fail!();
                                 }
                             } else {
@@ -1064,7 +1064,7 @@ pub fn parse_fmt_types(
                         }
                     } else if ascii_isdigit(*p) {
                         let digstart = p;
-                        let mut uj: c_uint = 0;
+                        let mut uj: u32 = 0;
                         if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                             fail!();
                         }
@@ -1116,16 +1116,16 @@ pub fn parse_fmt_types(
             }
         }
 
-        *num_posarg = ap_types.len() as c_int;
+        *num_posarg = ap_types.len() as i32;
         for (arg_idx, &ap_type) in ap_types.iter().enumerate() {
             if ap_type.is_null() {
-                semsg!(gettext(E_FMT_ARG_NR_UNUSED), (arg_idx + 1) as c_int, fmt,);
+                semsg!(gettext(E_FMT_ARG_NR_UNUSED), (arg_idx + 1) as i32, fmt,);
                 fail!();
             }
             if !tvs.is_null() && (*tvs.add(arg_idx)).v_type == VarType::VarUnknown {
                 semsg!(
                     gettext(E_POSITIONAL_OUT_OF_BOUNDS),
-                    (arg_idx + 1) as c_int,
+                    (arg_idx + 1) as i32,
                     fmt,
                 );
                 fail!();
@@ -1313,7 +1313,7 @@ impl IntoFmtVal for &CStr {
 }
 
 #[inline]
-fn fmt_arg_val(args: &[FmtVal], arg_idx: &mut c_int) -> FmtVal {
+fn fmt_arg_val(args: &[FmtVal], arg_idx: &mut i32) -> FmtVal {
     let idx = (*arg_idx - 1) as usize;
     *arg_idx += 1;
     args.get(idx).copied().unwrap_or(FmtVal::Signed(0))
@@ -1325,15 +1325,15 @@ fn vim_vsnprintf_typval_inner(
     fmt: impl crate::strings::IntoCCharPtr,
     tvs: *mut TypVal,
     fmt_args: &[FmtVal],
-) -> c_int {
+) -> i32 {
     let str_out = str_out.into_c_char_ptr().cast_mut();
     let fmt = fmt.into_c_char_ptr();
     unsafe {
         let mut str_l: usize = 0;
         let mut str_avail = str_l < str_m;
         let mut p = fmt;
-        let mut num_posarg: c_int = 0;
-        let mut arg_idx: c_int = 1;
+        let mut num_posarg: i32 = 0;
+        let mut arg_idx: i32 = 1;
 
         if !parse_fmt_types(&mut num_posarg, fmt, tvs) {
             return 0;
@@ -1364,7 +1364,7 @@ fn vim_vsnprintf_typval_inner(
                 let mut justify_left = false;
                 let mut alternate_form = false;
                 let mut force_sign = false;
-                let mut space_for_positive: c_int = 1;
+                let mut space_for_positive: i32 = 1;
                 let mut length_modifier: c_char = NUL;
                 let mut tmp = [0 as c_char; TMP_LEN];
                 let mut str_arg: *const c_char = ptr::null();
@@ -1373,7 +1373,7 @@ fn vim_vsnprintf_typval_inner(
                 let mut number_of_zeros_to_pad: usize = 0;
                 let mut zero_padding_insertion_ind: usize = 0;
                 let mut tofree: Option<std::ffi::CString> = None;
-                let mut pos_arg: c_int = -1;
+                let mut pos_arg: i32 = -1;
 
                 p = p.add(1);
 
@@ -1384,12 +1384,12 @@ fn vim_vsnprintf_typval_inner(
 
                 if *ptype == b'$' as c_char {
                     let digstart = p;
-                    let mut uj: c_uint = 0;
+                    let mut uj: u32 = 0;
                     if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                         had_error = true;
                         break 'fmt_loop;
                     }
-                    pos_arg = uj as c_int;
+                    pos_arg = uj as i32;
                     p = p.add(1);
                 }
 
@@ -1428,28 +1428,28 @@ fn vim_vsnprintf_typval_inner(
                     p = p.add(1);
 
                     if ascii_isdigit(*p) {
-                        let mut uj: c_uint = 0;
+                        let mut uj: u32 = 0;
                         if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                             had_error = true;
                             break 'fmt_loop;
                         }
-                        arg_idx = uj as c_int;
+                        arg_idx = uj as i32;
                         p = p.add(1);
                     }
 
                     let mut j = if !tvs.is_null() {
-                        tv_nr(tvs, &mut arg_idx) as c_int
+                        tv_nr(tvs, &mut arg_idx) as i32
                     } else {
-                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
+                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
                     };
 
-                    if j > MAX_ALLOWED_STRING_WIDTH as c_int {
+                    if j > MAX_ALLOWED_STRING_WIDTH as i32 {
                         if !tvs.is_null() {
                             format_overflow_error(digstart);
                             had_error = true;
                             break 'fmt_loop;
                         } else {
-                            j = MAX_ALLOWED_STRING_WIDTH as c_int;
+                            j = MAX_ALLOWED_STRING_WIDTH as i32;
                         }
                     }
 
@@ -1461,7 +1461,7 @@ fn vim_vsnprintf_typval_inner(
                     }
                 } else if ascii_isdigit(*p) {
                     let digstart = p;
-                    let mut uj: c_uint = 0;
+                    let mut uj: u32 = 0;
                     if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                         had_error = true;
                         break 'fmt_loop;
@@ -1475,7 +1475,7 @@ fn vim_vsnprintf_typval_inner(
 
                     if ascii_isdigit(*p) {
                         let digstart = p;
-                        let mut uj: c_uint = 0;
+                        let mut uj: u32 = 0;
                         if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                             had_error = true;
                             break 'fmt_loop;
@@ -1486,28 +1486,28 @@ fn vim_vsnprintf_typval_inner(
                         p = p.add(1);
 
                         if ascii_isdigit(*p) {
-                            let mut uj: c_uint = 0;
+                            let mut uj: u32 = 0;
                             if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                                 had_error = true;
                                 break 'fmt_loop;
                             }
-                            arg_idx = uj as c_int;
+                            arg_idx = uj as i32;
                             p = p.add(1);
                         }
 
                         let mut j = if !tvs.is_null() {
-                            tv_nr(tvs, &mut arg_idx) as c_int
+                            tv_nr(tvs, &mut arg_idx) as i32
                         } else {
-                            fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
+                            fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
                         };
 
-                        if j > MAX_ALLOWED_STRING_WIDTH as c_int {
+                        if j > MAX_ALLOWED_STRING_WIDTH as i32 {
                             if !tvs.is_null() {
                                 format_overflow_error(digstart);
                                 had_error = true;
                                 break 'fmt_loop;
                             } else {
-                                j = MAX_ALLOWED_STRING_WIDTH as c_int;
+                                j = MAX_ALLOWED_STRING_WIDTH as i32;
                             }
                         }
 
@@ -1567,9 +1567,9 @@ fn vim_vsnprintf_typval_inner(
                             }
                             b'c' => {
                                 let j = if !tvs.is_null() {
-                                    tv_nr(tvs, &mut arg_idx) as c_int
+                                    tv_nr(tvs, &mut arg_idx) as i32
                                 } else {
-                                    fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
                                 };
                                 uchar_arg = j as u8;
                                 str_arg = (&raw const uchar_arg).cast::<c_char>();
@@ -1617,7 +1617,7 @@ fn vim_vsnprintf_typval_inner(
                         }
                     }
                     b'd' | b'u' | b'b' | b'B' | b'o' | b'x' | b'X' | b'p' => {
-                        let mut arg_sign: c_int = 0;
+                        let mut arg_sign: i32 = 0;
                         let mut arg: i64 = 0;
                         let mut uarg: u64 = 0;
                         let mut ptr_arg: *const c_void = ptr::null();
@@ -1637,22 +1637,22 @@ fn vim_vsnprintf_typval_inner(
                             } else {
                                 fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
                             };
-                            arg_sign = c_int::from(uarg != 0);
+                            arg_sign = i32::from(uarg != 0);
                         } else if fmt_spec == b'd' as c_char {
                             match length_modifier as u8 {
                                 0 => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as c_int
+                                        tv_nr(tvs, &mut arg_idx) as i32
                                     } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
+                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
                                     };
                                     arg = i64::from(v);
                                 }
                                 b'h' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as c_int
+                                        tv_nr(tvs, &mut arg_idx) as i32
                                     } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
+                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
                                     };
                                     arg = i64::from(v as i16);
                                 }
@@ -1660,7 +1660,7 @@ fn vim_vsnprintf_typval_inner(
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &mut arg_idx) as i64
                                     } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i64
+                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64()
                                     };
                                     arg = v as i64;
                                 }
@@ -1691,17 +1691,17 @@ fn vim_vsnprintf_typval_inner(
                             match length_modifier as u8 {
                                 0 => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as c_uint
+                                        tv_nr(tvs, &mut arg_idx) as u32
                                     } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as c_uint
+                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as u32
                                     };
                                     uarg = u64::from(v);
                                 }
                                 b'h' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as c_uint
+                                        tv_nr(tvs, &mut arg_idx) as u32
                                     } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as c_uint
+                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as u32
                                     };
                                     uarg = u64::from(v as u16);
                                 }
@@ -1709,7 +1709,7 @@ fn vim_vsnprintf_typval_inner(
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &mut arg_idx) as u64
                                     } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as u64
+                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
                                     };
                                     uarg = v as u64;
                                 }
@@ -1731,7 +1731,7 @@ fn vim_vsnprintf_typval_inner(
                                 }
                                 _ => {}
                             }
-                            arg_sign = c_int::from(uarg != 0);
+                            arg_sign = i32::from(uarg != 0);
                         }
 
                         str_arg = tmp.as_ptr();
@@ -1910,7 +1910,7 @@ fn vim_vsnprintf_typval_inner(
                                 infinity_str(
                                     f > 0.0,
                                     fmt_spec,
-                                    c_int::from(force_sign),
+                                    i32::from(force_sign),
                                     space_for_positive,
                                 ),
                                 tmp.len(),
@@ -1969,9 +1969,9 @@ fn vim_vsnprintf_typval_inner(
                                     tp = vim_strchr(
                                         tmp.as_ptr(),
                                         if fmt_spec == b'e' as c_char {
-                                            b'e' as c_int
+                                            b'e' as i32
                                         } else {
-                                            b'E' as c_int
+                                            b'E' as i32
                                         },
                                     );
                                     if !tp.is_null() {
@@ -2012,9 +2012,9 @@ fn vim_vsnprintf_typval_inner(
                                 let tp = vim_strchr(
                                     tmp.as_ptr(),
                                     if fmt_spec == b'e' as c_char {
-                                        b'e' as c_int
+                                        b'e' as i32
                                     } else {
-                                        b'E' as c_int
+                                        b'E' as i32
                                     },
                                 );
                                 if !tp.is_null()
@@ -2134,7 +2134,7 @@ fn vim_vsnprintf_typval_inner(
             }
         }
 
-        str_l as c_int
+        str_l as i32
     }
 }
 
@@ -2143,7 +2143,7 @@ pub fn vim_snprintf_fmt(
     str_m: usize,
     fmt: impl crate::strings::IntoCCharPtr,
     args: &[FmtVal],
-) -> c_int {
+) -> i32 {
     let str_out = str_out.into_c_char_ptr().cast_mut();
     let fmt = fmt.into_c_char_ptr();
     vim_vsnprintf_typval_inner(str_out, str_m, fmt, ptr::null_mut(), args)
@@ -2154,7 +2154,7 @@ pub fn vim_snprintf_add_fmt(
     str_m: usize,
     fmt: impl crate::strings::IntoCCharPtr,
     args: &[FmtVal],
-) -> c_int {
+) -> i32 {
     let str_out = str_out.into_c_char_ptr().cast_mut();
     let fmt = fmt.into_c_char_ptr();
     unsafe {
@@ -2233,7 +2233,7 @@ pub fn vim_snprintf_typval_only(
     str_m: usize,
     fmt: impl crate::strings::IntoCCharPtr,
     tvs: *mut TypVal,
-) -> c_int {
+) -> i32 {
     let fmt = fmt.into_c_char_ptr();
     vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[])
 }
@@ -2329,7 +2329,7 @@ fn byteidx_common(argvars: &mut [TypVal], rettv: &mut TypVal, comp: bool) {
             }
         }
 
-        let ptr2len: fn(*const c_char) -> c_int = if comp { utf_ptr2len } else { utfc_ptr2len };
+        let ptr2len: fn(*const c_char) -> i32 = if comp { utf_ptr2len } else { utfc_ptr2len };
 
         let mut t = str_;
         while idx > 0 {
@@ -2338,11 +2338,7 @@ fn byteidx_common(argvars: &mut [TypVal], rettv: &mut TypVal, comp: bool) {
             }
             if utf16idx != 0 {
                 let clen = ptr2len(t);
-                let c = if clen > 1 {
-                    utf_ptr2char(t)
-                } else {
-                    *t as c_int
-                };
+                let c = if clen > 1 { utf_ptr2char(t) } else { *t as i32 };
                 if c > 0xFFFF {
                     idx -= 1;
                 }
@@ -2393,14 +2389,14 @@ pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             }
         }
 
-        let ptr2len: fn(*const c_char) -> c_int = if countcc != 0 {
+        let ptr2len: fn(*const c_char) -> i32 = if countcc != 0 {
             utf_ptr2len
         } else {
             utfc_ptr2len
         };
 
         let mut p = str_;
-        let mut len: c_int = 0;
+        let mut len: i32 = 0;
         while if utf16idx != 0 {
             idx >= 0
         } else {
@@ -2419,11 +2415,7 @@ pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             if utf16idx != 0 {
                 idx -= 1;
                 let clen = ptr2len(p);
-                let c = if clen > 1 {
-                    utf_ptr2char(p)
-                } else {
-                    *p as c_int
-                };
+                let c = if clen > 1 { utf_ptr2char(p) } else { *p as i32 };
                 if c > 0xFFFF {
                     idx -= 1;
                 }
@@ -2453,11 +2445,11 @@ pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
-        let mut base: c_int = 10;
-        let mut what: c_int = 0;
+        let mut base: i32 = 10;
+        let mut what: i32 = 0;
 
         if argvars[1].v_type != VarType::VarUnknown {
-            base = tv_get_number(&argvars[1]) as c_int;
+            base = tv_get_number(&argvars[1]) as i32;
             if !matches!(base, 2 | 8 | 10 | 16) {
                 emsg(gettext(E_INVARG));
                 return;
@@ -2570,7 +2562,7 @@ fn strchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, skipcc: bool) {
     unsafe {
         let mut s = tv_get_string(&argvars[0]);
         let mut len: Varnumber = 0;
-        let func_mb_ptr2char_adv: fn(*mut *const c_char) -> c_int = if skipcc {
+        let func_mb_ptr2char_adv: fn(*mut *const c_char) -> i32 = if skipcc {
             mb_ptr2char_adv
         } else {
             mb_cptr2char_adv
@@ -2620,7 +2612,7 @@ pub fn f_strutf16len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
         let mut s = tv_get_string(&argvars[0]);
         let mut len: Varnumber = 0;
-        let func_mb_ptr2char_adv: fn(*mut *const c_char) -> c_int = if countcc != 0 {
+        let func_mb_ptr2char_adv: fn(*mut *const c_char) -> i32 = if countcc != 0 {
             mb_cptr2char_adv
         } else {
             mb_ptr2char_adv
@@ -2639,9 +2631,9 @@ pub fn f_strutf16len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 pub fn f_strdisplaywidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     {
         let s = tv_get_string(&argvars[0]);
-        let mut col: c_int = 0;
+        let mut col: i32 = 0;
         if argvars[1].v_type != VarType::VarUnknown {
-            col = tv_get_number(&argvars[1]) as c_int;
+            col = tv_get_number(&argvars[1]) as i32;
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
             linetabsize_col(col, s.cast_mut()) - col,
@@ -2659,7 +2651,7 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         let p = tv_get_string(&argvars[0]);
         let slen = crate::memory::cstr_len(p);
 
-        let mut nbyte: c_int = 0;
+        let mut nbyte: i32 = 0;
         let mut skipcc: Varnumber = 0;
         let mut error = false;
         let mut nchar = tv_get_number_chk(&argvars[1], Some(&mut error));
@@ -2686,13 +2678,13 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
                     nchar -= 1;
                 }
             } else {
-                nbyte = nchar as c_int;
+                nbyte = nchar as i32;
             }
         }
-        let mut len: c_int = 0;
+        let mut len: i32 = 0;
         if argvars[2].v_type != VarType::VarUnknown {
-            let mut charlen = tv_get_number(&argvars[2]) as c_int;
-            while charlen > 0 && nbyte + len < slen as c_int {
+            let mut charlen = tv_get_number(&argvars[2]) as i32;
+            while charlen > 0 && nbyte + len < slen as i32 {
                 let off = nbyte + len;
                 if off < 0 {
                     len += 1;
@@ -2704,19 +2696,19 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
                 charlen -= 1;
             }
         } else {
-            len = (slen as c_int) - nbyte;
+            len = (slen as i32) - nbyte;
         }
 
         if nbyte < 0 {
             len += nbyte;
             nbyte = 0;
         } else if (nbyte as usize) > slen {
-            nbyte = slen as c_int;
+            nbyte = slen as i32;
         }
         if len < 0 {
             len = 0;
-        } else if nbyte + len > slen as c_int {
-            len = (slen as c_int) - nbyte;
+        } else if nbyte + len > slen as i32 {
+            len = (slen as i32) - nbyte;
         }
 
         crate::eval::typval::tv_set_string_len(rettv, p.add(nbyte as usize), len as usize);
@@ -2850,15 +2842,15 @@ pub fn f_utf16idx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
         }
 
-        let ptr2len: fn(*const c_char) -> c_int = if countcc != 0 {
+        let ptr2len: fn(*const c_char) -> i32 = if countcc != 0 {
             utf_ptr2len
         } else {
             utfc_ptr2len
         };
 
         let mut p = str_;
-        let mut len: c_int = 0;
-        let mut utf16idx: c_int = 0;
+        let mut len: i32 = 0;
+        let mut utf16idx: i32 = 0;
         while if charidx != 0 {
             idx >= 0
         } else {
@@ -2876,11 +2868,7 @@ pub fn f_utf16idx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
             utf16idx = len;
             let clen = ptr2len(p);
-            let c = if clen > 1 {
-                utf_ptr2char(p)
-            } else {
-                *p as c_int
-            };
+            let c = if clen > 1 { utf_ptr2char(p) } else { *p as i32 };
             if c > 0xFFFF {
                 len += 1;
             }
@@ -2934,7 +2922,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             let mut cpstr = in_str;
             let inlen = utfc_ptr2len(in_str) as usize;
             let mut cplen = inlen;
-            let mut idx: c_int = 0;
+            let mut idx: i32 = 0;
             let mut p = fromstr;
             while *p != NUL {
                 let fromlen = utfc_ptr2len(p) as usize;
@@ -2992,7 +2980,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         let mut buf2 = [0 as c_char; NUMBUFLEN];
         let mut head = tv_get_string_buf_chk(&argvars[0], buf1.as_mut_ptr());
         let mut mask: *const c_char = ptr::null();
-        let mut dir: c_int = 0;
+        let mut dir: i32 = 0;
 
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -3012,7 +3000,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
             if argvars[2].v_type != VarType::VarUnknown {
                 let mut error = false;
-                dir = tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int;
+                dir = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
                 if error {
                     return;
                 }
@@ -3027,7 +3015,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             while *head != NUL {
                 let c1 = utf_ptr2char(head);
                 if mask.is_null() {
-                    if c1 > b' ' as c_int && c1 != 0xa0 {
+                    if c1 > b' ' as i32 && c1 != 0xa0 {
                         break;
                     }
                 } else {
@@ -3052,7 +3040,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 let prev = tail.sub((utf_head_off(head, tail.sub(1)) + 1) as usize);
                 let c1 = utf_ptr2char(prev);
                 if mask.is_null() {
-                    if c1 > b' ' as c_int && c1 != 0xa0 {
+                    if c1 > b' ' as i32 && c1 != 0xa0 {
                         break;
                     }
                 } else {
@@ -3190,7 +3178,7 @@ mod tests {
             assert!(!crate::strings::vim_haschr(s_abc.as_ptr(), 0));
             assert!(!crate::strings::vim_haschr(s_abc.as_ptr(), -1));
             assert_eq!(
-                vim_strchr(s_abc.as_ptr(), b'b' as c_int).offset_from(s_abc.as_ptr()),
+                vim_strchr(s_abc.as_ptr(), b'b' as i32).offset_from(s_abc.as_ptr()),
                 1
             );
             let s_utf = c"„«»“";

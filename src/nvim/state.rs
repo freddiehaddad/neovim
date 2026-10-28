@@ -20,37 +20,37 @@ use crate::os::input::{input_available, input_get, os_breakcheck};
 use crate::strings::vim_snprintf;
 use crate::ui::ui_flush;
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 pub const MODE_MAX_LENGTH: usize = 4;
 
-pub const MODE_NORMAL: c_int = 0x01;
-pub const MODE_VISUAL: c_int = 0x02;
-pub const MODE_OP_PENDING: c_int = 0x04;
-pub const MODE_CMDLINE: c_int = 0x08;
-pub const MODE_INSERT: c_int = 0x10;
-pub const MODE_LANGMAP: c_int = 0x20;
-pub const MODE_SELECT: c_int = 0x40;
-pub const MODE_TERMINAL: c_int = 0x80;
-pub const MAP_ALL_MODES: c_int = 0xff;
-pub const REPLACE_FLAG: c_int = 0x100;
-pub const MODE_REPLACE: c_int = REPLACE_FLAG | MODE_INSERT;
-pub const VREPLACE_FLAG: c_int = 0x200;
-pub const MODE_VREPLACE: c_int = REPLACE_FLAG | VREPLACE_FLAG | MODE_INSERT;
-pub const MODE_LREPLACE: c_int = REPLACE_FLAG | MODE_LANGMAP;
-pub const MODE_NORMAL_BUSY: c_int = 0x1000 | MODE_NORMAL;
-pub const MODE_HITRETURN: c_int = 0x2000 | MODE_NORMAL;
-pub const MODE_ASKMORE: c_int = 0x3000;
-pub const MODE_SETWSIZE: c_int = 0x4000;
-pub const MODE_EXTERNCMD: c_int = 0x5000;
-pub const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
+pub const MODE_NORMAL: i32 = 0x01;
+pub const MODE_VISUAL: i32 = 0x02;
+pub const MODE_OP_PENDING: i32 = 0x04;
+pub const MODE_CMDLINE: i32 = 0x08;
+pub const MODE_INSERT: i32 = 0x10;
+pub const MODE_LANGMAP: i32 = 0x20;
+pub const MODE_SELECT: i32 = 0x40;
+pub const MODE_TERMINAL: i32 = 0x80;
+pub const MAP_ALL_MODES: i32 = 0xff;
+pub const REPLACE_FLAG: i32 = 0x100;
+pub const MODE_REPLACE: i32 = REPLACE_FLAG | MODE_INSERT;
+pub const VREPLACE_FLAG: i32 = 0x200;
+pub const MODE_VREPLACE: i32 = REPLACE_FLAG | VREPLACE_FLAG | MODE_INSERT;
+pub const MODE_LREPLACE: i32 = REPLACE_FLAG | MODE_LANGMAP;
+pub const MODE_NORMAL_BUSY: i32 = 0x1000 | MODE_NORMAL;
+pub const MODE_HITRETURN: i32 = 0x2000 | MODE_NORMAL;
+pub const MODE_ASKMORE: i32 = 0x3000;
+pub const MODE_SETWSIZE: i32 = 0x4000;
+pub const MODE_EXTERNCMD: i32 = 0x5000;
+pub const MODE_SHOWMATCH: i32 = 0x6000 | MODE_INSERT;
 
-const K_OPT_VE_FLAG_INSERT: c_uint = 0x06;
+const K_OPT_VE_FLAG_INSERT: u32 = 0x06;
 
 pub trait EditorState {
-    fn check(&mut self) -> c_int;
-    fn execute(&mut self, key: c_int) -> c_int;
+    fn check(&mut self) -> i32;
+    fn execute(&mut self, key: i32) -> i32;
 }
 
 use crate::cursor::K_OPT_VE_FLAG_ALL;
@@ -205,7 +205,7 @@ pub fn virtual_active(wp: &mut WinInfoInfo) -> bool {
         && g_st().visual_global.mode == CTRL_V_CONST
 }
 
-pub fn get_real_state() -> c_int {
+pub fn get_real_state() -> i32 {
     if (g_st().state_global & MODE_NORMAL) != 0 {
         if g_st().visual_global.active {
             if g_st().visual_global.select {
@@ -276,8 +276,7 @@ pub fn get_mode(buf: *mut c_char) {
             i += 1;
         } else if g_st().visual_global.active {
             if g_st().visual_global.select {
-                *buf.add(i) =
-                    (g_st().visual_global.mode + (b's' as c_int) - (b'v' as c_int)) as c_char;
+                *buf.add(i) = (g_st().visual_global.mode + (b's' as i32) - (b'v' as i32)) as c_char;
                 i += 1;
             } else {
                 *buf.add(i) = g_st().visual_global.mode as c_char;
@@ -298,13 +297,13 @@ pub fn get_mode(buf: *mut c_char) {
             } else if !curbuf_mut().terminal.is_null() {
                 *buf.add(i) = b't' as c_char;
                 i += 1;
-                if g_st().restart_edit == b'I' as c_int {
+                if g_st().restart_edit == b'I' as i32 {
                     *buf.add(i) = b'T' as c_char;
                     i += 1;
                 }
-            } else if g_st().restart_edit == b'I' as c_int
-                || g_st().restart_edit == b'R' as c_int
-                || g_st().restart_edit == b'V' as c_int
+            } else if g_st().restart_edit == b'I' as i32
+                || g_st().restart_edit == b'R' as i32
+                || g_st().restart_edit == b'V' as i32
             {
                 *buf.add(i) = b'i' as c_char;
                 i += 1;
