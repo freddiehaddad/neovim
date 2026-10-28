@@ -1395,7 +1395,7 @@ pub fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
     }
 }
 
-fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
+fn sign_define_from_dict(mut name: *mut c_char, dict: Option<&dict_T>) -> c_int {
     unsafe {
         if name.is_null() {
             name = tv_dict_get_string(dict, c"name");
@@ -1412,14 +1412,14 @@ fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
         let mut numhl: *mut c_char = ptr::null_mut();
         let mut prio: c_int = -1;
 
-        if !dict.is_null() {
+        if dict.is_some() {
             icon = tv_dict_get_string(dict, c"icon");
             linehl = tv_dict_get_string(dict, c"linehl");
             text = tv_dict_get_string(dict, c"text");
             texthl = tv_dict_get_string(dict, c"texthl");
             culhl = tv_dict_get_string(dict, c"culhl");
             numhl = tv_dict_get_string(dict, c"numhl");
-            prio = tv_dict_get_number_def(dict.as_ref(), c"priority", -1) as c_int;
+            prio = tv_dict_get_number_def(dict, c"priority", -1) as c_int;
         }
 
         if sign_define_by_name(name, icon, text, linehl, texthl, culhl, numhl, prio) { 0 } else { -1 }
@@ -1436,7 +1436,7 @@ fn sign_define_multiple(l: Option<&list_T>, retlist: &mut list_T) {
             if li.li_tv.v_type == VarType::VAR_DICT {
                 retval = sign_define_from_dict(
                     ptr::null_mut(),
-                    li.li_tv.vval.v_dict(),
+                    unsafe { li.li_tv.vval.v_dict().as_ref() },
                 );
             } else {
                 emsg(gettext(e_dictreq));
@@ -1473,7 +1473,7 @@ pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         } else {
             ptr::null_mut()
         };
-        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_define_from_dict(name, d)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_define_from_dict(name, unsafe { d.as_ref() })));
     }
 }
 
@@ -1780,7 +1780,7 @@ pub fn f_sign_undefine(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
     }
 }
 
-fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: *mut dict_T) -> c_int {
+fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: Option<&dict_T>) -> c_int {
     unsafe {
         let mut id: c_int = 0;
         let mut buf: *mut buf_T = ptr::null_mut();
@@ -1793,15 +1793,15 @@ fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: *mut dict_T) -> c_i
             group = ptr::null_mut();
         }
 
-        if !dict.is_null() {
-            let di_buf = tv_dict_find(dict.as_ref(), c"buffer", -1);
+        if dict.is_some() {
+            let di_buf = tv_dict_find(dict, c"buffer", -1);
             if !di_buf.is_null() {
                 buf = get_buf_arg(&mut (*di_buf).di_tv);
                 if buf.is_null() {
                     return -1;
                 }
             }
-            if !tv_dict_find(dict.as_ref(), c"id", -1).is_null() {
+            if !tv_dict_find(dict, c"id", -1).is_null() {
                 id = tv_dict_get_number(dict, c"id") as c_int;
                 if id <= 0 {
                     emsg(gettext(e_invarg));
@@ -1831,7 +1831,7 @@ pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_unplace_from_dict(
         Some(&argvars[0]),
-        dict,
+        unsafe { dict.as_ref() },
     )));
 }
 
@@ -1853,7 +1853,7 @@ pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
                 if li.li_tv.v_type == VarType::VAR_DICT {
                     retval = sign_unplace_from_dict(
                         None,
-                        li.li_tv.vval.v_dict(),
+                        li.li_tv.vval.v_dict().as_ref(),
                     );
                 } else {
                     emsg(gettext(e_dictreq));

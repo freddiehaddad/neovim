@@ -3468,17 +3468,17 @@ fn tagstack_push_items(wp: &mut win_T, l: Option<&list_T>) {
                         false,
                     )
                     {
-                        let tagname = tv_dict_get_string(itemdict, c"tagname");
+                        let tagname = tv_dict_get_string(itemdict.as_ref(), c"tagname");
                         if !tagname.is_null() {
                             if mark.col > 0 {
                                 mark.col -= 1;
                             }
-                            let ud_ptr = tv_dict_get_string(itemdict, c"user_data");
+                            let ud_ptr = tv_dict_get_string(itemdict.as_ref(), c"user_data");
                             tagstack_push_item(
                                 wp,
                                 Some(crate::memory::cstr_to_cstring(tagname)),
-                                tv_dict_get_number(itemdict, c"bufnr") as c_int,
-                                tv_dict_get_number(itemdict, c"matchnr") as c_int - 1,
+                                tv_dict_get_number(itemdict.as_ref(), c"bufnr") as c_int,
+                                tv_dict_get_number(itemdict.as_ref(), c"matchnr") as c_int - 1,
                                 mark,
                                 fnum,
                                 (!ud_ptr.is_null()).then(|| crate::memory::cstr_to_cstring(ud_ptr)),

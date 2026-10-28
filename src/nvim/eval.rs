@@ -1229,7 +1229,7 @@ fn get_lval_list(
 
         lp.ll_dict = ptr::null_mut();
         lp.ll_list = (*lp.ll_tv).vval.v_list();
-        lp.ll_li = tv_list_check_range_index_one(lp.ll_list, &mut lp.ll_n1, quiet);
+        lp.ll_li = tv_list_check_range_index_one(lp.ll_list.as_mut(), &mut lp.ll_n1, quiet);
         if lp.ll_li.is_null() {
             return false;
         }
@@ -6841,8 +6841,8 @@ pub fn common_job_callbacks(
             && tv_dict_get_callback(Some(&mut *vopts), c"on_stderr", 9, &mut on_stderr.cb)
             && tv_dict_get_callback(Some(&mut *vopts), c"on_exit", 7, on_exit)
         {
-            on_stdout.buffered = tv_dict_get_number((&raw mut *vopts), c"stdout_buffered") != 0;
-            on_stderr.buffered = tv_dict_get_number((&raw mut *vopts), c"stderr_buffered") != 0;
+            on_stdout.buffered = tv_dict_get_number(Some(vopts), c"stdout_buffered") != 0;
+            on_stderr.buffered = tv_dict_get_number(Some(vopts), c"stderr_buffered") != 0;
             if on_stdout.buffered && on_stdout.cb.cb_type() == kCallbackNone {
                 on_stdout.self_dict = (&raw mut *vopts);
             }

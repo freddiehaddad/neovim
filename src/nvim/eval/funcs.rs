@@ -3244,7 +3244,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
                 c"exclusive",
                 c_int::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'),
             ) != 0;
-            type_str = tv_dict_get_string(d, c"type");
+            type_str = tv_dict_get_string(d.as_ref(), c"type");
             if type_str.is_null() {
                 type_str = default_type.as_mut_ptr();
             }
@@ -4631,14 +4631,14 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         if argvars[1].v_type == VarType::VAR_DICT {
             job_opts = argvars[1].vval.v_dict();
 
-            detach = tv_dict_get_number(job_opts, c"detach") != 0;
-            rpc = tv_dict_get_number(job_opts, c"rpc") != 0;
-            term = tv_dict_get_number(job_opts, c"term") != 0;
-            pty = term || tv_dict_get_number(job_opts, c"pty") != 0;
-            clear_env = tv_dict_get_number(job_opts, c"clear_env") != 0;
-            overlapped = tv_dict_get_number(job_opts, c"overlapped") != 0;
+            detach = tv_dict_get_number(job_opts.as_ref(), c"detach") != 0;
+            rpc = tv_dict_get_number(job_opts.as_ref(), c"rpc") != 0;
+            term = tv_dict_get_number(job_opts.as_ref(), c"term") != 0;
+            pty = term || tv_dict_get_number(job_opts.as_ref(), c"pty") != 0;
+            clear_env = tv_dict_get_number(job_opts.as_ref(), c"clear_env") != 0;
+            overlapped = tv_dict_get_number(job_opts.as_ref(), c"overlapped") != 0;
 
-            let s = tv_dict_get_string(job_opts, c"stdin");
+            let s = tv_dict_get_string(job_opts.as_ref(), c"stdin");
             if !s.is_null() {
                 if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"null", NUMBUFLEN) {
                     stdin_mode = kChannelStdinNull;
@@ -4675,7 +4675,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 return;
             }
 
-            let new_cwd = tv_dict_get_string(job_opts, c"cwd");
+            let new_cwd = tv_dict_get_string(job_opts.as_ref(), c"cwd");
             if !new_cwd.is_null() && *new_cwd != NUL {
                 cwd = new_cwd;
                 if !os_isdir(cwd) {
@@ -4703,8 +4703,8 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             }
         }
 
-        let mut width = tv_dict_get_number(job_opts, c"width") as u16;
-        let mut height = tv_dict_get_number(job_opts, c"height") as u16;
+        let mut width = tv_dict_get_number(job_opts.as_ref(), c"width") as u16;
+        let mut height = tv_dict_get_number(job_opts.as_ref(), c"height") as u16;
         let mut term_name: *const c_char = ptr::null();
 
         if term {
@@ -4746,7 +4746,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
         if pty {
             if term_name.is_null() {
-                term_name = tv_dict_get_string(job_opts, c"TERM");
+                term_name = tv_dict_get_string(job_opts.as_ref(), c"TERM");
             }
             if term_name.is_null() {
                 term_name = c"ansi".as_ptr();
@@ -7808,7 +7808,7 @@ pub fn f_setcharsearch(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
             return;
         }
 
-        let csearch = tv_dict_get_string(d, c"char");
+        let csearch = tv_dict_get_string(d.as_ref(), c"char");
         if !csearch.is_null() {
             let c = utf_ptr2char(csearch);
             set_last_csearch(c, csearch, utfc_ptr2len(csearch));
@@ -7962,7 +7962,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 regcontents = &raw const (*di).di_tv;
             }
 
-            let mut stropt = tv_dict_get_string(d, c"regtype");
+            let mut stropt = tv_dict_get_string(d.as_ref(), c"regtype");
             if !stropt.is_null() {
                 let ret = get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
                 stropt = stropt.add(1);
@@ -7973,7 +7973,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             }
 
             if regname == b'"' as c_char {
-                stropt = tv_dict_get_string(d, c"points_to");
+                stropt = tv_dict_get_string(d.as_ref(), c"points_to");
                 if !stropt.is_null() {
                     pointreg = *stropt;
                     regname = pointreg;
@@ -8200,12 +8200,12 @@ pub fn f_sockconnect(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             let mut on_data = CallbackReader::none();
             if argvars[2].v_type == VarType::VAR_DICT {
                 let opts = argvars[2].vval.v_dict();
-                rpc = tv_dict_get_number(opts, c"rpc") != 0;
+                rpc = tv_dict_get_number(unsafe { opts.as_ref() }, c"rpc") != 0;
 
                 if !tv_dict_get_callback(unsafe { opts.as_mut() }, c"on_data", 7, &mut on_data.cb) {
                     break 'cleanup;
                 }
-                on_data.buffered = tv_dict_get_number(opts, c"data_buffered") != 0;
+                on_data.buffered = tv_dict_get_number(unsafe { opts.as_ref() }, c"data_buffered") != 0;
                 if on_data.buffered && on_data.cb.cb_type() == kCallbackNone {
                     on_data.self_dict = opts;
                 }
@@ -8236,7 +8236,7 @@ pub fn f_stdioopen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
         let mut on_stdin = CallbackReader::none();
         let opts = argvars[0].vval.v_dict();
-        let rpc = tv_dict_get_number(opts, c"rpc") != 0;
+        let rpc = tv_dict_get_number(unsafe { opts.as_ref() }, c"rpc") != 0;
 
         if !tv_dict_get_callback(unsafe { opts.as_mut() }, c"on_stdin", 8, &mut on_stdin.cb) {
             return;
@@ -8245,7 +8245,7 @@ pub fn f_stdioopen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             return;
         }
 
-        on_stdin.buffered = tv_dict_get_number(opts, c"stdin_buffered") != 0;
+        on_stdin.buffered = tv_dict_get_number(unsafe { opts.as_ref() }, c"stdin_buffered") != 0;
         if on_stdin.buffered && on_stdin.cb.cb_type() == kCallbackNone {
             on_stdin.self_dict = opts;
         }

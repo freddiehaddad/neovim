@@ -10023,7 +10023,7 @@ fn findfunc_find_file(
                     ret_fname = Some(cstr_to_cstring((*tv).vval.v_string()));
                 } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict().is_null() {
                     ret_fname =
-                        crate::eval::typval::tv_dict_get_cstring((*tv).vval.v_dict(), c"word");
+                        crate::eval::typval::tv_dict_get_cstring(((*tv).vval.v_dict()).as_ref(), c"word");
                 }
             }
         }

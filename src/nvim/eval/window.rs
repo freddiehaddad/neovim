@@ -800,7 +800,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                     WSP_ABOVE
                 };
             }
-            size = tv_dict_get_number(d, c"size") as c_int;
+            size = tv_dict_get_number(d.as_ref(), c"size") as c_int;
         }
 
         if is_ctx_win(wp) || text_or_buf_locked() || !check_split_disallowed(wp) {

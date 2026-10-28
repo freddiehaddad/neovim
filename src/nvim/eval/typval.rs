@@ -1366,11 +1366,11 @@ pub fn tv_list_copy(
 
 /// Get the list item in "l" with index "n1".
 pub fn tv_list_check_range_index_one(
-    l: *mut list_T,n1: &mut c_int,
+    l: Option<&mut list_T>,n1: &mut c_int,
     quiet: bool,
 ) -> *mut listitem_T {
      {
-        let li = tv_list_find_index(unsafe { l.as_mut() }, n1);
+        let li = tv_list_find_index(l, n1);
         if !li.is_null() {
             return li;
         }
@@ -2943,8 +2943,8 @@ pub fn tv_dict_get_tv(d: Option<&dict_T>, key: &std::ffi::CStr,rettv: &mut typva
 }
 
 /// Gets a number item from a dictionary.
-pub fn tv_dict_get_number(d: *const dict_T, key: &std::ffi::CStr) -> varnumber_T {
-    tv_dict_get_number_def(unsafe { d.as_ref() }, key, 0)
+pub fn tv_dict_get_number(d: Option<&dict_T>, key: &std::ffi::CStr) -> varnumber_T {
+    tv_dict_get_number_def(d, key, 0)
 }
 
 /// Gets a number item from a dictionary, or a given default value.
@@ -3006,11 +3006,11 @@ pub fn tv_dict_to_env(denv: Option<&dict_T>) -> Vec<std::ffi::CString> {
 
 /// Get an owned `CString` item from a dictionary.
 pub fn tv_dict_get_cstring(
-    d: *const dict_T,
+    d: Option<&dict_T>,
     key: &std::ffi::CStr,
 ) -> Option<std::ffi::CString> {
     let mut numbuf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-    let s = tv_dict_get_string_buf(unsafe { d.as_ref() }, key, numbuf.as_mut_ptr());
+    let s = tv_dict_get_string_buf(d, key, numbuf.as_mut_ptr());
     if s.is_null() {
         None
     } else {
@@ -3019,8 +3019,8 @@ pub fn tv_dict_get_cstring(
 }
 
 /// Get a string item from a dictionary.
-pub fn tv_dict_get_string<S: crate::strings::IntoCCharPtr>(d: *const dict_T, key: S) -> *mut c_char {
-    tv_dict_get_string_buf(unsafe { d.as_ref() }, key, tv_st().dict_numbuf.as_mut_ptr()).cast_mut()
+pub fn tv_dict_get_string<S: crate::strings::IntoCCharPtr>(d: Option<&dict_T>, key: S) -> *mut c_char {
+    tv_dict_get_string_buf(d, key, tv_st().dict_numbuf.as_mut_ptr()).cast_mut()
 }
 
 /// Get a string item from a dictionary.
@@ -5309,15 +5309,15 @@ mod tests {
             assert!(tv_dict_has_key(d.as_ref(), c"foo"));
             assert!(!tv_dict_has_key(d.as_ref(), c"missing"));
 
-            assert_eq!(tv_dict_get_number(d, c"foo"), 42);
-            assert_eq!(tv_dict_get_number(d, c"missing"), 0);
+            assert_eq!(tv_dict_get_number(d.as_ref(), c"foo"), 42);
+            assert_eq!(tv_dict_get_number(d.as_ref(), c"missing"), 0);
 
             let mut numbuf = [0 as c_char; NUMBUFLEN];
             assert_eq!(
-                crate::memory::cstr_as_bytes(tv_dict_get_string(d, c"str")),
+                crate::memory::cstr_as_bytes(tv_dict_get_string(d.as_ref(), c"str")),
                 b"bar"
             );
-            let saved = tv_dict_get_cstring(d, c"foo").unwrap();
+            let saved = tv_dict_get_cstring(d.as_ref(), c"foo").unwrap();
             assert_eq!(saved.as_bytes(), b"42");
 
             assert_eq!(
@@ -5341,7 +5341,7 @@ mod tests {
             (*d2).dv_refcount = 1;
             assert!(tv_dict_add_nr(&mut *d2, c"extra", 7));
             tv_dict_extend(&mut *d, &mut *d2, c"force");
-            assert_eq!(tv_dict_get_number(d, c"extra"), 7);
+            assert_eq!(tv_dict_get_number(d.as_ref(), c"extra"), 7);
             assert!(!tv_dict_equal(d, d_copy, false));
 
             tv_dict_set_keys_readonly(&mut *d2);

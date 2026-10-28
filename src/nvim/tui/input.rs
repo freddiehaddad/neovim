@@ -243,7 +243,7 @@ pub fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) 
         );
         termkey_set_buffer_size(input.tk_mut(), INPUT_BUFFER_SIZE);
         let tk_ptr: *mut TermKey = input.tk_mut();
-        termkey_start(&mut *tk_ptr, Some(ti), input);
+        termkey_start(&mut *tk_ptr, Some(ti), Some(&mut *input));
 
         let curflags = termkey_get_canonflags(input.tk_mut());
         termkey_set_canonflags(input.tk_mut(), curflags | TERMKEY_CANON_DELBS);

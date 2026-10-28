@@ -3295,7 +3295,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                     return;
                 }
             } else {
-                pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict, c"name");
+                pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict.as_ref(), c"name");
                 if let Some(ref pat) = pat_owned {
                     regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC + RE_STRING);
                 }

@@ -456,7 +456,7 @@ fn fuzzy_match_in_list(
             {
                 let d = tv.vval.v_dict();
                 if !key.is_null() {
-                    itemstr = tv_dict_get_string(d, key);
+                    itemstr = tv_dict_get_string(d.as_ref(), key);
                 } else {
                     (*d).dv_refcount += 1;
                     let mut argv = [

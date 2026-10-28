@@ -5430,15 +5430,15 @@ pub fn expand_process_user_list(
                     p = cstr_to_cstring((*tv).vval.v_string());
                 } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict().is_null() {
                     let d = (*tv).vval.v_dict();
-                    let word = tv_dict_get_string(d, c"word");
+                    let word = tv_dict_get_string(d.as_ref(), c"word");
                     if word.is_null() {
                         continue;
                     }
                     p = cstr_to_cstring(word);
-                    abbr = crate::eval::typval::tv_dict_get_cstring(d, c"abbr");
-                    kind = crate::eval::typval::tv_dict_get_cstring(d, c"kind");
-                    menu = crate::eval::typval::tv_dict_get_cstring(d, c"menu");
-                    info = crate::eval::typval::tv_dict_get_cstring(d, c"info");
+                    abbr = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"abbr");
+                    kind = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"kind");
+                    menu = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"menu");
+                    info = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"info");
                     if abbr.is_some() || kind.is_some() || menu.is_some() || info.is_some() {
                         have_extra = true;
                     }

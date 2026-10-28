@@ -2386,7 +2386,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
 
         let (which, is_abbr, d) = if dict_only {
             let d = argvars[0].vval.v_dict();
-            let which = tv_dict_get_string(d, c"mode");
+            let which = tv_dict_get_string(d.as_ref(), c"mode");
             let is_abbr = tv_dict_get_bool(d.as_ref(), c"abbr", -1) as c_int;
             if which.is_null() || is_abbr < 0 {
                 emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
@@ -2411,10 +2411,10 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
             return;
         }
 
-        let lhs = tv_dict_get_string(d, c"lhs");
-        let lhsraw = tv_dict_get_string(d, c"lhsraw");
-        let lhsrawalt = tv_dict_get_string(d, c"lhsrawalt");
-        let mut orig_rhs = tv_dict_get_string(d, c"rhs") as *const c_char;
+        let lhs = tv_dict_get_string(d.as_ref(), c"lhs");
+        let lhsraw = tv_dict_get_string(d.as_ref(), c"lhsraw");
+        let lhsrawalt = tv_dict_get_string(d.as_ref(), c"lhsrawalt");
+        let mut orig_rhs = tv_dict_get_string(d.as_ref(), c"rhs") as *const c_char;
         let mut rhs_lua: LuaRef = LUA_NOREF;
         let callback_di = tv_dict_find(d.as_ref(), c"callback", 8);
         if !callback_di.is_null() && (*callback_di).di_tv.v_type == VarType::VAR_FUNC {
@@ -2430,24 +2430,24 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
             return;
         }
 
-        let mut noremap = if tv_dict_get_number(d, c"noremap") != 0 {
+        let mut noremap = if tv_dict_get_number(d.as_ref(), c"noremap") != 0 {
             REMAP_NONE
         } else {
             0
         };
-        if tv_dict_get_number(d, c"script") != 0 {
+        if tv_dict_get_number(d.as_ref(), c"script") != 0 {
             noremap = REMAP_SCRIPT;
         }
         let mut args = MapArguments::new();
-        args.expr = tv_dict_get_number(d, c"expr") != 0;
-        args.silent = tv_dict_get_number(d, c"silent") != 0;
-        args.nowait = tv_dict_get_number(d, c"nowait") != 0;
-        args.replace_keycodes = tv_dict_get_number(d, c"replace_keycodes") != 0;
-        args.desc = crate::eval::typval::tv_dict_get_cstring(d, c"desc");
+        args.expr = tv_dict_get_number(d.as_ref(), c"expr") != 0;
+        args.silent = tv_dict_get_number(d.as_ref(), c"silent") != 0;
+        args.nowait = tv_dict_get_number(d.as_ref(), c"nowait") != 0;
+        args.replace_keycodes = tv_dict_get_number(d.as_ref(), c"replace_keycodes") != 0;
+        args.desc = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"desc");
 
-        let sid = tv_dict_get_number(d, c"sid") as scid_T;
-        let lnum = tv_dict_get_number(d, c"lnum") as linenr_T;
-        let buffer = tv_dict_get_number(d, c"buffer") != 0;
+        let sid = tv_dict_get_number(d.as_ref(), c"sid") as scid_T;
+        let lnum = tv_dict_get_number(d.as_ref(), c"lnum") as linenr_T;
+        let buffer = tv_dict_get_number(d.as_ref(), c"buffer") != 0;
 
         set_maparg_rhs(
             orig_rhs,

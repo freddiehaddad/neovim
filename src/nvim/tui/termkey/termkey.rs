@@ -392,7 +392,7 @@ pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -> Optio
         register_c0(&mut tk, TERMKEY_SYM_ESCAPE, 0x1b, None);
 
         if (flags & TERMKEY_FLAG_NOSTART) == 0
-            && termkey_start(&mut tk, term, std::ptr::null_mut()) == 0
+            && termkey_start(&mut tk, term, None) == 0
         {
             return None;
         }
@@ -403,13 +403,13 @@ pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -> Optio
 pub fn termkey_start(
     tk: &mut TermKey,
     term: Option<&TerminfoEntry>,
-    input: *mut crate::tui::input::TermInput,
+    input: Option<&mut crate::tui::input::TermInput>,
 ) -> c_int {
     if tk.is_started != 0 {
             return 1;
         }
 
-        if start_driver_ti(tk, term, unsafe { input.as_mut() }) == 0 {
+        if start_driver_ti(tk, term, input) == 0 {
             return 0;
         }
 
@@ -1200,7 +1200,7 @@ mod tests {
 
             termkey_stop(tk);
             assert_eq!(tk.is_started, 0);
-            termkey_start(tk, None, std::ptr::null_mut());
+            termkey_start(tk, None, None);
             assert_eq!(tk.is_started, 1);
 
             let mut key = TermKeyKey::new();

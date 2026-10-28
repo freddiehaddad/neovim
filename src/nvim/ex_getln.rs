@@ -1224,7 +1224,7 @@ fn command_line_enter(
                     g_st().curbuf,
                 );
                 try_leave(&tstate, &mut err);
-                if tv_dict_get_number(dict, c"abort") != 0 {
+                if tv_dict_get_number(dict.as_ref(), c"abort") != 0 {
                     (*s).gotesc = true;
                 }
                 restore_v_event(&mut *dict, &mut save_v_event);
