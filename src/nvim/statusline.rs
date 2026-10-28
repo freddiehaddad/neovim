@@ -548,7 +548,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             };
             row = -1;
             col = 0;
-            grid = grid_adjust(&raw mut (*wp).w_grid, &mut row, &mut col);
+            grid = grid_adjust(&mut (*wp).w_grid, &mut row, &mut col);
 
             if row < 0 {
                 stl_st().stl_expr_entered = false;
@@ -594,7 +594,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             }
             row = g_st().Rows - 1;
             col = g_st().ru_col.max(g_st().Columns / 2);
-            grid = grid_adjust(&raw mut g_st().msg_grid_adj, &mut row, &mut col);
+            grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
             maxwidth = g_st().Columns - col;
             fillchar = schar_from_ascii(b' ');
             group = HLF_MSG;

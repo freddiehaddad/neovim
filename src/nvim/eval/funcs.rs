@@ -4957,7 +4957,7 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             } else {
                 let proc_ptr = &raw mut (*chan).uv.proc_;
                 if proc_is_stopped(&mut *proc_ptr) {
-                    proc_wait(proc_ptr, -1, ptr::null_mut());
+                    proc_wait( &mut *proc_ptr, -1, ptr::null_mut());
                     jobs[i] = ptr::null_mut();
                 } else {
                     jobs[i] = chan;
@@ -4991,7 +4991,7 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             if job.is_null() {
                 continue;
             }
-            let status = proc_wait(&raw mut (*job).uv.proc_, remaining, waiting_jobs);
+            let status = proc_wait(&mut (*job).uv.proc_, remaining, waiting_jobs);
             if status < 0 {
                 break;
             }

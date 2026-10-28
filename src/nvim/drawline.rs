@@ -3588,7 +3588,7 @@ pub fn win_line(
                     let mut current_row = wlv.row;
                     let mut dummy_col: c_int = 0;
                     let current_grid =
-                        &mut *grid_adjust(grid, &mut current_row, &mut dummy_col);
+                        &mut *grid_adjust( &mut *grid, &mut current_row, &mut dummy_col);
 
                     let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
                     current_grid.attrs[next_row_off] = -1;
@@ -3707,7 +3707,7 @@ fn wlv_put_linebuf(
 
         let mut row = wlv.row;
         let mut coloff: c_int = 0;
-        let g = grid_adjust(grid, &mut row, &mut coloff);
+        let g = grid_adjust( &mut *grid, &mut row, &mut coloff);
         grid_put_linebuf(
             &mut *g,
             row,

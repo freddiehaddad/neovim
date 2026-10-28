@@ -294,7 +294,7 @@ pub fn xdl_recs_cmp(
     dd2: &mut diffdata_t,
     mut off2: c_long,
     mut lim2: c_long,
-    kvdf: *mut c_long,
+    kvdf: &mut c_long,
     kvdb: *mut c_long,
     need_min: c_int,
     xenv: &xdalgoenv_t,
@@ -339,7 +339,7 @@ pub fn xdl_recs_cmp(
             };
 
             if xdl_split(
-                ha1, off1, lim1, ha2, off2, lim2, kvdf, kvdb, need_min, &mut spl, xenv,
+                ha1, off1, lim1, ha2, off2, lim2, (&raw mut *kvdf), kvdb, need_min, &mut spl, xenv,
             ) < 0
             {
                 return -1;
@@ -414,7 +414,7 @@ pub fn xdl_do_diff(
             &mut dd2,
             0,
             dd2_nrec,
-            kvdf,
+             &mut *kvdf,
             kvdb,
             c_int::from((xpp.flags & XDF_NEED_MINIMAL) != 0),
             &xenv,

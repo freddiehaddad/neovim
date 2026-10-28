@@ -360,11 +360,11 @@ fn get_sw_value_pos(buf: &mut buf_T, pos: &pos_T, left: bool) -> c_int {
 }
 
 /// Return the effective shiftwidth value using the first non-blank in the current line (`get_sw_value_indent`).
-pub fn get_sw_value_indent(buf: *mut buf_T, left: bool) -> c_int {
+pub fn get_sw_value_indent(buf: &mut buf_T, left: bool) -> c_int {
      {
         let mut pos = curwin_mut().w_cursor;
         pos.col = getwhitecols_curline() as colnr_T;
-        get_sw_value_pos(unsafe { &mut *buf }, &pos, left)
+        get_sw_value_pos( buf, &pos, left)
     }
 }
 

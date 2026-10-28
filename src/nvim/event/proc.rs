@@ -288,45 +288,45 @@ pub fn proc_close_streams(proc_: &mut Proc) {
 }
 
 /// Synchronously wait for a process to finish
-pub fn proc_wait(proc_: *mut Proc, ms: c_int, mut events: *mut MultiQueue) -> c_int {
+pub fn proc_wait(proc_: &mut Proc, ms: c_int, mut events: *mut MultiQueue) -> c_int {
     unsafe {
-        if (*proc_).refcount == 0 {
-            let status = (*proc_).status;
-            loop_process_events( &mut *(*proc_).loop_, (*proc_).events, 0);
+        if proc_.refcount == 0 {
+            let status = proc_.status;
+            loop_process_events( &mut *proc_.loop_, proc_.events, 0);
             return status;
         }
 
         if events.is_null() {
-            events = (*proc_).events;
+            events = proc_.events;
         }
 
-        (*proc_).refcount += 1;
-        loop_process_events_until((*proc_).loop_, events, i64::from(ms), || {
-            g_st().got_int || (*proc_).refcount == 1
+        proc_.refcount += 1;
+        loop_process_events_until(proc_.loop_, events, i64::from(ms), || {
+            g_st().got_int || proc_.refcount == 1
         });
 
         if g_st().got_int {
             g_st().got_int = false;
-            proc_stop(&mut *proc_);
+            proc_stop(proc_);
             if ms == -1 {
-                loop_process_events_until((*proc_).loop_, events, -1, || (*proc_).refcount == 1);
+                loop_process_events_until(proc_.loop_, events, -1, || proc_.refcount == 1);
             } else {
-                loop_process_events( &mut *(*proc_).loop_, events, 0);
+                loop_process_events( &mut *proc_.loop_, events, 0);
             }
 
-            (*proc_).status = -2;
+            proc_.status = -2;
         }
 
-        if (*proc_).refcount == 1 {
-            proc_decref(&mut *proc_);
-            if !(*proc_).events.is_null() {
-                multiqueue_process_events((*proc_).events);
+        if proc_.refcount == 1 {
+            proc_decref(proc_);
+            if !proc_.events.is_null() {
+                multiqueue_process_events(proc_.events);
             }
         } else {
-            (*proc_).refcount -= 1;
+            proc_.refcount -= 1;
         }
 
-        (*proc_).status
+        proc_.status
     }
 }
 

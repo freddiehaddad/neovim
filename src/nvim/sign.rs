@@ -1225,15 +1225,15 @@ fn sign_get_placed(
     lnum: linenr_T,
     id: c_int,
     group: *const c_char,
-    retlist: *mut list_T,
+    retlist: &mut list_T,
 ) {
     unsafe {
         if !buf.is_null() {
-            sign_get_placed_in_buf( &mut *buf, lnum, id, group, &mut *retlist);
+            sign_get_placed_in_buf( &mut *buf, lnum, id, group, retlist);
         } else {
             for cbuf in for_all_buffers_ptr() {
                 if buf_has_signs( &*cbuf) {
-                    sign_get_placed_in_buf( &mut *cbuf, 0, id, group, &mut *retlist);
+                    sign_get_placed_in_buf( &mut *cbuf, 0, id, group, retlist);
                 }
             }
         }
@@ -1546,7 +1546,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
             }
         }
 
-        sign_get_placed(buf, lnum, sign_id, group, rettv.vval.v_list());
+        sign_get_placed(buf, lnum, sign_id, group,  &mut *rettv.vval.v_list());
     }
 }
 

@@ -292,7 +292,7 @@ pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
             if !parent.is_null() {
                 row += (*parent).w_winrow;
                 col += (*parent).w_wincol;
-                grid_adjust(&raw mut (*parent).w_grid, &mut row, &mut col);
+                grid_adjust(&mut (*parent).w_grid, &mut row, &mut col);
                 if wp.w_config.bufpos.lnum >= 0 {
                     let mut pos = pos_T {
                         lnum: (wp.w_config.bufpos.lnum + 1)

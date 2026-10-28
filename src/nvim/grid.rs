@@ -178,14 +178,14 @@ fn strnlen_4(p: *const u8) -> usize {
 
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
 pub fn grid_adjust(
-    grid: *mut GridView,
+    grid: &mut GridView,
     row_off: &mut c_int,
     col_off: &mut c_int,
 ) -> *mut ScreenGrid {
-    unsafe {
-        *row_off += (*grid).row_offset;
-        *col_off += (*grid).col_offset;
-        (*grid).target
+     {
+        *row_off += grid.row_offset;
+        *col_off += grid.col_offset;
+        grid.target
     }
 }
 
@@ -489,7 +489,7 @@ pub fn grid_getchar(
 
 pub fn grid_line_start(view: *mut GridView, mut row: c_int) {
     let mut col: c_int = 0;
-        let grid = grid_adjust(view, &mut row, &mut col);
+        let grid = grid_adjust(unsafe { &mut *view }, &mut row, &mut col);
         screengrid_line_start(unsafe { &mut *grid }, row, col);
 }
 

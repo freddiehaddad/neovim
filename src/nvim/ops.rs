@@ -475,7 +475,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
         let left = oap.op_type == OP_LSHIFT;
         let oldstate = g_st().State;
         let oldcol = curwin_mut().w_cursor.col;
-        let sw_val = get_sw_value_indent(g_st().curbuf, left);
+        let sw_val = get_sw_value_indent(curbuf_mut(), left);
         let ts_val = curbuf_mut().b_p_ts as c_int;
         let mut bd = block_def::new();
         let old_p_ri = opt_vars().p_ri;

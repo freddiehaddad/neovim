@@ -1728,7 +1728,7 @@ pub fn ui_ext_win_position(wp: &mut win_T, validate: bool) {
                     let mut row_off: c_int = 0;
                     let mut col_off: c_int = 0;
                     win_grid_alloc(&mut *win);
-                    grid = grid_adjust(&raw mut (*win).w_grid, &mut row_off, &mut col_off);
+                    grid = grid_adjust(&mut (*win).w_grid, &mut row_off, &mut col_off);
                     row += f64::from(row_off);
                     col += f64::from(col_off);
                     if c.bufpos.lnum >= 0 {

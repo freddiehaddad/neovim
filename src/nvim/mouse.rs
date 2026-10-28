@@ -2150,7 +2150,7 @@ fn mouse_check_grid(vcolp: &mut colnr_T, flagsp: &mut c_int) {
         let mut start_row: c_int = 0;
         let mut start_col: c_int = 0;
         let gp = &*grid_adjust(
-            &raw mut (*curwin_ptr()).w_grid,
+            &mut (*curwin_ptr()).w_grid,
             &mut start_row,
             &mut start_col,
         );

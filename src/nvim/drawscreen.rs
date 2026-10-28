@@ -808,7 +808,7 @@ pub fn setcursor_mayforce(wp: &mut win_T, force: bool) {
                 col = wp.w_view_width - wp.w_wcol - if wide { 2 } else { 1 };
             }
 
-            let grid = grid_adjust(&raw mut wp.w_grid, &mut row, &mut col);
+            let grid = grid_adjust(&mut wp.w_grid, &mut row, &mut col);
             if !grid.is_null() {
                 ui_grid_cursor_goto((*grid).handle, row, col);
             }
@@ -2436,7 +2436,7 @@ pub fn win_scroll_lines(wp: &mut win_T, row: c_int, line_count: c_int) {
 
         let mut col: c_int = 0;
         let mut row_off: c_int = 0;
-        let grid = grid_adjust(&raw mut wp.w_grid, &mut row_off, &mut col);
+        let grid = grid_adjust(&mut wp.w_grid, &mut row_off, &mut col);
 
         let checked_width = ((*grid).cols - col).min(wp.w_view_width);
         let checked_height = ((*grid).rows - row_off).min(wp.w_view_height);

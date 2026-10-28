@@ -2995,7 +2995,7 @@ pub fn msg_cursor_goto(mut row: c_int, mut col: c_int) {
         if g_st().cmdmsg_rl {
             col = g_st().Columns - 1 - col;
         }
-        let grid = grid_adjust(&raw mut g_st().msg_grid_adj, &mut row, &mut col);
+        let grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
         ui_grid_cursor_goto((*grid).handle, row, col);
     }
 }
