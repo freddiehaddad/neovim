@@ -1376,7 +1376,7 @@ fn fold_add_marker(
             ptr::copy_nonoverlapping(cms, newline.add(line_len), cms_len + 1);
             let p_off = (p as usize) - (cms as usize);
             ptr::copy_nonoverlapping(marker, newline.add(line_len + p_off), markerlen);
-            let tail_len = crate::memory::cstr_len(p.add(2));
+            let tail_len = crate::memory::cstr_as_bytes(p)[2..].len();
             ptr::copy_nonoverlapping(
                 p.add(2),
                 newline.add(line_len + p_off + markerlen),
@@ -1463,7 +1463,7 @@ fn fold_del_marker(
                     if (p as usize) - (line as usize) >= prefix_len
                         && std::slice::from_raw_parts(p.sub(prefix_len).cast::<u8>(), prefix_len)
                             == crate::memory::cstr_slice(cms, prefix_len)
-                        && crate::memory::cstr_as_bytes(p.add(len))
+                        && crate::memory::cstr_as_bytes(p)[len..]
                             .starts_with(crate::memory::cstr_slice(suffix, suffix_len))
                     {
                         p = p.sub(prefix_len);
@@ -1701,7 +1701,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
                 while ascii_iswhite(crate::memory::cstr_byte_at(s, len) as c_int) {
                     len += 1;
                 }
-                let rem = crate::memory::cstr_len(s.add(len)) + 1;
+                let rem = crate::memory::cstr_as_bytes(s)[len..].len() + 1;
                 ptr::copy(s.add(len), s, rem);
             } else {
                 s = s.add(utfc_ptr2len(s) as usize);
@@ -2603,7 +2603,7 @@ fn foldlevel_marker(flp: &mut Fline) {
 
         let mut s = ml_get_buf(&mut *{ &mut *flp.wp }.w_buffer, flp.lnum + flp.off);
         while !crate::memory::cstr_is_empty(s) {
-            let rem_bytes = crate::memory::cstr_as_bytes(s.add(1));
+            let rem_bytes = &crate::memory::cstr_as_bytes(s)[1..];
             if *s == cstart && rem_bytes.starts_with(start_rest) {
                 s = s.add(fold_st().foldstartmarkerlen);
                 if ascii_isdigit(crate::memory::cstr_first_byte(s) as c_int) {

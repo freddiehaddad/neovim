@@ -3068,7 +3068,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
         let p = vim_strchr(s, b'.' as c_int);
         if !p.is_null() {
             if p.cast_const() > s.add(2)
-                && crate::memory::cstr_prefix_bytes(p.add(1), 3).eq_ignore_ascii_case(b"EUC")
+                && crate::memory::cstr_slice(p, (1) + (3))[1..].eq_ignore_ascii_case(b"EUC")
                 && !(crate::memory::cstr_byte_at(p, 4)).is_ascii_alphanumeric()
                 && crate::memory::cstr_byte_at(p, 4) != b'-'
                 && *p.sub(3) == b'_' as c_char

@@ -4755,10 +4755,10 @@ fn get_id_list(arg: *mut *mut c_char, keylen: c_int, list: &mut SynIdList, skip:
                 let name = name_buf.as_mut_ptr();
                 crate::memory::cstr_ncpy(name.add(1), p, end.offset_from(p) as usize);
                 let mut id: c_int;
-                if (crate::memory::cstr_as_bytes(name.add(1)) == b"ALLBUT")
-                    || (crate::memory::cstr_as_bytes(name.add(1)) == b"ALL")
-                    || (crate::memory::cstr_as_bytes(name.add(1)) == b"TOP")
-                    || (crate::memory::cstr_as_bytes(name.add(1)) == b"CONTAINED")
+                if ((&crate::memory::cstr_as_bytes(name)[1..]) == b"ALLBUT")
+                    || ((&crate::memory::cstr_as_bytes(name)[1..]) == b"ALL")
+                    || ((&crate::memory::cstr_as_bytes(name)[1..]) == b"TOP")
+                    || ((&crate::memory::cstr_as_bytes(name)[1..]) == b"CONTAINED")
                 {
                     if !(**arg as u8).eq_ignore_ascii_case(&b'C') {
                         semsg!(gettext(c"E407: %s not allowed here"), name.add(1));
@@ -4787,7 +4787,7 @@ fn get_id_list(arg: *mut *mut c_char, keylen: c_int, list: &mut SynIdList, skip:
                     } else {
                         id = syn_check_cluster(name.add(2), end.offset_from(p) as c_int - 1);
                     }
-                } else if !crate::memory::cstr_as_bytes(name.add(1))
+                } else if !crate::memory::cstr_as_bytes(name)[1..]
                     .iter()
                     .any(|b| b"\\.*^$~[".contains(b))
                 {

@@ -1288,7 +1288,8 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> c_int {
                     }
                     break;
                 }
-                state.linelen = crate::memory::cstr_len(state.growbuf.as_ptr().add(growbuflen));
+                state.linelen =
+                    crate::memory::cstr_as_bytes(state.growbuf.as_ptr())[growbuflen..].len();
                 growbuflen += state.linelen;
                 if state.growbuf[growbuflen - 1] == NL {
                     break;
@@ -7615,8 +7616,9 @@ fn hgr_search_files_in_dir(
                 let flen = f_cstr.as_bytes().len();
                 if !lang.is_null()
                     && flen >= 3
-                    && !(crate::memory::cstr_prefix_bytes(lang, 2)
-                        .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(f.add(flen - 3), 2)))
+                    && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(
+                        &crate::memory::cstr_slice(f, (flen - 3) + (2))[flen - 3..],
+                    ))
                     && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(b"en")
                         && b"txt".eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
                             f.add(flen - 3),

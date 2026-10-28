@@ -3731,7 +3731,8 @@ pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             x = true;
             if crate::memory::cstr_byte_at(name, 5) == b'-'
                 && crate::memory::cstr_len(name) >= 11
-                && (*name.add(6) >= b'1' as c_char && *name.add(6) <= b'9' as c_char)
+                && (crate::memory::cstr_byte_at(name, 6) >= b'1'
+                    && crate::memory::cstr_byte_at(name, 6) <= b'9')
             {
                 let s6 = name.add(6);
                 let dlen = crate::memory::cstr_as_bytes(s6)
@@ -3748,24 +3749,24 @@ pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     && ascii_isdigit(crate::memory::cstr_char_at(end, 3))
                 {
                     let minor =
-                        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(end.add(1)))
+                        crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(end)[1..])
                             as c_int;
                     n = has_vim_patch(
-                        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(end.add(3)))
+                        crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(end)[3..])
                             as c_int,
                         major * 100 + minor,
                     );
                 }
             } else if ascii_isdigit(crate::memory::cstr_char_at(name, 5)) {
                 n = has_vim_patch(
-                    crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(name.add(5)))
+                    crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(name)[5..])
                         as c_int,
                     0,
                 );
             }
         } else if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(b"nvim-") {
             x = true;
-            n = has_nvim_version(crate::memory::cstr_as_bytes(name.add(5)));
+            n = has_nvim_version(&crate::memory::cstr_as_bytes(name)[5..]);
         } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"vim_starting") {
             x = true;
             n = starting_val() != 0;

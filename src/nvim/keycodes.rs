@@ -2536,7 +2536,7 @@ pub fn find_special_key(
             // Legal modifier name.
             if (bp as usize) >= (last_dash as usize) {
                 let mut key: c_int;
-                if crate::memory::cstr_prefix_bytes(last_dash.add(1), 5)
+                if crate::memory::cstr_slice(last_dash, (1) + (5))[1..]
                     .eq_ignore_ascii_case(b"char-")
                     && ascii_isdigit(crate::memory::cstr_char_at(last_dash, 6))
                 {
@@ -2734,7 +2734,7 @@ pub fn replace_termcodes(
                         *result.add(dlen) = KE_SNR as c_char;
                         dlen += 1;
                         vim_snprintf!(result.add(dlen), buf_len - dlen, c"%d", sid as c_int,);
-                        dlen += crate::memory::cstr_len(result.add(dlen));
+                        dlen += crate::memory::cstr_as_bytes(result)[dlen..].len();
                         *result.add(dlen) = b'_' as c_char;
                         dlen += 1;
                         continue;

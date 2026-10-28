@@ -2971,7 +2971,7 @@ fn spell_read_dic(
                     && (crate::memory::cstr_byte_at(p, 1) == b'\\'
                         || crate::memory::cstr_byte_at(p, 1) == b'/')
                 {
-                    ptr::copy(p.add(1), p, crate::memory::cstr_len(p.add(1)) + 1);
+                    ptr::copy(p.add(1), p, crate::memory::cstr_as_bytes(p)[1..].len() + 1);
                 } else if crate::memory::cstr_first_byte(p) == b'/' {
                     *p = NUL;
                     afflist = p.add(1);
@@ -4947,7 +4947,7 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) {
 }
 
 fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_word: bool) {
-    unsafe {
+    {
         let mut fname_buf = [0 as c_char; MAXPATHL];
         let mut wfname_buf = [0 as c_char; MAXPATHL];
         let mut afile: [Option<Afffile>; MAXREGIONS] = [const { None }; MAXREGIONS];
@@ -4971,7 +4971,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
         if let Some(f0_cstr) = fnames.first() {
             let f0 = f0_cstr.as_ptr();
             let len = f0_cstr.as_bytes().len();
-            if fcount == 1 && len > 4 && (crate::memory::cstr_as_bytes(f0.add(len - 4)) == b".add")
+            if fcount == 1 && len > 4 && ((&crate::memory::cstr_as_bytes(f0)[len - 4..]) == b".add")
             {
                 incount = 1;
                 vim_snprintf!(wfname, MAXPATHL, c"%s.spl", f0);
@@ -4988,7 +4988,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                         spell_enc()
                     },
                 );
-            } else if len > 4 && (crate::memory::cstr_as_bytes(f0.add(len - 4)) == b".spl") {
+            } else if len > 4 && ((&crate::memory::cstr_as_bytes(f0)[len - 4..]) == b".spl") {
                 xstrlcpy(wfname, f0, MAXPATHL);
             } else {
                 vim_snprintf!(

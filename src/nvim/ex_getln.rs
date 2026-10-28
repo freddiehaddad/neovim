@@ -2434,14 +2434,14 @@ fn command_line_browse_history(s: &mut CommandLineState) -> c_int {
                     len = 0;
                     let mut j: usize = 0;
                     while crate::memory::cstr_byte_at(p, j) != 0 {
-                        if *p.add(j) as c_int == old_firstc
+                        if crate::memory::cstr_char_at(p, j) == old_firstc
                             && (j == 0 || crate::memory::cstr_byte_at(p, j - 1) != b'\\')
                         {
                             if i > 0 {
                                 *getln_st().ccline.cmdbuff.add(len as usize) = s.firstc as c_char;
                             }
                         } else {
-                            if *p.add(j) as c_int == s.firstc
+                            if crate::memory::cstr_char_at(p, j) == s.firstc
                                 && (j == 0 || crate::memory::cstr_byte_at(p, j - 1) != b'\\')
                             {
                                 if i > 0 {
@@ -3469,7 +3469,7 @@ pub fn check_opt_wim(value: impl crate::strings::IntoCCharPtr, flags: *mut u8) -
         let mut p = value;
         while !crate::memory::cstr_is_empty(p) {
             let mut i: usize = 0;
-            while ascii_isalpha(*p.add(i) as c_int) {
+            while ascii_isalpha(crate::memory::cstr_char_at(p, i)) {
                 i += 1;
             }
             if crate::memory::cstr_byte_at(p, i) != 0
@@ -3838,7 +3838,11 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 if color_cb.cb_type() == K_CALLBACK_NONE_CONST {
                     break 'color_cmdline_end;
                 }
-                if *colored_ccline.cmdbuff.add(colored_ccline.cmdlen as usize) != NUL {
+                if crate::memory::cstr_byte_at(
+                    colored_ccline.cmdbuff,
+                    colored_ccline.cmdlen as usize,
+                ) != 0
+                {
                     let cstr = std::ffi::CString::new(std::slice::from_raw_parts(
                         colored_ccline.cmdbuff.cast::<u8>(),
                         colored_ccline.cmdlen as usize,

@@ -731,7 +731,7 @@ fn debuggy_find(
     mut fp: Option<&mut bool>,
 ) -> i32 {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         if gap.is_empty() {
             return 0;
         }
@@ -739,7 +739,7 @@ fn debuggy_find(
         let mut lnum: i32 = 0;
         let name_owned: Option<CString>;
         let name = if !file && (crate::memory::cstr_first_byte(fname)) == K_SPECIAL {
-            let rest_bytes = crate::memory::cstr_as_bytes(fname.add(3));
+            let rest_bytes = &crate::memory::cstr_as_bytes(fname)[3..];
             let mut bytes = Vec::with_capacity(5 + rest_bytes.len());
             bytes.extend_from_slice(b"<SNR>");
             bytes.extend_from_slice(rest_bytes);

@@ -871,7 +871,8 @@ pub fn ml_recover(checkext: bool) {
         let len = crate::memory::cstr_len(fname);
         if checkext
             && len >= 4
-            && crate::memory::cstr_prefix_bytes(fname.add(len - 4), 2).eq_ignore_ascii_case(b".s")
+            && crate::memory::cstr_slice(fname, (len - 4) + (2))[len - 4..]
+                .eq_ignore_ascii_case(b".s")
             && !vim_strchr(
                 c"abcdefghijklmnopqrstuvw",
                 ((crate::memory::cstr_byte_at(fname, len - 2)).to_ascii_lowercase()) as c_int,

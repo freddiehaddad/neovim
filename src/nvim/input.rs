@@ -1646,8 +1646,11 @@ fn add_byte_to_showcmd(byte: u8) {
         let mut c: c_int = NUL;
 
         let mut ptr = (&raw const inp_st().showcmd_state.buf).cast::<u8>();
-        if *ptr == K_SPECIAL && *ptr.add(1) == KS_MODIFIER && *ptr.add(2) != NUL as u8 {
-            modifiers = *ptr.add(2) as c_int;
+        if *ptr == K_SPECIAL
+            && *ptr.add(1) == KS_MODIFIER
+            && crate::memory::cstr_byte_at(ptr.cast(), 2) != 0_u8
+        {
+            modifiers = crate::memory::cstr_char_at(ptr.cast(), 2);
             ptr = ptr.add(3);
         }
 
@@ -2133,14 +2136,14 @@ fn check_simplify_modifier(max_offset: c_int) -> c_int {
             }
             let tp = tb_buf_ptr().add((g_st().typebuf.tb_off + offset) as usize);
             if *tp == K_SPECIAL && *tp.add(1) == KS_MODIFIER {
-                let mut modifier = *tp.add(2) as c_int;
-                let c = *tp.add(3) as c_int;
+                let mut modifier = crate::memory::cstr_char_at(tp.cast(), 2);
+                let c = crate::memory::cstr_char_at(tp.cast(), 3);
                 let new_c = merge_modifiers(c, &mut modifier);
 
                 if new_c != c {
                     if offset == 0 {
                         g_st().vgetc_char = c;
-                        g_st().vgetc_mod_mask = *tp.add(2) as c_int;
+                        g_st().vgetc_mod_mask = crate::memory::cstr_char_at(tp.cast(), 2);
                     }
                     let mut new_string = [0u8; MB_MAXBYTES + 1];
                     let len = if is_special(new_c) {

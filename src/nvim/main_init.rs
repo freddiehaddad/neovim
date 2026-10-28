@@ -1752,7 +1752,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     if p_vec[0] == b'~' as c_char && p_vec.get(1) == Some(&(b'/' as c_char)) {
                         let homedir = os_homedir();
                         let h_bytes = crate::memory::cstr_as_bytes(homedir);
-                        let p_bytes = crate::memory::cstr_as_bytes(p_vec.as_ptr().add(1));
+                        let p_bytes = &crate::memory::cstr_as_bytes(p_vec.as_ptr())[1..];
                         let mut expanded = Vec::with_capacity(h_bytes.len() + p_bytes.len() + 1);
                         expanded.extend(h_bytes.iter().map(|&b| b as c_char));
                         expanded.extend(p_bytes.iter().map(|&b| b as c_char));

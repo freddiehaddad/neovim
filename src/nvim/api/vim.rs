@@ -2849,7 +2849,9 @@ pub fn nvim_eval_statusline(
         let mut fillchar: Schar = 0;
         let mut statuscol_lnum: c_int = 0;
 
-        if str_.size < 2 || *str_.data != (b'%' as c_char) || *str_.data.add(1) != (b'!' as c_char)
+        if str_.size < 2
+            || *str_.data != (b'%' as c_char)
+            || crate::memory::cstr_byte_at(str_.data, 1) != b'!'
         {
             let mut raw_errbuf = [0 as c_char; ERR_BUFLEN];
             let errbuf = CharBuf {

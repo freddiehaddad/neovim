@@ -1164,10 +1164,10 @@ fn expand_pack_entry(
 
 fn path_is_after(buf: impl crate::strings::IntoCCharPtr, buflen: usize) -> bool {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         buflen >= 5
             && (buflen < 6 || vim_ispathsep(crate::memory::cstr_byte_at(buf, buflen - 6) as c_int))
-            && crate::memory::cstr_as_bytes(buf.add(buflen - 5)) == b"after"
+            && (&crate::memory::cstr_as_bytes(buf)[buflen - 5..]) == b"after"
     }
 }
 
@@ -1472,7 +1472,7 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
                 }
             }
 
-            p_rtp_len += crate::memory::cstr_len(opt_vars().p_rtp.add(p_rtp_len));
+            p_rtp_len += crate::memory::cstr_as_bytes(opt_vars().p_rtp)[p_rtp_len..].len();
             if insp.is_null() {
                 insp = opt_vars().p_rtp.add(p_rtp_len);
             }
@@ -2814,7 +2814,7 @@ fn do_source_ext(
                 if crate::memory::cstr_first_byte(p) == b'.'
                     || crate::memory::cstr_first_byte(p) == b'_'
                 {
-                    let rest = crate::memory::cstr_as_bytes(p.add(1));
+                    let rest = &crate::memory::cstr_as_bytes(p)[1..];
                     if rest.eq_ignore_ascii_case(b"nvimrc") || rest.eq_ignore_ascii_case(b"exrc") {
                         *p = if crate::memory::cstr_first_byte(p) == b'_' {
                             b'.' as c_char
@@ -3449,7 +3449,7 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<c_char>> {
                     buf.truncate(start);
                     break;
                 }
-                let read_len = crate::memory::cstr_len(buf.as_ptr().add(start));
+                let read_len = crate::memory::cstr_as_bytes(buf.as_ptr())[start..].len();
                 filled_chunk = read_len == 119;
                 len = start + read_len;
                 buf.truncate(len);

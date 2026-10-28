@@ -6969,7 +6969,7 @@ fn setup_cpt_sources() {
                     let caret = vim_strchr(buf.as_mut_ptr(), b'^' as c_int);
                     if !caret.is_null() {
                         sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(
-                            crate::memory::cstr_as_bytes(caret.add(1)),
+                            &crate::memory::cstr_as_bytes(caret)[1..],
                         ) as c_int;
                     }
                 }

@@ -1910,7 +1910,7 @@ fn find_rawstring_end(
                 }
                 if crate::memory::cstr_first_byte(p) == b')'
                     && (crate::memory::cstr_prefix_bytes(delim_copy.as_ptr(), delim_len)
-                        == crate::memory::cstr_prefix_bytes(p.add(1), delim_len))
+                        == (&crate::memory::cstr_slice(p, (1) + (delim_len))[1..]))
                     && crate::memory::cstr_byte_at(p, delim_len + 1) == b'"'
                 {
                     found = true;

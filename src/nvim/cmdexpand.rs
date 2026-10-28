@@ -2290,7 +2290,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: c_int, sh
             let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
             if emenu && menu_is_separator(s) {
                 crate::memory::cstr_cpy(buf.add(len), transchar(b'|' as c_int));
-                let l = crate::memory::cstr_len(buf.add(len));
+                let l = crate::memory::cstr_as_bytes(buf)[len..].len();
                 len += l;
                 clen += l as c_int;
             } else {
@@ -2307,7 +2307,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: c_int, sh
                             buf.add(len),
                             transchar_byte(c_int::from(crate::memory::cstr_first_byte(s))),
                         );
-                        len += crate::memory::cstr_len(buf.add(len));
+                        len += crate::memory::cstr_as_bytes(buf)[len..].len();
                     }
                     s = s.add(1);
                 }
@@ -5793,7 +5793,7 @@ fn wildmenu_process_key_filenames(
             key = opt_vars().p_wc as c_int;
             g_st().key_typed = true;
         } else if (crate::memory::cstr_prefix_bytes(xp.xp_pattern, 3)
-            == crate::memory::cstr_prefix_bytes(upseg.as_ptr().add(1), 3))
+            == (&crate::memory::cstr_slice(upseg.as_ptr(), (1) + (3))[1..]))
             && key == K_DOWN
         {
             let mut found = false;
@@ -5851,12 +5851,12 @@ fn wildmenu_process_key_filenames(
 
             if !found {
                 j = i;
-            } else if crate::memory::cstr_prefix_bytes(cclp.cmdbuff.add(j as usize), 4)
+            } else if (&crate::memory::cstr_slice(cclp.cmdbuff, (j as usize) + (4))[j as usize..])
                 == crate::memory::cstr_prefix_bytes(upseg.as_ptr(), 4)
             {
                 j += 4;
-            } else if (crate::memory::cstr_prefix_bytes(cclp.cmdbuff.add(j as usize), 3)
-                == crate::memory::cstr_prefix_bytes(upseg.as_ptr().add(1), 3))
+            } else if (crate::memory::cstr_slice(cclp.cmdbuff, (j as usize) + (3))[j as usize..]
+                == crate::memory::cstr_slice(upseg.as_ptr(), (1) + (3))[1..])
                 && j == i
             {
                 j += 3;

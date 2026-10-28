@@ -969,7 +969,7 @@ pub fn trunc_string(
         } else if e + 3 < buflen {
             // set the middle and copy the last part
             ptr::copy(c"...".as_ptr(), buf.add(e as usize), 3);
-            len = crate::memory::cstr_len(s.add(i as usize)) as c_int + 1;
+            len = crate::memory::cstr_as_bytes(s)[i as usize..].len() as c_int + 1;
             if len >= buflen - e - 3 {
                 len = buflen - e - 3 - 1;
             }

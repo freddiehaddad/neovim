@@ -1820,7 +1820,8 @@ fn findtags_start_state_handler(
         let lbuf = st.lbuf.as_ptr();
 
         if (crate::memory::cstr_prefix_bytes(lbuf, 6) <= b"!_TAG_")
-            || (crate::memory::cstr_first_byte(lbuf) == b'!' && ascii_islower(*lbuf.add(1)))
+            || (crate::memory::cstr_first_byte(lbuf) == b'!'
+                && ascii_islower(crate::memory::cstr_char_at(lbuf, 1)))
         {
             return findtags_hdr_parse(st);
         }
@@ -2713,9 +2714,9 @@ fn parse_match(mut lbuf: *mut c_char, tagp: &mut Tagptrs) -> bool {
                     } else if crate::memory::cstr_prefix_bytes(p, 10) == &b"user_data:"[..10] {
                         tagp.user_data = p.add(10);
                     } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"line:"[..5] {
-                        tagp.tagline = crate::charset::parse_i64_prefix(
-                            crate::memory::cstr_as_bytes(p.add(5)),
-                        ) as c_int;
+                        tagp.tagline =
+                            crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(p)[5..])
+                                as c_int;
                     }
                     if !tagp.tagkind.is_null() && !tagp.user_data.is_null() {
                         break;
@@ -3184,7 +3185,7 @@ fn find_extra(pp: *mut *mut c_char) -> bool {
             }
             if str_.is_null()
                 || crate::memory::cstr_first_byte(str_) != b';'
-                || !(ascii_isdigit(*str_.add(1))
+                || !(ascii_isdigit(crate::memory::cstr_char_at(str_, 1))
                     || crate::memory::cstr_byte_at(str_, 1) == b'/'
                     || crate::memory::cstr_byte_at(str_, 1) == b'?')
             {

@@ -210,7 +210,7 @@ pub fn strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut *mut c_char)
 
         let starts_with_ci = |p: *const c_char, lit: &[u8]| -> bool {
             for (i, &b) in lit.iter().enumerate() {
-                let c = *p.add(i) as u8;
+                let c = crate::memory::cstr_byte_at(p, i);
                 if c.to_ascii_lowercase() != b {
                     return false;
                 }
@@ -246,7 +246,7 @@ pub fn strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut *mut c_char)
             return if neg { -f64::NAN } else { f64::NAN };
         }
 
-        if *s == b'0' as c_char && matches!(*s.add(1) as u8, b'x' | b'X') {
+        if *s == b'0' as c_char && matches!(crate::memory::cstr_byte_at(s, 1), b'x' | b'X') {
             let mut p = s.add(2);
             let mut mant: f64 = 0.0;
             let mut exp2: i32 = 0;
@@ -1329,7 +1329,7 @@ fn vim_vsnprintf_typval_inner(
 
         'fmt_loop: while *p != NUL {
             if *p != b'%' as c_char {
-                let rem = crate::memory::cstr_as_bytes(p.add(1));
+                let rem = &crate::memory::cstr_as_bytes(p)[1..];
                 let n = 1 + rem.iter().position(|&b| b == b'%').unwrap_or(rem.len());
                 if str_avail {
                     let avail = str_m - str_l;
@@ -1957,15 +1957,20 @@ fn vim_vsnprintf_typval_inner(
                                         },
                                     );
                                     if !tp.is_null() {
-                                        if *tp.add(1) == b'+' as c_char {
-                                            let rem_len = crate::memory::cstr_len(tp.add(2)) + 1;
+                                        if crate::memory::cstr_byte_at(tp, 1) == b'+' {
+                                            let rem_len =
+                                                crate::memory::cstr_as_bytes(tp)[2..].len() + 1;
                                             ptr::copy(tp.add(2), tp.add(1), rem_len);
                                             str_arg_l -= 1;
                                         }
-                                        let i = if *tp.add(1) == b'-' as c_char { 2 } else { 1 };
-                                        while *tp.add(i) == b'0' as c_char {
+                                        let i = if crate::memory::cstr_byte_at(tp, 1) == b'-' {
+                                            2
+                                        } else {
+                                            1
+                                        };
+                                        while crate::memory::cstr_byte_at(tp, i) == b'0' {
                                             let rem_len =
-                                                crate::memory::cstr_len(tp.add(i + 1)) + 1;
+                                                crate::memory::cstr_as_bytes(tp)[i + 1..].len() + 1;
                                             ptr::copy(tp.add(i + 1), tp.add(i), rem_len);
                                             str_arg_l -= 1;
                                         }
@@ -1978,7 +1983,8 @@ fn vim_vsnprintf_typval_inner(
                                         && *tp == b'0' as c_char
                                         && *tp.sub(1) != b'.' as c_char
                                     {
-                                        let rem_len = crate::memory::cstr_len(tp.add(1)) + 1;
+                                        let rem_len =
+                                            crate::memory::cstr_as_bytes(tp)[1..].len() + 1;
                                         ptr::copy(tp.add(1), tp, rem_len);
                                         tp = tp.sub(1);
                                         str_arg_l -= 1;
@@ -1994,13 +2000,13 @@ fn vim_vsnprintf_typval_inner(
                                     },
                                 );
                                 if !tp.is_null()
-                                    && (*tp.add(1) == b'+' as c_char
-                                        || *tp.add(1) == b'-' as c_char)
-                                    && *tp.add(2) == b'0' as c_char
-                                    && ascii_isdigit(*tp.add(3))
-                                    && ascii_isdigit(*tp.add(4))
+                                    && (crate::memory::cstr_byte_at(tp, 1) == b'+'
+                                        || crate::memory::cstr_byte_at(tp, 1) == b'-')
+                                    && crate::memory::cstr_byte_at(tp, 2) == b'0'
+                                    && ascii_isdigit(crate::memory::cstr_char_at(tp, 3))
+                                    && ascii_isdigit(crate::memory::cstr_char_at(tp, 4))
                                 {
-                                    let rem_len = crate::memory::cstr_len(tp.add(3)) + 1;
+                                    let rem_len = crate::memory::cstr_as_bytes(tp)[3..].len() + 1;
                                     ptr::copy(tp.add(3), tp.add(2), rem_len);
                                     str_arg_l -= 1;
                                 }

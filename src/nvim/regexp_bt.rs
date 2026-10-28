@@ -165,7 +165,10 @@ fn op_fn(p: *const u8) -> c_int {
 
 #[inline]
 fn next_fn(p: *const u8) -> c_int {
-    unsafe { ((*p.add(1) as c_int & 0o377) << 8) + (*p.add(2) as c_int & 0o377) }
+    {
+        ((crate::memory::cstr_char_at(p.cast(), 1) & 0o377) << 8)
+            + (crate::memory::cstr_char_at(p.cast(), 2) & 0o377)
+    }
 }
 
 #[inline]
@@ -3077,7 +3080,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             if *opnd != *re_st().rex.input && !re_st().rex.reg_ic {
                                 status = RA_NOMATCH;
                             } else if *opnd != NUL {
-                                let len = if *opnd.add(1) == NUL && !re_st().rex.reg_ic {
+                                let len = if crate::memory::cstr_byte_at(opnd.cast(), 1) == 0
+                                    && !re_st().rex.reg_ic
+                                {
                                     1
                                 } else {
                                     let mut l = crate::memory::cstr_len(opnd.cast()) as c_int;

@@ -545,7 +545,7 @@ pub fn init_homedir() {
         }
 
         if !var.is_null() && crate::memory::cstr_first_byte(var) == b'%' {
-            let rest = crate::memory::cstr_as_bytes(var.add(1));
+            let rest = &crate::memory::cstr_as_bytes(var)[1..];
             if let Some(pos) = rest.iter().position(|&b| b == b'%') {
                 let p = var.add(1 + pos);
                 let buf = (&raw mut g_st().os_buf).cast::<c_char>();

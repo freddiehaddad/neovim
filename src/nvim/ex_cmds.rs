@@ -1455,7 +1455,8 @@ pub fn do_bang(addr_count: c_int, eap: &mut Exarg, forceit: bool, do_in: bool, d
             while newcmd[p_idx] != NUL {
                 if newcmd[p_idx] == b'!' as c_char {
                     if p_idx > 0 && newcmd[p_idx - 1] == b'\\' as c_char {
-                        let rest_len = crate::memory::cstr_len(newcmd.as_ptr().add(p_idx)) + 1;
+                        let rest_len =
+                            crate::memory::cstr_as_bytes(newcmd.as_ptr())[p_idx..].len() + 1;
                         newcmd.copy_within(p_idx..(p_idx + rest_len), p_idx - 1);
                     } else {
                         newcmd[p_idx] = NUL;

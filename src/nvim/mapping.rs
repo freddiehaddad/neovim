@@ -1357,7 +1357,10 @@ fn translate_mapping(
                 }
 
                 if c == K_SPECIAL as c_int && *str_ptr.add(1) != 0 && *str_ptr.add(2) != 0 {
-                    c = to_special(*str_ptr.add(1) as c_int, *str_ptr.add(2) as c_int);
+                    c = to_special(
+                        crate::memory::cstr_char_at(str_ptr.cast(), 1),
+                        crate::memory::cstr_char_at(str_ptr.cast(), 2),
+                    );
                     if c == K_ZERO {
                         c = NUL as c_int;
                     }
@@ -2012,7 +2015,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
             if c == K_SPECIAL as c_int && what != 2 {
                 let mut modifiers: c_int = 0;
                 if *str_ptr.add(1) == KS_MODIFIER {
-                    modifiers = *str_ptr.add(2) as c_int;
+                    modifiers = crate::memory::cstr_char_at(str_ptr.cast(), 2);
                     str_ptr = str_ptr.add(3);
 
                     let mut mod_ptr = str_ptr.cast::<c_char>();
@@ -2027,7 +2030,10 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
                     }
                 }
                 if c == K_SPECIAL as c_int {
-                    c = to_special(*str_ptr.add(1) as c_int, *str_ptr.add(2) as c_int);
+                    c = to_special(
+                        crate::memory::cstr_char_at(str_ptr.cast(), 1),
+                        crate::memory::cstr_char_at(str_ptr.cast(), 2),
+                    );
                     str_ptr = str_ptr.add(2);
                 }
                 if is_special(c) || modifiers != 0 {

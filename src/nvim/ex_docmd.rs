@@ -7592,7 +7592,10 @@ pub fn modifier_len(cmd: impl crate::strings::IntoCCharPtr) -> c_int {
                 }
                 j += 1;
             }
-            if j >= info.minlen && !ascii_isalpha(*p.add(j)) && (p == cmd || info.has_count) {
+            if j >= info.minlen
+                && !ascii_isalpha(crate::memory::cstr_char_at(p, j))
+                && (p == cmd || info.has_count)
+            {
                 return (j + ((p as usize) - (cmd as usize))) as c_int;
             }
         }
@@ -8450,7 +8453,7 @@ fn repl_cmdline(
     unsafe {
         let len = crate::memory::cstr_len(repl);
         let offset = (src as usize) - ((*cmdlinep) as usize);
-        let tail_len = crate::memory::cstr_len(src.add(srclen));
+        let tail_len = crate::memory::cstr_as_bytes(src)[srclen..].len();
         let nextcmd_len = if !eap.nextcmd.is_null() {
             crate::memory::cstr_len(eap.nextcmd)
         } else {
@@ -8640,14 +8643,16 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
         }
 
         if (crate::memory::cstr_prefix_bytes(arg, 4) == &b"edit"[..4])
-            && !ascii_isalpha(*arg.add(4))
+            && !ascii_isalpha(crate::memory::cstr_char_at(arg, 4))
         {
             eap.read_edit = c_int::from(true);
             eap.arg = skipwhite(arg.add(4));
             return true;
         }
 
-        if crate::memory::cstr_first_byte(arg) == b'p' && !ascii_isalpha(*arg.add(1)) {
+        if crate::memory::cstr_first_byte(arg) == b'p'
+            && !ascii_isalpha(crate::memory::cstr_char_at(arg, 1))
+        {
             eap.mkdir_p = c_int::from(true);
             eap.arg = skipwhite(arg.add(1));
             return true;
