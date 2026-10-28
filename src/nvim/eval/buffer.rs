@@ -425,6 +425,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 
         let lnum = ((*buf).b_prompt_start.mark.lnum - 1).max(0);
         let lines = (&raw mut argvars[1]);
+        let lines = { &mut *lines };
         let mut did_concat = false;
 
         if !(*buf).b_prompt_append_new_line {
@@ -433,16 +434,17 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
             } else {
                 c"".as_ptr()
             };
-            if (*lines).v_type == VarType::VarList {
-                let l = (*lines).vval.v_list();
+            if lines.v_type == VarType::VarList {
+                let l = lines.vval.v_list();
                 if !l.is_null() && tv_list_len(l.as_ref()) > 0 {
                     let li = tv_list_first(l.as_ref());
-                    let str_ = tv_get_string(&(*li).li_tv);
+                    let li = { &mut *li };
+                    let str_ = tv_get_string(&li.li_tv);
                     let new_str = concat_str(text, str_);
-                    crate::eval::typval::tv_set_string(&mut (*li).li_tv, new_str.as_ptr());
+                    crate::eval::typval::tv_set_string(&mut li.li_tv, new_str.as_ptr());
                     did_concat = true;
                 }
-            } else if (*lines).v_type == VarType::VarString {
+            } else if lines.v_type == VarType::VarString {
                 let str_ = tv_get_string(&*lines);
                 let new_str = concat_str(text, str_);
                 crate::eval::typval::tv_set_string(&mut *lines, new_str.as_ptr());
@@ -450,8 +452,8 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         }
 
         if g_st().did_emsg == did_emsg_before {
-            if did_concat && tv_list_len(((*lines).vval.v_list()).as_ref()) > 1 {
-                let l = (*lines).vval.v_list();
+            if did_concat && tv_list_len((lines.vval.v_list()).as_ref()) > 1 {
+                let l = lines.vval.v_list();
                 let li = tv_list_first(l.as_ref());
                 set_buffer_lines(buf, lnum, false, &mut (*li).li_tv, &mut *rettv);
 
@@ -472,8 +474,8 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 
         if rettv.vval.v_number() == 0 {
             (*buf).b_prompt_append_new_line = false;
-            if (*lines).v_type == VarType::VarList {
-                let l = (*lines).vval.v_list();
+            if lines.v_type == VarType::VarList {
+                let l = lines.vval.v_list();
                 if !l.is_null() && tv_list_len(l.as_ref()) > 0 {
                     let li = tv_list_last(l.as_ref());
                     let str_ = tv_get_string(&(*li).li_tv);
@@ -482,7 +484,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
                         (*buf).b_prompt_append_new_line = true;
                     }
                 }
-            } else if (*lines).v_type == VarType::VarString {
+            } else if lines.v_type == VarType::VarString {
                 let str_ = tv_get_string(&*lines);
                 let bytes = crate::memory::cstr_as_bytes(str_);
                 if bytes.last() == Some(&b'\n') {

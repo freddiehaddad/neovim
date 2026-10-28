@@ -1048,13 +1048,14 @@ pub fn tv_list_init_static10(sl: &mut StaticList10) {
         const SL_SIZE: usize = 10;
         *sl = StaticList10::new();
         let l = &raw mut sl.sl_list;
+        let l = { &mut *l };
         let items = (&raw mut sl.sl_items).cast::<Listitem>();
 
-        (*l).lv_first = items;
-        (*l).lv_last = items.add(SL_SIZE - 1);
-        (*l).lv_refcount = DO_NOT_FREE_CNT;
-        tv_list_set_lock_inline(l.as_mut(), VAR_FIXED);
-        (*l).lv_len = 10;
+        l.lv_first = items;
+        l.lv_last = items.add(SL_SIZE - 1);
+        l.lv_refcount = DO_NOT_FREE_CNT;
+        tv_list_set_lock_inline(Some(&mut *l), VAR_FIXED);
+        l.lv_len = 10;
 
         (*items).li_prev = ptr::null_mut();
         (*items).li_next = items.add(1);
@@ -1108,8 +1109,9 @@ pub unsafe extern "C" fn tv_list_free(l: *mut TvList) {
 pub fn tv_list_unref(l: *mut TvList) {
     unsafe {
         if !l.is_null() {
-            (*l).lv_refcount -= 1;
-            if (*l).lv_refcount <= 0 {
+            let l = { &mut *l };
+            l.lv_refcount -= 1;
+            if l.lv_refcount <= 0 {
                 tv_list_free(l);
             }
         }
@@ -2904,10 +2906,11 @@ pub fn tv_dict_free(d: *mut TvDict) {
 
 /// Unreference a dictionary.
 pub fn tv_dict_unref(d: *mut TvDict) {
-    unsafe {
+    {
         if !d.is_null() {
-            (*d).dv_refcount -= 1;
-            if (*d).dv_refcount <= 0 {
+            let d = unsafe { &mut *d };
+            d.dv_refcount -= 1;
+            if d.dv_refcount <= 0 {
                 tv_dict_free(d);
             }
         }

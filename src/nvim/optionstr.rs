@@ -1540,15 +1540,16 @@ pub fn validate_backupcopy(args: &mut Optset) -> *const c_char {
 pub fn did_set_backupcopy(args: &mut Optset) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
+        let buf = { &mut *buf };
         let opt_flags = args.os_flags;
         let mut bkc = opt_vars().p_bkc;
         let mut flags = &raw mut opt_vars().bkc_flags;
 
         if (opt_flags & OPT_LOCAL) != 0 {
-            bkc = (*buf).b_p_bkc;
-            flags = &raw mut (*buf).b_bkc_flags;
+            bkc = buf.b_p_bkc;
+            flags = &raw mut buf.b_bkc_flags;
         } else if (opt_flags & OPT_GLOBAL) == 0 {
-            (*buf).b_bkc_flags = 0;
+            buf.b_bkc_flags = 0;
         }
 
         if (opt_flags & OPT_LOCAL) != 0 && crate::memory::cstr_is_empty(bkc) {
@@ -1654,8 +1655,9 @@ pub fn validate_buftype(args: &mut Optset) -> *const c_char {
 pub fn did_set_buftype(args: &mut Optset) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
+        let buf = { &mut *buf };
         let win = args.os_win;
-        if crate::memory::cstr_first_byte((*buf).b_p_bt) == b'p' {
+        if crate::memory::cstr_first_byte(buf.b_p_bt) == b'p' {
             set_option_direct(
                 K_OPT_COMMENTS,
                 Object {
@@ -1669,11 +1671,11 @@ pub fn did_set_buftype(args: &mut Optset) -> *const c_char {
                 SID_NONE,
             );
             let next_prompt = CursorPos {
-                lnum: (*buf).b_ml.ml_line_count,
-                col: (*buf).b_prompt_start.mark.col,
+                lnum: buf.b_ml.ml_line_count,
+                col: buf.b_prompt_start.mark.col,
                 coladd: 0,
             };
-            (*buf).b_prompt_start = Fmark {
+            buf.b_prompt_start = Fmark {
                 mark: next_prompt,
                 fnum: 0,
                 timestamp: 0,
@@ -1688,7 +1690,7 @@ pub fn did_set_buftype(args: &mut Optset) -> *const c_char {
             (*win).w_redr_status = true;
             redraw_later(win.as_mut(), UPD_VALID);
         }
-        (*buf).b_help = crate::memory::cstr_first_byte((*buf).b_p_bt) == b'h';
+        buf.b_help = crate::memory::cstr_first_byte(buf.b_p_bt) == b'h';
         redraw_titles();
         ptr::null()
     }
@@ -2035,16 +2037,17 @@ pub fn did_set_completeitemalign(args: &mut Optset) -> *const c_char {
 
 /// The 'completeopt' option is changed.
 pub fn did_set_completeopt(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let buf = args.os_buf;
+        let buf = unsafe { &mut *buf };
         let mut cot = opt_vars().p_cot;
         let mut flags = &raw mut opt_vars().cot_flags;
 
         if (args.os_flags & OPT_LOCAL) != 0 {
-            cot = (*buf).b_p_cot;
-            flags = &raw mut (*buf).b_cot_flags;
+            cot = buf.b_p_cot;
+            flags = &raw mut buf.b_cot_flags;
         } else if (args.os_flags & OPT_GLOBAL) == 0 {
-            (*buf).b_cot_flags = 0;
+            buf.b_cot_flags = 0;
         }
 
         opt_strings_flags(cot, &OPT_COT_VALUES, flags, true, args.os_errbuf)
@@ -2500,8 +2503,9 @@ pub fn did_set_isopt(args: &mut Optset) -> *const c_char {
 
 /// The 'keymap' option has changed.
 pub fn did_set_keymap(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let buf = args.os_buf;
+        let buf = unsafe { &mut *buf };
         let opt_flags = args.os_flags;
 
         let secure_save = g_st().secure;
@@ -2514,17 +2518,17 @@ pub fn did_set_keymap(args: &mut Optset) -> *const c_char {
         args.os_value_checked = true;
 
         if errmsg.is_null() {
-            if !crate::memory::cstr_is_empty((*buf).b_p_keymap) {
-                (*buf).b_p_iminsert = B_IMODE_LMAP;
-                if (*buf).b_p_imsearch != B_IMODE_USE_INSERT {
-                    (*buf).b_p_imsearch = B_IMODE_LMAP;
+            if !crate::memory::cstr_is_empty(buf.b_p_keymap) {
+                buf.b_p_iminsert = B_IMODE_LMAP;
+                if buf.b_p_imsearch != B_IMODE_USE_INSERT {
+                    buf.b_p_imsearch = B_IMODE_LMAP;
                 }
             } else {
-                if (*buf).b_p_iminsert == B_IMODE_LMAP {
-                    (*buf).b_p_iminsert = B_IMODE_NONE;
+                if buf.b_p_iminsert == B_IMODE_LMAP {
+                    buf.b_p_iminsert = B_IMODE_NONE;
                 }
-                if (*buf).b_p_imsearch == B_IMODE_LMAP {
-                    (*buf).b_p_imsearch = B_IMODE_USE_INSERT;
+                if buf.b_p_imsearch == B_IMODE_LMAP {
+                    buf.b_p_imsearch = B_IMODE_USE_INSERT;
                 }
             }
             if (opt_flags & OPT_LOCAL) == 0 {
@@ -2631,18 +2635,19 @@ pub fn validate_mousescroll(args: &mut Optset) -> *const c_char {
 
 /// Handle setting 'mousescroll'.
 pub fn did_set_mousescroll(_args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let v = opt_keyset(opt_vars().p_mousescroll, K_OPT_MOUSESCROLL, ptr::null_mut())
             .cast::<OptKeyDict_mousescroll>();
-        let has_hor = ((*v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
-        let has_ver = ((*v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
+        let v = unsafe { &mut *v };
+        let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
+        let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
         opt_vars().p_mousescroll_hor = if has_hor {
-            i64::from((*v).hor as c_int)
+            i64::from(v.hor as c_int)
         } else {
             MOUSESCROLL_HOR_DFLT
         };
         opt_vars().p_mousescroll_vert = if has_ver {
-            i64::from((*v).ver as c_int)
+            i64::from(v.ver as c_int)
         } else {
             MOUSESCROLL_VERT_DFLT
         };

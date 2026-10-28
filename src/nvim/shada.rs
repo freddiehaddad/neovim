@@ -1596,7 +1596,8 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                         let sfname = path_try_shorten_fname(fname_ptr);
                         let buf = buflist_new(fname_ptr, sfname, 0, BLN_LISTED);
                         if !buf.is_null() {
-                            (*buf).b_last_cursor = Fmark {
+                            let buf = { &mut *buf };
+                            buf.b_last_cursor = Fmark {
                                 mark: item.pos,
                                 fnum: 0,
                                 timestamp: os_time(),
@@ -1604,13 +1605,13 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                                 additional_data: None,
                             };
                             buflist_setfpos(
-                                &mut *buf,
+                                buf,
                                 curwin_ptr(),
-                                (*buf).b_last_cursor.mark.lnum,
-                                (*buf).b_last_cursor.mark.col,
+                                buf.b_last_cursor.mark.lnum,
+                                buf.b_last_cursor.mark.col,
                                 false,
                             );
-                            (*buf).additional_data = item.additional_data.take();
+                            buf.additional_data = item.additional_data.take();
                         }
                     }
                     shada_free_shada_entry(&mut cur_entry);

@@ -297,9 +297,11 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
             let mut dummy = error_init();
             let parent = find_window_by_handle(wp.w_config.window, &mut dummy);
             if !parent.is_null() {
-                row += (*parent).w_winrow;
-                col += (*parent).w_wincol;
-                grid_adjust(&mut (*parent).w_grid, &mut row, &mut col);
+                let parent = { &mut *parent };
+                let parent = { &mut *parent };
+                row += parent.w_winrow;
+                col += parent.w_wincol;
+                grid_adjust(&mut parent.w_grid, &mut row, &mut col);
                 if wp.w_config.bufpos.lnum >= 0 {
                     let mut pos = CursorPos {
                         lnum: (wp.w_config.bufpos.lnum + 1)
@@ -564,7 +566,7 @@ pub fn win_float_close(kind: WinKind) {
 
 /// Re-layout a 'previewpopup' window for its current content (`win_float_update_preview`).
 pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
-    unsafe {
+    {
         if wp.w_kind != K_WIN_PREVIEW || !wp.w_floating || wp.w_buffer.is_null() {
             return;
         }
@@ -594,13 +596,14 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 
         let v = opt_keyset(opt_vars().p_pvp, K_OPT_PREVIEWPOPUP, ptr::null_mut())
             .cast::<OptKeyDict_pvp>();
-        let mut want_w = if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
-            (*v).width as c_int
+        let v = unsafe { &mut *v };
+        let mut want_w = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
+            v.width as c_int
         } else {
             0
         };
-        let mut want_h = if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) {
-            (*v).height as c_int
+        let mut want_h = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) {
+            v.height as c_int
         } else {
             0
         };

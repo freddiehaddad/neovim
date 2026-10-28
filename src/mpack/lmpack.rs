@@ -224,6 +224,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
         }
 
         let rv = lua_newuserdata(l, size_of::<LmpackUnpacker>()).cast::<LmpackUnpacker>();
+        let rv = { &mut *rv };
         ptr::write(
             rv,
             LmpackUnpacker {
@@ -236,16 +237,16 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
                 string_buffer: Vec::new(),
             },
         );
-        mpack_parser_init(&mut (*rv).parser, 0);
-        (*rv).parser.data = MpackData::LmpackUnpacker(rv);
+        mpack_parser_init(&mut rv.parser, 0);
+        rv.parser.data = MpackData::LmpackUnpacker(rv);
         luaL_getmetatable(l, UNPACKER_META_NAME);
         lua_setmetatable(l, -2);
 
         lua_newtable(l);
-        (*rv).reg = luaL_ref(l, LUA_REGISTRYINDEX);
+        rv.reg = luaL_ref(l, LUA_REGISTRYINDEX);
 
         lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
-        (*rv).mtdict = lmpack_ref(l, (*rv).reg);
+        rv.mtdict = lmpack_ref(l, rv.reg);
 
         if lua_istable(l, 1) {
             lua_getfield(l, 1, c"ext");
@@ -255,7 +256,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
                 }
                 lmpack_shallow_copy(l);
             }
-            (*rv).ext = lmpack_ref(l, (*rv).reg);
+            rv.ext = lmpack_ref(l, rv.reg);
         }
 
         1
@@ -554,26 +555,28 @@ fn lmpack_unparse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
         let parent = mpack_parent_node(&raw mut *node);
 
         if !parent.is_null() {
-            lmpack_geti(l, packer.reg, (*parent).data[0].i() as c_int);
+            let parent = { &mut *parent };
+            let parent = { &mut *parent };
+            lmpack_geti(l, packer.reg, parent.data[0].i() as c_int);
 
-            if (*parent).tok.r#type > MpackTokenMap {
+            if parent.tok.r#type > MpackTokenMap {
                 let str_ptr = lua_tolstring(l, -1, ptr::null_mut());
-                node.tok = mpack_pack_chunk(str_ptr, (*parent).tok.length);
+                node.tok = mpack_pack_chunk(str_ptr, parent.tok.length);
                 lua_pop(l, 1);
                 return;
             }
 
-            if (*parent).tok.r#type == MpackTokenArray {
-                lua_pushnumber(l, ((*parent).pos + 1) as lua_Number);
+            if parent.tok.r#type == MpackTokenArray {
+                lua_pushnumber(l, (parent.pos + 1) as lua_Number);
                 lua_gettable(l, -2);
-            } else if (*parent).tok.r#type == MpackTokenMap {
-                lmpack_geti(l, packer.reg, (*parent).data[1].i() as c_int);
+            } else if parent.tok.r#type == MpackTokenMap {
+                lmpack_geti(l, packer.reg, parent.data[1].i() as c_int);
                 let result = lua_next(l, -2);
                 debug_assert_ne!(result, 0);
-                if (*parent).key_visited != 0 {
-                    lmpack_unref(l, packer.reg, (*parent).data[1].i() as c_int);
+                if parent.key_visited != 0 {
+                    lmpack_unref(l, packer.reg, parent.data[1].i() as c_int);
                     lua_pushvalue(l, -2);
-                    (*parent).data[1] = crate::mpack::object::MpackData::Int(MpackSintmax::from(
+                    parent.data[1] = crate::mpack::object::MpackData::Int(MpackSintmax::from(
                         lmpack_ref(l, packer.reg),
                     ));
                     lua_replace(l, -2);
@@ -775,6 +778,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> c_int {
     unsafe {
         let rv = lua_newuserdata(l, size_of::<Session>()).cast::<Session>();
+        let rv = { &mut *rv };
         ptr::write(
             rv,
             Session {
@@ -797,7 +801,7 @@ unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> c_int {
         lua_setmetatable(l, -2);
 
         lua_newtable(l);
-        (*rv).reg = luaL_ref(l, LUA_REGISTRYINDEX);
+        rv.reg = luaL_ref(l, LUA_REGISTRYINDEX);
 
         if lua_istable(l, 1) {
             lua_getfield(l, 1, c"unpack");
@@ -807,7 +811,7 @@ unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> c_int {
                     c"\"unpack\" option must be a mpack.Unpacker instance".as_ptr(),
                 );
             }
-            (*rv).unpacker = lmpack_ref(l, (*rv).reg);
+            rv.unpacker = lmpack_ref(l, rv.reg);
         }
 
         1

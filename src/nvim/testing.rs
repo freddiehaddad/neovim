@@ -159,6 +159,7 @@ fn fill_assert_error(
     let exp_str = exp_str.into_c_char_ptr();
     unsafe {
         let exp_tv = exp_tv_arg;
+        let exp_tv = { &mut *exp_tv };
         let got_tv = got_tv_arg;
         let mut did_copy = false;
         let mut omitted: c_int = 0;
@@ -182,18 +183,18 @@ fn fill_assert_error(
 
         if exp_str.is_null() {
             if atype != AssertType::NotEqual
-                && (*exp_tv).v_type == VarType::VarDict
+                && exp_tv.v_type == VarType::VarDict
                 && got_tv.v_type == VarType::VarDict
-                && !(*exp_tv).vval.v_dict().is_null()
+                && !exp_tv.vval.v_dict().is_null()
                 && !got_tv.vval.v_dict().is_null()
             {
-                let exp_d = (*exp_tv).vval.v_dict();
+                let exp_d = exp_tv.vval.v_dict();
                 let got_d = got_tv.vval.v_dict();
 
                 did_copy = true;
                 let new_exp_d = tv_dict_alloc();
                 let new_got_d = tv_dict_alloc();
-                (*exp_tv).vval = crate::eval::typval::TypvalVval::Dict(new_exp_d);
+                exp_tv.vval = crate::eval::typval::TypvalVval::Dict(new_exp_d);
                 got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d);
 
                 let mut todo = (*exp_d).dv_hashtab.ht_used as c_int;

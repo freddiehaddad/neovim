@@ -2455,7 +2455,7 @@ fn qf_sync_win_to_llw(pwp: &mut WinInfoInfo) {
 }
 
 fn qf_alloc_stack(qfltype: Qfltype, n: c_int) -> &'static mut QfInfo {
-    unsafe {
+    {
         let qi = if qfltype == QFLT_QUICKFIX {
             &raw mut qf_st().ql_info_actual
         } else {
@@ -2469,11 +2469,12 @@ fn qf_alloc_stack(qfltype: Qfltype, n: c_int) -> &'static mut QfInfo {
                 qf_bufnr: 0,
             }))
         };
-        (*qi).qfl_type = qfltype;
-        (*qi).qf_bufnr = INVALID_QFBUFNR;
-        (*qi).qf_lists.clear();
-        (*qi).qf_lists.resize_with(n as usize, QfList::default);
-        (*qi).qf_maxcount = n;
+        let qi = unsafe { &mut *qi };
+        qi.qfl_type = qfltype;
+        qi.qf_bufnr = INVALID_QFBUFNR;
+        qi.qf_lists.clear();
+        qi.qf_lists.resize_with(n as usize, QfList::default);
+        qi.qf_maxcount = n;
 
         &mut *qi
     }
@@ -3437,11 +3438,12 @@ fn qf_jump_to_buffer(
         }
 
         let qf_ptr = &raw mut (&mut qfl.qf_items)[(qf_index - 1) as usize];
+        let qf_ptr = { &mut *qf_ptr };
         qf_jump_goto_line(
-            (*qf_ptr).qf_lnum,
-            (*qf_ptr).qf_col,
-            (*qf_ptr).qf_viscol,
-            (*qf_ptr)
+            qf_ptr.qf_lnum,
+            qf_ptr.qf_col,
+            qf_ptr.qf_viscol,
+            qf_ptr
                 .qf_pattern
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
@@ -5856,9 +5858,11 @@ fn vgr_process_files(
                     }
 
                     if !buf.is_null() {
-                        (*buf).b_flags &= !BF_DUMMY;
+                        let buf = { &mut *buf };
+                        let buf = { &mut *buf };
+                        buf.b_flags &= !BF_DUMMY;
 
-                        if buf == *first_match_buf
+                        if std::ptr::eq(buf, *first_match_buf)
                             && target_dir.is_none()
                             && (crate::memory::cstr_as_bytes(dirname_start.as_ptr())
                                 != crate::memory::cstr_as_bytes(dirname_now.as_ptr()))
@@ -5869,7 +5873,7 @@ fn vgr_process_files(
 
                         let mut aco: CtxSwitch = CtxSwitch::new();
                         ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
-                        apply_autocmds(EVENT_FILETYPE, (*buf).b_p_ft, (*buf).b_fname, true, buf);
+                        apply_autocmds(EVENT_FILETYPE, buf.b_p_ft, buf.b_fname, true, buf);
                         do_modelines(OPT_NOWIN);
                         ctx_restore(&mut aco);
                     }
@@ -6228,7 +6232,7 @@ fn get_errorlist(
 }
 
 fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut TvDict) -> bool {
-    unsafe {
+    {
         if di.di_tv.v_type != VarType::VarList || di.di_tv.vval.v_list().is_null() {
             return false;
         }
@@ -6236,12 +6240,12 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         let mut errorformat = opt_vars().p_efm;
         let efm_di = tv_dict_find(Some(what), c"efm", 3);
         if !efm_di.is_null() {
-            if (*efm_di).di_tv.v_type != VarType::VarString
-                || (*efm_di).di_tv.vval.v_string().is_null()
-            {
+            let efm_di = unsafe { &mut *efm_di };
+            let efm_di = { &mut *efm_di };
+            if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
                 return false;
             }
-            errorformat = (*efm_di).di_tv.vval.v_string();
+            errorformat = efm_di.di_tv.vval.v_string();
         }
 
         let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
@@ -6352,19 +6356,20 @@ fn qf_getprop_keys2flags(what: &TvDict, loclist: bool) -> c_int {
 }
 
 fn qf_getprop_qfidx(qi: &mut QfInfo, what: &mut TvDict) -> c_int {
-    unsafe {
+    {
         let mut qf_idx = qi.qf_curlist;
         let mut di = tv_dict_find(Some(what), c"nr", 2);
         if !di.is_null() {
-            if (*di).di_tv.v_type == VarType::VarNumber {
-                if (*di).di_tv.vval.v_number() != 0 {
-                    qf_idx = (*di).di_tv.vval.v_number() as c_int - 1;
+            let di = unsafe { &mut *di };
+            if di.di_tv.v_type == VarType::VarNumber {
+                if di.di_tv.vval.v_number() != 0 {
+                    qf_idx = di.di_tv.vval.v_number() as c_int - 1;
                     if qf_idx < 0 || qf_idx >= qi.qf_listcount {
                         qf_idx = INVALID_QFIDX;
                     }
                 }
-            } else if (*di).di_tv.v_type == VarType::VarString
-                && (crate::memory::cstr_as_opt_bytes((*di).di_tv.vval.v_string()) == Some(b"$"))
+            } else if di.di_tv.v_type == VarType::VarString
+                && (crate::memory::cstr_as_opt_bytes(di.di_tv.vval.v_string()) == Some(b"$"))
             {
                 qf_idx = qi.qf_listcount - 1;
             } else {
@@ -6374,9 +6379,11 @@ fn qf_getprop_qfidx(qi: &mut QfInfo, what: &mut TvDict) -> c_int {
 
         di = tv_dict_find(Some(what), c"id", 2);
         if !di.is_null() {
-            if (*di).di_tv.v_type == VarType::VarNumber {
-                if (*di).di_tv.vval.v_number() != 0 {
-                    qf_idx = qf_id2nr(qi, (*di).di_tv.vval.v_number() as c_uint);
+            let di = unsafe { &mut *di };
+            let di = { &mut *di };
+            if di.di_tv.v_type == VarType::VarNumber {
+                if di.di_tv.vval.v_number() != 0 {
+                    qf_idx = qf_id2nr(qi, di.di_tv.vval.v_number() as c_uint);
                 }
             } else {
                 qf_idx = INVALID_QFIDX;
@@ -6542,10 +6549,11 @@ fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut 
 
         let di = tv_dict_find(Some(what), c"idx", 3);
         if !di.is_null() {
-            if (*di).di_tv.v_type != VarType::VarNumber {
+            let di = { &mut *di };
+            if di.di_tv.v_type != VarType::VarNumber {
                 return false;
             }
-            eidx = (*di).di_tv.vval.v_number() as c_int;
+            eidx = di.di_tv.vval.v_number() as c_int;
         }
 
         if (flags & QF_GETLIST_TITLE) != 0 {
@@ -6768,9 +6776,11 @@ fn qf_add_entries(
         let mut prev_col: c_int = 0;
         let cur_entry = qfl.cur_entry();
         if !cur_entry.is_null() {
-            prev_fnum = (*cur_entry).qf_fnum;
-            prev_lnum = (*cur_entry).qf_lnum;
-            prev_col = (*cur_entry).qf_col;
+            let cur_entry = { &mut *cur_entry };
+            let cur_entry = { &mut *cur_entry };
+            prev_fnum = cur_entry.qf_fnum;
+            prev_lnum = cur_entry.qf_lnum;
+            prev_col = cur_entry.qf_col;
         }
 
         let mut select_first_entry = false;
@@ -6849,14 +6859,15 @@ fn qf_add_entries(
 }
 
 fn qf_setprop_get_qfidx(qi: &QfInfo, what: &TvDict, action: c_int, newlist: &mut bool) -> c_int {
-    unsafe {
+    {
         let mut qf_idx = qi.qf_curlist;
 
         let di = tv_dict_find(Some(what), c"nr", 2);
         if !di.is_null() {
-            if (*di).di_tv.v_type == VarType::VarNumber {
-                if (*di).di_tv.vval.v_number() != 0 {
-                    qf_idx = (*di).di_tv.vval.v_number() as c_int - 1;
+            let di = unsafe { &mut *di };
+            if di.di_tv.v_type == VarType::VarNumber {
+                if di.di_tv.vval.v_number() != 0 {
+                    qf_idx = di.di_tv.vval.v_number() as c_int - 1;
                 }
 
                 if (action == b' ' as c_int || action == b'a' as c_int) && qf_idx == qi.qf_listcount
@@ -6872,8 +6883,8 @@ fn qf_setprop_get_qfidx(qi: &QfInfo, what: &TvDict, action: c_int, newlist: &mut
                 } else if action != b' ' as c_int {
                     *newlist = false;
                 }
-            } else if (*di).di_tv.v_type == VarType::VarString
-                && (crate::memory::cstr_as_opt_bytes((*di).di_tv.vval.v_string()) == Some(b"$"))
+            } else if di.di_tv.v_type == VarType::VarString
+                && (crate::memory::cstr_as_opt_bytes(di.di_tv.vval.v_string()) == Some(b"$"))
             {
                 if !qf_stack_empty(Some(qi)) {
                     qf_idx = qi.qf_listcount - 1;
@@ -6890,10 +6901,11 @@ fn qf_setprop_get_qfidx(qi: &QfInfo, what: &TvDict, action: c_int, newlist: &mut
         if !*newlist {
             let di = tv_dict_find(Some(what), c"id", 2);
             if !di.is_null() {
-                if (*di).di_tv.v_type != VarType::VarNumber {
+                let di = unsafe { &mut *di };
+                if di.di_tv.v_type != VarType::VarNumber {
                     return INVALID_QFIDX;
                 }
-                return qf_id2nr(qi, (*di).di_tv.vval.v_number() as c_uint);
+                return qf_id2nr(qi, di.di_tv.vval.v_number() as c_uint);
             }
         }
 
@@ -6945,18 +6957,18 @@ fn qf_setprop_items_from_lines(
     di: &mut Dictitem,
     action: c_int,
 ) -> bool {
-    unsafe {
+    {
         let mut errorformat = opt_vars().p_efm;
         let mut retval = false;
 
         let efm_di = tv_dict_find(Some(what), c"efm", 3);
         if !efm_di.is_null() {
-            if (*efm_di).di_tv.v_type != VarType::VarString
-                || (*efm_di).di_tv.vval.v_string().is_null()
-            {
+            let efm_di = unsafe { &mut *efm_di };
+            let efm_di = { &mut *efm_di };
+            if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
                 return false;
             }
-            errorformat = (*efm_di).di_tv.vval.v_string();
+            errorformat = efm_di.di_tv.vval.v_string();
         }
 
         if di.di_tv.v_type != VarType::VarList || di.di_tv.vval.v_list().is_null() {
@@ -7823,16 +7835,15 @@ fn set_qf_ll_list(wp: *mut WinInfoInfo, args: &mut [TypVal], rettv: &mut TypVal)
             }
 
             let what_arg = args.add(2);
-            if (*what_arg).v_type != VarType::VarUnknown {
-                if (*what_arg).v_type == VarType::VarString {
+            let what_arg = { &mut *what_arg };
+            if what_arg.v_type != VarType::VarUnknown {
+                if what_arg.v_type == VarType::VarString {
                     title = tv_get_string_chk(&*what_arg);
                     if title.is_null() {
                         return;
                     }
-                } else if (*what_arg).v_type == VarType::VarDict
-                    && !(*what_arg).vval.v_dict().is_null()
-                {
-                    what = (*what_arg).vval.v_dict();
+                } else if what_arg.v_type == VarType::VarDict && !what_arg.vval.v_dict().is_null() {
+                    what = what_arg.vval.v_dict();
                 } else {
                     emsg(gettext(E_DICTREQ));
                     return;

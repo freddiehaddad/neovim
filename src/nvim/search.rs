@@ -3117,29 +3117,31 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             }
             di = tv_dict_find(dict.as_ref(), c"pos", -1);
             if !di.is_null() {
-                if (*di).di_tv.v_type != VarType::VarList {
+                let di = { &mut *di };
+                let di = { &mut *di };
+                if di.di_tv.v_type != VarType::VarList {
                     semsg!(tr(E_INVARG2), c"pos");
                     return;
                 }
-                if tv_list_len(((*di).di_tv.vval.v_list()).as_ref()) != 3 {
+                if tv_list_len((di.di_tv.vval.v_list()).as_ref()) != 3 {
                     semsg!(tr(E_INVARG2), c"List format should be [lnum, col, off]",);
                     return;
                 }
-                let mut li: *mut Listitem = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 0);
+                let mut li: *mut Listitem = tv_list_find((di.di_tv.vval.v_list()).as_mut(), 0);
                 if !li.is_null() {
                     pos.lnum = tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Linenr;
                     if error {
                         return;
                     }
                 }
-                li = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 1);
+                li = tv_list_find((di.di_tv.vval.v_list()).as_mut(), 1);
                 if !li.is_null() {
                     pos.col = tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr - 1;
                     if error {
                         return;
                     }
                 }
-                li = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 2);
+                li = tv_list_find((di.di_tv.vval.v_list()).as_mut(), 2);
                 if !li.is_null() {
                     pos.coladd = tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr;
                     if error {

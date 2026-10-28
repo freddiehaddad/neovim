@@ -1640,23 +1640,24 @@ pub fn msg_hist_clear_temp() {
 
 /// Check the 'messagesopt' fields after schema validation.
 pub fn validate_messagesopt(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let v = opt_keyset(
             args.os_newval.data.string().data,
             K_OPT_MESSAGESOPT,
             ptr::null_mut(),
         )
         .cast::<OptKeyDict_mopt>();
+        let v = unsafe { &mut *v };
 
-        let has_wait = ((*v).is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
-        let has_history = ((*v).is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_HISTORY)) != 0;
+        let has_wait = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
+        let has_history = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_HISTORY)) != 0;
 
         // Either "wait" or "hit-enter" is required; "history" always.
-        if (!(*v).hit_enter && !has_wait) || !has_history {
+        if (!v.hit_enter && !has_wait) || !has_history {
             return E_INVARG.as_ptr();
         }
         // "history" and "wait" must be <= 10000; "maxheight" is a percentage.
-        if (*v).history > 10000 || (*v).wait > 10000 || (*v).maxheight > 100 {
+        if v.history > 10000 || v.wait > 10000 || v.maxheight > 100 {
             return E_INVARG.as_ptr();
         }
         ptr::null()
@@ -1665,19 +1666,20 @@ pub fn validate_messagesopt(args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'messagesopt' option value.
 pub fn did_set_messagesopt(_args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let v = opt_keyset(opt_vars().p_mopt, K_OPT_MESSAGESOPT, ptr::null_mut())
             .cast::<OptKeyDict_mopt>();
+        let v = unsafe { &mut *v };
 
-        msg_st().msg_hit_enter = (*v).hit_enter;
-        msg_st().msg_wait = (*v).wait as c_int;
+        msg_st().msg_hit_enter = v.hit_enter;
+        msg_st().msg_wait = v.wait as c_int;
         msg_st().progress_msg_target =
-            if crate::memory::cstr_as_opt_bytes((*v).progress.as_ptr()) == Some(b"c") {
+            if crate::memory::cstr_as_opt_bytes(v.progress.as_ptr()) == Some(b"c") {
                 PROGRESS_TARGET_CMD
             } else {
                 0
             };
-        msg_st().msg_hist_max = (*v).history as c_int;
+        msg_st().msg_hist_max = v.history as c_int;
         msg_hist_clear(msg_st().msg_hist_max);
         ptr::null()
     }

@@ -2732,12 +2732,12 @@ pub fn get_c_indent() -> c_int {
                                                     curbuf_mut().b_ind_maxparen,
                                                 );
                                                 if !trypos.is_null() {
-                                                    if (*trypos).lnum
-                                                        == curwin_mut().w_cursor.lnum - 1
+                                                    let trypos = { &mut *trypos };
+                                                    if trypos.lnum == curwin_mut().w_cursor.lnum - 1
                                                     {
                                                         break;
                                                     }
-                                                    ourscope = (*trypos).lnum;
+                                                    ourscope = trypos.lnum;
                                                 }
                                             } else {
                                                 lookfor = LOOKFOR_ENUM_OR_INIT;

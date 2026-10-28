@@ -1191,6 +1191,8 @@ fn lua_convert_one_value(
                     if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VarList {
                         let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
+                            let val_di = { &mut *val_di };
+                            let val_di = { &mut *val_di };
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in
                                 { *eval_msgpack_type_lists_mut() }.into_iter().enumerate()
@@ -1207,39 +1209,40 @@ fn lua_convert_one_value(
                                         handled_special = true;
                                     }
                                     K_MP_BOOLEAN => {
-                                        if (*val_di).di_tv.v_type == VarType::VarNumber {
+                                        if val_di.di_tv.v_type == VarType::VarNumber {
                                             lua_pushboolean(
                                                 lstate,
-                                                c_int::from((*val_di).di_tv.vval.v_number() != 0),
+                                                c_int::from(val_di.di_tv.vval.v_number() != 0),
                                             );
                                             handled_special = true;
                                         }
                                     }
                                     K_MP_INTEGER => {
-                                        if (*val_di).di_tv.v_type == VarType::VarList {
-                                            let val_list = (*val_di).di_tv.vval.v_list();
+                                        if val_di.di_tv.v_type == VarType::VarList {
+                                            let val_list = val_di.di_tv.vval.v_list();
                                             if tv_list_len(val_list.as_ref()) == 4 {
                                                 let sign_li = tv_list_first(val_list.as_ref());
-                                                let highest_li = (*sign_li).li_next;
-                                                let high_li = (*highest_li).li_next;
+                                                let sign_li = { &mut *sign_li };
+                                                let highest_li = sign_li.li_next;
+                                                let highest_li = { &mut *highest_li };
+                                                let high_li = highest_li.li_next;
+                                                let high_li = { &mut *high_li };
                                                 let low_li = tv_list_last(val_list.as_ref());
-                                                if (*sign_li).li_tv.v_type == VarType::VarNumber
-                                                    && (*sign_li).li_tv.vval.v_number() != 0
-                                                    && (*highest_li).li_tv.v_type
-                                                        == VarType::VarNumber
-                                                    && (*highest_li).li_tv.vval.v_number() >= 0
-                                                    && (*high_li).li_tv.v_type == VarType::VarNumber
-                                                    && (*high_li).li_tv.vval.v_number() >= 0
-                                                    && (*low_li).li_tv.v_type == VarType::VarNumber
-                                                    && (*low_li).li_tv.vval.v_number() >= 0
+                                                let low_li = { &mut *low_li };
+                                                if sign_li.li_tv.v_type == VarType::VarNumber
+                                                    && sign_li.li_tv.vval.v_number() != 0
+                                                    && highest_li.li_tv.v_type == VarType::VarNumber
+                                                    && highest_li.li_tv.vval.v_number() >= 0
+                                                    && high_li.li_tv.v_type == VarType::VarNumber
+                                                    && high_li.li_tv.vval.v_number() >= 0
+                                                    && low_li.li_tv.v_type == VarType::VarNumber
+                                                    && low_li.li_tv.vval.v_number() >= 0
                                                 {
-                                                    let sign = (*sign_li).li_tv.vval.v_number();
+                                                    let sign = sign_li.li_tv.vval.v_number();
                                                     let highest =
-                                                        (*highest_li).li_tv.vval.v_number() as u64;
-                                                    let high =
-                                                        (*high_li).li_tv.vval.v_number() as u64;
-                                                    let low =
-                                                        (*low_li).li_tv.vval.v_number() as u64;
+                                                        highest_li.li_tv.vval.v_number() as u64;
+                                                    let high = high_li.li_tv.vval.v_number() as u64;
+                                                    let low = low_li.li_tv.vval.v_number() as u64;
                                                     let number =
                                                         (highest << 62) | (high << 31) | low;
                                                     if sign > 0 {
@@ -1260,15 +1263,15 @@ fn lua_convert_one_value(
                                         }
                                     }
                                     K_MP_FLOAT => {
-                                        if (*val_di).di_tv.v_type == VarType::VarFloat {
-                                            lua_pushnumber(lstate, (*val_di).di_tv.vval.v_float());
+                                        if val_di.di_tv.v_type == VarType::VarFloat {
+                                            lua_pushnumber(lstate, val_di.di_tv.vval.v_float());
                                             handled_special = true;
                                         }
                                     }
                                     K_MP_STRING => {
-                                        if (*val_di).di_tv.v_type == VarType::VarList
+                                        if val_di.di_tv.v_type == VarType::VarList
                                             && let Some(buf) = encode_vim_list_to_buf(
-                                                ((*val_di).di_tv.vval.v_list()).as_ref(),
+                                                (val_di.di_tv.vval.v_list()).as_ref(),
                                             )
                                         {
                                             lua_pushlstring(lstate, buf.as_ptr(), buf.len());
@@ -1276,8 +1279,8 @@ fn lua_convert_one_value(
                                         }
                                     }
                                     K_MP_ARRAY => {
-                                        if (*val_di).di_tv.v_type == VarType::VarList {
-                                            let val_list = (*val_di).di_tv.vval.v_list();
+                                        if val_di.di_tv.v_type == VarType::VarList {
+                                            let val_list = val_di.di_tv.vval.v_list();
                                             let saved_copy_id = (*val_list).lv_copy_id;
                                             let csr = lua_check_self_reference(
                                                 lstate,
@@ -1307,8 +1310,8 @@ fn lua_convert_one_value(
                                         }
                                     }
                                     K_MP_MAP => {
-                                        if (*val_di).di_tv.v_type == VarType::VarList {
-                                            let val_list = (*val_di).di_tv.vval.v_list();
+                                        if val_di.di_tv.v_type == VarType::VarList {
+                                            let val_list = val_di.di_tv.vval.v_list();
                                             if val_list.is_null()
                                                 || tv_list_len(val_list.as_ref()) == 0
                                             {
@@ -1359,8 +1362,8 @@ fn lua_convert_one_value(
                                             }
                                         }
                                     }
-                                    K_MP_EXT if (*val_di).di_tv.v_type == VarType::VarList => {
-                                        let val_list = (*val_di).di_tv.vval.v_list();
+                                    K_MP_EXT if val_di.di_tv.v_type == VarType::VarList => {
+                                        let val_list = val_di.di_tv.vval.v_list();
                                         if tv_list_len(val_list.as_ref()) == 2 {
                                             let first = tv_list_first(val_list.as_ref());
                                             let last = tv_list_last(val_list.as_ref());

@@ -670,14 +670,15 @@ pub fn update_screen() -> bool {
                 update_window_hl(&mut *wp, type_ >= UPD_NOT_VALID || hl_changed);
 
                 let buf = (*wp).w_buffer;
-                if (*buf).b_mod_set {
-                    if (*buf).b_mod_tick_syn < display_tick_val() && syntax_present(&mut *wp) {
+                let buf = { &mut *buf };
+                if buf.b_mod_set {
+                    if buf.b_mod_tick_syn < display_tick_val() && syntax_present(&mut *wp) {
                         syn_stack_apply_changes(&mut *buf);
-                        (*buf).b_mod_tick_syn = display_tick_val();
+                        buf.b_mod_tick_syn = display_tick_val();
                     }
-                    if (*buf).b_mod_tick_decor < display_tick_val() {
+                    if buf.b_mod_tick_decor < display_tick_val() {
                         decor_providers_invoke_buf(&mut *buf);
-                        (*buf).b_mod_tick_decor = display_tick_val();
+                        buf.b_mod_tick_decor = display_tick_val();
                     }
                 }
             }

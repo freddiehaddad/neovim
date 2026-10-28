@@ -1944,6 +1944,7 @@ fn ins_compl_build_pum() -> c_int {
             comp.cp_in_match_array = false;
 
             let leader = get_leader_for_startcol(Some(&*comp), true);
+            let leader = { &mut *leader };
 
             if ctrl_x_mode_normal()
                 && opt_vars().p_inf == 0
@@ -1955,8 +1956,8 @@ fn ins_compl_build_pum() -> c_int {
             }
 
             if !match_at_original_text(comp)
-                && ((*leader).data.is_null()
-                    || ins_compl_equal_sc(comp, (*leader).data, (*leader).size)
+                && (leader.data.is_null()
+                    || ins_compl_equal_sc(comp, leader.data, leader.size)
                     || (cot_fuzzy() && comp.cp_score != FUZZY_SCORE_NONE))
             {
                 let mut match_limit_exceeded = false;
@@ -3950,7 +3951,8 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                 ret = tv_dict_add_nr(retdict, c"selected", Varnumber::from(selected_idx));
                 let wp = win_float_find(K_WIN_INFO);
                 if !wp.is_null() {
-                    tv_dict_add_nr(retdict, c"preview_winid", Varnumber::from((*wp).handle));
+                    let wp = { &mut *wp };
+                    tv_dict_add_nr(retdict, c"preview_winid", Varnumber::from(wp.handle));
                     tv_dict_add_nr(
                         retdict,
                         c"preview_bufnr",
@@ -5489,6 +5491,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
         let mut len: c_int = -1;
         for compl in list {
             let leader = get_leader_for_startcol(Some(&*compl), true);
+            let leader = { &mut *leader };
 
             if ctrl_x_mode_normal()
                 && opt_vars().p_inf == 0
@@ -5499,8 +5502,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
             }
 
             if !match_at_original_text(compl)
-                && ((*leader).data.is_null()
-                    || ins_compl_equal_sc(compl, (*leader).data, (*leader).size))
+                && (leader.data.is_null() || ins_compl_equal_sc(compl, leader.data, leader.size))
             {
                 let mut match_limit_exceeded = false;
                 let cur_source = compl.cp_cpt_source_idx;
@@ -5594,8 +5596,9 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         let compl_len = get_compl_len();
         let preinsert = ins_compl_has_preinsert();
         let shown = compl_opt(insexp().compl_shown_idx);
-        let mut cp_str = (*shown).cp_str.data;
-        let mut cp_str_len = (*shown).cp_str.size;
+        let shown = { &mut *shown };
+        let mut cp_str = shown.cp_str.data;
+        let mut cp_str_len = shown.cp_str.size;
         let leader_len = ins_compl_leader_len();
         let has_multiple = crate::memory::cstr_as_bytes(cp_str).contains(&b'\n');
 
@@ -5606,12 +5609,13 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
                 cp_str = find_common_prefix(&mut cp_str_len, true);
                 if cp_str.is_null() {
                     let shown = compl_opt(insexp().compl_shown_idx);
-                    cp_str = (*shown).cp_str.data;
-                    cp_str_len = (*shown).cp_str.size;
+                    let shown = { &mut *shown };
+                    cp_str = shown.cp_str.data;
+                    cp_str_len = shown.cp_str.size;
                 }
             }
         } else if !cpt_sources.is_empty() {
-            let cpt_idx = (*shown).cp_cpt_source_idx;
+            let cpt_idx = shown.cp_cpt_source_idx;
             if cpt_idx >= 0 && insexp().compl_col >= 0 {
                 let startcol = insexp().cpt_sources_array[cpt_idx as usize].cs_startcol;
                 if startcol >= 0 && startcol < insexp().compl_col {
@@ -5812,10 +5816,11 @@ fn find_next_completion_match(
 
             let shown = compl_opt(insexp().compl_shown_idx);
             let leader = get_leader_for_startcol(shown.as_ref(), false);
+            let leader = { &mut *leader };
 
             if !match_at_original_text(&*shown)
-                && !(*leader).data.is_null()
-                && !ins_compl_equal(&mut *shown, (*leader).data, (*leader).size)
+                && !leader.data.is_null()
+                && !ins_compl_equal(&mut *shown, leader.data, leader.size)
                 && !(cot_fuzzy() && (*shown).cp_score != FUZZY_SCORE_NONE)
             {
                 todo += 1;

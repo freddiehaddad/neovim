@@ -951,13 +951,14 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> c_int 
         {
             let meta = ts_language_metadata(lang);
             if !meta.is_null() {
+                let meta = &*meta;
                 lua_createtable(lstate, 0, 3);
 
-                lua_pushinteger(lstate, (*meta).major_version as lua_Integer);
+                lua_pushinteger(lstate, meta.major_version as lua_Integer);
                 lua_setfield(lstate, -2, c"major_version");
-                lua_pushinteger(lstate, (*meta).minor_version as lua_Integer);
+                lua_pushinteger(lstate, meta.minor_version as lua_Integer);
                 lua_setfield(lstate, -2, c"minor_version");
-                lua_pushinteger(lstate, (*meta).patch_version as lua_Integer);
+                lua_pushinteger(lstate, meta.patch_version as lua_Integer);
                 lua_setfield(lstate, -2, c"patch_version");
 
                 lua_setfield(lstate, -2, c"metadata");
@@ -1062,9 +1063,10 @@ unsafe extern "C" fn input_cb(
 ) -> *const c_char {
     unsafe {
         let bp = payload.cast::<FileBuf>();
+        let bp = { &mut *bp };
         let buf_ptr = (&raw mut ts_st().input_buf).cast::<c_char>();
 
-        if (position.row as Linenr) >= (*bp).b_ml.ml_line_count {
+        if (position.row as Linenr) >= bp.b_ml.ml_line_count {
             *bytes_read = 0;
             return c"".as_ptr();
         }
@@ -1087,9 +1089,9 @@ unsafe extern "C" fn input_cb(
         }
         *bytes_read = tocopy as u32;
         if tocopy < BUFSIZE
-            && (lnum != (*bp).b_ml.ml_line_count
-                || ((*bp).b_p_bin == 0 && (*bp).b_p_fixeol != 0)
-                || (lnum != (*bp).b_no_eol_lnum && (*bp).b_p_eol != 0))
+            && (lnum != bp.b_ml.ml_line_count
+                || (bp.b_p_bin == 0 && bp.b_p_fixeol != 0)
+                || (lnum != bp.b_no_eol_lnum && bp.b_p_eol != 0))
         {
             *buf_ptr.add(tocopy) = b'\n' as c_char;
             *bytes_read += 1;
@@ -1382,14 +1384,14 @@ unsafe extern "C-unwind" fn parser_get_ranges(lstate: *mut lua_State) -> c_int {
 unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *const c_char) {
     unsafe {
         let opts = payload.cast::<TSLuaLoggerOpts>();
-        if (!(*opts).lex && logtype == TSLOG_TYPE_LEX)
-            || (!(*opts).parse && logtype == TSLOG_TYPE_PARSE)
+        let opts = { &mut *opts };
+        if (!opts.lex && logtype == TSLOG_TYPE_LEX) || (!opts.parse && logtype == TSLOG_TYPE_PARSE)
         {
             return;
         }
 
-        let lstate = (*opts).lstate;
-        lua_rawgeti(lstate, LUA_REGISTRYINDEX, (*opts).cb);
+        let lstate = opts.lstate;
+        lua_rawgeti(lstate, LUA_REGISTRYINDEX, opts.cb);
         lua_pushstring(
             lstate,
             if logtype == TSLOG_TYPE_PARSE {

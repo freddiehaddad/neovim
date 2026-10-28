@@ -1159,8 +1159,9 @@ pub fn do_tags(_eap: &mut Exarg) {
         msg_puts_title(gettext(c"\n  # TO tag         FROM line  in file/text"));
         for i in 0..tagstacklen {
             let entry = tagstack.add(i as usize);
-            if let Some(ref tagname) = (*entry).tagname {
-                let Some(name) = fm_getname(&mut (*entry).fmark, 30) else {
+            let entry = { &mut *entry };
+            if let Some(ref tagname) = entry.tagname {
+                let Some(name) = fm_getname(&mut entry.fmark, 30) else {
                     continue;
                 };
 
@@ -1176,14 +1177,14 @@ pub fn do_tags(_eap: &mut Exarg) {
                         b' ' as c_int
                     },
                     i + 1,
-                    (*entry).cur_match + 1,
+                    entry.cur_match + 1,
                     tagname.as_ptr(),
-                    (*entry).fmark.mark.lnum,
+                    entry.fmark.mark.lnum,
                 );
                 msg_outtrans(iobuf_ptr, 0, false);
                 msg_outtrans(
                     name.as_ptr(),
-                    if (*entry).fmark.fnum == curbuf_mut().b_fnum {
+                    if entry.fmark.fnum == curbuf_mut().b_fnum {
                         HLF_D
                     } else {
                         0
@@ -1431,19 +1432,20 @@ fn find_tagfunc_tags(
                         let di = crate::eval::typval::tv_dict_hi2di(hi);
                         let dict_key = (&*hi).key_ptr();
                         let tv = &raw mut di.di_tv;
+                        let tv = { &mut *tv };
 
-                        if (*tv).v_type == VarType::VarString && !(*tv).vval.v_string().is_null() {
-                            len += crate::memory::cstr_len((*tv).vval.v_string()) + 1;
+                        if tv.v_type == VarType::VarString && !tv.vval.v_string().is_null() {
+                            len += crate::memory::cstr_len(tv.vval.v_string()) + 1;
                             if crate::memory::cstr_as_bytes(dict_key) == b"name" {
-                                res_name = (*tv).vval.v_string();
+                                res_name = tv.vval.v_string();
                             } else if crate::memory::cstr_as_bytes(dict_key) == b"filename" {
-                                res_fname = (*tv).vval.v_string();
+                                res_fname = tv.vval.v_string();
                             } else if crate::memory::cstr_as_bytes(dict_key) == b"cmd" {
-                                res_cmd = (*tv).vval.v_string();
+                                res_cmd = tv.vval.v_string();
                             } else {
                                 has_extra = true;
                                 if crate::memory::cstr_as_bytes(dict_key) == b"kind" {
-                                    res_kind = (*tv).vval.v_string();
+                                    res_kind = tv.vval.v_string();
                                 } else {
                                     len += crate::memory::cstr_len(dict_key) + 1;
                                 }
@@ -1525,8 +1527,9 @@ fn find_tagfunc_tags(
                     }
 
                     if !item_dict.is_null() {
-                        let mut todo = (*item_dict).dv_hashtab.ht_used;
-                        let mut hi = (*item_dict).dv_hashtab.array_ptr();
+                        let item_dict = { &mut *item_dict };
+                        let mut todo = item_dict.dv_hashtab.ht_used;
+                        let mut hi = item_dict.dv_hashtab.array_ptr();
                         while todo > 0 {
                             if !hashitem_empty(&*hi) {
                                 todo -= 1;
@@ -3517,16 +3520,17 @@ fn tagstack_push_item(
 
         wp.w_tagstacklen += 1;
         let entry = tagstack.add(idx as usize);
-        (*entry).tagname = tagname;
-        (*entry).cur_fnum = cur_fnum;
-        (*entry).cur_match = cur_match.max(0);
-        (*entry).fmark.mark = mark;
-        (*entry).fmark.fnum = fnum;
-        (*entry).fmark.view = Fmarkv {
+        let entry = { &mut *entry };
+        entry.tagname = tagname;
+        entry.cur_fnum = cur_fnum;
+        entry.cur_match = cur_match.max(0);
+        entry.fmark.mark = mark;
+        entry.fmark.fnum = fnum;
+        entry.fmark.view = Fmarkv {
             topline_offset: MAXLNUM,
             skipcol: 0,
         };
-        (*entry).user_data = user_data;
+        entry.user_data = user_data;
     }
 }
 
@@ -3583,11 +3587,12 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: c_int) -> 
 
         let di_items = tv_dict_find(d, c"items", -1);
         if !di_items.is_null() {
-            if (*di_items).di_tv.v_type != VarType::VarList {
+            let di_items = { &mut *di_items };
+            if di_items.di_tv.v_type != VarType::VarList {
                 emsg(gettext(E_LISTREQ));
                 return false;
             }
-            l = (*di_items).di_tv.vval.v_list();
+            l = di_items.di_tv.vval.v_list();
         }
 
         let di_curidx = tv_dict_find(d, c"curidx", -1);

@@ -929,8 +929,9 @@ pub fn get_func_arity(
 
         let fdef = find_internal_func(name);
         if !fdef.is_null() {
-            argcount = (*fdef).max_argc as c_int;
-            min_argcount = (*fdef).min_argc as c_int;
+            let fdef = { &*fdef };
+            argcount = fdef.max_argc as c_int;
+            min_argcount = fdef.min_argc as c_int;
             *varargs = false;
         } else {
             let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
@@ -1485,9 +1486,9 @@ pub fn call_user_func(
             fp.uf_tm_self = profile_self(fp.uf_tm_self, call_start, fp.uf_tm_children);
             if !fc.fc_caller.is_null() && (*(*fc.fc_caller).fc_func).uf_profiling != 0 {
                 let caller_fp = (*fc.fc_caller).fc_func;
-                (*caller_fp).uf_tm_children = profile_add((*caller_fp).uf_tm_children, call_start);
-                (*caller_fp).uf_tml_children =
-                    profile_add((*caller_fp).uf_tml_children, call_start);
+                let caller_fp = { &mut *caller_fp };
+                caller_fp.uf_tm_children = profile_add(caller_fp.uf_tm_children, call_start);
+                caller_fp.uf_tml_children = profile_add(caller_fp.uf_tml_children, call_start);
             }
             if started_profiling {
                 fp.uf_profiling = 0;
@@ -1888,10 +1889,12 @@ pub fn call_func(
 
         let mut skip_eval = false;
         if !partial.is_null() {
-            if !(*partial).pt_dict.is_null() && (selfdict.is_null() || !(*partial).pt_auto) {
-                selfdict = (*partial).pt_dict;
+            let partial = { &mut *partial };
+            let partial = { &mut *partial };
+            if !partial.pt_dict.is_null() && (selfdict.is_null() || !partial.pt_auto) {
+                selfdict = partial.pt_dict;
             }
-            let pt_argc = (*partial).pt_argv.len() as c_int;
+            let pt_argc = partial.pt_argv.len() as c_int;
             if error == FCERR_NONE && pt_argc > 0 {
                 while argv_clear < pt_argc {
                     if argv_clear + argcount_in >= MAX_FUNC_ARGS as c_int {
@@ -1900,7 +1903,7 @@ pub fn call_func(
                         break;
                     }
                     tv_copy(
-                        &(&(*partial).pt_argv)[argv_clear as usize],
+                        &(&partial.pt_argv)[argv_clear as usize],
                         &mut argv[argv_clear as usize],
                     );
                     argv_clear += 1;
@@ -3363,15 +3366,16 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
             && uf_st().get_uf_done < uf_st().get_uf_items.len()
         {
             let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done];
+            let fp = { &mut *fp };
             uf_st().get_uf_done += 1;
 
-            if ((*fp).uf_flags & FC_DICT) != 0
+            if (fp.uf_flags & FC_DICT) != 0
                 || (crate::memory::cstr_prefix_bytes(uf2hikey(&*fp), 8) == &b"<lambda>"[..8])
             {
                 return c"".as_ptr().cast_mut();
             }
 
-            if (*fp).uf_namelen + 4 >= IOSIZE {
+            if fp.uf_namelen + 4 >= IOSIZE {
                 return uf2hikey(&*fp);
             }
 
@@ -3379,7 +3383,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
             let mut len = cat_func_name(iobuff_ptr, IOSIZE, &*fp);
             if xp.xp_context != EXPAND_USER_FUNC {
                 xstrlcpy(iobuff_ptr.add(len as usize), c"(", IOSIZE - len as usize);
-                if (*fp).uf_varargs == 0 && (*fp).uf_args.is_empty() {
+                if fp.uf_varargs == 0 && fp.uf_args.is_empty() {
                     len += 1;
                     xstrlcpy(iobuff_ptr.add(len as usize), c")", IOSIZE - len as usize);
                 }
@@ -3496,10 +3500,12 @@ pub fn func_unref(name: impl crate::strings::IntoCCharPtr) {
 }
 
 pub fn func_ptr_unref(fp: *mut UserFunc) {
-    unsafe {
+    {
         if !fp.is_null() {
-            (*fp).uf_refcount -= 1;
-            if (*fp).uf_refcount <= 0 && (*fp).uf_calls == 0 {
+            let fp = unsafe { &mut *fp };
+            let fp = { &mut *fp };
+            fp.uf_refcount -= 1;
+            if fp.uf_refcount <= 0 && fp.uf_calls == 0 {
                 func_clear_free(fp, false);
             }
         }
@@ -4124,18 +4130,19 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
                 pt.pt_name = crate::eval::typval::tv_take_string(rettv.vval.v_string());
             } else {
                 let ret_pt = rettv.vval.v_partial();
-                if let Some(ref ret_name) = (*ret_pt).pt_name {
+                let ret_pt = { &mut *ret_pt };
+                if let Some(ref ret_name) = ret_pt.pt_name {
                     func_ref(ret_name.as_ptr().cast_mut());
                     pt.pt_name = Some(ret_name.clone());
                 } else {
-                    pt.pt_func = (*ret_pt).pt_func;
+                    pt.pt_func = ret_pt.pt_func;
                     func_ptr_ref((pt.pt_func).as_mut());
                 }
-                if !(*ret_pt).pt_argv.is_empty() {
-                    let pt_argc = (*ret_pt).pt_argv.len();
+                if !ret_pt.pt_argv.is_empty() {
+                    let pt_argc = ret_pt.pt_argv.len();
                     pt.pt_argv.resize(pt_argc, TypVal::new());
                     for i in 0..pt_argc {
-                        tv_copy(&(&(*ret_pt).pt_argv)[i], &mut (&mut pt.pt_argv)[i]);
+                        tv_copy(&(&ret_pt.pt_argv)[i], &mut (&mut pt.pt_argv)[i]);
                     }
                 }
                 partial_unref(ret_pt);

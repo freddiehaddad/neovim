@@ -421,20 +421,20 @@ fn draw_virt_text(
                 g_st().win_extmark_arr.push(m);
             }
             if !vt.is_null() {
+                let vt = { &mut *vt };
                 let vcol = item.draw_col - col_off;
                 let col = draw_virt_text_item(
                     buf,
                     item.draw_col,
-                    (*vt).data.virt_text(),
-                    (*vt).hl_mode,
+                    vt.data.virt_text(),
+                    vt.hl_mode,
                     max_col,
                     vcol,
                     0,
                     false,
                 );
                 if do_eol
-                    && ((*vt).pos == K_VPOS_END_OF_LINE
-                        || (*vt).pos == K_VPOS_END_OF_LINE_RIGHT_ALIGN)
+                    && (vt.pos == K_VPOS_END_OF_LINE || vt.pos == K_VPOS_END_OF_LINE_RIGHT_ALIGN)
                 {
                     g_st().decor_state.eol_col = col + 1;
                 }

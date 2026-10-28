@@ -2240,10 +2240,11 @@ fn spell_read_aff(
                     {
                         (*cur_aff).ah_entries.insert(0, aff_entry_val);
                         let aff_entry: *mut Affentry = (*cur_aff).ah_entries.as_mut_ptr();
+                        let aff_entry = { &mut *aff_entry };
 
                         if crate::memory::cstr_as_bytes(items[4]) != b"." {
                             let mut buf = [0 as c_char; MAXLINELEN];
-                            (*aff_entry).ae_cond = Some(crate::memory::cstr_to_cstring(items[4]));
+                            aff_entry.ae_cond = Some(crate::memory::cstr_to_cstring(items[4]));
                             vim_snprintf!(
                                 buf.as_mut_ptr(),
                                 MAXLINELEN,
@@ -2254,11 +2255,11 @@ fn spell_read_aff(
                                 },
                                 items[4],
                             );
-                            (*aff_entry).ae_prog = crate::regexp::vim_regcomp_box(
+                            aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
                                 buf.as_ptr(),
                                 RE_MAGIC + RE_STRING + RE_STRICT,
                             );
-                            if (*aff_entry).ae_prog.is_none() {
+                            if aff_entry.ae_prog.is_none() {
                                 smsg!(
                                     0,
                                     gettext(c"Broken condition in %s line %d: %s"),
@@ -2271,11 +2272,11 @@ fn spell_read_aff(
 
                         if *items[0] == b'P' as c_char
                             && aff.af_pfxpostpone != 0
-                            && (*aff_entry).ae_flags.is_none()
+                            && aff_entry.ae_flags.is_none()
                         {
                             let mut upper = false;
-                            if (*aff_entry).ae_chop.is_some()
-                                && (*aff_entry).ae_add.is_some()
+                            if aff_entry.ae_chop.is_some()
+                                && aff_entry.ae_add.is_some()
                                 && *(*aff_entry)
                                     .chop_ptr()
                                     .add(utfc_ptr2len((*aff_entry).chop_ptr()) as usize)
@@ -2284,7 +2285,7 @@ fn spell_read_aff(
                                 let c = utf_ptr2char((*aff_entry).chop_ptr());
                                 let c_up = spell_toupper(c);
                                 if c_up != c
-                                    && ((*aff_entry).ae_cond.is_none()
+                                    && (aff_entry.ae_cond.is_none()
                                         || utf_ptr2char((*aff_entry).cond_ptr()) == c)
                                 {
                                     let add_ptr = (*aff_entry).add_ptr();
@@ -2292,16 +2293,16 @@ fn spell_read_aff(
                                     mb_ptr_back(add_ptr, &mut p_end);
                                     if utf_ptr2char(p_end) == c_up {
                                         upper = true;
-                                        (*aff_entry).ae_chop = None;
+                                        aff_entry.ae_chop = None;
                                         let new_add_len = p_end.offset_from(add_ptr) as usize;
                                         let new_add_slice = std::slice::from_raw_parts(
                                             add_ptr.cast::<u8>(),
                                             new_add_len,
                                         );
-                                        (*aff_entry).ae_add =
+                                        aff_entry.ae_add =
                                             Some(std::ffi::CString::new(new_add_slice).unwrap());
 
-                                        if (*aff_entry).ae_cond.is_some() {
+                                        if aff_entry.ae_cond.is_some() {
                                             let mut buf = [0 as c_char; MAXLINELEN];
                                             onecap_copy(items[4], buf.as_mut_ptr(), true);
                                             let cond_cstr =
@@ -2312,8 +2313,8 @@ fn spell_read_aff(
                                                 c"^%s",
                                                 cond_cstr.as_ptr(),
                                             );
-                                            (*aff_entry).ae_cond = Some(cond_cstr);
-                                            (*aff_entry).ae_prog = crate::regexp::vim_regcomp_box(
+                                            aff_entry.ae_cond = Some(cond_cstr);
+                                            aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
                                                 buf.as_ptr(),
                                                 RE_MAGIC + RE_STRING,
                                             );
@@ -2322,7 +2323,7 @@ fn spell_read_aff(
                                 }
                             }
 
-                            if (*aff_entry).ae_chop.is_none() {
+                            if aff_entry.ae_chop.is_none() {
                                 let prefcond = &mut spin.si_prefcond;
                                 let mut idx = prefcond.len() as c_int - 1;
                                 while idx >= 0 {
@@ -2338,10 +2339,10 @@ fn spell_read_aff(
                                 }
                                 if idx < 0 {
                                     idx = prefcond.len() as c_int;
-                                    prefcond.push((*aff_entry).ae_cond.clone());
+                                    prefcond.push(aff_entry.ae_cond.clone());
                                 }
 
-                                let p_add = (*aff_entry)
+                                let p_add = aff_entry
                                     .ae_add
                                     .as_ref()
                                     .map_or(c"".as_ptr(), |s| s.as_ptr());
@@ -2353,10 +2354,10 @@ fn spell_read_aff(
                                 if upper {
                                     n |= WFP_UP;
                                 }
-                                if (*aff_entry).ae_comppermit != 0 {
+                                if aff_entry.ae_comppermit != 0 {
                                     n |= WFP_COMPPERMIT;
                                 }
-                                if (*aff_entry).ae_compforbid != 0 {
+                                if aff_entry.ae_compforbid != 0 {
                                     n |= WFP_COMPFORBID;
                                 }
                                 tree_add_word(
@@ -3230,6 +3231,7 @@ fn store_aff_word(
                 {
                     for ae_ref in &ah.ah_entries {
                         let ae: *mut Affentry = (&raw const *ae_ref).cast_mut();
+                        let ae = { &mut *ae };
                         let ae_chop = (*ae).chop_ptr();
                         let ae_add = (*ae).add_ptr();
                         let ae_flags = (*ae).flags_ptr();
@@ -3238,8 +3240,8 @@ fn store_aff_word(
                             || !ae_chop.is_null()
                             || !ae_flags.is_null())
                             && (ae_chop.is_null() || crate::memory::cstr_len(ae_chop) < wordlen)
-                            && ((*ae).ae_prog.is_none()
-                                || vim_regexec_prog((*ae).ae_prog.as_deref(), false, word, 0))
+                            && (ae.ae_prog.is_none()
+                                || vim_regexec_prog(ae.ae_prog.as_deref(), false, word, 0))
                             && (((condit & CONDIT_CFIX) == 0)
                                 == ((condit & CONDIT_AFF) == 0
                                     || ae_flags.is_null()
@@ -3418,7 +3420,7 @@ fn store_aff_word(
                                 }
                             }
 
-                            if !use_pfxlist.is_null() && (*ae).ae_compforbid != 0 {
+                            if !use_pfxlist.is_null() && ae.ae_compforbid != 0 {
                                 crate::memory::cstr_ncpy(
                                     pfx_pfxlist.as_mut_ptr(),
                                     use_pfxlist,
@@ -3437,7 +3439,7 @@ fn store_aff_word(
                                 }
                             }
 
-                            if spin.si_compflags.is_some() && (*ae).ae_comppermit == 0 {
+                            if spin.si_compflags.is_some() && ae.ae_comppermit == 0 {
                                 if xht.is_some() {
                                     use_flags |= WF_NOCOMPAFT;
                                 } else {

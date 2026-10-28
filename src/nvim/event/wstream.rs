@@ -152,17 +152,18 @@ unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
     unsafe {
         let data = Box::from_raw(*req.cast::<*mut WRequest>());
         let stream = data.stream;
+        let stream = { &mut *stream };
 
-        (*stream).curmem -= data.buffer.size();
+        stream.curmem -= data.buffer.size();
         drop(data);
 
-        if (*stream).notify_write {
+        if stream.notify_write {
             crate::os::shell::shell_write_cb(&mut *stream, status);
         }
 
-        (*stream).pending_reqs -= 1;
+        stream.pending_reqs -= 1;
 
-        if (*stream).closed && (*stream).pending_reqs == 0 {
+        if stream.closed && stream.pending_reqs == 0 {
             stream_close_handle(&mut *stream);
         }
     }

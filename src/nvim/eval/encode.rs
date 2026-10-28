@@ -134,6 +134,7 @@ pub fn encode_list_write(
         let li = tv_list_last(list.as_deref());
 
         if !li.is_null() {
+            let li = { &mut *li };
             line_end = {
                 let _a = (buf).cast::<u8>();
                 let _sz = len;
@@ -151,7 +152,7 @@ pub fn encode_list_write(
             .cast::<c_char>();
             if line_end != buf {
                 let line_length = (line_end as usize) - (buf as usize);
-                let str_ptr = (*li).li_tv.vval.v_string();
+                let str_ptr = li.li_tv.vval.v_string();
                 let li_len = if str_ptr.is_null() {
                     0
                 } else {
@@ -177,7 +178,7 @@ pub fn encode_list_write(
                     }
                 };
                 crate::eval::typval::tv_set_string_len(
-                    &mut (*li).li_tv,
+                    &mut li.li_tv,
                     combined.as_ptr(),
                     combined.len(),
                 );
@@ -1344,6 +1345,8 @@ fn convert_one_value(
                     if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VarList {
                         let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
+                            let val_di = { &mut *val_di };
+                            let val_di = { &mut *val_di };
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in
                                 { *eval_msgpack_type_lists_mut() }.into_iter().enumerate()
@@ -1361,36 +1364,37 @@ fn convert_one_value(
                                         handled_special = true;
                                     }
                                     K_MP_BOOLEAN => {
-                                        if (*val_di).di_tv.v_type == VarType::VarNumber {
-                                            backend.conv_bool((*val_di).di_tv.vval.v_number() != 0);
+                                        if val_di.di_tv.v_type == VarType::VarNumber {
+                                            backend.conv_bool(val_di.di_tv.vval.v_number() != 0);
                                             handled_special = true;
                                         }
                                     }
                                     K_MP_INTEGER => {
-                                        if (*val_di).di_tv.v_type == VarType::VarList {
-                                            let val_list = (*val_di).di_tv.vval.v_list();
+                                        if val_di.di_tv.v_type == VarType::VarList {
+                                            let val_list = val_di.di_tv.vval.v_list();
                                             if tv_list_len(val_list.as_ref()) == 4 {
                                                 let sign_li = tv_list_first(val_list.as_ref());
-                                                let highest_li = (*sign_li).li_next;
-                                                let high_li = (*highest_li).li_next;
+                                                let sign_li = { &mut *sign_li };
+                                                let highest_li = sign_li.li_next;
+                                                let highest_li = { &mut *highest_li };
+                                                let high_li = highest_li.li_next;
+                                                let high_li = { &mut *high_li };
                                                 let low_li = tv_list_last(val_list.as_ref());
-                                                if (*sign_li).li_tv.v_type == VarType::VarNumber
-                                                    && (*sign_li).li_tv.vval.v_number() != 0
-                                                    && (*highest_li).li_tv.v_type
-                                                        == VarType::VarNumber
-                                                    && (*highest_li).li_tv.vval.v_number() >= 0
-                                                    && (*high_li).li_tv.v_type == VarType::VarNumber
-                                                    && (*high_li).li_tv.vval.v_number() >= 0
-                                                    && (*low_li).li_tv.v_type == VarType::VarNumber
-                                                    && (*low_li).li_tv.vval.v_number() >= 0
+                                                let low_li = { &mut *low_li };
+                                                if sign_li.li_tv.v_type == VarType::VarNumber
+                                                    && sign_li.li_tv.vval.v_number() != 0
+                                                    && highest_li.li_tv.v_type == VarType::VarNumber
+                                                    && highest_li.li_tv.vval.v_number() >= 0
+                                                    && high_li.li_tv.v_type == VarType::VarNumber
+                                                    && high_li.li_tv.vval.v_number() >= 0
+                                                    && low_li.li_tv.v_type == VarType::VarNumber
+                                                    && low_li.li_tv.vval.v_number() >= 0
                                                 {
-                                                    let sign = (*sign_li).li_tv.vval.v_number();
+                                                    let sign = sign_li.li_tv.vval.v_number();
                                                     let highest =
-                                                        (*highest_li).li_tv.vval.v_number() as u64;
-                                                    let high =
-                                                        (*high_li).li_tv.vval.v_number() as u64;
-                                                    let low =
-                                                        (*low_li).li_tv.vval.v_number() as u64;
+                                                        highest_li.li_tv.vval.v_number() as u64;
+                                                    let high = high_li.li_tv.vval.v_number() as u64;
+                                                    let low = low_li.li_tv.vval.v_number() as u64;
                                                     let number =
                                                         (highest << 62) | (high << 31) | low;
                                                     if sign > 0 {
@@ -1406,17 +1410,17 @@ fn convert_one_value(
                                         }
                                     }
                                     K_MP_FLOAT => {
-                                        if (*val_di).di_tv.v_type == VarType::VarFloat {
-                                            if !backend.conv_float((*val_di).di_tv.vval.v_float()) {
+                                        if val_di.di_tv.v_type == VarType::VarFloat {
+                                            if !backend.conv_float(val_di.di_tv.vval.v_float()) {
                                                 return FAIL;
                                             }
                                             handled_special = true;
                                         }
                                     }
                                     K_MP_STRING => {
-                                        if (*val_di).di_tv.v_type == VarType::VarList
+                                        if val_di.di_tv.v_type == VarType::VarList
                                             && let Some(buf) = encode_vim_list_to_buf(
-                                                ((*val_di).di_tv.vval.v_list()).as_ref(),
+                                                (val_di.di_tv.vval.v_list()).as_ref(),
                                             )
                                         {
                                             if !backend.conv_str_string(buf.as_ptr(), buf.len()) {
@@ -1426,8 +1430,8 @@ fn convert_one_value(
                                         }
                                     }
                                     K_MP_ARRAY => {
-                                        if (*val_di).di_tv.v_type == VarType::VarList {
-                                            let val_list = (*val_di).di_tv.vval.v_list();
+                                        if val_di.di_tv.v_type == VarType::VarList {
+                                            let val_list = val_di.di_tv.vval.v_list();
                                             let saved_copy_id = (*val_list).lv_copy_id;
                                             let csr = backend.check_self_reference(
                                                 MPContainerRef::List(val_list),
@@ -1452,8 +1456,8 @@ fn convert_one_value(
                                         }
                                     }
                                     K_MP_MAP => {
-                                        if (*val_di).di_tv.v_type == VarType::VarList {
-                                            let val_list = (*val_di).di_tv.vval.v_list();
+                                        if val_di.di_tv.v_type == VarType::VarList {
+                                            let val_list = val_di.di_tv.vval.v_list();
                                             if val_list.is_null()
                                                 || tv_list_len(val_list.as_ref()) == 0
                                             {
@@ -1502,20 +1506,21 @@ fn convert_one_value(
                                             }
                                         }
                                     }
-                                    K_MP_EXT if (*val_di).di_tv.v_type == VarType::VarList => {
-                                        let val_list = (*val_di).di_tv.vval.v_list();
+                                    K_MP_EXT if val_di.di_tv.v_type == VarType::VarList => {
+                                        let val_list = val_di.di_tv.vval.v_list();
                                         if tv_list_len(val_list.as_ref()) == 2 {
                                             let first = tv_list_first(val_list.as_ref());
+                                            let first = { &mut *first };
                                             let last = tv_list_last(val_list.as_ref());
-                                            if (*first).li_tv.v_type == VarType::VarNumber
+                                            if first.li_tv.v_type == VarType::VarNumber
                                                 && (i8::MIN as i64..=i8::MAX as i64)
-                                                    .contains(&(*first).li_tv.vval.v_number())
+                                                    .contains(&first.li_tv.vval.v_number())
                                                 && (*last).li_tv.v_type == VarType::VarList
                                                 && let Some(mut buf) = encode_vim_list_to_buf(
                                                     ((*last).li_tv.vval.v_list()).as_ref(),
                                                 )
                                             {
-                                                let ext_type = (*first).li_tv.vval.v_number() as i8;
+                                                let ext_type = first.li_tv.vval.v_number() as i8;
                                                 if !backend.conv_ext_string(
                                                     buf.as_mut_ptr(),
                                                     buf.len(),
@@ -1709,15 +1714,17 @@ fn encode_vim_with_backend(
                                 (*pt).pt_dict
                             };
                             if !dict.is_null() {
-                                backend.conv_func_before_self((*dict).dv_hashtab.ht_used as isize);
-                                if (*dict).dv_hashtab.ht_used == 0 {
+                                let dict = { &mut *dict };
+                                let dict = { &mut *dict };
+                                backend.conv_func_before_self(dict.dv_hashtab.ht_used as isize);
+                                if dict.dv_hashtab.ht_used == 0 {
                                     backend.conv_empty_dict();
                                     continue;
                                 }
-                                let saved_copy_id = (*dict).dv_copy_id;
+                                let saved_copy_id = dict.dv_copy_id;
                                 let csr = backend.check_self_reference(
                                     MPContainerRef::Dict(dict),
-                                    &mut (*dict).dv_copy_id,
+                                    &mut dict.dv_copy_id,
                                     &mpstack,
                                     copy_id,
                                     objname,
@@ -1729,15 +1736,15 @@ fn encode_vim_with_backend(
                                         continue;
                                     }
                                 }
-                                backend.conv_dict_start((*dict).dv_hashtab.ht_used);
+                                backend.conv_dict_start(dict.dv_hashtab.ht_used);
                                 mpstack.push(MPConvStackVal {
                                     tv: std::ptr::null_mut(),
                                     saved_copy_id,
                                     data: MPConvStackData::Dict {
                                         dict,
                                         dictp: std::ptr::addr_of_mut!((*pt).pt_dict),
-                                        hi: (*dict).dv_hashtab.array_ptr(),
-                                        todo: (*dict).dv_hashtab.ht_used,
+                                        hi: dict.dv_hashtab.array_ptr(),
+                                        todo: dict.dv_hashtab.ht_used,
                                     },
                                 });
                             } else {

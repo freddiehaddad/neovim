@@ -1053,11 +1053,12 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", i);
                     let pos_di = tv_dict_find(d.as_ref(), buf.as_ptr(), -1);
                     if !pos_di.is_null() {
-                        if (*pos_di).di_tv.v_type != VarType::VarList {
+                        let pos_di = { &mut *pos_di };
+                        if pos_di.di_tv.v_type != VarType::VarList {
                             tv_list_unref(s);
                             return;
                         }
-                        tv_list_append_tv(&mut *s, &mut (*pos_di).di_tv);
+                        tv_list_append_tv(&mut *s, &mut pos_di.di_tv);
                     } else {
                         break;
                     }
@@ -1221,12 +1222,11 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if (1..=3).contains(&id) {
             let m = get_match(curwin_mut(), id);
             if !m.is_null() {
-                tv_list_append_string(&mut *rettv.vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
+                let m = { &mut *m };
+                tv_list_append_string(&mut *rettv.vval.v_list(), syn_id2name(m.mit_hlg_id), -1);
                 tv_list_append_string(
                     &mut *rettv.vval.v_list(),
-                    (*m).mit_pattern
-                        .as_ref()
-                        .map_or(ptr::null(), |p| p.as_ptr()),
+                    m.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
                     -1,
                 );
             } else {

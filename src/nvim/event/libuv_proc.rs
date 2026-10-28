@@ -322,9 +322,10 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
         let proc_ = *handle.cast::<*mut Proc>();
         crate::event::proc::proc_decref(&mut *proc_);
         let uvproc = proc_.cast::<LibuvProc>();
-        (*uvproc).env_ptrs.clear();
-        (*uvproc).env_vec.clear();
-        (*uvproc).uvopts.env = ptr::null_mut();
+        let uvproc = { &mut *uvproc };
+        uvproc.env_ptrs.clear();
+        uvproc.env_vec.clear();
+        uvproc.uvopts.env = ptr::null_mut();
     }
 }
 

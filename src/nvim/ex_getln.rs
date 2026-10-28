@@ -3089,15 +3089,16 @@ fn cmdpreview_prepare() -> CpInfo {
 
         for win in for_all_windows_ptr() {
             let buf = win.w_buffer;
+            let buf = { &mut *buf };
 
-            if (*buf).b_fnum != getln_st().cmdpreview_bufnr {
+            if buf.b_fnum != getln_st().cmdpreview_bufnr {
                 if saved_bufs.insert(buf) {
                     let mut cp_bufinfo = CpBufInfo::new();
                     cp_bufinfo.buf = buf;
-                    cp_bufinfo.save_b_p_ma = (*buf).b_p_ma;
-                    cp_bufinfo.save_b_changed = (*buf).b_changed;
-                    cp_bufinfo.save_b_op_start = (*buf).b_op_start;
-                    cp_bufinfo.save_b_op_end = (*buf).b_op_end;
+                    cp_bufinfo.save_b_p_ma = buf.b_p_ma;
+                    cp_bufinfo.save_b_changed = buf.b_changed;
+                    cp_bufinfo.save_b_op_start = buf.b_op_start;
+                    cp_bufinfo.save_b_op_end = buf.b_op_end;
                     u_checkpoint(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
                     cpinfo.buf_info.push(cp_bufinfo);
                 }
@@ -3133,11 +3134,12 @@ fn cmdpreview_prepare() -> CpInfo {
 
 /// Restore the state of buffers and windows for command preview.
 fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
-    unsafe {
+    {
         for mut cp_bufinfo in cpinfo.buf_info.drain(..) {
             let buf = cp_bufinfo.buf;
+            let buf = unsafe { &mut *buf };
 
-            (*buf).b_changed = cp_bufinfo.save_b_changed;
+            buf.b_changed = cp_bufinfo.save_b_changed;
 
             extmark_clear(
                 &mut *buf,
@@ -3150,19 +3152,20 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 
             u_rollback(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
 
-            (*buf).b_op_start = cp_bufinfo.save_b_op_start;
-            (*buf).b_op_end = cp_bufinfo.save_b_op_end;
-            (*buf).b_p_ma = cp_bufinfo.save_b_p_ma;
+            buf.b_op_start = cp_bufinfo.save_b_op_start;
+            buf.b_op_end = cp_bufinfo.save_b_op_end;
+            buf.b_p_ma = cp_bufinfo.save_b_p_ma;
         }
 
         for cp_wininfo in cpinfo.win_info.drain(..) {
             let win = cp_wininfo.win;
+            let win = unsafe { &mut *win };
 
-            (*win).w_cursor = cp_wininfo.save_w_cursor;
+            win.w_cursor = cp_wininfo.save_w_cursor;
             restore_viewstate(&mut *win, &cp_wininfo.save_viewstate);
 
-            (*win).w_onebuf_opt.wo_cul = cp_wininfo.save_w_p_cul;
-            (*win).w_onebuf_opt.wo_cuc = cp_wininfo.save_w_p_cuc;
+            win.w_onebuf_opt.wo_cul = cp_wininfo.save_w_p_cul;
+            win.w_onebuf_opt.wo_cuc = cp_wininfo.save_w_p_cuc;
 
             update_topline(&mut *win);
         }

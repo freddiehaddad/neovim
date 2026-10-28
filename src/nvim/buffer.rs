@@ -2761,6 +2761,8 @@ pub fn buflist_new(
         if !ffname.is_null() && (flags & (BLN_DUMMY | BLN_NEW)) == 0 {
             buf = buflist_findname_file_id(ffname, &mut file_id, file_id_valid);
             if !buf.is_null() {
+                let buf = { &mut *buf };
+                let buf = { &mut *buf };
                 drop(ffname_cstr);
                 if lnum != 0 {
                     buflist_setfpos(
@@ -2778,8 +2780,8 @@ pub fn buflist_new(
                 if (flags & BLN_NOOPT) == 0 {
                     buf_copy_options(&mut *buf, 0);
                 }
-                if (flags & BLN_LISTED) != 0 && (*buf).b_p_bl == 0 {
-                    (*buf).b_p_bl = 1;
+                if (flags & BLN_LISTED) != 0 && buf.b_p_bl == 0 {
+                    buf.b_p_bl = 1;
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf);
                     if (flags & BLN_DUMMY) == 0
@@ -3563,10 +3565,11 @@ pub fn get_winopts(buf: &mut FileBuf) {
             && (*(*wip).wi_win).w_config.style != K_WIN_STYLE_MINIMAL
         {
             let wp = (*wip).wi_win;
-            copy_winopt(&mut (*wp).w_onebuf_opt, &mut curwin_mut().w_onebuf_opt);
-            curwin_mut().w_fold_manual = (*wp).w_fold_manual;
+            let wp = { &mut *wp };
+            copy_winopt(&mut wp.w_onebuf_opt, &mut curwin_mut().w_onebuf_opt);
+            curwin_mut().w_fold_manual = wp.w_fold_manual;
             curwin_mut().w_foldinvalid = true;
-            curwin_mut().w_folds.clone_from(&(*wp).w_folds);
+            curwin_mut().w_folds.clone_from(&wp.w_folds);
         } else if !wip.is_null()
             && (*wip).wi_optset
             && ((*wip).wi_win.is_null()
@@ -5148,7 +5151,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        {
             crate::main_init::ensure_test_editor_init();
             g_st().emsg_skip += 1;
 
@@ -5182,39 +5185,42 @@ mod tests {
                 1,
                 BLN_LISTED,
             );
+            let buf1 = unsafe { &mut *buf1 };
             let buf2 = buflist_new(
                 p2.as_mut_ptr().cast(),
                 p2.as_mut_ptr().cast(),
                 1,
                 BLN_LISTED,
             );
+            let buf2 = unsafe { &mut *buf2 };
             let buf3 = buflist_new(
                 p3.as_mut_ptr().cast(),
                 p3.as_mut_ptr().cast(),
                 1,
                 BLN_LISTED,
             );
+            let buf3 = unsafe { &mut *buf3 };
 
-            assert_eq!(findpat(c"test_file_path", false), (*buf1).b_fnum);
-            assert_eq!(findpat(c"test", false), (*buf1).b_fnum);
-            assert_eq!(findpat(c"file", false), (*buf2).b_fnum);
-            assert_eq!(findpat(c"path", false), (*buf3).b_fnum);
-            assert_eq!(findpat(c"_test_", false), (*buf3).b_fnum);
+            assert_eq!(findpat(c"test_file_path", false), buf1.b_fnum);
+            assert_eq!(findpat(c"test", false), buf1.b_fnum);
+            assert_eq!(findpat(c"file", false), buf2.b_fnum);
+            assert_eq!(findpat(c"path", false), buf3.b_fnum);
+            assert_eq!(findpat(c"_test_", false), buf3.b_fnum);
 
             // Include / ignore unlisted buffers based on the flag
             close_buffer(ptr::null_mut(), buf3, DOBUF_DEL, false, false, false);
             assert_eq!(findpat(c"_test_", false), -1);
-            assert_eq!(findpat(c"_test_", true), (*buf3).b_fnum);
+            assert_eq!(findpat(c"_test_", true), buf3.b_fnum);
             close_buffer(ptr::null_mut(), buf3, DOBUF_WIPE, false, false, false);
             assert_eq!(findpat(c"_test_", false), -1);
             assert_eq!(findpat(c"_test_", true), -1);
 
             // Unlisted vs listed preference
             close_buffer(ptr::null_mut(), buf1, DOBUF_DEL, false, false, false);
-            assert_eq!(findpat(c"test", false), (*buf2).b_fnum);
-            assert_eq!(findpat(c"test", true), (*buf2).b_fnum);
+            assert_eq!(findpat(c"test", false), buf2.b_fnum);
+            assert_eq!(findpat(c"test", true), buf2.b_fnum);
             close_buffer(ptr::null_mut(), buf2, DOBUF_DEL, false, false, false);
-            assert_eq!(findpat(c"test", true), (*buf1).b_fnum);
+            assert_eq!(findpat(c"test", true), buf1.b_fnum);
             assert_eq!(findpat(c"test", false), -1);
 
             close_buffer(ptr::null_mut(), buf1, DOBUF_WIPE, false, false, false);

@@ -2528,11 +2528,14 @@ fn has_state_with_pos(
         let tp = l.t.as_mut_ptr();
         for i in 0..l.n as usize {
             let thread = tp.add(i);
-            if (*thread).state == Some(state)
-                && sub_equal(&mut (*thread).subs.norm, &mut subs.norm)
+            let thread = { &mut *thread };
+            let thread = { &mut *thread };
+            let thread = { &mut *thread };
+            if thread.state == Some(state)
+                && sub_equal(&mut thread.subs.norm, &mut subs.norm)
                 && (re_st().rex.nfa_has_zsubexpr == 0
-                    || sub_equal(&mut (*thread).subs.synt, &mut subs.synt))
-                && pim_equal(Some(&(*thread).pim), pim)
+                    || sub_equal(&mut thread.subs.synt, &mut subs.synt))
+                && pim_equal(Some(&thread.pim), pim)
             {
                 return true;
             }
@@ -2675,7 +2678,10 @@ fn addstate_idx(
         }
 
         let st_ptr = states.add(state_idx);
-        let st_c = (*st_ptr).c;
+        let st_ptr = { &mut *st_ptr };
+        let st_ptr = { &mut *st_ptr };
+        let st_ptr = { &mut *st_ptr };
+        let st_c = st_ptr.c;
         match st_c {
             NFA_NCLOSE | NFA_MOPEN | NFA_ZEND | NFA_SPLIT | NFA_EMPTY => {
                 addstate_eps(states, l, state_idx, st_c, subs_arg, pim, off_arg, depth)
@@ -2697,7 +2703,7 @@ fn addstate_idx(
                 }
 
                 let ll_idx = re_st().nfa_ll_index;
-                if (*st_ptr).lastlist[ll_idx] == l.id && st_c != NFA_SKIP {
+                if st_ptr.lastlist[ll_idx] == l.id && st_c != NFA_SKIP {
                     if re_st().rex.nfa_has_backref == 0
                         && pim.is_null()
                         && l.has_pim == 0
@@ -2743,7 +2749,7 @@ fn addstate_idx(
                     l.t.reserve(newlen - l.t.len());
                 }
 
-                (*st_ptr).lastlist[ll_idx] = l.id;
+                st_ptr.lastlist[ll_idx] = l.id;
                 let thread_idx = l.n as usize;
                 l.n += 1;
                 if thread_idx == l.t.len() {
@@ -3641,6 +3647,9 @@ fn nfa_regmatch(
             flag ^= 1;
             let next_idx = flag;
             let thislist = (&raw mut list).cast::<NfaList>().add(this_idx);
+            let thislist = { &mut *thislist };
+            let thislist = { &mut *thislist };
+            let thislist = { &mut *thislist };
             let nextlist = &mut *(&raw mut list).cast::<NfaList>().add(next_idx);
             nextlist.n = 0;
             nextlist.has_pim = 0;
@@ -3652,16 +3661,16 @@ fn nfa_regmatch(
                 return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
             }
 
-            (*thislist).id = re_st().rex.nfa_listid;
+            thislist.id = re_st().rex.nfa_listid;
             nextlist.id = re_st().rex.nfa_listid + 1;
 
-            if (*thislist).n == 0 {
+            if thislist.n == 0 {
                 break;
             }
 
             let mut goto_nextchar = false;
             let mut listidx: c_int = 0;
-            while listidx < (*thislist).n {
+            while listidx < thislist.n {
                 reg_breakcheck();
                 if g_st().got_int {
                     break;
@@ -3675,7 +3684,7 @@ fn nfa_regmatch(
                         }
                     }
                 }
-                let t = &mut *(*thislist).t.as_mut_ptr().add(listidx as usize);
+                let t = &mut *thislist.t.as_mut_ptr().add(listidx as usize);
                 let t_state_idx = t.state.unwrap_unchecked();
                 let t_st = &*prog.state.as_ptr().add(t_state_idx);
 

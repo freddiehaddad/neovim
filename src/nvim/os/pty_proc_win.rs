@@ -217,7 +217,9 @@ mod win_impl {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
+            let hdr = { &mut *hdr };
             let ptail = pty_proc_win_tail(ptyproc);
+            let ptail = { &mut *ptail };
             let s_in = &mut (*proc_).r#in;
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
@@ -244,7 +246,7 @@ mod win_impl {
                     break 'cleanup;
                 }
                 conpty_object =
-                    os_conpty_init(&mut in_name, &mut out_name, (*ptail).width, (*ptail).height);
+                    os_conpty_init(&mut in_name, &mut out_name, ptail.width, ptail.height);
                 if conpty_object.is_none() {
                     status = UV_ENOSYS;
                     break 'cleanup;
@@ -274,7 +276,7 @@ mod win_impl {
                     );
                 }
 
-                if let Some(ref hdr_cwd) = (*hdr).cwd {
+                if let Some(ref hdr_cwd) = hdr.cwd {
                     status = utf8_to_utf16(hdr_cwd.as_ptr(), -1, &mut cwd);
                     if status != 0 {
                         emsg = c"utf8_to_utf16(proc->cwd) failed".as_ptr();
@@ -282,7 +284,7 @@ mod win_impl {
                     }
                 }
 
-                let arg0 = (*hdr).argv.as_slice()[0].as_ptr();
+                let arg0 = hdr.argv.as_slice()[0].as_ptr();
                 let is_cmdexe = os_shell_is_cmdexe(arg0);
                 if is_cmdexe {
                     let mut path: Option<std::ffi::CString> = None;
@@ -301,14 +303,14 @@ mod win_impl {
                         break 'cleanup;
                     }
                 }
-                status = build_cmd_line((*hdr).argv.as_slice(), &mut cmd_line, is_cmdexe);
+                status = build_cmd_line(hdr.argv.as_slice(), &mut cmd_line, is_cmdexe);
                 if status != 0 {
                     emsg = c"build_cmd_line failed".as_ptr();
                     break 'cleanup;
                 }
 
-                if !(*hdr).env.is_null() {
-                    status = build_env_block(((*hdr).env).as_ref(), &mut env);
+                if !hdr.env.is_null() {
+                    status = build_env_block((hdr.env).as_ref(), &mut env);
                 }
 
                 if status != 0 {
@@ -340,10 +342,10 @@ mod win_impl {
                     status = GetLastError() as c_int;
                     break 'cleanup;
                 }
-                (*hdr).pid = GetProcessId(proc_handle) as c_int;
+                hdr.pid = GetProcessId(proc_handle) as c_int;
 
                 if RegisterWaitForSingleObject(
-                    &raw mut (*ptail).finish_wait,
+                    &raw mut ptail.finish_wait,
                     proc_handle,
                     Some(pty_proc_terminate_cb),
                     (&raw mut *ptyproc).cast(),
@@ -359,12 +361,12 @@ mod win_impl {
                     || (!out_req.is_null()
                         && !ptr::read_volatile(connect_req_handle_ptr(out_req)).is_null())
                 {
-                    uv_run((*hdr).loop_.cast(), UV_RUN_ONCE);
+                    uv_run(hdr.loop_.cast(), UV_RUN_ONCE);
                 }
 
                 r_out.s.close_console = true;
-                (*ptail).conpty = conpty_object.take();
-                (*ptail).proc_handle = proc_handle;
+                ptail.conpty = conpty_object.take();
+                ptail.proc_handle = proc_handle;
                 proc_handle = ptr::null_mut();
             }
 
@@ -376,7 +378,7 @@ mod win_impl {
                     line!() as c_int,
                     true,
                     c"pty_proc_spawn(%s): %s: error code: %d",
-                    (*hdr).argv.as_slice()[0].as_ptr(),
+                    hdr.argv.as_slice()[0].as_ptr(),
                     emsg,
                     status,
                 );
@@ -416,16 +418,17 @@ mod win_impl {
             let proc_: *mut Proc = ptyproc;
             let proc_t = proc_;
             let ptail = pty_proc_win_tail(ptyproc);
+            let ptail = { &mut *ptail };
 
             pty_proc_close_master(ptyproc);
 
-            if !(*ptail).finish_wait.is_null() {
-                UnregisterWaitEx((*ptail).finish_wait, ptr::null_mut());
-                (*ptail).finish_wait = ptr::null_mut();
+            if !ptail.finish_wait.is_null() {
+                UnregisterWaitEx(ptail.finish_wait, ptr::null_mut());
+                ptail.finish_wait = ptr::null_mut();
             }
-            if !(*ptail).proc_handle.is_null() {
-                CloseHandle((*ptail).proc_handle);
-                (*ptail).proc_handle = ptr::null_mut();
+            if !ptail.proc_handle.is_null() {
+                CloseHandle(ptail.proc_handle);
+                ptail.proc_handle = ptr::null_mut();
             }
 
             let _ = proc_t;
@@ -448,12 +451,13 @@ mod win_impl {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
+            let hdr = { &mut *hdr };
             let ptail = pty_proc_win_tail(ptyproc);
 
             let mut exit_code: DWORD = 0;
             GetExitCodeProcess((*ptail).proc_handle, &mut exit_code);
-            (*hdr).status = if (*hdr).exit_signal != 0 {
-                128 + c_int::from((*hdr).exit_signal)
+            hdr.status = if hdr.exit_signal != 0 {
+                128 + c_int::from(hdr.exit_signal)
             } else {
                 exit_code as c_int
             };

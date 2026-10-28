@@ -288,8 +288,11 @@ mod unix_impl {
             }
 
             let proc_: *mut Proc = ptyproc;
+            let proc_ = unsafe { &mut *proc_ };
             let hdr = proc_;
+            let hdr = unsafe { &mut *hdr };
             let ptail = pty_proc_unix_tail(ptyproc);
+            let ptail = unsafe { &mut *ptail };
             let s_in = &mut (*proc_).r#in;
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
@@ -428,6 +431,7 @@ mod unix_impl {
     pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
+            let ptail = unsafe { &mut *ptail };
             (*ptail).winsize = winsize {
                 ws_row: height,
                 ws_col: width,
@@ -475,6 +479,7 @@ mod unix_impl {
     pub fn pty_proc_close_master(ptyproc: &mut PtyProc) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
+            let ptail = unsafe { &mut *ptail };
             if (*ptail).tty_fd >= 0 {
                 close((*ptail).tty_fd);
                 (*ptail).tty_fd = -1;
@@ -633,6 +638,7 @@ mod unix_impl {
 
             for &proc_ in &(*qc).children {
                 let hdr = proc_;
+                let hdr = unsafe { &mut *hdr };
                 let proc_t = proc_;
 
                 let mut pid: c_int;

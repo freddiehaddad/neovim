@@ -122,15 +122,16 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
 
         let parent = mpack_parent_node(&raw mut *node);
         if !parent.is_null() {
-            match (*parent).tok.r#type {
+            let parent = { &mut *parent };
+            match parent.tok.r#type {
                 MpackTokenType::MpackTokenArray => {
-                    let obj = (*parent).data[0].object();
-                    result = (*obj).data.array().items.add((*parent).pos);
+                    let obj = parent.data[0].object();
+                    result = (*obj).data.array().items.add(parent.pos);
                 }
                 MpackTokenType::MpackTokenMap => {
-                    let obj = (*parent).data[0].object();
-                    let kv = &mut *(*obj).data.dict().items.add((*parent).pos);
-                    if (*parent).key_visited == 0 {
+                    let obj = parent.data[0].object();
+                    let kv = &mut *(*obj).data.dict().items.add(parent.pos);
+                    if parent.key_visited == 0 {
                         kv.key = NvimString {
                             data: std::ptr::null_mut(),
                             size: 0,

@@ -9327,7 +9327,8 @@ fn ex_restart(eap: &mut Exarg) {
             if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--listen")) {
                 let next_li = (*li).li_next;
                 if !next_li.is_null() {
-                    let addr = tv_get_string(&(*next_li).li_tv);
+                    let next_li = { &mut *next_li };
+                    let addr = tv_get_string(&next_li.li_tv);
                     if crate::memory::cstr_as_bytes(addr)
                         .iter()
                         .any(|b| matches!(b, b':' | b'/' | b'\\'))
@@ -9335,7 +9336,7 @@ fn ex_restart(eap: &mut Exarg) {
                         listen_arg = to_slash_save(addr);
                         #[cfg(windows)]
                         {
-                            li = (*next_li).li_next;
+                            li = next_li.li_next;
                             continue;
                         }
                     }
@@ -9821,7 +9822,7 @@ pub fn tabpage_close(forceit: c_int) {
 }
 
 pub fn tabpage_close_other(tp: &mut TabPageInfo, forceit: c_int) {
-    unsafe {
+    {
         let mut done: c_int = 0;
         let mut prev_idx = [0 as c_char; NUMBUFLEN];
 
@@ -9845,6 +9846,7 @@ pub fn tabpage_close_other(tp: &mut TabPageInfo, forceit: c_int) {
                 tabpage_index(&raw mut *tp),
             );
             let wp = tp.tp_lastwin;
+            let wp = unsafe { &mut *wp };
 
             if ptr::eq(tp, g_st().curtab) {
                 done = 1000;

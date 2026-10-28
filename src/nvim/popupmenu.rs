@@ -570,10 +570,12 @@ pub fn pum_display(
             }
 
             if !pvwin.is_null() {
-                if (*pvwin).w_winrow < curwin_mut().w_winrow {
-                    above_row = (*pvwin).w_winrow + (*pvwin).w_height;
-                } else if (*pvwin).w_winrow > curwin_mut().w_winrow + curwin_mut().w_height {
-                    below_row = (*pvwin).w_winrow;
+                let pvwin = { &mut *pvwin };
+                let pvwin = { &mut *pvwin };
+                if pvwin.w_winrow < curwin_mut().w_winrow {
+                    above_row = pvwin.w_winrow + pvwin.w_height;
+                } else if pvwin.w_winrow > curwin_mut().w_winrow + curwin_mut().w_height {
+                    below_row = pvwin.w_winrow;
                 }
             }
 
@@ -1227,7 +1229,8 @@ fn pum_preview_set_text(
             capacity: 0,
         };
         let buf = win.w_buffer;
-        (*buf).b_p_ma = 1;
+        let buf = { &mut *buf };
+        buf.b_p_ma = 1;
 
         let mut curr = info;
         while !curr.is_null() {
@@ -1261,7 +1264,7 @@ fn pum_preview_set_text(
         g_st().textlock = 0;
         nvim_buf_set_lines(
             0,
-            (*buf).b_fnum,
+            buf.b_fnum,
             0,
             -1,
             false,
@@ -1276,7 +1279,7 @@ fn pum_preview_set_text(
         }
         arena_mem_free(arena_finish(&mut arena));
         api_free_array(replacement);
-        (*buf).b_p_ma = 0;
+        buf.b_p_ma = 0;
     }
 }
 
@@ -1374,8 +1377,10 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
         {
             let wp = win_float_find(K_WIN_INFO);
             if !wp.is_null() {
-                (*wp).w_config.hide = true;
-                win_config_float(&mut *wp, (*wp).w_config.clone());
+                let wp = { &mut *wp };
+                wp.w_config.hide = true;
+                let cfg = wp.w_config.clone();
+                win_config_float(wp, cfg);
             }
         }
 
@@ -1688,7 +1693,7 @@ pub fn pum_set_event_info(dict: &mut TvDict) {
 }
 
 fn pum_position_at_mouse(min_width: c_int) {
-    unsafe {
+    {
         let min_row: c_int = 0;
         let min_col: c_int = 0;
         let mut max_row = g_st().rows_global;
@@ -1705,16 +1710,18 @@ fn pum_position_at_mouse(min_width: c_int) {
         if grid > 1 {
             let wp = get_win_by_grid_handle(grid);
             if !wp.is_null() {
-                row += (*wp).w_winrow;
-                col += (*wp).w_wincol;
-                pum().win_row_offset = (*wp).w_winrow;
-                pum().win_col_offset = (*wp).w_wincol;
+                let wp = unsafe { &mut *wp };
+                let wp = { &mut *wp };
+                row += wp.w_winrow;
+                col += wp.w_wincol;
+                pum().win_row_offset = wp.w_winrow;
+                pum().win_col_offset = wp.w_wincol;
 
-                if (*wp).w_view_height > 0 || (*wp).w_view_width > 0 {
-                    max_row = (g_st().rows_global - (*wp).w_winrow)
-                        .max((*wp).w_winrow + (*wp).w_view_height);
-                    max_col = (g_st().columns_global - (*wp).w_wincol)
-                        .max((*wp).w_wincol + (*wp).w_view_width);
+                if wp.w_view_height > 0 || wp.w_view_width > 0 {
+                    max_row =
+                        (g_st().rows_global - wp.w_winrow).max(wp.w_winrow + wp.w_view_height);
+                    max_col =
+                        (g_st().columns_global - wp.w_wincol).max(wp.w_wincol + wp.w_view_width);
                 }
             }
         }

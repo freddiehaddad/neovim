@@ -1452,14 +1452,9 @@ pub fn mark_adjust_buf(
                     amount_after,
                 );
                 let fm = fm_base.add(i);
-                if (*fm).fmark.fnum == fnum {
-                    one_adjust_nodel(
-                        &mut (*fm).fmark.mark.lnum,
-                        line1,
-                        line2,
-                        amount,
-                        amount_after,
-                    );
+                let fm = { &mut *fm };
+                if fm.fmark.fnum == fnum {
+                    one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
                 }
             }
             for i in NMARKS..NGLOBALMARKS {
@@ -1729,9 +1724,10 @@ pub fn mark_col_adjust(
                 spaces_removed,
             );
             let fm = fm_base.add(i);
-            if (*fm).fmark.fnum == fnum {
+            let fm = { &mut *fm };
+            if fm.fmark.fnum == fnum {
                 col_adjust(
-                    &mut (*fm).fmark.mark,
+                    &mut fm.fmark.mark,
                     lnum,
                     mincol,
                     lnum_amount,

@@ -648,8 +648,9 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
 
         if maxwidth > 0 {
             let ewp = if wp.is_null() { curwin_ptr() } else { wp };
-            let p_crb_save = (*ewp).w_onebuf_opt.wo_crb;
-            (*ewp).w_onebuf_opt.wo_crb = 0;
+            let ewp = { &mut *ewp };
+            let p_crb_save = ewp.w_onebuf_opt.wo_crb;
+            ewp.w_onebuf_opt.wo_crb = 0;
 
             let stl_cstr = crate::memory::cstr_to_cstring(stl);
 
@@ -677,7 +678,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             stl_fill_click_defs(click_defs, tabtab, buf.as_ptr(), maxwidth, wp.is_null());
 
             drop(stl_cstr);
-            (*ewp).w_onebuf_opt.wo_crb = p_crb_save;
+            ewp.w_onebuf_opt.wo_crb = p_crb_save;
 
             let len = crate::memory::cstr_len(buf.as_ptr());
             let start_col = col;
@@ -809,15 +810,16 @@ pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
 }
 
 pub fn redraw_ruler() {
-    unsafe {
+    {
         let wp = if !curwin_mut().w_config.hide && curwin_mut().w_status_height == 0 {
             curwin_ptr()
         } else {
             lastwin_nofloating(ptr::null_mut())
         };
+        let wp = unsafe { &mut *wp };
         let is_stl_global = global_stl_height() > 0;
 
-        let part_of_status = (*wp).w_status_height != 0 || is_stl_global;
+        let part_of_status = wp.w_status_height != 0 || is_stl_global;
         if opt_vars().p_ru == 0 || part_of_status || (opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES))
         {
             if stl_st().did_show_ext_ruler && ui_has(K_UIMESSAGES) {
@@ -830,11 +832,11 @@ pub fn redraw_ruler() {
             return;
         }
 
-        if (*wp).w_cursor.lnum > (*wp).buf_mut().b_ml.ml_line_count {
+        if wp.w_cursor.lnum > (*wp).buf_mut().b_ml.ml_line_count {
             return;
         }
 
-        if (*wp).w_status_height == 0 && !is_stl_global && !g_st().edit_submode.is_null() {
+        if wp.w_status_height == 0 && !is_stl_global && !g_st().edit_submode.is_null() {
             return;
         }
 
@@ -1416,6 +1418,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
 
         let items_vec_ptr = &raw mut stl_st().stl_items_vec;
+        let items_vec_ptr = { &mut *items_vec_ptr };
         let groupitems_vec_ptr = &raw mut stl_st().stl_groupitems_vec;
         let hltab_vec_ptr = &raw mut stl_st().stl_hltab_vec;
         let tabtab_vec_ptr = &raw mut stl_st().stl_tabtab_vec;

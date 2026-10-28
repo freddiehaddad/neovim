@@ -340,10 +340,11 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let stream = *handle.cast::<*mut Stream>();
         if !stream.is_null() {
-            if (*stream).is_rstream {
+            let stream = { &mut *stream };
+            if stream.is_rstream {
                 crate::event::rstream::rstream_close_cb(&mut *stream);
             }
-            match (*stream).internal_data {
+            match stream.internal_data {
                 StreamInternalData::None => {}
                 StreamInternalData::Channel(chan) => crate::channel::channel_decref(&mut *chan),
                 StreamInternalData::Proc(proc_) => crate::event::proc::proc_decref(&mut *proc_),

@@ -91,11 +91,12 @@ pub fn time_event(watcher: &mut TimeWatcher) {
 unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
     unsafe {
         let watcher = *handle.cast::<*mut TimeWatcher>();
-        if (*watcher).blockable && !multiqueue_empty(&*(*watcher).events) {
+        let watcher = { &mut *watcher };
+        if watcher.blockable && !multiqueue_empty(&*watcher.events) {
             return;
         }
-        if !(*watcher).events.is_null() {
-            multiqueue_put_event(&mut *(*watcher).events, Event::TimeWatcher(watcher));
+        if !watcher.events.is_null() {
+            multiqueue_put_event(&mut *watcher.events, Event::TimeWatcher(watcher));
         } else {
             time_event(&mut *watcher);
         }
@@ -115,12 +116,13 @@ pub fn close_event(watcher: &mut TimeWatcher) {
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let watcher = *handle.cast::<*mut TimeWatcher>();
+        let watcher = { &mut *watcher };
         if matches!(
-            (*watcher).data,
+            watcher.data,
             TimeWatcherData::EvalTimer(_) | TimeWatcherData::WaitDummy
         ) {
-            if !(*watcher).events.is_null() {
-                multiqueue_put_event(&mut *(*watcher).events, Event::TimeWatcherClose(watcher));
+            if !watcher.events.is_null() {
+                multiqueue_put_event(&mut *watcher.events, Event::TimeWatcherClose(watcher));
             } else {
                 close_event(&mut *watcher);
             }

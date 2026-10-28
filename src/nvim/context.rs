@@ -723,7 +723,7 @@ pub fn is_ctx_win(win: *const WinInfoInfo) -> bool {
 }
 
 fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> *mut WinInfoInfo {
-    unsafe {
+    {
         let mut need_append = true;
         let idx = g_st()
             .ctx_win_vec
@@ -742,10 +742,11 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> *mut WinInfoInfo {
             need_append = false;
         }
         let cw_win = g_st().ctx_win_vec.as_slice()[idx].cw_win;
+        let cw_win = unsafe { &mut *cw_win };
         g_st().ctx_win_vec.as_mut_slice()[idx].cw_used = true;
         cs.cs_ctxwin_idx = idx as c_int;
 
-        (*cw_win).w_buffer = (&raw mut *buf);
+        cw_win.w_buffer = (&raw mut *buf);
         buf.b_nwindows += 1;
         win_init_empty(&mut *cw_win);
 
@@ -753,8 +754,9 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> *mut WinInfoInfo {
 
         if need_append {
             win_append(g_st().lastwin, cw_win, ptr::null_mut());
-            g_st().window_handles.insert((*cw_win).handle, cw_win);
-            win_config_float(&mut *cw_win, (*cw_win).w_config.clone());
+            g_st().window_handles.insert(cw_win.handle, cw_win);
+            let cfg = cw_win.w_config.clone();
+            win_config_float(cw_win, cfg);
         }
 
         cw_win

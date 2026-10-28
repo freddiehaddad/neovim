@@ -927,13 +927,14 @@ pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
 
 /// Dot-repeat `"."` command.
 pub fn start_redo(count: c_int, old_redo: bool) -> bool {
-    unsafe {
+    {
         let rd = if old_redo {
             &raw mut inp_st().redobuff.old
         } else {
             &raw mut inp_st().redobuff.cur
         };
-        if (*rd).body.is_empty() && (*rd).regname == 0 && (*rd).count == 0 {
+        let rd = unsafe { &mut *rd };
+        if rd.body.is_empty() && rd.regname == 0 && rd.count == 0 {
             return false;
         }
 
@@ -958,8 +959,8 @@ pub fn start_redo(count: c_int, old_redo: bool) -> bool {
 
         add_buff(
             &mut inp_st().readbuf2,
-            (*rd).body.as_ptr(),
-            (*rd).body.len() as isize,
+            rd.body.as_ptr(),
+            rd.body.len() as isize,
         );
         true
     }

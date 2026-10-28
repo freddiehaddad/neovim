@@ -189,27 +189,30 @@ fn loop_process_events_until<F: FnMut() -> bool>(
 pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c_int {
     unsafe {
         let s_in = &raw mut proc_.r#in;
+        let s_in = { &mut *s_in };
         let s_out = &raw mut proc_.out.s;
+        let s_out = { &mut *s_out };
         let s_err = &raw mut proc_.err.s;
+        let s_err = { &mut *s_err };
 
         debug_assert!(!(err && proc_.fwd_err));
 
         if in_ {
-            uv_pipe_init(proc_.loop_.cast(), (&raw mut (*s_in).uv).cast(), 0);
+            uv_pipe_init(proc_.loop_.cast(), (&raw mut s_in.uv).cast(), 0);
         } else {
-            (*s_in).closed = true;
+            s_in.closed = true;
         }
 
         if out {
-            uv_pipe_init(proc_.loop_.cast(), (&raw mut (*s_out).uv).cast(), 0);
+            uv_pipe_init(proc_.loop_.cast(), (&raw mut s_out.uv).cast(), 0);
         } else {
-            (*s_out).closed = true;
+            s_out.closed = true;
         }
 
         if err {
-            uv_pipe_init(proc_.loop_.cast(), (&raw mut (*s_err).uv).cast(), 0);
+            uv_pipe_init(proc_.loop_.cast(), (&raw mut s_err.uv).cast(), 0);
         } else {
-            (*s_err).closed = true;
+            s_err.closed = true;
         }
 
         let status = match proc_.r#type {
@@ -220,13 +223,13 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c_int {
 
         if status != 0 {
             if in_ {
-                uv_close((&raw mut (*s_in).uv).cast(), None);
+                uv_close((&raw mut s_in.uv).cast(), None);
             }
             if out {
-                uv_close((&raw mut (*s_out).uv).cast(), None);
+                uv_close((&raw mut s_out.uv).cast(), None);
             }
             if err {
-                uv_close((&raw mut (*s_err).uv).cast(), None);
+                uv_close((&raw mut s_err.uv).cast(), None);
             }
 
             if proc_.r#type == K_PROC_TYPE_UV {
@@ -240,19 +243,19 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c_int {
 
         if in_ {
             stream_init(ptr::null_mut(), &mut *s_in, -1, true);
-            (*s_in).internal_data = StreamInternalData::Proc(proc_);
+            s_in.internal_data = StreamInternalData::Proc(proc_);
             proc_.refcount += 1;
         }
 
         if out {
             stream_init(ptr::null_mut(), &mut *s_out, -1, true);
-            (*s_out).internal_data = StreamInternalData::Proc(proc_);
+            s_out.internal_data = StreamInternalData::Proc(proc_);
             proc_.refcount += 1;
         }
 
         if err {
             stream_init(ptr::null_mut(), &mut *s_err, -1, true);
-            (*s_err).internal_data = StreamInternalData::Proc(proc_);
+            s_err.internal_data = StreamInternalData::Proc(proc_);
             proc_.refcount += 1;
         }
 

@@ -507,7 +507,8 @@ pub fn ml_setname(buf: &mut FileBuf) {
     unsafe {
         let mut success = false;
         let mfp = buf.b_ml.mfp_ptr();
-        if (*mfp).mf_fd < 0 {
+        let mfp = { &mut *mfp };
+        if mfp.mf_fd < 0 {
             if opt_vars().p_uc != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
                 ml_open_file(buf);
             }
@@ -520,7 +521,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
             if crate::memory::cstr_is_empty(dirp) {
                 break;
             }
-            let mf_fname_ptr = (*mfp)
+            let mf_fname_ptr = mfp
                 .mf_fname
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -539,9 +540,9 @@ pub fn ml_setname(buf: &mut FileBuf) {
                 success = true;
                 break;
             }
-            if (*mfp).mf_fd >= 0 {
-                close((*mfp).mf_fd);
-                (*mfp).mf_fd = -1;
+            if mfp.mf_fd >= 0 {
+                close(mfp.mf_fd);
+                mfp.mf_fd = -1;
             }
 
             if vim_rename(mf_fname_ptr, fname.as_ptr()) == 0 {
@@ -553,13 +554,13 @@ pub fn ml_setname(buf: &mut FileBuf) {
             }
         }
 
-        if (*mfp).mf_fd == -1 {
-            (*mfp).mf_fd = os_open((*mfp).mf_fname.as_ref().unwrap().as_ptr(), O_RDWR, 0);
-            if (*mfp).mf_fd < 0 {
+        if mfp.mf_fd == -1 {
+            mfp.mf_fd = os_open(mfp.mf_fname.as_ref().unwrap().as_ptr(), O_RDWR, 0);
+            if mfp.mf_fd < 0 {
                 emsg(tr(c"E301: Oops, lost the swap file!!!"));
                 return;
             }
-            os_set_cloexec((*mfp).mf_fd);
+            os_set_cloexec(mfp.mf_fd);
         }
         if !success {
             emsg(tr(c"E302: Could not rename swap file"));
@@ -905,10 +906,11 @@ pub fn ml_recover(checkext: bool) {
 
         let mut allocated_buf = Box::new(FileBuf::new());
         let buf: *mut FileBuf = &raw mut *allocated_buf;
+        let buf = { &mut *buf };
         buf_box = Some(allocated_buf);
 
-        (*buf).b_ml.ml_mfp = mf_open(Some(fname_used.clone()), O_RDONLY);
-        mfp = (*buf).b_ml.mfp_ptr();
+        buf.b_ml.ml_mfp = mf_open(Some(fname_used.clone()), O_RDONLY);
+        mfp = buf.b_ml.mfp_ptr();
         if mfp.is_null() || (*mfp).mf_fd < 0 {
             semsg!(tr(c"E306: Cannot open %s"), fname_used.as_ptr());
             ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
@@ -1135,8 +1137,8 @@ pub fn ml_recover(checkext: bool) {
         let mut line_count: Linenr = 0;
         let mut idx: c_int = 0;
         let mut error: c_int = 0;
-        (*buf).b_ml.ml_stack_top = 0;
-        (*buf).b_ml.ml_stack.clear();
+        buf.b_ml.ml_stack_top = 0;
+        buf.b_ml.ml_stack.clear();
 
         let mut cannot_open = curbuf_mut().b_ffname.is_null();
 
@@ -1228,7 +1230,7 @@ pub fn ml_recover(checkext: bool) {
                         }
 
                         let top = ml_add_stack(&mut *buf);
-                        let ip = &mut (&mut (*buf).b_ml.ml_stack)[top as usize];
+                        let ip = &mut (&mut buf.b_ml.ml_stack)[top as usize];
                         ip.ip_bnum = bnum;
                         ip.ip_index = idx;
 
@@ -1245,7 +1247,7 @@ pub fn ml_recover(checkext: bool) {
                             idx = ip.ip_index + 1;
                             bnum = ip.ip_bnum;
                             page_count = 1;
-                            (*buf).b_ml.ml_stack_top -= 1;
+                            buf.b_ml.ml_stack_top -= 1;
                             line_breakcheck();
                             continue;
                         }
@@ -1359,16 +1361,16 @@ pub fn ml_recover(checkext: bool) {
                 }
             }
 
-            if (*buf).b_ml.ml_stack_top == 0 {
+            if buf.b_ml.ml_stack_top == 0 {
                 break;
             }
 
-            (*buf).b_ml.ml_stack_top -= 1;
-            let ip = (*buf)
+            buf.b_ml.ml_stack_top -= 1;
+            let ip = buf
                 .b_ml
                 .ml_stack
                 .as_mut_ptr()
-                .add((*buf).b_ml.ml_stack_top as usize);
+                .add(buf.b_ml.ml_stack_top as usize);
             bnum = (*ip).ip_bnum;
             idx = (*ip).ip_index + 1;
             page_count = 1;
@@ -2416,8 +2418,9 @@ fn ml_append_int(
             let mut stack_idx = buf.b_ml.ml_stack_top - 1;
             while stack_idx >= 0 {
                 let ip = buf.b_ml.ml_stack.as_mut_ptr().add(stack_idx as usize);
-                let pb_idx = (*ip).ip_index as usize;
-                hp = mf_get(&mut *mfp, (*ip).ip_bnum, 1);
+                let ip = { &mut *ip };
+                let pb_idx = ip.ip_index as usize;
+                hp = mf_get(&mut *mfp, ip.ip_bnum, 1);
                 if hp.is_null() {
                     return false;
                 }
@@ -2492,7 +2495,7 @@ fn ml_append_int(
                     mf_put(&mut *mfp, hp, true, false);
                     hp = hp_new;
                     pp = pp_new;
-                    (*ip).ip_index = 0;
+                    ip.ip_index = 0;
                     stack_idx += 1;
                 }
 
@@ -3890,12 +3893,14 @@ pub fn ml_setflags(buf: &mut FileBuf) {
         let mfp = buf.b_ml.mfp_ptr();
         let hp = pmap_get_bhdr(&(*mfp).mf_hash, 0);
         if !hp.is_null() {
+            let hp = { &mut *hp };
             let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
+            let b0p = { &mut *b0p };
             (*b0p).set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
             let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
             (*b0p).set_flags(((*b0p).flags() & !B0_FF_MASK) | ff_bits);
             add_b0_fenc(&mut *b0p, buf);
-            (*hp).bh_flags |= BH_DIRTY;
+            hp.bh_flags |= BH_DIRTY;
             mf_sync(&mut *mfp, MFS_ZERO);
         }
     }
@@ -3913,8 +3918,9 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: c_int, updtype: c_in
             buf.b_ml.ml_chunksize.resize(100, Chunksize::default());
             buf.b_ml.ml_usedchunks = 1;
             let cs0 = buf.b_ml.ml_chunksize.as_mut_ptr();
-            (*cs0).mlcs_numlines = 1;
-            (*cs0).mlcs_totalsize = 1;
+            let cs0 = { &mut *cs0 };
+            cs0.mlcs_numlines = 1;
+            cs0.mlcs_totalsize = 1;
             ml_st().ml_upd_lastbuf = ptr::null_mut();
         }
 
@@ -4114,10 +4120,11 @@ pub fn ml_find_line_or_offset(
                             + ffdos * (*chunks.add(curix as usize)).mlcs_numlines))
         {
             let ch = chunks.add(curix as usize);
-            curline += (*ch).mlcs_numlines;
-            size += (*ch).mlcs_totalsize;
+            let ch = { &mut *ch };
+            curline += ch.mlcs_numlines;
+            size += ch.mlcs_totalsize;
             if offset != 0 && ffdos != 0 {
-                size += (*ch).mlcs_numlines;
+                size += ch.mlcs_numlines;
             }
             curix += 1;
         }

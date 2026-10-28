@@ -280,7 +280,7 @@ pub fn nvim_buf_set_virtual_text(
     _opts: &mut KeyDict_empty,
     err: &mut Error,
 ) -> Integer {
-    unsafe {
+    {
         let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return 0;
         };
@@ -304,8 +304,9 @@ pub fn nvim_buf_set_virtual_text(
 
         let existing = decor_find_virttext(buf, line as c_int, u64::from(ns_id));
         if !existing.is_null() {
-            (*existing).data = DecorVirtTextData::VirtText(virt_text);
-            (*existing).width = width;
+            let existing = unsafe { &mut *existing };
+            existing.data = DecorVirtTextData::VirtText(virt_text);
+            existing.width = width;
             return src_id;
         }
 

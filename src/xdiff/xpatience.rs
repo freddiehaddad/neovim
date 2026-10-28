@@ -76,14 +76,15 @@ fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
             return;
         }
         let ent = map.entries.as_mut_ptr().add(index);
-        (*ent).line1 = line as c_ulong;
-        (*ent).hash = record.ha;
+        let ent = { &mut *ent };
+        ent.line1 = line as c_ulong;
+        ent.hash = record.ha;
         if map.first.is_null() {
             map.first = ent;
         }
         if !map.last.is_null() {
             (*map.last).next = ent;
-            (*ent).previous = map.last;
+            ent.previous = map.last;
         }
         map.last = ent;
         map.nr += 1;
@@ -207,8 +208,9 @@ fn walk_common_sequence(
             let mut next1: c_int;
             let mut next2: c_int;
             if !first.is_null() {
-                next1 = (*first).line1 as c_int;
-                next2 = (*first).line2 as c_int;
+                let first = { &mut *first };
+                next1 = first.line1 as c_int;
+                next2 = first.line2 as c_int;
                 while next1 > line1 && next2 > line2 && match_lines(map, next1 - 1, next2 - 1) {
                     next1 -= 1;
                     next2 -= 1;

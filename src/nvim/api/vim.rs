@@ -1646,6 +1646,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
         let internal = &mut (*chan).internal;
         let prefix = chan;
         let tail = chan;
+        let tail = { &mut *tail };
         internal.cb = cb;
         internal.closed = false;
         let topts = TerminalOptions {
@@ -1661,10 +1662,10 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
         }
 
         channel_incref(&mut *chan);
-        (*tail).term = terminal_alloc(&mut *b, topts);
-        terminal_open((&raw mut (*tail).term).cast(), &mut *b);
-        if !(*tail).term.is_null() {
-            terminal_check_size(&mut *(*tail).term.cast());
+        tail.term = terminal_alloc(&mut *b, topts);
+        terminal_open((&raw mut tail.term).cast(), &mut *b);
+        if !tail.term.is_null() {
+            terminal_check_size(&mut *tail.term.cast());
         }
         channel_decref(&mut *chan);
 
@@ -2744,7 +2745,7 @@ pub fn nvim_get_mark(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+    {
         let mut rv = Array::new();
         if !validate_s(
             name.size == 1,
@@ -2765,18 +2766,19 @@ pub fn nvim_get_mark(
         }
 
         let mark = mark_get_global(false, crate::memory::cstr_first_char(name.data));
-        let pos = (*mark).fmark.mark;
+        let mark = unsafe { &mut *mark };
+        let pos = mark.fmark.mark;
         let mut bufnr: c_int;
         let mut filename: *mut c_char;
 
-        let owned_filename = if (*mark).fmark.fnum != 0 {
-            bufnr = (*mark).fmark.fnum;
+        let owned_filename = if mark.fmark.fnum != 0 {
+            bufnr = mark.fmark.fnum;
             buflist_nr2name(bufnr, 1, 1)
         } else {
             bufnr = 0;
             None
         };
-        filename = if (*mark).fmark.fnum != 0 {
+        filename = if mark.fmark.fnum != 0 {
             owned_filename
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -3104,7 +3106,7 @@ pub fn nvim_complete_set(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+    {
         let mut rv = arena_dict(arena, 2);
         if (get_cot_flags() & K_OPT_COT_FLAG_POPUP) == 0 {
             api_set_error!(
@@ -3117,7 +3119,8 @@ pub fn nvim_complete_set(
         if (opts.is_set_complete_set & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0 {
             let wp = pum_set_info(index as c_int, opts.info.data);
             if !wp.is_null() {
-                put_c(&mut rv, c"winid", window_obj((*wp).handle));
+                let wp = unsafe { &mut *wp };
+                put_c(&mut rv, c"winid", window_obj(wp.handle));
                 put_c(&mut rv, c"bufnr", buffer_obj((*wp).buf_mut().b_fnum));
             }
         }

@@ -3271,17 +3271,14 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             let arg_dict = argvars[0].vval.v_dict();
             let sid_di = tv_dict_find(arg_dict.as_ref(), c"sid", 3);
             if !sid_di.is_null() {
+                let sid_di = { &mut *sid_di };
                 let mut error = false;
-                sid = tv_get_number_chk(&(*sid_di).di_tv, Some(&mut error));
+                sid = tv_get_number_chk(&sid_di.di_tv, Some(&mut error));
                 if error {
                     return;
                 }
                 if sid <= 0 {
-                    semsg!(
-                        gettext(E_INVARG_NVAL),
-                        c"sid",
-                        tv_get_string(&(*sid_di).di_tv),
-                    );
+                    semsg!(gettext(E_INVARG_NVAL), c"sid", tv_get_string(&sid_di.di_tv),);
                     return;
                 }
             } else {

@@ -1201,11 +1201,12 @@ pub fn decor_redraw_col_impl(
 ) -> c_int {
     unsafe {
         let buf = wp.w_buffer;
+        let buf = { &mut *buf };
         let row = state.row;
         let mut col_last = max_col_last;
 
         loop {
-            let mark = marktree_itr_current(&(*buf).b_marktree, &state.itr);
+            let mark = marktree_itr_current(&buf.b_marktree, &state.itr);
             if mark.pos.row < 0 || mark.pos.row > row {
                 break;
             } else if mark.pos.row == row && mark.pos.col > col {
@@ -1218,7 +1219,7 @@ pub fn decor_redraw_col_impl(
                 && mt_decor_any(mark)
                 && ns_in_win(mark.ns, &mut *wp)
             {
-                let endpos = marktree_get_altpos(&(*buf).b_marktree, mark, None);
+                let endpos = marktree_get_altpos(&buf.b_marktree, mark, None);
                 decor_range_add_from_inline(
                     state,
                     mark.pos.row,
@@ -1232,7 +1233,7 @@ pub fn decor_redraw_col_impl(
                 );
             }
 
-            marktree_itr_next(&(*buf).b_marktree, &mut state.itr);
+            marktree_itr_next(&buf.b_marktree, &mut state.itr);
         }
 
         let mut count = state.ranges_i.len() as c_int;
@@ -1797,7 +1798,7 @@ pub fn decor_virt_lines(
 }
 
 pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, arena: &mut Arena) {
-    unsafe {
+    {
         let inline_sh;
         let mut sh_hl = &DECOR_SIGN_HIGHLIGHT_INIT;
         let mut sh_sign = &DECOR_SIGN_HIGHLIGHT_INIT;
@@ -1867,37 +1868,41 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
         }
 
         if !virt_text.is_null() {
-            if (*virt_text).hl_mode != 0 {
-                let mode_str = HL_MODE_STR[(*virt_text).hl_mode as usize].as_ptr();
+            let virt_text = unsafe { &mut *virt_text };
+            let virt_text = { &mut *virt_text };
+            if virt_text.hl_mode != 0 {
+                let mode_str = HL_MODE_STR[virt_text.hl_mode as usize].as_ptr();
                 put_c(dict, c"hl_mode", cstr_as_obj(mode_str));
             }
 
-            let chunks = virt_text_to_array((*virt_text).data.virt_text(), hl_name, arena);
+            let chunks = virt_text_to_array(virt_text.data.virt_text(), hl_name, arena);
             put_c(dict, c"virt_text", array_obj(chunks));
             put_c(
                 dict,
                 c"virt_text_hide",
-                boolean_obj(((*virt_text).flags & K_VTHIDE) != 0),
+                boolean_obj((virt_text.flags & K_VTHIDE) != 0),
             );
             put_c(
                 dict,
                 c"virt_text_repeat_linebreak",
-                boolean_obj(((*virt_text).flags & K_VTREPEAT_LINEBREAK) != 0),
+                boolean_obj((virt_text.flags & K_VTREPEAT_LINEBREAK) != 0),
             );
-            if (*virt_text).pos == K_VPOS_WIN_COL {
+            if virt_text.pos == K_VPOS_WIN_COL {
                 put_c(
                     dict,
                     c"virt_text_win_col",
-                    integer_obj(Integer::from((*virt_text).col)),
+                    integer_obj(Integer::from(virt_text.col)),
                 );
             }
-            let pos_str = VIRT_TEXT_POS_STR[(*virt_text).pos as usize].as_ptr();
+            let pos_str = VIRT_TEXT_POS_STR[virt_text.pos as usize].as_ptr();
             put_c(dict, c"virt_text_pos", cstr_as_obj(pos_str));
-            priority = i32::from((*virt_text).priority);
+            priority = i32::from(virt_text.priority);
         }
 
         if !virt_lines.is_null() {
-            let vl_vec = (*virt_lines).data.virt_lines();
+            let virt_lines = unsafe { &mut *virt_lines };
+            let virt_lines = { &mut *virt_lines };
+            let vl_vec = virt_lines.data.virt_lines();
             let mut all_chunks = arena_array(arena, vl_vec.len());
             let mut virt_lines_flags: c_int = 0;
             let mut virt_lines_overflow: VirtLineOverflow = K_VLOVERFLOW_TRUNC;
@@ -1911,7 +1916,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
             put_c(
                 dict,
                 c"virt_lines_above",
-                boolean_obj(((*virt_lines).flags & K_VTLINES_ABOVE) != 0),
+                boolean_obj((virt_lines.flags & K_VTLINES_ABOVE) != 0),
             );
             put_c(
                 dict,
@@ -1926,7 +1931,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
                 _ => c"trunc".as_ptr(),
             };
             put_c(dict, c"virt_lines_overflow", cstr_as_obj(overflow));
-            priority = i32::from((*virt_lines).priority);
+            priority = i32::from(virt_lines.priority);
         }
 
         if (sh_sign.flags & K_SHIS_SIGN) != 0 {

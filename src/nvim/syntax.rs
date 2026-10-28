@@ -2435,18 +2435,15 @@ fn find_endpos(
             }
 
             if !spp_skip.is_null() {
-                let mut lc_col = matchcol - (*spp_skip).sp_offsets[SPO_LC_OFF];
+                let spp_skip = { &mut *spp_skip };
+                let spp_skip = { &mut *spp_skip };
+                let mut lc_col = matchcol - spp_skip.sp_offsets[SPO_LC_OFF];
                 if lc_col < 0 {
                     lc_col = 0;
                 }
-                regmatch.rmm_ic = (*spp_skip).sp_ic;
-                regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp_skip).sp_prog);
-                let r = syn_regexec(
-                    &mut regmatch,
-                    startpos.lnum,
-                    lc_col,
-                    &mut (*spp_skip).sp_time,
-                );
+                regmatch.rmm_ic = spp_skip.sp_ic;
+                regmatch.regprog = crate::regexp::regprog_as_ptr(&spp_skip.sp_prog);
+                let r = syn_regexec(&mut regmatch, startpos.lnum, lc_col, &mut spp_skip.sp_time);
                 if r && regmatch.startpos[0].col <= best_regmatch.startpos[0].col {
                     syn_add_end_off(&mut pos, &mut regmatch, &mut *spp_skip, SPO_ME_OFF, 1);
 
@@ -2729,11 +2726,12 @@ fn check_keyword_id(
         }
 
         if !kp.is_null() {
+            let kp = &*kp;
             *endcolp = startcol + kwlen;
-            *flagsp = (*kp).flags;
-            *next_listp = (*kp).next_list.clone();
-            *ccharp = (*kp).k_char;
-            return (*kp).k_syn.id as c_int;
+            *flagsp = kp.flags;
+            *next_listp = kp.next_list.clone();
+            *ccharp = kp.k_char;
+            return kp.k_syn.id as c_int;
         }
 
         0
@@ -4915,29 +4913,30 @@ fn idl_get_entry(list: &SynIdList) -> *mut IdlEntry {
         let round = cache.round as usize;
         cache.last = cache.round;
         let e = &raw mut cache.ent[round];
+        let e = { &mut *e };
         cache.round = (cache.round + 1) % (IDL_CACHE_SIZE as c_int);
-        (*e).idl_ids.clear();
-        (*e).idl_key = list.clone();
-        (*e).idl_marker = 0;
-        (*e).idl_usable = true;
+        e.idl_ids.clear();
+        e.idl_key = list.clone();
+        e.idl_marker = 0;
+        e.idl_usable = true;
 
         let mut slice: &[i16] = list.as_deref().unwrap_or(&[]);
         if let Some(&first) = slice.first()
             && (SYNID_ALLBUT..SYNID_CLUSTER).contains(&first)
         {
-            (*e).idl_marker = first;
+            e.idl_marker = first;
             slice = &slice[1..];
         }
 
         let mut ga: Vec<i16> = Vec::with_capacity(50);
         let mut seen: Vec<i16> = Vec::with_capacity(10);
         if !idl_collect(slice, &mut ga, &mut seen) {
-            (*e).idl_usable = false;
+            e.idl_usable = false;
             return e;
         }
         if !ga.is_empty() {
             ga.sort_unstable();
-            (*e).idl_ids = ga;
+            e.idl_ids = ga;
         }
         e
     }
@@ -5123,17 +5122,18 @@ pub fn ex_syntax(eap: &mut Exarg) {
 
 /// @deprecated
 pub fn ex_ownsyntax(eap: &mut Exarg) {
-    unsafe {
+    {
         if curwin_mut().w_s_owned.is_none() {
             let mut new_s = Box::new(Synblock::new());
             let new_s_ptr: *mut Synblock = &raw mut *new_s;
+            let new_s_ptr = unsafe { &mut *new_s_ptr };
             curwin_mut().w_s_owned = Some(new_s);
             curwin_mut().w_onebuf_opt.wo_spell = 0;
-            clear_string_option(&raw mut (*new_s_ptr).b_p_spc);
-            clear_string_option(&raw mut (*new_s_ptr).b_p_spf);
-            clear_string_option(&raw mut (*new_s_ptr).b_p_spl);
-            clear_string_option(&raw mut (*new_s_ptr).b_p_spo);
-            (*new_s_ptr).b_syn_isk = None;
+            clear_string_option(&raw mut new_s_ptr.b_p_spc);
+            clear_string_option(&raw mut new_s_ptr.b_p_spf);
+            clear_string_option(&raw mut new_s_ptr.b_p_spl);
+            clear_string_option(&raw mut new_s_ptr.b_p_spo);
+            new_s_ptr.b_syn_isk = None;
         }
 
         let raw_old = get_var_value(c"b:current_syntax");

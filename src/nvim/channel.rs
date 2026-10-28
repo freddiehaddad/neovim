@@ -470,11 +470,12 @@ pub fn channel_job_start(
     let cwd = cwd.into_c_char_ptr();
     unsafe {
         let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
-        (*chan).on_data = on_stdout;
-        (*chan).on_stderr = on_stderr;
-        (*chan).on_exit = on_exit;
+        let chan = { &mut *chan };
+        chan.on_data = on_stdout;
+        chan.on_stderr = on_stderr;
+        chan.on_exit = on_exit;
 
-        let proc_ptr = &raw mut (*chan).uv.proc_;
+        let proc_ptr = &raw mut chan.uv.proc_;
         if pty {
             if detach {
                 {
@@ -521,7 +522,7 @@ pub fn channel_job_start(
         } else {
             Some(crate::memory::cstr_to_cstring(exepath))
         };
-        (*pt).events = (*chan).events;
+        (*pt).events = chan.events;
         (*pt).detach = detach;
         (*ph).cwd = if cwd.is_null() {
             None
@@ -543,12 +544,12 @@ pub fn channel_job_start(
         let (has_out, has_err) = if (*ph).r#type == K_PROC_TYPE_PTY {
             (true, false)
         } else {
-            let out = rpc || callback_reader_set(&(*chan).on_data);
+            let out = rpc || callback_reader_set(&chan.on_data);
             #[cfg(windows)]
-            let mut err = callback_reader_set(&(*chan).on_stderr);
+            let mut err = callback_reader_set(&chan.on_stderr);
             #[cfg(not(windows))]
             let err = callback_reader_set(&(*chan).on_stderr);
-            (*pt).fwd_err = (*chan).on_stderr.fwd_err;
+            (*pt).fwd_err = chan.on_stderr.fwd_err;
             #[cfg(windows)]
             if !err && (*pt).fwd_err && (*pt).detach {
                 err = true;
@@ -587,17 +588,17 @@ pub fn channel_job_start(
         if rpc {
             rpc_start(&mut *chan);
         } else if has_out {
-            callback_reader_start(&mut (*chan).on_data, c"stdout");
+            callback_reader_start(&mut chan.on_data, c"stdout");
             rstream_start(&mut (*proc_ptr).out, StreamCbData::ChannelData(chan));
         }
 
         if has_err {
-            callback_reader_start(&mut (*chan).on_stderr, c"stderr");
+            callback_reader_start(&mut chan.on_stderr, c"stderr");
             rstream_init(&mut (*proc_ptr).err);
             rstream_start(&mut (*proc_ptr).err, StreamCbData::ChannelStderr(chan));
         }
 
-        *status_out = (*chan).id as Varnumber;
+        *status_out = chan.id as Varnumber;
         chan
     }
 }

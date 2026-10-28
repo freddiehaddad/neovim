@@ -495,21 +495,23 @@ pub fn dict_check_writable(
     unsafe {
         let di = tv_dict_find(Some(dict), key.data, key.size as isize);
         if !di.is_null() {
-            if ((*di).di_flags & DI_FLAGS_RO) != 0 {
+            let di = { &mut *di };
+            let di = { &mut *di };
+            if (di.di_flags & DI_FLAGS_RO) != 0 {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
                     c"Key is read-only: %s",
                     key.data,
                 );
-            } else if ((*di).di_flags & DI_FLAGS_LOCK) != 0 {
+            } else if (di.di_flags & DI_FLAGS_LOCK) != 0 {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
                     c"Key is locked: %s",
                     key.data,
                 );
-            } else if del && ((*di).di_flags & DI_FLAGS_FIX) != 0 {
+            } else if del && (di.di_flags & DI_FLAGS_FIX) != 0 {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,

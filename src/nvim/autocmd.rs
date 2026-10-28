@@ -3573,6 +3573,7 @@ pub fn aucmd_set_expand_context(
 ) -> *mut c_char {
     unsafe {
         let xp_pref = (&raw mut *xp).cast::<ExpandPrefix>();
+        let xp_pref = { &mut *xp_pref };
         au_st().autocmd_include_groups = false;
         let mut p = arg;
         let mut group = arg_augroup_get(&raw mut arg);
@@ -3595,8 +3596,8 @@ pub fn aucmd_set_expand_context(
             if group == AUGROUP_ALL {
                 au_st().autocmd_include_groups = true;
             }
-            (*xp_pref).xp_context = EXPAND_EVENTS;
-            (*xp_pref).xp_pattern = arg;
+            xp_pref.xp_context = EXPAND_EVENTS;
+            xp_pref.xp_pattern = arg;
             return ptr::null_mut();
         }
 
@@ -3632,7 +3633,7 @@ pub fn aucmd_set_expand_context(
             return arg;
         }
 
-        (*xp_pref).xp_context = if doautocmd {
+        xp_pref.xp_context = if doautocmd {
             EXPAND_FILES
         } else {
             EXPAND_NOTHING

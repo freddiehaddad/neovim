@@ -338,14 +338,15 @@ fn alist_check_arg_idx() {
 
 /// Add `files[count]` to the arglist of the current window after arg `after` (`alist_add_list`).
 fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool) {
-    unsafe {
+    {
         let old_argcount = argcount();
         if check_arglist_locked() {
             let wp = curwin_ptr();
+            let wp = unsafe { &mut *wp };
             let al = win_alist(&*wp);
             after = after.clamp(0, old_argcount);
             arglist_st().arglist_locked = true;
-            (*wp).w_locked += 1;
+            wp.w_locked += 1;
             let count = files.len() as c_int;
             let mut new_entries = Vec::with_capacity(files.len());
             for f in files {
@@ -362,9 +363,9 @@ fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool) {
             let pos = after as usize;
             al.al_ga.splice(pos..pos, new_entries);
             arglist_st().arglist_locked = false;
-            (*wp).w_locked -= 1;
-            if old_argcount > 0 && (*wp).w_arg_idx >= after {
-                (*wp).w_arg_idx += count;
+            wp.w_locked -= 1;
+            if old_argcount > 0 && wp.w_arg_idx >= after {
+                wp.w_arg_idx += count;
             }
         }
     }
@@ -507,11 +508,12 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
             {
                 let last_entry = garglist().add((gcount - 1) as usize);
                 let buf = win.w_buffer;
-                if (*buf).b_fnum == (*last_entry).ae_fnum
-                    || (!(*buf).b_ffname.is_null()
+                let buf = { &mut *buf };
+                if buf.b_fnum == (*last_entry).ae_fnum
+                    || (!buf.b_ffname.is_null()
                         && path_equal(
                             alist_name(&*last_entry),
-                            (*buf).b_ffname,
+                            buf.b_ffname,
                             K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                         ))
                 {
@@ -913,12 +915,13 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     (*wp).w_next
                 };
                 let buf = (*wp).w_buffer;
+                let buf = { &mut *buf };
                 let aall_ref = &mut *aall;
                 let opened_len = aall_ref.opened.len() as c_int;
                 let mut i: c_int;
-                if (*buf).b_ffname.is_null()
+                if buf.b_ffname.is_null()
                     || (!aall_ref.keep_tabs
-                        && ((*buf).b_nwindows > 1
+                        && (buf.b_nwindows > 1
                             || (*wp).w_width != g_st().columns_global
                             || ((*wp).w_floating && !is_ctx_win(wp))))
                 {
@@ -929,10 +932,10 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                         let al = aall_ref.alist;
                         if (i as usize) < (*al).al_ga.len() {
                             let entry = aarglist(&mut *al).add(i as usize);
-                            if (*entry).ae_fnum == (*buf).b_fnum
+                            if (*entry).ae_fnum == buf.b_fnum
                                 || path_equal(
                                     alist_name(&*entry),
-                                    (*buf).b_ffname,
+                                    buf.b_ffname,
                                     K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                                 )
                             {
@@ -972,10 +975,10 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     && !aall_ref.keep_tabs
                     && (buf_hide(&*buf)
                         || aall_ref.forceit
-                        || (*buf).b_nwindows > 1
+                        || buf.b_nwindows > 1
                         || !buf_is_changed_fn(&mut *buf))
                 {
-                    if !buf_hide(&*buf) && (*buf).b_nwindows <= 1 && buf_is_changed_fn(&mut *buf) {
+                    if !buf_hide(&*buf) && buf.b_nwindows <= 1 && buf_is_changed_fn(&mut *buf) {
                         let mut bufref: Bufref = Bufref::new();
                         set_bufref(&mut bufref, buf);
                         autowrite(&mut *buf, false);

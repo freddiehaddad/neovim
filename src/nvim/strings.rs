@@ -728,10 +728,11 @@ pub fn tv_float(tvs: *mut TypVal, idxp: &mut c_int) -> TvFloat {
         } else {
             *idxp += 1;
             let tv = tvs.add(idx);
-            if (*tv).v_type == VarType::VarFloat {
-                f = (*tv).vval.v_float();
-            } else if (*tv).v_type == VarType::VarNumber {
-                f = (*tv).vval.v_number() as TvFloat;
+            let tv = { &mut *tv };
+            if tv.v_type == VarType::VarFloat {
+                f = tv.vval.v_float();
+            } else if tv.v_type == VarType::VarNumber {
+                f = tv.vval.v_number() as TvFloat;
             } else {
                 emsg(gettext(c"E807: Expected Float argument for printf()"));
             }

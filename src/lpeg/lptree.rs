@@ -326,17 +326,19 @@ fn newcharset(l: *mut lua_State, cs: &[LpegByte; CHARSETSIZE]) -> *mut TTree {
             IANY => newleaf(l, TANY),
             ICHAR => {
                 let tree = newleaf(l, TCHAR);
-                (*tree).u.n = info.offset;
+                let tree = { &mut *tree };
+                tree.u.n = info.offset;
                 tree
             }
             _ => {
                 debug_assert_eq!(op, ISET);
                 let bsize = ttree_bitmap_offset() + (info.size as usize);
                 let tree = newtree(l, bytes2slots(bsize) as c_int);
-                (*tree).tag = TSET;
-                (*tree).u.set.offset = info.offset as LpegByte;
-                (*tree).u.set.size = info.size as LpegByte;
-                (*tree).u.set.deflt = info.deflt as LpegByte;
+                let tree = { &mut *tree };
+                tree.tag = TSET;
+                tree.u.set.offset = info.offset as LpegByte;
+                tree.u.set.size = info.size as LpegByte;
+                tree.u.set.deflt = info.deflt as LpegByte;
                 let tb = treebuffer(tree);
                 for i in 0..(info.size as usize) {
                     *tb.add(i) = cs[(info.offset as usize) + i];

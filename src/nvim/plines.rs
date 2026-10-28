@@ -289,6 +289,7 @@ pub fn charsize_regular(
 
         let wp = &mut *csarg.win;
         let buf = wp.w_buffer;
+        let buf = { &mut *buf };
         let line = csarg.line;
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;
@@ -298,7 +299,7 @@ pub fn charsize_regular(
         let mut size: c_int;
         let mut is_doublewidth = false;
         if use_tabstop {
-            size = tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array);
+            size = tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array);
         } else if crate::memory::cstr_is_empty(cur) {
             size = if has_lcs_eol { 1 } else { 0 };
         } else if cur_char < 0 {
@@ -312,7 +313,7 @@ pub fn charsize_regular(
             let mut tab_size = size;
             let col = cur.offset_from(line) as c_int;
             loop {
-                let mark = marktree_itr_current(&(*buf).b_marktree, &csarg.iter);
+                let mark = marktree_itr_current(&buf.b_marktree, &csarg.iter);
                 if mark.pos.row != csarg.virt_row || mark.pos.col > col {
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
@@ -331,11 +332,8 @@ pub fn charsize_regular(
                             size += vt.width;
                             if use_tabstop {
                                 size -= tab_size;
-                                tab_size = tabstop_padding(
-                                    vcol + size,
-                                    (*buf).b_p_ts,
-                                    &(*buf).b_p_vts_array,
-                                );
+                                tab_size =
+                                    tabstop_padding(vcol + size, buf.b_p_ts, &buf.b_p_vts_array);
                                 size += tab_size;
                             }
                         }
@@ -493,7 +491,7 @@ pub fn charsize_regular(
                 let col = s.offset_from(line) as c_int;
                 if has_virt < 0 {
                     has_virt = c_int::from(marktree_itr_get_filter(
-                        &(*buf).b_marktree,
+                        &buf.b_marktree,
                         csarg.virt_row,
                         col,
                         csarg.virt_row + 1,

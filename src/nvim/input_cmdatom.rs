@@ -2007,17 +2007,18 @@ pub fn atom_cmd_end(ca: &mut Cmdarg) {
     unsafe {
         let is_root = atom_st().cmd_frames.len() == 1;
         let old = cur_frame_ptr();
+        let old = { &mut *old };
         if atom_st().composite.follow == K_NONE
             && !mc_replaying()
-            && (atom_origin_moved((*old).origin) || nv_is(ca.cmdchar, NV_MOTION))
+            && (atom_origin_moved(old.origin) || nv_is(ca.cmdchar, NV_MOTION))
         {
-            atom_st().composite.follow = if (*old).follow { K_TRUE } else { K_FALSE };
+            atom_st().composite.follow = if old.follow { K_TRUE } else { K_FALSE };
         }
         let refresh_visual = atom_capture_cmd(ca, &mut *old, is_root);
         atom_stage_flush(&mut *old);
         if atom_composite_active()
-            && (*old).payload_start != usize::MAX
-            && (*old).payload_end > (*old).payload_start
+            && old.payload_start != usize::MAX
+            && old.payload_end > old.payload_start
         {
             atom_st().composite.lossy = true;
         }

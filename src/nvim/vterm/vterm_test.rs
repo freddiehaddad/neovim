@@ -813,9 +813,10 @@ pub fn vterm_screen_get_text(
         for row in rect.start_row..rect.end_row {
             for col in rect.start_col..rect.end_col {
                 let cell = getcell(screen, row, col);
-                if (*cell).schar == 0 {
+                let cell = { &mut *cell };
+                if cell.schar == 0 {
                     padding += 1;
-                } else if (*cell).schar == u32::MAX {
+                } else if cell.schar == u32::MAX {
                     // Gap behind a double-width char
                 } else {
                     while padding > 0 {
@@ -823,7 +824,7 @@ pub fn vterm_screen_get_text(
                         padding -= 1;
                     }
                     let mut buf = [0 as c_char; MAX_SCHAR_SIZE + 1];
-                    let thislen = schar_get(buf.as_mut_ptr(), (*cell).schar);
+                    let thislen = schar_get(buf.as_mut_ptr(), cell.schar);
                     put_bytes!(buf.as_ptr(), thislen);
                 }
             }

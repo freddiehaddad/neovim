@@ -497,16 +497,17 @@ pub fn u_savecommon(
                     for i in 0..limit {
                         let uep: *mut UEntry =
                             &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[i];
+                        let uep = { &mut *uep };
 
                         if u_entry_resized(buf, &*uep)
                             || ((*uep).ue_size() > 1
-                                && top >= (*uep).ue_top
-                                && top + 2 <= (*uep).ue_top + (*uep).ue_size() + 1)
+                                && top >= uep.ue_top
+                                && top + 2 <= uep.ue_top + (*uep).ue_size() + 1)
                         {
                             break;
                         }
 
-                        if (*uep).ue_size() == 1 && (*uep).ue_top == top {
+                        if (*uep).ue_size() == 1 && uep.ue_top == top {
                             if i > 0 {
                                 u_getbot(buf);
                                 buf.b_u_synced = false;
@@ -3167,14 +3168,15 @@ mod tests {
                 1,
                 BLN_LISTED,
             );
-            (*buf).b_u_numhead = 1;
+            let buf = { &mut *buf };
+            buf.b_u_numhead = 1;
 
             let mut hash = [0u8; UNDO_HASH_SIZE];
             u_compute_hash(&mut *buf, hash.as_mut_ptr());
 
             // Write undo file to undodir
             u_write_undo(ptr::null(), false, &mut *buf, hash.as_mut_ptr());
-            let ufile_cstr = u_get_undo_file_name((*buf).b_ffname, false).unwrap();
+            let ufile_cstr = u_get_undo_file_name(buf.b_ffname, false).unwrap();
             let ufile = ufile_cstr.to_str().unwrap().to_owned();
             assert!(std::path::Path::new(&ufile).exists());
             let _ = std::fs::remove_file(&ufile);
@@ -3194,7 +3196,7 @@ mod tests {
             let _ = std::fs::remove_file(&ufile);
 
             // Does not write undo file when b_u_numhead == 0
-            (*buf).b_u_numhead = 0;
+            buf.b_u_numhead = 0;
             u_write_undo(ptr::null(), false, &mut *buf, hash.as_mut_ptr());
             assert!(!std::path::Path::new(&ufile).exists());
 

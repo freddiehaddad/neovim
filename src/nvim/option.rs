@@ -2522,23 +2522,25 @@ pub fn insecure_flag(
     unsafe {
         if (opt_flags & OPT_LOCAL) != 0 {
             let wp: *mut WinInfoInfo = wp.unwrap();
+            let wp = { &mut *wp };
             match opt_idx {
-                K_OPT_WRAP => return &mut (*wp).w_onebuf_opt.wo_wrap_flags,
-                K_OPT_STATUSLINE => return &mut (*wp).w_onebuf_opt.wo_stl_flags,
-                K_OPT_WINBAR => return &mut (*wp).w_onebuf_opt.wo_wbr_flags,
-                K_OPT_FOLDEXPR => return &mut (*wp).w_onebuf_opt.wo_fde_flags,
-                K_OPT_FOLDTEXT => return &mut (*wp).w_onebuf_opt.wo_fdt_flags,
-                K_OPT_INDENTEXPR => return &mut (*(*wp).w_buffer).b_p_inde_flags,
-                K_OPT_FORMATEXPR => return &mut (*(*wp).w_buffer).b_p_fex_flags,
-                K_OPT_INCLUDEEXPR => return &mut (*(*wp).w_buffer).b_p_inex_flags,
-                K_OPT_COMPLETE => return &mut (*(*wp).w_buffer).b_p_cpt_flags,
+                K_OPT_WRAP => return &mut wp.w_onebuf_opt.wo_wrap_flags,
+                K_OPT_STATUSLINE => return &mut wp.w_onebuf_opt.wo_stl_flags,
+                K_OPT_WINBAR => return &mut wp.w_onebuf_opt.wo_wbr_flags,
+                K_OPT_FOLDEXPR => return &mut wp.w_onebuf_opt.wo_fde_flags,
+                K_OPT_FOLDTEXT => return &mut wp.w_onebuf_opt.wo_fdt_flags,
+                K_OPT_INDENTEXPR => return &mut (*wp.w_buffer).b_p_inde_flags,
+                K_OPT_FORMATEXPR => return &mut (*wp.w_buffer).b_p_fex_flags,
+                K_OPT_INCLUDEEXPR => return &mut (*wp.w_buffer).b_p_inex_flags,
+                K_OPT_COMPLETE => return &mut (*wp.w_buffer).b_p_cpt_flags,
                 _ => {}
             }
         } else {
             match opt_idx {
                 K_OPT_WRAP => {
                     let wp: *mut WinInfoInfo = wp.unwrap();
-                    return &mut (*wp).w_allbuf_opt.wo_wrap_flags;
+                    let wp = { &mut *wp };
+                    return &mut wp.w_allbuf_opt.wo_wrap_flags;
                 }
                 K_OPT_FOLDEXPR => {
                     let wp: *mut WinInfoInfo = wp.unwrap();
@@ -2802,14 +2804,15 @@ fn apply_optionset_autocmd(
 
 /// Process the updated 'arabic' option value.
 pub fn did_set_arabic(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let win = args.os_win;
+        let win = unsafe { &mut *win };
         let mut errmsg: *const c_char = ptr::null();
 
-        if (*win).w_onebuf_opt.wo_arab != 0 {
+        if win.w_onebuf_opt.wo_arab != 0 {
             if opt_vars().p_tbidi == 0 {
-                if (*win).w_onebuf_opt.wo_rl == 0 {
-                    (*win).w_onebuf_opt.wo_rl = 1;
+                if win.w_onebuf_opt.wo_rl == 0 {
+                    win.w_onebuf_opt.wo_rl = 1;
                     changed_window_setting(&mut *win);
                 }
 
@@ -2838,8 +2841,8 @@ pub fn did_set_arabic(args: &mut Optset) -> *const c_char {
                 args.os_errbuf,
             );
         } else {
-            if opt_vars().p_tbidi == 0 && (*win).w_onebuf_opt.wo_rl != 0 {
-                (*win).w_onebuf_opt.wo_rl = 0;
+            if opt_vars().p_tbidi == 0 && win.w_onebuf_opt.wo_rl != 0 {
+                win.w_onebuf_opt.wo_rl = 0;
                 changed_window_setting(&mut *win);
             }
 
@@ -2941,19 +2944,20 @@ pub fn did_set_equalalways(args: &mut Optset) -> *const c_char {
 
 /// Process the new 'foldenable' option value.
 pub fn did_set_foldenable(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let win = args.os_win;
-        if args.os_varp == (&raw mut (*win).w_onebuf_opt.wo_fen).cast::<c_void>()
-            && c_int::from(args.os_oldval.data.boolean()) != (*win).w_onebuf_opt.wo_fen
+        let win = unsafe { &mut *win };
+        if args.os_varp == (&raw mut win.w_onebuf_opt.wo_fen).cast::<c_void>()
+            && c_int::from(args.os_oldval.data.boolean()) != win.w_onebuf_opt.wo_fen
             && foldmethod_is_diff(&mut *win)
-            && (*win).w_onebuf_opt.wo_scb != 0
+            && win.w_onebuf_opt.wo_scb != 0
         {
             for wp in for_all_windows_ptr() {
                 if !std::ptr::eq(wp, win)
                     && foldmethod_is_diff(&mut *wp)
                     && wp.w_onebuf_opt.wo_scb != 0
                 {
-                    wp.w_onebuf_opt.wo_fen = (*win).w_onebuf_opt.wo_fen;
+                    wp.w_onebuf_opt.wo_fen = win.w_onebuf_opt.wo_fen;
                     changed_window_setting(&mut *wp);
                 }
             }
@@ -3302,15 +3306,16 @@ pub fn did_set_pumblend(_args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'readonly' option value.
 pub fn did_set_readonly(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let buf = args.os_buf;
+        let buf = unsafe { &mut *buf };
 
-        if (*buf).b_p_ro == 0 && (args.os_flags & OPT_LOCAL) == 0 {
+        if buf.b_p_ro == 0 && (args.os_flags & OPT_LOCAL) == 0 {
             g_st().readonlymode = false;
         }
 
-        if (*buf).b_p_ro != 0 {
-            (*buf).b_did_warn = false;
+        if buf.b_p_ro != 0 {
+            buf.b_did_warn = false;
         }
 
         redraw_titles();
@@ -3522,14 +3527,15 @@ pub fn validate_wildchar(args: &mut Optset) -> *const c_char {
 
 /// Process the new 'winblend' option value.
 pub fn did_set_winblend(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let win = args.os_win;
+        let win = unsafe { &mut *win };
         let old_value = args.os_oldval.data.integer();
         let value = args.os_newval.data.integer();
 
         if value != old_value {
-            (*win).w_onebuf_opt.wo_winbl = (*win).w_onebuf_opt.wo_winbl.clamp(0, 100);
-            (*win).w_hl_needs_update = 1;
+            win.w_onebuf_opt.wo_winbl = win.w_onebuf_opt.wo_winbl.clamp(0, 100);
+            win.w_hl_needs_update = 1;
             check_blending(&mut *win);
         }
         ptr::null()
@@ -3568,12 +3574,13 @@ pub fn did_set_winwidth(_args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'wrap' option value.
 pub fn did_set_wrap(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let win = args.os_win;
-        if (*win).w_onebuf_opt.wo_wrap != 0 {
-            (*win).w_leftcol = 0;
+        let win = unsafe { &mut *win };
+        if win.w_onebuf_opt.wo_wrap != 0 {
+            win.w_leftcol = 0;
         } else {
-            (*win).w_skipcol = 0;
+            win.w_skipcol = 0;
         }
         ptr::null()
     }

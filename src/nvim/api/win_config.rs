@@ -436,11 +436,12 @@ pub fn nvim_open_win(
                     }
                 });
                 if !wp.is_null() {
-                    (*wp).w_config = fconfig.clone();
+                    let wp = { &mut *wp };
+                    wp.w_config = fconfig.clone();
                     if size > 0 {
-                        if (flags & WSP_VERT) != 0 && (*wp).w_width != size {
+                        if (flags & WSP_VERT) != 0 && wp.w_width != size {
                             win_setwidth_win(size, &mut *wp, true);
-                        } else if (flags & WSP_VERT) == 0 && (*wp).w_height != size {
+                        } else if (flags & WSP_VERT) == 0 && wp.w_height != size {
                             win_setheight_win(size, &mut *wp, true);
                         }
                     }

@@ -459,9 +459,10 @@ fn addcharset(compst: &mut CompileState, inst: c_int, info: &CharsetInfo) {
         let isize = instsize(info.size);
         {
             let i_ptr = getinstr(compst, inst);
-            (*i_ptr).i.aux2.set.offset = (info.offset * 8) as LpegByte;
-            (*i_ptr).i.aux2.set.size = isize as LpegByte;
-            (*i_ptr).i.aux1 = info.deflt as LpegByte;
+            let i_ptr = { &mut *i_ptr };
+            i_ptr.i.aux2.set.offset = (info.offset * 8) as LpegByte;
+            i_ptr.i.aux2.set.size = isize as LpegByte;
+            i_ptr.i.aux1 = info.deflt as LpegByte;
         }
         let p = nextinstruction(compst, isize);
         let charset = getinstr(compst, p).cast::<LpegByte>();
@@ -730,14 +731,15 @@ fn correctcalls(compst: &mut CompileState, positions: &[c_int; MAXRULES], from: 
         let mut i = from;
         while i < to {
             let inst = code.add(i as usize);
-            if (*inst).i.code == IOPEN_CALL {
-                let n = (*inst).i.aux2.key as usize;
+            let inst = { &mut *inst };
+            if inst.i.code == IOPEN_CALL {
+                let n = inst.i.aux2.key as usize;
                 let rule = positions[n];
                 debug_assert!(rule == from || (*code.add((rule - 1) as usize)).i.code == IRET);
                 if (*code.add(finaltarget(code, i + 2) as usize)).i.code == IRET {
-                    (*inst).i.code = IJMP;
+                    inst.i.code = IJMP;
                 } else {
-                    (*inst).i.code = ICALL;
+                    inst.i.code = ICALL;
                 }
                 jumptothere(compst, i, rule);
             }

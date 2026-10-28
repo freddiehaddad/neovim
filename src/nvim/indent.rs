@@ -815,11 +815,12 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
         let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
 
         let buf = wp.w_buffer;
+        let buf = { &mut *buf };
         let flp_val = CStr::from_ptr(get_flp_value(&mut *buf));
         let line_cstr = CStr::from_ptr(line);
-        if ind_st().prev_fnum != (*buf).b_fnum
-            || ind_st().prev_ts != (*buf).b_p_ts
-            || ind_st().prev_vts.as_slice() != (*buf).b_p_vts_array.as_slice()
+        if ind_st().prev_fnum != buf.b_fnum
+            || ind_st().prev_ts != buf.b_p_ts
+            || ind_st().prev_vts.as_slice() != buf.b_p_vts_array.as_slice()
             || ind_st().prev_tick != buf_get_changedtick(&*buf)
             || ind_st().prev_listopt != wp.w_briopt_list
             || ind_st().prev_no_ts != no_ts
@@ -827,16 +828,15 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
             || ind_st().prev_flp.as_deref() != Some(flp_val)
             || ind_st().prev_line.as_deref() != Some(line_cstr)
         {
-            ind_st().prev_fnum = (*buf).b_fnum;
+            ind_st().prev_fnum = buf.b_fnum;
             ind_st().prev_line = Some(line_cstr.to_owned());
-            ind_st().prev_ts = (*buf).b_p_ts;
-            ind_st().prev_vts.clone_from(&(*buf).b_p_vts_array);
+            ind_st().prev_ts = buf.b_p_ts;
+            ind_st().prev_vts.clone_from(&buf.b_p_vts_array);
             if wp.w_briopt_vcol == 0 {
                 if no_ts {
                     ind_st().prev_indent = indent_size_no_ts(line);
                 } else {
-                    ind_st().prev_indent =
-                        indent_size_ts(line, (*buf).b_p_ts, &(*buf).b_p_vts_array);
+                    ind_st().prev_indent = indent_size_ts(line, buf.b_p_ts, &buf.b_p_vts_array);
                 }
             }
             ind_st().prev_tick = buf_get_changedtick(&*buf);
@@ -1081,16 +1081,17 @@ pub fn ins_try_si(c: c_int) {
                 ptr::null_mut()
             };
             if !pos.is_null() {
+                let pos = { &mut *pos };
                 let old_pos = curwin_mut().w_cursor;
-                let ptr = ml_get((*pos).lnum);
-                let mut i = (*pos).col;
+                let ptr = ml_get(pos.lnum);
+                let mut i = pos.col;
                 if i > 0 {
                     while {
                         i -= 1;
                         i > 0 && ascii_iswhite(crate::memory::cstr_char_at(ptr, i as usize))
                     } {}
                 }
-                curwin_mut().w_cursor.lnum = (*pos).lnum;
+                curwin_mut().w_cursor.lnum = pos.lnum;
                 curwin_mut().w_cursor.col = i;
                 if crate::memory::cstr_byte_at(ptr, i as usize) == b')' {
                     let p2 = findmatch(None, b'(' as c_int);
@@ -1698,12 +1699,15 @@ pub fn get_lisp_indent() -> c_int {
         }
 
         if !pos.is_null() {
+            let pos = { &mut *pos };
+            let pos = { &mut *pos };
+            let pos = { &mut *pos };
             amount = -1;
             let mut parencount: c_int = 0;
 
             while {
                 curwin_mut().w_cursor.lnum -= 1;
-                curwin_mut().w_cursor.lnum >= (*pos).lnum
+                curwin_mut().w_cursor.lnum >= pos.lnum
             } {
                 if linewhite(curwin_mut().w_cursor.lnum) {
                     continue;
@@ -1771,13 +1775,13 @@ pub fn get_lisp_indent() -> c_int {
             }
 
             if amount == -1 {
-                curwin_mut().w_cursor.lnum = (*pos).lnum;
-                curwin_mut().w_cursor.col = (*pos).col;
-                let mut col = (*pos).col;
+                curwin_mut().w_cursor.lnum = pos.lnum;
+                curwin_mut().w_cursor.col = pos.col;
+                let mut col = pos.col;
 
                 let line = get_cursor_line_ptr();
                 let mut csarg = CharsizeArg::new();
-                let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), (*pos).lnum, line);
+                let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), pos.lnum, line);
 
                 let mut sci: StrCharInfo = utf_ptr2_str_char_info(line);
                 amount = 0;

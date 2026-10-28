@@ -3908,16 +3908,17 @@ pub fn var_redir_stop() {
 
 /// "gettabvar()" function.
 pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let varname = tv_get_string_chk(&argvars[1]);
         let tp = find_tabpage(tv_get_number_chk(&argvars[0], None) as c_int);
         let mut win: *mut WinInfoInfo = ptr::null_mut();
 
         if !tp.is_null() {
-            win = if tp == g_st().curtab || (*tp).tp_firstwin.is_null() {
+            let tp = unsafe { &mut *tp };
+            win = if std::ptr::eq(tp, g_st().curtab) || tp.tp_firstwin.is_null() {
                 g_st().firstwin
             } else {
-                (*tp).tp_firstwin
+                tp.tp_firstwin
             };
         }
 

@@ -1156,14 +1156,16 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
             }
 
             if !winopts.is_null() {
+                let winopts = { &mut *winopts };
+                let winopts = { &mut *winopts };
                 if let Some(saved) = s.save_w_p_culopt.take() {
-                    free_string_option((*winopts).wo_culopt);
-                    (*winopts).wo_culopt = alloc_string_option(saved.as_ptr());
+                    free_string_option(winopts.wo_culopt);
+                    winopts.wo_culopt = alloc_string_option(saved.as_ptr());
                 }
-                (*winopts).wo_cul = c_int::from(s.save_w_p_cul);
-                (*winopts).wo_cuc = s.save_w_p_cuc;
-                (*winopts).wo_so = s.save_w_p_so;
-                (*winopts).wo_siso = s.save_w_p_siso;
+                winopts.wo_cul = c_int::from(s.save_w_p_cul);
+                winopts.wo_cuc = s.save_w_p_cuc;
+                winopts.wo_so = s.save_w_p_so;
+                winopts.wo_siso = s.save_w_p_siso;
             }
         }
 
@@ -2227,18 +2229,19 @@ fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
         let mut grid = g_st().mouse_grid;
         let mouse_win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if !mouse_win.is_null() {
+            let mouse_win = { &mut *mouse_win };
             let offset: c_int;
             if !term.suspended
                 && !term.closed
                 && term.forward_mouse
                 && (*mouse_win).buf_mut().terminal == term
                 && row >= 0
-                && (grid > 1 || row + (*mouse_win).w_winbar_height < (*mouse_win).w_height)
+                && (grid > 1 || row + mouse_win.w_winbar_height < mouse_win.w_height)
                 && {
                     offset = win_col_off(mouse_win);
                     col >= offset
                 }
-                && (grid > 1 || col < (*mouse_win).w_width)
+                && (grid > 1 || col < mouse_win.w_width)
             {
                 let (button, pressed) = match c {
                     K_LEFTDRAG | K_LEFTMOUSE => (1, true),
@@ -2287,9 +2290,9 @@ fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
                 curwin_mut().w_redr_status = true;
                 set_curwin(save_curwin);
                 g_st().curbuf = curwin_mut().w_buffer;
-                redraw_later(mouse_win.as_mut(), UPD_NOT_VALID);
+                redraw_later(Some(&mut *mouse_win), UPD_NOT_VALID);
                 invalidate_terminal(term, -1, -1);
-                return mouse_win == curwin_ptr();
+                return std::ptr::eq(mouse_win, curwin_ptr());
             }
         }
 

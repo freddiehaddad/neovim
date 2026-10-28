@@ -366,17 +366,18 @@ pub fn check_pos(buf: &mut FileBuf, pos: &mut CursorPos) {
 
 /// Make sure `win->w_cursor.lnum` is valid (`check_cursor_lnum`).
 pub fn check_cursor_lnum(win: &mut WinInfoInfo) {
-    unsafe {
+    {
         let buf = win.w_buffer;
-        if win.w_cursor.lnum > (*buf).b_ml.ml_line_count
+        let buf = unsafe { &mut *buf };
+        if win.w_cursor.lnum > buf.b_ml.ml_line_count
             && !has_folding(
                 win,
-                (*buf).b_ml.ml_line_count,
+                buf.b_ml.ml_line_count,
                 Some(&mut win.w_cursor.lnum),
                 ptr::null_mut(),
             )
         {
-            win.w_cursor.lnum = (*buf).b_ml.ml_line_count;
+            win.w_cursor.lnum = buf.b_ml.ml_line_count;
         }
         if win.w_cursor.lnum <= 0 {
             win.w_cursor.lnum = 1;

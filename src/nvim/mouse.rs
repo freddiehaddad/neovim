@@ -2011,11 +2011,12 @@ pub fn mouse_find_win_outer(
     rowp: &mut c_int,
     colp: &mut c_int,
 ) -> *mut WinInfoInfo {
-    unsafe {
+    {
         let wp = mouse_find_win_inner(gridp, rowp, colp);
         if !wp.is_null() {
-            *rowp += (*wp).w_winrow_off;
-            *colp += (*wp).w_wincol_off;
+            let wp = unsafe { &mut *wp };
+            *rowp += wp.w_winrow_off;
+            *colp += wp.w_wincol_off;
         }
         wp
     }
@@ -2038,10 +2039,11 @@ fn mouse_find_grid_win(gridp: &mut c_int, rowp: &mut c_int, colp: &mut c_int) ->
             }
         } else if *gridp == 0 {
             let grid = ui_comp_mouse_focus(*rowp, *colp);
+            let grid = { &mut *grid };
             if ptr::eq(grid, &raw const g_st().pum_grid) {
-                *gridp = (*grid).handle;
-                *rowp -= (*grid).comp_row;
-                *colp -= (*grid).comp_col;
+                *gridp = grid.handle;
+                *rowp -= grid.comp_row;
+                *colp -= grid.comp_col;
                 return ptr::null_mut();
             } else {
                 let mut wp = g_st().firstwin;
@@ -2050,7 +2052,7 @@ fn mouse_find_grid_win(gridp: &mut c_int, rowp: &mut c_int, colp: &mut c_int) ->
                         wp = (*wp).w_next;
                         continue;
                     }
-                    *gridp = (*grid).handle;
+                    *gridp = grid.handle;
                     *rowp -= (*wp).w_winrow + (*wp).w_grid.row_offset;
                     *colp -= (*wp).w_wincol + (*wp).w_grid.col_offset;
                     return wp;
@@ -2205,7 +2207,7 @@ fn mouse_check_grid(vcolp: &mut Colnr, flagsp: &mut c_int) {
 
 /// "getmousepos()" function
 pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut row = g_st().mouse_row;
         let mut col = g_st().mouse_col;
         let mut grid = g_st().mouse_grid;
@@ -2223,12 +2225,14 @@ pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
         let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if !wp.is_null() {
-            let height = (*wp).w_height + (*wp).w_hsep_height + (*wp).w_status_height;
-            if row < height + (*wp).w_border_adj[2] {
-                winid = Varnumber::from((*wp).handle);
-                winrow = Varnumber::from(row + 1 + (*wp).w_winrow_off);
-                wincol = Varnumber::from(col + 1 + (*wp).w_wincol_off);
-                if row >= 0 && row < (*wp).w_height && col >= 0 && col < (*wp).w_width {
+            let wp = unsafe { &mut *wp };
+            let wp = { &mut *wp };
+            let height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
+            if row < height + wp.w_border_adj[2] {
+                winid = Varnumber::from(wp.handle);
+                winrow = Varnumber::from(row + 1 + wp.w_winrow_off);
+                wincol = Varnumber::from(col + 1 + wp.w_wincol_off);
+                if row >= 0 && row < wp.w_height && col >= 0 && col < wp.w_width {
                     mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut lnum);
                     col = vcol2col(&mut *wp, lnum, col, Some(&mut coladd));
                     column = Varnumber::from(col) + 1;

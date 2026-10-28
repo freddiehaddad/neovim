@@ -113,13 +113,14 @@ pub fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
 // DLLEXPORT ArrayOf(Integer, 2) nvim_win_get_cursor(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_cursor(win: Window, arena: &mut Arena, err: &mut Error) -> Array {
-    unsafe {
+    {
         let mut rv = Array::new();
         let w = find_window_by_handle(win, err);
         if !w.is_null() {
+            let w = unsafe { &mut *w };
             rv = arena_array(arena, 2);
-            add_c(&mut rv, integer_obj(i64::from((*w).w_cursor.lnum)));
-            add_c(&mut rv, integer_obj(i64::from((*w).w_cursor.col)));
+            add_c(&mut rv, integer_obj(i64::from(w.w_cursor.lnum)));
+            add_c(&mut rv, integer_obj(i64::from(w.w_cursor.col)));
         }
         rv
     }
@@ -280,13 +281,14 @@ pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
 // DLLEXPORT ArrayOf(Integer, 2) nvim_win_get_position(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_position(win: Window, arena: &mut Arena, err: &mut Error) -> Array {
-    unsafe {
+    {
         let mut rv = Array::new();
         let w = find_window_by_handle(win, err);
         if !w.is_null() {
+            let w = unsafe { &mut *w };
             rv = arena_array(arena, 2);
-            add_c(&mut rv, integer_obj(i64::from((*w).w_winrow)));
-            add_c(&mut rv, integer_obj(i64::from((*w).w_wincol)));
+            add_c(&mut rv, integer_obj(i64::from(w.w_winrow)));
+            add_c(&mut rv, integer_obj(i64::from(w.w_wincol)));
         }
         rv
     }

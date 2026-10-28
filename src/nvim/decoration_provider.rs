@@ -134,7 +134,7 @@ fn decor_provider_invoke(
     default_true: bool,
     res: Option<&mut Array>,
 ) -> bool {
-    unsafe {
+    {
         let mut err = error_init();
 
         g_st().textlock += 1;
@@ -153,8 +153,9 @@ fn decor_provider_invoke(
         g_st().textlock -= 1;
 
         let provider = &raw mut providers_mut()[provider_idx as usize];
+        let provider = unsafe { &mut *provider };
         if !error_set(&err) {
-            (*provider).error_count = 0;
+            provider.error_count = 0;
             if let Some(res) = res {
                 debug_assert!(matches!(ret.obj_type, ObjectType::ObjectTypeArray));
                 *res = ret.data.array();
@@ -164,12 +165,12 @@ fn decor_provider_invoke(
             }
         }
 
-        if error_set(&err) && (*provider).error_count < CB_MAX_ERROR {
+        if error_set(&err) && provider.error_count < CB_MAX_ERROR {
             decor_provider_error(&mut *provider, name.as_ptr(), err.msg_ptr());
-            (*provider).error_count += 1;
+            provider.error_count += 1;
 
-            if (*provider).error_count >= CB_MAX_ERROR {
-                (*provider).state = K_DECOR_PROVIDER_DISABLED;
+            if provider.error_count >= CB_MAX_ERROR {
+                provider.state = K_DECOR_PROVIDER_DISABLED;
             }
         }
 

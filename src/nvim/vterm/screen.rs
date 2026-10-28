@@ -629,20 +629,21 @@ fn erase_internal(rect: VTermRect, selective: c_int, screen: *mut VTermScreen) -
 
             for col in rect.start_col..rect.end_col {
                 let cell = getcell(screen, row, col);
+                let cell = { &mut *cell };
 
-                if selective != 0 && (*cell).pen.protected_cell() != 0 {
+                if selective != 0 && cell.pen.protected_cell() != 0 {
                     continue;
                 }
 
-                (*cell).schar = 0;
-                (*cell).pen = ScreenPen {
+                cell.schar = 0;
+                cell.pen = ScreenPen {
                     fg: screen.pen.fg,
                     bg: screen.pen.bg,
                     uri: 0,
                     flags: 0,
                 };
-                (*cell).pen.set_dwl(info.doublewidth());
-                (*cell).pen.set_dhl(info.doubleheight());
+                cell.pen.set_dwl(info.doublewidth());
+                cell.pen.set_dhl(info.doubleheight());
             }
             row += 1;
         }

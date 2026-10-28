@@ -166,31 +166,32 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
         let mut req_buf = [0u64; 128];
         let req_ptr = req_buf.as_mut_ptr().cast::<uv_fs_t>();
         let stream = *handle.cast::<*mut RStream>();
+        let stream = { &mut *stream };
 
-        let write_ptr = (*stream).buffer.as_mut_ptr().add((*stream).write_pos);
-        (*stream).uvbuf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));
+        let write_ptr = stream.buffer.as_mut_ptr().add(stream.write_pos);
+        stream.uvbuf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));
 
         let loop_ptr = uv_handle_get_loop(handle.cast());
         uv_fs_read(
             loop_ptr,
             req_ptr,
-            (*stream).s.fd,
-            &(*stream).uvbuf,
+            stream.s.fd,
+            &stream.uvbuf,
             1,
-            (*stream).s.fpos,
+            stream.s.fpos,
             None,
         );
         let req_result = uv_fs_get_result(req_ptr);
         uv_fs_req_cleanup(req_ptr);
 
         if req_result <= 0 {
-            uv_idle_stop((&raw mut (*stream).s.uv).cast());
+            uv_idle_stop((&raw mut stream.s.uv).cast());
             invoke_read_cb(&mut *stream, true);
             return;
         }
 
-        (*stream).write_pos += req_result as usize;
-        (*stream).s.fpos += req_result as i64;
+        stream.write_pos += req_result as usize;
+        stream.s.fpos += req_result as i64;
         invoke_read_cb(&mut *stream, false);
     }
 }
