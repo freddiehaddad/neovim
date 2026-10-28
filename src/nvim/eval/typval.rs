@@ -2824,7 +2824,7 @@ pub fn tv_dict_item_free(item: *mut Dictitem) {
 }
 
 /// Make a copy of a dictionary item.
-pub fn tv_dict_item_copy(di: &mut Dictitem) -> *mut Dictitem {
+pub fn tv_dict_item_copy(di: &mut Dictitem) -> &'static mut Dictitem {
     {
         let key_ptr = di.di_key.as_ptr();
         let new_di = tv_dict_item_alloc(key_ptr);
@@ -3341,8 +3341,8 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                         } else if watched {
                             tv_dict_watcher_notify(
                                 d1,
-                                (*new_di).di_key.as_ptr(),
-                                Some(&(*new_di).di_tv),
+                                new_di.di_key.as_ptr(),
+                                Some(&new_di.di_tv),
                                 None,
                             );
                         }

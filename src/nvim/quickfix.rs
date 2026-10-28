@@ -2146,33 +2146,34 @@ fn qf_parse_multiline_pfx(idx: c_int, qfl: &mut QfList, fields: &mut Qffields) -
                 return QF_FAIL;
             };
             let qfprev: *mut Qfline = qfprev;
+            let qfprev = &mut *qfprev;
             if !crate::memory::cstr_is_empty(fields.errmsg.as_ptr()) {
-                let mut bytes = (*qfprev).qf_text.as_bytes().to_vec();
+                let mut bytes = qfprev.qf_text.as_bytes().to_vec();
                 bytes.push(b'\n');
                 bytes.extend_from_slice(crate::memory::cstr_as_bytes(fields.errmsg.as_ptr()));
-                (*qfprev).qf_text = std::ffi::CString::new(bytes).unwrap();
+                qfprev.qf_text = std::ffi::CString::new(bytes).unwrap();
             }
-            if (*qfprev).qf_nr == -1 {
-                (*qfprev).qf_nr = fields.enr;
+            if qfprev.qf_nr == -1 {
+                qfprev.qf_nr = fields.enr;
             }
-            if vim_isprintc(c_int::from(fields.type_ as u8)) && (*qfprev).qf_type == 0 {
-                (*qfprev).qf_type = fields.type_;
+            if vim_isprintc(c_int::from(fields.type_ as u8)) && qfprev.qf_type == 0 {
+                qfprev.qf_type = fields.type_;
             }
 
-            if (*qfprev).qf_lnum == 0 {
-                (*qfprev).qf_lnum = fields.lnum;
+            if qfprev.qf_lnum == 0 {
+                qfprev.qf_lnum = fields.lnum;
             }
-            if (*qfprev).qf_end_lnum == 0 {
-                (*qfprev).qf_end_lnum = fields.end_lnum;
+            if qfprev.qf_end_lnum == 0 {
+                qfprev.qf_end_lnum = fields.end_lnum;
             }
-            if (*qfprev).qf_col == 0 {
-                (*qfprev).qf_col = fields.col;
-                (*qfprev).qf_viscol = c_char::from(fields.use_viscol);
+            if qfprev.qf_col == 0 {
+                qfprev.qf_col = fields.col;
+                qfprev.qf_viscol = c_char::from(fields.use_viscol);
             }
-            if (*qfprev).qf_end_col == 0 {
-                (*qfprev).qf_end_col = fields.end_col;
+            if qfprev.qf_end_col == 0 {
+                qfprev.qf_end_col = fields.end_col;
             }
-            if (*qfprev).qf_fnum == 0 {
+            if qfprev.qf_fnum == 0 {
                 let fname = if !crate::memory::cstr_is_empty(fields.namebuf.as_ptr())
                     || !qfl.qf_dir_stack.is_empty()
                 {
@@ -2182,7 +2183,7 @@ fn qf_parse_multiline_pfx(idx: c_int, qfl: &mut QfList, fields: &mut Qffields) -
                 } else {
                     ptr::null_mut()
                 };
-                (*qfprev).qf_fnum = qf_get_fnum(qfl, qfl.directory_ptr(), fname);
+                qfprev.qf_fnum = qf_get_fnum(qfl, qfl.directory_ptr(), fname);
             }
         }
         if idx == c_int::from(b'Z') {
@@ -6810,12 +6811,12 @@ fn qf_add_entries(
                         break;
                     }
 
-                    let entry: *const Qfline = qfl.qf_items.last().unwrap();
+                    let entry = qfl.qf_items.last().unwrap();
                     if (select_first_entry && entry_to_select_index == 0)
                         || (select_nearest_entry
                             && (entry_to_select_index == 0
                                 || entry_is_closer_to_target(
-                                    &*entry,
+                                    entry,
                                     &(&qfl.qf_items)[(entry_to_select_index - 1) as usize],
                                     prev_fnum,
                                     prev_lnum,

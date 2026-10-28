@@ -394,7 +394,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> c_int {
 }
 
 /// Information about a window as a dictionary (`get_win_info`).
-fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> *mut TvDict {
+fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> &'static mut TvDict {
     unsafe {
         let dict = tv_dict_alloc();
 
@@ -445,7 +445,7 @@ fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> *mut TvDict {
 }
 
 /// Information about a tab page as a dictionary (`get_tabpage_info`).
-fn get_tabpage_info(tp: &mut TabPageInfo, tp_idx: c_int) -> *mut TvDict {
+fn get_tabpage_info(tp: &mut TabPageInfo, tp_idx: c_int) -> &'static mut TvDict {
     {
         let dict = tv_dict_alloc();
 

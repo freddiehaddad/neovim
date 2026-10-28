@@ -1178,13 +1178,13 @@ pub fn decor_init_draw_col(win_col: c_int, hidden: bool, item: &mut DecorRange) 
 }
 
 pub fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: &mut DecorState) {
-    unsafe {
+    {
         let end = state.current_end;
 
         for i in 0..end {
             let slot_idx = (&state.ranges_i)[i as usize] as usize;
-            let r: *mut DecorRange = (&mut state.slots)[slot_idx].range_mut();
-            if (*r).draw_col == -3 {
+            let r = (&mut state.slots)[slot_idx].range_mut();
+            if r.draw_col == -3 {
                 decor_init_draw_col(win_col, hidden, &mut *r);
             }
         }
@@ -1291,56 +1291,52 @@ pub fn decor_redraw_col_impl(
         for i in 0..cur_end {
             let index = (&state.ranges_i)[i as usize];
             let slot = &raw mut (&mut state.slots)[index as usize];
-            let r: *mut DecorRange = (*slot).range_mut();
+            let r = (*slot).range_mut();
 
             let keep: bool;
-            if (*r).end_row < row || ((*r).end_row == row && (*r).end_col <= col) {
-                keep = (*r).start_row >= row && decor_virt_pos(&*r);
+            if r.end_row < row || (r.end_row == row && r.end_col <= col) {
+                keep = r.start_row >= row && decor_virt_pos(r);
             } else {
                 keep = true;
 
-                if (*r).end_row == row && (*r).end_col > col {
-                    col_last = col_last.min((*r).end_col - 1);
+                if r.end_row == row && r.end_col > col {
+                    col_last = col_last.min(r.end_col - 1);
                 }
 
-                if (*r).attr_id > 0 {
-                    attr = hl_combine_attr(attr, (*r).attr_id);
-                    if (*r).data.is_sh() && ((*r).data.sh().flags & K_SHHL_EOL) != 0 {
-                        hl_eol_attr = hl_combine_attr(hl_eol_attr, (*r).attr_id);
+                if r.attr_id > 0 {
+                    attr = hl_combine_attr(attr, r.attr_id);
+                    if r.data.is_sh() && (r.data.sh().flags & K_SHHL_EOL) != 0 {
+                        hl_eol_attr = hl_combine_attr(hl_eol_attr, r.attr_id);
                     }
                 }
 
-                if (*r).data.is_sh() && ((*r).data.sh().flags & K_SHCONCEAL) != 0 {
+                if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL) != 0 {
                     conceal = 1;
-                    if (*r).start_row == row && (*r).start_col == col {
+                    if r.start_row == row && r.start_col == col {
                         conceal = 2;
-                        conceal_char = (*r).data.sh().text[0];
-                        col_last = col_last.min((*r).start_col);
-                        conceal_attr = (*r).attr_id;
+                        conceal_char = r.data.sh().text[0];
+                        col_last = col_last.min(r.start_col);
+                        conceal_attr = r.attr_id;
                     }
                 }
 
-                if (*r).data.is_sh() && ((*r).data.sh().flags & K_SHCONCEAL_OFF) != 0 {
+                if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL_OFF) != 0 {
                     conceal = 0;
                 }
 
-                if (*r).data.is_sh() {
-                    if ((*r).data.sh().flags & K_SHSPELL_ON) != 0 {
+                if r.data.is_sh() {
+                    if (r.data.sh().flags & K_SHSPELL_ON) != 0 {
                         spell = K_TRUE;
-                    } else if ((*r).data.sh().flags & K_SHSPELL_OFF) != 0 {
+                    } else if (r.data.sh().flags & K_SHSPELL_OFF) != 0 {
                         spell = K_FALSE;
                     }
-                    if let Some(ref url) = (*r).data.sh().url {
+                    if let Some(ref url) = r.data.sh().url {
                         attr = hl_add_url(attr, url.as_ptr());
                     }
                 }
             }
 
-            if (*r).start_row == row
-                && (*r).start_col <= col
-                && decor_virt_pos(&*r)
-                && (*r).draw_col == -10
-            {
+            if r.start_row == row && r.start_col <= col && decor_virt_pos(r) && r.draw_col == -10 {
                 decor_init_draw_col(win_col, hidden, &mut *r);
             }
 
@@ -1638,7 +1634,7 @@ pub fn decor_redraw_eol(
     eol_attr: &mut c_int,
     eol_col: c_int,
 ) -> bool {
-    unsafe {
+    {
         decor_redraw_col(wp, MAXCOL, MAXCOL, false, state, MAXCOL);
         state.eol_col = eol_col;
 
@@ -1647,11 +1643,11 @@ pub fn decor_redraw_eol(
         let mut has_virt_pos = false;
         for i in 0..count {
             let slot_idx = (&state.ranges_i)[i as usize] as usize;
-            let r: *const DecorRange = (&state.slots)[slot_idx].range();
-            has_virt_pos |= (*r).start_row == state.row && decor_virt_pos(&*r);
+            let r = (&state.slots)[slot_idx].range();
+            has_virt_pos |= r.start_row == state.row && decor_virt_pos(r);
 
-            if (*r).data.is_sh() && ((*r).data.sh().flags & K_SHHL_EOL) != 0 {
-                *eol_attr = hl_combine_attr(*eol_attr, (*r).attr_id);
+            if r.data.is_sh() && (r.data.sh().flags & K_SHHL_EOL) != 0 {
+                *eol_attr = hl_combine_attr(*eol_attr, r.attr_id);
             }
         }
         has_virt_pos

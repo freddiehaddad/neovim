@@ -2683,7 +2683,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                     }
                 }
                 if dict_idx > 0 || arg_idx > 0 || !arg_pt.is_null() || is_funcref {
-                    let pt = Box::into_raw(Box::new(TvPartial::default()));
+                    let pt = Box::leak(Box::new(TvPartial::default()));
                     if arg_idx > 0 || (!arg_pt.is_null() && !(*arg_pt).pt_argv.is_empty()) {
                         let arg_len = if arg_pt.is_null() {
                             0
@@ -2692,12 +2692,12 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                         };
                         let lv_len = tv_list_len(list.as_ref());
                         let pt_argc = arg_len + lv_len;
-                        (*pt).pt_argv.resize(pt_argc as usize, TypVal::new());
+                        pt.pt_argv.resize(pt_argc as usize, TypVal::new());
                         let mut i: c_int = 0;
                         while i < arg_len {
                             tv_copy(
                                 &(&(*arg_pt).pt_argv)[i as usize],
-                                &mut (&mut (*pt).pt_argv)[i as usize],
+                                &mut (&mut pt.pt_argv)[i as usize],
                             );
                             i += 1;
                         }
@@ -2705,33 +2705,33 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                             for li in
                                 crate::eval::typval::list_iter_mut(tv_list_first(list.as_ref()))
                             {
-                                tv_copy(&li.li_tv, &mut (&mut (*pt).pt_argv)[i as usize]);
+                                tv_copy(&li.li_tv, &mut (&mut pt.pt_argv)[i as usize]);
                                 i += 1;
                             }
                         }
                     }
 
                     if dict_idx > 0 {
-                        (*pt).pt_dict = argvars[dict_idx].vval.v_dict();
-                        (*(*pt).pt_dict).dv_refcount += 1;
+                        pt.pt_dict = argvars[dict_idx].vval.v_dict();
+                        (*pt.pt_dict).dv_refcount += 1;
                     } else if !arg_pt.is_null() {
-                        (*pt).pt_dict = (*arg_pt).pt_dict;
-                        (*pt).pt_auto = (*arg_pt).pt_auto;
-                        if !(*pt).pt_dict.is_null() {
-                            (*(*pt).pt_dict).dv_refcount += 1;
+                        pt.pt_dict = (*arg_pt).pt_dict;
+                        pt.pt_auto = (*arg_pt).pt_auto;
+                        if !pt.pt_dict.is_null() {
+                            (*pt.pt_dict).dv_refcount += 1;
                         }
                     }
 
-                    (*pt).pt_refcount = 1;
+                    pt.pt_refcount = 1;
                     if !arg_pt.is_null() && !(*arg_pt).pt_func.is_null() {
-                        (*pt).pt_func = (*arg_pt).pt_func;
-                        func_ptr_ref(((*pt).pt_func).as_mut());
+                        pt.pt_func = (*arg_pt).pt_func;
+                        func_ptr_ref((pt.pt_func).as_mut());
                     } else if is_funcref {
-                        (*pt).pt_func = find_func(trans_name);
-                        func_ptr_ref(((*pt).pt_func).as_mut());
+                        pt.pt_func = find_func(trans_name);
+                        func_ptr_ref((pt.pt_func).as_mut());
                     } else {
                         func_ref(name_cstr.as_ptr().cast_mut());
-                        (*pt).pt_name = Some(name_cstr);
+                        pt.pt_name = Some(name_cstr);
                     }
 
                     rettv.v_type = VarType::VarPartial;
@@ -4456,7 +4456,7 @@ pub fn create_environment(
     pty: bool,
     set_nvim_addr: bool,
     pty_term_name: impl crate::strings::IntoCCharPtr,
-) -> *mut TvDict {
+) -> &'static mut TvDict {
     let pty_term_name = pty_term_name.into_c_char_ptr();
     unsafe {
         let env = tv_dict_alloc();

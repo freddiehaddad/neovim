@@ -78,7 +78,7 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
 }
 
 /// Create a special dictionary representing a MessagePack MAP (`decode_create_map_special_dict`).
-pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> *mut TvList {
+pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> &'static mut TvList {
     {
         let list = tv_list_alloc(len);
         tv_list_ref(Some(&mut *list));

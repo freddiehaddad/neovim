@@ -1242,7 +1242,8 @@ pub fn api_dict_to_keydict(
 
             let field_name = field.str.map_or(ptr::null(), |s| s.as_ptr());
             let mem = retval.cast::<u8>().add(field.ptr_off);
-            let value = &raw mut dict[i].value;
+            let value: *mut Object = &raw mut dict[i].value;
+            let value = &mut *value;
             let field_type =
                 ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
 
@@ -1253,7 +1254,7 @@ pub fn api_dict_to_keydict(
                 ObjectType::ObjectTypeInteger => {
                     if field.is_hlgroup {
                         let mut hl_id: c_int = 0;
-                        if (*value).obj_type != ObjectType::ObjectTypeNil {
+                        if value.obj_type != ObjectType::ObjectTypeNil {
                             hl_id = object_to_hl_id(*value, k.data, err);
                             if error_set(err) {
                                 return false;
@@ -1261,30 +1262,30 @@ pub fn api_dict_to_keydict(
                         }
                         *mem.cast::<Integer>() = Integer::from(hl_id);
                     } else {
-                        if (*value).obj_type != ObjectType::ObjectTypeInteger {
+                        if value.obj_type != ObjectType::ObjectTypeInteger {
                             api_err_exp(
                                 err,
                                 field_name,
                                 api_typename(ObjectType::ObjectTypeInteger),
-                                api_typename((*value).obj_type),
+                                api_typename(value.obj_type),
                             );
                             return false;
                         }
-                        *mem.cast::<Integer>() = (*value).data.integer();
+                        *mem.cast::<Integer>() = value.data.integer();
                     }
                 }
                 ObjectType::ObjectTypeFloat => {
                     let val = mem.cast::<Float>();
-                    if (*value).obj_type == ObjectType::ObjectTypeInteger {
-                        *val = (*value).data.integer() as Float;
-                    } else if (*value).obj_type == ObjectType::ObjectTypeFloat {
-                        *val = (*value).data.floating();
+                    if value.obj_type == ObjectType::ObjectTypeInteger {
+                        *val = value.data.integer() as Float;
+                    } else if value.obj_type == ObjectType::ObjectTypeFloat {
+                        *val = value.data.floating();
                     } else {
                         api_err_exp(
                             err,
                             field_name,
                             api_typename(ObjectType::ObjectTypeFloat),
-                            api_typename((*value).obj_type),
+                            api_typename(value.obj_type),
                         );
                         return false;
                     }
@@ -1296,47 +1297,46 @@ pub fn api_dict_to_keydict(
                     }
                 }
                 ObjectType::ObjectTypeString => {
-                    if (*value).obj_type != ObjectType::ObjectTypeString {
+                    if value.obj_type != ObjectType::ObjectTypeString {
                         api_err_exp(
                             err,
                             field_name,
                             api_typename(ObjectType::ObjectTypeString),
-                            api_typename((*value).obj_type),
+                            api_typename(value.obj_type),
                         );
                         return false;
                     }
-                    *mem.cast::<NvimString>() = (*value).data.string();
+                    *mem.cast::<NvimString>() = value.data.string();
                 }
                 ObjectType::ObjectTypeArray => {
-                    if (*value).obj_type != ObjectType::ObjectTypeArray {
+                    if value.obj_type != ObjectType::ObjectTypeArray {
                         api_err_exp(
                             err,
                             field_name,
                             api_typename(ObjectType::ObjectTypeArray),
-                            api_typename((*value).obj_type),
+                            api_typename(value.obj_type),
                         );
                         return false;
                     }
-                    *mem.cast::<Array>() = (*value).data.array();
+                    *mem.cast::<Array>() = value.data.array();
                 }
                 ObjectType::ObjectTypeDict => {
                     let val = mem.cast::<Dict>();
-                    if (*value).obj_type == ObjectType::ObjectTypeArray
-                        && (*value).data.array().size == 0
+                    if value.obj_type == ObjectType::ObjectTypeArray && value.data.array().size == 0
                     {
                         *val = Dict {
                             items: ptr::null_mut(),
                             size: 0,
                             capacity: 0,
                         };
-                    } else if (*value).obj_type == ObjectType::ObjectTypeDict {
-                        *val = (*value).data.dict();
+                    } else if value.obj_type == ObjectType::ObjectTypeDict {
+                        *val = value.data.dict();
                     } else {
                         api_err_exp(
                             err,
                             field_name,
                             api_typename(field_type),
-                            api_typename((*value).obj_type),
+                            api_typename(value.obj_type),
                         );
                         return false;
                     }
@@ -1344,16 +1344,16 @@ pub fn api_dict_to_keydict(
                 ObjectType::ObjectTypeBuffer
                 | ObjectType::ObjectTypeWindow
                 | ObjectType::ObjectTypeTabpage => {
-                    if (*value).obj_type == ObjectType::ObjectTypeInteger
-                        || (*value).obj_type == field_type
+                    if value.obj_type == ObjectType::ObjectTypeInteger
+                        || value.obj_type == field_type
                     {
-                        *mem.cast::<ObjHandle>() = (*value).data.integer() as ObjHandle;
+                        *mem.cast::<ObjHandle>() = value.data.integer() as ObjHandle;
                     } else {
                         api_err_exp(
                             err,
                             field_name,
                             api_typename(field_type),
-                            api_typename((*value).obj_type),
+                            api_typename(value.obj_type),
                         );
                         return false;
                     }

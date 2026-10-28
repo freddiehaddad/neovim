@@ -317,13 +317,13 @@ const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
 
 use std::process::abort;
 
-fn json_fetch_config(l: *mut lua_State) -> *mut JsonConfig {
+fn json_fetch_config(l: *mut lua_State) -> &'static mut JsonConfig {
     unsafe {
         let cfg = lua_touserdata(l, lua_upvalueindex(1)).cast::<JsonConfig>();
         if cfg.is_null() {
             luaL_error(l, c"BUG: Unable to fetch CJSON configuration".as_ptr());
         }
-        cfg
+        &mut *cfg
     }
 }
 
@@ -575,17 +575,18 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
         let mut comma: c_int = 0;
         lua_pushnil(l);
         if (*ctx.options).sort_keys != 0 {
-            let keybuf = &raw mut (*ctx.options).keybuf;
-            let init_keybuf_size = (*keybuf).keys.len();
-            let init_keybuf_length = strbuf_length(&(*keybuf).buf);
+            let keybuf: *mut _ = &raw mut (*ctx.options).keybuf;
+            let keybuf = &mut *keybuf;
+            let init_keybuf_size = keybuf.keys.len();
+            let init_keybuf_length = strbuf_length(&keybuf.buf);
 
             while lua_next(l, -2) != 0 {
                 has_items = true;
 
                 let keytype = lua_type(l, -2);
                 let mut key_entry = KeyEntry {
-                    buf: &raw mut (*keybuf).buf,
-                    offset: strbuf_length(&(*keybuf).buf),
+                    buf: &raw mut keybuf.buf,
+                    offset: strbuf_length(&keybuf.buf),
                     length: 0,
                     raw: KeyEntryRaw::Number(0.0),
                 };
@@ -598,19 +599,19 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
                 } else {
                     json_encode_exception(l, ctx, -2, c"table key must be number or string");
                 }
-                key_entry.length = strbuf_length(&(*keybuf).buf) - key_entry.offset;
-                (*keybuf).keys.push(key_entry);
+                key_entry.length = strbuf_length(&keybuf.buf) - key_entry.offset;
+                keybuf.keys.push(key_entry);
                 lua_pop(l, 1);
             }
 
-            let keys_count = (*keybuf).keys.len() - init_keybuf_size;
+            let keys_count = keybuf.keys.len() - init_keybuf_size;
             if keys_count > 0 {
-                let slice = &mut (*keybuf).keys.as_mut_slice()[init_keybuf_size..];
+                let slice = &mut keybuf.keys.as_mut_slice()[init_keybuf_size..];
                 slice.sort_by(cmp_key_entries);
             }
 
             for i in init_keybuf_size..(init_keybuf_size + keys_count) {
-                let current_key = (*keybuf).keys.as_slice()[i];
+                let current_key = keybuf.keys.as_slice()[i];
                 let json_pos = strbuf_length(json) as c_int;
                 if comma > 0 {
                     strbuf_append_char(json, b',' as c_char);
@@ -625,7 +626,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
                 strbuf_append_char_unsafe(json, b'"' as c_char);
                 strbuf_append_mem_unsafe(
                     json,
-                    (*keybuf).buf.buf.as_ptr().add(current_key.offset),
+                    keybuf.buf.buf.as_ptr().add(current_key.offset),
                     current_key.length,
                 );
                 strbuf_append_mem_unsafe(json, c"\":", 2);
@@ -649,8 +650,8 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
                 }
                 lua_pop(l, 1);
             }
-            strbuf_set_length(&mut (*keybuf).buf, init_keybuf_length as c_int);
-            (*keybuf).keys.truncate(init_keybuf_size);
+            strbuf_set_length(&mut keybuf.buf, init_keybuf_length as c_int);
+            keybuf.keys.truncate(init_keybuf_size);
         } else {
             while lua_next(l, -2) != 0 {
                 has_items = true;
@@ -866,7 +867,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
             }
         }
 
-        let encode_buf = &raw mut (*cfg).encode_buf;
+        let encode_buf = &raw mut cfg.encode_buf;
         strbuf_reset(&mut *encode_buf);
 
         ctx.json = encode_buf;

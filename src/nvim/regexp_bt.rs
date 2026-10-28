@@ -2603,9 +2603,9 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
             .regstack
             .resize(old_len + size_of::<Regitem>() / 8, 0);
 
-        let rp = re_st().regstack.as_mut_ptr().add(old_len).cast::<Regitem>();
-        (*rp).rs_state = state;
-        (*rp).rs_scan = scan;
+        let rp = &mut *re_st().regstack.as_mut_ptr().add(old_len).cast::<Regitem>();
+        rp.rs_state = state;
+        rp.rs_scan = scan;
         rp
     }
 }
@@ -2668,7 +2668,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
         let mut tm_count: c_int = 0;
 
         re_st().regstack.clear();
-        let bp = &raw mut re_st().backpos;
+        let bp = &mut re_st().backpos;
         (*bp).clear();
 
         loop {
@@ -3175,7 +3175,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                         NOTHING => {}
                         BACK => {
-                            let bp = &raw mut re_st().backpos;
+                            let bp = &mut re_st().backpos;
                             let idx = if let Some(pos) =
                                 (*bp).iter().position(|item| item.bp_scan == scan)
                             {

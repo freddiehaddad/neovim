@@ -287,13 +287,13 @@ pub fn charsize_regular(
         csarg.cur_text_width_left = 0;
         csarg.cur_text_width_right = 0;
 
-        let wp = csarg.win;
-        let buf = (*wp).w_buffer;
+        let wp = &mut *csarg.win;
+        let buf = wp.w_buffer;
         let line = csarg.line;
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;
 
-        let has_lcs_eol = (*wp).w_onebuf_opt.wo_list != 0 && (*wp).w_p_lcs_chars.eol != 0;
+        let has_lcs_eol = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol != 0;
 
         let mut size: c_int;
         let mut is_doublewidth = false;
@@ -352,7 +352,7 @@ pub fn charsize_regular(
         }
 
         if is_doublewidth
-            && (*wp).w_onebuf_opt.wo_wrap != 0
+            && wp.w_onebuf_opt.wo_wrap != 0
             && in_win_border(&mut *wp, vcol + size - 2)
         {
             size += 1;
@@ -363,19 +363,19 @@ pub fn charsize_regular(
 
         let mut head = mb_added;
         if size > 0
-            && (*wp).w_onebuf_opt.wo_wrap != 0
-            && (!crate::memory::cstr_is_empty(sbr) || (*wp).w_onebuf_opt.wo_bri != 0)
+            && wp.w_onebuf_opt.wo_wrap != 0
+            && (!crate::memory::cstr_is_empty(sbr) || wp.w_onebuf_opt.wo_bri != 0)
         {
             let mut col_off_prev = win_col_off(wp);
-            let width2 = (*wp).w_view_width - col_off_prev + win_col_off2(&mut *wp);
+            let width2 = wp.w_view_width - col_off_prev + win_col_off2(&mut *wp);
             let mut wcol = vcol + col_off_prev;
             let max_head_vcol = csarg.max_head_vcol;
             let mut added = 0;
 
             let mut head_prev = 0;
-            if wcol >= (*wp).w_view_width {
-                wcol -= (*wp).w_view_width;
-                col_off_prev = (*wp).w_view_width - width2;
+            if wcol >= wp.w_view_width {
+                wcol -= wp.w_view_width;
+                col_off_prev = wp.w_view_width - width2;
                 if wcol >= width2 && width2 > 0 {
                     wcol %= width2;
                 }
@@ -385,7 +385,7 @@ pub fn charsize_regular(
                     if !crate::memory::cstr_is_empty(sbr) {
                         head_prev += vim_strsize(sbr);
                     }
-                    if (*wp).w_onebuf_opt.wo_bri != 0 {
+                    if wp.w_onebuf_opt.wo_bri != 0 {
                         head_prev += get_breakindent_win(&mut *wp, line);
                     }
                     csarg.indent_width = head_prev;
@@ -403,20 +403,20 @@ pub fn charsize_regular(
                 wcol += col_off_prev;
             }
 
-            if wcol + size > (*wp).w_view_width {
+            if wcol + size > wp.w_view_width {
                 let mut head_mid = csarg.indent_width;
                 if head_mid == c_int::MIN {
                     head_mid = 0;
                     if !crate::memory::cstr_is_empty(sbr) {
                         head_mid += vim_strsize(sbr);
                     }
-                    if (*wp).w_onebuf_opt.wo_bri != 0 {
+                    if wp.w_onebuf_opt.wo_bri != 0 {
                         head_mid += get_breakindent_win(&mut *wp, line);
                     }
                     csarg.indent_width = head_mid;
                 }
                 if head_mid > 0 {
-                    let prev_rem = (*wp).w_view_width - wcol;
+                    let prev_rem = wp.w_view_width - wcol;
                     let mut width = width2 - head_mid;
                     if width <= 0 {
                         width = 1;
@@ -449,9 +449,9 @@ pub fn charsize_regular(
 
         let size_before_lbr = size;
         let mut need_lbr = false;
-        if (*wp).w_onebuf_opt.wo_lbr != 0
-            && (*wp).w_onebuf_opt.wo_wrap != 0
-            && (*wp).w_view_width != 0
+        if wp.w_onebuf_opt.wo_lbr != 0
+            && wp.w_onebuf_opt.wo_wrap != 0
+            && wp.w_view_width != 0
             && vim_isbreak(c_int::from(crate::memory::cstr_byte_at(cur, 0)))
             && !vim_isbreak(c_int::from(crate::memory::cstr_byte_at(cur, 1)))
         {
@@ -465,7 +465,7 @@ pub fn charsize_regular(
             let mut s = cur;
             let numberextra = win_col_off(wp);
             let col_adj = size - 1;
-            let mut colmax: Colnr = (*wp).w_view_width - numberextra - col_adj;
+            let mut colmax: Colnr = wp.w_view_width - numberextra - col_adj;
             if vcol >= colmax {
                 colmax += col_adj;
                 let n = colmax + win_col_off2(&mut *wp);

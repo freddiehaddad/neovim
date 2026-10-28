@@ -1053,13 +1053,14 @@ pub fn grid_free_all_mem() {
 pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
     unsafe {
         let grid = &mut wp.w_grid;
-        let grid_allocated = &raw mut wp.w_grid_alloc;
+        let grid_allocated: *mut ScreenGrid = &raw mut wp.w_grid_alloc;
+        let grid_allocated = &mut *grid_allocated;
 
         let total_rows = wp.w_height_outer;
         let total_cols = wp.w_width_outer;
 
         let want_allocation = ui_has(K_UIMULTIGRID) || wp.w_floating;
-        let has_allocation = !(*grid_allocated).chars.is_empty();
+        let has_allocation = !grid_allocated.chars.is_empty();
 
         if (wp.w_view_height as usize) + 1 > wp.w_lines.len() {
             wp.w_lines_valid = 0;
@@ -1071,8 +1072,8 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
         let mut was_resized = false;
         if want_allocation
             && (!has_allocation
-                || (*grid_allocated).rows != total_rows
-                || (*grid_allocated).cols != total_cols)
+                || grid_allocated.rows != total_rows
+                || grid_allocated.cols != total_cols)
         {
             grid_alloc(
                 &mut *grid_allocated,
@@ -1081,18 +1082,18 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
                 wp.w_grid_alloc.valid,
                 false,
             );
-            (*grid_allocated).valid = true;
+            grid_allocated.valid = true;
             if wp.w_floating && wp.w_config.border {
                 wp.w_redr_border = true;
             }
             was_resized = true;
         } else if !want_allocation && has_allocation {
             grid_free(&mut *grid_allocated);
-            (*grid_allocated).valid = false;
+            grid_allocated.valid = false;
             was_resized = true;
         } else if want_allocation && has_allocation && !wp.w_grid_alloc.valid {
             grid_invalidate(&mut *grid_allocated);
-            (*grid_allocated).valid = true;
+            grid_allocated.valid = true;
         }
 
         if want_allocation {
@@ -1107,11 +1108,11 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
 
         if (g_st().resizing_screen || was_resized) && want_allocation {
             ui_call_grid_resize(
-                i64::from((*grid_allocated).handle),
-                i64::from((*grid_allocated).cols),
-                i64::from((*grid_allocated).rows),
+                i64::from(grid_allocated.handle),
+                i64::from(grid_allocated.cols),
+                i64::from(grid_allocated.rows),
             );
-            ui_check_cursor_grid((*grid_allocated).handle);
+            ui_check_cursor_grid(grid_allocated.handle);
         }
     }
 }

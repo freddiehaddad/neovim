@@ -1040,27 +1040,28 @@ fn set_manual_fold_win(
                 next = gap[idx + 1].fd_top + off;
             }
 
-            let fp = &raw mut gap[idx];
-            if use_level || (*fp).fd_flags == FD_LEVEL {
+            let fp: *mut _ = &raw mut gap[idx];
+            let fp = &mut *fp;
+            if use_level || fp.fd_flags == FD_LEVEL {
                 use_level = true;
-                (*fp).fd_flags = if i64::from(level) >= wp.w_onebuf_opt.wo_fdl {
+                fp.fd_flags = if i64::from(level) >= wp.w_onebuf_opt.wo_fdl {
                     FD_CLOSED
                 } else {
                     FD_OPEN
                 };
-                for child in &mut (*fp).fd_nested {
+                for child in &mut fp.fd_nested {
                     child.fd_flags = FD_LEVEL;
                 }
             }
 
             if !opening && recurse {
-                if (*fp).fd_flags != FD_CLOSED {
+                if fp.fd_flags != FD_CLOSED {
                     done |= DONE_ACTION;
-                    (*fp).fd_flags = FD_CLOSED;
+                    fp.fd_flags = FD_CLOSED;
                 }
-            } else if (*fp).fd_flags == FD_CLOSED {
+            } else if fp.fd_flags == FD_CLOSED {
                 if opening {
-                    (*fp).fd_flags = FD_OPEN;
+                    fp.fd_flags = FD_OPEN;
                     done |= DONE_ACTION;
                     if recurse {
                         fold_open_nested(&mut *fp);
@@ -1070,9 +1071,9 @@ fn set_manual_fold_win(
             }
 
             found = fp;
-            lnum -= (*fp).fd_top;
-            off += (*fp).fd_top;
-            gap = &mut (*fp).fd_nested;
+            lnum -= fp.fd_top;
+            off += fp.fd_top;
+            gap = &mut fp.fd_nested;
             level += 1;
         }
         if found_fold {

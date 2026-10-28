@@ -2291,16 +2291,17 @@ fn shada_read_when_writing(
                         .file_marks
                         .entry(fname_bytes)
                         .or_insert_with(FileMarks::new);
-                    if entry.timestamp > (*filemarks).greatest_timestamp {
-                        (*filemarks).greatest_timestamp = entry.timestamp;
+                    let filemarks = &mut *filemarks;
+                    if entry.timestamp > filemarks.greatest_timestamp {
+                        filemarks.greatest_timestamp = entry.timestamp;
                     }
                     if entry.entry_type == ShadaEntryType::SDItemLocalMark {
                         let idx = mark_local_index(fm_name);
                         if idx < 0 {
                             let e = std::mem::replace(&mut entry, MISSING_ENTRY);
-                            (*filemarks).additional_marks.push(e);
+                            filemarks.additional_marks.push(e);
                         } else {
-                            let wms_entry = &raw mut (*filemarks).marks[idx as usize];
+                            let wms_entry = &raw mut filemarks.marks[idx as usize];
                             let mut set_wms = true;
                             if (*wms_entry).entry_type != ShadaEntryType::SDItemMissing {
                                 if (*wms_entry).timestamp >= entry.timestamp {
@@ -2336,9 +2337,9 @@ fn shada_read_when_writing(
                             }
                         }
                     } else {
-                        let mut i = (*filemarks).changes_size as c_int;
+                        let mut i = filemarks.changes_size as c_int;
                         while i > 0 {
-                            let jl_entry = &(*filemarks).changes[(i - 1) as usize];
+                            let jl_entry = &filemarks.changes[(i - 1) as usize];
                             if jl_entry.timestamp <= entry.timestamp {
                                 if marks_equal(jl_entry.data.filemark().mark, fm_mark) {
                                     i = -1;
@@ -2347,19 +2348,19 @@ fn shada_read_when_writing(
                             }
                             i -= 1;
                         }
-                        if i > 0 && (*filemarks).changes_size == JUMPLISTSIZE {
-                            shada_free_shada_entry(&mut (*filemarks).changes[0]);
+                        if i > 0 && filemarks.changes_size == JUMPLISTSIZE {
+                            shada_free_shada_entry(&mut filemarks.changes[0]);
                         }
                         i = marklist_insert(
-                            &mut (*filemarks).changes,
-                            (*filemarks).changes_size as c_int,
+                            &mut filemarks.changes,
+                            filemarks.changes_size as c_int,
                             i,
                         );
                         if i != -1 {
-                            (*filemarks).changes[i as usize] =
+                            filemarks.changes[i as usize] =
                                 std::mem::replace(&mut entry, MISSING_ENTRY);
-                            if (*filemarks).changes_size < JUMPLISTSIZE {
-                                (*filemarks).changes_size += 1;
+                            if filemarks.changes_size < JUMPLISTSIZE {
+                                filemarks.changes_size += 1;
                             }
                         } else {
                             shada_free_shada_entry(&mut entry);
@@ -2621,6 +2622,7 @@ fn shada_write(
 
         let mut wms_box = WriteMergerState::new();
         let wms: *mut WriteMergerState = &raw mut *wms_box;
+        let wms = &mut *wms;
         let mut dump_one_history = [false; HIST_COUNT];
         let dump_global_vars = !find_shada_parameter(b'!' as c_int).is_null();
         let mut max_reg_lines = get_shada_parameter(b'<' as c_int);
@@ -2644,7 +2646,7 @@ fn shada_write(
                 dump_history = true;
                 *dump_one = true;
                 hms_init(
-                    &mut (*wms).hms[i],
+                    &mut wms.hms[i],
                     i as u8,
                     num_saved as usize,
                     sd_reader.is_some(),
@@ -2818,8 +2820,7 @@ fn shada_write(
                         tv_clear(&mut vartv);
                         tv_clear(&mut tgttv);
                         if spe_ret == ShaDaWriteResult::SDWriteSuccessful {
-                            (*wms)
-                                .dumped_variables
+                            wms.dumped_variables
                                 .insert(crate::memory::cstr_as_bytes(name).to_vec());
                         }
                     }
@@ -2830,7 +2831,7 @@ fn shada_write(
             }
 
             if num_marked_files > 0 {
-                (*wms).jumps_size = shada_init_jumps(&mut (*wms).jumps, &removable_bufs);
+                wms.jumps_size = shada_init_jumps(&mut wms.jumps, &removable_bufs);
             }
 
             if dump_one_history[HIST_SEARCH as usize] {
@@ -2839,14 +2840,14 @@ fn shada_write(
                 let search_last_used = search_was_last_used();
 
                 add_search_pattern(
-                    &mut (*wms).search_pattern,
+                    &mut wms.search_pattern,
                     get_search_pattern,
                     false,
                     search_last_used,
                     search_highlighted,
                 );
                 add_search_pattern(
-                    &mut (*wms).sub_search_pattern,
+                    &mut wms.sub_search_pattern,
                     get_substitute_pattern,
                     true,
                     search_last_used,
@@ -2856,7 +2857,7 @@ fn shada_write(
                 let mut sub = SubReplacementString::new();
                 sub_get_replacement(&mut sub);
                 if sub.sub.is_some() {
-                    (*wms).replacement = ShadaEntry {
+                    wms.replacement = ShadaEntry {
                         can_free_entry: false,
                         entry_type: ShadaEntryType::SDItemSubString,
                         timestamp: sub.timestamp,
@@ -2918,7 +2919,7 @@ fn shada_write(
                         replace_numbered_mark(&mut *wms, digit_mark_idx, entry);
                         digit_mark_idx += 1;
                     } else {
-                        (*wms).global_marks[mark_global_index(name) as usize] = entry;
+                        wms.global_marks[mark_global_index(name) as usize] = entry;
                     }
                     if global_mark_iter.is_none() {
                         break;
@@ -2937,10 +2938,11 @@ fn shada_write(
                         let fname = (*buf).b_ffname;
                         let fname_cstr = crate::memory::cstr_to_cstring(fname);
                         let fname_bytes = fname_cstr.to_bytes().to_vec();
-                        let filemarks: *mut FileMarks = (*wms)
+                        let filemarks: *mut FileMarks = wms
                             .file_marks
                             .entry(fname_bytes)
                             .or_insert_with(FileMarks::new);
+                        let filemarks = &mut *filemarks;
                         loop {
                             let mut fm = Fmark::new();
                             let mut name: c_char = NUL;
@@ -2949,7 +2951,7 @@ fn shada_write(
                             if name == NUL {
                                 break;
                             }
-                            (*filemarks).marks[mark_local_index(name) as usize] = ShadaEntry {
+                            filemarks.marks[mark_local_index(name) as usize] = ShadaEntry {
                                 can_free_entry: false,
                                 entry_type: ShadaEntryType::SDItemLocalMark,
                                 timestamp: fm.timestamp,
@@ -2960,8 +2962,8 @@ fn shada_write(
                                 }),
                                 additional_data: fm.additional_data,
                             };
-                            if fm.timestamp > (*filemarks).greatest_timestamp {
-                                (*filemarks).greatest_timestamp = fm.timestamp;
+                            if fm.timestamp > filemarks.greatest_timestamp {
+                                filemarks.greatest_timestamp = fm.timestamp;
                             }
                             if local_marks_iter.is_none() {
                                 break;
@@ -2969,7 +2971,7 @@ fn shada_write(
                         }
                         for i in 0..((*buf).b_changelistlen as usize) {
                             let fm = &(*buf).b_changelist[i];
-                            (*filemarks).changes[i] = ShadaEntry {
+                            filemarks.changes[i] = ShadaEntry {
                                 can_free_entry: false,
                                 entry_type: ShadaEntryType::SDItemChange,
                                 timestamp: fm.timestamp,
@@ -2980,11 +2982,11 @@ fn shada_write(
                                 }),
                                 additional_data: fm.additional_data.clone(),
                             };
-                            if fm.timestamp > (*filemarks).greatest_timestamp {
-                                (*filemarks).greatest_timestamp = fm.timestamp;
+                            if fm.timestamp > filemarks.greatest_timestamp {
+                                filemarks.greatest_timestamp = fm.timestamp;
                             }
                         }
-                        (*filemarks).changes_size = (*buf).b_changelistlen as usize;
+                        filemarks.changes_size = (*buf).b_changelistlen as usize;
                     }
                 }
             }
@@ -3023,7 +3025,7 @@ fn shada_write(
                 );
             }
 
-            for entry in &mut (*wms).global_marks {
+            for entry in &mut wms.global_marks {
                 let entry = std::mem::replace(entry, MISSING_ENTRY);
                 if entry.entry_type != ShadaEntryType::SDItemMissing
                     && shada_pack_pfreed_entry(&mut packer, entry, max_kbyte)
@@ -3032,7 +3034,7 @@ fn shada_write(
                     break 'shada_write_exit ShaDaWriteResult::SDWriteFailed;
                 }
             }
-            for entry in &mut (*wms).numbered_marks {
+            for entry in &mut wms.numbered_marks {
                 let entry = std::mem::replace(entry, MISSING_ENTRY);
                 if entry.entry_type != ShadaEntryType::SDItemMissing
                     && shada_pack_pfreed_entry(&mut packer, entry, max_kbyte)
@@ -3041,7 +3043,7 @@ fn shada_write(
                     break 'shada_write_exit ShaDaWriteResult::SDWriteFailed;
                 }
             }
-            for entry in &mut (*wms).registers {
+            for entry in &mut wms.registers {
                 let entry = std::mem::replace(entry, MISSING_ENTRY);
                 if entry.entry_type != ShadaEntryType::SDItemMissing
                     && shada_pack_pfreed_entry(&mut packer, entry, max_kbyte)
@@ -3050,8 +3052,8 @@ fn shada_write(
                     break 'shada_write_exit ShaDaWriteResult::SDWriteFailed;
                 }
             }
-            for i in 0..(*wms).jumps_size {
-                let entry = std::mem::replace(&mut (*wms).jumps[i], MISSING_ENTRY);
+            for i in 0..wms.jumps_size {
+                let entry = std::mem::replace(&mut wms.jumps[i], MISSING_ENTRY);
                 if shada_pack_pfreed_entry(&mut packer, entry, max_kbyte)
                     == ShaDaWriteResult::SDWriteFailed
                 {
@@ -3059,9 +3061,9 @@ fn shada_write(
                 }
             }
             for entry in [
-                std::mem::replace(&mut (*wms).search_pattern, MISSING_ENTRY),
-                std::mem::replace(&mut (*wms).sub_search_pattern, MISSING_ENTRY),
-                std::mem::replace(&mut (*wms).replacement, MISSING_ENTRY),
+                std::mem::replace(&mut wms.search_pattern, MISSING_ENTRY),
+                std::mem::replace(&mut wms.sub_search_pattern, MISSING_ENTRY),
+                std::mem::replace(&mut wms.replacement, MISSING_ENTRY),
             ] {
                 if entry.entry_type != ShadaEntryType::SDItemMissing
                     && shada_pack_pfreed_entry(&mut packer, entry, max_kbyte)
@@ -3071,7 +3073,7 @@ fn shada_write(
                 }
             }
 
-            let mut all_file_markss: Vec<*mut FileMarks> = (*wms)
+            let mut all_file_markss: Vec<*mut FileMarks> = wms
                 .file_marks
                 .values_mut()
                 .map(|fm| fm as *mut FileMarks)
@@ -3120,10 +3122,10 @@ fn shada_write(
             if dump_history {
                 for (i, &dump_one) in dump_one_history.iter().enumerate().take(HIST_COUNT) {
                     if dump_one {
-                        hms_insert_whole_neovim_history(&mut (*wms).hms[i]);
-                        let mut cur_idx = (*wms).hms[i].hmll.first;
+                        hms_insert_whole_neovim_history(&mut wms.hms[i]);
+                        let mut cur_idx = wms.hms[i].hmll.first;
                         while let Some(idx) = cur_idx {
-                            let entries = (*wms).hms[i].hmll.entries.as_mut_slice();
+                            let entries = wms.hms[i].hmll.entries.as_mut_slice();
                             let next_idx = entries[idx].next;
                             let entry = std::mem::replace(&mut entries[idx].data, MISSING_ENTRY);
                             if shada_pack_pfreed_entry(&mut packer, entry, max_kbyte)
@@ -3143,10 +3145,10 @@ fn shada_write(
 
         for (i, &dump_one) in dump_one_history.iter().enumerate().take(HIST_COUNT) {
             if dump_one {
-                hms_dealloc(&mut (*wms).hms[i]);
+                hms_dealloc(&mut wms.hms[i]);
             }
         }
-        (*wms).file_marks.clear();
+        wms.file_marks.clear();
         crate::msgpack_rpc::packer::packer_flush_buffer(&mut packer);
         ret
     }
@@ -3698,9 +3700,9 @@ fn shada_read_next_item(
                 match entry_type {
                     ShadaEntryType::SDItemHeader => {}
                     ShadaEntryType::SDItemSearchPattern => {
-                        let it: *mut KeyDict__shada_search_pat = entry.data.search_pattern_mut();
+                        let it = entry.data.search_pattern_mut();
                         if !unpack_keydict(
-                            it.cast(),
+                            (&raw mut *it).cast(),
                             Some(shada_search_pat_get_field_cb),
                             &mut ad,
                             &mut read_ptr,
@@ -3714,13 +3716,13 @@ fn shada_read_next_item(
                                 initial_fpos,
                                 error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             );
-                            (*it).pat = NvimString {
+                            it.pat = NvimString {
                                 data: ptr::null_mut(),
                                 size: 0,
                             };
                             break 'parse_item false;
                         }
-                        if ((*it).is_set_shada_search_pat
+                        if (it.is_set_shada_search_pat
                             & (1u64 << KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP))
                             == 0
                         {
@@ -3732,7 +3734,7 @@ fn shada_read_next_item(
                             );
                             break 'parse_item false;
                         }
-                        (*it).pat = copy_string((*it).pat, None);
+                        it.pat = copy_string(it.pat, None);
                     }
                     ShadaEntryType::SDItemChange
                     | ShadaEntryType::SDItemJump

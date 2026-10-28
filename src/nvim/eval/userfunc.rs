@@ -621,7 +621,7 @@ pub fn get_lambda_tv(
 
             let name = get_lambda_name();
             let fp = alloc_ufunc(name.data, name.size);
-            let pt = Box::into_raw(Box::new(TvPartial::default()));
+            let pt = Box::leak(Box::new(TvPartial::default()));
 
             let expr_len = end.offset_from(start) as usize;
             let mut line_bytes = Vec::with_capacity(7 + expr_len);
@@ -658,8 +658,8 @@ pub fn get_lambda_tv(
             fp.uf_script_ctx = g_st().current_sctx;
             fp.uf_script_ctx.sc_lnum += sourcing_lnum() - newlines_len;
 
-            (*pt).pt_func = fp;
-            (*pt).pt_refcount = 1;
+            pt.pt_func = fp;
+            pt.pt_refcount = 1;
             rettv.vval = crate::eval::typval::TypvalVval::Partial(pt);
             rettv.v_type = VarType::VarPartial;
         }
@@ -1191,12 +1191,12 @@ fn func_clear_free(fp: *mut UserFunc, force: bool) {
 /// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
 pub fn create_funccal(fp: *mut UserFunc, rettv: &mut TypVal) -> &'static mut Funccall {
     unsafe {
-        let fc = Box::into_raw(Box::new(Funccall::new()));
-        (*fc).fc_caller = uf_st().current_funccal;
+        let fc = Box::leak(Box::new(Funccall::new()));
+        fc.fc_caller = uf_st().current_funccal;
         uf_st().current_funccal = fc;
-        (*fc).fc_func = fp;
+        fc.fc_func = fp;
         func_ptr_ref(fp.as_mut());
-        (*fc).fc_rettv = rettv;
+        fc.fc_rettv = rettv;
         &mut *fc
     }
 }
@@ -4115,27 +4115,27 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
         }
 
         if !fp.is_null() && ((*fp).uf_flags & FC_DICT) != 0 {
-            let pt = Box::into_raw(Box::new(TvPartial::default()));
-            (*pt).pt_refcount = 1;
-            (*pt).pt_dict = (&raw mut *selfdict);
+            let pt = Box::leak(Box::new(TvPartial::default()));
+            pt.pt_refcount = 1;
+            pt.pt_dict = (&raw mut *selfdict);
             selfdict.dv_refcount += 1;
-            (*pt).pt_auto = true;
+            pt.pt_auto = true;
             if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
-                (*pt).pt_name = crate::eval::typval::tv_take_string(rettv.vval.v_string());
+                pt.pt_name = crate::eval::typval::tv_take_string(rettv.vval.v_string());
             } else {
                 let ret_pt = rettv.vval.v_partial();
                 if let Some(ref ret_name) = (*ret_pt).pt_name {
                     func_ref(ret_name.as_ptr().cast_mut());
-                    (*pt).pt_name = Some(ret_name.clone());
+                    pt.pt_name = Some(ret_name.clone());
                 } else {
-                    (*pt).pt_func = (*ret_pt).pt_func;
-                    func_ptr_ref(((*pt).pt_func).as_mut());
+                    pt.pt_func = (*ret_pt).pt_func;
+                    func_ptr_ref((pt.pt_func).as_mut());
                 }
                 if !(*ret_pt).pt_argv.is_empty() {
                     let pt_argc = (*ret_pt).pt_argv.len();
-                    (*pt).pt_argv.resize(pt_argc, TypVal::new());
+                    pt.pt_argv.resize(pt_argc, TypVal::new());
                     for i in 0..pt_argc {
-                        tv_copy(&(&(*ret_pt).pt_argv)[i], &mut (&mut (*pt).pt_argv)[i]);
+                        tv_copy(&(&(*ret_pt).pt_argv)[i], &mut (&mut pt.pt_argv)[i]);
                     }
                 }
                 partial_unref(ret_pt);

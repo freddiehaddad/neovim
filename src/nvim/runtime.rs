@@ -3230,7 +3230,7 @@ pub fn get_sourced_lnum(fgetline: LineGetter) -> Linenr {
     }
 }
 
-fn get_script_local_funcs(sid: Scid) -> *mut TvList {
+fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
     unsafe {
         let functbl = func_tbl_get();
         let l = tv_list_alloc(functbl.len() as isize);

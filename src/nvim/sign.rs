@@ -1197,7 +1197,7 @@ fn sign_get_placed_info_dict(mark: MTKey) -> &'static mut TvDict {
     d
 }
 
-pub fn get_buffer_signs(buf: &mut FileBuf) -> *mut TvList {
+pub fn get_buffer_signs(buf: &mut FileBuf) -> &'static mut TvList {
     {
         let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         let mut itr = MarkTreeIter::new();

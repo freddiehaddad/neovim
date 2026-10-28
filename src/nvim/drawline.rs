@@ -337,16 +337,17 @@ fn draw_virt_text(
         for i in 0..end {
             let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
             let item: *mut DecorRange = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
-            if !((*item).start_row == g_st().decor_state.row && decor_virt_pos(&*item)) {
+            let item = &mut *item;
+            if !(item.start_row == g_st().decor_state.row && decor_virt_pos(&*item)) {
                 continue;
             }
 
             let mut vt: *mut DecorVirtText = ptr::null_mut();
-            if (*item).data.is_vt() {
-                debug_assert!(!(*item).data.vt().is_null());
-                vt = (*item).data.vt();
+            if item.data.is_vt() {
+                debug_assert!(!item.data.vt().is_null());
+                vt = item.data.vt();
             }
-            if decor_virt_pos(&*item) && (*item).draw_col == -1 {
+            if decor_virt_pos(&*item) && item.draw_col == -1 {
                 let mut updated = true;
                 let pos = decor_virt_pos_kind(&*item);
 
@@ -357,18 +358,19 @@ fn draw_virt_text(
                             let lookahead_idx = (&g_st().decor_state.ranges_i)[j as usize] as usize;
                             let lookahead_item: *mut DecorRange =
                                 (&mut g_st().decor_state.slots)[lookahead_idx].range_mut();
+                            let lookahead_item = &mut *lookahead_item;
 
-                            if (*lookahead_item).start_row != g_st().decor_state.row
+                            if lookahead_item.start_row != g_st().decor_state.row
                                 || !decor_virt_pos(&*lookahead_item)
-                                || (*lookahead_item).draw_col != -1
+                                || lookahead_item.draw_col != -1
                             {
                                 continue;
                             }
 
                             let mut lookahead_vt: *mut DecorVirtText = ptr::null_mut();
-                            if (*lookahead_item).data.is_vt() {
-                                debug_assert!(!(*lookahead_item).data.vt().is_null());
-                                lookahead_vt = (*lookahead_item).data.vt();
+                            if lookahead_item.data.is_vt() {
+                                debug_assert!(!lookahead_item.data.vt().is_null());
+                                lookahead_vt = lookahead_item.data.vt();
                             }
 
                             if decor_virt_pos_kind(&*lookahead_item)
@@ -390,39 +392,39 @@ fn draw_virt_text(
                         }
                     }
 
-                    (*item).draw_col = g_st().decor_state.eol_col + eol_offset;
+                    item.draw_col = g_st().decor_state.eol_col + eol_offset;
                 } else if pos == K_VPOS_RIGHT_ALIGN {
                     right_pos -= (*vt).width;
-                    (*item).draw_col = right_pos;
+                    item.draw_col = right_pos;
                 } else if pos == K_VPOS_END_OF_LINE && do_eol {
-                    (*item).draw_col = g_st().decor_state.eol_col;
+                    item.draw_col = g_st().decor_state.eol_col;
                 } else if pos == K_VPOS_WIN_COL {
-                    (*item).draw_col = (col_off + (*vt).col).max(0);
+                    item.draw_col = (col_off + (*vt).col).max(0);
                 } else {
                     updated = false;
                 }
-                if updated && ((*item).draw_col < 0 || (*item).draw_col >= wp.w_view_width) {
-                    (*item).draw_col = c_int::MIN;
+                if updated && (item.draw_col < 0 || item.draw_col >= wp.w_view_width) {
+                    item.draw_col = c_int::MIN;
                 }
             }
-            if (*item).draw_col < 0 {
+            if item.draw_col < 0 {
                 continue;
             }
-            if (*item).data.is_ui() {
-                let ui = (*item).data.ui();
+            if item.data.is_ui() {
+                let ui = item.data.ui();
                 let m = WinExtmark {
                     ns_id: ui.ns_id as NS,
                     mark_id: u64::from(ui.mark_id),
                     win_row,
-                    win_col: (*item).draw_col,
+                    win_col: item.draw_col,
                 };
                 g_st().win_extmark_arr.push(m);
             }
             if !vt.is_null() {
-                let vcol = (*item).draw_col - col_off;
+                let vcol = item.draw_col - col_off;
                 let col = draw_virt_text_item(
                     buf,
-                    (*item).draw_col,
+                    item.draw_col,
                     (*vt).data.virt_text(),
                     (*vt).hl_mode,
                     max_col,
@@ -439,7 +441,7 @@ fn draw_virt_text(
                 *end_col = (*end_col).max(col);
             }
             if vt.is_null() || ((*vt).flags & K_VTREPEAT_LINEBREAK) == 0 {
-                (*item).draw_col = c_int::MIN;
+                item.draw_col = c_int::MIN;
             }
         }
     }
@@ -1212,22 +1214,21 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
                     let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
                     let item: *mut DecorRange =
                         (&mut g_st().decor_state.slots)[slot_idx].range_mut();
-                    if (*item).draw_col == -3 {
+                    let item = &mut *item;
+                    if item.draw_col == -3 {
                         decor_init_draw_col(wlv.off, selected, &mut *item);
                     }
-                    if (*item).start_row != g_st().decor_state.row
-                        || !(*item).data.is_vt()
-                        || (*(*item).data.vt()).pos != K_VPOS_INLINE
-                        || (*(*item).data.vt()).width == 0
+                    if item.start_row != g_st().decor_state.row
+                        || !item.data.is_vt()
+                        || (*item.data.vt()).pos != K_VPOS_INLINE
+                        || (*item.data.vt()).width == 0
                     {
                         continue;
                     }
-                    if (*item).draw_col >= -1
-                        && isize::try_from((*item).start_col).unwrap_or(-1) == v
-                    {
-                        wlv.virt_inline = (*(*item).data.vt()).data.virt_text().as_slice();
-                        wlv.virt_inline_hl_mode = (*(*item).data.vt()).hl_mode;
-                        (*item).draw_col = c_int::MIN;
+                    if item.draw_col >= -1 && isize::try_from(item.start_col).unwrap_or(-1) == v {
+                        wlv.virt_inline = (*item.data.vt()).data.virt_text().as_slice();
+                        wlv.virt_inline_hl_mode = (*item.data.vt()).hl_mode;
+                        item.draw_col = c_int::MIN;
                         break;
                     }
                 }
@@ -1343,6 +1344,7 @@ pub fn win_line(
 ) -> c_int {
     unsafe {
         let grid: *mut GridView = &raw mut wp.w_grid;
+        let grid = &mut *grid;
         let view_width = wp.w_view_width;
         let view_height = wp.w_view_height;
 
@@ -3661,6 +3663,7 @@ fn wlv_put_linebuf(
 ) {
     unsafe {
         let grid: *mut GridView = &raw mut wp.w_grid;
+        let grid = &mut *grid;
 
         let mut startcol: c_int = 0;
         let mut clear_width = if clear_end { wp.w_view_width } else { endcol };

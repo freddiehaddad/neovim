@@ -713,7 +713,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 }
 
 /// Buffer options, variables and other attributes in a dictionary (`get_buffer_info`).
-fn get_buffer_info(buf: &mut FileBuf) -> *mut TvDict {
+fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
     unsafe {
         let dict = tv_dict_alloc();
 

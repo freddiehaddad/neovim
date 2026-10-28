@@ -5117,7 +5117,7 @@ fn string_to_list(
     str_: impl crate::strings::IntoCCharPtr,
     mut len: usize,
     keepempty: bool,
-) -> *mut TvList {
+) -> &'static mut TvList {
     let str_ = str_.into_c_char_ptr();
     unsafe {
         if !keepempty && len > 0 && *str_.add(len - 1) == NL {
@@ -5561,7 +5561,7 @@ pub fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback) -> u64
     unsafe {
         let id = eval_st().last_timer_id;
         eval_st().last_timer_id += 1;
-        let timer = Box::into_raw(Box::new(VimTimer {
+        let timer = Box::leak(Box::new(VimTimer {
             watcher: TimeWatcher::new(),
             timer_id: id as c_int,
             repeat_count,
@@ -5575,18 +5575,19 @@ pub fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback) -> u64
 
         {
             let main_loop_ptr = (&raw mut g_st().main_loop).cast();
+            let timer_ptr: *mut VimTimer = timer;
             time_watcher_init(
                 &mut *main_loop_ptr,
-                &mut (*timer).watcher,
-                TimeWatcherData::EvalTimer(timer),
+                &mut timer.watcher,
+                TimeWatcherData::EvalTimer(timer_ptr),
             );
-            (*timer).watcher.events = multiqueue_new_child(loop_queues(&mut *main_loop_ptr).events);
-            (*timer).watcher.blockable = true;
-            time_watcher_start(&mut (*timer).watcher, timeout as u64, timeout as u64);
+            timer.watcher.events = multiqueue_new_child(loop_queues(&mut *main_loop_ptr).events);
+            timer.watcher.blockable = true;
+            time_watcher_start(&mut timer.watcher, timeout as u64, timeout as u64);
         }
 
-        eval_st().timers.insert((*timer).timer_id as u64, timer);
-        (*timer).timer_id as u64
+        eval_st().timers.insert(timer.timer_id as u64, timer);
+        timer.timer_id as u64
     }
 }
 

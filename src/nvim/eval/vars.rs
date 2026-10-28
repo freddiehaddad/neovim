@@ -3419,10 +3419,8 @@ fn get_var_from(
 
                     if crate::memory::cstr_byte_at(varname, 1) == 0 {
                         let opts = get_winbuf_options(c_int::from(htname == b'b' as c_int));
-                        if !opts.is_null() {
-                            tv_dict_set_ret(rettv, opts);
-                            done = true;
-                        }
+                        tv_dict_set_ret(rettv, opts);
+                        done = true;
                     } else if eval_option(&raw mut varname, Some(rettv), true) {
                         done = true;
                     }

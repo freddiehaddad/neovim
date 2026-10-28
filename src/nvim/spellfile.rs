@@ -783,11 +783,11 @@ pub fn suggest_load_files() {
         let mut lpi: usize = 0;
         while lpi < win_s(curwin_mut()).b_langp.len() {
             let lp = &(&win_s(curwin_mut()).b_langp)[lpi];
-            let slang = lp.lp_slang;
-            if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
-                (*slang).sl_sugloaded = true;
+            let slang = &mut *lp.lp_slang;
+            if slang.sl_sugtime != 0 && !slang.sl_sugloaded {
+                slang.sl_sugloaded = true;
 
-                let Some(ref fname_cstr) = (*slang).sl_fname else {
+                let Some(ref fname_cstr) = slang.sl_fname else {
                     lpi += 1;
                     continue;
                 };
@@ -842,7 +842,7 @@ pub fn suggest_load_files() {
 
                     if ok {
                         let timestamp = get8ctime(fd);
-                        if timestamp != (*slang).sl_sugtime {
+                        if timestamp != slang.sl_sugtime {
                             semsg!(
                                 gettext(c"E781: .sug file doesn't match .spl file: %s"),
                                 sug_ptr,
@@ -853,13 +853,8 @@ pub fn suggest_load_files() {
 
                     if ok {
                         let mut someerror = false;
-                        if spell_read_tree(
-                            fd,
-                            &mut (*slang).sl_sbyts,
-                            &mut (*slang).sl_sidxs,
-                            false,
-                            0,
-                        ) != 0
+                        if spell_read_tree(fd, &mut slang.sl_sbyts, &mut slang.sl_sidxs, false, 0)
+                            != 0
                         {
                             someerror = true;
                         }
@@ -867,7 +862,7 @@ pub fn suggest_load_files() {
                         if !someerror {
                             let mut sugbuf = open_spellbuf();
                             let sugbuf_ptr: *mut FileBuf = &raw mut *sugbuf;
-                            (*slang).sl_sugbuf = Some(sugbuf);
+                            slang.sl_sugbuf = Some(sugbuf);
                             let wcount = get4c(fd);
                             if wcount < 0 {
                                 someerror = true;
@@ -909,14 +904,14 @@ pub fn suggest_load_files() {
                             slang_clear_sug(&mut *slang);
                         } else {
                             tree_count_words(
-                                (*slang).sl_fbyts.as_mut_ptr(),
-                                (*slang).sl_fbyts.len() as c_int,
-                                (*slang).sl_fidxs.as_mut_ptr(),
+                                slang.sl_fbyts.as_mut_ptr(),
+                                slang.sl_fbyts.len() as c_int,
+                                slang.sl_fidxs.as_mut_ptr(),
                             );
                             tree_count_words(
-                                (*slang).sl_sbyts.as_mut_ptr(),
-                                (*slang).sl_sbyts.len() as c_int,
-                                (*slang).sl_sidxs.as_mut_ptr(),
+                                slang.sl_sbyts.as_mut_ptr(),
+                                slang.sl_sbyts.len() as c_int,
+                                slang.sl_sidxs.as_mut_ptr(),
                             );
                         }
                     }
@@ -1652,7 +1647,8 @@ fn spell_reload_one(fname: impl crate::strings::IntoCCharPtr, added_word: bool) 
         let len = spell_priv_st().first_lang.len();
         for i in (0..len).rev() {
             let slang: *mut Slang = &raw mut *spell_priv_st().first_lang.as_mut_slice()[i];
-            if (*slang)
+            let slang = &mut *slang;
+            if slang
                 .sl_fname
                 .as_ref()
                 .is_some_and(|f| path_equal(fname, f.as_ptr(), K_PATH_CMP_EXPAND))
@@ -2219,23 +2215,22 @@ fn spell_read_aff(
                         ae_compforbid: 0,
                         ae_comppermit: 0,
                     };
-                    let aff_entry: *mut Affentry = &raw mut aff_entry_val;
+                    let aff_entry = &mut aff_entry_val;
 
                     if crate::memory::cstr_as_bytes(items[2]) != b"0" {
-                        (*aff_entry).ae_chop = Some(crate::memory::cstr_to_cstring(items[2]));
+                        aff_entry.ae_chop = Some(crate::memory::cstr_to_cstring(items[2]));
                     }
                     if crate::memory::cstr_as_bytes(items[3]) != b"0" {
                         let item3_bytes = crate::memory::cstr_as_bytes(items[3]);
                         if let Some(slash_pos) = item3_bytes.iter().position(|&b| b == b'/') {
-                            (*aff_entry).ae_add =
+                            aff_entry.ae_add =
                                 Some(std::ffi::CString::new(&item3_bytes[..slash_pos]).unwrap());
-                            (*aff_entry).ae_flags = Some(
+                            aff_entry.ae_flags = Some(
                                 std::ffi::CString::new(&item3_bytes[slash_pos + 1..]).unwrap(),
                             );
                             aff_process_flags(&aff, &mut *aff_entry);
                         } else {
-                            (*aff_entry).ae_add =
-                                Some(std::ffi::CString::new(item3_bytes).unwrap());
+                            aff_entry.ae_add = Some(std::ffi::CString::new(item3_bytes).unwrap());
                         }
                     }
 

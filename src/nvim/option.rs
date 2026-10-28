@@ -8673,7 +8673,7 @@ pub fn fish_like_shell() -> bool {
 }
 
 /// Get window or buffer local options.
-pub fn get_winbuf_options(bufopt: c_int) -> *mut TvDict {
+pub fn get_winbuf_options(bufopt: c_int) -> &'static mut TvDict {
     {
         let d = tv_dict_alloc();
 

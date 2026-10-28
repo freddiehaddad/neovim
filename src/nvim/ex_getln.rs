@@ -3765,10 +3765,11 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
         let mut printed_errmsg = false;
         let mut ret = true;
 
-        let ccline_colors = &raw mut colored_ccline.last_colors;
+        let ccline_colors: *mut _ = &raw mut colored_ccline.last_colors;
+        let ccline_colors = &mut *ccline_colors;
 
-        if (*ccline_colors).prompt_id == colored_ccline.prompt_id
-            && (*ccline_colors).cmdbuff.as_ref().is_some_and(|cb| {
+        if ccline_colors.prompt_id == colored_ccline.prompt_id
+            && ccline_colors.cmdbuff.as_ref().is_some_and(|cb| {
                 crate::memory::cstr_as_bytes(cb.as_ptr())
                     == crate::memory::cstr_as_bytes(colored_ccline.cmdbuff)
             })
@@ -3776,10 +3777,10 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
             return ret;
         }
 
-        (*ccline_colors).colors.clear();
+        ccline_colors.colors.clear();
 
         if crate::memory::cstr_is_empty(colored_ccline.cmdbuff) {
-            (*ccline_colors).cmdbuff = None;
+            ccline_colors.cmdbuff = None;
             return ret;
         }
 
@@ -3932,7 +3933,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         break 'color_cmdline_error;
                     }
                     if start != prev_end {
-                        (*ccline_colors).colors.push(CmdlineColorChunk {
+                        ccline_colors.colors.push(CmdlineColorChunk {
                             start: prev_end as c_int,
                             end: start as c_int,
                             hl_id: 0,
@@ -3979,14 +3980,14 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     if group.is_null() {
                         break 'color_cmdline_error;
                     }
-                    (*ccline_colors).colors.push(CmdlineColorChunk {
+                    ccline_colors.colors.push(CmdlineColorChunk {
                         start: start as c_int,
                         end: end as c_int,
                         hl_id: syn_name2id(group),
                     });
                 }
                 if prev_end < colored_ccline.cmdlen as Varnumber {
-                    (*ccline_colors).colors.push(CmdlineColorChunk {
+                    ccline_colors.colors.push(CmdlineColorChunk {
                         start: prev_end as c_int,
                         end: colored_ccline.cmdlen,
                         hl_id: 0,
@@ -4007,7 +4008,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
             let _ = printed_errmsg;
 
             getln_st().prev_prompt_errors += 1;
-            (*ccline_colors).colors.clear();
+            ccline_colors.colors.clear();
             redrawcmdline();
             ret = false;
         }
@@ -4017,8 +4018,8 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
         if can_free_cb {
             callback_free(&mut color_cb);
         }
-        (*ccline_colors).prompt_id = colored_ccline.prompt_id;
-        (*ccline_colors).cmdbuff = arg_owned.or_else(|| {
+        ccline_colors.prompt_id = colored_ccline.prompt_id;
+        ccline_colors.cmdbuff = arg_owned.or_else(|| {
             Some(
                 std::ffi::CString::new(std::slice::from_raw_parts(
                     colored_ccline.cmdbuff.cast::<u8>(),

@@ -10078,7 +10078,7 @@ pub fn expand_findfunc(
             return false;
         }
 
-        crate::cmdexpand::expand_process_user_list(l.as_ref(), files, xp);
+        crate::cmdexpand::expand_process_user_list(Some(&*l), files, xp);
         tv_list_free(l);
 
         true
@@ -10107,7 +10107,7 @@ fn findfunc_find_file(
         } else if count > fname_count {
             let _ = semsg!(gettext(E_NO_MORE_FILE_STR_FOUND_IN_PATH), findarg);
         } else {
-            let li = tv_list_find(fname_list.as_mut(), count - 1);
+            let li = tv_list_find(Some(&mut *fname_list), count - 1);
             if !li.is_null() {
                 let tv = &(*li).li_tv;
                 if tv.v_type == VarType::VarString && !tv.vval.v_string().is_null() {

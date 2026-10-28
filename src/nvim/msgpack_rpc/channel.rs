@@ -402,19 +402,20 @@ pub(crate) fn receive_msgpack(
     eof: bool,
 ) -> usize {
     let rbuf = rbuf.into_c_char_ptr();
-    unsafe {
+    {
         channel_incref(&mut *channel);
 
         let mut consumed: usize = 0;
 
         if c > 0 {
             let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
-            (*p).read_ptr = rbuf;
-            (*p).read_size = c;
+            let p = unsafe { &mut *p };
+            p.read_ptr = rbuf;
+            p.read_size = c;
             parse_msgpack(channel);
 
             if !unpacker_closed(&*p) {
-                consumed = c - (*p).read_size;
+                consumed = c - p.read_size;
             }
         }
 
@@ -439,25 +440,26 @@ fn find_call_frame(rpc: &RpcState, request_id: u32) -> Option<std::rc::Rc<Channe
 }
 
 fn parse_msgpack(channel: &mut Channel) {
-    unsafe {
+    {
         let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
+        let p = unsafe { &mut *p };
 
         while unpacker_advance(&mut *p) {
-            if (*p).msg_type == MessageType::MessageTypeRedrawEvent {
+            if p.msg_type == MessageType::MessageTypeRedrawEvent {
                 if g_st().ui_client_attached {
-                    if (*p).has_grid_line_event {
-                        ui_client_event_raw_line(&mut (*p).grid_line_event);
-                        (*p).has_grid_line_event = false;
-                    } else if let Some(ui_fn) = (*p).ui_handler.r#fn
-                        && (*p).result.obj_type == ObjectType::ObjectTypeArray
+                    if p.has_grid_line_event {
+                        ui_client_event_raw_line(&mut p.grid_line_event);
+                        p.has_grid_line_event = false;
+                    } else if let Some(ui_fn) = p.ui_handler.r#fn
+                        && p.result.obj_type == ObjectType::ObjectTypeArray
                     {
-                        ui_fn((*p).result.data.array());
+                        ui_fn(p.result.data.array());
                     }
                 }
-                arena_mem_free(arena_finish(&mut (*p).arena));
-            } else if (*p).msg_type == MessageType::MessageTypeResponse {
+                arena_mem_free(arena_finish(&mut p.arena));
+            } else if p.msg_type == MessageType::MessageTypeResponse {
                 let frame_opt = if channel.rpc.client_type == K_CLIENT_TYPE_MSGPACK_RPC {
-                    find_call_frame(&channel.rpc, (*p).request_id)
+                    find_call_frame(&channel.rpc, p.request_id)
                 } else {
                     channel.rpc.call_stack.last().cloned()
                 };
@@ -465,37 +467,33 @@ fn parse_msgpack(channel: &mut Channel) {
                 let Some(frame) = frame_opt else {
                     let msg = format!(
                         "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
-                        channel.id,
-                        channel.rpc.client_type as u32,
-                        (*p).request_id
+                        channel.id, channel.rpc.client_type as u32, p.request_id
                     );
                     chan_close_on_err(channel, msg.as_ptr().cast::<c_char>(), LOGLVL_ERR);
                     return;
                 };
-                if (*p).request_id != frame.request_id {
+                if p.request_id != frame.request_id {
                     let msg = format!(
                         "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
-                        channel.id,
-                        channel.rpc.client_type as u32,
-                        (*p).request_id
+                        channel.id, channel.rpc.client_type as u32, p.request_id
                     );
                     chan_close_on_err(channel, msg.as_ptr().cast::<c_char>(), LOGLVL_ERR);
                     return;
                 }
 
-                let errored = (*p).error.obj_type != ObjectType::ObjectTypeNil;
+                let errored = p.error.obj_type != ObjectType::ObjectTypeNil;
                 frame.returned.set(true);
                 frame.errored.set(errored);
 
                 if errored {
-                    frame.result.set((*p).error);
+                    frame.result.set(p.error);
                 } else {
-                    frame.result.set((*p).result);
+                    frame.result.set(p.result);
                 }
-                frame.result_mem.set(arena_finish(&mut (*p).arena));
+                frame.result_mem.set(arena_finish(&mut p.arena));
             } else {
-                let res = (*p).result;
-                if (*p).result.obj_type != ObjectType::ObjectTypeArray {
+                let res = p.result;
+                if p.result.obj_type != ObjectType::ObjectTypeArray {
                     chan_close_on_err(
                         channel,
                         c"msgpack-rpc request args must be an array",
@@ -508,8 +506,8 @@ fn parse_msgpack(channel: &mut Channel) {
         }
 
         if unpacker_closed(&*p) {
-            chan_close_on_err(channel, (*p).unpack_error.msg_ptr(), LOGLVL_INF);
-            api_clear_error(&mut (*p).unpack_error);
+            chan_close_on_err(channel, p.unpack_error.msg_ptr(), LOGLVL_INF);
+            api_clear_error(&mut p.unpack_error);
         }
     }
 }
@@ -678,15 +676,16 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
 }
 
 pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) {
-    unsafe {
+    {
         let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
+        let p = unsafe { &mut *p };
 
-        (*p).read_ptr = buffer.data_ptr();
-        (*p).read_size = buffer.size();
+        p.read_ptr = buffer.data_ptr();
+        p.read_size = buffer.size();
         if !unpacker_closed(&*p) {
             parse_msgpack(channel);
 
-            if (*p).read_size != 0 && !channel.rpc.closed {
+            if p.read_size != 0 && !channel.rpc.closed {
                 chan_close_on_err(channel, c"internal channel: internal error", LOGLVL_ERR);
             }
         }
@@ -794,9 +793,10 @@ fn chan_close_on_err(
     loglevel: c_int,
 ) {
     let msg = msg.into_c_char_ptr();
-    unsafe {
+    {
         logmsg!(loglevel, c"RPC: ", ptr::null(), -1, true, c"%s", msg,);
         let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
+        let p = unsafe { &mut *p };
 
         for frame in &channel.rpc.call_stack {
             if frame.returned.get() {
@@ -804,12 +804,12 @@ fn chan_close_on_err(
             }
             frame.returned.set(true);
             frame.errored.set(true);
-            let s = arena_string(&mut (*p).arena, cstr_as_string(msg));
+            let s = arena_string(&mut p.arena, cstr_as_string(msg));
             frame.result.set(Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(s),
             });
-            frame.result_mem.set(arena_finish(&mut (*p).arena));
+            frame.result_mem.set(arena_finish(&mut p.arena));
         }
 
         {

@@ -42,18 +42,18 @@ impl MpackData {
     }
 
     #[inline]
-    pub const fn lmpack_unpacker(&self) -> *mut crate::mpack::lmpack::LmpackUnpacker {
+    pub fn lmpack_unpacker(&self) -> &'static mut crate::mpack::lmpack::LmpackUnpacker {
         match *self {
-            Self::LmpackUnpacker(p) => p,
-            _ => ptr::null_mut(),
+            Self::LmpackUnpacker(p) => unsafe { &mut *p },
+            _ => unreachable!(),
         }
     }
 
     #[inline]
-    pub const fn lmpack_packer(&self) -> *mut crate::mpack::lmpack::Packer {
+    pub fn lmpack_packer(&self) -> &'static mut crate::mpack::lmpack::Packer {
         match *self {
-            Self::LmpackPacker(p) => p,
-            _ => ptr::null_mut(),
+            Self::LmpackPacker(p) => unsafe { &mut *p },
+            _ => unreachable!(),
         }
     }
 
