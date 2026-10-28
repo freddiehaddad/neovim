@@ -917,7 +917,6 @@ mod tests {
     use crate::vterm::vterm::{
         vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
     };
-    use std::ffi::CStr;
 
     static VTERM_TEST_LOCK: Mutex<()> = Mutex::new(());
 
@@ -932,7 +931,7 @@ mod tests {
         _len: usize,
         _user: *mut VTermStateFull,
     ) -> c_int {
-        let slice = unsafe { CStr::from_ptr(bytes).to_bytes() };
+        let slice =  { crate::memory::cstr_as_bytes(bytes) };
         let mut out = b"escape ".to_vec();
         out.extend_from_slice(slice);
         out.push(b'\n');

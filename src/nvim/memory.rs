@@ -293,6 +293,36 @@ pub fn cstr_prefix_bytes<'a>(s: *const c_char, n: usize) -> &'a [u8] {
     unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
 }
 
+/// Length in bytes of a NUL-terminated C string (0 if null).
+#[inline]
+pub fn cstr_len(s: *const c_char) -> usize {
+    if s.is_null() {
+        0
+    } else {
+        unsafe { CStr::from_ptr(s).to_bytes().len() }
+    }
+}
+
+/// Copy NUL-terminated C string `src` (including trailing NUL) to `dst`.
+#[inline]
+pub fn cstr_cpy(dst: *mut c_char, src: *const c_char) {
+    unsafe {
+        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
+        std::ptr::copy_nonoverlapping(src, dst, len);
+    }
+}
+
+/// Copy `len` bytes from `src` to `dst` and append a trailing NUL byte at `dst[len]`.
+#[inline]
+pub fn cstr_ncpy(dst: *mut c_char, src: *const c_char, len: usize) {
+    unsafe {
+        if len > 0 {
+            std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), len);
+        }
+        *dst.cast::<u8>().add(len) = 0;
+    }
+}
+
 /// View a NUL-terminated C string as a byte slice, returning `b""` if null.
 #[inline]
 pub fn cstr_as_bytes<'a>(s: *const c_char) -> &'a [u8] {

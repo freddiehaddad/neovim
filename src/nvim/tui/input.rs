@@ -38,7 +38,7 @@ use crate::tui::tui::{
     TUIData, tui_enable_extended_underline, tui_handle_primary_device_attr, tui_handle_term_mode,
     tui_query_bg_color, tui_set_size,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::channel::STDIN_FILENO;
@@ -706,7 +706,7 @@ fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
         let mut str_ptr: *const c_char = ptr::null();
         if termkey_interpret_string(input.tk(), key, &raw mut str_ptr) == TERMKEY_RES_KEY {
             assert!(!str_ptr.is_null());
-            let s_bytes = CStr::from_ptr(str_ptr).to_bytes();
+            let s_bytes = crate::memory::cstr_as_bytes(str_ptr);
 
             if key.r#type == TERMKEY_TYPE_DCS
                 && (s_bytes.starts_with(b"1$r4:3m") || s_bytes.starts_with(b"1$r0;4:3m"))

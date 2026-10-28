@@ -2945,7 +2945,7 @@ pub fn add_to_showcmd(c: c_int) -> bool {
         let p: *mut c_char = if c <= 0x7f || !vim_isprintc(c) {
             let tc = transchar(c);
             if *tc == b' ' as c_char {
-                { let s = c"<20>".as_ptr(); std::ptr::copy_nonoverlapping(s, tc, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(tc, c"<20>".as_ptr());
             }
             tc
         } else {
@@ -2954,8 +2954,8 @@ pub fn add_to_showcmd(c: c_int) -> bool {
             mbyte_buf.as_mut_ptr()
         };
 
-        let old_len = std::ffi::CStr::from_ptr(sc_buf).to_bytes().len();
-        let extra_len = std::ffi::CStr::from_ptr(p).to_bytes().len();
+        let old_len = crate::memory::cstr_len(sc_buf);
+        let extra_len = crate::memory::cstr_len(p);
         let limit = if ui_has(kUIMessages) {
             SHOWCMD_BUFLEN - 1
         } else {
@@ -2965,7 +2965,7 @@ pub fn add_to_showcmd(c: c_int) -> bool {
             let overflow = old_len + extra_len - limit;
             ptr::copy(sc_buf.add(overflow), sc_buf, old_len - overflow + 1);
         }
-        { let d = sc_buf; let s = p; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        { let d = sc_buf; let s = p; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
         if char_avail() {
             return false;
@@ -2987,7 +2987,7 @@ fn del_from_showcmd(mut len: c_int) {
             return;
         }
         let sc_buf = (&raw mut g_st().showcmd_buf).cast::<c_char>();
-        let old_len = std::ffi::CStr::from_ptr(sc_buf).to_bytes().len() as c_int;
+        let old_len = crate::memory::cstr_len(sc_buf) as c_int;
         len = len.min(old_len);
         *sc_buf.add((old_len - len) as usize) = NUL;
 
@@ -2998,19 +2998,19 @@ fn del_from_showcmd(mut len: c_int) {
 }
 
 pub fn push_showcmd() {
-    unsafe {
+     {
         if opt_vars().p_sc != 0 {
-            { let s = (&raw const g_st().showcmd_buf).cast::<c_char>(); std::ptr::copy_nonoverlapping(s, (&raw mut norm_st().old_showcmd_buf).cast::<c_char>(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy((&raw mut norm_st().old_showcmd_buf).cast::<c_char>(), (&raw const g_st().showcmd_buf).cast::<c_char>());
         }
     }
 }
 
 pub fn pop_showcmd() {
-    unsafe {
+     {
         if opt_vars().p_sc == 0 {
             return;
         }
-        { let s = (&raw const norm_st().old_showcmd_buf).cast::<c_char>(); std::ptr::copy_nonoverlapping(s, (&raw mut g_st().showcmd_buf).cast::<c_char>(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cpy((&raw mut g_st().showcmd_buf).cast::<c_char>(), (&raw const norm_st().old_showcmd_buf).cast::<c_char>());
         display_showcmd();
     }
 }
@@ -3054,7 +3054,7 @@ pub fn display_showcmd() {
             let mut content_items: [Object; 1] = [NIL_OBJ];
             let mut chunk_items: [Object; 3] = [NIL_OBJ; 3];
             let mut ext_buf: [c_char; 16 + SHOWCMD_BUFLEN] = [0; 16 + SHOWCMD_BUFLEN];
-            { let s = mc_buf.as_ptr(); std::ptr::copy_nonoverlapping(s, ext_buf.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(ext_buf.as_mut_ptr(), mc_buf.as_ptr());
             xstrlcpy(
                 ext_buf.as_mut_ptr().add(mc_len),
                 if norm_st().showcmd_is_clear {
@@ -4304,7 +4304,7 @@ fn nv_K_getcmd(
 ) -> usize {
     unsafe {
         if kp_help {
-            { let s = c"help! ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(buf, c"help! ".as_ptr());
             *buflen = 6;
             return n;
         }
@@ -4432,7 +4432,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
             return;
         }
         let kp_ex = *kp == b':' as c_char;
-        let bufsize = n * 2 + 30 + std::ffi::CStr::from_ptr(kp).to_bytes().len();
+        let bufsize = n * 2 + 30 + crate::memory::cstr_len(kp);
         let mut buf_vec = vec![0 as c_char; bufsize];
         let mut buflen: usize = 0;
 
@@ -4442,7 +4442,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
                 (**curwin.as_ptr()).w_cursor.col = ptr.offset_from(get_cursor_line_ptr()) as colnr_T;
 
                 if !g_cmd && vim_iswordp(ptr) {
-                    { let s = c"\\<".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"\\<".as_ptr());
                     buflen = 2;
                 }
                 g_st().Search.no_smartcase = true;
@@ -4465,19 +4465,19 @@ fn nv_ident(cap: &mut cmdarg_T) {
             }
             c if c == b']' as c_int => {
                 tag_cmd = true;
-                { let s = c"tselect ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"tselect ".as_ptr());
                 buflen = 8;
             }
             _ => {
                 tag_cmd = true;
                 if (*g_st().curbuf).b_help {
-                    { let s = c"help! ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"help! ".as_ptr());
                     buflen = 6;
                 } else if g_cmd {
-                    { let s = c"tjump ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"tjump ".as_ptr());
                     buflen = 6;
                 } else if cap.count0 == 0 {
-                    { let s = c"tag ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"tag ".as_ptr());
                     buflen = 4;
                 } else {
                     buflen = vim_snprintf!(
@@ -4491,7 +4491,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
         }
 
         if cmdchar == b'K' as c_int && kp_helpbang && !visual_sel {
-            { let s = c"help!".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"help!".as_ptr());
             buflen = 5;
         } else if cmdchar == b'K' as c_int && !kp_help {
             let ptr_cstr = std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), n))
@@ -4503,7 +4503,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
             };
             let plen = p.to_bytes().len();
             buf_vec.resize(buflen + plen + 1, 0);
-            { let s = p.as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr().add(buflen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(buf_vec.as_mut_ptr().add(buflen), p.as_ptr());
             buflen += plen;
         } else {
             let aux_ptr = if cmdchar == b'*' as c_int {
@@ -4556,7 +4556,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
         let buf = buf_vec.as_mut_ptr();
         if cmdchar == b'*' as c_int || cmdchar == b'#' as c_int {
             if !g_cmd && vim_iswordp(mb_prevptr(get_cursor_line_ptr(), ptr)) {
-                { let s = c"\\>".as_ptr(); std::ptr::copy_nonoverlapping(s, buf.add(buflen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(buf.add(buflen), c"\\>".as_ptr());
                 buflen += 2;
             }
 
@@ -6052,7 +6052,7 @@ fn nv_optrans(cap: &mut cmdarg_T) {
             if cap.count0 != 0 {
                 stuffnumReadbuff(cap.count0);
             }
-            let idx = CStr::from_ptr(str_p).to_bytes().iter().position(|&b| b == cap.cmdchar as u8).unwrap();
+            let idx = crate::memory::cstr_as_bytes(str_p).iter().position(|&b| b == cap.cmdchar as u8).unwrap();
             stuffReadbuff(AR[idx].as_ptr());
             exec_stuffed(Some(cap));
         }
@@ -7233,7 +7233,7 @@ pub fn set_cursor_for_append_to_line() {
             coladvance(&mut **curwin.as_ptr(), MAXCOL);
             g_st().State = save_State;
         } else {
-            (**curwin.as_ptr()).w_cursor.col += std::ffi::CStr::from_ptr(get_cursor_pos_ptr()).to_bytes().len() as colnr_T;
+            (**curwin.as_ptr()).w_cursor.col += crate::memory::cstr_len(get_cursor_pos_ptr()) as colnr_T;
         }
     }
 }

@@ -139,7 +139,7 @@ pub fn server_teardown() {
 }
 
 pub fn server_address_new(name: *const c_char) -> std::ffi::CString {
-    unsafe {
+     {
         let mut fmt: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
         let cur_count = srv_st().server_addr_count;
         srv_st().server_addr_count = srv_st().server_addr_count.wrapping_add(1);
@@ -193,7 +193,7 @@ pub fn server_address_new(name: *const c_char) -> std::ffi::CString {
                 fmt.as_ptr(),
             );
         }
-        std::ffi::CStr::from_ptr(fmt.as_ptr()).to_owned()
+        crate::memory::cstr_to_cstring(fmt.as_ptr())
     }
 }
 
@@ -245,7 +245,7 @@ pub fn server_start(addr: *const c_char) -> c_int {
 
         let w = watchers_mut();
         for &existing in w.iter() {
-            if std::ffi::CStr::from_ptr((*watcher).addr.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr((*existing).addr.as_ptr()).to_bytes() {
+            if crate::memory::cstr_as_bytes((*watcher).addr.as_ptr()) == crate::memory::cstr_as_bytes((*existing).addr.as_ptr()) {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
@@ -281,7 +281,7 @@ pub fn server_start(addr: *const c_char) -> c_int {
 
         w.push(watcher);
 
-        if std::ffi::CStr::from_ptr(get_vim_var_str(VV_SEND_SERVER)).to_bytes().is_empty() {
+        if crate::memory::cstr_as_bytes(get_vim_var_str(VV_SEND_SERVER)).is_empty() {
             set_vservername(w);
         }
 
@@ -299,7 +299,7 @@ pub fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bool {
         let w = watchers_mut();
         let Some(idx) = w
             .iter()
-            .position(|&watcher| std::ffi::CStr::from_ptr(addr.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr((*watcher).addr.as_ptr()).to_bytes())
+            .position(|&watcher| crate::memory::cstr_as_bytes(addr.as_ptr()) == crate::memory::cstr_as_bytes((*watcher).addr.as_ptr()))
         else {
             logmsg!(
                 LOGLVL_WRN,

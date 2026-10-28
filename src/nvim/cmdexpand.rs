@@ -1776,7 +1776,7 @@ fn sort_func_compare(p1: &CString, p2: &CString) -> c_int {
     if b1 == b'<' && b2 != b'<' {
         return 1;
     }
-    unsafe { std::ffi::CStr::from_ptr(p1.as_ptr()).to_bytes().cmp(std::ffi::CStr::from_ptr(p2.as_ptr()).to_bytes()) as c_int }
+     crate::memory::cstr_as_bytes(p1.as_ptr()).cmp(crate::memory::cstr_as_bytes(p2.as_ptr())) as c_int
 }
 
 /// Escape special characters in the cmdline completion matches.
@@ -2040,7 +2040,7 @@ fn cmdline_pum_create(
                     if p.is_null() {
                         None
                     } else {
-                        Some(CStr::from_ptr(p).to_owned())
+                        Some(crate::memory::cstr_to_cstring(p))
                     }
                 });
             let pum_info = xp
@@ -2269,7 +2269,7 @@ fn redraw_wildmenu(
             *buf = NUL;
             len = 0;
         } else {
-            { let s = c"< ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(buf, c"< ".as_ptr());
             len = 2;
         }
         clen = len as c_int;
@@ -2285,8 +2285,8 @@ fn redraw_wildmenu(
             let mut s = show_match(matches, i as usize, showtail);
             let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
             if emenu && menu_is_separator(s) {
-                { let s = transchar(b'|' as c_int); std::ptr::copy_nonoverlapping(s, buf.add(len), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                let l = std::ffi::CStr::from_ptr(buf.add(len)).to_bytes().len();
+                crate::memory::cstr_cpy(buf.add(len), transchar(b'|' as c_int));
+                let l = crate::memory::cstr_len(buf.add(len));
                 len += l;
                 clen += l as c_int;
             } else {
@@ -2299,8 +2299,8 @@ fn redraw_wildmenu(
                         s = s.add((l - 1) as usize);
                         len += l as usize;
                     } else {
-                        { let s = transchar_byte(c_int::from(*s as u8)); std::ptr::copy_nonoverlapping(s, buf.add(len), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                        len += std::ffi::CStr::from_ptr(buf.add(len)).to_bytes().len();
+                        crate::memory::cstr_cpy(buf.add(len), transchar_byte(c_int::from(*s as u8)));
+                        len += crate::memory::cstr_len(buf.add(len));
                     }
                     s = s.add(1);
                 }
@@ -3049,7 +3049,7 @@ pub fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
         } else {
             let mut retval_vec = vec![0 as c_char; len + 4];
             let retval = retval_vec.as_mut_ptr();
-            { let _d = (retval).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+            crate::memory::cstr_ncpy(retval, fname, len);
 
             let tail = path_tail(retval);
             #[cfg(windows)]
@@ -4184,7 +4184,7 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char 
 
         p = buff;
         xp.xp_pattern = p.cast_mut();
-        let len = std::ffi::CStr::from_ptr(buff).to_bytes().len();
+        let len = crate::memory::cstr_len(buff);
         while *p != NUL && (p as usize) < (buff.add(len) as usize) {
             if *p == b' ' as c_char || *p == TAB {
                 p = p.add(1);
@@ -4318,9 +4318,9 @@ fn expand_files_and_dirs(
         let mut pat_owned: Option<Vec<c_char>> = None;
 
         if xp.xp_backslash != XP_BS_NONE {
-            let pat_len = std::ffi::CStr::from_ptr(pat).to_bytes().len();
+            let pat_len = crate::memory::cstr_len(pat);
             let mut pat_vec = vec![0 as c_char; pat_len + 1];
-            { let _d = (pat_vec.as_mut_ptr()).cast::<u8>(); let _n = pat_len; if _n > 0 { std::ptr::copy_nonoverlapping((pat).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+            crate::memory::cstr_ncpy(pat_vec.as_mut_ptr(), pat, pat_len);
             pat = pat_vec.as_mut_ptr();
             pat_owned = Some(pat_vec);
 
@@ -4527,7 +4527,7 @@ fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -> *mut 
         let last_line_ptr = &raw const cmdexp().ARG1_LUA_LAST_XP_LINE;
         if (*last_line_ptr)
             .as_ref()
-            .is_none_or(|s| std::ffi::CStr::from_ptr(s.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(xp.xp_line).to_bytes())
+            .is_none_or(|s| crate::memory::cstr_as_bytes(s.as_ptr()) != crate::memory::cstr_as_bytes(xp.xp_line))
             || cmdexp().ARG1_LUA_LAST_GEN != prompt_id
         {
             cmdexp().ARG1_LUA_LAST_XP_LINE = Some(cstr_to_cstring(xp.xp_line));
@@ -4987,7 +4987,7 @@ fn ExpandFromContext(
 
         let mut tofree: Option<Vec<c_char>> = None;
         if xp.xp_context == EXPAND_USER_FUNC && (crate::memory::cstr_prefix_bytes(pat, 3) == &b"^s:"[..3]) {
-            let len = std::ffi::CStr::from_ptr(pat).to_bytes().len() + 20;
+            let len = crate::memory::cstr_len(pat) + 20;
             let mut buf = vec![0 as c_char; len];
             vim_snprintf!(buf.as_mut_ptr(), len, c"^<SNR>\\d\\+_%s".as_ptr(), pat.add(3));
             pat = buf.as_mut_ptr();
@@ -5179,9 +5179,9 @@ fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flagsarg: c
         let mut flags = flagsarg;
         let mut did_curdir = false;
 
-        let mut patlen = std::ffi::CStr::from_ptr(filepat).to_bytes().len();
+        let mut patlen = crate::memory::cstr_len(filepat);
         let mut pat_vec = vec![0 as c_char; patlen + 1];
-        { let _d = (pat_vec.as_mut_ptr()).cast::<u8>(); let _n = patlen; if _n > 0 { std::ptr::copy_nonoverlapping((filepat).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+        crate::memory::cstr_ncpy(pat_vec.as_mut_ptr(), filepat, patlen);
         let pat = pat_vec.as_mut_ptr();
         let mut e = pat.add(patlen);
         let mut s = pat;
@@ -5234,7 +5234,7 @@ fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flagsarg: c
             } else {
                 e = vim_strchr(s, ENV_SEPCHAR);
                 if e.is_null() {
-                    e = s.add(std::ffi::CStr::from_ptr(s).to_bytes().len());
+                    e = s.add(crate::memory::cstr_len(s));
                 }
 
                 pathlen = e.offset_from(s) as usize;
@@ -5254,13 +5254,13 @@ fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flagsarg: c
 
             if pathlen + seplen + patlen < MAXPATHL {
                 if pathlen > 0 {
-                    { let _d = (buf).cast::<u8>(); let _n = pathlen; if _n > 0 { std::ptr::copy_nonoverlapping((s).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                    crate::memory::cstr_ncpy(buf, s, pathlen);
                     if seplen > 0 {
-                        { let _d = (buf.add(pathlen)).cast::<u8>(); let _n = seplen; if _n > 0 { std::ptr::copy_nonoverlapping((PATHSEPSTR.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                        crate::memory::cstr_ncpy(buf.add(pathlen), PATHSEPSTR.as_ptr().cast(), seplen);
                         pathlen += seplen;
                     }
                 }
-                { let _d = (buf.add(pathlen)).cast::<u8>(); let _n = patlen; if _n > 0 { std::ptr::copy_nonoverlapping((pat).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(buf.add(pathlen), pat, patlen);
 
                 expand_shellcmd_onedir(buf, pathlen, flags, &mut found_ht, matches);
             }
@@ -5343,7 +5343,7 @@ fn ExpandUserDefined(
         while *s != NUL {
             let mut e = vim_strchr(s, b'\n' as c_int);
             if e.is_null() {
-                e = s.add(std::ffi::CStr::from_ptr(s).to_bytes().len());
+                e = s.add(crate::memory::cstr_len(s));
             }
             let keep = *e;
             *e = NUL;
@@ -5513,7 +5513,7 @@ pub fn globpath(
             EXPAND_FILES
         };
 
-        let filelen = std::ffi::CStr::from_ptr(file).to_bytes().len();
+        let filelen = crate::memory::cstr_len(file);
 
         while *path != NUL {
             let mut pathlen = copy_option_part(&raw mut path, buf, MAXPATHL, c",".as_ptr());
@@ -5525,10 +5525,10 @@ pub fn globpath(
 
             if pathlen + seplen + filelen < MAXPATHL {
                 if seplen > 0 {
-                    { let _d = (buf.add(pathlen)).cast::<u8>(); let _n = seplen; if _n > 0 { std::ptr::copy_nonoverlapping((PATHSEPSTR.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                    crate::memory::cstr_ncpy(buf.add(pathlen), PATHSEPSTR.as_ptr().cast(), seplen);
                     pathlen += seplen;
                 }
-                { let _d = (buf.add(pathlen)).cast::<u8>(); let _n = filelen; if _n > 0 { std::ptr::copy_nonoverlapping((file).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(buf.add(pathlen), file, filelen);
 
                 let mut p: Vec<CString> = Vec::new();
                 ExpandFromContext(&mut xpc, buf, &mut p, WILD_SILENT | expand_options);
@@ -5830,8 +5830,8 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let pattern = tv_get_string(&argvars[0]);
         let mut pattern_start = pattern;
 
-        if std::ffi::CStr::from_ptr(type_str).to_bytes() == b"cmdline" {
-            let cmdline_len = std::ffi::CStr::from_ptr(pattern).to_bytes().len() as c_int;
+        if crate::memory::cstr_as_bytes(type_str) == b"cmdline" {
+            let cmdline_len = crate::memory::cstr_len(pattern) as c_int;
             set_cmd_context(
                 &mut xpc,
                 pattern.cast_mut(),
@@ -5840,11 +5840,11 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 false as c_int,
             );
             pattern_start = xpc.xp_pattern;
-            xpc.xp_pattern_len = std::ffi::CStr::from_ptr(xpc.xp_pattern).to_bytes().len();
+            xpc.xp_pattern_len = crate::memory::cstr_len(xpc.xp_pattern);
             xpc.xp_col = cmdline_len;
         } else {
             xpc.xp_pattern = pattern.cast_mut();
-            xpc.xp_pattern_len = std::ffi::CStr::from_ptr(xpc.xp_pattern).to_bytes().len();
+            xpc.xp_pattern_len = crate::memory::cstr_len(xpc.xp_pattern);
             xpc.xp_line = pattern.cast_mut();
 
             xpc.xp_context = cmdcomplete_str_to_type(type_str);
@@ -5905,7 +5905,7 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         }
 
         if xpc.xp_context == EXPAND_LUA {
-            xpc.xp_col = std::ffi::CStr::from_ptr(xpc.xp_line).to_bytes().len() as c_int;
+            xpc.xp_col = crate::memory::cstr_len(xpc.xp_line) as c_int;
             nlua_expand_pat(&mut xpc);
             xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
         }
@@ -5937,7 +5937,7 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 pub fn f_getcompletiontype(argvars: &mut [typval_T], rettv: &mut typval_T,
     _fptr: EvalFuncData,){
 
-    unsafe {
+     {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
@@ -5948,7 +5948,7 @@ pub fn f_getcompletiontype(argvars: &mut [typval_T], rettv: &mut typval_T,
         let pat = tv_get_string(&argvars[0]);
         let mut xpc: expand_T = expand_T::new();
 
-        let cmdline_len = std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int;
+        let cmdline_len = crate::memory::cstr_len(pat) as c_int;
         set_cmd_context(
             &mut xpc,
             pat.cast_mut(),
@@ -6094,8 +6094,8 @@ fn copy_substring_from_pos(
 
 /// Returns true if the given string `str` matches the regex pattern `pat`.
 fn is_regex_match(pat: *const c_char, str_arg: *const c_char) -> bool {
-    unsafe {
-        if std::ffi::CStr::from_ptr(pat).to_bytes() == std::ffi::CStr::from_ptr(str_arg).to_bytes() {
+     {
+        if crate::memory::cstr_as_bytes(pat) == crate::memory::cstr_as_bytes(str_arg) {
             return true;
         }
 
@@ -6176,7 +6176,7 @@ fn expand_pattern_in_buf(
             return false;
         }
 
-        let pat_len = std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int;
+        let pat_len = crate::memory::cstr_len(pat) as c_int;
         let mut cur_match_pos = pos_T {
             lnum: 0,
             col: 0,

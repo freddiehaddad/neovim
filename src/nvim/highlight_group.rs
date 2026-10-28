@@ -867,7 +867,7 @@ pub fn init_highlight(both: bool, reset: bool) {
     unsafe {
         let p = get_var_value(c"g:colors_name".as_ptr());
         if !p.is_null() {
-            let copy_p = CStr::from_ptr(p).to_owned();
+            let copy_p = crate::memory::cstr_to_cstring(p);
             let okay = load_colors(copy_p.as_ptr().cast_mut());
             if okay {
                 return;
@@ -903,7 +903,7 @@ pub fn load_colors(name: *mut c_char) -> bool {
         }
 
         hlg_st().load_colors_recursive = true;
-        let name_bytes = CStr::from_ptr(name).to_bytes();
+        let name_bytes = crate::memory::cstr_as_bytes(name);
         let mut buf = Vec::with_capacity(name_bytes.len() + 12);
         apply_autocmds(EVENT_COLORSCHEMEPRE, name, (*g_st().curbuf).b_fname, false, g_st().curbuf);
         buf.extend_from_slice(b"colors/");
@@ -1063,7 +1063,7 @@ pub fn set_hl_group(
         }
 
         if attrs.font >= 0 {
-            g.sg_font = Some(CStr::from_ptr(hl_get_font(attrs.font)).to_owned());
+            g.sg_font = Some(crate::memory::cstr_to_cstring(hl_get_font(attrs.font)));
         } else if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__font) || !update {
             g.sg_font = None;
         }
@@ -1113,7 +1113,7 @@ fn set_gui_color(
         }
         let old_color = *color;
         let old_idx = *color_idx;
-        if CStr::from_ptr(arg).to_bytes() != b"NONE" {
+        if crate::memory::cstr_as_bytes(arg) != b"NONE" {
             *color = name_to_color(arg, color_idx);
         } else {
             *color = -1;
@@ -1330,7 +1330,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                 if *linep == b'\'' as c_char {
                     linep = linep.add(1);
                     arg_start = linep;
-                    linep = CStr::from_ptr(linep).to_bytes().iter().position(|&b| b == b'\'').map_or(ptr::null(), |i| linep.add(i));
+                    linep = crate::memory::cstr_as_bytes(linep).iter().position(|&b| b == b'\'').map_or(ptr::null(), |i| linep.add(i));
                     if linep.is_null() {
                         semsg!(gettext(e_invarg2.as_ptr()), key_start);
                         error = true;
@@ -1411,9 +1411,9 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                         (*hl_table().add(idx as usize)).sg_set |= SG_GUI;
                     }
                     (*hl_table().add(idx as usize)).sg_font = None;
-                    if CStr::from_ptr(arg.as_ptr()).to_bytes() != b"NONE" {
+                    if crate::memory::cstr_as_bytes(arg.as_ptr()) != b"NONE" {
                         (*hl_table().add(idx as usize)).sg_font =
-                            Some(CStr::from_ptr(arg.as_ptr()).to_owned());
+                            Some(crate::memory::cstr_to_cstring(arg.as_ptr()));
                     }
                 } else if *key_bytes == b"CTERMFG" || *key_bytes == b"CTERMBG" {
                     if !init || ((*hl_table().add(idx as usize)).sg_set & SG_CTERM) == 0 {
@@ -1428,7 +1428,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
 
                         let color: c_int;
                         if (arg[0] as u8).is_ascii_digit() {
-                            color = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg.as_ptr()).to_bytes()) as c_int;
+                            color = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg.as_ptr())) as c_int;
                         } else if mb_stricmp(arg.as_ptr(), c"fg".as_ptr()) == 0 {
                             if g_st().cterm_normal_fg_color != 0 {
                                 color = g_st().cterm_normal_fg_color - 1;
@@ -1554,7 +1554,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                 } else if *key_bytes == b"START" || *key_bytes == b"STOP" {
                     // Ignored for now
                 } else if *key_bytes == b"BLEND" {
-                    if CStr::from_ptr(arg.as_ptr()).to_bytes() != b"NONE" {
+                    if crate::memory::cstr_as_bytes(arg.as_ptr()) != b"NONE" {
                         let mut arg_end = arg.as_mut_ptr();
                         (*hl_table().add(idx as usize)).sg_blend =
                             getdigits_int(&raw mut arg_end, false, 0);
@@ -1934,9 +1934,9 @@ fn highlight_list_arg(
                     || ((flag & HL_UNDERLINE_MASK) == 0 && (iarg & flag) != 0)
                 {
                     if buf[0] != NUL {
-                        { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = 100; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c",".as_ptr(), _dsize - _dlen); };
+                        { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = 100; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c",".as_ptr(), _dsize - _dlen); };
                     }
-                    { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = 100; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), HL_NAME_TABLE[i].as_ptr(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = 100; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), HL_NAME_TABLE[i].as_ptr(), _dsize - _dlen); };
                     if (flag & HL_UNDERLINE_MASK) == 0 {
                         iarg &= !flag;
                     }
@@ -1947,7 +1947,7 @@ fn highlight_list_arg(
 
         syn_list_header(
             didh,
-            vim_strsize(ts) + CStr::from_ptr(name).to_bytes().len() as c_int + 1,
+            vim_strsize(ts) + crate::memory::cstr_len(name) as c_int + 1,
             id,
             false,
         );
@@ -2162,9 +2162,9 @@ fn set_hl_attr(idx: c_int) {
 pub fn syn_name2id(name: *const c_char) -> c_int {
     unsafe {
         if *name == b'@' as c_char {
-            return syn_check_group(name, CStr::from_ptr(name).to_bytes().len());
+            return syn_check_group(name, crate::memory::cstr_len(name));
         }
-        syn_name2id_len(name, CStr::from_ptr(name).to_bytes().len())
+        syn_name2id_len(name, crate::memory::cstr_len(name))
     }
 }
 
@@ -2182,7 +2182,7 @@ pub fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
 
         let unames_ptr = &raw const hlg_st().highlight_unames;
         (*unames_ptr)
-            .get(CStr::from_ptr(name_u.as_ptr()).to_bytes())
+            .get(crate::memory::cstr_as_bytes(name_u.as_ptr()))
             .copied()
             .unwrap_or(0)
     }
@@ -3427,11 +3427,11 @@ mod tests {
         unsafe {
             assert!(coloridx_to_name(kColorIdxNone, 0, hexbuf.as_mut_ptr()).is_null());
             assert_eq!(
-                CStr::from_ptr(coloridx_to_name(kColorIdxFg, 0, hexbuf.as_mut_ptr())).to_bytes(),
+                crate::memory::cstr_as_bytes(coloridx_to_name(kColorIdxFg, 0, hexbuf.as_mut_ptr())),
                 b"fg"
             );
             assert_eq!(
-                CStr::from_ptr(coloridx_to_name(kColorIdxBg, 0, hexbuf.as_mut_ptr())).to_bytes(),
+                crate::memory::cstr_as_bytes(coloridx_to_name(kColorIdxBg, 0, hexbuf.as_mut_ptr())),
                 b"bg"
             );
             assert_eq!(

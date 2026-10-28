@@ -504,7 +504,7 @@ mod tests {
             e_invalidreg.as_ptr(),
             e_fnametoolong.as_ptr(),
         ] {
-            let s = unsafe { CStr::from_ptr(ptr).to_bytes() };
+            let s =  { crate::memory::cstr_as_bytes(ptr) };
             assert!(s.starts_with(b"E"));
         }
     }

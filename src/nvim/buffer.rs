@@ -1198,7 +1198,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             && !(*g_st().curbuf).b_ffname.is_null()
             && after_pathsep(
                 (*g_st().curbuf).b_ffname,
-                (*g_st().curbuf).b_ffname.add(std::ffi::CStr::from_ptr((*g_st().curbuf).b_ffname).to_bytes().len()),
+                (*g_st().curbuf).b_ffname.add(crate::memory::cstr_len((*g_st().curbuf).b_ffname)),
             ) != 0
             && augroup_exists(c"filetypedetect".as_ptr())
         {
@@ -3202,7 +3202,7 @@ pub fn buflist_findpat(
                 .map(|b| b as c_char)
                 .collect();
             let pat = pat_vec.as_mut_ptr();
-            let patend = pat.add(std::ffi::CStr::from_ptr(pat).to_bytes().len().saturating_sub(1));
+            let patend = pat.add(crate::memory::cstr_len(pat).saturating_sub(1));
             let toggledollar = patend > pat && *patend == b'$' as c_char;
 
             let mut find_listed = 1;
@@ -4298,13 +4298,13 @@ pub fn maketitle() {
                 if name.is_null() {
                     name = path_tail((*g_st().curbuf).b_ffname);
                 }
-                let mut namelen = std::ffi::CStr::from_ptr(name).to_bytes().len() as c_int;
+                let mut namelen = crate::memory::cstr_len(name) as c_int;
                 if namelen > 100 {
                     namelen -= 100;
                     namelen += c_int::from(utf_cp_bounds(name, name.add(namelen as usize)).end_off);
                     name = name.add(namelen as usize);
                 }
-                { let s = name; std::ptr::copy_nonoverlapping(s, buf.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(buf.as_mut_ptr(), name);
                 trans_characters(buf.as_mut_ptr(), IOSIZE as c_int);
             }
         }
@@ -4318,10 +4318,10 @@ pub fn maketitle() {
 }
 
 fn value_change(str_: *mut c_char, last: &mut Option<std::ffi::CString>) -> bool {
-    unsafe {
+     {
         let last_ptr = last.as_ref().map_or(ptr::null(), |s| s.as_ptr());
         if str_.is_null() != last_ptr.is_null()
-            || (!str_.is_null() && !last_ptr.is_null() && std::ffi::CStr::from_ptr(str_).to_bytes() != std::ffi::CStr::from_ptr(last_ptr).to_bytes())
+            || (!str_.is_null() && !last_ptr.is_null() && crate::memory::cstr_as_bytes(str_) != crate::memory::cstr_as_bytes(last_ptr))
         {
             if str_.is_null() {
                 *last = None;
@@ -5008,7 +5008,7 @@ pub fn buf_contents_changed(buf: &mut buf_T) -> bool {
         {
             differ = false;
             for lnum in 1..=(*g_st().curbuf).b_ml.ml_line_count {
-                if std::ffi::CStr::from_ptr(ml_get_buf(buf, lnum)).to_bytes() != std::ffi::CStr::from_ptr(ml_get(lnum)).to_bytes() {
+                if crate::memory::cstr_as_bytes(ml_get_buf(buf, lnum)) != crate::memory::cstr_as_bytes(ml_get(lnum)) {
                     differ = true;
                     break;
                 }

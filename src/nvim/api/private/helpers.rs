@@ -210,9 +210,9 @@ impl Drop for HlMessageChunk {
 use crate::api::vim::HlMessage;
 
 pub fn api_set_error_str(err: &mut Error, err_type: ErrorType, msg: *const c_char) {
-    unsafe {
+     {
         debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
-        err.msg = Some(CStr::from_ptr(msg).to_owned());
+        err.msg = Some(crate::memory::cstr_to_cstring(msg));
         err.err_type = err_type;
     }
 }
@@ -231,7 +231,7 @@ macro_rules! api_set_error {
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
             let mut buf = vec![0 as std::ffi::c_char; bufsize];
             $crate::strings::vim_snprintf!(buf.as_mut_ptr(), bufsize, fmt_ptr, $($arg),+);
-            (*err_ptr).msg = Some(std::ffi::CStr::from_ptr(buf.as_ptr()).to_owned());
+            (*err_ptr).msg = Some($crate::memory::cstr_to_cstring(buf.as_ptr()));
             (*err_ptr).err_type = et;
         }
     }};
@@ -687,14 +687,14 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
 }
 
 pub fn cstr_to_string(str_: *const c_char) -> NvimString {
-    unsafe {
+     {
         if str_.is_null() {
             return NvimString {
                 data: ptr::null_mut(),
                 size: 0,
             };
         }
-        let len = CStr::from_ptr(str_).to_bytes().len();
+        let len = crate::memory::cstr_len(str_);
         NvimString {
             data: alloc_cstring_len(str_, len),
             size: len,
@@ -734,7 +734,7 @@ pub fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
 }
 
 pub fn cstr_as_string(str_: *const c_char) -> NvimString {
-    unsafe {
+     {
         if str_.is_null() {
             return NvimString {
                 data: ptr::null_mut(),
@@ -743,7 +743,7 @@ pub fn cstr_as_string(str_: *const c_char) -> NvimString {
         }
         NvimString {
             data: str_.cast_mut(),
-            size: CStr::from_ptr(str_).to_bytes().len(),
+            size: crate::memory::cstr_len(str_),
         }
     }
 }

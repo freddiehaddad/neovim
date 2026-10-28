@@ -129,7 +129,7 @@ fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
     unsafe {
         let sm_ptr = &raw mut sign_st().sign_map;
         for sp in &mut *sm_ptr {
-            if std::ffi::CStr::from_ptr(sp.sn_name.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes() {
+            if crate::memory::cstr_as_bytes(sp.sn_name.as_ptr()) == crate::memory::cstr_as_bytes(name) {
                 return sp;
             }
         }
@@ -153,10 +153,10 @@ fn find_ns_by_name(group: *const c_char) -> c_int {
 }
 
 fn group_get_ns(group: *const c_char) -> i64 {
-    unsafe {
+     {
         if group.is_null() {
             return 0;
-        } else if std::ffi::CStr::from_ptr(group).to_bytes() == b"*" {
+        } else if crate::memory::cstr_as_bytes(group) == b"*" {
             return i64::from(u32::MAX);
         }
         let ns = find_ns_by_name(group);
@@ -460,7 +460,7 @@ fn sign_cmd_idx(begin_cmd: *mut c_char, end_cmd: *mut c_char) -> c_int {
         let mut idx: usize = 0;
         loop {
             let cmd = CMDS[idx];
-            if cmd.is_null() || std::ffi::CStr::from_ptr(begin_cmd).to_bytes() == std::ffi::CStr::from_ptr(cmd).to_bytes() {
+            if cmd.is_null() || crate::memory::cstr_as_bytes(begin_cmd) == crate::memory::cstr_as_bytes(cmd) {
                 break;
             }
             idx += 1;
@@ -475,7 +475,7 @@ pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
         let mut p: usize = 0;
         for i in 0..SIGN_WIDTH {
             schar_get(buf.add(p), *sign_text.add(i));
-            let len = CStr::from_ptr(buf.add(p)).to_bytes().len();
+            let len = crate::memory::cstr_len(buf.add(p));
             if len == 0 {
                 break;
             }
@@ -487,11 +487,11 @@ pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
 
 pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_char) -> bool {
     unsafe {
-        let mut endp = text.add(CStr::from_ptr(text).to_bytes().len());
+        let mut endp = text.add(crate::memory::cstr_len(text));
         let mut s = if !sp.is_null() { text } else { endp };
         while s.add(1) < endp {
             if *s == b'\\' as c_char {
-                let tail_len = CStr::from_ptr(s.add(1)).to_bytes().len() + 1;
+                let tail_len = crate::memory::cstr_len(s.add(1)) + 1;
                 ptr::copy(s.add(1), s, tail_len);
                 endp = endp.sub(1);
             }
@@ -543,7 +543,7 @@ fn sign_define_by_name(
         let sp = if new_sign {
             let sm_ptr = &raw mut sign_st().sign_map;
             (*sm_ptr).push(sign_T {
-                sn_name: CStr::from_ptr(name).to_owned(),
+                sn_name: crate::memory::cstr_to_cstring(name),
                 sn_icon: None,
                 sn_text: [0; SIGN_WIDTH],
                 sn_line_hl: 0,
@@ -584,7 +584,7 @@ fn sign_define_by_name(
         for i in 0..4 {
             if !args[i].is_null() {
                 *hls[i] = if *args[i] != NUL {
-                    syn_check_group(args[i], CStr::from_ptr(args[i]).to_bytes().len())
+                    syn_check_group(args[i], crate::memory::cstr_len(args[i]))
                 } else {
                     0
                 };
@@ -598,7 +598,7 @@ fn sign_define_by_name(
                 if sh
                     .sign_name
                     .as_ref()
-                    .is_some_and(|sn| std::ffi::CStr::from_ptr(sn.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes())
+                    .is_some_and(|sn| crate::memory::cstr_as_bytes(sn.as_ptr()) == crate::memory::cstr_as_bytes(name))
                 {
                     sh.text = (*sp).sn_text;
                     sh.hl_id = (*sp).sn_text_hl;
@@ -627,7 +627,7 @@ fn sign_undefine_by_name(name: *const c_char) -> bool {
         let sm_ptr = &raw mut sign_st().sign_map;
         let Some(pos) = (*sm_ptr)
             .iter()
-            .position(|sp| std::ffi::CStr::from_ptr(sp.sn_name.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes())
+            .position(|sp| crate::memory::cstr_as_bytes(sp.sn_name.as_ptr()) == crate::memory::cstr_as_bytes(name))
         else {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
             return false;
@@ -848,7 +848,7 @@ fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
             } else if crate::memory::cstr_prefix_bytes(arg, 6) == &b"numhl="[..6] {
                 numhl = arg.add(6);
             } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
-                prio = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg.add(9)).to_bytes()) as c_int;
+                prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg.add(9))) as c_int;
             } else {
                 semsg!(gettext(e_invarg2.as_ptr()), arg);
                 return;
@@ -964,7 +964,7 @@ fn parse_sign_cmd_args(
         while *arg != NUL {
             if crate::memory::cstr_prefix_bytes(arg, 5) == &b"line="[..5] {
                 arg = arg.add(5);
-                *lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg).to_bytes()) as c_int;
+                *lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
                 arg = skiptowhite(arg);
                 lnum_arg = true;
             } else if (crate::memory::cstr_prefix_bytes(arg, 1) == &b"*"[..1]) && cmd == SIGNCMD_UNPLACE {
@@ -996,7 +996,7 @@ fn parse_sign_cmd_args(
                 }
             } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
                 arg = arg.add(9);
-                *prio = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg).to_bytes()) as c_int;
+                *prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
                 arg = skiptowhite(arg);
             } else if crate::memory::cstr_prefix_bytes(arg, 5) == &b"file="[..5] {
                 arg = arg.add(5);
@@ -1895,7 +1895,7 @@ mod tests {
             let mut buf = [0 as c_char; 16];
             let len = describe_sign_text(buf.as_mut_ptr(), st.as_mut_ptr());
             assert_eq!(len, 2);
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b">>");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b">>");
         }
     }
 }

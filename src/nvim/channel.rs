@@ -523,14 +523,14 @@ pub fn channel_job_start(
         (*ph).exepath = if exepath.is_null() {
             None
         } else {
-            Some(CStr::from_ptr(exepath).to_owned())
+            Some(crate::memory::cstr_to_cstring(exepath))
         };
         (*pt).events = (*chan).events;
         (*pt).detach = detach;
         (*ph).cwd = if cwd.is_null() {
             None
         } else {
-            Some(CStr::from_ptr(cwd).to_owned())
+            Some(crate::memory::cstr_to_cstring(cwd))
         };
         (*ph).env = env;
         (*pt).overlapped = overlapped;
@@ -1241,7 +1241,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                             size: 0,
                         }
                     } else {
-                        let len = CStr::from_ptr(name).to_bytes().len();
+                        let len = crate::memory::cstr_len(name);
                         NvimString {
                             data: arena_memdupz(arena, name, len),
                             size: len,

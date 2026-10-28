@@ -182,7 +182,7 @@ pub fn modify_fname(
                 // Append a path separator to a directory.
                 if os_isdir(*fnamep) {
                     // Make room for one or two extra characters.
-                    let cur_len = std::ffi::CStr::from_ptr(*fnamep).to_bytes().len();
+                    let cur_len = crate::memory::cstr_len(*fnamep);
                     let mut v = vec![0 as c_char; cur_len + 3];
                     ptr::copy_nonoverlapping(*fnamep, v.as_mut_ptr(), cur_len + 1);
                     set_fname_buf(fnamep, bufp, v);
@@ -240,7 +240,7 @@ pub fn modify_fname(
                         }
 
                         if dirnamelen == 0 {
-                            dirnamelen = std::ffi::CStr::from_ptr(dirname.as_ptr()).to_bytes().len();
+                            dirnamelen = crate::memory::cstr_len(dirname.as_ptr());
                         }
 
                         // Do not call shorten_fname() here since it removes the prefix
@@ -280,7 +280,7 @@ pub fn modify_fname(
             }
 
             let mut tail = path_tail(*fnamep);
-            *fnamelen = std::ffi::CStr::from_ptr(*fnamep).to_bytes().len();
+            *fnamelen = crate::memory::cstr_len(*fnamep);
 
             // ":h" - head, remove "/file_name", can be repeated
             // Don't remove the logical root, see `FileInfo`.
@@ -487,7 +487,7 @@ pub fn f_chdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
         let mut scope: c_int = kCdScopeGlobal;
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
             let s = tv_get_string(&argvars[1]);
-            let s_bytes = CStr::from_ptr(s).to_bytes();
+            let s_bytes = crate::memory::cstr_as_bytes(s);
             if s_bytes == b"global" {
                 scope = kCdScopeGlobal;
             } else if s_bytes == b"tabpage" {
@@ -539,7 +539,7 @@ pub fn f_delete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             c"".as_ptr()
         };
 
-        let flags_bytes = CStr::from_ptr(flags).to_bytes();
+        let flags_bytes = crate::memory::cstr_as_bytes(flags);
         if flags_bytes.is_empty() {
             // delete a file
             rettv.vval = crate::eval::typval::TypvalVval::Number(if os_remove(name) == 0 { 0 } else { -1 });
@@ -683,7 +683,7 @@ fn findfilendir(argvars: &mut [typval_T], rettv: &mut typval_T, find_what: c_int
                     } else {
                         ptr::null_mut()
                     },
-                    if first { std::ffi::CStr::from_ptr(fname).to_bytes().len() } else { 0 },
+                    if first { crate::memory::cstr_len(fname) } else { 0 },
                     0,
                     c_int::from(first),
                     path,
@@ -1502,7 +1502,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
                     size = tv_get_number(&argvars[2]);
                 }
             } else {
-                let arg1 = CStr::from_ptr(tv_get_string(&argvars[1])).to_bytes();
+                let arg1 = crate::memory::cstr_as_bytes(tv_get_string(&argvars[1]));
                 if arg1 == b"b" {
                     binary = true;
                 } else if arg1 == b"B" {
@@ -1720,7 +1720,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 is_relative_to_current = true;
             }
 
-            let mut len = std::ffi::CStr::from_ptr(p).to_bytes().len() as isize;
+            let mut len = crate::memory::cstr_len(p) as isize;
             if len > 1 && after_pathsep(p, p.offset(len)) != 0 {
                 has_trailing_pathsep = true;
                 *p.offset(len - 1) = NUL; // The trailing slash breaks readlink().
@@ -1769,15 +1769,15 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                     };
                     q = path_next_component(start_comp).cast_mut();
                     if *q != NUL {
-                        let head_bytes = CStr::from_ptr(q.sub(1)).to_bytes();
+                        let head_bytes = crate::memory::cstr_as_bytes(q.sub(1));
                         let mut new_rem = Vec::with_capacity(
                             head_bytes.len()
-                                + remain_vec.as_ref().map_or(0, |r| std::ffi::CStr::from_ptr(r.as_ptr()).to_bytes().len())
+                                + remain_vec.as_ref().map_or(0, |r| crate::memory::cstr_len(r.as_ptr()))
                                 + 1,
                         );
                         new_rem.extend(head_bytes.iter().map(|&b| b as c_char));
                         if let Some(ref rem) = remain_vec {
-                            let rem_len = std::ffi::CStr::from_ptr(rem.as_ptr()).to_bytes().len();
+                            let rem_len = crate::memory::cstr_len(rem.as_ptr());
                             new_rem.extend_from_slice(&rem[..rem_len]);
                         }
                         new_rem.push(NUL);
@@ -1795,7 +1795,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                         // Symlink is relative to directory of argument. Replace the
                         // symlink with the resolved name in the same directory.
                         let prefix_len = (q as usize) - (p as usize);
-                        let buf_len = std::ffi::CStr::from_ptr(buf).to_bytes().len();
+                        let buf_len = crate::memory::cstr_len(buf);
                         let mut new_p = vec![0 as c_char; prefix_len + buf_len + 1];
                         ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), prefix_len);
                         ptr::copy_nonoverlapping(buf, new_p.as_mut_ptr().add(prefix_len), buf_len);
@@ -1815,7 +1815,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 // Append the first path component of "remain" to "p".
                 q = path_next_component(remain.add(1)).cast_mut();
                 len = (q as usize).wrapping_sub(remain as usize) as isize - isize::from(*q != NUL);
-                let p_len = std::ffi::CStr::from_ptr(p).to_bytes().len();
+                let p_len = crate::memory::cstr_len(p);
                 let mut new_p = vec![0 as c_char; p_len + len as usize + 1];
                 ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), p_len);
                 ptr::copy_nonoverlapping(remain, new_p.as_mut_ptr().add(p_len), len as usize);
@@ -1825,7 +1825,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 // Shorten "remain".
                 if *q != NUL {
                     let rem_tail = q.sub(1);
-                    let rem_len = std::ffi::CStr::from_ptr(rem_tail).to_bytes().len() + 1;
+                    let rem_len = crate::memory::cstr_len(rem_tail) + 1;
                     ptr::copy(rem_tail, remain, rem_len);
                 } else {
                     remain_vec = None;
@@ -1844,7 +1844,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                                 && (*p.add(2) == NUL || vim_ispathsep(*p.add(2) as u8 as c_int)))))
                 {
                     // Prepend "./".
-                    let p_len = std::ffi::CStr::from_ptr(p).to_bytes().len();
+                    let p_len = crate::memory::cstr_len(p);
                     let mut new_p = vec![0 as c_char; p_len + 3];
                     new_p[0] = b'.' as c_char;
                     new_p[1] = b'/' as c_char;
@@ -1859,7 +1859,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                     }
                     if (q as usize) > (p as usize) {
                         let src_ptr = p.add(2);
-                        let move_len = std::ffi::CStr::from_ptr(src_ptr).to_bytes().len() + 1;
+                        let move_len = crate::memory::cstr_len(src_ptr) + 1;
                         ptr::copy(src_ptr, p, move_len);
                     }
                 }
@@ -1868,7 +1868,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             // Ensure that the result will have no trailing path separator
             // if the argument had none.  But keep "/" or "//".
             if !has_trailing_pathsep {
-                q = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
+                q = p.add(crate::memory::cstr_len(p));
                 if after_pathsep(p, q) != 0 {
                     *path_tail_with_sep(p) = NUL;
                 }
@@ -1997,7 +1997,7 @@ fn write_blob(fp: &mut FileDescriptor, blob: &blob_T) -> bool {
 }
 
 fn write_string(fp: &mut FileDescriptor, data: *const c_char) -> bool {
-    unsafe { write_data(fp, data, std::ffi::CStr::from_ptr(data).to_bytes().len()) }
+     write_data(fp, data, crate::memory::cstr_len(data))
 }
 
 /// "writefile()" function

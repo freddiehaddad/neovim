@@ -385,7 +385,7 @@ pub(crate) fn atom_st() -> &'static mut CmdAtomModuleState {
 pub fn sb_concat(sb: &mut Vec<c_char>, s: *const c_char) {
     unsafe {
         if !s.is_null() {
-            let len = std::ffi::CStr::from_ptr(s).to_bytes().len();
+            let len = crate::memory::cstr_len(s);
             if len > 0 {
                 sb.extend_from_slice(std::slice::from_raw_parts(s, len));
             }
@@ -589,7 +589,7 @@ fn atom_from_cmdline(
             ..CmdSpec::default()
         };
         atom.keys = Some(std::ffi::CString::new(sb_u8).unwrap());
-        atom.text = Some(std::ffi::CStr::from_ptr(cmdline).to_owned());
+        atom.text = Some(crate::memory::cstr_to_cstring(cmdline));
         atom
     }
 }
@@ -1291,7 +1291,7 @@ pub fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
         let op = get_vim_var_str(VV_OP);
         if get_real_state() == MODE_OP_PENDING && *op != 0 {
             assert!(*lhs.add(len) == 0);
-            let mut full_bytes = Vec::from(std::ffi::CStr::from_ptr(op).to_bytes());
+            let mut full_bytes = Vec::from(crate::memory::cstr_as_bytes(op));
             full_bytes.extend_from_slice(std::slice::from_raw_parts(lhs.cast::<u8>(), len));
             let full = cstr_from_bytes(&full_bytes);
             atom_composite_start(full.as_ptr(), full.as_bytes().len());

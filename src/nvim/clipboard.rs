@@ -171,7 +171,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
                 return fail_cleanup(reg, errmsg, target);
             }
             let regtype = (*last_li).li_tv.vval.v_string();
-            if regtype.is_null() || CStr::from_ptr(regtype).to_bytes().len() > 1 {
+            if regtype.is_null() || crate::memory::cstr_len(regtype) > 1 {
                 return fail_cleanup(reg, errmsg, target);
             }
             reg.y_type = match *regtype as u8 {

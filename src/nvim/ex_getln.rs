@@ -1034,7 +1034,7 @@ fn command_line_enter(
         state.prev_cmdpos = -1;
         state.ignore_drag_release = true;
         let s = &raw mut state;
-        (*s).save_p_icm = Some(CStr::from_ptr(opt_vars().p_icm).to_owned());
+        (*s).save_p_icm = Some(crate::memory::cstr_to_cstring(opt_vars().p_icm));
         init_incsearch_state(&mut (*s).is_state);
         let mut did_save_ccline = false;
 
@@ -1335,7 +1335,7 @@ fn command_line_enter(
         *lc_colors = Vec::new();
 
         let ret = if !getln_st().ccline.cmdbuff.is_null() {
-            Some(CStr::from_ptr(getln_st().ccline.cmdbuff).to_owned())
+            Some(crate::memory::cstr_to_cstring(getln_st().ccline.cmdbuff))
         } else {
             None
         };
@@ -1362,7 +1362,7 @@ fn command_line_enter(
 }
 
 fn command_line_check(s: &mut CommandLineState) -> c_int {
-    unsafe {
+     {
         s.prev_cmdpos = getln_st().ccline.cmdpos;
         s.prev_cmdbuff = None;
 
@@ -1377,7 +1377,7 @@ fn command_line_check(s: &mut CommandLineState) -> c_int {
         may_trigger_safestate(s.xpc.xp_numfiles <= 0);
 
         if !getln_st().ccline.cmdbuff.is_null() {
-            s.prev_cmdbuff = Some(CStr::from_ptr(getln_st().ccline.cmdbuff).to_owned());
+            s.prev_cmdbuff = Some(crate::memory::cstr_to_cstring(getln_st().ccline.cmdbuff));
         }
 
         if s.c == K_WILD && s.firstc != b'@' as c_int {
@@ -1426,7 +1426,7 @@ fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
                     let len = p.as_bytes().len() as c_int;
                     realloc_cmdbuff(len + 1);
                     getln_st().ccline.cmdlen = len;
-                    { let s = p.as_ptr(); std::ptr::copy_nonoverlapping(s, getln_st().ccline.cmdbuff, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(getln_st().ccline.cmdbuff, p.as_ptr());
 
                     getln_st().ccline.cmdpos = getln_st().ccline.cmdlen.min(getln_st().new_cmdpos);
 
@@ -2423,7 +2423,7 @@ fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
                 getln_st().ccline.cmdpos = len;
             } else {
                 alloc_cmdbuff(plen);
-                { let s = p; std::ptr::copy_nonoverlapping(s, getln_st().ccline.cmdbuff, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(getln_st().ccline.cmdbuff, p);
                 getln_st().ccline.cmdlen = plen;
                 getln_st().ccline.cmdpos = plen;
             }
@@ -3291,7 +3291,7 @@ fn command_line_changed(s: &mut CommandLineState) -> c_int {
                 || s
                     .prev_cmdbuff
                     .as_ref()
-                    .is_some_and(|prev| std::ffi::CStr::from_ptr(prev.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(getln_st().ccline.cmdbuff).to_bytes()))
+                    .is_some_and(|prev| crate::memory::cstr_as_bytes(prev.as_ptr()) != crate::memory::cstr_as_bytes(getln_st().ccline.cmdbuff)))
         {
             do_autocmd_cmdlinechanged(if s.firstc > 0 {
                 s.firstc
@@ -3359,14 +3359,14 @@ pub fn getcmdline_prompt(
         getln_st().ccline.cmdprompt = if prompt.is_null() {
             None
         } else {
-            Some(CStr::from_ptr(prompt).to_owned())
+            Some(crate::memory::cstr_to_cstring(prompt))
         };
         getln_st().ccline.hl_id = hl_id;
         getln_st().ccline.xp_context = xp_context;
         getln_st().ccline.xp_arg = if xp_arg.is_null() {
             None
         } else {
-            Some(CStr::from_ptr(xp_arg).to_owned())
+            Some(crate::memory::cstr_to_cstring(xp_arg))
         };
         getln_st().ccline.input_fn = c_int::from(firstc == b'@' as c_int);
         getln_st().ccline.highlight_callback = highlight_callback;
@@ -3651,11 +3651,11 @@ fn color_expr_cmdline(
     colored_ccline: &CmdlineInfo,
     ret_ccline_colors: &mut ColoredCmdline,
 ) {
-    unsafe {
+     {
         let parser_lines = [
             ParserLine {
                 data: colored_ccline.cmdbuff,
-                size: std::ffi::CStr::from_ptr(colored_ccline.cmdbuff).to_bytes().len(),
+                size: crate::memory::cstr_len(colored_ccline.cmdbuff),
             },
             ParserLine {
                 data: ptr::null(),
@@ -3712,7 +3712,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
             && (*ccline_colors)
                 .cmdbuff
                 .as_ref()
-                .is_some_and(|cb| std::ffi::CStr::from_ptr(cb.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(colored_ccline.cmdbuff).to_bytes())
+                .is_some_and(|cb| crate::memory::cstr_as_bytes(cb.as_ptr()) == crate::memory::cstr_as_bytes(colored_ccline.cmdbuff))
         {
             return ret;
         }
@@ -4117,7 +4117,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
 
 pub fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
     unsafe {
-        let line_len = std::ffi::CStr::from_ptr(line).to_bytes().len();
+        let line_len = crate::memory::cstr_len(line);
         let mut buf: Vec<c_char> = Vec::with_capacity(indent + line_len);
         buf.resize(indent, b' ' as c_char);
         buf.extend_from_slice(std::slice::from_raw_parts(line, line_len));
@@ -4273,7 +4273,7 @@ pub fn unputcmdline() {
 pub fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
     unsafe {
         if len < 0 {
-            len = std::ffi::CStr::from_ptr(str).to_bytes().len() as c_int;
+            len = crate::memory::cstr_len(str) as c_int;
         }
 
         realloc_cmdbuff(getln_st().ccline.cmdlen + len + 1);
@@ -4780,7 +4780,7 @@ fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
             return None;
         }
 
-        Some(CStr::from_ptr(compl_pat).to_owned())
+        Some(crate::memory::cstr_to_cstring(compl_pat))
     }
 }
 
@@ -4899,10 +4899,10 @@ fn set_cmdline_str(str: *const c_char, pos: c_int) -> c_int {
             return 1;
         }
 
-        let len = std::ffi::CStr::from_ptr(str).to_bytes().len() as c_int;
+        let len = crate::memory::cstr_len(str) as c_int;
         realloc_cmdbuff(len + 1);
         (*p).cmdlen = len;
-        { let s = str; std::ptr::copy_nonoverlapping(s, (*p).cmdbuff, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cpy((*p).cmdbuff, str);
 
         (*p).cmdpos = if pos < 0 || pos > (*p).cmdlen {
             (*p).cmdlen
@@ -5174,11 +5174,11 @@ pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CStri
         let mut cmd = eap.arg;
 
         if *cmd != b'<' as c_char || *cmd.add(1) != b'<' as c_char || eap.ea_getline.is_none() {
-            *lenp = std::ffi::CStr::from_ptr(eap.arg).to_bytes().len();
+            *lenp = crate::memory::cstr_len(eap.arg);
             return if eap.skip != 0 {
                 None
             } else {
-                Some(CStr::from_ptr(eap.arg).to_owned())
+                Some(crate::memory::cstr_to_cstring(eap.arg))
             };
         }
         cmd = cmd.add(2);
@@ -5199,7 +5199,7 @@ pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CStri
             if eap.skip == 0 {
                 let s = tv_get_string(&(*li).li_tv);
                 if !s.is_null() {
-                    buf.extend_from_slice(CStr::from_ptr(s).to_bytes());
+                    buf.extend_from_slice(crate::memory::cstr_as_bytes(s));
                 }
                 buf.push(b'\n');
             }
@@ -5320,7 +5320,7 @@ pub fn get_user_input(argvars: &[typval_T],
         let mut xp_type: c_int = EXPAND_NOTHING;
         let mut xp_arg: Option<std::ffi::CString> = None;
         if !xp_name.is_null() {
-            let xp_namelen = std::ffi::CStr::from_ptr(xp_name).to_bytes().len() as c_int;
+            let xp_namelen = crate::memory::cstr_len(xp_name) as c_int;
             let mut argt: u32 = 0;
             if !parse_compl_arg(
                 xp_name,
@@ -5336,7 +5336,7 @@ pub fn get_user_input(argvars: &[typval_T],
 
         let mut p = prompt;
         if !ui_has(kUICmdline) {
-            let lastnl = CStr::from_ptr(prompt).to_bytes().iter().rposition(|&b| b == b'\n').map_or(ptr::null_mut(), |i| prompt.add(i).cast_mut());
+            let lastnl = crate::memory::cstr_as_bytes(prompt).iter().rposition(|&b| b == b'\n').map_or(ptr::null_mut(), |i| prompt.add(i).cast_mut());
             if !lastnl.is_null() {
                 p = lastnl.add(1);
                 msg_start();

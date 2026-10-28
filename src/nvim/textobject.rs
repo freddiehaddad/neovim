@@ -22,7 +22,7 @@ use crate::search::{
 };
 use crate::strings::vim_strchr;
 use crate::textformat::oparg_T;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::regexp::MAXCOL;
@@ -741,7 +741,7 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> bool {
 
         let line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
         let start = skipwhite(line);
-        let mut end = line.add(CStr::from_ptr(line).to_bytes().len());
+        let mut end = line.add(crate::memory::cstr_len(line));
         while end > start {
             let prev = mb_prevptr(line, end);
             if !ascii_iswhite(c_int::from(*prev as u8)) {

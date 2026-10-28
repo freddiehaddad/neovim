@@ -554,7 +554,7 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &exarg_T, cmod: &cmdmod_T) {
             lua_setfield(lstate, -2, c"fargs".as_ptr());
         } else {
             lua_newtable(lstate);
-            let length = CStr::from_ptr(eap.arg).to_bytes().len();
+            let length = crate::memory::cstr_len(eap.arg);
             if length > 0 {
                 let mut end: usize = 0;
                 let mut len: usize = 0;
@@ -698,7 +698,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
             put_event(
                 (*queues).events,
                 Event::NluaLuvError {
-                    msg: (!error.is_null()).then(|| CStr::from_ptr(error).to_owned()),
+                    msg: (!error.is_null()).then(|| crate::memory::cstr_to_cstring(error)),
                     kind: kCallback,
                 },
             );
@@ -1583,7 +1583,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
                 return 0;
             }
 
-            let len = CStr::from_ptr(input.vval.v_string()).to_bytes().len();
+            let len = crate::memory::cstr_len(input.vval.v_string());
             if luaL_loadbuffer(
                 lstate,
                 input.vval.v_string(),
@@ -2350,7 +2350,7 @@ pub fn ex_luado(eap: &mut exarg_T) {
             return;
         }
         let cmd = eap.arg;
-        let cmd_len = CStr::from_ptr(cmd).to_bytes().len();
+        let cmd_len = crate::memory::cstr_len(cmd);
         let lstate = nlua_st().GLOBAL_LSTATE;
 
         const DOSTART: &[u8] = b"return function(line, linenr) ";
@@ -2853,8 +2853,8 @@ pub fn nlua_init_defaults() {
 }
 
 pub fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
-    unsafe {
-        let fname_bytes = CStr::from_ptr(lua_funcname).to_bytes();
+     {
+        let fname_bytes = crate::memory::cstr_as_bytes(lua_funcname);
         let mut str_bytes = Vec::with_capacity(7 + fname_bytes.len());
         str_bytes.extend_from_slice(b"return ");
         str_bytes.extend_from_slice(fname_bytes);

@@ -29,7 +29,7 @@ use crate::regexp::{
 };
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::window::win_T;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::change::MB_MAXCHAR;
@@ -166,7 +166,7 @@ fn match_add(
             }
         }
 
-        let grp_len = CStr::from_ptr(grp).to_bytes().len();
+        let grp_len = crate::memory::cstr_len(grp);
         let hlg_id = syn_check_group(grp, grp_len);
         if hlg_id == 0 {
             return -1;
@@ -183,7 +183,7 @@ fn match_add(
         let mut m = matchitem_T {
             mit_id: id,
             mit_priority: prio,
-            mit_pattern: (!pat.is_null()).then(|| CStr::from_ptr(pat).to_owned()),
+            mit_pattern: (!pat.is_null()).then(|| crate::memory::cstr_to_cstring(pat)),
             mit_match: regmmatch_T {
                 regprog,
                 startpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; 10],
@@ -1289,7 +1289,7 @@ pub fn ex_match(eap: &mut exarg_T) {
         if ends_excmd(c_int::from(*arg)) != 0 {
             end = arg;
         } else {
-            let arg_bytes = CStr::from_ptr(arg).to_bytes();
+            let arg_bytes = crate::memory::cstr_as_bytes(arg);
             if arg_bytes.len() >= 4
                 && arg_bytes[..4].eq_ignore_ascii_case(b"none")
                 && (ascii_iswhite(*arg.add(4)) || ends_excmd(c_int::from(*arg.add(4))) != 0)

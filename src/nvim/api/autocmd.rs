@@ -27,7 +27,7 @@ use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
 use crate::memory::{Arena, arena_memdupz, cstr_from_bytes};
 use crate::msgpack_rpc::packer::Integer;
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CString, c_char, c_int};
 
 use crate::api::tabpage::Buffer;
 use crate::highlight::OptionalKeys;
@@ -622,7 +622,7 @@ pub fn nvim_get_autocmds(
                         let mut passed = false;
                         for &raw_pat in &pattern_filters[..pattern_filter_count] {
                             let mut pat = raw_pat;
-                            let patlen = CStr::from_ptr(pat).to_bytes().len() as c_int;
+                            let patlen = crate::memory::cstr_len(pat) as c_int;
                             let mut pattern_buflocal = [0 as c_char; BUFLOCAL_PAT_LEN];
                             if aupat_is_buflocal(pat, patlen) {
                                 aupat_normalize_buflocal_pat(
@@ -633,7 +633,7 @@ pub fn nvim_get_autocmds(
                                 );
                                 pat = pattern_buflocal.as_ptr();
                             }
-                            if !pat.is_null() && ap.pat.as_bytes() == CStr::from_ptr(pat).to_bytes()
+                            if !pat.is_null() && ap.pat.as_bytes() == crate::memory::cstr_as_bytes(pat)
                             {
                                 passed = true;
                                 break;

@@ -1,7 +1,7 @@
 //! Handling of a hashtable with Vim-specific properties (`src/nvim/hashtab.c`).
 
 use crate::message::siemsg;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 
 pub type hash_T = usize;
@@ -111,7 +111,7 @@ pub fn hash_clear(ht: &mut hashtab_T) {
 
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
 pub fn hash_find(ht: &hashtab_T, key: *const c_char) -> *mut hashitem_T {
-    let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
+    let len =  { crate::memory::cstr_len(key) };
     let hash = hash_hash(key);
     hash_lookup(ht, key, len, hash)
 }
@@ -181,7 +181,7 @@ pub fn hash_lookup(
 /// `ht` and `di` must be valid pointers, and `di` must outlive the entry in `ht`.
 pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) -> bool {
     let key = di.di_key.as_mut_ptr();
-    let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
+    let len =  { crate::memory::cstr_len(key) };
     let hash = hash_hash(key);
     let hi = hash_lookup(ht, key, len, hash);
     if unsafe { !hashitem_empty(&*hi) } {
@@ -371,6 +371,7 @@ pub fn hash_hash_len(key: *const c_char, len: usize) -> hash_T {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
     use std::ffi::CString;
 
     #[test]

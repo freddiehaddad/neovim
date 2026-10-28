@@ -587,13 +587,13 @@ fn buf_write_do_post_autocmds(
 
 #[inline]
 fn set_err_num(num: &'static CStr, msg: *const c_char) -> Error_T {
-    unsafe {
+     {
         Error_T {
             num: Some(num),
             msg: if msg.is_null() {
                 None
             } else {
-                Some(CStr::from_ptr(msg).to_owned())
+                Some(crate::memory::cstr_to_cstring(msg))
             },
             arg: 0,
         }
@@ -602,13 +602,13 @@ fn set_err_num(num: &'static CStr, msg: *const c_char) -> Error_T {
 
 #[inline]
 fn set_err(msg: *const c_char) -> Error_T {
-    unsafe {
+     {
         Error_T {
             num: None,
             msg: if msg.is_null() {
                 None
             } else {
-                Some(CStr::from_ptr(msg).to_owned())
+                Some(crate::memory::cstr_to_cstring(msg))
             },
             arg: 0,
         }
@@ -617,13 +617,13 @@ fn set_err(msg: *const c_char) -> Error_T {
 
 #[inline]
 fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
-    unsafe {
+     {
         Error_T {
             num: None,
             msg: if msg.is_null() {
                 None
             } else {
-                Some(CStr::from_ptr(msg).to_owned())
+                Some(crate::memory::cstr_to_cstring(msg))
             },
             arg,
         }
@@ -890,7 +890,7 @@ fn buf_write_make_backup(
                 let dirlen = (path_tail(fname) as usize) - (fname as usize);
                 assert!(dirlen < MAXPATHL);
                 let mut tmp_fname = [0 as c_char; MAXPATHL];
-                { let _d = (tmp_fname.as_mut_ptr()).cast::<u8>(); let _n = dirlen; if _n > 0 { std::ptr::copy_nonoverlapping((fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(tmp_fname.as_mut_ptr(), fname, dirlen);
                 let mut i: c_int = 4913;
                 loop {
                     let suffix = format!(".{i}.swp\0");
@@ -981,8 +981,8 @@ fn buf_write_make_backup(
                         if os_fileinfo_id_equal(&file_info_new, file_info_old) {
                             keep_bk = false;
                         } else if opt_vars().p_bk == 0 {
-                            let blen = std::ffi::CStr::from_ptr(bk_ptr).to_bytes().len();
-                            let extlen = std::ffi::CStr::from_ptr(backup_ext).to_bytes().len();
+                            let blen = crate::memory::cstr_len(bk_ptr);
+                            let extlen = crate::memory::cstr_len(backup_ext);
                             let mut wp = if blen > extlen + 1 {
                                 bk_ptr.add(blen - 1 - extlen)
                             } else {
@@ -1034,7 +1034,7 @@ fn buf_write_make_backup(
 
                         os_set_acl(bk_ptr, acl);
                         os_copy_xattr(fname, bk_ptr);
-                        *backupp = Some(CStr::from_ptr(bk_ptr).to_owned());
+                        *backupp = Some(crate::memory::cstr_to_cstring(bk_ptr));
                         *err = set_err(ptr::null());
                         break;
                     }
@@ -1071,8 +1071,8 @@ fn buf_write_make_backup(
                     let bk_ptr = bk_vec.as_mut_ptr();
                     let mut keep_bk = true;
                     if opt_vars().p_bk == 0 && os_path_exists(bk_ptr) {
-                        let blen = std::ffi::CStr::from_ptr(bk_ptr).to_bytes().len();
-                        let extlen = std::ffi::CStr::from_ptr(backup_ext).to_bytes().len();
+                        let blen = crate::memory::cstr_len(bk_ptr);
+                        let extlen = crate::memory::cstr_len(backup_ext);
                         let mut p = if blen > extlen + 1 {
                             bk_ptr.add(blen - 1 - extlen)
                         } else {
@@ -1090,7 +1090,7 @@ fn buf_write_make_backup(
                         }
                     }
                     if keep_bk && vim_rename(fname, bk_ptr) == 0 {
-                        *backupp = Some(CStr::from_ptr(bk_ptr).to_owned());
+                        *backupp = Some(crate::memory::cstr_to_cstring(bk_ptr));
                         break;
                     }
                 }
@@ -1137,7 +1137,7 @@ pub fn buf_write(
         if check_secure() {
             return FAIL;
         }
-        if std::ffi::CStr::from_ptr(fname).to_bytes().len() >= MAXPATHL {
+        if crate::memory::cstr_len(fname) >= MAXPATHL {
             emsg(gettext(e_longname.as_ptr()));
             return FAIL;
         }
@@ -1213,9 +1213,9 @@ pub fn buf_write(
             return res;
         }
 
-        let fname_copy = (!fname.is_null()).then(|| CStr::from_ptr(fname).to_owned());
-        let sfname_copy = (!sfname.is_null()).then(|| CStr::from_ptr(sfname).to_owned());
-        let ffname_copy = (!ffname.is_null()).then(|| CStr::from_ptr(ffname).to_owned());
+        let fname_copy = (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname));
+        let sfname_copy = (!sfname.is_null()).then(|| crate::memory::cstr_to_cstring(sfname));
+        let ffname_copy = (!ffname.is_null()).then(|| crate::memory::cstr_to_cstring(ffname));
         fname = fname_copy
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -1578,7 +1578,7 @@ pub fn buf_write(
                                 let line_ptr = ptr.add(1);
                                 sha_ctx.update(std::slice::from_raw_parts(
                                     line_ptr.cast::<u8>(),
-                                    std::ffi::CStr::from_ptr(line_ptr).to_bytes().len() + 1,
+                                    crate::memory::cstr_len(line_ptr) + 1,
                                 ));
                             }
                             loop {
@@ -1804,7 +1804,7 @@ pub fn buf_write(
                                     );
                                     err = Error_T {
                                         num: None,
-                                        msg: Some(CStr::from_ptr(alloc_msg.as_ptr()).to_owned()),
+                                        msg: Some(crate::memory::cstr_to_cstring(alloc_msg.as_ptr())),
                                         arg: 0,
                                     };
                                 }
@@ -1845,7 +1845,7 @@ pub fn buf_write(
                         add_quoted_fname(iobuf, IOSIZE, buf, fname);
                         let mut insert_space = false;
                         if write_info.bw_conv_error != 0 {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" CONVERSION ERROR".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" CONVERSION ERROR".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                             if write_info.bw_conv_error_lnum != 0 {
                                 let _ = vim_snprintf_add!(
@@ -1856,21 +1856,21 @@ pub fn buf_write(
                                 );
                             }
                         } else if notconverted {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[NOT converted]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[NOT converted]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         } else if converted {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[converted]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[converted]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         }
                         if device {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[Device]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[Device]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         } else if newfile {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[New]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[New]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         }
                         if no_eol {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[noeol]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[noeol]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         }
                         if msg_add_fileformat(fileformat) {
@@ -1879,13 +1879,13 @@ pub fn buf_write(
                         msg_add_lines(c_int::from(insert_space), lnum, nchars);
                         if !shortmess(kShmWrite) {
                             if append {
-                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
+                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
                                         gettext(c" [a]".as_ptr())
                                     } else {
                                         gettext(c" appended".as_ptr())
                                     }, _dsize - _dlen); };
                             } else {
-                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
+                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
                                         gettext(c" [w]".as_ptr())
                                     } else {
                                         gettext(c" written".as_ptr())

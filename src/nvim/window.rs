@@ -1119,9 +1119,9 @@ fn do_window_newwindow(nchar: c_int, Prenum: c_int, cbuf: &mut [c_char; 40]) {
             cbuf[0] = NUL;
         }
         if nchar == b'v' as c_int || nchar == Ctrl_V {
-            { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"v".as_ptr(), _dsize - _dlen); };
+            { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"v".as_ptr(), _dsize - _dlen); };
         }
-        { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"new".as_ptr(), _dsize - _dlen); };
+        { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"new".as_ptr(), _dsize - _dlen); };
         do_cmdline_cmd(cbuf.as_ptr());
     }
 }
@@ -6115,7 +6115,7 @@ pub fn update_cwd(cause: CdCause) {
         if let Some(ref new_dir_cstr) = new_dir {
             let new_dir_ptr = new_dir_cstr.as_ptr().cast_mut();
             if g_st().globaldir.is_none() && cwd[0] != NUL {
-                g_st().globaldir = Some(std::ffi::CStr::from_ptr(cwd.as_ptr()).to_owned());
+                g_st().globaldir = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
             }
             let dir_differs = !path_equal(new_dir_ptr, cwd.as_ptr(), kPathCmpLiteral);
             if opt_vars().p_acd == 0 && dir_differs {

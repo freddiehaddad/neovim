@@ -2600,7 +2600,7 @@ fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
     if termname.is_null() {
         return None;
     }
-    let term_bytes = unsafe { CStr::from_ptr(termname).to_bytes() };
+    let term_bytes =  { crate::memory::cstr_as_bytes(termname) };
     if term_bytes.is_empty() || term_bytes[0] == b'.' || term_bytes.contains(&b'/') {
         return None;
     }
@@ -2634,9 +2634,9 @@ pub fn terminfo_is_term_family(term: *const c_char, family: *const c_char) -> bo
     if term.is_null() {
         return false;
     }
-    unsafe {
-        let term_bytes = CStr::from_ptr(term).to_bytes();
-        let fam_bytes = CStr::from_ptr(family).to_bytes();
+     {
+        let term_bytes = crate::memory::cstr_as_bytes(term);
+        let fam_bytes = crate::memory::cstr_as_bytes(family);
         let tlen = term_bytes.len();
         let flen = fam_bytes.len();
         tlen >= flen
@@ -2728,7 +2728,7 @@ pub fn terminfo_from_builtin(
 }
 
 pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: *const c_char) -> bool {
-    unsafe {
+     {
         let Some(ut) = unibi_from_term(termname) else {
             return false;
         };
@@ -2745,7 +2745,7 @@ pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: *const c_char) -
         for i in 0..ext_bool_count {
             let n = ut.get_ext_bool_name(i);
             if !n.is_null() {
-                let bytes = CStr::from_ptr(n).to_bytes();
+                let bytes = crate::memory::cstr_as_bytes(n);
                 if bytes == b"Tc" {
                     ti.Tc = true;
                 } else if bytes == b"RGB" {
@@ -2759,7 +2759,7 @@ pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: *const c_char) -
         for (i, &uni_id) in UNI_IDS.iter().enumerate() {
             let val = ut.get_str(uni_id);
             ti.defs[i] = if !val.is_null() {
-                Some(Cow::Owned(CStr::from_ptr(val).to_owned()))
+                Some(Cow::Owned(crate::memory::cstr_to_cstring(val)))
             } else {
                 None
             };
@@ -2772,7 +2772,7 @@ pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: *const c_char) -
                 if !n.is_null() && (crate::memory::cstr_as_opt_bytes(n) == crate::memory::cstr_as_opt_bytes(name.as_ptr())) {
                     let data = ut.get_ext_str(val);
                     ti.defs[kTermExtOffset + i] = if !data.is_null() {
-                        Some(Cow::Owned(CStr::from_ptr(data).to_owned()))
+                        Some(Cow::Owned(crate::memory::cstr_to_cstring(data)))
                     } else {
                         None
                     };
@@ -2784,11 +2784,11 @@ pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: *const c_char) -
         for (i, pair) in UNI_KEYS.iter().enumerate() {
             let val = ut.get_str(pair[0]);
             if !val.is_null() {
-                ti.keys[i][0] = Some(Cow::Owned(CStr::from_ptr(val).to_owned()));
+                ti.keys[i][0] = Some(Cow::Owned(crate::memory::cstr_to_cstring(val)));
                 if pair[1] != unibi_string::unibi_string_begin_ {
                     let sval = ut.get_str(pair[1]);
                     ti.keys[i][1] = if !sval.is_null() {
-                        Some(Cow::Owned(CStr::from_ptr(sval).to_owned()))
+                        Some(Cow::Owned(crate::memory::cstr_to_cstring(sval)))
                     } else {
                         None
                     };
@@ -2799,7 +2799,7 @@ pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: *const c_char) -
         for (i, &fkey_id) in UNI_FKEYS.iter().enumerate() {
             let val = ut.get_str(fkey_id);
             ti.f_keys[i] = if !val.is_null() {
-                Some(Cow::Owned(CStr::from_ptr(val).to_owned()))
+                Some(Cow::Owned(crate::memory::cstr_to_cstring(val)))
             } else {
                 None
             };
@@ -3084,7 +3084,7 @@ pub fn terminfo_fmt(
                     pop(ptr::null_mut(), Some(&mut ostr), &mut stack);
                     if let Some(ref s_arr) = ostr {
                         let ostr_ptr = s_arr.as_ptr();
-                        let mut l = CStr::from_ptr(ostr_ptr).to_bytes().len();
+                        let mut l = crate::memory::cstr_len(ostr_ptr);
                         if l < olen {
                             l = olen;
                         }
@@ -3102,7 +3102,7 @@ pub fn terminfo_fmt(
                 b'l' => {
                     pop(ptr::null_mut(), Some(&mut ostr), &mut stack);
                     let l = ostr.map_or(0, |s_arr| {
-                        CStr::from_ptr(s_arr.as_ptr()).to_bytes().len()
+                        crate::memory::cstr_len(s_arr.as_ptr())
                     });
                     push(l as c_long, None, &mut stack);
                 }
@@ -3333,16 +3333,16 @@ mod tests {
         assert_eq!(ut.get_num(unibi_numeric::unibi_columns), 80);
         assert_eq!(ut.get_num(unibi_numeric::unibi_max_colors), -1);
         assert!(ut.get_str(unibi_string::unibi_back_tab).is_null());
-        unsafe {
+         {
             assert_eq!(
-                CStr::from_ptr(ut.get_str(unibi_string::unibi_carriage_return)).to_bytes(),
+                crate::memory::cstr_as_bytes(ut.get_str(unibi_string::unibi_carriage_return)),
                 b"\r"
             );
             assert_eq!(ut.count_ext_bool(), 1);
-            assert_eq!(CStr::from_ptr(ut.get_ext_bool_name(0)).to_bytes(), b"Tc");
+            assert_eq!(crate::memory::cstr_as_bytes(ut.get_ext_bool_name(0)), b"Tc");
             assert_eq!(ut.count_ext_str(), 1);
-            assert_eq!(CStr::from_ptr(ut.get_ext_str_name(0)).to_bytes(), b"Se");
-            assert_eq!(CStr::from_ptr(ut.get_ext_str(0)).to_bytes(), b"\x1b[0 q");
+            assert_eq!(crate::memory::cstr_as_bytes(ut.get_ext_str_name(0)), b"Se");
+            assert_eq!(crate::memory::cstr_as_bytes(ut.get_ext_str(0)), b"\x1b[0 q");
         }
     }
 

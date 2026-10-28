@@ -649,8 +649,8 @@ fn ql_info_ptr() -> *mut qf_info_T {
 #[inline]
 fn c_strcat(dst: *mut c_char, src: *const c_char) {
     unsafe {
-        let dlen = std::ffi::CStr::from_ptr(dst).to_bytes().len();
-        let slen = std::ffi::CStr::from_ptr(src).to_bytes().len();
+        let dlen = crate::memory::cstr_len(dst);
+        let slen = crate::memory::cstr_len(src);
         ptr::copy_nonoverlapping(src, dst.add(dlen), slen + 1);
     }
 }
@@ -726,7 +726,7 @@ fn qfga_clear() {
 fn qfga_concat(gap: &mut Vec<c_char>, s: *const c_char) {
     unsafe {
         if !s.is_null() {
-            let len = std::ffi::CStr::from_ptr(s).to_bytes().len();
+            let len = crate::memory::cstr_len(s);
             if len > 0 {
                 gap.extend_from_slice(std::slice::from_raw_parts(s, len));
             }
@@ -862,15 +862,15 @@ fn efmpat_to_regpat(
         regpat = regpat.add(1);
         #[cfg(windows)]
         if *efmpat == b'f' as c_char {
-            { let s = c"\\%(\\a:\\)\\=".as_ptr(); std::ptr::copy_nonoverlapping(s, regpat, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(regpat, c"\\%(\\a:\\)\\=".as_ptr());
             regpat = regpat.add(10);
         }
         if *efmpat == b'f' as c_char && *efmpat.add(1) != NUL {
             if *efmpat.add(1) != b'\\' as c_char && *efmpat.add(1) != b'%' as c_char {
-                { let s = c".\\{-1,}".as_ptr(); std::ptr::copy_nonoverlapping(s, regpat, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(regpat, c".\\{-1,}".as_ptr());
                 regpat = regpat.add(7);
             } else {
-                { let s = c"\\f\\+".as_ptr(); std::ptr::copy_nonoverlapping(s, regpat, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(regpat, c"\\f\\+".as_ptr());
                 regpat = regpat.add(4);
             }
         } else {
@@ -1047,8 +1047,8 @@ fn efm_to_regpat(
 }
 
 fn efm_regpat_bufsz(efm: *const c_char) -> usize {
-    unsafe {
-        let mut sz = (FMT_PATTERNS * 3) + (std::ffi::CStr::from_ptr(efm).to_bytes().len() << 2);
+     {
+        let mut sz = (FMT_PATTERNS * 3) + (crate::memory::cstr_len(efm) << 2);
         for item in &FMT_PAT {
             sz += item.pattern.to_bytes().len();
         }
@@ -1145,7 +1145,7 @@ fn qf_get_next_str_line(state: &mut qfstate_T, mut p_str: *mut c_char) -> c_int 
         let len = if !p.is_null() {
             p.offset_from(p_str) as usize + 1
         } else {
-            std::ffi::CStr::from_ptr(p_str).to_bytes().len()
+            crate::memory::cstr_len(p_str)
         };
 
         let linebuf = if len > IOSIZE - 2 {
@@ -1180,7 +1180,7 @@ fn qf_get_next_list_line(state: &mut qfstate_T, mut p_li: *mut listitem_T) -> c_
         }
 
         let s = (*p_li).li_tv.vval.v_string();
-        let len = std::ffi::CStr::from_ptr(s).to_bytes().len();
+        let len = crate::memory::cstr_len(s);
         let linebuf = if len > IOSIZE - 2 {
             qf_grow_linebuf(state, len)
         } else {
@@ -1240,7 +1240,7 @@ fn qf_get_next_file_line(state: &mut qfstate_T, fd: *mut FILE) -> c_int {
         }
 
         let mut discard = false;
-        state.linelen = std::ffi::CStr::from_ptr(iobuff_ptr).to_bytes().len();
+        state.linelen = crate::memory::cstr_len(iobuff_ptr);
         if state.linelen == IOSIZE - 1 && *iobuff_ptr.add(state.linelen - 1) != NL {
             if state.growbuf.len() < 2 * (IOSIZE - 1) {
                 state.growbuf.resize(2 * (IOSIZE - 1), 0);
@@ -1265,7 +1265,7 @@ fn qf_get_next_file_line(state: &mut qfstate_T, fd: *mut FILE) -> c_int {
                     }
                     break;
                 }
-                state.linelen = std::ffi::CStr::from_ptr(state.growbuf.as_ptr().add(growbuflen)).to_bytes().len();
+                state.linelen = crate::memory::cstr_len(state.growbuf.as_ptr().add(growbuflen));
                 growbuflen += state.linelen;
                 if *state.growbuf.as_ptr().add(growbuflen - 1) == NL {
                     break;
@@ -1288,7 +1288,7 @@ fn qf_get_next_file_line(state: &mut qfstate_T, fd: *mut FILE) -> c_int {
                         }
                         break;
                     }
-                    if std::ffi::CStr::from_ptr(iobuff_ptr).to_bytes().len() < IOSIZE - 1 || *iobuff_ptr.add(IOSIZE - 2) == NL {
+                    if crate::memory::cstr_len(iobuff_ptr) < IOSIZE - 1 || *iobuff_ptr.add(IOSIZE - 2) == NL {
                         break;
                     }
                 }
@@ -1302,7 +1302,7 @@ fn qf_get_next_file_line(state: &mut qfstate_T, fd: *mut FILE) -> c_int {
 
         let cur_linebuf = state.linebuf_ptr();
         if state.vc.vc_type != CONV_NONE
-            && !cur_linebuf.is_null() && !std::ffi::CStr::from_ptr(cur_linebuf).to_bytes().is_ascii()
+            && !cur_linebuf.is_null() && !crate::memory::cstr_as_bytes(cur_linebuf).is_ascii()
             && let Some(line) =
                 string_convert(&state.vc, cur_linebuf, Some(&mut state.linelen))
         {
@@ -1381,7 +1381,7 @@ fn qf_parse_line(
     fmt_first: &[efm_T],
     fields: &mut qffields_T,
 ) -> c_int {
-    unsafe {
+     {
         let fmt_len = fmt_first.len();
         loop {
             let start_idx = qf_st().fmt_start_idx;
@@ -1450,7 +1450,7 @@ fn qf_parse_line(
                     status = qf_parse_file_pfx(idx, fields, qfl, tail);
                     if status == QF_MULTISCAN {
                         let s = skipwhite(tail);
-                        let new_linelen = std::ffi::CStr::from_ptr(s).to_bytes().len();
+                        let new_linelen = crate::memory::cstr_len(s);
                         if new_linelen >= linelen {
                             return QF_IGNORE_LINE;
                         }
@@ -1568,7 +1568,7 @@ fn qf_init_ext(
             .as_ref()
             .unwrap()
             .as_ref()
-            .is_none_or(|c| std::ffi::CStr::from_ptr(c.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(efm).to_bytes());
+            .is_none_or(|c| crate::memory::cstr_as_bytes(c.as_ptr()) != crate::memory::cstr_as_bytes(efm));
         if efm_changed {
             qf_st().last_efm_cache = None;
             (*cache_ptr).clear();
@@ -1576,7 +1576,7 @@ fn qf_init_ext(
 
             *cache_ptr = parse_efm_option(efm);
             if !(*cache_ptr).is_empty() {
-                qf_st().last_efm_cache = Some(CStr::from_ptr(efm).to_owned());
+                qf_st().last_efm_cache = Some(crate::memory::cstr_to_cstring(efm));
             }
         }
 
@@ -1637,11 +1637,11 @@ fn qf_init_ext(
 }
 
 fn qf_store_title(qfl: &mut qf_list_T, title: *const c_char) {
-    unsafe {
+     {
         qfl.qf_title = if title.is_null() {
             None
         } else {
-            Some(CStr::from_ptr(title).to_owned())
+            Some(crate::memory::cstr_to_cstring(title))
         };
     }
 }
@@ -1728,11 +1728,11 @@ fn qf_parse_fmt_f(
 }
 
 fn qf_parse_fmt_b(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
-    unsafe {
+     {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        let bnr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        let bnr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as c_int;
         if buflist_findnr(bnr).is_null() {
             return QF_FAIL;
         }
@@ -1742,51 +1742,51 @@ fn qf_parse_fmt_b(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
 }
 
 fn qf_parse_fmt_n(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
-    unsafe {
+     {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        fields.enr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        fields.enr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as c_int;
         QF_OK
     }
 }
 
 fn qf_parse_fmt_l(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
-    unsafe {
+     {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        fields.lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as linenr_T;
+        fields.lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as linenr_T;
         QF_OK
     }
 }
 
 fn qf_parse_fmt_e(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
-    unsafe {
+     {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        fields.end_lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as linenr_T;
+        fields.end_lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as linenr_T;
         QF_OK
     }
 }
 
 fn qf_parse_fmt_c(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
-    unsafe {
+     {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        fields.col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        fields.col = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as c_int;
         QF_OK
     }
 }
 
 fn qf_parse_fmt_k(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
-    unsafe {
+     {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        fields.end_col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        fields.end_col = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as c_int;
         QF_OK
     }
 }
@@ -1859,11 +1859,11 @@ fn qf_parse_fmt_p(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
 }
 
 fn qf_parse_fmt_v(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
-    unsafe {
+     {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        fields.col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        fields.col = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as c_int;
         fields.use_viscol = true;
         QF_OK
     }
@@ -1877,8 +1877,8 @@ fn qf_parse_fmt_s(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
         let mut len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
         len = len.min(CMDBUFFSIZE - 5);
         let pat_ptr = fields.pattern.as_mut_ptr();
-        { let s = c"^\\V".as_ptr(); std::ptr::copy_nonoverlapping(s, pat_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-        { let _dst: *mut c_char = pat_ptr; let _dsize: usize = len + 4; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), rmp.startp[midx], _dsize - _dlen); };
+        crate::memory::cstr_cpy(pat_ptr, c"^\\V".as_ptr());
+        { let _dst: *mut c_char = pat_ptr; let _dsize: usize = len + 4; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), rmp.startp[midx], _dsize - _dlen); };
         *pat_ptr.add(len + 3) = b'\\' as c_char;
         *pat_ptr.add(len + 4) = b'$' as c_char;
         *pat_ptr.add(len + 5) = NUL;
@@ -1893,8 +1893,8 @@ fn qf_parse_fmt_o(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
         }
         let len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
         let mod_ptr = fields.module.as_mut_ptr();
-        let dsize = (std::ffi::CStr::from_ptr(mod_ptr).to_bytes().len() + len + 1).min(CMDBUFFSIZE);
-        { let _dst: *mut c_char = mod_ptr; let _dsize: usize = dsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), rmp.startp[midx], _dsize - _dlen); };
+        let dsize = (crate::memory::cstr_len(mod_ptr) + len + 1).min(CMDBUFFSIZE);
+        { let _dst: *mut c_char = mod_ptr; let _dsize: usize = dsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), rmp.startp[midx], _dsize - _dlen); };
         QF_OK
     }
 }
@@ -2091,7 +2091,7 @@ fn qf_parse_multiline_pfx(
             if *fields.errmsg.as_ptr() != NUL {
                 let mut bytes = (*qfprev).qf_text.as_bytes().to_vec();
                 bytes.push(b'\n');
-                bytes.extend_from_slice(CStr::from_ptr(fields.errmsg.as_ptr()).to_bytes());
+                bytes.extend_from_slice(crate::memory::cstr_as_bytes(fields.errmsg.as_ptr()));
                 (*qfprev).qf_text = std::ffi::CString::new(bytes).unwrap();
             }
             if (*qfprev).qf_nr == -1 {
@@ -2285,11 +2285,11 @@ fn qf_add_entry(
         {
             let p = path_try_shorten_fname(full.as_ptr().cast_mut());
             if !p.is_null() {
-                qfp.qf_fname = Some(CStr::from_ptr(p).to_owned());
+                qfp.qf_fname = Some(crate::memory::cstr_to_cstring(p));
             }
         }
         drop(fullname);
-        qfp.qf_text = CStr::from_ptr(mesg).to_owned();
+        qfp.qf_text = crate::memory::cstr_to_cstring(mesg);
         qfp.qf_lnum = lnum;
         qfp.qf_end_lnum = end_lnum;
         qfp.qf_col = col;
@@ -2306,12 +2306,12 @@ fn qf_add_entry(
         qfp.qf_pattern = if pattern.is_null() || *pattern == NUL {
             None
         } else {
-            Some(CStr::from_ptr(pattern).to_owned())
+            Some(crate::memory::cstr_to_cstring(pattern))
         };
         qfp.qf_module = if module.is_null() || *module == NUL {
             None
         } else {
-            Some(CStr::from_ptr(module).to_owned())
+            Some(crate::memory::cstr_to_cstring(module))
         };
         qfp.qf_nr = nr;
         if type_ != 1 && !vim_isprintc(c_int::from(type_ as u8)) {
@@ -2587,7 +2587,7 @@ fn qf_get_fnum(
                 joined = if !directory.is_null() {
                     concat_fnames(cstr_as_string(directory), fname_str, true)
                 } else {
-                    CStr::from_ptr(fname).to_owned()
+                    crate::memory::cstr_to_cstring(fname)
                 };
             }
             let p = joined.as_ptr().cast_mut();
@@ -2603,14 +2603,14 @@ fn qf_get_fnum(
             .as_ref()
             .unwrap()
             .as_ref()
-            .is_some_and(|last| std::ffi::CStr::from_ptr(bufname_ptr).to_bytes() == std::ffi::CStr::from_ptr(last.as_ptr()).to_bytes());
+            .is_some_and(|last| crate::memory::cstr_as_bytes(bufname_ptr) == crate::memory::cstr_as_bytes(last.as_ptr()));
         let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
             drop(ptr_cstr);
             qf_st().qf_last_bufref.br_buf
         } else {
             let b = buflist_new(bufname_ptr, ptr::null_mut(), 0, BLN_NOOPT);
             qf_st().qf_last_bufname =
-                ptr_cstr.or_else(|| Some(CStr::from_ptr(bufname_ptr).to_owned()));
+                ptr_cstr.or_else(|| Some(crate::memory::cstr_to_cstring(bufname_ptr)));
             set_bufref(&mut qf_st().qf_last_bufref, b);
             b
         };
@@ -2633,11 +2633,11 @@ fn qf_push_dir(
 ) {
     unsafe {
         if vim_isAbsName(dirbuf) || stack.is_empty() || is_file_stack {
-            stack.push(CStr::from_ptr(dirbuf).to_owned());
+            stack.push(crate::memory::cstr_to_cstring(dirbuf));
             return;
         }
 
-        let dirbuf_len = std::ffi::CStr::from_ptr(dirbuf).to_bytes().len();
+        let dirbuf_len = crate::memory::cstr_len(dirbuf);
         let mut found_idx: Option<usize> = None;
         let mut new_dirname: Option<std::ffi::CString> = None;
         for i in (0..stack.len()).rev() {
@@ -3259,7 +3259,7 @@ fn qf_jump_goto_line(
                 b'/' as c_int,
                 b'/' as c_int,
                 qf_pattern,
-                std::ffi::CStr::from_ptr(qf_pattern).to_bytes().len(),
+                crate::memory::cstr_len(qf_pattern),
                 1,
                 SEARCH_KEEP,
                 opt_vars().p_magic != 0,
@@ -3751,12 +3751,12 @@ fn qf_msg(qi: &mut qf_info_T, which: c_int, lead: *const c_char) {
         );
 
         if let Some(title) = title {
-            let len = std::ffi::CStr::from_ptr(buf.as_ptr()).to_bytes().len();
+            let len = crate::memory::cstr_len(buf.as_ptr());
             if len < 34 {
                 ptr::write_bytes(buf.as_mut_ptr().add(len), b' ', 34 - len);
                 buf[34] = NUL;
             }
-            { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), title.as_ptr(), _dsize - _dlen); };
+            { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), title.as_ptr(), _dsize - _dlen); };
         }
         trunc_string(buf.as_ptr(), buf.as_mut_ptr(), g_st().Columns - 1, IOSIZE as c_int);
         msg(buf.as_ptr(), 0);
@@ -4696,7 +4696,7 @@ pub fn grep_internal(cmdidx: c_int) -> c_int {
                 || cmdidx == CMD_lgrep
                 || cmdidx == CMD_grepadd
                 || cmdidx == CMD_lgrepadd)
-                && b"internal" == std::ffi::CStr::from_ptr(gp).to_bytes(),
+                && b"internal" == crate::memory::cstr_as_bytes(gp),
         )
     }
 }
@@ -4715,9 +4715,9 @@ fn make_get_auname(cmdidx: c_int) -> *const c_char {
 
 fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std::ffi::CString {
     unsafe {
-        let mut len = std::ffi::CStr::from_ptr(opt_vars().p_shq).to_bytes().len() * 2 + std::ffi::CStr::from_ptr(makecmd).to_bytes().len() + 1;
+        let mut len = crate::memory::cstr_len(opt_vars().p_shq) * 2 + crate::memory::cstr_len(makecmd) + 1;
         if *opt_vars().p_sp != NUL {
-            len += std::ffi::CStr::from_ptr(opt_vars().p_sp).to_bytes().len() + std::ffi::CStr::from_ptr(fname).to_bytes().len() + 3;
+            len += crate::memory::cstr_len(opt_vars().p_sp) + crate::memory::cstr_len(fname) + 3;
         }
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
@@ -4734,7 +4734,7 @@ fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std::ffi::C
         msg_puts(c":!".as_ptr());
         msg_outtrans(cmd, 0, false);
 
-        CStr::from_ptr(cmd).to_owned()
+        crate::memory::cstr_to_cstring(cmd)
     }
 }
 
@@ -4852,7 +4852,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         }
 
         if *p == NUL {
-            return Some(CStr::from_ptr(opt_vars().p_mef).to_owned());
+            return Some(crate::memory::cstr_to_cstring(opt_vars().p_mef));
         }
 
         loop {
@@ -4861,10 +4861,10 @@ fn get_mef_name() -> Option<std::ffi::CString> {
             } else {
                 qf_st().mef_off += 19;
             }
-            let mef_len = std::ffi::CStr::from_ptr(opt_vars().p_mef).to_bytes().len();
+            let mef_len = crate::memory::cstr_len(opt_vars().p_mef);
             let mut name_vec: Vec<c_char> = vec![0; mef_len + 30];
             let name = name_vec.as_mut_ptr();
-            { let s = opt_vars().p_mef; std::ptr::copy_nonoverlapping(s, name, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(name, opt_vars().p_mef);
             let off_idx = p.offset_from(opt_vars().p_mef) as usize;
             vim_snprintf!(
                 name.add(off_idx),
@@ -4877,7 +4877,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
             let mut file_info = FileInfo::new();
             let file_or_link_found = os_fileinfo_link(name, &mut file_info);
             if !file_or_link_found {
-                return Some(CStr::from_ptr(name).to_owned());
+                return Some(crate::memory::cstr_to_cstring(name));
             }
         }
     }
@@ -5536,7 +5536,7 @@ fn vgr_match_buflines(
 ) -> bool {
     unsafe {
         let mut found_match = false;
-        let pat_len = std::ffi::CStr::from_ptr(spat).to_bytes().len().min(FUZZY_MATCH_MAX_LEN);
+        let pat_len = crate::memory::cstr_len(spat).min(FUZZY_MATCH_MAX_LEN);
 
         let mut lnum: linenr_T = 1;
         while lnum <= buf.b_ml.ml_line_count && *tomatch > 0 {
@@ -5696,7 +5696,7 @@ fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> bool {
         *args = vgr_args_T::new();
 
         args.regmatch.regprog = ptr::null_mut();
-        args.qf_title = Some(CStr::from_ptr(qf_cmdtitle(*eap.cmdlinep)).to_owned());
+        args.qf_title = Some(crate::memory::cstr_to_cstring(qf_cmdtitle(*eap.cmdlinep)));
         args.tomatch = if eap.addr_count > 0 {
             eap.line2
         } else {
@@ -5709,7 +5709,7 @@ fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> bool {
             emsg(gettext((&raw const e_invalpat).cast()));
             return false;
         }
-        args.spat = (!spat.is_null()).then(|| CStr::from_ptr(spat).to_owned());
+        args.spat = (!spat.is_null()).then(|| crate::memory::cstr_to_cstring(spat));
 
         let spat_ptr = args.spat_ptr();
         vgr_init_regmatch(&mut args.regmatch, spat_ptr);
@@ -5837,9 +5837,9 @@ fn vgr_process_files(
 
                         if buf == *first_match_buf
                             && target_dir.is_none()
-                            && (std::ffi::CStr::from_ptr(dirname_start.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(dirname_now.as_ptr()).to_bytes())
+                            && (crate::memory::cstr_as_bytes(dirname_start.as_ptr()) != crate::memory::cstr_as_bytes(dirname_now.as_ptr()))
                         {
-                            *target_dir = Some(CStr::from_ptr(dirname_now.as_ptr()).to_owned());
+                            *target_dir = Some(crate::memory::cstr_to_cstring(dirname_now.as_ptr()));
                         }
 
                         let mut aco: CtxSwitch = CtxSwitch::new();
@@ -5971,7 +5971,7 @@ fn restore_start_dir(dirname_start: *mut c_char) {
         let mut dirname_now = vec![0 as c_char; MAXPATHL];
 
         os_dirname(dirname_now.as_mut_ptr(), MAXPATHL);
-        if std::ffi::CStr::from_ptr(dirname_start).to_bytes() != std::ffi::CStr::from_ptr(dirname_now.as_ptr()).to_bytes() {
+        if crate::memory::cstr_as_bytes(dirname_start) != crate::memory::cstr_as_bytes(dirname_now.as_ptr()) {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = dirname_start;
             ea.cmdidx = if (**curwin.as_ptr()).w_localdir.is_none() {
@@ -7043,12 +7043,12 @@ fn qf_setprop_curidx(
     qfl: &mut qf_list_T,
     di: &dictitem_T,
 ) -> bool {
-    unsafe {
+     {
         let mut newidx: c_int;
 
         if di.di_tv.v_type == VarType::VAR_STRING
             && !di.di_tv.vval.v_string().is_null()
-            && (std::ffi::CStr::from_ptr(di.di_tv.vval.v_string()).to_bytes() == b"$")
+            && (crate::memory::cstr_as_bytes(di.di_tv.vval.v_string()) == b"$")
         {
             newidx = qfl.count();
         } else {
@@ -7327,7 +7327,7 @@ fn cbuffer_process_args(
         if *eap.arg == NUL {
             buf = g_st().curbuf;
         } else if *skipwhite(skipdigits(eap.arg)) == NUL {
-            buf = buflist_findnr(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(eap.arg).to_bytes()) as c_int);
+            buf = buflist_findnr(crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int);
         }
 
         if buf.is_null() {
@@ -7582,7 +7582,7 @@ fn hgr_search_file(qfl: &mut qf_list_T, fname: *mut c_char, p_regmatch: &mut reg
             let line = iobuff_ptr;
 
             if vim_regexec(p_regmatch, line, 0) {
-                let mut l = std::ffi::CStr::from_ptr(line).to_bytes().len();
+                let mut l = crate::memory::cstr_len(line);
                 while l > 0 && (*line.add(l - 1) as u8) <= b' ' {
                     l -= 1;
                     *line.add(l) = NUL;

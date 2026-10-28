@@ -8,7 +8,7 @@ use crate::lua::converter::{
 };
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 use crate::message::{semsg, smsg};
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CString, c_char};
 
 use crate::ex_docmd::exarg_T;
 
@@ -45,7 +45,7 @@ fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
         let msg = lua_tolstring(lstate, -1, std::ptr::null_mut());
         if !msg.is_null() {
             if success {
-                let action_bytes = CStr::from_ptr(action).to_bytes();
+                let action_bytes = crate::memory::cstr_as_bytes(action);
                 if action_bytes == b"allow" {
                     smsg!(0, c"Allowed in trust database: \"%s\"".as_ptr(), msg);
                 } else if action_bytes == b"deny" {
@@ -98,11 +98,11 @@ mod tests {
     #[test]
     fn skipwhite_and_skiptowhite_scan_ascii_whitespace() {
         let s = c"++deny   file.lua";
-        unsafe {
+         {
             let p = skiptowhite(s.as_ptr());
             assert_eq!((p as usize) - (s.as_ptr() as usize), 6);
             let q = skipwhite(p);
-            assert_eq!(CStr::from_ptr(q).to_bytes(), b"file.lua");
+            assert_eq!(crate::memory::cstr_as_bytes(q), b"file.lua");
         }
     }
 }

@@ -9,7 +9,7 @@ use crate::os::env::os_getenv_buf;
 use crate::strings::vim_snprintf;
 #[cfg(windows)]
 use std::ffi::c_void;
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CString, c_char, c_int};
 
 use crate::event::r#loop::uv_uid_t;
 
@@ -112,7 +112,7 @@ fn add_user(users: &mut Vec<CString>, user: *const c_char) {
     if user.is_null() || unsafe { *user == 0 } {
         return;
     }
-    if let Ok(cstr) = CString::new(unsafe { CStr::from_ptr(user).to_bytes() }) {
+    if let Ok(cstr) = CString::new(crate::memory::cstr_as_bytes(user)) {
         users.push(cstr);
     }
 }
@@ -137,7 +137,7 @@ fn collect_usernames() -> Vec<CString> {
         let user_env = os_getenv_buf(c"USER".as_ptr(), user_buf.as_mut_ptr(), user_buf.len());
 
         if !user_env.is_null() && *user_env != 0 {
-            let env_bytes = CStr::from_ptr(user_env).to_bytes();
+            let env_bytes = crate::memory::cstr_as_bytes(user_env);
             let found = users.iter().any(|u| u.as_bytes() == env_bytes);
             if !found {
                 let pw = getpwnam(user_env);
@@ -233,7 +233,7 @@ pub fn os_get_userdir(name: *const c_char) -> Option<CString> {
         }
         let pw = getpwnam(name);
         if !pw.is_null() && !(*pw).pw_dir.is_null() {
-            return Some(CStr::from_ptr((*pw).pw_dir).to_owned());
+            return Some(crate::memory::cstr_to_cstring((*pw).pw_dir));
         }
     }
     #[cfg(not(unix))]
@@ -283,7 +283,7 @@ pub fn get_users(_xp: &mut crate::os::env::expand_T, idx: c_int) -> *mut c_char 
 pub fn match_user(name: *mut c_char) -> c_int {
     unsafe {
         init_users();
-        let target = CStr::from_ptr(name).to_bytes();
+        let target = crate::memory::cstr_as_bytes(name);
         let users_ptr = &raw const users_st().USERS;
         let users = &*users_ptr;
         let mut result = 0;
@@ -304,6 +304,7 @@ pub fn match_user(name: *mut c_char) -> c_int {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
 
     #[test]
     fn get_usernames_null_returns_fail_and_uname_formats_fallback() {

@@ -441,7 +441,7 @@ fn try_load_terminfo_key(
             return false;
         }
 
-        let seq = CStr::from_ptr(value).to_bytes();
+        let seq = crate::memory::cstr_as_bytes(value);
         insert_seq(root, seq, info);
 
         true

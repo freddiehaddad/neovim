@@ -45,7 +45,7 @@ use crate::strings::{
 use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
 use crate::viml::parser::expressions::TAB;
-use std::ffi::{CStr, CString, c_char, c_int, c_uint};
+use std::ffi::{CString, c_char, c_int, c_uint};
 use std::ptr;
 pub type idx_T = c_int;
 pub type salfirst_T = c_int;
@@ -409,10 +409,10 @@ fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
 
 #[inline]
 fn was_banned(su: &mut suginfo_T, word: *const c_char) -> bool {
-    unsafe {
+     {
         su
             .su_banned
-            .contains(std::ffi::CStr::from_ptr(word).to_bytes())
+            .contains(crate::memory::cstr_as_bytes(word))
     }
 }
 
@@ -453,10 +453,10 @@ fn score_wordcount_adj(
     word: *const c_char,
     split: bool,
 ) -> c_int {
-    unsafe {
+     {
         let Some(&wc_count) = slang
             .sl_wordcount
-            .get(std::ffi::CStr::from_ptr(word).to_bytes())
+            .get(crate::memory::cstr_as_bytes(word))
         else {
             return score;
         };
@@ -801,7 +801,7 @@ pub fn spell_suggest(count: c_int) {
                         sug.su_badlen - stp.st_orglen,
                         sug.su_badptr.add(stp.st_orglen as usize),
                     );
-                    spell_priv_st().repl_to = Some(CStr::from_ptr((&raw const g_st().IObuff).cast()).to_owned());
+                    spell_priv_st().repl_to = Some(crate::memory::cstr_to_cstring((&raw const g_st().IObuff).cast()));
                 } else {
                     spell_priv_st().repl_from = Some(
                         CString::new(std::slice::from_raw_parts(
@@ -810,15 +810,15 @@ pub fn spell_suggest(count: c_int) {
                         ))
                         .unwrap_or_default(),
                     );
-                    spell_priv_st().repl_to = Some(CStr::from_ptr(stp.st_word.as_ptr()).to_owned());
+                    spell_priv_st().repl_to = Some(crate::memory::cstr_to_cstring(stp.st_word.as_ptr()));
                 }
                 let mut p_vec: Vec<c_char> =
-                    vec![0; std::ffi::CStr::from_ptr(line).to_bytes().len() - stp.st_orglen as usize + stp.st_wordlen as usize + 1];
+                    vec![0; crate::memory::cstr_len(line) - stp.st_orglen as usize + stp.st_wordlen as usize + 1];
                 let p = p_vec.as_mut_ptr();
                 let c = sug.su_badptr.offset_from(line) as c_int;
                 ptr::copy(line, p, c as usize);
-                { let s = stp.st_word.as_ptr(); std::ptr::copy_nonoverlapping(s, p.add(c as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                { let d = p; let s = sug.su_badptr.add(stp.st_orglen as usize); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(p.add(c as usize), stp.st_word.as_ptr());
+                { let d = p; let s = sug.su_badptr.add(stp.st_orglen as usize); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 prep_redo(
                     false,
                     false,
@@ -868,7 +868,7 @@ pub fn spell_suggest_list(
                 stp.st_word.as_ptr().cast::<u8>(),
                 stp.st_wordlen as usize,
             );
-            let tail_bytes = CStr::from_ptr(sug.su_badptr.add(stp.st_orglen as usize)).to_bytes();
+            let tail_bytes = crate::memory::cstr_as_bytes(sug.su_badptr.add(stp.st_orglen as usize));
             let mut bytes = Vec::with_capacity(word_bytes.len() + tail_bytes.len());
             bytes.extend_from_slice(word_bytes);
             bytes.extend_from_slice(tail_bytes);
@@ -911,7 +911,7 @@ fn spell_find_suggest(
         su.su_maxcount = maxcount;
         su.su_maxscore = SCORE_MAXINIT;
         su.su_badlen = su.su_badlen.min(MAXWLEN as c_int - 1);
-        { let _d = (&raw mut su.su_badword).cast::<u8>(); let _n = su.su_badlen as usize; if _n > 0 { std::ptr::copy_nonoverlapping((su.su_badptr).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+        crate::memory::cstr_ncpy(su.su_badword.as_mut_ptr(), su.su_badptr, su.su_badlen as usize);
         spell_casefold(
             *curwin.as_ptr(),
             su.su_badptr,
@@ -963,7 +963,7 @@ fn spell_find_suggest(
         if banbadword {
             add_banned(su, su.su_badword.as_ptr());
         }
-        let sps_copy = CStr::from_ptr(opt_vars().p_sps).to_owned();
+        let sps_copy = crate::memory::cstr_to_cstring(opt_vars().p_sps);
         let mut p = sps_copy.as_ptr().cast_mut();
         while *p != NUL {
             copy_option_part(&raw mut p, (&raw mut buf).cast(), MAXPATHL, c",".as_ptr());
@@ -977,7 +977,7 @@ fn spell_find_suggest(
             } else if crate::memory::cstr_prefix_bytes(buf_ptr, 5) == &b"file:"[..5] {
                 spell_suggest_file(su, buf_ptr.add(5));
             } else if crate::memory::cstr_prefix_bytes(buf_ptr, 8) == &b"timeout:"[..8] {
-                sps_st().spell_suggest_timeout = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(buf_ptr.add(8)).to_bytes()) as c_int as i64;
+                sps_st().spell_suggest_timeout = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(buf_ptr.add(8))) as c_int as i64;
             } else if !did_intern {
                 spell_suggest_intern(su, interactive);
                 if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
@@ -1117,7 +1117,7 @@ fn suggest_try_special(su: &mut suginfo_T) {
         let mut p = skiptowhite(fbadword_ptr);
         let len = p.offset_from(fbadword_ptr) as usize;
         p = skipwhite(p);
-        if std::ffi::CStr::from_ptr(p).to_bytes().len() == len && (crate::memory::cstr_prefix_bytes(fbadword_ptr, len) == crate::memory::cstr_prefix_bytes(p, len)) {
+        if crate::memory::cstr_len(p) == len && (crate::memory::cstr_prefix_bytes(fbadword_ptr, len) == crate::memory::cstr_prefix_bytes(p, len)) {
             let c = su.su_fbadword[len];
             su.su_fbadword[len] = NUL;
             make_case_word(fbadword_ptr, (&raw mut word).cast(), su.su_badflags);
@@ -1139,17 +1139,17 @@ fn suggest_try_special(su: &mut suginfo_T) {
 fn suggest_try_change(su: &mut suginfo_T) {
     unsafe {
         let mut fword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        { let s = (&raw const su.su_fbadword).cast(); std::ptr::copy_nonoverlapping(s, (&raw mut fword).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-        let mut n = std::ffi::CStr::from_ptr((&raw const fword).cast()).to_bytes().len() as c_int;
+        crate::memory::cstr_cpy((&raw mut fword).cast(), (&raw const su.su_fbadword).cast());
+        let mut n = crate::memory::cstr_len((&raw const fword).cast()) as c_int;
         let p = su.su_badptr.add(su.su_badlen as usize);
         spell_casefold(
             *curwin.as_ptr(),
             p,
-            std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int,
+            crate::memory::cstr_len(p) as c_int,
             (&raw mut fword).cast::<c_char>().add(n as usize),
             MAXWLEN as c_int - n,
         );
-        n = std::ffi::CStr::from_ptr(su.su_badptr).to_bytes().len() as c_int;
+        n = crate::memory::cstr_len(su.su_badptr) as c_int;
         if (n as usize) < MAXWLEN {
             fword[n as usize] = NUL;
         }
@@ -1272,7 +1272,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                     .add(stack[udepth].ts_prewordlen as usize),
                                 flags,
                             );
-                            stack[udepth].ts_prewordlen = std::ffi::CStr::from_ptr((&raw const preword).cast()).to_bytes().len() as u8;
+                            stack[udepth].ts_prewordlen = crate::memory::cstr_len((&raw const preword).cast()) as u8;
                             stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
                         }
                         continue;
@@ -1382,13 +1382,11 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             compflags[stack[udepth].ts_complen as usize] =
                                 ((flags as u32) >> 24) as u8;
                             compflags[stack[udepth].ts_complen as usize + 1] = 0;
-                            { let _d = ((&raw mut preword)
+                            crate::memory::cstr_ncpy((&raw mut preword)
                                     .cast::<c_char>()
-                                    .add(stack[udepth].ts_prewordlen as usize)
-                                    ).cast::<u8>(); let _n = (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize; if _n > 0 { std::ptr::copy_nonoverlapping(((&raw const tword)
+                                    .add(stack[udepth].ts_prewordlen as usize), (&raw const tword)
                                     .cast::<c_char>()
-                                    .add(stack[udepth].ts_splitoff as usize)
-                                    ).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                                    .add(stack[udepth].ts_splitoff as usize), (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize);
                             if match_checkcompoundpattern(
                                 (&raw mut preword).cast(),
                                 stack[udepth].ts_prewordlen as c_int,
@@ -1420,11 +1418,11 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         }
                     }
                     if soundfold {
-                        { let s = (&raw const tword)
+                        crate::memory::cstr_cpy((&raw mut preword)
                                 .cast::<c_char>()
-                                .add(stack[udepth].ts_splitoff as usize); std::ptr::copy_nonoverlapping(s, (&raw mut preword)
+                                .add(stack[udepth].ts_prewordlen as usize), (&raw const tword)
                                 .cast::<c_char>()
-                                .add(stack[udepth].ts_prewordlen as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                                .add(stack[udepth].ts_splitoff as usize));
                     } else if (flags & WF_KEEPCAP) != 0 {
                         find_keepcap_word(
                             slang,
@@ -1520,7 +1518,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             if !spell_iswordp(p, &**curwin.as_ptr()) && preword[0] != NUL {
                                 p = (&raw mut preword)
                                     .cast::<c_char>()
-                                    .add(std::ffi::CStr::from_ptr((&raw const preword).cast()).to_bytes().len());
+                                    .add(crate::memory::cstr_len((&raw const preword).cast()));
                                 mb_ptr_back(&raw const preword, &mut p);
                                 if spell_iswordp(p, &**curwin.as_ptr()) {
                                     newscore += SCORE_NONWORD;
@@ -1665,10 +1663,10 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                 depth += 1;
                                 udepth = depth as usize;
                                 if !try_compound && !fword_ends {
-                                    { let d = (&raw mut preword).cast::<c_char>(); let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                                    { let d = (&raw mut preword).cast::<c_char>(); let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                                 }
                                 stack[udepth].ts_prewordlen =
-                                    std::ffi::CStr::from_ptr((&raw const preword).cast()).to_bytes().len() as u8;
+                                    crate::memory::cstr_len((&raw const preword).cast()) as u8;
                                 stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
                                 stack[udepth].ts_splitfidx = stack[udepth].ts_fidx;
                                 if ((!try_compound
@@ -2464,14 +2462,12 @@ fn stp_sal_score(
             (&raw mut badsound2).cast()
         };
         let pgood = if lendiff > 0 && (stp.st_wordlen + lendiff) < MAXWLEN as c_int {
-            { let s = stp.st_word.as_ptr(); std::ptr::copy_nonoverlapping(s, (&raw mut goodword).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-            { let _d = ((&raw mut goodword)
+            crate::memory::cstr_cpy((&raw mut goodword).cast(), stp.st_word.as_ptr());
+            crate::memory::cstr_ncpy((&raw mut goodword)
                     .cast::<c_char>()
-                    .add(stp.st_wordlen as usize)
-                    ).cast::<u8>(); let _n = lendiff as usize; if _n > 0 { std::ptr::copy_nonoverlapping((su
+                    .add(stp.st_wordlen as usize), su
                     .su_badptr
-                    .add((su.su_badlen - lendiff) as usize)
-                    ).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                    .add((su.su_badlen - lendiff) as usize), lendiff as usize);
             (&raw mut goodword).cast()
         } else {
             stp.st_word.as_ptr().cast_mut()
@@ -2524,7 +2520,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp
     unsafe {
         let slang = &mut *lp.lp_slang;
         let mut theword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let goodword_bytes = std::ffi::CStr::from_ptr(goodword).to_bytes();
+        let goodword_bytes = crate::memory::cstr_as_bytes(goodword);
         if let Some(prev_score) = slang.sl_sounddone.get_mut(goodword_bytes) {
             if score >= *prev_score as c_int {
                 return;
@@ -2565,7 +2561,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp
                     }
                     while *byts.add((n + i) as usize) == 0 {
                         if i > *byts.add(n as usize) as c_int {
-                            { let s = c"BAD".as_ptr(); std::ptr::copy_nonoverlapping(s, (&raw mut theword).cast::<c_char>().add(wlen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                            crate::memory::cstr_cpy((&raw mut theword).cast::<c_char>().add(wlen), c"BAD".as_ptr());
                             wlen += 3;
                             break 'badword;
                         }
@@ -2755,7 +2751,7 @@ fn add_suggestion(
     unsafe {
         let mut goodlen: c_int;
         let mut badlen: c_int;
-        let mut pgood = goodword.add(std::ffi::CStr::from_ptr(goodword).to_bytes().len());
+        let mut pgood = goodword.add(crate::memory::cstr_len(goodword));
         let mut pbad: *mut c_char = su.su_badptr.add(badlenarg as usize);
         loop {
             goodlen = pgood.offset_from(goodword) as c_int;
@@ -2874,8 +2870,8 @@ fn check_suggestions(su: &mut suginfo_T, use_sga: bool) {
     }
 }
 fn add_banned(su: &mut suginfo_T, word: *const c_char) {
-    unsafe {
-        let word_bytes = std::ffi::CStr::from_ptr(word).to_bytes();
+     {
+        let word_bytes = crate::memory::cstr_as_bytes(word);
         if !su.su_banned.contains(word_bytes) {
             su.su_banned.insert(word_bytes.to_vec());
         }
@@ -2965,8 +2961,8 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                 }
             }
         }
-        let goodlen = std::ffi::CStr::from_ptr(goodsound).to_bytes().len() as c_int;
-        let badlen = std::ffi::CStr::from_ptr(badsound).to_bytes().len() as c_int;
+        let goodlen = crate::memory::cstr_len(goodsound) as c_int;
+        let badlen = crate::memory::cstr_len(badsound) as c_int;
         let n = goodlen - badlen;
         if !(-2..=2).contains(&n) {
             return SCORE_MAXMAX;
@@ -2984,7 +2980,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                     pl = pl.add(1);
                     ps = ps.add(1);
                 }
-                if std::ffi::CStr::from_ptr(pl.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps).to_bytes() {
+                if crate::memory::cstr_as_bytes(pl.add(1)) == crate::memory::cstr_as_bytes(ps) {
                     return score + SCORE_DEL * 2;
                 }
             }
@@ -2998,11 +2994,11 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && (std::ffi::CStr::from_ptr(pl2.add(2)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(2)).to_bytes())
+                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && (crate::memory::cstr_as_bytes(pl2.add(2)) == crate::memory::cstr_as_bytes(ps2.add(2)))
                 {
                     return score + SCORE_DEL + SCORE_SWAP;
                 }
-                if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(1)).to_bytes() {
+                if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2.add(1)) {
                     return score + SCORE_DEL + SCORE_SUBST;
                 }
                 if *pl == *ps.add(1) && *pl.add(1) == *ps {
@@ -3012,7 +3008,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                         pl2 = pl2.add(1);
                         ps2 = ps2.add(1);
                     }
-                    if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2).to_bytes() {
+                    if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2) {
                         return score + SCORE_SWAP + SCORE_DEL;
                     }
                 }
@@ -3022,7 +3018,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2).to_bytes() {
+                if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2) {
                     return score + SCORE_SUBST + SCORE_DEL;
                 }
             }
@@ -3042,11 +3038,11 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                     }
                     if *pl2 == *ps2.add(1)
                         && *pl2.add(1) == *ps2
-                        && (std::ffi::CStr::from_ptr(pl2.add(2)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(2)).to_bytes())
+                        && (crate::memory::cstr_as_bytes(pl2.add(2)) == crate::memory::cstr_as_bytes(ps2.add(2)))
                     {
                         return score + SCORE_SWAP + SCORE_SWAP;
                     }
-                    if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(1)).to_bytes() {
+                    if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2.add(1)) {
                         return score + SCORE_SWAP + SCORE_SUBST;
                     }
                 }
@@ -3059,11 +3055,11 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && (std::ffi::CStr::from_ptr(pl2.add(2)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(2)).to_bytes())
+                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && (crate::memory::cstr_as_bytes(pl2.add(2)) == crate::memory::cstr_as_bytes(ps2.add(2)))
                 {
                     return score + SCORE_SUBST + SCORE_SWAP;
                 }
-                if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(1)).to_bytes() {
+                if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2.add(1)) {
                     return score + SCORE_SUBST + SCORE_SUBST;
                 }
                 pl2 = pl;
@@ -3072,7 +3068,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2).to_bytes() {
+                if crate::memory::cstr_as_bytes(pl2.add(1)) == crate::memory::cstr_as_bytes(ps2) {
                     return score + SCORE_INS + SCORE_DEL;
                 }
                 pl2 = pl.add(1);
@@ -3081,7 +3077,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if std::ffi::CStr::from_ptr(pl2).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(1)).to_bytes() {
+                if crate::memory::cstr_as_bytes(pl2) == crate::memory::cstr_as_bytes(ps2.add(1)) {
                     return score + SCORE_INS + SCORE_DEL;
                 }
             }

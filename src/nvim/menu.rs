@@ -331,7 +331,7 @@ pub fn ex_menu(eap: &mut exarg_T) {
         let root_menu_ptr = get_root_menu(menu_path);
 
         if enable != kNone {
-            if std::ffi::CStr::from_ptr(menu_path).to_bytes() == b"*" {
+            if crate::memory::cstr_as_bytes(menu_path) == b"*" {
                 menu_path = c"".as_ptr().cast_mut();
             }
 
@@ -354,7 +354,7 @@ pub fn ex_menu(eap: &mut exarg_T) {
                 return;
             }
 
-            if std::ffi::CStr::from_ptr(menu_path).to_bytes() == b"*" {
+            if crate::memory::cstr_as_bytes(menu_path) == b"*" {
                 menu_path = c"".as_ptr().cast_mut();
             }
 
@@ -373,13 +373,13 @@ pub fn ex_menu(eap: &mut exarg_T) {
                 return;
             }
 
-            let map_buf_owned = if std::ffi::CStr::from_ptr(map_to).to_bytes().eq_ignore_ascii_case(b"<nop>") {
+            let map_buf_owned = if crate::memory::cstr_as_bytes(map_to).eq_ignore_ascii_case(b"<nop>") {
                 map_to = c"".as_ptr().cast_mut();
                 None
             } else if (modes & MENU_TIP_MODE) == 0 {
                 replace_termcodes(
                     map_to,
-                    CStr::from_ptr(map_to).to_bytes().len(),
+                    crate::memory::cstr_len(map_to),
                     false,
                     0,
                     REPTERM_DO_LT,
@@ -453,7 +453,7 @@ fn add_menu_path(
 
         while *name != NUL {
             let next_name = menu_name_skip(name);
-            let map_to = menutrans_lookup(name, CStr::from_ptr(name).to_bytes().len() as c_int);
+            let map_to = menutrans_lookup(name, crate::memory::cstr_len(name) as c_int);
             let en_name = if !map_to.is_null() {
                 let orig = name;
                 name = map_to;
@@ -516,11 +516,11 @@ fn add_menu_path(
                 let mut new_menu = vimmenu_T::new();
                 new_menu.modes = modes;
                 new_menu.enabled = MENU_ALL_MODES;
-                new_menu.name = CStr::from_ptr(name).to_owned();
+                new_menu.name = crate::memory::cstr_to_cstring(name);
                 new_menu.dname =
                     menu_text(name, Some(&mut new_menu.mnemonic), Some(&mut new_menu.actext));
                 if !en_name.is_null() {
-                    new_menu.en_name = Some(CStr::from_ptr(en_name).to_owned());
+                    new_menu.en_name = Some(crate::memory::cstr_to_cstring(en_name));
                     new_menu.en_dname = Some(menu_text(en_name, None, None));
                 }
                 new_menu.priority = *pri_tab.add(pri_idx);
@@ -555,7 +555,7 @@ fn add_menu_path(
             let p = if call_data.is_null() {
                 None
             } else {
-                Some(CStr::from_ptr(call_data).to_owned())
+                Some(crate::memory::cstr_to_cstring(call_data))
             };
 
             for i in 0..MENU_MODES {
@@ -577,7 +577,7 @@ fn add_menu_path(
                     }
 
                     if c != 0 {
-                        let call_bytes = CStr::from_ptr(call_data).to_bytes();
+                        let call_bytes = crate::memory::cstr_as_bytes(call_data);
                         let mut bytes = Vec::with_capacity(call_bytes.len() + 4);
                         bytes.push(c as u8);
                         if d != 0 {
@@ -1215,7 +1215,7 @@ pub fn get_menu_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
                         menu_st().GET_MENU_NAMES_ADVANCE = true;
                     }
                 }
-                { let d = &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0]; let s = c"\x01".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0]; let s = c"\x01".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0]
             } else if menu_st().GET_MENU_NAMES_ADVANCE {
                 menu.en_dname
@@ -1392,8 +1392,8 @@ const fn get_menu_mode_str(modes: c_int) -> *const c_char {
 
 /// Modify a menu name starting with `"PopUp"` to include the mode character (`popup_mode_name`).
 fn popup_mode_name(name: *mut c_char, idx: usize) -> std::ffi::CString {
-    unsafe {
-        let name_bytes = CStr::from_ptr(name).to_bytes();
+     {
+        let name_bytes = crate::memory::cstr_as_bytes(name);
         debug_assert!(name_bytes.len() >= 4);
 
         let mode_chars = MENU_MODE_CHARS[idx].to_bytes();
@@ -1416,7 +1416,7 @@ fn menu_text(
         let mut p = vim_strchr(str, c_int::from(TAB as u8));
         let mut text_vec: Vec<c_char> = if !p.is_null() {
             if let Some(actext_out) = actext {
-                *actext_out = Some(CStr::from_ptr(p.add(1)).to_owned());
+                *actext_out = Some(crate::memory::cstr_to_cstring(p.add(1)));
             }
             let len = p.offset_from(str) as usize;
             let mut v = Vec::with_capacity(len + 1);
@@ -1448,7 +1448,7 @@ fn menu_text(
                 p = p.add(1);
             }
         }
-        CStr::from_ptr(text).to_owned()
+        crate::memory::cstr_to_cstring(text)
     }
 }
 
@@ -1475,7 +1475,7 @@ pub fn menu_is_toolbar(name: *const c_char) -> bool {
 /// Return true if the name is a menu separator identifier (`menu_is_separator`).
 pub fn menu_is_separator(name: *mut c_char) -> bool {
     unsafe {
-        let len = CStr::from_ptr(name).to_bytes().len();
+        let len = crate::memory::cstr_len(name);
         len > 0 && *name == b'-' as c_char && *name.add(len - 1) == b'-' as c_char
     }
 }
@@ -1814,8 +1814,8 @@ pub fn ex_menutranslate(eap: &mut exarg_T) {
                 menu_translate_tab_and_shift(to);
                 menu_unescape_name(from);
                 menu_unescape_name(to);
-                let from_cstr = CStr::from_ptr(from).to_owned();
-                let to_cstr = CStr::from_ptr(to).to_owned();
+                let from_cstr = crate::memory::cstr_to_cstring(from);
+                let to_cstr = crate::memory::cstr_to_cstring(to);
                 menutrans.push(menutrans_T {
                     from: from_cstr,
                     from_noamp: from_noamp_cstr,
@@ -1858,7 +1858,7 @@ fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
         let dname = menu_text(name, None, None);
         *name.add(u_len) = c;
         for entry in menutrans {
-            if std::ffi::CStr::from_ptr(dname.as_ptr()).to_bytes().eq_ignore_ascii_case(std::ffi::CStr::from_ptr(entry.from_noamp.as_ptr()).to_bytes()) {
+            if crate::memory::cstr_as_bytes(dname.as_ptr()).eq_ignore_ascii_case(crate::memory::cstr_as_bytes(entry.from_noamp.as_ptr())) {
                 return entry.to.as_ptr().cast_mut();
             }
         }

@@ -292,13 +292,13 @@ pub fn cause_errthrow(
         if let Some(ref mut list) = *ml {
             if concat && let Some(last) = list.last_mut() {
                 let mut bytes = last.msg.as_bytes().to_vec();
-                bytes.extend_from_slice(CStr::from_ptr(mesg).to_bytes());
+                bytes.extend_from_slice(crate::memory::cstr_as_bytes(mesg));
                 last.msg = CString::new(bytes).unwrap();
                 return true;
             }
 
             let is_first = list.is_empty();
-            let tmsg = CStr::from_ptr(mesg).to_owned();
+            let tmsg = crate::memory::cstr_to_cstring(mesg);
             let sfile = estack_sfile(ESTACK_NONE);
             let tmsg_bytes = tmsg.as_bytes();
             let has_vim_e_prefix = tmsg_bytes.len() >= 10
@@ -397,7 +397,7 @@ pub fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> 
         let mut out: Vec<u8> = Vec::new();
         if !cmdname.is_null() && *cmdname != NUL {
             out.extend_from_slice(b"Vim(");
-            out.extend_from_slice(CStr::from_ptr(cmdname).to_bytes());
+            out.extend_from_slice(crate::memory::cstr_as_bytes(cmdname));
             out.extend_from_slice(b"):");
         } else {
             out.extend_from_slice(b"Vim:");
@@ -414,7 +414,7 @@ pub fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> 
                                 || (ascii_isdigit(*p.add(3)) && *p.add(4) == b':' as c_char)))))
             {
                 if *p == NUL || ptr::eq(p, mesg) {
-                    out.extend_from_slice(CStr::from_ptr(mesg).to_bytes());
+                    out.extend_from_slice(crate::memory::cstr_as_bytes(mesg));
                 } else {
                     if *mesg != b'"' as c_char
                         || (p as usize) < (mesg.add(3) as usize)
@@ -425,7 +425,7 @@ pub fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> 
                         continue;
                     }
 
-                    out.extend_from_slice(CStr::from_ptr(p).to_bytes());
+                    out.extend_from_slice(crate::memory::cstr_as_bytes(p));
                     let quoted_len = (p.sub(2) as usize) - (mesg.add(1) as usize);
                     out.extend_from_slice(b" (");
                     out.extend_from_slice(std::slice::from_raw_parts(
@@ -537,7 +537,7 @@ fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
 
         if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
             let save_msg_silent = g_st().msg_silent;
-            let saved_iobuff = CStr::from_ptr(ptr::addr_of!(g_st().IObuff).cast()).to_owned();
+            let saved_iobuff = crate::memory::cstr_to_cstring(ptr::addr_of!(g_st().IObuff).cast());
             if g_st().debug_break_level > 0 {
                 g_st().msg_silent = 0;
             } else {

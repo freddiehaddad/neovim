@@ -175,14 +175,14 @@ pub struct KeyDict_get_commands {
 
 #[inline]
 fn cstr_to_arena_str(arena: &mut Arena, str_ptr: *const c_char) -> NvimString {
-    unsafe {
+     {
         if str_ptr.is_null() {
             NvimString {
                 data: ptr::null_mut(),
                 size: 0,
             }
         } else {
-            let len = CStr::from_ptr(str_ptr).to_bytes().len();
+            let len = crate::memory::cstr_len(str_ptr);
             cbuf_to_arena_str(arena, str_ptr, len)
         }
     }
@@ -223,7 +223,7 @@ fn parse_map_cmd(arg_str: *const c_char, arena: &mut Arena) -> Array {
 
         let rhs_start = skipwhite(lhs_end);
         if *rhs_start != NUL {
-            let rhs_len = CStr::from_ptr(rhs_start).to_bytes().len();
+            let rhs_len = crate::memory::cstr_len(rhs_start);
             add_c(&mut args, string_obj(cstrn_as_string(rhs_start, rhs_len)));
         }
 
@@ -330,7 +330,7 @@ pub fn nvim_parse_cmd(
         }
 
         let mut args = Array::new();
-        let length = CStr::from_ptr(ea.arg).to_bytes().len();
+        let length = crate::memory::cstr_len(ea.arg);
 
         if ea.cmdidx != CMD_SIZE
             && is_map_cmd(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
@@ -714,8 +714,8 @@ pub fn nvim_cmd(
                 } else {
                     get_command_name(&mut crate::os::env::expand_T::new(), ea.cmdidx)
                 };
-                let cmdname_bytes = CStr::from_ptr(cmdname).to_bytes();
-                let fullname_bytes = CStr::from_ptr(fullname).to_bytes();
+                let cmdname_bytes = crate::memory::cstr_as_bytes(cmdname);
+                let fullname_bytes = crate::memory::cstr_as_bytes(fullname);
                 if !fullname_bytes.starts_with(cmdname_bytes) {
                     api_set_error!(
                         err,
@@ -1418,7 +1418,7 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
             &raw mut (*b).b_ucmds
         };
 
-        let name_bytes = CStr::from_ptr(name.data).to_bytes();
+        let name_bytes = crate::memory::cstr_as_bytes(name.data);
         if let Some(i) = (*gap)
             .iter()
             .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)

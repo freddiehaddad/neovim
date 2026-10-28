@@ -889,7 +889,7 @@ fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id: *const
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         add_quoted_fname(iobuf_ptr, IOSIZE - 100, buf, name);
 
-        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), s, _dsize - _dlen); };
+        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), s, _dsize - _dlen); };
 
         let msg_scroll_save = g_st().msg_scroll;
         if shortmess(kShmOverall) && g_st().msg_listdo_overwrite == 0 && !g_st().exiting && opt_vars().p_verbose == 0 {
@@ -1130,7 +1130,7 @@ pub fn readfile(
             }
 
             if !fname.is_null() && *fname != NUL {
-                let fnamelen = std::ffi::CStr::from_ptr(fname).to_bytes().len();
+                let fnamelen = crate::memory::cstr_len(fname);
 
                 if fnamelen >= MAXPATHL {
                     filemess(
@@ -2492,7 +2492,7 @@ pub fn readfile(
                     add_quoted_fname(iobuf_ptr, IOSIZE, g_st().curbuf, sfname);
                     let mut c = false;
 
-                    let mut buflen = std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len() as c_int;
+                    let mut buflen = crate::memory::cstr_len(iobuf_ptr) as c_int;
                     #[cfg(unix)]
                     {
                         if s_isfifo(perm as u64) {
@@ -2794,7 +2794,7 @@ pub fn readfile(
 #[cfg(test)]
 pub fn is_dev_fd_file(fname: *mut c_char) -> bool {
     unsafe {
-        let bytes = CStr::from_ptr(fname).to_bytes();
+        let bytes = crate::memory::cstr_as_bytes(fname);
         bytes.starts_with(b"/dev/fd/")
             && bytes.len() > 8
             && ascii_isdigit(bytes[8])
@@ -2825,7 +2825,7 @@ fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char) -> li
 /// equal to the buffer "buf".
 pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
     unsafe {
-        let fenc_bytes = CStr::from_ptr(buf.b_p_fenc).to_bytes();
+        let fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
         let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
         cmd_vec.extend_from_slice(b"e ++enc=");
         cmd_vec.extend_from_slice(fenc_bytes);
@@ -2888,7 +2888,7 @@ fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
         let p = vim_strchr(*pp, b',' as c_int);
         if p.is_null() {
             let res = enc_canonize(*pp);
-            *pp = (*pp).add(std::ffi::CStr::from_ptr(*pp).to_bytes().len());
+            *pp = (*pp).add(crate::memory::cstr_len(*pp));
             res
         } else {
             let len = p.offset_from(*pp) as usize;
@@ -3048,7 +3048,7 @@ pub fn fname_msg_id(
         if len < size {
             add_quoted_fname(msg_id.add(len), size - len, buf, fname);
         }
-        let total = std::ffi::CStr::from_ptr(msg_id).to_bytes().len();
+        let total = crate::memory::cstr_len(msg_id);
         if total > 0 {
             *msg_id.add(total - 1) = NUL;
         }
@@ -3061,16 +3061,16 @@ pub fn msg_add_fileformat(eol_type: c_int) -> bool {
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         #[cfg(not(windows))]
         if eol_type == EOL_DOS {
-            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]".as_ptr()), _dsize - _dlen); };
+            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]".as_ptr()), _dsize - _dlen); };
             return true;
         }
         if eol_type == EOL_MAC {
-            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[mac]".as_ptr()), _dsize - _dlen); };
+            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[mac]".as_ptr()), _dsize - _dlen); };
             return true;
         }
         #[cfg(windows)]
         if eol_type == EOL_UNIX {
-            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[unix]".as_ptr()), _dsize - _dlen); };
+            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[unix]".as_ptr()), _dsize - _dlen); };
             return true;
         }
         false
@@ -3081,7 +3081,7 @@ pub fn msg_add_fileformat(eol_type: c_int) -> bool {
 pub fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
     unsafe {
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-        let mut len = std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len();
+        let mut len = crate::memory::cstr_len(iobuf_ptr);
         let space = if insert_space != 0 {
             c" ".as_ptr()
         } else {
@@ -3320,19 +3320,19 @@ pub fn modname(
         let mut retval_vec: Vec<c_char>;
         let retval: *mut c_char;
         let fnamelen: usize;
-        let extlen = std::ffi::CStr::from_ptr(ext).to_bytes().len();
+        let extlen = crate::memory::cstr_len(ext);
 
         if fname.is_null() || *fname == NUL {
             retval_vec = vec![0; MAXPATHL + extlen + 3];
             retval = retval_vec.as_mut_ptr();
-            if !os_dirname(retval, MAXPATHL) || std::ffi::CStr::from_ptr(retval).to_bytes().is_empty() {
+            if !os_dirname(retval, MAXPATHL) || crate::memory::cstr_as_bytes(retval).is_empty() {
                 return None;
             }
             add_pathsep(retval);
-            fnamelen = std::ffi::CStr::from_ptr(retval).to_bytes().len();
+            fnamelen = crate::memory::cstr_len(retval);
             prepend_dot = false;
         } else {
-            fnamelen = std::ffi::CStr::from_ptr(fname).to_bytes().len();
+            fnamelen = crate::memory::cstr_len(fname);
             retval_vec = vec![0; fnamelen + extlen + 3];
             retval = retval_vec.as_mut_ptr();
             ptr::copy_nonoverlapping(fname, retval, fnamelen + 1);
@@ -3379,7 +3379,7 @@ pub fn modname(
                 *ptr = b'v' as c_char;
             }
         }
-        Some(CStr::from_ptr(retval).to_owned())
+        Some(crate::memory::cstr_to_cstring(retval))
     }
 }
 
@@ -3544,7 +3544,7 @@ pub fn put_time(fd: *mut FILE, time_: time_t) -> bool {
 
 fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
-        if std::ffi::CStr::from_ptr(from).to_bytes().len() >= MAXPATHL - 5 {
+        if crate::memory::cstr_len(from) >= MAXPATHL - 5 {
             return -1;
         }
 
@@ -3719,7 +3719,7 @@ fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> bool {
 
         g_st().curbuf = tobuf;
         for lnum in 1..=(*frombuf).b_ml.ml_line_count {
-            let p = CStr::from_ptr(ml_get_buf(frombuf, lnum)).to_owned();
+            let p = crate::memory::cstr_to_cstring(ml_get_buf(frombuf, lnum));
             if !ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) {
                 retval = false;
                 break;
@@ -3900,7 +3900,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
             if !helpmesg {
                 mesg2 = c"".as_ptr().cast_mut();
             }
-            let tbufsize = path.as_bytes().len() + std::ffi::CStr::from_ptr(mesg).to_bytes().len() + std::ffi::CStr::from_ptr(mesg2).to_bytes().len() + 3;
+            let tbufsize = path.as_bytes().len() + crate::memory::cstr_len(mesg) + crate::memory::cstr_len(mesg2) + 3;
             let mut tbuf_vec = vec![0 as c_char; tbufsize];
             let tbuf = tbuf_vec.as_mut_ptr();
             let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path.as_ptr());
@@ -4251,7 +4251,7 @@ fn vim_mktempdir() {
                         tmp.as_ptr(),
                     );
                 }
-                tmplen -= std::ffi::CStr::from_ptr(user.as_ptr()).to_bytes().len();
+                tmplen -= crate::memory::cstr_len(user.as_ptr());
                 tmp[tmplen] = NUL;
             }
 
@@ -4320,7 +4320,7 @@ pub fn readdir_core(
             }
 
             if !ignore {
-                entries.push(CStr::from_ptr(p).to_owned());
+                entries.push(crate::memory::cstr_to_cstring(p));
             }
         }
 
@@ -4338,7 +4338,7 @@ pub fn delete_recursive(name: *const c_char) -> c_int {
         let mut result: c_int = 0;
 
         if os_isrealdir(name) {
-            let exp = CStr::from_ptr(name).to_owned();
+            let exp = crate::memory::cstr_to_cstring(name);
             let mut entries: Vec<std::ffi::CString> = Vec::new();
             if readdir_core(&mut entries, exp.as_ptr(), ptr::null_mut()) {
                 let namebuff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
@@ -4470,7 +4470,7 @@ fn vim_settempdir(tempdir: *mut c_char) -> bool {
 
         vim_FullName(tempdir, buf, MAXPATHL, cfg!(windows));
 
-        let mut buflen = std::ffi::CStr::from_ptr(buf).to_bytes().len();
+        let mut buflen = crate::memory::cstr_len(buf);
         if after_pathsep(buf, buf.add(buflen)) == 0 {
             let sep_bytes = PATHSEPSTR.to_bytes_with_nul();
             ptr::copy_nonoverlapping(
@@ -4591,7 +4591,7 @@ pub fn file_pat_to_reg_pat(
         }
 
         if pat_end.is_null() {
-            pat_end = pat.add(std::ffi::CStr::from_ptr(pat).to_bytes().len());
+            pat_end = pat.add(crate::memory::cstr_len(pat));
         }
 
         if pat_end == pat {
@@ -4779,7 +4779,7 @@ pub fn file_pat_to_reg_pat(
             }
             return None;
         }
-        Some(CStr::from_ptr(reg_pat).to_owned())
+        Some(crate::memory::cstr_to_cstring(reg_pat))
     }
 }
 
@@ -4827,8 +4827,8 @@ pub fn vim_fprintf_fmt(
     args: &[crate::strings::FmtVal],
 ) -> c_int {
     unsafe {
-        if args.is_empty() && !CStr::from_ptr(fmt).to_bytes().contains(&b'%') {
-            let bytes = CStr::from_ptr(fmt).to_bytes();
+        if args.is_empty() && !crate::memory::cstr_as_bytes(fmt).contains(&b'%') {
+            let bytes = crate::memory::cstr_as_bytes(fmt);
             if bytes.is_empty() {
                 return 0;
             }

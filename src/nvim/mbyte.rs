@@ -1036,7 +1036,7 @@ pub fn utf_ClusterInfo_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
 }
 
 fn enc_canon_search(name: *const c_char) -> c_int {
-    let bytes = unsafe { CStr::from_ptr(name).to_bytes() };
+    let bytes =  { crate::memory::cstr_as_bytes(name) };
     for (i, entry) in ENC_CANON_TABLE.iter().enumerate() {
         if bytes == entry.name.to_bytes() {
             return i as c_int;
@@ -1046,12 +1046,12 @@ fn enc_canon_search(name: *const c_char) -> c_int {
 }
 
 pub fn enc_canon_props(name: *const c_char) -> c_int {
-    unsafe {
+     {
         let i = enc_canon_search(name);
         if i >= 0 {
             return ENC_CANON_TABLE[i as usize].prop;
         }
-        let bytes = CStr::from_ptr(name).to_bytes();
+        let bytes = crate::memory::cstr_as_bytes(name);
         if bytes.starts_with(b"2byte-") {
             ENC_DBCS
         } else if bytes.starts_with(b"8bit-") || bytes.starts_with(b"iso-8859-") {
@@ -1066,7 +1066,7 @@ pub fn bomb_size() -> c_int {
     unsafe {
         let mut n = 0;
         if (*g_st().curbuf).b_p_bomb != 0 && (*g_st().curbuf).b_p_bin == 0 {
-            let fenc = CStr::from_ptr((*g_st().curbuf).b_p_fenc).to_bytes();
+            let fenc = crate::memory::cstr_as_bytes((*g_st().curbuf).b_p_fenc);
             if fenc.is_empty() || fenc == b"utf-8" {
                 n = 3;
             } else if fenc.starts_with(b"ucs-2") || fenc.starts_with(b"utf-16") {
@@ -2775,7 +2775,7 @@ pub fn mb_check_adjust_col(win: &mut win_T) {
 
         if oldcol != 0 {
             let p = ml_get_buf(win.w_buffer, win.w_cursor.lnum);
-            let len = CStr::from_ptr(p).to_bytes().len() as colnr_T;
+            let len = crate::memory::cstr_len(p) as colnr_T;
 
             if len == 0 || oldcol < 0 {
                 win.w_cursor.col = 0;
@@ -2874,7 +2874,7 @@ pub fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
 
 pub fn enc_skip(p: *mut c_char) -> *mut c_char {
     unsafe {
-        let bytes = CStr::from_ptr(p).to_bytes();
+        let bytes = crate::memory::cstr_as_bytes(p);
         if bytes.starts_with(b"2byte-") {
             p.add(6)
         } else if bytes.starts_with(b"8bit-") {
@@ -2886,7 +2886,7 @@ pub fn enc_skip(p: *mut c_char) -> *mut c_char {
 }
 
 fn enc_alias_search(name: *const c_char) -> c_int {
-    let bytes = unsafe { CStr::from_ptr(name).to_bytes() };
+    let bytes =  { crate::memory::cstr_as_bytes(name) };
     for entry in ENC_ALIAS_TABLE {
         if bytes == entry.name.to_bytes() {
             return entry.canon as c_int;
@@ -2897,7 +2897,7 @@ fn enc_alias_search(name: *const c_char) -> c_int {
 
 pub fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
     unsafe {
-        let enc_bytes = CStr::from_ptr(enc).to_bytes();
+        let enc_bytes = crate::memory::cstr_as_bytes(enc);
         if enc_bytes == b"default" {
             return (&raw const g_st().fenc_default)
                 .as_ref()
@@ -2921,24 +2921,24 @@ pub fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
 
         p = enc_skip(r);
 
-        let p_bytes = CStr::from_ptr(p).to_bytes();
+        let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"microsoft-cp") {
             ptr::copy(p.add(10), p, std::ffi::CStr::from_ptr(p.add(10)).to_bytes_with_nul().len());
         }
 
-        let p_bytes = CStr::from_ptr(p).to_bytes();
+        let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"iso8859") {
             ptr::copy(p.add(3), p.add(4), std::ffi::CStr::from_ptr(p.add(3)).to_bytes_with_nul().len());
             *p.add(3) = b'-' as c_char;
         }
 
-        let p_bytes = CStr::from_ptr(p).to_bytes();
+        let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"iso-8859") && p_bytes.len() > 8 && p_bytes[8].is_ascii_digit() {
             ptr::copy(p.add(8), p.add(9), std::ffi::CStr::from_ptr(p.add(8)).to_bytes_with_nul().len());
             *p.add(8) = b'-' as c_char;
         }
 
-        let p_bytes = CStr::from_ptr(p).to_bytes();
+        let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"latin-") {
             ptr::copy(p.add(6), p.add(5), std::ffi::CStr::from_ptr(p.add(6)).to_bytes_with_nul().len());
         }
@@ -2953,7 +2953,7 @@ pub fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
                 return ENC_CANON_TABLE[i as usize].name.to_owned();
             }
         }
-        CStr::from_ptr(r).to_owned()
+        crate::memory::cstr_to_cstring(r)
     }
 }
 
@@ -3178,7 +3178,7 @@ pub fn convert_setup_ext(
             || *from == NUL
             || to.is_null()
             || *to == NUL
-            || CStr::from_ptr(from).to_bytes() == CStr::from_ptr(to).to_bytes()
+            || crate::memory::cstr_as_bytes(from) == crate::memory::cstr_as_bytes(to)
         {
             return true;
         }
@@ -3242,7 +3242,7 @@ pub fn string_convert_ext(
 ) -> Option<Vec<u8>> {
     unsafe {
         let len = if lenp.is_none() {
-            CStr::from_ptr(ptr).to_bytes().len()
+            crate::memory::cstr_len(ptr)
         } else {
             *lenp.as_deref_mut().unwrap()
         };
@@ -3507,12 +3507,12 @@ pub fn get_encoding_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 pub fn mb_strcmp_ic(ic: bool, s1: *const c_char, s2: *const c_char) -> c_int {
-    unsafe {
+     {
         if ic {
             mb_stricmp(s1, s2)
         } else {
-            let b1 = CStr::from_ptr(s1).to_bytes();
-            let b2 = CStr::from_ptr(s2).to_bytes();
+            let b1 = crate::memory::cstr_as_bytes(s1);
+            let b2 = crate::memory::cstr_as_bytes(s2);
             match b1.cmp(b2) {
                 std::cmp::Ordering::Less => -1,
                 std::cmp::Ordering::Equal => 0,
@@ -3578,7 +3578,7 @@ mod tests {
             schar_get(sbuf.as_mut_ptr(), sc);
             assert_eq!(firstc, 0x29);
             assert_eq!(
-                CStr::from_ptr(sbuf.as_ptr()).to_bytes(),
+                crate::memory::cstr_as_bytes(sbuf.as_ptr()),
                 b")\xcc\x80\xcc\x81"
             );
 

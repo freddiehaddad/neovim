@@ -262,7 +262,7 @@ fn hl_st() -> &'static mut HighlightModuleState {
 
 #[inline]
 fn is_none_str(s: *const c_char) -> bool {
-    !s.is_null() && unsafe { CStr::from_ptr(s).to_bytes().eq_ignore_ascii_case(b"NONE") }
+    !s.is_null() &&  { crate::memory::cstr_as_bytes(s).eq_ignore_ascii_case(b"NONE") }
 }
 
 use crate::api::private::dispatch::{
@@ -1897,14 +1897,14 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
+         {
             assert_eq!(hl_add_font_idx(ptr::null()), -1);
             assert_eq!(hl_add_font_idx(c"".as_ptr()), -1);
             let idx = hl_add_font_idx(c"Monospace:h12".as_ptr());
             assert!(idx >= 0);
             assert_eq!(hl_add_font_idx(c"Monospace:h12".as_ptr()), idx);
             let got = hl_get_font(idx);
-            assert_eq!(CStr::from_ptr(got).to_bytes(), b"Monospace:h12");
+            assert_eq!(crate::memory::cstr_as_bytes(got), b"Monospace:h12");
         }
     }
 }

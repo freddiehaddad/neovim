@@ -1022,7 +1022,7 @@ pub fn termkey_strfkey(
     key: &mut TermKeyKey,
     format: TermKeyFormat,
 ) -> usize {
-    unsafe {
+     {
         let mut pos = 0usize;
         let mod_idx = usize::from((format & TERMKEY_FORMAT_LONGMOD) != 0)
             + usize::from((format & TERMKEY_FORMAT_ALTISMETA) != 0) * 2
@@ -1099,7 +1099,7 @@ pub fn termkey_strfkey(
                 if key.utf8[0] == 0 {
                     fill_utf8(key.code.codepoint, key.utf8.as_mut_ptr());
                 }
-                let u_bytes = CStr::from_ptr(key.utf8.as_ptr()).to_bytes();
+                let u_bytes = crate::memory::cstr_as_bytes(key.utf8.as_ptr());
                 append_str(buffer, len, &mut pos, u_bytes)
             }
             TERMKEY_TYPE_KEYSYM => {
@@ -1107,7 +1107,7 @@ pub fn termkey_strfkey(
                 let name_bytes = if name.is_null() {
                     &[][..]
                 } else {
-                    CStr::from_ptr(name).to_bytes()
+                    crate::memory::cstr_as_bytes(name)
                 };
                 if (format & TERMKEY_FORMAT_LOWERSPACE) != 0 {
                     let camel = camel_to_spaces(name_bytes);
@@ -1192,7 +1192,7 @@ mod tests {
 
     #[test]
     fn base_getkey_flags_and_buffer_resize() {
-        unsafe {
+         {
             let mut tk = termkey_new_abstract(None, 0).unwrap();
             let tk = &mut tk;
             assert_eq!(termkey_get_buffer_size(tk), 256);
@@ -1213,7 +1213,7 @@ mod tests {
             assert_eq!(key.r#type, TERMKEY_TYPE_UNICODE);
             assert_eq!(key.code.codepoint, i32::from(b'h'));
             assert_eq!(key.modifiers, 0);
-            assert_eq!(CStr::from_ptr(key.utf8.as_ptr()).to_bytes(), b"h");
+            assert_eq!(crate::memory::cstr_as_bytes(key.utf8.as_ptr()), b"h");
             assert_eq!(termkey_get_buffer_remaining(tk), 256);
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_NONE);
 
@@ -1311,7 +1311,7 @@ mod tests {
 
     #[test]
     fn keyname_strfkey_and_canonicalise() {
-        unsafe {
+         {
             let mut tk = termkey_new_abstract(None, 0).unwrap();
             let tk = &mut tk;
             let mut sym: TermKeySym = TERMKEY_SYM_UNKNOWN;
@@ -1319,10 +1319,10 @@ mod tests {
             assert!(termkey_lookup_keyname(tk, c"SomeUnknownKey".as_ptr(), &mut sym).is_null());
             let endp = termkey_lookup_keyname(tk, c"DownMore".as_ptr(), &mut sym);
             assert!(!endp.is_null());
-            assert_eq!(CStr::from_ptr(endp).to_bytes(), b"More");
+            assert_eq!(crate::memory::cstr_as_bytes(endp), b"More");
             assert_eq!(sym, TERMKEY_SYM_DOWN);
             assert_eq!(
-                CStr::from_ptr(termkey_get_keyname(tk, TERMKEY_SYM_SPACE)).to_bytes(),
+                crate::memory::cstr_as_bytes(termkey_get_keyname(tk, TERMKEY_SYM_SPACE)),
                 b"Space"
             );
 
@@ -1336,7 +1336,7 @@ mod tests {
                 termkey_strfkey(tk, buf.as_mut_ptr(), buf.len(), &mut key, 0),
                 3
             );
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"C-b");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"C-b");
 
             assert_eq!(
                 termkey_strfkey(
@@ -1348,7 +1348,7 @@ mod tests {
                 ),
                 6
             );
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"ctrl b");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"ctrl b");
 
             assert_eq!(
                 termkey_strfkey(
@@ -1360,7 +1360,7 @@ mod tests {
                 ),
                 2
             );
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"^B");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"^B");
 
             key.r#type = TERMKEY_TYPE_KEYSYM;
             key.code.sym = TERMKEY_SYM_PAGEUP;
@@ -1375,7 +1375,7 @@ mod tests {
                 ),
                 7
             );
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"page up");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"page up");
 
             key.r#type = TERMKEY_TYPE_FUNCTION;
             key.code.number = 5;
@@ -1389,7 +1389,7 @@ mod tests {
                 ),
                 4
             );
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"<F5>");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"<F5>");
 
             // Canonicalise space symbol <-> unicode space
             let mut k1 = TermKeyKey::new();
@@ -1408,7 +1408,7 @@ mod tests {
 
     #[test]
     fn mouse_position_modereport_csi_and_dcs_osc() {
-        unsafe {
+         {
             let mut tk = termkey_new_abstract(None, 0).unwrap();
             let tk = &mut tk;
             let mut key = TermKeyKey::new();
@@ -1438,7 +1438,7 @@ mod tests {
                 21
             );
             assert_eq!(
-                CStr::from_ptr(buf.as_ptr()).to_bytes(),
+                crate::memory::cstr_as_bytes(buf.as_ptr()),
                 b"MousePress(1) @ (1,1)"
             );
 
@@ -1509,7 +1509,7 @@ mod tests {
                 termkey_interpret_string(tk, &key, &mut strp),
                 TERMKEY_RES_KEY
             );
-            assert_eq!(CStr::from_ptr(strp).to_bytes(), b"1$r1 q");
+            assert_eq!(crate::memory::cstr_as_bytes(strp), b"1$r1 q");
 
             push(tk, b"\x901$r2 q\x9c");
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
@@ -1518,7 +1518,7 @@ mod tests {
                 termkey_interpret_string(tk, &key, &mut strp),
                 TERMKEY_RES_KEY
             );
-            assert_eq!(CStr::from_ptr(strp).to_bytes(), b"1$r2 q");
+            assert_eq!(crate::memory::cstr_as_bytes(strp), b"1$r2 q");
 
             push(tk, b"\x1b]15;abc\x1b\\");
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
@@ -1527,7 +1527,7 @@ mod tests {
                 termkey_interpret_string(tk, &key, &mut strp),
                 TERMKEY_RES_KEY
             );
-            assert_eq!(CStr::from_ptr(strp).to_bytes(), b"15;abc");
+            assert_eq!(crate::memory::cstr_as_bytes(strp), b"15;abc");
 
             push(tk, b"\x1bP");
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_AGAIN);

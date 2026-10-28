@@ -296,11 +296,11 @@ fn to_slash_if_needed(p: *mut c_char) {
 
 #[inline]
 fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
-    unsafe {
+     {
         if a.is_null() {
             return false;
         }
-        let bytes = CStr::from_ptr(a).to_bytes();
+        let bytes = crate::memory::cstr_as_bytes(a);
         bytes.len() >= b.len() && bytes[..b.len()].eq_ignore_ascii_case(b)
     }
 }
@@ -1079,7 +1079,7 @@ pub fn preserve_exit(errmsg: *const c_char) -> ! {
         }
         let stderr = log_get_stderr();
         if !errmsg.is_null() && *errmsg != NUL {
-            let bytes = CStr::from_ptr(errmsg).to_bytes();
+            let bytes = crate::memory::cstr_as_bytes(errmsg);
             let has_eol = bytes.last() == Some(&b'\n');
             fprintf!(
                 stderr,
@@ -1368,7 +1368,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                 } else {
                     parmp
                         .commands
-                        .push(CStr::from_ptr(arg0.add(1)).to_owned());
+                        .push(crate::memory::cstr_to_cstring(arg0.add(1)));
                 }
             } else if *arg0 == b'-' as c_char && !had_minmin {
                 let mut want_argument = false;
@@ -1512,7 +1512,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         parmp.edit_type = EDIT_QF;
                         if *arg0.add(argv_idx as usize) != NUL {
                             parmp.use_ef =
-                                Some(CStr::from_ptr(arg0.add(argv_idx as usize)).to_owned());
+                                Some(crate::memory::cstr_to_cstring(arg0.add(argv_idx as usize)));
                             argv_idx = -1;
                         } else if argc > 1 {
                             want_argument = true;
@@ -1549,7 +1549,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         parmp.edit_type = EDIT_TAG;
                         if *arg0.add(argv_idx as usize) != NUL {
                             parmp.tagname =
-                                Some(CStr::from_ptr(arg0.add(argv_idx as usize)).to_owned());
+                                Some(crate::memory::cstr_to_cstring(arg0.add(argv_idx as usize)));
                             argv_idx = -1;
                         } else {
                             want_argument = true;
@@ -1567,7 +1567,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                 cstr_as_obj(arg0.add(argv_idx as usize)),
                                 0,
                             );
-                            argv_idx = CStr::from_ptr(arg0).to_bytes().len() as c_int;
+                            argv_idx = crate::memory::cstr_len(arg0) as c_int;
                         }
                     }
                     b'w' => {
@@ -1585,7 +1585,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             }
                             parmp
                                 .commands
-                                .push(CStr::from_ptr(arg0.add(argv_idx as usize)).to_owned());
+                                .push(crate::memory::cstr_to_cstring(arg0.add(argv_idx as usize)));
                             argv_idx = -1;
                         } else {
                             want_argument = true;
@@ -1630,7 +1630,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                     cur_arg
                                 };
 
-                                let a_bytes = CStr::from_ptr(a).to_bytes();
+                                let a_bytes = crate::memory::cstr_as_bytes(a);
                                 let mut s = Vec::with_capacity(3 + a_bytes.len());
                                 s.extend_from_slice(b"so ");
                                 s.extend_from_slice(a_bytes);
@@ -1638,7 +1638,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                     .commands
                                     .push(std::ffi::CString::new(s).unwrap_or_default());
                             } else {
-                                parmp.commands.push(CStr::from_ptr(cur_arg).to_owned());
+                                parmp.commands.push(crate::memory::cstr_to_cstring(cur_arg));
                             }
                         }
                         b'-' => {
@@ -1648,17 +1648,17 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                 }
                                 parmp
                                     .pre_commands
-                                    .push(CStr::from_ptr(cur_arg).to_owned());
+                                    .push(crate::memory::cstr_to_cstring(cur_arg));
                             } else if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--listen") {
                                 to_slash_if_needed(cur_arg);
-                                parmp.listen_addr = Some(CStr::from_ptr(cur_arg).to_owned());
+                                parmp.listen_addr = Some(crate::memory::cstr_to_cstring(cur_arg));
                             } else if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--server") {
                                 to_slash_if_needed(cur_arg);
-                                parmp.server_addr = Some(CStr::from_ptr(cur_arg).to_owned());
+                                parmp.server_addr = Some(crate::memory::cstr_to_cstring(cur_arg));
                             }
                         }
                         b'q' => {
-                            parmp.use_ef = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.use_ef = Some(crate::memory::cstr_to_cstring(cur_arg));
                         }
                         b'i' => {
                             set_option_value_give_err(kOptShadafile, cstr_as_obj(cur_arg), 0);
@@ -1678,7 +1678,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                     0,
                                 );
                             }
-                            parmp.luaf = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.luaf = Some(crate::memory::cstr_to_cstring(cur_arg));
                             argc -= 1;
                             if argc >= 0 {
                                 parmp.lua_arg0 = parmp.argc - argc;
@@ -1703,14 +1703,14 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                 );
                                 os_exit(2);
                             }
-                            parmp.scriptin = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.scriptin = Some(crate::memory::cstr_to_cstring(cur_arg));
                         }
                         b't' => {
-                            parmp.tagname = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.tagname = Some(crate::memory::cstr_to_cstring(cur_arg));
                         }
                         b'u' => {
                             to_slash_if_needed(cur_arg);
-                            parmp.use_vimrc = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.use_vimrc = Some(crate::memory::cstr_to_cstring(cur_arg));
                         }
                         b'U' => {}
                         b'w' | b'W' => {
@@ -1742,7 +1742,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                     );
                                     os_exit(2);
                                 }
-                                parmp.scriptout = Some(CStr::from_ptr(cur_arg).to_owned());
+                                parmp.scriptout = Some(crate::memory::cstr_to_cstring(cur_arg));
                                 parmp.scriptout_append = c == b'w';
                             }
                         }
@@ -1768,8 +1768,8 @@ fn command_line_scan(parmp: &mut mparm_T) {
                     to_slash_if_needed(p_vec.as_mut_ptr());
                     if p_vec[0] == b'~' as c_char && p_vec.get(1) == Some(&(b'/' as c_char)) {
                         let homedir = os_homedir();
-                        let h_bytes = CStr::from_ptr(homedir).to_bytes();
-                        let p_bytes = CStr::from_ptr(p_vec.as_ptr().add(1)).to_bytes();
+                        let h_bytes = crate::memory::cstr_as_bytes(homedir);
+                        let p_bytes = crate::memory::cstr_as_bytes(p_vec.as_ptr().add(1));
                         let mut expanded = Vec::with_capacity(h_bytes.len() + p_bytes.len() + 1);
                         expanded.extend(h_bytes.iter().map(|&b| b as c_char));
                         expanded.extend(p_bytes.iter().map(|&b| b as c_char));
@@ -1800,7 +1800,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                 let alist_fnum_flag = if edit_stdin(parmp) { 1 } else { 2 };
                 alist_add(
                     &raw mut g_st().global_alist,
-                    CStr::from_ptr(p_vec.as_ptr()).to_owned(),
+                    crate::memory::cstr_to_cstring(p_vec.as_ptr()),
                     alist_fnum_flag,
                 );
             }
@@ -2163,7 +2163,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
                     goto_tabpage(0);
                     if i == 1 {
                         let mut buf = [0 as c_char; 100];
-                        p_shm_save = Some(CStr::from_ptr(opt_vars().p_shm).to_owned());
+                        p_shm_save = Some(crate::memory::cstr_to_cstring(opt_vars().p_shm));
                         vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"F%s".as_ptr(), opt_vars().p_shm);
                         set_option_value_give_err(kOptShortmess, cstr_as_obj(buf.as_ptr()), 0);
                     }
@@ -2296,7 +2296,7 @@ fn do_system_initialization() {
         if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs) {
             let mut iter: *const c_char = ptr::null();
             let appname = get_appname(false);
-            let appname_bytes = CStr::from_ptr(appname).to_bytes();
+            let appname_bytes = crate::memory::cstr_as_bytes(appname);
             let sysinit_suffix: [u8; 13] = [
                 PATHSEP, b's', b'y', b's', b'i', b'n', b'i', b't', b'.', b'v', b'i', b'm', 0,
             ];
@@ -2378,7 +2378,7 @@ fn do_user_initialization() -> bool {
 
         if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs) {
             let appname = get_appname(false);
-            let appname_bytes = CStr::from_ptr(appname).to_bytes();
+            let appname_bytes = crate::memory::cstr_as_bytes(appname);
             let init_lua_suffix: [u8; 10] =
                 [PATHSEP, b'i', b'n', b'i', b't', b'.', b'l', b'u', b'a', 0];
             let init_vim_suffix: [u8; 10] =

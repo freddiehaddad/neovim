@@ -68,7 +68,7 @@ use crate::window::{
     VALID_BOTLINE_AP, find_tabpage, global_stl_height, goto_tabpage, tabpage_index, tabpage_move,
     win_T, win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
 };
-use std::ffi::{CStr, c_char, c_int, c_long};
+use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 use crate::cmdexpand::Ctrl_P;
@@ -460,7 +460,7 @@ fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
 fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
     unsafe {
         let mut jump_flags = 0;
-        if CStr::from_ptr(opt_vars().p_mousem).to_bytes() == b"popup_setpos" {
+        if crate::memory::cstr_as_bytes(opt_vars().p_mousem) == b"popup_setpos" {
             if g_st().Visual.active {
                 if m_pos_flag != IN_BUFFER {
                     jump_flags = MOUSE_MAY_STOP_VIS;

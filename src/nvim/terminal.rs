@@ -130,7 +130,7 @@ use crate::vterm::vterm::{
     vterm_get_size, vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
 };
 use crate::window::{may_trigger_win_scrolled_resized, win_valid, winopt_T};
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
@@ -877,7 +877,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut buf_T) {
             buf_set_term_title(
                 &raw mut *buf,
                 buf.b_ffname,
-                CStr::from_ptr(buf.b_ffname).to_bytes().len(),
+                crate::memory::cstr_len(buf.b_ffname),
             );
         }
         (**curwin.as_ptr()).w_onebuf_opt.wo_scb = 0;
@@ -1116,7 +1116,7 @@ fn set_terminal_winopts(s: &mut TerminalState) {
         {
             if !(crate::memory::cstr_as_opt_bytes((**curwin.as_ptr()).w_onebuf_opt.wo_culopt) == Some(b"number")) {
                 s.save_w_p_culopt =
-                    Some(CStr::from_ptr((**curwin.as_ptr()).w_onebuf_opt.wo_culopt).to_owned());
+                    Some(crate::memory::cstr_to_cstring((**curwin.as_ptr()).w_onebuf_opt.wo_culopt));
                 free_string_option((**curwin.as_ptr()).w_onebuf_opt.wo_culopt);
                 (**curwin.as_ptr()).w_onebuf_opt.wo_culopt = alloc_string_option(c"number".as_ptr());
             }
@@ -2051,7 +2051,7 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
         let lines = tv_list_alloc(kListLenMayKnow);
         let mut start = data.as_ptr();
         loop {
-            let start_bytes = CStr::from_ptr(start).to_bytes();
+            let start_bytes = crate::memory::cstr_as_bytes(start);
             if let Some(pos) = start_bytes.iter().position(|&b| b == b'\n') {
                 tv_list_append_string(lines, start, pos as isize);
                 start = start.add(pos + 1);
@@ -2734,11 +2734,11 @@ fn is_focused(term: &mut Terminal) -> bool {
 }
 
 fn get_config_string(buf: &mut buf_T, key: *mut c_char) -> *mut c_char {
-    unsafe {
+     {
         let mut err = Error::new();
         let key_str = NvimString {
             data: key,
-            size: CStr::from_ptr(key).to_bytes().len(),
+            size: crate::memory::cstr_len(key),
         };
         let mut obj = dict_get_value(buf.b_vars(), key_str, None, &mut err);
         api_clear_error(&mut err);

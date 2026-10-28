@@ -321,7 +321,7 @@ pub fn may_trigger_modechanged() {
         let mut pattern_buf: [c_char; 2 * MODE_MAX_LENGTH] = [0; 2 * MODE_MAX_LENGTH];
 
         get_mode(curr_mode.as_mut_ptr());
-        if std::ffi::CStr::from_ptr(curr_mode.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(ptr::addr_of!(g_st().last_mode).cast()).to_bytes() {
+        if crate::memory::cstr_as_bytes(curr_mode.as_ptr()) == crate::memory::cstr_as_bytes(ptr::addr_of!(g_st().last_mode).cast()) {
             return;
         }
 
@@ -351,7 +351,7 @@ pub fn may_trigger_modechanged() {
             false,
             g_st().curbuf,
         );
-        { let s = curr_mode.as_ptr(); std::ptr::copy_nonoverlapping(s, ptr::addr_of_mut!(g_st().last_mode).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cpy(ptr::addr_of_mut!(g_st().last_mode).cast(), curr_mode.as_ptr());
 
         restore_v_event(&mut *v_event, &mut save_v_event);
     }

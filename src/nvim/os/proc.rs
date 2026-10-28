@@ -252,7 +252,7 @@ pub fn os_proc_info(pid: c_int, arena: &mut Arena) -> Dict {
                 },
             );
             let exe_ptr = pe.sz_exe_file.as_ptr();
-            let exe_len = CStr::from_ptr(exe_ptr).to_bytes().len();
+            let exe_len = crate::memory::cstr_len(exe_ptr);
             let name_str = arena_string(
                 arena,
                 NvimString {

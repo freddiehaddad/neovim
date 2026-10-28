@@ -330,7 +330,7 @@ pub fn spell_check(
             (&raw mut mi.mi_fword).cast(),
             (MAXWLEN + 1) as c_int,
         );
-        mi.mi_fwordlen = std::ffi::CStr::from_ptr((&raw const mi.mi_fword).cast()).to_bytes().len() as c_int;
+        mi.mi_fwordlen = crate::memory::cstr_len((&raw const mi.mi_fword).cast()) as c_int;
         if is_camel_case && mi.mi_fwordlen > 0 {
             mi.mi_fword[mi.mi_fwordlen as usize - 1] = b' ' as c_char;
         }
@@ -718,7 +718,7 @@ fn find_word(mip: &mut matchinf_T, mode: c_int) {
                                     MAXWLEN as c_int,
                                 );
                             } else {
-                                { let _d = (&raw mut fword).cast::<u8>(); let _n = endlen[endidxcnt] as usize; if _n > 0 { std::ptr::copy_nonoverlapping((ptr).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                                crate::memory::cstr_ncpy(fword.as_mut_ptr(), ptr, endlen[endidxcnt] as usize);
                             }
                         }
                         if !can_compound(
@@ -876,7 +876,7 @@ pub fn can_compound(slang: &mut slang_T, word: *const c_char, flags: *const u8) 
         if slang.sl_compsylmax < MAXWLEN as c_int
             && count_syllables(slang, word) > slang.sl_compsylmax
         {
-            return (std::ffi::CStr::from_ptr(flags.cast()).to_bytes().len() as c_int) < slang.sl_compmax;
+            return (crate::memory::cstr_len(flags.cast()) as c_int) < slang.sl_compmax;
         }
         true
     }
@@ -1050,7 +1050,7 @@ fn fold_more(mip: &mut matchinf_T) -> c_int {
             dst,
             MAXWLEN as c_int - mip.mi_fwordlen,
         );
-        let flen = std::ffi::CStr::from_ptr(dst).to_bytes().len() as c_int;
+        let flen = crate::memory::cstr_len(dst) as c_int;
         mip.mi_fwordlen += flen;
         flen
     }
@@ -1152,10 +1152,10 @@ pub fn spell_move_to(
                     line = ml_get_buf(wp.w_buffer, lnum);
                 }
                 let empty_line = *skipwhite(line) == NUL;
-                { let s = line; std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(buf, line);
                 if lnum < (*wp.w_buffer).b_ml.ml_line_count {
                     spell_cat_line(
-                        buf.add(std::ffi::CStr::from_ptr(buf).to_bytes().len()),
+                        buf.add(crate::memory::cstr_len(buf)),
                         ml_get_buf(wp.w_buffer, lnum + 1),
                         MAXWLEN as c_int,
                     );
@@ -1309,7 +1309,7 @@ fn spell_load_lang(lang: *mut c_char) {
             sl_loaded: false,
             sl_nobreak: 0,
         };
-        { let s = lang; std::ptr::copy_nonoverlapping(s, (&raw mut sl.sl_lang).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cpy((&raw mut sl.sl_lang).cast(), lang);
         (*g_st().curbuf).b_locked += 1;
         for round in 1..=2 {
             vim_snprintf!(
@@ -1380,15 +1380,15 @@ fn spell_load_lang(lang: *mut c_char) {
             }
         } else if sl.sl_loaded {
             let fn_ptr = (&raw mut fname_enc).cast::<c_char>();
-            { let s = c"add.spl".as_ptr(); std::ptr::copy_nonoverlapping(s, fn_ptr.add(std::ffi::CStr::from_ptr(fn_ptr).to_bytes().len() - 3), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(fn_ptr.add(crate::memory::cstr_len(fn_ptr) - 3), c"add.spl".as_ptr());
             do_in_runtimepath(fn_ptr, DIP_ALL, &mut RuntimeCallback::SpellLoad(&mut sl));
         }
         (*g_st().curbuf).b_locked -= 1;
     }
 }
 pub fn spell_enc() -> *mut c_char {
-    unsafe {
-        if std::ffi::CStr::from_ptr(opt_vars().p_enc).to_bytes().len() < 60 && (std::ffi::CStr::from_ptr(opt_vars().p_enc).to_bytes() != b"iso-8859-15") {
+     {
+        if crate::memory::cstr_len(opt_vars().p_enc) < 60 && (crate::memory::cstr_as_bytes(opt_vars().p_enc) != b"iso-8859-15") {
             return opt_vars().p_enc;
         }
         c"latin1".as_ptr().cast_mut()
@@ -1410,10 +1410,10 @@ fn int_wordlist_spl(fname: *mut c_char) {
     }
 }
 pub fn slang_alloc(lang: *mut c_char) -> Box<slang_T> {
-    unsafe {
+     {
         Box::new(slang_T {
             sl_name: if !lang.is_null() {
-                Some(std::ffi::CStr::from_ptr(lang).to_owned())
+                Some(crate::memory::cstr_to_cstring(lang))
             } else {
                 None
             },
@@ -1538,7 +1538,7 @@ pub fn count_common_word(lp: &mut slang_T, word: *mut c_char, len: c_int, count:
             return;
         }
         let bytes = if len == -1 {
-            std::ffi::CStr::from_ptr(word).to_bytes()
+            crate::memory::cstr_as_bytes(word)
         } else {
             let slice = std::slice::from_raw_parts(word.cast::<u8>(), len as usize);
             let actual_len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
@@ -1565,7 +1565,7 @@ pub fn byte_in_str(str_: *const u8, n: c_int) -> bool {
     }
 }
 pub fn init_syl_tab(slang: &mut slang_T) -> c_int {
-    unsafe {
+     {
         let syl_items = &mut slang.sl_syl_items;
         syl_items.clear();
         let Some(ref syl_cstr) = slang.sl_syllable else {
@@ -1588,7 +1588,7 @@ pub fn init_syl_tab(slang: &mut slang_T) -> c_int {
                     sy_chars: [0; SY_MAXLEN],
                     sy_len: part.len() as c_int,
                 };
-                { let _d = (&raw mut syl.sy_chars).cast::<u8>(); let _n = part.len(); if _n > 0 { std::ptr::copy_nonoverlapping((part.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(syl.sy_chars.as_mut_ptr(), part.as_ptr().cast(), part.len());
                 syl_items.push(syl);
             }
         }
@@ -1657,7 +1657,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
         let mut ga: Vec<langp_T> = Vec::with_capacity(2);
         clear_midword(&mut *wp);
         let w_s = (*wp).w_s_ptr();
-        let spl_copy = std::ffi::CStr::from_ptr((*w_s).b_p_spl).to_owned();
+        let spl_copy = crate::memory::cstr_to_cstring((*w_s).b_p_spl);
         (*w_s).b_cjk = 0;
         'theend: {
             let mut splp = spl_copy.as_ptr().cast_mut();
@@ -1673,7 +1673,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 if !valid_spelllang(lang_ptr) {
                     continue;
                 }
-                if std::ffi::CStr::from_ptr(lang_ptr).to_bytes() == b"cjk" {
+                if crate::memory::cstr_as_bytes(lang_ptr) == b"cjk" {
                     (*w_s).b_cjk = 1;
                     continue;
                 }
@@ -1730,7 +1730,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     (false, slang)
                 };
                 if !region.is_null() {
-                    if !use_region.is_null() && std::ffi::CStr::from_ptr(region).to_bytes() != std::ffi::CStr::from_ptr(use_region).to_bytes() {
+                    if !use_region.is_null() && crate::memory::cstr_as_bytes(region) != crate::memory::cstr_as_bytes(use_region) {
                         dont_use_region = true;
                     }
                     use_region = region;
@@ -1810,7 +1810,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     int_wordlist_spl(spf_ptr);
                 } else {
                     let len = copy_option_part(&raw mut spf, spf_ptr, MAXPATHL - 4, c",".as_ptr());
-                    { let s = c".spl".as_ptr(); std::ptr::copy_nonoverlapping(s, spf_ptr.add(len), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(spf_ptr.add(len), c".spl".as_ptr());
                     let mut c = 0;
                     while c < ga.len() {
                         if (*ga[c].lp_slang).sl_fname.as_ref().is_some_and(|p| {
@@ -1837,7 +1837,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 if slang.is_null() {
                     let lang_ptr = (&raw mut lang).cast::<c_char>();
                     if cur_round == 0 {
-                        { let s = c"internal wordlist".as_ptr(); std::ptr::copy_nonoverlapping(s, lang_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                        crate::memory::cstr_cpy(lang_ptr, c"internal wordlist".as_ptr());
                     } else {
                         xstrlcpy(lang_ptr, path_tail(spf_ptr), MAXWLEN + 1);
                         let p = vim_strchr(lang_ptr, b'.' as c_int);
@@ -2220,7 +2220,7 @@ pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
                     line = line_copy
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    endcol = std::ffi::CStr::from_ptr(line).to_bytes().len() as colnr_T;
+                    endcol = crate::memory::cstr_len(line) as colnr_T;
                 }
             }
         } else {
@@ -2298,8 +2298,8 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
                     vec![0; (get_cursor_line_len() as i64 + addlen + 1) as usize];
                 let p = p_vec.as_mut_ptr();
                 ptr::copy(line, p, (**curwin.as_ptr()).w_cursor.col as usize);
-                { let s = repl_to_ptr; std::ptr::copy_nonoverlapping(s, p.add((**curwin.as_ptr()).w_cursor.col as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                { let d = p; let s = line.add((**curwin.as_ptr()).w_cursor.col as usize + repl_from_len); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(p.add((**curwin.as_ptr()).w_cursor.col as usize), repl_to_ptr);
+                { let d = p; let s = line.add((**curwin.as_ptr()).w_cursor.col as usize + repl_from_len); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 let _ = ml_replace((**curwin.as_ptr()).w_cursor.lnum, p, true);
                 inserted_bytes(
                     (**curwin.as_ptr()).w_cursor.lnum,
@@ -2379,13 +2379,13 @@ pub fn nofold_len(fword: *mut c_char, flen: c_int, word: *mut c_char) -> c_int {
     }
 }
 pub fn make_case_word(fword: *mut c_char, cword: *mut c_char, flags: c_int) {
-    unsafe {
+     {
         if (flags & WF_ALLCAP) != 0 {
             allcap_copy(fword, cword);
         } else if (flags & WF_ONECAP) != 0 {
             onecap_copy(fword, cword, true);
         } else {
-            { let s = fword; std::ptr::copy_nonoverlapping(s, cword, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(cword, fword);
         }
     }
 }
@@ -2397,11 +2397,11 @@ pub fn eval_soundfold(word: *const c_char) -> std::ffi::CString {
                 if (*lp.lp_slang).has_sal() {
                     let mut sound: [c_char; MAXWLEN] = [0; MAXWLEN];
                     spell_soundfold(&mut *lp.lp_slang, word.cast_mut(), false, (&raw mut sound).cast());
-                    return std::ffi::CStr::from_ptr((&raw const sound).cast()).to_owned();
+                    return crate::memory::cstr_to_cstring((&raw const sound).cast());
                 }
             }
         }
-        std::ffi::CStr::from_ptr(word).to_owned()
+        crate::memory::cstr_to_cstring(word)
     }
 }
 pub fn spell_soundfold(
@@ -2421,7 +2421,7 @@ pub fn spell_soundfold(
                 spell_casefold(
                     *curwin.as_ptr(),
                     inword,
-                    std::ffi::CStr::from_ptr(inword).to_bytes().len() as c_int,
+                    crate::memory::cstr_len(inword) as c_int,
                     (&raw mut fword).cast(),
                     MAXWLEN as c_int,
                 );
@@ -2711,7 +2711,7 @@ fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: *mut c_
                                 }
                             }
                             c = if ws.is_null() { 0 } else { *ws };
-                            if std::ffi::CStr::from_ptr(sr).to_bytes().windows(2).any(|w| w == b"^^") {
+                            if crate::memory::cstr_as_bytes(sr).windows(2).any(|w| w == b"^^") {
                                 if c != 0 && reslen < MAXWLEN {
                                     wres[reslen] = c;
                                     reslen += 1;
@@ -2840,7 +2840,7 @@ pub fn spell_dump_compl(
                 let n = captype(pat, std::ptr::null());
                 if n == WF_ONECAP {
                     dumpflags |= DUMPFLAG_ONECAP;
-                } else if n == WF_ALLCAP && (std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int) > utfc_ptr2len(pat) {
+                } else if n == WF_ALLCAP && (crate::memory::cstr_len(pat) as c_int) > utfc_ptr2len(pat) {
                     dumpflags |= DUMPFLAG_ALLCAP;
                 }
             }
@@ -2851,7 +2851,7 @@ pub fn spell_dump_compl(
             if *p != 0 {
                 if region_names.is_null() {
                     region_names = p;
-                } else if std::ffi::CStr::from_ptr(region_names).to_bytes() != std::ffi::CStr::from_ptr(p).to_bytes() {
+                } else if crate::memory::cstr_as_bytes(region_names) != crate::memory::cstr_as_bytes(p) {
                     do_region = false;
                     break;
                 }
@@ -2888,7 +2888,7 @@ pub fn spell_dump_compl(
                 lnum += 1;
             }
             let patlen: isize = if !pat.is_null() && slang.sl_pbyts.is_empty() {
-                std::ffi::CStr::from_ptr(pat).to_bytes().len() as isize
+                crate::memory::cstr_len(pat) as isize
             } else {
                 -1
             };
@@ -3016,20 +3016,20 @@ fn dump_word(
         if pat.is_null() {
             if (flags & (WF_BANNED | WF_RARE | WF_REGION)) != 0 || keepcap {
                 let bw_ptr = (&raw mut badword).cast::<c_char>();
-                { let s = p; std::ptr::copy_nonoverlapping(s, bw_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                { let d = bw_ptr; let s = c"/".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(bw_ptr, p);
+                { let d = bw_ptr; let s = c"/".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 if keepcap {
-                    { let d = bw_ptr; let s = c"=".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    { let d = bw_ptr; let s = c"=".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 }
                 if (flags & WF_BANNED) != 0 {
-                    { let d = bw_ptr; let s = c"!".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    { let d = bw_ptr; let s = c"!".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 } else if (flags & WF_RARE) != 0 {
-                    { let d = bw_ptr; let s = c"?".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    { let d = bw_ptr; let s = c"?".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 }
                 if (flags & WF_REGION) != 0 {
                     for i in 0..7 {
                         if (flags & (0x10000 << i)) != 0 {
-                            let badword_len = std::ffi::CStr::from_ptr(bw_ptr).to_bytes().len();
+                            let badword_len = crate::memory::cstr_len(bw_ptr);
                             vim_snprintf!(
                                 bw_ptr.add(badword_len),
                                 badword.len() - badword_len,
@@ -3042,7 +3042,7 @@ fn dump_word(
                 p = bw_ptr;
             }
             if (dumpflags & DUMPFLAG_COUNT) != 0 {
-                let tw_bytes = std::ffi::CStr::from_ptr(tw).to_bytes();
+                let tw_bytes = crate::memory::cstr_as_bytes(tw);
                 if let Some(&wc_count) = slang.sl_wordcount.get(tw_bytes) {
                     vim_snprintf!(
                         (&raw mut g_st().IObuff).cast(),
@@ -3056,12 +3056,12 @@ fn dump_word(
             }
             let _ = ml_append(lnum, p, 0, false);
         } else if (if (dumpflags & DUMPFLAG_ICASE) != 0 {
-            mb_strnicmp(p, pat, std::ffi::CStr::from_ptr(pat).to_bytes().len()) == 0
+            mb_strnicmp(p, pat, crate::memory::cstr_len(pat)) == 0
         } else {
-            crate::memory::cstr_prefix_bytes(p, std::ffi::CStr::from_ptr(pat).to_bytes().len()) == crate::memory::cstr_prefix_bytes(pat, std::ffi::CStr::from_ptr(pat).to_bytes().len())
+            crate::memory::cstr_prefix_bytes(p, crate::memory::cstr_len(pat)) == crate::memory::cstr_prefix_bytes(pat, crate::memory::cstr_len(pat))
         }) && ins_compl_add_infercase(
             p,
-            std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int,
+            crate::memory::cstr_len(p) as c_int,
             opt_vars().p_ic != 0,
             ptr::null_mut(),
             *dir.as_deref_mut().unwrap(),
@@ -3250,7 +3250,7 @@ pub fn valid_spellfile(val: *const c_char) -> bool {
             );
             let spf_ptr = (&raw mut spf_name).cast::<c_char>();
             if !(4..(MAXPATHL - 4)).contains(&l)
-                || (std::ffi::CStr::from_ptr(spf_ptr.add(l - 4)).to_bytes() != b".add")
+                || (crate::memory::cstr_as_bytes(spf_ptr.add(l - 4)) != b".add")
             {
                 return false;
             }

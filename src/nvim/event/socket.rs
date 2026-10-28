@@ -165,7 +165,7 @@ pub fn socket_address_tcp_host_end(address: *const c_char) -> *mut c_char {
             return ptr::null_mut();
         }
 
-        let colon = std::ffi::CStr::from_ptr(address).to_bytes().iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| address.add(i).cast_mut());
+        let colon = crate::memory::cstr_as_bytes(address).iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| address.add(i).cast_mut());
         if !colon.is_null() && colon != address.cast_mut() {
             colon
         } else {
@@ -306,7 +306,7 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
                     let mut sas_len = size_of::<SockaddrStorage>() as c_int;
                     uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &mut sas_len);
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
-                    let len = std::ffi::CStr::from_ptr(addr).to_bytes().len();
+                    let len = crate::memory::cstr_len(addr);
                     vim_snprintf!(
                         addr.add(len),
                         ADDRESS_MAX_SIZE - len,
@@ -319,7 +319,7 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
             }
             uv_freeaddrinfo((*watcher).tcp_addrinfo.cast());
         } else {
-            result = uv_pipe_bind2(uv_ptr.cast(), addr, std::ffi::CStr::from_ptr(addr).to_bytes().len(), UV_PIPE_NO_TRUNCATE);
+            result = uv_pipe_bind2(uv_ptr.cast(), addr, crate::memory::cstr_len(addr), UV_PIPE_NO_TRUNCATE);
 
             // If bind failed with EACCES/EADDRINUSE, check if socket is stale
             if result == UV_EACCES || result == UV_EADDRINUSE {
@@ -354,7 +354,7 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
 
                         // Retry bind with fresh handle
                         result =
-                            uv_pipe_bind2(uv_ptr.cast(), addr, std::ffi::CStr::from_ptr(addr).to_bytes().len(), UV_PIPE_NO_TRUNCATE);
+                            uv_pipe_bind2(uv_ptr.cast(), addr, crate::memory::cstr_len(addr), UV_PIPE_NO_TRUNCATE);
                     }
                 } else {
                     logmsg!(
@@ -488,10 +488,10 @@ pub fn socket_connect(
 
         'cleanup: {
             if is_tcp {
-                let addr_slice = std::slice::from_raw_parts(address, std::ffi::CStr::from_ptr(address).to_bytes().len() + 1);
+                let addr_slice = std::slice::from_raw_parts(address, crate::memory::cstr_len(address) + 1);
                 addr_buf.extend_from_slice(addr_slice);
                 let addr = addr_buf.as_mut_ptr();
-                let host_end = std::ffi::CStr::from_ptr(addr).to_bytes().iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| addr.add(i));
+                let host_end = crate::memory::cstr_as_bytes(addr).iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| addr.add(i));
                 if host_end.is_null() {
                     *error = gettext(c"tcp address must be host:port".as_ptr());
                     break 'cleanup;

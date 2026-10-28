@@ -387,7 +387,7 @@ pub fn ex_profile(eap: &mut exarg_T) {
         let len = (e as usize) - (arg as usize);
         e = skipwhite(e);
 
-        let arg_bytes = CStr::from_ptr(arg).to_bytes();
+        let arg_bytes = crate::memory::cstr_as_bytes(arg);
         if len == 5 && &arg_bytes[..5] == b"start" && *e != 0 {
             prof_st().PROFILE_FNAME = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
             g_st().do_profiling = PROF_YES;

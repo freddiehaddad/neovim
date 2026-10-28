@@ -547,7 +547,7 @@ fn stuff_yank(regname: c_int, p: *const c_char) -> bool {
             return true;
         }
 
-        let plen = CStr::from_ptr(p).to_bytes().len();
+        let plen = crate::memory::cstr_len(p);
         let reg = &mut *get_yank_register(regname, YREG_YANK);
         if is_append_register(regname) && reg.y_allocated && !reg.y_array.is_empty() {
             let pp = reg.y_array.last_mut().unwrap();
@@ -1189,7 +1189,7 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
                         lnum,
                         oap.inclusive,
                     );
-                    let tmp = CStr::from_ptr(bd.textstart).to_bytes().len() as c_int;
+                    let tmp = crate::memory::cstr_len(bd.textstart) as c_int;
                     if tmp < bd.textlen {
                         bd.textlen = tmp;
                     }
@@ -1690,7 +1690,7 @@ pub fn do_put(
         }
 
         if !insert_string.data.is_null() {
-            insert_string.size = CStr::from_ptr(insert_string.data).to_bytes().len();
+            insert_string.size = crate::memory::cstr_len(insert_string.data);
             y_type = MotionType::kMTCharWise;
             if regname == c_int::from(b'=') {
                 let mut ptr_ = insert_string.data;
@@ -2733,7 +2733,7 @@ pub fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> Option<std::ffi
             if retval.is_null() {
                 return None;
             }
-            return Some(CStr::from_ptr(retval).to_owned());
+            return Some(crate::memory::cstr_to_cstring(retval));
         }
 
         let reg = &*get_yank_register(regname, YREG_PUT);
@@ -2789,7 +2789,7 @@ pub fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut list_T {
             if retval.is_null() {
                 return ptr::null_mut();
             }
-            return get_reg_wrap_one_line_list(Some(CStr::from_ptr(retval).to_owned()));
+            return get_reg_wrap_one_line_list(Some(crate::memory::cstr_to_cstring(retval)));
         }
 
         let reg = &*get_yank_register(regname, YREG_PUT);
@@ -3015,7 +3015,7 @@ pub fn write_reg_contents_ex(
 ) {
     unsafe {
         if len < 0 {
-            len = CStr::from_ptr(str_).to_bytes().len() as isize;
+            len = crate::memory::cstr_len(str_) as isize;
         }
 
         if name == c_int::from(b'/') {
@@ -3030,7 +3030,7 @@ pub fn write_reg_contents_ex(
             }
 
             let buf = if (*str_ as u8).is_ascii_digit() {
-                let num = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(str_).to_bytes()) as c_int;
+                let num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str_)) as c_int;
                 let b = buflist_findnr(num);
                 if b.is_null() {
                     semsg!(gettext(e_nobufnr.as_ptr()), i64::from(num));

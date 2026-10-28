@@ -656,13 +656,13 @@ pub fn save_file_ff(buf: &mut buf_T) {
         buf.b_start_eol = buf.b_p_eol;
         buf.b_start_bomb = buf.b_p_bomb;
 
-        let p_fenc_bytes = CStr::from_ptr(buf.b_p_fenc).to_bytes();
+        let p_fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
         if buf
             .b_start_fenc
             .as_ref()
             .is_none_or(|s| s.to_bytes() != p_fenc_bytes)
         {
-            buf.b_start_fenc = Some(CStr::from_ptr(buf.b_p_fenc).to_owned());
+            buf.b_start_fenc = Some(crate::memory::cstr_to_cstring(buf.b_p_fenc));
         }
     }
 }
@@ -695,14 +695,14 @@ pub fn file_ff_differs(buf: *mut buf_T, ignore_empty: bool) -> bool {
         let Some(ref start_fenc) = (*buf).b_start_fenc else {
             return *(*buf).b_p_fenc != NUL;
         };
-        start_fenc.to_bytes() != CStr::from_ptr((*buf).b_p_fenc).to_bytes()
+        start_fenc.to_bytes() != crate::memory::cstr_as_bytes((*buf).b_p_fenc)
     }
 }
 
 /// Insert string `p` at the cursor position. Stops at a NUL byte.
 pub fn ins_bytes(p: *mut c_char) {
-    unsafe {
-        ins_bytes_len(p, CStr::from_ptr(p).to_bytes().len());
+     {
+        ins_bytes_len(p, crate::memory::cstr_len(p));
     }
 }
 
@@ -1014,7 +1014,7 @@ pub fn open_line(
             replace_push_nul();
             replace_push_nul();
             let p = saved_line.add((**curwin.as_ptr()).w_cursor.col as usize);
-            replace_push(p, CStr::from_ptr(p).to_bytes().len());
+            replace_push(p, crate::memory::cstr_len(p));
             *saved_line.add((**curwin.as_ptr()).w_cursor.col as usize) = NUL;
         }
 
@@ -1024,7 +1024,7 @@ pub fn open_line(
                 let p = skipwhite(p_extra);
                 first_char = c_int::from(*p as u8);
             }
-            extra_len = CStr::from_ptr(p_extra).to_bytes().len() as c_int;
+            extra_len = crate::memory::cstr_len(p_extra) as c_int;
             saved_char = *p_extra;
             *p_extra = NUL;
         }
@@ -1093,7 +1093,7 @@ pub fn open_line(
                             }
                         }
                     } else {
-                        let mut p = ptr.add(CStr::from_ptr(ptr).to_bytes().len()).sub(1);
+                        let mut p = ptr.add(crate::memory::cstr_len(ptr)).sub(1);
                         while p > ptr && ascii_iswhite(*p) {
                             p = p.sub(1);
                         }
@@ -1134,7 +1134,7 @@ pub fn open_line(
                             && (**curwin.as_ptr()).w_cursor.lnum < (*g_st().curbuf).b_ml.ml_line_count
                         {
                             was_backslashed = *ptr != NUL
-                                && *ptr.add(CStr::from_ptr(ptr).to_bytes().len() - 1)
+                                && *ptr.add(crate::memory::cstr_len(ptr) - 1)
                                     == b'\\' as c_char;
                             (**curwin.as_ptr()).w_cursor.lnum += 1;
                             ptr = ml_get((**curwin.as_ptr()).w_cursor.lnum);
@@ -1270,7 +1270,7 @@ pub fn open_line(
                         let mut q = saved_line.add(lead_len as usize);
                         let end_bytes = &lead_end[..n];
                         while *q != NUL {
-                            let q_bytes = CStr::from_ptr(q).to_bytes();
+                            let q_bytes = crate::memory::cstr_as_bytes(q);
                             if q_bytes.len() >= n
                                 && std::slice::from_raw_parts(q.cast::<c_char>(), n) == end_bytes
                             {
@@ -1354,7 +1354,7 @@ pub fn open_line(
                 allocated_vec = vec![0 as c_char; bytes as usize];
                 leader = allocated_vec.as_mut_ptr();
 
-                { let _d = (leader).cast::<u8>(); let _n = lead_len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((saved_line).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(leader, saved_line, lead_len as usize);
 
                 for li in 0..comment_start {
                     if !ascii_iswhite(*leader.add(li as usize)) {
@@ -1579,14 +1579,14 @@ pub fn open_line(
         if lead_len > 0 {
             if (flags & OPENLINE_COM_LIST) != 0 && second_line_indent > 0 {
                 let padding = second_line_indent
-                    - (newindent + CStr::from_ptr(leader).to_bytes().len() as c_int);
+                    - (newindent + crate::memory::cstr_len(leader) as c_int);
                 for _ in 0..padding {
-                    { let d = leader; let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    { let d = leader; let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     less_cols -= 1;
                     newcol += 1;
                 }
             }
-            { let d = leader; let s = p_extra; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            { let d = leader; let s = p_extra; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             p_extra = leader;
             g_st().Ins.did_ai = true;
             less_cols -= lead_len;
@@ -1603,13 +1603,13 @@ pub fn open_line(
             if bt_prompt(g_st().curbuf) && (**curwin.as_ptr()).w_cursor.lnum == (*g_st().curbuf).b_prompt_start.mark.lnum {
                 let prompt_line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
                 let prompt = prompt_text();
-                let prompt_len = CStr::from_ptr(prompt).to_bytes().len();
+                let prompt_len = crate::memory::cstr_len(prompt);
 
                 if CStr::from_ptr(prompt_line)
                     .to_bytes()
-                    .starts_with(CStr::from_ptr(prompt).to_bytes())
+                    .starts_with(crate::memory::cstr_as_bytes(prompt))
                 {
-                    let rem_len = CStr::from_ptr(prompt_line.add(prompt_len)).to_bytes().len() + 1;
+                    let rem_len = crate::memory::cstr_len(prompt_line.add(prompt_len)) + 1;
                     ptr::copy(prompt_line.add(prompt_len), prompt_line, rem_len);
                     g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                     ml_replace((**curwin.as_ptr()).w_cursor.lnum, prompt_line, true);
@@ -1695,7 +1695,7 @@ pub fn open_line(
                     }
                     ml_replace((**curwin.as_ptr()).w_cursor.lnum, saved_line, true);
 
-                    let new_len = CStr::from_ptr(saved_line).to_bytes().len() as c_int;
+                    let new_len = crate::memory::cstr_len(saved_line) as c_int;
 
                     let mut cols_spliced: c_int = 0;
                     if new_len < (**curwin.as_ptr()).w_cursor.col {
@@ -2028,7 +2028,7 @@ pub fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_i
         let mut com_flags: *mut c_char = ptr::null_mut();
         let mut part_buf: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
 
-        let mut i = CStr::from_ptr(line).to_bytes().len() as c_int;
+        let mut i = crate::memory::cstr_len(line) as c_int;
         while {
             i -= 1;
             i >= lower_check_bound
@@ -2106,7 +2106,7 @@ pub fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_i
                 while ascii_iswhite(*com_leader) {
                     com_leader = com_leader.add(1);
                 }
-                let len1 = CStr::from_ptr(com_leader).to_bytes().len() as c_int;
+                let len1 = crate::memory::cstr_len(com_leader) as c_int;
 
                 let mut list = (*g_st().curbuf).b_p_com;
                 while *list != NUL {
@@ -2129,7 +2129,7 @@ pub fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_i
                     while ascii_iswhite(*string) {
                         string = string.add(1);
                     }
-                    let len2 = CStr::from_ptr(string).to_bytes().len() as c_int;
+                    let len2 = crate::memory::cstr_len(string) as c_int;
                     if len2 == 0 {
                         continue;
                     }

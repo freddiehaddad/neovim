@@ -28,7 +28,7 @@ use crate::viml::parser::expressions::{
 use crate::viml::parser::parser::{
     ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 
 const API_INTEGER_MAX: u64 = i64::MAX as u64;
 
@@ -437,7 +437,7 @@ pub fn nvim_call_dict_function(
                 let s = (*di).di_tv.vval.v_string();
                 fn_name = NvimString {
                     data: s,
-                    size: CStr::from_ptr(s).to_bytes().len(),
+                    size: crate::memory::cstr_len(s),
                 };
             }
 

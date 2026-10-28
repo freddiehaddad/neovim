@@ -15,7 +15,7 @@ use crate::os::env::os_shell_is_cmdexe;
 #[cfg(windows)]
 use crate::os::fs::os_can_exe;
 #[cfg(any(test, windows))]
-use std::ffi::{CStr, c_char};
+use std::ffi::c_char;
 #[cfg(windows)]
 use std::ffi::{c_int, c_ulong, c_void};
 #[cfg(any(test, windows))]
@@ -40,7 +40,7 @@ pub(crate) fn quote_cmd_arg(
     src: *const c_char,
 ) {
     unsafe {
-        let src_bytes = CStr::from_ptr(src).to_bytes();
+        let src_bytes = crate::memory::cstr_as_bytes(src);
         let src_len = src_bytes.len();
         let mut quote_hit = true;
         let mut start = dest;
@@ -61,8 +61,8 @@ pub(crate) fn quote_cmd_arg(
 
         if !src_bytes.iter().any(|&b| b == b'"' || b == b'\\') {
             xstrlcpy(dest, c"\"".as_ptr(), dest_remaining);
-            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), src, _dsize - _dlen); };
-            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"\"".as_ptr(), _dsize - _dlen); };
+            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), src, _dsize - _dlen); };
+            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"\"".as_ptr(), _dsize - _dlen); };
             return;
         }
 
@@ -472,13 +472,13 @@ mod win_impl {
                     } else {
                         arg_str
                     };
-                    let src_len = std::ffi::CStr::from_ptr(src).to_bytes().len();
+                    let src_len = crate::memory::cstr_len(src);
                     utf8_cmd_line.extend_from_slice(std::slice::from_raw_parts(src, src_len));
                 } else {
                     let buf_len = arg_cstr.as_bytes().len() * 2 + 3;
                     arg_buf.resize(buf_len, 0);
                     quote_cmd_arg(arg_buf.as_mut_ptr(), buf_len, arg_str);
-                    let quoted_len = std::ffi::CStr::from_ptr(arg_buf.as_ptr()).to_bytes().len();
+                    let quoted_len = crate::memory::cstr_len(arg_buf.as_ptr());
                     utf8_cmd_line.extend_from_slice(&arg_buf[..quoted_len]);
                 }
             }
@@ -519,6 +519,7 @@ pub use win_impl::*;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
 
     #[test]
     fn quote_cmd_arg_matches_expected_windows_escaping() {

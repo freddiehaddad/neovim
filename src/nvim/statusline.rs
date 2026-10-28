@@ -55,7 +55,7 @@ use crate::strings::{tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::bufIsChanged;
 use crate::window::{global_stl_height, lastwin_nofloating, tabline_height, win_T};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::ex_getln::hlf_T;
@@ -581,7 +581,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
                 if *stl == b'-' as c_char {
                     stl = stl.add(1);
                 }
-                if crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(stl).to_bytes()) as c_int != 0 {
+                if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl)) as c_int != 0 {
                     while ascii_isdigit(*stl) {
                         stl = stl.add(1);
                     }
@@ -643,7 +643,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             let p_crb_save = (*ewp).w_onebuf_opt.wo_crb;
             (*ewp).w_onebuf_opt.wo_crb = 0;
 
-            let stl_cstr = CStr::from_ptr(stl).to_owned();
+            let stl_cstr = crate::memory::cstr_to_cstring(stl);
 
             let mut tabtab: *mut StlClickRecord = ptr::null_mut();
             build_stl_str_hl(
@@ -671,7 +671,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             drop(stl_cstr);
             (*ewp).w_onebuf_opt.wo_crb = p_crb_save;
 
-            let len = CStr::from_ptr(buf.as_ptr()).to_bytes().len();
+            let len = crate::memory::cstr_len(buf.as_ptr());
             let start_col = col;
 
             if !ui_event {
@@ -1149,7 +1149,7 @@ pub fn build_statuscol_str(wp: &mut win_T,
         let mut clickrec: *mut StlClickRecord = ptr::null_mut();
         let mut hlrec_ptr: *mut stl_hlrec_t = ptr::null_mut();
         let buf_data = buf.data;
-        let stc = CStr::from_ptr(wp.w_onebuf_opt.wo_stc).to_owned();
+        let stc = crate::memory::cstr_to_cstring(wp.w_onebuf_opt.wo_stc);
         let width = build_stl_str_hl(
             wp,
             buf,
@@ -1325,7 +1325,7 @@ fn stl_expand(
 
                     let start = item.start;
                     let seploc = start.add(dislocation as usize);
-                    let len = CStr::from_ptr(start).to_bytes().len() + 1;
+                    let len = crate::memory::cstr_len(start) + 1;
                     ptr::copy(start, seploc, len);
                     let mut s = start;
                     while s < seploc {
@@ -1932,7 +1932,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         do_unlet(c"g:actual_curwin".as_ptr(), "g:actual_curwin".len(), true);
 
                         if !zeropad && !str.is_null() && *str != NUL && *skipdigits(str) == NUL {
-                            num = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(str).to_bytes()) as c_int;
+                            num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str)) as c_int;
                             owned_str = None;
                             str = ptr::null_mut();
                             itemisflag = false;
@@ -1945,8 +1945,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             && evaldepth < MAX_STL_EVAL_DEPTH
                         {
                             let parsed_usefmt = block_start.offset_from(usefmt) as usize;
-                            let str_bytes = CStr::from_ptr(str).to_bytes();
-                            let fmt_bytes = CStr::from_ptr(fmt_p).to_bytes();
+                            let str_bytes = crate::memory::cstr_as_bytes(str);
+                            let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p);
                             let mut new_bytes = Vec::with_capacity(
                                 parsed_usefmt + str_bytes.len() + fmt_bytes.len() + 2,
                             );
@@ -2121,7 +2121,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_FILETYPE => {
                     let ft = (*(*wp).w_buffer).b_p_ft;
-                    if *ft != NUL && CStr::from_ptr(ft).to_bytes().len() < TMPLEN - 3 {
+                    if *ft != NUL && crate::memory::cstr_len(ft) < TMPLEN - 3 {
                         vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c"[%s]".as_ptr(), ft);
                         str = buf_tmp.as_mut_ptr();
                     }
@@ -2129,7 +2129,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_FILETYPE_ALT => {
                     itemisflag = true;
                     let ft = (*(*wp).w_buffer).b_p_ft;
-                    if *ft != NUL && CStr::from_ptr(ft).to_bytes().len() < TMPLEN - 2 {
+                    if *ft != NUL && crate::memory::cstr_len(ft) < TMPLEN - 2 {
                         vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s".as_ptr(), ft);
                         let mut t = buf_tmp.as_mut_ptr();
                         while *t != NUL {

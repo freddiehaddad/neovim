@@ -1249,7 +1249,7 @@ fn find_buffer(
     fname: *const c_char,
 ) -> *mut buf_T {
     unsafe {
-        let key = CStr::from_ptr(fname).to_bytes();
+        let key = crate::memory::cstr_as_bytes(fname);
         if let Some(&buf) = fname_bufs.get(key) {
             return buf;
         }
@@ -1446,7 +1446,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                         .unwrap_or_default()
                         .into_bytes_with_nul();
                     let final_sub = regtilde(sub_bytes.as_mut_ptr().cast(), opt_vars().p_magic, false)
-                        .or_else(|| Some(CStr::from_ptr(sub_bytes.as_ptr().cast()).to_owned()));
+                        .or_else(|| Some(crate::memory::cstr_to_cstring(sub_bytes.as_ptr().cast())));
                     sub_set_replacement(SubReplacementString {
                         sub: final_sub,
                         timestamp: cur_entry.timestamp,
@@ -1743,7 +1743,7 @@ fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
                 );
             }
         }
-        Some(CStr::from_ptr(file).to_owned())
+        Some(crate::memory::cstr_to_cstring(file))
     }
 }
 
@@ -2436,7 +2436,7 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_T>) -> 
                 }
                 buffers.push(BufferListBuffer {
                     pos: (*buf).b_last_cursor.mark,
-                    fname: Some(CStr::from_ptr((*buf).b_ffname).to_owned()),
+                    fname: Some(crate::memory::cstr_to_cstring((*buf).b_ffname)),
                     additional_data: (*buf).additional_data.clone(),
                 });
             }
@@ -2823,7 +2823,7 @@ fn shada_write(
                                 can_free_entry: false,
                                 timestamp: cur_timestamp,
                                 data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
-                                    name: Some(CStr::from_ptr(name).to_owned()),
+                                    name: Some(crate::memory::cstr_to_cstring(name)),
                                     value: tgttv,
                                 }),
                                 additional_data: None,
@@ -2840,7 +2840,7 @@ fn shada_write(
                         if spe_ret == ShaDaWriteResult::kSDWriteSuccessful {
                             (*wms)
                                 .dumped_variables
-                                .insert(CStr::from_ptr(name).to_bytes().to_vec());
+                                .insert(crate::memory::cstr_as_bytes(name).to_vec());
                         }
                     }
                     if var_iter.is_none() {
@@ -2921,7 +2921,7 @@ fn shada_write(
                             }
                             continue;
                         }
-                        CStr::from_ptr((*buf).b_ffname).to_owned()
+                        crate::memory::cstr_to_cstring((*buf).b_ffname)
                     };
                     let entry = ShadaEntry {
                         can_free_entry: false,
@@ -2956,7 +2956,7 @@ fn shada_write(
                     if !ignore_buf(buf, &removable_bufs) {
                         let mut local_marks_iter: Option<c_char> = None;
                         let fname = (*buf).b_ffname;
-                        let fname_cstr = CStr::from_ptr(fname).to_owned();
+                        let fname_cstr = crate::memory::cstr_to_cstring(fname);
                         let fname_bytes = fname_cstr.to_bytes().to_vec();
                         let filemarks: *mut FileMarks = (*wms)
                             .file_marks
@@ -3033,7 +3033,7 @@ fn shada_write(
                         data: ShadaEntryData::Filemark(ShadaFilemark {
                             mark: (**curwin.as_ptr()).w_cursor,
                             name: b'0' as c_char,
-                            fname: Some(CStr::from_ptr((*g_st().curbuf).b_ffname).to_owned()),
+                            fname: Some(crate::memory::cstr_to_cstring((*g_st().curbuf).b_ffname)),
                         }),
                         additional_data: None,
                     },
@@ -4338,7 +4338,7 @@ fn shada_init_jumps(
             let fname = if fm.fmark.fnum == 0 {
                 fm.fname
             } else if !buf.is_null() && !(*buf).b_ffname.is_null() {
-                Some(CStr::from_ptr((*buf).b_ffname).to_owned())
+                Some(crate::memory::cstr_to_cstring((*buf).b_ffname))
             } else {
                 None
             };
@@ -4418,7 +4418,7 @@ pub fn shada_encode_buflist() -> Vec<u8> {
 
 /// Gets global Vimscript variables as a msgpack-encoded byte buffer, in shada format (`shada_encode_gvars`).
 pub fn shada_encode_gvars() -> Vec<u8> {
-    unsafe {
+     {
         let mut packer = packer_string_buffer();
         let mut var_iter: Option<usize> = None;
         let cur_timestamp = os_time();
@@ -4444,7 +4444,7 @@ pub fn shada_encode_gvars() -> Vec<u8> {
                         can_free_entry: false,
                         timestamp: cur_timestamp,
                         data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
-                            name: Some(CStr::from_ptr(name).to_owned()),
+                            name: Some(crate::memory::cstr_to_cstring(name)),
                             value: tgttv,
                         }),
                         additional_data: None,

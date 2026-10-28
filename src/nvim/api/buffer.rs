@@ -44,7 +44,7 @@ use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
 use crate::undo::{u_save_buf, uhp_ref};
 use crate::window::{VALID_BOTLINE_AP, win_T};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::charset::{NL, NUL};
@@ -546,7 +546,7 @@ pub fn nvim_buf_set_lines(
                     break 'end;
                 }
 
-                inserted_bytes += CStr::from_ptr(line_ptr).to_bytes().len() as bcount_t + 1;
+                inserted_bytes += crate::memory::cstr_len(line_ptr) as bcount_t + 1;
             }
 
             for i in to_replace..new_len {
@@ -571,7 +571,7 @@ pub fn nvim_buf_set_lines(
                     break 'end;
                 }
 
-                inserted_bytes += CStr::from_ptr(line_ptr).to_bytes().len() as bcount_t + 1;
+                inserted_bytes += crate::memory::cstr_len(line_ptr) as bcount_t + 1;
                 extra += 1;
             }
 
@@ -1886,9 +1886,9 @@ fn push_linestr(
 ) {
     unsafe {
         if !lstate.is_null() {
-            if !s.is_null() && replace_nl && CStr::from_ptr(s).to_bytes().contains(&b'\n') {
+            if !s.is_null() && replace_nl && crate::memory::cstr_as_bytes(s).contains(&b'\n') {
                 let mut tmp: Vec<c_char> = std::slice::from_raw_parts(s, len + 1).to_vec();
-                { let _p = tmp.as_mut_ptr(); let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (NL) as u8 { *_b = (NUL) as u8; } } };
+                { let _p = tmp.as_mut_ptr(); let _len = crate::memory::cstr_len(_p); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (NL) as u8 { *_b = (NUL) as u8; } } };
                 lua_pushlstring(lstate, tmp.as_ptr(), len);
             } else {
                 lua_pushlstring(lstate, s, len);
@@ -1902,7 +1902,7 @@ fn push_linestr(
             if len > 0 {
                 let data = arena_memdupz(arena, s, len);
                 if replace_nl {
-                    { let _p = data; let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (NL) as u8 { *_b = (NUL) as u8; } } };
+                    { let _p = data; let _len = crate::memory::cstr_len(_p); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (NL) as u8 { *_b = (NUL) as u8; } } };
                 }
                 str_val = NvimString { data, size: len };
             }

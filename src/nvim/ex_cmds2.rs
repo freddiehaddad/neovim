@@ -745,7 +745,7 @@ pub fn ex_compiler(eap: &mut exarg_T) {
             return;
         }
 
-        let arg_len = CStr::from_ptr(eap.arg).to_bytes().len();
+        let arg_len = crate::memory::cstr_len(eap.arg);
         let bufsize = arg_len + 14;
         let mut buf = vec![0 as c_char; bufsize];
 
@@ -754,7 +754,7 @@ pub fn ex_compiler(eap: &mut exarg_T) {
         } else {
             let p = get_var_value(c"g:current_compiler".as_ptr());
             if !p.is_null() {
-                old_cur_comp = Some(CStr::from_ptr(p).to_owned());
+                old_cur_comp = Some(crate::memory::cstr_to_cstring(p));
             }
             do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>".as_ptr());
         }

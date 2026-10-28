@@ -464,7 +464,7 @@ pub fn redo_spec() -> CmdSpec {
 fn add_buff(buf: &mut StuffBuf, s: *const c_char, mut slen: isize) {
     unsafe {
         if slen < 0 {
-            slen = std::ffi::CStr::from_ptr(s).to_bytes().len() as isize;
+            slen = crate::memory::cstr_len(s) as isize;
         }
         if slen == 0 {
             return;
@@ -746,7 +746,7 @@ pub fn restore_redobuff(save_redo: &mut RedoState) {
 pub fn redo_append_str(s: *const c_char, len: isize) {
     unsafe {
         if !inp_st().block_redo {
-            let slen = if len < 0 { std::ffi::CStr::from_ptr(s).to_bytes().len() } else { len as usize };
+            let slen = if len < 0 { crate::memory::cstr_len(s) } else { len as usize };
             if !s.is_null() && slen > 0 {
                 let body = &raw mut inp_st().redobuff.cur.body;
                 (*body).extend_from_slice(std::slice::from_raw_parts(s, slen));
@@ -1030,7 +1030,7 @@ pub fn ins_typebuf(
         }
         state_no_longer_safe(c"ins_typebuf()".as_ptr());
 
-        let addlen = std::ffi::CStr::from_ptr(str_).to_bytes().len() as c_int;
+        let addlen = crate::memory::cstr_len(str_) as c_int;
 
         if offset == 0 && addlen <= g_st().typebuf.tb_off {
             g_st().typebuf.tb_off -= addlen;
@@ -1519,7 +1519,7 @@ pub fn open_scriptin(scriptin_name: *mut c_char) -> bool {
         inp_st().curscript += 1;
 
         let scriptin0 = (&raw mut inp_st().scriptin).cast::<FileDescriptor>();
-        let error = if std::ffi::CStr::from_ptr(scriptin_name).to_bytes() == b"-" {
+        let error = if crate::memory::cstr_as_bytes(scriptin_name) == b"-" {
             file_open_stdin(&mut *scriptin0)
         } else {
             file_open(
@@ -1910,9 +1910,9 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
 
             let cursor_str = tv_dict_get_string(d, c"cursor".as_ptr());
             if !cursor_str.is_null() {
-                if std::ffi::CStr::from_ptr(cursor_str).to_bytes() != b"hide"
-                    && std::ffi::CStr::from_ptr(cursor_str).to_bytes() != b"keep"
-                    && std::ffi::CStr::from_ptr(cursor_str).to_bytes() != b"msg"
+                if crate::memory::cstr_as_bytes(cursor_str) != b"hide"
+                    && crate::memory::cstr_as_bytes(cursor_str) != b"keep"
+                    && crate::memory::cstr_as_bytes(cursor_str) != b"msg"
                 {
                     semsg!(
                         gettext((&raw const e_invargNval).cast()),
@@ -2504,7 +2504,7 @@ fn handle_mapping(
                 false
             } else {
                 if keylen > g_st().typebuf.tb_maplen && (save_m_mode & MODE_LANGMAP) != 0 {
-                    gotchars(map_str.cast::<u8>(), std::ffi::CStr::from_ptr(map_str).to_bytes().len());
+                    gotchars(map_str.cast::<u8>(), crate::memory::cstr_len(map_str));
                 }
 
                 let noremap = if save_m_noremap != REMAP_YES {
@@ -3200,7 +3200,7 @@ pub fn getcmdkeycmd(
 
 /// Handle a Lua mapping: get its id from typeahead and execute its callback.
 pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
-    unsafe {
+     {
         let mut line: Vec<c_char> = Vec::new();
         let mut c1: c_int = -1;
         let mut aborted = false;
@@ -3226,7 +3226,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
         }
 
         line.push(NUL as c_char);
-        let id = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(line.as_ptr()).to_bytes()) as c_int;
+        let id = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(line.as_ptr())) as c_int;
         drop(line);
         let ref_ = map_luaid_get(id);
         if ref_ == LUA_NOREF {

@@ -1602,11 +1602,11 @@ pub fn parse_winborder(fconfig: Option<&mut WinConfig>,
     border_opt: *mut c_char,
     err: &mut Error,
 ) -> bool {
-    unsafe {
+     {
         if fconfig.is_none() {
             return false;
         }
-        let opt_bytes = CStr::from_ptr(border_opt).to_bytes();
+        let opt_bytes = crate::memory::cstr_as_bytes(border_opt);
         let style = if opt_bytes.contains(&b',') {
             let mut border_chars = Array::new();
             for part in opt_bytes.split(|&b| b == b',') {

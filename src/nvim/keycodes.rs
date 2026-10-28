@@ -2280,7 +2280,7 @@ pub fn get_special_key(
                         };
                         data.as_deref_mut().unwrap().key_alt = NvimString {
                             data: string.add(idx),
-                            size: CStr::from_ptr(s).to_bytes().len(),
+                            size: crate::memory::cstr_len(s),
                         };
                     }
 
@@ -2725,7 +2725,7 @@ pub fn replace_termcodes(
                             c"%d".as_ptr(),
                             sid as c_int,
                         );
-                        dlen += CStr::from_ptr(result.add(dlen)).to_bytes().len();
+                        dlen += crate::memory::cstr_len(result.add(dlen));
                         *result.add(dlen) = b'_' as c_char;
                         dlen += 1;
                         continue;
@@ -2768,7 +2768,7 @@ pub fn replace_termcodes(
 
                 if len != 0 {
                     let mut s: *const c_char =
-                        if p.is_null() || *p == 0 || CStr::from_ptr(p).to_bytes().len() > 8 * 6 {
+                        if p.is_null() || *p == 0 || crate::memory::cstr_len(p) > 8 * 6 {
                             c"\\".as_ptr()
                         } else {
                             p
@@ -2856,7 +2856,7 @@ pub fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
 /// Copy `p` to an owned `CString`, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
 pub fn vim_strsave_escape_ks(p: *const c_char) -> std::ffi::CString {
     unsafe {
-        let mut res = vec![0 as c_char; CStr::from_ptr(p).to_bytes().len() * 4 + 1];
+        let mut res = vec![0 as c_char; crate::memory::cstr_len(p) * 4 + 1];
         let mut d = res.as_mut_ptr();
         let mut s = p;
         while *s != 0 {
@@ -2879,7 +2879,7 @@ pub fn vim_strsave_escape_ks(p: *const c_char) -> std::ffi::CString {
             }
         }
         *d = 0;
-        CStr::from_ptr(res.as_ptr()).to_owned()
+        crate::memory::cstr_to_cstring(res.as_ptr())
     }
 }
 

@@ -60,7 +60,7 @@ use crate::ui::{
 use crate::ui_compositor::{ui_comp_put_grid, ui_comp_remove_grid};
 use crate::window::{goto_tabpage_tp, valid_tabpage, win_T, win_enter, win_setheight, win_valid};
 use crate::winfloat::{win_config_float, win_float_close, win_float_find, win_float_special};
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::vim::kOptCotFlagPopup;
@@ -633,7 +633,7 @@ fn pum_compute_text_attrs(
         } else {
             (get_cot_flags() & kOptCotFlagFuzzy) != 0
         };
-        let leader_len = CStr::from_ptr(leader).to_bytes().len();
+        let leader_len = crate::memory::cstr_len(leader);
 
         let mut match_positions: Option<Vec<u32>> = None;
         let mut matched_len: c_int = -1;
@@ -1203,7 +1203,7 @@ fn pum_preview_set_text(
 
         let mut curr = info;
         while !curr.is_null() {
-            let next = CStr::from_ptr(curr).to_bytes().iter().position(|&b| b == b'\n').map_or(ptr::null_mut(), |i| curr.add(i));
+            let next = crate::memory::cstr_as_bytes(curr).iter().position(|&b| b == b'\n').map_or(ptr::null_mut(), |i| curr.add(i));
             if !next.is_null() {
                 *next = NUL;
             }
@@ -1816,7 +1816,7 @@ pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
                 s = mp.dname.as_ptr();
             }
             if !s.is_null() {
-                array_vec[idx].pum_text = Some(CStr::from_ptr(s).to_owned());
+                array_vec[idx].pum_text = Some(crate::memory::cstr_to_cstring(s));
                 idx += 1;
             }
         }

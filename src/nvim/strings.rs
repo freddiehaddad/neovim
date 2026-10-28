@@ -423,7 +423,7 @@ pub fn vim_strsave_shellescape(
         #[cfg(not(windows))]
         let use_double_quote = false;
 
-        let mut length = CStr::from_ptr(string).to_bytes().len() + 3;
+        let mut length = crate::memory::cstr_len(string) + 3;
         let mut p = string;
         while *p != NUL {
             if use_double_quote {
@@ -579,7 +579,7 @@ pub fn strcase_save(orig: &CStr, upper: bool) -> std::ffi::CString {
 
 pub fn del_trailing_spaces(ptr: *mut c_char) {
     unsafe {
-        let len = CStr::from_ptr(ptr).to_bytes().len();
+        let len = crate::memory::cstr_len(ptr);
         let mut q = ptr.add(len);
         while q > ptr {
             q = q.sub(1);
@@ -612,7 +612,7 @@ pub fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
             let mut u8char = [0 as c_char; MB_MAXBYTES + 1];
             let len = utf_char2bytes(c, u8char.as_mut_ptr()) as usize;
             let needle = std::slice::from_raw_parts(u8char.as_ptr().cast::<u8>(), len);
-            let hay = CStr::from_ptr(string).to_bytes();
+            let hay = crate::memory::cstr_as_bytes(string);
             if let Some(pos) = hay.windows(len).position(|w| w == needle) {
                 string.add(pos).cast_mut()
             } else {
@@ -1318,7 +1318,7 @@ fn vim_vsnprintf_typval_inner(
 
         'fmt_loop: while *p != NUL {
             if *p != b'%' as c_char {
-                let rem = CStr::from_ptr(p.add(1)).to_bytes();
+                let rem = crate::memory::cstr_as_bytes(p.add(1));
                 let n = 1 + rem.iter().position(|&b| b == b'%').unwrap_or(rem.len());
                 if str_avail {
                     let avail = str_m - str_l;
@@ -1561,7 +1561,7 @@ fn vim_vsnprintf_typval_inner(
                                     str_arg = c"[NULL]".as_ptr();
                                     str_arg_l = 6;
                                 } else if !precision_specified {
-                                    str_arg_l = CStr::from_ptr(str_arg).to_bytes().len();
+                                    str_arg_l = crate::memory::cstr_len(str_arg);
                                 } else if precision == 0 {
                                     str_arg_l = 0;
                                 } else {
@@ -1888,7 +1888,7 @@ fn vim_vsnprintf_typval_inner(
                                 ),
                                 tmp.len(),
                             );
-                            str_arg_l = CStr::from_ptr(tmp.as_ptr()).to_bytes().len();
+                            str_arg_l = crate::memory::cstr_len(tmp.as_ptr());
                             zero_padding = false;
                         } else if xisnan(f) != 0 {
                             let nan_s = if (fmt_spec as u8).is_ascii_uppercase() {
@@ -1950,14 +1950,14 @@ fn vim_vsnprintf_typval_inner(
                                     if !tp.is_null() {
                                         if *tp.add(1) == b'+' as c_char {
                                             let rem_len =
-                                                CStr::from_ptr(tp.add(2)).to_bytes().len() + 1;
+                                                crate::memory::cstr_len(tp.add(2)) + 1;
                                             ptr::copy(tp.add(2), tp.add(1), rem_len);
                                             str_arg_l -= 1;
                                         }
                                         let i = if *tp.add(1) == b'-' as c_char { 2 } else { 1 };
                                         while *tp.add(i) == b'0' as c_char {
                                             let rem_len =
-                                                CStr::from_ptr(tp.add(i + 1)).to_bytes().len() + 1;
+                                                crate::memory::cstr_len(tp.add(i + 1)) + 1;
                                             ptr::copy(tp.add(i + 1), tp.add(i), rem_len);
                                             str_arg_l -= 1;
                                         }
@@ -1971,7 +1971,7 @@ fn vim_vsnprintf_typval_inner(
                                         && *tp.sub(1) != b'.' as c_char
                                     {
                                         let rem_len =
-                                            CStr::from_ptr(tp.add(1)).to_bytes().len() + 1;
+                                            crate::memory::cstr_len(tp.add(1)) + 1;
                                         ptr::copy(tp.add(1), tp, rem_len);
                                         tp = tp.sub(1);
                                         str_arg_l -= 1;
@@ -1993,7 +1993,7 @@ fn vim_vsnprintf_typval_inner(
                                     && ascii_isdigit(*tp.add(3))
                                     && ascii_isdigit(*tp.add(4))
                                 {
-                                    let rem_len = CStr::from_ptr(tp.add(3)).to_bytes().len() + 1;
+                                    let rem_len = crate::memory::cstr_len(tp.add(3)) + 1;
                                     ptr::copy(tp.add(3), tp.add(2), rem_len);
                                     str_arg_l -= 1;
                                 }
@@ -2123,7 +2123,7 @@ pub fn vim_snprintf_add_fmt(
     args: &[FmtVal],
 ) -> c_int {
     unsafe {
-        let len = CStr::from_ptr(str_out).to_bytes().len();
+        let len = crate::memory::cstr_len(str_out);
         let space = str_m.saturating_sub(len);
         vim_snprintf_fmt(str_out.add(len), space, fmt, args)
     }
@@ -2481,7 +2481,7 @@ pub fn f_strgetchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             return;
         }
 
-        let len = CStr::from_ptr(str_).to_bytes().len();
+        let len = crate::memory::cstr_len(str_);
         let mut byteidx: usize = 0;
         while charidx >= 0 && byteidx < len {
             if charidx == 0 {
@@ -2507,7 +2507,7 @@ pub fn f_stridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             return;
         }
 
-        let hay_len = CStr::from_ptr(haystack).to_bytes().len();
+        let hay_len = crate::memory::cstr_len(haystack);
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
             let start_idx = tv_get_number_chk(&argvars[2], Some(&mut error)) as isize;
@@ -2519,8 +2519,8 @@ pub fn f_stridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             }
         }
 
-        let hay_bytes = CStr::from_ptr(haystack).to_bytes();
-        let needle_bytes = CStr::from_ptr(needle).to_bytes();
+        let hay_bytes = crate::memory::cstr_as_bytes(haystack);
+        let needle_bytes = crate::memory::cstr_as_bytes(needle);
         if needle_bytes.is_empty() {
             rettv.vval = crate::eval::typval::TypvalVval::Number(haystack.offset_from(haystack_start) as varnumber_T);
         } else if let Some(pos) = hay_bytes
@@ -2542,8 +2542,8 @@ pub fn f_string(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 pub fn f_strlen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(CStr::from_ptr(tv_get_string(&argvars[0])).to_bytes().len() as varnumber_T);
+     {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::cstr_len(tv_get_string(&argvars[0])) as varnumber_T);
     }
 }
 
@@ -2646,7 +2646,7 @@ pub fn f_strcharpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
     unsafe {
         let p = tv_get_string(&argvars[0]);
-        let slen = CStr::from_ptr(p).to_bytes().len();
+        let slen = crate::memory::cstr_len(p);
 
         let mut nbyte: c_int = 0;
         let mut skipcc: varnumber_T = 0;
@@ -2721,7 +2721,7 @@ pub fn f_strpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
     unsafe {
         let mut error = false;
         let p = tv_get_string(&argvars[0]);
-        let slen = CStr::from_ptr(p).to_bytes().len() as varnumber_T;
+        let slen = crate::memory::cstr_len(p) as varnumber_T;
 
         let mut n = tv_get_number_chk(&argvars[1], Some(&mut error));
         let mut len = if error {
@@ -2761,7 +2761,7 @@ pub fn f_strpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 pub fn f_strridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let mut buf = [0 as c_char; NUMBUFLEN];
         let needle = tv_get_string_chk(&argvars[1]);
         let haystack = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr());
@@ -2771,8 +2771,8 @@ pub fn f_strridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             return;
         }
 
-        let hay_bytes = CStr::from_ptr(haystack).to_bytes();
-        let needle_bytes = CStr::from_ptr(needle).to_bytes();
+        let hay_bytes = crate::memory::cstr_as_bytes(haystack);
+        let needle_bytes = crate::memory::cstr_as_bytes(needle);
         let haystack_len = hay_bytes.len();
         let end_idx: isize = if argvars[2].v_type != VarType::VAR_UNKNOWN {
             let idx = tv_get_number_chk(&argvars[2], None) as isize;
@@ -3054,7 +3054,7 @@ pub fn f_trim(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             }
         }
 
-        let mut tail = head.add(CStr::from_ptr(head).to_bytes().len());
+        let mut tail = head.add(crate::memory::cstr_len(head));
         if dir == 0 || dir == 2 {
             while tail > head {
                 let prev = tail.sub((utf_head_off(head, tail.sub(1)) + 1) as usize);

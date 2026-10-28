@@ -812,7 +812,7 @@ pub fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline: bool)
 ///
 /// @param force  always truncate
 pub fn msg_strtrunc(s: *const c_char, force: c_int) -> Option<std::ffi::CString> {
-    unsafe {
+     {
         // May truncate message to avoid a hit-return prompt
         if (g_st().msg_scroll == 0
             && !g_st().need_wait_return
@@ -840,7 +840,7 @@ pub fn msg_strtrunc(s: *const c_char, force: c_int) -> Option<std::ffi::CString>
                 let buflen = (room + 2) * 18;
                 let mut buf: Vec<c_char> = vec![0; buflen as usize];
                 trunc_string(s, buf.as_mut_ptr(), room, buflen);
-                return Some(CStr::from_ptr(buf.as_ptr()).to_owned());
+                return Some(crate::memory::cstr_to_cstring(buf.as_ptr()));
             }
         }
         None
@@ -895,7 +895,7 @@ pub fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: 
         }
 
         // Last part: End of the string.
-        let mut i = CStr::from_ptr(s).to_bytes().len() as c_int;
+        let mut i = crate::memory::cstr_len(s) as c_int;
         half = i;
         loop {
             half = half - utf_head_off(s, s.add((half - 1) as usize)) - 1;
@@ -910,7 +910,7 @@ pub fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: 
         if i <= e + 3 {
             // text fits without truncating
             if !ptr::eq(s, buf) {
-                len = CStr::from_ptr(s).to_bytes().len() as c_int;
+                len = crate::memory::cstr_len(s) as c_int;
                 if len >= buflen {
                     len = buflen - 1;
                 }
@@ -924,7 +924,7 @@ pub fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: 
         } else if e + 3 < buflen {
             // set the middle and copy the last part
             ptr::copy(c"...".as_ptr(), buf.add(e as usize), 3);
-            len = CStr::from_ptr(s.add(i as usize)).to_bytes().len() as c_int + 1;
+            len = crate::memory::cstr_len(s.add(i as usize)) as c_int + 1;
             if len >= buflen - e - 3 {
                 len = buflen - e - 3 - 1;
             }
@@ -960,7 +960,7 @@ fn other_sourcing_name() -> bool {
 
 /// Get the message about the source, as used for an error message
 fn get_emsg_source() -> Option<std::ffi::CString> {
-    unsafe {
+     {
         let mut sname = sourcing_name();
         if have_sourcing_info() && !sname.is_null() && other_sourcing_name() {
             let tofree = estack_sfile(ESTACK_NONE);
@@ -970,10 +970,10 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
 
             let p = gettext(c"Error in %s:".as_ptr());
             let buf_len =
-                CStr::from_ptr(sname).to_bytes().len() + CStr::from_ptr(p).to_bytes().len() + 1;
+                crate::memory::cstr_len(sname) + crate::memory::cstr_len(p) + 1;
             let mut buf_vec: Vec<c_char> = vec![0; buf_len];
             vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, sname);
-            return Some(CStr::from_ptr(buf_vec.as_ptr()).to_owned());
+            return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
         }
         None
     }
@@ -981,16 +981,16 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
 
 /// Get the message about the source lnum, as used for an error message.
 fn get_emsg_lnum() -> Option<std::ffi::CString> {
-    unsafe {
+     {
         let sname = sourcing_name();
         let slnum = sourcing_lnum();
         if !sname.is_null() && (other_sourcing_name() || slnum != msg_st().last_sourcing_lnum) && slnum != 0
         {
             let p = gettext(c"line %4d:".as_ptr());
-            let buf_len = 20 + CStr::from_ptr(p).to_bytes().len();
+            let buf_len = 20 + crate::memory::cstr_len(p);
             let mut buf_vec: Vec<c_char> = vec![0; buf_len];
             vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, slnum);
-            return Some(CStr::from_ptr(buf_vec.as_ptr()).to_owned());
+            return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
         }
         None
     }
@@ -1000,7 +1000,7 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
 /// Remember the file name and line number, so that for the next error the info
 /// is only displayed if it changed.
 pub fn msg_source(hl_id: c_int) {
-    unsafe {
+     {
         if msg_st().MSG_SOURCE_RECURSIVE {
             return;
         }
@@ -1020,7 +1020,7 @@ pub fn msg_source(hl_id: c_int) {
         if sname.is_null() || other_sourcing_name() {
             msg_st().last_sourcing_name = None;
             if !sname.is_null() {
-                msg_st().last_sourcing_name = Some(CStr::from_ptr(sname).to_owned());
+                msg_st().last_sourcing_name = Some(crate::memory::cstr_to_cstring(sname));
                 if redirecting() == 0 {
                     msg_putchar_hl(NL, hl_id);
                 }
@@ -1078,13 +1078,13 @@ pub fn emsg_multiline(
                     .unwrap()
                     .is_none()
             {
-                g_st().emsg_assert_fails_msg = Some(CStr::from_ptr(s).to_owned());
+                g_st().emsg_assert_fails_msg = Some(crate::memory::cstr_to_cstring(s));
                 g_st().emsg_assert_fails_lnum = sourcing_lnum() as c_long;
                 let sname = sourcing_name();
                 g_st().emsg_assert_fails_context = Some(if sname.is_null() {
                     std::ffi::CString::default()
                 } else {
-                    CStr::from_ptr(sname).to_owned()
+                    crate::memory::cstr_to_cstring(sname)
                 });
             }
 
@@ -1109,7 +1109,7 @@ pub fn emsg_multiline(
                         redir_write(p.as_ptr(), p_len as isize);
                         redir_write(c"\n".as_ptr(), 1);
                     }
-                    redir_write(s, CStr::from_ptr(s).to_bytes().len() as isize);
+                    redir_write(s, crate::memory::cstr_len(s) as isize);
                 }
 
                 // Log (silent) errors as debug messages.
@@ -1237,7 +1237,7 @@ pub fn msg_semsg_event(s: std::ffi::CString) {
 
 pub fn msg_schedule_semsg_cstr(s: *const c_char) {
     unsafe {
-        let dup = CStr::from_ptr(s).to_owned();
+        let dup = crate::memory::cstr_to_cstring(s);
         loop_schedule_deferred(&mut *(&raw mut g_st().main_loop).cast(), Event::MsgSemsg(dup));
     }
 }
@@ -1248,7 +1248,7 @@ pub fn msg_semsg_multiline_event(s: std::ffi::CString) {
 
 pub fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
     unsafe {
-        let dup = CStr::from_ptr(s).to_owned();
+        let dup = crate::memory::cstr_to_cstring(s);
         loop_schedule_deferred(&mut *(&raw mut g_st().main_loop).cast(), Event::MsgSemsgMultiline(dup));
     }
 }
@@ -1285,7 +1285,7 @@ pub fn msg_may_trunc(force: bool, mut s: *mut c_char) -> *mut c_char {
         let room = (g_st().Rows - g_st().cmdline_row - 1) * g_st().Columns + g_st().sc_col - 1;
         if room > 0
             && (force || shortmess(kShmTrunc))
-            && (CStr::from_ptr(s).to_bytes().len() as c_int) - room > 0
+            && (crate::memory::cstr_len(s) as c_int) - room > 0
         {
             let mut size = vim_strsize(s);
 
@@ -1389,7 +1389,7 @@ pub fn msg_with_id(
 fn msg_hist_add(mut s: *const c_char, len: c_int, hl_id: c_int) {
     unsafe {
         let mut size = if len < 0 {
-            CStr::from_ptr(s).to_bytes().len()
+            crate::memory::cstr_len(s)
         } else {
             len as usize
         };
@@ -1544,7 +1544,7 @@ fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
         }
         (*hist).push_back(MessageHistoryEntry {
             msg,
-            kind: (!msg_st().msg_ext_kind.is_null()).then(|| CStr::from_ptr(msg_st().msg_ext_kind).to_owned()),
+            kind: (!msg_st().msg_ext_kind.is_null()).then(|| crate::memory::cstr_to_cstring(msg_st().msg_ext_kind)),
             temp,
             append: msg_st().msg_ext_append,
         });
@@ -1976,13 +1976,13 @@ fn hit_return_msg(newline_sb: bool) {
 
 /// Set "keep_msg" to "s".  Free the old value and check for NULL pointer.
 pub fn set_keep_msg(s: *const c_char, hl_id: c_int) {
-    unsafe {
+     {
         if ui_has(kUIMessages) {
             return;
         }
 
         if !s.is_null() && g_st().msg_silent == 0 {
-            g_st().keep_msg = Some(CStr::from_ptr(s).to_owned());
+            g_st().keep_msg = Some(crate::memory::cstr_to_cstring(s));
         } else {
             g_st().keep_msg = None;
         }
@@ -2034,7 +2034,7 @@ pub fn msgmore(n: c_int) {
                 );
             }
             if g_st().got_int {
-                { let _dst: *mut c_char = msg_ptr; let _dsize: usize = MSG_BUF_LEN; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" (Interrupted)".as_ptr()), _dsize - _dlen); };
+                { let _dst: *mut c_char = msg_ptr; let _dsize: usize = MSG_BUF_LEN; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" (Interrupted)".as_ptr()), _dsize - _dlen); };
             }
             if msg(msg_ptr, 0) {
                 set_keep_msg(msg_ptr, 0);
@@ -2176,10 +2176,10 @@ fn msg_home_replace_hl(fname: *const c_char, hl_id: c_int) {
 ///
 /// @return  the number of characters it takes on the screen.
 pub fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int {
-    unsafe {
+     {
         msg_outtrans_len(
             str_,
-            CStr::from_ptr(str_).to_bytes().len() as c_int,
+            crate::memory::cstr_len(str_) as c_int,
             hl_id,
             hist,
         )
@@ -2249,7 +2249,7 @@ pub fn msg_outtrans_len(
                     }
                     plain_start = str_.add(1);
                     msg_puts_hl(s, if hl_id == 0 { HLF_8 } else { hl_id }, false);
-                    retval += CStr::from_ptr(s).to_bytes().len() as c_int;
+                    retval += crate::memory::cstr_len(s) as c_int;
                 } else {
                     retval += 1;
                 }
@@ -2343,7 +2343,7 @@ pub fn str2special_save(
         while *p != NUL {
             let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             if !s.is_null() {
-                buf.extend_from_slice(CStr::from_ptr(s).to_bytes());
+                buf.extend_from_slice(crate::memory::cstr_as_bytes(s));
             }
         }
         crate::memory::cstr_from_bytes(&buf)
@@ -2362,7 +2362,7 @@ pub fn str2special_arena(
         let mut len = 0usize;
         while *p != NUL {
             let s = str2special(&raw mut p, replace_spaces, replace_others, None);
-            len += CStr::from_ptr(s).to_bytes().len();
+            len += crate::memory::cstr_len(s);
         }
 
         let buf = arena_alloc(arena, len + 1, false).cast::<c_char>();
@@ -2370,7 +2370,7 @@ pub fn str2special_arena(
         p = str_;
         while *p != NUL {
             let s = str2special(&raw mut p, replace_spaces, replace_others, None);
-            let s_len = CStr::from_ptr(s).to_bytes().len();
+            let s_len = crate::memory::cstr_len(s);
             ptr::copy_nonoverlapping(s, buf.add(pos), s_len);
             pos += s_len;
         }
@@ -2392,7 +2392,7 @@ pub fn str2special(
                 data.as_deref_mut().unwrap().mods = 0;
                 data.as_deref_mut().unwrap().key = NvimString {
                     data: p.cast_mut(),
-                    size: CStr::from_ptr(p).to_bytes().len(),
+                    size: crate::memory::cstr_len(p),
                 };
                 data.as_deref_mut().unwrap().key_alt = NvimString {
                     data: ptr::null_mut(),
@@ -2496,7 +2496,7 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
         if list {
             // find start of trailing whitespace
             if (**curwin.as_ptr()).w_p_lcs_chars.trail != 0 {
-                trail = s.add(CStr::from_ptr(s).to_bytes().len());
+                trail = s.add(crate::memory::cstr_len(s));
                 while trail > s && ascii_iswhite(*trail.sub(1) as c_int) {
                     trail = trail.sub(1);
                 }
@@ -2689,7 +2689,7 @@ pub fn msg_puts_title(mut s: *const c_char) {
 /// Does not handle multi-byte characters!
 pub fn msg_outtrans_long(longstr: *const c_char, hl_id: c_int) {
     unsafe {
-        let len = CStr::from_ptr(longstr).to_bytes().len() as c_int;
+        let len = crate::memory::cstr_len(longstr) as c_int;
         let mut slen = len;
         let room = g_st().Columns - g_st().msg_col;
         if !ui_has(kUIMessages) && len > room && room >= 20 {
@@ -2818,7 +2818,7 @@ fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, recurse: c
                 msg_st().msg_ext_last_hl_id = hl_id;
             }
             let len = if maxlen < 0 {
-                CStr::from_ptr(str_).to_bytes().len()
+                crate::memory::cstr_len(str_)
             } else {
                 xstrnlen(str_, maxlen as usize)
             };
@@ -3147,7 +3147,7 @@ fn inc_msg_scrolled() {
             let p = if sname.is_null() {
                 cstr_as_string(gettext(c"Unknown".as_ptr()))
             } else {
-                let tofreesize = CStr::from_ptr(sname).to_bytes().len() + 40;
+                let tofreesize = crate::memory::cstr_len(sname) + 40;
                 tofree_vec = vec![0; tofreesize];
                 let tofree = tofree_vec.as_mut_ptr();
                 let size = vim_snprintf_safelen!(
@@ -3890,7 +3890,7 @@ fn redir_write(str_: *const c_char, maxlen: isize) {
             }
 
             let len = if maxlen == -1 {
-                CStr::from_ptr(s).to_bytes().len()
+                crate::memory::cstr_len(s)
             } else {
                 maxlen as usize
             };

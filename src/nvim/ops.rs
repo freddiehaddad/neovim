@@ -84,7 +84,7 @@ use crate::strings::{ngettext, tr, vim_snprintf, vim_strchr};
 use crate::textformat::{auto_format, has_format_option, op_format, op_formatexpr, oparg_T};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong};
+use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
@@ -576,7 +576,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
                 b' ',
                 spaces as usize,
             );
-            { let s = bd.textstart; std::ptr::copy_nonoverlapping(s, newp.add((bd.textcol + tabs + spaces) as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(newp.add((bd.textcol + tabs + spaces) as usize), bd.textstart);
             debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
         } else {
             let mut non_white = bd.textstart;
@@ -654,7 +654,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
             newlen = fill;
             ptr::copy(oldp, newp, fixedlen as usize);
             ptr::write_bytes(newp.add(fixedlen as usize), b' ', fill as usize);
-            { let s = non_white; std::ptr::copy_nonoverlapping(s, newp.add((fixedlen + fill) as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(newp.add((fixedlen + fill) as usize), non_white);
             debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
         }
         ml_replace((**curwin.as_ptr()).w_cursor.lnum, newp, true);
@@ -774,7 +774,7 @@ fn block_insert(
             if spaces > 0 {
                 offset += count;
             }
-            { let s = oldp; std::ptr::copy_nonoverlapping(s, newp.add(offset as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(newp.add(offset as usize), oldp);
 
             ml_replace(lnum, newp, true);
             drop(newp_vec);
@@ -935,7 +935,7 @@ pub fn op_delete(oap: &mut oparg_T) -> bool {
                         b' ',
                         (bd.startspaces + bd.endspaces) as usize,
                     );
-                    { let s = oldp.add((bd.textcol + bd.textlen) as usize); std::ptr::copy_nonoverlapping(s, newp.add((bd.textcol + bd.startspaces + bd.endspaces) as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(newp.add((bd.textcol + bd.startspaces + bd.endspaces) as usize), oldp.add((bd.textcol + bd.textlen) as usize));
                     ml_replace(lnum, newp, true);
                     drop(newp_vec);
 
@@ -1796,7 +1796,7 @@ pub fn op_change(oap: &mut oparg_T) -> c_int {
             let ins_len = ml_get_len(oap.start.lnum) - pre_textlen;
             if ins_len > 0 {
                 let mut ins_text = vec![0 as c_char; (ins_len as usize) + 1];
-                { let _d = (ins_text.as_mut_ptr()).cast::<u8>(); let _n = ins_len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((firstline.add(bd.textcol as usize)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(ins_text.as_mut_ptr(), firstline.add(bd.textcol as usize), ins_len as usize);
                 for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
                     block_prep(oap, &mut bd, linenr, true);
                     if bd.is_short == 0 || g_st().virtual_op != 0 {
@@ -1829,7 +1829,7 @@ pub fn op_change(oap: &mut oparg_T) -> c_int {
                             ins_len as usize,
                         );
                         newlen += ins_len;
-                        { let s = oldp.add(bd.textcol as usize); std::ptr::copy_nonoverlapping(s, newp.add(newlen as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                        crate::memory::cstr_cpy(newp.add(newlen as usize), oldp.add(bd.textcol as usize));
                         ml_replace(linenr, newp, true);
                         drop(newp_vec);
                         extmark_splice_cols(
@@ -1985,7 +1985,7 @@ pub fn do_join(
             if t == 0 && setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                 (*(**curwin.as_ptr()).w_buffer).b_op_start.lnum = (**curwin.as_ptr()).w_cursor.lnum;
                 (*(**curwin.as_ptr()).w_buffer).b_op_start.col =
-                    CStr::from_ptr(curr).to_bytes().len() as colnr_T;
+                    crate::memory::cstr_len(curr) as colnr_T;
             }
             if remove_comments {
                 if t > 0 && prev_was_comment {
@@ -2041,7 +2041,7 @@ pub fn do_join(
                     kExtmarkUndo,
                 );
             }
-            currsize = CStr::from_ptr(curr).to_bytes().len() as c_int;
+            currsize = crate::memory::cstr_len(curr) as c_int;
             sumsize += currsize + space_t;
             endcurr1 = c_int::from(NUL);
             endcurr2 = c_int::from(NUL);
@@ -2103,7 +2103,7 @@ pub fn do_join(
                 if insert_space && t > 1 {
                     curr = skipwhite(curr);
                 }
-                currsize = CStr::from_ptr(curr).to_bytes().len() as c_int;
+                currsize = crate::memory::cstr_len(curr) as c_int;
                 t -= 1;
             }
 
@@ -2998,7 +2998,7 @@ pub fn do_addsub(
             *ptr_line = NUL;
             let mut buf1len = ptr_line.offset_from(buf1) as c_int;
 
-            { let s = buf2_ptr; std::ptr::copy_nonoverlapping(s, buf1.add(buf1len as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(buf1.add(buf1len as usize), buf2_ptr);
             buf1len += buf2len;
 
             ins_str(buf1, buf1len as usize);
@@ -3198,7 +3198,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                         if lnum == (*g_st().curbuf).b_ml.ml_line_count
                             && (*g_st().curbuf).b_p_eol == 0
                             && ((*g_st().curbuf).b_p_bin != 0 || (*g_st().curbuf).b_p_fixeol == 0)
-                            && (CStr::from_ptr(s).to_bytes().len() as c_int) < len
+                            && (crate::memory::cstr_len(s) as c_int) < len
                         {
                             byte_count_cursor -= varnumber_T::from(eol_size);
                         }
@@ -3348,7 +3348,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
 
             bom_count = varnumber_T::from(bomb_size());
             if dict.is_null() && bom_count > 0 {
-                let len = CStr::from_ptr(iobuff_ptr).to_bytes().len();
+                let len = crate::memory::cstr_len(iobuff_ptr);
                 vim_snprintf!(
                     iobuff_ptr.add(len),
                     IOSIZE - len,

@@ -2150,7 +2150,7 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_regprog_T>
                 let mut len: c_int = 0;
                 while !scan.is_null() {
                     if OP(scan) == EXACTLY {
-                        let scanlen = std::ffi::CStr::from_ptr(OPERAND(scan).cast()).to_bytes().len();
+                        let scanlen = crate::memory::cstr_len(OPERAND(scan).cast());
                         if scanlen >= len as usize {
                             longest = OPERAND(scan);
                             len = scanlen as c_int;
@@ -3032,7 +3032,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                 let len = if *opnd.add(1) == NUL && !re_st().rex.reg_ic {
                                     1
                                 } else {
-                                    let mut l = std::ffi::CStr::from_ptr(opnd.cast()).to_bytes().len() as c_int;
+                                    let mut l = crate::memory::cstr_len(opnd.cast()) as c_int;
                                     if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &mut l) != 0 {
                                         status = RA_NOMATCH;
                                     }
@@ -3652,7 +3652,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                 if limit > 0
                                     && i64::from(
                                         (if rp_pos.lnum < bpos.lnum {
-                                            std::ffi::CStr::from_ptr(re_st().rex.line.cast()).to_bytes().len() as colnr_T
+                                            crate::memory::cstr_len(re_st().rex.line.cast()) as colnr_T
                                         } else {
                                             bpos.col
                                         }) - rp_pos.col,
@@ -3667,7 +3667,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                     } else {
                                         reg_restore((*rp).rs_un.regsave_mut());
                                         (*rp).rs_un.regsave_mut().rs_u.pos_mut().col =
-                                            std::ffi::CStr::from_ptr(re_st().rex.line.cast()).to_bytes().len() as colnr_T;
+                                            crate::memory::cstr_len(re_st().rex.line.cast()) as colnr_T;
                                     }
                                 } else {
                                     let line = reg_getline(rp_pos.lnum);

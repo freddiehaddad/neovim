@@ -58,7 +58,9 @@ use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 use crate::strings::{vim_strchr};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
-use std::ffi::{CStr, c_char, c_int};
+#[cfg(unix)]
+use std::ffi::CStr;
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::autocmd::PROF_YES;
@@ -151,7 +153,7 @@ fn save_patterns(
                 .map(|&b| b as c_char)
                 .collect();
             backslash_halve(v.as_mut_ptr());
-            file.push(CStr::from_ptr(v.as_ptr()).to_owned());
+            file.push(crate::memory::cstr_to_cstring(v.as_ptr()));
         }
     }
 }
@@ -201,7 +203,7 @@ pub fn os_expand_wildcards(
         #[cfg(unix)]
         let is_fish_shell = {
             let tail = invocation_path_tail(opt_vars().p_sh, None);
-            let bytes = CStr::from_ptr(tail).to_bytes();
+            let bytes = crate::memory::cstr_as_bytes(tail);
             bytes.starts_with(b"fish")
         };
         #[cfg(not(unix))]
@@ -233,15 +235,15 @@ pub fn os_expand_wildcards(
         let tempname = tempname_cstr.as_ptr();
 
         if num_pat == 1 && **pat == b'`' as c_char {
-            let pat0_len = std::ffi::CStr::from_ptr(*pat).to_bytes().len();
+            let pat0_len = crate::memory::cstr_len(*pat);
             if pat0_len > 2 && *(*pat).add(pat0_len - 1) == b'`' as c_char {
                 shell_style = STYLE_BT;
             }
         }
         if shell_style != STYLE_BT {
-            let sh_len = std::ffi::CStr::from_ptr(opt_vars().p_sh).to_bytes().len();
+            let sh_len = crate::memory::cstr_len(opt_vars().p_sh);
             if sh_len >= 3 {
-                let tail3 = CStr::from_ptr(opt_vars().p_sh.add(sh_len - 3)).to_bytes();
+                let tail3 = crate::memory::cstr_as_bytes(opt_vars().p_sh.add(sh_len - 3));
                 if tail3 == b"csh" {
                     shell_style = STYLE_GLOB;
                 } else if tail3 == b"zsh" {
@@ -250,7 +252,7 @@ pub fn os_expand_wildcards(
             }
         }
         if shell_style == STYLE_ECHO {
-            let sh_tail = CStr::from_ptr(path_tail(opt_vars().p_sh)).to_bytes();
+            let sh_tail = crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh));
             if sh_tail.windows(4).any(|w| w == b"bash") {
                 shell_style = STYLE_GLOBSTAR;
             } else if sh_tail.windows(2).any(|w| w == b"sh") {
@@ -258,7 +260,7 @@ pub fn os_expand_wildcards(
             }
         }
 
-        let mut len = std::ffi::CStr::from_ptr(tempname).to_bytes().len() + 29;
+        let mut len = crate::memory::cstr_len(tempname) + 29;
         if shell_style == STYLE_VIMGLOB {
             len += SH_VIMGLOB_FUNC.to_bytes().len();
         } else if shell_style == STYLE_GLOBSTAR {
@@ -289,14 +291,14 @@ pub fn os_expand_wildcards(
             if is_fish_shell {
                 { let s = c"begin; ".as_ptr(); std::ptr::copy_nonoverlapping(s, command, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             } else {
-                { let s = c"(".as_ptr(); std::ptr::copy_nonoverlapping(s, command, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(command, c"(".as_ptr());
             }
-            { let d = command; let s = (*pat).add(1); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-            let mut p = command.add(std::ffi::CStr::from_ptr(command).to_bytes().len() - 1);
+            { let d = command; let s = (*pat).add(1); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            let mut p = command.add(crate::memory::cstr_len(command) - 1);
             if is_fish_shell {
                 *p = b';' as c_char;
                 p = p.sub(1);
-                { let d = command; let s = c" end".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = command; let s = c" end".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             } else {
                 *p = b')' as c_char;
                 p = p.sub(1);
@@ -308,38 +310,38 @@ pub fn os_expand_wildcards(
                 ampersand = true;
                 *p = b' ' as c_char;
             }
-            { let d = command; let s = c">".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            { let d = command; let s = c">".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         } else {
             *command = NUL;
             if shell_style == STYLE_GLOB {
                 if (flags & EW_NOTFOUND) != 0 {
-                    { let d = command; let s = c"set nonomatch; ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    { let d = command; let s = c"set nonomatch; ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 } else {
-                    { let d = command; let s = c"unset nonomatch; ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    { let d = command; let s = c"unset nonomatch; ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 }
             }
             if shell_style == STYLE_GLOB {
-                { let d = command; let s = c"glob >".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = command; let s = c"glob >".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             } else if shell_style == STYLE_PRINT {
-                { let d = command; let s = c"print -N >".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = command; let s = c"print -N >".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             } else if shell_style == STYLE_VIMGLOB {
-                { let d = command; let s = SH_VIMGLOB_FUNC.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = command; let s = SH_VIMGLOB_FUNC.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             } else if shell_style == STYLE_GLOBSTAR {
-                { let d = command; let s = SH_GLOBSTAR_OPT.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                { let d = command; let s = SH_VIMGLOB_FUNC.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = command; let s = SH_GLOBSTAR_OPT.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = command; let s = SH_VIMGLOB_FUNC.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             } else {
-                { let d = command; let s = c"echo >".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = command; let s = c"echo >".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
         }
 
-        { let d = command; let s = tempname; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        { let d = command; let s = tempname; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
         if shell_style != STYLE_BT {
             for i in 0..(num_pat as usize) {
                 let mut intick = false;
                 let p_i = *pat.add(i);
 
-                let mut p = command.add(std::ffi::CStr::from_ptr(command).to_bytes().len());
+                let mut p = command.add(crate::memory::cstr_len(command));
                 *p = b' ' as c_char;
                 p = p.add(1);
                 let mut j = 0;
@@ -378,7 +380,7 @@ pub fn os_expand_wildcards(
         }
 
         if ampersand {
-            { let d = command; let s = c"&".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            { let d = command; let s = c"&".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         }
 
         if shell_style == STYLE_PRINT {
@@ -480,7 +482,7 @@ pub fn os_expand_wildcards(
             let mut check_spaces = false;
             if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
                 *buffer.add(len) = NUL;
-                if len != 0 && (std::ffi::CStr::from_ptr(buffer).to_bytes().len() as c_int) < (len as c_int) {
+                if len != 0 && (crate::memory::cstr_len(buffer) as c_int) < (len as c_int) {
                     sh_st().did_find_nul = true;
                 } else {
                     check_spaces = true;
@@ -560,13 +562,13 @@ pub fn os_expand_wildcards(
                 continue;
             }
 
-            let entry_len = std::ffi::CStr::from_ptr(entry).to_bytes().len();
+            let entry_len = crate::memory::cstr_len(entry);
             let mut new_vec = vec![0 as c_char; entry_len + 1 + usize::from(dir)];
-            { let s = entry; std::ptr::copy_nonoverlapping(s, new_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(new_vec.as_mut_ptr(), entry);
             if dir {
                 add_pathsep(new_vec.as_mut_ptr());
             }
-            file.push(CStr::from_ptr(new_vec.as_ptr()).to_owned());
+            file.push(crate::memory::cstr_to_cstring(new_vec.as_ptr()));
         }
         drop(buffer_vec);
 
@@ -588,12 +590,12 @@ pub fn shell_build_argv(
     cmd: *const c_char,
     extra_args: *const c_char,
 ) -> Vec<std::ffi::CString> {
-    unsafe {
+     {
         let mut rv: Vec<std::ffi::CString> = Vec::new();
         tokenize(opt_vars().p_sh, &mut rv);
 
         if !extra_args.is_null() {
-            rv.push(CStr::from_ptr(extra_args).to_owned());
+            rv.push(crate::memory::cstr_to_cstring(extra_args));
         }
 
         if !cmd.is_null() {
@@ -618,9 +620,9 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
             return rv;
         }
         for arg in argv {
-            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"'".as_ptr(), _dsize - _dlen); };
-            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), arg.as_ptr(), _dsize - _dlen); };
-            n = { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"' ".as_ptr(), _dsize - _dlen) + _dlen };
+            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"'".as_ptr(), _dsize - _dlen); };
+            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), arg.as_ptr(), _dsize - _dlen); };
+            n = { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"' ".as_ptr(), _dsize - _dlen) + _dlen };
             if n >= maxsize {
                 break;
             }
@@ -1241,10 +1243,10 @@ pub(crate) fn shell_write_cb(stream: &mut Stream, status: c_int) {
 fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
     unsafe {
         if *opt_vars().p_sxq == NUL {
-            return CStr::from_ptr(cmd).to_owned();
+            return crate::memory::cstr_to_cstring(cmd);
         }
 
-        let sxq_bytes = CStr::from_ptr(opt_vars().p_sxq).to_bytes();
+        let sxq_bytes = crate::memory::cstr_as_bytes(opt_vars().p_sxq);
         let owned_ecmd = if *opt_vars().p_sxe != NUL && sxq_bytes == b"(" {
             Some(vim_strsave_escaped_ext(std::ffi::CStr::from_ptr(cmd), std::ffi::CStr::from_ptr(opt_vars().p_sxe), b'^' as c_char, false))
         } else {
@@ -1252,7 +1254,7 @@ fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
         };
         let ecmd_bytes = owned_ecmd
             .as_ref()
-            .map_or_else(|| CStr::from_ptr(cmd).to_bytes(), |s| s.as_bytes());
+            .map_or_else(|| crate::memory::cstr_as_bytes(cmd), |s| s.as_bytes());
         let mut out = Vec::with_capacity(ecmd_bytes.len() + sxq_bytes.len() * 2);
 
         if sxq_bytes == b"(" {
@@ -1276,6 +1278,7 @@ fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
 
     #[test]
     fn word_length_handles_quotes_and_escaped_chars() {

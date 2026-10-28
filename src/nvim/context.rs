@@ -40,7 +40,7 @@ use crate::window::{
     win_append, win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
 };
 use crate::winfloat::win_config_float;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::api::buffer::VIML_INTERNAL_CALL;
@@ -653,7 +653,7 @@ fn ctx_dirs_save(cs: &mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *m
         if ((cs.cs_flags & kCtxKeepDirs) != 0 || *curwin.as_ptr() != wp)
             && os_dirname(cwd.as_mut_ptr(), MAXPATHL)
         {
-            cs.cs_cwd = Some(CStr::from_ptr(cwd.as_ptr()).to_owned());
+            cs.cs_cwd = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
         }
 
         if let Some(ref cs_cwd) = cs.cs_cwd
@@ -664,7 +664,7 @@ fn ctx_dirs_save(cs: &mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *m
             let mut autocwd = [0 as c_char; MAXPATHL];
             if os_dirname(autocwd.as_mut_ptr(), MAXPATHL) {
                 cs.cs_apply_acd =
-                    saved_cwd_bytes.as_slice() == CStr::from_ptr(autocwd.as_ptr()).to_bytes();
+                    saved_cwd_bytes.as_slice() == crate::memory::cstr_as_bytes(autocwd.as_ptr());
             }
         }
     }

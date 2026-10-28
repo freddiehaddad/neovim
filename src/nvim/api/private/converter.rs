@@ -15,7 +15,7 @@ use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
 use crate::memory::{Arena, arena_memdupz_opt};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
@@ -82,7 +82,7 @@ fn convert_one_value(
             let len = if s.is_null() {
                 0
             } else {
-                unsafe { CStr::from_ptr(s).to_bytes().len() }
+                 crate::memory::cstr_len(s)
             };
             stack.push(cbuf_to_string_obj(arena, reuse_strdata, s, len));
         }
@@ -334,7 +334,7 @@ pub fn vim_to_object(
 
                     let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
                     let key_ptr = (*di).di_key.as_ptr();
-                    let key_len = CStr::from_ptr(key_ptr).to_bytes().len();
+                    let key_len = crate::memory::cstr_len(key_ptr);
                     let key_obj =
                         cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_ptr, key_len);
 

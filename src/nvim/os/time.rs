@@ -6,7 +6,7 @@ use crate::memory::xstrlcpy;
 #[cfg(unix)]
 use crate::os::env::os_getenv_buf;
 use crate::os::input::os_input_ready;
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 
 pub type Timestamp = u64;
 pub type time_t = i64;
@@ -137,7 +137,7 @@ pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
         let tz_bytes = if tz_ptr.is_null() {
             &[][..]
         } else {
-            CStr::from_ptr(tz_ptr).to_bytes()
+            crate::memory::cstr_as_bytes(tz_ptr)
         };
         let cache_ptr = &raw mut ostime_st().TZ_CACHE;
         let cache = &mut *cache_ptr;
@@ -199,7 +199,7 @@ pub fn os_ctime_r(
 
     if add_newline && result_len > 0 {
         unsafe {
-            let cur_len = CStr::from_ptr(result).to_bytes().len();
+            let cur_len = crate::memory::cstr_len(result);
             if cur_len + 1 < result_len {
                 *result.add(cur_len) = b'\n' as c_char;
                 *result.add(cur_len + 1) = 0;
@@ -239,6 +239,7 @@ pub fn os_time() -> Timestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
 
     #[test]
     fn os_time_and_ctime_r_work() {

@@ -950,7 +950,7 @@ fn lua_convert_one_value(
                 let len = if s.is_null() {
                     0
                 } else {
-                    CStr::from_ptr(s).to_bytes().len()
+                    crate::memory::cstr_len(s)
                 };
                 lua_pushlstring(lstate, s, len);
             }
@@ -1306,7 +1306,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> bool {
                     *todo -= 1;
                     *hi = (*hi).add(1);
                     let key_ptr = (*di).di_key.as_ptr();
-                    let key_len = CStr::from_ptr(key_ptr).to_bytes().len();
+                    let key_len = crate::memory::cstr_len(key_ptr);
                     lua_pushlstring(lstate, key_ptr, key_len);
                     &mut (*di).di_tv
                 }

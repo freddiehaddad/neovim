@@ -992,7 +992,7 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
         (*ct).rpc.client_type = if r#type.is_null() {
             kClientTypeRemote
         } else {
-            match CStr::from_ptr(r#type).to_bytes() {
+            match crate::memory::cstr_as_bytes(r#type) {
                 b"remote" => kClientTypeRemote,
                 b"msgpack-rpc" => kClientTypeMsgpackRpc,
                 b"ui" => kClientTypeUi,
@@ -1013,12 +1013,12 @@ pub fn get_client_info(chan: &mut Channel, key: *const c_char) -> *const c_char 
         if !ct.is_rpc {
             return ptr::null();
         }
-        let key_bytes = CStr::from_ptr(key).to_bytes();
+        let key_bytes = crate::memory::cstr_as_bytes(key);
         let info = ct.rpc.info;
         for i in 0..info.size {
             let item = &*info.items.add(i);
             if !item.key.data.is_null()
-                && CStr::from_ptr(item.key.data).to_bytes() == key_bytes
+                && crate::memory::cstr_as_bytes(item.key.data) == key_bytes
                 && item.value.obj_type == ObjectType::kObjectTypeString
             {
                 return item.value.data.string().data;

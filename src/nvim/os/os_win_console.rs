@@ -13,7 +13,7 @@ use crate::strings::vim_snprintf;
 #[cfg(windows)]
 use crate::ui::ui_active;
 #[cfg(windows)]
-use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
+use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
 
 #[cfg(windows)]
 pub type HANDLE = *mut c_void;
@@ -379,7 +379,7 @@ pub fn os_tty_guess_term(term: *mut *const c_char, out_fd: c_int) {
             conemu_buf.as_mut_ptr(),
             conemu_buf.len(),
         );
-        let conemu_ansi = !conemu_env.is_null() && CStr::from_ptr(conemu_env).to_bytes() == b"ON";
+        let conemu_ansi = !conemu_env.is_null() && crate::memory::cstr_as_bytes(conemu_env) == b"ON";
         let mut vtp = false;
 
         let handle = _get_osfhandle(out_fd) as HANDLE;

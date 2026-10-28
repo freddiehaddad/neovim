@@ -5546,7 +5546,7 @@ pub fn get_loop_line(
 fn store_loop_line(lines: &mut Vec<wcmd_T>, line: *const c_char) {
     unsafe {
         lines.push(wcmd_T {
-            line: CStr::from_ptr(line).to_owned(),
+            line: crate::memory::cstr_to_cstring(line),
             lnum: *sourcing_lnum_ptr(),
         });
     }
@@ -5851,9 +5851,9 @@ fn parse_register(eap: &mut exarg_T) {
             eap.arg = eap.arg.add(1);
             if *eap.arg.sub(1) == b'=' as c_char && *eap.arg != NUL {
                 if eap.skip == 0 {
-                    set_expr_line(Some(CStr::from_ptr(eap.arg).to_owned()));
+                    set_expr_line(Some(crate::memory::cstr_to_cstring(eap.arg)));
                 }
-                eap.arg = eap.arg.add(std::ffi::CStr::from_ptr(eap.arg).to_bytes().len());
+                eap.arg = eap.arg.add(crate::memory::cstr_len(eap.arg));
             }
             eap.arg = skipwhite(eap.arg);
         }
@@ -6156,7 +6156,7 @@ fn execute_cmd0(
                 {
                     p = skiptowhite_esc(eap.arg);
                 } else {
-                    p = eap.arg.add(std::ffi::CStr::from_ptr(eap.arg).to_bytes().len());
+                    p = eap.arg.add(crate::memory::cstr_len(eap.arg));
                     while p > eap.arg && ascii_iswhite(*p.sub(1)) {
                         p = p.sub(1);
                     }
@@ -7085,7 +7085,7 @@ pub fn parse_command_modifiers(
                         break;
                     }
                     if ascii_isdigit(*eap.cmd) {
-                        cmod.cmod_verbose = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(eap.cmd).to_bytes()) as c_int + 1;
+                        cmod.cmod_verbose = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.cmd)) as c_int + 1;
                     } else {
                         cmod.cmod_verbose = 2;
                     }
@@ -7358,21 +7358,21 @@ pub fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) -> bool
 fn append_command(cmd: *const c_char) {
     unsafe {
         let iobuf_ptr: *mut c_char = (&raw mut g_st().IObuff).cast();
-        let len = std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len();
+        let len = crate::memory::cstr_len(iobuf_ptr);
         let mut s = cmd;
         let mut d: *mut c_char;
 
         if len > IOSIZE - 100 {
             d = iobuf_ptr.add(IOSIZE - 100);
             d = d.sub(utf_head_off(iobuf_ptr, d) as usize);
-            { let s = c"...".as_ptr(); std::ptr::copy_nonoverlapping(s, d, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(d, c"...".as_ptr());
         }
-        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c": ".as_ptr(), _dsize - _dlen); };
-        d = iobuf_ptr.add(std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len());
+        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c": ".as_ptr(), _dsize - _dlen); };
+        d = iobuf_ptr.add(crate::memory::cstr_len(iobuf_ptr));
         while *s != NUL && ((d as usize) - (iobuf_ptr as usize) + 5 < IOSIZE) {
             if (*s as u8) == 0xc2 && (*s.add(1) as u8) == 0xa0 {
                 s = s.add(2);
-                { let s = c"<a0>".as_ptr(); std::ptr::copy_nonoverlapping(s, d, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(d, c"<a0>".as_ptr());
                 d = d.add(4);
             } else if (d as usize) - (iobuf_ptr as usize) + (utfc_ptr2len(s) as usize) + 1 >= IOSIZE
             {
@@ -7857,7 +7857,7 @@ pub fn get_address(
                                 c,
                                 c,
                                 cmd,
-                                std::ffi::CStr::from_ptr(cmd).to_bytes().len(),
+                                crate::memory::cstr_len(cmd),
                                 1,
                                 search_flags,
                                 opt_vars().p_magic != 0,
@@ -8192,8 +8192,8 @@ pub fn replace_makeprg(
                     .map(|b| b as c_char)
                     .collect()
             } else {
-                let prog_b = CStr::from_ptr(program).to_bytes();
-                let arg_b = CStr::from_ptr(arg).to_bytes();
+                let prog_b = crate::memory::cstr_as_bytes(program);
+                let arg_b = crate::memory::cstr_as_bytes(arg);
                 let mut combined = Vec::with_capacity(prog_b.len() + 1 + arg_b.len() + 1);
                 combined.extend(prog_b.iter().map(|&b| b as c_char));
                 combined.push(b' ' as c_char);
@@ -8320,7 +8320,7 @@ pub fn expand_filename(
                     p = ptr::null_mut();
                 }
                 if !p.is_null() {
-                    repl_cmdline(eap, eap.arg, std::ffi::CStr::from_ptr(eap.arg).to_bytes().len(), p, cmdlinep);
+                    repl_cmdline(eap, eap.arg, crate::memory::cstr_len(eap.arg), p, cmdlinep);
                 }
             }
 
@@ -8351,7 +8351,7 @@ pub fn expand_filename(
                 repl_cmdline(
                     eap,
                     eap.arg,
-                    std::ffi::CStr::from_ptr(eap.arg).to_bytes().len(),
+                    crate::memory::cstr_len(eap.arg),
                     expanded.as_ptr().cast_mut(),
                     cmdlinep,
                 );
@@ -8371,11 +8371,11 @@ fn repl_cmdline(
     cmdlinep: *mut *mut c_char,
 ) -> *mut c_char {
     unsafe {
-        let len = std::ffi::CStr::from_ptr(repl).to_bytes().len();
+        let len = crate::memory::cstr_len(repl);
         let offset = (src as usize) - ((*cmdlinep) as usize);
-        let tail_len = std::ffi::CStr::from_ptr(src.add(srclen)).to_bytes().len();
+        let tail_len = crate::memory::cstr_len(src.add(srclen));
         let nextcmd_len = if !eap.nextcmd.is_null() {
-            std::ffi::CStr::from_ptr(eap.nextcmd).to_bytes().len()
+            crate::memory::cstr_len(eap.nextcmd)
         } else {
             0
         };
@@ -8387,12 +8387,12 @@ fn repl_cmdline(
         ptr::copy_nonoverlapping(*cmdlinep, new_cmdline, i);
         ptr::copy_nonoverlapping(repl, new_cmdline.add(i), len);
         i += len;
-        { let s = src.add(srclen); std::ptr::copy_nonoverlapping(s, new_cmdline.add(i), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cpy(new_cmdline.add(i), src.add(srclen));
         src = new_cmdline.add(i);
 
         if !eap.nextcmd.is_null() {
-            i = std::ffi::CStr::from_ptr(new_cmdline).to_bytes().len() + 1;
-            { let s = eap.nextcmd; std::ptr::copy_nonoverlapping(s, new_cmdline.add(i), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            i = crate::memory::cstr_len(new_cmdline) + 1;
+            crate::memory::cstr_cpy(new_cmdline.add(i), eap.nextcmd);
             eap.nextcmd = new_cmdline.add(i);
         }
         eap.cmd =
@@ -8518,9 +8518,9 @@ pub fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
 
 pub fn get_bad_opt(p: *const c_char, eap: &mut exarg_T) -> bool {
     unsafe {
-        if std::ffi::CStr::from_ptr(p).to_bytes().eq_ignore_ascii_case(b"keep") {
+        if crate::memory::cstr_as_bytes(p).eq_ignore_ascii_case(b"keep") {
             eap.bad_char = BAD_KEEP;
-        } else if std::ffi::CStr::from_ptr(p).to_bytes().eq_ignore_ascii_case(b"drop") {
+        } else if crate::memory::cstr_as_bytes(p).eq_ignore_ascii_case(b"drop") {
             eap.bad_char = BAD_DROP;
         } else if utfc_ptr2len(p) == 1 && *p.add(1) == NUL {
             eap.bad_char = c_int::from(*p as u8);
@@ -8701,9 +8701,9 @@ fn get_tabpage_arg(eap: &mut exarg_T) -> c_int {
                 tab_number = getdigits(&raw mut p, false, i64::from(tab_number)) as c_int;
 
                 if relative == 0 {
-                    if std::ffi::CStr::from_ptr(p).to_bytes() == b"$" {
+                    if crate::memory::cstr_as_bytes(p) == b"$" {
                         tab_number = last_tab;
-                    } else if std::ffi::CStr::from_ptr(p).to_bytes() == b"#" {
+                    } else if crate::memory::cstr_as_bytes(p) == b"#" {
                         if valid_tabpage(g_st().lastused_tabpage) {
                             tab_number = tabpage_index(g_st().lastused_tabpage);
                         } else {
@@ -9261,7 +9261,7 @@ fn ex_restart(eap: &mut exarg_T) {
                     && !(crate::memory::cstr_as_opt_bytes(arg) == Some(b"--headless"))
                     && !(crate::memory::cstr_as_opt_bytes(arg) == Some(b"-")))
             {
-                argv_vec.push(CStr::from_ptr(arg).to_owned());
+                argv_vec.push(crate::memory::cstr_to_cstring(arg));
                 if argv_vec.len() == 1 {
                     argv_vec.push(c"--embed".to_owned());
                     if no_ui {
@@ -9517,7 +9517,7 @@ fn ex_restart(eap: &mut exarg_T) {
             let mut quit_cmd_copy: Option<std::ffi::CString> = None;
             if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                 let mut bytes = Vec::from(&b"confirm "[..]);
-                bytes.extend_from_slice(CStr::from_ptr(quit_cmd).to_bytes());
+                bytes.extend_from_slice(crate::memory::cstr_as_bytes(quit_cmd));
                 let cstr = cstr_from_bytes(&bytes);
                 quit_cmd = cstr.as_ptr().cast_mut();
                 quit_cmd_copy = Some(cstr);
@@ -10103,7 +10103,7 @@ pub fn ex_splitview(eap: &mut exarg_T) {
                 if (*get_findfunc()).cb_type() != kCallbackNone {
                     fname = findfunc_find_file(
                         eap.arg,
-                        std::ffi::CStr::from_ptr(eap.arg).to_bytes().len(),
+                        crate::memory::cstr_len(eap.arg),
                         if eap.addr_count > 0 {
                             eap.line2
                         } else {
@@ -10115,7 +10115,7 @@ pub fn ex_splitview(eap: &mut exarg_T) {
                     let mut search_ctx: Option<ff_search_ctx_T> = None;
                     fname = find_file_in_path(
                         eap.arg,
-                        std::ffi::CStr::from_ptr(eap.arg).to_bytes().len(),
+                        crate::memory::cstr_len(eap.arg),
                         FNAME_MESS,
                         c_int::from(true),
                         (*g_st().curbuf).b_ffname,
@@ -10444,7 +10444,7 @@ fn ex_resize(eap: &mut exarg_T) {
             }
         }
 
-        let mut n = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(eap.arg).to_bytes()) as std::ffi::c_long as c_int;
+        let mut n = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as std::ffi::c_long as c_int;
         if (g_st().cmdmod.cmod_split & WSP_VERT) != 0 {
             if *eap.arg == b'-' as c_char || *eap.arg == b'+' as c_char {
                 n += (*wp).w_width;
@@ -10473,7 +10473,7 @@ fn ex_find(eap: &mut exarg_T) {
         if (*get_findfunc()).cb_type() != kCallbackNone {
                 fname = findfunc_find_file(
                     eap.arg,
-                    std::ffi::CStr::from_ptr(eap.arg).to_bytes().len(),
+                    crate::memory::cstr_len(eap.arg),
                     if eap.addr_count > 0 {
                         eap.line2
                     } else {
@@ -10485,7 +10485,7 @@ fn ex_find(eap: &mut exarg_T) {
                 let mut search_ctx: Option<ff_search_ctx_T> = None;
                 fname = find_file_in_path(
                     eap.arg,
-                    std::ffi::CStr::from_ptr(eap.arg).to_bytes().len(),
+                    crate::memory::cstr_len(eap.arg),
                     FNAME_MESS,
                     c_int::from(true),
                     (*g_st().curbuf).b_ffname,
@@ -10818,7 +10818,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         if !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
             return;
         }
-        let cwd_cstr = std::ffi::CStr::from_ptr(cwd.as_ptr()).to_owned();
+        let cwd_cstr = crate::memory::cstr_to_cstring(cwd.as_ptr());
         match scope {
             kCdScopeGlobal => {
                 g_st().globaldir = if (*g_st().curbuf).b_localdir.is_some() {
@@ -10854,7 +10854,7 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             return false;
         }
 
-        if std::ffi::CStr::from_ptr(new_dir).to_bytes() == b"-" {
+        if crate::memory::cstr_as_bytes(new_dir) == b"-" {
             let Some(ref prev) = *get_prevdir(scope) else {
                 let _ = emsg(gettext(c"E186: No previous directory".as_ptr()));
                 return false;
@@ -10863,7 +10863,7 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
         }
 
         let pdir = if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) {
-            Some(std::ffi::CStr::from_ptr((&raw const g_st().NameBuff).cast()).to_owned())
+            Some(crate::memory::cstr_to_cstring((&raw const g_st().NameBuff).cast()))
         } else {
             None
         };
@@ -11449,7 +11449,7 @@ fn ex_redir(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
 
-        if std::ffi::CStr::from_ptr(eap.arg).to_bytes().eq_ignore_ascii_case(b"END") {
+        if crate::memory::cstr_as_bytes(eap.arg).eq_ignore_ascii_case(b"END") {
             close_redir();
         } else if *arg == b'>' as c_char {
             arg = arg.add(1);
@@ -11745,7 +11745,7 @@ fn ex_normal(eap: &mut exarg_T) {
         }
         let mut arg_vec: Option<Vec<c_char>> = None;
         if len > 0 {
-            let mut v = vec![0 as c_char; std::ffi::CStr::from_ptr(eap.arg).to_bytes().len() + len + 1];
+            let mut v = vec![0 as c_char; crate::memory::cstr_len(eap.arg) + len + 1];
             let arg = v.as_mut_ptr();
             len = 0;
             p = eap.arg;
@@ -11943,7 +11943,7 @@ fn ex_findpat(eap: &mut exarg_T) {
             find_pattern_in_path(
                 eap.arg,
                 0,
-                std::ffi::CStr::from_ptr(eap.arg).to_bytes().len(),
+                crate::memory::cstr_len(eap.arg),
                 whole,
                 eap.forceit == 0,
                 if *eap.cmd == b'd' as c_char {
@@ -12155,7 +12155,7 @@ pub fn eval_vars(
                         valid = 0;
                     } else {
                         result = (*g_st().curbuf).b_fname;
-                        tilde_file = std::ffi::CStr::from_ptr(result).to_bytes() == b"~";
+                        tilde_file = crate::memory::cstr_as_bytes(result) == b"~";
                     }
                     use_shellslash = true;
                 }
@@ -12210,7 +12210,7 @@ pub fn eval_vars(
                                 valid = 0;
                             } else {
                                 result = (*buf).b_fname;
-                                tilde_file = std::ffi::CStr::from_ptr(result).to_bytes() == b"~";
+                                tilde_file = crate::memory::cstr_as_bytes(result) == b"~";
                             }
                         }
                     }
@@ -12354,10 +12354,10 @@ pub fn eval_vars(
                 }
             }
 
-            resultlen = std::ffi::CStr::from_ptr(result).to_bytes().len();
+            resultlen = crate::memory::cstr_len(result);
             if *src.add(*usedlen) == b'<' as c_char {
                 *usedlen += 1;
-                let s = CStr::from_ptr(result).to_bytes().iter().rposition(|&b| b == b'.').map_or(ptr::null_mut(), |i| result.add(i));
+                let s = crate::memory::cstr_as_bytes(result).iter().rposition(|&b| b == b'.').map_or(ptr::null_mut(), |i| result.add(i));
                 if !s.is_null() && s >= path_tail(result) {
                     resultlen = (s as usize) - (result as usize);
                 }
@@ -12519,7 +12519,7 @@ fn ex_filetype(eap: &mut exarg_T) {
             break;
         }
 
-        if std::ffi::CStr::from_ptr(arg).to_bytes() == b"on" || std::ffi::CStr::from_ptr(arg).to_bytes() == b"detect" {
+        if crate::memory::cstr_as_bytes(arg) == b"on" || crate::memory::cstr_as_bytes(arg) == b"detect" {
             if *arg == b'o' as c_char || docmd_st().filetype_detect != kTrue {
                 source_runtime(FILETYPE_FILE.as_ptr().cast_mut(), DIP_ALL);
                 docmd_st().filetype_detect = kTrue;
@@ -12540,7 +12540,7 @@ fn ex_filetype(eap: &mut exarg_T) {
                 );
                 do_modelines(0);
             }
-        } else if std::ffi::CStr::from_ptr(arg).to_bytes() == b"off" {
+        } else if crate::memory::cstr_as_bytes(arg) == b"off" {
             if plugin || indent {
                 if plugin {
                     source_runtime(FTPLUGOF_FILE.as_ptr().cast_mut(), DIP_ALL);
@@ -12688,7 +12688,7 @@ pub fn is_loclist_cmd(cmdidx: c_int) -> bool {
 }
 
 fn ex_checkhealth(eap: &mut exarg_T) {
-    unsafe {
+     {
         g_st().emsg_off += 1;
         let ok = nlua_call_excmd(
             c"vim.health".as_ptr(),
@@ -12707,7 +12707,7 @@ fn ex_checkhealth(eap: &mut exarg_T) {
             return;
         };
         let vr_bytes = vimruntime_env.to_bytes();
-            let rtp_ok = vr_bytes.is_empty() || CStr::from_ptr(opt_vars().p_rtp).to_bytes().windows(vr_bytes.len()).any(|w| w == vr_bytes);
+            let rtp_ok = vr_bytes.is_empty() || crate::memory::cstr_as_bytes(opt_vars().p_rtp).windows(vr_bytes.len()).any(|w| w == vr_bytes);
         if rtp_ok {
             let _ = semsg!(
                 gettext(c"E5009: Invalid $VIMRUNTIME: %s".as_ptr()),
@@ -12965,8 +12965,8 @@ pub fn verify_command(cmd: *mut c_char) {
         c"`      `.:.`.,:iii;;;;;;;;iii;;;:`       `.``                                                        `nW",
     ];
 
-    unsafe {
-        if b"smile" != std::ffi::CStr::from_ptr(cmd).to_bytes() {
+     {
+        if b"smile" != crate::memory::cstr_as_bytes(cmd) {
             return;
         }
         for line in &SMILE_LINES {

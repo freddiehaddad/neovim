@@ -80,7 +80,7 @@ pub fn ex_help(eap: &mut exarg_T) {
         }
 
         // remove trailing blanks
-        let arg_len = CStr::from_ptr(arg).to_bytes().len();
+        let arg_len = crate::memory::cstr_len(arg);
         if arg_len > 0 {
             let mut p = arg.add(arg_len - 1);
             while p > arg && ascii_iswhite(*p) && *p.sub(1) != b'\\' as c_char {
@@ -138,7 +138,7 @@ pub fn ex_help(eap: &mut exarg_T) {
 
         let mut i: usize = 0;
         if found_tags && !lang.is_null() {
-            let lang_bytes = CStr::from_ptr(lang).to_bytes();
+            let lang_bytes = crate::memory::cstr_as_bytes(lang);
             while i < matches.len() {
                 let m_bytes = matches[i].as_bytes();
                 let len = m_bytes.len();
@@ -275,7 +275,7 @@ pub fn ex_helpclose(eap: &mut exarg_T) {
 /// Search for a language specifier in the form `@xx` (`check_help_lang`).
 pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
     unsafe {
-        let len = CStr::from_ptr(arg).to_bytes().len();
+        let len = crate::memory::cstr_len(arg);
         if len >= 3
             && *arg.add(len - 3) == b'@' as c_char
             && ascii_isalpha(*arg.add(len - 2))
@@ -318,7 +318,7 @@ pub fn help_heuristic(
         if *matched_string == b'+' as c_char && *matched_string.add(1) != NUL {
             offset += 100;
         }
-        let len = CStr::from_ptr(matched_string).to_bytes().len() as c_int;
+        let len = crate::memory::cstr_len(matched_string) as c_int;
         100 * num_letters + len + offset
     }
 }
@@ -327,10 +327,10 @@ fn help_compare(str1: &[c_char], str2: &[c_char]) -> std::cmp::Ordering {
     unsafe {
         let p1 = str1.as_ptr();
         let p2 = str2.as_ptr();
-        let b1 = CStr::from_ptr(p1).to_bytes();
-        let b2 = CStr::from_ptr(p2).to_bytes();
-        let pri1 = CStr::from_ptr(p1.add(b1.len() + 1)).to_bytes();
-        let pri2 = CStr::from_ptr(p2.add(b2.len() + 1)).to_bytes();
+        let b1 = crate::memory::cstr_as_bytes(p1);
+        let b2 = crate::memory::cstr_as_bytes(p2);
+        let pri1 = crate::memory::cstr_as_bytes(p1.add(b1.len() + 1));
+        let pri2 = crate::memory::cstr_as_bytes(p2.add(b2.len() + 1));
 
         pri1.cmp(pri2).then_with(|| b1.cmp(b2))
     }
@@ -342,7 +342,7 @@ pub fn find_help_tags(
     matches: &mut Vec<std::ffi::CString>,
     keep_lang: bool,
 ) -> bool {
-    unsafe {
+     {
         let mut tv_args = [
             typval_T {
                 v_type: VarType::VAR_STRING,
@@ -392,7 +392,7 @@ pub fn find_help_tags(
             raw_matches.truncate(TAG_MANY as usize);
             matches.reserve_exact(raw_matches.len());
             for m in raw_matches {
-                matches.push(CStr::from_ptr(m.as_ptr()).to_owned());
+                matches.push(crate::memory::cstr_to_cstring(m.as_ptr()));
             }
         }
         true
@@ -518,14 +518,14 @@ pub fn ex_helptags(eap: &mut exarg_T) {
     unsafe {
         let mut add_help_tags = false;
 
-        let arg_bytes = CStr::from_ptr(eap.arg).to_bytes();
+        let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
         if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(*eap.arg.add(3)) {
             add_help_tags = true;
             eap.arg = skipwhite(eap.arg.add(3));
         }
 
         let mut tv_args = [
-            if CStr::from_ptr(eap.arg).to_bytes() == b"ALL" {
+            if crate::memory::cstr_as_bytes(eap.arg) == b"ALL" {
                 typval_T {
                     v_type: VarType::VAR_SPECIAL,
                     v_lock: 0,
@@ -568,12 +568,12 @@ mod tests {
 
     #[test]
     fn check_help_lang_and_help_heuristic_work() {
-        unsafe {
+         {
             let mut buf = *b"options@en\0";
             let lang = check_help_lang(buf.as_mut_ptr().cast());
             assert!(!lang.is_null());
-            assert_eq!(CStr::from_ptr(lang).to_bytes(), b"en");
-            assert_eq!(CStr::from_ptr(buf.as_ptr().cast()).to_bytes(), b"options");
+            assert_eq!(crate::memory::cstr_as_bytes(lang), b"en");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr().cast()), b"options");
 
             let exact = help_heuristic(c"help".as_ptr().cast_mut(), 0, false);
             let wrong_case = help_heuristic(c"Help".as_ptr().cast_mut(), 0, true);

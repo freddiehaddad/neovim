@@ -2722,7 +2722,7 @@ fn check_keyword_id(
         }
 
         let mut keyword = [0 as c_char; MAXKEYWLEN + 1];
-        { let _d = (keyword.as_mut_ptr()).cast::<u8>(); let _n = kwlen as usize; if _n > 0 { std::ptr::copy_nonoverlapping((kwp).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+        crate::memory::cstr_ncpy(keyword.as_mut_ptr(), kwp, kwlen as usize);
 
         let mut kp: *const keyentry_T = std::ptr::null();
 
@@ -2753,7 +2753,7 @@ fn match_keyword(
     cur_si: *mut stateitem_T,
 ) -> *const keyentry_T {
     unsafe {
-        let key_bytes = std::ffi::CStr::from_ptr(keyword).to_bytes();
+        let key_bytes = crate::memory::cstr_as_bytes(keyword);
         if let Some(entries) = ht.get(key_bytes) {
             let cur_next_list = &syn_st().current_next_list;
             for kp in entries {
@@ -2918,7 +2918,7 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
                 emsg(gettext((&raw const e_invarg).cast()));
                 return;
             }
-            let isk = std::ffi::CStr::from_ptr(arg).to_owned();
+            let isk = crate::memory::cstr_to_cstring(arg);
             let isk_ptr = isk.as_ptr().cast_mut();
             (*win_s(&mut **curwin.as_ptr())).b_syn_isk = Some(isk);
             parse_isopt(
@@ -3500,7 +3500,7 @@ fn syn_list_keywords(
     mut did_header: bool,
     hl_id: c_int,
 ) -> bool {
-    unsafe {
+     {
         let mut prev_contained: c_int = 0;
         let mut prev_next_list: SynIdList = None;
         let mut prev_cont_in_list: SynIdList = None;
@@ -3528,7 +3528,7 @@ fn syn_list_keywords(
                     {
                         force_newline = true;
                     } else {
-                        outlen = std::ffi::CStr::from_ptr(ke2hikey(kp)).to_bytes().len() as c_int;
+                        outlen = crate::memory::cstr_len(ke2hikey(kp)) as c_int;
                     }
                     if syn_list_header(did_header, outlen, id, force_newline) {
                         prev_contained = 0;
@@ -3614,7 +3614,7 @@ fn add_keyword(
                 name_folded.as_mut_ptr(),
                 (MAXKEYWLEN + 1) as c_int,
             );
-            (name_folded.as_ptr(), std::ffi::CStr::from_ptr(name_folded.as_ptr()).to_bytes().len())
+            (name_folded.as_ptr(), crate::memory::cstr_len(name_folded.as_ptr()))
         } else {
             (name, namelen)
         };
@@ -3697,7 +3697,7 @@ fn get_syn_options(
         }
 
         loop {
-            if *arg == NUL || !std::ffi::CStr::from_ptr(FIRST_LETTERS).to_bytes().contains(&(*arg as u8)) {
+            if *arg == NUL || !crate::memory::cstr_as_bytes(FIRST_LETTERS).contains(&(*arg as u8)) {
                 break;
             }
 
@@ -3911,7 +3911,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
                 syn_check_group(arg, group_name_end.offset_from(arg) as usize)
             };
             if syn_id != 0 {
-                let mut keyword_buf = vec![0 as c_char; std::ffi::CStr::from_ptr(rest).to_bytes().len() + 1];
+                let mut keyword_buf = vec![0 as c_char; crate::memory::cstr_len(rest) + 1];
                 let keyword_copy = keyword_buf.as_mut_ptr();
                 let mut syn_opt_arg = syn_opt_arg_T {
                     flags: 0,
@@ -3959,7 +3959,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
                         p = vim_strchr(kw, b'[' as c_int);
                         loop {
                             if p.is_null() {
-                                kwlen = std::ffi::CStr::from_ptr(kw).to_bytes().len();
+                                kwlen = crate::memory::cstr_len(kw);
                             } else {
                                 *p = NUL;
                                 kwlen = p.offset_from(kw) as usize;
@@ -4140,13 +4140,13 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
                     .to_ascii_uppercase(),
             ));
             let key_ptr = key.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
-            let item = if std::ffi::CStr::from_ptr(key_ptr).to_bytes() == b"MATCHGROUP" {
+            let item = if crate::memory::cstr_as_bytes(key_ptr) == b"MATCHGROUP" {
                 ITEM_MATCHGROUP
-            } else if std::ffi::CStr::from_ptr(key_ptr).to_bytes() == b"START" {
+            } else if crate::memory::cstr_as_bytes(key_ptr) == b"START" {
                 ITEM_START
-            } else if std::ffi::CStr::from_ptr(key_ptr).to_bytes() == b"END" {
+            } else if crate::memory::cstr_as_bytes(key_ptr) == b"END" {
                 ITEM_END
-            } else if std::ffi::CStr::from_ptr(key_ptr).to_bytes() == b"SKIP" {
+            } else if crate::memory::cstr_as_bytes(key_ptr) == b"SKIP" {
                 if !pat_ptrs[ITEM_SKIP].is_empty() {
                     illegal = true;
                     break;
@@ -4334,12 +4334,12 @@ fn syn_combine_list(clstr1: &mut SynIdList, clstr2: &mut SynIdList, list_op: c_i
 fn syn_scl_name2id(name: *const c_char) -> c_int {
     unsafe {
         let name_u = crate::memory::cstr_from_bytes(
-            &std::ffi::CStr::from_ptr(name).to_bytes().to_ascii_uppercase(),
+            &crate::memory::cstr_as_bytes(name).to_ascii_uppercase(),
         );
         let mut i = (*win_s(&mut **curwin.as_ptr())).b_syn_clusters.len() as c_int - 1;
         while i >= 0 {
             let clp = syn_clstr(&mut *win_s(&mut **curwin.as_ptr())).offset(i as isize);
-            if std::ffi::CStr::from_ptr(name_u.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr((*clp).scl_name_u.as_ptr()).to_bytes() {
+            if crate::memory::cstr_as_bytes(name_u.as_ptr()) == crate::memory::cstr_as_bytes((*clp).scl_name_u.as_ptr()) {
                 break;
             }
             i -= 1;
@@ -4379,10 +4379,10 @@ fn syn_add_cluster(name: std::ffi::CString) -> c_int {
         }
 
         let name_ptr = name.as_ptr();
-        let is_spell = std::ffi::CStr::from_ptr(name_ptr).to_bytes().eq_ignore_ascii_case(b"Spell");
-        let is_nospell = std::ffi::CStr::from_ptr(name_ptr).to_bytes().eq_ignore_ascii_case(b"NoSpell");
+        let is_spell = crate::memory::cstr_as_bytes(name_ptr).eq_ignore_ascii_case(b"Spell");
+        let is_nospell = crate::memory::cstr_as_bytes(name_ptr).eq_ignore_ascii_case(b"NoSpell");
         let scl_name_u = crate::memory::cstr_from_bytes(
-            &std::ffi::CStr::from_ptr(name_ptr).to_bytes().to_ascii_uppercase(),
+            &crate::memory::cstr_as_bytes(name_ptr).to_ascii_uppercase(),
         );
 
         let clusters = &mut (*win_s(&mut **curwin.as_ptr())).b_syn_clusters;
@@ -4584,7 +4584,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                 .to_ascii_uppercase(),
             ));
             let key = key_owned.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
-            if std::ffi::CStr::from_ptr(key).to_bytes() == b"CCOMMENT" {
+            if crate::memory::cstr_as_bytes(key) == b"CCOMMENT" {
                 if eap.skip == 0 {
                     (*win_s(&mut **curwin.as_ptr())).b_syn_sync_flags |= SF_CCOMMENT;
                 }
@@ -4626,12 +4626,12 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                         (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines = n;
                     }
                 }
-            } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"FROMSTART" {
+            } else if crate::memory::cstr_as_bytes(key) == b"FROMSTART" {
                 if eap.skip == 0 {
                     (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines = MAXLNUM;
                     (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines = 0;
                 }
-            } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"LINECONT" {
+            } else if crate::memory::cstr_as_bytes(key) == b"LINECONT" {
                 if *next_arg == NUL {
                     illegal = true;
                     break;
@@ -4674,11 +4674,11 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                 next_arg = skipwhite(arg_end.add(1));
             } else {
                 eap.arg = next_arg;
-                if std::ffi::CStr::from_ptr(key).to_bytes() == b"MATCH" {
+                if crate::memory::cstr_as_bytes(key) == b"MATCH" {
                     syn_cmd_match(eap, 1);
-                } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"REGION" {
+                } else if crate::memory::cstr_as_bytes(key) == b"REGION" {
                     syn_cmd_region(eap, 1);
-                } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"CLEAR" {
+                } else if crate::memory::cstr_as_bytes(key) == b"CLEAR" {
                     syn_cmd_clear(eap, 1);
                 } else {
                     illegal = true;
@@ -4732,12 +4732,12 @@ fn get_id_list(
                 }
                 let mut name_buf = vec![0 as c_char; end.offset_from(p) as usize + 3];
                 let name = name_buf.as_mut_ptr();
-                { let _d = (name.add(1)).cast::<u8>(); let _n = end.offset_from(p) as usize; if _n > 0 { std::ptr::copy_nonoverlapping((p).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(name.add(1), p, end.offset_from(p) as usize);
                 let mut id: c_int;
-                if (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"ALLBUT")
-                    || (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"ALL")
-                    || (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"TOP")
-                    || (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"CONTAINED")
+                if (crate::memory::cstr_as_bytes(name.add(1)) == b"ALLBUT")
+                    || (crate::memory::cstr_as_bytes(name.add(1)) == b"ALL")
+                    || (crate::memory::cstr_as_bytes(name.add(1)) == b"TOP")
+                    || (crate::memory::cstr_as_bytes(name.add(1)) == b"CONTAINED")
                 {
                     if !(**arg as u8).eq_ignore_ascii_case(&b'C') {
                         semsg!(gettext(c"E407: %s not allowed here".as_ptr()), name.add(1));
@@ -4766,11 +4766,11 @@ fn get_id_list(
                     } else {
                         id = syn_check_cluster(name.add(2), end.offset_from(p) as c_int - 1);
                     }
-                } else if !std::ffi::CStr::from_ptr(name.add(1)).to_bytes().iter().any(|b| b"\\.*^$~[".contains(b)) {
+                } else if !crate::memory::cstr_as_bytes(name.add(1)).iter().any(|b| b"\\.*^$~[".contains(b)) {
                     id = syn_check_group(name.add(1), end.offset_from(p) as usize);
                 } else {
                     *name = b'^' as c_char;
-                    { let d = name.add(1); let s = c"$".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    { let d = name.add(1); let s = c"$".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     regmatch.regprog = vim_regcomp(name, RE_MAGIC);
                     if regmatch.regprog.is_null() {
                         failed = true;
@@ -5079,7 +5079,7 @@ pub fn ex_syntax(eap: &mut exarg_T) {
         }
         let mut found = false;
         for &(name, func) in &SUBCOMMANDS {
-            if std::ffi::CStr::from_ptr(subcmd_name.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes() {
+            if crate::memory::cstr_as_bytes(subcmd_name.as_ptr()) == crate::memory::cstr_as_bytes(name) {
                 eap.arg = skipwhite(subcmd_end);
                 func(eap, 0);
                 found = true;
@@ -5119,7 +5119,7 @@ pub fn ex_ownsyntax(eap: &mut exarg_T) {
         let old_value = if raw_old.is_null() {
             None
         } else {
-            Some(std::ffi::CStr::from_ptr(raw_old).to_owned())
+            Some(crate::memory::cstr_to_cstring(raw_old))
         };
 
         apply_autocmds(EVENT_SYNTAX, eap.arg, (*g_st().curbuf).b_fname, true, g_st().curbuf);
@@ -5382,14 +5382,14 @@ pub fn syn_get_foldlevel(wp: &mut win_T, lnum: linenr_T) -> c_int {
 
 /// ":syntime".
 pub fn ex_syntime(eap: &mut exarg_T) {
-    unsafe {
-        if std::ffi::CStr::from_ptr(eap.arg).to_bytes() == b"on" {
+     {
+        if crate::memory::cstr_as_bytes(eap.arg) == b"on" {
             syn_st().syn_time_on = true;
-        } else if std::ffi::CStr::from_ptr(eap.arg).to_bytes() == b"off" {
+        } else if crate::memory::cstr_as_bytes(eap.arg) == b"off" {
             syn_st().syn_time_on = false;
-        } else if std::ffi::CStr::from_ptr(eap.arg).to_bytes() == b"clear" {
+        } else if crate::memory::cstr_as_bytes(eap.arg) == b"clear" {
             syntime_clear();
-        } else if std::ffi::CStr::from_ptr(eap.arg).to_bytes() == b"report" {
+        } else if crate::memory::cstr_as_bytes(eap.arg) == b"report" {
             syntime_report();
         } else {
             semsg!(gettext((&raw const e_invarg2).cast()), eap.arg);
@@ -5515,13 +5515,13 @@ mod tests {
 
     #[test]
     fn get_syntime_arg_and_limit_pos_work() {
-        unsafe {
+         {
             assert_eq!(
-                std::ffi::CStr::from_ptr(get_syntime_arg(&mut crate::os::env::expand_T::new(), 0)).to_bytes(),
+                crate::memory::cstr_as_bytes(get_syntime_arg(&mut crate::os::env::expand_T::new(), 0)),
                 b"on"
             );
             assert_eq!(
-                std::ffi::CStr::from_ptr(get_syntime_arg(&mut crate::os::env::expand_T::new(), 3)).to_bytes(),
+                crate::memory::cstr_as_bytes(get_syntime_arg(&mut crate::os::env::expand_T::new(), 3)),
                 b"report"
             );
             assert!(get_syntime_arg(&mut crate::os::env::expand_T::new(), 4).is_null());

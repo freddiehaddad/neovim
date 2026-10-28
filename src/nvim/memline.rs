@@ -391,8 +391,8 @@ fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> *mut c_uint {
 #[inline]
 fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
     if !s.is_null() {
-        unsafe {
-            sb.extend_from_slice(CStr::from_ptr(s).to_bytes());
+         {
+            sb.extend_from_slice(crate::memory::cstr_as_bytes(s));
         }
     }
 }
@@ -770,7 +770,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock,buf: &mut buf_T) {
             );
             if b0p.b0_fname[0] == b'~' as c_char {
                 let retval = os_get_username((&raw mut uname).cast(), B0_UNAME_SIZE);
-                let ulen = std::ffi::CStr::from_ptr((&raw const uname).cast()).to_bytes().len();
+                let ulen = crate::memory::cstr_len((&raw const uname).cast());
                 if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
                     xstrlcpy(fname_ptr, buf.b_ffname, B0_FNAME_SIZE_CRYPT);
                 } else {
@@ -825,9 +825,9 @@ fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut buf_T) {
 fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut buf_T) {
     unsafe {
         let size = B0_FNAME_SIZE_NOCRYPT;
-        let n = std::ffi::CStr::from_ptr(buf.b_p_fenc).to_bytes().len();
+        let n = crate::memory::cstr_len(buf.b_p_fenc);
         let fname_ptr = (&raw mut b0p.b0_fname).cast::<c_char>();
-        if std::ffi::CStr::from_ptr(fname_ptr).to_bytes().len() + n + 1 > size {
+        if crate::memory::cstr_len(fname_ptr) + n + 1 > size {
             b0p.set_flags(b0p.flags() & !B0_HAS_FENC);
         } else {
             ptr::copy(buf.b_p_fenc, fname_ptr.add(size - n), n);
@@ -871,7 +871,7 @@ pub fn ml_recover(checkext: bool) {
         if fname.is_null() {
             fname = c"".as_ptr().cast_mut();
         }
-        let len = std::ffi::CStr::from_ptr(fname).to_bytes().len();
+        let len = crate::memory::cstr_len(fname);
         if checkext
             && len >= 4
             && crate::memory::cstr_prefix_bytes(fname.add(len - 4), 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c".s".as_ptr(), 2))
@@ -883,7 +883,7 @@ pub fn ml_recover(checkext: bool) {
             && ascii_isalpha(*fname.add(len - 1) as c_int)
         {
             directly = true;
-            fname_used = Some(CStr::from_ptr(fname).to_owned());
+            fname_used = Some(crate::memory::cstr_to_cstring(fname));
         } else {
             directly = false;
             let mut items_tv = typval_T::new();
@@ -910,7 +910,7 @@ pub fn ml_recover(checkext: bool) {
                 return;
             }
             let first_str = (*tv_list_first(items_tv.vval.v_list())).li_tv.vval.v_string();
-            fname_used = (!first_str.is_null()).then(|| CStr::from_ptr(first_str).to_owned());
+            fname_used = (!first_str.is_null()).then(|| crate::memory::cstr_to_cstring(first_str));
             tv_clear(&raw mut items_tv);
         }
         let Some(fname_used) = fname_used else {
@@ -1400,8 +1400,8 @@ pub fn ml_recover(checkext: bool) {
             }
         } else {
             for i_lnum in 1..=lnum {
-                let p_line = CStr::from_ptr(ml_get(i_lnum)).to_owned();
-                let cmp = std::ffi::CStr::from_ptr(p_line.as_ptr()).to_bytes().cmp(std::ffi::CStr::from_ptr(ml_get(i_lnum + lnum)).to_bytes()) as c_int;
+                let p_line = crate::memory::cstr_to_cstring(ml_get(i_lnum));
+                let cmp = crate::memory::cstr_as_bytes(p_line.as_ptr()).cmp(crate::memory::cstr_as_bytes(ml_get(i_lnum + lnum))) as c_int;
                 if cmp != 0 {
                     changed_internal(&mut *g_st().curbuf);
                     buf_inc_changedtick(g_st().curbuf);
@@ -1527,7 +1527,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_
             }
         }
 
-        let mut dir_name_vec: Vec<c_char> = vec![0; std::ffi::CStr::from_ptr(opt_vars().p_dir).to_bytes().len() + 1];
+        let mut dir_name_vec: Vec<c_char> = vec![0; crate::memory::cstr_len(opt_vars().p_dir) + 1];
         let mut dir_name = NvimString {
             data: dir_name_vec.as_mut_ptr(),
             size: 0,
@@ -1889,7 +1889,7 @@ fn swapfile_unchanged(fname: *mut c_char) -> bool {
             os_get_hostname((&raw mut hostname).cast(), B0_HNAME_SIZE);
             hostname[B0_HNAME_SIZE - 1] = NUL;
             b0.b0_hname[B0_HNAME_SIZE - 1] = NUL;
-            if !std::ffi::CStr::from_ptr((&raw const b0.b0_hname).cast()).to_bytes().eq_ignore_ascii_case(std::ffi::CStr::from_ptr((&raw const hostname).cast()).to_bytes())
+            if !crate::memory::cstr_as_bytes((&raw const b0.b0_hname).cast()).eq_ignore_ascii_case(crate::memory::cstr_as_bytes((&raw const hostname).cast()))
             {
                 ret = false;
             }
@@ -2219,7 +2219,7 @@ fn ml_append_int(
         }
 
         if len == 0 {
-            len = std::ffi::CStr::from_ptr(line).to_bytes().len() as colnr_T + 1;
+            len = crate::memory::cstr_len(line) as colnr_T + 1;
         }
         let mut space_needed = i64::from(len) + INDEX_SIZE as i64;
 
@@ -2658,7 +2658,7 @@ pub fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len: isize)
         if g_st().inhibit_delete_count != 0 {
             return;
         }
-        let maxlen = std::ffi::CStr::from_ptr(ptr).to_bytes().len() as isize;
+        let maxlen = crate::memory::cstr_len(ptr) as isize;
         if len == -1 || len > maxlen {
             len = maxlen;
         }
@@ -2694,9 +2694,9 @@ pub fn ml_replace_buf(
     copy: bool,
     noalloc: bool,
 ) -> bool {
-    unsafe {
+     {
         let len = if !line.is_null() {
-            std::ffi::CStr::from_ptr(line).to_bytes().len()
+            crate::memory::cstr_len(line)
         } else {
             usize::MAX
         };
@@ -3364,7 +3364,7 @@ pub fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> bool {
                 xstrlcpy(tmp_ptr, buf, MAXPATHL);
             } else {
                 let tail = path_tail(tmp_ptr);
-                if std::ffi::CStr::from_ptr(tail).to_bytes().len() + std::ffi::CStr::from_ptr(buf).to_bytes().len() >= MAXPATHL {
+                if crate::memory::cstr_len(tail) + crate::memory::cstr_len(buf) >= MAXPATHL {
                     return false;
                 }
                 let rem = MAXPATHL - tail.offset_from(tmp_ptr) as usize;
@@ -3396,7 +3396,7 @@ pub fn makeswapname(
             }
         }
 
-        let len = std::ffi::CStr::from_ptr(dir_name).to_bytes().len();
+        let len = crate::memory::cstr_len(dir_name);
         let s = dir_name.add(len);
         if after_pathsep(dir_name, s) != 0 && len > 1 && *s.offset(-1) == *s.offset(-2) {
             let sw = make_percent_swname(dir_name, s, fname_res)?;
@@ -3426,7 +3426,7 @@ pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ff
             );
         }
 
-        let dname_len = std::ffi::CStr::from_ptr(dname).to_bytes().len();
+        let dname_len = crate::memory::cstr_len(dname);
         let retval = if *dname == b'.' as c_char && vim_ispathsep(*dname.add(1) as u8 as c_int) {
             if tail.data == fname {
                 concat_fnames(
@@ -3564,7 +3564,7 @@ fn findswapname(
 ) -> Option<std::ffi::CString> {
     unsafe {
         let buf_fname = buf.b_fname;
-        let dir_len = std::ffi::CStr::from_ptr(*dirp).to_bytes().len() + 1;
+        let dir_len = crate::memory::cstr_len(*dirp) + 1;
         let mut dir_name_vec: Vec<c_char> = vec![0; dir_len];
         let dir_name = dir_name_vec.as_mut_ptr();
         copy_option_part(dirp, dir_name, dir_len, c",".as_ptr());
@@ -3574,7 +3574,7 @@ fn findswapname(
 
         while let Some(ref mut fvec) = fname_vec {
             let fname = fvec.as_mut_ptr();
-            let n = std::ffi::CStr::from_ptr(fname).to_bytes().len();
+            let n = crate::memory::cstr_len(fname);
             if n == 0 {
                 fname_vec = None;
                 break;
@@ -3784,7 +3784,7 @@ fn findswapname(
             }
         }
 
-        fname_vec.map(|v| CStr::from_ptr(v.as_ptr()).to_owned())
+        fname_vec.map(|v| crate::memory::cstr_to_cstring(v.as_ptr()))
     }
 }
 
@@ -3797,7 +3797,7 @@ fn b0_magic_wrong(b0p: &ZeroBlock) -> bool {
 }
 
 fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c_long) -> bool {
-    unsafe {
+     {
         let mut ino_c: u64 = 0;
         let mut buf_c = [0 as c_char; MAXPATHL];
         let mut buf_s = [0 as c_char; MAXPATHL];
@@ -3822,11 +3822,11 @@ fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c_long) 
         let retval_c = vim_FullName(fname_c, buf_c_ptr, MAXPATHL, true);
         let retval_s = vim_FullName(fname_s, buf_s_ptr, MAXPATHL, true);
         if retval_c && retval_s {
-            return std::ffi::CStr::from_ptr(buf_c_ptr).to_bytes() != std::ffi::CStr::from_ptr(buf_s_ptr).to_bytes();
+            return crate::memory::cstr_as_bytes(buf_c_ptr) != crate::memory::cstr_as_bytes(buf_s_ptr);
         }
 
         if ino_s == 0 && ino_c == 0 && !retval_c && !retval_s {
-            return std::ffi::CStr::from_ptr(fname_c).to_bytes() != std::ffi::CStr::from_ptr(fname_s).to_bytes();
+            return crate::memory::cstr_as_bytes(fname_c) != crate::memory::cstr_as_bytes(fname_s);
         }
         true
     }

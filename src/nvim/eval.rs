@@ -843,7 +843,7 @@ pub fn call_vim_function(
     rettv: &mut typval_T,
 ) -> bool {
     unsafe {
-        let mut len = std::ffi::CStr::from_ptr(func).to_bytes().len() as c_int;
+        let mut len = crate::memory::cstr_len(func) as c_int;
         let mut pt: *mut partial_T = ptr::null_mut();
 
         if len >= 6 && std::slice::from_raw_parts(func.cast::<u8>(), 6) == b"v:lua." {
@@ -1001,7 +1001,7 @@ pub fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
                     *cp = c_int::from(*s as u8);
                     s = s.add(1);
                 }
-                retval = varnumber_T::from(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(s).to_bytes()) as std::ffi::c_long);
+                retval = varnumber_T::from(crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as std::ffi::c_long);
             }
             tv_clear(&raw mut tv);
         }
@@ -1145,7 +1145,7 @@ fn get_lval_dict_item(
                 return GLV_FAIL;
             }
             if len == -1 {
-                lp.ll_newkey = Some(CStr::from_ptr(key).to_owned());
+                lp.ll_newkey = Some(crate::memory::cstr_to_cstring(key));
             } else {
                 let slice = std::slice::from_raw_parts(key.cast::<u8>(), len as usize);
                 lp.ll_newkey = Some(std::ffi::CString::new(slice).unwrap());
@@ -1789,7 +1789,7 @@ pub fn eval_for_line(
                     let text = if tv.vval.v_string().is_null() {
                         std::ffi::CString::default()
                     } else {
-                        CStr::from_ptr(tv.vval.v_string()).to_owned()
+                        crate::memory::cstr_to_cstring(tv.vval.v_string())
                     };
                     fi.fi_source = ForSource::Str { text, byte_idx: 0 };
                     tv_clear(&raw mut tv);
@@ -1901,8 +1901,8 @@ pub fn set_context_for_expression(
 
         if cmdidx == cmdidx_T::CMD_let || cmdidx == cmdidx_T::CMD_const {
             xp.xp_context = EXPAND_USER_VARS;
-            if !CStr::from_ptr(arg).to_bytes().iter().any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)) {
-                let mut p = arg.add(std::ffi::CStr::from_ptr(arg).to_bytes().len());
+            if !crate::memory::cstr_as_bytes(arg).iter().any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)) {
+                let mut p = arg.add(crate::memory::cstr_len(arg));
                 while (p as usize) >= (arg as usize) {
                     xp.xp_pattern = p;
                     p = p.offset(-((utf_head_off(arg, p.sub(1)) + 1) as isize));
@@ -1920,7 +1920,7 @@ pub fn set_context_for_expression(
             };
         }
         while {
-            xp.xp_pattern = CStr::from_ptr(arg).to_bytes().iter().position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)).map_or(ptr::null_mut(), |i| arg.add(i));
+            xp.xp_pattern = crate::memory::cstr_as_bytes(arg).iter().position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)).map_or(ptr::null_mut(), |i| arg.add(i));
             !xp.xp_pattern.is_null()
         } {
             let mut c = c_int::from(*xp.xp_pattern as u8);
@@ -2145,11 +2145,11 @@ pub fn eval0(
 /// the result. Otherwise return NOTDONE.
 pub fn may_call_simple_func(arg: *const c_char,rettv: &mut typval_T) -> c_int {
     unsafe {
-        let parens = CStr::from_ptr(arg).to_bytes().windows(2).position(|w| w == b"()").map_or(ptr::null(), |i| arg.add(i));
+        let parens = crate::memory::cstr_as_bytes(arg).windows(2).position(|w| w == b"()").map_or(ptr::null(), |i| arg.add(i));
         let mut r = NOTDONE;
 
         if !parens.is_null() && *skipwhite(parens.add(2)) == NUL {
-            if CStr::from_ptr(arg).to_bytes().starts_with(b"v:lua.") {
+            if crate::memory::cstr_as_bytes(arg).starts_with(b"v:lua.") {
                 let p = arg.add(6);
                 if p != parens && skip_luafunc_name(p) == parens {
                     r = call_simple_luafunc(p, (parens as usize).wrapping_sub(p as usize), rettv);
@@ -2924,7 +2924,7 @@ fn eval7(
                     check_vars(s, len as usize);
                     if rettv.v_type == VarType::VAR_UNKNOWN
                         && !evaluate
-                        && CStr::from_ptr(s).to_bytes().starts_with(b"v:lua.")
+                        && crate::memory::cstr_as_bytes(s).starts_with(b"v:lua.")
                     {
                         rettv.v_type = VarType::VAR_PARTIAL;
                         let lua_pt = get_vim_var_partial(VV_LUA);
@@ -3152,7 +3152,7 @@ fn eval_method(
         let mut lua_funcname: *mut c_char = ptr::null_mut();
         let mut alias: Option<std::ffi::CString> = None;
 
-        if CStr::from_ptr(name).to_bytes().starts_with(b"v:lua.") {
+        if crate::memory::cstr_as_bytes(name).starts_with(b"v:lua.") {
             lua_funcname = name.add(6);
             *arg = skip_luafunc_name(lua_funcname).cast_mut();
             *arg = skipwhite(*arg);
@@ -3484,7 +3484,7 @@ fn eval_index_inner(rettv: &mut typval_T,
             | VarType::VAR_UNKNOWN => {}
             VarType::VAR_NUMBER | VarType::VAR_STRING => {
                 let s = tv_get_string(&*rettv);
-                let len = std::ffi::CStr::from_ptr(s).to_bytes().len() as varnumber_T;
+                let len = crate::memory::cstr_len(s) as varnumber_T;
                 let v: Option<std::ffi::CString> = if exclusive {
                     if is_range {
                         string_slice(s, n1, n2, exclusive)
@@ -3740,7 +3740,7 @@ fn eval_string(
     interpolate: bool,
 ) -> bool {
     unsafe {
-        let arg_end = (*arg).add(std::ffi::CStr::from_ptr(*arg).to_bytes().len());
+        let arg_end = (*arg).add(crate::memory::cstr_len(*arg));
         let mut extra: isize = if interpolate { 1 } else { 0 };
         let off: usize = if interpolate { 0 } else { 1 };
 
@@ -4034,7 +4034,7 @@ pub fn eval_interp_string(
             }
             if evaluate {
                 if !tv.vval.v_string().is_null() {
-                    let len = std::ffi::CStr::from_ptr(tv.vval.v_string()).to_bytes().len();
+                    let len = crate::memory::cstr_len(tv.vval.v_string());
                     if len > 0 {
                         buf.extend_from_slice(std::slice::from_raw_parts(tv.vval.v_string(), len));
                     }
@@ -4176,7 +4176,7 @@ pub fn func_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
             if s1 != s2 {
                 return false;
             }
-        } else if std::ffi::CStr::from_ptr(s1).to_bytes() != std::ffi::CStr::from_ptr(s2).to_bytes() {
+        } else if crate::memory::cstr_as_bytes(s1) != crate::memory::cstr_as_bytes(s2) {
             return false;
         }
 
@@ -4915,7 +4915,7 @@ pub fn tv_to_argv(
         if cmd_tv.v_type == VarType::VAR_STRING {
             let cmd_str = tv_get_string(&*cmd_tv);
             if let Some(cmd_out) = cmd {
-                *cmd_out = CStr::from_ptr(cmd_str).to_owned();
+                *cmd_out = crate::memory::cstr_to_cstring(cmd_str);
             }
             return shell_build_argv(cmd_str, ptr::null());
         }
@@ -4974,7 +4974,7 @@ pub fn tv_to_argv(
             argv.push(if i == 0 {
                 exe_cstr.clone()
             } else {
-                CStr::from_ptr(a).to_owned()
+                crate::memory::cstr_to_cstring(a)
             });
             i += 1;
             arg = (*arg).li_next;
@@ -5137,7 +5137,7 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> bool {
                 {
                     sl
                 } else {
-                    CStr::from_ptr(name).to_owned()
+                    crate::memory::cstr_to_cstring(name)
                 };
                 func_ref(funcref.as_ptr().cast_mut());
                 callback.data = crate::eval::typval::CallbackData::funcref(funcref);
@@ -5147,7 +5147,7 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> bool {
                 let name = nlua_register_table_as_callable(arg);
                 if !name.is_null() {
                     callback.data = crate::eval::typval::CallbackData::funcref(
-                        CStr::from_ptr(name).to_owned(),
+                        crate::memory::cstr_to_cstring(name),
                     );
                 } else {
                     r = FAIL;
@@ -5190,7 +5190,7 @@ pub fn callback_call(
         match (*callback).cb_type() {
             kCallbackFuncref => {
                 name = (*callback).data.as_funcref();
-                let len = std::ffi::CStr::from_ptr(name).to_bytes().len() as c_int;
+                let len = crate::memory::cstr_len(name) as c_int;
                 if len >= 6 && std::slice::from_raw_parts(name.cast::<u8>(), 6) == b"v:lua." {
                     name = name.add(6);
                     if check_luafunc_name(name, false) == 0 {
@@ -5514,7 +5514,7 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
         if tv.v_type != VarType::VAR_LIST && tv.v_type != VarType::VAR_NUMBER {
             let ret = tv_get_string_chk(&*tv);
             if !ret.is_null() {
-                let len = std::ffi::CStr::from_ptr(ret).to_bytes().len();
+                let len = crate::memory::cstr_len(ret);
                 let mut vec = Vec::with_capacity(len);
                 if len > 0 {
                     vec.extend_from_slice(std::slice::from_raw_parts(ret, len));
@@ -5568,7 +5568,7 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
             (*list).lv_first
         };
         while !li.is_null() {
-            total_len += std::ffi::CStr::from_ptr(tv_get_string(&*tv_list_item_tv(&mut *li))).to_bytes().len() + sep_len;
+            total_len += crate::memory::cstr_len(tv_get_string(&*tv_list_item_tv(&mut *li))) + sep_len;
             li = (*li).li_next;
         }
 
@@ -5703,7 +5703,7 @@ pub fn var2fpos(
             if !li.is_null()
                 && (*tv_list_item_tv(&mut *li)).v_type == VarType::VAR_STRING
                 && !(*tv_list_item_tv(&mut *li)).vval.v_string().is_null()
-                && (std::ffi::CStr::from_ptr((*tv_list_item_tv(&mut *li)).vval.v_string()).to_bytes() == b"$")
+                && (crate::memory::cstr_as_bytes((*tv_list_item_tv(&mut *li)).vval.v_string()) == b"$")
             {
                 eval_st().VAR2FPOS_POS.col = len + 1;
             }
@@ -6215,7 +6215,7 @@ pub fn char_from_string(
         if str_.is_null() {
             return None;
         }
-        let slen = std::ffi::CStr::from_ptr(str_).to_bytes().len();
+        let slen = crate::memory::cstr_len(str_);
 
         if index < 0 {
             let mut clen: varnumber_T = 0;
@@ -6281,7 +6281,7 @@ pub fn string_slice(
         if str_.is_null() {
             return None;
         }
-        let slen = std::ffi::CStr::from_ptr(str_).to_bytes().len();
+        let slen = crate::memory::cstr_len(str_);
         let mut start_byte = char_idx2byte(str_, slen, first);
         if start_byte < 0 {
             start_byte = 0;
@@ -6623,7 +6623,7 @@ pub fn ex_execute(eap: &mut exarg_T) {
                     buf.push(b' ' as c_char);
                 }
                 has_arg = true;
-                let len = std::ffi::CStr::from_ptr(argstr).to_bytes().len();
+                let len = crate::memory::cstr_len(argstr);
                 if len > 0 {
                     buf.extend_from_slice(std::slice::from_raw_parts(argstr, len));
                 }
@@ -6708,9 +6708,9 @@ pub fn var_flavour(varname: *mut c_char) -> var_flavour_T {
 }
 
 pub fn var_set_global(name: *const c_char, mut vartv: typval_T) {
-    unsafe {
+     {
         save_funccal();
-        set_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), &mut vartv, false);
+        set_var(name, crate::memory::cstr_len(name), &mut vartv, false);
         restore_funccal();
     }
 }
@@ -7034,7 +7034,7 @@ pub fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
 
         let mut name = [0 as c_char; 32];
         vim_snprintf!(name.as_mut_ptr(), name.len(), c"%s".as_ptr(), feat);
-        { let _p = name.as_mut_ptr(); let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (b'_' as c_char) as u8 { *_b = (NUL) as u8; } } };
+        { let _p = name.as_mut_ptr(); let _len = crate::memory::cstr_len(_p); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (b'_' as c_char) as u8 { *_b = (NUL) as u8; } } };
 
         let mut buf = [0 as c_char; 256];
         let mut tv = tv_initial_value();
@@ -7111,14 +7111,14 @@ pub fn prompt_get_input(buf: &mut buf_T) -> Option<std::ffi::CString> {
         let lnum_last = buf.b_ml.ml_line_count;
 
         let mut text = ml_get_buf(&raw mut *buf, lnum_start);
-        if (std::ffi::CStr::from_ptr(text).to_bytes().len() as c_int) >= buf.b_prompt_start.mark.col {
+        if (crate::memory::cstr_len(text) as c_int) >= buf.b_prompt_start.mark.col {
             text = text.add(buf.b_prompt_start.mark.col as usize);
         }
 
-        let mut bytes = CStr::from_ptr(text).to_bytes().to_vec();
+        let mut bytes = crate::memory::cstr_as_bytes(text).to_vec();
         for i in (lnum_start + 1)..=lnum_last {
             bytes.push(b'\n');
-            bytes.extend_from_slice(CStr::from_ptr(ml_get_buf(&raw mut *buf, i)).to_bytes());
+            bytes.extend_from_slice(crate::memory::cstr_as_bytes(ml_get_buf(&raw mut *buf, i)));
         }
         Some(std::ffi::CString::new(bytes).unwrap_or_default())
     }

@@ -210,13 +210,13 @@ fn in_history(
     move_to_front: bool,
     sep: c_int,
 ) -> bool {
-    unsafe {
+     {
         let cur_idx = hist_st().HISIDX[hist_type];
         if cur_idx < 0 {
             return false;
         }
         let hislen = hist_st().HISLEN;
-        let str_bytes = CStr::from_ptr(str_ptr).to_bytes();
+        let str_bytes = crate::memory::cstr_as_bytes(str_ptr);
         let mut last_i: c_int = -1;
         let mut i = cur_idx;
 
@@ -324,7 +324,7 @@ pub fn add_to_history(
         }
 
     let htype = histype as usize;
-    unsafe {
+     {
         if in_history(htype, new_entry, true, sep) {
             return;
         }
@@ -336,7 +336,7 @@ pub fn add_to_history(
         let hisptr = &mut hist_st().HISTORY[htype][hist_st().HISIDX[htype] as usize];
         hist_free_entry(hisptr);
 
-        let entry_bytes = CStr::from_ptr(new_entry).to_bytes();
+        let entry_bytes = crate::memory::cstr_as_bytes(new_entry);
         let actual_len = entry_bytes.len().min(new_entrylen);
         hisptr.hisstr = Some(std::ffi::CString::new(&entry_bytes[..actual_len]).unwrap());
         hisptr.sep = sep as c_char;
@@ -519,7 +519,7 @@ pub fn f_histadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         }
         let str_ptr = tv_get_string_chk(&argvars[0]);
         let histype = if !str_ptr.is_null() {
-            get_histtype(str_ptr, CStr::from_ptr(str_ptr).to_bytes().len(), false)
+            get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false)
         } else {
             HIST_INVALID
         };
@@ -537,7 +537,7 @@ pub fn f_histadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         add_to_history(
             histype,
             entry_str,
-            CStr::from_ptr(entry_str).to_bytes().len(),
+            crate::memory::cstr_len(entry_str),
             false,
             0,
         );
@@ -548,12 +548,12 @@ pub fn f_histadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 /// `"histdel()"` function (`f_histdel`).
 pub fn f_histdel(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let str_ptr = tv_get_string_chk(&argvars[0]);
         let n = if str_ptr.is_null() {
             0
         } else {
-            let htype = get_histtype(str_ptr, CStr::from_ptr(str_ptr).to_bytes().len(), false);
+            let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
             let arg1 = &argvars[1];
             if arg1.v_type == VarType::VAR_UNKNOWN {
                 c_int::from(clr_history(htype))
@@ -572,12 +572,12 @@ pub fn f_histdel(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 /// `"histget()"` function (`f_histget`).
 pub fn f_histget(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let str_ptr = tv_get_string_chk(&argvars[0]);
         if str_ptr.is_null() {
             tv_set_string(rettv, std::ptr::null());
         } else {
-            let htype = get_histtype(str_ptr, CStr::from_ptr(str_ptr).to_bytes().len(), false);
+            let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
             let arg1 = &argvars[1];
             let req_idx = if arg1.v_type == VarType::VAR_UNKNOWN {
                 get_history_idx(htype)
@@ -598,12 +598,12 @@ pub fn f_histget(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 /// `"histnr()"` function (`f_histnr`).
 pub fn f_histnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let histname = tv_get_string_chk(&argvars[0]);
         let htype = if histname.is_null() {
             HIST_INVALID
         } else {
-            get_histtype(histname, CStr::from_ptr(histname).to_bytes().len(), false)
+            get_histtype(histname, crate::memory::cstr_len(histname), false)
         };
         rettv.vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
             get_history_idx(htype) as i64

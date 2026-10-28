@@ -305,7 +305,7 @@ fn uf2hikey(fp: &ufunc_T) -> *mut c_char {
 fn func_hashtab_add(fp: &mut ufunc_T) -> bool {
     unsafe {
         let key_ptr = uf2hikey(fp);
-        let key = CStr::from_ptr(key_ptr).to_bytes();
+        let key = crate::memory::cstr_as_bytes(key_ptr);
         let ht = &raw mut uf_st().func_hashtab;
         if (*ht).contains_key(key) {
             crate::siemsg!(c"Duplicate key in hash table: \"%s\"".as_ptr(), key_ptr);
@@ -554,7 +554,7 @@ fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
         if *name as u8 == K_SPECIAL {
             let mut bytes = Vec::with_capacity(namelen + 2);
             bytes.extend_from_slice(b"<SNR>");
-            bytes.extend_from_slice(CStr::from_ptr(uf2hikey(&*fp).add(3)).to_bytes());
+            bytes.extend_from_slice(crate::memory::cstr_as_bytes(uf2hikey(&*fp).add(3)));
             (*fp).uf_name_exp = Some(std::ffi::CString::new(bytes).unwrap());
         }
 
@@ -701,7 +701,7 @@ pub fn deref_func_name(
                 *lenp = 0;
                 return c"".as_ptr().cast_mut();
             }
-            *lenp = std::ffi::CStr::from_ptr((*tv).vval.v_string()).to_bytes().len() as c_int;
+            *lenp = crate::memory::cstr_len((*tv).vval.v_string()) as c_int;
             return (*tv).vval.v_string();
         }
 
@@ -715,7 +715,7 @@ pub fn deref_func_name(
                 *partialp = pt;
             }
             let s = partial_name(pt);
-            *lenp = std::ffi::CStr::from_ptr(s).to_bytes().len() as c_int;
+            *lenp = crate::memory::cstr_len(s) as c_int;
             return s;
         }
 
@@ -731,7 +731,7 @@ pub fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
 
         if *name as u8 == K_SPECIAL && *name.add(1) != NUL && *name.add(2) != NUL {
             let mut bytes = Vec::from(&b"<SNR>"[..]);
-            bytes.extend_from_slice(CStr::from_ptr(name.add(3)).to_bytes());
+            bytes.extend_from_slice(crate::memory::cstr_as_bytes(name.add(3)));
             let joined = cstr_from_bytes(&bytes);
             p = joined.as_ptr();
             p_owned = Some(joined);
@@ -877,9 +877,9 @@ fn fname_trans_sid(
                 ) as usize;
             }
         }
-        let fnamelen = fname_buflen + std::ffi::CStr::from_ptr(script_name).to_bytes().len();
+        let fnamelen = fname_buflen + crate::memory::cstr_len(script_name);
         if fnamelen < FLEN_FIXED {
-            { let s = script_name; std::ptr::copy_nonoverlapping(s, fname_buf.add(fname_buflen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(fname_buf.add(fname_buflen), script_name);
             fname_buf
         } else {
             let mut fname_vec = vec![0 as c_char; fnamelen + 1];
@@ -951,7 +951,7 @@ pub fn find_func(name: *const c_char) -> *mut ufunc_T {
     unsafe {
         let ht = &raw const uf_st().func_hashtab;
         (*ht)
-            .get(CStr::from_ptr(name).to_bytes())
+            .get(crate::memory::cstr_as_bytes(name))
             .copied()
             .unwrap_or(ptr::null_mut())
     }
@@ -1118,7 +1118,7 @@ fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
 fn func_remove(fp: &mut ufunc_T) -> bool {
     unsafe {
         let ht = &raw mut uf_st().func_hashtab;
-        let key = CStr::from_ptr(uf2hikey(fp)).to_bytes();
+        let key = crate::memory::cstr_as_bytes(uf2hikey(fp));
         if (*ht).remove(key).is_some() {
             uf_st().func_hashtab_changed = uf_st().func_hashtab_changed.wrapping_add(1);
             true
@@ -1328,7 +1328,7 @@ pub fn call_user_func(
                     }
                 }
 
-                namelen = std::ffi::CStr::from_ptr(name).to_bytes().len();
+                namelen = crate::memory::cstr_len(name);
             } else {
                 if ((*fp).uf_flags & FC_NOARGS) != 0 {
                     break;
@@ -1717,7 +1717,7 @@ fn builtin_function(name: *const c_char, len: c_int) -> bool {
         }
 
         let bytes = if len == -1 {
-            CStr::from_ptr(name).to_bytes()
+            crate::memory::cstr_as_bytes(name)
         } else {
             std::slice::from_raw_parts(name.cast::<u8>(), len as usize)
         };
@@ -1874,7 +1874,7 @@ pub fn call_func(
         rettv.v_type = VarType::VAR_UNKNOWN;
 
         if len <= 0 {
-            len = std::ffi::CStr::from_ptr(funcname).to_bytes().len() as c_int;
+            len = crate::memory::cstr_len(funcname) as c_int;
         }
         if !partial.is_null() {
             fp = (*partial).pt_func;
@@ -1959,7 +1959,7 @@ pub fn call_func(
                 {
                     fp = find_func(rfname);
                 }
-                if fp.is_null() && script_autoload(rfname, std::ffi::CStr::from_ptr(rfname).to_bytes().len(), true) && !aborting() {
+                if fp.is_null() && script_autoload(rfname, crate::memory::cstr_len(rfname), true) && !aborting() {
                     fp = find_func(rfname);
                 }
 
@@ -2300,7 +2300,7 @@ pub fn trans_function_name(
         if !name.is_null() {
             *pp = end.cast_mut();
             if crate::memory::cstr_prefix_bytes(name, 5) == &b"<SNR>"[..5] {
-                let tail = CStr::from_ptr(name.add(5)).to_bytes();
+                let tail = crate::memory::cstr_as_bytes(name.add(5));
                 let mut bytes = Vec::with_capacity(3 + tail.len());
                 bytes.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
                 bytes.extend_from_slice(tail);
@@ -2418,7 +2418,7 @@ pub fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi::CStri
             g_st().current_sctx.sc_sid,
         ) as usize;
         let off = if *funcname == b's' as c_char { 2 } else { 5 };
-        let newnamesize = sid_buflen + std::ffi::CStr::from_ptr(funcname.add(off)).to_bytes().len() + 1;
+        let newnamesize = sid_buflen + crate::memory::cstr_len(funcname.add(off)) + 1;
         let mut newname = vec![0 as c_char; newnamesize];
         vim_snprintf!(
             newname.as_mut_ptr(),
@@ -2616,7 +2616,7 @@ fn get_function_body(
                 theline = line_arg;
                 p = vim_strchr(theline, b'\n' as c_int);
                 if p.is_null() {
-                    line_arg = line_arg.add(std::ffi::CStr::from_ptr(line_arg).to_bytes().len());
+                    line_arg = line_arg.add(crate::memory::cstr_len(line_arg));
                 } else {
                     *p = NUL;
                     line_arg = p.add(1);
@@ -2677,7 +2677,7 @@ fn get_function_body(
                     } else {
                         theline.add(heredoc_trimmedlen)
                     };
-                    if std::ffi::CStr::from_ptr(p).to_bytes() == std::ffi::CStr::from_ptr(marker.as_ptr()).to_bytes() {
+                    if crate::memory::cstr_as_bytes(p) == crate::memory::cstr_as_bytes(marker.as_ptr()) {
                         skip_until = None;
                         heredoc_trimmed = None;
                         heredoc_trimmedlen = 0;
@@ -2865,7 +2865,7 @@ fn get_function_body(
                 }
             }
 
-            newlines.push(Some(CStr::from_ptr(theline).to_owned()));
+            newlines.push(Some(crate::memory::cstr_to_cstring(theline)));
 
             while sourcing_lnum_off > 0 {
                 sourcing_lnum_off -= 1;
@@ -3109,7 +3109,7 @@ pub fn ex_function(eap: &mut exarg_T) {
 
         let mut namelen = 0usize;
         if fudi.fd_dict.is_null() {
-            let v = find_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), &raw mut ht, 0);
+            let v = find_var(name, crate::memory::cstr_len(name), &raw mut ht, 0);
             if !v.is_null() && (*v).di_tv.v_type == VarType::VAR_FUNC {
                 emsg_funcname(
                     c"E707: Function name conflicts with variable: %s".as_ptr(),
@@ -3181,10 +3181,10 @@ pub fn ex_function(eap: &mut exarg_T) {
                 let mut j = FAIL;
                 let sname = sourcing_name();
                 if !sname.is_null() {
-                    let sn = autoload_name(name, std::ffi::CStr::from_ptr(name).to_bytes().len());
+                    let sn = autoload_name(name, crate::memory::cstr_len(name));
                     p = vim_strchr(sn.as_ptr(), b'/' as c_int);
-                    let plen = std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int;
-                    let slen = std::ffi::CStr::from_ptr(sname).to_bytes().len() as c_int;
+                    let plen = crate::memory::cstr_len(p) as c_int;
+                    let slen = crate::memory::cstr_len(sname) as c_int;
                     if slen > plen
                         && path_equal(p, sname.add((slen - plen) as usize), kPathCmpLiteral)
                     {
@@ -3203,7 +3203,7 @@ pub fn ex_function(eap: &mut exarg_T) {
             }
 
             if namelen == 0 {
-                namelen = std::ffi::CStr::from_ptr(name).to_bytes().len();
+                namelen = crate::memory::cstr_len(name);
             }
             fp = alloc_ufunc(name, namelen);
 
@@ -3229,7 +3229,7 @@ pub fn ex_function(eap: &mut exarg_T) {
 
             if overwrite {
                 let ht = &raw mut uf_st().func_hashtab;
-                (*ht).insert(CStr::from_ptr(name).to_bytes().to_vec(), fp);
+                (*ht).insert(crate::memory::cstr_as_bytes(name).to_vec(), fp);
             } else if !func_hashtab_add(&mut *fp) {
                 free_fp = true;
                 erret!();
@@ -3938,7 +3938,7 @@ pub fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
         xstrlcpy(iobuff_ptr.add(8), s, IOSIZE - 8);
         let mut iobuff_len = 8 + slen;
         if iobuff_len >= IOSIZE {
-            { let s = c"...".as_ptr(); std::ptr::copy_nonoverlapping(s, iobuff_ptr.add(IOSIZE - 4), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(iobuff_ptr.add(IOSIZE - 4), c"...".as_ptr());
             iobuff_len = IOSIZE - 1;
         }
         drop(tofree);
@@ -4263,7 +4263,7 @@ pub fn find_hi_in_scoped_ht(
 
         let old_current_funccal = uf_st().current_funccal;
         let mut hi: *mut hashitem_T = ptr::null_mut();
-        let namelen = std::ffi::CStr::from_ptr(name).to_bytes().len();
+        let namelen = crate::memory::cstr_len(name);
         let mut varname: *const c_char = ptr::null();
 
         uf_st().current_funccal = (*(*uf_st().current_funccal).fc_func).uf_scoped;

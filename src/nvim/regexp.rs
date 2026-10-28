@@ -1691,7 +1691,7 @@ pub fn skip_regexp_ex(
             } else if *p == b'\\' as c_char && *p.add(1) != NUL as c_char {
                 if dirc == b'?' as c_int && in_place && *p.add(1) == b'?' as c_char {
                     if startplen == 0 {
-                        startplen = std::ffi::CStr::from_ptr(startp).to_bytes().len();
+                        startplen = crate::memory::cstr_len(startp);
                     }
                     if let Some(buf) = copy_buf.as_deref_mut()
                         && buf.is_empty()
@@ -2261,12 +2261,12 @@ pub(super) fn match_with_backref(
         loop {
             let tf = &raw mut re_st().reg_tofree;
             if (*tf).is_empty() || re_st().rex.line != (*tf).as_mut_ptr() {
-                let len = std::ffi::CStr::from_ptr(re_st().rex.line.cast()).to_bytes().len() + 51;
+                let len = crate::memory::cstr_len(re_st().rex.line.cast()) + 51;
                 let off = re_st().rex.input.offset_from(re_st().rex.line) as usize;
                 if (*tf).len() < len {
                     (*tf).resize(len, 0);
                 }
-                { let s = re_st().rex.line.cast(); std::ptr::copy_nonoverlapping(s, (*tf).as_mut_ptr().cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy((*tf).as_mut_ptr().cast(), re_st().rex.line.cast());
                 re_st().rex.line = (*tf).as_mut_ptr();
                 re_st().rex.input = re_st().rex.line.add(off);
             }
@@ -2331,7 +2331,7 @@ fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
 pub(super) fn cstrncmp(s1: *const c_char, s2: *const c_char, n: &mut c_int) -> c_int {
     unsafe {
         let mut result = if !re_st().rex.reg_ic {
-            { let _p1 = s1; let _p2 = s2; let _n = *n as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).cmp(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) as c_int }
+            crate::memory::cstr_prefix_bytes(s1, *n as usize).cmp(crate::memory::cstr_prefix_bytes(s2, *n as usize)) as c_int
         } else {
             let mut p = s1.cast_mut();
             let mut n2: c_int = 0;
@@ -2452,7 +2452,7 @@ pub fn regtilde(
                 let prefixlen = p.offset_from(newsub) as usize;
                 let postfix = p.add(tildelen);
                 if newsublen == 0 {
-                    newsublen = std::ffi::CStr::from_ptr(newsub).to_bytes().len();
+                    newsublen = crate::memory::cstr_len(newsub);
                 }
                 newsublen -= tildelen;
                 let postfixlen = newsublen - prefixlen;
@@ -2477,7 +2477,7 @@ pub fn regtilde(
                         tmpsub.add(prefixlen),
                         reg_prev_sublen,
                     );
-                    { let s = postfix; std::ptr::copy_nonoverlapping(s, tmpsub.add(prefixlen + reg_prev_sublen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(tmpsub.add(prefixlen + reg_prev_sublen), postfix);
 
                     newsub_vec = Some(tmpsub_vec);
                     newsub = newsub_vec.as_mut().unwrap().as_mut_ptr();
@@ -2508,7 +2508,7 @@ pub fn regtilde(
             };
         }
 
-        newsub_vec.map(|v| CStr::from_ptr(v.as_ptr()).to_owned())
+        newsub_vec.map(|v| crate::memory::cstr_to_cstring(v.as_ptr()))
     }
 }
 
@@ -2643,7 +2643,7 @@ fn vim_regsub_both(
                 if let Some(ref eval_cstr) = *eval_slot {
                     let eval_len = eval_cstr.to_bytes().len();
                     if eval_len < destlen as usize {
-                        { let s = eval_cstr.as_ptr(); std::ptr::copy_nonoverlapping(s, dest, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                        crate::memory::cstr_cpy(dest, eval_cstr.as_ptr());
                         dst = dst.add(eval_len);
                         *eval_slot = None;
                     }
@@ -2714,7 +2714,7 @@ fn vim_regsub_both(
                         let mut buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
                         let s = tv_get_string_buf_chk(&rettv, buf.as_mut_ptr());
                         if !s.is_null() {
-                            *eval_slot = Some(CStr::from_ptr(s).to_owned());
+                            *eval_slot = Some(crate::memory::cstr_to_cstring(s));
                         }
                     }
                     tv_clear(&raw mut rettv);
@@ -3051,7 +3051,7 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     len = ((*re_st().rsm.sm_mmatch).endpos[no].col - (*re_st().rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
-                        { let _d = (retval).cast::<u8>(); let _n = len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((s).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                        crate::memory::cstr_ncpy(retval, s, len as usize);
                     }
                     len += 1;
                 } else {
@@ -3097,7 +3097,7 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     retval = retval_vec.as_mut_ptr();
                 }
             }
-            (!retval.is_null()).then(|| CStr::from_ptr(retval).to_owned())
+            (!retval.is_null()).then(|| crate::memory::cstr_to_cstring(retval))
         } else {
             let s = (*re_st().rsm.sm_match).startp[no];
             if s.is_null() || (*re_st().rsm.sm_match).endp[no].is_null() {

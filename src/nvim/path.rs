@@ -29,7 +29,9 @@ use crate::regexp::{
 };
 use crate::strings::{sort_strings, vim_snprintf, vim_strchr};
 use std::cmp::Ordering;
-use std::ffi::{CStr, c_char, c_int};
+#[cfg(any(windows, test))]
+use std::ffi::CStr;
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 pub fn remove_duplicate_strings(fnames: &mut Vec<std::ffi::CString>) {
@@ -54,8 +56,8 @@ pub fn concat_cstrings(
     if nelem == 0 {
         return std::ffi::CString::default();
     }
-    unsafe {
-        let sep_bytes = CStr::from_ptr(sep).to_bytes();
+     {
+        let sep_bytes = crate::memory::cstr_as_bytes(sep);
         let mut len = (nelem - 1) * sep_bytes.len();
         for s in strings {
             len += s.as_bytes().len();
@@ -186,14 +188,14 @@ pub fn to_slash_save(p: *const c_char) -> Option<std::ffi::CString> {
 #[cfg(windows)]
 #[inline]
 fn str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
-    unsafe {
-        let bytes = CStr::from_ptr(haystack).to_bytes();
+     {
+        let bytes = crate::memory::cstr_as_bytes(haystack);
         bytes.windows(needle.len()).any(|w| w == needle)
     }
 }
 
 pub fn path_equal(s1: *const c_char, s2: *const c_char, flags: PathCmpFlags) -> bool {
-    unsafe {
+     {
         let mut expanded_s1 = [0 as c_char; MAXPATHL];
         let mut full1 = [0 as c_char; MAXPATHL];
         let mut full2 = [0 as c_char; MAXPATHL];
@@ -211,7 +213,7 @@ pub fn path_equal(s1: *const c_char, s2: *const c_char, flags: PathCmpFlags) -> 
         if flags == kPathCmpLiteral {
             let is_url = path_with_url(s1) != 0 || path_with_url(s2) != 0;
             return (!is_url
-                || CStr::from_ptr(s1).to_bytes().len() == CStr::from_ptr(s2).to_bytes().len())
+                || crate::memory::cstr_len(s1) == crate::memory::cstr_len(s2))
                 && path_cmp(opt_vars().p_fic != 0, s1, s2, MAXPATHL) == 0;
         }
 
@@ -512,12 +514,12 @@ pub fn concat_fnames_cstr(
         let len1 = if fname1.is_null() {
             0
         } else {
-            CStr::from_ptr(fname1).to_bytes().len()
+            crate::memory::cstr_len(fname1)
         };
         let len2 = if fname2.is_null() {
             0
         } else {
-            CStr::from_ptr(fname2).to_bytes().len()
+            crate::memory::cstr_len(fname2)
         };
         let mut buf = vec![0 as c_char; len1 + len2 + 3];
         if len1 > 0 {
@@ -546,7 +548,7 @@ pub fn add_pathsep(p: *mut c_char) -> bool {
             return true;
         }
 
-        let plen = CStr::from_ptr(p).to_bytes().len();
+        let plen = crate::memory::cstr_len(p);
         if after_pathsep(p, p.add(plen)) == 0 {
             let pathsep_len = PATHSEPSTR.len();
             if plen > MAXPATHL - pathsep_len {
@@ -648,7 +650,7 @@ fn do_path_expand(
             }
         }
 
-        let buflen = CStr::from_ptr(path).to_bytes().len() + MAXPATHL;
+        let buflen = crate::memory::cstr_len(path) + MAXPATHL;
         let mut buf_vec = vec![0 as c_char; buflen];
         let buf = buf_vec.as_mut_ptr();
 
@@ -691,7 +693,7 @@ fn do_path_expand(
         p = buf.add(wildoff);
         while p < s {
             if rem_backslash(p) {
-                let move_len = CStr::from_ptr(p.add(1)).to_bytes().len() + 1;
+                let move_len = crate::memory::cstr_len(p.add(1)) + 1;
                 ptr::copy(p.add(1), p, move_len);
                 e = e.sub(1);
                 s = s.sub(1);
@@ -849,7 +851,7 @@ fn find_previous_pathsep(path: *mut c_char, psep: *mut *mut c_char) -> bool {
 
 fn is_unique(maybe_unique: *mut c_char, gap: &[std::ffi::CString], i: usize) -> bool {
     unsafe {
-        let candidate_len = CStr::from_ptr(maybe_unique).to_bytes().len();
+        let candidate_len = crate::memory::cstr_len(maybe_unique);
 
         for (j, other_cstr) in gap.iter().enumerate() {
             if j == i {
@@ -895,7 +897,7 @@ fn expand_path_option(
                 }
                 let p = path_tail((*g_st().curbuf).b_ffname);
                 let plen = p.offset_from((*g_st().curbuf).b_ffname) as usize;
-                if plen + CStr::from_ptr(buf).to_bytes().len() >= MAXPATHL {
+                if plen + crate::memory::cstr_len(buf) >= MAXPATHL {
                     continue;
                 }
                 if *buf.add(1) == NUL {
@@ -906,7 +908,7 @@ fn expand_path_option(
                 ptr::copy((*g_st().curbuf).b_ffname, buf, plen);
                 buflen = simplify_filename(buf);
             } else if *buf == NUL {
-                let c_len = CStr::from_ptr(curdir).to_bytes().len();
+                let c_len = crate::memory::cstr_len(curdir);
                 ptr::copy_nonoverlapping(curdir, buf, c_len + 1);
                 if curdirlen == 0 {
                     curdirlen = c_len;
@@ -916,7 +918,7 @@ fn expand_path_option(
                 continue;
             } else if !path_is_absolute(buf) {
                 if curdirlen == 0 {
-                    curdirlen = CStr::from_ptr(curdir).to_bytes().len();
+                    curdirlen = crate::memory::cstr_len(curdir);
                 }
                 if curdirlen + buflen + 3 > MAXPATHL {
                     continue;
@@ -980,7 +982,7 @@ fn uniquefy_paths(
 
         remove_duplicate_strings(gap);
 
-        let mut len = CStr::from_ptr(pattern).to_bytes().len();
+        let mut len = crate::memory::cstr_len(pattern);
         let mut file_pattern = Vec::with_capacity(len + 2);
         file_pattern.push(b'*' as c_char);
         file_pattern.extend_from_slice(std::slice::from_raw_parts(pattern, len + 1));
@@ -1038,7 +1040,7 @@ fn uniquefy_paths(
                 && is_unique(path_cutoff, gap, i)
             {
                 sort_again = true;
-                gap[i] = CStr::from_ptr(path_cutoff).to_owned();
+                gap[i] = crate::memory::cstr_to_cstring(path_cutoff);
             } else {
                 let mut pathsep_p = path.add(len.saturating_sub(1));
                 while find_previous_pathsep(path, &mut pathsep_p) {
@@ -1049,7 +1051,7 @@ fn uniquefy_paths(
                         && candidate >= path_cutoff
                     {
                         sort_again = true;
-                        gap[i] = CStr::from_ptr(candidate).to_owned();
+                        gap[i] = crate::memory::cstr_to_cstring(candidate);
                         break;
                     }
                 }
@@ -1060,7 +1062,7 @@ fn uniquefy_paths(
                 let short_name = path_shorten_fname(path, curdir);
                 if !short_name.is_null() && short_name > path.add(1) {
                     let rel_pathsize =
-                        1 + (PATHSEPSTR.len() - 1) + CStr::from_ptr(short_name).to_bytes().len() + 1;
+                        1 + (PATHSEPSTR.len() - 1) + crate::memory::cstr_len(short_name) + 1;
                     let mut rel_vec = vec![0 as c_char; rel_pathsize];
                     vim_snprintf!(
                         rel_vec.as_mut_ptr(),
@@ -1069,7 +1071,7 @@ fn uniquefy_paths(
                         PATHSEPSTR.as_ptr().cast::<c_char>(),
                         short_name,
                     );
-                    gap[i] = CStr::from_ptr(rel_vec.as_ptr()).to_owned();
+                    gap[i] = crate::memory::cstr_to_cstring(rel_vec.as_ptr());
                 }
             }
             os_breakcheck();
@@ -1089,12 +1091,12 @@ fn uniquefy_paths(
                 short_name = path;
             }
             if is_unique(short_name, gap, i) {
-                gap[i] = CStr::from_ptr(short_name).to_owned();
+                gap[i] = crate::memory::cstr_to_cstring(short_name);
                 continue;
             }
 
             let rel_pathsize =
-                1 + (PATHSEPSTR.len() - 1) + CStr::from_ptr(short_name).to_bytes().len() + 1;
+                1 + (PATHSEPSTR.len() - 1) + crate::memory::cstr_len(short_name) + 1;
             let mut rel_vec = vec![0 as c_char; rel_pathsize];
             vim_snprintf!(
                 rel_vec.as_mut_ptr(),
@@ -1104,7 +1106,7 @@ fn uniquefy_paths(
                 short_name,
             );
 
-            gap[i] = CStr::from_ptr(rel_vec.as_ptr()).to_owned();
+            gap[i] = crate::memory::cstr_to_cstring(rel_vec.as_ptr());
             sort_again = true;
             os_breakcheck();
         }
@@ -1410,7 +1412,7 @@ fn vim_backtick(p: *const c_char) -> bool {
         if *p != b'`' as c_char || *p.add(1) == NUL {
             return false;
         }
-        let len = CStr::from_ptr(p).to_bytes().len();
+        let len = crate::memory::cstr_len(p);
         *p.add(len - 1) == b'`' as c_char
     }
 }
@@ -1422,7 +1424,7 @@ fn expand_backtick(
 ) -> c_int {
     unsafe {
         let mut cnt: c_int = 0;
-        let pat_len = CStr::from_ptr(pat).to_bytes().len();
+        let pat_len = crate::memory::cstr_len(pat);
         let mut cmd_vec: Vec<c_char> = std::slice::from_raw_parts(pat.add(1), pat_len - 2).to_vec();
         cmd_vec.push(NUL);
         let cmd_ptr = cmd_vec.as_mut_ptr();
@@ -1482,7 +1484,7 @@ pub fn slash_adjust(p: *mut c_char) {
         }
 
         if *p == b'`' as c_char {
-            let len = CStr::from_ptr(p).to_bytes().len();
+            let len = crate::memory::cstr_len(p);
             if len > 2 && *p.add(len - 1) == b'`' as c_char {
                 return;
             }
@@ -1490,7 +1492,7 @@ pub fn slash_adjust(p: *mut c_char) {
 
         let from = if opt_vars().p_ssl != 0 { b'\\' as c_char } else { PATHSEP };
         let to = if opt_vars().p_ssl != 0 { PATHSEP } else { b'\\' as c_char };
-        { let _p = p; let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (from) as u8 { *_b = (to) as u8; } } };
+        { let _p = p; let _len = crate::memory::cstr_len(_p); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (from) as u8 { *_b = (to) as u8; } } };
     }
 }
 
@@ -1498,7 +1500,7 @@ pub fn slash_adjust(p: *mut c_char) {
 pub fn path_to_backslash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
         unsafe {
-            { let _p = p; let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (PATHSEP) as u8 { *_b = (b'\\' as c_char) as u8; } } };
+            { let _p = p; let _len = crate::memory::cstr_len(_p); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (PATHSEP) as u8 { *_b = (b'\\' as c_char) as u8; } } };
         }
     }
     p
@@ -1509,7 +1511,7 @@ pub fn path_to_slash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
         unsafe {
             if path_with_url(p) == 0 {
-                { let _p = p; let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (b'\\' as c_char) as u8 { *_b = (PATHSEP) as u8; } } };
+                { let _p = p; let _len = crate::memory::cstr_len(_p); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (b'\\' as c_char) as u8 { *_b = (PATHSEP) as u8; } } };
             }
         }
     }
@@ -1543,7 +1545,7 @@ pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: *mut c_char, flags: c_int) {
 
         #[cfg(windows)]
         {
-            let bytes = CStr::from_ptr(f).to_bytes();
+            let bytes = crate::memory::cstr_as_bytes(f);
             if bytes.iter().any(|b| FNAME_ILLEGAL.contains(b)) {
                 return;
             }
@@ -1558,14 +1560,14 @@ pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: *mut c_char, flags: c_int) {
             return;
         }
 
-        let flen = CStr::from_ptr(f).to_bytes().len();
+        let flen = crate::memory::cstr_len(f);
         let mut buf = vec![0 as c_char; flen + 1 + usize::from(isdir)];
         ptr::copy_nonoverlapping(f, buf.as_mut_ptr(), flen + 1);
         to_slash(buf.as_mut_ptr());
         if isdir && (flags & EW_ADDSLASH) != 0 {
             add_pathsep(buf.as_mut_ptr());
         }
-        gap.push(CStr::from_ptr(buf.as_ptr()).to_owned());
+        gap.push(crate::memory::cstr_to_cstring(buf.as_ptr()));
     }
 }
 
@@ -1589,7 +1591,7 @@ pub fn simplify_filename(filename: *mut c_char) -> usize {
         let mut start = p;
         #[cfg(not(unix))]
         let start = p;
-        let mut p_end = p.add(CStr::from_ptr(p).to_bytes().len());
+        let mut p_end = p.add(crate::memory::cstr_len(p));
 
         #[cfg(unix)]
         if start > filename.add(2) {
@@ -1750,7 +1752,7 @@ pub fn path_with_url(fname: *const c_char) -> c_int {
             return 0;
         }
 
-        if path_has_drive_letter(fname, CStr::from_ptr(fname).to_bytes().len()) {
+        if path_has_drive_letter(fname, crate::memory::cstr_len(fname)) {
             return 0;
         }
 
@@ -1773,7 +1775,7 @@ pub fn path_with_url(fname: *const c_char) -> c_int {
 
 pub fn path_with_extension(path: *const c_char, extension: *const c_char) -> bool {
     unsafe {
-        let bytes = CStr::from_ptr(path).to_bytes();
+        let bytes = crate::memory::cstr_as_bytes(path);
         let Some(pos) = bytes.iter().rposition(|&b| b == b'.') else {
             return false;
         };
@@ -1798,7 +1800,7 @@ pub fn vim_FullName(
             return false;
         }
 
-        if CStr::from_ptr(fname).to_bytes().len() > len.saturating_sub(1) {
+        if crate::memory::cstr_len(fname) > len.saturating_sub(1) {
             xstrlcpy(buf, fname, len);
             to_slash(buf);
             return false;
@@ -1854,7 +1856,7 @@ pub fn path_fix_case(name: *mut c_char) {
             return;
         }
 
-        let name_bytes = CStr::from_ptr(name).to_bytes();
+        let name_bytes = crate::memory::cstr_as_bytes(name);
         let slash_pos = name_bytes.iter().rposition(|&b| b == b'/');
         let mut dir = Directory::new();
         let (ok, tail) = if let Some(pos) = slash_pos {
@@ -1872,13 +1874,13 @@ pub fn path_fix_case(name: *mut c_char) {
             return;
         }
 
-        let taillen = CStr::from_ptr(tail).to_bytes().len();
+        let taillen = crate::memory::cstr_len(tail);
         loop {
             let entry = os_scandir_next(&mut dir);
             if entry.is_null() {
                 break;
             }
-            if std::ffi::CStr::from_ptr(tail).to_bytes().eq_ignore_ascii_case(std::ffi::CStr::from_ptr(entry).to_bytes()) && taillen == CStr::from_ptr(entry).to_bytes().len() {
+            if crate::memory::cstr_as_bytes(tail).eq_ignore_ascii_case(crate::memory::cstr_as_bytes(entry)) && taillen == crate::memory::cstr_len(entry) {
                 let mut newname = [0 as c_char; MAXPATHL + 1];
                 let tail_off = tail.offset_from(name) as usize;
                 xstrlcpy(newname.as_mut_ptr(), name, MAXPATHL + 1);
@@ -2028,7 +2030,7 @@ pub fn path_shorten_fname(full_path: *mut c_char, dir_name: *mut c_char) -> *mut
 
     unsafe {
         debug_assert!(!dir_name.is_null());
-        let len = CStr::from_ptr(dir_name).to_bytes().len();
+        let len = crate::memory::cstr_len(dir_name);
 
         let ic = opt_vars().p_fic != 0;
 
@@ -2079,7 +2081,7 @@ pub fn expand_wildcards_eval(
             );
             g_st().emsg_off -= 1;
             if let Some(ref ep) = eval_pat {
-                let tail_bytes = CStr::from_ptr(exp_pat.add(usedlen)).to_bytes();
+                let tail_bytes = crate::memory::cstr_as_bytes(exp_pat.add(usedlen));
                 star_follows = tail_bytes == b"*";
                 let mut joined = Vec::with_capacity(ep.as_bytes().len() + tail_bytes.len());
                 joined.extend_from_slice(ep.as_bytes());
@@ -2111,7 +2113,7 @@ pub fn expand_wildcards_eval(
 pub fn match_suffix(fname: *mut c_char) -> bool {
     unsafe {
         let mut suf_buf = [0 as c_char; MAXSUFLEN];
-        let fnamelen = CStr::from_ptr(fname).to_bytes().len();
+        let fnamelen = crate::memory::cstr_len(fname);
         let mut setsuflen: usize = 0;
         let mut setsuf = opt_vars().p_su;
         while *setsuf != NUL {
@@ -2171,8 +2173,8 @@ pub fn path_full_dir_name(directory: *mut c_char, buffer: *mut c_char, len: usiz
 
 pub fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) -> bool {
     unsafe {
-        let mut current_length = CStr::from_ptr(path).to_bytes().len();
-        let to_append_bytes = CStr::from_ptr(to_append).to_bytes();
+        let mut current_length = crate::memory::cstr_len(path);
+        let to_append_bytes = crate::memory::cstr_as_bytes(to_append);
         let to_append_length = to_append_bytes.len();
 
         if to_append_length == 0 || to_append_bytes == b"." {
@@ -2226,7 +2228,7 @@ fn path_to_absolute(
         let need_expand = force != 0 || !path_is_absolute(fname);
 
         if need_expand {
-            let fname_bytes = CStr::from_ptr(fname).to_bytes();
+            let fname_bytes = crate::memory::cstr_as_bytes(fname);
             let mut p: *const c_char = fname_bytes
                 .iter()
                 .rposition(|&b| b == b'/')
@@ -2252,7 +2254,7 @@ fn path_to_absolute(
                 p = fname.add(2);
             }
             if !p.is_null() {
-                if vim_ispathsep(*p as c_int) && CStr::from_ptr(p.add(1)).to_bytes() == b".." {
+                if vim_ispathsep(*p as c_int) && crate::memory::cstr_as_bytes(p.add(1)) == b".." {
                     p = p.add(3);
                 }
                 debug_assert!(p >= fname);
@@ -2297,7 +2299,7 @@ pub fn path_is_absolute(fname: *const c_char) -> bool {
 pub fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize: usize) {
     unsafe {
         let path_cstr = os_getenv_cstr(c"PATH".as_ptr());
-        let argv0_bytes = CStr::from_ptr(argv0).to_bytes();
+        let argv0_bytes = crate::memory::cstr_as_bytes(argv0);
 
         if path_is_absolute(argv0) {
             xstrlcpy(buf, argv0, bufsize);
@@ -2306,8 +2308,8 @@ pub fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize: usize
                 if !os_dirname(buf, MAXPATHL) {
                     *buf = NUL;
                 }
-                { let _dst: *mut c_char = buf; let _dsize: usize = bufsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), PATHSEPSTR.as_ptr().cast::<c_char>(), _dsize - _dlen); };
-                { let _dst: *mut c_char = buf; let _dsize: usize = bufsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), argv0, _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = bufsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), PATHSEPSTR.as_ptr().cast::<c_char>(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = bufsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), argv0, _dsize - _dlen); };
             } else {
                 let path = path_cstr.as_ptr();
                 let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
@@ -2322,9 +2324,9 @@ pub fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize: usize
                     if dir_len + 1 > MAXPATHL {
                         continue;
                     }
-                    { let _d = (namebuff).cast::<u8>(); let _n = dir_len; if _n > 0 { std::ptr::copy_nonoverlapping((dir).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
-                    { let _dst: *mut c_char = namebuff; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), PATHSEPSTR.as_ptr().cast::<c_char>(), _dsize - _dlen); };
-                    { let _dst: *mut c_char = namebuff; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), argv0, _dsize - _dlen); };
+                    crate::memory::cstr_ncpy(namebuff, dir, dir_len);
+                    { let _dst: *mut c_char = namebuff; let _dsize: usize = MAXPATHL; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), PATHSEPSTR.as_ptr().cast::<c_char>(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = namebuff; let _dsize: usize = MAXPATHL; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), argv0, _dsize - _dlen); };
                     if os_can_exe(namebuff, None, false) {
                         xstrlcpy(buf, namebuff, bufsize);
                         to_slash(buf);
@@ -2361,53 +2363,53 @@ mod tests {
         unsafe {
             assert!(vim_ispathsep(b'/' as c_int));
             assert_eq!(
-                CStr::from_ptr(path_tail(c"directory/file.txt".as_ptr())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_tail(c"directory/file.txt".as_ptr())),
                 b"file.txt"
             );
             assert_eq!(
-                CStr::from_ptr(path_tail(c"directory/".as_ptr())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_tail(c"directory/".as_ptr())),
                 b""
             );
 
             let mut s1 = *b"directory///file.txt\0";
             assert_eq!(
-                CStr::from_ptr(path_tail_with_sep(s1.as_mut_ptr().cast())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_tail_with_sep(s1.as_mut_ptr().cast())),
                 b"///file.txt"
             );
             let mut s2 = *b"\0";
             assert_eq!(
-                CStr::from_ptr(path_tail_with_sep(s2.as_mut_ptr().cast())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_tail_with_sep(s2.as_mut_ptr().cast())),
                 b""
             );
             let mut s3 = *b"some/directory/\0";
             assert_eq!(
-                CStr::from_ptr(path_tail_with_sep(s3.as_mut_ptr().cast())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_tail_with_sep(s3.as_mut_ptr().cast())),
                 b"/"
             );
             let mut s4 = *b"/file.txt\0";
             assert_eq!(
-                CStr::from_ptr(path_tail_with_sep(s4.as_mut_ptr().cast())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_tail_with_sep(s4.as_mut_ptr().cast())),
                 b"file.txt"
             );
             let mut s5 = *b"/\0";
             assert_eq!(
-                CStr::from_ptr(path_tail_with_sep(s5.as_mut_ptr().cast())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_tail_with_sep(s5.as_mut_ptr().cast())),
                 b""
             );
 
             assert_eq!(
-                CStr::from_ptr(path_next_component(c"some/directory/file.txt".as_ptr())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_next_component(c"some/directory/file.txt".as_ptr())),
                 b"directory/file.txt"
             );
             assert_eq!(
-                CStr::from_ptr(path_next_component(c"file.txt".as_ptr())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_next_component(c"file.txt".as_ptr())),
                 b""
             );
 
             let mut len = 0usize;
             let inv = invocation_path_tail(c"directory/exe a b c".as_ptr(), Some(&mut len));
             assert_eq!(len, 3);
-            assert_eq!(CStr::from_ptr(inv).to_bytes(), b"exe a b c");
+            assert_eq!(crate::memory::cstr_as_bytes(inv), b"exe a b c");
             assert_eq!(
                 CStr::from_ptr(invocation_path_tail(
                     c"directory/exe a b c".as_ptr(),
@@ -2423,11 +2425,11 @@ mod tests {
             let abs_inv = c"/usr/bin/z a b";
             let inv2 = invocation_path_tail(abs_inv.as_ptr(), Some(&mut len));
             assert_eq!(len, 1);
-            assert_eq!(CStr::from_ptr(inv2).to_bytes(), b"z a b");
+            assert_eq!(crate::memory::cstr_as_bytes(inv2), b"z a b");
 
             let inv3 = invocation_path_tail(c"exe a/b\\c".as_ptr(), Some(&mut len));
             assert_eq!(len, 3);
-            assert_eq!(CStr::from_ptr(inv3).to_bytes(), b"exe a/b\\c");
+            assert_eq!(crate::memory::cstr_as_bytes(inv3), b"exe a/b\\c");
 
             let mut str_vec: Vec<std::ffi::CString> = Vec::new();
             let empty_concat = concat_cstrings(&str_vec, c",".as_ptr());
@@ -2487,13 +2489,13 @@ mod tests {
                     .is_null()
             );
             let shortened = path_shorten_fname(full.as_mut_ptr().cast(), dir.as_mut_ptr().cast());
-            assert_eq!(CStr::from_ptr(shortened).to_bytes(), b"directory/file.txt");
+            assert_eq!(crate::memory::cstr_as_bytes(shortened), b"directory/file.txt");
 
             let mut full_dup = *b"some/very/long///directory/file.txt\0";
             let shortened_dup =
                 path_shorten_fname(full_dup.as_mut_ptr().cast(), dir.as_mut_ptr().cast());
             assert_eq!(
-                CStr::from_ptr(shortened_dup).to_bytes(),
+                crate::memory::cstr_as_bytes(shortened_dup),
                 b"directory/file.txt"
             );
 
@@ -2505,29 +2507,29 @@ mod tests {
                 .unwrap()
                 .into_bytes_with_nul();
             assert_eq!(
-                CStr::from_ptr(path_try_shorten_fname(in_cwd.as_mut_ptr().cast())).to_bytes(),
+                crate::memory::cstr_as_bytes(path_try_shorten_fname(in_cwd.as_mut_ptr().cast())),
                 b"subdir/file.txt"
             );
 
             let mut buf = [0 as c_char; 100];
             xstrlcpy(buf.as_mut_ptr(), c"path1".as_ptr(), buf.len());
             assert!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100));
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1/path2");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1/path2");
 
             xstrlcpy(buf.as_mut_ptr(), c"path1/".as_ptr(), buf.len());
             assert!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100));
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1/path2");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1/path2");
             assert!(!append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 11));
 
             xstrlcpy(buf.as_mut_ptr(), c"path1".as_ptr(), buf.len());
             assert!(append_path(buf.as_mut_ptr(), c"".as_ptr(), 6));
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1");
             assert!(append_path(buf.as_mut_ptr(), c".".as_ptr(), 6));
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"path1");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1");
 
             buf[0] = NUL;
             assert!(append_path(buf.as_mut_ptr(), c"/path2".as_ptr(), 7));
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"/path2");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"/path2");
         }
     }
 

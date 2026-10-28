@@ -28,7 +28,7 @@ use crate::regexp::NUMBUFLEN;
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use crate::viml::parser::expressions::{BS, CAR, ESC, NL, TAB};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 const EOF_VAL: c_int = -1;
 
@@ -51,9 +51,9 @@ pub fn ga_concat_literal(gap: &mut Vec<u8>, s: &[u8]) {
 
 #[inline]
 fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
-    unsafe {
+     {
         if !s.is_null() {
-            gap.extend_from_slice(CStr::from_ptr(s).to_bytes());
+            gap.extend_from_slice(crate::memory::cstr_as_bytes(s));
         }
     }
 }
@@ -201,7 +201,7 @@ fn fill_assert_error(
                         if item2.is_null()
                             || !tv_equal(&(*di1).di_tv, &(*item2).di_tv, false)
                         {
-                            let key_len = CStr::from_ptr(hi_key).to_bytes().len();
+                            let key_len = crate::memory::cstr_len(hi_key);
                             tv_dict_add_tv(new_exp_d, hi_key, key_len, &mut (*di1).di_tv);
                             if !item2.is_null() {
                                 tv_dict_add_tv(
@@ -227,7 +227,7 @@ fn fill_assert_error(
                         let item2 = tv_dict_find(exp_d, hi_key, -1);
                         if item2.is_null() {
                             let di2 = crate::eval::typval::tv_dict_hi2di(hi);
-                            let key_len = CStr::from_ptr(hi_key).to_bytes().len();
+                            let key_len = crate::memory::cstr_len(hi_key);
                             tv_dict_add_tv(new_got_d, hi_key, key_len, &mut (*di2).di_tv);
                         }
                         todo -= 1;
@@ -550,8 +550,8 @@ pub fn f_assert_exception(argvars: &mut [typval_T], rettv: &mut typval_T,
             assert_error(&ga);
             rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         } else if !error.is_null() {
-            let exc_bytes = CStr::from_ptr(v_exc).to_bytes();
-            let err_bytes = CStr::from_ptr(error).to_bytes();
+            let exc_bytes = crate::memory::cstr_as_bytes(v_exc);
+            let err_bytes = crate::memory::cstr_as_bytes(error);
             let found = if err_bytes.is_empty() {
                 true
             } else {
@@ -634,8 +634,8 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 if expected.is_null() {
                     error_found = true;
                 } else {
-                    let act_bytes = CStr::from_ptr(actual).to_bytes();
-                    let exp_bytes = CStr::from_ptr(expected).to_bytes();
+                    let act_bytes = crate::memory::cstr_as_bytes(actual);
+                    let exp_bytes = crate::memory::cstr_as_bytes(expected);
                     let contains = if exp_bytes.is_empty() {
                         true
                     } else {
@@ -659,7 +659,7 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                         error_found = true;
                         expected_str = expected;
                     } else if tv_list_len(list) == 2 {
-                        let s = CStr::from_ptr(get_vim_var_str(VV_ERRMSG)).to_owned();
+                        let s = crate::memory::cstr_to_cstring(get_vim_var_str(VV_ERRMSG));
                         actual = s.as_ptr().cast_mut();
                         tofree = Some(s);
                         let last_tv = &(*tv_list_last(list)).li_tv;

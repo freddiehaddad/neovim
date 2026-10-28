@@ -984,7 +984,7 @@ pub fn check_buf_options(buf: &mut buf_T) {
 }
 
 pub fn alloc_string_option(s: *const c_char) -> *mut c_char {
-    unsafe { CStr::from_ptr(s).to_owned().into_raw() }
+     crate::memory::cstr_to_cstring(s).into_raw()
 }
 
 pub fn alloc_string_option_bytes(bytes: &[u8]) -> *mut c_char {
@@ -1073,7 +1073,7 @@ pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> bool {
             }
         } else {
             if !(crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5])
-                || std::ffi::CStr::from_ptr(val).to_bytes().len() != 8
+                || crate::memory::cstr_len(val) != 8
                 || !ascii_isdigit(*val.add(5) as c_int)
                 || *val.add(6) != b'-' as c_char
                 || !ascii_isdigit(*val.add(7) as c_int)
@@ -1217,14 +1217,14 @@ pub fn check_stl_option(mut s: *mut c_char, errbuf: Option<CharBuf>) -> *const c
 
 /// Check for a "normal" directory or file name in some options.
 pub fn check_illegal_path_names(val: *mut c_char, flags: u32) -> bool {
-    unsafe {
+     {
         let nfname_illegal = if g_st().secure != 0 {
             c"/\\*?[|;&<>\r\n".as_ptr()
         } else {
             c"/\\*?[<>\r\n".as_ptr()
         };
-        ((flags & kOptFlagNFname) != 0 && CStr::from_ptr(val).to_bytes().iter().any(|b| CStr::from_ptr(nfname_illegal).to_bytes().contains(b)))
-            || ((flags & kOptFlagNDname) != 0 && CStr::from_ptr(val).to_bytes().iter().any(|b| b"*?[|;&<>\r\n".contains(b)))
+        ((flags & kOptFlagNFname) != 0 && crate::memory::cstr_as_bytes(val).iter().any(|b| crate::memory::cstr_as_bytes(nfname_illegal).contains(b)))
+            || ((flags & kOptFlagNDname) != 0 && crate::memory::cstr_as_bytes(val).iter().any(|b| b"*?[|;&<>\r\n".contains(b)))
     }
 }
 
@@ -1322,12 +1322,12 @@ fn expand_set_opt_string(
         matches.clear();
 
         if include_orig_val && *option_val != NUL {
-            matches.push(CStr::from_ptr(option_val).to_owned());
+            matches.push(crate::memory::cstr_to_cstring(option_val));
         }
 
         for &val in values {
             if val.to_bytes().is_empty()
-                || (include_orig_val && *option_val != NUL && (std::ffi::CStr::from_ptr(val.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(option_val).to_bytes()))
+                || (include_orig_val && *option_val != NUL && (crate::memory::cstr_as_bytes(val.as_ptr()) == crate::memory::cstr_as_bytes(option_val)))
             {
                 continue;
             }
@@ -1402,7 +1402,7 @@ fn expand_set_opt_listflag(
         matches.clear();
 
         if include_orig_val {
-            matches.push(CStr::from_ptr(option_val).to_owned());
+            matches.push(crate::memory::cstr_to_cstring(option_val));
         }
 
         let mut flag = flags;
@@ -1432,7 +1432,7 @@ fn expand_set_opt_listflag(
 fn completing_value_for_subopt(args: &mut optexpand_T, name_suffix: *const c_char) -> bool {
     unsafe {
         let colon = (*args.oe_xp).xp_pattern.sub(1);
-        let len = std::ffi::CStr::from_ptr(name_suffix).to_bytes().len();
+        let len = crate::memory::cstr_len(name_suffix);
 
         colon.offset_from(args.oe_set_arg) >= (len as isize)
             && (crate::memory::cstr_prefix_bytes(colon.sub(len), len) == crate::memory::cstr_prefix_bytes(name_suffix, len))
@@ -1579,7 +1579,7 @@ pub fn validate_backupext_or_patchmode(args: &mut optset_T) -> *const c_char {
             bex
         };
         let pm_s = if *pm == b'.' as c_char { pm.add(1) } else { pm };
-        if std::ffi::CStr::from_ptr(bex_s).to_bytes() == std::ffi::CStr::from_ptr(pm_s).to_bytes() {
+        if crate::memory::cstr_as_bytes(bex_s) == crate::memory::cstr_as_bytes(pm_s) {
             return E_BACKUPEXT_AND_PATCHMODE_ARE_EQUAL.as_ptr();
         }
 
@@ -1881,7 +1881,7 @@ pub fn validate_comments(args: &mut optset_T) -> *const c_char {
 pub fn validate_commentstring(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
-        if *value == NUL || CStr::from_ptr(value).to_bytes().windows(2).any(|w| w == b"%s") {
+        if *value == NUL || crate::memory::cstr_as_bytes(value).windows(2).any(|w| w == b"%s") {
             ptr::null()
         } else {
             c"E537: 'commentstring' must be empty or contain %s".as_ptr()
@@ -1979,11 +1979,11 @@ pub fn validate_completeitemalign(args: &mut optset_T) -> *const c_char {
         let mut buf = [0 as c_char; 10];
         while *p != NUL {
             copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",".as_ptr());
-            let item = if std::ffi::CStr::from_ptr(buf.as_ptr()).to_bytes() == b"abbr" {
+            let item = if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"abbr" {
                 CPT_ABBR
-            } else if std::ffi::CStr::from_ptr(buf.as_ptr()).to_bytes() == b"kind" {
+            } else if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"kind" {
                 CPT_KIND
-            } else if std::ffi::CStr::from_ptr(buf.as_ptr()).to_bytes() == b"menu" {
+            } else if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"menu" {
                 CPT_MENU
             } else {
                 return e_invarg.as_ptr();
@@ -2318,7 +2318,7 @@ pub fn validate_filetype(args: &mut optset_T) -> *const c_char {
 pub fn did_set_filetype_or_syntax(args: &mut optset_T) -> *const c_char {
     unsafe {
         let varp = args.os_varp.cast::<*mut c_char>();
-        args.os_value_changed = std::ffi::CStr::from_ptr(args.os_oldval.data.string().data).to_bytes() != std::ffi::CStr::from_ptr(*varp).to_bytes();
+        args.os_value_changed = crate::memory::cstr_as_bytes(args.os_oldval.data.string().data) != crate::memory::cstr_as_bytes(*varp);
         args.os_value_checked = true;
         ptr::null()
     }
@@ -2447,8 +2447,8 @@ pub fn validate_helplang(args: &mut optset_T) -> *const c_char {
 
 /// Validate the 'highlight' option.
 pub fn validate_highlight(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if std::ffi::CStr::from_ptr(args.os_newval.data.string().data).to_bytes() != std::ffi::CStr::from_ptr(HIGHLIGHT_INIT.as_ptr()).to_bytes() {
+     {
+        if crate::memory::cstr_as_bytes(args.os_newval.data.string().data) != crate::memory::cstr_as_bytes(HIGHLIGHT_INIT.as_ptr()) {
             return e_unsupportedoption.as_ptr();
         }
         ptr::null()
@@ -2557,8 +2557,8 @@ pub fn validate_lispoptions(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         if *value == NUL
-            || std::ffi::CStr::from_ptr(value).to_bytes() == b"expr:0"
-            || std::ffi::CStr::from_ptr(value).to_bytes() == b"expr:1"
+            || crate::memory::cstr_as_bytes(value) == b"expr:0"
+            || crate::memory::cstr_as_bytes(value) == b"expr:1"
         {
             ptr::null()
         } else {
@@ -2754,7 +2754,7 @@ pub fn validate_shada(args: &mut optset_T) -> *const c_char {
                 }
             }
         }
-        if *value != NUL && (marks.is_null() || (crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(marks).to_bytes()) as c_int) < 0) {
+        if *value != NUL && (marks.is_null() || (crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(marks)) as c_int) < 0) {
             return c"E528: Must specify a ' value".as_ptr();
         }
         ptr::null()
@@ -3231,7 +3231,7 @@ pub fn did_set_virtualedit(args: &mut optset_T) -> *const c_char {
             );
             if !errmsg.is_null() {
                 return errmsg;
-            } else if std::ffi::CStr::from_ptr(ve).to_bytes() != std::ffi::CStr::from_ptr(args.os_oldval.data.string().data).to_bytes() {
+            } else if crate::memory::cstr_as_bytes(ve) != crate::memory::cstr_as_bytes(args.os_oldval.data.string().data) {
                 validate_virtcol(win);
                 coladvance(&mut *win, (*win).w_virtcol);
             }
@@ -3330,7 +3330,7 @@ fn opt_values_err(
             return e_invarg.as_ptr();
         };
         let mut itembuf = [0 as c_char; 64];
-        { let _d = (itembuf.as_mut_ptr()).cast::<u8>(); let _n = itemlen.min(itembuf.len() - 1); if _n > 0 { std::ptr::copy_nonoverlapping((item).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+        crate::memory::cstr_ncpy(itembuf.as_mut_ptr(), item, itemlen.min(itembuf.len() - 1));
         let mut n = vim_snprintf!(
             errbuf.data,
             errbuf.size,
@@ -3388,7 +3388,7 @@ fn opt_strings_flags(
                     errbuf,
                     c"E474: Invalid value '%s', expected one of:".as_ptr(),
                     val,
-                    CStr::from_ptr(val).to_bytes().iter().position(|&b| b == b',').unwrap_or_else(|| CStr::from_ptr(val).to_bytes().len()),
+                    crate::memory::cstr_as_bytes(val).iter().position(|&b| b == b',').unwrap_or_else(|| crate::memory::cstr_len(val)),
                     values,
                 );
             }
@@ -3411,12 +3411,12 @@ fn opt_schema_err(
     key: *const c_char,
     keylen: usize,
 ) -> *const c_char {
-    unsafe {
+     {
         if errbuf.is_none() {
             return e_invarg.as_ptr();
         }
         let mut keybuf = [0 as c_char; 64];
-        { let _d = (keybuf.as_mut_ptr()).cast::<u8>(); let _n = keylen.min(keybuf.len() - 1); if _n > 0 { std::ptr::copy_nonoverlapping((key).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+        crate::memory::cstr_ncpy(keybuf.as_mut_ptr(), key, keylen.min(keybuf.len() - 1));
         opt_error(errbuf, fmt, keybuf.as_ptr())
     }
 }

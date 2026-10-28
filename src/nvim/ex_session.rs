@@ -26,7 +26,7 @@ use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
 use crate::window::{frame_T, tabpage_T, tabpage_index, win_T};
-use std::ffi::{CStr, CString, c_char, c_int, c_uint};
+use std::ffi::{CString, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::win_config::FR_COL;
@@ -78,7 +78,7 @@ fn exses_st() -> &'static mut ExSessionState {
 
 #[inline]
 fn cstr_to_str<'a>(p: *const c_char) -> &'a str {
-    unsafe { std::str::from_utf8_unchecked(CStr::from_ptr(p).to_bytes()) }
+    unsafe { std::str::from_utf8_unchecked(crate::memory::cstr_as_bytes(p)) }
 }
 
 #[inline]
@@ -1229,12 +1229,12 @@ fn get_view_file(c: c_char) -> Option<CString> {
             p = p.add(1);
         }
         let sname_len = sname_cstr.as_bytes().len();
-        let vdir_len = CStr::from_ptr(opt_vars().p_vdir).to_bytes().len();
+        let vdir_len = crate::memory::cstr_len(opt_vars().p_vdir);
         let mut retval_vec: Vec<c_char> = vec![0; sname_len + len + vdir_len + 9];
         let retval = retval_vec.as_mut_ptr();
         ptr::copy_nonoverlapping(opt_vars().p_vdir, retval, vdir_len + 1);
         add_pathsep(retval);
-        let mut s = retval.add(CStr::from_ptr(retval).to_bytes().len());
+        let mut s = retval.add(crate::memory::cstr_len(retval));
         p = sname;
         while *p != NUL {
             if *p == b'=' as c_char {
@@ -1265,9 +1265,9 @@ fn get_view_file(c: c_char) -> Option<CString> {
         *s = b'=' as c_char;
         *s.add(1) = c;
         s = s.add(2);
-        { let _d = (s).cast::<u8>(); let _n = 4; if _n > 0 { std::ptr::copy_nonoverlapping((b".vim".as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+        crate::memory::cstr_ncpy(s, c".vim".as_ptr(), 4);
 
-        Some(CStr::from_ptr(retval).to_owned())
+        Some(crate::memory::cstr_to_cstring(retval))
     }
 }
 

@@ -16,7 +16,7 @@ use crate::os::env::{expand_env_save, home_replace};
 use crate::path::fix_fname;
 use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp_box, vim_regexec_prog};
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CString, c_char, c_int};
 
 const DBG_FUNC: c_int = 1;
 const DBG_FILE: c_int = 2;
@@ -117,7 +117,7 @@ fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
     if sname.is_null() {
         return 0;
     }
-    let bytes = unsafe { CStr::from_ptr(sname).to_bytes() };
+    let bytes =  { crate::memory::cstr_as_bytes(sname) };
     let mut count: c_int = 0;
     let mut i = 0usize;
     while i + 1 < bytes.len() {
@@ -148,7 +148,7 @@ fn do_checkbacktracelevel() {
 
 fn do_setdebugtracelevel(arg: *mut c_char) {
     unsafe {
-        let level = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg).to_bytes()) as c_int;
+        let level = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
         if *arg as u8 == b'+' || level < 0 {
             g_st().debug_backtrace_level += level;
         } else {
@@ -172,7 +172,7 @@ fn do_showbacktrace(cmd: *const c_char) {
             let mut i: c_int = 0;
             let mut cur = sname_vec.as_mut_ptr();
             while !g_st().got_int {
-                let cur_bytes = CStr::from_ptr(cur).to_bytes();
+                let cur_bytes = crate::memory::cstr_as_bytes(cur);
                 let next_off = cur_bytes.windows(2).position(|w| w == b"..");
                 if let Some(off) = next_off {
                     *cur.add(off) = 0;
@@ -498,7 +498,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             dbg_level: 0,
         };
 
-        let p_bytes = CStr::from_ptr(p).to_bytes();
+        let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"func") {
             bp.dbg_type = DBG_FUNC;
         } else if p_bytes.starts_with(b"file") {
@@ -527,7 +527,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             bp.dbg_lnum = 0;
         }
 
-        let rem_bytes = CStr::from_ptr(p).to_bytes();
+        let rem_bytes = crate::memory::cstr_as_bytes(p);
         if (!here && rem_bytes.is_empty())
             || (here && !rem_bytes.is_empty())
             || (bp.dbg_type == DBG_FUNC && rem_bytes.windows(2).any(|w| w == b"()"))
@@ -542,14 +542,14 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             } else {
                 p
             };
-            bp.dbg_name = CStr::from_ptr(name_src).to_owned();
+            bp.dbg_name = crate::memory::cstr_to_cstring(name_src);
         } else if here {
             if (*g_st().curbuf).b_ffname.is_null() {
                 return None;
             }
-            bp.dbg_name = CStr::from_ptr((*g_st().curbuf).b_ffname).to_owned();
+            bp.dbg_name = crate::memory::cstr_to_cstring((*g_st().curbuf).b_ffname);
         } else if bp.dbg_type == DBG_EXPR {
-            bp.dbg_name = CStr::from_ptr(p).to_owned();
+            bp.dbg_name = crate::memory::cstr_to_cstring(p);
             bp.dbg_val = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
         } else {
             let q = expand_env_save(p);
@@ -631,7 +631,7 @@ pub fn ex_breakdel(eap: &mut exarg_T) {
 
         let first_byte = *eap.arg as u8;
         if first_byte.is_ascii_digit() {
-            let nr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(eap.arg).to_bytes()) as c_int;
+            let nr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int;
             if let Some(idx) = gap.iter().position(|bp| bp.dbg_nr == nr) {
                 todel = idx as isize;
             }
@@ -730,7 +730,7 @@ fn debuggy_find(
         let mut lnum: i32 = 0;
         let name_owned: Option<CString>;
         let name = if !file && (*fname as u8) == K_SPECIAL {
-            let rest_bytes = CStr::from_ptr(fname.add(3)).to_bytes();
+            let rest_bytes = crate::memory::cstr_as_bytes(fname.add(3));
             let mut bytes = Vec::with_capacity(5 + rest_bytes.len());
             bytes.extend_from_slice(b"<SNR>");
             bytes.extend_from_slice(rest_bytes);

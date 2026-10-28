@@ -526,11 +526,11 @@ pub(crate) fn c_gettext(msgid: *const c_char) -> *mut c_char {
     if msgid.is_null() || unsafe { *msgid == 0 } {
         return msgid.cast_mut();
     }
-    unsafe {
+     {
         let Some(cat) = ensure_catalog_loaded() else {
             return msgid.cast_mut();
         };
-        let key = CStr::from_ptr(msgid).to_bytes();
+        let key = crate::memory::cstr_as_bytes(msgid);
         if let Ok(idx) = cat.entries.binary_search_by(|e| e.msgid.as_ref().cmp(key))
             && let Some(first) = cat.entries[idx].forms.first()
         {
@@ -553,11 +553,11 @@ pub(crate) fn c_ngettext(
     if msgid1.is_null() || unsafe { *msgid1 == 0 } {
         return fallback;
     }
-    unsafe {
+     {
         let Some(cat) = ensure_catalog_loaded() else {
             return fallback;
         };
-        let key = CStr::from_ptr(msgid1).to_bytes();
+        let key = crate::memory::cstr_as_bytes(msgid1);
         if let Ok(idx) = cat.entries.binary_search_by(|e| e.msgid.as_ref().cmp(key)) {
             let forms = &cat.entries[idx].forms;
             let form_idx = eval_plural_expr(&cat.plural_expr, n);
@@ -672,7 +672,7 @@ pub fn init_locale() {
         xstrlcpy(tail, c"share/locale".as_ptr(), MAXPATHL - offset);
 
         if HAVE_LIBINTL {
-            let bytes = CStr::from_ptr(localepath.as_ptr()).to_bytes();
+            let bytes = crate::memory::cstr_as_bytes(localepath.as_ptr());
             let len = bytes.len().min(MAXPATHL);
             lang_st().LOCALE_DIR[..len].copy_from_slice(&bytes[..len]);
             lang_st().LOCALE_DIR_LEN = len;
@@ -849,22 +849,21 @@ pub fn lang_init() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn is_valid_mess_lang_and_get_lang_arg_work() {
-        unsafe {
+         {
             assert!(!is_valid_mess_lang(ptr::null()));
             assert!(!is_valid_mess_lang(c"C".as_ptr()));
             assert!(!is_valid_mess_lang(c"C.UTF-8".as_ptr()));
             assert!(is_valid_mess_lang(c"en_US.UTF-8".as_ptr()));
 
             assert_eq!(
-                CStr::from_ptr(get_lang_arg(&mut crate::os::env::expand_T::new(), 0)).to_bytes(),
+                crate::memory::cstr_as_bytes(get_lang_arg(&mut crate::os::env::expand_T::new(), 0)),
                 b"messages"
             );
             assert_eq!(
-                CStr::from_ptr(get_lang_arg(&mut crate::os::env::expand_T::new(), 3)).to_bytes(),
+                crate::memory::cstr_as_bytes(get_lang_arg(&mut crate::os::env::expand_T::new(), 3)),
                 b"collate"
             );
 

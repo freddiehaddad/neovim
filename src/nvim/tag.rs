@@ -462,7 +462,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                 new_tag = true;
                 if g_st().g_do_tagpreview != 0 {
                     tagstack_clear_entry(&mut tag_st().ptag_entry);
-                    tag_st().ptag_entry.tagname = Some(CStr::from_ptr(tag).to_owned());
+                    tag_st().ptag_entry.tagname = Some(crate::memory::cstr_to_cstring(tag));
                 }
             } else {
                 use_tagstack = g_st().g_do_tagpreview == 0;
@@ -479,13 +479,13 @@ pub fn do_tag(eap: Option<&exarg_T>,
                             .as_ref()
                             .unwrap()
                             .as_ref()
-                            .is_some_and(|t| std::ffi::CStr::from_ptr(t.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(tag).to_bytes())
+                            .is_some_and(|t| crate::memory::cstr_as_bytes(t.as_ptr()) == crate::memory::cstr_as_bytes(tag))
                         {
                             cur_match = tag_st().ptag_entry.cur_match;
                             cur_fnum = tag_st().ptag_entry.cur_fnum;
                         } else {
                             tagstack_clear_entry(&mut tag_st().ptag_entry);
-                            tag_st().ptag_entry.tagname = Some(CStr::from_ptr(tag).to_owned());
+                            tag_st().ptag_entry.tagname = Some(crate::memory::cstr_to_cstring(tag));
                         }
                     } else {
                         while tagstackidx < tagstacklen {
@@ -502,7 +502,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                         }
 
                         (*tagstack.add(tagstackidx as usize)).tagname =
-                            Some(CStr::from_ptr(tag).to_owned());
+                            Some(crate::memory::cstr_to_cstring(tag));
                         (**curwin.as_ptr()).w_tagstacklen = tagstacklen;
                         save_pos = true;
                     }
@@ -668,14 +668,14 @@ pub fn do_tag(eap: Option<&exarg_T>,
                     .as_ref()
                     .unwrap()
                     .as_ref()
-                    .is_none_or(|m| std::ffi::CStr::from_ptr(m.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(name).to_bytes());
+                    .is_none_or(|m| crate::memory::cstr_as_bytes(m.as_ptr()) != crate::memory::cstr_as_bytes(name));
                 if new_tag
                     || (cur_match >= (*do_tag_matches).len() as c_int
                         && tag_st().DO_TAG_MAX_NUM_MATCHES != MAXCOL)
                     || other_name
                 {
                     if other_name {
-                        tag_st().tagmatchname = Some(CStr::from_ptr(name).to_owned());
+                        tag_st().tagmatchname = Some(crate::memory::cstr_to_cstring(name));
                     }
 
                     if type_ == DT_SELECT || type_ == DT_JUMP || type_ == DT_LTAG {
@@ -730,7 +730,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                             parse_match(old_match.as_ptr().cast_mut(), &mut tagp);
                             for i in idx..new_matches.len() {
                                 parse_match(new_matches[i].as_mut_ptr(), &mut tagp2);
-                                if std::ffi::CStr::from_ptr(tagp.tagname).to_bytes() == std::ffi::CStr::from_ptr(tagp2.tagname).to_bytes() {
+                                if crate::memory::cstr_as_bytes(tagp.tagname) == crate::memory::cstr_as_bytes(tagp2.tagname) {
                                     let p = new_matches.remove(i);
                                     new_matches.insert(idx, p);
                                     idx += 1;
@@ -844,7 +844,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                             more_str,
                         );
                         if ic {
-                            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"  Using tag with different case!".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"  Using tag with different case!".as_ptr()), _dsize - _dlen); };
                         }
                         if (do_tag_num_matches > prev_num_matches || new_tag)
                             && do_tag_num_matches > 1
@@ -1020,7 +1020,7 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
             parse_match(m, &mut tagp);
 
             let mut len = (tagp.tagname_end.offset_from(tagp.tagname) as c_int).min(128);
-            { let _d = (tag_name.as_mut_ptr()).cast::<u8>(); let _n = len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((tagp.tagname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+            crate::memory::cstr_ncpy(tag_name.as_mut_ptr(), tagp.tagname, len as usize);
             tag_name[len as usize] = NUL;
 
             let p = tag_full_fname(&mut tagp);
@@ -1028,7 +1028,7 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
 
             let mut lnum: linenr_T = 0;
             if ascii_isdigit(*tagp.command) {
-                lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(tagp.command).to_bytes()) as c_int;
+                lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(tagp.command)) as c_int;
             } else {
                 let mut cmd_start = tagp.command;
                 let mut cmd_end = tagp.command_end;
@@ -1054,12 +1054,12 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
                 *cmd = NUL;
 
                 if *cmd_start == b'^' as c_char {
-                    { let s = c"^".as_ptr(); std::ptr::copy_nonoverlapping(s, cmd, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(cmd, c"^".as_ptr());
                     cmd_start = cmd_start.add(1);
                     len += 1;
                 }
 
-                { let s = c"\\V".as_ptr(); std::ptr::copy_nonoverlapping(s, cmd.add(len as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(cmd.add(len as usize), c"\\V".as_ptr());
                 len += 2;
 
                 let cmd_len = ((cmd_end.offset_from(cmd_start) as c_int) + 1)
@@ -1237,7 +1237,7 @@ fn tagfunc_cmd_kind(cmd: *mut c_char) -> tagcmd_T {
                 tagcmd_T::TAGCMD_INVALID
             };
         }
-        if CStr::from_ptr(cmd).to_bytes().iter().any(|b| b"\t\r\n".contains(b)) {
+        if crate::memory::cstr_as_bytes(cmd).iter().any(|b| b"\t\r\n".contains(b)) {
             return tagcmd_T::TAGCMD_INVALID;
         }
         tagcmd_T::TAGCMD_GENERIC
@@ -1377,19 +1377,19 @@ fn find_tagfunc_tags(
                         let tv = &raw mut (*di).di_tv;
 
                         if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null() {
-                            len += std::ffi::CStr::from_ptr((*tv).vval.v_string()).to_bytes().len() + 1;
-                            if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"name" {
+                            len += crate::memory::cstr_len((*tv).vval.v_string()) + 1;
+                            if crate::memory::cstr_as_bytes(dict_key) == b"name" {
                                 res_name = (*tv).vval.v_string();
-                            } else if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"filename" {
+                            } else if crate::memory::cstr_as_bytes(dict_key) == b"filename" {
                                 res_fname = (*tv).vval.v_string();
-                            } else if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"cmd" {
+                            } else if crate::memory::cstr_as_bytes(dict_key) == b"cmd" {
                                 res_cmd = (*tv).vval.v_string();
                             } else {
                                 has_extra = true;
-                                if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"kind" {
+                                if crate::memory::cstr_as_bytes(dict_key) == b"kind" {
                                     res_kind = (*tv).vval.v_string();
                                 } else {
-                                    len += std::ffi::CStr::from_ptr(dict_key).to_bytes().len() + 1;
+                                    len += crate::memory::cstr_len(dict_key) + 1;
                                 }
                             }
                         }
@@ -1433,18 +1433,18 @@ fn find_tagfunc_tags(
                 *p = TAG_SEP;
                 p = p.add(1);
 
-                { let s = res_name; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
+                crate::memory::cstr_cpy(p, res_name);
+                p = p.add(crate::memory::cstr_len(p));
 
                 *p = TAB;
                 p = p.add(1);
-                { let s = res_fname; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
+                crate::memory::cstr_cpy(p, res_fname);
+                p = p.add(crate::memory::cstr_len(p));
 
                 *p = TAB;
                 p = p.add(1);
-                { let s = res_cmd; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
+                crate::memory::cstr_cpy(p, res_cmd);
+                p = p.add(crate::memory::cstr_len(p));
 
                 if cmdkind == tagcmd_T::TAGCMD_GENERIC {
                     *p = b'|' as c_char;
@@ -1452,13 +1452,13 @@ fn find_tagfunc_tags(
                 }
                 if cmdkind == tagcmd_T::TAGCMD_GENERIC || has_extra {
                     { let s = c";\"".as_ptr(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                    p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
+                    p = p.add(crate::memory::cstr_len(p));
 
                     if !res_kind.is_null() {
                         *p = TAB;
                         p = p.add(1);
-                        { let s = res_kind; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                        p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
+                        crate::memory::cstr_cpy(p, res_kind);
+                        p = p.add(crate::memory::cstr_len(p));
                     }
 
                     if !item_dict.is_null() {
@@ -1473,19 +1473,19 @@ fn find_tagfunc_tags(
 
                                 if (*tv).v_type == VarType::VAR_STRING
                                     && !(*tv).vval.v_string().is_null()
-                                    && std::ffi::CStr::from_ptr(dict_key).to_bytes() != b"name"
-                                    && std::ffi::CStr::from_ptr(dict_key).to_bytes() != b"filename"
-                                    && std::ffi::CStr::from_ptr(dict_key).to_bytes() != b"cmd"
-                                    && std::ffi::CStr::from_ptr(dict_key).to_bytes() != b"kind"
+                                    && crate::memory::cstr_as_bytes(dict_key) != b"name"
+                                    && crate::memory::cstr_as_bytes(dict_key) != b"filename"
+                                    && crate::memory::cstr_as_bytes(dict_key) != b"cmd"
+                                    && crate::memory::cstr_as_bytes(dict_key) != b"kind"
                                 {
                                     *p = TAB;
                                     p = p.add(1);
-                                    { let s = dict_key; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                                    p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
-                                    { let s = c":".as_ptr(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                                    p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
-                                    { let s = (*tv).vval.v_string(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                                    p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
+                                    crate::memory::cstr_cpy(p, dict_key);
+                                    p = p.add(crate::memory::cstr_len(p));
+                                    crate::memory::cstr_cpy(p, c":".as_ptr());
+                                    p = p.add(crate::memory::cstr_len(p));
+                                    crate::memory::cstr_cpy(p, (*tv).vval.v_string());
+                                    p = p.add(crate::memory::cstr_len(p));
                                 }
                             }
                             hi = hi.add(1);
@@ -1521,12 +1521,12 @@ fn findtags_state_init(
     flags: c_int,
     mincount: c_int,
 ) {
-    unsafe {
+     {
         st.tag_fname = vec![0 as c_char; MAXPATHL + 1];
         st.fp = None;
         st.orgpat = pat_T {
             pat,
-            len: std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int,
+            len: crate::memory::cstr_len(pat) as c_int,
             head: ptr::null_mut(),
             headlen: 0,
             regmatch: regmatch_T {
@@ -1568,13 +1568,13 @@ fn findtags_in_help_init(st: &mut findtags_state_T) -> bool {
     unsafe {
         let tag_fname = st.tag_fname.as_ptr();
         if st.is_txt {
-            { let s = c"en".as_ptr(); std::ptr::copy_nonoverlapping(s, st.help_lang.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(st.help_lang.as_mut_ptr(), c"en".as_ptr());
         } else {
-            let i = std::ffi::CStr::from_ptr(tag_fname).to_bytes().len() as c_int;
+            let i = crate::memory::cstr_len(tag_fname) as c_int;
             if i > 3 && *tag_fname.add((i - 3) as usize) == b'-' as c_char {
-                { let _d = (st.help_lang.as_mut_ptr()).cast::<u8>(); let _n = 2; if _n > 0 { std::ptr::copy_nonoverlapping((tag_fname.add((i - 2) as usize)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(st.help_lang.as_mut_ptr(), tag_fname.add((i - 2) as usize), 2);
             } else {
-                { let s = c"en".as_ptr(); std::ptr::copy_nonoverlapping(s, st.help_lang.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(st.help_lang.as_mut_ptr(), c"en".as_ptr());
             }
         }
 
@@ -1589,7 +1589,7 @@ fn findtags_in_help_init(st: &mut findtags_state_T) -> bool {
         }
 
         let fname_len = if !(*g_st().curbuf).b_fname.is_null() {
-            std::ffi::CStr::from_ptr((*g_st().curbuf).b_fname).to_bytes().len() as c_int
+            crate::memory::cstr_len((*g_st().curbuf).b_fname) as c_int
         } else {
             0
         };
@@ -1758,7 +1758,7 @@ fn findtags_start_state_handler(
         let noic = (st.flags & TAG_NOIC) != 0;
         let lbuf = st.lbuf.as_ptr();
 
-        if { let _p1 = lbuf; let _p2 = c"!_TAG_".as_ptr(); let _n = 6; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) <= std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+        if (crate::memory::cstr_prefix_bytes(lbuf, 6) <= crate::memory::cstr_prefix_bytes(c"!_TAG_".as_ptr(), 6))
             || (*lbuf == b'!' as c_char && ascii_islower(*lbuf.add(1)))
         {
             return findtags_hdr_parse(st);
@@ -1843,7 +1843,7 @@ fn findtags_parse_line(
                 let mut tagcmp = if margs.sortic {
                     tag_strnicmp(tagpp.tagname, st.orgpat.head, cmplen as usize)
                 } else {
-                    { let _p1 = tagpp.tagname; let _p2 = st.orgpat.head; let _n = cmplen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).cmp(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) as c_int }
+                    crate::memory::cstr_prefix_bytes(tagpp.tagname, cmplen as usize).cmp(crate::memory::cstr_prefix_bytes(st.orgpat.head, cmplen as usize)) as c_int
                 };
 
                 if tagcmp == 0 {
@@ -1983,7 +1983,7 @@ fn findtags_match_tag(
 }
 
 fn findtags_string_convert(st: &mut findtags_state_T) {
-    unsafe {
+     {
         let Some(conv_line) = string_convert(
             &st.vimconv,
             st.lbuf.as_mut_ptr(),
@@ -1996,7 +1996,7 @@ fn findtags_string_convert(st: &mut findtags_state_T) {
         if len > st.lbuf.len() {
             st.lbuf.resize(len, 0);
         }
-        { let s = conv_line.as_ptr().cast(); std::ptr::copy_nonoverlapping(s, st.lbuf.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cpy(st.lbuf.as_mut_ptr(), conv_line.as_ptr().cast());
     }
 }
 
@@ -2038,9 +2038,9 @@ fn findtags_add_match(
             let mfp_size = 1 + len + 10 + ML_EXTRA + 1;
             let mut v = vec![0 as c_char; mfp_size];
             let p = v.as_mut_ptr();
-            { let s = tagpp.tagname; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(p, tagpp.tagname);
             *p.add(len) = b'@' as c_char;
-            { let s = st.help_lang.as_ptr(); std::ptr::copy_nonoverlapping(s, p.add(len + 1), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(p.add(len + 1), st.help_lang.as_ptr());
             let heur = help_heuristic(
                 tagpp.tagname,
                 if margs.match_re { margs.matchoff } else { 0 },
@@ -2071,14 +2071,14 @@ fn findtags_add_match(
                 if tagpp.command.add(2) < temp_end {
                     let len = temp_end.offset_from(tagpp.command.add(2)) as usize;
                     let mut v = vec![0 as c_char; len + 2];
-                    { let _d = (v.as_mut_ptr()).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((tagpp.command.add(2)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                    crate::memory::cstr_ncpy(v.as_mut_ptr(), tagpp.command.add(2), len);
                     mfp_vec = Some(v);
                 }
                 st.get_searchpat = false;
             } else {
                 let len = tagpp.tagname_end.offset_from(tagpp.tagname) as usize;
                 let mut v = vec![0 as c_char; 1 + len + 1];
-                { let _d = (v.as_mut_ptr()).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((tagpp.tagname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(v.as_mut_ptr(), tagpp.tagname, len);
                 mfp_vec = Some(v);
 
                 if (g_st().State & MODE_INSERT) != 0 {
@@ -2086,12 +2086,12 @@ fn findtags_add_match(
                 }
             }
         } else {
-            let tag_fname_len = std::ffi::CStr::from_ptr(tag_fname_ptr).to_bytes().len();
-            let len = tag_fname_len + std::ffi::CStr::from_ptr(lbuf_ptr).to_bytes().len() + 3;
+            let tag_fname_len = crate::memory::cstr_len(tag_fname_ptr);
+            let len = tag_fname_len + crate::memory::cstr_len(lbuf_ptr) + 3;
             let mut v = vec![0 as c_char; 1 + len + 1];
             let p = v.as_mut_ptr();
             *p = (mtt + 1) as c_char;
-            { let s = tag_fname_ptr; std::ptr::copy_nonoverlapping(s, p.add(1), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(p.add(1), tag_fname_ptr);
             *p.add(tag_fname_len + 1) = TAG_SEP;
             let s = p.add(1 + tag_fname_len + 1);
             { let _src_p = lbuf_ptr; std::ptr::copy_nonoverlapping(_src_p, s, std::ffi::CStr::from_ptr(_src_p).to_bytes_with_nul().len()); };
@@ -2099,7 +2099,7 @@ fn findtags_add_match(
         }
 
         if let Some(v) = mfp_vec {
-            let mfp_bytes = CStr::from_ptr(v.as_ptr()).to_bytes().to_vec();
+            let mfp_bytes = crate::memory::cstr_as_bytes(v.as_ptr()).to_vec();
             if st.ht_match[mtt].insert(mfp_bytes) {
                 st.ga_match[mtt].push(v);
                 st.match_count += 1;
@@ -2360,7 +2360,7 @@ pub fn find_tags(
                     && st.help_lang_find.is_none()
                     && !(*g_st().curbuf).b_fname.is_null()
                 {
-                    let i = std::ffi::CStr::from_ptr((*g_st().curbuf).b_fname).to_bytes().len() as c_int;
+                    let i = crate::memory::cstr_len((*g_st().curbuf).b_fname) as c_int;
                     if i > 4
                         && mb_strnicmp(
                             (*g_st().curbuf).b_fname.add((i - 4) as usize),
@@ -2429,7 +2429,7 @@ pub fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
         for fname in fnames {
             let mut tag_fname = fname.clone().into_bytes_with_nul();
             simplify_filename(tag_fname.as_mut_ptr().cast());
-            (*tf).push(CStr::from_ptr(tag_fname.as_ptr().cast()).to_owned());
+            (*tf).push(crate::memory::cstr_to_cstring(tag_fname.as_ptr().cast()));
 
             if !all {
                 break;
@@ -2479,10 +2479,10 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
                 }
                 tnp.tn_hf_idx += 1;
                 xstrlcpy(buf, opt_vars().p_hf, MAXPATHL - 4);
-                { let s = c"tags".as_ptr(); std::ptr::copy_nonoverlapping(s, path_tail(buf), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(path_tail(buf), c"tags".as_ptr());
                 simplify_filename(buf);
 
-                let buf_bytes = CStr::from_ptr(buf).to_bytes();
+                let buf_bytes = crate::memory::cstr_as_bytes(buf);
                 if (*tf).iter().any(|entry| entry.as_bytes() == buf_bytes) {
                     return false;
                 }
@@ -2503,7 +2503,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
             } else {
                 opt_vars().p_tags
             };
-            tnp.tn_tags = Some(CStr::from_ptr(src).to_owned());
+            tnp.tn_tags = Some(crate::memory::cstr_to_cstring(src));
             tnp.tn_np = tnp.tn_tags.as_ref().unwrap().as_ptr().cast_mut();
         }
 
@@ -2526,17 +2526,17 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
                 let mut r_ptr = vim_findfile_stopdir(buf);
                 let mut filename = path_tail(buf);
                 if !r_ptr.is_null() {
-                    ptr::copy(r_ptr, r_ptr.add(1), std::ffi::CStr::from_ptr(r_ptr).to_bytes().len() + 1);
+                    ptr::copy(r_ptr, r_ptr.add(1), crate::memory::cstr_len(r_ptr) + 1);
                     r_ptr = r_ptr.add(1);
                 }
-                ptr::copy(filename, filename.add(1), std::ffi::CStr::from_ptr(filename).to_bytes().len() + 1);
+                ptr::copy(filename, filename.add(1), crate::memory::cstr_len(filename) + 1);
                 *filename = NUL;
                 filename = filename.add(1);
 
                 tnp.tn_search_ctx = vim_findfile_init(
                     buf,
                     filename,
-                    std::ffi::CStr::from_ptr(filename).to_bytes().len(),
+                    crate::memory::cstr_len(filename),
                     r_ptr,
                     100,
                     0,
@@ -2551,7 +2551,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
             }
         }
 
-        { let s = fname.as_ref().unwrap().as_ptr(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cpy(buf, fname.as_ref().unwrap().as_ptr());
         true
     }
 }
@@ -2607,15 +2607,15 @@ fn test_for_static(tagp: &tagptrs_T) -> bool {
 fn matching_line_len(lbuf: *const c_char) -> usize {
     unsafe {
         let mut p = lbuf.add(1);
-        p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len() + 1);
-        p.offset_from(lbuf) as usize + std::ffi::CStr::from_ptr(p).to_bytes().len()
+        p = p.add(crate::memory::cstr_len(p) + 1);
+        p.offset_from(lbuf) as usize + crate::memory::cstr_len(p)
     }
 }
 
 fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> bool {
     unsafe {
         tagp.tag_fname = lbuf.add(1);
-        lbuf = lbuf.add(std::ffi::CStr::from_ptr(tagp.tag_fname).to_bytes().len() + 2);
+        lbuf = lbuf.add(crate::memory::cstr_len(tagp.tag_fname) + 2);
 
         let retval = parse_tag_line(lbuf, tagp);
 
@@ -2643,7 +2643,7 @@ fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> bool {
                     } else if crate::memory::cstr_prefix_bytes(p, 10) == &b"user_data:"[..10] {
                         tagp.user_data = p.add(10);
                     } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"line:"[..5] {
-                        tagp.tagline = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(p.add(5)).to_bytes()) as c_int;
+                        tagp.tagline = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p.add(5))) as c_int;
                     }
                     if !tagp.tagkind.is_null() && !tagp.user_data.is_null() {
                         break;
@@ -3037,11 +3037,11 @@ fn expand_tag_fname(
             let p = path_tail(tag_fname);
             if p != tag_fname {
                 let mut retval = [0 as c_char; MAXPATHL];
-                { let s = tag_fname; std::ptr::copy_nonoverlapping(s, retval.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(retval.as_mut_ptr(), tag_fname);
                 let off = p.offset_from(tag_fname) as usize;
                 xstrlcpy(retval.as_mut_ptr().add(off), fname.as_ptr(), MAXPATHL - off);
                 simplify_filename(retval.as_mut_ptr());
-                return CStr::from_ptr(retval.as_ptr()).to_owned();
+                return crate::memory::cstr_to_cstring(retval.as_ptr());
             }
         }
 
@@ -3088,7 +3088,7 @@ fn find_extra(pp: *mut *mut c_char) -> bool {
                     str_ = str_.add(1);
                 }
             } else {
-                str_ = CStr::from_ptr(str_).to_bytes().windows(3).position(|w| w == b"|;\"").map_or(ptr::null_mut(), |i| str_.add(i));
+                str_ = crate::memory::cstr_as_bytes(str_).windows(3).position(|w| w == b"|;\"").map_or(ptr::null_mut(), |i| str_.add(i));
                 if !str_.is_null() {
                     str_ = str_.add(1);
                     break;
@@ -3162,7 +3162,7 @@ pub fn expand_tags(
             file.reserve_exact(raw_matches.len());
             if tagnames {
                 for m in raw_matches {
-                    file.push(CStr::from_ptr(m.as_ptr()).to_owned());
+                    file.push(crate::memory::cstr_to_cstring(m.as_ptr()));
                 }
             } else {
                 (*extra).reserve_exact(raw_matches.len());
@@ -3212,7 +3212,7 @@ fn add_tag_field(
         let buf = buf_vec.as_mut_ptr();
         if !start.is_null() {
             if end.is_null() {
-                end = start.add(std::ffi::CStr::from_ptr(start).to_bytes().len());
+                end = start.add(crate::memory::cstr_len(start));
                 while end > start
                     && (*end.sub(1) == b'\r' as c_char || *end.sub(1) == b'\n' as c_char)
                 {
@@ -3220,10 +3220,10 @@ fn add_tag_field(
                 }
             }
             len = (end.offset_from(start) as c_int).min(MAXPATHL as c_int - 1);
-            { let _d = (buf).cast::<u8>(); let _n = len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((start).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+            crate::memory::cstr_ncpy(buf, start, len as usize);
         }
         *buf.add(len as usize) = NUL;
-        tv_dict_add_str(dict, field_name, std::ffi::CStr::from_ptr(field_name).to_bytes().len(), buf)
+        tv_dict_add_str(dict, field_name, crate::memory::cstr_len(field_name), buf)
     }
 }
 
@@ -3487,12 +3487,12 @@ fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
                             let ud_ptr = tv_dict_get_string(itemdict, c"user_data".as_ptr());
                             tagstack_push_item(
                                 wp,
-                                Some(CStr::from_ptr(tagname).to_owned()),
+                                Some(crate::memory::cstr_to_cstring(tagname)),
                                 tv_dict_get_number(itemdict, c"bufnr".as_ptr()) as c_int,
                                 tv_dict_get_number(itemdict, c"matchnr".as_ptr()) as c_int - 1,
                                 mark,
                                 fnum,
-                                (!ud_ptr.is_null()).then(|| CStr::from_ptr(ud_ptr).to_owned()),
+                                (!ud_ptr.is_null()).then(|| crate::memory::cstr_to_cstring(ud_ptr)),
                             );
                         }
                     }

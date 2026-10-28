@@ -436,11 +436,11 @@ fn do_log_to_file_str(
             let serv = path_tail(get_vim_var_str(VV_SEND_SERVER));
             let mut formatted = Vec::with_capacity(32);
             if !parent.is_null() && *parent != NUL {
-                let p = CStr::from_ptr(parent).to_bytes();
+                let p = crate::memory::cstr_as_bytes(parent);
                 formatted.extend_from_slice(if ui { b"ui/c/" } else { b"c/" });
                 formatted.extend_from_slice(p);
             } else if !serv.is_null() && *serv != NUL {
-                let s = CStr::from_ptr(serv).to_bytes();
+                let s = crate::memory::cstr_as_bytes(serv);
                 if ui {
                     formatted.extend_from_slice(b"ui/");
                 }

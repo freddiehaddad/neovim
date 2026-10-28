@@ -738,14 +738,14 @@ pub fn garbage_collect_scriptvars(copyID: c_int) -> bool {
 
 /// Set an internal variable to a string value.
 pub fn set_internal_string_var(name: *const c_char, value: *const c_char) {
-    unsafe {
+     {
         let mut tv = typval_T {
             v_type: VarType::VAR_STRING,
             v_lock: 0,
             vval: TypvalVval::String(value.cast_mut()),
         };
 
-        set_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), &mut tv, true);
+        set_var(name, crate::memory::cstr_len(name), &mut tv, true);
     }
 }
 
@@ -1137,7 +1137,7 @@ pub fn heredoc_get(
                 let cur_line = line_arg;
                 let next_line = vim_strchr(cur_line, b'\n' as c_int);
                 if next_line.is_null() {
-                    line_arg = line_arg.add(std::ffi::CStr::from_ptr(line_arg).to_bytes().len());
+                    line_arg = line_arg.add(crate::memory::cstr_len(line_arg));
                 } else {
                     *next_line = NUL;
                     line_arg = next_line.add(1);
@@ -1159,7 +1159,7 @@ pub fn heredoc_get(
             {
                 mi = marker_indent_len;
             }
-            if std::ffi::CStr::from_ptr(marker).to_bytes() == std::ffi::CStr::from_ptr(theline.add(mi as usize)).to_bytes() {
+            if crate::memory::cstr_as_bytes(marker) == crate::memory::cstr_as_bytes(theline.add(mi as usize)) {
                 break;
             }
 
@@ -1490,7 +1490,7 @@ pub fn list_hashtable_vars(
                 let mut buf = [0 as c_char; IOSIZE];
 
                 xstrlcpy(buf.as_mut_ptr(), prefix, IOSIZE);
-                { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), (*di).di_key.as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), (*di).di_key.as_ptr(), _dsize - _dlen); };
                 if message_filtered(buf.as_ptr()) {
                     hi = hi.add(1);
                     continue;
@@ -1626,7 +1626,7 @@ fn list_arg_vars(
                                     .as_ref()
                                     .is_some_and(|tf| ptr::eq(used_name, tf.as_ptr()))
                                 {
-                                    std::ffi::CStr::from_ptr(used_name).to_bytes().len() as isize
+                                    crate::memory::cstr_len(used_name) as isize
                                 } else {
                                     arg.offset_from(used_name)
                                 };
@@ -1694,7 +1694,7 @@ fn ex_let_env(
                 && let Some(s) = vim_getenv(name)
             {
                 let mut bytes = Vec::from(s.as_bytes());
-                bytes.extend_from_slice(CStr::from_ptr(p).to_bytes());
+                bytes.extend_from_slice(crate::memory::cstr_as_bytes(p));
                 let joined = crate::memory::cstr_from_bytes(&bytes);
                 p = joined.as_ptr();
                 tofree = Some(joined);
@@ -1870,7 +1870,7 @@ fn ex_let_register(
                 };
                 if let Some(s) = get_reg_contents_str(reg_c, kGRegExprSrc) {
                     let mut bytes = Vec::from(s.as_bytes());
-                    bytes.extend_from_slice(CStr::from_ptr(p).to_bytes());
+                    bytes.extend_from_slice(crate::memory::cstr_as_bytes(p));
                     let joined = cstr_from_bytes(&bytes);
                     p = joined.as_ptr();
                     ptofree = Some(joined);
@@ -1882,7 +1882,7 @@ fn ex_let_register(
                 } else {
                     *arg as u8 as c_int
                 };
-                write_reg_contents(reg_c, p, std::ffi::CStr::from_ptr(p).to_bytes().len() as isize, false as c_int);
+                write_reg_contents(reg_c, p, crate::memory::cstr_len(p) as isize, false as c_int);
                 arg_end = arg.add(1);
             }
             drop(ptofree);
@@ -2314,7 +2314,7 @@ pub fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
 /// Function to concatenate a prefix and a variable name.
 pub fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_char {
     unsafe {
-        let name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+        let name_len = crate::memory::cstr_len(name);
         let buf = &raw mut vars_st().varnamebuf;
         (*buf).clear();
         (*buf).reserve(name_len + 3);
@@ -2520,7 +2520,7 @@ pub fn v_exception(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CStrin
             return if s.is_null() {
                 None
             } else {
-                Some(CStr::from_ptr(s).to_owned())
+                Some(crate::memory::cstr_to_cstring(s))
             };
         };
 
@@ -2568,7 +2568,7 @@ pub fn set_cmdarg(eap: Option<&exarg_T>,
         if eap.unwrap().force_enc != 0 {
             newval.extend_from_slice(b" ++enc=");
             let enc_ptr = eap.unwrap().cmd.add(eap.unwrap().force_enc as usize);
-            newval.extend_from_slice(CStr::from_ptr(enc_ptr).to_bytes());
+            newval.extend_from_slice(crate::memory::cstr_as_bytes(enc_ptr));
         }
 
         if eap.unwrap().bad_char == BAD_KEEP {
@@ -2597,7 +2597,7 @@ pub fn v_throwpoint(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CStri
             return if s.is_null() {
                 None
             } else {
-                Some(CStr::from_ptr(s).to_owned())
+                Some(crate::memory::cstr_to_cstring(s))
             };
         };
 
@@ -2839,7 +2839,7 @@ pub fn find_var_ht(
 /// Return the string value of a (global/local) variable or NULL when it doesn't exist.
 pub fn get_var_value(name: *const c_char) -> *mut c_char {
     unsafe {
-        let v = find_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), ptr::null_mut(), 0);
+        let v = find_var(name, crate::memory::cstr_len(name), ptr::null_mut(), 0);
         if v.is_null() {
             return ptr::null_mut();
         }
@@ -2915,12 +2915,12 @@ fn delete_var(ht: &mut hashtab_T, hi: *mut hashitem_T) {
 
 /// List the value of one internal variable.
 fn list_one_var(v: &mut dictitem_T, prefix: *const c_char,first: &mut c_int) {
-    unsafe {
+     {
         let s = encode_tv2echo(&mut v.di_tv, None);
         list_one_var_a(
             prefix,
             v.di_key.as_ptr(),
-            std::ffi::CStr::from_ptr(v.di_key.as_ptr()).to_bytes().len() as isize,
+            crate::memory::cstr_len(v.di_key.as_ptr()) as isize,
             v.di_tv.v_type,
             s.as_ptr(),
             first,
@@ -2989,7 +2989,7 @@ pub fn before_set_vvar(
     watched: bool,
     type_error: &mut bool,
 ) -> bool {
-    unsafe {
+     {
         if di.di_tv.v_type == VarType::VAR_STRING {
             let mut oldtv: typval_T = typval_T::new();
             if watched {
@@ -3020,13 +3020,13 @@ pub fn before_set_vvar(
                 tv_copy(&di.di_tv, &mut oldtv);
             }
             di.di_tv.vval = crate::eval::typval::TypvalVval::Number(tv_get_number(&*tv));
-            if std::ffi::CStr::from_ptr(varname).to_bytes() == b"searchforward" {
+            if crate::memory::cstr_as_bytes(varname) == b"searchforward" {
                 set_search_direction(if di.di_tv.vval.v_number() != 0 {
                     b'/' as c_int
                 } else {
                     b'?' as c_int
                 });
-            } else if std::ffi::CStr::from_ptr(varname).to_bytes() == b"hlsearch" {
+            } else if crate::memory::cstr_as_bytes(varname) == b"hlsearch" {
                 g_st().Search.no_hlsearch = di.di_tv.vval.v_number() == 0;
                 redraw_all_later(UPD_SOME_VALID);
             }
@@ -3160,7 +3160,7 @@ pub fn set_var_const(
 
 /// Check whether variable is read-only (DI_FLAGS_RO, DI_FLAGS_RO_SBX).
 pub fn var_check_ro(flags: c_int, mut name: *const c_char, mut name_len: usize) -> bool {
-    unsafe {
+     {
         let error_message = if (flags as u8 & DI_FLAGS_RO) != 0 {
             e_cannot_change_readonly_variable_str.as_ptr()
         } else if (flags as u8 & DI_FLAGS_RO_SBX) != 0 && g_st().sandbox != 0 {
@@ -3174,9 +3174,9 @@ pub fn var_check_ro(flags: c_int, mut name: *const c_char, mut name_len: usize) 
         }
         if name_len == TV_TRANSLATE {
             name = gettext(name);
-            name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+            name_len = crate::memory::cstr_len(name);
         } else if name_len == TV_CSTRING {
-            name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+            name_len = crate::memory::cstr_len(name);
         }
 
         semsg!(gettext(error_message), name_len as c_int, name);
@@ -3186,16 +3186,16 @@ pub fn var_check_ro(flags: c_int, mut name: *const c_char, mut name_len: usize) 
 
 /// Return true if di_flags "flags" indicates variable "name" is locked.
 pub fn var_check_lock(flags: c_int, mut name: *const c_char, mut name_len: usize) -> bool {
-    unsafe {
+     {
         if (flags as u8 & DI_FLAGS_LOCK) == 0 {
             return false;
         }
 
         if name_len == TV_TRANSLATE {
             name = gettext(name);
-            name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+            name_len = crate::memory::cstr_len(name);
         } else if name_len == TV_CSTRING {
-            name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+            name_len = crate::memory::cstr_len(name);
         }
 
         semsg!(
@@ -3209,13 +3209,13 @@ pub fn var_check_lock(flags: c_int, mut name: *const c_char, mut name_len: usize
 
 /// Check whether variable is fixed (DI_FLAGS_FIX).
 pub fn var_check_fixed(flags: c_int, mut name: *const c_char, mut name_len: usize) -> bool {
-    unsafe {
+     {
         if (flags as u8 & DI_FLAGS_FIX) != 0 {
             if name_len == TV_TRANSLATE {
                 name = gettext(name);
-                name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+                name_len = crate::memory::cstr_len(name);
             } else if name_len == TV_CSTRING {
-                name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+                name_len = crate::memory::cstr_len(name);
             }
             semsg!(
                 gettext(e_cannot_delete_variable_str.as_ptr()),
@@ -3346,7 +3346,7 @@ fn get_var_from(
                         &raw mut (*(*tp).tp_vars()).dv_hashtab
                     };
 
-                    let v = find_var_in_ht(ht, htname, varname, std::ffi::CStr::from_ptr(varname).to_bytes().len(), 0);
+                    let v = find_var_in_ht(ht, htname, varname, crate::memory::cstr_len(varname), 0);
                     if !v.is_null() {
                         tv_copy(&(*v).di_tv, rettv);
                         done = true;
@@ -3581,7 +3581,7 @@ fn setwinvar(argvars: &mut [typval_T], off: usize) {
             if *varname == b'&' as c_char {
                 set_option_from_tv(varname.add(1), &mut *varp);
             } else {
-                let varname_len = std::ffi::CStr::from_ptr(varname).to_bytes().len();
+                let varname_len = crate::memory::cstr_len(varname);
                 let mut winvarname = Vec::with_capacity(varname_len + 3);
                 winvarname.push(b'w' as c_char);
                 winvarname.push(b':' as c_char);
@@ -3734,7 +3734,7 @@ pub fn var_redir_str(value: *const c_char, value_len: c_int) {
         }
 
         let len = if value_len == -1 {
-            std::ffi::CStr::from_ptr(value).to_bytes().len()
+            crate::memory::cstr_len(value)
         } else {
             value_len.max(0) as usize
         };
@@ -3871,7 +3871,7 @@ pub fn f_settabvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
         let save_lu_tp = g_st().lastused_tabpage;
         goto_tabpage_tp(tp, false, false);
 
-        let varname_len = std::ffi::CStr::from_ptr(varname).to_bytes().len();
+        let varname_len = crate::memory::cstr_len(varname);
         let mut tabvarname = Vec::with_capacity(varname_len + 3);
         tabvarname.push(b't' as c_char);
         tabvarname.push(b':' as c_char);
@@ -3918,7 +3918,7 @@ pub fn f_setbufvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
             set_option_from_tv(varname.add(1), &mut *varp);
             ctx_restore(&mut aco);
         } else {
-            let varname_len = std::ffi::CStr::from_ptr(varname).to_bytes().len();
+            let varname_len = crate::memory::cstr_len(varname);
             let mut bufvarname = Vec::with_capacity(varname_len + 3);
             let save_curbuf = g_st().curbuf;
             g_st().curbuf = buf;

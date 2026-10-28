@@ -121,7 +121,7 @@ use crate::ui::{ui_array, ui_call__set_restart_on_crash_exit, ui_call_screenshot
 use crate::window::{
     global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_T, win_find_tabpage,
 };
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 #[cfg(windows)]
@@ -590,7 +590,7 @@ pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
             .as_ref()
             .map_or(keys.data, |cs| cs.as_ptr().cast_mut());
         if lowlevel {
-            input_enqueue_raw(keys_esc, CStr::from_ptr(keys_esc).to_bytes().len());
+            input_enqueue_raw(keys_esc, crate::memory::cstr_len(keys_esc));
         } else {
             ins_typebuf(
                 keys_esc,

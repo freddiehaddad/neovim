@@ -334,8 +334,8 @@ const fn getfile_success(x: c_int) -> bool {
 }
 
 fn find_substr(haystack: *const c_char, needle: &[u8]) -> bool {
-    unsafe {
-        let bytes = CStr::from_ptr(haystack).to_bytes();
+     {
+        let bytes = crate::memory::cstr_as_bytes(haystack);
         bytes.windows(needle.len()).any(|w| w == needle)
     }
 }
@@ -647,7 +647,7 @@ pub fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, setlast: 
         if *s == NUL {
             srch().spats[i].pat = None;
         } else {
-            srch().spats[i].pat = Some(CStr::from_ptr(s).to_owned());
+            srch().spats[i].pat = Some(crate::memory::cstr_to_cstring(s));
         }
         srch().spats[i].timestamp = os_time();
         srch().spats[i].additional_data = None;
@@ -1187,7 +1187,7 @@ pub fn parse_search_pattern_offset(
         );
         if !had_copy && !strcopy.is_empty() {
             let new_ptr = strcopy.as_mut_ptr();
-            let len = CStr::from_ptr(new_ptr).to_bytes().len();
+            let len = crate::memory::cstr_len(new_ptr);
             cmdlen += (*patlen).wrapping_sub(len) as c_int;
             *pat = new_ptr;
             *patlen = len;
@@ -1217,7 +1217,7 @@ pub fn parse_search_pattern_offset(
         if ascii_isdigit(*p) || *p == b'+' as c_char || *p == b'-' as c_char {
             if ascii_isdigit(*p) || ascii_isdigit(*p.add(1)) {
                 {
-                    offset.off = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(p).to_bytes()) as std::ffi::c_long as _;
+                    offset.off = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p)) as std::ffi::c_long as _;
                 }
             } else if *p == b'-' as c_char {
                 offset.off = -1;
@@ -3118,7 +3118,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             if *pattern == NUL {
                 do_update = false;
             } else {
-                srch().spats[srch().last_idx as usize].pat = Some(CStr::from_ptr(pattern).to_owned());
+                srch().spats[srch().last_idx as usize].pat = Some(crate::memory::cstr_to_cstring(pattern));
             }
         }
         if do_update
@@ -3311,7 +3311,7 @@ pub fn find_pattern_in_path(
                         .map(|b| b as c_char)
                         .collect();
                     to_slash(v.as_mut_ptr());
-                    CStr::from_ptr(v.as_ptr()).to_owned()
+                    crate::memory::cstr_to_cstring(v.as_ptr())
                 });
                 let mut already_searched = false;
                 if let Some(ref nf) = new_fname_cstr {
@@ -3395,7 +3395,7 @@ pub fn find_pattern_in_path(
 
                             if i == 0 {
                                 p = incl_regmatch.endp[0];
-                                i = CStr::from_ptr(p).to_bytes().len() as c_int;
+                                i = crate::memory::cstr_len(p) as c_int;
                             } else if p > line {
                                 if *p.sub(1) == b'"' as c_char || *p.sub(1) == b'<' as c_char {
                                     p = p.sub(1);
@@ -3560,7 +3560,7 @@ pub fn find_pattern_in_path(
                             p = startp;
                             let mut skip_add = false;
                             if compl_status_adding()
-                                && (CStr::from_ptr(p).to_bytes().len() as c_int) >= ins_compl_len()
+                                && (crate::memory::cstr_len(p) as c_int) >= ins_compl_len()
                             {
                                 p = p.add(ins_compl_len() as usize);
                                 if vim_iswordp(p) {
@@ -3845,7 +3845,7 @@ pub fn find_pattern_in_path(
             }
             if depth >= 0 {
                 files[depth as usize].lnum += 1;
-                i = CStr::from_ptr(line).to_bytes().len() as c_int;
+                i = crate::memory::cstr_len(line) as c_int;
                 if i > 0 && *line.add((i - 1) as usize) == b'\n' as c_char {
                     i -= 1;
                     *line.add(i as usize) = NUL;
@@ -3913,7 +3913,7 @@ fn show_pat_in_path(
         if g_st().got_int {
             return;
         }
-        let mut linelen = CStr::from_ptr(line).to_bytes().len();
+        let mut linelen = crate::memory::cstr_len(line);
         loop {
             let mut p = if linelen > 0 {
                 line.add(linelen - 1)
@@ -3947,7 +3947,7 @@ fn show_pat_in_path(
                 if vim_fgets(line, LSIZE as c_int, fp) {
                     break;
                 }
-                linelen = CStr::from_ptr(line).to_bytes().len();
+                linelen = crate::memory::cstr_len(line);
                 *lnum += 1;
             } else {
                 *lnum += 1;

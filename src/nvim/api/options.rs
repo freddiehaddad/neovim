@@ -485,7 +485,7 @@ pub fn nvim__option_to_object(
         if (flags & (kOptFlagComma | kOptFlagFlagList)) == 0 {
             string_obj(arena_string(arena, cstr_as_string(str_ptr)))
         } else if (flags & kOptFlagFlagList) != 0 && (flags & kOptFlagComma) == 0 {
-            let n = std::ffi::CStr::from_ptr(str_ptr).to_bytes().len();
+            let n = crate::memory::cstr_len(str_ptr);
             let mut d = arena_dict(arena, n);
             for i in 0..n {
                 put_c(
@@ -517,7 +517,7 @@ pub fn nvim__option_to_object(
             } else {
                 arena_array(arena, nparts)
             };
-            let str_len = std::ffi::CStr::from_ptr(str_ptr).to_bytes().len();
+            let str_len = crate::memory::cstr_len(str_ptr);
             let mut item_buf = vec![0 as c_char; str_len + 1];
             let item = item_buf.as_mut_ptr();
             p = str_ptr;
@@ -533,7 +533,7 @@ pub fn nvim__option_to_object(
                     );
                     continue;
                 }
-                let colon = std::ffi::CStr::from_ptr(item).to_bytes().iter().position(|&b| b == b':').map_or(ptr::null_mut(), |i| item.add(i));
+                let colon = crate::memory::cstr_as_bytes(item).iter().position(|&b| b == b':').map_or(ptr::null_mut(), |i| item.add(i));
                 let mut val: *mut c_char = ptr::null_mut();
                 if !colon.is_null() {
                     *colon = NUL;
@@ -889,10 +889,10 @@ mod tests {
         assert!(has_key(mask, KEYSET_OPTIDX_option__buf));
         assert!(has_key(mask, KEYSET_OPTIDX_option__scope));
         assert!(!has_key(mask, KEYSET_OPTIDX_option__win));
-        unsafe {
+         {
             assert!((crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"local")));
             assert!(!(crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"global")));
-            assert!(!{ let _a: *const c_char = std::ptr::null(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"local" });
+            assert!(!{ let _a: *const c_char = std::ptr::null(); !_a.is_null() && crate::memory::cstr_as_bytes(_a) == b"local" });
         }
     }
 }

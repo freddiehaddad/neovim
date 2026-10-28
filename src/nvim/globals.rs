@@ -1054,7 +1054,6 @@ pub(crate) static TEST_GLOBAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn default_globals_match_c_initializers() {
@@ -1069,7 +1068,7 @@ mod tests {
             assert_eq!({ g_st().Visual.mode }, b'v' as c_int);
             assert_eq!({ g_st().Search.last_line }, 0x7fffffff);
             assert_eq!(
-                CStr::from_ptr(no_lines_msg.as_ptr()).to_bytes(),
+                crate::memory::cstr_as_bytes(no_lines_msg.as_ptr()),
                 b"--No lines in buffer--"
             );
         }

@@ -101,7 +101,7 @@ pub fn appname_is_valid() -> bool {
     if path_is_absolute(appname_ptr) {
         return false;
     }
-    let bytes = unsafe { CStr::from_ptr(appname_ptr).to_bytes() };
+    let bytes =  { crate::memory::cstr_as_bytes(appname_ptr) };
     if matches!(bytes, b"/" | b"\\" | b"." | b"..") {
         return false;
     }
@@ -144,7 +144,7 @@ fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
 
 /// Return owned XDG variable value for `idx` (`stdpaths_get_xdg_var`).
 pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
-    unsafe {
+     {
         let i = idx as usize;
         let env = XDG_ENV_VARS[i].as_ptr();
         let fallback = XDG_DEFAULTS[i];
@@ -187,7 +187,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
             let raw = if tempdir.is_null() {
                 b"/tmp/" as &[u8]
             } else {
-                CStr::from_ptr(tempdir).to_bytes()
+                crate::memory::cstr_as_bytes(tempdir)
             };
             let trimmed_len = if raw.len() >= 2 { raw.len() - 1 } else { 0 };
             Some(cstr_from_bytes(&raw[..trimmed_len]))
@@ -209,7 +209,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
     let dir = stdpaths_get_xdg_var(idx)?;
 
-    let appname_bytes = unsafe { CStr::from_ptr(get_appname(false)).to_bytes() };
+    let appname_bytes =  { crate::memory::cstr_as_bytes(get_appname(false)) };
     let mut suffix = Vec::with_capacity(appname_bytes.len() + 6);
     suffix.extend_from_slice(appname_bytes);
     #[cfg(target_os = "windows")]

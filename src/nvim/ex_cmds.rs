@@ -481,7 +481,7 @@ pub fn ex_align(eap: &mut exarg_T) {
             }
         }
 
-        let mut width = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(eap.arg).to_bytes()) as c_int;
+        let mut width = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int;
         let save_curpos = (**curwin.as_ptr()).w_cursor;
         if eap.cmdidx == cmdidx_T::CMD_left as c_int {
             if width >= 0 {
@@ -563,7 +563,7 @@ fn linelen(has_tab: *mut c_int) -> c_int {
         }
         let first = skipwhite(line);
 
-        let mut last = first.add(std::ffi::CStr::from_ptr(first).to_bytes().len());
+        let mut last = first.add(crate::memory::cstr_len(first));
         while last > first && ascii_iswhite(*last.sub(1) as c_int) {
             last = last.sub(1);
         }
@@ -585,9 +585,9 @@ fn string_compare(s1: *const c_char, s2: *const c_char) -> c_int {
             return strcoll(s1, s2);
         }
         if excmds_st().sort_ic {
-            std::ffi::CStr::from_ptr(s1).to_bytes().iter().map(u8::to_ascii_lowercase).cmp(std::ffi::CStr::from_ptr(s2).to_bytes().iter().map(u8::to_ascii_lowercase)) as c_int
+            crate::memory::cstr_as_bytes(s1).iter().map(u8::to_ascii_lowercase).cmp(crate::memory::cstr_as_bytes(s2).iter().map(u8::to_ascii_lowercase)) as c_int
         } else {
-            std::ffi::CStr::from_ptr(s1).to_bytes().cmp(std::ffi::CStr::from_ptr(s2).to_bytes()) as c_int
+            crate::memory::cstr_as_bytes(s1).cmp(crate::memory::cstr_as_bytes(s2)) as c_int
         }
     }
 }
@@ -1081,7 +1081,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
                     if is_match {
                         delete_lnum = get_lnum;
                     } else {
-                        { let s = s.add(start_col as usize); std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                        crate::memory::cstr_cpy(sortbuf1, s.add(start_col as usize));
                     }
                 } else if keep_only_not_unique {
                     if is_match {
@@ -1096,7 +1096,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
                             delete_lnum = get_lnum;
                         }
                         match_continue = false;
-                        { let s = s.add(start_col as usize); std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                        crate::memory::cstr_cpy(sortbuf1, s.add(start_col as usize));
                     }
                 } else if is_match {
                     if !match_continue {
@@ -1110,7 +1110,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
                         delete_lnum = get_lnum;
                     }
                     match_continue = false;
-                    { let s = s.add(start_col as usize); std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(sortbuf1, s.add(start_col as usize));
                 }
 
                 if end_col > 0 {
@@ -1430,9 +1430,9 @@ pub fn do_bang(
 
         let mut trailarg = skipwhite(arg);
         loop {
-            let mut len = std::ffi::CStr::from_ptr(trailarg).to_bytes().len() + 1;
+            let mut len = crate::memory::cstr_len(trailarg) + 1;
             if !newcmd.is_empty() {
-                len += std::ffi::CStr::from_ptr(newcmd.as_ptr()).to_bytes().len();
+                len += crate::memory::cstr_len(newcmd.as_ptr());
             }
             if ins_prevcmd {
                 if !prevcmd_is_set() {
@@ -1448,7 +1448,7 @@ pub fn do_bang(
             }
             let mut t = vec![0 as c_char; len];
             if !newcmd.is_empty() {
-                { let d = t.as_mut_ptr(); let s = newcmd.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = t.as_mut_ptr(); let s = newcmd.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
             if ins_prevcmd {
                 { let d = t.as_mut_ptr(); let s = (&raw const excmds_st().prevcmd)
@@ -1456,17 +1456,17 @@ pub fn do_bang(
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                        .as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
-            let mut p_idx = std::ffi::CStr::from_ptr(t.as_ptr()).to_bytes().len();
-            { let d = t.as_mut_ptr(); let s = trailarg; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            let mut p_idx = crate::memory::cstr_len(t.as_ptr());
+            { let d = t.as_mut_ptr(); let s = trailarg; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             newcmd = t;
 
             let mut next_trail_off: Option<usize> = None;
             while newcmd[p_idx] != NUL {
                 if newcmd[p_idx] == b'!' as c_char {
                     if p_idx > 0 && newcmd[p_idx - 1] == b'\\' as c_char {
-                        let rest_len = std::ffi::CStr::from_ptr(newcmd.as_ptr().add(p_idx)).to_bytes().len() + 1;
+                        let rest_len = crate::memory::cstr_len(newcmd.as_ptr().add(p_idx)) + 1;
                         newcmd.copy_within(p_idx..(p_idx + rest_len), p_idx - 1);
                     } else {
                         newcmd[p_idx] = NUL;
@@ -1480,7 +1480,7 @@ pub fn do_bang(
             let Some(off) = next_trail_off else {
                 break;
             };
-            let rem_cstr = CStr::from_ptr(newcmd.as_ptr().add(off)).to_owned();
+            let rem_cstr = crate::memory::cstr_to_cstring(newcmd.as_ptr().add(off));
             newcmd.truncate(off);
             let rem_bytes = rem_cstr.to_bytes_with_nul();
             let start = newcmd.len();
@@ -1491,8 +1491,8 @@ pub fn do_bang(
             trailarg = newcmd.as_mut_ptr().add(start);
         }
 
-        if !std::ffi::CStr::from_ptr(newcmd.as_ptr()).to_bytes().is_empty() {
-            excmds_st().prevcmd = Some(CStr::from_ptr(newcmd.as_ptr()).to_owned());
+        if !crate::memory::cstr_as_bytes(newcmd.as_ptr()).is_empty() {
+            excmds_st().prevcmd = Some(crate::memory::cstr_to_cstring(newcmd.as_ptr()));
         }
 
         'theend: {
@@ -1518,11 +1518,11 @@ pub fn do_bang(
                     .unwrap()
                     .as_ref()
                     .map_or(c"".as_ptr(), |s| s.as_ptr());
-                let qlen = std::ffi::CStr::from_ptr(prev_ptr).to_bytes().len() + 2 * std::ffi::CStr::from_ptr(opt_vars().p_shq).to_bytes().len() + 1;
+                let qlen = crate::memory::cstr_len(prev_ptr) + 2 * crate::memory::cstr_len(opt_vars().p_shq) + 1;
                 newcmd = vec![0 as c_char; qlen];
-                { let s = opt_vars().p_shq; std::ptr::copy_nonoverlapping(s, newcmd.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                { let d = newcmd.as_mut_ptr(); let s = prev_ptr; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                { let d = newcmd.as_mut_ptr(); let s = opt_vars().p_shq; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(newcmd.as_mut_ptr(), opt_vars().p_shq);
+                { let d = newcmd.as_mut_ptr(); let s = prev_ptr; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = newcmd.as_mut_ptr(); let s = opt_vars().p_shq; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
             if addr_count == 0 {
                 msg_start();
@@ -1889,7 +1889,7 @@ pub fn make_filter_cmd(
         let is_pwsh = (crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, None), 4) == &b"pwsh"[..4])
             || (crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, None), 10) == &b"powershell"[..10]);
 
-        let mut len = std::ffi::CStr::from_ptr(cmd).to_bytes().len() + 1;
+        let mut len = crate::memory::cstr_len(cmd) + 1;
 
         len += if is_fish_shell {
             b"begin; ; end".len()
@@ -1901,9 +1901,9 @@ pub fn make_filter_cmd(
 
         if !itmp.is_null() {
             len += if is_pwsh {
-                std::ffi::CStr::from_ptr(itmp).to_bytes().len() + b"& { Get-Content  | &  }".len() + 6
+                crate::memory::cstr_len(itmp) + b"& { Get-Content  | &  }".len() + 6
             } else {
-                std::ffi::CStr::from_ptr(itmp).to_bytes().len() + b" {  <  } ".len()
+                crate::memory::cstr_len(itmp) + b" {  <  } ".len()
             };
         }
 
@@ -1912,7 +1912,7 @@ pub fn make_filter_cmd(
         }
 
         if !otmp.is_null() {
-            len += std::ffi::CStr::from_ptr(otmp).to_bytes().len() + std::ffi::CStr::from_ptr(opt_vars().p_srr).to_bytes().len() + 2;
+            len += crate::memory::cstr_len(otmp) + crate::memory::cstr_len(opt_vars().p_srr) + 2;
         }
 
         let mut buf_vec = vec![0 as c_char; len];
@@ -1921,13 +1921,13 @@ pub fn make_filter_cmd(
         if is_pwsh {
             if !itmp.is_null() {
                 xstrlcpy(buf, c"& { Get-Content ".as_ptr(), len - 1);
-                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
-                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" | & ".as_ptr(), _dsize - _dlen); };
-                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), cmd, _dsize - _dlen); };
-                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" }".as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" | & ".as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), cmd, _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" }".as_ptr(), _dsize - _dlen); };
             } else if do_in {
                 xstrlcpy(buf, c" $input | ".as_ptr(), len - 1);
-                { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), cmd, _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), cmd, _dsize - _dlen); };
             } else {
                 xstrlcpy(buf, cmd, len);
             }
@@ -1946,8 +1946,8 @@ pub fn make_filter_cmd(
                 }
 
                 if !itmp.is_null() {
-                    { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ".as_ptr(), _dsize - _dlen); };
-                    { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ".as_ptr(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
                 }
             }
             #[cfg(not(unix))]
@@ -1960,13 +1960,13 @@ pub fn make_filter_cmd(
                             *p = NUL;
                         }
                     }
-                    { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ".as_ptr(), _dsize - _dlen); };
-                    { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ".as_ptr(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
                     if *opt_vars().p_shq == NUL {
                         let p = find_pipe(cmd);
                         if !p.is_null() {
-                            { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" ".as_ptr(), _dsize - _dlen); };
-                            { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), p, _dsize - _dlen); };
+                            { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" ".as_ptr(), _dsize - _dlen); };
+                            { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), p, _dsize - _dlen); };
                         }
                     }
                 }
@@ -1987,10 +1987,10 @@ pub fn append_redir(
     fname: *const c_char,
 ) {
     unsafe {
-        let end = buf.add(std::ffi::CStr::from_ptr(buf).to_bytes().len());
+        let end = buf.add(crate::memory::cstr_len(buf));
         let mut p = opt;
         loop {
-            p = CStr::from_ptr(p).to_bytes().iter().position(|&b| b == b'%').map_or(ptr::null(), |i| p.add(i));
+            p = crate::memory::cstr_as_bytes(p).iter().position(|&b| b == b'%').map_or(ptr::null(), |i| p.add(i));
             if p.is_null() {
                 break;
             }
@@ -2707,7 +2707,7 @@ pub fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
             return false;
         }
         let valsize = if !command.is_null() {
-            std::ffi::CStr::from_ptr(command).to_bytes().len() + 3
+            crate::memory::cstr_len(command) + 3
         } else {
             30
         };
@@ -2854,7 +2854,7 @@ pub fn do_ecmd(
                         let mut tlnum: linenr_T = 0;
 
                         if !command.is_null() {
-                            tlnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(command).to_bytes()) as std::ffi::c_long as linenr_T;
+                            tlnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(command)) as std::ffi::c_long as linenr_T;
                             if tlnum <= 0 {
                                 tlnum = 1;
                             }
@@ -3306,7 +3306,7 @@ fn get_append_line(eap: &mut exarg_T, indent: c_int) -> Option<Vec<c_char>> {
             }
             let mut p = vim_strchr(eap.nextcmd, NL);
             if p.is_null() {
-                p = eap.nextcmd.add(std::ffi::CStr::from_ptr(eap.nextcmd).to_bytes().len());
+                p = eap.nextcmd.add(crate::memory::cstr_len(eap.nextcmd));
             }
             let len = p.offset_from(eap.nextcmd) as usize;
             let mut theline = vec![0 as c_char; len + 1];
@@ -3544,7 +3544,7 @@ pub fn ex_z(eap: &mut exarg_T) {
                 emsg(gettext(E_NON_NUMERIC_ARGUMENT_TO_Z.as_ptr()));
                 return;
             }
-            bigness = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(x).to_bytes());
+            bigness = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(x));
 
             if bigness > 2 * ((*g_st().curbuf).b_ml.ml_line_count as i64) || bigness < 0 {
                 bigness = 2 * ((*g_st().curbuf).b_ml.ml_line_count as i64);
@@ -3673,7 +3673,7 @@ fn sub_joining_lines(
 ) -> bool {
     unsafe {
         if !pat.data.is_null()
-            && std::ffi::CStr::from_ptr(pat.data).to_bytes() == b"\\n"
+            && crate::memory::cstr_as_bytes(pat.data) == b"\\n"
             && *sub == NUL
             && (*cmd == NUL
                 || (*cmd.add(1) == NUL
@@ -4499,7 +4499,7 @@ fn do_sub(
                             let start = regmatch.startpos[0];
                             let end = regmatch.endpos[0];
                             for j in 0..(nmatch - 1) {
-                                replaced_bytes += std::ffi::CStr::from_ptr(ml_get(lnum_start + j)).to_bytes().len() as bcount_t + 1;
+                                replaced_bytes += crate::memory::cstr_len(ml_get(lnum_start + j)) as bcount_t + 1;
                             }
                             replaced_bytes += (end.col - start.col) as bcount_t;
 
@@ -4599,7 +4599,7 @@ fn do_sub(
                         || regmatch.startpos[0].lnum > 0
                     {
                         if !new_start.is_null() {
-                            { let s = sub_firstline.data().add(copycol as usize); std::ptr::copy_nonoverlapping(s, new_start.data().add(new_start.size), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                            crate::memory::cstr_cpy(new_start.data().add(new_start.size), sub_firstline.data().add(copycol as usize));
                             new_start.size += sub_firstline.size - copycol as usize;
                             matchcol = sub_firstline.size as colnr_T - matchcol;
                             prev_matchcol = sub_firstline.size as colnr_T - prev_matchcol;
@@ -4808,7 +4808,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
         {
             let msg_buf_ptr = (&raw mut g_st().msg_buf).cast::<c_char>();
             if g_st().got_int {
-                { let s = gettext(c"(Interrupted) ".as_ptr()); std::ptr::copy_nonoverlapping(s, msg_buf_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cpy(msg_buf_ptr, gettext(c"(Interrupted) ".as_ptr()));
             } else {
                 *msg_buf_ptr = NUL;
             }
@@ -4938,7 +4938,7 @@ pub fn ex_global(eap: &mut exarg_T) {
                 *cmd = NUL;
                 cmd = cmd.add(1);
             }
-            patlen = std::ffi::CStr::from_ptr(pat).to_bytes().len();
+            patlen = crate::memory::cstr_len(pat);
         }
 
         let mut used_pat: *mut c_char = ptr::null_mut();

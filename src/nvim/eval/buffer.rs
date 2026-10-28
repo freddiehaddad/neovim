@@ -39,7 +39,7 @@ use crate::sign::{buf_has_signs, get_buffer_signs};
 use crate::strings::concat_str;
 use crate::undo::{bufIsChanged, u_clearallandblockfree, u_save, u_savesub, u_sync};
 use crate::window::win_T;
-use std::ffi::{CStr, c_int};
+use std::ffi::c_int;
 use std::ptr;
 
 use crate::charset::NUL;
@@ -81,12 +81,12 @@ pub fn find_buffer(avar: &mut typval_T) -> *mut buf_T {
         } else if avar.v_type == VarType::VAR_STRING && !avar.vval.v_string().is_null() {
             buf = buflist_findname_exp(avar.vval.v_string());
             if buf.is_null() {
-                let target = CStr::from_ptr(avar.vval.v_string()).to_bytes();
+                let target = crate::memory::cstr_as_bytes(avar.vval.v_string());
                 let mut bp = g_st().firstbuf;
                 while !bp.is_null() {
                     if !(*bp).b_fname.is_null()
                         && (path_with_url((*bp).b_fname) != 0 || bt_nofilename(bp))
-                        && CStr::from_ptr((*bp).b_fname).to_bytes() == target
+                        && crate::memory::cstr_as_bytes((*bp).b_fname) == target
                     {
                         buf = bp;
                         break;
@@ -214,7 +214,7 @@ fn set_buffer_lines(
             }
 
             if !append && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
-                let old_len = CStr::from_ptr(ml_get(lnum)).to_bytes().len() as c_int;
+                let old_len = crate::memory::cstr_len(ml_get(lnum)) as c_int;
                 if u_savesub(lnum)
                     && ml_replace(lnum, line_cstr.as_ptr().cast_mut(), true)
                 {
@@ -490,14 +490,14 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
                 if !l.is_null() && tv_list_len(l) > 0 {
                     let li = tv_list_last(l);
                     let str_ = tv_get_string(&(*li).li_tv);
-                    let bytes = CStr::from_ptr(str_).to_bytes();
+                    let bytes = crate::memory::cstr_as_bytes(str_);
                     if bytes.last() == Some(&b'\n') {
                         (*buf).b_prompt_append_new_line = true;
                     }
                 }
             } else if (*lines).v_type == VarType::VAR_STRING {
                 let str_ = tv_get_string(&*lines);
-                let bytes = CStr::from_ptr(str_).to_bytes();
+                let bytes = crate::memory::cstr_as_bytes(str_);
                 if bytes.last() == Some(&b'\n') {
                     (*buf).b_prompt_append_new_line = true;
                 }
@@ -1069,7 +1069,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
         }
 
         let new_prompt = tv_get_string(&argvars[1]);
-        let new_prompt_len = CStr::from_ptr(new_prompt).to_bytes().len() as c_int;
+        let new_prompt_len = crate::memory::cstr_len(new_prompt) as c_int;
 
         if bt_prompt(buf) && (*buf).b_ml.ml_mfp.is_some() {
             if (*buf).b_prompt_start.mark.lnum < 1
@@ -1089,7 +1089,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
             let old_line = ml_get_buf(buf, prompt_lno);
             let old_line_len = ml_get_buf_len(buf, prompt_lno);
 
-            let old_prompt_bytes = CStr::from_ptr(old_prompt).to_bytes();
+            let old_prompt_bytes = crate::memory::cstr_as_bytes(old_prompt);
             let old_prompt_len = old_prompt_bytes.len() as c_int;
             let mut cursor_col = (**curwin.as_ptr()).w_cursor.col;
 
@@ -1136,7 +1136,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
             u_clearallandblockfree(&mut *buf);
         }
 
-        (*buf).b_prompt_text = Some(CStr::from_ptr(new_prompt).to_owned());
+        (*buf).b_prompt_text = Some(crate::memory::cstr_to_cstring(new_prompt));
         (*buf).b_prompt_start.mark.col = new_prompt_len as colnr_T;
     }
 }

@@ -5,7 +5,6 @@ use crate::api::private::validate::{Error, NvimString, Object, ObjectType, api_e
 use crate::autocmd::do_termresponse_autocmd;
 use crate::eval::vars::{VV_TERMRESPONSE, set_vim_var_string};
 use crate::log::{LOGLVL_ERR, logmsg};
-use std::ffi::CStr;
 
 /// Emitted on the client channel if an async API request responds with an error.
 ///
@@ -51,8 +50,8 @@ pub fn nvim_ui_term_event(
     value: Object,
     err: &mut Error,
 ) {
-    unsafe {
-        if !event.data.is_null() && CStr::from_ptr(event.data).to_bytes() == b"termresponse" {
+     {
+        if !event.data.is_null() && crate::memory::cstr_as_bytes(event.data) == b"termresponse" {
             if value.obj_type != ObjectType::kObjectTypeString {
                 api_err_exp(
                     err,

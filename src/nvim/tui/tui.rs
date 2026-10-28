@@ -364,7 +364,7 @@ fn cstr_contains(haystack: *const c_char, needle: &[u8]) -> bool {
     if haystack.is_null() {
         return false;
     }
-    let bytes = unsafe { CStr::from_ptr(haystack).to_bytes() };
+    let bytes =  { crate::memory::cstr_as_bytes(haystack) };
     bytes.windows(needle.len()).any(|w| w == needle)
 }
 
@@ -682,7 +682,7 @@ fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Vec<Object>, msg: &str) 
 }
 
 fn apply_termdefs(tui: &mut TUIData) {
-    unsafe {
+     {
         if !os_env_exists(c"NVIM_TERMDEFS".as_ptr(), false) {
             return;
         }
@@ -717,7 +717,7 @@ fn apply_termdefs(tui: &mut TUIData) {
             let key_bytes = if kv.key.data.is_null() {
                 &[][..]
             } else {
-                CStr::from_ptr(kv.key.data).to_bytes()
+                crate::memory::cstr_as_bytes(kv.key.data)
             };
             let key_str = String::from_utf8_lossy(key_bytes);
 
@@ -759,12 +759,12 @@ fn apply_termdefs(tui: &mut TUIData) {
                 }
                 TermdefFieldTarget::Def(idx) => {
                     tui.ti.defs[idx] = Some(std::borrow::Cow::Owned(
-                        CStr::from_ptr(val.data.string().data).to_owned(),
+                        crate::memory::cstr_to_cstring(val.data.string().data),
                     ));
                 }
                 TermdefFieldTarget::KeyStr(idx) => {
                     tui.ti.keys[idx][0] = Some(std::borrow::Cow::Owned(
-                        CStr::from_ptr(val.data.string().data).to_owned(),
+                        crate::memory::cstr_to_cstring(val.data.string().data),
                     ));
                 }
                 TermdefFieldTarget::KeyArr(idx) => {
@@ -790,13 +790,13 @@ fn apply_termdefs(tui: &mut TUIData) {
                             continue;
                         }
                         tui.ti.keys[idx][key_map_idx] = Some(std::borrow::Cow::Owned(
-                            CStr::from_ptr(key_mapping.data.string().data).to_owned(),
+                            crate::memory::cstr_to_cstring(key_mapping.data.string().data),
                         ));
                     }
                 }
                 TermdefFieldTarget::FKey(idx) => {
                     tui.ti.f_keys[idx] = Some(std::borrow::Cow::Owned(
-                        CStr::from_ptr(val.data.string().data).to_owned(),
+                        crate::memory::cstr_to_cstring(val.data.string().data),
                     ));
                 }
             }
@@ -865,7 +865,7 @@ fn terminfo_start(tui: &mut TUIData) {
             let mut guessed_term: *const c_char = ptr::null();
             os_tty_guess_term(&raw mut guessed_term, tui.out_fd);
             if term_cstr.is_none() && !guessed_term.is_null() {
-                term_cstr = Some(CStr::from_ptr(guessed_term).to_owned());
+                term_cstr = Some(crate::memory::cstr_to_cstring(guessed_term));
                 os_setenv(c"TERM".as_ptr(), guessed_term, 1);
             }
         }
@@ -1499,12 +1499,12 @@ fn final_column_wrap(tui: &mut TUIData) {
 }
 
 fn print_cell(tui: &mut TUIData, buf: *const c_char, attr: sattr_T) {
-    unsafe {
+     {
         if !tui.immediate_wrap_after_last_column {
             final_column_wrap(tui);
         }
         update_attrs(tui, attr);
-        let len = CStr::from_ptr(buf).to_bytes().len();
+        let len = crate::memory::cstr_len(buf);
         out(tui, buf, len);
         tui.grid.col += 1;
         if tui.immediate_wrap_after_last_column {
@@ -2514,7 +2514,7 @@ fn parse_sscanf_int(val: *const c_char, out: &mut c_int) -> bool {
     if val.is_null() {
         return false;
     }
-    let bytes = unsafe { CStr::from_ptr(val).to_bytes() };
+    let bytes =  { crate::memory::cstr_as_bytes(val) };
     let mut idx = 0;
     while idx < bytes.len() && bytes[idx].is_ascii_whitespace() {
         idx += 1;
@@ -2905,7 +2905,7 @@ fn augment_terminfo(
     iterm_env: bool,
     nsterm: bool,
 ) {
-    unsafe {
+     {
         let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION".as_ptr());
         let xterm_version = xterm_version_cstr
             .as_ref()
@@ -3003,7 +3003,7 @@ fn augment_terminfo(
 
         if tui.ti.defs[kTerm_set_underline_style].is_none() {
             let wezterm_ok = !weztermv.is_null()
-                && CStr::from_ptr(weztermv).to_bytes() > &b"20210203-095643"[..];
+                && crate::memory::cstr_as_bytes(weztermv) > &b"20210203-095643"[..];
             if vte_version >= 5102 || konsolev >= 221170 || tui.ti.Su || wezterm_ok {
                 tui_enable_extended_underline(tui);
             }

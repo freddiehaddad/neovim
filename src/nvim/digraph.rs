@@ -2010,7 +2010,7 @@ pub fn f_digraph_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         if digraphs.is_null() {
             return;
         }
-        if CStr::from_ptr(digraphs).to_bytes().len() != 2 {
+        if crate::memory::cstr_len(digraphs) != 2 {
             semsg!(
                 gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR.as_ptr()),
                 digraphs,

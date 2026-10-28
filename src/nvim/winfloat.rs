@@ -36,7 +36,7 @@ use crate::window::{
     win_find_tabpage, win_free, win_init, win_remove, win_remove_status_line, win_set_buf,
     win_set_inner_size, win_valid, winframe_remove,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 const KEYSET_OPTIDX_pvp__width: u64 = 1;
@@ -170,7 +170,7 @@ pub fn win_set_minimal_style(wp: &mut win_T) {
         parse_winhl_opt(ptr::null(), &raw mut *wp);
 
         // signcolumn: use 'auto'
-        let scl_len = CStr::from_ptr(wp.w_onebuf_opt.wo_scl).to_bytes().len();
+        let scl_len = crate::memory::cstr_len(wp.w_onebuf_opt.wo_scl);
         if *wp.w_onebuf_opt.wo_scl != b'a' as c_char || scl_len >= 8 {
             free_string_option(wp.w_onebuf_opt.wo_scl);
             wp.w_onebuf_opt.wo_scl = alloc_string_option(c"auto".as_ptr());

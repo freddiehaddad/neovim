@@ -190,11 +190,11 @@ pub fn grid_adjust(
 }
 
 pub fn schar_from_str(str_: *const c_char) -> schar_T {
-    unsafe {
+     {
         if str_.is_null() {
             return 0;
         }
-        schar_from_buf(str_, CStr::from_ptr(str_).to_bytes().len())
+        schar_from_buf(str_, crate::memory::cstr_len(str_))
     }
 }
 
@@ -285,7 +285,7 @@ pub fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -> usize {
             let keys_ptr = &raw const grid_st().glyph_cache_keys;
             assert!(idx < (*keys_ptr).len());
             let key_ptr = (*keys_ptr).as_ptr().add(idx);
-            len = CStr::from_ptr(key_ptr).to_bytes().len();
+            len = crate::memory::cstr_len(key_ptr);
             ptr::copy_nonoverlapping(key_ptr, *buf_out, len);
         } else {
             let sc_ptr = (&raw const sc).cast::<u8>();
@@ -413,7 +413,7 @@ pub fn line_do_arabic_shape(buf: *mut schar_T, cols: c_int) {
 
                     let off =
                         (utf_char2len(c0) + if c1 != 0 { utf_char2len(c1) } else { 0 }) as usize;
-                    let mut rest = CStr::from_ptr(scbuf.as_ptr().add(off)).to_bytes().len();
+                    let mut rest = crate::memory::cstr_len(scbuf.as_ptr().add(off));
                     if rest + len + 1 > MAX_SCHAR_SIZE {
                         let bounds = utf_cp_bounds(
                             scbuf.as_ptr().add(off),

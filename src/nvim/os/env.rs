@@ -282,7 +282,7 @@ pub fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *
                 let mut e = vec![0 as c_char; size];
                 r = uv_os_getenv(name, e.as_mut_ptr(), &mut size);
                 if r == 0 && size != 0 && e[0] != NUL {
-                    { let _d = (buf).cast::<u8>(); let _n = bufsize.min(size) - 1; if _n > 0 { std::ptr::copy_nonoverlapping((e.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                    crate::memory::cstr_ncpy(buf, e.as_ptr(), bufsize.min(size) - 1);
                 }
             }
             assert_ne!(r, UV_EINVAL);
@@ -334,10 +334,10 @@ pub fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_int) ->
         }
         {
             #[cfg(windows)]
-            if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"LC_ALL")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"LANGUAGE")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"LANG")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"LC_MESSAGES")
+            if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"LC_ALL")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"LANGUAGE")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"LANG")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"LC_MESSAGES")
             {
                 let r = _putenv_s(name, value);
                 assert_eq!(r, 0);
@@ -410,7 +410,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
         }
         let str_ptr = *env_arr.add(index);
         assert!(!str_ptr.is_null());
-        let bytes = CStr::from_ptr(str_ptr).to_bytes();
+        let bytes = crate::memory::cstr_as_bytes(str_ptr);
         let pos = bytes.iter().position(|&b| b == b'=')?;
         assert!(pos > 0);
         std::ffi::CString::new(&bytes[..pos]).ok()
@@ -502,11 +502,11 @@ pub fn init_homedir() {
                     .as_ref()
                     .map_or(PATHSEPSTR.as_ptr(), |c| c.as_ptr());
                 if let Some(ref hd) = homedrive
-                    && hd.as_bytes().len() + std::ffi::CStr::from_ptr(homepath_ptr).to_bytes().len() < MAXPATHL
+                    && hd.as_bytes().len() + crate::memory::cstr_len(homepath_ptr) < MAXPATHL
                 {
                     let buf = (&raw mut g_st().os_buf).cast::<c_char>();
                     xstrlcpy(buf, hd.as_ptr(), MAXPATHL);
-                    { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), homepath_ptr, _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), homepath_ptr, _dsize - _dlen); };
                     if *buf != NUL {
                         var = buf;
                     }
@@ -517,18 +517,18 @@ pub fn init_homedir() {
             }
 
             if !var.is_null() && *var == b'%' as c_char {
-                let rest = CStr::from_ptr(var.add(1)).to_bytes();
+                let rest = crate::memory::cstr_as_bytes(var.add(1));
                 if let Some(pos) = rest.iter().position(|&b| b == b'%') {
                     let p = var.add(1 + pos);
                     let buf = (&raw mut g_st().os_buf).cast::<c_char>();
-                    { let _d = (buf).cast::<u8>(); let _n = pos; if _n > 0 { std::ptr::copy_nonoverlapping((var.add(1)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                    crate::memory::cstr_ncpy(buf, var.add(1), pos);
                     var = ptr::null_mut();
                     if let Some(exp) = os_getenv_cstr(buf)
                         && !exp.as_bytes().is_empty()
-                        && exp.as_bytes().len() + std::ffi::CStr::from_ptr(p).to_bytes().len() < MAXPATHL
+                        && exp.as_bytes().len() + crate::memory::cstr_len(p) < MAXPATHL
                     {
                         xstrlcpy(buf, exp.as_ptr(), MAXPATHL);
-                        { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), p.add(1), _dsize - _dlen); };
+                        { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), p.add(1), _dsize - _dlen); };
                         var = buf;
                     }
                 }
@@ -606,7 +606,7 @@ pub fn expand_env_esc(
     unsafe {
         let mut at_start = true;
         let dst_start = dst;
-        let prefix_len: usize = if prefix.is_null() { 0 } else { std::ffi::CStr::from_ptr(prefix).to_bytes().len() };
+        let prefix_len: usize = if prefix.is_null() { 0 } else { crate::memory::cstr_len(prefix) };
 
         let mut src = skipwhite(srcp);
         dstlen -= 1;
@@ -738,8 +738,8 @@ pub fn expand_env_esc(
                 }
 
                 if !esc_chars.is_null() && !var.is_null() {
-                    let var_bytes = CStr::from_ptr(var).to_bytes();
-                    let esc_bytes = CStr::from_ptr(esc_chars).to_bytes();
+                    let var_bytes = crate::memory::cstr_as_bytes(var);
+                    let esc_bytes = crate::memory::cstr_as_bytes(esc_chars);
                     if var_bytes.iter().any(|b| esc_bytes.contains(b)) {
                         var_cstr = Some(vim_strsave_escaped(std::ffi::CStr::from_ptr(var), std::ffi::CStr::from_ptr(esc_chars)));
                         var = var_cstr
@@ -749,8 +749,8 @@ pub fn expand_env_esc(
                 }
 
                 if !var.is_null() && *var != NUL {
-                    let c = std::ffi::CStr::from_ptr(var).to_bytes().len();
-                    if c + std::ffi::CStr::from_ptr(tail).to_bytes().len() + 1 < (dstlen as usize) {
+                    let c = crate::memory::cstr_len(var);
+                    if c + crate::memory::cstr_len(tail) + 1 < (dstlen as usize) {
                         ptr::copy_nonoverlapping(var, dst, c + 1);
                         dstlen -= c as c_int;
                         let ends_with_sep = after_pathsep(dst, dst.add(c)) != 0;
@@ -809,7 +809,7 @@ fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
         if *vimdir == NUL {
             return None;
         }
-        let vimdir_len = std::ffi::CStr::from_ptr(vimdir).to_bytes().len();
+        let vimdir_len = crate::memory::cstr_len(vimdir);
         let p_cstr = concat_fnames(
             NvimString {
                 data: vimdir.cast_mut(),
@@ -827,7 +827,7 @@ fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
 
 fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_char) -> *mut c_char {
     unsafe {
-        let len = std::ffi::CStr::from_ptr(dirname).to_bytes().len();
+        let len = crate::memory::cstr_len(dirname);
         if (pend as usize) > (path as usize) + len {
             let new_tail = pend.sub(len + 1);
             if path_cmp(opt_vars().p_fic != 0, new_tail, dirname, len) == 0
@@ -851,7 +851,7 @@ pub fn vim_env_iter(
     unsafe {
         let varval = if iter.is_null() { val } else { iter };
         *dir = varval;
-        let bytes = CStr::from_ptr(varval).to_bytes();
+        let bytes = crate::memory::cstr_as_bytes(varval);
         if let Some(pos) = bytes.iter().position(|&b| b == (delim as u8)) {
             *len = pos;
             varval.add(pos + 1)
@@ -872,7 +872,7 @@ pub fn vim_env_iter_rev(
 ) -> *const c_char {
     unsafe {
         let varend = if iter.is_null() {
-            val.add(std::ffi::CStr::from_ptr(val).to_bytes().len()).sub(1)
+            val.add(crate::memory::cstr_len(val)).sub(1)
         } else {
             iter
         };
@@ -905,21 +905,21 @@ pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
         assert!(*get_vim_var_str(VV_PROGPATH) != NUL);
 
         #[cfg(windows)]
-        if CStr::from_ptr(name).to_bytes() == b"HOME" {
+        if crate::memory::cstr_as_bytes(name) == b"HOME" {
             return env_st().HOMEDIR.clone();
         }
 
         let kos_env_path = os_getenv_cstr(name);
         #[cfg(windows)]
         if let Some(ref c) = kos_env_path
-            && (std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"VIMRUNTIME")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"PATH")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"CDPATH")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"TMPDIR")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"TMP")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"TEMP")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"VIM")
-                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"MYVIMRC"))
+            && (crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"VIMRUNTIME")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"PATH")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"CDPATH")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"TMPDIR")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"TMP")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"TEMP")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"VIM")
+                || crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"MYVIMRC"))
         {
             to_slash(c.as_ptr().cast_mut());
         }
@@ -927,7 +927,7 @@ pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
             return kos_env_path;
         }
 
-        let name_bytes = CStr::from_ptr(name).to_bytes();
+        let name_bytes = crate::memory::cstr_as_bytes(name);
         let vimruntime = name_bytes == b"VIMRUNTIME";
         if !vimruntime && name_bytes != b"VIM" {
             return None;
@@ -989,13 +989,13 @@ pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
 
             if vim_path_cstr.is_none() {
                 if vimruntime && *default_vimruntime_dir() != NUL {
-                    vim_path_cstr = Some(CStr::from_ptr(default_vimruntime_dir()).to_owned());
+                    vim_path_cstr = Some(crate::memory::cstr_to_cstring(default_vimruntime_dir()));
                 } else if *default_vim_dir() != NUL {
                     if vimruntime {
                         vim_path_cstr = vim_runtime_dir(default_vim_dir());
                     }
                     if vim_path_cstr.is_none() {
-                        vim_path_cstr = Some(CStr::from_ptr(default_vim_dir()).to_owned());
+                        vim_path_cstr = Some(crate::memory::cstr_to_cstring(default_vim_dir()));
                     }
                 }
             }
@@ -1043,7 +1043,7 @@ pub fn home_replace(
         let dirlen = if homedir_ptr.is_null() {
             0
         } else {
-            std::ffi::CStr::from_ptr(homedir_ptr).to_bytes().len()
+            crate::memory::cstr_len(homedir_ptr)
         };
 
         #[cfg(windows)]
@@ -1065,7 +1065,7 @@ pub fn home_replace(
 
         if !homedir_env_mod.is_null() && *homedir_env_mod == b'~' as c_char {
             let mut usedlen: usize = 0;
-            let mut flen = std::ffi::CStr::from_ptr(homedir_env_mod).to_bytes().len();
+            let mut flen = crate::memory::cstr_len(homedir_env_mod);
             let mut fbuf: Option<Vec<c_char>> = None;
             let _ = modify_fname(
                 c":p".as_ptr().cast_mut(),
@@ -1076,7 +1076,7 @@ pub fn home_replace(
                 &mut flen,
                 false,
             );
-            flen = std::ffi::CStr::from_ptr(homedir_env_mod).to_bytes().len();
+            flen = crate::memory::cstr_len(homedir_env_mod);
             assert_ne!(homedir_env_mod, homedir_env);
             if let Some(mod_vec) = fbuf {
                 homedir_env_mod_vec = mod_vec;
@@ -1090,7 +1090,7 @@ pub fn home_replace(
         let envlen = if homedir_env_mod.is_null() {
             0
         } else {
-            std::ffi::CStr::from_ptr(homedir_env_mod).to_bytes().len()
+            crate::memory::cstr_len(homedir_env_mod)
         };
 
         if !one {
@@ -1158,10 +1158,10 @@ pub fn home_replace(
 
 /// Like `home_replace`, store the replaced string in an owned `CString`.
 pub fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi::CString {
-    unsafe {
+     {
         let mut len: usize = 3;
         if !src.is_null() {
-            len += std::ffi::CStr::from_ptr(src).to_bytes().len();
+            len += crate::memory::cstr_len(src);
         }
         let mut dst = vec![0 as c_char; len];
         let _ = home_replace(buf, src, dst.as_mut_ptr(), len, true);
@@ -1191,7 +1191,7 @@ pub fn os_setenv_append_path(fname: *const c_char) -> bool {
         let dirlen = (tail as usize) - (fname as usize);
         let buf = (&raw mut g_st().os_buf).cast::<c_char>();
         assert!((tail as usize) >= (fname as usize) && dirlen + 1 < MAXPATHL);
-        { let _d = (buf).cast::<u8>(); let _n = dirlen; if _n > 0 { std::ptr::copy_nonoverlapping((fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+        crate::memory::cstr_ncpy(buf, fname, dirlen);
         let path_cstr = os_getenv_cstr(c"PATH".as_ptr());
         let pathlen = path_cstr.as_ref().map_or(0, |c| c.as_bytes().len());
         let newlen = pathlen + dirlen + 2;
@@ -1202,10 +1202,10 @@ pub fn os_setenv_append_path(fname: *const c_char) -> bool {
             if let Some(ref path) = path_cstr {
                 xstrlcpy(temp, path.as_ptr(), newlen);
                 if path.as_bytes().last().copied() != Some(ENV_SEPCHAR) {
-                    { let _dst: *mut c_char = temp; let _dsize: usize = newlen; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), ENV_SEPSTR.as_ptr(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = temp; let _dsize: usize = newlen; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), ENV_SEPSTR.as_ptr(), _dsize - _dlen); };
                 }
             }
-            { let _dst: *mut c_char = temp; let _dsize: usize = newlen; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), buf, _dsize - _dlen); };
+            { let _dst: *mut c_char = temp; let _dsize: usize = newlen; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), buf, _dsize - _dlen); };
             let _ = os_setenv(c"PATH".as_ptr(), temp, 1);
             retval = true;
         }
@@ -1220,25 +1220,25 @@ pub fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
         if *sh == NUL {
             return false;
         }
-        if std::ffi::CStr::from_ptr(sh).to_bytes().eq_ignore_ascii_case(b"$COMSPEC") {
+        if crate::memory::cstr_as_bytes(sh).eq_ignore_ascii_case(b"$COMSPEC") {
             let mut buf = [0 as c_char; MAXPATHL];
             let comspec = os_getenv_buf(c"COMSPEC".as_ptr(), buf.as_mut_ptr(), buf.len());
-            return !comspec.is_null() && std::ffi::CStr::from_ptr(path_tail(comspec)).to_bytes().eq_ignore_ascii_case(b"cmd.exe");
+            return !comspec.is_null() && crate::memory::cstr_as_bytes(path_tail(comspec)).eq_ignore_ascii_case(b"cmd.exe");
         }
-        if std::ffi::CStr::from_ptr(sh).to_bytes().eq_ignore_ascii_case(b"cmd.exe") || std::ffi::CStr::from_ptr(sh).to_bytes().eq_ignore_ascii_case(b"cmd") {
+        if crate::memory::cstr_as_bytes(sh).eq_ignore_ascii_case(b"cmd.exe") || crate::memory::cstr_as_bytes(sh).eq_ignore_ascii_case(b"cmd") {
             return true;
         }
-        std::ffi::CStr::from_ptr(path_tail(sh)).to_bytes().eq_ignore_ascii_case(b"cmd.exe")
+        crate::memory::cstr_as_bytes(path_tail(sh)).eq_ignore_ascii_case(b"cmd.exe")
     }
 }
 
 /// Removes environment variable `var` and takes care of side effects.
 pub fn vim_unsetenv_ext(var: *const c_char) {
-    unsafe {
+     {
         let _ = os_unsetenv(var);
-        if std::ffi::CStr::from_ptr(var).to_bytes().eq_ignore_ascii_case(b"VIM") {
+        if crate::memory::cstr_as_bytes(var).eq_ignore_ascii_case(b"VIM") {
             g_st().didset_vim = false;
-        } else if std::ffi::CStr::from_ptr(var).to_bytes().eq_ignore_ascii_case(b"VIMRUNTIME") {
+        } else if crate::memory::cstr_as_bytes(var).eq_ignore_ascii_case(b"VIMRUNTIME") {
             g_st().didset_vimruntime = false;
         }
     }
@@ -1246,14 +1246,14 @@ pub fn vim_unsetenv_ext(var: *const c_char) {
 
 /// Set environment variable `name` and take care of side effects.
 pub fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
-    unsafe {
+     {
         let _ = os_setenv(name, val, 1);
-        if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"HOME") {
+        if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"HOME") {
             init_homedir();
         } else {
-            if g_st().didset_vim && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"VIM") {
+            if g_st().didset_vim && crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"VIM") {
                 g_st().didset_vim = false;
-            } else if g_st().didset_vimruntime && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"VIMRUNTIME") {
+            } else if g_st().didset_vimruntime && crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"VIMRUNTIME") {
                 g_st().didset_vimruntime = false;
             }
         }
@@ -1366,7 +1366,7 @@ mod tests {
 
             assert!(os_get_pid() > 0);
             os_get_hostname(buf.as_mut_ptr(), buf.len());
-            assert!(!CStr::from_ptr(buf.as_ptr()).to_bytes().is_empty());
+            assert!(!crate::memory::cstr_as_bytes(buf.as_ptr()).is_empty());
             assert!(os_getenvname_at_index(usize::MAX).is_none());
 
             assert!(os_shell_is_cmdexe(c"cmd.exe".as_ptr()));

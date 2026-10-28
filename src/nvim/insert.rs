@@ -1562,7 +1562,7 @@ pub fn prompt_text() -> *mut c_char {
 fn init_prompt(cmdchar_todo: c_int) {
     unsafe {
         let prompt = prompt_text();
-        let prompt_len = std::ffi::CStr::from_ptr(prompt).to_bytes().len() as colnr_T;
+        let prompt_len = crate::memory::cstr_len(prompt) as colnr_T;
 
         if (*g_st().curbuf).b_prompt_start.mark.lnum < 1
             || (*g_st().curbuf).b_prompt_start.mark.lnum > (*g_st().curbuf).b_ml.ml_line_count
@@ -1845,7 +1845,7 @@ fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_int) {
         }
         if IS_SPECIAL(c) || (g_st().mod_mask != 0 && allow_modmask != 0) {
             let p = get_special_key_name(c, g_st().mod_mask);
-            let len = std::ffi::CStr::from_ptr(p).to_bytes().len();
+            let len = crate::memory::cstr_len(p);
             c = *p.add(len - 1) as u8 as c_int;
             if len > 2 {
                 if !stop_arrow() {
@@ -2247,7 +2247,7 @@ pub fn set_last_insert(c: c_int) {
         *s = ESC as c_char;
         s = s.add(1);
         *s = NUL;
-        ins_st().last_insert = Some(CStr::from_ptr(buf.as_ptr()).to_owned());
+        ins_st().last_insert = Some(crate::memory::cstr_to_cstring(buf.as_ptr()));
         ins_st().last_insert_skip = 0;
     }
 }
@@ -3799,7 +3799,7 @@ fn ins_tab() -> bool {
                             fpos.col - change_col,
                         );
                     } else {
-                        let rem = std::ffi::CStr::from_ptr(ptr.offset(i as isize)).to_bytes().len() + 1;
+                        let rem = crate::memory::cstr_len(ptr.offset(i as isize)) + 1;
                         ptr::copy(ptr.offset(i as isize), ptr, rem);
                     }
                     if (g_st().State & REPLACE_FLAG) != 0 && (g_st().State & VREPLACE_FLAG) == 0 {
@@ -4032,7 +4032,7 @@ fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
         if ins_apply_autocmds(EVENT_INSERTCHARPRE) != 0 {
             let vchar = get_vim_var_str(VV_CHAR);
             if CStr::from_ptr((&raw const buf).cast()) != CStr::from_ptr(vchar) {
-                res = Some(CStr::from_ptr(vchar).to_owned());
+                res = Some(crate::memory::cstr_to_cstring(vchar));
             }
         }
 
@@ -4075,10 +4075,10 @@ mod tests {
 
     #[test]
     fn truncate_spaces_and_can_cindent_work() {
-        unsafe {
+         {
             let mut line = *b"hello   \0";
             truncate_spaces(line.as_mut_ptr().cast(), 8);
-            assert_eq!(CStr::from_ptr(line.as_ptr().cast()).to_bytes(), b"hello");
+            assert_eq!(crate::memory::cstr_as_bytes(line.as_ptr().cast()), b"hello");
 
             set_can_cindent(true);
             assert!(get_can_cindent());

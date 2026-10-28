@@ -24,7 +24,7 @@ use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
 use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
 use crate::message::{emsg, semsg};
 use crate::strings::reverse_text;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FilterMap {
@@ -152,7 +152,7 @@ fn filter_map_dict(
                     newtv.v_lock = VAR_UNLOCKED;
                     (*di).di_tv = newtv;
                 } else if filtermap == FilterMap::MapNew {
-                    let key_len = CStr::from_ptr(key_ptr).to_bytes().len();
+                    let key_len = crate::memory::cstr_len(key_ptr);
                     let add_res = tv_dict_add_tv(d_ret, key_ptr, key_len, &mut newtv);
                     tv_clear(&mut newtv);
                     if !add_res {
@@ -294,10 +294,10 @@ fn filter_map_string(
                     emsg(e_string_required.as_ptr());
                     break;
                 } else if !newtv.vval.v_string().is_null() {
-                    out.extend_from_slice(CStr::from_ptr(newtv.vval.v_string()).to_bytes());
+                    out.extend_from_slice(crate::memory::cstr_as_bytes(newtv.vval.v_string()));
                 }
             } else if (filtermap == FilterMap::ForEach || !rem) && !tv.vval.v_string().is_null() {
-                out.extend_from_slice(CStr::from_ptr(tv.vval.v_string()).to_bytes());
+                out.extend_from_slice(crate::memory::cstr_as_bytes(tv.vval.v_string()));
             }
 
             tv_clear(&mut newtv);
@@ -508,7 +508,7 @@ fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool) -> i64
         if haystack.is_null() || needle.is_null() || *needle == 0 {
             return 0;
         }
-        let needle_bytes = CStr::from_ptr(needle).to_bytes();
+        let needle_bytes = crate::memory::cstr_as_bytes(needle);
         let needlelen = needle_bytes.len();
         let mut n: i64 = 0;
         let mut p = haystack;
@@ -523,7 +523,7 @@ fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool) -> i64
                 }
             }
         } else {
-            let hay_bytes = CStr::from_ptr(haystack).to_bytes();
+            let hay_bytes = crate::memory::cstr_as_bytes(haystack);
             let mut offset = 0usize;
             while offset + needlelen <= hay_bytes.len() {
                 if let Some(pos) = hay_bytes[offset..]
@@ -663,7 +663,7 @@ fn extend_dict(argvars: &mut [typval_T],
                     }
                     return;
                 }
-                let action_bytes = CStr::from_ptr(action).to_bytes();
+                let action_bytes = crate::memory::cstr_as_bytes(action);
                 if action_bytes != b"keep" && action_bytes != b"force" && action_bytes != b"error" {
                     if is_new {
                         tv_dict_unref(d1);

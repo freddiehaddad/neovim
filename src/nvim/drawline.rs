@@ -984,7 +984,7 @@ fn draw_statuscol(wp: &mut win_T,
         let mut transbuf = [0 as c_char; MAXPATHL];
         let transbuf_ptr = (&raw mut transbuf).cast::<c_char>();
         let mut fold_vcol: *const colnr_T = ptr::null();
-        let len = CStr::from_ptr(buf_ptr).to_bytes().len();
+        let len = crate::memory::cstr_len(buf_ptr);
         let scl_attr = win_hl_attr(
             wp,
             if use_cursor_line_highlight(wp, wlv.lnum) {
@@ -1113,7 +1113,7 @@ fn handle_showbreak_and_filler(
                 &mut *wp,
                 wlv,
                 sbr,
-                CStr::from_ptr(sbr).to_bytes().len(),
+                crate::memory::cstr_len(sbr),
                 attr,
                 ptr::null(),
                 true,
@@ -1251,7 +1251,7 @@ fn handle_inline_virtual_text(
                     continue;
                 }
                 wlv.p_extra = text;
-                wlv.n_extra = CStr::from_ptr(text).to_bytes().len() as c_int;
+                wlv.n_extra = crate::memory::cstr_len(text) as c_int;
                 if wlv.n_extra == 0 {
                     continue;
                 }
@@ -2493,7 +2493,7 @@ pub fn win_line(
                         wlv.p_extra = extra_ptr.add(1);
                         mb_schar = schar_from_ascii(wlv.extra[0] as u8);
                         mb_schar_width = 1;
-                        wlv.n_extra = CStr::from_ptr(wlv.p_extra).to_bytes().len() as c_int;
+                        wlv.n_extra = crate::memory::cstr_len(wlv.p_extra) as c_int;
                         wlv.sc_extra = 0;
                         wlv.sc_final = 0;
                         if area_attr == 0 && search_attr == 0 {

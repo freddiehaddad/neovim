@@ -220,7 +220,7 @@ fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
     unsafe {
         re_st().nstate = 0;
         re_st().istate = 0;
-        let nstate_max = (std::ffi::CStr::from_ptr(expr.cast()).to_bytes().len() + 1) * 25 + 1000;
+        let nstate_max = (crate::memory::cstr_len(expr.cast()) + 1) * 25 + 1000;
         let pv = &raw mut re_st().post_vec;
         (*pv).clear();
         (*pv).reserve(nstate_max);
@@ -4905,7 +4905,7 @@ pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_regprog_
         prog.regstart = nfa_get_regstart(&prog.state, prog.start, 0);
         prog.match_text = nfa_get_match_text(&prog.state, prog.start);
         prog.reghasz = re_st().re_has_z;
-        prog.pattern = CStr::from_ptr(expr.cast()).to_owned();
+        prog.pattern = crate::memory::cstr_to_cstring(expr.cast());
 
         cleanup_nfa_regcomp(Some(prog))
     }

@@ -289,8 +289,8 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
             }
             let mut modep: *const c_char = opt_vars().p_guicursor;
             while !modep.is_null() && *modep != 0 {
-                let colonp = std::ffi::CStr::from_ptr(modep).to_bytes().iter().position(|&b| b == b':').map_or(std::ptr::null(), |i| modep.add(i));
-                let commap = std::ffi::CStr::from_ptr(modep).to_bytes().iter().position(|&b| b == b',').map_or(std::ptr::null(), |i| modep.add(i));
+                let colonp = crate::memory::cstr_as_bytes(modep).iter().position(|&b| b == b':').map_or(std::ptr::null(), |i| modep.add(i));
+                let commap = crate::memory::cstr_as_bytes(modep).iter().position(|&b| b == b',').map_or(std::ptr::null(), |i| modep.add(i));
 
                 if colonp.is_null() || (!commap.is_null() && (commap as usize) < (colonp as usize))
                 {
@@ -385,15 +385,15 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                             }
                             p = p.add(5);
                         } else {
-                            let mut endp = std::ffi::CStr::from_ptr(p).to_bytes().iter().position(|&b| b == b'-').map_or(std::ptr::null(), |i| p.add(i));
+                            let mut endp = crate::memory::cstr_as_bytes(p).iter().position(|&b| b == b'-').map_or(std::ptr::null(), |i| p.add(i));
                             if commap.is_null() {
                                 if endp.is_null() {
-                                    endp = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
+                                    endp = p.add(crate::memory::cstr_len(p));
                                 }
                             } else if endp.is_null() || (endp as usize) > (commap as usize) {
                                 endp = commap;
                             }
-                            let slashp = std::ffi::CStr::from_ptr(p).to_bytes().iter().position(|&b| b == b'/').map_or(std::ptr::null(), |i| p.add(i));
+                            let slashp = crate::memory::cstr_as_bytes(p).iter().position(|&b| b == b'/').map_or(std::ptr::null(), |i| p.add(i));
                             let mut saved_hl_id = first_byte as c_int;
                             if !slashp.is_null() && (slashp as usize) < (endp as usize) {
                                 saved_hl_id = syn_check_group(p, (slashp as usize) - (p as usize));
@@ -439,7 +439,7 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).
 #[cfg(test)]
 pub fn cursor_mode_str2int(mode: *const c_char) -> c_int {
-    let mode_bytes = unsafe { std::ffi::CStr::from_ptr(mode).to_bytes() };
+    let mode_bytes =  { crate::memory::cstr_as_bytes(mode) };
     let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
     for (mode_idx, entry) in tbl.iter().enumerate() {
         if entry.full_name.to_bytes() == mode_bytes {

@@ -174,7 +174,7 @@ pub fn tabstop_set(
         let mut out = Vec::with_capacity(valcount);
         cp = var;
         while *cp != NUL {
-            let n = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(cp).to_bytes()) as c_int;
+            let n = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(cp)) as c_int;
             if n <= 0 || n > TABSTOP_MAX {
                 array.clear();
                 var = cp;
@@ -1906,7 +1906,7 @@ pub fn use_indentexpr_for_lisp() -> bool {
     unsafe {
         (*g_st().curbuf).b_p_lisp != 0
             && (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone
-            && (std::ffi::CStr::from_ptr((*g_st().curbuf).b_p_lop).to_bytes() == b"expr:1")
+            && (crate::memory::cstr_as_bytes((*g_st().curbuf).b_p_lop) == b"expr:1")
     }
 }
 

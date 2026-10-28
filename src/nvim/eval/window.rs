@@ -338,7 +338,7 @@ fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
             if arg.is_null() {
                 nr = 0;
             } else {
-                let bytes = CStr::from_ptr(arg).to_bytes();
+                let bytes = crate::memory::cstr_as_bytes(arg);
                 if bytes == b"$" {
                     twin = if ptr::eq(tp, g_st().curtab) {
                         g_st().lastwin
@@ -361,7 +361,7 @@ fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
                         count = 1;
                     }
                     if !endp.is_null() && *endp != NUL {
-                        let tail = CStr::from_ptr(endp).to_bytes();
+                        let tail = crate::memory::cstr_as_bytes(endp);
                         if tail == b"j" {
                             twin = win_vert_neighbor(tp, &mut *twin, false, count);
                         } else if tail == b"k" {
@@ -614,13 +614,13 @@ pub fn f_getwinposy(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 /// `tabpagenr()` function (`f_tabpagenr`).
 pub fn f_tabpagenr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let mut nr: c_int = 0;
 
         if argvars[0].v_type != VarType::VAR_UNKNOWN {
             let arg = tv_get_string_chk(&argvars[0]);
             if !arg.is_null() {
-                let bytes = CStr::from_ptr(arg).to_bytes();
+                let bytes = crate::memory::cstr_as_bytes(arg);
                 if bytes == b"$" {
                     nr = tabpage_index(ptr::null_mut()) - 1;
                 } else if bytes == b"#" {

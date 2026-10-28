@@ -25,7 +25,7 @@ use crate::msgpack_rpc::packer::handle_T;
 use crate::os::dl::UvLib;
 use crate::os::time::os_hrtime;
 use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 pub type TSSymbol = u16;
@@ -684,7 +684,7 @@ fn langs_has(lang_name: *const c_char) -> bool {
     }
     unsafe {
         let langs_ptr = &raw const ts_st().LANGS;
-        (*langs_ptr).contains_key(CStr::from_ptr(lang_name).to_bytes())
+        (*langs_ptr).contains_key(crate::memory::cstr_as_bytes(lang_name))
     }
 }
 
@@ -696,7 +696,7 @@ fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
     unsafe {
         let langs_ptr = &raw const ts_st().LANGS;
         (*langs_ptr)
-            .get(CStr::from_ptr(lang_name).to_bytes())
+            .get(crate::memory::cstr_as_bytes(lang_name))
             .copied()
             .unwrap_or(ptr::null_mut())
     }
@@ -732,7 +732,7 @@ pub fn nvim_ts_get_parser(lang: *const c_char) -> *const TSLanguage {
         return ptr::null();
     }
     unsafe {
-        match CStr::from_ptr(lang).to_bytes() {
+        match crate::memory::cstr_as_bytes(lang) {
             b"lua" => tree_sitter_lua(),
             b"c" => tree_sitter_c(),
             b"diff" => tree_sitter_diff(),
@@ -855,7 +855,7 @@ fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
 
         let langs_ptr = &raw mut ts_st().LANGS;
         (*langs_ptr).insert(
-            CStr::from_ptr(lang_name).to_bytes().to_vec(),
+            crate::memory::cstr_as_bytes(lang_name).to_vec(),
             lang.cast_mut(),
         );
 
@@ -870,7 +870,7 @@ unsafe extern "C-unwind" fn tslua_remove_lang(L: *mut lua_State) -> c_int {
         let langs_ptr = &raw mut ts_st().LANGS;
         let present = !lang_name.is_null()
             && (*langs_ptr)
-                .remove(CStr::from_ptr(lang_name).to_bytes())
+                .remove(crate::memory::cstr_as_bytes(lang_name))
                 .is_some();
         lua_pushboolean(L, c_int::from(present));
         1
@@ -1895,7 +1895,7 @@ unsafe extern "C-unwind" fn __has_ancestor(L: *mut lua_State) -> c_int {
         let mut node = ts_tree_root_node(descendant.tree);
         while node.id != descendant.id && !ts_node_is_null(node) {
             let node_type = ts_node_type(node);
-            let node_type_bytes = CStr::from_ptr(node_type).to_bytes();
+            let node_type_bytes = crate::memory::cstr_as_bytes(node_type);
 
             for i in 3..=pred_len {
                 lua_rawgeti(L, 2, i);
@@ -2264,7 +2264,7 @@ fn query_err_string(
 
         loop {
             let src_tmp = src.offset(line_start as isize);
-            let src_tmp_bytes = CStr::from_ptr(src_tmp).to_bytes();
+            let src_tmp_bytes = crate::memory::cstr_as_bytes(src_tmp);
             let nl_pos = src_tmp_bytes.iter().position(|&b| b == b'\n');
             let line_length = nl_pos.unwrap_or(src_tmp_bytes.len()) as c_int;
             let line_end = line_start + line_length;
@@ -2290,7 +2290,7 @@ fn query_err_string(
             column + 1,
             type_msg,
         );
-        let offset = CStr::from_ptr(err_data).to_bytes().len();
+        let offset = crate::memory::cstr_len(err_data);
         err_size = err_size.saturating_sub(offset);
         err_data = err_data.add(offset);
 
@@ -2328,7 +2328,7 @@ fn query_err_string(
                 suffix_len as c_int,
                 suffix,
             );
-            let offset = CStr::from_ptr(err_data).to_bytes().len();
+            let offset = crate::memory::cstr_len(err_data);
             err_size = err_size.saturating_sub(offset);
             err_data = err_data.add(offset);
         }

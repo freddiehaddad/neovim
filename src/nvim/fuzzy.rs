@@ -23,7 +23,7 @@ use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
-use std::ffi::{CStr, CString, c_char, c_int};
+use std::ffi::{CString, c_char, c_int};
 
 pub const FUZZY_MATCH_MAX_LEN: usize = 1024;
 pub const FUZZY_SCORE_NONE: c_int = c_int::MIN;
@@ -309,7 +309,7 @@ pub fn fuzzy_match(
 
         *out_score = 0;
 
-        let mut save_pat = CStr::from_ptr(pat_arg).to_owned().into_bytes_with_nul();
+        let mut save_pat = crate::memory::cstr_to_cstring(pat_arg).into_bytes_with_nul();
         let mut pat = save_pat.as_mut_ptr().cast::<c_char>();
         let mut p = pat;
 
@@ -496,7 +496,7 @@ fn fuzzy_match_in_list(
                     FUZZY_MATCH_MAX_LEN as c_int,
                 )
             {
-                let itemstr_copy = CStr::from_ptr(itemstr).to_owned();
+                let itemstr_copy = crate::memory::cstr_to_cstring(itemstr);
                 let mut matchpos: Vec<i64> = Vec::new();
 
                 if retmatchpos {
@@ -527,7 +527,7 @@ fn fuzzy_match_in_list(
         }
 
         if !items.is_empty() {
-            let pat_bytes = CStr::from_ptr(str_ptr).to_bytes();
+            let pat_bytes = crate::memory::cstr_as_bytes(str_ptr);
             items.sort_unstable_by(|a, b| fuzzy_match_item_compare(a, b, pat_bytes));
 
             let mut retlist = if retmatchpos {

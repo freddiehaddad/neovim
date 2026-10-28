@@ -1350,7 +1350,7 @@ fn map_get_id_to_name(key: c_int) -> *mut c_char {
 fn map_put_id_to_name(key: c_int, name: *const c_char) {
     unsafe {
         let map_ptr = &raw mut au_st().map_augroup_id_to_name;
-        (*map_ptr).insert(key, CStr::from_ptr(name).to_owned());
+        (*map_ptr).insert(key, crate::memory::cstr_to_cstring(name));
     }
 }
 
@@ -1569,7 +1569,7 @@ fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char) {
                 let nr = aupat_get_buflocal_nr(pat, patlen);
                 aupat_normalize_buflocal_pat(buflocal_pat.as_mut_ptr(), pat, patlen, nr);
                 pat = buflocal_pat.as_ptr();
-                patlen = CStr::from_ptr(pat).to_bytes().len() as c_int;
+                patlen = crate::memory::cstr_len(pat) as c_int;
             }
 
             for ac in &mut *acs {
@@ -1756,8 +1756,8 @@ pub fn aubuflocal_remove(buf: *mut buf_T) {
 }
 
 pub fn augroup_add(name: *const c_char) -> c_int {
-    unsafe {
-        assert!(!std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"end"));
+     {
+        assert!(!crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"end"));
 
         let existing_id = augroup_find(name);
         if existing_id > 0 {
@@ -1898,7 +1898,7 @@ pub fn do_augroup(arg: *mut c_char, del_group: bool) {
             } else {
                 augroup_del(arg, -1, true);
             }
-        } else if std::ffi::CStr::from_ptr(arg).to_bytes().eq_ignore_ascii_case(b"end") {
+        } else if crate::memory::cstr_as_bytes(arg).eq_ignore_ascii_case(b"end") {
             au_st().current_augroup = AUGROUP_DEFAULT;
         } else if *arg != NUL {
             au_st().current_augroup = augroup_add(arg);
@@ -2026,10 +2026,10 @@ pub fn check_ei(mut ei: *mut c_char, win: bool) -> bool {
 }
 
 pub fn au_event_disable(what: *mut c_char) -> std::ffi::CString {
-    unsafe {
-        let p_ei_bytes = CStr::from_ptr(opt_vars().p_ei).to_bytes();
-        let what_bytes = CStr::from_ptr(what).to_bytes();
-        let save_ei = CStr::from_ptr(opt_vars().p_ei).to_owned();
+     {
+        let p_ei_bytes = crate::memory::cstr_as_bytes(opt_vars().p_ei);
+        let what_bytes = crate::memory::cstr_as_bytes(what);
+        let save_ei = crate::memory::cstr_to_cstring(opt_vars().p_ei);
         let mut new_ei_vec: Vec<u8> = Vec::with_capacity(p_ei_bytes.len() + what_bytes.len());
         if what_bytes.first() == Some(&b',') && p_ei_bytes.is_empty() {
             new_ei_vec.extend_from_slice(&what_bytes[1..]);
@@ -2229,7 +2229,7 @@ pub fn do_autocmd_event(
                 }
                 aupat_normalize_buflocal_pat(buflocal_pat.as_mut_ptr(), pat, patlen, buflocal_nr);
                 pat = buflocal_pat.as_ptr();
-                patlen = CStr::from_ptr(pat).to_bytes().len() as c_int;
+                patlen = crate::memory::cstr_len(pat) as c_int;
             }
 
             if del {
@@ -2287,7 +2287,7 @@ pub fn autocmd_register(
     unsafe {
         assert!(group != 0);
 
-        if (patlen as usize) > CStr::from_ptr(pat).to_bytes().len() {
+        if (patlen as usize) > crate::memory::cstr_len(pat) {
             return false;
         }
 
@@ -2314,7 +2314,7 @@ pub fn autocmd_register(
             }
             aupat_normalize_buflocal_pat(buflocal_pat.as_mut_ptr(), pat, patlen, buflocal_nr);
             pat = buflocal_pat.as_ptr();
-            patlen = CStr::from_ptr(pat).to_bytes().len() as c_int;
+            patlen = crate::memory::cstr_len(pat) as c_int;
         }
 
         let mut ap: Option<std::rc::Rc<AutoPat>> = None;
@@ -2399,7 +2399,7 @@ pub fn autocmd_register(
         ac.pat = Some(ap);
         ac.id = id;
         if !handler_cmd.is_null() {
-            ac.handler = AutoCmdHandler::Cmd(CStr::from_ptr(handler_cmd).to_owned());
+            ac.handler = AutoCmdHandler::Cmd(crate::memory::cstr_to_cstring(handler_cmd));
         } else {
             let mut cb = Callback::new();
             callback_copy(&mut cb, handler_fn);
@@ -2415,7 +2415,7 @@ pub fn autocmd_register(
         ac.desc = if desc.is_null() {
             None
         } else {
-            Some(CStr::from_ptr(desc).to_owned())
+            Some(crate::memory::cstr_to_cstring(desc))
         };
         (*acs).push(ac);
 
@@ -2551,7 +2551,7 @@ pub fn ex_doautoall(eap: &mut exarg_T) {
 
 pub fn check_nomodeline(argp: *mut *mut c_char) -> bool {
     unsafe {
-        let bytes = CStr::from_ptr(*argp).to_bytes();
+        let bytes = crate::memory::cstr_as_bytes(*argp);
         if bytes.starts_with(b"<nomodeline>") {
             *argp = skipwhite((*argp).add(12));
             return false;
@@ -2567,11 +2567,11 @@ pub fn aucmd_defer(
     group: c_int,
     buf: &mut buf_T,data: Option<&mut Object>,
 ) {
-    unsafe {
+     {
         let evdata = Box::new(AutoCmdEvent {
             event,
-            fname: (!fname.is_null()).then(|| CStr::from_ptr(fname).to_owned()),
-            fname_io: (!fname_io.is_null()).then(|| CStr::from_ptr(fname_io).to_owned()),
+            fname: (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname)),
+            fname_io: (!fname_io.is_null()).then(|| crate::memory::cstr_to_cstring(fname_io)),
             group,
             buf: buf.b_fnum,
             data: (data.is_some()).then(|| copy_object(*data.unwrap(), None)),
@@ -2909,7 +2909,7 @@ pub fn apply_autocmds_group(
                 fname_io
             };
             let afile_orig_owned = if !raw_autocmd_fname.is_null() {
-                let orig = CStr::from_ptr(raw_autocmd_fname).to_owned();
+                let orig = crate::memory::cstr_to_cstring(raw_autocmd_fname);
                 g_st().autocmd_fname = Some(orig.clone());
                 Some(orig)
             } else {
@@ -2930,14 +2930,14 @@ pub fn apply_autocmds_group(
                     fname = (*buf).b_p_ft;
                 } else {
                     if !(*buf).b_sfname.is_null() {
-                        sfname_owned = Some(CStr::from_ptr((*buf).b_sfname).to_owned());
+                        sfname_owned = Some(crate::memory::cstr_to_cstring((*buf).b_sfname));
                     }
                     fname = (*buf).b_ffname;
                 }
                 if fname.is_null() {
                     fname = c"".as_ptr().cast_mut();
                 }
-                Some(CStr::from_ptr(fname).to_owned())
+                Some(crate::memory::cstr_to_cstring(fname))
             } else {
                 sfname_owned = to_slash_save(fname);
                 if event == EVENT_CMDATOM
@@ -3002,7 +3002,7 @@ pub fn apply_autocmds_group(
             let save_changed = (*g_st().curbuf).b_changed;
             let old_curbuf = g_st().curbuf;
 
-            g_st().autocmd_match = (!fname.is_null()).then(|| CStr::from_ptr(fname).to_owned());
+            g_st().autocmd_match = (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname));
 
             g_st().RedrawingDisabled += 1;
 
@@ -3500,7 +3500,7 @@ fn has_autocmd_ext(
         let mut retval = false;
 
         let fname = if is_full {
-            (!sfname.is_null()).then(|| CStr::from_ptr(sfname).to_owned())
+            (!sfname.is_null()).then(|| crate::memory::cstr_to_cstring(sfname))
         } else {
             FullName_save(sfname, false)
         };
@@ -3585,15 +3585,15 @@ pub fn aucmd_set_expand_context(
         if *arg != NUL {
             arg = skipwhite(arg);
             for _ in 0..2 {
-                let bytes = CStr::from_ptr(arg).to_bytes();
+                let bytes = crate::memory::cstr_as_bytes(arg);
                 if bytes.starts_with(b"++once") && ascii_iswhite(*arg.add(6)) {
                     arg = skipwhite(arg.add(6));
                 }
-                let bytes = CStr::from_ptr(arg).to_bytes();
+                let bytes = crate::memory::cstr_as_bytes(arg);
                 if bytes.starts_with(b"++nested") && ascii_iswhite(*arg.add(8)) {
                     arg = skipwhite(arg.add(8));
                 }
-                let bytes = CStr::from_ptr(arg).to_bytes();
+                let bytes = crate::memory::cstr_as_bytes(arg);
                 if bytes.starts_with(b"nested") && ascii_iswhite(*arg.add(6)) {
                     arg = skipwhite(arg.add(6));
                 }
@@ -3692,7 +3692,7 @@ pub fn au_exists(arg: *const c_char) -> bool {
         if event != NUM_EVENTS as event_T {
             let acs = &raw mut au_st().autocmds[event as usize];
             if !(*acs).is_empty() {
-                if !pattern.is_null() && std::ffi::CStr::from_ptr(pattern).to_bytes().eq_ignore_ascii_case(b"<buffer>") {
+                if !pattern.is_null() && crate::memory::cstr_as_bytes(pattern).eq_ignore_ascii_case(b"<buffer>") {
                     buflocal_buf = g_st().curbuf;
                 }
 
@@ -3857,7 +3857,7 @@ fn arg_autocmd_flag_get(
     len: c_int,
 ) -> bool {
     unsafe {
-        let cmd_bytes = CStr::from_ptr(*cmd_ptr).to_bytes();
+        let cmd_bytes = crate::memory::cstr_as_bytes(*cmd_ptr);
         let pat_slice = std::slice::from_raw_parts(pattern.cast::<u8>(), len as usize);
         if cmd_bytes.starts_with(pat_slice) && ascii_iswhite(*(*cmd_ptr).add(len as usize)) {
             if *flag {
@@ -3985,20 +3985,20 @@ mod tests {
 
     #[test]
     fn event_name_lookup_and_span_pattern_work() {
-        unsafe {
+         {
             let mut end: *mut c_char = ptr::null_mut();
             let ev = event_name2nr(c"BufReadPost,BufEnter".as_ptr(), &raw mut end);
             assert_eq!(ev, EVENT_BUFREADPOST);
-            assert_eq!(CStr::from_ptr(end).to_bytes(), b"BufEnter");
+            assert_eq!(crate::memory::cstr_as_bytes(end), b"BufEnter");
             assert_eq!(
-                CStr::from_ptr(event_nr2name(EVENT_VIMENTER)).to_bytes(),
+                crate::memory::cstr_as_bytes(event_nr2name(EVENT_VIMENTER)),
                 b"VimEnter"
             );
 
             let mut start: *const c_char = ptr::null();
             let len = aucmd_span_pattern(c",,*.{c,h},*.rs".as_ptr(), &raw mut start);
             assert_eq!(len, 7);
-            assert_eq!(&CStr::from_ptr(start).to_bytes()[..len], b"*.{c,h}");
+            assert_eq!(&crate::memory::cstr_as_bytes(start)[..len], b"*.{c,h}");
         }
     }
 }

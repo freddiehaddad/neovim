@@ -15,7 +15,7 @@ use crate::message::{HLF_M, display_confirm_msg, msg_end_prompt, msg_putchar, se
 use crate::mouse::setmouse;
 use crate::os::input::input_available;
 use crate::ui::{ui_active, ui_call_busy_stop, ui_flush, ui_has, ui_mouse_has};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 const DLG_BUTTON_SEP: u8 = b'\n';
 const DLG_HOTKEY_CHAR: u8 = b'&';
@@ -102,8 +102,8 @@ fn console_dialog_alloc(
             r = r.add(utf_ptr2len(r) as usize);
         }
 
-        let msg_bytes = CStr::from_ptr(message).to_bytes();
-        button_len += CStr::from_ptr(buttons).to_bytes().len() + 3;
+        let msg_bytes = crate::memory::cstr_as_bytes(message);
+        button_len += crate::memory::cstr_len(buttons) + 3;
         lenhotkey += 1;
 
         if !has_hotkey[0] {
@@ -111,7 +111,7 @@ fn console_dialog_alloc(
         }
 
         dlg_st().confirm_msg = Some(if ui_has(K_UI_MESSAGES) {
-            CStr::from_ptr(message).to_owned()
+            crate::memory::cstr_to_cstring(message)
         } else {
             let mut v = Vec::with_capacity(msg_bytes.len() + 2);
             v.push(b'\n');
@@ -148,7 +148,7 @@ fn copy_confirm_hotkeys(
                 *msgp.add(1) = b' ' as c_char;
                 msgp = msgp.add(2);
 
-                hotkeys_ptr = hotkeys_ptr.add(CStr::from_ptr(hotkeys_ptr).to_bytes().len());
+                hotkeys_ptr = hotkeys_ptr.add(crate::memory::cstr_len(hotkeys_ptr));
                 let nlen = copy_char(r.add(1), hotkeys_ptr, true);
                 *hotkeys_ptr.add(nlen) = 0;
 
@@ -220,11 +220,11 @@ fn msg_show_console_dialog(
 
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
 pub fn ask_yesno(str_ptr: *const c_char) -> c_int {
-    unsafe {
+     {
         let save_state = g_st().State;
         g_st().no_wait_return += 1;
 
-        let s_bytes = CStr::from_ptr(str_ptr).to_bytes();
+        let s_bytes = crate::memory::cstr_as_bytes(str_ptr);
         let suffix = b" (y/n)?\0";
         let mut prompt = Vec::with_capacity(s_bytes.len() + suffix.len());
         prompt.extend_from_slice(s_bytes);

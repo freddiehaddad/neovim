@@ -28,7 +28,7 @@ use crate::msgpack_rpc::packer::{
 use crate::regexp::NUMBUFLEN;
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use crate::testing::ga_concat_literal;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 pub(crate) const K_MP_NIL: usize = 0;
 pub(crate) const K_MP_BOOLEAN: usize = 1;
@@ -137,7 +137,7 @@ pub fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usize) {
                 let li_len = if str_ptr.is_null() {
                     0
                 } else {
-                    CStr::from_ptr(str_ptr).to_bytes().len()
+                    crate::memory::cstr_len(str_ptr)
                 };
                 let mut combined = vec![0 as c_char; li_len + line_length];
                 if !str_ptr.is_null() {
@@ -195,7 +195,7 @@ pub fn encode_init_lrstate(list: *const list_T) -> ListReaderState {
         if s.is_null() {
             0
         } else {
-            unsafe { CStr::from_ptr(s).to_bytes().len() }
+             crate::memory::cstr_len(s)
         }
     };
     ListReaderState {
@@ -244,7 +244,7 @@ pub fn encode_read_from_list(
             state.li_length = if s.is_null() {
                 0
             } else {
-                unsafe { CStr::from_ptr(s).to_bytes().len() }
+                 crate::memory::cstr_len(s)
             };
         }
     }
@@ -268,7 +268,7 @@ pub fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>> {
         len += 1;
         let s = tv.vval.v_string();
         if !s.is_null() {
-            len += unsafe { CStr::from_ptr(s).to_bytes().len() };
+            len +=  crate::memory::cstr_len(s);
         }
         li = unsafe { (*li).li_next };
     }
@@ -328,9 +328,9 @@ pub fn encode_check_json_key(tv: &typval_T) -> bool {
 
 #[inline]
 fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
-    unsafe {
+     {
         if !s.is_null() {
-            gap.extend_from_slice(CStr::from_ptr(s).to_bytes());
+            gap.extend_from_slice(crate::memory::cstr_as_bytes(s));
         }
     }
 }
@@ -935,7 +935,7 @@ impl EncodeBackend<'_> {
                         ga_concat_literal(gap, b"function(");
                         let name_off = gap.len();
                         ga_concat_literal(gap, prefix);
-                        let fun_len = CStr::from_ptr(fun).to_bytes().len();
+                        let fun_len = crate::memory::cstr_len(fun);
                         convert_to_single_quoted_string(gap, fun, fun_len);
                         let data = gap.as_mut_ptr();
                         *data.add(name_off) = b'\'';
@@ -1183,7 +1183,7 @@ fn convert_one_value(
                 let len = if s.is_null() {
                     0
                 } else {
-                    CStr::from_ptr(s).to_bytes().len()
+                    crate::memory::cstr_len(s)
                 };
                 if !backend.conv_string(s, len) {
                     return FAIL;
@@ -1542,7 +1542,7 @@ fn encode_vim_with_backend(
                         *hi_ref = hi.add(1);
                     }
                     let key_ptr = (*di).di_key.as_ptr();
-                    let key_len = CStr::from_ptr(key_ptr).to_bytes().len();
+                    let key_len = crate::memory::cstr_len(key_ptr);
                     if !backend.conv_str_string(key_ptr, key_len) {
                         return false;
                     }
@@ -1864,7 +1864,7 @@ mod tests {
                         None => assert!(ptr.is_null()),
                         Some(bytes) => {
                             assert!(!ptr.is_null());
-                            assert_eq!(CStr::from_ptr(ptr).to_bytes(), bytes);
+                            assert_eq!(crate::memory::cstr_as_bytes(ptr), bytes);
                         }
                     }
                     li = (*li).li_next;

@@ -714,7 +714,7 @@ pub fn tv_list_set_ret(tv: &mut typval_T, l: *mut list_T) {
 
 #[inline]
 pub fn tv_alloc_string(s: *const c_char) -> *mut c_char {
-    unsafe { CStr::from_ptr(s).to_owned().into_raw() }
+     crate::memory::cstr_to_cstring(s).into_raw()
 }
 
 #[inline]
@@ -1725,7 +1725,7 @@ fn list_join_inner(
             item = (*item).li_next;
         }
 
-        let seplen = std::ffi::CStr::from_ptr(sep).to_bytes().len();
+        let seplen = crate::memory::cstr_len(sep);
         if join_vec.len() >= 2 {
             sumlen += seplen * (join_vec.len() - 1);
         }
@@ -1997,9 +1997,9 @@ fn item_compare(
             if info.item_compare_lc {
                 res = strcoll(p1, p2);
             } else if info.item_compare_ic != 0 {
-                res = std::ffi::CStr::from_ptr(p1).to_bytes().iter().map(u8::to_ascii_lowercase).cmp(std::ffi::CStr::from_ptr(p2).to_bytes().iter().map(u8::to_ascii_lowercase)) as c_int;
+                res = crate::memory::cstr_as_bytes(p1).iter().map(u8::to_ascii_lowercase).cmp(crate::memory::cstr_as_bytes(p2).iter().map(u8::to_ascii_lowercase)) as c_int;
             } else {
-                res = std::ffi::CStr::from_ptr(p1).to_bytes().cmp(std::ffi::CStr::from_ptr(p2).to_bytes()) as c_int;
+                res = crate::memory::cstr_as_bytes(p1).cmp(crate::memory::cstr_as_bytes(p2)) as c_int;
             }
         } else {
             let n1 = strtod(p1, &raw mut p1);
@@ -2210,7 +2210,7 @@ fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
 }
 
 fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> bool {
-    unsafe {
+     {
         info.item_compare_ic = 0;
         info.item_compare_lc = false;
         info.item_compare_numeric = false;
@@ -2228,7 +2228,7 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> bool
         if argvars[1].v_type == VarType::VAR_FUNC {
             let s = argvars[1].vval.v_string();
             if !s.is_null() {
-                info.item_compare_func = Some(CStr::from_ptr(s).to_owned());
+                info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
             }
         } else if argvars[1].v_type == VarType::VAR_PARTIAL {
             info.item_compare_partial = argvars[1].vval.v_partial();
@@ -2243,7 +2243,7 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> bool
             } else if argvars[1].v_type != VarType::VAR_NUMBER {
                 let s = tv_get_string(&argvars[1]);
                 if !s.is_null() {
-                    info.item_compare_func = Some(CStr::from_ptr(s).to_owned());
+                    info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
                 }
             } else if nr != 0 {
                 emsg(tr(e_invarg.as_ptr()));
@@ -2585,7 +2585,7 @@ pub fn callback_copy(dest: &mut Callback, src: &Callback) {
             }
             kCallbackFuncref => {
                 let funcref = src.data.as_funcref();
-                dest.data = CallbackData::funcref(CStr::from_ptr(funcref).to_owned());
+                dest.data = CallbackData::funcref(crate::memory::cstr_to_cstring(funcref));
                 func_ref(funcref);
             }
             kCallbackLua => {
@@ -2594,7 +2594,7 @@ pub fn callback_copy(dest: &mut Callback, src: &Callback) {
             }
             kCallbackExpr => {
                 dest.data =
-                    CallbackData::expr(CStr::from_ptr(src.data.as_funcref()).to_owned());
+                    CallbackData::expr(crate::memory::cstr_to_cstring(src.data.as_funcref()));
             }
             _ => {
                 dest.data = CallbackData::NONE;
@@ -2615,7 +2615,7 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
 
         match cb.cb_type() {
             kCallbackFuncref => {
-                let s = CStr::from_ptr(cb.data.as_funcref()).to_bytes();
+                let s = crate::memory::cstr_as_bytes(cb.data.as_funcref());
                 let prefix = b"<vim function: ";
                 let suffix = b">";
                 let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());
@@ -2695,7 +2695,7 @@ fn tv_dict_watcher_matches(watcher: &DictWatcher, key: *const c_char) -> bool {
         if len > 0 && *pat_ptr.add(len - 1) == b'*' as c_char {
             crate::memory::cstr_prefix_bytes(key, len - 1) == crate::memory::cstr_prefix_bytes(pat_ptr, len - 1)
         } else {
-            std::ffi::CStr::from_ptr(key).to_bytes() == std::ffi::CStr::from_ptr(pat_ptr).to_bytes()
+            crate::memory::cstr_as_bytes(key) == crate::memory::cstr_as_bytes(pat_ptr)
         }
     }
 }
@@ -2789,7 +2789,7 @@ pub fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictit
 
 /// Allocate a dictionary item.
 pub fn tv_dict_item_alloc(key: *const c_char) -> *mut dictitem_T {
-    unsafe { tv_dict_item_alloc_len(key, std::ffi::CStr::from_ptr(key).to_bytes().len()) }
+     tv_dict_item_alloc_len(key, crate::memory::cstr_len(key))
 }
 
 /// Free a dictionary item, also clearing the value.
@@ -2977,8 +2977,8 @@ pub fn tv_dict_to_env(denv: *mut dict_T) -> Vec<std::ffi::CString> {
                     let var = tv_dict_hi2di(hi);
                     let str_ = tv_get_string(&(*var).di_tv);
                     debug_assert!(!str_.is_null());
-                    let key_bytes = CStr::from_ptr((*var).di_key.as_ptr()).to_bytes();
-                    let val_bytes = CStr::from_ptr(str_).to_bytes();
+                    let key_bytes = crate::memory::cstr_as_bytes((*var).di_key.as_ptr());
+                    let val_bytes = crate::memory::cstr_as_bytes(str_);
                     let mut entry = Vec::with_capacity(key_bytes.len() + 1 + val_bytes.len());
                     entry.extend_from_slice(key_bytes);
                     entry.push(b'=');
@@ -3301,7 +3301,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
     unsafe {
         let watched = tv_dict_is_watched_inline(&raw mut *d1);
         let arg_errmsg = tr(c"extend() argument".as_ptr());
-        let arg_errmsg_len = std::ffi::CStr::from_ptr(arg_errmsg).to_bytes().len();
+        let arg_errmsg_len = crate::memory::cstr_len(arg_errmsg);
 
         if *action == b'm' as c_char {
             hash_lock(&mut d2.dv_hashtab);
@@ -3449,7 +3449,7 @@ pub fn tv_dict_copy(
                 let di = tv_dict_hi2di(hi);
                 let key_ptr = (*di).di_key.as_mut_ptr();
                 let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
-                    let mut len = std::ffi::CStr::from_ptr(key_ptr).to_bytes().len();
+                    let mut len = crate::memory::cstr_len(key_ptr);
                     if let Some(key) = string_convert(conv, key_ptr, Some(&mut len)) {
                         tv_dict_item_alloc_len(key.as_ptr().cast(), len)
                     } else {
@@ -4513,7 +4513,7 @@ pub fn value_check_lock(
     mut name: *const c_char,
     mut name_len: usize,
 ) -> bool {
-    unsafe {
+     {
         match lock {
             VAR_UNLOCKED => return false,
             VAR_LOCKED => {
@@ -4527,9 +4527,9 @@ pub fn value_check_lock(
                 } else {
                     if name_len == TV_TRANSLATE {
                         name = tr(name);
-                        name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+                        name_len = crate::memory::cstr_len(name);
                     } else if name_len == TV_CSTRING {
-                        name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+                        name_len = crate::memory::cstr_len(name);
                     }
                     semsg!(tr(error_message), name_len as c_int, name);
                 }
@@ -4545,9 +4545,9 @@ pub fn value_check_lock(
                 } else {
                     if name_len == TV_TRANSLATE {
                         name = tr(name);
-                        name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+                        name_len = crate::memory::cstr_len(name);
                     } else if name_len == TV_CSTRING {
-                        name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
+                        name_len = crate::memory::cstr_len(name);
                     }
                     semsg!(tr(error_message), name_len as c_int, name);
                 }
@@ -5251,8 +5251,8 @@ mod tests {
             tv_list_insert_tv(l2, &mut tv_ins, (*l2).lv_first);
             assert_eq!(tv_list_len_inline(l2), 3);
             assert_eq!(tv_list_find_nr(l2, 0, None), 99);
-            assert_eq!(CStr::from_ptr(tv_list_find_str(l2, 1)).to_bytes(), b"hello");
-            assert_eq!(CStr::from_ptr(tv_list_find_str(l2, 2)).to_bytes(), b"world");
+            assert_eq!(crate::memory::cstr_as_bytes(tv_list_find_str(l2, 1)), b"hello");
+            assert_eq!(crate::memory::cstr_as_bytes(tv_list_find_str(l2, 2)), b"world");
 
             // copy, extend, concat, join, equal
             let l2_copy = tv_list_copy(None, l2, true, 0);
@@ -5312,7 +5312,7 @@ mod tests {
 
             let mut numbuf = [0 as c_char; NUMBUFLEN];
             assert_eq!(
-                CStr::from_ptr(tv_dict_get_string(d, c"str".as_ptr())).to_bytes(),
+                crate::memory::cstr_as_bytes(tv_dict_get_string(d, c"str".as_ptr())),
                 b"bar"
             );
             let saved = tv_dict_get_cstring(d, c"foo".as_ptr()).unwrap();
@@ -5363,7 +5363,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
+         {
             crate::main_init::ensure_test_editor_init();
             crate::globals::g_st().emsg_skip += 1;
 
@@ -5379,7 +5379,7 @@ mod tests {
             assert_eq!(tv_get_float(&tv), 5.0);
             let mut buf = [0 as c_char; NUMBUFLEN];
             assert_eq!(
-                CStr::from_ptr(tv_get_string_buf(&tv, buf.as_mut_ptr())).to_bytes(),
+                crate::memory::cstr_as_bytes(tv_get_string_buf(&tv, buf.as_mut_ptr())),
                 b"5"
             );
 

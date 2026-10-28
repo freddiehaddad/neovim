@@ -203,7 +203,7 @@ pub fn vim_findfile_init(
             let len = path_tail(rel_fname).offset_from(rel_fname) as usize;
 
             if !vim_isAbsName(rel_fname) && len + 1 < MAXPATHL {
-                { let _d = (expand_ptr).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((rel_fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                crate::memory::cstr_ncpy(expand_ptr, rel_fname, len);
                 let full = FullName_save(expand_ptr, false).unwrap_or_default();
                 search_ctx.ffsc_start_dir =
                     cbuf_to_string(full.as_ptr(), full.as_bytes().len());
@@ -232,7 +232,7 @@ pub fn vim_findfile_init(
             if !handled_drive && !os_dirname(expand_ptr, MAXPATHL) {
                 return None;
             }
-            let expand_len = CStr::from_ptr(expand_ptr).to_bytes().len();
+            let expand_len = crate::memory::cstr_len(expand_ptr);
 
             search_ctx.ffsc_start_dir = copy_string(
                 NvimString {
@@ -255,10 +255,10 @@ pub fn vim_findfile_init(
                 let len = if !walker.is_null() {
                     walker.offset_from(helper) as usize
                 } else {
-                    CStr::from_ptr(helper).to_bytes().len()
+                    crate::memory::cstr_len(helper)
                 };
                 let dir_str = if *helper != NUL && !vim_isAbsName(helper) && len + 1 < MAXPATHL {
-                    { let _d = (expand_ptr).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((helper).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                    crate::memory::cstr_ncpy(expand_ptr, helper, len);
                     FullName_save(helper, len != 0).unwrap_or_default()
                 } else {
                     std::ffi::CString::new(std::slice::from_raw_parts(helper.cast::<u8>(), len))
@@ -758,7 +758,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                                             file_path.size = new_len;
                                         }
                                     }
-                                    return Some(CStr::from_ptr(file_path.data).to_owned());
+                                    return Some(crate::memory::cstr_to_cstring(file_path.data));
                                 }
 
                                 if *suf == NUL {
@@ -992,7 +992,7 @@ fn ff_check_visited(
         let mut expand_size: usize = 0;
 
         if path_with_url(fname) != 0 {
-            { let _d = (expand_buf.as_mut_ptr()).cast::<u8>(); let _n = fnamelen; if _n > 0 { std::ptr::copy_nonoverlapping((fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+            crate::memory::cstr_ncpy(expand_buf.as_mut_ptr(), fname, fnamelen);
             expand_size = fnamelen;
             url = true;
         } else {
@@ -1266,7 +1266,7 @@ pub fn find_file_in_path_option(
                 }
 
                 let rel_fnamelen = if !rel_fname.is_null() {
-                    CStr::from_ptr(rel_fname).to_bytes().len()
+                    crate::memory::cstr_len(rel_fname)
                 } else {
                     0
                 };
@@ -1410,7 +1410,7 @@ pub fn grab_file_name(count: c_int, file_lnum: &mut linenr_T) -> Option<std::ffi
                 .map(|b| b as c_char)
                 .collect();
             path_to_slash(bytes.as_mut_ptr());
-            CStr::from_ptr(bytes.as_ptr()).to_owned()
+            crate::memory::cstr_to_cstring(bytes.as_ptr())
         };
         Some(fname)
     }
@@ -1469,7 +1469,7 @@ pub fn file_name_in_line(
             }
         }
 
-        let mut len = if path_has_drive_letter(ptr, CStr::from_ptr(ptr).to_bytes().len()) {
+        let mut len = if path_has_drive_letter(ptr, crate::memory::cstr_len(ptr)) {
             2
         } else {
             0
@@ -1504,11 +1504,11 @@ pub fn file_name_in_line(
         if let Some(file_lnum) = file_lnum {
             let english = b" line ";
             let mut p = ptr.add(len);
-            let p_bytes = CStr::from_ptr(p).to_bytes();
+            let p_bytes = crate::memory::cstr_as_bytes(p);
             if p_bytes.starts_with(english) {
                 p = p.add(english.len());
             } else {
-                let loc_msg = CStr::from_ptr(tr(line_msg.as_ptr())).to_bytes();
+                let loc_msg = crate::memory::cstr_as_bytes(tr(line_msg.as_ptr()));
                 if p_bytes.starts_with(loc_msg) {
                     p = p.add(loc_msg.len());
                 } else {
@@ -1541,7 +1541,7 @@ fn eval_includeexpr(ptr: *const c_char, len: usize) -> Option<std::ffi::CString>
         let mut res = None;
         if eval_expr_option_tv(&mut (*g_st().curbuf).b_p_inex, use_sandbox, &mut tv) {
             let s = tv_get_string(&tv);
-            res = Some(CStr::from_ptr(s).to_owned());
+            res = Some(crate::memory::cstr_to_cstring(s));
             tv_clear(&raw mut tv);
         }
 
@@ -1759,7 +1759,7 @@ pub fn vim_chdir(new_dir: *mut c_char) -> c_int {
         let mut search_ctx: Option<ff_search_ctx_T> = None;
         let Some(dir_name) = find_directory_in_path(
             new_dir,
-            CStr::from_ptr(new_dir).to_bytes().len(),
+            crate::memory::cstr_len(new_dir),
             FNAME_MESS,
             (*g_st().curbuf).b_ffname,
             &mut file_to_find,
@@ -1781,16 +1781,16 @@ mod tests {
         let mut buf = *b"/a/b;/c/d\0";
         let stop = vim_findfile_stopdir(buf.as_mut_ptr().cast());
         assert!(!stop.is_null());
-        let first = unsafe { CStr::from_ptr(buf.as_ptr().cast()).to_bytes() };
-        let rest = unsafe { CStr::from_ptr(stop).to_bytes() };
+        let first =  { crate::memory::cstr_as_bytes(buf.as_ptr().cast()) };
+        let rest =  { crate::memory::cstr_as_bytes(stop) };
         assert_eq!(first, b"/a/b");
         assert_eq!(rest, b"/c/d");
 
         let mut escaped = *b"/a\\;b;/c\0";
         let stop2 = vim_findfile_stopdir(escaped.as_mut_ptr().cast());
         assert!(!stop2.is_null());
-        let first2 = unsafe { CStr::from_ptr(escaped.as_ptr().cast()).to_bytes() };
-        let rest2 = unsafe { CStr::from_ptr(stop2).to_bytes() };
+        let first2 =  { crate::memory::cstr_as_bytes(escaped.as_ptr().cast()) };
+        let rest2 =  { crate::memory::cstr_as_bytes(stop2) };
         assert_eq!(first2, b"/a;b");
         assert_eq!(rest2, b"/c");
 

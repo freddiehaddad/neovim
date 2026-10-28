@@ -55,7 +55,7 @@ use crate::regexp::{
 use crate::runtime::script_autoload;
 use crate::viml::parser::parser::CONV_NONE;
 use crate::window::{win_T, win_find_tabpage};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 static REGEX_META: [luaL_Reg; 5] = [
@@ -358,7 +358,7 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
         let mut dict: *mut dict_T = ptr::null_mut();
         let mut err = Error::new();
 
-        match CStr::from_ptr(scope).to_bytes() {
+        match crate::memory::cstr_as_bytes(scope) {
             b"g" => dict = get_globvar_dict(),
             b"v" => dict = get_vimvar_dict(),
             b"b" => {
@@ -632,7 +632,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
         lua_pushnil(lstate);
         while lua_next(lstate, 1) != 0 {
             if lua_type(lstate, -2) == LUA_TSTRING {
-                let k = CStr::from_ptr(lua_tostring(lstate, -2)).to_bytes();
+                let k = crate::memory::cstr_as_bytes(lua_tostring(lstate, -2));
                 let v = lua_toboolean(lstate, -1) != 0;
                 match k {
                     b"buf" => buf = handle_get_buffer(luaL_checkinteger(lstate, -1) as c_int),

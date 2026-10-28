@@ -324,7 +324,7 @@ impl Drop for compl_T {
                 && !self.cp_str.data.is_null()
                 && (self.cp_flags & CP_ORIGINAL_TEXT) == 0
             {
-                let key = CStr::from_ptr(self.cp_str.data).to_bytes();
+                let key = crate::memory::cstr_as_bytes(self.cp_str.data);
                 if let Some(count) = (*ht_ptr).get_mut(key) {
                     *count -= 1;
                     if *count <= 0 {
@@ -1219,7 +1219,7 @@ fn ins_compl_add(
             return FAIL;
         }
         if len < 0 {
-            len = std::ffi::CStr::from_ptr(str_ptr).to_bytes().len() as c_int;
+            len = crate::memory::cstr_len(str_ptr) as c_int;
         }
 
         // If the same match is already present, don't add it.
@@ -1250,7 +1250,7 @@ fn ins_compl_add(
         ins_compl_del_pum();
 
         let cp_fname = if !fname.is_null() {
-            Some(CStr::from_ptr(fname).to_owned())
+            Some(crate::memory::cstr_to_cstring(fname))
         } else {
             None
         };
@@ -1403,7 +1403,7 @@ fn ins_compl_equal_sc(match_: &mut compl_T, str_ptr: *const c_char, len: usize) 
 fn ins_compl_insert_bytes(p: *const c_char, mut len: c_int) {
     unsafe {
         if len == -1 {
-            len = std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int;
+            len = crate::memory::cstr_len(p) as c_int;
         }
         debug_assert!(len >= 0);
         ins_bytes_len(p.cast_mut(), len as usize);
@@ -1942,7 +1942,7 @@ fn ins_compl_build_pum() -> c_int {
                             if comp.cp_str.data.is_null() {
                                 None
                             } else {
-                                Some(CStr::from_ptr(comp.cp_str.data).to_owned())
+                                Some(crate::memory::cstr_to_cstring(comp.cp_str.data))
                             }
                         }),
                         pum_kind: comp.cp_text[CPT_KIND].clone(),
@@ -2152,7 +2152,7 @@ fn ins_compl_dictionaries(
                 count = 1;
             } else {
                 copy_option_part(&raw mut dict, buf, LSIZE, c",".as_ptr());
-                if !thesaurus && std::ffi::CStr::from_ptr(buf).to_bytes() == b"spell" {
+                if !thesaurus && crate::memory::cstr_as_bytes(buf) == b"spell" {
                     count = -1;
                 } else if !vim_strchr(buf, b'`' as c_int).is_null()
                     || !expand_wildcards_vec(1, &raw mut buf, &mut files, EW_FILE | EW_SILENT)
@@ -2173,7 +2173,7 @@ fn ins_compl_dictionaries(
             } else if count > 0 {
                 if flags == DICT_EXACT {
                     ins_compl_files(
-                        &[CStr::from_ptr(dict).to_owned()],
+                        &[crate::memory::cstr_to_cstring(dict)],
                         thesaurus,
                         flags,
                         &mut regmatch,
@@ -2413,7 +2413,7 @@ pub fn find_word_end(mut ptr: *mut c_char) -> *mut c_char {
 
 pub fn find_line_end(ptr: *mut c_char) -> *mut c_char {
     unsafe {
-        let mut s = ptr.add(std::ffi::CStr::from_ptr(ptr).to_bytes().len());
+        let mut s = ptr.add(crate::memory::cstr_len(ptr));
         while s > ptr && (*s.sub(1) == CAR as c_char || *s.sub(1) == NL as c_char) {
             s = s.sub(1);
         }
@@ -2905,7 +2905,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             && pum_visible()
         {
             let shown = compl_opt(insexp().compl_shown_idx);
-            word_owned = Some(CStr::from_ptr((*shown).cp_str.data).to_owned());
+            word_owned = Some(crate::memory::cstr_to_cstring((*shown).cp_str.data));
             if !is_commit {
                 retval = true;
             }
@@ -2921,7 +2921,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             && !curr.is_null()
             && !(*curr).cp_str.data.is_null()
         {
-            word_owned = Some(CStr::from_ptr((*curr).cp_str.data).to_owned());
+            word_owned = Some(crate::memory::cstr_to_cstring((*curr).cp_str.data));
         }
 
         if c == Ctrl_E {
@@ -3388,7 +3388,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
 fn get_user_highlight_id(hlname: *const c_char) -> c_int {
     unsafe {
         if !hlname.is_null() && *hlname != NUL {
-            return syn_check_group(hlname, std::ffi::CStr::from_ptr(hlname).to_bytes().len());
+            return syn_check_group(hlname, crate::memory::cstr_len(hlname));
         }
         0
     }
@@ -3488,7 +3488,7 @@ fn ins_compl_add_dict(dict: &mut dict_T) {
         let di_refresh = tv_dict_find(dict, c"refresh".as_ptr(), 7);
         if !di_refresh.is_null() && (*di_refresh).di_tv.v_type == VAR_STRING {
             let v = (*di_refresh).di_tv.vval.v_string();
-            if !v.is_null() && std::ffi::CStr::from_ptr(v).to_bytes() == b"always" {
+            if !v.is_null() && crate::memory::cstr_as_bytes(v) == b"always" {
                 insexp().compl_opt_refresh_always = true;
             }
         }
@@ -3819,21 +3819,21 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             let mut item: *mut listitem_T = (*what_list).lv_first;
             while !item.is_null() {
                 let what = tv_get_string(&(*item).li_tv);
-                if std::ffi::CStr::from_ptr(what).to_bytes() == b"mode" {
+                if crate::memory::cstr_as_bytes(what) == b"mode" {
                     what_flag |= CI_WHAT_MODE;
-                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"pum_visible" {
+                } else if crate::memory::cstr_as_bytes(what) == b"pum_visible" {
                     what_flag |= CI_WHAT_PUM_VISIBLE;
-                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"items" {
+                } else if crate::memory::cstr_as_bytes(what) == b"items" {
                     what_flag |= CI_WHAT_ITEMS;
-                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"selected" {
+                } else if crate::memory::cstr_as_bytes(what) == b"selected" {
                     what_flag |= CI_WHAT_SELECTED;
-                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"completed" {
+                } else if crate::memory::cstr_as_bytes(what) == b"completed" {
                     what_flag |= CI_WHAT_COMPLETED;
-                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"preinserted_text" {
+                } else if crate::memory::cstr_as_bytes(what) == b"preinserted_text" {
                     what_flag |= CI_WHAT_PREINSERTED_TEXT;
-                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"matches" {
+                } else if crate::memory::cstr_as_bytes(what) == b"matches" {
                     what_flag |= CI_WHAT_MATCHES;
-                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"auto" {
+                } else if crate::memory::cstr_as_bytes(what) == b"auto" {
                     what_flag |= CI_WHAT_AUTO;
                 }
                 item = (*item).li_next;
@@ -4055,7 +4055,7 @@ fn process_next_cpt_value(
                     return INS_COMPL_CPT_CONT;
                 }
                 compl_type = CTRL_X_DICTIONARY;
-                st.dict = Some(CStr::from_ptr((*st.ins_buf).b_fname).to_owned());
+                st.dict = Some(crate::memory::cstr_to_cstring((*st.ins_buf).b_fname));
                 st.dict_f = DICT_EXACT;
             }
             if !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
@@ -4103,7 +4103,7 @@ fn process_next_cpt_value(
                     }
                     st.e_cpt_idx += 1;
                     if st.e_cpt_char() != b',' as c_char && st.e_cpt_char() != NUL {
-                        st.dict = Some(CStr::from_ptr(st.e_cpt_ptr()).to_owned());
+                        st.dict = Some(crate::memory::cstr_to_cstring(st.e_cpt_ptr()));
                         st.dict_f = DICT_FIRST;
                     }
                 } else if st.e_cpt_char() == b'i' as c_char {
@@ -4356,7 +4356,7 @@ fn get_next_filename_completion() {
             {
                 path_to_slash(leader);
             }
-            let last_sep = CStr::from_ptr(leader).to_bytes().iter().rposition(|&b| b == PATHSEP as u8).map_or(ptr::null_mut(), |i| leader.add(i));
+            let last_sep = crate::memory::cstr_as_bytes(leader).iter().rposition(|&b| b == PATHSEP as u8).map_or(ptr::null_mut(), |i| leader.add(i));
             if last_sep.is_null() {
                 insexp().compl_pattern = Some(c"*".to_owned());
             } else if *last_sep.add(1) == NUL {
@@ -4737,7 +4737,7 @@ fn get_next_default_completion(
                     &mut cont_s_ipos,
                 );
             }
-            if ptr.is_null() || (ins_compl_has_preinsert() && (std::ffi::CStr::from_ptr(ptr).to_bytes() == std::ffi::CStr::from_ptr(ins_compl_leader()).to_bytes()))
+            if ptr.is_null() || (ins_compl_has_preinsert() && (crate::memory::cstr_as_bytes(ptr) == crate::memory::cstr_as_bytes(ins_compl_leader())))
             {
                 continue;
             }
@@ -4801,7 +4801,7 @@ fn get_register_completion() {
                 }
 
                 if adding_mode {
-                    let str_len = std::ffi::CStr::from_ptr(str_ptr).to_bytes().len() as c_int;
+                    let str_len = crate::memory::cstr_len(str_ptr) as c_int;
                     if str_len == 0 {
                         continue;
                     }
@@ -4826,7 +4826,7 @@ fn get_register_completion() {
                         dir = FORWARD;
                     }
                 } else {
-                    let str_end = str_ptr.add(std::ffi::CStr::from_ptr(str_ptr).to_bytes().len());
+                    let str_end = str_ptr.add(crate::memory::cstr_len(str_ptr));
                     let mut p = str_ptr;
 
                     while p < str_end && *p != NUL {
@@ -4977,7 +4977,7 @@ fn get_next_bufname_token() {
                 if crate::memory::cstr_prefix_bytes(tail, insexp().compl_orig_text.size) == crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size) {
                     ins_compl_add(
                         tail,
-                        std::ffi::CStr::from_ptr(tail).to_bytes().len() as c_int,
+                        crate::memory::cstr_len(tail) as c_int,
                         ptr::null_mut(),
                         [const { None }; CPT_COUNT],
                         None,
@@ -5470,7 +5470,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
                         && (crate::memory::cstr_prefix_bytes(ins_compl_leader(), ins_compl_leader_len()) == crate::memory::cstr_prefix_bytes(compl.cp_str.data, ins_compl_leader_len()))
                     {
                         first = compl.cp_str.data;
-                        len = std::ffi::CStr::from_ptr(first).to_bytes().len() as c_int;
+                        len = crate::memory::cstr_len(first) as c_int;
                     } else if !first.is_null() {
                         let mut j: c_int = 0;
                         let mut s1 = first;
@@ -5499,7 +5499,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
 
         if len > ins_compl_leader_len() as c_int {
             debug_assert!(!first.is_null());
-            if len == std::ffi::CStr::from_ptr(first).to_bytes().len() as c_int {
+            if len == crate::memory::cstr_len(first) as c_int {
                 let line = get_cursor_line_ptr();
                 let p = line.add((**curwin.as_ptr()).w_cursor.col as usize);
                 if !p.is_null() && !ascii_iswhite_or_nul(*p) {
@@ -5528,7 +5528,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         let mut cp_str = (*shown).cp_str.data;
         let mut cp_str_len = (*shown).cp_str.size;
         let leader_len = ins_compl_leader_len();
-        let has_multiple = CStr::from_ptr(cp_str).to_bytes().contains(&b'\n');
+        let has_multiple = crate::memory::cstr_as_bytes(cp_str).contains(&b'\n');
 
         let cpt_sources = &raw const insexp().cpt_sources_array;
         if insert_prefix {
@@ -6003,7 +6003,7 @@ fn get_normal_compl_info(
                 as usize
                 + prefixlen;
             let mut pat_vec: Vec<c_char> = vec![0; n];
-            { let s = prefix; std::ptr::copy_nonoverlapping(s, pat_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), prefix);
             quote_meta(
                 pat_vec.as_mut_ptr().add(prefixlen),
                 line.add(insexp().compl_col as usize),
@@ -6036,16 +6036,16 @@ fn get_normal_compl_info(
                 insexp().compl_length = curs_col - startcol;
                 if insexp().compl_length == 1 {
                     let mut pat_vec = [0 as c_char; 7];
-                    { let s = c"\\<".as_ptr(); std::ptr::copy_nonoverlapping(s, pat_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
                     quote_meta(pat_vec.as_mut_ptr().add(2), line.add(insexp().compl_col as usize), 1);
-                    { let d = pat_vec.as_mut_ptr(); let s = c"\\k".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                    set_compl_pattern_bytes(pat_vec.as_ptr(), std::ffi::CStr::from_ptr(pat_vec.as_ptr()).to_bytes().len());
+                    { let d = pat_vec.as_mut_ptr(); let s = c"\\k".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    set_compl_pattern_bytes(pat_vec.as_ptr(), crate::memory::cstr_len(pat_vec.as_ptr()));
                 } else {
                     let n = quote_meta(ptr::null_mut(), line.add(insexp().compl_col as usize), insexp().compl_length)
                         as usize
                         + 2;
                     let mut pat_vec: Vec<c_char> = vec![0; n];
-                    { let s = c"\\<".as_ptr(); std::ptr::copy_nonoverlapping(s, pat_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
                     quote_meta(
                         pat_vec.as_mut_ptr().add(2),
                         line.add(insexp().compl_col as usize),
@@ -6826,7 +6826,7 @@ fn setup_cpt_sources() {
                 if slen > 0 {
                     let caret = vim_strchr(buf.as_mut_ptr(), b'^' as c_int);
                     if !caret.is_null() {
-                        sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(caret.add(1)).to_bytes()) as c_int;
+                        sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(caret.add(1))) as c_int;
                     }
                 }
                 idx += 1;

@@ -12,7 +12,7 @@ use crate::memory::{cstr_from_bytes};
 use crate::option::{get_fileformat, skip_to_option_part};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
-use std::ffi::{CStr, CString, c_char, c_int, c_long, c_uint};
+use std::ffi::{CString, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::change::TAB;
@@ -352,7 +352,7 @@ pub fn parse_isopt(var: *const c_char, chartab: *mut u64) -> bool {
 
 pub fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
     unsafe {
-        let mut len = CStr::from_ptr(buf).to_bytes().len() as c_int;
+        let mut len = crate::memory::cstr_len(buf) as c_int;
         let mut room = bufsize - len;
 
         while *buf != NUL {
@@ -361,7 +361,7 @@ pub fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
                 len -= trs_len;
             } else {
                 let trs = transchar_byte(c_int::from(*buf as u8));
-                trs_len = CStr::from_ptr(trs).to_bytes().len() as c_int;
+                trs_len = crate::memory::cstr_len(trs) as c_int;
 
                 if trs_len > 1 {
                     room -= trs_len - 1;
@@ -460,7 +460,7 @@ pub fn transstr_buf(
                 let c = *p as u8;
                 p = p.add(1);
                 let tb = transchar_byte(c_int::from(c));
-                let tb_len = CStr::from_ptr(tb).to_bytes().len();
+                let tb_len = crate::memory::cstr_len(tb);
                 if buf_p.add(tb_len) > buf_e {
                     break;
                 }
@@ -556,7 +556,7 @@ pub fn str_foldcase(
                         let base = str_ptr(&mut vec, i);
                         let src = base.add(olen as usize);
                         let dst = base.add(nlen as usize);
-                        let tail_len = CStr::from_ptr(src).to_bytes().len() + 1;
+                        let tail_len = crate::memory::cstr_len(src) + 1;
                         ptr::copy(src, dst, tail_len);
                         if buf.is_null() {
                             if nlen < olen {
@@ -574,7 +574,7 @@ pub fn str_foldcase(
         }
 
         if buf.is_null() {
-            let out_len = CStr::from_ptr(vec.as_ptr()).to_bytes().len();
+            let out_len = crate::memory::cstr_len(vec.as_ptr());
             Some(cstr_from_bytes(std::slice::from_raw_parts(
                 vec.as_ptr().cast::<u8>(),
                 out_len,
@@ -680,7 +680,7 @@ pub fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
         let mut p2 = if !end.is_null() {
             end
         } else {
-            str_.add(CStr::from_ptr(str_).to_bytes().len())
+            str_.add(crate::memory::cstr_len(str_))
         }
         .sub(1);
         while p1 < p2 {
@@ -884,7 +884,7 @@ pub fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
 }
 
 pub fn skip_to_newline(p: *const c_char) -> *mut c_char {
-    unsafe { { let _s = p; let _b = std::ffi::CStr::from_ptr(_s).to_bytes(); let _off = _b.iter().position(|&_x| _x == (NL) as u8).unwrap_or(_b.len()); _s.add(_off).cast_mut() } }
+    unsafe { { let _s = p; let _b = crate::memory::cstr_as_bytes(_s); let _off = _b.iter().position(|&_x| _x == (NL) as u8).unwrap_or(_b.len()); _s.add(_off).cast_mut() } }
 }
 
 pub fn try_getdigits(pp: *mut *mut c_char, nr: &mut i64) -> bool {
@@ -1289,7 +1289,7 @@ pub fn backslash_halve(mut p: *mut c_char) {
 
 pub fn backslash_halve_save(mut p: *const c_char) -> CString {
     unsafe {
-        let mut res = Vec::with_capacity(CStr::from_ptr(p).to_bytes().len());
+        let mut res = Vec::with_capacity(crate::memory::cstr_len(p));
         while *p != NUL {
             if rem_backslash(p) {
                 res.push(*p.add(1) as u8);
@@ -1306,6 +1306,7 @@ pub fn backslash_halve_save(mut p: *const c_char) -> CString {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
     use crate::eval::STR2NR_ALL;
     use crate::keycodes::{K_UP, K_ZERO, KE_FILLER};
 

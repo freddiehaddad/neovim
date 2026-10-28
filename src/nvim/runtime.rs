@@ -412,7 +412,7 @@ pub fn estack_push(type_: etype_T, name: *const c_char, lnum: linenr_T) -> *mut 
             es_name: if name.is_null() {
                 None
             } else {
-                Some(CStr::from_ptr(name).to_owned())
+                Some(crate::memory::cstr_to_cstring(name))
             },
             es_lnum: lnum,
             es_info: crate::profile::EStackInfo::None,
@@ -784,16 +784,16 @@ pub fn do_in_path(
                 }
 
                 if name.is_null() {
-                    callback.invoke(&[CStr::from_ptr(buf).to_owned()], do_all);
+                    callback.invoke(&[crate::memory::cstr_to_cstring(buf)], do_all);
                     did_one = true;
                 } else {
-                    let prefix_len = CStr::from_ptr(prefix).to_bytes().len();
-                    let name_len = CStr::from_ptr(name).to_bytes().len();
+                    let prefix_len = crate::memory::cstr_len(prefix);
+                    let name_len = crate::memory::cstr_len(name);
                     if buflen + 2 + prefix_len + name_len < MAXPATHL {
                         add_pathsep(buf);
-                        let cur_len = CStr::from_ptr(buf).to_bytes().len();
+                        let cur_len = crate::memory::cstr_len(buf);
                         ptr::copy_nonoverlapping(prefix, buf.add(cur_len), prefix_len + 1);
-                        let tail = buf.add(CStr::from_ptr(buf).to_bytes().len());
+                        let tail = buf.add(crate::memory::cstr_len(buf));
 
                         let mut np = name;
                         while *np != NUL && (do_all || !did_one) {
@@ -912,12 +912,12 @@ fn do_in_cached_path(
 
             if name.is_null() {
                 callback.invoke(std::slice::from_ref(&item.path), do_all);
-            } else if buflen + CStr::from_ptr(name).to_bytes().len() + 2 < MAXPATHL {
+            } else if buflen + crate::memory::cstr_len(name) + 2 < MAXPATHL {
                 ptr::copy_nonoverlapping(item_path, buf.as_mut_ptr(), buflen + 1);
                 add_pathsep(buf.as_mut_ptr());
                 let tail = buf
                     .as_mut_ptr()
-                    .add(CStr::from_ptr(buf.as_ptr()).to_bytes().len());
+                    .add(crate::memory::cstr_len(buf.as_ptr()));
 
                 let mut np = name;
                 while *np != NUL && (do_all || !did_one) {
@@ -1141,10 +1141,10 @@ fn push_path(
     after: bool,
     pos_in_rtp: usize,
 ) -> bool {
-    unsafe {
-        if rtp_used.insert(CStr::from_ptr(entry).to_bytes().to_vec()) {
+     {
+        if rtp_used.insert(crate::memory::cstr_as_bytes(entry).to_vec()) {
             search_path.push(SearchPathItem {
-                path: CStr::from_ptr(entry).to_owned(),
+                path: crate::memory::cstr_to_cstring(entry),
                 after,
                 pack_inserted: false,
                 has_lua: kNone,
@@ -1164,7 +1164,7 @@ fn expand_rtp_entry(
     pos_in_rtp: usize,
 ) {
     unsafe {
-        if rtp_used.contains(CStr::from_ptr(entry).to_bytes()) {
+        if rtp_used.contains(crate::memory::cstr_as_bytes(entry)) {
             return;
         }
 
@@ -1205,7 +1205,7 @@ fn expand_pack_entry(
                 MAXPATHL - pack_entry_len,
             );
             expand_rtp_entry(search_path, rtp_used, buf, false, pos_in_rtp);
-            let mut after_bytes = Vec::from(CStr::from_ptr(buf).to_bytes());
+            let mut after_bytes = Vec::from(crate::memory::cstr_as_bytes(buf));
             after_bytes.extend_from_slice(b"/after");
             after_path.push(cstr_from_bytes(&after_bytes));
         }
@@ -1216,7 +1216,7 @@ fn path_is_after(buf: *const c_char, buflen: usize) -> bool {
     unsafe {
         buflen >= 5
             && (buflen < 6 || vim_ispathsep(*buf.add(buflen - 6) as u8 as c_int))
-            && CStr::from_ptr(buf.add(buflen - 5)).to_bytes() == b"after"
+            && crate::memory::cstr_as_bytes(buf.add(buflen - 5)) == b"after"
     }
 }
 
@@ -1261,7 +1261,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
 
             expand_rtp_entry(&mut search_path, &mut rtp_used, buf, false, pos_in_rtp);
 
-            if let Some(h) = pack_used.get_mut(CStr::from_ptr(buf).to_bytes()) {
+            if let Some(h) = pack_used.get_mut(crate::memory::cstr_as_bytes(buf)) {
                 *h += 1;
                 expand_pack_entry(
                     &mut search_path,
@@ -1478,7 +1478,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
                     buf.size
                 };
 
-                let p_after = CStr::from_ptr(buf.data).to_bytes().windows(5).position(|w| w == b"after").map_or(ptr::null_mut(), |i| buf.data.add(i));
+                let p_after = crate::memory::cstr_as_bytes(buf.data).windows(5).position(|w| w == b"after").map_or(ptr::null_mut(), |i| buf.data.add(i));
                 let is_after = !p_after.is_null()
                     && (p_after as usize) > (buf.data as usize)
                     && vim_ispathsep(*p_after.sub(1) as u8 as c_int)
@@ -1505,12 +1505,12 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
                 }
             }
 
-            p_rtp_len += CStr::from_ptr(opt_vars().p_rtp.add(p_rtp_len)).to_bytes().len();
+            p_rtp_len += crate::memory::cstr_len(opt_vars().p_rtp.add(p_rtp_len));
             if insp.is_null() {
                 insp = opt_vars().p_rtp.add(p_rtp_len);
             }
 
-            fname_len = CStr::from_ptr(fname).to_bytes().len();
+            fname_len = crate::memory::cstr_len(fname);
             let ad = crate::path::concat_fnames_cstr(fname, c"after".as_ptr(), true);
             let mut afterdir = NvimString {
                 data: ad.as_ptr().cast_mut(),
@@ -1761,7 +1761,7 @@ fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
                     continue;
                 }
                 xstrlcpy(buf, fname_cstr.as_ptr(), MAXPATHL);
-                { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), pat.as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), pat.as_ptr(), _dsize - _dlen); };
                 if pack_has_entries(buf) {
                     add_pack_dir_to_rtp(buf, true);
                 }
@@ -1847,9 +1847,9 @@ pub fn load_plugins() {
 
 /// ":packadd[!] {name}"
 pub fn ex_packadd(eap: &mut exarg_T) {
-    unsafe {
+     {
         let mut res = true;
-        let len = 11 + CStr::from_ptr(eap.arg).to_bytes().len() + 5;
+        let len = 11 + crate::memory::cstr_len(eap.arg) + 5;
         let mut pat_vec = vec![0 as c_char; len];
         let pat = pat_vec.as_mut_ptr();
         let action = if eap.forceit != 0 {
@@ -1906,7 +1906,7 @@ fn ExpandRTDir_int(
         let mut i = 0usize;
         while !(*dirnames.add(i)).is_null() {
             let dir = *dirnames.add(i);
-            let buf_len = CStr::from_ptr(dir).to_bytes().len() + pat_len + 64;
+            let buf_len = crate::memory::cstr_len(dir) + pat_len + 64;
             let mut buf_vec = vec![0 as c_char; buf_len];
             let buf = buf_vec.as_mut_ptr();
             let mut glob_flags: c_int = 0;
@@ -2053,12 +2053,12 @@ pub fn ExpandRTDir(
     file: &mut Vec<std::ffi::CString>,
     dirnames: *mut *mut c_char,
 ) -> bool {
-    unsafe {
+     {
         file.clear();
 
         ExpandRTDir_int(
             pat,
-            CStr::from_ptr(pat).to_bytes().len(),
+            crate::memory::cstr_len(pat),
             flags,
             false,
             file,
@@ -2081,7 +2081,7 @@ pub fn expand_runtime_cmd(
     unsafe {
         matches.clear();
 
-        let pat_len = CStr::from_ptr(pat).to_bytes().len();
+        let pat_len = crate::memory::cstr_len(pat);
         let mut dirnames = [c"".as_ptr() as *mut c_char, ptr::null_mut()];
         ExpandRTDir_int(
             pat,
@@ -2112,9 +2112,9 @@ pub fn expand_runtime_cmd(
 
 /// Expand loadplugin names: 'packpath'/pack/*/opt/{pat}
 pub fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> bool {
-    unsafe {
+     {
         file.clear();
-        let pat_len = CStr::from_ptr(pat).to_bytes().len();
+        let pat_len = crate::memory::cstr_len(pat);
 
         let buflen = pat_len + 26;
         let mut s_vec = vec![0 as c_char; buflen];
@@ -2127,7 +2127,7 @@ pub fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> 
 
         for slot in file.iter_mut() {
             let tail = path_tail(slot.as_ptr());
-            *slot = CStr::from_ptr(tail).to_owned();
+            *slot = crate::memory::cstr_to_cstring(tail);
         }
 
         if file.is_empty() {
@@ -2199,7 +2199,7 @@ fn add_env_sep_dirs(
         }
         let mut iter: *const c_char = ptr::null();
         let appname = get_appname(false);
-        let appname_len = CStr::from_ptr(appname).to_bytes().len();
+        let appname_len = crate::memory::cstr_len(appname);
         loop {
             let mut dir_len: usize = 0;
             let mut dir: *const c_char = ptr::null();
@@ -2262,18 +2262,18 @@ fn add_dir(
             }
             let appname = get_appname(false);
             #[cfg(windows)]
-            let mut appname_len = CStr::from_ptr(appname).to_bytes().len();
+            let mut appname_len = crate::memory::cstr_len(appname);
             #[cfg(not(windows))]
-            let appname_len = CStr::from_ptr(appname).to_bytes().len();
+            let appname_len = crate::memory::cstr_len(appname);
             debug_assert!(appname_len < IOSIZE - 6);
             let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
-            { let _d = (iobuff).cast::<u8>(); let _n = appname_len; if _n > 0 { std::ptr::copy_nonoverlapping((appname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+            crate::memory::cstr_ncpy(iobuff, appname, appname_len);
             #[cfg(windows)]
             if matches!(type_, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
-                { let _dst: *mut c_char = iobuff; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"-data".as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = iobuff; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"-data".as_ptr(), _dsize - _dlen); };
                 appname_len += 5;
             }
-            { let _d = (dest).cast::<u8>(); let _n = appname_len; if _n > 0 { std::ptr::copy_nonoverlapping((iobuff).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+            crate::memory::cstr_ncpy(dest, iobuff, appname_len);
             dest = dest.add(appname_len);
             if !suf1.is_null() {
                 *dest = PATHSEP;
@@ -2348,7 +2348,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
         let mut config_len: usize = 0;
         let mut vimruntime_len: usize = 0;
         let mut libdir_len: usize = 0;
-        let appname_len = CStr::from_ptr(get_appname(false)).to_bytes().len();
+        let appname_len = crate::memory::cstr_len(get_appname(false));
 
         if let Some(ref dh) = data_home_cstr {
             data_len = dh.as_bytes().len();
@@ -2669,7 +2669,7 @@ fn do_source_buffer_init(
         for curr_lnum in eap.unwrap().line1..=eap.unwrap().line2 {
             sp
                 .buflines
-                .push(CStr::from_ptr(ml_get(curr_lnum)).to_owned());
+                .push(crate::memory::cstr_to_cstring(ml_get(curr_lnum)));
         }
         sp.buf_lnum = 0;
         sp.source_from_buf_or_str = true;
@@ -2817,7 +2817,7 @@ fn do_source_ext(
             if cookie.fp.is_none() && check_other {
                 let p = path_tail(fname_exp);
                 if *p == b'.' as c_char || *p == b'_' as c_char {
-                    let rest = CStr::from_ptr(p.add(1)).to_bytes();
+                    let rest = crate::memory::cstr_as_bytes(p.add(1));
                     if rest.eq_ignore_ascii_case(b"nvimrc") || rest.eq_ignore_ascii_case(b"exrc") {
                         *p = if *p == b'_' as c_char {
                             b'.' as c_char
@@ -2878,7 +2878,7 @@ fn do_source_ext(
             cookie.fname = if fname_exp.is_null() {
                 None
             } else {
-                Some(CStr::from_ptr(fname_exp).to_owned())
+                Some(crate::memory::cstr_to_cstring(fname_exp))
             };
             cookie.dbg_tick = g_st().debug_tick;
             cookie.level = g_st().ex_nesting_level;
@@ -2905,7 +2905,7 @@ fn do_source_ext(
             if sid > 0 {
                 si = script_item(sid);
             } else if str_ptr.is_null() {
-                si = new_script_item(Some(CStr::from_ptr(fname_exp).to_owned()), &mut sid);
+                si = new_script_item(Some(crate::memory::cstr_to_cstring(fname_exp)), &mut sid);
                 (*si).sn_lua = path_with_extension(fname_exp, c"lua".as_ptr());
                 if !ret_sid.is_null() {
                     *ret_sid = sid;
@@ -3384,7 +3384,7 @@ pub fn getsourceline(
                         && concat_continued_line(
                             buf,
                             next.as_ptr(),
-                            CStr::from_ptr(next.as_ptr()).to_bytes().len(),
+                            crate::memory::cstr_len(next.as_ptr()),
                         )
                     {
                         sp.nextline = get_one_sourceline(sp);
@@ -3468,7 +3468,7 @@ fn get_one_sourceline(sp: &mut source_cookie_T) -> Option<Vec<c_char>> {
                     buf.truncate(start);
                     break;
                 }
-                let read_len = CStr::from_ptr(buf.as_ptr().add(start)).to_bytes().len();
+                let read_len = crate::memory::cstr_len(buf.as_ptr().add(start));
                 filled_chunk = read_len == 119;
                 len = start + read_len;
                 buf.truncate(len);

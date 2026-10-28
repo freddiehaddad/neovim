@@ -14,7 +14,7 @@ use crate::hashtab::hashitem_empty;
 use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
 use crate::message::{emsg, semsg};
 use crate::mpack::object::mpack_data_t;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 pub(crate) const K_LIST_LEN_MAY_KNOW: isize = -3;
 
@@ -1244,7 +1244,7 @@ fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                     };
                     for pair in &items[..len] {
                         let key = pair[0].vval.v_string();
-                        let keylen = CStr::from_ptr(key).to_bytes().len();
+                        let keylen = crate::memory::cstr_len(key);
                         let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
                         if !tv_dict_add(dict, di) {
                             let mut todo = (*dict).dv_hashtab.ht_used;
@@ -1322,6 +1322,7 @@ pub fn unpack_typval(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
 
     #[test]
     fn decode_string_copies_ascii() {

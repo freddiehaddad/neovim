@@ -92,10 +92,10 @@ pub fn ui_client_start_server(
 ) -> u64 {
     unsafe {
         let mut args = Vec::with_capacity(1 + argc);
-        args.push(std::ffi::CStr::from_ptr(*argv).to_owned());
+        args.push(crate::memory::cstr_to_cstring(*argv));
         args.push(c"--embed".to_owned());
         for i in 1..argc {
-            args.push(std::ffi::CStr::from_ptr(*argv.add(i)).to_owned());
+            args.push(crate::memory::cstr_to_cstring(*argv.add(i)));
         }
 
         let on_stdout = CallbackReader::none();
