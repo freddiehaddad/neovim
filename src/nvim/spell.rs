@@ -1319,24 +1319,26 @@ fn spell_load_lang(lang: *mut c_char) {
                 lang,
                 spell_enc(),
             );
-            r = do_in_runtimepath(
+            let ok = do_in_runtimepath(
                 (&raw mut fname_enc).cast(),
                 0,
                 &mut RuntimeCallback::SpellLoad(&mut sl),
             );
-            if r == FAIL && sl.sl_lang[0] != NUL {
+            r = if ok { OK } else { FAIL };
+            if !ok && sl.sl_lang[0] != NUL {
                 vim_snprintf!(
                     (&raw mut fname_enc).cast(),
                     fname_enc.len() - 5,
                     c"spell/%s.ascii.spl".as_ptr(),
                     lang,
                 );
-                r = do_in_runtimepath(
+                let ok2 = do_in_runtimepath(
                     (&raw mut fname_enc).cast(),
                     0,
                     &mut RuntimeCallback::SpellLoad(&mut sl),
                 );
-                if r == FAIL
+                r = if ok2 { OK } else { FAIL };
+                if !ok2
                     && sl.sl_lang[0] != NUL
                     && round == 1
                     && apply_autocmds(

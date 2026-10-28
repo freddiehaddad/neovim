@@ -43,7 +43,7 @@ use crate::input::openscript;
 use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
 };
-use crate::math::{FAIL, OK};
+use crate::math::OK;
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len, vimconv_T,
 };
@@ -740,7 +740,7 @@ pub fn do_in_path(
     name: *mut c_char,
     flags: c_int,
     callback: &mut RuntimeCallback<'_>,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut did_one = false;
 
@@ -849,7 +849,7 @@ pub fn do_in_path(
             }
         }
 
-        if did_one { OK } else { FAIL }
+        did_one
     }
 }
 
@@ -881,7 +881,7 @@ fn do_in_cached_path(
     name: *mut c_char,
     flags: c_int,
     callback: &mut RuntimeCallback<'_>,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut did_one = false;
         let mut buf = [0 as c_char; MAXPATHL];
@@ -970,7 +970,7 @@ fn do_in_cached_path(
 
         runtime_search_path_unref();
 
-        if did_one { OK } else { FAIL }
+        did_one
     }
 }
 
@@ -1092,9 +1092,9 @@ pub fn do_in_path_and_pp(
     name: *mut c_char,
     flags: c_int,
     callback: &mut RuntimeCallback<'_>,
-) -> c_int {
+) -> bool {
     unsafe {
-        let mut done = FAIL;
+        let mut done = false;
 
         if (flags & DIP_NORTP) == 0 {
             let name_arg = if !name.is_null() && *name == NUL {
@@ -1105,7 +1105,7 @@ pub fn do_in_path_and_pp(
             done |= do_in_path(path, c"".as_ptr(), name_arg, flags, callback);
         }
 
-        if (done == FAIL || (flags & DIP_ALL) != 0) && (flags & DIP_START) != 0 {
+        if (!done || (flags & DIP_ALL) != 0) && (flags & DIP_START) != 0 {
             let mut prefix = if (flags & DIP_AFTER) != 0 {
                 c"pack/*/start/*/after/".as_ptr()
             } else {
@@ -1113,7 +1113,7 @@ pub fn do_in_path_and_pp(
             };
             done |= do_in_path(opt_vars().p_pp, prefix, name, flags & !DIP_AFTER, callback);
 
-            if done == FAIL || (flags & DIP_ALL) != 0 {
+            if !done || (flags & DIP_ALL) != 0 {
                 prefix = if (flags & DIP_AFTER) != 0 {
                     c"start/*/after/".as_ptr()
                 } else {
@@ -1123,10 +1123,10 @@ pub fn do_in_path_and_pp(
             }
         }
 
-        if (done == FAIL || (flags & DIP_ALL) != 0) && (flags & DIP_OPT) != 0 {
+        if (!done || (flags & DIP_ALL) != 0) && (flags & DIP_OPT) != 0 {
             done |= do_in_path(opt_vars().p_pp, c"pack/*/opt/*/".as_ptr(), name, flags, callback);
 
-            if done == FAIL || (flags & DIP_ALL) != 0 {
+            if !done || (flags & DIP_ALL) != 0 {
                 done |= do_in_path(opt_vars().p_pp, c"opt/*/".as_ptr(), name, flags, callback);
             }
         }
@@ -1175,7 +1175,7 @@ fn expand_rtp_entry(
 
         let mut files: Vec<std::ffi::CString> = Vec::new();
         let mut pat = [entry];
-        if gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR | EW_NOBREAK) == OK {
+        if gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR | EW_NOBREAK) {
             for file in &files {
                 push_path(search_path, rtp_used, file.as_ptr().cast_mut(), after, pos_in_rtp);
             }
@@ -1367,9 +1367,9 @@ pub fn do_in_runtimepath(
     name: *mut c_char,
     mut flags: c_int,
     callback: &mut RuntimeCallback<'_>,
-) -> c_int {
+) -> bool {
     unsafe {
-        let mut success = FAIL;
+        let mut success = false;
         if (flags & DIP_NORTP) == 0 {
             let name_arg = if !name.is_null() && *name == NUL {
                 ptr::null_mut()
@@ -1379,7 +1379,7 @@ pub fn do_in_runtimepath(
             success |= do_in_cached_path(name_arg, flags, callback);
             flags = (flags & !DIP_START) | DIP_NORTP;
         }
-        if (flags & (DIP_START | DIP_OPT)) != 0 && (success == FAIL || (flags & DIP_ALL) != 0) {
+        if (flags & (DIP_START | DIP_OPT)) != 0 && (!success || (flags & DIP_ALL) != 0) {
             success |= do_in_path_and_pp(opt_vars().p_rtp, name, flags, callback);
         }
         success
@@ -1387,7 +1387,7 @@ pub fn do_in_runtimepath(
 }
 
 /// Source the file "name" from all directories in 'runtimepath'.
-pub fn source_runtime(name: *mut c_char, flags: c_int) -> c_int {
+pub fn source_runtime(name: *mut c_char, flags: c_int) -> bool {
     do_in_runtimepath(
             name,
             flags,
@@ -1398,12 +1398,12 @@ pub fn source_runtime(name: *mut c_char, flags: c_int) -> c_int {
 }
 
 /// Just like source_runtime(), but only source vim and lua files.
-pub fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int {
+pub fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> bool {
     do_in_runtimepath(name, flags, &mut RuntimeCallback::SourceVimLua)
 }
 
 /// Just like source_runtime(), but use "path" instead of 'runtimepath' and only source .vim and .lua files.
-pub fn source_in_path_vim_lua(path: *mut c_char, name: *mut c_char, flags: c_int) -> c_int {
+pub fn source_in_path_vim_lua(path: *mut c_char, name: *mut c_char, flags: c_int) -> bool {
     do_in_path_and_pp(path, name, flags, &mut RuntimeCallback::SourceVimLua)
 }
 
@@ -1416,7 +1416,7 @@ fn gen_expand_wildcards_and_cb(
 ) -> bool {
     let mut files: Vec<std::ffi::CString> = Vec::new();
 
-        if gen_expand_wildcards_vec(num_pat, pats, &mut files, flags) != OK {
+        if !gen_expand_wildcards_vec(num_pat, pats, &mut files, flags) {
             return false;
         }
 
@@ -1748,7 +1748,7 @@ pub fn add_pack_start_dirs() {
 fn pack_has_entries(buf: *mut c_char) -> bool {
     let mut files: Vec<std::ffi::CString> = Vec::new();
         let mut pat = [buf];
-        gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR) == OK && !files.is_empty()
+        gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR) && !files.is_empty()
 }
 
 fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
@@ -1849,7 +1849,7 @@ pub fn load_plugins() {
 /// ":packadd[!] {name}"
 pub fn ex_packadd(eap: &mut exarg_T) {
     unsafe {
-        let mut res = OK;
+        let mut res = true;
         let len = 11 + CStr::from_ptr(eap.arg).to_bytes().len() + 5;
         let mut pat_vec = vec![0 as c_char; len];
         let pat = pat_vec.as_mut_ptr();
@@ -1887,7 +1887,7 @@ pub fn ex_packadd(eap: &mut exarg_T) {
             opt_vars().p_pp,
             c"".as_ptr(),
             pat,
-            DIP_ALL + DIP_DIR + if res == FAIL { DIP_ERR } else { 0 },
+            DIP_ALL + DIP_DIR + if !res { DIP_ERR } else { 0 },
             &mut RuntimeCallback::AddPackPlugins { opt: true, action },
         );
 
@@ -2053,7 +2053,7 @@ pub fn ExpandRTDir(
     flags: c_int,
     file: &mut Vec<std::ffi::CString>,
     dirnames: *mut *mut c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         file.clear();
 
@@ -2067,10 +2067,10 @@ pub fn ExpandRTDir(
         );
 
         if file.is_empty() {
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -2078,7 +2078,7 @@ pub fn ExpandRTDir(
 pub fn expand_runtime_cmd(
     pat: *mut c_char,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         matches.clear();
 
@@ -2104,15 +2104,15 @@ pub fn expand_runtime_cmd(
         }
 
         if matches.is_empty() {
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
 /// Expand loadplugin names: 'packpath'/pack/*/opt/{pat}
-pub fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> bool {
     unsafe {
         file.clear();
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
@@ -2132,11 +2132,11 @@ pub fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> 
         }
 
         if file.is_empty() {
-            return FAIL;
+            return false;
         }
 
         crate::path::remove_duplicate_strings(file);
-        OK
+        true
     }
 }
 
@@ -2523,7 +2523,7 @@ fn cmd_source(fname: *mut c_char,mut eap: Option<&mut exarg_T>) {
                     || !eap.as_deref_mut().unwrap().nextcmd.is_null()
                     || (*eap.unwrap().cstack.cast::<cstack_T>()).cs_idx >= 0,
             );
-        } else if do_source(fname, false, DOSO_NONE, ptr::null_mut()) == FAIL {
+        } else if !do_source(fname, false, DOSO_NONE, ptr::null_mut()) {
             semsg!(gettext(e_notopen.as_ptr()), fname);
         }
     }
@@ -2712,7 +2712,7 @@ pub fn cmd_source_buffer(eap: Option<&exarg_T>, ex_lua: bool) {
 }
 
 /// Executes lines in `str` as Ex commands.
-pub fn do_source_str(str_ptr: *const c_char, mut traceback_name: *const c_char) -> c_int {
+pub fn do_source_str(str_ptr: *const c_char, mut traceback_name: *const c_char) -> bool {
     let sname = sourcing_name();
         let slnum = sourcing_lnum();
         let mut sname_buf = [0 as c_char; 256];
@@ -2745,11 +2745,11 @@ fn do_source_ext(
     ret_sid: *mut c_int,eap: Option<&exarg_T>,
     ex_lua: bool,
     str_ptr: *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut cookie = source_cookie_T::new();
         let mut firstline: Option<std::ffi::CString> = None;
-        let mut retval = FAIL;
+        let mut retval = false;
         let save_debug_break_level = g_st().debug_break_level;
         let mut si: *mut scriptitem_T = ptr::null_mut();
         let mut wait_start: proftime_T = 0;
@@ -2758,7 +2758,7 @@ fn do_source_ext(
         let fname_exp_owned: std::ffi::CString = if fname.is_null() {
             debug_assert!(str_ptr.is_null());
             let Some(fe) = do_source_buffer_init(&mut cookie, eap, ex_lua) else {
-                return FAIL;
+                return false;
             };
             fe
         } else if !str_ptr.is_null() {
@@ -2789,7 +2789,7 @@ fn do_source_ext(
             };
             if sid > 0 && !ret_sid.is_null() {
                 *ret_sid = sid;
-                retval = OK;
+                retval = true;
                 break 'block;
             }
 
@@ -2802,8 +2802,8 @@ fn do_source_ext(
                 if has_sourcecmd
                     && apply_autocmds(EVENT_SOURCECMD, fname_exp, fname_exp, false, g_st().curbuf)
                 {
-                    retval = if aborting() { FAIL } else { OK };
-                    if retval == OK {
+                    retval = !aborting();
+                    if retval {
                         apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, g_st().curbuf);
                     }
                     break 'block;
@@ -3012,7 +3012,7 @@ fn do_source_ext(
                     DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT,
                 );
             }
-            retval = OK;
+            retval = true;
 
             if l_do_profiling == PROF_YES && !si.is_null() {
                 si = script_item(g_st().current_sctx.sc_sid);
@@ -3077,7 +3077,7 @@ pub fn do_source(
     check_other: bool,
     is_vimrc: c_int,
     ret_sid: *mut c_int,
-) -> c_int {
+) -> bool {
     do_source_ext(
             fname,
             check_other,
@@ -3662,7 +3662,7 @@ pub fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bo
                 &mut RuntimeCallback::Source {
                     skip_if_loaded: true,
                 },
-            ) == OK
+            )
             {
                 ret = true;
             }

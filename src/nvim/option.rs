@@ -7929,7 +7929,7 @@ pub fn ExpandSettings(
     fuzzystr: *mut c_char,
     matches: &mut Vec<std::ffi::CString>,
     can_fuzzy: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let names: [*mut c_char; 1] = [c"all".as_ptr().cast_mut()];
         let ic = regmatch.rm_ic;
@@ -7970,7 +7970,7 @@ pub fn ExpandSettings(
             fuzzymatches_slice_to_strmatches(&mut fuzmatch, matches, false);
         }
 
-        OK
+        true
     }
 }
 
@@ -8009,7 +8009,7 @@ pub fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CString {
 }
 
 /// Expansion handler for :set= when we just want to fill in with the existing value.
-pub fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> bool {
     matches.clear();
 
         if opt_st().EXPAND_OPTION_IDX == kOptInvalid {
@@ -8024,7 +8024,7 @@ pub fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> c_int {
             let is_luafn = o.obj_type == ObjectType::kObjectTypeLuaRef;
             optval_free_read(opt_st().EXPAND_OPTION_IDX, o);
             if is_luafn {
-                return OK;
+                return true;
             }
             optval_fmt(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS);
             (&raw mut g_st().NameBuff).cast::<c_char>()
@@ -8033,7 +8033,7 @@ pub fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> c_int {
         };
 
         matches.push(escape_option_str_cmdline(var));
-        OK
+        true
 }
 
 /// Expansion handler for :set=/:set+= when the option has a custom expansion handler.
@@ -8041,14 +8041,14 @@ pub fn ExpandStringSetting(
     xp: &mut expand_T,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         if opt_st().EXPAND_OPTION_IDX == kOptInvalid {
-            return FAIL;
+            return false;
         }
         let opt = get_option(opt_st().EXPAND_OPTION_IDX);
         let Some(expand_cb) = (*opt).opt_expand_cb else {
-            return FAIL;
+            return false;
         };
 
         let set_arg = xp.xp_line.add(opt_st().EXPAND_OPTION_START_COL as usize);
@@ -8076,7 +8076,7 @@ pub fn ExpandSettingSubtract(
     xp: &mut expand_T,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         if opt_st().EXPAND_OPTION_IDX == kOptInvalid
             || option_has_type(opt_st().EXPAND_OPTION_IDX, ObjectType::kObjectTypeInteger)
@@ -8093,7 +8093,7 @@ pub fn ExpandSettingSubtract(
 
         if (option_flags & kOptFlagComma) != 0 {
             if *option_val == NUL {
-                return FAIL;
+                return false;
             }
 
             let mut option_copy =
@@ -8125,15 +8125,15 @@ pub fn ExpandSettingSubtract(
                 }
             }
 
-            return OK;
+            return true;
         } else if (option_flags & kOptFlagFlagList) != 0 {
             if *xp.xp_pattern != NUL {
-                return FAIL;
+                return false;
             }
 
             let num_flags = std::ffi::CStr::from_ptr(option_val).to_bytes().len();
             if num_flags == 0 {
-                return FAIL;
+                return false;
             }
 
             matches.clear();
@@ -8151,7 +8151,7 @@ pub fn ExpandSettingSubtract(
                 }
             }
 
-            return OK;
+            return true;
         }
 
         ExpandOldSetting(matches)

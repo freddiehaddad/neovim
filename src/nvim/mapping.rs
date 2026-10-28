@@ -42,7 +42,7 @@ use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{
     api_free_luaref, api_new_luaref, kRetObject, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
 };
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
@@ -1426,7 +1426,7 @@ pub fn ExpandMappings(
     pat: *mut c_char,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<CString>,
-) -> c_int {
+) -> bool {
     let fuzzy = cmdline_fuzzy_complete(pat);
 
         matches.clear();
@@ -1515,7 +1515,7 @@ pub fn ExpandMappings(
         } else {
             str_matches.is_empty()
         } {
-            return FAIL;
+            return false;
         }
 
         if !fuzzy {
@@ -1531,7 +1531,7 @@ pub fn ExpandMappings(
             matches.dedup();
         }
 
-        if matches.is_empty() { FAIL } else { OK }
+        !matches.is_empty()
 }
 
 /// Check for an abbreviation.

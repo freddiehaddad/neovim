@@ -307,7 +307,7 @@ pub fn get_arglist_exp(
     str_: *mut c_char,
     fnames: &mut Vec<CString>,
     wig: bool,
-) -> c_int {
+) -> bool {
     let mut ga: Vec<*mut c_char> = Vec::new();
         get_arglist(&mut ga, str_, true);
 
@@ -455,7 +455,7 @@ fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool)
                 EW_DIR | EW_FILE | EW_ADDSLASH | EW_NOTFOUND,
             );
             drop(new_ga);
-            if i == FAIL || exp_files.is_empty() {
+            if !i || exp_files.is_empty() {
                 emsg(gettext((&raw const e_nomatch).cast()));
                 return false;
             }

@@ -4628,7 +4628,7 @@ pub fn ex_mkspell(eap: &mut exarg_T) {
             arg = skipwhite(arg.add(6));
         }
 
-        if get_arglist_exp(arg, &mut fnames, false) != OK {
+        if !get_arglist_exp(arg, &mut fnames, false) {
             return;
         }
 

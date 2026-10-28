@@ -2155,7 +2155,7 @@ fn ins_compl_dictionaries(
                 if !thesaurus && std::ffi::CStr::from_ptr(buf).to_bytes() == b"spell" {
                     count = -1;
                 } else if !vim_strchr(buf, b'`' as c_int).is_null()
-                    || expand_wildcards_vec(1, &raw mut buf, &mut files, EW_FILE | EW_SILENT) != OK
+                    || !expand_wildcards_vec(1, &raw mut buf, &mut files, EW_FILE | EW_SILENT)
                 {
                     count = 0;
                 } else {
@@ -4379,7 +4379,7 @@ fn get_next_filename_completion() {
             flags |= EW_PATH;
         }
         let mut pat_ptr = compl_pattern_ptr();
-        if expand_wildcards_vec(1, &raw mut pat_ptr, &mut matches, flags) != OK {
+        if !expand_wildcards_vec(1, &raw mut pat_ptr, &mut matches, flags) {
             return;
         }
 

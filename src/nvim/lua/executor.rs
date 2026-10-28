@@ -2565,11 +2565,11 @@ pub fn nlua_expand_pat(xp: &mut expand_T) {
     }
 }
 
-pub fn nlua_expand_get_matches(results: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn nlua_expand_get_matches(results: &mut Vec<std::ffi::CString>) -> bool {
     unsafe {
         let er = &raw mut nlua_st().EXPAND_RESULT_ARRAY;
         *results = std::mem::take(&mut *er);
-        c_int::from(!results.is_empty())
+        !results.is_empty()
     }
 }
 

@@ -56,7 +56,7 @@ use crate::lua::executor::{
     kRetObject, nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
 };
 use crate::mapping::{ExpandMappings, set_context_in_map_cmd};
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
 use crate::memory::{cstr_from_bytes, cstr_to_cstring};
@@ -1865,7 +1865,7 @@ fn ExpandEscape(
 
 /// Return FAIL if this is not an appropriate context in which to do
 /// completion of anything, return OK if it is (even if there are no matches).
-pub fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool) -> c_int {
+pub fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool) -> bool {
     unsafe {
         let ccline = get_cmdline_info();
         let mut p: Option<CString>;
@@ -1899,10 +1899,10 @@ pub fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool
 
         if xp.xp_context == EXPAND_UNSUCCESSFUL {
             beep_flush();
-            return OK;
+            return true;
         }
         if xp.xp_context == EXPAND_NOTHING {
-            return FAIL;
+            return false;
         }
 
         let i = xp.xp_pattern.offset_from((*ccline).cmdbuff) as c_int;
@@ -1911,7 +1911,7 @@ pub fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool
 
         if from_wildtrigger_func && xp.xp_context == EXPAND_COMMANDS && xp.xp_pattern_len == 0
         {
-            return FAIL;
+            return false;
         }
 
         if !g_st().cmd_silent
@@ -2003,7 +2003,7 @@ pub fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool
         cursorcmd();
 
         if xp.xp_context == EXPAND_MAPPINGS && p.is_none() {
-            return FAIL;
+            return false;
         }
 
         if xp.xp_numfiles <= 0 && p.is_none() {
@@ -2015,7 +2015,7 @@ pub fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool
             ExpandOne(xp, ptr::null_mut(), None, 0, WILD_FREE);
         }
 
-        OK
+        true
     }
 }
 
@@ -2473,7 +2473,7 @@ fn ExpandOne_start(
         let mut xp_files = std::mem::take(&mut xp.xp_files);
         let expand_res = ExpandFromContext(xp, str_arg, &mut xp_files, options);
         xp.xp_files = xp_files;
-        if expand_res == FAIL {
+        if !expand_res {
             xp.xp_numfiles = 0;
             #[cfg(windows)]
             if (options & WILD_SILENT) == 0 && (options & WILD_LIST_NOTFOUND) != 0 {
@@ -4298,7 +4298,7 @@ pub fn expand_cmdline(
             options += WILD_ICASE;
         }
 
-        if ExpandFromContext(xp, file_str.as_ptr().cast_mut(), matches, options) == FAIL {
+        if !ExpandFromContext(xp, file_str.as_ptr().cast_mut(), matches, options) {
             matches.clear();
         }
 
@@ -4313,7 +4313,7 @@ fn expand_files_and_dirs(
     matches: &mut Vec<CString>,
     mut flags: c_int,
     options: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut pat_owned: Option<Vec<c_char>> = None;
 
@@ -4620,7 +4620,7 @@ fn ExpandOther(
     xp: &mut expand_T,
     rmp: &mut regmatch_T,
     matches: &mut Vec<CString>,
-) -> c_int {
+) -> bool {
     struct ExpGen {
         context: c_int,
         func: fn(&mut expand_T, c_int) -> *mut c_char,
@@ -4859,10 +4859,10 @@ fn ExpandOther(
                     rmp.rm_ic = true;
                 }
                 ExpandGeneric(pat, xp, rmp, matches, Some(entry.func), entry.escaped);
-                return OK;
+                return true;
             }
         }
-        FAIL
+        false
 }
 
 /// Map wild expand options to flags for expand_wildcards().
@@ -4895,7 +4895,7 @@ fn ExpandFromContext(
     mut pat: *mut c_char,
     matches: &mut Vec<CString>,
     options: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut regmatch: regmatch_T = regmatch_T::new();
         let flags = map_wildopts_to_ewflags(options);
@@ -4916,17 +4916,17 @@ fn ExpandFromContext(
                 if *pat == NUL { c"help".as_ptr() } else { pat },
                 matches,
                 false,
-            ) == OK
+            )
             {
                 cleanup_help_tags(matches);
-                return OK;
+                return true;
             }
-            return FAIL;
+            return false;
         }
 
         if xp.xp_context == EXPAND_SHELLCMD {
             expand_shellcmd(pat, matches, flags);
-            return OK;
+            return true;
         }
         if xp.xp_context == EXPAND_OLD_SETTING {
             return ExpandOldSetting(matches);
@@ -5001,7 +5001,7 @@ fn ExpandFromContext(
         if !fuzzy {
             regmatch.regprog = vim_regcomp(pat, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
             if regmatch.regprog.is_null() {
-                return FAIL;
+                return false;
             }
             regmatch.rm_ic = ignorecase(pat) != 0;
         }
@@ -5151,7 +5151,7 @@ fn expand_shellcmd_onedir(
     gap: &mut Vec<CString>,
 ) {
     let mut dir_matches: Vec<std::ffi::CString> = Vec::new();
-        if expand_wildcards_vec(1, &raw mut pathed_pattern, &mut dir_matches, flags) != OK {
+        if !expand_wildcards_vec(1, &raw mut pathed_pattern, &mut dir_matches, flags) {
             return;
         }
 
@@ -5325,13 +5325,13 @@ fn ExpandUserDefined(
     xp: &mut expand_T,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         let fuzzy = cmdline_fuzzy_complete(pat);
         matches.clear();
 
         let Some(retstr_cstr) = call_user_expand_func(call_func_retstr, xp, None) else {
-            return FAIL;
+            return false;
         };
         let mut retstr_bytes = retstr_cstr.into_bytes_with_nul();
         let retstr = retstr_bytes.as_mut_ptr().cast::<c_char>();
@@ -5387,7 +5387,7 @@ fn ExpandUserDefined(
         }
 
         if (!fuzzy && str_ga.is_empty()) || (fuzzy && fuz_ga.is_empty()) {
-            return OK;
+            return true;
         }
 
         if !fuzzy {
@@ -5395,7 +5395,7 @@ fn ExpandUserDefined(
         } else {
             fuzzymatches_slice_to_strmatches(&mut fuz_ga, matches, false);
         }
-        OK
+        true
     }
 }
 
@@ -5468,30 +5468,30 @@ pub fn expand_process_user_list(
 }
 
 /// Expand names with a list returned by a function defined by the user.
-fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
+fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> bool {
     matches.clear();
         let retlist = call_user_expand_func(call_func_retlist, xp, ptr::null_mut());
         if retlist.is_null() {
-            return FAIL;
+            return false;
         }
 
         expand_process_user_list(retlist, matches, xp);
         tv_list_unref(retlist);
-        OK
+        true
 }
 
-fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
+fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> bool {
     let mut rettv: typval_T = typval_T::new();
         nlua_call_user_expand_func(xp, &mut rettv);
         if rettv.v_type != VarType::VAR_LIST {
             tv_clear(&raw mut rettv);
-            return FAIL;
+            return false;
         }
 
         let retlist = rettv.vval.v_list();
         expand_process_user_list(retlist, matches, xp);
         tv_list_unref(retlist);
-        OK
+        true
 }
 
 /// Expand `file` for all comma-separated directories in `path`.
@@ -6165,7 +6165,7 @@ fn expand_pattern_in_buf(
     pat: *mut c_char,
     dir: Direction,
     matches: &mut Vec<CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         let exacttext = (opt_vars().wop_flags & kOptWopFlagExacttext) != 0;
         let has_range = g_st().Search.first_line != 0;
@@ -6173,7 +6173,7 @@ fn expand_pattern_in_buf(
         matches.clear();
 
         if pat.is_null() || *pat == NUL {
-            return FAIL;
+            return false;
         }
 
         let pat_len = std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int;
@@ -6254,7 +6254,7 @@ fn expand_pattern_in_buf(
                     g_st().got_int = false;
                 }
                 matches.clear();
-                return FAIL;
+                return false;
             }
 
             if end_match_pos.lnum > (*g_st().curbuf).b_ml.ml_line_count {
@@ -6303,7 +6303,7 @@ fn expand_pattern_in_buf(
             }
         }
 
-        OK
+        true
     }
 }
 

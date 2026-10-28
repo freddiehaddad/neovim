@@ -8642,7 +8642,7 @@ pub fn expand_argopt(
     xp: &mut expand_T,
     rmp: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         if xp.xp_pattern > xp.xp_line && *xp.xp_pattern.sub(1) == b'=' as c_char {
             let mut cb: CompleteListItemGetter = None;
@@ -8662,20 +8662,20 @@ pub fn expand_argopt(
 
             if cb.is_some() {
                 ExpandGeneric(pat, xp, rmp, matches, cb, false);
-                return OK;
+                return true;
             }
-            return FAIL;
+            return false;
         }
 
         if xp.xp_pattern_len == 2
             && (crate::memory::cstr_prefix_bytes(xp.xp_pattern, xp.xp_pattern_len) == crate::memory::cstr_prefix_bytes(c"ff".as_ptr(), xp.xp_pattern_len))
         {
             *matches = vec![c"fileformat=".to_owned()];
-            return OK;
+            return true;
         }
 
         ExpandGeneric(pat, xp, rmp, matches, Some(get_argopt_name), false);
-        OK
+        true
     }
 }
 
@@ -8965,7 +8965,7 @@ fn ex_colorscheme(eap: &mut exarg_T) {
             } else {
                 let _ = msg(c"default".as_ptr(), 0);
             }
-        } else if load_colors(eap.arg) == FAIL {
+        } else if !load_colors(eap.arg) {
             let _ = semsg!(
                 gettext(c"E185: Cannot find color scheme '%s'".as_ptr()),
                 eap.arg,
@@ -9988,25 +9988,25 @@ pub fn expand_findfunc(
     xp: &mut expand_T,
     pat: *mut c_char,
     files: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         files.clear();
 
         let l = call_findfunc(pat, kBoolVarTrue);
         if l.is_null() {
-            return FAIL;
+            return false;
         }
 
         let len = (*l).lv_len;
         if len == 0 {
             tv_list_free(l);
-            return FAIL;
+            return false;
         }
 
         crate::cmdexpand::expand_process_user_list(l, files, xp);
         tv_list_free(l);
 
-        OK
+        true
     }
 }
 

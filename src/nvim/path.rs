@@ -1256,7 +1256,7 @@ pub fn gen_expand_wildcards_vec(
     pat: *mut *mut c_char,
     file: &mut Vec<std::ffi::CString>,
     flags: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         file.clear();
         let mut did_expand_in_path = false;
@@ -1273,7 +1273,7 @@ pub fn gen_expand_wildcards_vec(
             }
             #[cfg(not(unix))]
             {
-                return FAIL;
+                return false;
             }
         }
 
@@ -1302,7 +1302,7 @@ pub fn gen_expand_wildcards_vec(
                 if add_pat == -1 {
                     path_st().EXPAND_RECURSIVE = false;
                     file.clear();
-                    return FAIL;
+                    return false;
                 }
             } else {
                 if (has_env_var(p) && (flags & EW_NOTENV) == 0) || *p == b'~' as c_char {
@@ -1362,11 +1362,7 @@ pub fn gen_expand_wildcards_vec(
 
         path_st().EXPAND_RECURSIVE = false;
 
-        if (flags & EW_EMPTYOK) != 0 || !file.is_empty() {
-            OK
-        } else {
-            FAIL
-        }
+        (flags & EW_EMPTYOK) != 0 || !file.is_empty()
     }
 }
 
@@ -1375,11 +1371,11 @@ pub fn expand_wildcards_vec(
     pat: *mut *mut c_char,
     files: &mut Vec<std::ffi::CString>,
     flags: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let retval = gen_expand_wildcards_vec(num_pat, pat, files, flags);
 
-        if (flags & EW_KEEPALL) != 0 || retval == FAIL {
+        if (flags & EW_KEEPALL) != 0 || !retval {
             return retval;
         }
 
@@ -1403,7 +1399,7 @@ pub fn expand_wildcards_vec(
         }
 
         if files.is_empty() {
-            return FAIL;
+            return false;
         }
 
         retval
@@ -2058,9 +2054,9 @@ pub fn expand_wildcards_eval(
     pat: *mut *mut c_char,
     file: &mut Vec<std::ffi::CString>,
     flags: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
-        let mut ret = FAIL;
+        let mut ret = false;
         let mut eval_pat: Option<std::ffi::CString> = None;
         let mut exp_pat_owned: Option<std::ffi::CString> = None;
         let mut exp_pat = *pat;
@@ -2105,7 +2101,7 @@ pub fn expand_wildcards_eval(
             && star_follows
         {
             file.push(ep);
-            ret = OK;
+            ret = true;
         }
         drop(exp_pat_owned);
 

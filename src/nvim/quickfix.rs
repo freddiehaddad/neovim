@@ -3993,11 +3993,11 @@ pub fn ex_cclose(eap: &mut exarg_T) {
         }
 }
 
-fn qf_goto_cwindow(qi: &qf_info_T, resize: bool, sz: c_int, vertsplit: bool) -> c_int {
+fn qf_goto_cwindow(qi: &qf_info_T, resize: bool, sz: c_int, vertsplit: bool) -> bool {
     unsafe {
         let win = qf_find_win(qi);
         if win.is_null() {
-            return FAIL;
+            return false;
         }
 
         win_goto(win);
@@ -4017,7 +4017,7 @@ fn qf_goto_cwindow(qi: &qf_info_T, resize: bool, sz: c_int, vertsplit: bool) -> 
             }
         }
 
-        OK
+        true
     }
 }
 
@@ -4129,7 +4129,7 @@ pub fn ex_copen(eap: &mut exarg_T) {
         };
         reset_VIsual_and_resel();
 
-        let mut status = FAIL;
+        let mut status = false;
         if g_st().cmdmod.cmod_tab == 0 {
             status = qf_goto_cwindow(
                 &*qi,
@@ -4138,7 +4138,7 @@ pub fn ex_copen(eap: &mut exarg_T) {
                 (g_st().cmdmod.cmod_split & WSP_VERT) != 0,
             );
         }
-        if status == FAIL && !qf_open_new_cwindow(&mut *qi, height) {
+        if !status && !qf_open_new_cwindow(&mut *qi, height) {
             decr_quickfix_busy();
             return;
         }
@@ -5717,7 +5717,7 @@ fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> bool {
             return false;
         }
 
-        if get_arglist_exp(p, &mut args.fnames, true) == FAIL || args.fnames.is_empty() {
+        if !get_arglist_exp(p, &mut args.fnames, true) || args.fnames.is_empty() {
             emsg(gettext((&raw const e_nomatch).cast()));
             return false;
         }
@@ -5733,9 +5733,9 @@ fn vgr_process_files(
     redraw_for_dummy: &mut bool,
     first_match_buf: *mut *mut buf_T,
     target_dir: &mut Option<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
-        let mut status = FAIL;
+        let mut status = false;
         let mut save_qfid = qf_get_curlist(&mut *qi).qf_id;
         let mut duplicate_name = false;
 
@@ -5846,7 +5846,7 @@ fn vgr_process_files(
         }
 
         if !aborted {
-            status = OK;
+            status = true;
         }
 
         status
@@ -5903,7 +5903,7 @@ pub fn ex_vimgrep(eap: &mut exarg_T) {
                 &mut target_dir,
             );
 
-            if status == OK {
+            if status {
                 let qfl = qf_get_curlist(&mut *qi);
                 qfl.qf_nonevalid = false;
                 qfl.qf_index = 1;
@@ -6607,9 +6607,9 @@ fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) ->
     }
 }
 
-fn qf_setprop_qftf(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
+fn qf_setprop_qftf(qfl: &mut qf_list_T, di: &mut dictitem_T) -> bool {
     if check_secure() {
-            return FAIL;
+            return false;
         }
 
         let mut cb: Callback = Callback::new();
@@ -6617,7 +6617,7 @@ fn qf_setprop_qftf(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
         if callback_from_typval(&mut cb, &di.di_tv) {
             qfl.qf_qftf_cb = cb;
         }
-        OK
+        true
 }
 
 fn qf_add_entry_from_dict(
@@ -6928,11 +6928,11 @@ fn qf_setprop_title(
     qf_idx: c_int,
     what: &dict_T,
     di: *const dictitem_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let qfl = qf_get_list(&mut *qi, qf_idx);
         if (*di).di_tv.v_type != VarType::VAR_STRING {
-            return FAIL;
+            return false;
         }
 
         qfl.qf_title = crate::eval::typval::tv_dict_get_cstring(what, c"title".as_ptr());
@@ -6940,7 +6940,7 @@ fn qf_setprop_title(
             qf_update_win_titlevar(qi);
         }
 
-        OK
+        true
     }
 }
 
@@ -6949,9 +6949,9 @@ fn qf_setprop_items(
     qf_idx: c_int,
     di: &mut dictitem_T,
     action: c_int,
-) -> c_int {
+) -> bool {
     if di.di_tv.v_type != VarType::VAR_LIST {
-            return FAIL;
+            return false;
         }
 
         let title_save = (&qi.qf_lists)[qf_idx as usize].qf_title.clone();
@@ -6967,7 +6967,7 @@ fn qf_setprop_items(
             } else {
                 action
             },
-        )
+        ) == QF_OK
 }
 
 fn qf_setprop_items_from_lines(
@@ -6976,23 +6976,23 @@ fn qf_setprop_items_from_lines(
     what: &dict_T,
     di: *mut dictitem_T,
     action: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut errorformat = opt_vars().p_efm;
-        let mut retval = FAIL;
+        let mut retval = false;
 
         let efm_di = tv_dict_find(what, c"efm".as_ptr(), 3);
         if !efm_di.is_null() {
             if (*efm_di).di_tv.v_type != VarType::VAR_STRING
                 || (*efm_di).di_tv.vval.v_string().is_null()
             {
-                return FAIL;
+                return false;
             }
             errorformat = (*efm_di).di_tv.vval.v_string();
         }
 
         if (*di).di_tv.v_type != VarType::VAR_LIST || (*di).di_tv.vval.v_list().is_null() {
-            return FAIL;
+            return false;
         }
 
         if action == b'r' as c_int || action == b'u' as c_int {
@@ -7012,14 +7012,14 @@ fn qf_setprop_items_from_lines(
             ptr::null_mut(),
         ) >= 0
         {
-            retval = OK;
+            retval = true;
         }
 
         retval
     }
 }
 
-fn qf_setprop_context(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
+fn qf_setprop_context(qfl: &mut qf_list_T, di: &mut dictitem_T) -> bool {
     if let Some(ref mut ctx) = qfl.qf_ctx {
             tv_clear(ctx);
         }
@@ -7027,14 +7027,14 @@ fn qf_setprop_context(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
         tv_copy(&di.di_tv, &mut ctx);
         qfl.qf_ctx = Some(ctx);
 
-        OK
+        true
 }
 
 fn qf_setprop_curidx(
     qi: &mut qf_info_T,
     qfl: &mut qf_list_T,
     di: &dictitem_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut newidx: c_int;
 
@@ -7047,25 +7047,25 @@ fn qf_setprop_curidx(
             let mut denote = false;
             newidx = tv_get_number_chk(&di.di_tv, Some(&mut denote)) as c_int;
             if denote {
-                return FAIL;
+                return false;
             }
         }
 
         if newidx < 1 {
-            return FAIL;
+            return false;
         }
         newidx = newidx.min(qfl.count());
         let old_qfidx = qfl.qf_index;
         let qf_ptr = get_nth_entry(qfl, newidx, &mut newidx);
         if qf_ptr.is_null() {
-            return FAIL;
+            return false;
         }
         qfl.qf_index = newidx;
 
         if (&qi.qf_lists)[qi.qf_curlist as usize].qf_id == qfl.qf_id {
             qf_win_pos_update(&mut *qi, old_qfidx);
         }
-        OK
+        true
     }
 }
 
@@ -7074,12 +7074,12 @@ fn qf_set_properties(
     what: &dict_T,
     action: c_int,
     title: *mut c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut newlist = action == b' ' as c_int || qf_stack_empty(&raw mut *qi);
         let mut qf_idx = qf_setprop_get_qfidx(qi, what, action, &mut newlist);
         if qf_idx == INVALID_QFIDX {
-            return FAIL;
+            return false;
         }
 
         if newlist {
@@ -7089,7 +7089,7 @@ fn qf_set_properties(
         }
 
         let qfl = qf_get_list(&mut *qi, qf_idx);
-        let mut retval = FAIL;
+        let mut retval = false;
         let mut di = tv_dict_find(what, c"title".as_ptr(), 5);
         if !di.is_null() {
             retval = qf_setprop_title(qi, qf_idx, what, di);
@@ -7115,7 +7115,7 @@ fn qf_set_properties(
             retval = qf_setprop_qftf(qfl, &mut *di);
         }
 
-        if newlist || retval == OK {
+        if newlist || retval {
             qf_list_changed(qfl);
         }
         if newlist {
@@ -7168,7 +7168,7 @@ pub fn set_errorlist(
     action: c_int,
     title: *mut c_char,
     what: *mut dict_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let qi = if !wp.is_null() {
             ll_get_or_alloc_list(wp)
@@ -7179,7 +7179,7 @@ pub fn set_errorlist(
 
         if action == b'f' as c_int {
             qf_free_stack(wp, &mut *qi);
-            return OK;
+            return true;
         }
 
         if !list.is_null() && tv_list_len(list) != 0 && !what.is_null() {
@@ -7187,7 +7187,7 @@ pub fn set_errorlist(
                 gettext((&raw const e_invarg2).cast()),
                 gettext(c"cannot have both a list and a \"what\" argument".as_ptr()),
             );
-            return FAIL;
+            return false;
         }
 
         incr_quickfix_busy();
@@ -7196,10 +7196,10 @@ pub fn set_errorlist(
             qf_set_properties(&mut *qi, &*what, action, title)
         } else {
             let r = qf_add_entries(&mut *qi, (*qi).qf_curlist, list, title, action);
-            if r == OK {
+            if r == QF_OK {
                 qf_list_changed(qf_get_curlist(&mut *qi));
             }
-            r
+            r == QF_OK
         };
 
         decr_quickfix_busy();
@@ -7621,7 +7621,7 @@ fn hgr_search_files_in_dir(
 
         add_pathsep(dirname);
         c_strcat(dirname, c"doc/*.\\(txt\\|??x\\)".as_ptr());
-        if gen_expand_wildcards_vec(1, &raw mut dirname, &mut fnames, EW_FILE | EW_SILENT) == OK
+        if gen_expand_wildcards_vec(1, &raw mut dirname, &mut fnames, EW_FILE | EW_SILENT)
             && !fnames.is_empty()
         {
             for f_cstr in &fnames {
@@ -7875,7 +7875,7 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
 
         qf_st().set_qf_ll_recursive += 1;
         let l = (*list_arg).vval.v_list();
-        if set_errorlist(wp, l, c_int::from(action), title.cast_mut(), what) == OK {
+        if set_errorlist(wp, l, c_int::from(action), title.cast_mut(), what) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
         qf_st().set_qf_ll_recursive -= 1;

@@ -767,7 +767,7 @@ pub fn ex_compiler(eap: &mut exarg_T) {
             c"compiler/%s.*".as_ptr(),
             eap.arg,
         );
-        if source_runtime_vim_lua(buf.as_mut_ptr(), DIP_ALL) == FAIL {
+        if !source_runtime_vim_lua(buf.as_mut_ptr(), DIP_ALL) {
             semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR.as_ptr()), eap.arg);
         }
         drop(buf);

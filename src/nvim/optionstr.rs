@@ -34,7 +34,7 @@ use crate::indent_c::parse_cino;
 use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
 use crate::mark::{fmark_T, fmarkv_T};
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::mbyte::{
     enc_canonize, get_encoding_name, utf_ClusterInfo, utf_ptr2StrCharInfo, utf_ptr2char,
     utfc_ptr2len,
@@ -221,7 +221,7 @@ pub struct optexpand_T {
 
 pub type opt_validate_cb_T = Option<fn(&mut optset_T) -> *const c_char>;
 pub type opt_did_set_cb_T = Option<fn(&mut optset_T) -> *const c_char>;
-pub type opt_expand_cb_T = Option<fn(&mut optexpand_T, &mut Vec<std::ffi::CString>) -> c_int>;
+pub type opt_expand_cb_T = Option<fn(&mut optexpand_T, &mut Vec<std::ffi::CString>) -> bool>;
 
 #[repr(C)]
 pub struct vimoption_T {
@@ -1262,7 +1262,7 @@ fn check_str_opt(
 pub fn expand_set_str_generic(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     let values = opt_values(args.oe_idx);
         expand_set_opt_string(args, values, matches)
 }
@@ -1314,7 +1314,7 @@ fn expand_set_opt_string(
     args: &mut optexpand_T,
     values: &[&CStr],
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         let regmatch = args.oe_regmatch;
         let include_orig_val = args.oe_include_orig_val;
@@ -1337,9 +1337,9 @@ fn expand_set_opt_string(
             }
         }
         if matches.is_empty() {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -1364,7 +1364,7 @@ fn expand_set_opt_generic(
     args: &mut optexpand_T,
     func: CompleteListItemGetter,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         optstr_st().set_opt_callback_orig_option = if args.oe_include_orig_val {
             args.oe_opt_value
@@ -1384,7 +1384,7 @@ fn expand_set_opt_generic(
 
         optstr_st().set_opt_callback_orig_option = ptr::null_mut();
         optstr_st().set_opt_callback_func = None;
-        OK
+        true
     }
 }
 
@@ -1393,7 +1393,7 @@ fn expand_set_opt_listflag(
     args: &mut optexpand_T,
     flags: *const c_char,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         let option_val = args.oe_opt_value;
         let cmdline_val = args.oe_set_arg;
@@ -1424,9 +1424,9 @@ fn expand_set_opt_listflag(
         }
 
         if matches.is_empty() {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -1795,7 +1795,7 @@ pub fn did_set_chars_option(args: &mut optset_T) -> *const c_char {
 pub fn expand_set_chars_option(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         let varp = args.oe_varp.cast::<*mut c_char>();
         let is_lcs =
@@ -2070,7 +2070,7 @@ pub fn validate_concealcursor(args: &mut optset_T) -> *const c_char {
 pub fn expand_set_concealcursor(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     expand_set_opt_listflag(args, COCU_ALL.as_ptr(), matches)
 }
 
@@ -2086,7 +2086,7 @@ pub fn validate_cpoptions(args: &mut optset_T) -> *const c_char {
 pub fn expand_set_cpoptions(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     expand_set_opt_listflag(args, CPO_VI.as_ptr(), matches)
 }
 
@@ -2131,7 +2131,7 @@ pub fn did_set_diffopt(_args: &mut optset_T) -> *const c_char {
         }
 }
 
-pub fn expand_set_diffopt(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn expand_set_diffopt(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> bool {
     unsafe {
         let xp = args.oe_xp;
 
@@ -2152,7 +2152,7 @@ pub fn expand_set_diffopt(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CS
                     matches,
                 );
             }
-            return FAIL;
+            return false;
         }
 
         expand_set_str_generic(args, matches)
@@ -2219,7 +2219,7 @@ pub fn did_set_encoding(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub fn expand_set_encoding(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn expand_set_encoding(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> bool {
     expand_set_opt_generic(args, Some(get_encoding_name), matches)
 }
 
@@ -2266,7 +2266,7 @@ fn get_eventignore_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 pub fn expand_set_eventignore(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     optstr_st().expand_eiw = !ptr::eq(args.oe_varp, (&raw mut opt_vars().p_ei).cast::<c_char>());
         expand_set_opt_generic(args, Some(get_eventignore_name), matches)
 }
@@ -2398,7 +2398,7 @@ pub fn validate_formatoptions(args: &mut optset_T) -> *const c_char {
 pub fn expand_set_formatoptions(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     expand_set_opt_listflag(args, FO_ALL.as_ptr(), matches)
 }
 
@@ -2615,7 +2615,7 @@ pub fn validate_mouse(args: &mut optset_T) -> *const c_char {
         )
 }
 
-pub fn expand_set_mouse(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn expand_set_mouse(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> bool {
     expand_set_opt_listflag(args, MOUSE_ALL.as_ptr(), matches)
 }
 
@@ -2797,7 +2797,7 @@ pub fn validate_shellpipe_redir(args: &mut optset_T) -> *const c_char {
 pub fn expand_set_shortmess(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     expand_set_opt_listflag(args, SHM_ALL.as_ptr(), matches)
 }
 
@@ -3253,7 +3253,7 @@ pub fn validate_whichwrap(args: &mut optset_T) -> *const c_char {
 pub fn expand_set_whichwrap(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     expand_set_opt_listflag(args, WW_ALL.as_ptr(), matches)
 }
 
@@ -3314,7 +3314,7 @@ pub fn did_set_winhighlight(args: &mut optset_T) -> *const c_char {
 pub fn expand_set_winhighlight(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     expand_set_opt_generic(args, Some(get_highlight_name), matches)
 }
 
@@ -4265,7 +4265,7 @@ pub fn validate_previewpopup(args: &mut optset_T) -> *const c_char {
 pub fn expand_set_popupoption(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         let xp = args.oe_xp;
 
@@ -4279,7 +4279,7 @@ pub fn expand_set_popupoption(
                     matches,
                 );
             }
-            return FAIL;
+            return false;
         }
 
         expand_set_opt_string(args, &opt_pvp_values, matches)

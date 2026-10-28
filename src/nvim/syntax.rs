@@ -275,7 +275,6 @@ const spo_name_tab: [*const c_char; SPO_COUNT] = [
 ];
 
 use crate::charset::NUL;
-use crate::math::FAIL;
 use crate::sign::EXP_SUBCMD;
 
 pub type SynIdList = Option<std::rc::Rc<[i16]>>;
@@ -3889,7 +3888,7 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
         } else {
             source_runtime(eap.arg, DIP_ALL)
         };
-        if res == FAIL {
+        if !res {
             semsg!(gettext((&raw const e_notopen).cast()), eap.arg);
         }
         (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp = prev_toplvl_grp;

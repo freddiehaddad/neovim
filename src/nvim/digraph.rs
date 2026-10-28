@@ -33,7 +33,6 @@ use crate::autocmd::HLF_8;
 use crate::buffer::KEYMAP_INIT;
 use crate::change::MB_MAXCHAR;
 use crate::cmdexpand::LineGetter;
-use crate::math::FAIL;
 use crate::regexp::{Ctrl_H, NUMBUFLEN};
 use crate::state::MODE_LANGMAP;
 
@@ -2127,9 +2126,9 @@ pub fn keymap_init() -> *mut c_char {
             let kmap = CStr::from_ptr((*g_st().curbuf).b_p_keymap).to_string_lossy();
             let enc = CStr::from_ptr(opt_vars().p_enc).to_string_lossy();
             let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
-            if source_runtime(primary.as_ptr().cast_mut(), 0) == FAIL {
+            if !source_runtime(primary.as_ptr().cast_mut(), 0) {
                 let fallback = CString::new(format!("keymap/{kmap}.vim")).unwrap_or_default();
-                if source_runtime(fallback.as_ptr().cast_mut(), 0) == FAIL {
+                if !source_runtime(fallback.as_ptr().cast_mut(), 0) {
                     return c"E544: Keymap file not found".as_ptr().cast_mut();
                 }
             }

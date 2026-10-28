@@ -69,7 +69,6 @@ use crate::lua::executor::{
     nlua_init_defaults, nlua_pcall,
 };
 use crate::mark::setpcmark;
-use crate::math::{FAIL, OK};
 use crate::mcursor::mc_init;
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
 use crate::memory::{mem_st, free_all_mem};
@@ -2322,7 +2321,7 @@ fn do_system_initialization() {
                 }
                 vimrc.extend_from_slice(appname_bytes);
                 vimrc.extend_from_slice(&sysinit_suffix);
-                if do_source(vimrc.as_mut_ptr().cast(), false, DOSO_NONE, ptr::null_mut()) != FAIL {
+                if do_source(vimrc.as_mut_ptr().cast(), false, DOSO_NONE, ptr::null_mut()) {
                     return;
                 }
                 if iter.is_null() {
@@ -2354,7 +2353,7 @@ fn do_user_initialization() -> bool {
         let user_vimrc_ptr = user_vimrc.as_ptr().cast_mut();
 
         if os_path_exists(init_lua_ptr)
-            && do_source(init_lua_ptr, true, DOSO_VIMRC, ptr::null_mut()) != 0
+            && do_source(init_lua_ptr, true, DOSO_VIMRC, ptr::null_mut())
         {
             if os_path_exists(user_vimrc_ptr) {
                 semsg!(
@@ -2368,7 +2367,7 @@ fn do_user_initialization() -> bool {
         }
         drop(init_lua_path);
 
-        if do_source(user_vimrc_ptr, true, DOSO_VIMRC, ptr::null_mut()) != FAIL {
+        if do_source(user_vimrc_ptr, true, DOSO_VIMRC, ptr::null_mut()) {
             do_exrc = opt_vars().p_exrc != 0;
             if do_exrc {
                 do_exrc = !path_equal(c".nvimrc".as_ptr(), user_vimrc_ptr, kPathCmpExpand);
@@ -2420,7 +2419,7 @@ fn do_user_initialization() -> bool {
                         true,
                         DOSO_VIMRC,
                         ptr::null_mut(),
-                    ) != 0
+                    )
                 {
                     if os_path_exists(init_vim.as_ptr().cast()) {
                         semsg!(
@@ -2438,7 +2437,7 @@ fn do_user_initialization() -> bool {
                     true,
                     DOSO_VIMRC,
                     ptr::null_mut(),
-                ) != FAIL
+                )
                 {
                     do_exrc = opt_vars().p_exrc != 0;
                     if do_exrc {
@@ -2486,12 +2485,12 @@ fn source_startup_scripts(parmp: &mparm_T) {
     if let Some(ref use_vimrc) = parmp.use_vimrc {
             if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
                 // Do nothing.
-            } else if do_source(
+            } else if !do_source(
                 use_vimrc.as_ptr().cast_mut(),
                 false,
                 DOSO_NONE,
                 ptr::null_mut(),
-            ) != OK
+            )
             {
                 semsg!(
                     gettext((&raw const e_cannot_read_from_str_2).cast()),

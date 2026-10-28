@@ -1479,9 +1479,9 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> c_int {
                 s.did_wild_list = true;
             }
             if (g_st().wim_flags[s.wim_index as usize] & kOptWimFlagLongest) != 0 {
-                res = nextwild(&mut s.xpc, WILD_LONGEST, options, escape);
+                res = if nextwild(&mut s.xpc, WILD_LONGEST, options, escape) { OK } else { FAIL };
             } else if (g_st().wim_flags[s.wim_index as usize] & kOptWimFlagFull) != 0 {
-                res = nextwild(&mut s.xpc, WILD_NEXT, options, escape);
+                res = if nextwild(&mut s.xpc, WILD_NEXT, options, escape) { OK } else { FAIL };
             } else {
                 res = OK;
             }
@@ -1505,7 +1505,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> c_int {
             let cmdpos_before = getln_st().ccline.cmdpos;
 
             if wim_longest {
-                res = nextwild(&mut s.xpc, WILD_LONGEST, options, escape);
+                res = if nextwild(&mut s.xpc, WILD_LONGEST, options, escape) { OK } else { FAIL };
             } else {
                 if wim_noselect || (wim_list && !wim_full) {
                     options |= WILD_NOSELECT;
@@ -1513,7 +1513,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> c_int {
                 if wim_noinsert {
                     options |= WILD_NOINSERT;
                 }
-                res = nextwild(&mut s.xpc, WILD_EXPAND_KEEP, options, escape);
+                res = if nextwild(&mut s.xpc, WILD_EXPAND_KEEP, options, escape) { OK } else { FAIL };
             }
 
             if redraw_if_menu_empty && s.xpc.xp_numfiles <= 0 {
@@ -1887,7 +1887,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
                 WILD_EXPAND_KEEP,
                 0,
                 s.firstc != b'@' as c_int,
-            ) == OK
+            )
         {
             if s.xpc.xp_numfiles > 1
                 && ((!s.did_wild_list
@@ -2659,8 +2659,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                             cmdline_pum_cleanup(&mut getln_st().ccline);
                         }
 
-                        if nextwild(&mut s.xpc, WILD_ALL, 0, s.firstc != b'@' as c_int)
-                            == FAIL
+                        if !nextwild(&mut s.xpc, WILD_ALL, 0, s.firstc != b'@' as c_int)
                         {
                             break 'key_switch;
                         }
@@ -2679,12 +2678,12 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                             return command_line_not_changed(s);
                         }
 
-                        if nextwild(
+                        if !nextwild(
                             &mut s.xpc,
                             WILD_LONGEST,
                             0,
                             s.firstc != b'@' as c_int,
-                        ) == FAIL
+                        )
                         {
                             break 'key_switch;
                         }
@@ -2698,12 +2697,12 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                             } else {
                                 WILD_NEXT
                             };
-                            if nextwild(
+                            if !nextwild(
                                 &mut s.xpc,
                                 wild_type,
                                 0,
                                 s.firstc != b'@' as c_int,
-                            ) == FAIL
+                            )
                             {
                                 break 'key_switch;
                             }
@@ -2732,12 +2731,12 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                             } else {
                                 WILD_PAGEUP
                             };
-                            if nextwild(
+                            if !nextwild(
                                 &mut s.xpc,
                                 wild_type,
                                 0,
                                 s.firstc != b'@' as c_int,
-                            ) == FAIL
+                            )
                             {
                                 break 'key_switch;
                             }

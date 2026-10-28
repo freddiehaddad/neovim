@@ -1039,7 +1039,7 @@ pub fn ex_loadview(eap: &mut exarg_T) {
             return;
         };
 
-        if do_source(fname.as_ptr().cast_mut(), false, DOSO_NONE, ptr::null_mut()) == FAIL {
+        if !do_source(fname.as_ptr().cast_mut(), false, DOSO_NONE, ptr::null_mut()) {
             semsg!(gettext(e_notopen.as_ptr()), fname.as_ptr());
         }
     }

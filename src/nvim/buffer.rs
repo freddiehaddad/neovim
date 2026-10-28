@@ -3286,14 +3286,14 @@ pub fn ExpandBufnames(
     pat: *mut c_char,
     file: &mut Vec<std::ffi::CString>,
     options: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut matches: Vec<bufmatch_T> = Vec::new();
 
         file.clear();
 
         if (options & BUF_DIFF_FILTER) != 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_diff == 0 {
-            return FAIL;
+            return false;
         }
 
         let fuzzy = cmdline_fuzzy_complete(pat);
@@ -3316,7 +3316,7 @@ pub fn ExpandBufnames(
             };
             regmatch.regprog = vim_regcomp(patc, RE_MAGIC);
             if regmatch.regprog.is_null() {
-                return FAIL;
+                return false;
             }
         }
 
@@ -3408,7 +3408,7 @@ pub fn ExpandBufnames(
             fuzzymatches_slice_to_strmatches(&mut fuzmatch, file, false);
         }
 
-        if file.is_empty() { FAIL } else { OK }
+        !file.is_empty()
     }
 }
 

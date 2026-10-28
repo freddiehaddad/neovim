@@ -38,7 +38,6 @@ use crate::highlight::{
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
-use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
 use crate::memory::{Arena};
 use crate::message::{
@@ -869,7 +868,7 @@ pub fn init_highlight(both: bool, reset: bool) {
         let p = get_var_value(c"g:colors_name".as_ptr());
         if !p.is_null() {
             let copy_p = CStr::from_ptr(p).to_owned();
-            let okay = load_colors(copy_p.as_ptr().cast_mut()) != 0;
+            let okay = load_colors(copy_p.as_ptr().cast_mut());
             if okay {
                 return;
             }
@@ -897,10 +896,10 @@ pub fn init_highlight(both: bool, reset: bool) {
     }
 }
 
-pub fn load_colors(name: *mut c_char) -> c_int {
+pub fn load_colors(name: *mut c_char) -> bool {
     unsafe {
         if hlg_st().load_colors_recursive {
-            return OK;
+            return true;
         }
 
         hlg_st().load_colors_recursive = true;
@@ -911,7 +910,7 @@ pub fn load_colors(name: *mut c_char) -> c_int {
         buf.extend_from_slice(name_bytes);
         buf.extend_from_slice(b".*\0");
         let retval = source_runtime_vim_lua(buf.as_mut_ptr().cast::<c_char>(), DIP_START + DIP_OPT);
-        if retval == OK {
+        if retval {
             apply_autocmds(EVENT_COLORSCHEME, name, (*g_st().curbuf).b_fname, false, g_st().curbuf);
         }
 

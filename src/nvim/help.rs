@@ -134,10 +134,10 @@ pub fn ex_help(eap: &mut exarg_T) {
 
         // Check if there is a match for the argument.
         let mut matches: Vec<std::ffi::CString> = Vec::new();
-        let mut n = find_help_tags(arg, &mut matches, eap.forceit != 0);
+        let found_tags = find_help_tags(arg, &mut matches, eap.forceit != 0);
 
         let mut i: usize = 0;
-        if n != FAIL && !lang.is_null() {
+        if found_tags && !lang.is_null() {
             let lang_bytes = CStr::from_ptr(lang).to_bytes();
             while i < matches.len() {
                 let m_bytes = matches[i].as_bytes();
@@ -151,7 +151,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                 i += 1;
             }
         }
-        if i >= matches.len() || n == FAIL {
+        if i >= matches.len() || !found_tags {
             if !lang.is_null() {
                 semsg!(gettext(c"E661: No '%s' help for %s".as_ptr()), lang, arg);
             } else {
@@ -193,7 +193,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                 } else {
                     fclose(helpfd);
 
-                    n = WSP_HELP;
+                    let mut n = WSP_HELP;
                     if g_st().cmdmod.cmod_split == 0
                         && (**curwin.as_ptr()).w_width != g_st().Columns
                         && (**curwin.as_ptr()).w_width < 80
@@ -341,7 +341,7 @@ pub fn find_help_tags(
     arg: *const c_char,
     matches: &mut Vec<std::ffi::CString>,
     keep_lang: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut tv_args = [
             typval_T {
@@ -368,7 +368,7 @@ pub fn find_help_tags(
         );
         if rettv.v_type != VarType::VAR_STRING || rettv.vval.v_string().is_null() {
             tv_clear(&raw mut rettv);
-            return FAIL;
+            return false;
         }
         xstrlcpy((&raw mut g_st().IObuff).cast(), rettv.vval.v_string(), IOSIZE);
         tv_clear(&raw mut rettv);
@@ -395,7 +395,7 @@ pub fn find_help_tags(
                 matches.push(CStr::from_ptr(m.as_ptr()).to_owned());
             }
         }
-        OK
+        true
     }
 }
 

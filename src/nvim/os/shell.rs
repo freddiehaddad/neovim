@@ -25,8 +25,6 @@ use crate::ex_docmd::CAR;
 use crate::fileio::fopen;
 use crate::fileio::{SEEK_END, SEEK_SET, fclose, fread, fseek, ftell, vim_tempname};
 use crate::globals::*;
-#[cfg(unix)]
-use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
@@ -189,7 +187,7 @@ pub fn os_expand_wildcards(
     pat: *mut *mut c_char,
     file: &mut Vec<std::ffi::CString>,
     flags: c_int,
-) -> c_int {
+) -> bool {
     const SH_VIMGLOB_FUNC: &CStr =
         c"vimglob() { while [ $# -ge 1 ]; do printf '%s\\n' \"$1\"; shift; done }; vimglob >";
     const SH_GLOBSTAR_OPT: &CStr = c"[[ ${BASH_VERSINFO[0]} -ge 4 ]] && shopt -s globstar; ";
@@ -213,24 +211,24 @@ pub fn os_expand_wildcards(
 
         if !have_wildcard(num_pat, pat) {
             save_patterns(num_pat, pat, file);
-            return OK;
+            return true;
         }
 
         if g_st().sandbox != 0 && check_secure() {
-            return FAIL;
+            return false;
         }
 
         if g_st().secure != 0 {
             for i in 0..(num_pat as usize) {
                 if !vim_strchr(*pat.add(i), b'`' as c_int).is_null() && check_secure() {
-                    return FAIL;
+                    return false;
                 }
             }
         }
 
         let Some(tempname_cstr) = vim_tempname() else {
             emsg(gettext(e_notmp.as_ptr()));
-            return FAIL;
+            return false;
         };
         let tempname = tempname_cstr.as_ptr();
 
@@ -407,13 +405,13 @@ pub fn os_expand_wildcards(
             }
 
             if shell_style == STYLE_BT {
-                return FAIL;
+                return false;
             }
             if (flags & EW_NOTFOUND) != 0 {
                 save_patterns(num_pat, pat, file);
-                return OK;
+                return true;
             }
-            return FAIL;
+            return false;
         }
 
         let fd = fopen(tempname, c"rb".as_ptr());
@@ -424,19 +422,19 @@ pub fn os_expand_wildcards(
             }
             if (flags & EW_NOTFOUND) != 0 {
                 save_patterns(num_pat, pat, file);
-                return OK;
+                return true;
             }
-            return FAIL;
+            return false;
         }
         let fseek_res = fseek(fd, 0, SEEK_END);
         if fseek_res < 0 {
             fclose(fd);
-            return FAIL;
+            return false;
         }
         let templen = ftell(fd) as i64;
         if templen < 0 {
             fclose(fd);
-            return FAIL;
+            return false;
         }
         len = templen as usize;
         fseek(fd, 0, SEEK_SET);
@@ -447,7 +445,7 @@ pub fn os_expand_wildcards(
         os_remove(tempname);
         if readlen != len {
             semsg!(gettext(e_cant_read_file_str.as_ptr()), tempname);
-            return FAIL;
+            return false;
         }
         drop(tempname_cstr);
 
@@ -511,9 +509,9 @@ pub fn os_expand_wildcards(
         if count == 0 {
             if (flags & EW_NOTFOUND) != 0 {
                 save_patterns(num_pat, pat, file);
-                return OK;
+                return true;
             }
-            return FAIL;
+            return false;
         }
         let mut raw_entries: Vec<*mut c_char> = Vec::with_capacity(count as usize);
 
@@ -575,12 +573,12 @@ pub fn os_expand_wildcards(
         if file.is_empty() {
             if (flags & EW_NOTFOUND) != 0 {
                 save_patterns(num_pat, pat, file);
-                return OK;
+                return true;
             }
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 

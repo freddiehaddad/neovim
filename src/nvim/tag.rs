@@ -3134,7 +3134,7 @@ pub fn expand_tags(
     tagnames: bool,
     pat: *mut c_char,
     file: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         let extra_flag = if tagnames { TAG_NAMES } else { 0 };
         let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
@@ -3188,7 +3188,7 @@ pub fn expand_tags(
                 }
             }
         }
-        ret
+        ret == OK
     }
 }
 
