@@ -214,12 +214,12 @@ pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
 
 fn parse_map_cmd(arg_str: impl crate::strings::IntoCCharPtr, arena: &mut Arena) -> Array {
     let arg_str = arg_str.into_c_char_ptr();
-    unsafe {
+    {
         let mut args = arena_array(arena, 2);
 
         let lhs_start = arg_str as *mut c_char;
         let lhs_end = skiptowhite(lhs_start);
-        let lhs_len = lhs_end.offset_from(lhs_start) as usize;
+        let lhs_len = crate::memory::ptr_offset_from(lhs_end, lhs_start) as usize;
 
         add_c(&mut args, string_obj(cstrn_as_string(lhs_start, lhs_len)));
 

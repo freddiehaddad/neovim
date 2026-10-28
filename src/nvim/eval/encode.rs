@@ -474,7 +474,7 @@ fn conv_error(
                     }
                 },
                 MPConvStackData::PartialList { arg, argv, .. } => {
-                    let idx = (arg.offset_from(argv) as i32) - 1;
+                    let idx = (crate::memory::ptr_offset_from(arg, argv) as i32) - 1;
                     vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"argument %i", idx,);
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }

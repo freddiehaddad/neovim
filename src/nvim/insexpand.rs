@@ -1080,8 +1080,8 @@ fn ins_compl_infercase_gettext(
                 let n = utf_char2bytes(wca[i as usize], ch_buf.as_mut_ptr()) as usize;
                 gap.extend_from_slice(&ch_buf[..n]);
                 i += 1;
-            } else if (p.offset_from(iobuff_ptr) as usize) + 6 >= IOSIZE {
-                let cur_len = p.offset_from(iobuff_ptr) as usize;
+            } else if (crate::memory::ptr_offset_from(p, iobuff_ptr) as usize) + 6 >= IOSIZE {
+                let cur_len = crate::memory::ptr_offset_from(p, iobuff_ptr) as usize;
                 gap.reserve(IOSIZE);
                 gap.extend_from_slice(std::slice::from_raw_parts(iobuff_ptr, cur_len));
             } else {
@@ -1543,7 +1543,8 @@ fn ins_compl_longest_match(match_: &mut Compl) {
 
         if !crate::memory::cstr_is_empty(p) {
             *p = NUL;
-            insexp().compl_leader.size = p.offset_from(insexp().compl_leader.data) as usize;
+            insexp().compl_leader.size =
+                crate::memory::ptr_offset_from(p, insexp().compl_leader.data) as usize;
 
             let had_match = curwin_mut().w_cursor.col > insexp().compl_col;
             ins_compl_longest_insert(insexp().compl_leader.data);
@@ -2260,7 +2261,7 @@ fn thesaurus_add_words_in_line(
             if !ptr::eq(wstart.cast_const(), skip_word) {
                 status = ins_compl_add_infercase(
                     wstart,
-                    ptr.offset_from(wstart) as i32,
+                    crate::memory::ptr_offset_from(ptr, wstart) as i32,
                     opt_vars().p_ic != 0,
                     fname,
                     dir,
@@ -2347,7 +2348,7 @@ fn ins_compl_files(
                             };
                             let add_r = ins_compl_add_infercase(
                                 ptr,
-                                end_ptr.offset_from(ptr) as i32,
+                                crate::memory::ptr_offset_from(end_ptr, ptr) as i32,
                                 opt_vars().p_ic != 0,
                                 file,
                                 *dir,
@@ -2368,7 +2369,11 @@ fn ins_compl_files(
                         }
                     }
                 } else {
-                    while vim_regexec(&mut *regmatch, buf, ptr.offset_from(buf) as Colnr) {
+                    while vim_regexec(
+                        &mut *regmatch,
+                        buf,
+                        crate::memory::ptr_offset_from(ptr, buf) as Colnr,
+                    ) {
                         ptr = regmatch.startp[0];
                         ptr = if ctrl_x_mode_line_or_eval() {
                             find_line_end(ptr)
@@ -2377,7 +2382,7 @@ fn ins_compl_files(
                         };
                         let mut add_r = ins_compl_add_infercase(
                             regmatch.startp[0],
-                            ptr.offset_from(regmatch.startp[0]) as i32,
+                            crate::memory::ptr_offset_from(ptr, regmatch.startp[0]) as i32,
                             opt_vars().p_ic != 0,
                             file,
                             *dir,
@@ -2562,7 +2567,7 @@ pub fn ins_compl_preinsert_effect() -> bool {
 }
 
 pub fn ins_compl_bs() -> i32 {
-    unsafe {
+    {
         if ins_compl_preinsert_effect() {
             ins_compl_delete(false);
         }
@@ -2570,7 +2575,7 @@ pub fn ins_compl_bs() -> i32 {
         let mut line = get_cursor_line_ptr();
         let mut p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
         mb_ptr_back(line, &raw mut p);
-        let p_off = p.offset_from(line);
+        let p_off = crate::memory::ptr_offset_from(p, line);
 
         if (p_off as i32) - insexp().compl_col < 0
             || ((p_off as i32) - insexp().compl_col == 0 && !ctrl_x_mode_omni())
@@ -4161,7 +4166,7 @@ fn process_next_cpt_value(
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             let mut cpt_ptr = st.e_cpt_ptr();
             copy_option_part(&raw mut cpt_ptr, iobuff_ptr, IOSIZE, c",");
-            st.e_cpt_idx = cpt_ptr.offset_from(st.e_cpt_copy.as_ptr()) as usize;
+            st.e_cpt_idx = crate::memory::ptr_offset_from(cpt_ptr, st.e_cpt_copy.as_ptr()) as usize;
             *advance_cpt_idx = may_advance_cpt_index(cpt_ptr);
 
             st.found_all = true;
@@ -4379,7 +4384,7 @@ fn fuzzy_longest_match() {
 }
 
 fn get_next_filename_completion() {
-    unsafe {
+    {
         let mut matches: Vec<std::ffi::CString> = Vec::new();
         let mut leader = ins_compl_leader();
         let leader_len = ins_compl_leader_len();
@@ -4402,7 +4407,7 @@ fn get_next_filename_completion() {
             } else if crate::memory::cstr_byte_at(last_sep, 1) == 0 {
                 in_fuzzy_collect = false;
             } else {
-                let path_len = last_sep.offset_from(leader) as usize + 1;
+                let path_len = crate::memory::ptr_offset_from(last_sep, leader) as usize + 1;
                 let mut path_with_wildcard: Vec<c_char> = vec![0; path_len + 2];
                 vim_snprintf!(
                     path_with_wildcard.as_mut_ptr(),
@@ -4600,7 +4605,7 @@ fn ins_compl_get_next_word_or_line(
                 if opt_vars().p_paste == 0 {
                     let tmp_ptr = ptr;
                     ptr = skipwhite(tmp_ptr);
-                    len -= ptr.offset_from(tmp_ptr) as i32;
+                    len -= crate::memory::ptr_offset_from(ptr, tmp_ptr) as i32;
                 }
             }
         } else {
@@ -4614,7 +4619,7 @@ fn ins_compl_get_next_word_or_line(
                 tmp_ptr = find_word_start(tmp_ptr);
             }
             tmp_ptr = find_word_end(tmp_ptr);
-            len = tmp_ptr.offset_from(ptr) as i32;
+            len = crate::memory::ptr_offset_from(tmp_ptr, ptr) as i32;
 
             if compl_status_adding() && len == insexp().compl_length {
                 if cur_match_pos.lnum < ins_buf.b_ml.ml_line_count {
@@ -4632,7 +4637,10 @@ fn ins_compl_get_next_word_or_line(
                         if crate::memory::cstr_first_byte(ptr) != b')'
                             && *iobuff_ptr.wrapping_add((len - 1) as usize) != TAB as c_char
                         {
-                            if *iobuff_ptr.wrapping_add((len - 1) as usize) != b' ' as c_char {
+                            if crate::memory::cstr_first_byte(
+                                iobuff_ptr.wrapping_add((len - 1) as usize),
+                            ) != b' '
+                            {
                                 *iobuff_ptr.wrapping_add(len as usize) = b' ' as c_char;
                                 len += 1;
                             }
@@ -4647,7 +4655,9 @@ fn ins_compl_get_next_word_or_line(
                                 }
                             }
                         }
-                        if tmp_ptr.offset_from(ptr) as usize >= IOSIZE - len as usize {
+                        if crate::memory::ptr_offset_from(tmp_ptr, ptr) as usize
+                            >= IOSIZE - len as usize
+                        {
                             tmp_ptr = ptr.wrapping_add(IOSIZE - len as usize - 1);
                         }
                         xstrlcpy(
@@ -4655,7 +4665,7 @@ fn ins_compl_get_next_word_or_line(
                             ptr,
                             IOSIZE - len as usize,
                         );
-                        len += tmp_ptr.offset_from(ptr) as i32;
+                        len += crate::memory::ptr_offset_from(tmp_ptr, ptr) as i32;
                         *cont_s_ipos = true;
                     }
                     *iobuff_ptr.wrapping_add(len as usize) = NUL;
@@ -4832,7 +4842,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
 }
 
 fn get_register_completion() {
-    unsafe {
+    {
         let mut dir = insexp().compl_direction;
         let adding_mode = compl_status_adding();
 
@@ -4906,7 +4916,7 @@ fn get_register_completion() {
                             word_end = str_end;
                         }
 
-                        let len = word_end.offset_from(p) as i32;
+                        let len = crate::memory::ptr_offset_from(word_end, p) as i32;
                         let matches = insexp().compl_orig_text.data.is_null()
                             || if opt_vars().p_ic != 0 {
                                 crate::memory::cstr_prefix_bytes(p, insexp().compl_orig_text.size)
@@ -5411,7 +5421,7 @@ pub fn ins_compl_delete(new_leader: bool) {
                 leader = leader.wrapping_add(utf_ptr2len(leader) as usize);
                 orig = orig.wrapping_add(utf_ptr2len(orig) as usize);
             }
-            orig_col = orig.offset_from(insexp().compl_orig_text.data) as i32;
+            orig_col = crate::memory::ptr_offset_from(orig, insexp().compl_orig_text.data) as i32;
         }
 
         let mut col = insexp().compl_col
@@ -5466,14 +5476,14 @@ pub fn ins_compl_delete(new_leader: bool) {
 
 fn ins_compl_expand_multiple(str_ptr: impl crate::strings::IntoCCharPtr) {
     let str_ptr = str_ptr.into_c_char_ptr();
-    unsafe {
+    {
         let mut start = str_ptr;
         let mut curr = str_ptr;
         let base_indent = get_indent();
         while !crate::memory::cstr_is_empty(curr) {
             if crate::memory::cstr_first_byte(curr) == b'\n' {
                 if curr > start {
-                    ins_char_bytes(start, curr.offset_from(start) as usize);
+                    ins_char_bytes(start, crate::memory::ptr_offset_from(curr, start) as usize);
                 }
                 open_line(
                     FORWARD,
@@ -5487,7 +5497,7 @@ fn ins_compl_expand_multiple(str_ptr: impl crate::strings::IntoCCharPtr) {
         }
 
         if curr > start {
-            ins_char_bytes(start, curr.offset_from(start) as usize);
+            ins_char_bytes(start, crate::memory::ptr_offset_from(curr, start) as usize);
         }
 
         insexp().compl_ins_end_col = curwin_mut().w_cursor.col;
@@ -5593,7 +5603,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
                 let p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
                 if !p.is_null() && !ascii_iswhite_or_nul(crate::memory::cstr_first_char(p)) {
                     let end = find_word_end(p);
-                    let text_len = end.offset_from(p) as i32;
+                    let text_len = crate::memory::ptr_offset_from(end, p) as i32;
                     if text_len > 0
                         && text_len < len - ins_compl_leader_len() as i32
                         && (crate::memory::cstr_prefix_bytes(
@@ -6250,7 +6260,7 @@ fn get_filename_compl_info(
     curs_col: Colnr,
 ) -> bool {
     let line = line.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         if startcol > 0 {
             let mut p = line.wrapping_add(startcol as usize);
 
@@ -6264,8 +6274,10 @@ fn get_filename_compl_info(
                 if p > line
                     && path_has_drive_letter(
                         p.wrapping_sub(1),
-                        line.wrapping_add(startcol as usize)
-                            .offset_from(p.wrapping_sub(1)) as usize,
+                        crate::memory::ptr_offset_from(
+                            line.wrapping_add(startcol as usize),
+                            p.wrapping_sub(1),
+                        ) as usize,
                     )
                 {
                     p = p.wrapping_sub(if ptr::eq(p, line.wrapping_add(1)) {
@@ -6281,7 +6293,7 @@ fn get_filename_compl_info(
             if ptr::eq(p, line) && p_is_filec {
                 startcol = 0;
             } else {
-                startcol = p.offset_from(line) as i32 + 1;
+                startcol = crate::memory::ptr_offset_from(p, line) as i32 + 1;
             }
         }
 
@@ -6299,7 +6311,7 @@ fn get_filename_compl_info(
 
 fn get_cmdline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Colnr) -> bool {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         set_compl_pattern_bytes(line, curs_col as usize);
         set_cmd_context(
             &mut insexp().compl_xp,
@@ -6316,10 +6328,9 @@ fn get_cmdline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Col
         {
             insexp().compl_col = curs_col;
         } else {
-            insexp().compl_col = insexp()
-                .compl_xp
-                .xp_pattern
-                .offset_from(compl_pattern_ptr()) as Colnr;
+            insexp().compl_col =
+                crate::memory::ptr_offset_from(insexp().compl_xp.xp_pattern, compl_pattern_ptr())
+                    as Colnr;
         }
         insexp().compl_length = curs_col - insexp().compl_col;
 
@@ -6513,7 +6524,7 @@ fn compl_get_info(
 
 fn ins_compl_continue_search(line: impl crate::strings::IntoCCharPtr) {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         insexp().compl_cont_status &= !CONT_INTRPT;
         if ctrl_x_mode_normal() || ctrl_x_mode_path_patterns() || ctrl_x_mode_path_defines() {
             if insexp().compl_startpos.lnum != curwin_mut().w_cursor.lnum {
@@ -6527,7 +6538,7 @@ fn ins_compl_continue_search(line: impl crate::strings::IntoCCharPtr) {
                     let p = skipwhite(line.wrapping_add(
                         (insexp().compl_length + insexp().compl_startpos.col) as usize,
                     ));
-                    insexp().compl_startpos.col = p.offset_from(line) as Colnr;
+                    insexp().compl_startpos.col = crate::memory::ptr_offset_from(p, line) as Colnr;
                 }
                 insexp().compl_col = insexp().compl_startpos.col;
             }

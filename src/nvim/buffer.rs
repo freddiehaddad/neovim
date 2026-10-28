@@ -4752,12 +4752,12 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
 
         loop {
             s = s.wrapping_add(1);
-            if *s.wrapping_sub(1) == b':' as c_char {
+            if crate::memory::cstr_first_byte(s.wrapping_sub(1)) == b':' {
                 break;
             }
         }
 
-        let len = line_end.offset_from(s) as usize;
+        let len = crate::memory::ptr_offset_from(line_end, s) as usize;
         let linecopy_cstr = cstr_from_bytes(crate::memory::cstr_slice(s, len));
         let mut linecopy_vec: Vec<c_char> = linecopy_cstr
             .into_bytes_with_nul()
@@ -4784,7 +4784,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                     ptr::copy(
                         e.wrapping_add(1),
                         e,
-                        line_end.offset_from(e.wrapping_add(1)) as usize + 1,
+                        crate::memory::ptr_offset_from(line_end, e.wrapping_add(1)) as usize + 1,
                     );
                     line_end = line_end.wrapping_sub(1);
                 }
@@ -5121,7 +5121,7 @@ pub fn read_buffer_into(
                 len = if s.is_null() {
                     lplen - written
                 } else {
-                    s.offset_from(lp.wrapping_add(written)) as usize
+                    crate::memory::ptr_offset_from(s, lp.wrapping_add(written)) as usize
                 };
                 if len > 0 {
                     sb.extend_from_slice(std::slice::from_raw_parts(lp.wrapping_add(written), len));

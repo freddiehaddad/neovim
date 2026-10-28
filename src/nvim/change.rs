@@ -1080,7 +1080,8 @@ pub fn open_line(
                                 if crate::memory::cstr_first_byte(p) == b'/'
                                     && *p.wrapping_sub(1) == b'*' as c_char
                                 {
-                                    curwin_mut().w_cursor.col = p.offset_from(ptr) as Colnr;
+                                    curwin_mut().w_cursor.col =
+                                        crate::memory::ptr_offset_from(p, ptr) as Colnr;
                                     let pos = findmatch(None, 0);
                                     if !pos.is_null() {
                                         curwin_mut().w_cursor.lnum = (*pos).lnum;
@@ -1111,7 +1112,8 @@ pub fn open_line(
                             }
                         }
                         if crate::memory::cstr_first_byte(p) == b')' {
-                            curwin_mut().w_cursor.col = p.offset_from(ptr) as Colnr;
+                            curwin_mut().w_cursor.col =
+                                crate::memory::ptr_offset_from(p, ptr) as Colnr;
                             let pos = findmatch(None, b'(' as i32);
                             if !pos.is_null() {
                                 curwin_mut().w_cursor.lnum = (*pos).lnum;
@@ -1307,7 +1309,7 @@ pub fn open_line(
                     {
                         lead_repl = lead_repl.wrapping_sub(1);
                     }
-                    lead_repl_len = p.offset_from(lead_repl) as i32;
+                    lead_repl_len = crate::memory::ptr_offset_from(p, lead_repl) as i32;
 
                     extra_space = true;
 
@@ -1399,13 +1401,15 @@ pub fn open_line(
                                 );
                                 old_size += ptr2cells(p);
                             }
-                            let l = lead_repl_len - endp.offset_from(p) as i32;
+                            let l = lead_repl_len - crate::memory::ptr_offset_from(endp, p) as i32;
                             if l != 0 {
                                 ptr::copy(
                                     endp,
                                     endp.wrapping_offset(l as isize),
-                                    leader.wrapping_add(lead_len as usize).offset_from(endp)
-                                        as usize,
+                                    crate::memory::ptr_offset_from(
+                                        leader.wrapping_add(lead_len as usize),
+                                        endp,
+                                    ) as usize,
                                 );
                             }
                             lead_len += l;
@@ -1431,10 +1435,10 @@ pub fn open_line(
                                 ptr::copy(
                                     p.wrapping_add(l as usize + 1),
                                     p.wrapping_add(1),
-                                    leader
-                                        .wrapping_add(lead_len as usize)
-                                        .offset_from(p.wrapping_add(l as usize + 1))
-                                        as usize,
+                                    crate::memory::ptr_offset_from(
+                                        leader.wrapping_add(lead_len as usize),
+                                        p.wrapping_add(l as usize + 1),
+                                    ) as usize,
                                 );
                                 lead_len -= l;
                                 *p = b' ' as c_char;
@@ -1458,7 +1462,10 @@ pub fn open_line(
                                 ptr::copy(
                                     p.wrapping_add(i as usize),
                                     p.wrapping_add(lead_repl_len as usize),
-                                    (lead_len - i - p.offset_from(leader) as i32) as usize,
+                                    (lead_len
+                                        - i
+                                        - crate::memory::ptr_offset_from(p, leader) as i32)
+                                        as usize,
                                 );
                                 lead_len += lead_repl_len - i;
                             }
@@ -1475,8 +1482,10 @@ pub fn open_line(
                                     ptr::copy(
                                         p.wrapping_add(1),
                                         p,
-                                        leader.wrapping_add(lead_len as usize).offset_from(p)
-                                            as usize,
+                                        crate::memory::ptr_offset_from(
+                                            leader.wrapping_add(lead_len as usize),
+                                            p,
+                                        ) as usize,
                                     );
                                 } else {
                                     let mut l = utfc_ptr2len(p);
@@ -1489,8 +1498,10 @@ pub fn open_line(
                                         ptr::copy(
                                             p.wrapping_add(l as usize),
                                             p.wrapping_add(1),
-                                            leader.wrapping_add(lead_len as usize).offset_from(p)
-                                                as usize,
+                                            crate::memory::ptr_offset_from(
+                                                leader.wrapping_add(lead_len as usize),
+                                                p,
+                                            ) as usize,
                                         );
                                         lead_len -= l - 1;
                                     }
@@ -1558,7 +1569,8 @@ pub fn open_line(
                 && (curbuf_mut().b_p_ai != 0 || do_si)
             {
                 let old_cursor = curwin_mut().w_cursor;
-                curwin_mut().w_cursor.col = comment_end.offset_from(saved_line) as Colnr;
+                curwin_mut().w_cursor.col =
+                    crate::memory::ptr_offset_from(comment_end, saved_line) as Colnr;
                 let pos = findmatch(None, 0);
                 if !pos.is_null() {
                     curwin_mut().w_cursor.lnum = (*pos).lnum;
@@ -1587,7 +1599,7 @@ pub fn open_line(
                 }
             }
 
-            less_cols = p_extra.offset_from(saved_line) as Colnr;
+            less_cols = crate::memory::ptr_offset_from(p_extra, saved_line) as Colnr;
         }
 
         if p_extra.is_null() {

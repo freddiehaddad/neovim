@@ -209,7 +209,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
             let mut did_skip = false;
             let mut first = true;
             loop {
-                if *ml_get(curr) != NUL {
+                if !crate::memory::cstr_is_empty(ml_get(curr)) {
                     did_skip = true;
                 }
 
@@ -729,7 +729,7 @@ pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: boo
 
 /// Find the current line ("il") or all lines ("al") (`current_line`).
 pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
-    unsafe {
+    {
         if include {
             if g_st().visual_global.active {
                 g_st().visual_global.start.lnum = 1;
@@ -767,11 +767,11 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
         }
 
         let mut start_pos = curwin_mut().w_cursor;
-        start_pos.col = start.offset_from(line) as Colnr;
+        start_pos.col = crate::memory::ptr_offset_from(start, line) as Colnr;
         start_pos.coladd = 0;
 
         let mut end_pos = curwin_mut().w_cursor;
-        end_pos.col = mb_prevptr(line, end).offset_from(line) as Colnr;
+        end_pos.col = crate::memory::ptr_offset_from(mb_prevptr(line, end), line) as Colnr;
         end_pos.coladd = 0;
 
         if g_st().visual_global.active {
@@ -1116,7 +1116,7 @@ fn in_html_tag(end_tag: bool) -> bool {
 
         let mut pos = CursorPos {
             lnum: curwin_mut().w_cursor.lnum,
-            col: p.offset_from(line) as Colnr,
+            col: crate::memory::ptr_offset_from(p, line) as Colnr,
             coladd: 0,
         };
 
@@ -1145,7 +1145,7 @@ fn in_html_tag(end_tag: bool) -> bool {
 
 /// Find tag block under the cursor, cursor at end (`current_tagblock`).
 pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool {
-    unsafe {
+    {
         let mut count = count_arg;
         let mut do_include = include;
         let save_p_ws = opt_vars().p_ws;
@@ -1225,7 +1225,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
             {
                 cp = cp.wrapping_add(utfc_ptr2len(cp) as usize);
             }
-            let len = cp.offset_from(p) as usize;
+            let len = crate::memory::ptr_offset_from(cp, p) as usize;
             if len == 0 {
                 curwin_mut().w_cursor = old_pos;
                 opt_vars().p_ws = save_p_ws;
@@ -1788,11 +1788,11 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
                         && i32::from(
                             *line.wrapping_add(g_st().visual_global.start.col as usize) as u8
                         ) != quotechar
-                        && (*line.wrapping_add(g_st().visual_global.start.col as usize) == NUL
-                            || i32::from(
-                                *line.wrapping_add((g_st().visual_global.start.col + 1) as usize)
-                                    as u8,
-                            ) != quotechar))
+                        && (crate::memory::cstr_is_empty(
+                            line.wrapping_add(g_st().visual_global.start.col as usize),
+                        ) || i32::from(
+                            *line.wrapping_add((g_st().visual_global.start.col + 1) as usize) as u8,
+                        ) != quotechar))
                 {
                     dec_cursor();
                     g_st().visual_global.start = curwin_mut().w_cursor;

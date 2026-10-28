@@ -242,7 +242,7 @@ pub fn find_ucmd(
     mut complp: Option<&mut i32>,
 ) -> *mut c_char {
     unsafe {
-        let len = p.offset_from(eap.cmd) as i32;
+        let len = crate::memory::ptr_offset_from(p, eap.cmd) as i32;
         let mut matchlen: i32 = 0;
         let mut found = false;
         let mut possible = false;
@@ -346,7 +346,7 @@ pub fn set_context_in_user_cmd(
     arg_in: impl crate::strings::IntoCCharPtr,
 ) -> *const c_char {
     let arg_in = arg_in.into_c_char_ptr();
-    unsafe {
+    {
         let mut arg = arg_in;
         let mut p: *const c_char;
 
@@ -364,7 +364,7 @@ pub fn set_context_in_user_cmd(
                     return ptr::null();
                 }
 
-                let attr_len = p.offset_from(arg) as usize;
+                let attr_len = crate::memory::ptr_offset_from(p, arg) as usize;
                 if crate::memory::cstr_prefix_bytes(arg, attr_len)
                     .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"complete", attr_len))
                 {
@@ -1250,7 +1250,7 @@ pub fn uc_add_command(
 
 /// `:command ...` (`ex_command`).
 pub fn ex_command(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut argt: u32 = 0;
         let mut def: i32 = -1;
         let mut flags: i32 = 0;
@@ -1266,7 +1266,7 @@ pub fn ex_command(eap: &mut Exarg) {
             let end = skiptowhite(p);
             if !uc_scan_attr(
                 p,
-                end.offset_from(p) as usize,
+                crate::memory::ptr_offset_from(end, p) as usize,
                 &mut argt,
                 &mut def,
                 &mut flags,
@@ -1285,7 +1285,7 @@ pub fn ex_command(eap: &mut Exarg) {
             emsg(gettext(c"E182: Invalid command name"));
             return;
         }
-        let name_len = end.offset_from(name) as usize;
+        let name_len = crate::memory::ptr_offset_from(end, name) as usize;
 
         p = skipwhite(end);
         if !has_attr && ends_excmd(i32::from(crate::memory::cstr_first_byte(p))) != 0 {
@@ -2010,7 +2010,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
                         && (crate::memory::cstr_byte_at(ksp, 1)) == KS_SPECIAL
                         && *ksp.wrapping_add(2) == KE_FILLER
                     {
-                        let len = ksp.offset_from(p) as usize;
+                        let len = crate::memory::ptr_offset_from(ksp, p) as usize;
                         if len > 0 {
                             ptr::copy(p, q, len);
                             q = q.wrapping_add(len);
@@ -2028,7 +2028,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
 
                 end = end.wrapping_add(1);
 
-                let mut len = start.offset_from(p) as usize;
+                let mut len = crate::memory::ptr_offset_from(start, p) as usize;
                 if buf.is_null() {
                     totlen += len;
                 } else {
@@ -2038,7 +2038,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
 
                 len = uc_check_code(
                     start,
-                    end.offset_from(start) as usize,
+                    crate::memory::ptr_offset_from(end, start) as usize,
                     q,
                     &mut *cmd,
                     eap,

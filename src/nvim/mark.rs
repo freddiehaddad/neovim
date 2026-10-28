@@ -1023,7 +1023,7 @@ pub fn fm_getname(fmark: &mut Fmark, lead_len: i32) -> Option<std::ffi::CString>
 
 /// Return the line at mark `mp`, truncated to fit in window (`mark_line`).
 fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
-    unsafe {
+    {
         if mp.lnum == 0 || mp.lnum > curbuf_mut().b_ml.ml_line_count {
             return c"-invalid-".to_owned();
         }
@@ -1041,7 +1041,7 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
             }
             p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
-        let keep = (p.offset_from(line) as usize).min(max_bytes);
+        let keep = (crate::memory::ptr_offset_from(p, line) as usize).min(max_bytes);
         std::ffi::CString::new(crate::memory::cstr_slice(line, keep)).unwrap_or_default()
     }
 }

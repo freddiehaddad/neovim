@@ -833,7 +833,8 @@ pub fn do_tag(
                         {
                             let ud_slice = crate::memory::cstr_slice(
                                 tagp2.user_data,
-                                tagp2.user_data_end.offset_from(tagp2.user_data) as usize,
+                                crate::memory::ptr_offset_from(tagp2.user_data_end, tagp2.user_data)
+                                    as usize,
                             );
                             curwin_mut().w_tagstack[tagstackidx as usize].user_data =
                                 Some(std::ffi::CString::new(ud_slice).unwrap());
@@ -991,7 +992,7 @@ fn select_tag_match(
                 &mut *d,
                 c"tag",
                 tagp.tagname,
-                tagp.tagname_end.offset_from(tagp.tagname) as i32,
+                crate::memory::ptr_offset_from(tagp.tagname_end, tagp.tagname) as i32,
             );
             let pri_idx = (*m as usize) & MT_MASK;
             tv_dict_add_str(&mut *d, c"pri", MT_NAMES[pri_idx].as_ptr());
@@ -1000,7 +1001,7 @@ fn select_tag_match(
                     &mut *d,
                     c"kind",
                     tagp.tagkind,
-                    tagp.tagkind_end.offset_from(tagp.tagkind) as i32,
+                    crate::memory::ptr_offset_from(tagp.tagkind_end, tagp.tagkind) as i32,
                 );
             }
             let fname = tag_full_fname(&mut tagp);
@@ -1063,7 +1064,8 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>
             let m = m_vec.as_ptr().cast_mut();
             parse_match(m, &mut tagp);
 
-            let mut len = (tagp.tagname_end.offset_from(tagp.tagname) as i32).min(128);
+            let mut len =
+                (crate::memory::ptr_offset_from(tagp.tagname_end, tagp.tagname) as i32).min(128);
             crate::memory::cstr_ncpy(tag_name.as_mut_ptr(), tagp.tagname, len as usize);
             tag_name[len as usize] = NUL;
 
@@ -1113,7 +1115,7 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>
                 crate::memory::cstr_cpy(cmd.wrapping_add(len as usize), c"\\V");
                 len += 2;
 
-                let cmd_len = ((cmd_end.offset_from(cmd_start) as i32) + 1)
+                let cmd_len = ((crate::memory::ptr_offset_from(cmd_end, cmd_start) as i32) + 1)
                     .min(CMDBUFFSIZE as i32 - 5)
                     .max(0);
                 if cmd_len > 0 {
@@ -1126,7 +1128,7 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>
                 }
                 *cmd.wrapping_add(len as usize) = NUL;
 
-                if *cmd.wrapping_add((len - 1) as usize) == b'$' as c_char {
+                if crate::memory::cstr_first_byte(cmd.wrapping_add((len - 1) as usize)) == b'$' {
                     *cmd.wrapping_add((len - 1) as usize) = b'\\' as c_char;
                     *cmd.wrapping_add(len as usize) = b'$' as c_char;
                     len += 1;
@@ -1284,7 +1286,7 @@ fn tagfunc_cmd_kind(cmd: impl crate::strings::IntoCCharPtr) -> Tagcmd {
     let cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
         if ascii_isdigit(*cmd) {
-            return if *skipdigits(cmd) == NUL {
+            return if crate::memory::cstr_is_empty(skipdigits(cmd)) {
                 Tagcmd::TagcmdAddress
             } else {
                 Tagcmd::TagcmdInvalid
@@ -1893,7 +1895,8 @@ fn findtags_parse_line(
                 return TagmatchStatus::TagMatchFail;
             }
 
-            let mut cmplen = tagpp.tagname_end.offset_from(tagpp.tagname) as i32;
+            let mut cmplen =
+                crate::memory::ptr_offset_from(tagpp.tagname_end, tagpp.tagname) as i32;
             if opt_vars().p_tl != 0 && (cmplen as OptInt) > opt_vars().p_tl {
                 cmplen = opt_vars().p_tl as i32;
             }
@@ -2020,7 +2023,7 @@ fn findtags_match_tag(
     unsafe {
         let mut match_: bool;
 
-        let mut cmplen = tagpp.tagname_end.offset_from(tagpp.tagname) as i32;
+        let mut cmplen = crate::memory::ptr_offset_from(tagpp.tagname_end, tagpp.tagname) as i32;
         if opt_vars().p_tl != 0 && (cmplen as OptInt) > opt_vars().p_tl {
             cmplen = opt_vars().p_tl as i32;
         }
@@ -2045,7 +2048,9 @@ fn findtags_match_tag(
             *tagpp.tagname_end = NUL;
             match_ = vim_regexec(&mut st.orgpat.regmatch, tagpp.tagname, 0);
             if match_ {
-                margs.matchoff = st.orgpat.regmatch.startp[0].offset_from(tagpp.tagname) as i32;
+                margs.matchoff =
+                    crate::memory::ptr_offset_from(st.orgpat.regmatch.startp[0], tagpp.tagname)
+                        as i32;
                 if st.orgpat.regmatch.rm_ic {
                     st.orgpat.regmatch.rm_ic = false;
                     margs.match_no_ic = vim_regexec(&mut st.orgpat.regmatch, tagpp.tagname, 0);
@@ -2109,7 +2114,7 @@ fn findtags_add_match(
 
         if st.help_only {
             *tagpp.tagname_end = NUL;
-            let len = tagpp.tagname_end.offset_from(tagpp.tagname) as usize;
+            let len = crate::memory::ptr_offset_from(tagpp.tagname_end, tagpp.tagname) as usize;
             let mfp_size = 1 + len + 10 + ML_EXTRA + 1;
             let mut v = vec![0 as c_char; mfp_size];
             let p = v.as_mut_ptr();
@@ -2144,14 +2149,16 @@ fn findtags_add_match(
                 }
 
                 if tagpp.command.wrapping_add(2) < temp_end {
-                    let len = temp_end.offset_from(tagpp.command.wrapping_add(2)) as usize;
+                    let len =
+                        crate::memory::ptr_offset_from(temp_end, tagpp.command.wrapping_add(2))
+                            as usize;
                     let mut v = vec![0 as c_char; len + 2];
                     crate::memory::cstr_ncpy(v.as_mut_ptr(), tagpp.command.wrapping_add(2), len);
                     mfp_vec = Some(v);
                 }
                 st.get_searchpat = false;
             } else {
-                let len = tagpp.tagname_end.offset_from(tagpp.tagname) as usize;
+                let len = crate::memory::ptr_offset_from(tagpp.tagname_end, tagpp.tagname) as usize;
                 let mut v = vec![0 as c_char; 1 + len + 1];
                 crate::memory::cstr_ncpy(v.as_mut_ptr(), tagpp.tagname, len);
                 mfp_vec = Some(v);
@@ -2691,10 +2698,10 @@ fn test_for_static(tagp: &Tagptrs) -> bool {
 
 fn matching_line_len(lbuf: impl crate::strings::IntoCCharPtr) -> usize {
     let lbuf = lbuf.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = lbuf.wrapping_add(1);
         p = p.wrapping_add(crate::memory::cstr_len(p) + 1);
-        p.offset_from(lbuf) as usize + crate::memory::cstr_len(p)
+        crate::memory::ptr_offset_from(p, lbuf) as usize + crate::memory::cstr_len(p)
     }
 }
 
@@ -2828,7 +2835,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: i32, keep_he
                 *pbuf_end = *str_;
                 pbuf_end = pbuf_end.wrapping_add(1);
                 str_ = str_.wrapping_add(1);
-                if pbuf_end.offset_from(pbuf) as i32 + 1 >= LSIZE {
+                if crate::memory::ptr_offset_from(pbuf_end, pbuf) as i32 + 1 >= LSIZE {
                     break;
                 }
             }
@@ -2938,7 +2945,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: i32, keep_he
                     str_ = skip_regexp(pbuf.wrapping_add(1), *pbuf as i32, 0).wrapping_add(1);
                 }
                 if str_ > pbuf_end.wrapping_sub(1) {
-                    let mut pbuflen = pbuf_end.offset_from(pbuf) as usize;
+                    let mut pbuflen = crate::memory::ptr_offset_from(pbuf_end, pbuf) as usize;
 
                     let save_p_ws = opt_vars().p_ws;
                     let save_p_ic = opt_vars().p_ic;
@@ -3108,7 +3115,7 @@ fn expand_tag_fname(
 ) -> std::ffi::CString {
     let tag_fname = tag_fname.into_c_char_ptr().cast_mut();
     let fname_arg = fname_arg.into_c_char_ptr();
-    unsafe {
+    {
         let mut xpc: ExpandCtx = ExpandCtx::new();
 
         let mut fname = to_slash_save(fname_arg).unwrap_or_default();
@@ -3134,7 +3141,7 @@ fn expand_tag_fname(
             if p != tag_fname {
                 let mut retval = [0 as c_char; MAXPATHL];
                 crate::memory::cstr_cpy(retval.as_mut_ptr(), tag_fname);
-                let off = p.offset_from(tag_fname) as usize;
+                let off = crate::memory::ptr_offset_from(p, tag_fname) as usize;
                 xstrlcpy(
                     retval.as_mut_ptr().wrapping_add(off),
                     fname.as_ptr(),
@@ -3277,7 +3284,7 @@ pub fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<std::ffi::CS
                 for mut m in raw_matches {
                     let mut t_p = Tagptrs::default();
                     parse_match(m.as_mut_ptr(), &mut t_p);
-                    let len = t_p.tagname_end.offset_from(t_p.tagname) as usize;
+                    let len = crate::memory::ptr_offset_from(t_p.tagname_end, t_p.tagname) as usize;
                     file.push(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
                         t_p.tagname.cast::<u8>(),
                         len,
@@ -3287,7 +3294,8 @@ pub fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<std::ffi::CS
                     } else {
                         b'f' as c_char
                     };
-                    let fname_len = t_p.fname_end.offset_from(t_p.fname) as usize;
+                    let fname_len =
+                        crate::memory::ptr_offset_from(t_p.fname_end, t_p.fname) as usize;
                     let fname_cstr = crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
                         t_p.fname.cast::<u8>(),
                         fname_len,
@@ -3325,13 +3333,13 @@ fn add_tag_field(
             if end.is_null() {
                 end = start.wrapping_add(crate::memory::cstr_len(start));
                 while end > start
-                    && (*end.wrapping_sub(1) == b'\r' as c_char
-                        || *end.wrapping_sub(1) == b'\n' as c_char)
+                    && (crate::memory::cstr_first_byte(end.wrapping_sub(1)) == b'\r'
+                        || crate::memory::cstr_first_byte(end.wrapping_sub(1)) == b'\n')
                 {
                     end = end.wrapping_sub(1);
                 }
             }
-            len = (end.offset_from(start) as i32).min(MAXPATHL as i32 - 1);
+            len = (crate::memory::ptr_offset_from(end, start) as i32).min(MAXPATHL as i32 - 1);
             crate::memory::cstr_ncpy(buf, start, len as usize);
         }
         *buf.wrapping_add(len as usize) = NUL;
@@ -3418,7 +3426,7 @@ pub fn get_tags(
                         {
                             p = p.wrapping_add(1);
                         }
-                        let len = p.offset_from(n) as i32;
+                        let len = crate::memory::ptr_offset_from(p, n) as i32;
                         if crate::memory::cstr_first_byte(p) == b':' && len > 0 {
                             p = p.wrapping_add(1);
                             let s = p;

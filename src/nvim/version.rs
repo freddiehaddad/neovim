@@ -4291,7 +4291,7 @@ fn do_intro_line(row: i32, mesg: impl crate::strings::IntoCCharPtr, colon: bool,
                     .position(|&b| b == b':')
                     .map_or(ptr::null(), |i| p.wrapping_add(i));
                 if !colon_pos.is_null() && crate::memory::cstr_byte_at(p, l as usize) == b'<' {
-                    let prefix_len = colon_pos.offset_from(p) as i32;
+                    let prefix_len = crate::memory::ptr_offset_from(colon_pos, p) as i32;
                     col += grid_line_puts(col, p, prefix_len, 0);
                     col += grid_line_puts(col, colon_pos, 1, hlf8_attr);
                     let cmd_len = l - prefix_len - 1;

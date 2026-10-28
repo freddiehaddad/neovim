@@ -2066,7 +2066,7 @@ pub fn vcol2col(
     vcol: Colnr,
     coladdp: Option<&mut Colnr>,
 ) -> Colnr {
-    unsafe {
+    {
         let line = ml_get_buf(wp.buf_mut(), lnum);
         let mut csarg = CharsizeArg::new();
         let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
@@ -2094,7 +2094,7 @@ pub fn vcol2col(
         if let Some(coladdp) = coladdp {
             *coladdp = vcol - cur_vcol;
         }
-        ci.ptr.offset_from(line.cast_const()) as Colnr
+        crate::memory::ptr_offset_from(ci.ptr, line.cast_const()) as Colnr
     }
 }
 

@@ -110,7 +110,7 @@ fn ensure_input_ptrs_init() {
 
 fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(i32, i32, usize)> {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         if s.is_null() || crate::memory::cstr_first_byte(s) != b'<' {
             return None;
         }
@@ -156,7 +156,7 @@ fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(i32, i32,
             return None;
         }
         p = p.wrapping_add(1);
-        Some((col, row, p.offset_from(s) as usize))
+        Some((col, row, crate::memory::ptr_offset_from(p, s) as usize))
     }
 }
 

@@ -96,7 +96,7 @@ use crate::msgpack_rpc::packer::mpack_w2;
 
 #[inline]
 fn buf_pos(ui: &RemoteUI) -> usize {
-    unsafe { ui.packer.ptr.offset_from(ui.packer.startptr) as usize }
+    crate::memory::ptr_offset_from(ui.packer.ptr, ui.packer.startptr) as usize
 }
 
 fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI> {
@@ -825,7 +825,7 @@ fn ui_alloc_buf(ui: &mut RemoteUI) {
 }
 
 fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
-    unsafe {
+    {
         if !ui.packer.startptr.is_null()
             && (buf_pos(ui) > UI_BUF_SIZE - EVENT_BUF_SIZE || ui.ncells_pending >= 500)
         {
@@ -843,13 +843,14 @@ fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
                 mpack_uint(buf, 2);
                 mpack_str_small(buf, c"redraw", 6);
                 let pos = mpack_array_dyn16(buf);
-                ui.nevents_pos = Some(pos.offset_from(ui.packer.startptr) as usize);
+                ui.nevents_pos =
+                    Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
                 debug_assert!(ui.cur_event.is_none());
             }
             flush_event(ui);
             ui.cur_event = Some(name);
             let pos = mpack_array_dyn16(buf);
-            ui.ncalls_pos = Some(pos.offset_from(ui.packer.startptr) as usize);
+            ui.ncalls_pos = Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
             mpack_str_small(buf, name.as_ptr(), name.to_bytes().len());
             ui.nevents += 1;
             ui.ncalls = 1;

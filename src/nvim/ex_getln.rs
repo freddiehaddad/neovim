@@ -537,11 +537,11 @@ pub fn parse_pattern_and_range(
         while ascii_isalpha(*p as i32) {
             p = p.wrapping_add(1);
         }
-        if *skipwhite(p) == NUL {
+        if crate::memory::cstr_is_empty(skipwhite(p)) {
             return false;
         }
 
-        let cmd_len = p.offset_from(cmd) as usize;
+        let cmd_len = crate::memory::ptr_offset_from(p, cmd) as usize;
         if (crate::memory::cstr_prefix_bytes(cmd, cmd_len)
             == crate::memory::cstr_prefix_bytes(c"substitute", cmd_len))
             || (crate::memory::cstr_prefix_bytes(cmd, cmd_len)
@@ -593,7 +593,7 @@ pub fn parse_pattern_and_range(
             // skip optional "!"
             if crate::memory::cstr_first_byte(p) == b'!' {
                 p = p.wrapping_add(1);
-                if *skipwhite(p) == NUL {
+                if crate::memory::cstr_is_empty(skipwhite(p)) {
                     return false;
                 }
             }
@@ -633,7 +633,8 @@ pub fn parse_pattern_and_range(
         if !use_last_pat {
             let c = *end;
             *end = NUL;
-            let empty = empty_pattern_magic(p, end.offset_from(p) as usize, magic);
+            let empty =
+                empty_pattern_magic(p, crate::memory::ptr_offset_from(end, p) as usize, magic);
             *end = c;
             if empty {
                 return false;
@@ -641,8 +642,8 @@ pub fn parse_pattern_and_range(
         }
 
         // Found a non-empty pattern or //
-        *skiplen = p.offset_from(getln_st().ccline.cmdbuff) as i32;
-        *patlen = end.offset_from(p) as i32;
+        *skiplen = crate::memory::ptr_offset_from(p, getln_st().ccline.cmdbuff) as i32;
+        *patlen = crate::memory::ptr_offset_from(end, p) as i32;
 
         // Parse the address range
         let save_cursor = curwin_mut().w_cursor;
@@ -901,12 +902,12 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
         // Leave it at the end to make CTRL-R CTRL-W work.  But not when beyond the
         // end of the pattern, e.g. for ":s/pat/".
-        if *getln_st()
-            .ccline
-            .cmdbuff
-            .wrapping_add((skiplen + patlen) as usize)
-            != NUL
-        {
+        if !crate::memory::cstr_is_empty(
+            getln_st()
+                .ccline
+                .cmdbuff
+                .wrapping_add((skiplen + patlen) as usize),
+        ) {
             curwin_mut().w_cursor = s.search_start;
         } else if found != 0 {
             curwin_mut().w_cursor = end_pos;
@@ -2179,7 +2180,8 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
                 }
             }
 
-            getln_st().ccline.cmdpos = p.offset_from(getln_st().ccline.cmdbuff) as i32;
+            getln_st().ccline.cmdpos =
+                crate::memory::ptr_offset_from(p, getln_st().ccline.cmdbuff) as i32;
             getln_st().ccline.cmdlen -= j - getln_st().ccline.cmdpos;
             let mut i = getln_st().ccline.cmdpos;
 
@@ -3722,7 +3724,7 @@ pub fn realloc_cmdbuff(mut len: i32) {
             && (*getln_st().ccline.xpc).xp_context != EXPAND_NOTHING
             && (*getln_st().ccline.xpc).xp_context != EXPAND_UNSUCCESSFUL
         {
-            let i = (*getln_st().ccline.xpc).xp_pattern.offset_from(p) as i32;
+            let i = crate::memory::ptr_offset_from((*getln_st().ccline.xpc).xp_pattern, p) as i32;
 
             if i >= 0 && i <= getln_st().ccline.cmdlen {
                 (*getln_st().ccline.xpc).xp_pattern =
@@ -4497,7 +4499,7 @@ fn restore_cmdline() {
 
 /// Paste a yank register into the command line.
 fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
-    unsafe {
+    {
         let mut arg: *mut c_char = ptr::null_mut();
         let mut owned: Option<Vec<c_char>> = None;
 
@@ -4538,11 +4540,13 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
                     }
                     w = w.wrapping_sub(len as usize);
                 }
-                let len = getln_st()
-                    .ccline
-                    .cmdbuff
-                    .wrapping_add(getln_st().ccline.cmdpos as usize)
-                    .offset_from(w) as usize;
+                let len = crate::memory::ptr_offset_from(
+                    getln_st()
+                        .ccline
+                        .cmdbuff
+                        .wrapping_add(getln_st().ccline.cmdpos as usize),
+                    w,
+                ) as usize;
                 let matches = if opt_vars().p_ic != 0 {
                     crate::memory::cstr_prefix_bytes(w, len)
                         .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(arg, len))
@@ -5476,7 +5480,12 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
                 p = lastnl.wrapping_add(1);
                 msg_start();
                 msg_clr_eos();
-                msg_puts_len(prompt, p.offset_from(prompt), get_echo_hl_id(), false);
+                msg_puts_len(
+                    prompt,
+                    crate::memory::ptr_offset_from(p, prompt),
+                    get_echo_hl_id(),
+                    false,
+                );
                 g_st().msg_didout = false;
                 msg_starthere();
             }

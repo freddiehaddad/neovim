@@ -899,7 +899,7 @@ fn draw_statuscol(
     col_rows: i32,
     stcp: &mut Statuscol,
 ) {
-    unsafe {
+    {
         let lnum = wlv.lnum - i32::from((wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below);
 
         let reset = dl_st().stc_prev_wp != wp
@@ -1008,7 +1008,7 @@ fn draw_statuscol(
         let mut cur_attr = num_attr;
 
         for sp in &stcp.hlrec {
-            let textlen = sp.start.offset_from(p);
+            let textlen = crate::memory::ptr_offset_from(sp.start, p);
             let translen = transstr_buf(p, textlen, transbuf_ptr, MAXPATHL, true);
             draw_col_buf(wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
             let attr = if sp.item == i32::from(STL_SIGNCOL as u8) {
@@ -1035,7 +1035,7 @@ fn draw_statuscol(
         }
         let translen = transstr_buf(
             p,
-            buf_ptr.wrapping_add(len).offset_from(p),
+            crate::memory::ptr_offset_from(buf_ptr.wrapping_add(len), p),
             transbuf_ptr,
             MAXPATHL,
             true,
@@ -1740,7 +1740,7 @@ pub fn win_line(
                 spv.spv_cap_col = 0;
                 spv.spv_capcol_lnum = lnum + 1;
             } else if spv.spv_cap_col == 0 {
-                spv.spv_cap_col = ptr_sw.offset_from(line) as i32;
+                spv.spv_cap_col = crate::memory::ptr_offset_from(ptr_sw, line) as i32;
             }
 
             if nextline[SPWORDLEN] == NUL {
@@ -1797,7 +1797,7 @@ pub fn win_line(
                 while trailcol > 0 && ascii_iswhite(*ptr.wrapping_add((trailcol - 1) as usize)) {
                     trailcol -= 1;
                 }
-                trailcol += ptr.offset_from(line) as Colnr;
+                trailcol += crate::memory::ptr_offset_from(ptr, line) as Colnr;
             }
             if wp.w_p_lcs_chars.lead != 0
                 || !wp.w_p_lcs_chars.leadmultispace.is_empty()
@@ -1810,7 +1810,7 @@ pub fn win_line(
                 if crate::memory::cstr_byte_at(ptr, leadcol as usize) == 0 {
                     leadcol = 0;
                 } else {
-                    leadcol += ptr.offset_from(line) as Colnr + 1;
+                    leadcol += crate::memory::ptr_offset_from(ptr, line) as Colnr + 1;
                 }
             }
         }
@@ -1899,7 +1899,7 @@ pub fn win_line(
                 wlv.need_showbreak = true;
             }
             if spv.spv_has_spell {
-                let linecol = ptr.offset_from(line) as Colnr;
+                let linecol = crate::memory::ptr_offset_from(ptr, line) as Colnr;
                 let mut spell_hlf: Hlf = HLF_COUNT;
 
                 let pos = wp.w_cursor;
@@ -1911,8 +1911,11 @@ pub fn win_line(
                 ptr = line.wrapping_add(linecol as usize);
 
                 if len == 0 || wp.w_cursor.col > linecol {
-                    word_end =
-                        spell_to_word_end(ptr.cast_mut(), &mut *wp).offset_from(line) as i32 + 1;
+                    word_end = crate::memory::ptr_offset_from(
+                        spell_to_word_end(ptr.cast_mut(), &mut *wp),
+                        line,
+                    ) as i32
+                        + 1;
                 } else {
                     debug_assert!(len <= i32::MAX as usize);
                     word_end = wp.w_cursor.col + len as i32 + 1;
@@ -1930,7 +1933,7 @@ pub fn win_line(
         }
 
         if check_decor_providers {
-            let col = ptr.offset_from(line) as i32;
+            let col = crate::memory::ptr_offset_from(ptr, line) as i32;
             decor_provider_end_col =
                 decor_providers_setup(endrow - startrow, start_vcol == 0, lnum, col, wp);
             line = ml_get_buf(wp.buf_mut(), lnum);
@@ -1948,7 +1951,7 @@ pub fn win_line(
         }
 
         if col_rows == 0 && draw_text && !has_foldtext {
-            let v = ptr.offset_from(line) as i32;
+            let v = crate::memory::ptr_offset_from(ptr, line) as i32;
             area_highlighting |= prepare_search_hl_line(
                 wp,
                 lnum,
@@ -1996,8 +1999,10 @@ pub fn win_line(
 
             let mut did_decrement_ptr = false;
 
-            if check_decor_providers && (ptr.offset_from(line) as i32) >= decor_provider_end_col {
-                let col = ptr.offset_from(line) as i32;
+            if check_decor_providers
+                && (crate::memory::ptr_offset_from(ptr, line) as i32) >= decor_provider_end_col
+            {
+                let col = crate::memory::ptr_offset_from(ptr, line) as i32;
                 decor_provider_end_col = invoke_range_next(wp, lnum, col, 100);
                 line = ml_get_buf(wp.buf_mut(), lnum);
                 ptr = line.wrapping_add(col as usize);
@@ -2044,7 +2049,7 @@ pub fn win_line(
                 if has_virt_line && (virt_line_flags & K_VLLEFTCOL) != 0 {
                     // skip columns
                 } else if statuscol.draw {
-                    let v = ptr.offset_from(line) as i32;
+                    let v = crate::memory::ptr_offset_from(ptr, line) as i32;
                     draw_statuscol(&mut *wp, &mut wlv, col_rows, &mut statuscol);
                     if wp.w_redr_statuscol {
                         break;
@@ -2111,7 +2116,7 @@ pub fn win_line(
                 if has_decor && wlv.row == startrow + wlv.filler_lines {
                     decor_redraw_col(
                         &mut *wp,
-                        (ptr.offset_from(line) as Colnr) - 1,
+                        (crate::memory::ptr_offset_from(ptr, line) as Colnr) - 1,
                         wlv.off,
                         true,
                         &mut g_st().decor_state,
@@ -2177,14 +2182,18 @@ pub fn win_line(
                         }
                         extmark_attr = decor_redraw_col(
                             &mut *wp,
-                            ptr.offset_from(line) as Colnr,
+                            crate::memory::ptr_offset_from(ptr, line) as Colnr,
                             if may_have_inline_virt { -3 } else { wlv.off },
                             selected,
                             &mut g_st().decor_state,
                             decor_provider_end_col - 1,
                         );
                         if may_have_inline_virt {
-                            handle_inline_virtual_text(&mut wlv, ptr.offset_from(line), selected);
+                            handle_inline_virtual_text(
+                                &mut wlv,
+                                crate::memory::ptr_offset_from(ptr, line),
+                                selected,
+                            );
                             if wlv.n_extra > 0 && wlv.virt_inline_hl_mode <= K_HL_MODE_REPLACE {
                                 saved_search_attr = search_attr;
                                 saved_area_attr = area_attr;
@@ -2220,7 +2229,7 @@ pub fn win_line(
                     }
 
                     if !has_foldtext && wlv.n_extra == 0 {
-                        let v = ptr.offset_from(line) as i32;
+                        let v = crate::memory::ptr_offset_from(ptr, line) as i32;
                         search_attr = update_search_hl(
                             wp,
                             lnum,
@@ -2243,8 +2252,10 @@ pub fn win_line(
                             && ins_compl_win_active(wp)
                             && (in_curline || ins_compl_lnum_in_range(lnum))
                         {
-                            let ins_match_attr =
-                                ins_compl_col_range_attr(lnum, ptr.offset_from(line) as i32);
+                            let ins_match_attr = ins_compl_col_range_attr(
+                                lnum,
+                                crate::memory::ptr_offset_from(ptr, line) as i32,
+                            );
                             if ins_match_attr > 0 {
                                 search_attr = hl_combine_attr(search_attr, ins_match_attr);
                             }
@@ -2255,7 +2266,7 @@ pub fn win_line(
                         let num_changes = line_changes.changes.len() as i32;
                         if num_changes > 0 && change_index >= 0 && change_index < num_changes - 1 {
                             let next_change = &line_changes.changes[(change_index + 1) as usize];
-                            if (ptr.offset_from(line) as i32)
+                            if (crate::memory::ptr_offset_from(ptr, line) as i32)
                                 >= next_change.dc_start[line_changes.bufidx as usize]
                             {
                                 change_index += 1;
@@ -2271,13 +2282,14 @@ pub fn win_line(
                             );
                         }
                         if wlv.diff_hlf == HLF_CHD
-                            && (ptr.offset_from(line) as i32) >= change_start
+                            && (crate::memory::ptr_offset_from(ptr, line) as i32) >= change_start
                             && wlv.n_extra == 0
                         {
                             wlv.diff_hlf = if added { HLF_TXA } else { HLF_TXD };
                         }
                         if (wlv.diff_hlf == HLF_TXD || wlv.diff_hlf == HLF_TXA)
-                            && (((ptr.offset_from(line) as i32) >= change_end && wlv.n_extra == 0)
+                            && (((crate::memory::ptr_offset_from(ptr, line) as i32) >= change_end
+                                && wlv.n_extra == 0)
                                 || (wlv.n_extra > 0 && wlv.extra_for_extmark))
                         {
                             wlv.diff_hlf = HLF_CHD;
@@ -2306,7 +2318,7 @@ pub fn win_line(
                 }
 
                 if draw_folded && has_foldtext && wlv.n_extra == 0 && wlv.col == win_col_offset {
-                    let v = ptr.offset_from(line) as i32;
+                    let v = crate::memory::ptr_offset_from(ptr, line) as i32;
                     let lnume = lnum + foldinfo.fi_lines - 1;
                     debug_assert!(foldtext_free.is_none());
                     let fdt = get_foldtext(wp, lnum, lnume, foldinfo, &mut fold_vt);
@@ -2350,7 +2362,7 @@ pub fn win_line(
                         debug_assert!(!wlv.p_extra.is_null());
                         let ci = utf_ptr2_str_char_info(wlv.p_extra);
                         let cli = utf_cluster_info(ci);
-                        let mut mb_l = cli.next.ptr.offset_from(ci.ptr) as i32;
+                        let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
                         mb_schar = schar_from_cluster(ci, cli);
                         mb_schar_width = cli.cells;
                         if mb_l > wlv.n_extra || mb_l == 0 {
@@ -2434,7 +2446,7 @@ pub fn win_line(
 
                     let ci = utf_ptr2_str_char_info(ptr);
                     let cli = utf_cluster_info(ci);
-                    let mut mb_l = cli.next.ptr.offset_from(ci.ptr) as i32;
+                    let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
                     let mb_c = ci.chr.value;
                     let mut unprintable_ascii = false;
 
@@ -2507,8 +2519,8 @@ pub fn win_line(
                             (w_s.b_p_spo_flags & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
                         let mut can_spell = !no_plain_buffer;
 
-                        let v = ptr.offset_from(line) as i32;
-                        let prev_v = prev_ptr.offset_from(line);
+                        let v = crate::memory::ptr_offset_from(ptr, line) as i32;
+                        let prev_v = crate::memory::ptr_offset_from(prev_ptr, line);
                         if has_syntax && v > 0 {
                             let save_did_emsg = g_st().did_emsg;
                             g_st().did_emsg = 0;
@@ -2555,7 +2567,7 @@ pub fn win_line(
                         char_attr_base = hl_combine_attr(folded_attr, decor_attr);
                         wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
 
-                        let mut v1 = ptr.offset_from(line) as i32;
+                        let mut v1 = crate::memory::ptr_offset_from(ptr, line) as i32;
                         if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
                             spell_attr = 0;
                             if mb_schar != 0 && *skipwhite(prev_ptr) != NUL && can_spell {
@@ -2563,15 +2575,21 @@ pub fn win_line(
                                 v1 -= mb_l - 1;
 
                                 let p: *mut c_char =
-                                    if (prev_ptr.offset_from(line) as i32) - nextlinecol >= 0 {
+                                    if (crate::memory::ptr_offset_from(prev_ptr, line) as i32)
+                                        - nextlinecol
+                                        >= 0
+                                    {
                                         nextline_ptr.wrapping_add(
-                                            ((prev_ptr.offset_from(line) as i32) - nextlinecol)
+                                            ((crate::memory::ptr_offset_from(prev_ptr, line)
+                                                as i32)
+                                                - nextlinecol)
                                                 as usize,
                                         )
                                     } else {
                                         prev_ptr.cast_mut()
                                     };
-                                spv.spv_cap_col -= prev_ptr.offset_from(line) as i32;
+                                spv.spv_cap_col -=
+                                    crate::memory::ptr_offset_from(prev_ptr, line) as i32;
                                 let tmplen = spell_check(
                                     wp,
                                     p,
@@ -2586,7 +2604,8 @@ pub fn win_line(
                                 if spell_hlf != HLF_COUNT
                                     && (g_st().state_global & MODE_INSERT) != 0
                                     && wp.w_cursor.lnum == lnum
-                                    && wp.w_cursor.col >= (prev_ptr.offset_from(line) as Colnr)
+                                    && wp.w_cursor.col
+                                        >= (crate::memory::ptr_offset_from(prev_ptr, line) as Colnr)
                                     && wp.w_cursor.col < word_end
                                 {
                                     spell_hlf = HLF_COUNT;
@@ -2595,11 +2614,15 @@ pub fn win_line(
 
                                 if spell_hlf == HLF_COUNT
                                     && !ptr::eq(p, prev_ptr)
-                                    && (p.offset_from(nextline_ptr) as i32) + len > nextline_idx
+                                    && (crate::memory::ptr_offset_from(p, nextline_ptr) as i32)
+                                        + len
+                                        > nextline_idx
                                 {
                                     spv.spv_checked_lnum = lnum + 1;
                                     spv.spv_checked_col =
-                                        (p.offset_from(nextline_ptr) as i32) + len - nextline_idx;
+                                        (crate::memory::ptr_offset_from(p, nextline_ptr) as i32)
+                                            + len
+                                            - nextline_idx;
                                 }
 
                                 if spell_hlf != HLF_COUNT {
@@ -2608,15 +2631,19 @@ pub fn win_line(
 
                                 if spv.spv_cap_col > 0 {
                                     if !ptr::eq(p, prev_ptr)
-                                        && (p.offset_from(nextline_ptr) as i32) + spv.spv_cap_col
+                                        && (crate::memory::ptr_offset_from(p, nextline_ptr) as i32)
+                                            + spv.spv_cap_col
                                             >= nextline_idx
                                     {
                                         spv.spv_capcol_lnum = lnum + 1;
-                                        spv.spv_cap_col = (p.offset_from(nextline_ptr) as i32)
-                                            + spv.spv_cap_col
-                                            - nextline_idx;
+                                        spv.spv_cap_col =
+                                            (crate::memory::ptr_offset_from(p, nextline_ptr)
+                                                as i32)
+                                                + spv.spv_cap_col
+                                                - nextline_idx;
                                     } else {
-                                        spv.spv_cap_col += prev_ptr.offset_from(line) as i32;
+                                        spv.spv_cap_col +=
+                                            crate::memory::ptr_offset_from(prev_ptr, line) as i32;
                                     }
                                 }
                             }
@@ -2731,8 +2758,10 @@ pub fn win_line(
                                     && (wp.w_p_lcs_chars.space != 0
                                         || (in_multispace
                                             && !wp.w_p_lcs_chars.multispace.is_empty()))
-                                    && (ptr.offset_from(line) as Colnr) >= leadcol
-                                    && (ptr.offset_from(line) as Colnr) <= trailcol))
+                                    && (crate::memory::ptr_offset_from(ptr, line) as Colnr)
+                                        >= leadcol
+                                    && (crate::memory::ptr_offset_from(ptr, line) as Colnr)
+                                        <= trailcol))
                         {
                             if in_multispace && !wp.w_p_lcs_chars.multispace.is_empty() {
                                 mb_schar = wp.w_p_lcs_chars.multispace.as_slice()[multispace_pos];
@@ -3118,7 +3147,7 @@ pub fn win_line(
                     let prevcol_hl_flag = get_prevcol_hl_flag(
                         wp,
                         &mut g_st().screen_search_hl,
-                        (ptr.offset_from(line) as Colnr) - 1,
+                        (crate::memory::ptr_offset_from(ptr, line) as Colnr) - 1,
                     );
 
                     if lcs_eol_todo
@@ -3140,7 +3169,7 @@ pub fn win_line(
                             get_search_match_hl(
                                 wp,
                                 &mut g_st().screen_search_hl,
-                                ptr.offset_from(line) as Colnr,
+                                crate::memory::ptr_offset_from(ptr, line) as Colnr,
                                 &mut wlv.char_attr,
                             );
                         }
@@ -3303,7 +3332,7 @@ pub fn win_line(
                     {
                         decor_redraw_col(
                             &mut *wp,
-                            ptr.offset_from(line) as Colnr,
+                            crate::memory::ptr_offset_from(ptr, line) as Colnr,
                             -1,
                             false,
                             &mut g_st().decor_state,
@@ -3315,7 +3344,10 @@ pub fn win_line(
                         || (wlv.n_extra > 0
                             && (wlv.sc_extra != 0 || !crate::memory::cstr_is_empty(wlv.p_extra)))
                         || (may_have_inline_virt
-                            && has_more_inline_virt(&wlv, ptr.offset_from(line)))
+                            && has_more_inline_virt(
+                                &wlv,
+                                crate::memory::ptr_offset_from(ptr, line),
+                            ))
                     {
                         mb_schar = lcs_ext;
                         mb_schar_width = schar_get_single_width(mb_schar);
@@ -3480,7 +3512,7 @@ pub fn win_line(
                     if is_wrapped && wlv.n_extra == 0 {
                         decor_redraw_col(
                             &mut *wp,
-                            ptr.offset_from(line) as Colnr,
+                            crate::memory::ptr_offset_from(ptr, line) as Colnr,
                             -3,
                             false,
                             &mut g_st().decor_state,
@@ -3510,7 +3542,8 @@ pub fn win_line(
                     || (wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
                     || (wlv.n_extra != 0
                         && (wlv.sc_extra != 0 || !crate::memory::cstr_is_empty(wlv.p_extra)))
-                    || (may_have_inline_virt && has_more_inline_virt(&wlv, ptr.offset_from(line))))
+                    || (may_have_inline_virt
+                        && has_more_inline_virt(&wlv, crate::memory::ptr_offset_from(ptr, line))))
             {
                 let grid_width = (*wp.w_grid.target).cols;
                 let wrap = is_wrapped

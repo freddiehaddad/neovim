@@ -442,7 +442,7 @@ pub fn transstr_buf(
         let mut buf_p = buf;
         let buf_e = buf_p.wrapping_add(buflen - 1);
 
-        while (slen < 0 || p.offset_from(s) < slen)
+        while (slen < 0 || crate::memory::ptr_offset_from(p, s) < slen)
             && !crate::memory::cstr_is_empty(p)
             && buf_p < buf_e
         {
@@ -488,7 +488,7 @@ pub fn transstr_buf(
         }
         *buf_p = NUL;
         assert!(buf_p <= buf_e);
-        buf_p.offset_from(buf) as usize
+        crate::memory::ptr_offset_from(buf_p, buf) as usize
     }
 }
 
@@ -555,7 +555,7 @@ pub fn str_foldcase(
         };
 
         let mut i: usize = 0;
-        while *str_ptr(&mut vec, i) != NUL {
+        while !crate::memory::cstr_is_empty(str_ptr(&mut vec, i)) {
             let p_cur = str_ptr(&mut vec, i);
             let c = utf_ptr2char(p_cur);
             let olen = utf_ptr2len(p_cur);
@@ -726,14 +726,14 @@ pub fn vim_strsize(s: impl crate::strings::IntoCCharPtr) -> i32 {
 
 pub fn vim_strnsize(s: impl crate::strings::IntoCCharPtr, mut len: i32) -> i32 {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         assert!(!s.is_null());
         let mut size: i32 = 0;
         let mut ci = utf_ptr2_str_char_info(s);
         while !crate::memory::cstr_is_empty(ci.ptr) && len > 0 {
             let cli = utf_cluster_info(ci);
             size += cli.cells;
-            len -= cli.next.ptr.offset_from(ci.ptr) as i32;
+            len -= crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
             ci = cli.next;
         }
         size
@@ -824,7 +824,7 @@ pub fn getwhitecols_curline() -> isize {
 
 pub fn getwhitecols(p: impl crate::strings::IntoCCharPtr) -> isize {
     let p = p.into_c_char_ptr();
-    unsafe { skipwhite(p).offset_from(p) }
+    crate::memory::ptr_offset_from(skipwhite(p), p)
 }
 
 pub fn skipdigits(q: impl crate::strings::IntoCCharPtr) -> *mut c_char {
@@ -1084,10 +1084,11 @@ pub fn vim_str2nr(
     mut overflow: Option<&mut bool>,
 ) {
     let start = start.into_c_char_ptr();
-    unsafe {
+    {
         let mut ptr = start;
-        let string_ended =
-            |p: *const c_char| -> bool { !(maxlen == 0 || (p.offset_from(start) as i32) < maxlen) };
+        let string_ended = |p: *const c_char| -> bool {
+            !(maxlen == 0 || (crate::memory::ptr_offset_from(p, start) as i32) < maxlen)
+        };
         let mut pre: i32 = 0;
         let negative = crate::memory::cstr_first_byte(ptr) == b'-';
         let mut un: Uvarnumber = 0;
@@ -1242,7 +1243,7 @@ pub fn vim_str2nr(
         }
 
         if strict
-            && (ptr.offset_from(start) as i32) != maxlen
+            && (crate::memory::ptr_offset_from(ptr, start) as i32) != maxlen
             && ascii_isalnum(crate::memory::cstr_first_char(ptr))
         {
             return;
@@ -1253,7 +1254,7 @@ pub fn vim_str2nr(
         }
 
         if let Some(len) = len {
-            *len = ptr.offset_from(start) as i32;
+            *len = crate::memory::ptr_offset_from(ptr, start) as i32;
         }
 
         if let Some(nptr) = nptr {

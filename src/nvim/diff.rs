@@ -2204,9 +2204,10 @@ fn diff_equal_char(
 fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> i32 {
     let s1 = s1.into_c_char_ptr();
     let s2 = s2.into_c_char_ptr();
-    unsafe {
+    {
         if (diff_st().diff_flags & DIFF_IBLANK) != 0
-            && (*skipwhite(s1) == NUL || *skipwhite(s2) == NUL)
+            && (crate::memory::cstr_is_empty(skipwhite(s1))
+                || crate::memory::cstr_is_empty(skipwhite(s2)))
         {
             return 0;
         }
@@ -2600,10 +2601,14 @@ fn diff_find_change_simple(
                                 si_new as usize,
                             ))))
                     {
-                        si_org = skipwhite(line_org.wrapping_add(si_org as usize))
-                            .offset_from(line_org) as i32;
-                        si_new = skipwhite(line_new.wrapping_add(si_new as usize))
-                            .offset_from(line_new) as i32;
+                        si_org = crate::memory::ptr_offset_from(
+                            skipwhite(line_org.wrapping_add(si_org as usize)),
+                            line_org,
+                        ) as i32;
+                        si_new = crate::memory::ptr_offset_from(
+                            skipwhite(line_new.wrapping_add(si_new as usize)),
+                            line_new,
+                        ) as i32;
                     } else {
                         let mut l: i32 = 0;
                         if !diff_equal_char(
@@ -2954,7 +2959,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                             if ascii_iswhite(crate::memory::cstr_first_char(s))
                                 && (diff_st().diff_flags & DIFF_IWHITE) != 0
                             {
-                                char_len = skipwhite(s).offset_from(s) as i32;
+                                char_len = crate::memory::ptr_offset_from(skipwhite(s), s) as i32;
                             }
                             if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                                 let mut c = utf_ptr2char(s);
@@ -2985,7 +2990,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         }
                         if !new_in_keyword || (new_in_keyword && !in_keyword) {
                             lm.push(LinemapEntry {
-                                byte_start: s.offset_from(curline) as Colnr,
+                                byte_start: crate::memory::ptr_offset_from(s, curline) as Colnr,
                                 num_bytes: char_len,
                                 lineoff: off,
                             });
@@ -3011,7 +3016,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         curstr.push(NL as u8);
                         let _ = numlines;
                         lm.push(LinemapEntry {
-                            byte_start: s.offset_from(curline) as Colnr,
+                            byte_start: crate::memory::ptr_offset_from(s, curline) as Colnr,
                             num_bytes: size_of::<i32>() as Colnr,
                             lineoff: off,
                         });

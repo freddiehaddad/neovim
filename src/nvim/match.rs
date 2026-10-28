@@ -1283,7 +1283,7 @@ pub fn ex_match(eap: &mut Exarg) {
                     g = Some(
                         std::ffi::CString::new(crate::memory::cstr_slice(
                             arg,
-                            p.offset_from(arg) as usize,
+                            crate::memory::ptr_offset_from(p, arg) as usize,
                         ))
                         .unwrap_or_default(),
                     );

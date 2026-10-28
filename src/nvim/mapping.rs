@@ -985,7 +985,9 @@ fn buf_do_map(
                                             && (!is_abbrev
                                                 || round != 0
                                                 || n > len
-                                                || *skipwhite(lhs.wrapping_add(n as usize)) != NUL)
+                                                || !crate::memory::cstr_is_empty(skipwhite(
+                                                    lhs.wrapping_add(n as usize),
+                                                )))
                                         {
                                             idx += 1;
                                             continue;

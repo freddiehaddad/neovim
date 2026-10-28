@@ -587,7 +587,7 @@ fn eval_expr_func(expr: &TypVal, argv: *mut TypVal, argc: i32, rettv: &mut TypVa
 
 /// Evaluate an expression, which is a string.
 fn eval_expr_string(expr: &TypVal, rettv: &mut TypVal) -> bool {
-    unsafe {
+    {
         let mut buf = [0 as c_char; NUMBUFLEN];
         let mut s = tv_get_string_buf_chk(expr, buf.as_mut_ptr()).cast_mut();
         if s.is_null() {
@@ -599,7 +599,7 @@ fn eval_expr_string(expr: &TypVal, rettv: &mut TypVal) -> bool {
             return false;
         }
 
-        if *skipwhite(s) != NUL {
+        if !crate::memory::cstr_is_empty(skipwhite(s)) {
             tv_clear(rettv);
             semsg!(gettext(E_INVEXPR2), s);
             return false;
@@ -3020,7 +3020,7 @@ fn eval7(
                 } else {
                     evalarg.as_deref_mut().unwrap().eval_flags
                 };
-                if *skipwhite(*arg) == b'(' as c_char {
+                if crate::memory::cstr_first_byte(skipwhite(*arg)) == b'(' {
                     *arg = skipwhite(*arg);
                     eval_func(
                         arg,
@@ -3225,7 +3225,7 @@ fn eval_lambda(
             return false;
         } else if **arg != b'(' as c_char {
             if verbose {
-                if *skipwhite(*arg) == b'(' as c_char {
+                if crate::memory::cstr_first_byte(skipwhite(*arg)) == b'(' {
                     emsg(gettext(E_NOWHITESPACE));
                 } else {
                     semsg!(gettext(E_MISSINGPAREN), c"lambda",);
@@ -3312,7 +3312,7 @@ fn eval_method(
                 if !eval7(arg, &mut ref_tv, evalarg.as_deref_mut(), false) {
                     *arg = name.wrapping_add(len as usize);
                     ret = false;
-                } else if *skipwhite(*arg) != NUL {
+                } else if !crate::memory::cstr_is_empty(skipwhite(*arg)) {
                     if verbose {
                         semsg!(gettext(E_TRAILING_ARG), *arg);
                     }
@@ -3920,7 +3920,8 @@ fn eval_string(
                     break;
                 }
                 p = p.wrapping_add(1);
-                if *p.wrapping_sub(1) == b'}' as c_char && crate::memory::cstr_first_byte(p) != b'}'
+                if crate::memory::cstr_first_byte(p.wrapping_sub(1)) == b'}'
+                    && crate::memory::cstr_first_byte(p) != b'}'
                 {
                     semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                     return false;

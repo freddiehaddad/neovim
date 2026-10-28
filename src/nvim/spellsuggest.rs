@@ -731,7 +731,7 @@ pub fn spell_suggest(count: i32) {
                     beep_flush();
                     break 'skip;
                 }
-                curwin_mut().w_cursor.col = p.offset_from(curline) as Colnr;
+                curwin_mut().w_cursor.col = crate::memory::ptr_offset_from(p, curline) as Colnr;
             }
             let need_cap = check_need_cap(
                 curwin_mut(),
@@ -813,7 +813,7 @@ pub fn spell_suggest(count: i32) {
                         + 1
                 ];
                 let p = p_vec.as_mut_ptr();
-                let c = sug.su_badptr.offset_from(line) as i32;
+                let c = crate::memory::ptr_offset_from(sug.su_badptr, line) as i32;
                 ptr::copy(line, p, c as usize);
                 crate::memory::cstr_cpy(p.wrapping_add(c as usize), stp.st_word.as_ptr());
                 crate::memory::cstr_cat(p, sug.su_badptr.wrapping_add(stp.st_orglen as usize));
@@ -1098,11 +1098,11 @@ fn spell_suggest_intern(su: &mut Suginfo, interactive: bool) {
     }
 }
 fn suggest_try_special(su: &mut Suginfo) {
-    unsafe {
+    {
         let mut word: [c_char; MAXWLEN] = [0; MAXWLEN];
         let fbadword_ptr = (&raw mut su.su_fbadword).cast::<c_char>();
         let mut p = skiptowhite(fbadword_ptr);
-        let len = p.offset_from(fbadword_ptr) as usize;
+        let len = crate::memory::ptr_offset_from(p, fbadword_ptr) as usize;
         p = skipwhite(p);
         if crate::memory::cstr_len(p) == len
             && (crate::memory::cstr_prefix_bytes(fbadword_ptr, len)
@@ -1403,7 +1403,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             }
                             if compound_ok {
                                 p = (&raw mut preword).cast();
-                                while *skiptowhite(p) != NUL {
+                                while !crate::memory::cstr_is_empty(skiptowhite(p)) {
                                     p = skipwhite(skiptowhite(p));
                                 }
                                 if fword_ends
@@ -1636,7 +1636,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                     continue;
                                 }
                                 p = (&raw mut preword).cast();
-                                while *skiptowhite(p) != NUL {
+                                while !crate::memory::cstr_is_empty(skiptowhite(p)) {
                                     p = skipwhite(skiptowhite(p));
                                 }
                                 if stack[udepth].ts_complen > stack[udepth].ts_compsplit
@@ -2818,14 +2818,14 @@ fn add_suggestion(
     maxsf: bool,
 ) {
     let goodword = goodword.into_c_char_ptr();
-    unsafe {
+    {
         let mut goodlen: i32;
         let mut badlen: i32;
         let mut pgood = goodword.wrapping_add(crate::memory::cstr_len(goodword));
         let mut pbad: *mut c_char = su.su_badptr.wrapping_add(badlenarg as usize);
         loop {
-            goodlen = pgood.offset_from(goodword) as i32;
-            badlen = pbad.offset_from(su.su_badptr) as i32;
+            goodlen = crate::memory::ptr_offset_from(pgood, goodword) as i32;
+            badlen = crate::memory::ptr_offset_from(pbad, su.su_badptr) as i32;
             if goodlen <= 0 || badlen <= 0 {
                 break;
             }

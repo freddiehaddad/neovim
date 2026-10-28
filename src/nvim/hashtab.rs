@@ -214,7 +214,7 @@ pub fn hash_add_item(
     hash: HashVal,
 ) {
     if ht.ht_array.is_empty() {
-        let offset = unsafe { hi.offset_from(empty_hasharray_ptr()) as usize };
+        let offset = { crate::memory::ptr_offset_from(hi, empty_hasharray_ptr()) as usize };
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
         hi = ht.ht_array.as_mut_ptr().wrapping_add(offset);
     }

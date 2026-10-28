@@ -148,7 +148,7 @@ pub fn tabstop_set(
 
         let mut cp = var;
         while !crate::memory::cstr_is_empty(cp) {
-            if cp == var || *cp.wrapping_sub(1) == b',' as c_char {
+            if cp == var || crate::memory::cstr_first_byte(cp.wrapping_sub(1)) == b',' {
                 let mut end = cp;
                 if getdigits(&raw mut end, false, 1) <= 0 {
                     if cp != end {
@@ -586,7 +586,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             p = oldline;
         } else {
             p = skipwhite(p);
-            line_len -= p.offset_from(oldline) as i32;
+            line_len -= crate::memory::ptr_offset_from(p, oldline) as i32;
         }
 
         let mut skipcols: i32 = 0;
@@ -689,8 +689,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         ptr::copy(p, s, line_len as usize);
 
         if (flags & SIN_UNDO) == 0 || u_savesub(curwin_mut().w_cursor.lnum) {
-            let old_offset = p.offset_from(oldline) as Colnr;
-            let new_offset = s.offset_from(newline) as Colnr;
+            let old_offset = crate::memory::ptr_offset_from(p, oldline) as Colnr;
+            let new_offset = crate::memory::ptr_offset_from(s, newline) as Colnr;
 
             ml_replace(curwin_mut().w_cursor.lnum, newline, true);
             if (flags & SIN_NOMARK) == 0 {
@@ -725,7 +725,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
 /// Return the indent of the current line after a number (`get_number_indent`).
 pub fn get_number_indent(lnum: Linenr) -> i32 {
-    unsafe {
+    {
         if lnum > curbuf_mut().b_ml.ml_line_count {
             return -1;
         }
@@ -757,13 +757,13 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
                 0,
             ) {
                 pos.lnum = lnum;
-                pos.col = regmatch.endp[0].offset_from(ml_get(lnum)) as Colnr;
+                pos.col = crate::memory::ptr_offset_from(regmatch.endp[0], ml_get(lnum)) as Colnr;
                 pos.coladd = 0;
             }
             vim_regfree(regmatch.regprog);
         }
 
-        if pos.lnum == 0 || *ml_get_pos(&pos) == NUL {
+        if pos.lnum == 0 || crate::memory::cstr_is_empty(ml_get_pos(&pos)) {
             return -1;
         }
         let mut col: Colnr = 0;
@@ -1237,7 +1237,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
                         break;
                     }
                 }
-                new_cursor_col = ci.ptr.offset_from(line) as i32;
+                new_cursor_col = crate::memory::ptr_offset_from(ci.ptr, line) as i32;
             }
 
             if vcol != curwin_mut().w_virtcol {
@@ -1468,7 +1468,7 @@ pub fn ex_retab(eap: &mut Exarg) {
             Some(
                 std::ffi::CString::new(crate::memory::cstr_slice(
                     ts_start,
-                    ptr.offset_from(ts_start) as usize,
+                    crate::memory::ptr_offset_from(ptr, ts_start) as usize,
                 ))
                 .unwrap_or_default(),
             )

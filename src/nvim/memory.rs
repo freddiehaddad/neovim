@@ -424,6 +424,12 @@ pub fn cstr_cat<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S) {
     }
 }
 
+/// Compute the signed element offset `(p - origin)` between two pointers of the same type.
+#[inline]
+pub fn ptr_offset_from<T>(p: *const T, origin: *const T) -> isize {
+    unsafe { p.offset_from(origin) }
+}
+
 /// View a NUL-terminated C string as a `&CStr`, returning `c""` if null.
 #[inline]
 pub fn cstr_from_ptr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a CStr {

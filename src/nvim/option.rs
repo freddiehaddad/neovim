@@ -714,7 +714,7 @@ fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
 
 #[inline]
 fn get_opt_idx(opt: *mut Vimoption) -> OptIndex {
-    unsafe { opt.offset_from(get_option(0)) as OptIndex }
+    crate::memory::ptr_offset_from(opt, get_option(0)) as OptIndex
 }
 
 #[inline]
@@ -1101,7 +1101,7 @@ fn find_dup_item(
         while !crate::memory::cstr_is_empty(s) {
             if ((flags & K_OPT_FLAG_COMMA) == 0
                 || s == origval
-                || (*s.wrapping_offset(-1) == b',' as c_char && (bs & 1) == 0))
+                || (crate::memory::cstr_first_byte(s.wrapping_offset(-1)) == b',' && (bs & 1) == 0))
                 && (crate::memory::cstr_prefix_bytes(s, newvallen)
                     == crate::memory::cstr_prefix_bytes(newval, newvallen))
                 && ((flags & K_OPT_FLAG_COMMA) == 0
@@ -1443,7 +1443,7 @@ fn stropt_remove_val(
                 }
             }
             let src = strval.wrapping_add(len as usize);
-            let dst_off = strval.offset_from(origval) as usize;
+            let dst_off = crate::memory::ptr_offset_from(strval, origval) as usize;
             ptr::copy(
                 src,
                 newval.wrapping_add(dst_off),
@@ -1462,11 +1462,11 @@ fn find_key_item(
 ) -> *mut c_char {
     let src = src.into_c_char_ptr().cast_mut();
     let key = key.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = src;
 
         while !crate::memory::cstr_is_empty(p) {
-            if (p == src || *p.wrapping_offset(-1) == b',' as c_char)
+            if (p == src || crate::memory::cstr_first_byte(p.wrapping_offset(-1)) == b',')
                 && (crate::memory::cstr_prefix_bytes(p, keylen as usize)
                     == crate::memory::cstr_prefix_bytes(key, keylen as usize))
             {
@@ -1474,7 +1474,7 @@ fn find_key_item(
                 if end.is_null() {
                     end = p.wrapping_add(crate::memory::cstr_len(p));
                 }
-                *itemlenp = end.offset_from(p);
+                *itemlenp = crate::memory::ptr_offset_from(end, p);
                 return p;
             }
             p = p.wrapping_add(1);
@@ -1491,7 +1491,7 @@ fn remove_comma_item(
 ) {
     let str_arg = str_arg.into_c_char_ptr();
     unsafe {
-        if *item.wrapping_offset(itemlen) == b',' as c_char {
+        if crate::memory::cstr_first_byte(item.wrapping_offset(itemlen)) == b',' {
             let src = item.wrapping_offset(itemlen + 1);
             ptr::copy(src, item, crate::memory::cstr_len(src) + 1);
         } else if (item as *const c_char) > str_arg && *item.wrapping_offset(-1) == b',' as c_char {
@@ -1579,7 +1579,7 @@ fn stropt_handle_keymatch(
     _flags: u32,
 ) -> bool {
     let origval = origval.into_c_char_ptr();
-    unsafe {
+    {
         if !crate::strings::vim_haschr(newval, b':' as i32)
             && !crate::strings::vim_haschr(newval, b',' as i32)
         {
@@ -1595,13 +1595,13 @@ fn stropt_handle_keymatch(
             let item_len = if p.is_null() {
                 crate::memory::cstr_len(item_start) as isize
             } else {
-                p.offset_from(item_start)
+                crate::memory::ptr_offset_from(p, item_start)
             };
 
             if item_len > 0 {
                 let colon = vim_strchr(item_start, b':' as i32);
                 if !colon.is_null() && colon < item_start.wrapping_offset(item_len) {
-                    let keylen = colon.offset_from(item_start) + 1;
+                    let keylen = crate::memory::ptr_offset_from(colon, item_start) + 1;
 
                     if op == OP_ADDING || op == OP_PREPENDING {
                         let mut old_itemlen: isize = 0;
@@ -1892,7 +1892,7 @@ pub fn find_option_end(
     opt_idxp: &mut OptIndex,
 ) -> *const c_char {
     let arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = find_tty_option_end(arg);
         if !p.is_null() {
             *opt_idxp = K_OPT_INVALID;
@@ -1908,7 +1908,7 @@ pub fn find_option_end(
             p = p.wrapping_add(1);
         }
 
-        *opt_idxp = find_option_len(arg, p.offset_from(arg) as usize);
+        *opt_idxp = find_option_len(arg, crate::memory::ptr_offset_from(p, arg) as usize);
         p
     }
 }
@@ -2248,7 +2248,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: i32) -> bool {
                     if !errmsg.is_null() {
                         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                         let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s", tr(errmsg)) + 2) as isize;
-                        let arg_len = arg.offset_from(startarg);
+                        let arg_len = crate::memory::ptr_offset_from(arg, startarg);
                         if (i + arg_len) < IOSIZE as isize {
                             xstrlcpy(
                                 iobuf_ptr.wrapping_offset(i - 2),
@@ -2738,8 +2738,8 @@ pub fn apply_optionset_autocmd_now(
     oldval_l: Object,
     newval: Object,
 ) {
-    unsafe {
-        if starting_val() != 0 || *get_vim_var_str(VV_OPTION_TYPE) != NUL {
+    {
+        if starting_val() != 0 || !crate::memory::cstr_is_empty(get_vim_var_str(VV_OPTION_TYPE)) {
             return;
         }
 
@@ -3635,7 +3635,7 @@ fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
 }
 
 fn do_spelllang_source(win: &mut WinInfoInfo) {
-    unsafe {
+    {
         let mut fname = [0 as c_char; 200];
         let ws = win.w_s_ptr();
         let mut q = ws.b_p_spl;
@@ -3658,7 +3658,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
                 fname.as_mut_ptr(),
                 fname.len(),
                 c"spell/%.*s.*",
-                p.offset_from(q) as i32,
+                crate::memory::ptr_offset_from(p, q) as i32,
                 q,
             );
             source_runtime_vim_lua(fname.as_mut_ptr(), DIP_ALL);
@@ -7759,7 +7759,9 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
                     s = s.wrapping_offset(-1);
                 }
             }
-            if crate::memory::cstr_first_byte(p) == b' ' && (p.offset_from(s) & 1) == 0 {
+            if crate::memory::cstr_first_byte(p) == b' '
+                && (crate::memory::ptr_offset_from(p, s) & 1) == 0
+            {
                 p = p.wrapping_add(1);
                 break;
             }
@@ -7825,7 +7827,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
                 return;
             }
             nextchar = *p;
-            opt_idx = find_option_len(arg, p.offset_from(arg) as usize);
+            opt_idx = find_option_len(arg, crate::memory::ptr_offset_from(p, arg) as usize);
             if opt_idx == K_OPT_INVALID || is_option_hidden(opt_idx) {
                 xp.xp_context = EXPAND_NOTHING;
                 return;
@@ -7865,7 +7867,8 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         }
 
         xp.xp_pattern = p.wrapping_add(1);
-        opt_st().expand_option_start_col = p.wrapping_add(1).offset_from(xp.xp_line) as i32;
+        opt_st().expand_option_start_col =
+            crate::memory::ptr_offset_from(p.wrapping_add(1), xp.xp_line) as i32;
 
         let opt_var = get_option(opt_idx).var;
         if opt_var == (&raw mut opt_vars().p_syn).cast::<c_void>() {
@@ -7950,14 +7953,15 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
                     #[cfg(windows)]
                     let comma_unesc = crate::memory::cstr_first_byte(p) == b','
                         && (flags & K_OPT_FLAG_COMMA) != 0
-                        && p.offset_from(s) < 1;
+                        && crate::memory::ptr_offset_from(p, s) < 1;
                     #[cfg(not(windows))]
                     let comma_unesc = crate::memory::cstr_first_byte(p) == b','
                         && (flags & K_OPT_FLAG_COMMA) != 0
                         && p.offset_from(s) < 2;
 
                     if (crate::memory::cstr_first_byte(p) == b' '
-                        && ((xp.xp_backslash & XP_BS_THREE) != 0 && p.offset_from(s) < 3))
+                        && ((xp.xp_backslash & XP_BS_THREE) != 0
+                            && crate::memory::ptr_offset_from(p, s) < 3))
                         || comma_unesc
                         || (crate::memory::cstr_first_byte(p) == b':'
                             && (flags & K_OPT_FLAG_COLON) != 0)
@@ -8658,11 +8662,11 @@ pub fn option_next_keyval(
 
         *key = s;
         if !colon.is_null() && colon < end {
-            *keylen = colon.offset_from(s) as usize;
+            *keylen = crate::memory::ptr_offset_from(colon, s) as usize;
             *val = colon.wrapping_add(1);
-            *vallen = end.offset_from(colon.wrapping_add(1)) as usize;
+            *vallen = crate::memory::ptr_offset_from(end, colon.wrapping_add(1)) as usize;
         } else {
-            *keylen = end.offset_from(s) as usize;
+            *keylen = crate::memory::ptr_offset_from(end, s) as usize;
             *val = ptr::null();
             *vallen = 0;
         }

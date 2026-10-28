@@ -553,12 +553,12 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             let new_line_len = bd.textcol
                 + tabs
                 + spaces
-                + (old_line_len - (bd.textstart.offset_from(oldp) as i32));
+                + (old_line_len - (crate::memory::ptr_offset_from(bd.textstart, oldp) as i32));
             newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
             newp = newp_vec.as_mut_ptr();
             ptr::copy(oldp, newp, bd.textcol as usize);
             startcol = bd.textcol;
-            oldlen = (bd.textstart.offset_from(old_textstart) as i32) + col_pre;
+            oldlen = (crate::memory::ptr_offset_from(bd.textstart, old_textstart) as i32) + col_pre;
             newlen = tabs + spaces;
             ptr::write_bytes(newp.wrapping_add(bd.textcol as usize), b'\t', tabs as usize);
             ptr::write_bytes(
@@ -635,15 +635,17 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             debug_assert!(destination_col - verbatim_copy_width >= 0);
             let fill = destination_col - verbatim_copy_width;
 
-            debug_assert!(verbatim_copy_end.offset_from(oldp) >= 0);
-            let fixedlen = verbatim_copy_end.offset_from(oldp) as i32;
-            let new_line_len =
-                fixedlen + fill + (old_line_len - (non_white.offset_from(oldp) as i32));
+            debug_assert!(crate::memory::ptr_offset_from(verbatim_copy_end, oldp) >= 0);
+            let fixedlen = crate::memory::ptr_offset_from(verbatim_copy_end, oldp) as i32;
+            let new_line_len = fixedlen
+                + fill
+                + (old_line_len - (crate::memory::ptr_offset_from(non_white, oldp) as i32));
 
             newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
             newp = newp_vec.as_mut_ptr();
             startcol = fixedlen;
-            oldlen = bd.textcol + (non_white.offset_from(bd.textstart) as i32) - fixedlen;
+            oldlen = bd.textcol + (crate::memory::ptr_offset_from(non_white, bd.textstart) as i32)
+                - fixedlen;
             newlen = fill;
             ptr::copy(oldp, newp, fixedlen as usize);
             ptr::write_bytes(newp.wrapping_add(fixedlen as usize), b' ', fill as usize);
@@ -1119,7 +1121,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
 }
 
 fn mb_adjust_opend(oap: &mut Oparg) {
-    unsafe {
+    {
         if !oap.inclusive {
             return;
         }
@@ -1129,7 +1131,7 @@ fn mb_adjust_opend(oap: &mut Oparg) {
         if !crate::memory::cstr_is_empty(ptr_line) {
             ptr_line = ptr_line.wrapping_sub(utf_head_off(line, ptr_line) as usize);
             ptr_line = ptr_line.wrapping_add((utfc_ptr2len(ptr_line) - 1) as usize);
-            oap.end.col = ptr_line.offset_from(line) as Colnr;
+            oap.end.col = crate::memory::ptr_offset_from(ptr_line, line) as Colnr;
         }
     }
 }
@@ -2001,7 +2003,8 @@ pub fn do_join(
             if remove_comments {
                 if t > 0 && prev_was_comment {
                     let new_curr = skip_comment(curr, true, insert_space, &mut prev_was_comment);
-                    *comments.wrapping_add(t as usize) = new_curr.offset_from(curr) as i32;
+                    *comments.wrapping_add(t as usize) =
+                        crate::memory::ptr_offset_from(new_curr, curr) as i32;
                     curr = new_curr;
                 } else {
                     curr = skip_comment(curr, false, insert_space, &mut prev_was_comment);
@@ -2037,7 +2040,7 @@ pub fn do_join(
 
             let space_t = crate::memory::cstr_char_at(spaces, t as usize);
             if t > 0 && g_st().curbuf_splice_pending == 0 {
-                let removed = curr.offset_from(curr_start) as Colnr;
+                let removed = crate::memory::ptr_offset_from(curr, curr_start) as Colnr;
                 extmark_splice(
                     curbuf_mut(),
                     curwin_mut().w_cursor.lnum - 1,
@@ -2094,11 +2097,13 @@ pub fn do_join(
                     ptr::write_bytes(cend, b' ', space_t as usize);
                 }
 
-                let spaces_removed = (curr.offset_from(curr_start) as i32) - space_t;
+                let spaces_removed =
+                    (crate::memory::ptr_offset_from(curr, curr_start) as i32) - space_t;
                 let lnum = curwin_mut().w_cursor.lnum + t;
                 let mincol: Colnr = 0;
                 let lnum_amount = -t;
-                let col_amount = (cend.offset_from(newp) as Colnr) - spaces_removed;
+                let col_amount =
+                    (crate::memory::ptr_offset_from(cend, newp) as Colnr) - spaces_removed;
 
                 mark_col_adjust(lnum, mincol, lnum_amount, col_amount, spaces_removed);
 
@@ -2184,7 +2189,7 @@ pub fn restore_lbr(lbr_saved: bool) {
 
 /// Prepare a few things for block mode yank/delete/tilde.
 pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: bool) {
-    unsafe {
+    {
         let mut incr: i32 = 0;
         let lbr_saved = reset_lbr();
 
@@ -2289,9 +2294,9 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
             if is_del && bdp.startspaces != 0 {
                 pstart = prev_pstart;
             }
-            bdp.textlen = pend.offset_from(pstart) as i32;
+            bdp.textlen = crate::memory::ptr_offset_from(pend, pstart) as i32;
         }
-        bdp.textcol = pstart.offset_from(line) as Colnr;
+        bdp.textcol = crate::memory::ptr_offset_from(pstart, line) as Colnr;
         bdp.textstart = pstart;
         restore_lbr(lbr_saved);
     }
@@ -2375,7 +2380,7 @@ pub fn getregionpos_line(
     ret_p1: &mut CursorPos,
     ret_p2: &mut CursorPos,
 ) {
-    unsafe {
+    {
         let line = ml_get(lnum);
         let line_len = ml_get_len(lnum);
 
@@ -2395,7 +2400,10 @@ pub fn getregionpos_line(
 
             if bd.is_one_char != 0 {
                 if region_type == MT_BLOCK_WISE {
-                    ret_p1.col = (mb_prevptr(line, bd.textstart).offset_from(line) as Colnr) + 1;
+                    ret_p1.col =
+                        (crate::memory::ptr_offset_from(mb_prevptr(line, bd.textstart), line)
+                            as Colnr)
+                            + 1;
                     ret_p1.coladd = bd.start_char_vcols - (bd.start_vcol - oap.start_vcol);
                 } else {
                     ret_p1.col = p1.col + 1;
@@ -2406,7 +2414,9 @@ pub fn getregionpos_line(
                 ret_p1.coladd = oap.start_vcol - bd.start_vcol;
                 bd.is_one_char = 1;
             } else if bd.startspaces > 0 {
-                ret_p1.col = (mb_prevptr(line, bd.textstart).offset_from(line) as Colnr) + 1;
+                ret_p1.col = (crate::memory::ptr_offset_from(mb_prevptr(line, bd.textstart), line)
+                    as Colnr)
+                    + 1;
                 ret_p1.coladd = bd.start_char_vcols - bd.startspaces;
             } else {
                 ret_p1.col = bd.textcol + 1;
@@ -3011,7 +3021,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
                 }
             }
             *ptr_line = NUL;
-            let mut buf1len = ptr_line.offset_from(buf1) as i32;
+            let mut buf1len = crate::memory::ptr_offset_from(ptr_line, buf1) as i32;
 
             crate::memory::cstr_cpy(buf1.wrapping_add(buf1len as usize), buf2_ptr);
             buf1len += buf2len;
@@ -3812,7 +3822,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     oap.motion_type = MT_LINE_WISE;
                 } else if g_st().visual_global.mode == b'v' as i32 {
                     oap.motion_type = MT_CHAR_WISE;
-                    if *ml_get_pos(&oap.end) == NUL
+                    if crate::memory::cstr_is_empty(ml_get_pos(&oap.end))
                         && (include_line_break || g_st().virtual_op == 0)
                     {
                         oap.inclusive = false;

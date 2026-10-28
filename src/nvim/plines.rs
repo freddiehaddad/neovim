@@ -2,7 +2,7 @@
 
 use crate::api::extmark::ns_in_win;
 use crate::buffer::FileBuf;
-use crate::charset::{NUL, vim_isprintc, vim_strsize};
+use crate::charset::{vim_isprintc, vim_strsize};
 use crate::cursor::{Colnr, CursorPos, Linenr, lt, ltoreq};
 use crate::decoration::{
     K_MTFILTER_SELECT, K_VPOS_INLINE, K_VTIS_LINES, decor_conceal_line, decor_virt_lines,
@@ -189,7 +189,7 @@ pub fn init_charsize_arg(
     lnum: Linenr,
     line: *mut c_char,
 ) -> CSType {
-    unsafe {
+    {
         csarg.win = (&raw mut *wp);
         csarg.line = line;
         csarg.max_head_vcol = 0;
@@ -218,7 +218,7 @@ pub fn init_charsize_arg(
             || (wp.w_onebuf_opt.wo_wrap != 0
                 && (wp.w_onebuf_opt.wo_lbr != 0
                     || wp.w_onebuf_opt.wo_bri != 0
-                    || *get_showbreak_value(wp) != NUL))
+                    || !crate::memory::cstr_is_empty(get_showbreak_value(wp))))
         {
             K_CHARSIZE_REGULAR
         } else {
@@ -311,7 +311,7 @@ pub fn charsize_regular(
 
         if csarg.virt_row >= 0 && !csarg.skip_cur_text {
             let mut tab_size = size;
-            let col = cur.offset_from(line) as i32;
+            let col = crate::memory::ptr_offset_from(cur, line) as i32;
             loop {
                 let mark = marktree_itr_current(&buf.b_marktree, &csarg.iter);
                 if mark.pos.row != csarg.virt_row || mark.pos.col > col {
@@ -488,7 +488,7 @@ pub fn charsize_regular(
                     break;
                 }
 
-                let col = s.offset_from(line) as i32;
+                let col = crate::memory::ptr_offset_from(s, line) as i32;
                 if has_virt < 0 {
                     has_virt = i32::from(marktree_itr_get_filter(
                         &buf.b_marktree,
@@ -625,12 +625,14 @@ fn in_win_border(wp: &mut WinInfoInfo, vcol: Colnr) -> bool {
 }
 
 pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 {
-    unsafe {
+    {
         let line: *const c_char = csarg.line;
         let mut vcol = i64::from(vcol_arg);
 
         let mut ci = utf_ptr2_str_char_info(line);
-        while (ci.ptr.offset_from(line) as Colnr) < len && !crate::memory::cstr_is_empty(ci.ptr) {
+        while (crate::memory::ptr_offset_from(ci.ptr, line) as Colnr) < len
+            && !crate::memory::cstr_is_empty(ci.ptr)
+        {
             let cli = utf_cluster_info(ci);
             vcol += i64::from(
                 charsize_regular(&mut *csarg, ci.ptr, vcol_arg, ci.chr.value, cli.cells).width,
@@ -666,7 +668,9 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 
         let mut vcol = i64::from(vcol_arg);
 
         let mut ci = utf_ptr2_str_char_info(line);
-        while (ci.ptr.offset_from(line) as Colnr) < len && !crate::memory::cstr_is_empty(ci.ptr) {
+        while (crate::memory::ptr_offset_from(ci.ptr, line) as Colnr) < len
+            && !crate::memory::cstr_is_empty(ci.ptr)
+        {
             let cli = utf_cluster_info(ci);
             vcol += i64::from(
                 charsize_fast_impl(
@@ -713,7 +717,7 @@ pub fn getvcol(
     end: Option<&mut Colnr>,
     flags: i32,
 ) {
-    unsafe {
+    {
         let line = ml_get_buf(wp.buf_mut(), pos.lnum);
         let end_col = pos.col;
 
@@ -746,7 +750,7 @@ pub fn getvcol(
                     cli.cells,
                 );
                 let next = cli.next;
-                if (next.ptr.offset_from(line) as Colnr) > end_col {
+                if (crate::memory::ptr_offset_from(next.ptr, line) as Colnr) > end_col {
                     break;
                 }
                 ci = next;
@@ -762,7 +766,7 @@ pub fn getvcol(
                     break;
                 }
                 let next = cli.next;
-                if (next.ptr.offset_from(line) as Colnr) > end_col {
+                if (crate::memory::ptr_offset_from(next.ptr, line) as Colnr) > end_col {
                     break;
                 }
                 ci = next;
@@ -772,9 +776,9 @@ pub fn getvcol(
 
         if crate::memory::cstr_is_empty(ci.ptr)
             && end_col < MAXCOL
-            && end_col > (ci.ptr.offset_from(line) as Colnr)
+            && end_col > (crate::memory::ptr_offset_from(ci.ptr, line) as Colnr)
         {
-            pos.col = ci.ptr.offset_from(line) as Colnr;
+            pos.col = crate::memory::ptr_offset_from(ci.ptr, line) as Colnr;
         }
 
         let incr = char_size.width;

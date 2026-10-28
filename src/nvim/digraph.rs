@@ -1935,7 +1935,7 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
             *p = b' ' as c_char;
             p = p.wrapping_add(1);
         }
-        let used = p.offset_from(buf.as_ptr()) as usize;
+        let used = crate::memory::ptr_offset_from(p, buf.as_ptr()) as usize;
         vim_snprintf!(p, buf.len() - used, c" %3d", dp.result);
         msg_outtrans(buf.as_ptr(), 0, false);
     }
@@ -2132,7 +2132,7 @@ pub fn keymap_init() -> *mut c_char {
 
 /// `:loadkeymap` command: load the following lines as the keymap (`ex_loadkeymap`).
 pub fn ex_loadkeymap(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut buf = [0 as c_char; KMAP_LLEN + 11];
         let save_cpo = opt_vars().p_cpo;
         let fgetline: LineGetter = eap.ea_getline;
@@ -2159,11 +2159,11 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
             let mut p = skipwhite(line);
             if crate::memory::cstr_first_byte(p) != b'"' && !crate::memory::cstr_is_empty(p) {
                 let mut s = skiptowhite(p);
-                let from_len = s.offset_from(p) as usize;
+                let from_len = crate::memory::ptr_offset_from(s, p) as usize;
                 let from_slice = crate::memory::cstr_slice(p, from_len);
                 p = skipwhite(s);
                 s = skiptowhite(p);
-                let to_len = s.offset_from(p) as usize;
+                let to_len = crate::memory::ptr_offset_from(s, p) as usize;
                 let to_slice = crate::memory::cstr_slice(p, to_len);
 
                 if from_len + to_len >= KMAP_LLEN || from_len == 0 || to_len == 0 {

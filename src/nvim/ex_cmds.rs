@@ -799,10 +799,10 @@ pub fn ex_sort(eap: &mut Exarg) {
                 let mut end_col: Colnr = len;
                 if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
                     if excmds_st().sort_rx {
-                        start_col = regmatch.startp[0].offset_from(s) as Colnr;
-                        end_col = regmatch.endp[0].offset_from(s) as Colnr;
+                        start_col = crate::memory::ptr_offset_from(regmatch.startp[0], s) as Colnr;
+                        end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s) as Colnr;
                     } else {
-                        start_col = regmatch.endp[0].offset_from(s) as Colnr;
+                        start_col = crate::memory::ptr_offset_from(regmatch.endp[0], s) as Colnr;
                     }
                 } else if !regmatch.regprog.is_null() {
                     end_col = 0;
@@ -1076,10 +1076,10 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 let mut end_col: Colnr = len;
                 if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
                     if excmds_st().sort_rx {
-                        start_col = regmatch.startp[0].offset_from(s) as Colnr;
-                        end_col = regmatch.endp[0].offset_from(s) as Colnr;
+                        start_col = crate::memory::ptr_offset_from(regmatch.startp[0], s) as Colnr;
+                        end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s) as Colnr;
                     } else {
-                        start_col = regmatch.endp[0].offset_from(s) as Colnr;
+                        start_col = crate::memory::ptr_offset_from(regmatch.endp[0], s) as Colnr;
                     }
                 } else if !regmatch.regprog.is_null() {
                     end_col = 0;
@@ -2087,14 +2087,15 @@ pub fn append_redir(
             *end = b' ' as c_char;
             vim_snprintf!(
                 end.wrapping_add(1),
-                (buflen as isize - end.wrapping_add(1).offset_from(buf)) as usize,
+                (buflen as isize - crate::memory::ptr_offset_from(end.wrapping_add(1), buf))
+                    as usize,
                 opt,
                 fname,
             );
         } else {
             vim_snprintf!(
                 end,
-                (buflen as isize - end.offset_from(buf)) as usize,
+                (buflen as isize - crate::memory::ptr_offset_from(end, buf)) as usize,
                 c" %s %s",
                 opt,
                 fname,
@@ -2778,8 +2779,10 @@ pub fn getfile(
 /// Set `v:swapcommand` for the `SwapExists` autocommands.
 pub fn set_swapcommand(command: impl crate::strings::IntoCCharPtr, newlnum: Linenr) -> bool {
     let command = command.into_c_char_ptr();
-    unsafe {
-        if (command.is_null() && newlnum <= 0) || *get_vim_var_str(VV_SWAPCOMMAND) != NUL {
+    {
+        if (command.is_null() && newlnum <= 0)
+            || !crate::memory::cstr_is_empty(get_vim_var_str(VV_SWAPCOMMAND))
+        {
             return false;
         }
         let valsize = if !command.is_null() {
@@ -3236,7 +3239,8 @@ pub fn do_ecmd(
                     let text = get_cursor_line_ptr();
 
                     if curwin_mut().w_cursor.lnum != orig_pos.lnum
-                        || curwin_mut().w_cursor.col != skipwhite(text).offset_from(text) as i32
+                        || curwin_mut().w_cursor.col
+                            != crate::memory::ptr_offset_from(skipwhite(text), text) as i32
                     {
                         newlnum = curwin_mut().w_cursor.lnum;
                         newcol = curwin_mut().w_cursor.col;
@@ -3394,7 +3398,7 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<c_char>> {
                     .nextcmd
                     .wrapping_add(crate::memory::cstr_len(eap.nextcmd));
             }
-            let len = p.offset_from(eap.nextcmd) as usize;
+            let len = crate::memory::ptr_offset_from(p, eap.nextcmd) as usize;
             let mut theline = vec![0 as c_char; len + 1];
             if len > 0 {
                 ptr::copy_nonoverlapping(eap.nextcmd, theline.as_mut_ptr(), len);
@@ -3654,7 +3658,9 @@ pub fn ex_z(eap: &mut Exarg) {
 
         match crate::memory::cstr_first_byte(kind) {
             b'-' => {
-                start = lnum - (bigness as Linenr) * (x.offset_from(kind) as Linenr) + 1;
+                start = lnum
+                    - (bigness as Linenr) * (crate::memory::ptr_offset_from(x, kind) as Linenr)
+                    + 1;
                 end = start + (bigness as Linenr) - 1;
                 curs = end;
             }
@@ -3681,7 +3687,9 @@ pub fn ex_z(eap: &mut Exarg) {
             _ => {
                 start = lnum;
                 if crate::memory::cstr_first_byte(kind) == b'+' {
-                    start += (bigness as Linenr) * (x.offset_from(kind) as Linenr - 1) + 1;
+                    start += (bigness as Linenr)
+                        * (crate::memory::ptr_offset_from(x, kind) as Linenr - 1)
+                        + 1;
                 } else if eap.addr_count == 0 {
                     start += 1;
                 }
@@ -4067,7 +4075,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                 cmd = cmd.wrapping_add(1);
                 pat.data = cmd;
                 cmd = skip_regexp_ex(cmd, delimiter, opt_vars().p_magic, true, None, None, None);
-                pat.size = cmd.offset_from(pat.data) as usize;
+                pat.size = crate::memory::ptr_offset_from(cmd, pat.data) as usize;
                 if crate::memory::cstr_first_char(cmd) == delimiter {
                     *cmd = NUL;
                     cmd = cmd.wrapping_add(1);
@@ -4123,7 +4131,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             } else if i == i32::MAX {
                 semsg!(
                     gettext(E_VAL_TOO_LARGE_LEN),
-                    cmd.offset_from(count_arg) as i32,
+                    crate::memory::ptr_offset_from(cmd, count_arg) as i32,
                     count_arg,
                 );
                 return 0;
@@ -4605,13 +4613,18 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                     && crate::memory::cstr_byte_at(p1, 1) != 0
                                 {
                                     sublen -= 1;
-                                    n = new_start.size - p1.offset_from(new_start.data()) as usize;
+                                    n = new_start.size
+                                        - crate::memory::ptr_offset_from(p1, new_start.data())
+                                            as usize;
                                     ptr::copy(p1.wrapping_add(1), p1, n + 1);
                                     new_start.size -= 1;
                                     p1 = p1.wrapping_add(1);
                                 } else if *p1 == CAR as c_char {
                                     if u_inssub(lnum) {
-                                        let plen = (p1.offset_from(new_start.data()) + 1) as Colnr;
+                                        let plen =
+                                            (crate::memory::ptr_offset_from(p1, new_start.data())
+                                                + 1)
+                                                as Colnr;
                                         *p1 = NUL;
                                         ml_append(lnum - 1, new_start.data(), plen, false);
                                         mark_adjust(lnum + 1, MAXLNUM, 1, 0, K_EXTMARK_NOOP);

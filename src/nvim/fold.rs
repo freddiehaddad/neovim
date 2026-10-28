@@ -643,7 +643,7 @@ pub fn delete_fold(
                 lnum = (*found_fp).fd_top + (*found_fp).fd_len + found_off;
 
                 if foldmethod_is_manual(&mut *wp) {
-                    let idx = found_fp.offset_from((*found_ga).as_ptr()) as i32;
+                    let idx = crate::memory::ptr_offset_from(found_fp, (*found_ga).as_ptr()) as i32;
                     delete_fold_entry(&mut *found_ga, idx, recursive != 0);
                 } else {
                     first_lnum = first_lnum.min((*found_fp).fd_top + found_off);
@@ -2824,7 +2824,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                     || crate::memory::cstr_byte_at(s, 1) == b'/')
             {
                 s = skipwhite(s.wrapping_add(2));
-                if *skipwhite(s) == NUL && lnum + 1 < foldend {
+                if crate::memory::cstr_is_empty(skipwhite(s)) && lnum + 1 < foldend {
                     s = skipwhite(ml_get(lnum + 1));
                     if crate::memory::cstr_first_byte(s) == b'*' {
                         s = skipwhite(s.wrapping_add(1));

@@ -294,7 +294,7 @@ pub fn spell_check(
             } else {
                 mi.mi_end = skipdigits(ptr);
             }
-            nrlen = mi.mi_end.offset_from(ptr) as usize;
+            nrlen = crate::memory::ptr_offset_from(mi.mi_end, ptr) as usize;
         }
         mi.mi_word = ptr;
         mi.mi_fend = ptr;
@@ -313,7 +313,7 @@ pub fn spell_check(
             {
                 let c = utf_ptr2char(ptr);
                 if !spell_isupper(c) {
-                    wrongcaplen = mi.mi_fend.offset_from(ptr) as usize;
+                    wrongcaplen = crate::memory::ptr_offset_from(mi.mi_fend, ptr) as usize;
                 }
             }
         }
@@ -330,7 +330,7 @@ pub fn spell_check(
         spell_casefold(
             wp,
             ptr,
-            mi.mi_fend.offset_from(ptr) as i32,
+            crate::memory::ptr_offset_from(mi.mi_fend, ptr) as i32,
             (&raw mut mi.mi_fword).cast(),
             (MAXWLEN + 1) as i32,
         );
@@ -357,7 +357,7 @@ pub fn spell_check(
                 count_common_word(
                     &mut *mi.mi_lp.lp_slang,
                     ptr,
-                    mi.mi_end.offset_from(ptr) as i32,
+                    crate::memory::ptr_offset_from(mi.mi_end, ptr) as i32,
                     1,
                 );
                 count_word = false;
@@ -377,7 +377,7 @@ pub fn spell_check(
                     regmatch.rm_ic = false;
                     let r = vim_regexec(&mut regmatch, ptr, 0);
                     if r {
-                        *capcol = regmatch.endp[0].offset_from(ptr) as i32;
+                        *capcol = crate::memory::ptr_offset_from(regmatch.endp[0], ptr) as i32;
                     }
                 }
                 return utfc_ptr2len(ptr) as usize;
@@ -395,8 +395,10 @@ pub fn spell_check(
                         if p >= mi.mi_end {
                             break;
                         }
-                        mi.mi_compoff =
-                            fp.offset_from((&raw const mi.mi_fword).cast::<c_char>()) as i32;
+                        mi.mi_compoff = crate::memory::ptr_offset_from(
+                            fp,
+                            (&raw const mi.mi_fword).cast::<c_char>(),
+                        ) as i32;
                         find_word(&mut mi, FIND_COMPOUND);
                         if mi.mi_result != SP_BAD {
                             mi.mi_end = p;
@@ -418,7 +420,7 @@ pub fn spell_check(
             *attrp = HLF_SPC;
             return wrongcaplen;
         }
-        mi.mi_end.offset_from(ptr) as usize
+        crate::memory::ptr_offset_from(mi.mi_end, ptr) as usize
     }
 }
 fn get_char_type(c: i32) -> i32 {
@@ -597,7 +599,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                         mb_ptr_adv(&mut p);
                         mb_ptr_adv(&mut s);
                     }
-                    wlen = p.offset_from(mip.mi_word) as i32;
+                    wlen = crate::memory::ptr_offset_from(p, mip.mi_word) as i32;
                 }
             }
             let mut len = *byts.wrapping_add((arridx - 1) as usize) as i32;
@@ -770,8 +772,10 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                                 mb_ptr_adv(&mut p);
                                 mb_ptr_adv(&mut s);
                             }
-                            mip.mi_compoff =
-                                p.offset_from((&raw const mip.mi_fword).cast::<c_char>()) as i32;
+                            mip.mi_compoff = crate::memory::ptr_offset_from(
+                                p,
+                                (&raw const mip.mi_fword).cast::<c_char>(),
+                            ) as i32;
                         }
                     }
                     mip.mi_complen += 1;
@@ -1083,7 +1087,7 @@ fn fold_more(mip: &mut Matchinf) -> i32 {
         spell_casefold(
             &*mip.mi_win,
             p,
-            mip.mi_fend.offset_from(p) as i32,
+            crate::memory::ptr_offset_from(mip.mi_fend, p) as i32,
             dst,
             MAXWLEN as i32 - mip.mi_fwordlen,
         );
@@ -1194,7 +1198,7 @@ pub fn spell_move_to(
                     }
                     line = ml_get_buf(wp.buf_mut(), lnum);
                 }
-                let empty_line = *skipwhite(line) == NUL;
+                let empty_line = crate::memory::cstr_is_empty(skipwhite(line));
                 crate::memory::cstr_cpy(buf, line);
                 if lnum < wp.buf_mut().b_ml.ml_line_count {
                     spell_cat_line(
@@ -1209,7 +1213,7 @@ pub fn spell_move_to(
                     if dir == BACKWARD
                         && lnum == wp.w_cursor.lnum
                         && !wrapped
-                        && (p.offset_from(buf) as Colnr) >= wp.w_cursor.col
+                        && (crate::memory::ptr_offset_from(p, buf) as Colnr) >= wp.w_cursor.col
                     {
                         break;
                     }
@@ -1221,16 +1225,16 @@ pub fn spell_move_to(
                             || (behaviour == SMT_RARE && attr == HLF_SPR))
                     {
                         let check_col = if curline {
-                            (p.offset_from(buf) + len as isize) as Colnr
+                            (crate::memory::ptr_offset_from(p, buf) + len as isize) as Colnr
                         } else {
-                            p.offset_from(buf) as Colnr
+                            crate::memory::ptr_offset_from(p, buf) as Colnr
                         };
                         if dir == BACKWARD
                             || lnum != wp.w_cursor.lnum
                             || wrapped
                             || check_col > wp.w_cursor.col
                         {
-                            let col = p.offset_from(buf) as Colnr;
+                            let col = crate::memory::ptr_offset_from(p, buf) as Colnr;
                             let w_s = wp.w_s_ptr();
                             let no_plain_buffer =
                                 (w_s.b_p_spo_flags & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
@@ -1311,7 +1315,7 @@ pub fn spell_move_to(
                         break;
                     }
                     if attr == HLF_COUNT {
-                        skip = p.offset_from(endp) as i32;
+                        skip = crate::memory::ptr_offset_from(p, endp) as i32;
                     } else {
                         skip = 0;
                     }
@@ -1337,7 +1341,7 @@ pub fn spell_cat_line(buf: *mut c_char, line: impl crate::strings::IntoCCharPtr,
         if crate::memory::cstr_is_empty(p) {
             return;
         }
-        let n = p.offset_from(line) as i32 + 1;
+        let n = crate::memory::ptr_offset_from(p, line) as i32 + 1;
         if n < maxlen - 1 {
             ptr::write_bytes(buf.cast::<u8>(), b' ', n as usize);
             xstrlcpy(buf.wrapping_add(n as usize), p, (maxlen - n) as usize);
@@ -1749,7 +1753,9 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> *mut c_char {
                         ptr::copy(
                             p.wrapping_add(3),
                             p,
-                            (len as usize) - (p.offset_from(lang_ptr) as usize) - 2,
+                            (len as usize)
+                                - (crate::memory::ptr_offset_from(p, lang_ptr) as usize)
+                                - 2,
                         );
                         region = (&raw mut region_cp).cast();
                     } else {
@@ -2266,7 +2272,7 @@ pub fn spell_casefold(
     }
 }
 pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
-    unsafe {
+    {
         let w_s = wp.w_s_ptr();
         if w_s.b_cap_prog.is_none() {
             return false;
@@ -2284,7 +2290,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
                 need_cap = true;
             } else {
                 line = ml_get_buf(wp.buf_mut(), lnum - 1);
-                if *skipwhite(line) == NUL {
+                if crate::memory::cstr_is_empty(skipwhite(line)) {
                     need_cap = true;
                 } else {
                     line_copy = Some(concat_str(line, c" "));
@@ -2427,7 +2433,7 @@ pub fn allcap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut c_char) 
             let mut c = mb_cptr2char_adv(&raw mut s);
             if c == 0xdf {
                 c = b'S' as i32;
-                if d.offset_from(wcopy) as usize >= MAXWLEN - 1 {
+                if crate::memory::ptr_offset_from(d, wcopy) as usize >= MAXWLEN - 1 {
                     break;
                 }
                 *d = c as c_char;
@@ -2435,7 +2441,7 @@ pub fn allcap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut c_char) 
             } else {
                 c = spell_toupper(c);
             }
-            if d.offset_from(wcopy) as usize >= MAXWLEN - MB_MAXBYTES {
+            if crate::memory::ptr_offset_from(d, wcopy) as usize >= MAXWLEN - MB_MAXBYTES {
                 break;
             }
             d = d.wrapping_add(utf_char2bytes(c, d) as usize);
@@ -2450,7 +2456,7 @@ pub fn nofold_len(
 ) -> i32 {
     let fword = fword.into_c_char_ptr().cast_mut();
     let word = word.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut p = fword;
         let mut i: i32 = 0;
         let f_end = fword.wrapping_add(flen as usize);
@@ -2463,7 +2469,7 @@ pub fn nofold_len(
             i -= 1;
             mb_ptr_adv(&mut p);
         }
-        p.offset_from(word) as i32
+        crate::memory::ptr_offset_from(p, word) as i32
     }
 }
 pub fn make_case_word(fword: impl crate::strings::IntoCCharPtr, cword: *mut c_char, flags: i32) {
@@ -3312,7 +3318,7 @@ pub fn spell_to_word_end(start: *mut c_char, win: &mut WinInfoInfo) -> *mut c_ch
     }
 }
 pub fn spell_word_start(startcol: i32) -> i32 {
-    unsafe {
+    {
         if no_spell_checking(curwin_mut()) {
             return startcol;
         }
@@ -3326,7 +3332,7 @@ pub fn spell_word_start(startcol: i32) -> i32 {
         }
         let mut col: i32 = 0;
         while p > line {
-            col = p.offset_from(line) as i32;
+            col = crate::memory::ptr_offset_from(p, line) as i32;
             mb_ptr_back(line, &mut p);
             if !spell_iswordp(p, curwin_mut()) {
                 break;

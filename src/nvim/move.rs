@@ -42,7 +42,6 @@ use crate::window::{VALID_BOTLINE_AP, WinInfoInfo, win_fdccol_count};
 use crate::winfloat::win_check_anchored_floats;
 use std::ptr;
 
-use crate::charset::NUL;
 use crate::drawline::{
     K_CPO_NUMCOL, K_OPT_CULOPT_FLAG_SCREENLINE, VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW,
 };
@@ -228,11 +227,11 @@ pub fn set_valid_virtcol(wp: &mut WinInfoInfo, vcol: Colnr) {
 /// Calculates how much the `'listchars'` `"precedes"` or `'smoothscroll'` `"<<<"`
 /// marker overlaps with buffer text for window `wp`.
 pub fn sms_marker_overlap(wp: &mut WinInfoInfo, mut extra2: i32) -> i32 {
-    unsafe {
+    {
         if extra2 == -1 {
             extra2 = win_col_off(wp) - win_col_off2(&mut *wp);
         }
-        if *get_showbreak_value(&mut *wp) != NUL {
+        if !crate::memory::cstr_is_empty(get_showbreak_value(&mut *wp)) {
             return 0;
         }
 
@@ -1257,7 +1256,7 @@ pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// Convert a virtual (screen) column to a character column (1-based).
 fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
-    unsafe {
+    {
         let offset = vcol2col(wp, lnum, vcol - 1, None);
         let line = ml_get_buf(wp.buf_mut(), lnum);
         let mut p = line.wrapping_add(offset as usize);
@@ -1268,7 +1267,7 @@ fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
             }
             p = p.wrapping_sub(utf_head_off(line, p.wrapping_sub(1)) as usize + 1);
         }
-        p.offset_from(line) as i32 + 1
+        crate::memory::ptr_offset_from(p, line) as i32 + 1
     }
 }
 

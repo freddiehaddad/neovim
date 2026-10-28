@@ -456,7 +456,7 @@ pub fn stl_fill_click_defs(
         while !(*click_recs.wrapping_add(i)).start.is_null() {
             len += vim_strnsize(
                 buf.cast_mut(),
-                (*click_recs.wrapping_add(i)).start.offset_from(buf) as i32,
+                crate::memory::ptr_offset_from((*click_recs.wrapping_add(i)).start, buf) as i32,
             );
             debug_assert!(len <= width);
             if col < len {
@@ -694,9 +694,9 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             let mut sp = hltab;
             loop {
                 let textlen = if !(*sp).start.is_null() {
-                    (*sp).start.offset_from(p)
+                    crate::memory::ptr_offset_from((*sp).start, p)
                 } else {
-                    buf.as_mut_ptr().wrapping_add(len).offset_from(p)
+                    crate::memory::ptr_offset_from(buf.as_mut_ptr().wrapping_add(len), p)
                 };
                 let src_p = if p >= buf.as_mut_ptr().wrapping_add(len) {
                     c"".as_ptr()
@@ -1276,10 +1276,12 @@ fn stl_truncate(
             }
 
             let trunc_end_p = trunc_p.wrapping_add(trunc_len as usize);
-            let move_len = (*out_p).offset_from(trunc_end_p) as usize + 1;
+            let move_len = crate::memory::ptr_offset_from(*out_p, trunc_end_p) as usize + 1;
             ptr::copy(trunc_end_p, trunc_p.wrapping_add(1), move_len);
-            *out_p =
-                (*out_p).wrapping_sub(trunc_end_p.offset_from(trunc_p.wrapping_add(1)) as usize);
+            *out_p = (*out_p)
+                .wrapping_sub(
+                    crate::memory::ptr_offset_from(trunc_end_p, trunc_p.wrapping_add(1)) as usize,
+                );
 
             *trunc_p = b'<' as c_char;
 
@@ -1370,7 +1372,7 @@ fn stl_expand(
             ptr::copy(
                 start_p,
                 start_p.wrapping_add(added_bytes as usize),
-                (*out_p).offset_from(start_p) as usize,
+                crate::memory::ptr_offset_from(*out_p, start_p) as usize,
             );
 
             let orig_added_cells = added_cells;
@@ -1661,7 +1663,7 @@ pub extern "C" fn build_stl_str_hl(
                         &mut group_len,
                         minwid,
                         padding,
-                        out_end_p.offset_from(out_p) as i32,
+                        crate::memory::ptr_offset_from(out_end_p, out_p) as i32,
                         fillchar,
                         stl_items!(),
                         gidx + 1,
@@ -1748,7 +1750,10 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!()[stl_st().curitem as usize].type_ = StlItemType::ClickFunc;
                 stl_items!()[stl_st().curitem as usize].start = out_p;
                 stl_items!()[stl_st().curitem as usize].cmd = if !tabtab.is_null() {
-                    let slice = crate::memory::cstr_slice(t, fmt_p.offset_from(t) as usize);
+                    let slice = crate::memory::cstr_slice(
+                        t,
+                        crate::memory::ptr_offset_from(fmt_p, t) as usize,
+                    );
                     Some(std::ffi::CString::new(slice).unwrap())
                 } else {
                     None
@@ -1979,7 +1984,8 @@ pub extern "C" fn build_stl_str_hl(
                             && crate::strings::vim_haschr(str, b'%' as i32)
                             && evaldepth < MAX_STL_EVAL_DEPTH
                         {
-                            let parsed_usefmt = block_start.offset_from(usefmt) as usize;
+                            let parsed_usefmt =
+                                crate::memory::ptr_offset_from(block_start, usefmt) as usize;
                             let str_bytes = crate::memory::cstr_as_bytes(str);
                             let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p);
                             let mut new_bytes = Vec::with_capacity(
@@ -2217,7 +2223,7 @@ pub extern "C" fn build_stl_str_hl(
                         }
                         stl_items!()[stl_st().curitem as usize].start = out_p;
                         stl_items!()[stl_st().curitem as usize].minwid =
-                            -syn_name2id_len(t, fmt_p.offset_from(t) as usize);
+                            -syn_name2id_len(t, crate::memory::ptr_offset_from(fmt_p, t) as usize);
                         stl_st().curitem += 1;
                         fmt_p = fmt_p.wrapping_add(1);
                     }
@@ -2355,7 +2361,10 @@ pub extern "C" fn build_stl_str_hl(
                     }
                     minwid = 0;
                     if foldsignitem >= 0 {
-                        let offset = out_p.offset_from(stl_items!()[foldsignitem as usize].start);
+                        let offset = crate::memory::ptr_offset_from(
+                            out_p,
+                            stl_items!()[foldsignitem as usize].start,
+                        );
                         for item in
                             &mut stl_items!()[(foldsignitem as usize)..(stl_st().curitem as usize)]
                         {
@@ -2428,7 +2437,8 @@ pub extern "C" fn build_stl_str_hl(
                     num_chars += 1;
                 }
 
-                let remaining_buf_len = out_end_p.offset_from(out_p) as usize + 1;
+                let remaining_buf_len =
+                    crate::memory::ptr_offset_from(out_end_p, out_p) as usize + 1;
                 if num_chars > maxwid {
                     num_chars += 2;
                     let n = num_chars - maxwid;
@@ -2500,7 +2510,7 @@ pub extern "C" fn build_stl_str_hl(
                 &mut width,
                 maxwidth,
                 StlPadding::PaddingNone,
-                out_end_p.offset_from(out_p) as i32,
+                crate::memory::ptr_offset_from(out_end_p, out_p) as i32,
                 fillchar,
                 stl_items!(),
                 evalstart,

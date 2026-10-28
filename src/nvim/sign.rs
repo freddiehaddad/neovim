@@ -607,7 +607,7 @@ fn sign_define_by_name(
         ];
         for i in 0..4 {
             if !args[i].is_null() {
-                *hls[i] = if *args[i] != NUL {
+                *hls[i] = if !crate::memory::cstr_is_empty(args[i]) {
                     syn_check_group(args[i], crate::memory::cstr_len(args[i]))
                 } else {
                     0
@@ -1058,7 +1058,7 @@ fn parse_sign_cmd_args(
                 arg = arg.wrapping_add(7);
                 filename = arg;
                 *buf = buflist_findnr(getdigits_int(&raw mut arg, true, 0));
-                if *skipwhite(arg) != NUL {
+                if !crate::memory::cstr_is_empty(skipwhite(arg)) {
                     semsg!(gettext(E_TRAILING_ARG), arg);
                 }
                 break;

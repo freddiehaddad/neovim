@@ -3011,7 +3011,9 @@ pub fn nvim_eval_statusline(
                 opts.use_winbar,
                 stc_hl_id,
             );
-            if (*hltab).start.is_null() || (*hltab).start.offset_from(buf_data) != 0 {
+            if (*hltab).start.is_null()
+                || crate::memory::ptr_offset_from((*hltab).start, buf_data) != 0
+            {
                 let mut hl_info = arena_dict(arena, 3);
                 put_c(&mut hl_info, c"start", integer_obj(0));
                 put_c(&mut hl_info, c"group", cstr_as_obj(dfltname));
@@ -3052,7 +3054,7 @@ pub fn nvim_eval_statusline(
                 put_c(
                     &mut hl_info,
                     c"start",
-                    integer_obj((*sp).start.offset_from(buf_data) as Integer),
+                    integer_obj(crate::memory::ptr_offset_from((*sp).start, buf_data) as Integer),
                 );
                 put_c(&mut hl_info, c"group", cstr_as_obj(grpname));
                 let diff_group = combine != grpname;

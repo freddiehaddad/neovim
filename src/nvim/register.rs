@@ -295,13 +295,14 @@ fn copy_string_global(s: NvimString) -> NvimString {
 }
 
 pub fn get_unname_register() -> i32 {
-    unsafe {
+    {
         if reg_st().y_previous.is_null() {
             -1
         } else {
-            reg_st()
-                .y_previous
-                .offset_from((&raw const reg_st().y_regs).cast::<Yankreg>()) as i32
+            crate::memory::ptr_offset_from(
+                reg_st().y_previous,
+                (&raw const reg_st().y_regs).cast::<Yankreg>(),
+            ) as i32
         }
     }
 }
@@ -1618,7 +1619,9 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                     let one_past_line = crate::memory::cstr_is_empty(cursor_pos);
                     let mut eol = false;
                     if !one_past_line {
-                        eol = *cursor_pos.wrapping_add(utfc_ptr2len(cursor_pos) as usize) == NUL;
+                        eol = crate::memory::cstr_is_empty(
+                            cursor_pos.wrapping_add(utfc_ptr2len(cursor_pos) as usize),
+                        );
                     }
 
                     let ve_allows =

@@ -1449,7 +1449,7 @@ fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CSt
         let colon = (*args.oe_xp).xp_pattern.wrapping_sub(1);
         let len = name_suffix.to_bytes().len();
 
-        colon.offset_from(args.oe_set_arg) >= (len as isize)
+        crate::memory::ptr_offset_from(colon, args.oe_set_arg) >= (len as isize)
             && (crate::memory::cstr_prefix_bytes(colon.wrapping_sub(len), len)
                 == crate::memory::cstr_prefix_bytes(name_suffix.as_ptr(), len))
     }

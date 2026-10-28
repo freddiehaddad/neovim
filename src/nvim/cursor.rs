@@ -228,7 +228,7 @@ fn coladvance2(
                 col += cs.width;
                 ci = cli.next;
             }
-            idx = ci.ptr.offset_from(line) as i32;
+            idx = crate::memory::ptr_offset_from(ci.ptr, line) as i32;
 
             if col > wcol || (!virtual_active(&mut *wp) && one_more == 0) {
                 idx -= 1;

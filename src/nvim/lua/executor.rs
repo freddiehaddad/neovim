@@ -2452,7 +2452,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
         let pat = xp.xp_pattern;
         let line_end = xp.xp_line.wrapping_add(xp.xp_col as usize);
         assert!(line_end >= pat);
-        let patlen = line_end.offset_from(pat);
+        let patlen = crate::memory::ptr_offset_from(line_end, pat);
         lua_pushlstring(lstate, pat, patlen as usize);
 
         if nlua_pcall(lstate, 1, 2) != 0 {

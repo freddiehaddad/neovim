@@ -1104,7 +1104,7 @@ pub fn set_context_in_menu_cmd(
             let mut menu_list: *const Vec<Vimmenu> = &raw const g_st().root_menu;
             let mut path_name_vec: Vec<c_char>;
             if after_dot > arg {
-                let path_len = after_dot.offset_from(arg) as usize;
+                let path_len = crate::memory::ptr_offset_from(after_dot, arg) as usize;
                 path_name_vec = vec![0; path_len];
                 path_name = path_name_vec.as_mut_ptr();
                 xstrlcpy(path_name, arg, path_len);
@@ -1461,7 +1461,7 @@ fn menu_text(
             if let Some(actext_out) = actext {
                 *actext_out = Some(crate::memory::cstr_to_cstring(p.wrapping_add(1)));
             }
-            let len = p.offset_from(str) as usize;
+            let len = crate::memory::ptr_offset_from(p, str) as usize;
             let mut v = Vec::with_capacity(len + 1);
             v.extend_from_slice(std::slice::from_raw_parts(str, len));
             v.push(0);
@@ -1842,7 +1842,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
                 let mut from_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(from_arg);
                 let from = from_vec.as_mut_ptr();
                 let from_noamp_cstr = menu_text(from, None, None);
-                let to_len = arg.offset_from(to_arg) as usize;
+                let to_len = crate::memory::ptr_offset_from(arg, to_arg) as usize;
                 let mut to_vec: Vec<c_char> = Vec::with_capacity(to_len + 1);
                 to_vec.extend_from_slice(std::slice::from_raw_parts(to_arg, to_len));
                 to_vec.push(0);

@@ -2931,7 +2931,7 @@ fn ochar(buf: *mut *mut c_char, buf_end: impl crate::strings::IntoCCharPtr, mut 
         if c == 0 {
             c = 0o200;
         }
-        if buf_end.offset_from(*buf) < 2 {
+        if crate::memory::ptr_offset_from(buf_end, *buf) < 2 {
             return false;
         }
         **buf = c as c_char;
@@ -2953,7 +2953,7 @@ fn onum(
     len = len.max(LONG_STR_MAX);
 
     unsafe {
-        if buf_end.offset_from(*buf) < (len + 2) as isize {
+        if crate::memory::ptr_offset_from(buf_end, *buf) < (len + 2) as isize {
             return false;
         }
         {
@@ -3109,7 +3109,7 @@ pub fn terminfo_fmt(
                         if l < olen {
                             l = olen;
                         }
-                        if (buf_end.offset_from(buf) as usize) < (l + 1) {
+                        if (crate::memory::ptr_offset_from(buf_end, buf) as usize) < (l + 1) {
                             return 0;
                         }
                         {
@@ -3305,7 +3305,7 @@ pub fn terminfo_fmt(
                 _ => {}
             }
         }
-        buf.offset_from(buf_start) as usize
+        crate::memory::ptr_offset_from(buf, buf_start) as usize
     }
 }
 

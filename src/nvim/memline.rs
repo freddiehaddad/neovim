@@ -1141,7 +1141,8 @@ pub fn ml_recover(checkext: bool) {
             while p > fname_base && *p.wrapping_offset(-1) != NUL {
                 p = p.wrapping_offset(-1);
             }
-            let fenc_len = fname_base.wrapping_add(fnsize).offset_from(p) as usize;
+            let fenc_len =
+                crate::memory::ptr_offset_from(fname_base.wrapping_add(fnsize), p) as usize;
             let fenc_bytes = crate::memory::cstr_slice(p, fenc_len);
             let end = fenc_bytes
                 .iter()
@@ -1691,7 +1692,7 @@ pub fn make_percent_swname(
         }
         let fixed_fname = NvimString {
             data: fixed_data,
-            size: p.offset_from(fixed_data) as usize,
+            size: crate::memory::ptr_offset_from(p, fixed_data) as usize,
         };
 
         let last_sep = dir_end.wrapping_offset(-1);
@@ -1699,7 +1700,7 @@ pub fn make_percent_swname(
         Some(concat_fnames(
             NvimString {
                 data: dir,
-                size: last_sep.offset_from(dir) as usize,
+                size: crate::memory::ptr_offset_from(last_sep, dir) as usize,
             },
             fixed_fname,
             true,
@@ -3485,7 +3486,7 @@ pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ff
         if crate::memory::cstr_first_byte(dname) == b'.'
             && crate::memory::cstr_byte_at(dname, 1) == 0
         {
-            let n = tail.data.offset_from(fname) as usize + tail.size;
+            let n = crate::memory::ptr_offset_from(tail.data, fname) as usize + tail.size;
             return Some(
                 std::ffi::CString::new(crate::memory::cstr_slice(fname, n)).unwrap_or_default(),
             );
@@ -3510,7 +3511,7 @@ pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ff
                 let tmp = concat_fnames(
                     NvimString {
                         data: fname,
-                        size: tail.data.offset_from(fname) as usize,
+                        size: crate::memory::ptr_offset_from(tail.data, fname) as usize,
                     },
                     NvimString {
                         data: dname.wrapping_add(2),

@@ -556,7 +556,7 @@ pub fn msg_multiline(
     unsafe {
         let mut s = str_.data.cast_const();
         let mut chunk = s;
-        while (s.offset_from(str_.data) as usize) < str_.size {
+        while (crate::memory::ptr_offset_from(s, str_.data) as usize) < str_.size {
             if check_int && g_st().got_int {
                 return;
             }
@@ -566,7 +566,12 @@ pub fn msg_multiline(
                 || *s == BELL as c_char
             {
                 // Print all chars before the delimiter
-                msg_outtrans_len(chunk, s.offset_from(chunk) as i32, hl_id, hist);
+                msg_outtrans_len(
+                    chunk,
+                    crate::memory::ptr_offset_from(s, chunk) as i32,
+                    hl_id,
+                    hist,
+                );
 
                 if *s != TAB as c_char && *need_clear {
                     msg_clr_eos();
@@ -586,7 +591,7 @@ pub fn msg_multiline(
         if !crate::memory::cstr_is_empty(chunk) || chunk == str_.data.cast_const() {
             msg_outtrans_len(
                 chunk,
-                (str_.size - (chunk.offset_from(str_.data) as usize)) as i32,
+                (str_.size - (crate::memory::ptr_offset_from(chunk, str_.data) as usize)) as i32,
                 hl_id,
                 hist,
             );
@@ -2247,7 +2252,7 @@ pub fn msg_outtrans_len(
     hist: bool,
 ) -> i32 {
     let msgstr = msgstr.into_c_char_ptr();
-    unsafe {
+    {
         let mut retval = 0;
         let mut str_ = msgstr;
         let mut plain_start = msgstr;
@@ -2288,7 +2293,12 @@ pub fn msg_outtrans_len(
                     // Unprintable multi-byte char: print the printable chars so
                     // far and the translation of the unprintable char.
                     if str_ > plain_start {
-                        msg_puts_len(plain_start, str_.offset_from(plain_start), hl_id, hist);
+                        msg_puts_len(
+                            plain_start,
+                            crate::memory::ptr_offset_from(str_, plain_start),
+                            hl_id,
+                            hist,
+                        );
                     }
                     plain_start = str_.wrapping_add(mb_l as usize);
                     msg_puts_hl(
@@ -2304,7 +2314,12 @@ pub fn msg_outtrans_len(
                 let s = transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(str_)));
                 if crate::memory::cstr_byte_at(s, 1) != 0 {
                     if str_ > plain_start {
-                        msg_puts_len(plain_start, str_.offset_from(plain_start), hl_id, hist);
+                        msg_puts_len(
+                            plain_start,
+                            crate::memory::ptr_offset_from(str_, plain_start),
+                            hl_id,
+                            hist,
+                        );
                     }
                     plain_start = str_.wrapping_add(1);
                     msg_puts_hl(s, if hl_id == 0 { HLF_8 } else { hl_id }, false);
@@ -2317,7 +2332,12 @@ pub fn msg_outtrans_len(
         }
 
         if (str_ > plain_start || plain_start == msgstr) && !g_st().got_int {
-            msg_puts_len(plain_start, str_.offset_from(plain_start), hl_id, hist);
+            msg_puts_len(
+                plain_start,
+                crate::memory::ptr_offset_from(str_, plain_start),
+                hl_id,
+                hist,
+            );
         }
 
         g_st().got_int |= save_got_int;
@@ -2951,7 +2971,9 @@ fn msg_puts_display(
             } else {
                 str_
             };
-            let col = mb_string2cells_len(p, len - (p.offset_from(str_) as usize)) as i32;
+            let col =
+                mb_string2cells_len(p, len - (crate::memory::ptr_offset_from(p, str_) as usize))
+                    as i32;
             g_st().msg_col = (if !lastline.is_null() {
                 0
             } else {
@@ -3023,7 +3045,7 @@ fn msg_puts_display(
                 }
             }
 
-            if !((maxlen < 0 || (s.offset_from(str_) as i32) < maxlen)
+            if !((maxlen < 0 || (crate::memory::ptr_offset_from(s, str_) as i32) < maxlen)
                 && !crate::memory::cstr_is_empty(s))
             {
                 break;
@@ -3042,7 +3064,11 @@ fn msg_puts_display(
             if crate::memory::cstr_first_byte(s) >= 0x20 {
                 let mut cw = utf_ptr2cells(s);
                 let l = if maxlen >= 0 {
-                    utfc_ptr2len_len(s, str_.wrapping_add(maxlen as usize).offset_from(s) as i32)
+                    utfc_ptr2len_len(
+                        s,
+                        crate::memory::ptr_offset_from(str_.wrapping_add(maxlen as usize), s)
+                            as i32,
+                    )
                 } else {
                     utfc_ptr2len(s)
                 };
@@ -3279,8 +3305,8 @@ pub fn msg_ui_flush() {
 
 /// Increment "msg_scrolled".
 fn inc_msg_scrolled() {
-    unsafe {
-        if *get_vim_var_str(VV_SCROLLSTART) == NUL {
+    {
+        if crate::memory::cstr_is_empty(get_vim_var_str(VV_SCROLLSTART)) {
             let sname = sourcing_name();
             let mut tofree_vec: Vec<c_char>;
 
@@ -3331,7 +3357,7 @@ fn store_sb_text(
         }
 
         if s > *sb_str {
-            let text_len = s.offset_from(*sb_str) as usize;
+            let text_len = crate::memory::ptr_offset_from(s, *sb_str) as usize;
             let mut text = Vec::with_capacity(text_len + 1);
             text.extend_from_slice(std::slice::from_raw_parts(*sb_str, text_len));
             text.push(NUL);
@@ -3498,7 +3524,9 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
             return;
         }
 
-        while (maxlen < 0 || s.offset_from(str_) < maxlen) && !crate::memory::cstr_is_empty(s) {
+        while (maxlen < 0 || crate::memory::ptr_offset_from(s, str_) < maxlen)
+            && !crate::memory::cstr_is_empty(s)
+        {
             let len = utf_ptr2len(s) as usize;
             if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
                 let mut p = buf.as_mut_ptr();
@@ -4056,7 +4084,7 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 var_redir_str(s, maxlen as i32);
             }
 
-            while (maxlen < 0 || (s.offset_from(str_) as i32) < maxlen as i32)
+            while (maxlen < 0 || (crate::memory::ptr_offset_from(s, str_) as i32) < maxlen as i32)
                 && !crate::memory::cstr_is_empty(s)
             {
                 if g_st().redir_reg == 0

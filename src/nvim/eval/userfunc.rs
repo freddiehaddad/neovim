@@ -334,7 +334,7 @@ fn one_function_arg(
     skip: bool,
 ) -> *mut c_char {
     let arg = arg.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut p = arg;
 
         while ascii_isalnum(crate::memory::cstr_first_char(p))
@@ -342,7 +342,7 @@ fn one_function_arg(
         {
             p = p.wrapping_add(1);
         }
-        let len = p.offset_from(arg);
+        let len = crate::memory::ptr_offset_from(p, arg);
         if arg == p
             || (crate::memory::cstr_first_byte(arg)).is_ascii_digit()
             || (len == 9 && (crate::memory::cstr_prefix_bytes(arg, 9) == &b"firstline"[..9]))
@@ -411,7 +411,7 @@ fn get_function_args(
                     break;
                 }
 
-                if *skipwhite(p) == b'=' as c_char && default_args.is_some() {
+                if crate::memory::cstr_first_byte(skipwhite(p)) == b'=' && default_args.is_some() {
                     let mut rettv: TypVal = TypVal::new();
 
                     any_default = true;
@@ -423,8 +423,10 @@ fn get_function_args(
                             p = p.wrapping_sub(1);
                         }
                         if let Some(default_args) = default_args.as_deref_mut() {
-                            let expr_slice =
-                                crate::memory::cstr_slice(expr, p.offset_from(expr) as usize);
+                            let expr_slice = crate::memory::cstr_slice(
+                                expr,
+                                crate::memory::ptr_offset_from(p, expr) as usize,
+                            );
                             default_args.push(std::ffi::CString::new(expr_slice).unwrap());
                         }
                     } else {
@@ -624,7 +626,7 @@ pub fn get_lambda_tv(
             let fp = alloc_ufunc(name.data, name.size);
             let pt = Box::leak(Box::new(TvPartial::default()));
 
-            let expr_len = end.offset_from(start) as usize;
+            let expr_len = crate::memory::ptr_offset_from(end, start) as usize;
             let mut line_bytes = Vec::with_capacity(7 + expr_len);
             line_bytes.extend_from_slice(b"return ");
             line_bytes.extend_from_slice(crate::memory::cstr_slice(start, expr_len));
@@ -2306,7 +2308,7 @@ pub fn trans_function_name(
                 name = ptr::null_mut();
             }
         } else if (flags & TFN_NO_DEREF) == 0 {
-            len = end.offset_from(*pp) as i32;
+            len = crate::memory::ptr_offset_from(end, *pp) as i32;
             name = deref_func_name(*pp, &mut len, partial, (flags & TFN_NO_AUTOLOAD) != 0, None);
             if name == *pp {
                 name = ptr::null_mut();
@@ -2344,7 +2346,7 @@ pub fn trans_function_name(
                 lv.ll_name = lv.ll_name.wrapping_add(2);
                 lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
             }
-            len = end.offset_from(lv.ll_name) as i32;
+            len = crate::memory::ptr_offset_from(end, lv.ll_name) as i32;
         }
 
         let mut sid_buflen = 0usize;
@@ -2487,7 +2489,7 @@ pub fn save_function_name(
             getdigits(&raw mut p, false, 0);
             saved = Some(cstr_from_bytes(crate::memory::cstr_slice(
                 *name,
-                p.offset_from(*name) as usize,
+                crate::memory::ptr_offset_from(p, *name) as usize,
             )));
             if fudi.is_some() {
                 *fudi.as_deref_mut().unwrap() = Funcdict::new();
@@ -2798,7 +2800,7 @@ fn get_function_body(
                     }
                     p = p.wrapping_add(eval_fname_script(p) as usize);
                     let _ = trans_function_name(&raw mut p, true, 0, None, ptr::null_mut());
-                    if *skipwhite(p) == b'(' as c_char {
+                    if crate::memory::cstr_first_byte(skipwhite(p)) == b'(' {
                         if nesting == MAX_FUNC_NESTING - 1 {
                             emsg(gettext(E_FUNCTION_NESTING_TOO_DEEP));
                         } else {
@@ -2861,15 +2863,18 @@ fn get_function_body(
                             || ascii_iswhite(crate::memory::cstr_char_at(p, 4)))
                     {
                         p = skipwhite(p.wrapping_add(4));
-                        heredoc_trimmedlen = skipwhite(theline).offset_from(theline) as usize;
+                        heredoc_trimmedlen =
+                            crate::memory::ptr_offset_from(skipwhite(theline), theline) as usize;
                         let slice = crate::memory::cstr_slice(theline, heredoc_trimmedlen);
                         heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                     }
                     if crate::memory::cstr_is_empty(p) {
                         skip_until = Some(c".".to_owned());
                     } else {
-                        let slice =
-                            crate::memory::cstr_slice(p, skiptowhite(p).offset_from(p) as usize);
+                        let slice = crate::memory::cstr_slice(
+                            p,
+                            crate::memory::ptr_offset_from(skiptowhite(p), p) as usize,
+                        );
                         skip_until = Some(std::ffi::CString::new(slice).unwrap());
                     }
                     do_concat = false;
@@ -2911,7 +2916,8 @@ fn get_function_body(
                             }
                             if has_trim {
                                 heredoc_trimmedlen =
-                                    skipwhite(theline).offset_from(theline) as usize;
+                                    crate::memory::ptr_offset_from(skipwhite(theline), theline)
+                                        as usize;
                                 let slice = std::slice::from_raw_parts(
                                     theline.cast::<u8>(),
                                     heredoc_trimmedlen,
@@ -2920,7 +2926,7 @@ fn get_function_body(
                             }
                             let slice = crate::memory::cstr_slice(
                                 p,
-                                skiptowhite(p).offset_from(p) as usize,
+                                crate::memory::ptr_offset_from(skiptowhite(p), p) as usize,
                             );
                             skip_until = Some(std::ffi::CString::new(slice).unwrap());
                             do_concat = false;
@@ -4356,7 +4362,11 @@ pub fn find_hi_in_scoped_ht(
         while !uf_st().current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
             if !ht.is_null() && !crate::memory::cstr_is_empty(varname) {
-                hi = hash_find_len(&*ht, varname, namelen - varname.offset_from(name) as usize);
+                hi = hash_find_len(
+                    &*ht,
+                    varname,
+                    namelen - crate::memory::ptr_offset_from(varname, name) as usize,
+                );
                 if !hashitem_empty(&*hi) {
                     *pht = ht;
                     break;
@@ -4396,7 +4406,7 @@ pub fn find_var_in_scoped_ht(
                     &mut *ht,
                     crate::memory::cstr_first_char(name),
                     varname,
-                    namelen - varname.offset_from(name) as usize,
+                    namelen - crate::memory::ptr_offset_from(varname, name) as usize,
                     no_autoload,
                 );
                 if !v.is_null() {

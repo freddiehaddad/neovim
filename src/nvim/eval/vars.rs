@@ -1055,7 +1055,7 @@ fn eval_all_expr_in_str(str_arg: impl crate::strings::IntoCCharPtr) -> Option<st
                 return None;
             }
 
-            let lit_len = p.offset_from(lit_start) as usize;
+            let lit_len = crate::memory::ptr_offset_from(p, lit_start) as usize;
             if lit_len > 0 {
                 buf.extend_from_slice(std::slice::from_raw_parts(lit_start, lit_len));
             }
@@ -1139,7 +1139,7 @@ pub fn heredoc_get(
         if !crate::memory::cstr_is_empty(cmd) && *cmd != comment_char {
             marker = skipwhite(cmd);
             let p = skiptowhite(marker);
-            if *skipwhite(p) != NUL && *skipwhite(p) != comment_char {
+            if !crate::memory::cstr_is_empty(skipwhite(p)) && *skipwhite(p) != comment_char {
                 semsg!(gettext(E_TRAILING_ARG), p);
                 return ptr::null_mut();
             }
@@ -1602,7 +1602,7 @@ fn list_arg_vars(
     first: &mut i32,
 ) -> *const c_char {
     let mut arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         let mut error = false;
         let mut tv: TypVal = TypVal::new();
 
@@ -1675,7 +1675,7 @@ fn list_arg_vars(
                                 {
                                     crate::memory::cstr_len(used_name) as isize
                                 } else {
-                                    arg.offset_from(used_name)
+                                    crate::memory::ptr_offset_from(arg, used_name)
                                 };
                                 list_one_var_a(
                                     c"",
@@ -2756,7 +2756,7 @@ pub fn find_var(
             &mut *ht,
             crate::memory::cstr_first_byte(name) as i32,
             varname,
-            name_len - (varname.offset_from(name) as usize),
+            name_len - (crate::memory::ptr_offset_from(varname, name) as usize),
             i32::from(no_autoload != 0 || !htp.is_null()),
         );
         if !ret.is_null() {
@@ -3147,7 +3147,7 @@ pub fn set_var_const(
             semsg!(gettext(E_ILLVAR), name);
             return;
         }
-        let varname_len = name_len - (varname.offset_from(name) as usize);
+        let varname_len = name_len - (crate::memory::ptr_offset_from(varname, name) as usize);
         let mut di = find_var_in_ht(&mut *ht, 0, varname, varname_len, 1);
 
         if di.is_null() {

@@ -1299,7 +1299,7 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             return;
         }
 
-        if *path_tail(dir) == NUL {
+        if crate::memory::cstr_is_empty(path_tail(dir)) {
             // Remove trailing slashes.
             *path_tail_with_sep(dir.cast_mut()) = NUL;
         }

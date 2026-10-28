@@ -5843,7 +5843,8 @@ fn parse_register(eap: &mut Exarg) {
         {
             eap.regname = i32::from(crate::memory::cstr_first_byte(eap.arg));
             eap.arg = eap.arg.wrapping_add(1);
-            if *eap.arg.wrapping_sub(1) == b'=' as c_char && !crate::memory::cstr_is_empty(eap.arg)
+            if crate::memory::cstr_first_byte(eap.arg.wrapping_sub(1)) == b'='
+                && !crate::memory::cstr_is_empty(eap.arg)
             {
                 if eap.skip == 0 {
                     set_expr_line(Some(crate::memory::cstr_to_cstring(eap.arg)));
@@ -7479,7 +7480,8 @@ pub fn find_ex_command(eap: &mut Exarg, mut full: Option<&mut i32>) -> *mut c_ch
             let mut len = ((p as usize) - (eap.cmd as usize)) as i32;
 
             if crate::memory::cstr_first_byte(eap.cmd) == b'd'
-                && (*p.wrapping_sub(1) == b'l' as c_char || *p.wrapping_sub(1) == b'p' as c_char)
+                && (crate::memory::cstr_first_byte(p.wrapping_sub(1)) == b'l'
+                    || crate::memory::cstr_first_byte(p.wrapping_sub(1)) == b'p')
             {
                 let delete_bytes = b"delete\0";
                 let mut i: i32 = 0;
@@ -7493,7 +7495,7 @@ pub fn find_ex_command(eap: &mut Exarg, mut full: Option<&mut i32>) -> *mut c_ch
                 }
                 if i == len - 1 {
                     len -= 1;
-                    if *p.wrapping_sub(1) == b'l' as c_char {
+                    if crate::memory::cstr_first_byte(p.wrapping_sub(1)) == b'l' {
                         eap.flags |= EXFLAG_LIST;
                     } else {
                         eap.flags |= EXFLAG_PRINT;
@@ -7635,7 +7637,7 @@ pub fn cmd_exists(name: impl crate::strings::IntoCCharPtr) -> i32 {
         if ascii_isdigit(*name) && ea.cmdidx != Cmdidx::CmdMatch as i32 {
             return 0;
         }
-        if *skipwhite(p) != NUL {
+        if !crate::memory::cstr_is_empty(skipwhite(p)) {
             return 0;
         }
         if ea.cmdidx == CMD_SIZE_I32 {
@@ -8524,7 +8526,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 && (eap.cmdidx != Cmdidx::CmdAt as i32 || p != eap.arg)
                 && (eap.cmdidx != Cmdidx::CmdRedir as i32
                     || p != eap.arg.wrapping_add(1)
-                    || *p.wrapping_sub(1) != b'@' as c_char))
+                    || crate::memory::cstr_first_byte(p.wrapping_sub(1)) != b'@'))
                 || (crate::memory::cstr_first_byte(p) == b'|'
                     && eap.cmdidx != Cmdidx::CmdAppend as i32
                     && eap.cmdidx != Cmdidx::CmdChange as i32
@@ -9087,8 +9089,8 @@ pub fn not_exiting(save_exiting: bool) {
 }
 
 pub fn before_quit_autocmds(wp: &mut WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
-    unsafe {
-        if *get_vim_var_str(VV_EXITREASON) == NUL {
+    {
+        if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
             set_vim_var_string(VV_EXITREASON, c"quit", 4);
         }
         apply_autocmds_win(

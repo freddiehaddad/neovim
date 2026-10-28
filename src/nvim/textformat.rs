@@ -577,7 +577,7 @@ fn fmt_check_par(
             }
         }
 
-        *skipwhite(ptr.wrapping_add(*leader_len as usize)) == NUL
+        crate::memory::cstr_is_empty(skipwhite(ptr.wrapping_add(*leader_len as usize)))
             || (*leader_len > 0 && *flags == COM_END)
             || start_ps(lnum, 0, false)
     }

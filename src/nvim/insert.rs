@@ -511,7 +511,7 @@ fn insert_enter(s: &mut InsertState) {
                         curwin_mut().w_cursor.col += 1;
                     } else {
                         s.i = utfc_ptr2len(ptr);
-                        if *ptr.wrapping_offset(s.i as isize) == NUL {
+                        if crate::memory::cstr_is_empty(ptr.wrapping_offset(s.i as isize)) {
                             curwin_mut().w_cursor.col += s.i;
                         }
                     }
@@ -2202,7 +2202,9 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: i32, nomove: i32) {
                     strip_col -= 1;
                 }
 
-                if *skipwhite(get_cursor_line_ptr().wrapping_offset(strip_col as isize)) == NUL {
+                if crate::memory::cstr_is_empty(skipwhite(
+                    get_cursor_line_ptr().wrapping_offset(strip_col as isize),
+                )) {
                     curwin_mut().w_cursor.col = strip_col;
                     loop {
                         if gchar_cursor() == NUL as i32 && curwin_mut().w_cursor.col > 0 {
@@ -2480,7 +2482,7 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
             let mut p = insert.data.wrapping_add(insert.size - 1);
             while p >= insert.data {
                 if *p == ESC as c_char {
-                    insert.size = p.offset_from(insert.data) as usize;
+                    insert.size = crate::memory::ptr_offset_from(p, insert.data) as usize;
                     break;
                 }
                 if p == insert.data {
@@ -3220,7 +3222,9 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                     || ((get_sts_value() != 0 || tabstop_count(&curbuf_mut().b_p_vsts_array) != 0)
                         && curwin_mut().w_cursor.col > 0
                         && (*get_cursor_pos_ptr().wrapping_offset(-1) == TAB as c_char
-                            || (*get_cursor_pos_ptr().wrapping_offset(-1) == b' ' as c_char
+                            || (crate::memory::cstr_first_byte(
+                                get_cursor_pos_ptr().wrapping_offset(-1),
+                            ) == b' '
                                 && (*inserted_space_p == 0
                                     || g_st().ins_global.moved != K_INS_NONE)))))
             {
@@ -3282,7 +3286,8 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                     space_vcol += size;
                     space_sci = cli.next;
                 }
-                let want_col = space_sci.ptr.offset_from(line.cast_const()) as Colnr;
+                let want_col =
+                    crate::memory::ptr_offset_from(space_sci.ptr, line.cast_const()) as Colnr;
 
                 while curwin_mut().w_cursor.col > want_col {
                     dec_cursor();
@@ -3823,7 +3828,8 @@ fn ins_tab() -> bool {
                 if i > 0 {
                     if (g_st().state_global & VREPLACE_FLAG) == 0 {
                         let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
-                        let col = ptr.offset_from(curbuf_mut().b_ml.ml_line_ptr) as usize;
+                        let col = crate::memory::ptr_offset_from(ptr, curbuf_mut().b_ml.ml_line_ptr)
+                            as usize;
                         let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
                         if col > 0 {
                             new_line.extend_from_slice(std::slice::from_raw_parts(

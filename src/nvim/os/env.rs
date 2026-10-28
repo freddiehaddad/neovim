@@ -996,8 +996,8 @@ pub fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
 /// Vim `getenv()` wrapper with special handling of `$HOME`, `$VIM`, `$VIMRUNTIME`.
 pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> {
     let name = name.into_c_char_ptr();
-    unsafe {
-        assert!(*get_vim_var_str(VV_PROGPATH) != NUL);
+    {
+        assert!(!crate::memory::cstr_is_empty(get_vim_var_str(VV_PROGPATH)));
 
         #[cfg(windows)]
         if crate::memory::cstr_as_bytes(name) == b"HOME" {
@@ -1415,7 +1415,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        {
             assert_eq!(env_name_len(c"FOO_123/bar"), 7);
             assert_eq!(env_name_len(c"-invalid"), 0);
 
@@ -1436,7 +1436,7 @@ mod tests {
             assert_eq!(len, 4);
             assert!(iter.is_null());
 
-            if *crate::eval::vars::get_vim_var_str(VV_PROGPATH) == NUL {
+            if crate::memory::cstr_is_empty(crate::eval::vars::get_vim_var_str(VV_PROGPATH)) {
                 crate::eval::vars::set_vim_var_string(VV_PROGPATH, c"nvim", -1);
             }
 

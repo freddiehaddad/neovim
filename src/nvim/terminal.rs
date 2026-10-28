@@ -2320,7 +2320,7 @@ fn fetch_row(term: &mut Terminal, row: i32, end_col: i32) {
             fetch_cell(term, row, col, &mut cell);
             if cell.schar != 0 {
                 schar_get_adv(&mut ptr, cell.schar);
-                line_len = ptr.offset_from(textbuf_ptr) as usize;
+                line_len = crate::memory::ptr_offset_from(ptr, textbuf_ptr) as usize;
             } else {
                 *ptr = b' ' as c_char;
                 ptr = ptr.wrapping_add(1);

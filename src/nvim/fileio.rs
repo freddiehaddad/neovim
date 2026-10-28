@@ -1928,7 +1928,7 @@ pub fn readfile(
 
                             line_start = ptr.wrapping_offset(-linerest);
                             ptr::copy(buffer, line_start, linerest as usize);
-                            size = top.offset_from(ptr);
+                            size = crate::memory::ptr_offset_from(top, ptr);
                         }
 
                         if fio_flags != 0 {
@@ -1987,7 +1987,9 @@ pub fn readfile(
                             }
 
                             if !tail.is_null() {
-                                conv_restlen = ptr.wrapping_offset(size).offset_from(tail) as i32;
+                                conv_restlen =
+                                    crate::memory::ptr_offset_from(ptr.wrapping_offset(size), tail)
+                                        as i32;
                                 ptr::copy(tail, conv_rest.as_mut_ptr(), conv_restlen as usize);
                                 size -= conv_restlen as isize;
                             }
@@ -2144,7 +2146,10 @@ pub fn readfile(
 
                             line_start = dest.wrapping_offset(-linerest);
                             ptr::copy(buffer, line_start, linerest as usize);
-                            size = ptr.wrapping_offset(real_size as isize).offset_from(dest);
+                            size = crate::memory::ptr_offset_from(
+                                ptr.wrapping_offset(real_size as isize),
+                                dest,
+                            );
                             ptr = dest;
                         } else if curbuf_mut().b_p_bin == 0 {
                             let mut incomplete_tail = false;
@@ -2153,7 +2158,9 @@ pub fn readfile(
                             loop {
                                 {
                                     let ascii_end = ptr.cast::<u8>().wrapping_offset(size);
-                                    while ascii_end.offset_from(p) >= size_of::<u64>() as isize {
+                                    while crate::memory::ptr_offset_from(ascii_end, p)
+                                        >= size_of::<u64>() as isize
+                                    {
                                         let word = ptr::read_unaligned(p.cast::<u64>());
                                         if (word & NONASCII_MASK) != 0 {
                                             break;
@@ -2165,8 +2172,10 @@ pub fn readfile(
                                     }
                                 }
 
-                                let todo =
-                                    ptr.cast::<u8>().wrapping_offset(size).offset_from(p) as i32;
+                                let todo = crate::memory::ptr_offset_from(
+                                    ptr.cast::<u8>().wrapping_offset(size),
+                                    p,
+                                ) as i32;
                                 if todo <= 0 {
                                     break;
                                 }
@@ -2314,7 +2323,8 @@ pub fn readfile(
                             } else {
                                 if skip_count == 0 {
                                     *ptr = NUL;
-                                    let len = (ptr.offset_from(line_start) + 1) as Colnr;
+                                    let len = (crate::memory::ptr_offset_from(ptr, line_start) + 1)
+                                        as Colnr;
                                     if !ml_append(lnum, line_start, len, newfile) {
                                         error = true;
                                         break;
@@ -2342,7 +2352,7 @@ pub fn readfile(
                         let end = ptr.wrapping_offset(size);
 
                         while ptr < end {
-                            let rem = end.offset_from(ptr) as usize;
+                            let rem = crate::memory::ptr_offset_from(end, ptr) as usize;
                             let slice = crate::memory::cstr_slice(ptr, rem);
                             let Some(nl_pos) = slice.iter().position(|&b| b == b'\n') else {
                                 let rem_slice =
@@ -2370,7 +2380,8 @@ pub fn readfile(
                             ptr = nl;
                             if skip_count == 0 {
                                 *ptr = NUL;
-                                let mut len = (ptr.offset_from(line_start) + 1) as Colnr;
+                                let mut len =
+                                    (crate::memory::ptr_offset_from(ptr, line_start) + 1) as Colnr;
                                 if fileformat == EOL_DOS {
                                     if ptr > line_start && *ptr.wrapping_sub(1) == CAR {
                                         *ptr.wrapping_sub(1) = NUL;
@@ -2416,7 +2427,7 @@ pub fn readfile(
                         }
                         size = -1;
                     }
-                    linerest = ptr.offset_from(line_start);
+                    linerest = crate::memory::ptr_offset_from(ptr, line_start);
 
                     if show_msg && (progress || os_hrtime() - read_start > slow_io_ns()) {
                         let mut info: FileInfo = FileInfo::new();
@@ -2470,7 +2481,7 @@ pub fn readfile(
                     curbuf_mut().b_p_eol = 0;
                 }
                 *ptr = NUL;
-                let len = (ptr.offset_from(line_start) + 1) as Colnr;
+                let len = (crate::memory::ptr_offset_from(ptr, line_start) + 1) as Colnr;
                 if !ml_append(lnum, line_start, len, newfile) {
                     error = true;
                 } else {
@@ -2974,7 +2985,7 @@ fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
             *pp = (*pp).wrapping_add(crate::memory::cstr_len(*pp));
             res
         } else {
-            let len = p.offset_from(*pp) as usize;
+            let len = crate::memory::ptr_offset_from(p, *pp) as usize;
             let tmp =
                 std::ffi::CString::new(crate::memory::cstr_slice(*pp, len)).unwrap_or_default();
             *pp = p.wrapping_add(1);
@@ -3448,7 +3459,7 @@ pub fn modname(
             ptr = ptr.wrapping_offset(-((utf_head_off(retval, ptr.wrapping_sub(1)) + 1) as isize));
         }
 
-        let mut ptrlen = fnamelen - ptr.offset_from(retval) as usize;
+        let mut ptrlen = fnamelen - crate::memory::ptr_offset_from(ptr, retval) as usize;
         if ptrlen > BASENAMELEN {
             ptrlen = BASENAMELEN;
             *ptr.wrapping_add(ptrlen) = NUL;
@@ -3460,7 +3471,8 @@ pub fn modname(
 
         let e = path_tail(retval);
         if prepend_dot && crate::memory::cstr_first_byte(e) != b'.' {
-            let move_len = ((fnamelen + extlen) - e.offset_from(retval) as usize) + 1;
+            let move_len =
+                ((fnamelen + extlen) - crate::memory::ptr_offset_from(e, retval) as usize) + 1;
             ptr::copy(e, e.wrapping_add(1), move_len);
             *e = b'.' as c_char;
         }
@@ -3651,7 +3663,7 @@ fn rename_with_tmp(
 ) -> i32 {
     let from = from.into_c_char_ptr();
     let to = to.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_len(from) >= MAXPATHL - 5 {
             return -1;
         }
@@ -3660,7 +3672,8 @@ fn rename_with_tmp(
         xstrlcpy(tempname.as_mut_ptr(), from, tempname.len());
         for n in 123..99999 {
             let tail = path_tail(tempname.as_ptr());
-            let rem = (MAXPATHL + 1) - tail.offset_from(tempname.as_ptr()) as usize;
+            let rem =
+                (MAXPATHL + 1) - crate::memory::ptr_offset_from(tail, tempname.as_ptr()) as usize;
             vim_snprintf!(tail, rem, c"%d", n);
 
             if !os_path_exists(tempname.as_ptr()) {
@@ -4779,7 +4792,9 @@ pub fn file_pat_to_reg_pat(
         let mut endp = pat_end.wrapping_sub(1);
         let mut add_dollar = true;
         if endp >= pat && crate::memory::cstr_first_byte(endp) == b'*' {
-            while endp.offset_from(pat) > 0 && crate::memory::cstr_first_byte(endp) == b'*' {
+            while crate::memory::ptr_offset_from(endp, pat) > 0
+                && crate::memory::cstr_first_byte(endp) == b'*'
+            {
                 endp = endp.wrapping_sub(1);
             }
             add_dollar = false;
@@ -5125,8 +5140,10 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
-            if *crate::eval::vars::get_vim_var_str(crate::eval::vars::VV_PROGPATH) == NUL {
+        {
+            if crate::memory::cstr_is_empty(crate::eval::vars::get_vim_var_str(
+                crate::eval::vars::VV_PROGPATH,
+            )) {
                 crate::eval::vars::set_vim_var_string(crate::eval::vars::VV_PROGPATH, c"nvim", -1);
             }
             vim_deltempdir();

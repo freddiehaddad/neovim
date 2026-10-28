@@ -429,8 +429,8 @@ pub fn get_error_exception_string(
                 } else {
                     if crate::memory::cstr_first_byte(mesg) != b'"'
                         || (p as usize) < (mesg.wrapping_add(3) as usize)
-                        || *p.wrapping_sub(2) != b'"' as c_char
-                        || *p.wrapping_sub(1) != b' ' as c_char
+                        || crate::memory::cstr_first_byte(p.wrapping_sub(2)) != b'"'
+                        || crate::memory::cstr_first_byte(p.wrapping_sub(1)) != b' '
                     {
                         p = p.wrapping_add(1);
                         continue;

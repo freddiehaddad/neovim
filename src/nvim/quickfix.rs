@@ -1165,7 +1165,7 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str: impl crate::strings::IntoCCh
 
         let p = vim_strchr(p_str, b'\n' as i32);
         let len = if !p.is_null() {
-            p.offset_from(p_str) as usize + 1
+            crate::memory::ptr_offset_from(p, p_str) as usize + 1
         } else {
             crate::memory::cstr_len(p_str)
         };
@@ -1865,11 +1865,11 @@ fn copy_nonerror_line(
 }
 
 fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
-    unsafe {
+    {
         if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
         }
-        let len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
+        let len = crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize;
         if len >= fields.errmsg.len() {
             fields.errmsg.resize(len + 1, 0);
         }
@@ -1926,7 +1926,7 @@ fn qf_parse_fmt_s(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
         if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
         }
-        let mut len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
+        let mut len = crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize;
         len = len.min(CMDBUFFSIZE - 5);
         let pat_ptr = fields.pattern.as_mut_ptr();
         crate::memory::cstr_cpy(pat_ptr, c"^\\V");
@@ -1944,11 +1944,11 @@ fn qf_parse_fmt_s(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
 }
 
 fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
-    unsafe {
+    {
         if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
         }
-        let len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
+        let len = crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize;
         let mod_ptr = fields.module.as_mut_ptr();
         let dsize = (crate::memory::cstr_len(mod_ptr) + len + 1).min(CMDBUFFSIZE);
         {
@@ -3259,7 +3259,7 @@ fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
             }
             p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
-        p.offset_from(line) as i32
+        crate::memory::ptr_offset_from(p, line) as i32
     }
 }
 
@@ -4879,7 +4879,7 @@ pub fn ex_make(eap: &mut Exarg) {
 }
 
 fn get_mef_name() -> Option<std::ffi::CString> {
-    unsafe {
+    {
         if crate::memory::cstr_is_empty(opt_vars().p_mef) {
             let name = vim_tempname();
             if name.is_none() {
@@ -4912,7 +4912,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
             let mut name_vec: Vec<c_char> = vec![0; mef_len + 30];
             let name = name_vec.as_mut_ptr();
             crate::memory::cstr_cpy(name, opt_vars().p_mef);
-            let off_idx = p.offset_from(opt_vars().p_mef) as usize;
+            let off_idx = crate::memory::ptr_offset_from(p, opt_vars().p_mef) as usize;
             vim_snprintf!(
                 name.wrapping_add(off_idx),
                 mef_len + 30 - off_idx,
@@ -7308,7 +7308,7 @@ fn cbuffer_process_args(
 
         if crate::memory::cstr_is_empty(eap.arg) {
             buf = g_st().curbuf;
-        } else if *skipwhite(skipdigits(eap.arg)) == NUL {
+        } else if crate::memory::cstr_is_empty(skipwhite(skipdigits(eap.arg))) {
             buf = buflist_findnr(
                 crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32,
             );
@@ -7580,8 +7580,8 @@ fn hgr_search_file(
                     line,
                     lnum,
                     0,
-                    (p_regmatch.startp[0].offset_from(line) as i32) + 1,
-                    (p_regmatch.endp[0].offset_from(line) as i32) + 1,
+                    (crate::memory::ptr_offset_from(p_regmatch.startp[0], line) as i32) + 1,
+                    (crate::memory::ptr_offset_from(p_regmatch.endp[0], line) as i32) + 1,
                     0,
                     ptr::null_mut(),
                     0,

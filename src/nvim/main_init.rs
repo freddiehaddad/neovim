@@ -260,7 +260,6 @@ fn main_init_st() -> &'static mut MainInitState {
     unsafe { &mut *MAIN_INIT_STATE.as_ptr() }
 }
 
-use crate::charset::NUL;
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 #[cfg(windows)]
 use crate::fileio::_setmode;
@@ -933,7 +932,7 @@ pub fn getout(mut exitval: i32) -> ! {
         set_vim_var_type(VV_EXITING, crate::eval::typval::VarType::VarNumber);
         set_vim_var_nr(VV_EXITING, Varnumber::from(exitval));
 
-        if *get_vim_var_str(VV_EXITREASON) == NUL {
+        if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
             set_vim_var_string(VV_EXITREASON, c"quit", 4);
         }
 

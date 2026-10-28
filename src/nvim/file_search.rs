@@ -203,7 +203,7 @@ pub fn vim_findfile_init(
             && (tagfile == 0 || !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_DOTTAG))
             && !rel_fname.is_null()
         {
-            let len = path_tail(rel_fname).offset_from(rel_fname) as usize;
+            let len = crate::memory::ptr_offset_from(path_tail(rel_fname), rel_fname) as usize;
 
             if !vim_isAbsName(rel_fname) && len + 1 < MAXPATHL {
                 crate::memory::cstr_ncpy(expand_ptr, rel_fname, len);
@@ -257,7 +257,7 @@ pub fn vim_findfile_init(
                 let helper = walker;
                 walker = vim_strchr(walker, b';' as i32);
                 let len = if !walker.is_null() {
-                    walker.offset_from(helper) as usize
+                    crate::memory::ptr_offset_from(walker, helper) as usize
                 } else {
                     crate::memory::cstr_len(helper)
                 };
@@ -286,7 +286,8 @@ pub fn vim_findfile_init(
         let mut wc_part = vim_strchr(path, b'*' as i32);
         let mut expand_size: usize;
         if !wc_part.is_null() {
-            search_ctx.ffsc_fix_path = cbuf_to_string(path, wc_part.offset_from(path) as usize);
+            search_ctx.ffsc_fix_path =
+                cbuf_to_string(path, crate::memory::ptr_offset_from(wc_part, path) as usize);
 
             expand_size = 0;
             while !crate::memory::cstr_is_empty(wc_part) {
@@ -411,7 +412,8 @@ pub fn vim_findfile_init(
                 let mut len = search_ctx.ffsc_fix_path.size as i32;
 
                 if p > search_ctx.ffsc_fix_path.data {
-                    len = p.offset_from(search_ctx.ffsc_fix_path.data) as i32 - 1;
+                    len =
+                        crate::memory::ptr_offset_from(p, search_ctx.ffsc_fix_path.data) as i32 - 1;
                     if len >= 2
                         && crate::memory::cstr_first_byte(search_ctx.ffsc_fix_path.data) == b'.'
                         && crate::memory::cstr_byte_at(search_ctx.ffsc_fix_path.data, 1) == b'.'
@@ -776,10 +778,10 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                             expand_buf.as_mut_ptr(),
                                         );
                                         if !p.is_null() {
-                                            let new_len = file_path
-                                                .data
-                                                .wrapping_add(file_path.size)
-                                                .offset_from(p)
+                                            let new_len = crate::memory::ptr_offset_from(
+                                                file_path.data.wrapping_add(file_path.size),
+                                                p,
+                                            )
                                                 as usize;
                                             ptr::copy(p, file_path.data, new_len + 1);
                                             file_path.size = new_len;
@@ -855,7 +857,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 && !search_ctx.ffsc_stopdirs_v.is_empty()
                 && !g_st().got_int
             {
-                let plen = path_end.offset_from(search_ctx.ffsc_start_dir.data)
+                let plen = crate::memory::ptr_offset_from(path_end, search_ctx.ffsc_start_dir.data)
                     + isize::from(!crate::memory::cstr_is_empty(path_end));
 
                 if ff_path_in_stoplist(
@@ -879,7 +881,8 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 *path_end = NUL;
 
                 search_ctx.ffsc_start_dir.size =
-                    path_end.offset_from(search_ctx.ffsc_start_dir.data) as usize;
+                    crate::memory::ptr_offset_from(path_end, search_ctx.ffsc_start_dir.data)
+                        as usize;
                 path_end = path_end.wrapping_sub(1);
 
                 if crate::memory::cstr_is_empty(search_ctx.ffsc_start_dir.data) {
@@ -1329,7 +1332,7 @@ pub fn find_file_in_path_option(
                             name_buff,
                             MAXPATHL,
                             c"%.*s%s",
-                            path_tail(rel_fname).offset_from(rel_fname) as i32,
+                            crate::memory::ptr_offset_from(path_tail(rel_fname), rel_fname) as i32,
                             rel_fname,
                             ftf,
                         ) as usize;

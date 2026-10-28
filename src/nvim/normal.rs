@@ -440,7 +440,7 @@ fn norm_st() -> &'static mut NormalModuleState {
 
 #[inline]
 pub fn lineempty(lnum: Linenr) -> bool {
-    unsafe { *ml_get(lnum) == NUL }
+    crate::memory::cstr_is_empty(ml_get(lnum))
 }
 
 use crate::buffer::{bt_cmdwin, bt_prompt, bt_quickfix};
@@ -2594,7 +2594,7 @@ fn find_is_eval_item(
 
         let gt_off: isize = if dir == BACKWARD { 0 } else { 1 };
         let dash_off: isize = if dir == BACKWARD { -1 } else { 0 };
-        if *ptr.wrapping_offset(gt_off) == b'>' as c_char
+        if crate::memory::cstr_first_byte(ptr.wrapping_offset(gt_off)) == b'>'
             && *ptr.wrapping_offset(dash_off) == b'-' as c_char
         {
             *colp += dir;
@@ -4433,7 +4433,8 @@ fn nv_ident(cap: &mut Cmdarg) {
         match cmdchar {
             c if c == b'*' as i32 || c == b'#' as i32 => {
                 setpcmark();
-                curwin_mut().w_cursor.col = ptr.offset_from(get_cursor_line_ptr()) as Colnr;
+                curwin_mut().w_cursor.col =
+                    crate::memory::ptr_offset_from(ptr, get_cursor_line_ptr()) as Colnr;
 
                 if !g_cmd && vim_iswordp(ptr) {
                     crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"\\<");
@@ -4547,7 +4548,7 @@ fn nv_ident(cap: &mut Cmdarg) {
                 ptr = ptr.wrapping_add(1);
             }
             *p = NUL;
-            buflen = p.offset_from(buf) as usize;
+            buflen = crate::memory::ptr_offset_from(p, buf) as usize;
         }
 
         let buf = buf_vec.as_mut_ptr();

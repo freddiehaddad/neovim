@@ -2408,20 +2408,23 @@ pub fn utf_head_off(
         let p = p_in.cast::<u8>();
         let mut start = p;
 
-        while start > base && (*start & 0xc0) == 0x80 && (p.offset_from(start) as usize) < 6 {
+        while start > base
+            && (*start & 0xc0) == 0x80
+            && (crate::memory::ptr_offset_from(p, start) as usize) < 6
+        {
             start = start.wrapping_sub(1);
         }
 
         let last_len = UTF8LEN_TAB[*start as usize];
         let mut cur_code = utf_ptr2_char_info_impl(start, usize::from(last_len));
-        if cur_code < 0 || p.offset_from(start) >= isize::from(last_len) {
+        if cur_code < 0 || crate::memory::ptr_offset_from(p, start) >= isize::from(last_len) {
             return 0;
         }
         let safe_end = start.wrapping_add(usize::from(last_len));
 
         let mut cur_bc = utf8proc_get_property(cur_code).boundclass();
         if always_break(cur_bc) || start == base {
-            return p.offset_from(start) as i32;
+            return crate::memory::ptr_offset_from(p, start) as i32;
         }
 
         let mut cur_pos = start;
@@ -2438,14 +2441,15 @@ pub fn utf_head_off(
 
             while start > base
                 && (*start & 0xc0) == 0x80
-                && (cur_pos.offset_from(start) as usize) < 6
+                && (crate::memory::ptr_offset_from(cur_pos, start) as usize) < 6
             {
                 start = start.wrapping_sub(1);
             }
 
             let prev_len = i32::from(UTF8LEN_TAB[*start as usize]);
             let prev_code = utf_ptr2_char_info_impl(start, prev_len as usize);
-            if prev_code < 0 || (prev_len as isize) < cur_pos.offset_from(start) {
+            if prev_code < 0 || (prev_len as isize) < crate::memory::ptr_offset_from(cur_pos, start)
+            {
                 start = cur_pos;
                 break;
             }
@@ -2462,15 +2466,18 @@ pub fn utf_head_off(
             cur_code = prev_code;
         }
 
-        if start == p_start && isize::from(last_len) > p.offset_from(start) {
-            return p.offset_from(start) as i32;
+        if start == p_start && isize::from(last_len) > crate::memory::ptr_offset_from(p, start) {
+            return crate::memory::ptr_offset_from(p, start) as i32;
         }
 
         let mut q = start;
         while q < p {
-            let len = utfc_ptr2len_len(q.cast::<c_char>(), safe_end.offset_from(q) as i32);
+            let len = utfc_ptr2len_len(
+                q.cast::<c_char>(),
+                crate::memory::ptr_offset_from(safe_end, q) as i32,
+            );
             if q.wrapping_add(len as usize) > p {
-                return p.offset_from(q) as i32;
+                return crate::memory::ptr_offset_from(p, q) as i32;
             }
             q = q.wrapping_add(len as usize);
         }
@@ -2696,7 +2703,7 @@ pub fn utf_cp_bounds_len(
             };
         }
 
-        let max_first_off = -((p.offset_from(b) as i32).min(MB_MAXCHAR - 1));
+        let max_first_off = -((crate::memory::ptr_offset_from(p, b) as i32).min(MB_MAXCHAR - 1));
         let mut first_off: i32 = 0;
         while utf_is_trail_byte(*p.wrapping_offset(first_off as isize)) {
             if first_off == max_first_off {
@@ -2772,10 +2779,13 @@ pub fn utf_find_illegal() {
                 let mut len = utf_ptr2len(p);
                 if *p.cast::<u8>() >= 0x80 && (len == 1 || utf_char2len(utf_ptr2char(p)) != len) {
                     if vimconv.vc_type == CONV_NONE {
-                        curwin_mut().w_cursor.col += p.offset_from(get_cursor_pos_ptr()) as Colnr;
+                        curwin_mut().w_cursor.col +=
+                            crate::memory::ptr_offset_from(p, get_cursor_pos_ptr()) as Colnr;
                     } else {
-                        len = p.offset_from(tofree.as_ref().unwrap().as_ptr().cast::<c_char>())
-                            as i32;
+                        len = crate::memory::ptr_offset_from(
+                            p,
+                            tofree.as_ref().unwrap().as_ptr().cast::<c_char>(),
+                        ) as i32;
                         let mut cur_p = get_cursor_pos_ptr();
                         while !crate::memory::cstr_is_empty(cur_p) && len > 0 {
                             len -= 1;
@@ -3178,7 +3188,7 @@ fn iconv_string(
             ) != usize::MAX
             {
                 *to = NUL;
-                done = to.offset_from(result) as usize;
+                done = crate::memory::ptr_offset_from(to, result) as usize;
                 break;
             }
 
@@ -3186,7 +3196,7 @@ fn iconv_string(
             if !vcp.vc_fail && unconvlenp.is_some() && err == ICONV_EINVAL {
                 *to = NUL;
                 *unconvlenp.as_deref_mut().unwrap() = fromlen;
-                done = to.offset_from(result) as usize;
+                done = crate::memory::ptr_offset_from(to, result) as usize;
                 break;
             } else if !vcp.vc_fail && (err == ICONV_EILSEQ || err == ICONV_EINVAL) {
                 *to = b'?' as c_char;
@@ -3201,7 +3211,7 @@ fn iconv_string(
             } else if err != ICONV_E2BIG {
                 return None;
             }
-            done = to.offset_from(result) as usize;
+            done = crate::memory::ptr_offset_from(to, result) as usize;
         }
 
         result_vec.truncate(done);

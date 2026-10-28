@@ -1962,7 +1962,7 @@ pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_
             p = p.wrapping_add(1);
         }
 
-        let hash_idx = event_name2nr_hash(start, p.offset_from(start) as usize);
+        let hash_idx = event_name2nr_hash(start, crate::memory::ptr_offset_from(p, start) as usize);
         if crate::memory::cstr_first_byte(p) == b',' {
             p = p.wrapping_add(1);
         }
@@ -2096,7 +2096,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: *mut c_char, forceit: i32) {
                 cmd = pat;
                 while !crate::memory::cstr_is_empty(cmd)
                     && (!ascii_iswhite(crate::memory::cstr_first_char(cmd))
-                        || *cmd.wrapping_sub(1) == b'\\' as c_char)
+                        || crate::memory::cstr_first_byte(cmd.wrapping_sub(1)) == b'\\')
                 {
                     cmd = cmd.wrapping_add(1);
                 }
@@ -2461,7 +2461,7 @@ pub fn aucmd_span_pattern(
         }
 
         *start = pat;
-        p.offset_from(pat) as usize
+        crate::memory::ptr_offset_from(p, pat) as usize
     }
 }
 
@@ -2682,7 +2682,7 @@ pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
     unsafe {
         if !has_event(EVENT_OPTIONSET)
             || (bt_nofile(Some(buf)) && buf.b_p_bl == 0)
-            || *get_vim_var_str(VV_OPTION_TYPE) != NUL
+            || !crate::memory::cstr_is_empty(get_vim_var_str(VV_OPTION_TYPE))
         {
             return;
         }
@@ -3605,7 +3605,7 @@ pub fn aucmd_set_expand_context(
         arg = skipwhite(p);
         while !crate::memory::cstr_is_empty(arg)
             && (!ascii_iswhite(crate::memory::cstr_first_char(arg))
-                || *arg.wrapping_sub(1) == b'\\' as c_char)
+                || crate::memory::cstr_first_byte(arg.wrapping_sub(1)) == b'\\')
         {
             arg = arg.wrapping_add(1);
         }
@@ -3884,7 +3884,7 @@ fn arg_augroup_get(argp: *mut *mut c_char) -> i32 {
             return AUGROUP_ALL;
         }
 
-        let len = p.offset_from(arg) as usize;
+        let len = crate::memory::ptr_offset_from(p, arg) as usize;
         let group_name = CString::new(crate::memory::cstr_slice(arg, len)).unwrap_or_default();
         let mut group = augroup_find(group_name.as_ptr());
         if group == AUGROUP_ERROR {

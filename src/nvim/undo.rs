@@ -638,7 +638,7 @@ pub fn u_get_undo_file_name(
                 let ufn = ufn_vec.as_mut_ptr();
                 ptr::copy(ffname, ufn, ffname_len + 1);
                 let tail = path_tail(ufn);
-                let tail_len = ffname_len - (tail.offset_from(ufn) as usize);
+                let tail_len = ffname_len - (crate::memory::ptr_offset_from(tail, ufn) as usize);
                 ptr::copy(tail, tail.wrapping_add(1), tail_len + 1);
                 *tail = b'.' as c_char;
                 ptr::copy(c".un~".as_ptr(), tail.wrapping_add(tail_len + 1), 5);
