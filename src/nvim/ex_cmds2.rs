@@ -478,7 +478,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 return;
             }
 
-            if win_valid(g_st().prevwin) && (*g_st().prevwin).w_onebuf_opt.wo_wfb == 0 {
+            if win_valid(g_st().prevwin) && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0 {
                 win_goto(g_st().prevwin);
             }
             if curwin_mut().w_onebuf_opt.wo_wfb != 0 {

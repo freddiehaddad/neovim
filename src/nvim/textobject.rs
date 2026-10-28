@@ -336,7 +336,7 @@ fn cls() -> c_int {
 
 /// Move forward `count` words (`fwd_word`).
 pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
-    unsafe {
+    {
         curwin_mut().w_cursor.coladd = 0;
         tobj_st().cls_bigword = bigword;
         while {
@@ -347,7 +347,7 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
                 curwin_ptr(),
                 curwin_mut().w_cursor.lnum,
                 None,
-                &raw mut (*curwin_ptr()).w_cursor.lnum,
+                &raw mut curwin_mut().w_cursor.lnum,
             ) {
                 coladvance(curwin_mut(), MAXCOL);
             }
@@ -439,7 +439,7 @@ pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> bool {
 
 /// Move to the end of the word (`end_word`).
 pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) -> bool {
-    unsafe {
+    {
         curwin_mut().w_cursor.coladd = 0;
         tobj_st().cls_bigword = bigword;
 
@@ -459,7 +459,7 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
                 curwin_ptr(),
                 curwin_mut().w_cursor.lnum,
                 None,
-                &raw mut (*curwin_ptr()).w_cursor.lnum,
+                &raw mut curwin_mut().w_cursor.lnum,
             ) {
                 coladvance(curwin_mut(), MAXCOL);
             }
@@ -1597,7 +1597,7 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
                 }
                 if restore_vis_bef {
                     ptr::swap(
-                        &raw mut (*curwin_ptr()).w_cursor,
+                        &raw mut curwin_mut().w_cursor,
                         &raw mut g_st().visual_global.start,
                     );
                 }
@@ -1623,7 +1623,7 @@ pub fn current_quote(oap: &mut Oparg, count: c_int, include: bool, quotechar: c_
                 vis_empty = equalpos(g_st().visual_global.start, curwin_mut().w_cursor);
                 if !vis_bef_curs && !vis_empty {
                     ptr::swap(
-                        &raw mut (*curwin_ptr()).w_cursor,
+                        &raw mut curwin_mut().w_cursor,
                         &raw mut g_st().visual_global.start,
                     );
                     vis_bef_curs = true;

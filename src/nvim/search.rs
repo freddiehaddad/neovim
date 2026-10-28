@@ -2537,12 +2537,12 @@ pub fn showmatch(c: c_int) {
     unsafe {
         let mut vcol: Colnr = 0;
         let so: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_so >= 0 {
-            &raw mut (*curwin_ptr()).w_onebuf_opt.wo_so
+            &raw mut curwin_mut().w_onebuf_opt.wo_so
         } else {
             &raw mut opt_vars().p_so
         };
         let siso: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_siso >= 0 {
-            &raw mut (*curwin_ptr()).w_onebuf_opt.wo_siso
+            &raw mut curwin_mut().w_onebuf_opt.wo_siso
         } else {
             &raw mut opt_vars().p_siso
         };

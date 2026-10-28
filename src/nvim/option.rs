@@ -2897,7 +2897,7 @@ pub fn did_set_buflisted(args: &mut Optset) -> *const c_char {
 
 /// Process the new 'cmdheight' option value.
 pub fn did_set_cmdheight(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let old_value = args.os_oldval.data.integer();
 
         if opt_vars().p_ch > OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1) {
@@ -2905,8 +2905,9 @@ pub fn did_set_cmdheight(args: &mut Optset) -> *const c_char {
         }
 
         if (opt_vars().p_ch != old_value
-            || OptInt::from(tabline_height() + global_stl_height() + (*g_st().topframe).fr_height)
-                != OptInt::from(g_st().rows_global) - opt_vars().p_ch)
+            || OptInt::from(
+                tabline_height() + global_stl_height() + crate::globals::topframe_mut().fr_height,
+            ) != OptInt::from(g_st().rows_global) - opt_vars().p_ch)
             && g_st().full_screen
         {
             command_height();
@@ -3054,7 +3055,7 @@ pub fn did_set_laststatus(args: &mut Optset) -> *const c_char {
         if value == 3 && old_value != 3 {
             frame_new_height(
                 &mut *(g_st().topframe),
-                (*g_st().topframe).fr_height - STATUS_HEIGHT,
+                crate::globals::topframe_mut().fr_height - STATUS_HEIGHT,
                 false,
                 false,
                 false,
@@ -3065,7 +3066,7 @@ pub fn did_set_laststatus(args: &mut Optset) -> *const c_char {
         if old_value == 3 && value != 3 {
             frame_new_height(
                 &mut *(g_st().topframe),
-                (*g_st().topframe).fr_height + STATUS_HEIGHT,
+                crate::globals::topframe_mut().fr_height + STATUS_HEIGHT,
                 false,
                 false,
                 false,
@@ -5341,7 +5342,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
             };
         }
 
-        if varp.cast::<c_int>() == &raw mut (*g_st().curbuf).b_changed {
+        if varp.cast::<c_int>() == &raw mut curbuf_mut().b_changed {
             return boolean_obj(curbuf_is_changed_fn());
         }
 
@@ -5742,9 +5743,9 @@ fn did_set_option(
         }
 
         let ws = curwin_mut().w_s_ptr();
-        if varp == (&raw mut (*g_st().curbuf).b_p_syn).cast::<c_void>() {
+        if varp == (&raw mut curbuf_mut().b_p_syn).cast::<c_void>() {
             do_syntax_autocmd(curbuf_mut(), args.os_value_changed);
-        } else if varp == (&raw mut (*g_st().curbuf).b_p_ft).cast::<c_void>() {
+        } else if varp == (&raw mut curbuf_mut().b_p_ft).cast::<c_void>() {
             if (opt_flags & OPT_MODELINE) == 0 || args.os_value_changed {
                 do_filetype_autocmd(curbuf_mut(), args.os_value_changed);
             }
@@ -5757,12 +5758,12 @@ fn did_set_option(
         if varp == (&raw mut opt_vars().p_mouse).cast::<c_void>() {
             setmouse();
         } else if (varp == (&raw mut opt_vars().p_flp).cast::<c_void>()
-            || varp == (&raw mut (*g_st().curbuf).b_p_flp).cast::<c_void>())
+            || varp == (&raw mut curbuf_mut().b_p_flp).cast::<c_void>())
             && curwin_mut().w_briopt_list != 0
         {
             redraw_all_later(UPD_NOT_VALID);
         } else if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>()
-            || varp == (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_wbr).cast::<c_void>()
+            || varp == (&raw mut curwin_mut().w_onebuf_opt.wo_wbr).cast::<c_void>()
         {
             if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>() {
                 set_winbar_all(true);
@@ -6473,7 +6474,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: c_int) {
         if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
             let val_int = if opt.immutable {
                 c_int::from(opt.def_val.data.boolean())
-            } else if varp.cast::<c_int>() == &raw mut (*g_st().curbuf).b_changed {
+            } else if varp.cast::<c_int>() == &raw mut curbuf_mut().b_changed {
                 c_int::from(curbuf_is_changed_fn())
             } else {
                 *(varp.cast::<c_int>())
@@ -6592,48 +6593,48 @@ pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> bool {
 
 /// Generate set commands for the local fold options only.
 pub fn makefoldset(fd: *mut FILE) -> bool {
-    unsafe {
+    {
         let cmd = c"setlocal".as_ptr().cast_mut();
         if !put_set(
             fd,
             cmd,
             K_OPT_FOLDMETHOD,
-            (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fdm).cast(),
+            (&raw mut curwin_mut().w_onebuf_opt.wo_fdm).cast(),
         ) || !put_set(
             fd,
             cmd,
             K_OPT_FOLDEXPR,
-            (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fde).cast(),
+            (&raw mut curwin_mut().w_onebuf_opt.wo_fde).cast(),
         ) || !put_set(
             fd,
             cmd,
             K_OPT_FOLDMARKER,
-            (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fmr).cast(),
+            (&raw mut curwin_mut().w_onebuf_opt.wo_fmr).cast(),
         ) || !put_set(
             fd,
             cmd,
             K_OPT_FOLDIGNORE,
-            (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fdi).cast(),
+            (&raw mut curwin_mut().w_onebuf_opt.wo_fdi).cast(),
         ) || !put_set(
             fd,
             cmd,
             K_OPT_FOLDLEVEL,
-            (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fdl).cast(),
+            (&raw mut curwin_mut().w_onebuf_opt.wo_fdl).cast(),
         ) || !put_set(
             fd,
             cmd,
             K_OPT_FOLDMINLINES,
-            (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fml).cast(),
+            (&raw mut curwin_mut().w_onebuf_opt.wo_fml).cast(),
         ) || !put_set(
             fd,
             cmd,
             K_OPT_FOLDNESTMAX,
-            (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fdn).cast(),
+            (&raw mut curwin_mut().w_onebuf_opt.wo_fdn).cast(),
         ) || !put_set(
             fd,
             cmd,
             K_OPT_FOLDENABLE,
-            (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fen).cast(),
+            (&raw mut curwin_mut().w_onebuf_opt.wo_fen).cast(),
         ) {
             return false;
         }

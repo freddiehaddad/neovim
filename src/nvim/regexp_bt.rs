@@ -3989,7 +3989,7 @@ fn bt_regexec_both(
         }
 
         let prog: *mut BtRegprog = if reg_multi() {
-            let p = (*(*re_st().rex.reg_mmatch).regprog).bt_mut();
+            let p = (*re_st().rex.reg_mmatch).prog_mut().bt_mut();
             line = reg_getline(0).cast();
             re_st().rex.reg_startpos = (&raw mut (*re_st().rex.reg_mmatch).startpos).cast();
             re_st().rex.reg_endpos = (&raw mut (*re_st().rex.reg_mmatch).endpos).cast();

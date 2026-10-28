@@ -1807,10 +1807,10 @@ pub fn did_set_chars_option(args: &mut Optset) -> *const c_char {
 
 /// Expand 'fillchars' or 'listchars' option value.
 pub fn expand_set_chars_option(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    unsafe {
+    {
         let varp = args.oe_varp.cast::<*mut c_char>();
         let is_lcs = ptr::eq(varp, &raw mut opt_vars().p_lcs)
-            || ptr::eq(varp, &raw mut (*curwin_ptr()).w_onebuf_opt.wo_lcs);
+            || ptr::eq(varp, &raw mut curwin_mut().w_onebuf_opt.wo_lcs);
         expand_set_opt_generic(
             args,
             Some(if is_lcs {

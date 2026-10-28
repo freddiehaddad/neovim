@@ -421,7 +421,7 @@ pub fn do_tag(
 ) {
     let tag = tag.into_c_char_ptr().cast_mut();
     unsafe {
-        let tagstack: *mut Taggy = (&raw mut (*curwin_ptr()).w_tagstack).cast::<Taggy>();
+        let tagstack: *mut Taggy = (&raw mut curwin_mut().w_tagstack).cast::<Taggy>();
         let mut tagstackidx = curwin_mut().w_tagstackidx;
         let mut tagstacklen = curwin_mut().w_tagstacklen;
         let mut cur_match: c_int = 0;
@@ -512,7 +512,9 @@ pub fn do_tag(
                     } else {
                         while tagstackidx < tagstacklen {
                             tagstacklen -= 1;
-                            tagstack_clear_entry(&mut *tagstack.add(tagstacklen as usize));
+                            tagstack_clear_entry(
+                                &mut curwin_mut().w_tagstack[tagstacklen as usize],
+                            );
                         }
 
                         tagstacklen += 1;
@@ -520,10 +522,12 @@ pub fn do_tag(
                             tagstacklen = TAGSTACKSIZE;
                             (&mut curwin_mut().w_tagstack)[..tagstacklen as usize].rotate_left(1);
                             tagstackidx -= 1;
-                            tagstack_clear_entry(&mut *tagstack.add(tagstackidx as usize));
+                            tagstack_clear_entry(
+                                &mut curwin_mut().w_tagstack[tagstackidx as usize],
+                            );
                         }
 
-                        (*tagstack.add(tagstackidx as usize)).tagname =
+                        curwin_mut().w_tagstack[tagstackidx as usize].tagname =
                             Some(crate::memory::cstr_to_cstring(tag));
                         curwin_mut().w_tagstacklen = tagstacklen;
                         save_pos = true;
@@ -555,7 +559,7 @@ pub fn do_tag(
                             break 'end_do_tag;
                         }
 
-                        saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark.clone();
+                        saved_fmark = curwin_mut().w_tagstack[tagstackidx as usize].fmark.clone();
                         if saved_fmark.fnum != curbuf_mut().b_fnum {
                             if !buflist_getfile(
                                 saved_fmark.fnum,
@@ -602,8 +606,8 @@ pub fn do_tag(
                                 tagstackidx = 0;
                                 break 'end_do_tag;
                             }
-                            cur_match = (*tagstack.add(tagstackidx as usize)).cur_match;
-                            cur_fnum = (*tagstack.add(tagstackidx as usize)).cur_fnum;
+                            cur_match = curwin_mut().w_tagstack[tagstackidx as usize].cur_match;
+                            cur_fnum = curwin_mut().w_tagstack[tagstackidx as usize].cur_fnum;
                         }
                         new_tag = true;
                     } else {
@@ -617,8 +621,8 @@ pub fn do_tag(
                             if tagstackidx < 0 {
                                 tagstackidx = 0;
                             }
-                            cur_match = (*tagstack.add(tagstackidx as usize)).cur_match;
-                            cur_fnum = (*tagstack.add(tagstackidx as usize)).cur_fnum;
+                            cur_match = curwin_mut().w_tagstack[tagstackidx as usize].cur_match;
+                            cur_fnum = curwin_mut().w_tagstack[tagstackidx as usize].cur_fnum;
                         }
                         match type_ {
                             DT_FIRST => cur_match = count - 1,
@@ -644,11 +648,13 @@ pub fn do_tag(
                         tag_st().ptag_entry.cur_fnum = cur_fnum;
                     }
                 } else {
-                    saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark.clone();
+                    saved_fmark = curwin_mut().w_tagstack[tagstackidx as usize].fmark.clone();
                     if save_pos {
-                        (*tagstack.add(tagstackidx as usize)).fmark.mark = curwin_mut().w_cursor;
-                        (*tagstack.add(tagstackidx as usize)).fmark.fnum = curbuf_mut().b_fnum;
-                        (*tagstack.add(tagstackidx as usize)).fmark.view =
+                        curwin_mut().w_tagstack[tagstackidx as usize].fmark.mark =
+                            curwin_mut().w_cursor;
+                        curwin_mut().w_tagstack[tagstackidx as usize].fmark.fnum =
+                            curbuf_mut().b_fnum;
+                        curwin_mut().w_tagstack[tagstackidx as usize].fmark.view =
                             mark_view_make(curwin_mut(), curwin_mut().w_cursor);
                     }
 
@@ -669,7 +675,9 @@ pub fn do_tag(
 
             loop {
                 let mut name: *mut c_char = if use_tagstack {
-                    tofree = (*tagstack.add(tagstackidx as usize)).tagname.clone();
+                    tofree = curwin_mut().w_tagstack[tagstackidx as usize]
+                        .tagname
+                        .clone();
                     tofree
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -736,7 +744,7 @@ pub fn do_tag(
                         tag_st().do_tag_max_num_matches = MAXCOL;
                     }
 
-                    if tagstack != (&raw mut (*curwin_ptr()).w_tagstack).cast::<Taggy>() {
+                    if tagstack != (&raw mut curwin_mut().w_tagstack).cast::<Taggy>() {
                         emsg(gettext(
                             E_WINDOW_UNEXPECTEDLY_CLOSE_WHILE_SEARCHING_FOR_TAGS,
                         ));
@@ -784,7 +792,7 @@ pub fn do_tag(
                             name,
                         );
                         if use_tagstack {
-                            (*tagstack.add(tagstackidx as usize)).fmark = saved_fmark;
+                            curwin_mut().w_tagstack[tagstackidx as usize].fmark = saved_fmark;
                             tagstackidx = prevtagstackidx;
                         }
                         break;
@@ -811,8 +819,8 @@ pub fn do_tag(
                     if use_tagstack {
                         let mut tagp2 = Tagptrs::default();
 
-                        (*tagstack.add(tagstackidx as usize)).cur_match = cur_match;
-                        (*tagstack.add(tagstackidx as usize)).cur_fnum = cur_fnum;
+                        curwin_mut().w_tagstack[tagstackidx as usize].cur_match = cur_match;
+                        curwin_mut().w_tagstack[tagstackidx as usize].cur_fnum = cur_fnum;
 
                         if use_tfu
                             && parse_match(
@@ -827,7 +835,7 @@ pub fn do_tag(
                                 tagp2.user_data,
                                 tagp2.user_data_end.offset_from(tagp2.user_data) as usize,
                             );
-                            (*tagstack.add(tagstackidx as usize)).user_data =
+                            curwin_mut().w_tagstack[tagstackidx as usize].user_data =
                                 Some(std::ffi::CString::new(ud_slice).unwrap());
                         }
 
@@ -953,7 +961,6 @@ fn select_tag_match(
 ) {
     let name = name.into_c_char_ptr();
     unsafe {
-        let tagstack: *mut Taggy = (&raw mut (*curwin_ptr()).w_tagstack).cast::<Taggy>();
         let tagstackidx = curwin_mut().w_tagstackidx;
 
         let mut items_tv = TypVal {
@@ -976,7 +983,8 @@ fn select_tag_match(
 
             let cur = !new_tag
                 && ((g_st().g_do_tagpreview != 0 && i == tag_st().ptag_entry.cur_match)
-                    || (use_tagstack && i == (*tagstack.add(tagstackidx as usize)).cur_match));
+                    || (use_tagstack
+                        && i == curwin_mut().w_tagstack[tagstackidx as usize].cur_match));
 
             let d = tv_dict_alloc();
             tv_dict_add_str_len(
@@ -1152,13 +1160,12 @@ pub fn tag_freematch() {
 /// Print the tag stack.
 pub fn do_tags(_eap: &mut Exarg) {
     unsafe {
-        let tagstack: *mut Taggy = (&raw mut (*curwin_ptr()).w_tagstack).cast::<Taggy>();
         let tagstackidx = curwin_mut().w_tagstackidx;
         let tagstacklen = curwin_mut().w_tagstacklen;
 
         msg_puts_title(gettext(c"\n  # TO tag         FROM line  in file/text"));
         for i in 0..tagstacklen {
-            let entry = tagstack.add(i as usize);
+            let entry = (&raw mut curwin_mut().w_tagstack[i as usize]);
             let entry = { &mut *entry };
             if let Some(ref tagname) = entry.tagname {
                 let Some(name) = fm_getname(&mut entry.fmark, 30) else {
@@ -1324,7 +1331,7 @@ fn find_tagfunc_tags(
         let mut tag: *mut Taggy = ptr::null_mut();
 
         if curwin_mut().w_tagstacklen > 0 {
-            let tagstack_ptr = (&raw mut (*curwin_ptr()).w_tagstack).cast::<Taggy>();
+            let tagstack_ptr = (&raw mut curwin_mut().w_tagstack).cast::<Taggy>();
             if curwin_mut().w_tagstackidx == curwin_mut().w_tagstacklen {
                 tag = tagstack_ptr.add((curwin_mut().w_tagstackidx - 1) as usize);
             } else {
@@ -1379,16 +1386,12 @@ fn find_tagfunc_tags(
         );
 
         let save_pos = curwin_mut().w_cursor;
-        let mut result = if callback_call(
-            &mut (*g_st().curbuf).b_p_tfu,
-            3,
-            args.as_mut_ptr(),
-            &mut rettv,
-        ) {
-            OK
-        } else {
-            FAIL
-        };
+        let mut result =
+            if callback_call(&mut curbuf_mut().b_p_tfu, 3, args.as_mut_ptr(), &mut rettv) {
+                OK
+            } else {
+                FAIL
+            };
         curwin_mut().w_cursor = save_pos;
         check_cursor(curwin_mut());
         d.dv_refcount -= 1;
@@ -3467,26 +3470,24 @@ fn get_tag_details(tag: &mut Taggy, retdict: &mut TvDict) {
 
 /// Return the tag stack entries of the specified window `wp` in dictionary `retdict`.
 pub fn get_tagstack(wp: &mut WinInfoInfo, retdict: &mut TvDict) {
-    unsafe {
+    {
         tv_dict_add_nr(retdict, c"length", wp.w_tagstacklen as Varnumber);
         tv_dict_add_nr(retdict, c"curidx", (wp.w_tagstackidx + 1) as Varnumber);
         let l = tv_list_alloc(2);
         tv_dict_add_list(retdict, c"items", l);
 
-        let tagstack = (&raw mut wp.w_tagstack).cast::<Taggy>();
         for i in 0..wp.w_tagstacklen as usize {
             let d = tv_dict_alloc();
-            tv_list_append_dict(&mut *l, d);
-            get_tag_details(&mut *tagstack.add(i), &mut *d);
+            tv_list_append_dict(l, d);
+            get_tag_details(&mut wp.w_tagstack[i], d);
         }
     }
 }
 
 fn tagstack_clear(wp: &mut WinInfoInfo) {
-    unsafe {
-        let tagstack = (&raw mut wp.w_tagstack).cast::<Taggy>();
+    {
         for i in 0..wp.w_tagstacklen as usize {
-            tagstack_clear_entry(&mut *tagstack.add(i));
+            tagstack_clear_entry(&mut wp.w_tagstack[i]);
         }
         wp.w_tagstacklen = 0;
         wp.w_tagstackidx = 0;
@@ -3509,8 +3510,7 @@ fn tagstack_push_item(
     fnum: c_int,
     user_data: Option<std::ffi::CString>,
 ) {
-    unsafe {
-        let tagstack = (&raw mut wp.w_tagstack).cast::<Taggy>();
+    {
         let mut idx = wp.w_tagstacklen;
 
         if idx >= TAGSTACKSIZE {
@@ -3519,8 +3519,7 @@ fn tagstack_push_item(
         }
 
         wp.w_tagstacklen += 1;
-        let entry = tagstack.add(idx as usize);
-        let entry = { &mut *entry };
+        let entry = &mut wp.w_tagstack[idx as usize];
         entry.tagname = tagname;
         entry.cur_fnum = cur_fnum;
         entry.cur_match = cur_match.max(0);
@@ -3601,13 +3600,12 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: c_int) -> 
         }
 
         if action == b't' as c_int {
-            let tagstack = (&raw mut wp.w_tagstack).cast::<Taggy>();
             let tagstackidx = wp.w_tagstackidx;
             let mut tagstacklen = wp.w_tagstacklen;
 
             while tagstackidx < tagstacklen {
                 tagstacklen -= 1;
-                tagstack_clear_entry(&mut *tagstack.add(tagstacklen as usize));
+                tagstack_clear_entry(&mut curwin_mut().w_tagstack[tagstacklen as usize]);
             }
             wp.w_tagstacklen = tagstacklen;
         }

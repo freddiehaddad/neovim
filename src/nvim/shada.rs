@@ -4240,7 +4240,7 @@ fn shada_init_jumps(
                 siemsg!(
                     c"ShaDa: mark lnum zero (ji:%zu, js:%p, len:%i)",
                     jump_iter.unwrap_or(0),
-                    &raw const (*curwin_ptr()).w_jumplist,
+                    &raw const curwin_mut().w_jumplist,
                     curwin_mut().w_jumplistlen,
                 );
                 if jump_iter.is_none() {

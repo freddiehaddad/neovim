@@ -1846,7 +1846,7 @@ pub fn scrollup_clamp() {
                     curwin_ptr(),
                     curwin_mut().w_topline,
                     None,
-                    &raw mut (*curwin_ptr()).w_topline,
+                    &raw mut curwin_mut().w_topline,
                 );
                 curwin_mut().w_topline += 1;
             }

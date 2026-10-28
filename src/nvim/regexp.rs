@@ -3208,7 +3208,7 @@ pub(super) fn init_regexec_multi(
         re_st().rex.reg_line_lbr = false;
         re_st().rex.reg_ic = rmp.rmm_ic != 0;
         re_st().rex.reg_icombine = false;
-        re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
+        re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as c_uint)) != 0;
         re_st().rex.reg_maxcol = rmp.rmm_maxcol;
     }
 }
@@ -3496,11 +3496,11 @@ fn vim_regexec_string(
         let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
 
-        if (*rmp.regprog).re_in_use {
+        if rmp.prog_mut().re_in_use {
             emsg(tr(E_RECURSIVE));
             return false;
         }
-        (*rmp.regprog).re_in_use = true;
+        rmp.prog_mut().re_in_use = true;
 
         if re_st().rex_in_use {
             rex_save = re_st().rex;
@@ -3512,15 +3512,15 @@ fn vim_regexec_string(
         re_st().rex.reg_startpos = ptr::null_mut();
         re_st().rex.reg_endpos = ptr::null_mut();
 
-        let mut result = match (*rmp.regprog).engine {
+        let mut result = match rmp.prog_mut().engine {
             RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
             RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
         };
-        (*rmp.regprog).re_in_use = false;
+        rmp.prog_mut().re_in_use = false;
 
-        if (*rmp.regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE {
+        if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE {
             let save_p_re = opt_vars().p_re;
-            let re_flags = (*rmp.regprog).re_flags as c_int;
+            let re_flags = rmp.prog_mut().re_flags as c_int;
             let prev_prog = rmp.regprog;
             let pat = (*prev_prog).nfa_mut().pattern.as_ptr();
 
@@ -3529,12 +3529,12 @@ fn vim_regexec_string(
             let new_prog = vim_regcomp(pat, re_flags);
             if !new_prog.is_null() {
                 *prev_prog = *Box::from_raw(new_prog);
-                (*rmp.regprog).re_in_use = true;
-                result = match (*rmp.regprog).engine {
+                rmp.prog_mut().re_in_use = true;
+                result = match rmp.prog_mut().engine {
                     RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
                     RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
                 };
-                (*rmp.regprog).re_in_use = false;
+                rmp.prog_mut().re_in_use = false;
             }
 
             opt_vars().p_re = save_p_re;
@@ -3597,18 +3597,18 @@ pub fn vim_regexec_multi(
         let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
 
-        if (*rmp.regprog).re_in_use {
+        if rmp.prog_mut().re_in_use {
             emsg(tr(E_RECURSIVE));
             return 0;
         }
-        (*rmp.regprog).re_in_use = true;
+        rmp.prog_mut().re_in_use = true;
 
         if re_st().rex_in_use {
             rex_save = re_st().rex;
         }
         re_st().rex_in_use = true;
 
-        let mut result = match (*rmp.regprog).engine {
+        let mut result = match rmp.prog_mut().engine {
             RegProgEngine::Bt(_) => bt_regexec_multi(
                 rmp,
                 win,
@@ -3628,11 +3628,11 @@ pub fn vim_regexec_multi(
                 (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
             ),
         };
-        (*rmp.regprog).re_in_use = false;
+        rmp.prog_mut().re_in_use = false;
 
-        if (*rmp.regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE {
+        if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE {
             let save_p_re = opt_vars().p_re;
-            let re_flags = (*rmp.regprog).re_flags as c_int;
+            let re_flags = rmp.prog_mut().re_flags as c_int;
             let prev_prog = rmp.regprog;
             let pat = (*prev_prog).nfa_mut().pattern.as_ptr();
 
@@ -3645,8 +3645,8 @@ pub fn vim_regexec_multi(
 
             if !new_prog.is_null() {
                 *prev_prog = *Box::from_raw(new_prog);
-                (*rmp.regprog).re_in_use = true;
-                result = match (*rmp.regprog).engine {
+                rmp.prog_mut().re_in_use = true;
+                result = match rmp.prog_mut().engine {
                     RegProgEngine::Bt(_) => bt_regexec_multi(
                         rmp,
                         win,
@@ -3666,7 +3666,7 @@ pub fn vim_regexec_multi(
                         (timed_out.is_some()).then(|| &mut *timed_out.unwrap()),
                     ),
                 };
-                (*rmp.regprog).re_in_use = false;
+                rmp.prog_mut().re_in_use = false;
             }
 
             opt_vars().p_re = save_p_re;
@@ -3726,5 +3726,19 @@ mod tests {
             );
             assert!(newl);
         }
+    }
+}
+
+impl Regmmatch {
+    #[inline]
+    pub fn prog_mut(&self) -> &'static mut Regprog {
+        unsafe { &mut *self.regprog }
+    }
+}
+
+impl Regmatch {
+    #[inline]
+    pub fn prog_mut(&self) -> &'static mut Regprog {
+        unsafe { &mut *self.regprog }
     }
 }

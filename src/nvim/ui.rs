@@ -764,7 +764,7 @@ fn ui_cursor_is_behind_floatwin() -> bool {
             };
 
         let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
-        top_grid != &raw mut (*curwin_ptr()).w_grid_alloc
+        top_grid != &raw mut curwin_mut().w_grid_alloc
             && top_grid != &raw mut g_st().default_grid
             && (*top_grid).zindex >= curwin_mut().w_grid_alloc.zindex + 50
     }

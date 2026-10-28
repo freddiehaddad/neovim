@@ -3402,7 +3402,7 @@ pub fn find_decl(
             t = searchit(
                 curwin_ptr(),
                 curbuf_mut(),
-                &mut (*curwin_ptr()).w_cursor,
+                &mut curwin_mut().w_cursor,
                 None,
                 FORWARD,
                 pat,
@@ -5856,7 +5856,7 @@ fn v_swap_corners(cmdchar: c_int) {
             }
         } else {
             ptr::swap(
-                &raw mut (*curwin_ptr()).w_cursor,
+                &raw mut curwin_mut().w_cursor,
                 &raw mut g_st().visual_global.start,
             );
             curwin_mut().w_set_curswant = true;
@@ -6825,7 +6825,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
 }
 
 fn n_opencmd(cap: &mut Cmdarg) {
-    unsafe {
+    {
         if checkclearopq(cap.oap_mut()) {
             return;
         }
@@ -6842,7 +6842,7 @@ fn n_opencmd(cap: &mut Cmdarg) {
                 curwin_ptr(),
                 curwin_mut().w_cursor.lnum,
                 None,
-                &raw mut (*curwin_ptr()).w_cursor.lnum,
+                &raw mut curwin_mut().w_cursor.lnum,
             );
         }
         curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());

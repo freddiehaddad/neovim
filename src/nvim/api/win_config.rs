@@ -540,18 +540,18 @@ pub fn nvim_open_win(
 
 fn win_split_dir(win: &WinInfoInfo) -> WinSplit {
     unsafe {
-        if win.w_frame.is_null() || (*win.w_frame).fr_parent.is_null() {
+        if win.w_frame.is_null() || win.frame_mut().fr_parent.is_null() {
             return K_WIN_SPLIT_LEFT;
         }
 
-        let layout = (*(*win.w_frame).fr_parent).fr_layout;
+        let layout = (*win.frame_mut().fr_parent).fr_layout;
         if layout == FR_COL {
-            if !(*win.w_frame).fr_next.is_null() {
+            if !win.frame_mut().fr_next.is_null() {
                 K_WIN_SPLIT_ABOVE
             } else {
                 K_WIN_SPLIT_BELOW
             }
-        } else if !(*win.w_frame).fr_next.is_null() {
+        } else if !win.frame_mut().fr_next.is_null() {
             K_WIN_SPLIT_LEFT
         } else {
             K_WIN_SPLIT_RIGHT
@@ -746,7 +746,7 @@ fn win_config_split(
                 let altwin: *mut WinInfoInfo;
 
                 if was_split {
-                    if (*win.w_frame).fr_parent.is_null() {
+                    if win.frame_mut().fr_parent.is_null() {
                         api_set_error!(
                             err,
                             ErrorType::ErrorTypeException,
@@ -755,14 +755,14 @@ fn win_config_split(
                         break 'restore_curwin;
                     } else if !parent.is_null() && (*parent).handle == win.handle {
                         let mut n_frames = 0;
-                        for _fr in frame_iter_mut((*(*win.w_frame).fr_parent).fr_child) {
+                        for _fr in frame_iter_mut((*win.frame_mut().fr_parent).fr_child) {
                             n_frames += 1;
                         }
 
                         let mut neighbor: *mut WinInfoInfo = ptr::null_mut();
 
                         if n_frames > 2 {
-                            let frame = (*win.w_frame).fr_parent;
+                            let frame = win.frame_mut().fr_parent;
                             if !(*frame).fr_parent.is_null() {
                                 neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
                                     || fconfig.split == K_WIN_SPLIT_LEFT

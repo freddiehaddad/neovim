@@ -330,7 +330,7 @@ fn prompt_trim_scrollback(buf: &mut FileBuf) {
 
 /// Invokes the user-defined callback defined for the current prompt-buffer (`prompt_invoke_callback`).
 pub fn prompt_invoke_callback() {
-    unsafe {
+    {
         let lnum = curbuf_mut().b_ml.ml_line_count;
         let Some(user_input) = prompt_get_input(curbuf_mut()) else {
             return;
@@ -363,7 +363,7 @@ pub fn prompt_invoke_callback() {
             tv_set_string(&mut argv[0], user_input.as_ptr());
 
             callback_call(
-                &mut (*g_st().curbuf).b_prompt_callback,
+                &mut curbuf_mut().b_prompt_callback,
                 1,
                 argv.as_mut_ptr(),
                 &mut rettv,
@@ -383,7 +383,7 @@ pub fn prompt_invoke_callback() {
 
 /// Return true when the interrupt callback was invoked (`invoke_prompt_interrupt`).
 pub fn invoke_prompt_interrupt() -> bool {
-    unsafe {
+    {
         if curbuf_mut().b_prompt_interrupt.cb_type() == K_CALLBACK_NONE_CONST {
             return false;
         }
@@ -400,7 +400,7 @@ pub fn invoke_prompt_interrupt() -> bool {
 
         g_st().got_int = false;
         let ret = callback_call(
-            &mut (*g_st().curbuf).b_prompt_interrupt,
+            &mut curbuf_mut().b_prompt_interrupt,
             0,
             argv.as_mut_ptr(),
             &mut rettv,

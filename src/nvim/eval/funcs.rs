@@ -2981,7 +2981,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
                     fp = (&raw mut (*wp).w_cursor).cast();
                 }
             } else {
-                fp = (&raw mut (*curwin_ptr()).w_cursor).cast();
+                fp = (&raw mut curwin_mut().w_cursor).cast();
             }
             if !fp.is_null() && charcol {
                 pos = *fp;

@@ -3064,7 +3064,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: c_int) {
             if is_qf_window(&*win) {
                 if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USELAST) != 0
                     && win_valid(g_st().prevwin)
-                    && (*g_st().prevwin).w_onebuf_opt.wo_wfb == 0
+                    && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
                 {
                     win = g_st().prevwin;
                 } else if !altwin.is_null() {
@@ -3186,8 +3186,8 @@ fn qf_jump_edit_buffer(
                 }
 
                 if win_valid(g_st().prevwin)
-                    && (*g_st().prevwin).w_onebuf_opt.wo_wfb == 0
-                    && !bt_quickfix(((*g_st().prevwin).w_buffer).as_ref())
+                    && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
+                    && !bt_quickfix((crate::globals::prevwin_mut().w_buffer).as_ref())
                 {
                     win_goto(g_st().prevwin);
                 }

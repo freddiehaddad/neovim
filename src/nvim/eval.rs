@@ -1118,11 +1118,11 @@ fn get_lval_dict_item(
         }
         lp.ll_list = ptr::null_mut();
 
-        if (*lp.ll_tv).vval.v_dict().is_null() {
-            (*lp.ll_tv).vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
-            (*(*lp.ll_tv).vval.v_dict()).dv_refcount += 1;
+        if lp.tv_mut().vval.v_dict().is_null() {
+            lp.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
+            (*lp.tv_mut().vval.v_dict()).dv_refcount += 1;
         }
-        lp.ll_dict = (*lp.ll_tv).vval.v_dict();
+        lp.ll_dict = lp.tv_mut().vval.v_dict();
 
         lp.ll_di = tv_dict_find(lp.ll_dict.as_ref(), key, len as isize);
 
@@ -1210,7 +1210,7 @@ fn get_lval_blob(
     quiet: bool,
 ) -> bool {
     unsafe {
-        let bloblen = tv_blob_len(((*lp.ll_tv).vval.v_blob()).as_ref());
+        let bloblen = tv_blob_len((lp.tv_mut().vval.v_blob()).as_ref());
 
         if empty1 {
             lp.ll_n1 = 0;
@@ -1233,7 +1233,7 @@ fn get_lval_blob(
             }
         }
 
-        lp.ll_blob = (*lp.ll_tv).vval.v_blob();
+        lp.ll_blob = lp.tv_mut().vval.v_blob();
         lp.ll_tv = ptr::null_mut();
 
         true
@@ -1256,7 +1256,7 @@ fn get_lval_list(
         }
 
         lp.ll_dict = ptr::null_mut();
-        lp.ll_list = (*lp.ll_tv).vval.v_list();
+        lp.ll_list = lp.tv_mut().vval.v_list();
         lp.ll_li = tv_list_check_range_index_one(lp.ll_list.as_mut(), &mut lp.ll_n1, quiet);
         if lp.ll_li.is_null() {
             return false;
@@ -1301,15 +1301,15 @@ fn get_lval_subscript(
                 && crate::memory::cstr_byte_at(p, 1) != b'='
                 && crate::memory::cstr_byte_at(p, 1) != b'.')
         {
-            if crate::memory::cstr_first_byte(p) == b'.' && (*lp.ll_tv).v_type != VarType::VarDict {
+            if crate::memory::cstr_first_byte(p) == b'.' && lp.tv_mut().v_type != VarType::VarDict {
                 if !quiet {
                     semsg!(gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR), name,);
                 }
                 return ptr::null_mut();
             }
-            if (*lp.ll_tv).v_type != VarType::VarList
-                && (*lp.ll_tv).v_type != VarType::VarDict
-                && (*lp.ll_tv).v_type != VarType::VarBlob
+            if lp.tv_mut().v_type != VarType::VarList
+                && lp.tv_mut().v_type != VarType::VarDict
+                && lp.tv_mut().v_type != VarType::VarBlob
             {
                 if !quiet {
                     emsg(gettext(c"E689: Can only index a List, Dictionary or Blob"));
@@ -1317,9 +1317,9 @@ fn get_lval_subscript(
                 return ptr::null_mut();
             }
 
-            if (*lp.ll_tv).v_type == VarType::VarList && (*lp.ll_tv).vval.v_list().is_null() {
+            if lp.tv_mut().v_type == VarType::VarList && lp.tv_mut().vval.v_list().is_null() {
                 tv_list_alloc_ret(&mut *lp.ll_tv, K_LIST_LEN_UNKNOWN_CONST);
-            } else if (*lp.ll_tv).v_type == VarType::VarBlob && (*lp.ll_tv).vval.v_blob().is_null()
+            } else if lp.tv_mut().v_type == VarType::VarBlob && lp.tv_mut().vval.v_blob().is_null()
             {
                 tv_blob_alloc_ret(&mut *lp.ll_tv);
             }
@@ -1375,7 +1375,7 @@ fn get_lval_subscript(
                 }
 
                 if crate::memory::cstr_first_byte(p) == b':' {
-                    if (*lp.ll_tv).v_type == VarType::VarDict {
+                    if lp.tv_mut().v_type == VarType::VarDict {
                         if !quiet {
                             emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
                         }
@@ -1430,7 +1430,7 @@ fn get_lval_subscript(
                 p = p.add(1);
             }
 
-            if (*lp.ll_tv).v_type == VarType::VarDict {
+            if lp.tv_mut().v_type == VarType::VarDict {
                 let glv_status = get_lval_dict_item(
                     &mut *lp,
                     name,
@@ -1450,7 +1450,7 @@ fn get_lval_subscript(
                 if glv_status == GLV_STOP {
                     break;
                 }
-            } else if (*lp.ll_tv).v_type == VarType::VarBlob {
+            } else if lp.tv_mut().v_type == VarType::VarBlob {
                 if !get_lval_blob(&mut *lp, &mut var1, &mut var2, empty1, quiet) {
                     tv_clear(&mut var1);
                     tv_clear(&mut var2);
@@ -1675,9 +1675,9 @@ pub fn set_var_lval(
             *endp = cc;
         } else if value_check_lock(
             if lp.ll_newkey.is_none() {
-                (*lp.ll_tv).v_lock
+                lp.tv_mut().v_lock
             } else {
-                (*(*lp.ll_tv).vval.v_dict()).dv_lock
+                (*lp.tv_mut().vval.v_dict()).dv_lock
             },
             lp.ll_name,
             TV_CSTRING,
@@ -1715,13 +1715,13 @@ pub fn set_var_lval(
                     semsg!(gettext(E_DICTKEY), newkey_ptr);
                     return;
                 }
-                if tv_dict_wrong_func_name(&mut *(*lp.ll_tv).vval.v_dict(), rettv, newkey_ptr) != 0
+                if tv_dict_wrong_func_name(&mut *lp.tv_mut().vval.v_dict(), rettv, newkey_ptr) != 0
                 {
                     return;
                 }
 
                 let di = tv_dict_item_alloc(newkey_ptr);
-                if !tv_dict_add(&mut *(*lp.ll_tv).vval.v_dict(), di) {
+                if !tv_dict_add(&mut *lp.tv_mut().vval.v_dict(), di) {
                     tv_dict_item_free(di);
                     return;
                 }
@@ -1744,7 +1744,7 @@ pub fn set_var_lval(
                     tv_copy(&*rettv, &mut *lp.ll_tv);
                 } else {
                     *lp.ll_tv = *rettv;
-                    (*lp.ll_tv).v_lock = VAR_UNLOCKED;
+                    lp.tv_mut().v_lock = VAR_UNLOCKED;
                     tv_init(Some(rettv));
                 }
             }
@@ -7520,6 +7520,12 @@ pub fn typval_tostring(arg: Option<&mut TypVal>, quotes: bool) -> std::ffi::CStr
     encode_tv2string(&mut *arg, None)
 }
 
+impl Lval {
+    #[inline]
+    pub fn tv_mut(&self) -> &'static mut TypVal {
+        unsafe { &mut *self.ll_tv }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

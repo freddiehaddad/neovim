@@ -727,7 +727,8 @@ pub fn free_all_mem() {
         block_autocmds();
 
         opt_vars().p_ea = 0;
-        if !g_st().first_tabpage.is_null() && !(*g_st().first_tabpage).tp_next.is_null() {
+        if !g_st().first_tabpage.is_null() && !crate::globals::first_tabpage_mut().tp_next.is_null()
+        {
             do_cmdline_cmd(c"tabonly!");
         }
 

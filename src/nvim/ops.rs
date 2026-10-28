@@ -3733,7 +3733,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
                             curwin_ptr(),
                             curwin_mut().w_cursor.lnum,
                             None,
-                            &raw mut (*curwin_ptr()).w_cursor.lnum,
+                            &raw mut curwin_mut().w_cursor.lnum,
                         )
                     {
                         curwin_mut().w_cursor.col = get_cursor_line_len();

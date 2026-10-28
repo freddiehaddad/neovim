@@ -366,8 +366,8 @@ fn json_encode_exception(
     reason: &std::ffi::CStr,
 ) -> ! {
     unsafe {
-        if (*ctx.options).sort_keys != 0 {
-            (*ctx.options).keybuf = Keybuf::new();
+        if ctx.opts_mut().sort_keys != 0 {
+            ctx.opts_mut().keybuf = Keybuf::new();
         }
 
         luaL_error(
@@ -388,7 +388,7 @@ fn json_append_string_contents(
 ) {
     unsafe {
         let json = if use_keybuf {
-            &mut (*ctx.options).keybuf.buf
+            &mut ctx.opts_mut().keybuf.buf
         } else {
             &mut *ctx.json
         };
@@ -401,7 +401,7 @@ fn json_append_string_contents(
         }
         strbuf_ensure_empty_length(json, len * 6);
 
-        let escape_table = (*ctx.options).char2escape;
+        let escape_table = ctx.opts_mut().char2escape;
         for i in 0..len {
             let ch = *str_ptr.add(i);
             let escstr = *escape_table.add((ch as u8) as usize);
@@ -459,8 +459,8 @@ fn json_check_encode_depth(l: *mut lua_State, ctx: &mut JsonEncode, current_dept
             return;
         }
 
-        if (*ctx.options).sort_keys != 0 {
-            (*ctx.options).keybuf = Keybuf::new();
+        if ctx.opts_mut().sort_keys != 0 {
+            ctx.opts_mut().keybuf = Keybuf::new();
         }
 
         luaL_error(
@@ -472,10 +472,10 @@ fn json_check_encode_depth(l: *mut lua_State, ctx: &mut JsonEncode, current_dept
 }
 
 fn json_append_newline_and_indent(json: &mut Strbuf, ctx: &JsonEncode, depth: c_int) {
-    unsafe {
+    {
         strbuf_append_char(json, b'\n' as c_char);
         for _ in 0..depth {
-            strbuf_append_string(json, (*ctx.options).indent);
+            strbuf_append_string(json, ctx.opts_mut().indent);
         }
     }
 }
@@ -503,7 +503,7 @@ fn json_append_array(
             }
             comma += 1;
 
-            if !(*ctx.options).indent.is_null() {
+            if !ctx.opts_mut().indent.is_null() {
                 json_append_newline_and_indent(json, ctx, current_depth);
             }
 
@@ -524,7 +524,7 @@ fn json_append_array(
             lua_pop(l, 1);
         }
 
-        if has_items && !(*ctx.options).indent.is_null() {
+        if has_items && !ctx.opts_mut().indent.is_null() {
             json_append_newline_and_indent(json, ctx, current_depth - 1);
         }
 
@@ -536,7 +536,7 @@ fn json_append_number(l: *mut lua_State, ctx: &mut JsonEncode, lindex: c_int, us
     unsafe {
         let num = lua_tonumber(l, lindex);
         let json = if use_keybuf {
-            &mut (*ctx.options).keybuf.buf
+            &mut ctx.opts_mut().keybuf.buf
         } else {
             &mut *ctx.json
         };
@@ -574,8 +574,8 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
 
         let mut comma: c_int = 0;
         lua_pushnil(l);
-        if (*ctx.options).sort_keys != 0 {
-            let keybuf: *mut _ = &raw mut (*ctx.options).keybuf;
+        if ctx.opts_mut().sort_keys != 0 {
+            let keybuf: *mut _ = &raw mut ctx.opts_mut().keybuf;
             let keybuf = &mut *keybuf;
             let init_keybuf_size = keybuf.keys.len();
             let init_keybuf_length = strbuf_length(&keybuf.buf);
@@ -618,7 +618,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
                 }
                 comma += 1;
 
-                if !(*ctx.options).indent.is_null() {
+                if !ctx.opts_mut().indent.is_null() {
                     json_append_newline_and_indent(json, ctx, current_depth);
                 }
 
@@ -631,7 +631,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
                 );
                 strbuf_append_mem_unsafe(json, c"\":", 2);
 
-                if !(*ctx.options).indent.is_null() {
+                if !ctx.opts_mut().indent.is_null() {
                     strbuf_append_char(json, b' ' as c_char);
                 }
 
@@ -662,7 +662,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
                 }
                 comma += 1;
 
-                if !(*ctx.options).indent.is_null() {
+                if !ctx.opts_mut().indent.is_null() {
                     json_append_newline_and_indent(json, ctx, current_depth);
                 }
 
@@ -677,7 +677,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
                 } else {
                     json_encode_exception(l, ctx, -2, c"table key must be a number or string");
                 }
-                if !(*ctx.options).indent.is_null() {
+                if !ctx.opts_mut().indent.is_null() {
                     strbuf_append_char(json, b' ' as c_char);
                 }
 
@@ -693,7 +693,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_
             }
         }
 
-        if has_items && !(*ctx.options).indent.is_null() {
+        if has_items && !ctx.opts_mut().indent.is_null() {
             json_append_newline_and_indent(json, ctx, current_depth - 1);
         }
 
@@ -836,7 +836,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
                     let escape_slash = lua_toboolean(l, -1);
                     if escape_slash != 0 {
                         custom_char2escape[b'/' as usize] = c"\\/".as_ptr();
-                        (*ctx.options).char2escape = custom_char2escape.as_ptr();
+                        ctx.opts_mut().char2escape = custom_char2escape.as_ptr();
                     }
                 }
                 lua_pop(l, 1);
@@ -1552,4 +1552,11 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> c_int {
     }
 
     1
+}
+
+impl JsonEncode {
+    #[inline]
+    fn opts_mut(&self) -> &'static mut JsonEncodeOptions {
+        unsafe { &mut *self.options }
+    }
 }

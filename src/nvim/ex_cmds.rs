@@ -2808,7 +2808,7 @@ pub fn do_ecmd(
         let mut readfile_flags: c_int = 0;
         let mut did_inc_redrawing_disabled = false;
         let so_ptr: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_so >= 0 {
-            &raw mut (*curwin_ptr()).w_onebuf_opt.wo_so
+            &raw mut curwin_mut().w_onebuf_opt.wo_so
         } else {
             &raw mut opt_vars().p_so
         };

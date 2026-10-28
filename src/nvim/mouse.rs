@@ -294,7 +294,7 @@ fn mouse_tab_close(c1: c_int) {
             find_tabpage(c1)
         };
         if tp == g_st().curtab {
-            if !(*g_st().first_tabpage).tp_next.is_null() {
+            if !crate::globals::first_tabpage_mut().tp_next.is_null() {
                 tabpage_close(0);
             }
         } else if !tp.is_null() {
@@ -1692,7 +1692,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                             curwin_ptr(),
                             curwin_mut().w_topline,
                             None,
-                            &raw mut (*curwin_ptr()).w_topline,
+                            &raw mut curwin_mut().w_topline,
                         ) && curwin_mut().w_topline == curbuf_mut().b_ml.ml_line_count
                         {
                             break;
@@ -2180,7 +2180,7 @@ fn mouse_check_grid(vcolp: &mut Colnr, flagsp: &mut c_int) {
         }
         let mut start_row: c_int = 0;
         let mut start_col: c_int = 0;
-        let gp = &*grid_adjust(&mut (*curwin_ptr()).w_grid, &mut start_row, &mut start_col);
+        let gp = &*grid_adjust(&mut curwin_mut().w_grid, &mut start_row, &mut start_col);
         if gp.handle != click_grid || gp.chars.is_empty() {
             return;
         }

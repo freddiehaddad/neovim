@@ -1510,13 +1510,13 @@ pub fn win_line(
             if g_st().visual_global.active && wp.w_buffer == curwin_mut().w_buffer {
                 let (top, bot) = if ltoreq(curwin_mut().w_cursor, g_st().visual_global.start) {
                     (
-                        &raw mut (*curwin_ptr()).w_cursor,
+                        &raw mut curwin_mut().w_cursor,
                         &raw mut g_st().visual_global.start,
                     )
                 } else {
                     (
                         &raw mut g_st().visual_global.start,
-                        &raw mut (*curwin_ptr()).w_cursor,
+                        &raw mut curwin_mut().w_cursor,
                     )
                 };
                 lnum_in_visual_area = lnum >= (*top).lnum && lnum <= (*bot).lnum;

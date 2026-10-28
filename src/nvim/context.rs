@@ -870,7 +870,7 @@ pub fn ctx_switch(
         cs.cs_prevwin = if g_st().prevwin.is_null() {
             0
         } else {
-            (*g_st().prevwin).handle
+            crate::globals::prevwin_mut().handle
         };
         cs.cs_same_win = wp == curwin_ptr();
         if bt_prompt(Some(crate::globals::curbuf_mut())) {

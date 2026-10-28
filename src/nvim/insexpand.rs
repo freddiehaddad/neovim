@@ -348,11 +348,11 @@ enum CptFuncSource {
 
 impl CptFuncSource {
     fn as_ptr(self) -> *mut Callback {
-        unsafe {
+        {
             match self {
                 Self::None => ptr::null_mut(),
-                Self::Ofu => &raw mut (*g_st().curbuf).b_p_ofu,
-                Self::Cfu => &raw mut (*g_st().curbuf).b_p_cfu,
+                Self::Ofu => &raw mut curbuf_mut().b_p_ofu,
+                Self::Cfu => &raw mut curbuf_mut().b_p_cfu,
                 Self::CptCb(idx) => {
                     let cbs = &mut curbuf_mut().b_p_cpt_cb;
                     if idx < cbs.len() {

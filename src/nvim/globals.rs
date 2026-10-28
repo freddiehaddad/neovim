@@ -1356,6 +1356,25 @@ pub const FLOAT_ANCHOR_STR: [&std::ffi::CStr; 4] = [c"NW", c"NE", c"SW", c"SE"];
 #[cfg(test)]
 pub(crate) static TEST_GLOBAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+#[inline]
+pub fn topframe_mut() -> &'static mut Frame {
+    unsafe { &mut *g_st().topframe }
+}
+
+#[inline]
+pub fn first_tabpage_mut() -> &'static mut TabPageInfo {
+    unsafe { &mut *g_st().first_tabpage }
+}
+
+#[inline]
+pub fn prevwin_mut() -> &'static mut WinInfoInfo {
+    unsafe { &mut *g_st().prevwin }
+}
+
+#[inline]
+pub fn nlua_global_refs_mut() -> &'static mut NluaRefState {
+    unsafe { &mut *g_st().nlua_global_refs }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

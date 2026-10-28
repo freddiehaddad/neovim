@@ -2046,7 +2046,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         }) | (old_flags & UH_RELOAD);
         setpcmark();
 
-        zero_fmark_additional_data(&mut *(&raw mut (*g_st().curbuf).b_namedm).cast::<Fmark>());
+        zero_fmark_additional_data(&mut *(&raw mut curbuf_mut().b_namedm).cast::<Fmark>());
         let namedm = curbuf_mut().b_namedm.clone();
         let visualinfo = curbuf_mut().b_visual;
         curbuf_mut().b_op_start.lnum = curbuf_mut().b_ml.ml_line_count;

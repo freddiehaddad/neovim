@@ -683,7 +683,7 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
 
         if valid_state()
             && syn_st().current_lnum < lnum
-            && syn_st().current_lnum < (*syn_st().syn_buf).b_ml.ml_line_count
+            && syn_st().current_lnum < { &mut *syn_st().syn_buf }.b_ml.ml_line_count
         {
             syn_finish_line(false);
             if !syn_st().current_state_stored {
@@ -736,7 +736,7 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
         let dist = if sst_len <= g_st().rows_global {
             999999
         } else {
-            (*syn_st().syn_buf).b_ml.ml_line_count / (sst_len - g_st().rows_global) + 1
+            { &mut *syn_st().syn_buf }.b_ml.ml_line_count / (sst_len - g_st().rows_global) + 1
         };
 
         while syn_st().current_lnum < lnum {
@@ -1004,13 +1004,13 @@ fn save_chartab(chartab: *mut c_char) {
         }
 
         ptr::copy(
-            (&raw const (*syn_st().syn_buf).b_chartab).cast::<u8>(),
+            (&raw const { &mut *syn_st().syn_buf }.b_chartab).cast::<u8>(),
             chartab.cast::<u8>(),
             32,
         );
         ptr::copy(
             (&raw const win_s(&mut *syn_st().syn_win).b_syn_chartab).cast::<u8>(),
-            (&raw mut (*syn_st().syn_buf).b_chartab).cast::<u8>(),
+            (&raw mut { &mut *syn_st().syn_buf }.b_chartab).cast::<u8>(),
             32,
         );
     }
@@ -1022,7 +1022,7 @@ fn restore_chartab(chartab: impl crate::strings::IntoCCharPtr) {
         if win_s(&mut *syn_st().syn_win).b_syn_isk.is_some() {
             ptr::copy(
                 chartab.cast::<u8>(),
-                (&raw mut (*syn_st().syn_buf).b_chartab).cast::<u8>(),
+                (&raw mut { &mut *syn_st().syn_buf }.b_chartab).cast::<u8>(),
                 32,
             );
         }
@@ -1145,12 +1145,13 @@ pub fn syn_stack_free_all(block: *mut Synblock) {
 }
 
 fn syn_stack_alloc() {
-    unsafe {
-        let mut len = ((*syn_st().syn_buf).b_ml.ml_line_count / SST_DIST + g_st().rows_global * 2)
+    {
+        let mut len = (unsafe { &mut *syn_st().syn_buf }.b_ml.ml_line_count / SST_DIST
+            + g_st().rows_global * 2)
             .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
         let cur_len = syn_block_mut().b_sst_max;
         if cur_len > len * 2 || cur_len < len {
-            len = (*syn_st().syn_buf).b_ml.ml_line_count;
+            len = unsafe { &mut *syn_st().syn_buf }.b_ml.ml_line_count;
             len = ((len + len / 2) / SST_DIST + g_st().rows_global * 2)
                 .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
 
@@ -1215,7 +1216,7 @@ fn syn_stack_apply_changes_block(block: &mut Synblock, buf: &mut FileBuf) {
 }
 
 fn syn_stack_cleanup() -> bool {
-    unsafe {
+    {
         if syn_block_mut().b_sst_array.len() < 2 {
             return false;
         }
@@ -1224,7 +1225,8 @@ fn syn_stack_cleanup() -> bool {
         let dist = if sst_len <= g_st().rows_global {
             999999
         } else {
-            (*syn_st().syn_buf).b_ml.ml_line_count / (sst_len - g_st().rows_global) + 1
+            unsafe { &mut *syn_st().syn_buf }.b_ml.ml_line_count / (sst_len - g_st().rows_global)
+                + 1
         };
 
         let mut tick = syn_block_mut().b_sst_lasttick;
@@ -1562,7 +1564,9 @@ pub fn get_syntax_attr(col: Colnr, can_spell: *mut bool, keep_state: bool) -> c_
             return 0;
         }
 
-        if (*syn_st().syn_buf).b_p_smc > 0 && col >= (*syn_st().syn_buf).b_p_smc as Colnr {
+        if { &mut *syn_st().syn_buf }.b_p_smc > 0
+            && col >= { &mut *syn_st().syn_buf }.b_p_smc as Colnr
+        {
             clear_current_state();
             syn_st().current_id = 0;
             syn_st().current_trans_id = 0;
@@ -2558,7 +2562,7 @@ fn syn_add_end_off(
             off = spp.sp_offsets[idx];
         }
 
-        if result.lnum > (*syn_st().syn_buf).b_ml.ml_line_count {
+        if result.lnum > { &mut *syn_st().syn_buf }.b_ml.ml_line_count {
             col = 0;
         } else if off != 0 {
             let base = ml_get_buf(&mut *syn_st().syn_buf, result.lnum);
@@ -2600,8 +2604,8 @@ fn syn_add_start_off(
             col = regmatch.startpos[0].col;
             off = spp.sp_offsets[idx];
         }
-        if result.lnum > (*syn_st().syn_buf).b_ml.ml_line_count {
-            result.lnum = (*syn_st().syn_buf).b_ml.ml_line_count;
+        if result.lnum > { &mut *syn_st().syn_buf }.b_ml.ml_line_count {
+            result.lnum = { &mut *syn_st().syn_buf }.b_ml.ml_line_count;
             col = ml_get_buf_len(&mut *syn_st().syn_buf, result.lnum);
         }
         if off != 0 {
@@ -2648,7 +2652,7 @@ fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) 
             return false;
         }
 
-        rmp.rmm_maxcol = (*syn_st().syn_buf).b_p_smc as Colnr;
+        rmp.rmm_maxcol = { &mut *syn_st().syn_buf }.b_p_smc as Colnr;
         let r = vim_regexec_multi(
             rmp,
             syn_st().syn_win,

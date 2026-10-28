@@ -374,7 +374,7 @@ pub fn setmark_pos(c: c_int, pos: &mut CursorPos, fnum: c_int, view_pt: Option<&
         }
 
         if c == b'\'' as c_int || c == b'`' as c_int {
-            if ptr::eq(pos, &raw const (*curwin_ptr()).w_cursor) {
+            if ptr::eq(pos, &raw const curwin_mut().w_cursor) {
                 setpcmark();
                 curwin_mut().w_prev_pcmark = curwin_mut().w_pcmark;
             } else {
@@ -486,7 +486,7 @@ pub fn mark_forget_file(wp: &mut WinInfoInfo, fnum: c_int) {
 
 /// Set the previous context mark to the current position and add it to the jump list (`setpcmark`).
 pub fn setpcmark() {
-    unsafe {
+    {
         if g_st().global_busy != 0
             || g_st().listcmd_busy
             || (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) != 0
@@ -515,7 +515,7 @@ pub fn setpcmark() {
             (&mut curwin_mut().w_jumplist)[..JUMPLISTSIZE as usize].rotate_left(1);
         }
         curwin_mut().w_jumplistidx = curwin_mut().w_jumplistlen;
-        let fm = &mut (*curwin_ptr()).w_jumplist[(curwin_mut().w_jumplistlen - 1) as usize];
+        let fm = &mut curwin_mut().w_jumplist[(curwin_mut().w_jumplistlen - 1) as usize];
         let view = mark_view_make(curwin_mut(), curwin_mut().w_pcmark);
         set_xfmark(fm, curwin_mut().w_pcmark, curbuf_mut().b_fnum, view, None);
     }
@@ -875,12 +875,12 @@ pub fn getnextmark(startpos: &mut CursorPos, dir: c_int, begin_line: c_int) -> *
                     if (result.is_null() || lt(curbuf_mut().b_namedm[i].mark, (*result).mark))
                         && lt(pos, curbuf_mut().b_namedm[i].mark)
                     {
-                        result = &raw mut (*g_st().curbuf).b_namedm[i];
+                        result = &raw mut curbuf_mut().b_namedm[i];
                     }
                 } else if (result.is_null() || lt((*result).mark, curbuf_mut().b_namedm[i].mark))
                     && lt(curbuf_mut().b_namedm[i].mark, pos)
                 {
-                    result = &raw mut (*g_st().curbuf).b_namedm[i];
+                    result = &raw mut curbuf_mut().b_namedm[i];
                 }
             }
         }

@@ -1131,8 +1131,8 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
         let wp = handle_get_window(s.save_curwin_handle);
         if !wp.is_null() {
             let mut winopts: *mut Winopt = ptr::null_mut();
-            if (*wp).buf_mut().b_fnum != (*s.term).buf_handle {
-                let buf = handle_get_buffer((*s.term).buf_handle);
+            if (*wp).buf_mut().b_fnum != { &mut *s.term }.buf_handle {
+                let buf = handle_get_buffer({ &mut *s.term }.buf_handle);
                 if !buf.is_null() {
                     for wip in &mut (*buf).b_wininfo {
                         if wip.wi_win == wp && wip.wi_optset {
@@ -1194,7 +1194,7 @@ pub fn terminal_enter() -> bool {
 
         set_terminal_winopts(&mut s);
 
-        (*s.term).pending.cursor = true;
+        { &mut *s.term }.pending.cursor = true;
         adjust_topline_cursor(&mut *s.term, &mut *buf, 0);
         showmode();
         ui_cursor_shape();
@@ -1202,7 +1202,7 @@ pub fn terminal_enter() -> bool {
         terminal_focus(&mut *s.term, true);
         curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
 
-        (*s.term).refcount += 1;
+        { &mut *s.term }.refcount += 1;
         apply_autocmds(
             EVENT_TERMENTER,
             ptr::null_mut(),
@@ -1211,8 +1211,8 @@ pub fn terminal_enter() -> bool {
             g_st().curbuf,
         );
         may_trigger_modechanged();
-        (*s.term).refcount -= 1;
-        if (*s.term).buf_handle == 0 {
+        { &mut *s.term }.refcount -= 1;
+        if { &mut *s.term }.buf_handle == 0 {
             s.close = true;
         }
 
@@ -1245,7 +1245,7 @@ pub fn terminal_enter() -> bool {
         ui_cursor_shape();
 
         if s.close {
-            (*s.term).refcount += 1;
+            { &mut *s.term }.refcount += 1;
         }
         apply_autocmds(
             EVENT_TERMLEAVE,
@@ -1255,10 +1255,10 @@ pub fn terminal_enter() -> bool {
             g_st().curbuf,
         );
         if s.close {
-            (*s.term).refcount -= 1;
-            let buf_handle = (*s.term).buf_handle;
-            (*s.term).destroy = true;
-            channel_term_close(&mut *(*s.term).opts.data);
+            { &mut *s.term }.refcount -= 1;
+            let buf_handle = { &mut *s.term }.buf_handle;
+            { &mut *s.term }.destroy = true;
+            channel_term_close(&mut *{ &mut *s.term }.opts.data);
             if buf_handle != 0 {
                 do_buffer(DOBUF_WIPE, DOBUF_FIRST, FORWARD, buf_handle, 1);
             }
@@ -1312,13 +1312,13 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
         if !std::ptr::eq(s.term, cur_term) {
             terminal_focus(&mut *s.term, false);
             if s.close {
-                (*s.term).destroy = true;
-                channel_term_close(&mut *(*s.term).opts.data);
+                { &mut *s.term }.destroy = true;
+                channel_term_close(&mut *{ &mut *s.term }.opts.data);
                 s.close = false;
             }
 
             s.term = &raw mut *cur_term;
-            (*s.term).pending.cursor = true;
+            { &mut *s.term }.pending.cursor = true;
             invalidate_terminal(&mut *s.term, -1, -1);
             terminal_focus(&mut *s.term, true);
         }
@@ -1328,7 +1328,9 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
 
 fn terminal_check(s: &mut TerminalState) -> c_int {
     unsafe {
-        debug_assert!(!s.close || ((*s.term).buf_handle == 0 && s.term != curbuf_mut().terminal));
+        debug_assert!(
+            !s.close || ({ &mut *s.term }.buf_handle == 0 && s.term != curbuf_mut().terminal)
+        );
 
         if g_st().ins_global.stop_insert_mode || !terminal_check_focus(&mut *s) {
             return 0;
@@ -1339,7 +1341,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
         terminal_check_cursor();
         validate_cursor(curwin_mut());
 
-        (*s.term).refcount += 1;
+        { &mut *s.term }.refcount += 1;
         if has_event(EVENT_TEXTCHANGEDT)
             && curbuf_mut().b_last_changedtick_i != buf_get_changedtick(curbuf_mut())
         {
@@ -1353,8 +1355,8 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
             curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
         }
         may_trigger_win_scrolled_resized();
-        (*s.term).refcount -= 1;
-        if (*s.term).buf_handle == 0 {
+        { &mut *s.term }.refcount -= 1;
+        if { &mut *s.term }.buf_handle == 0 {
             s.close = true;
         }
 
@@ -1399,10 +1401,10 @@ fn terminal_execute(s: &mut TerminalState, key: c_int) -> c_int {
                 paste_repeat(1);
             }
             K_EVENT => {
-                (*s.term).refcount += 1;
+                { &mut *s.term }.refcount += 1;
                 state_handle_k_event();
-                (*s.term).refcount -= 1;
-                if (*s.term).buf_handle == 0 {
+                { &mut *s.term }.refcount -= 1;
+                if { &mut *s.term }.buf_handle == 0 {
                     s.close = true;
                 }
             }
@@ -1429,12 +1431,12 @@ fn terminal_execute(s: &mut TerminalState, key: c_int) -> c_int {
                     s.got_bsl = true;
                     return 1;
                 }
-                if (*s.term).suspended {
-                    channel_term_resume(&mut *(*s.term).opts.data);
+                if { &mut *s.term }.suspended {
+                    channel_term_resume(&mut *{ &mut *s.term }.opts.data);
                     terminal_set_state(&mut *s.term, false);
                     return 1;
                 }
-                if (*s.term).closed {
+                if { &mut *s.term }.closed {
                     s.close = true;
                     return 0;
                 }

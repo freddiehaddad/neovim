@@ -483,14 +483,14 @@ fn get_function_args(
 
 /// Register function "fp" as using "current_funccal" as its scope.
 fn register_closure(fp: &mut UserFunc) {
-    unsafe {
+    {
         if fp.uf_scoped == uf_st().current_funccal {
             return;
         }
         funccal_unref(fp.uf_scoped, fp, false);
         fp.uf_scoped = uf_st().current_funccal;
-        (*uf_st().current_funccal).fc_refcount += 1;
-        (*uf_st().current_funccal).fc_ufuncs.push(fp);
+        cur_funccal_mut().fc_refcount += 1;
+        cur_funccal_mut().fc_ufuncs.push(fp);
     }
 }
 
@@ -1657,7 +1657,7 @@ pub fn set_current_funccal(fc: *mut Funccall) {
 pub fn free_all_functions() {
     unsafe {
         while !uf_st().current_funccal.is_null() {
-            tv_clear(&mut *(*uf_st().current_funccal).fc_rettv);
+            tv_clear(&mut *cur_funccal_mut().fc_rettv);
             cleanup_function_call(&mut *uf_st().current_funccal);
             if uf_st().current_funccal.is_null() && !uf_st().funccal_stack.is_empty() {
                 restore_funccal();
@@ -3751,7 +3751,7 @@ pub fn add_defer(
         for (i, slot) in dr_argvars.iter_mut().enumerate().take(argcount) {
             *slot = *argvars.add(i);
         }
-        (*uf_st().current_funccal).fc_defer.push(DeferCall {
+        cur_funccal_mut().fc_defer.push(DeferCall {
             dr_name: Some(dr_name_cstr),
             dr_argvars,
         });
@@ -3958,7 +3958,7 @@ pub fn do_return(
         let cstack = &mut *eap.cstack.cast::<Cstack>();
 
         if reanimate {
-            (*uf_st().current_funccal).fc_returned = 0;
+            cur_funccal_mut().fc_returned = 0;
         }
 
         let idx = cleanup_conditionals(&mut *cstack, 0, 1);
@@ -3966,21 +3966,20 @@ pub fn do_return(
             cstack.cs_pending[idx as usize] = CSTP_RETURN as c_char;
 
             if reanimate {
-                debug_assert!(!(*uf_st().current_funccal).fc_rettv.is_null());
-                rettv = Some(*(*uf_st().current_funccal).fc_rettv);
-                (*(*uf_st().current_funccal).fc_rettv).v_type = VarType::VarNumber;
-                (*(*uf_st().current_funccal).fc_rettv).vval =
-                    crate::eval::typval::TypvalVval::Number(0);
+                debug_assert!(!cur_funccal_mut().fc_rettv.is_null());
+                rettv = Some(*cur_funccal_mut().fc_rettv);
+                (*cur_funccal_mut().fc_rettv).v_type = VarType::VarNumber;
+                (*cur_funccal_mut().fc_rettv).vval = crate::eval::typval::TypvalVval::Number(0);
             }
 
             cstack.cs_rettv[idx as usize] = rettv;
             report_make_pending(CSTP_RETURN, PendingVal::Return(rettv));
         } else {
-            (*uf_st().current_funccal).fc_returned = 1;
+            cur_funccal_mut().fc_returned = 1;
 
             if !reanimate && let Some(tv) = rettv {
-                tv_clear(&mut *(*uf_st().current_funccal).fc_rettv);
-                *(*uf_st().current_funccal).fc_rettv = tv;
+                tv_clear(&mut *cur_funccal_mut().fc_rettv);
+                *cur_funccal_mut().fc_rettv = tv;
             }
         }
 
@@ -4170,7 +4169,7 @@ pub fn func_level(fcp: &mut Funccall) -> c_int {
 }
 
 pub fn current_func_returned() -> c_int {
-    unsafe { (*uf_st().current_funccal).fc_returned }
+    cur_funccal_mut().fc_returned
 }
 
 pub fn free_unref_funccal(copy_id: c_int, testing: c_int) -> bool {
@@ -4294,12 +4293,10 @@ pub fn get_funccal_args_var() -> *mut Dictitem {
 }
 
 pub fn list_func_vars(first: &mut c_int) {
-    unsafe {
-        if !uf_st().current_funccal.is_null()
-            && (*uf_st().current_funccal).fc_l_vars.dv_refcount > 0
-        {
+    {
+        if !uf_st().current_funccal.is_null() && cur_funccal_mut().fc_l_vars.dv_refcount > 0 {
             list_hashtable_vars(
-                &mut (*uf_st().current_funccal).fc_l_vars.dv_hashtab,
+                &mut cur_funccal_mut().fc_l_vars.dv_hashtab,
                 c"l:",
                 0,
                 &mut *first,
@@ -4309,11 +4306,11 @@ pub fn list_func_vars(first: &mut c_int) {
 }
 
 pub fn get_current_funccal_dict(ht: *mut Hashtab) -> *mut TvDict {
-    unsafe {
+    {
         if !uf_st().current_funccal.is_null()
-            && ht == &raw mut (*uf_st().current_funccal).fc_l_vars.dv_hashtab
+            && ht == &raw mut cur_funccal_mut().fc_l_vars.dv_hashtab
         {
-            return &raw mut (*uf_st().current_funccal).fc_l_vars;
+            return &raw mut cur_funccal_mut().fc_l_vars;
         }
         ptr::null_mut()
     }
@@ -4325,9 +4322,7 @@ pub fn find_hi_in_scoped_ht(
 ) -> *mut Hashitem {
     let name = name.into_c_char_ptr();
     unsafe {
-        if uf_st().current_funccal.is_null()
-            || (*(*uf_st().current_funccal).fc_func).uf_scoped.is_null()
-        {
+        if uf_st().current_funccal.is_null() || (*cur_funccal_mut().fc_func).uf_scoped.is_null() {
             return ptr::null_mut();
         }
 
@@ -4336,7 +4331,7 @@ pub fn find_hi_in_scoped_ht(
         let namelen = crate::memory::cstr_len(name);
         let mut varname: *const c_char = ptr::null();
 
-        uf_st().current_funccal = (*(*uf_st().current_funccal).fc_func).uf_scoped;
+        uf_st().current_funccal = (*cur_funccal_mut().fc_func).uf_scoped;
         while !uf_st().current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
             if !ht.is_null() && !crate::memory::cstr_is_empty(varname) {
@@ -4346,10 +4341,10 @@ pub fn find_hi_in_scoped_ht(
                     break;
                 }
             }
-            if uf_st().current_funccal == (*(*uf_st().current_funccal).fc_func).uf_scoped {
+            if uf_st().current_funccal == (*cur_funccal_mut().fc_func).uf_scoped {
                 break;
             }
-            uf_st().current_funccal = (*(*uf_st().current_funccal).fc_func).uf_scoped;
+            uf_st().current_funccal = (*cur_funccal_mut().fc_func).uf_scoped;
         }
         uf_st().current_funccal = old_current_funccal;
 
@@ -4364,9 +4359,7 @@ pub fn find_var_in_scoped_ht(
 ) -> *mut Dictitem {
     let name = name.into_c_char_ptr();
     unsafe {
-        if uf_st().current_funccal.is_null()
-            || (*(*uf_st().current_funccal).fc_func).uf_scoped.is_null()
-        {
+        if uf_st().current_funccal.is_null() || (*cur_funccal_mut().fc_func).uf_scoped.is_null() {
             return ptr::null_mut();
         }
 
@@ -4374,7 +4367,7 @@ pub fn find_var_in_scoped_ht(
         let old_current_funccal = uf_st().current_funccal;
         let mut varname: *const c_char = ptr::null();
 
-        uf_st().current_funccal = (*(*uf_st().current_funccal).fc_func).uf_scoped;
+        uf_st().current_funccal = (*cur_funccal_mut().fc_func).uf_scoped;
         while !uf_st().current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
             if !ht.is_null() && !crate::memory::cstr_is_empty(varname) {
@@ -4389,10 +4382,10 @@ pub fn find_var_in_scoped_ht(
                     break;
                 }
             }
-            if uf_st().current_funccal == (*(*uf_st().current_funccal).fc_func).uf_scoped {
+            if uf_st().current_funccal == (*cur_funccal_mut().fc_func).uf_scoped {
                 break;
             }
-            uf_st().current_funccal = (*(*uf_st().current_funccal).fc_func).uf_scoped;
+            uf_st().current_funccal = (*cur_funccal_mut().fc_func).uf_scoped;
         }
         uf_st().current_funccal = old_current_funccal;
 
@@ -4529,6 +4522,10 @@ pub fn register_luafunc(ref_: LuaRef) -> *mut c_char {
     }
 }
 
+#[inline]
+pub fn cur_funccal_mut() -> &'static mut Funccall {
+    unsafe { &mut *uf_st().current_funccal }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -105,7 +105,7 @@ fn put_view_curpos(fd: *mut FILE, wp: &WinInfoInfo, spaces: &str) -> c_int {
 }
 
 fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInfo) -> bool {
-    unsafe {
+    {
         if restore_size && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
             let mut n: c_int = 0;
             for wp in win_iter_mut(tab_firstwin) {
@@ -115,7 +115,7 @@ fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInf
                 n += 1;
 
                 if wp.w_height + wp.w_hsep_height + wp.w_status_height
-                    < (*g_st().topframe).fr_height
+                    < crate::globals::topframe_mut().fr_height
                     && !write_fmt(
                         fd,
                         format!(
@@ -754,7 +754,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
         }
 
         let mut restore_stal = false;
-        if opt_vars().p_stal == 1 && !(*g_st().first_tabpage).tp_next.is_null() {
+        if opt_vars().p_stal == 1 && !crate::globals::first_tabpage_mut().tp_next.is_null() {
             if !put_line(fd, c"set stal=2") {
                 return false;
             }
@@ -768,7 +768,8 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                 }
             }
 
-            if !(*g_st().first_tabpage).tp_next.is_null() && !put_line(fd, c"tabrewind") {
+            if !crate::globals::first_tabpage_mut().tp_next.is_null() && !put_line(fd, c"tabrewind")
+            {
                 return false;
             }
         }

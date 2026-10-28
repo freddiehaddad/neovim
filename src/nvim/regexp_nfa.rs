@@ -4761,7 +4761,7 @@ fn nfa_regexec_both(
         let mut col = startcol;
 
         let prog: *mut NfaRegprog = if reg_multi() {
-            let p = (*(*re_st().rex.reg_mmatch).regprog).nfa_mut();
+            let p = (*re_st().rex.reg_mmatch).prog_mut().nfa_mut();
             line = reg_getline(0).cast();
             re_st().rex.reg_startpos = (&raw mut (*re_st().rex.reg_mmatch).startpos).cast();
             re_st().rex.reg_endpos = (&raw mut (*re_st().rex.reg_mmatch).endpos).cast();

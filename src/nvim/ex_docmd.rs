@@ -9724,7 +9724,7 @@ pub fn ex_win_close(forceit: c_int, win: &mut WinInfoInfo, tp: *mut TabPageInfo)
 
 fn ex_tabclose(eap: &mut Exarg) {
     unsafe {
-        if (*g_st().first_tabpage).tp_next.is_null() {
+        if crate::globals::first_tabpage_mut().tp_next.is_null() {
             let _ = emsg(gettext(c"E784: Cannot close last tab page"));
             return;
         }
@@ -9752,8 +9752,8 @@ fn ex_tabclose(eap: &mut Exarg) {
 }
 
 fn ex_tabonly(eap: &mut Exarg) {
-    unsafe {
-        if (*g_st().first_tabpage).tp_next.is_null() {
+    {
+        if crate::globals::first_tabpage_mut().tp_next.is_null() {
             let _ = msg(gettext(c"Already only one tab page"), 0);
             return;
         }
@@ -9779,7 +9779,7 @@ fn ex_tabonly(eap: &mut Exarg) {
                     break;
                 }
             }
-            if (*g_st().first_tabpage).tp_next.is_null() {
+            if crate::globals::first_tabpage_mut().tp_next.is_null() {
                 break;
             }
             done += 1;
@@ -10849,8 +10849,8 @@ fn get_prevdir(scope: CdScope) -> *mut Option<std::ffi::CString> {
     unsafe {
         match scope {
             K_CD_SCOPE_TABPAGE => &raw mut (*g_st().curtab).tp_prevdir,
-            K_CD_SCOPE_BUFFER => &raw mut (*g_st().curbuf).b_prevdir,
-            K_CD_SCOPE_WINDOW => &raw mut (*curwin_ptr()).w_prevdir,
+            K_CD_SCOPE_BUFFER => &raw mut curbuf_mut().b_prevdir,
+            K_CD_SCOPE_WINDOW => &raw mut curwin_mut().w_prevdir,
             _ => &raw mut docmd_st().prev_dir,
         }
     }
@@ -10972,9 +10972,9 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
 fn chdir_clear(scope: CdScope) {
     unsafe {
         let localdir = if scope == K_CD_SCOPE_BUFFER {
-            &raw mut (*g_st().curbuf).b_localdir
+            &raw mut curbuf_mut().b_localdir
         } else if scope == K_CD_SCOPE_WINDOW {
-            &raw mut (*curwin_ptr()).w_localdir
+            &raw mut curwin_mut().w_localdir
         } else {
             &raw mut (*g_st().curtab).tp_localdir
         };

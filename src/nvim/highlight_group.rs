@@ -337,11 +337,6 @@ fn write_dec(buf: *mut c_char, cap: usize, val: c_int) {
 }
 
 #[inline]
-fn hl_table() -> *mut HlGroup {
-    hlg_st().highlight_ga.as_mut_ptr()
-}
-
-#[inline]
 fn hl_table_at(idx: usize) -> &'static mut HlGroup {
     &mut hlg_st().highlight_ga[idx]
 }
@@ -2386,36 +2381,35 @@ fn combine_stl_hlt(
     table: *mut c_int,
 ) {
     unsafe {
-        let hlt = hl_table();
         let dst = (hlcnt + i) as usize;
         let u_idx = (id - 1) as usize;
         let s_idx = (id_s - 1) as usize;
 
         if id_alt == 0 {
-            *hlt.add(dst) = HlGroup::new();
-            (*hlt.add(dst)).sg_cterm = g_st().highlight_attr[hlf];
-            (*hlt.add(dst)).sg_gui = g_st().highlight_attr[hlf];
+            *hl_table_at(dst) = HlGroup::new();
+            hl_table_at(dst).sg_cterm = g_st().highlight_attr[hlf];
+            hl_table_at(dst).sg_gui = g_st().highlight_attr[hlf];
         } else {
-            *hlt.add(dst) = (*hlt.add((id_alt - 1) as usize)).clone();
+            *hl_table_at(dst) = hl_table_at((id_alt - 1) as usize).clone();
         }
-        (*hlt.add(dst)).sg_link = 0;
+        hl_table_at(dst).sg_link = 0;
 
-        (*hlt.add(dst)).sg_cterm ^= (*hlt.add(u_idx)).sg_cterm ^ (*hlt.add(s_idx)).sg_cterm;
-        if (*hlt.add(u_idx)).sg_cterm_fg != (*hlt.add(s_idx)).sg_cterm_fg {
-            (*hlt.add(dst)).sg_cterm_fg = (*hlt.add(u_idx)).sg_cterm_fg;
+        hl_table_at(dst).sg_cterm ^= hl_table_at(u_idx).sg_cterm ^ hl_table_at(s_idx).sg_cterm;
+        if hl_table_at(u_idx).sg_cterm_fg != hl_table_at(s_idx).sg_cterm_fg {
+            hl_table_at(dst).sg_cterm_fg = hl_table_at(u_idx).sg_cterm_fg;
         }
-        if (*hlt.add(u_idx)).sg_cterm_bg != (*hlt.add(s_idx)).sg_cterm_bg {
-            (*hlt.add(dst)).sg_cterm_bg = (*hlt.add(u_idx)).sg_cterm_bg;
+        if hl_table_at(u_idx).sg_cterm_bg != hl_table_at(s_idx).sg_cterm_bg {
+            hl_table_at(dst).sg_cterm_bg = hl_table_at(u_idx).sg_cterm_bg;
         }
-        (*hlt.add(dst)).sg_gui ^= (*hlt.add(u_idx)).sg_gui ^ (*hlt.add(s_idx)).sg_gui;
-        if (*hlt.add(u_idx)).sg_rgb_fg != (*hlt.add(s_idx)).sg_rgb_fg {
-            (*hlt.add(dst)).sg_rgb_fg = (*hlt.add(u_idx)).sg_rgb_fg;
+        hl_table_at(dst).sg_gui ^= hl_table_at(u_idx).sg_gui ^ hl_table_at(s_idx).sg_gui;
+        if hl_table_at(u_idx).sg_rgb_fg != hl_table_at(s_idx).sg_rgb_fg {
+            hl_table_at(dst).sg_rgb_fg = hl_table_at(u_idx).sg_rgb_fg;
         }
-        if (*hlt.add(u_idx)).sg_rgb_bg != (*hlt.add(s_idx)).sg_rgb_bg {
-            (*hlt.add(dst)).sg_rgb_bg = (*hlt.add(u_idx)).sg_rgb_bg;
+        if hl_table_at(u_idx).sg_rgb_bg != hl_table_at(s_idx).sg_rgb_bg {
+            hl_table_at(dst).sg_rgb_bg = hl_table_at(u_idx).sg_rgb_bg;
         }
-        if (*hlt.add(u_idx)).sg_rgb_sp != (*hlt.add(s_idx)).sg_rgb_sp {
-            (*hlt.add(dst)).sg_rgb_sp = (*hlt.add(u_idx)).sg_rgb_sp;
+        if hl_table_at(u_idx).sg_rgb_sp != hl_table_at(s_idx).sg_rgb_sp {
+            hl_table_at(dst).sg_rgb_sp = hl_table_at(u_idx).sg_rgb_sp;
         }
         set_hl_attr(hlcnt + i);
         *table.add(i as usize) = syn_id2attr(hlcnt + i + 1);

@@ -25,7 +25,6 @@ use crate::eval::typval::{
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists_mut};
 use crate::eval::{get_copy_id, partial_name};
-use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::highlight_group::syn_check_group;
 
@@ -697,7 +696,10 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
         {
             ret.table_type = ObjectType::ObjectTypeArray;
             if tsize == 0 && lua_getmetatable(lstate, -1) != 0 {
-                nlua_pushref(lstate, (*g_st().nlua_global_refs).empty_dict_ref);
+                nlua_pushref(
+                    lstate,
+                    crate::globals::nlua_global_refs_mut().empty_dict_ref,
+                );
                 if lua_rawequal(lstate, -2, -1) != 0 {
                     ret.table_type = ObjectType::ObjectTypeDict;
                 }
@@ -740,7 +742,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
             }
             let mut cur = stack.pop().unwrap();
             if cur.container {
-                if cur.special || (*cur.tv).v_type == VarType::VarDict {
+                if cur.special || cur.tv_mut().v_type == VarType::VarDict {
                     let mut next_key_found = false;
                     while lua_next(lstate, -2) != 0 {
                         if lua_type(lstate, -2) == LUA_TSTRING {
@@ -765,7 +767,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                 },
                             );
                             stack.push(cur);
-                            tv_list_append_list(&mut *(*cur.tv).vval.v_list(), kv_pair);
+                            tv_list_append_list(&mut *cur.tv_mut().vval.v_list(), kv_pair);
                             let last = tv_list_last(Some(&*kv_pair));
                             cur = TVPopStackItem {
                                 tv: &mut (*last).li_tv,
@@ -776,7 +778,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             };
                         } else {
                             let di = tv_dict_item_alloc_len(s, len);
-                            if !tv_dict_add(&mut *(*cur.tv).vval.v_dict(), di) {
+                            if !tv_dict_add(&mut *cur.tv_mut().vval.v_dict(), di) {
                                 std::process::abort();
                             }
                             stack.push(cur);
@@ -793,7 +795,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         continue;
                     }
                 } else {
-                    let list = (*cur.tv).vval.v_list();
+                    let list = cur.tv_mut().vval.v_list();
                     if (tv_list_len(list.as_ref()) as usize) == cur.list_len {
                         lua_pop(lstate, 1);
                         continue;
@@ -827,12 +829,12 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
 
             match lua_type(lstate, -1) {
                 LUA_TNIL => {
-                    (*cur.tv).v_type = VarType::VarSpecial;
-                    (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
+                    cur.tv_mut().v_type = VarType::VarSpecial;
+                    cur.tv_mut().vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                 }
                 LUA_TBOOLEAN => {
-                    (*cur.tv).v_type = VarType::VarBool;
-                    (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(
+                    cur.tv_mut().v_type = VarType::VarBool;
+                    cur.tv_mut().vval = crate::eval::typval::TypvalVval::Number(
                         if lua_toboolean(lstate, -1) != 0 {
                             K_BOOL_VAR_TRUE
                         } else {
@@ -851,11 +853,11 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         || n < (i64::MIN as lua_Number)
                         || ((n as i64) as lua_Number) != n
                     {
-                        (*cur.tv).v_type = VarType::VarFloat;
-                        (*cur.tv).vval = crate::eval::typval::TypvalVval::Float(n);
+                        cur.tv_mut().v_type = VarType::VarFloat;
+                        cur.tv_mut().vval = crate::eval::typval::TypvalVval::Float(n);
                     } else {
-                        (*cur.tv).v_type = VarType::VarNumber;
-                        (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(n as i64);
+                        cur.tv_mut().v_type = VarType::VarNumber;
+                        cur.tv_mut().vval = crate::eval::typval::TypvalVval::Number(n as i64);
                     }
                 }
                 LUA_TTABLE => {
@@ -883,8 +885,8 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                 let l = tv_list_alloc(table_props.maxidx as isize);
                                 l.lua_table_ref = table_ref;
                                 tv_list_ref(Some(&mut *l));
-                                (*cur.tv).v_type = VarType::VarList;
-                                (*cur.tv).vval = crate::eval::typval::TypvalVval::List(l);
+                                cur.tv_mut().v_type = VarType::VarList;
+                                cur.tv_mut().vval = crate::eval::typval::TypvalVval::List(l);
                                 cur.list_len = table_props.maxidx;
                                 if table_props.maxidx != 0 {
                                     cur.container = true;
@@ -897,8 +899,8 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                     let d = tv_dict_alloc();
                                     d.dv_refcount += 1;
                                     d.lua_table_ref = table_ref;
-                                    (*cur.tv).v_type = VarType::VarDict;
-                                    (*cur.tv).vval = crate::eval::typval::TypvalVval::Dict(d);
+                                    cur.tv_mut().v_type = VarType::VarDict;
+                                    cur.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(d);
                                 } else {
                                     cur.special = table_props.has_string_with_nul;
                                     if table_props.has_string_with_nul {
@@ -907,20 +909,21 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                             table_props.string_keys_num as isize,
                                         );
                                         let val_di = tv_dict_find(
-                                            ((*cur.tv).vval.v_dict()).as_ref(),
+                                            (cur.tv_mut().vval.v_dict()).as_ref(),
                                             c"_VAL",
                                             4,
                                         );
                                         assert!(!val_di.is_null());
                                         cur.tv = &mut (*val_di).di_tv;
-                                        (*(*cur.tv).vval.v_list()).lua_table_ref = table_ref;
+                                        (*cur.tv_mut().vval.v_list()).lua_table_ref = table_ref;
                                         cur.list_len = table_props.string_keys_num;
                                     } else {
                                         let d = tv_dict_alloc();
                                         d.dv_refcount += 1;
                                         d.lua_table_ref = table_ref;
-                                        (*cur.tv).v_type = VarType::VarDict;
-                                        (*cur.tv).vval = crate::eval::typval::TypvalVval::Dict(d);
+                                        cur.tv_mut().v_type = VarType::VarDict;
+                                        cur.tv_mut().vval =
+                                            crate::eval::typval::TypvalVval::Dict(d);
                                     }
                                     cur.container = true;
                                     cur.idx = lua_gettop(lstate);
@@ -929,8 +932,8 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                 }
                             }
                             ObjectType::ObjectTypeFloat => {
-                                (*cur.tv).v_type = VarType::VarFloat;
-                                (*cur.tv).vval =
+                                cur.tv_mut().v_type = VarType::VarFloat;
+                                cur.tv_mut().vval =
                                     crate::eval::typval::TypvalVval::Float(table_props.val);
                             }
                             ObjectType::ObjectTypeNil => {
@@ -947,15 +950,15 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                     let func = nlua_ref_global(lstate, -1);
                     let name = register_luafunc(func);
                     crate::eval::typval::tv_set_string(&mut *cur.tv, name);
-                    (*cur.tv).v_type = VarType::VarFunc;
+                    cur.tv_mut().v_type = VarType::VarFunc;
                 }
                 LUA_TUSERDATA => {
-                    nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
+                    nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
                     let is_nil = lua_rawequal(lstate, -2, -1) != 0;
                     lua_pop(lstate, 1);
                     if is_nil {
-                        (*cur.tv).v_type = VarType::VarSpecial;
-                        (*cur.tv).vval =
+                        cur.tv_mut().v_type = VarType::VarSpecial;
+                        cur.tv_mut().vval =
                             crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                     } else {
                         emsg(c"E5101: Cannot convert given Lua type");
@@ -992,7 +995,7 @@ fn lua_conv_nil(lstate: *mut lua_State) {
         if luaconv_st().typval_conv_special {
             lua_pushnil(lstate);
         } else {
-            nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
+            nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
         }
     }
 }
@@ -1004,7 +1007,10 @@ fn lua_conv_empty_dict(lstate: *mut lua_State) {
             nlua_create_typed_table(lstate, 0, 0, ObjectType::ObjectTypeDict);
         } else {
             lua_createtable(lstate, 0, 0);
-            nlua_pushref(lstate, (*g_st().nlua_global_refs).empty_dict_ref);
+            nlua_pushref(
+                lstate,
+                crate::globals::nlua_global_refs_mut().empty_dict_ref,
+            );
             lua_setmetatable(lstate, -2);
         }
     }
@@ -1598,7 +1604,10 @@ pub unsafe extern "C-unwind" fn nlua_push_dict(
     unsafe {
         lua_createtable(lstate, 0, dict.size as c_int);
         if dict.size == 0 {
-            nlua_pushref(lstate, (*g_st().nlua_global_refs).empty_dict_ref);
+            nlua_pushref(
+                lstate,
+                crate::globals::nlua_global_refs_mut().empty_dict_ref,
+            );
             lua_setmetatable(lstate, -2);
         }
         for item in dict.as_mut_slice() {
@@ -1648,7 +1657,7 @@ pub unsafe extern "C-unwind" fn nlua_push_object(
                 if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
                     lua_pushnil(lstate);
                 } else {
-                    nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
+                    nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
                 }
             }
             ObjectType::ObjectTypeLuaRef => {
@@ -2149,7 +2158,7 @@ pub fn nlua_pop_object_opt(
                     }
                 }
                 LUA_TUSERDATA => {
-                    nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
+                    nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
                     let is_nil = lua_rawequal(lstate, -2, -1) != 0;
                     lua_pop(lstate, 1);
                     if is_nil {
@@ -2400,6 +2409,12 @@ pub unsafe extern "C-unwind" fn nlua_push_keydict(
     }
 }
 
+impl TVPopStackItem {
+    #[inline]
+    fn tv_mut(&self) -> &'static mut TypVal {
+        unsafe { &mut *self.tv }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

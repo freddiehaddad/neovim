@@ -992,7 +992,8 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                         }
                     }
                     if g_st().firstwin == g_st().lastwin
-                        && ((*g_st().first_tabpage).tp_next.is_null() || aall.had_tab == 0)
+                        && (crate::globals::first_tabpage_mut().tp_next.is_null()
+                            || aall.had_tab == 0)
                     {
                         aall.use_firstwin = true;
                     } else {
@@ -1052,7 +1053,8 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: c_int) {
                                 aall.new_curtab = g_st().curtab;
                             } else if wp.w_floating {
                                 break;
-                            } else if (*wp.w_frame).fr_parent != (*curwin_mut().w_frame).fr_parent {
+                            } else if wp.frame_mut().fr_parent != curwin_mut().frame_mut().fr_parent
+                            {
                                 emsg(gettext(E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY));
                                 i = count;
                                 break;

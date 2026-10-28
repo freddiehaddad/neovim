@@ -1511,7 +1511,7 @@ fn ins_ctrl_v() {
 }
 
 pub fn edit_putchar(c: c_int, highlight: bool) {
-    unsafe {
+    {
         if curwin_mut().w_grid_alloc.chars.is_empty()
             && !crate::grid::grid_allocated(&g_st().default_grid)
         {
@@ -1527,7 +1527,7 @@ pub fn edit_putchar(c: c_int, highlight: bool) {
         };
         ins_st().pc_row = curwin_mut().w_wrow;
         ins_st().pc_status = PC_STATUS_UNSET;
-        grid_line_start(&raw mut (*curwin_ptr()).w_grid, ins_st().pc_row);
+        grid_line_start(&raw mut curwin_mut().w_grid, ins_st().pc_row);
         if curwin_mut().w_onebuf_opt.wo_rl != 0 {
             ins_st().pc_col = curwin_mut().w_view_width - 1 - curwin_mut().w_wcol;
             if grid_line_getchar(ins_st().pc_col, None) == 0 {
@@ -1656,7 +1656,7 @@ fn set_insstart(lnum: Linenr, col: Colnr) {
 }
 
 pub fn edit_unputchar() {
-    unsafe {
+    {
         if ins_st().pc_status != PC_STATUS_UNSET && ins_st().pc_row >= 0 {
             if ins_st().pc_status == PC_STATUS_RIGHT {
                 curwin_mut().w_wcol += 1;
@@ -1664,7 +1664,7 @@ pub fn edit_unputchar() {
             if ins_st().pc_status == PC_STATUS_RIGHT || ins_st().pc_status == PC_STATUS_LEFT {
                 redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
             } else {
-                grid_line_start(&raw mut (*curwin_ptr()).w_grid, ins_st().pc_row);
+                grid_line_start(&raw mut curwin_mut().w_grid, ins_st().pc_row);
                 grid_line_put_schar(ins_st().pc_col, ins_st().pc_schar, ins_st().pc_attr);
                 grid_line_flush();
             }
@@ -2821,7 +2821,7 @@ fn ins_ctrl_hat() {
 }
 
 fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
-    unsafe {
+    {
         check_spell_redraw();
 
         let temp = curwin_mut().w_cursor.col;
@@ -2855,7 +2855,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
                 ins_st().ins_esc_disabled_redraw = true;
                 return false;
             }
-            stop_insert(&raw mut (*curwin_ptr()).w_cursor, 1, c_int::from(nomove));
+            stop_insert(&raw mut curwin_mut().w_cursor, 1, c_int::from(nomove));
             undisplay_dollar();
         } else if g_st().ins_global.moved == K_INS_ARROW
             && cmdchar != b'r' as c_int
@@ -3497,7 +3497,7 @@ fn ins_s_left() {
 }
 
 fn ins_right() {
-    unsafe {
+    {
         let end_change = g_st().ins_global.dont_sync_undo == K_FALSE;
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed {
             fold_open_cursor();
@@ -3519,7 +3519,7 @@ fn ins_right() {
         } else if !vim_strchr(opt_vars().p_ww, b']' as c_int).is_null()
             && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
         {
-            start_arrow(&raw mut (*curwin_ptr()).w_cursor, true, K_RIGHT);
+            start_arrow(&raw mut curwin_mut().w_cursor, true, K_RIGHT);
             curwin_mut().w_set_curswant = true;
             curwin_mut().w_cursor.lnum += 1;
             curwin_mut().w_cursor.col = 0;
@@ -3577,12 +3577,12 @@ fn ins_up(startcol: bool) {
 }
 
 fn ins_pageup() {
-    unsafe {
+    {
         undisplay_dollar();
 
         if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
-            if !(*g_st().first_tabpage).tp_next.is_null() {
-                start_arrow(&raw mut (*curwin_ptr()).w_cursor, true, NUL as c_int);
+            if !crate::globals::first_tabpage_mut().tp_next.is_null() {
+                start_arrow(&raw mut curwin_mut().w_cursor, true, NUL as c_int);
                 goto_tabpage(-1);
             }
             return;
@@ -3625,12 +3625,12 @@ fn ins_down(startcol: bool) {
 }
 
 fn ins_pagedown() {
-    unsafe {
+    {
         undisplay_dollar();
 
         if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
-            if !(*g_st().first_tabpage).tp_next.is_null() {
-                start_arrow(&raw mut (*curwin_ptr()).w_cursor, true, NUL as c_int);
+            if !crate::globals::first_tabpage_mut().tp_next.is_null() {
+                start_arrow(&raw mut curwin_mut().w_cursor, true, NUL as c_int);
                 goto_tabpage(0);
             }
             return;
@@ -3745,7 +3745,7 @@ fn ins_tab() -> bool {
                 ptr = saved_line.offset(pos.col as isize);
             } else {
                 ptr = get_cursor_pos_ptr();
-                cursor = &raw mut (*curwin_ptr()).w_cursor;
+                cursor = &raw mut curwin_mut().w_cursor;
             }
 
             if vim_strchr(opt_vars().p_cpo, K_CPO_LISTWM).is_null() {

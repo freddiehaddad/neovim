@@ -595,6 +595,11 @@ pub struct WinInfoInfo {
 
 impl WinInfoInfo {
     #[inline]
+    pub fn frame_mut(&self) -> &'static mut Frame {
+        unsafe { &mut *self.w_frame }
+    }
+
+    #[inline]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
         unsafe { &mut *self.w_buffer }
     }
@@ -1395,8 +1400,8 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
             }
             c if c == b'p' as c_int || c == CTRL_P => {
                 if !win_valid(g_st().prevwin)
-                    || (*g_st().prevwin).w_config.hide
-                    || !(*g_st().prevwin).w_config.focusable
+                    || crate::globals::prevwin_mut().w_config.hide
+                    || !crate::globals::prevwin_mut().w_config.focusable
                 {
                     beep_flush();
                 } else {
@@ -2066,12 +2071,12 @@ pub fn win_split_ins(
             let available: c_int;
             if toplevel {
                 minwidth = frame_minwidth(&mut *g_st().topframe, nowin());
-                available = (*g_st().topframe).fr_width;
+                available = crate::globals::topframe_mut().fr_width;
                 needed += minwidth;
             } else if opt_vars().p_ea != 0 {
                 minwidth = frame_minwidth(&mut *oldwin.w_frame, nowin());
                 let mut prevfrp = oldwin.w_frame;
-                let mut frp = (*oldwin.w_frame).fr_parent;
+                let mut frp = oldwin.frame_mut().fr_parent;
                 while !frp.is_null() {
                     if (*frp).fr_layout == FR_ROW {
                         for frp2 in frame_iter_ptr((*frp).fr_child) {
@@ -2083,11 +2088,11 @@ pub fn win_split_ins(
                     prevfrp = frp;
                     frp = (*frp).fr_parent;
                 }
-                available = (*g_st().topframe).fr_width;
+                available = crate::globals::topframe_mut().fr_width;
                 needed += minwidth;
             } else {
                 minwidth = frame_minwidth(&mut *oldwin.w_frame, nowin());
-                available = (*oldwin.w_frame).fr_width;
+                available = oldwin.frame_mut().fr_width;
                 needed += minwidth;
             }
             if available < needed {
@@ -2111,13 +2116,13 @@ pub fn win_split_ins(
                 && opt_vars().p_ea != 0
                 && size == 0
                 && crate::memory::cstr_first_byte(opt_vars().p_ead) != b'v'
-                && !(*oldwin.w_frame).fr_parent.is_null()
+                && !oldwin.frame_mut().fr_parent.is_null()
             {
-                for frp in frame_iter_mut((*(*oldwin.w_frame).fr_parent).fr_child) {
+                for frp in frame_iter_mut((*oldwin.frame_mut().fr_parent).fr_child) {
                     if !ptr::eq(frp.fr_win, oldwin)
                         && !frp.fr_win.is_null()
-                        && ((*frp.fr_win).w_width > new_size
-                            || (*frp.fr_win).w_width > (oldwin.w_width - new_size - 1))
+                        && (frp.win_mut().w_width > new_size
+                            || frp.win_mut().w_width > (oldwin.w_width - new_size - 1))
                     {
                         do_equal = true;
                         break;
@@ -2137,12 +2142,12 @@ pub fn win_split_ins(
             let available: c_int;
             if toplevel {
                 minheight = frame_minheight(&mut *g_st().topframe, nowin()) + need_status;
-                available = (*g_st().topframe).fr_height;
+                available = crate::globals::topframe_mut().fr_height;
                 needed += minheight;
             } else if opt_vars().p_ea != 0 {
                 minheight = frame_minheight(&mut *oldwin.w_frame, nowin()) + need_status;
                 let mut prevfrp = oldwin.w_frame;
-                let mut frp = (*oldwin.w_frame).fr_parent;
+                let mut frp = oldwin.frame_mut().fr_parent;
                 while !frp.is_null() {
                     if (*frp).fr_layout == FR_COL {
                         for frp2 in frame_iter_ptr((*frp).fr_child) {
@@ -2154,11 +2159,11 @@ pub fn win_split_ins(
                     prevfrp = frp;
                     frp = (*frp).fr_parent;
                 }
-                available = (*g_st().topframe).fr_height;
+                available = crate::globals::topframe_mut().fr_height;
                 needed += minheight;
             } else {
                 minheight = frame_minheight(&mut *oldwin.w_frame, nowin()) + need_status;
-                available = (*oldwin.w_frame).fr_height;
+                available = oldwin.frame_mut().fr_height;
                 needed += minheight;
             }
             if available < needed {
@@ -2198,13 +2203,13 @@ pub fn win_split_ins(
                 && opt_vars().p_ea != 0
                 && size == 0
                 && crate::memory::cstr_first_byte(opt_vars().p_ead) != b'h'
-                && !(*oldwin.w_frame).fr_parent.is_null()
+                && !oldwin.frame_mut().fr_parent.is_null()
             {
-                for frp in frame_iter_mut((*(*oldwin.w_frame).fr_parent).fr_child) {
+                for frp in frame_iter_mut((*oldwin.frame_mut().fr_parent).fr_child) {
                     if !ptr::eq(frp.fr_win, oldwin)
                         && !frp.fr_win.is_null()
-                        && ((*frp.fr_win).w_height > new_size
-                            || (*frp.fr_win).w_height > oldwin_height - new_size - STATUS_HEIGHT)
+                        && (frp.win_mut().w_height > new_size
+                            || frp.win_mut().w_height > oldwin_height - new_size - STATUS_HEIGHT)
                     {
                         do_equal = true;
                         break;
@@ -2273,10 +2278,10 @@ pub fn win_split_ins(
         let mut curfrp: *mut Frame;
 
         if toplevel {
-            if ((*g_st().topframe).fr_layout == FR_COL && !vertical)
-                || ((*g_st().topframe).fr_layout == FR_ROW && vertical)
+            if (crate::globals::topframe_mut().fr_layout == FR_COL && !vertical)
+                || (crate::globals::topframe_mut().fr_layout == FR_ROW && vertical)
             {
-                curfrp = (*g_st().topframe).fr_child;
+                curfrp = crate::globals::topframe_mut().fr_child;
                 if (flags & WSP_BOT) != 0 {
                     while !(*curfrp).fr_next.is_null() {
                         curfrp = (*curfrp).fr_next;
@@ -2713,17 +2718,17 @@ fn win_exchange(mut prenum: c_int) {
 
         let mut frp: *mut Frame;
         if prenum != 0 {
-            frp = (*(*curwin_mut().w_frame).fr_parent).fr_child;
+            frp = (*curwin_mut().frame_mut().fr_parent).fr_child;
             while !frp.is_null() && {
                 prenum -= 1;
                 prenum > 0
             } {
                 frp = (*frp).fr_next;
             }
-        } else if !(*curwin_mut().w_frame).fr_next.is_null() {
-            frp = (*curwin_mut().w_frame).fr_next;
+        } else if !curwin_mut().frame_mut().fr_next.is_null() {
+            frp = curwin_mut().frame_mut().fr_next;
         } else {
-            frp = (*curwin_mut().w_frame).fr_prev;
+            frp = curwin_mut().frame_mut().fr_prev;
         }
 
         if frp.is_null() || (*frp).fr_win.is_null() || ptr::eq((*frp).fr_win, curwin_ptr()) {
@@ -2732,7 +2737,7 @@ fn win_exchange(mut prenum: c_int) {
         let wp = &mut *(*frp).fr_win;
 
         let wp2 = curwin_mut().w_prev;
-        let frp2 = (*curwin_mut().w_frame).fr_prev;
+        let frp2 = curwin_mut().frame_mut().fr_prev;
         if !ptr::eq(wp.w_prev, curwin_ptr()) {
             win_remove(curwin_mut(), ptr::null_mut());
             frame_remove(&mut *curwin_mut().w_frame);
@@ -2744,7 +2749,7 @@ fn win_exchange(mut prenum: c_int) {
             frame_remove(&mut *wp.w_frame);
             win_append(wp2, wp, ptr::null_mut());
             if frp2.is_null() {
-                frame_insert(&mut *(*(*wp.w_frame).fr_parent).fr_child, &mut *wp.w_frame);
+                frame_insert(&mut *(*wp.frame_mut().fr_parent).fr_child, &mut *wp.w_frame);
             } else {
                 frame_append(&mut *frp2, &mut *wp.w_frame);
             }
@@ -2783,7 +2788,7 @@ fn win_rotate(upwards: bool, mut count: c_int) {
             return;
         }
 
-        let mut frp = (*(*curwin_mut().w_frame).fr_parent).fr_child;
+        let mut frp = (*curwin_mut().frame_mut().fr_parent).fr_child;
         while !frp.is_null() {
             if (*frp).fr_win.is_null() {
                 emsg(gettext(c"E443: Cannot rotate when another window is split"));
@@ -2798,7 +2803,7 @@ fn win_rotate(upwards: bool, mut count: c_int) {
         while count > 0 {
             count -= 1;
             if upwards {
-                frp = (*(*curwin_mut().w_frame).fr_parent).fr_child;
+                frp = (*curwin_mut().frame_mut().fr_parent).fr_child;
                 debug_assert!(!frp.is_null());
                 wp1 = (*frp).fr_win;
                 win_remove(&mut *wp1, ptr::null_mut());
@@ -2992,7 +2997,7 @@ pub fn win_equal(next_curwin: *mut WinInfoInfo, current: bool, mut dir: c_int) {
             0,
             tabline_height(),
             g_st().columns_global,
-            (*g_st().topframe).fr_height,
+            crate::globals::topframe_mut().fr_height,
         );
         if !is_ctx_win(next_curwin) {
             win_fix_scroll(true);
@@ -3399,7 +3404,7 @@ pub fn close_windows(buf: *mut FileBuf, keep_curwin: bool) {
 }
 
 pub fn last_window(win: &mut WinInfoInfo) -> bool {
-    unsafe { one_window(win, ptr::null_mut()) && (*g_st().first_tabpage).tp_next.is_null() }
+    one_window(win, ptr::null_mut()) && crate::globals::first_tabpage_mut().tp_next.is_null()
 }
 
 pub fn one_window(win: &mut WinInfoInfo, tp: *mut TabPageInfo) -> bool {
@@ -3563,7 +3568,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
         let win_frame = if win.w_floating {
             ptr::null_mut()
         } else {
-            (*win.w_frame).fr_parent
+            win.frame_mut().fr_parent
         };
         let had_diffmode = win.w_onebuf_opt.wo_diff != 0;
 
@@ -3709,9 +3714,9 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
             return false;
         }
         if one_window(&mut *win, ptr::null_mut())
-            && ((*g_st().first_tabpage).tp_next.is_null() || lastwin_mut().w_floating)
+            && (crate::globals::first_tabpage_mut().tp_next.is_null() || lastwin_mut().w_floating)
         {
-            if !(*g_st().first_tabpage).tp_next.is_null() {
+            if !crate::globals::first_tabpage_mut().tp_next.is_null() {
                 emsg(E_FLOATONLY);
             }
             win_unclose_buffer(&mut *win, &mut bufref);
@@ -3801,7 +3806,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
             {
                 win_equal(
                     curwin_ptr(),
-                    ptr::eq((*curwin_mut().w_frame).fr_parent, win_frame),
+                    ptr::eq(curwin_mut().frame_mut().fr_parent, win_frame),
                     dir,
                 );
             } else {
@@ -3837,7 +3842,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
         if one_window_macro()
             && curwin_mut().w_locked != 0
             && curbuf_mut().b_locked_split != 0
-            && !(*g_st().first_tabpage).tp_next.is_null()
+            && !crate::globals::first_tabpage_mut().tp_next.is_null()
         {
             apply_autocmds(
                 EVENT_TABLEAVE,
@@ -4127,11 +4132,11 @@ fn win_free_mem(win: *mut WinInfoInfo, dirp: &mut c_int, tp: *mut TabPageInfo) -
 }
 
 pub fn win_free_all() {
-    unsafe {
+    {
         g_st().cmdwin_type = 0;
         g_st().cmdwin_buf = ptr::null_mut();
 
-        while !(*g_st().first_tabpage).tp_next.is_null() {
+        while !crate::globals::first_tabpage_mut().tp_next.is_null() {
             tabpage_close(1);
         }
 
@@ -4326,8 +4331,8 @@ fn frame_flatten(mut frp: *mut Frame) {
             (*(*frp).fr_win).w_frame = (*frp).fr_parent;
         }
         frp2 = (*frp).fr_parent;
-        if ptr::eq((*g_st().topframe).fr_child, frp) {
-            (*g_st().topframe).fr_child = frp2;
+        if ptr::eq(crate::globals::topframe_mut().fr_child, frp) {
+            crate::globals::topframe_mut().fr_child = frp2;
         }
         drop(Box::from_raw(frp));
 
@@ -4353,8 +4358,8 @@ fn frame_flatten(mut frp: *mut Frame) {
                 }
                 frp3 = (*frp3).fr_next;
             }
-            if ptr::eq((*g_st().topframe).fr_child, frp2) {
-                (*g_st().topframe).fr_child = frp;
+            if ptr::eq(crate::globals::topframe_mut().fr_child, frp2) {
+                crate::globals::topframe_mut().fr_child = frp;
             }
             drop(Box::from_raw(frp2));
         }
@@ -4371,11 +4376,11 @@ pub fn winframe_restore(wp: &mut WinInfoInfo, dir: c_int, unflat_altfr: &mut Fra
             frame_insert(&mut *frp.fr_next, &mut *frp);
         }
 
-        if wp.w_vsep_width == 0 && (*frp.fr_parent).fr_layout == FR_ROW && !frp.fr_prev.is_null() {
+        if wp.w_vsep_width == 0 && frp.parent_mut().fr_layout == FR_ROW && !frp.fr_prev.is_null() {
             frame_set_vsep(frp.fr_prev, true);
         }
 
-        if (*frp.fr_parent).fr_layout == FR_COL && !frp.fr_prev.is_null() {
+        if frp.parent_mut().fr_layout == FR_COL && !frp.fr_prev.is_null() {
             if global_stl_height() == 0 && wp.w_status_height == 0 {
                 frame_add_statusline(frp.fr_prev);
             } else if global_stl_height() > 0 && wp.w_hsep_height == 0 {
@@ -4426,19 +4431,19 @@ fn win_altframe(win: &mut WinInfoInfo, tp: *mut TabPageInfo) -> &'static mut Fra
         let mut target_fr = frp.fr_next;
         let mut other_fr = frp.fr_prev;
 
-        if !frp.fr_parent.is_null() && (*frp.fr_parent).fr_layout == FR_COL && opt_vars().p_sb != 0
+        if !frp.fr_parent.is_null() && frp.parent_mut().fr_layout == FR_COL && opt_vars().p_sb != 0
         {
             target_fr = frp.fr_prev;
             other_fr = frp.fr_next;
         }
 
-        if !frp.fr_parent.is_null() && (*frp.fr_parent).fr_layout == FR_ROW && opt_vars().p_spr != 0
+        if !frp.fr_parent.is_null() && frp.parent_mut().fr_layout == FR_ROW && opt_vars().p_spr != 0
         {
             target_fr = frp.fr_prev;
             other_fr = frp.fr_next;
         }
 
-        if !frp.fr_parent.is_null() && (*frp.fr_parent).fr_layout == FR_ROW {
+        if !frp.fr_parent.is_null() && frp.parent_mut().fr_layout == FR_ROW {
             if frame_fixed_width(target_fr) && !frame_fixed_width(other_fr) {
                 target_fr = other_fr;
             }
@@ -4843,15 +4848,15 @@ fn frame_add_hsep(mut frp: *const Frame) {
 
 #[inline]
 fn frame_fix_width(wp: &mut WinInfoInfo) {
-    unsafe {
-        (*wp.w_frame).fr_width = wp.w_width + wp.w_vsep_width;
+    {
+        wp.frame_mut().fr_width = wp.w_width + wp.w_vsep_width;
     }
 }
 
 #[inline]
 fn frame_fix_height(wp: &mut WinInfoInfo) {
-    unsafe {
-        (*wp.w_frame).fr_height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
+    {
+        wp.frame_mut().fr_height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
     }
 }
 
@@ -5056,7 +5061,7 @@ pub fn win_alloc_ctx_win(idx: c_int) {
 }
 
 fn win_alloc_firstwin(oldwin: Option<&mut WinInfoInfo>) -> bool {
-    unsafe {
+    {
         set_curwin(win_alloc(ptr::null_mut(), false));
         if let Some(oldwin) = oldwin {
             win_init(curwin_mut(), oldwin, 0);
@@ -5075,8 +5080,8 @@ fn win_alloc_firstwin(oldwin: Option<&mut WinInfoInfo>) -> bool {
 
         new_frame(curwin_mut());
         g_st().topframe = curwin_mut().w_frame;
-        (*g_st().topframe).fr_width = g_st().columns_global;
-        (*g_st().topframe).fr_height =
+        crate::globals::topframe_mut().fr_width = g_st().columns_global;
+        crate::globals::topframe_mut().fr_height =
             g_st().rows_global - opt_vars().p_ch as c_int - global_stl_height();
 
         true
@@ -5092,18 +5097,18 @@ fn new_frame(wp: &mut WinInfoInfo) {
 }
 
 pub fn win_init_size() {
-    unsafe {
+    {
         let avail = rows_avail() as c_int;
         firstwin_mut().w_height = avail;
         firstwin_mut().w_prev_height = avail;
         firstwin_mut().w_view_height = firstwin_mut().w_height - firstwin_mut().w_winbar_height;
         firstwin_mut().w_height_outer = firstwin_mut().w_height;
         firstwin_mut().w_winrow_off = firstwin_mut().w_winbar_height;
-        (*g_st().topframe).fr_height = avail;
+        crate::globals::topframe_mut().fr_height = avail;
         firstwin_mut().w_width = g_st().columns_global;
         firstwin_mut().w_view_width = firstwin_mut().w_width;
         firstwin_mut().w_width_outer = firstwin_mut().w_width;
-        (*g_st().topframe).fr_width = g_st().columns_global;
+        crate::globals::topframe_mut().fr_width = g_st().columns_global;
     }
 }
 
@@ -5579,7 +5584,7 @@ pub fn goto_tabpage(n: c_int) {
             return;
         }
 
-        if (*g_st().first_tabpage).tp_next.is_null() {
+        if crate::globals::first_tabpage_mut().tp_next.is_null() {
             if n > 1 {
                 beep_flush();
             }
@@ -5672,7 +5677,7 @@ pub fn tabpage_move(nr: c_int) {
     unsafe {
         debug_assert!(!g_st().curtab.is_null());
 
-        if (*g_st().first_tabpage).tp_next.is_null() {
+        if crate::globals::first_tabpage_mut().tp_next.is_null() {
             return;
         }
 
@@ -5804,7 +5809,7 @@ pub fn win_vert_neighbor(
         let mut foundfr = wp.w_frame;
 
         if wp.w_floating {
-            return if win_valid(g_st().prevwin) && !(*g_st().prevwin).w_floating {
+            return if win_valid(g_st().prevwin) && !crate::globals::prevwin_mut().w_floating {
                 g_st().prevwin
             } else {
                 g_st().firstwin
@@ -5878,7 +5883,7 @@ pub fn win_horz_neighbor(
         let mut foundfr = wp.w_frame;
 
         if wp.w_floating {
-            return if win_valid(g_st().prevwin) && !(*g_st().prevwin).w_floating {
+            return if win_valid(g_st().prevwin) && !crate::globals::prevwin_mut().w_floating {
                 g_st().prevwin
             } else {
                 g_st().firstwin
@@ -6064,7 +6069,8 @@ fn win_enter_ext(wp: *mut WinInfoInfo, flags: c_int) {
             redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
         }
         if !g_st().prevwin.is_null()
-            && (*g_st().prevwin).w_hl_attr_normal != (*g_st().prevwin).w_hl_attr_normalnc
+            && crate::globals::prevwin_mut().w_hl_attr_normal
+                != crate::globals::prevwin_mut().w_hl_attr_normalnc
         {
             redraw_later(g_st().prevwin.as_mut(), UPD_NOT_VALID);
         }
@@ -6439,7 +6445,7 @@ fn frame_insert(before: &mut Frame, frp: &mut Frame) {
         if !frp.fr_prev.is_null() {
             (*frp.fr_prev).fr_next = frp;
         } else {
-            (*frp.fr_parent).fr_child = frp;
+            frp.parent_mut().fr_child = frp;
         }
     }
 }
@@ -6449,7 +6455,7 @@ fn frame_remove(frp: &mut Frame) {
         if !frp.fr_prev.is_null() {
             (*frp.fr_prev).fr_next = frp.fr_next;
         } else {
-            (*frp.fr_parent).fr_child = frp.fr_next;
+            frp.parent_mut().fr_child = frp.fr_next;
         }
         if !frp.fr_next.is_null() {
             (*frp.fr_next).fr_prev = frp.fr_prev;
@@ -6972,7 +6978,7 @@ fn frame_setheight(curfrp: &mut Frame, mut height: c_int, from_top: bool) {
                 for frp in frame_iter_ptr((*curfrp.fr_parent).fr_child) {
                     if !ptr::eq(frp, curfrp)
                         && !frp.fr_win.is_null()
-                        && (*frp.fr_win).w_onebuf_opt.wo_wfh != 0
+                        && frp.win_mut().w_onebuf_opt.wo_wfh != 0
                     {
                         room_reserved += frp.fr_height;
                     }
@@ -7020,7 +7026,7 @@ fn frame_setheight(curfrp: &mut Frame, mut height: c_int, from_top: bool) {
             if take > 0 && room_cmdline > 0 {
                 room_cmdline = room_cmdline.min(take);
                 take -= room_cmdline;
-                (*g_st().topframe).fr_height += room_cmdline;
+                crate::globals::topframe_mut().fr_height += room_cmdline;
             }
 
             frame_new_height(&mut *curfrp, height, false, false, true);
@@ -7116,7 +7122,7 @@ fn frame_setwidth(curfrp: &mut Frame, mut width: c_int, from_left: bool) {
                 for frp in frame_iter_ptr((*curfrp.fr_parent).fr_child) {
                     if !ptr::eq(frp, curfrp)
                         && !frp.fr_win.is_null()
-                        && (*frp.fr_win).w_onebuf_opt.wo_wfw != 0
+                        && frp.win_mut().w_onebuf_opt.wo_wfw != 0
                     {
                         room_reserved += frp.fr_width;
                     }
@@ -7968,14 +7974,14 @@ pub fn set_winbar_all(make_room: bool) {
 }
 
 pub fn tabline_height() -> c_int {
-    unsafe {
+    {
         if ui_has(K_UITABLINE) {
             return 0;
         }
         debug_assert!(!g_st().first_tabpage.is_null());
         match opt_vars().p_stal {
             0 => 0,
-            1 => c_int::from(!(*g_st().first_tabpage).tp_next.is_null()),
+            1 => c_int::from(!crate::globals::first_tabpage_mut().tp_next.is_null()),
             _ => 1,
         }
     }
@@ -8049,7 +8055,7 @@ pub fn min_rows_for_all_tabpages() -> c_int {
 
 pub fn only_one_window() -> bool {
     unsafe {
-        if !(*g_st().first_tabpage).tp_next.is_null() {
+        if !crate::globals::first_tabpage_mut().tp_next.is_null() {
             return false;
         }
 
@@ -8197,8 +8203,8 @@ fn get_snapshot_curwin(idx: c_int) -> *mut WinInfoInfo {
 pub fn restore_snapshot(idx: c_int, close_curwin: c_int) {
     unsafe {
         if let Some(sn) = curtab_mut().tp_snapshot[idx as usize].take()
-            && sn.fr_width == (*g_st().topframe).fr_width
-            && sn.fr_height == (*g_st().topframe).fr_height
+            && sn.fr_width == crate::globals::topframe_mut().fr_width
+            && sn.fr_height == crate::globals::topframe_mut().fr_height
             && check_snapshot_rec(&sn, &mut *g_st().topframe)
         {
             let wp = restore_snapshot_rec(&sn, &mut *g_st().topframe);
@@ -8442,6 +8448,17 @@ pub fn lastwin_nofloating(tp: *mut TabPageInfo) -> &'static mut WinInfoInfo {
     }
 }
 
+impl Frame {
+    #[inline]
+    pub fn parent_mut(&self) -> &'static mut Frame {
+        unsafe { &mut *self.fr_parent }
+    }
+
+    #[inline]
+    pub fn win_mut(&self) -> &'static mut WinInfoInfo {
+        unsafe { &mut *self.fr_win }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

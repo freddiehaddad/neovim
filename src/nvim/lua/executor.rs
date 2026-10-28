@@ -1005,7 +1005,7 @@ pub fn nlua_get_empty_dict_ref(lstate: *mut lua_State) -> LuaRef {
 }
 
 pub fn nlua_get_global_ref_count() -> c_int {
-    unsafe { (*g_st().nlua_global_refs).ref_count }
+    crate::globals::nlua_global_refs_mut().ref_count
 }
 
 fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
