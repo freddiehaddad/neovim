@@ -2088,7 +2088,7 @@ fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> bool {
             ECMD_ONE,
             if forceit != 0 { ECMD_FORCEIT } else { 0 },
             *curwin.as_ptr(),
-        ) == OK;
+        );
 
         if buf != g_st().curbuf && bufref_valid(Some(&bufref)) && (*buf).b_nwindows == 0 {
             close_buffer(ptr::null_mut(), buf, action, false, false, false);
@@ -2460,7 +2460,7 @@ fn do_buffer_ext(
             emsg(gettext(e_cannot_switch_to_a_closing_buffer.as_ptr()));
             return false;
         }
-        if action == DOBUF_SPLIT && win_split(0, 0) == FAIL {
+        if action == DOBUF_SPLIT && !win_split(0, 0) {
             return false;
         }
 
@@ -3065,14 +3065,14 @@ pub fn buflist_getfile(
             {
                 if (opt_vars().swb_flags & kOptSwbFlagNewtab) != 0 {
                     tabpage_new();
-                } else if win_split(
+                } else if !win_split(
                     0,
                     if (opt_vars().swb_flags & kOptSwbFlagVsplit) != 0 {
                         WSP_VERT
                     } else {
                         0
                     },
-                ) == FAIL
+                )
                 {
                     return false;
                 }
@@ -4597,10 +4597,11 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
                 set_bufref(&mut bufref, buf);
                 let p_ea_save = opt_vars().p_ea;
                 opt_vars().p_ea = 1;
-                split_ret = win_split(0, WSP_ROOM | WSP_BELOW);
+                let ok = win_split(0, WSP_ROOM | WSP_BELOW);
+                split_ret = if ok { OK } else { FAIL };
                 open_wins += 1;
                 opt_vars().p_ea = p_ea_save;
-                if split_ret == FAIL {
+                if !ok {
                     buf = (*buf).b_next;
                     continue;
                 }
@@ -4645,7 +4646,7 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
         while open_wins > count {
             let r = (buf_hide(&*(*wp).w_buffer)
                 || !buf_is_changed(&*(*wp).w_buffer)
-                || autowrite(&mut *(*wp).w_buffer, false) == OK)
+                || autowrite(&mut *(*wp).w_buffer, false))
                 && !is_ctx_win(wp);
             if !win_valid(wp) {
                 wp = g_st().lastwin;
@@ -4808,7 +4809,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
                 g_st().current_sctx.sc_lnum = lnum;
                 g_st().secure = 1;
 
-                retval = do_set(s, OPT_MODELINE | OPT_LOCAL | flags) == OK;
+                retval = do_set(s, OPT_MODELINE | OPT_LOCAL | flags);
 
                 g_st().secure = secure_save;
                 g_st().current_sctx = save_current_sctx;

@@ -31,7 +31,7 @@ use std::ptr;
 use crate::cmdexpand::TAG_MANY;
 use crate::diff::kOptFoldmethod;
 use crate::globals::IOSIZE;
-use crate::math::{FAIL, OK};
+use crate::math::OK;
 
 pub(crate) const DT_HELP: c_int = 8;
 pub(crate) const TAG_HELP: c_int = 1;
@@ -200,7 +200,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                     {
                         n |= if opt_vars().p_sb != 0 { WSP_BOT } else { WSP_TOP };
                     }
-                    if win_split(0, n) == FAIL {
+                    if !win_split(0, n) {
                         early_ret = true;
                     } else {
                         if ((**curwin.as_ptr()).w_height as OptInt) < opt_vars().p_hh {

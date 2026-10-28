@@ -86,7 +86,6 @@ use crate::cmdexpand::{
 };
 use crate::eval::kListLenMayKnow;
 use crate::eval::userfunc::MSG_BUF_LEN;
-use crate::math::{FAIL, OK};
 use crate::os::env::expand_T;
 
 struct SignModuleState {
@@ -537,7 +536,7 @@ fn sign_define_by_name(
     culhl: *mut c_char,
     numhl: *mut c_char,
     prio: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let existing = pmap_get_sign(name);
         let new_sign = existing.is_null();
@@ -570,7 +569,7 @@ fn sign_define_by_name(
         }
 
         if !text.is_null() && !init_sign_text(sp, (*sp).sn_text.as_mut_ptr(), text) {
-            return FAIL;
+            return false;
         }
 
         (*sp).sn_priority = prio;
@@ -619,7 +618,7 @@ fn sign_define_by_name(
                 }
             }
         }
-        OK
+        true
     }
 }
 
@@ -742,37 +741,37 @@ fn sign_unplace_inner(
     id: c_int,
     group: *mut c_char,
     atlnum: linenr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         if !buf_has_signs(buf) {
-            return FAIL;
+            return false;
         }
 
         if id == 0 || atlnum > 0 || (!group.is_null() && *group == b'*' as c_char) {
             if !buf_delete_signs(buf, group, id, atlnum) {
-                return FAIL;
+                return false;
             }
         } else {
             let ns = group_get_ns(group);
             if ns < 0 || !extmark_del_id(&mut *buf, ns as u32, id as u32) {
-                return FAIL;
+                return false;
             }
         }
 
-        OK
+        true
     }
 }
 
-fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: linenr_T) -> c_int {
+fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: linenr_T) -> bool {
     unsafe {
         if !buf.is_null() {
             sign_unplace_inner(buf, id, group, atlnum)
         } else {
-            let mut retval = OK;
+            let mut retval = true;
             let mut cbuf = g_st().firstbuf;
             while !cbuf.is_null() {
-                if sign_unplace_inner(cbuf, id, group, atlnum) == 0 {
-                    retval = FAIL;
+                if !sign_unplace_inner(cbuf, id, group, atlnum) {
+                    retval = false;
                 }
                 cbuf = (*cbuf).b_next;
             }
@@ -801,7 +800,7 @@ fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
                 return -1;
             }
             setpcmark();
-            if do_ecmd(
+            if !do_ecmd(
                 (*buf).b_fnum,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -809,7 +808,7 @@ fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
                 lnum,
                 if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 },
                 *curwin.as_ptr(),
-            ) == FAIL
+            )
             {
                 return -1;
             }
@@ -909,7 +908,7 @@ fn sign_unplace_cmd(
             buf = (**curwin.as_ptr()).w_buffer;
         }
 
-        if sign_unplace(buf, id.max(0), group, lnum) == 0 && lnum > 0 {
+        if !sign_unplace(buf, id.max(0), group, lnum) && lnum > 0 {
             emsg(gettext(c"E159: Missing sign number".as_ptr()));
         }
     }
@@ -1430,7 +1429,7 @@ fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
             prio = tv_dict_get_number_def(dict, c"priority".as_ptr(), -1) as c_int;
         }
 
-        sign_define_by_name(name, icon, text, linehl, texthl, culhl, numhl, prio) - 1
+        if sign_define_by_name(name, icon, text, linehl, texthl, culhl, numhl, prio) { 0 } else { -1 }
     }
 }
 
@@ -1824,7 +1823,7 @@ fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: *mut dict_T) -> c_i
             }
         }
 
-        sign_unplace(buf, id, group, 0) - 1
+        if sign_unplace(buf, id, group, 0) { 0 } else { -1 }
     }
 }
 

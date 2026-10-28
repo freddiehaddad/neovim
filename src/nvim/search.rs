@@ -1654,13 +1654,13 @@ pub fn search_for_exact_line(
     pos: &mut pos_T,
     dir: Direction,
     pat: *mut c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut start: linenr_T = 0;
         let compl_len = ins_compl_len();
 
         if buf.b_ml.ml_line_count == 0 {
-            return FAIL;
+            return false;
         }
         loop {
             pos.lnum += dir;
@@ -1697,7 +1697,7 @@ pub fn search_for_exact_line(
 
             if compl_status_adding() && !compl_status_sol() {
                 if mb_strcmp_ic(opt_vars().p_ic != 0, p, pat) == 0 {
-                    return OK;
+                    return true;
                 }
             } else if *p != NUL {
                 debug_assert!(compl_len >= 0);
@@ -1707,11 +1707,11 @@ pub fn search_for_exact_line(
                     crate::memory::cstr_prefix_bytes(p, compl_len as usize) == crate::memory::cstr_prefix_bytes(pat, compl_len as usize)
                 };
                 if eq {
-                    return OK;
+                    return true;
                 }
             }
         }
-        FAIL
+        false
     }
 }
 
@@ -3736,7 +3736,7 @@ pub fn find_pattern_in_path(
                                     prepare_tagpreview(true, *opt_vars().p_pvp != NUL);
                                 }
                                 if action == ACTION_SPLIT {
-                                    if win_split(0, 0) == FAIL {
+                                    if !win_split(0, 0) {
                                         stop_fpip_loop = true;
                                     } else {
                                         reset_binding(&mut **curwin.as_ptr());

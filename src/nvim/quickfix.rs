@@ -2888,7 +2888,7 @@ fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: &mut boo
                 flags |= WSP_NEWLOC;
             }
 
-            if win_split(0, flags) == FAIL {
+            if !win_split(0, flags) {
                 return false;
             }
 
@@ -2960,7 +2960,7 @@ fn qf_open_new_file_win(ll_ref: *mut qf_info_T) -> bool {
         if !ll_ref.is_null() {
             flags |= WSP_NEWLOC;
         }
-        if win_split(0, flags) == FAIL {
+        if !win_split(0, flags) {
             return false;
         }
         opt_vars().p_swb = empty_string_option.as_ptr().cast::<c_char>();
@@ -3125,7 +3125,7 @@ fn qf_jump_edit_buffer(
                 no_write_message();
                 return FAIL;
             }
-            retval = do_ecmd(
+            retval = if do_ecmd(
                 fnum,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -3137,7 +3137,11 @@ fn qf_jump_edit_buffer(
                 } else {
                     ptr::null_mut()
                 },
-            );
+            ) {
+                OK
+            } else {
+                FAIL
+            };
         } else {
             if forceit == 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 && (*g_st().curbuf).b_fnum != fnum {
                 if qi.qfl_type == QFLT_LOCATION {
@@ -3152,7 +3156,7 @@ fn qf_jump_edit_buffer(
                     win_goto(g_st().prevwin);
                 }
                 if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
-                    if win_split(0, 0) == OK {
+                    if win_split(0, 0) {
                         *opened_window = true;
                     }
                     if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
@@ -4054,7 +4058,7 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
             flags |= WSP_QUICKFIX;
         }
 
-        if win_split(height, flags) == FAIL {
+        if !win_split(height, flags) {
             return false;
         }
         reset_binding(&mut **curwin.as_ptr());
@@ -4068,7 +4072,7 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
             oldwin = ptr::null_mut();
         }
         if !qf_buf.is_null() {
-            if do_ecmd(
+            if !do_ecmd(
                 (*qf_buf).b_fnum,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -4076,12 +4080,12 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
                 ECMD_ONE,
                 ECMD_HIDE + ECMD_OLDBUF + ECMD_NOWINENTER,
                 oldwin,
-            ) == FAIL
+            )
             {
                 return false;
             }
         } else {
-            if do_ecmd(
+            if !do_ecmd(
                 0,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -4089,7 +4093,7 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
                 ECMD_ONE,
                 ECMD_HIDE + ECMD_NOWINENTER,
                 oldwin,
-            ) == FAIL
+            )
             {
                 return false;
             }

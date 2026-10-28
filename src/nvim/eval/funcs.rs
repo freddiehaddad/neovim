@@ -7818,7 +7818,7 @@ fn set_position(argvars: &mut [typval_T], rettv: &mut typval_T, charpos: bool) {
                 &mut pos,
                 fnum,
                 None,
-            ) == OK
+            )
             {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
             }

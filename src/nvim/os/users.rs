@@ -2,9 +2,6 @@
 
 #[cfg(unix)]
 use crate::fileio::getuid;
-use crate::math::FAIL;
-#[cfg(unix)]
-use crate::math::OK;
 #[cfg(unix)]
 use crate::memory::xstrlcpy;
 #[cfg(unix)]
@@ -196,7 +193,7 @@ fn collect_usernames() -> Vec<CString> {
 ///
 /// # Safety
 /// `s` must be valid for `len` writable bytes.
-pub fn os_get_username(s: *mut c_char, len: usize) -> c_int {
+pub fn os_get_username(s: *mut c_char, len: usize) -> bool {
     #[cfg(unix)]
     let uid = unsafe { getuid() };
     #[cfg(not(unix))]
@@ -209,18 +206,18 @@ pub fn os_get_username(s: *mut c_char, len: usize) -> c_int {
 ///
 /// # Safety
 /// `s` must be valid for `len` writable bytes.
-pub fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> c_int {
+pub fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> bool {
     #[cfg(unix)]
     unsafe {
         let pw = getpwuid(uid);
         if !pw.is_null() && !(*pw).pw_name.is_null() && *(*pw).pw_name != 0 {
             xstrlcpy(s, (*pw).pw_name, len);
-            return OK;
+            return true;
         }
     }
 
     vim_snprintf!(s, len, c"%d".as_ptr(), uid as c_int);
-    FAIL
+    false
 }
 
 /// Get the home directory for `name`, or `None` on failure (`os_get_userdir`).
@@ -315,7 +312,7 @@ mod tests {
 
             let mut buf = [0 as c_char; 32];
             let res = os_get_uname(250 as uv_uid_t, buf.as_mut_ptr(), buf.len());
-            if res == FAIL {
+            if !res {
                 assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "250");
             }
 

@@ -875,7 +875,6 @@ use crate::fileio::{
 };
 use crate::globals::IOSIZE;
 use crate::keycodes::{K_SPECIAL, KE_FILLER, KS_SPECIAL};
-use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::os::os_win_console::GetLastError;
 use crate::regexp::{GRAPHEME_STATE_INIT, NUMBUFLEN};
@@ -3156,7 +3155,7 @@ pub fn f_iconv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
     }
 }
 
-pub fn convert_setup(vcp: &mut vimconv_T, from: *mut c_char, to: *mut c_char) -> c_int {
+pub fn convert_setup(vcp: &mut vimconv_T, from: *mut c_char, to: *mut c_char) -> bool {
     convert_setup_ext(vcp, from, true, to, true)
 }
 
@@ -3166,7 +3165,7 @@ pub fn convert_setup_ext(
     from_unicode_is_utf8: bool,
     to: *mut c_char,
     to_unicode_is_utf8: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         *vcp = vimconv_T {
             vc_type: CONV_NONE,
@@ -3181,7 +3180,7 @@ pub fn convert_setup_ext(
             || *to == NUL
             || CStr::from_ptr(from).to_bytes() == CStr::from_ptr(to).to_bytes()
         {
-            return OK;
+            return true;
         }
 
         let from_prop = enc_canon_props(from);
@@ -3225,7 +3224,7 @@ pub fn convert_setup_ext(
             }
         }
 
-        if vcp.vc_type == CONV_NONE { FAIL } else { OK }
+        vcp.vc_type != CONV_NONE
     }
 }
 

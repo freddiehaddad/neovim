@@ -53,7 +53,7 @@ use std::ptr;
 use crate::charset::NUL;
 use crate::cursor::linenr_T;
 use crate::eval::funcs::VIM_QUESTION;
-use crate::math::{FAIL, OK};
+use crate::math::OK;
 use crate::os::fs::MAXPATHL;
 use crate::search::FORWARD;
 
@@ -122,21 +122,21 @@ pub fn ex_perldo(eap: &mut exarg_T) {
 }
 
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
-pub fn autowrite(buf: &mut buf_T, forceit: bool) -> c_int {
+pub fn autowrite(buf: &mut buf_T, forceit: bool) -> bool {
     if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0)
             || opt_vars().p_write == 0
             || bt_dontwrite(&raw mut *buf)
             || (!forceit && buf.b_p_ro != 0)
             || buf.b_ffname.is_null()
         {
-            return FAIL;
+            return false;
         }
         let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&mut bufref, &raw mut *buf);
-        let mut r = buf_write_all(buf, forceit);
+        let mut r = buf_write_all(buf, forceit) == OK;
 
         if bufref_valid(Some(&bufref)) && bufIsChanged(buf) {
-            r = FAIL;
+            r = false;
         }
         r
 }
@@ -174,7 +174,7 @@ pub fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
         if !forceit
             && bufIsChanged(buf)
             && ((flags & CCGD_MULTWIN) != 0 || buf.b_nwindows <= 1)
-            && ((flags & CCGD_AW) == 0 || autowrite(buf, forceit) == FAIL)
+            && ((flags & CCGD_AW) == 0 || !autowrite(buf, forceit))
         {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut count: c_int = 0;
@@ -306,7 +306,7 @@ pub fn can_abandon(buf: &mut buf_T, forceit: bool) -> bool {
     buf_hide(buf)
             || !bufIsChanged(buf)
             || buf.b_nwindows > 1
-            || autowrite(buf, forceit) == OK
+            || autowrite(buf, forceit)
             || forceit
 }
 

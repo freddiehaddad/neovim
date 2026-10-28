@@ -42,7 +42,6 @@ use crate::mark::{
     mark_global_index, mark_global_iter, mark_jumplist_iter, mark_set_global, mark_set_local,
     set_last_cursor, setpcmark, xfmark_T,
 };
-use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{ARENA_BLOCK_SIZE};
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
@@ -993,10 +992,10 @@ fn close_file(cookie: &mut FileDescriptor) {
     }
 }
 
-fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
+fn shada_read_file(file: *const c_char, flags: c_int) -> bool {
     unsafe {
         let Some(fname_cstr) = shada_filename(file) else {
-            return FAIL;
+            return false;
         };
         let fname = fname_cstr.as_ptr();
 
@@ -1044,14 +1043,14 @@ fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
                     uv_strerror(of_ret),
                 );
             }
-            return FAIL;
+            return false;
         }
         drop(fname_cstr);
 
         shada_read(&mut sd_reader, flags);
         close_file(&mut sd_reader);
 
-        OK
+        true
     }
 }
 
@@ -3430,7 +3429,7 @@ pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> bool {
 }
 
 /// Read marks information from ShaDa file (`shada_read_marks`).
-pub fn shada_read_marks() -> c_int {
+pub fn shada_read_marks() -> bool {
     shada_read_file(ptr::null(), kShaDaWantMarks)
 }
 
@@ -3439,7 +3438,7 @@ pub fn shada_read_everything(
     fname: *const c_char,
     forceit: bool,
     missing_ok: bool,
-) -> c_int {
+) -> bool {
     shada_read_file(
             fname,
             kShaDaWantInfo

@@ -31,7 +31,7 @@ use std::ptr;
 
 use crate::api::win_config::FR_COL;
 use crate::drawscreen::FR_LEAF;
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::regexp::MAXCOL;
 
 pub(crate) const OPT_SKIPRTP: c_int = 0x80;
@@ -391,7 +391,7 @@ fn put_view(
 
                 if !put_line(fd, c"enew | setl bt=help".as_ptr().cast_mut())
                     || !write_fmt(fd, format!("help {}", cstr_to_str(curtag)))
-                    || put_eol(fd) == FAIL
+                    || !put_eol(fd)
                 {
                     return false;
                 }
@@ -454,11 +454,11 @@ fn put_view(
         } else if (*flagp & kOptSsopFlagFolds) != 0 {
             makefoldset(fd)
         } else {
-            OK
+            true
         };
         *curwin.as_ptr() = save_curwin;
         g_st().curbuf = (**curwin.as_ptr()).w_buffer;
-        if f == FAIL {
+        if !f {
             return false;
         }
 
@@ -581,7 +581,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                             cstr_to_str(key_ptr),
                             cstr_to_str(p_vec.as_ptr())
                         ),
-                    ) || put_eol(fd) == FAIL
+                    ) || !put_eol(fd)
                     {
                         return false;
                     }
@@ -596,7 +596,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                         ' '
                     };
                     if !write_fmt(fd, format!("let {} = {sign}{f:.6}", cstr_to_str(key_ptr)))
-                        || put_eol(fd) == FAIL
+                        || !put_eol(fd)
                     {
                         return false;
                     }
@@ -833,7 +833,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                 need_tabnext = false;
                 if fputs(c"tcd ".as_ptr(), fd) < 0
                     || !ses_put_fname(fd, tp_localdir.as_ptr().cast_mut(), &mut opt_vars().ssop_flags)
-                    || put_eol(fd) == FAIL
+                    || !put_eol(fd)
                 {
                     return false;
                 }
@@ -1119,7 +1119,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
                 if eap.cmdidx == CMD_mksession && (*flagp & kOptSsopFlagSkiprtp) != 0 {
                     flags |= OPT_SKIPRTP;
                 }
-                failed |= !makemap(fd, ptr::null_mut()) || makeset(fd, flags, 0) == FAIL;
+                failed |= !makemap(fd, ptr::null_mut()) || !makeset(fd, flags, 0);
             }
 
             if !failed && view_session {
@@ -1271,12 +1271,12 @@ fn get_view_file(c: c_char) -> Option<CString> {
     }
 }
 
-pub fn put_eol(fd: *mut FILE) -> c_int {
+pub fn put_eol(fd: *mut FILE) -> bool {
     unsafe {
         if fputc(b'\n' as c_int, fd) < 0 {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 

@@ -59,7 +59,7 @@ use std::ptr;
 pub type SpellAddType = c_int;
 use crate::change::TAB;
 use crate::globals::IOSIZE;
-use crate::math::{FAIL, OK};
+use crate::math::OK;
 use crate::viml::parser::parser::CONV_NONE;
 
 pub const SPELL_ADD_GOOD: SpellAddType = 0;
@@ -1839,7 +1839,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                         .as_ref()
                         .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
                     if spin.si_ascii == 0
-                        && convert_setup(&mut spin.si_conv, af_enc_ptr, opt_vars().p_enc) == FAIL
+                        && !convert_setup(&mut spin.si_conv, af_enc_ptr, opt_vars().p_enc)
                     {
                         smsg!(
                             0,
@@ -3099,14 +3099,14 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 }
             }
 
-            if store_word(
+            if !store_word(
                 spin,
                 w,
                 flags,
                 spin.si_region,
                 store_afflist.as_ptr(),
                 need_affix,
-            ) == FAIL
+            )
             {
                 retval = false;
             }
@@ -3485,14 +3485,14 @@ fn store_aff_word(
                                 }
                             }
 
-                            if store_word(
+                            if !store_word(
                                 spin,
                                 newword.as_mut_ptr(),
                                 use_flags,
                                 spin.si_region,
                                 use_pfxlist,
                                 need_affix,
-                            ) == FAIL
+                            )
                             {
                                 retval = false;
                             }
@@ -3645,8 +3645,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                         line = line.add(9);
                         let enc = enc_canonize(line);
                         if spin.si_ascii == 0
-                            && convert_setup(&mut spin.si_conv, enc.as_ptr().cast_mut(), opt_vars().p_enc)
-                                == FAIL
+                            && !convert_setup(&mut spin.si_conv, enc.as_ptr().cast_mut(), opt_vars().p_enc)
                         {
                             smsg!(
                                 0,
@@ -3750,7 +3749,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                 continue;
             }
 
-            if store_word(spin, line, flags, regionmask, ptr::null(), false) == FAIL {
+            if !store_word(spin, line, flags, regionmask, ptr::null(), false) {
                 retval = false;
                 break;
             }
@@ -3800,20 +3799,20 @@ fn store_word(
     region: c_int,
     pfxlist: *const c_char,
     need_affix: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let len = std::ffi::CStr::from_ptr(word).to_bytes().len() as c_int;
         let ct = captype(word, word.offset(len as isize));
         let mut foldword = [0 as c_char; MAXWLEN];
-        let mut res = OK;
+        let mut res = true;
 
         if !valid_spell_word(word, word.offset(len as isize)) {
-            return FAIL;
+            return false;
         }
 
         spell_casefold(*curwin.as_ptr(), word, len, foldword.as_mut_ptr(), MAXWLEN as c_int);
         let mut p = pfxlist;
-        while res == OK {
+        while res {
             if !need_affix || (!p.is_null() && *p != NUL) {
                 res = tree_add_word(
                     spin,
@@ -3831,9 +3830,9 @@ fn store_word(
         }
         spin.si_foldwcount += 1;
 
-        if res == OK && (ct == WF_KEEPCAP || (flags & WF_KEEPCAP) != 0) {
+        if res && (ct == WF_KEEPCAP || (flags & WF_KEEPCAP) != 0) {
             let mut p2 = pfxlist;
-            while res == OK {
+            while res {
                 if !need_affix || (!p2.is_null() && *p2 != NUL) {
                     res = tree_add_word(
                         spin,
@@ -3862,7 +3861,7 @@ fn tree_add_word(
     flags: c_int,
     region: c_int,
     affixID: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
                 let mut node = root;
         let mut prev: Option<NodeSlot> = None;
@@ -4001,7 +4000,7 @@ fn tree_add_word(
             }
         }
 
-        OK
+        true
     }
 }
 
@@ -4737,14 +4736,14 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> bool {
                     tword[d] = NUL;
                     spell_soundfold(slang, tword.as_mut_ptr(), true, tsalword.as_mut_ptr());
 
-                    if tree_add_word(
+                    if !tree_add_word(
                         spin,
                         tsalword.as_ptr(),
                         spin.si_foldroot,
                         (words_done >> 16) as c_int,
                         (words_done & 0xffff) as c_int,
                         0,
-                    ) == FAIL
+                    )
                     {
                         return false;
                     }

@@ -104,7 +104,7 @@ use crate::mark::{
     mark_move_to, pos_to_mark, setmark, setpcmark,
 };
 use crate::r#match::{HLF_L, HLF_LC};
-use crate::math::{FAIL, OK, vim_append_digit_int};
+use crate::math::vim_append_digit_int;
 use crate::mbyte::{
     GraphemeState, mb_adjust_cursor, mb_charlen, mb_check_adjust_col, mb_get_class, mb_prevptr,
     show_utf8, utf_byte2len, utf_char2bytes, utf_char2len, utf_find_illegal, utf_head_off,
@@ -4179,7 +4179,7 @@ fn nv_colon(cap: &mut cmdarg_T) {
                 } else {
                     0
                 },
-            ) != 0
+            )
         };
         msg_ext_set_trigger(c"".as_ptr());
 
@@ -4748,7 +4748,7 @@ fn nv_right(cap: &mut cmdarg_T) {
 
         let mut n = cap.count1;
         while n > 0 {
-            if (!past_line && oneright() == FAIL) || (past_line && *get_cursor_pos_ptr() == NUL) {
+            if (!past_line && !oneright()) || (past_line && *get_cursor_pos_ptr() == NUL) {
                 if ((cap.cmdchar == b' ' as c_int && !vim_strchr(opt_vars().p_ww, b's' as c_int).is_null())
                     || (cap.cmdchar == b'l' as c_int
                         && !vim_strchr(opt_vars().p_ww, b'l' as c_int).is_null())
@@ -4923,7 +4923,7 @@ fn nv_gotofile(cap: &mut cmdarg_T) {
                 ECMD_LAST,
                 if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 },
                 *curwin.as_ptr(),
-            ) == OK
+            )
                 && cap.nchar == b'F' as c_int
                 && lnum >= 0
             {
@@ -5609,7 +5609,7 @@ fn nv_mark(cap: &mut cmdarg_T) {
             return;
         }
 
-        if setmark(cap.nchar) == 0 {
+        if !setmark(cap.nchar) {
             clearopbeep(&mut *cap.oap);
         }
     }
@@ -6408,7 +6408,7 @@ pub fn nv_g_home_m_cmd(cap: &mut cmdarg_T) {
         if flag {
             loop {
                 i = gchar_cursor();
-                if !(ascii_iswhite(i) && oneright() == OK) {
+                if !(ascii_iswhite(i) && oneright()) {
                     break;
                 }
             }
@@ -7037,7 +7037,7 @@ fn nv_wordcmd(cap: &mut cmdarg_T) {
             adjust_cursor(&mut *cap.oap);
         }
 
-        if n == 0 && (*cap.oap).op_type == OP_NOP {
+        if !n && (*cap.oap).op_type == OP_NOP {
             clearopbeep(&mut *cap.oap);
         } else {
             adjust_for_sel(cap);
@@ -7453,7 +7453,7 @@ fn nv_q(cap: &mut cmdarg_T) {
                 tv_args.as_mut_ptr(),
                 None,
             );
-        } else if g_st().reg_executing == 0 && do_record(cap.nchar) == FAIL {
+        } else if g_st().reg_executing == 0 && !do_record(cap.nchar) {
             clearopbeep(&mut *cap.oap);
         }
     }
@@ -7473,7 +7473,7 @@ fn nv_at(cap: &mut cmdarg_T) {
             cap.count1 -= 1;
             prev != 0 && !g_st().got_int
         } {
-            if do_execreg(cap.nchar, 0, 0, 0) == 0 {
+            if !do_execreg(cap.nchar, 0, 0, 0) {
                 clearopbeep(&mut *cap.oap);
                 break;
             }

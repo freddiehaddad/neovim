@@ -342,7 +342,7 @@ fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
                 &mut vc,
                 cs_cstr.as_ptr().cast_mut(),
                 c"utf-8".as_ptr().cast_mut(),
-            ) == crate::math::OK
+            )
             && vc.vc_type != 0
         {
             let mut len = bytes.len();

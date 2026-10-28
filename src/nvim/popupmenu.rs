@@ -1425,7 +1425,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         buf_clear();
                     } else {
                         g_st().no_u_sync += 1;
-                        res = do_ecmd(
+                        let ok = do_ecmd(
                             0,
                             ptr::null_mut(),
                             ptr::null_mut(),
@@ -1434,9 +1434,10 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                             0,
                             ptr::null_mut(),
                         );
+                        res = c_int::from(ok);
                         g_st().no_u_sync -= 1;
 
-                        if res == OK {
+                        if ok {
                             set_option_value_give_err(kOptSwapfile, boolean_obj(false), OPT_LOCAL);
                             set_option_value_give_err(kOptBuflisted, boolean_obj(false), OPT_LOCAL);
                             set_option_value_give_err(

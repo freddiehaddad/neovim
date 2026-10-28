@@ -89,7 +89,6 @@ use crate::log::logmsg;
 use crate::highlight::HlAttrs;
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
 use crate::mapping::{langmap_init, put_escstr};
-use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_locale, utfc_ptr2len};
 use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
@@ -2123,7 +2122,7 @@ fn do_one_set_option(
 }
 
 /// Parse 'arg' for option settings.
-pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
+pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
     unsafe {
         let mut did_show = false;
 
@@ -2192,7 +2191,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
                         emsg(iobuf_ptr);
                         g_st().no_wait_return -= 1;
 
-                        return FAIL;
+                        return false;
                     }
                 }
 
@@ -2208,7 +2207,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
             g_st().info_message = false;
         }
 
-        OK
+        true
     }
 }
 
@@ -6431,7 +6430,7 @@ fn showoneopt(opt: &mut vimoption_T, opt_flags: c_int) {
 }
 
 /// Write modified options as ":set" commands to a file.
-pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> c_int {
+pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> bool {
     unsafe {
         for pri in (0..=1).rev() {
             for opt_idx in 0..kOptCount {
@@ -6494,17 +6493,17 @@ pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> c_int {
                                 (*opt).fullname.as_ptr(),
                                 *(varp.cast::<*mut c_char>()),
                             ) < 0
-                                || put_eol(fd.cast()) < 0
+                                || !put_eol(fd.cast())
                             {
-                                return FAIL;
+                                return false;
                             }
                             do_endif = true;
                         }
-                        if put_set(fd, cmd, opt_idx, varp) == FAIL {
-                            return FAIL;
+                        if !put_set(fd, cmd, opt_idx, varp) {
+                            return false;
                         }
                         if do_endif && !put_line(fd.cast(), c"endif".as_ptr().cast_mut()) {
-                            return FAIL;
+                            return false;
                         }
 
                         varp = varp_local;
@@ -6513,66 +6512,66 @@ pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> c_int {
                 }
             }
         }
-        OK
+        true
     }
 }
 
 /// Generate set commands for the local fold options only.
-pub fn makefoldset(fd: *mut FILE) -> c_int {
+pub fn makefoldset(fd: *mut FILE) -> bool {
     unsafe {
         let cmd = c"setlocal".as_ptr().cast_mut();
-        if put_set(
+        if !put_set(
             fd,
             cmd,
             kOptFoldmethod,
             (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdm).cast(),
-        ) == FAIL
-            || put_set(
+        )
+            || !put_set(
                 fd,
                 cmd,
                 kOptFoldexpr,
                 (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fde).cast(),
-            ) == FAIL
-            || put_set(
+            )
+            || !put_set(
                 fd,
                 cmd,
                 kOptFoldmarker,
                 (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fmr).cast(),
-            ) == FAIL
-            || put_set(
+            )
+            || !put_set(
                 fd,
                 cmd,
                 kOptFoldignore,
                 (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdi).cast(),
-            ) == FAIL
-            || put_set(
+            )
+            || !put_set(
                 fd,
                 cmd,
                 kOptFoldlevel,
                 (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdl).cast(),
-            ) == FAIL
-            || put_set(
+            )
+            || !put_set(
                 fd,
                 cmd,
                 kOptFoldminlines,
                 (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fml).cast(),
-            ) == FAIL
-            || put_set(
+            )
+            || !put_set(
                 fd,
                 cmd,
                 kOptFoldnestmax,
                 (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdn).cast(),
-            ) == FAIL
-            || put_set(
+            )
+            || !put_set(
                 fd,
                 cmd,
                 kOptFoldenable,
                 (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fen).cast(),
-            ) == FAIL
+            )
         {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -6582,14 +6581,14 @@ fn put_set_value(
     opt_idx: OptIndex,
     varp: *mut c_void,
     value: Object,
-) -> c_int {
+) -> bool {
     unsafe {
         let opt = get_option(opt_idx);
         let name = (*opt).fullname.as_ptr();
         let flags = (*opt).flags;
 
         if varp != (*opt).var && optval_is_unset_local(opt_idx, value) {
-            return OK;
+            return true;
         }
 
         match value.obj_type {
@@ -6607,29 +6606,29 @@ fn put_set_value(
                     name,
                 ) < 0
                 {
-                    return FAIL;
+                    return false;
                 }
             }
             ObjectType::kObjectTypeInteger => {
                 if fprintf!(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
-                    return FAIL;
+                    return false;
                 }
                 let value_num = value.data.integer();
                 let mut wc: OptInt = 0;
                 if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
                     if fputs(get_special_key_name(wc as c_int, 0), fd) < 0 {
-                        return FAIL;
+                        return false;
                     }
                 } else {
                     let num_s = format!("{value_num}\0");
                     if fputs(num_s.as_ptr().cast(), fd) < 0 {
-                        return FAIL;
+                        return false;
                     }
                 }
             }
             ObjectType::kObjectTypeString => {
                 if fprintf!(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
-                    return FAIL;
+                    return false;
                 }
                 let value_str = value.data.string().data;
                 if !value_str.is_null() {
@@ -6645,45 +6644,45 @@ fn put_set_value(
                         {
                             let mut part_vec = vec![0 as c_char; size];
                             let part = part_vec.as_mut_ptr();
-                            if put_eol(fd.cast()) == FAIL {
-                                return FAIL;
+                            if !put_eol(fd.cast()) {
+                                return false;
                             }
                             let mut p = buf;
                             while *p != NUL {
                                 if fprintf!(fd, c"%s %s+=".as_ptr(), cmd, name) < 0 {
-                                    return FAIL;
+                                    return false;
                                 }
                                 copy_option_part(&raw mut p, part, size, c",".as_ptr().cast_mut());
                                 if !put_escstr(fd.cast(), part, 2)
-                                    || put_eol(fd.cast()) == FAIL
+                                    || !put_eol(fd.cast())
                                 {
-                                    return FAIL;
+                                    return false;
                                 }
                             }
-                            return OK;
+                            return true;
                         }
                         if !put_escstr(fd.cast(), buf, 2) {
-                            return FAIL;
+                            return false;
                         }
                     } else if !put_escstr(fd.cast(), value_str, 2) {
-                        return FAIL;
+                        return false;
                     }
                 }
             }
             _ => std::process::abort(),
         }
 
-        if put_eol(fd.cast()) < 0 {
-            return FAIL;
+        if !put_eol(fd.cast()) {
+            return false;
         }
-        OK
+        true
     }
 }
 
-fn put_set(fd: *mut FILE, cmd: *mut c_char, opt_idx: OptIndex, varp: *mut c_void) -> c_int {
+fn put_set(fd: *mut FILE, cmd: *mut c_char, opt_idx: OptIndex, varp: *mut c_void) -> bool {
     let value = opt_from_varp(opt_idx, varp);
         let ret = if value.obj_type == ObjectType::kObjectTypeLuaRef {
-            OK
+            true
         } else {
             put_set_value(fd, cmd, opt_idx, varp, value)
         };

@@ -1144,9 +1144,9 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
                 wp = swbuf_goto_win_with_buf(buflist_findname_exp(ptr));
             }
 
-            if wp.is_null() && win_split(0, 0) == OK {
+            if wp.is_null() && win_split(0, 0) {
                 reset_binding(&mut **curwin.as_ptr());
-                if do_ecmd(
+                if !do_ecmd(
                     0,
                     ptr,
                     ptr::null_mut(),
@@ -1154,7 +1154,7 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
                     ECMD_LASTL,
                     ECMD_HIDE,
                     ptr::null_mut(),
-                ) == FAIL
+                )
                 {
                     let old_got_int = g_st().got_int;
                     g_st().got_int = false;
@@ -1219,7 +1219,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     return;
                 }
 
-                if !curbuf_locked() && win_split(0, 0) == OK {
+                if !curbuf_locked() && win_split(0, 0) {
                     buflist_getfile(
                         if Prenum == 0 {
                             (**curwin.as_ptr()).w_alt_fnum
@@ -1956,14 +1956,14 @@ pub fn check_split_disallowed_err(wp: *const win_T, err: &mut Error) -> bool {
     }
 }
 
-pub fn win_split(size: c_int, mut flags: c_int) -> c_int {
+pub fn win_split(size: c_int, mut flags: c_int) -> bool {
     unsafe {
         if !check_split_disallowed(*curwin.as_ptr()) {
-            return FAIL;
+            return false;
         }
 
-        if may_open_tabpage() == OK {
-            return OK;
+        if may_open_tabpage() {
+            return true;
         }
 
         flags |= g_st().cmdmod.cmod_split;
@@ -1971,7 +1971,7 @@ pub fn win_split(size: c_int, mut flags: c_int) -> c_int {
             emsg(gettext(
                 c"E442: Can't split topleft and botright at the same time".as_ptr(),
             ));
-            return FAIL;
+            return false;
         }
 
         if (flags & WSP_HELP) != 0 {
@@ -1986,11 +1986,7 @@ pub fn win_split(size: c_int, mut flags: c_int) -> c_int {
             clear_snapshot(&mut *g_st().curtab, SNAP_QUICKFIX_IDX as c_int);
         }
 
-        if win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut()).is_null() {
-            FAIL
-        } else {
-            OK
-        }
+        !win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut()).is_null()
     }
 }
 
@@ -2670,19 +2666,19 @@ pub fn make_windows(mut count: c_int, vertical: bool) -> c_int {
         let mut todo = count - 1;
         while todo > 0 {
             if vertical {
-                if win_split(
+                if !win_split(
                     (**curwin.as_ptr()).w_width - ((**curwin.as_ptr()).w_width - todo) / (todo + 1) - 1,
                     WSP_VERT | WSP_ABOVE,
-                ) == FAIL
+                )
                 {
                     break;
                 }
-            } else if win_split(
+            } else if !win_split(
                 (**curwin.as_ptr()).w_height
                     - ((**curwin.as_ptr()).w_height - todo * STATUS_HEIGHT) / (todo + 1)
                     - STATUS_HEIGHT,
                 WSP_ABOVE,
-            ) == FAIL
+            )
             {
                 break;
             }
@@ -5016,7 +5012,7 @@ pub fn use_tabpage(tp: *mut tabpage_T) {
 
 pub fn win_alloc_first() {
     unsafe {
-        if win_alloc_firstwin(ptr::null_mut()) == FAIL {
+        if !win_alloc_firstwin(ptr::null_mut()) {
             std::process::abort();
         }
 
@@ -5043,13 +5039,13 @@ pub fn win_alloc_ctx_win(idx: c_int) {
     }
 }
 
-fn win_alloc_firstwin(oldwin: *mut win_T) -> c_int {
+fn win_alloc_firstwin(oldwin: *mut win_T) -> bool {
     unsafe {
         *curwin.as_ptr() = win_alloc(ptr::null_mut(), false);
         if oldwin.is_null() {
             g_st().curbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_LISTED);
             if g_st().curbuf.is_null() {
-                return FAIL;
+                return false;
             }
             (**curwin.as_ptr()).w_buffer = g_st().curbuf;
             (**curwin.as_ptr()).w_s_owned = None;
@@ -5066,7 +5062,7 @@ fn win_alloc_firstwin(oldwin: *mut win_T) -> c_int {
         (*g_st().topframe).fr_width = g_st().Columns;
         (*g_st().topframe).fr_height = g_st().Rows - opt_vars().p_ch as c_int - global_stl_height();
 
-        OK
+        true
     }
 }
 
@@ -5169,7 +5165,7 @@ pub fn win_new_tabpage(
         g_st().curtab = newtp;
 
         let result = win_alloc_firstwin((*old_curtab).tp_curwin);
-        debug_assert_eq!(result, OK);
+        debug_assert!(result);
         if !first.is_null() {
             *first = *curwin.as_ptr();
         }
@@ -5268,7 +5264,7 @@ pub fn win_new_tabpage(
     }
 }
 
-fn may_open_tabpage() -> c_int {
+fn may_open_tabpage() -> bool {
     let n = if g_st().cmdmod.cmod_tab == 0 {
             g_st().postponed_split_tab
         } else {
@@ -5276,17 +5272,13 @@ fn may_open_tabpage() -> c_int {
         };
 
         if n == 0 {
-            return FAIL;
+            return false;
         }
 
         g_st().cmdmod.cmod_tab = 0;
         g_st().postponed_split_tab = 0;
-        let status = if !win_new_tabpage(n, ptr::null_mut(), true, ptr::null_mut()).is_null() {
-            OK
-        } else {
-            FAIL
-        };
-        if status == OK {
+        let status = !win_new_tabpage(n, ptr::null_mut(), true, ptr::null_mut()).is_null();
+        if status {
             apply_autocmds(
                 EVENT_TABNEWENTERED,
                 ptr::null_mut(),

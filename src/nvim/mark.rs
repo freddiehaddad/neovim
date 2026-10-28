@@ -133,7 +133,6 @@ use crate::cmdexpand::HLF_D;
 use crate::eval::kListLenMayKnow;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::globals::IOSIZE;
-use crate::math::{FAIL, OK};
 use crate::regexp::{MAXCOL, kMarkBufLocal};
 use crate::search::{BACKWARD, FORWARD};
 
@@ -273,7 +272,7 @@ fn reset_xfmark(
 }
 
 /// Set named mark `c` at current cursor position (`setmark`).
-pub fn setmark(c: c_int) -> c_int {
+pub fn setmark(c: c_int) -> bool {
     unsafe {
         let view = mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
         setmark_pos(
@@ -361,7 +360,7 @@ fn do_markset_autocmd(c: c_char, pos: &pos_T, buf: *mut buf_T) {
 }
 
 /// Set named mark `c` to position `pos` (`setmark_pos`).
-pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmarkv_T>) -> c_int {
+pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmarkv_T>) -> bool {
     unsafe {
         let view = if let Some(view_pt) = view_pt {
             *view_pt
@@ -370,7 +369,7 @@ pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmark
         };
 
         if c < 0 {
-            return FAIL;
+            return false;
         }
 
         if c == b'\'' as c_int || c == b'`' as c_int {
@@ -380,29 +379,29 @@ pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmark
             } else {
                 (**curwin.as_ptr()).w_pcmark = *pos;
             }
-            return OK;
+            return true;
         }
 
         let buf = buflist_findnr(fnum);
         if buf.is_null() {
-            return FAIL;
+            return false;
         }
 
         if c == b'"' as c_int {
             reset_fmark(&mut (*buf).b_last_cursor, *pos, (*buf).b_fnum, view);
             do_markset_autocmd(c as c_char, pos, buf);
-            return OK;
+            return true;
         }
 
         if c == b'[' as c_int {
             (*buf).b_op_start = *pos;
             do_markset_autocmd(c as c_char, pos, buf);
-            return OK;
+            return true;
         }
         if c == b']' as c_int {
             (*buf).b_op_end = *pos;
             do_markset_autocmd(c as c_char, pos, buf);
-            return OK;
+            return true;
         }
 
         if c == b'<' as c_int || c == b'>' as c_int {
@@ -415,12 +414,12 @@ pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmark
                 (*buf).b_visual.vi_mode = b'v' as c_int;
             }
             do_markset_autocmd(c as c_char, pos, buf);
-            return OK;
+            return true;
         }
 
         if c == b':' as c_int && bt_prompt(buf) {
             reset_fmark(&mut (*buf).b_prompt_start, *pos, (*buf).b_fnum, view);
-            return OK;
+            return true;
         }
 
         if ascii_islower(c) {
@@ -428,7 +427,7 @@ pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmark
             reset_fmark(&mut (*buf).b_namedm[i], *pos, fnum, view);
             u_update_named_mark(&mut *buf, i as c_int);
             do_markset_autocmd(c as c_char, pos, buf);
-            return OK;
+            return true;
         }
         if ascii_isupper(c) || ascii_isdigit(c) {
             let i = if ascii_isdigit(c) {
@@ -438,9 +437,9 @@ pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmark
             };
             reset_xfmark(&mut g_st().namedfm[i], *pos, fnum, view, None);
             do_markset_autocmd(c as c_char, pos, buf);
-            return OK;
+            return true;
         }
-        FAIL
+        false
     }
 }
 

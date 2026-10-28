@@ -28,7 +28,6 @@ use crate::fileio::{FILE, fputs};
 use crate::globals::*;
 use crate::indent::{get_indent_buf, get_sw_value};
 use crate::mark::setpcmark;
-use crate::math::FAIL;
 use crate::mbyte::{mb_adjust_cursor, ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
@@ -2611,7 +2610,7 @@ fn put_folds_recurse(fd: *mut FILE, gap: &[fold_T], off: linenr_T) -> bool {
                 i64::from(fp.fd_top + off),
                 i64::from(fp.fd_top + off + fp.fd_len - 1),
             );
-            if fputs(buf.as_ptr(), fd) < 0 || put_eol(fd) == FAIL {
+            if fputs(buf.as_ptr(), fd) < 0 || !put_eol(fd) {
                 return false;
             }
         }
@@ -2637,7 +2636,7 @@ fn put_foldopen_recurse(
                         i64::from(fp.fd_top + off),
                     );
                     if fputs(buf.as_ptr(), fd) < 0
-                        || put_eol(fd) == FAIL
+                        || !put_eol(fd)
                         || !put_line(fd, c"sil! normal! zo".as_ptr() as *mut c_char)
                     {
                         return false;
@@ -2673,7 +2672,7 @@ fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> bool {
             c"%d".as_ptr(),
             fp.fd_top + off,
         );
-        if fputs(buf.as_ptr(), fd) < 0 || put_eol(fd) == FAIL {
+        if fputs(buf.as_ptr(), fd) < 0 || !put_eol(fd) {
             return false;
         }
         let cmd = if fp.fd_flags == FD_CLOSED {
@@ -2681,7 +2680,7 @@ fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> bool {
         } else {
             c"sil! normal! zo".as_ptr()
         };
-        if fputs(cmd, fd) < 0 || put_eol(fd) == FAIL {
+        if fputs(cmd, fd) < 0 || !put_eol(fd) {
             return false;
         }
         true

@@ -648,7 +648,7 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
         setpcmark();
 
         if is_split_cmd || g_st().cmdmod.cmod_tab != 0 {
-            if win_split(0, 0) == FAIL {
+            if !win_split(0, 0) {
                 return;
             }
             (**curwin.as_ptr()).w_onebuf_opt.wo_scb = 0;
@@ -680,7 +680,7 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
             g_st().arg_had_last = true;
         }
 
-        if do_ecmd(
+        if !do_ecmd(
             0,
             alist_name(&*arglist().add((**curwin.as_ptr()).w_arg_idx as usize)),
             ptr::null_mut(),
@@ -692,7 +692,7 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
                 0
             }) + (if eap.forceit != 0 { ECMD_FORCEIT } else { 0 }),
             *curwin.as_ptr(),
-        ) == FAIL
+        )
         {
             (**curwin.as_ptr()).w_arg_idx = old_arg_idx;
         } else if eap.cmdidx != CMD_argdo {
@@ -1068,9 +1068,10 @@ fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
                 if !aall.use_firstwin {
                     let p_ea_save = opt_vars().p_ea;
                     opt_vars().p_ea = 1;
-                    split_ret = win_split(0, WSP_ROOM | WSP_BELOW);
+                    let ok = win_split(0, WSP_ROOM | WSP_BELOW);
+                    split_ret = if ok { OK } else { FAIL };
                     opt_vars().p_ea = p_ea_save;
-                    if split_ret == FAIL {
+                    if !ok {
                         i += 1;
                         continue;
                     }

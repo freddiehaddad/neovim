@@ -2283,12 +2283,12 @@ pub fn autocmd_register(
     desc: *mut c_char,
     handler_cmd: *const c_char,
     handler_fn: &mut Callback,
-) -> c_int {
+) -> bool {
     unsafe {
         assert!(group != 0);
 
         if (patlen as usize) > CStr::from_ptr(pat).to_bytes().len() {
-            return FAIL;
+            return false;
         }
 
         let findgroup = if group == AUGROUP_ALL {
@@ -2310,7 +2310,7 @@ pub fn autocmd_register(
                     )),
                     buflocal_nr,
                 );
-                return FAIL;
+                return false;
             }
             aupat_normalize_buflocal_pat(buflocal_pat.as_mut_ptr(), pat, patlen, buflocal_nr);
             pat = buflocal_pat.as_ptr();
@@ -2353,7 +2353,7 @@ pub fn autocmd_register(
                     None => None,
                 };
                 if reg_pat.is_none() || prog.is_none() {
-                    return FAIL;
+                    return false;
                 }
                 prog
             };
@@ -2419,7 +2419,7 @@ pub fn autocmd_register(
         };
         (*acs).push(ac);
 
-        OK
+        true
     }
 }
 
@@ -2452,7 +2452,7 @@ pub fn aucmd_span_pattern(mut pat: *const c_char, start: *mut *const c_char) -> 
 pub fn do_doautocmd(
     arg_start: *mut c_char,
     do_msg: bool,mut did_something: Option<&mut bool>,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut arg = arg_start;
         let mut nothing_done = true;
@@ -2465,12 +2465,12 @@ pub fn do_doautocmd(
 
         if *arg == b'*' as c_char {
             emsg(tr(c"E217: Can't execute autocommands for ALL events"));
-            return FAIL;
+            return false;
         }
 
         let mut fname = arg_event_skip(arg, group != AUGROUP_ALL);
         if fname.is_null() {
-            return FAIL;
+            return false;
         }
 
         fname = skipwhite(fname);
@@ -2501,7 +2501,7 @@ pub fn do_doautocmd(
             **p = !nothing_done;
         }
 
-        if aborting() { FAIL } else { OK }
+        !aborting()
     }
 }
 
@@ -2524,7 +2524,8 @@ pub fn ex_doautoall(eap: &mut exarg_T) {
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             set_bufref(&mut bufref, buf);
 
-            retval = do_doautocmd(arg, false, Some(&mut did_aucmd));
+            let ok = do_doautocmd(arg, false, Some(&mut did_aucmd));
+            retval = if ok { OK } else { FAIL };
 
             if call_do_modelines && did_aucmd {
                 do_modelines(if is_ctx_win(*curwin.as_ptr()) { OPT_NOWIN } else { 0 });
@@ -2532,7 +2533,7 @@ pub fn ex_doautoall(eap: &mut exarg_T) {
 
             ctx_restore(&mut aco);
 
-            if retval == FAIL || !bufref_valid(Some(&bufref)) {
+            if !ok || !bufref_valid(Some(&bufref)) {
                 retval = FAIL;
                 break;
             }

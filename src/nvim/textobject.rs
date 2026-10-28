@@ -25,7 +25,6 @@ use crate::textformat::oparg_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 
 const kCpoEndofsent: c_int = b'J' as c_int;
@@ -331,7 +330,7 @@ fn cls() -> c_int {
 }
 
 /// Move forward `count` words (`fwd_word`).
-pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
+pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
     unsafe {
         (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
@@ -352,17 +351,17 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
             let last_line = (**curwin.as_ptr()).w_cursor.lnum == (*g_st().curbuf).b_ml.ml_line_count;
             let mut i = inc_cursor();
             if i == -1 || (i >= 1 && last_line) {
-                return FAIL;
+                return false;
             }
             if i >= 1 && eol && count == 0 {
-                return OK;
+                return true;
             }
 
             if sclass != 0 {
                 while cls() == sclass {
                     i = inc_cursor();
                     if i == -1 || (i >= 1 && eol && count == 0) {
-                        return OK;
+                        return true;
                     }
                 }
             }
@@ -374,11 +373,11 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
 
                 i = inc_cursor();
                 if i == -1 || (i >= 1 && eol && count == 0) {
-                    return OK;
+                    return true;
                 }
             }
         }
-        OK
+        true
     }
 }
 
@@ -432,7 +431,7 @@ pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> bool {
 }
 
 /// Move to the end of the word (`end_word`).
-pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) -> c_int {
+pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) -> bool {
     unsafe {
         (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
@@ -459,13 +458,13 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
             }
             let sclass = cls();
             if inc_cursor() == -1 {
-                return FAIL;
+                return false;
             }
 
             let mut finished = false;
             if cls() == sclass && sclass != 0 {
                 if skip_chars(sclass, FORWARD) {
-                    return FAIL;
+                    return false;
                 }
             } else if !stop || sclass == 0 {
                 while cls() == 0 {
@@ -474,12 +473,12 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
                         break;
                     }
                     if inc_cursor() == -1 {
-                        return FAIL;
+                        return false;
                     }
                 }
 
                 if !finished && skip_chars(cls(), FORWARD) {
-                    return FAIL;
+                    return false;
                 }
             }
             if !finished {
@@ -487,7 +486,7 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
             }
             stop = false;
         }
-        OK
+        true
     }
 }
 
@@ -623,7 +622,7 @@ pub fn current_word(
             start_pos = (**curwin.as_ptr()).w_cursor;
 
             if (cls() == 0) == include {
-                if end_word(1, bigword, true, true) == FAIL {
+                if !end_word(1, bigword, true, true) {
                     return false;
                 }
             } else {
@@ -670,13 +669,13 @@ pub fn current_word(
                     return false;
                 }
                 if include != (cls() == 0) {
-                    if fwd_word(1, bigword, true) == FAIL && count > 1 {
+                    if !fwd_word(1, bigword, true) && count > 1 {
                         return false;
                     }
                     if !oneleft() {
                         inclusive = false;
                     }
-                } else if end_word(1, bigword, true, true) == FAIL {
+                } else if !end_word(1, bigword, true, true) {
                     return false;
                 }
             }

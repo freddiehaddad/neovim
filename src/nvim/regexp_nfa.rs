@@ -819,7 +819,7 @@ fn nfa_emit_equi_class(c: c_int) {
         EMIT2(c);
 }
 
-fn nfa_regatom() -> c_int {
+fn nfa_regatom() -> bool {
     unsafe {
         let mut old_regparse = re_st().regparse.cast::<u8>();
         let mut extra: c_int = 0;
@@ -833,35 +833,35 @@ fn nfa_regatom() -> c_int {
         if c == NUL as c_int {
             emsg(tr(e_nul_found.as_ptr()));
             g_st().rc_did_emsg = true;
-            return FAIL;
+            return false;
         } else if c == Magic(b'^' as c_int) {
             EMIT(NFA_BOL);
-            return OK;
+            return true;
         } else if c == Magic(b'$' as c_int) {
             EMIT(NFA_EOL);
             re_st().had_eol = 1;
-            return OK;
+            return true;
         } else if c == Magic(b'<' as c_int) {
             EMIT(NFA_BOW);
-            return OK;
+            return true;
         } else if c == Magic(b'>' as c_int) {
             EMIT(NFA_EOW);
-            return OK;
+            return true;
         } else if c == Magic(b'_' as c_int) {
             c = no_Magic(getchr());
             if c == NUL as c_int {
                 emsg(tr(e_nul_found.as_ptr()));
                 g_st().rc_did_emsg = true;
-                return FAIL;
+                return false;
             }
             if c == b'^' as c_int {
                 EMIT(NFA_BOL);
-                return OK;
+                return true;
             }
             if c == b'$' as c_int {
                 EMIT(NFA_EOL);
                 re_st().had_eol = 1;
-                return OK;
+                return true;
             }
             extra = NFA_ADD_NL;
             if c == b'[' as c_int {
@@ -872,10 +872,10 @@ fn nfa_regatom() -> c_int {
                     if extra == NFA_ADD_NL {
                         semsg!(tr(e_ill_char_class.as_ptr()), i64::from(c));
                         g_st().rc_did_emsg = true;
-                        return FAIL;
+                        return false;
                     }
                     siemsg!(c"INTERNAL: Unknown character class char: %d".as_ptr(), c);
-                    return FAIL;
+                    return false;
                 }
                 if c == Magic(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
                     old_regparse = re_st().regparse.cast();
@@ -889,7 +889,7 @@ fn nfa_regatom() -> c_int {
                         EMIT(NFA_OR);
                         re_st().regflags |= RF_HASNL;
                     }
-                    return OK;
+                    return true;
                 }
             }
         }
@@ -930,10 +930,10 @@ fn nfa_regatom() -> c_int {
                     if extra == NFA_ADD_NL {
                         semsg!(tr(e_ill_char_class.as_ptr()), i64::from(c));
                         g_st().rc_did_emsg = true;
-                        return FAIL;
+                        return false;
                     }
                     siemsg!(c"INTERNAL: Unknown character class char: %d".as_ptr(), c);
-                    return FAIL;
+                    return false;
                 }
                 if c == Magic(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
                     old_regparse = re_st().regparse.cast();
@@ -946,7 +946,7 @@ fn nfa_regatom() -> c_int {
                         EMIT(NFA_OR);
                         re_st().regflags |= RF_HASNL;
                     }
-                    return OK;
+                    return true;
                 }
             } else if c == Magic(b'n' as c_int) {
                 if re_st().reg_string != 0 {
@@ -955,12 +955,12 @@ fn nfa_regatom() -> c_int {
                     EMIT(NFA_NEWL);
                     re_st().regflags |= RF_HASNL;
                 }
-                return OK;
+                return true;
             } else if c == Magic(b'(' as c_int) {
                 if !nfa_reg(REG_PAREN) {
-                    return FAIL;
+                    return false;
                 }
-                return OK;
+                return true;
             } else if c == Magic(b'|' as c_int)
                 || c == Magic(b'&' as c_int)
                 || c == Magic(b')' as c_int)
@@ -972,11 +972,11 @@ fn nfa_regatom() -> c_int {
                 || c == Magic(b'{' as c_int)
             {
                 semsg!(tr(e_misplaced.as_ptr()), no_Magic(c));
-                return FAIL;
+                return false;
             } else if c == Magic(b'~' as c_int) {
                 let Some(prev_sub) = reg_prev_sub_ref() else {
                     emsg(tr((&raw const e_nopresub).cast()));
-                    return FAIL;
+                    return false;
                 };
                 let start_ptr = prev_sub.as_ptr().cast::<u8>();
                 let mut lp = start_ptr;
@@ -988,71 +988,71 @@ fn nfa_regatom() -> c_int {
                     lp = lp.add(utf_ptr2len(lp.cast()) as usize);
                 }
                 EMIT(NFA_NOPEN);
-                return OK;
+                return true;
             } else if (Magic(b'1' as c_int)..=Magic(b'9' as c_int)).contains(&c) {
                 let refnum = no_Magic(c) - b'1' as c_int;
                 if !seen_endbrace(refnum + 1) {
-                    return FAIL;
+                    return false;
                 }
                 EMIT(NFA_BACKREF1 + refnum);
                 re_st().rex.nfa_has_backref = 1;
-                return OK;
+                return true;
             } else if c == Magic(b'z' as c_int) {
                 c = no_Magic(getchr());
                 match c as u8 {
                     b's' => {
                         EMIT(NFA_ZSTART);
                         if !re_mult_next(c"\\zs".as_ptr()) {
-                            return FAIL;
+                            return false;
                         }
-                        return OK;
+                        return true;
                     }
                     b'e' => {
                         EMIT(NFA_ZEND);
                         re_st().rex.nfa_has_zend = 1;
                         if !re_mult_next(c"\\ze".as_ptr()) {
-                            return FAIL;
+                            return false;
                         }
-                        return OK;
+                        return true;
                     }
                     b'1'..=b'9' => {
                         if (g_st().reg_do_extmatch & REX_USE) == 0 {
                             emsg(tr(e_z1_not_allowed.as_ptr()));
                             g_st().rc_did_emsg = true;
-                            return FAIL;
+                            return false;
                         }
                         EMIT(NFA_ZREF1 + (no_Magic(c) - b'1' as c_int));
                         re_st().re_has_z = REX_USE;
-                        return OK;
+                        return true;
                     }
                     b'(' => {
                         if g_st().reg_do_extmatch != REX_SET {
                             emsg(tr(e_z_not_allowed.as_ptr()));
                             g_st().rc_did_emsg = true;
-                            return FAIL;
+                            return false;
                         }
                         if !nfa_reg(REG_ZPAREN) {
-                            return FAIL;
+                            return false;
                         }
                         re_st().re_has_z = REX_SET;
-                        return OK;
+                        return true;
                     }
                     _ => {
                         semsg!(
                             tr(c"E867: (NFA) Unknown operator '\\z%c'".as_ptr()),
                             no_Magic(c),
                         );
-                        return FAIL;
+                        return false;
                     }
                 }
             } else if c == Magic(b'%' as c_int) {
                 c = no_Magic(getchr());
                 if c == b'(' as c_int {
                     if !nfa_reg(REG_NPAREN) {
-                        return FAIL;
+                        return false;
                     }
                     EMIT(NFA_NOPEN);
-                    return OK;
+                    return true;
                 }
                 return nfa_regatom_percent(c, save_prev_at_start);
             } else if c == Magic(b'[' as c_int) {
@@ -1069,7 +1069,7 @@ fn nfa_regatom() -> c_int {
                 &mut mb_c,
             );
             if res != -2 {
-                return res;
+                return res == OK;
             }
             c = mb_c;
         }
@@ -1094,12 +1094,12 @@ fn nfa_regatom() -> c_int {
             c = no_Magic(c);
             EMIT(c);
         }
-        OK
+        true
     }
 }
 
 #[inline(never)]
-fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
+fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
     unsafe {
         match c as u8 {
             b'd' | b'o' | b'x' | b'u' | b'U' => {
@@ -1121,18 +1121,18 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
                         },
                     );
                     g_st().rc_did_emsg = true;
-                    return FAIL;
+                    return false;
                 }
                 EMIT(if nr == 0 { 0x0a } else { nr as c_int });
-                OK
+                true
             }
             b'^' => {
                 EMIT(NFA_BOF);
-                OK
+                true
             }
             b'$' => {
                 EMIT(NFA_EOF);
-                OK
+                true
             }
             b'#' => {
                 if *re_st().regparse == b'=' as c_char
@@ -1143,18 +1143,18 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
                         tr(e_atom_engine_must_be_at_start_of_pattern.as_ptr()),
                         *re_st().regparse.add(1) as c_int,
                     );
-                    return FAIL;
+                    return false;
                 }
                 EMIT(NFA_CURSOR);
-                OK
+                true
             }
             b'V' => {
                 EMIT(NFA_VISUAL);
-                OK
+                true
             }
             b'C' => {
                 EMIT(NFA_ANY_COMPOSING);
-                OK
+                true
             }
             b'[' => {
                 let mut n: c_int = 0;
@@ -1173,10 +1173,10 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
                             },
                         );
                         g_st().rc_did_emsg = true;
-                        return FAIL;
+                        return false;
                     }
-                    if nfa_regatom() == FAIL {
-                        return FAIL;
+                    if !nfa_regatom() {
+                        return false;
                     }
                     n += 1;
                 }
@@ -1191,12 +1191,12 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
                         },
                     );
                     g_st().rc_did_emsg = true;
-                    return FAIL;
+                    return false;
                 }
                 EMIT(NFA_OPT_CHARS);
                 EMIT(n);
                 EMIT(NFA_NOPEN);
-                OK
+                true
             }
             _ => {
                 let mut n: i64 = 0;
@@ -1217,11 +1217,11 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
                             tr(e_regexp_number_after_dot_pos_search_chr.as_ptr()),
                             no_Magic(c),
                         );
-                        return FAIL;
+                        return false;
                     }
                     if n > i64::from(i32::MAX - (c - b'0' as c_int)) / 10 {
                         emsg(tr(e_value_too_large.as_ptr()));
-                        return FAIL;
+                        return false;
                     }
                     n = n * 10 + i64::from(c - b'0' as c_int);
                     c = getchr();
@@ -1231,7 +1231,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
                     let mut limit = i32::MAX;
                     if !cur && !got_digit {
                         semsg!(tr(e_nfa_regexp_missing_value_in_chr.as_ptr()), no_Magic(c));
-                        return FAIL;
+                        return false;
                     }
                     if c == b'l' as c_int {
                         if cur {
@@ -1283,10 +1283,10 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
                     }
                     if n >= i64::from(limit) {
                         emsg(tr(e_value_too_large.as_ptr()));
-                        return FAIL;
+                        return false;
                     }
                     EMIT(n as c_int);
-                    return OK;
+                    return true;
                 } else if no_Magic(c) == b'\'' as c_int && n == 0 {
                     EMIT(if cmp == b'<' as c_int {
                         NFA_MARK_LT
@@ -1296,13 +1296,13 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
                         NFA_MARK
                     });
                     EMIT(getchr());
-                    return OK;
+                    return true;
                 }
                 semsg!(
                     tr(c"E867: (NFA) Unknown operator '\\%%%c'".as_ptr()),
                     no_Magic(c),
                 );
-                FAIL
+                false
             }
         }
     }
@@ -1561,8 +1561,7 @@ fn nfa_regpiece() -> bool {
         let pv = &raw mut re_st().post_vec;
         let my_post_start = (*pv).len();
 
-        let ret = nfa_regatom();
-        if ret == FAIL {
+        if !nfa_regatom() {
             return false;
         }
         let op = peekchr();
@@ -1592,7 +1591,7 @@ fn nfa_regpiece_multi(
         } else if op == Magic(b'+' as c_int) {
             restore_parse_state(&mut *old_state);
             re_st().curchr = -1;
-            if nfa_regatom() == FAIL {
+            if !nfa_regatom() {
                 return false;
             }
             EMIT(NFA_STAR);
@@ -1669,7 +1668,7 @@ fn nfa_regpiece_multi(
                 for i in 0..maxval {
                     restore_parse_state(&mut *old_state);
                     let old_post_pos = (*pv).len();
-                    if nfa_regatom() == FAIL {
+                    if !nfa_regatom() {
                         return false;
                     }
                     if i + 1 > minval {

@@ -49,7 +49,6 @@ use crate::keycodes::{
 };
 use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::mark::mark_adjust;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_charlen, mb_string2cells_len, mb_tolower, ptr2cells, utf_ClusterInfo, utf_head_off,
     utf_ptr2StrCharInfo, utfc_ptr2len,
@@ -539,13 +538,13 @@ pub fn copy_register(name: c_int) -> yankreg_T {
     }
 }
 
-fn stuff_yank(regname: c_int, p: *const c_char) -> c_int {
+fn stuff_yank(regname: c_int, p: *const c_char) -> bool {
     unsafe {
         if regname != 0 && !valid_yank_reg(regname, true) {
-            return FAIL;
+            return false;
         }
         if regname == c_int::from(b'_') {
-            return OK;
+            return true;
         }
 
         let plen = CStr::from_ptr(p).to_bytes().len();
@@ -566,24 +565,24 @@ fn stuff_yank(regname: c_int, p: *const c_char) -> c_int {
             reg.y_type = MotionType::kMTCharWise;
         }
         reg.timestamp = os_realtime() as u64;
-        OK
+        true
     }
 }
 
-pub fn do_record(c: c_int) -> c_int {
+pub fn do_record(c: c_int) -> bool {
     unsafe {
-        let retval: c_int;
+        let retval: bool;
 
         if g_st().reg_recording == 0 {
             if c < 0
                 || (!(c <= 0x7f && (c as u8).is_ascii_alphanumeric()) && c != c_int::from(b'"'))
             {
-                retval = FAIL;
+                retval = false;
             } else {
                 g_st().reg_recording = c;
                 showmode();
                 reg_st().do_record_regname = c;
-                retval = OK;
+                retval = true;
                 apply_autocmds(
                     EVENT_RECORDINGENTER,
                     ptr::null_mut(),
@@ -630,15 +629,15 @@ pub fn do_record(c: c_int) -> c_int {
     }
 }
 
-fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) -> c_int {
-    let mut retval = OK;
+fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) -> bool {
+    let mut retval = true;
         let is_silent = silent != 0;
 
         put_reedit_in_typebuf(silent);
         if colon {
             retval = ins_typebuf(c"\n".as_ptr().cast_mut(), REMAP_NONE, 0, true, is_silent);
         }
-        if retval == OK {
+        if retval {
             let owned_p = if esc {
                 Some(vim_strsave_escape_ks(s))
             } else {
@@ -646,7 +645,7 @@ fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) -> c_in
             };
             let p = owned_p.as_ref().map_or(s, |cs| cs.as_ptr().cast_mut());
             if p.is_null() {
-                retval = FAIL;
+                retval = false;
             } else {
                 retval = ins_typebuf(
                     p,
@@ -657,7 +656,7 @@ fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) -> c_in
                 );
             }
         }
-        if colon && retval == OK {
+        if colon && retval {
             retval = ins_typebuf(c":".as_ptr().cast_mut(), REMAP_NONE, 0, true, is_silent);
         }
         retval
@@ -684,7 +683,7 @@ fn put_reedit_in_typebuf(silent: c_int) {
             0,
             true,
             silent != 0,
-        ) == OK
+        )
         {
             g_st().restart_edit = 0;
         }
@@ -732,14 +731,14 @@ fn execreg_line_continuation(lines: *mut NvimString, idx: &mut usize) -> Vec<c_c
     }
 }
 
-pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int) -> c_int {
+pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int) -> bool {
     unsafe {
-        let mut retval = OK;
+        let mut retval = true;
 
         if regname == c_int::from(b'@') {
             if reg_st().execreg_lastc == 0 {
                 emsg(gettext(c"E748: No previously used register".as_ptr()));
-                return FAIL;
+                return false;
             }
             regname = reg_st().execreg_lastc;
         }
@@ -748,19 +747,19 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
             || !valid_yank_reg(regname, false)
         {
             emsg_invreg(regname);
-            return FAIL;
+            return false;
         }
         reg_st().execreg_lastc = regname;
 
         if regname == c_int::from(b'_') {
-            return OK;
+            return true;
         }
 
         if regname == c_int::from(b':') {
             let last_cmd_ptr = &raw const g_st().last_cmdline;
             let Some(last_cmd) = (*last_cmd_ptr).as_ref() else {
                 emsg(gettext(e_nolastcmd.as_ptr()));
-                return FAIL;
+                return false;
             };
             g_st().new_last_cmdline = None;
             let p = vim_strsave_escaped_ext(
@@ -777,19 +776,19 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
             }
         } else if regname == c_int::from(b'=') {
             let Some(p) = get_expr_line() else {
-                return FAIL;
+                return false;
             };
             retval = put_in_typebuf(p.as_ptr().cast_mut(), true, colon != 0, silent);
         } else if regname == c_int::from(b'.') {
             let Some(p) = get_last_insert_save() else {
                 emsg(gettext(e_noinstext.as_ptr()));
-                return FAIL;
+                return false;
             };
             retval = put_in_typebuf(p.as_ptr().cast_mut(), false, colon != 0, silent);
         } else {
             let reg = &*get_yank_register(regname, YREG_PASTE);
             if !reg.y_allocated {
-                return FAIL;
+                return false;
             }
 
             let remap = if colon != 0 { REMAP_NONE } else { REMAP_YES };
@@ -802,9 +801,9 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
                 if (reg.y_type == MotionType::kMTLineWise
                     || i < reg.y_array.len() - 1
                     || addcr != 0)
-                    && ins_typebuf(c"\n".as_ptr().cast_mut(), remap, 0, true, is_silent) == FAIL
+                    && !ins_typebuf(c"\n".as_ptr().cast_mut(), remap, 0, true, is_silent)
                 {
-                    return FAIL;
+                    return false;
                 }
 
                 let mut str_ = reg.y_array[i].data;
@@ -824,13 +823,13 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
                 let escaped = vim_strsave_escape_ks(str_);
                 retval = ins_typebuf(escaped.as_ptr().cast_mut(), remap, 0, true, is_silent);
                 drop(escaped);
-                if retval == FAIL {
-                    return FAIL;
+                if !retval {
+                    return false;
                 }
                 if colon != 0
-                    && ins_typebuf(c":".as_ptr().cast_mut(), remap, 0, true, is_silent) == FAIL
+                    && !ins_typebuf(c":".as_ptr().cast_mut(), remap, 0, true, is_silent)
                 {
-                    return FAIL;
+                    return false;
                 }
             }
             g_st().reg_executing = if regname == 0 {
@@ -844,19 +843,19 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
     }
 }
 
-pub fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg: bool) -> c_int {
+pub fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg: bool) -> bool {
     unsafe {
-        let mut retval = OK;
+        let mut retval = true;
         let mut owned: Option<Vec<c_char>> = None;
         let literally = literally_arg || is_literal_register(regname);
 
         os_breakcheck();
         if g_st().got_int {
-            return FAIL;
+            return false;
         }
 
         if regname != 0 && !valid_yank_reg(regname, false) {
-            return FAIL;
+            return false;
         }
 
         let mut arg: *mut c_char = ptr::null_mut();
@@ -864,7 +863,7 @@ pub fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg: bool) 
             retval = stuff_inserted(0, 1, 1);
         } else if get_spec_reg(regname, &raw mut arg, &mut owned, true) {
             if arg.is_null() {
-                return FAIL;
+                return false;
             }
             stuffescaped(arg, literally);
         } else {
@@ -873,7 +872,7 @@ pub fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg: bool) 
             }
             let reg_ref = &*reg;
             if !reg_ref.y_allocated {
-                retval = FAIL;
+                retval = false;
             } else {
                 let put = reg_ref.y_type == MotionType::kMTCharWise
                     && (regname == c_int::from(b'-')
@@ -887,11 +886,11 @@ pub fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg: bool) 
                         let mut dir = BACKWARD;
                         if (g_st().State & REPLACE_FLAG) != 0 {
                             if !u_save_cursor() {
-                                return FAIL;
+                                return false;
                             }
                             del_chars(mb_charlen(reg_ref.y_array[0].data), 1);
                             let curpos = (**curwin.as_ptr()).w_cursor;
-                            if oneright() == FAIL {
+                            if !oneright() {
                                 dir = FORWARD;
                             }
                             (**curwin.as_ptr()).w_cursor = curpos;
@@ -2164,7 +2163,7 @@ pub fn do_put(
                                     col: 0,
                                     coladd: 0,
                                 };
-                                if getvpos(*curwin.as_ptr(), &mut pos, vcol) == OK {
+                                if getvpos(*curwin.as_ptr(), &mut pos, vcol) {
                                     col = pos.col;
                                 } else {
                                     col = MAXCOL;

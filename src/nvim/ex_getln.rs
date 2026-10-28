@@ -2951,7 +2951,7 @@ fn cmdpreview_open_buf() -> *mut buf_T {
         let retv = rename_buffer(c"[Preview]".as_ptr().cast_mut());
         ctx_restore(&mut aco);
 
-        if retv == FAIL {
+        if !retv {
             return ptr::null_mut();
         }
 
@@ -2978,7 +2978,7 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
     unsafe {
         let save_curwin = *curwin.as_ptr();
 
-        if win_split(opt_vars().p_cwh as c_int, WSP_BOT) == FAIL {
+        if !win_split(opt_vars().p_cwh as c_int, WSP_BOT) {
             return ptr::null_mut();
         }
 

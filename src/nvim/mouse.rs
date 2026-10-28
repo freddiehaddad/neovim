@@ -77,7 +77,6 @@ use crate::eval::funcs::{kMTCharWise, kMTLineWise};
 use crate::ex_getln::{Ctrl_G, Ctrl_O, Ctrl_R, Ctrl_RSB, Ctrl_T};
 use crate::extmark::kNone;
 use crate::insexpand::kWinInfo;
-use crate::math::FAIL;
 use crate::regexp::Ctrl_V;
 
 pub const IN_UNKNOWN: c_int = 0;
@@ -1718,7 +1717,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
 
         (**curwin.as_ptr()).w_curswant = col;
         (**curwin.as_ptr()).w_set_curswant = false;
-        if coladvance(&mut **curwin.as_ptr(), col) == FAIL {
+        if !coladvance(&mut **curwin.as_ptr(), col) {
             if !inclusive.is_null() {
                 *inclusive = true;
             }

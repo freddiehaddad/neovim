@@ -18,7 +18,6 @@ use std::ptr;
 use crate::change::TAB;
 use crate::eval::typval::varnumber_T;
 use crate::keycodes::CAR;
-use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 pub type uvarnumber_T = u64;
 
@@ -253,24 +252,24 @@ pub fn buf_init_isk_chartab(buf: &mut buf_T) -> bool {
         true
 }
 
-pub fn init_isf_chartab() -> c_int {
+pub fn init_isf_chartab() -> bool {
     let save_chartab = charset_st().isf_chartab;
         charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
         if !parse_isopt(opt_vars().p_isf, (&raw mut charset_st().isf_chartab).cast::<u64>()) {
             charset_st().isf_chartab = save_chartab;
-            return FAIL;
+            return false;
         }
-        OK
+        true
 }
 
-pub fn init_isi_chartab() -> c_int {
+pub fn init_isi_chartab() -> bool {
     let save_chartab = charset_st().isi_chartab;
         charset_st().isi_chartab = [0; 4];
         if !parse_isopt(opt_vars().p_isi, (&raw mut charset_st().isi_chartab).cast::<u64>()) {
             charset_st().isi_chartab = save_chartab;
-            return FAIL;
+            return false;
         }
-        OK
+        true
 }
 
 pub fn check_isopt(var: *mut c_char) -> bool {

@@ -59,7 +59,6 @@ const KEYSET_OPTIDX_exec_autocmds__buffer: u64 = 4;
 const KEYSET_OPTIDX_exec_autocmds__pattern: u64 = 5;
 const KEYSET_OPTIDX_exec_autocmds__modeline: u64 = 6;
 
-use crate::math::FAIL;
 
 #[repr(C)]
 #[derive(Default)]
@@ -967,7 +966,7 @@ pub fn nvim_create_autocmd(
                     );
                     g_st().current_sctx = save_current_sctx;
 
-                    if retval == FAIL {
+                    if !retval {
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,

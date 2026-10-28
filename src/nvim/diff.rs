@@ -751,7 +751,7 @@ fn diff_write_buffer(
     backing: &mut Vec<c_char>,
     start: linenr_T,
     mut end: linenr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         if end < 0 {
             end = buf.b_ml.ml_line_count;
@@ -760,7 +760,7 @@ fn diff_write_buffer(
             *backing = Vec::new();
             m.ptr = ptr::null_mut();
             m.size = 0;
-            return OK;
+            return true;
         }
         let mut len: usize = 0;
         for lnum in start..=end {
@@ -810,7 +810,7 @@ fn diff_write_buffer(
             *ptr.add(len) = NL;
             len += 1;
         }
-        OK
+        true
     }
 }
 fn diff_write(
@@ -818,12 +818,12 @@ fn diff_write(
     din: &mut diffin_T,
     start: linenr_T,
     mut end: linenr_T,
-) -> c_int {
+) -> bool {
     let Some(ref din_fname) = din.din_fname else {
             return diff_write_buffer(buf, &mut din.din_mmfile, &mut din.din_buf, start, end);
         };
         if frames_locked() {
-            return FAIL;
+            return false;
         }
         if end < 0 {
             end = buf.b_ml.ml_line_count;
@@ -853,7 +853,7 @@ fn diff_write(
         free_string_option(buf.b_p_ff);
         buf.b_p_ff = save_ff;
         buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
-        r
+        r == OK
 }
 fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
     unsafe {
@@ -933,7 +933,7 @@ fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
                     anchors[idx_orig][anchor_i] - 1
                 };
                 let mut buf = (*g_st().curtab).tp_diffbuf[idx_orig];
-                if diff_write(&mut *buf, &mut dio.dio_orig, lnum_start, lnum_end) == FAIL {
+                if !diff_write(&mut *buf, &mut dio.dio_orig, lnum_start, lnum_end) {
                     diff_clear(&mut *g_st().curtab);
                     break 'theend;
                 }
@@ -954,10 +954,10 @@ fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
                     } else {
                         anchor_row[anchor_i] - 1
                     };
-                    if diff_write(&mut *buf, &mut dio.dio_new, lnum_start, lnum_end) == FAIL {
+                    if !diff_write(&mut *buf, &mut dio.dio_new, lnum_start, lnum_end) {
                         continue;
                     }
-                    if diff_file(dio) == FAIL {
+                    if !diff_file(dio) {
                         continue;
                     }
                     diff_read(idx_orig, idx_new, dio);
@@ -1083,7 +1083,7 @@ fn check_external_diff(diffio: &mut diffio_T) -> bool {
                         io_error = true;
                     }
                     fclose(fd);
-                    fd = if diff_file(diffio) == OK {
+                    fd = if diff_file(diffio) {
                         os_fopen(diff_fname, c"r".as_ptr())
                     } else {
                         ptr::null_mut()
@@ -1131,7 +1131,7 @@ fn check_external_diff(diffio: &mut diffio_T) -> bool {
         true
     }
 }
-fn diff_file_internal(diffio: &mut diffio_T) -> c_int {
+fn diff_file_internal(diffio: &mut diffio_T) -> bool {
     let mut param = xpparam_t {
             flags: diff_st().diff_algorithm as c_ulong,
         };
@@ -1159,7 +1159,7 @@ fn diff_file_internal(diffio: &mut diffio_T) -> c_int {
             emsg(gettext(
                 (&raw const e_problem_creating_internal_diff).cast(),
             ));
-            return FAIL;
+            return false;
         }
         if xdl_diff(
             &mut diffio.dio_orig.din_mmfile,
@@ -1172,11 +1172,11 @@ fn diff_file_internal(diffio: &mut diffio_T) -> c_int {
             emsg(gettext(
                 (&raw const e_problem_creating_internal_diff).cast(),
             ));
-            return FAIL;
+            return false;
         }
-        OK
+        true
 }
-fn diff_file(dio: &mut diffio_T) -> c_int {
+fn diff_file(dio: &mut diffio_T) -> bool {
     unsafe {
         let tmp_orig = dio
             .dio_orig
@@ -1195,7 +1195,7 @@ fn diff_file(dio: &mut diffio_T) -> c_int {
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != kCallbackNone {
             eval_diff(tmp_orig, tmp_new, tmp_diff);
-            return OK;
+            return true;
         }
         if dio.dio_internal != 0 {
             return diff_file_internal(dio);
@@ -1252,7 +1252,7 @@ fn diff_file(dio: &mut diffio_T) -> c_int {
             ptr::null_mut(),
         );
         crate::autocmd::unblock_autocmds();
-        OK
+        true
     }
 }
 pub fn ex_diffpatch(eap: &mut exarg_T) {
@@ -1384,7 +1384,7 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
                     } else {
                         0
                     },
-                ) != FAIL
+                )
                 {
                     eap.cmdidx = CMD_split;
                     eap.arg = tmp_new;
@@ -1423,14 +1423,14 @@ pub fn ex_diffsplit(eap: &mut exarg_T) {
         validate_cursor(*curwin.as_ptr());
         set_fraction(*curwin.as_ptr());
         g_st().cmdmod.cmod_tab = 0;
-        if win_split(
+        if !win_split(
             0,
             if (diff_st().diff_flags & DIFF_VERTICAL) != 0 {
                 WSP_VERT
             } else {
                 0
             },
-        ) == FAIL
+        )
         {
             return;
         }
@@ -3014,7 +3014,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 }
                 if file1_idx != i as isize {
                     let diff_status = diff_file_internal(&mut dio);
-                    if diff_status == FAIL {
+                    if !diff_status {
                         break 'done;
                     }
                     diff_read(0, i, &mut dio);

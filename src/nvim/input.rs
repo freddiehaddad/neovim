@@ -324,7 +324,6 @@ use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
 use crate::keycodes::{k_second, k_third};
 use crate::lua::converter::LUA_NOREF;
-use crate::math::{FAIL, OK};
 use crate::regexp::Ctrl_V;
 
 #[inline]
@@ -1022,7 +1021,7 @@ pub fn ins_typebuf(
     offset: c_int,
     nottyped: bool,
     silent: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         init_typebuf();
         g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
@@ -1055,7 +1054,7 @@ pub fn ins_typebuf(
             if g_st().typebuf.tb_len > c_int::MAX - extra {
                 emsg(gettext((&raw const e_command_too_complex).cast()));
                 setcursor();
-                return FAIL;
+                return false;
             }
             let newlen = g_st().typebuf.tb_len + extra;
             let mut s1_vec = vec![0u8; newlen as usize];
@@ -1131,7 +1130,7 @@ pub fn ins_typebuf(
             g_st().typebuf.tb_no_abbr_cnt += addlen;
         }
 
-        OK
+        true
     }
 }
 
@@ -2073,13 +2072,13 @@ fn put_string_in_typebuf(
         if extra < 0 {
             del_typebuf(-extra, offset);
         } else if extra > 0
-            && ins_typebuf(
+            && !ins_typebuf(
                 string.add(slen as usize).cast::<c_char>(),
                 REMAP_YES,
                 offset,
                 false,
                 false,
-            ) == FAIL
+            )
         {
             return false;
         }
@@ -2502,7 +2501,7 @@ fn handle_mapping(
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
             let i = if map_str.is_null() {
-                FAIL
+                false
             } else {
                 if keylen > g_st().typebuf.tb_maplen && (save_m_mode & MODE_LANGMAP) != 0 {
                     gotchars(map_str.cast::<u8>(), std::ffi::CStr::from_ptr(map_str).to_bytes().len());
@@ -2526,7 +2525,7 @@ fn handle_mapping(
             drop(save_m_keys);
             drop(save_alt_m_keys);
             *keylenp = keylen;
-            if i == FAIL {
+            if !i {
                 return map_result_T::map_result_fail as c_int;
             }
             return map_result_T::map_result_retry as c_int;

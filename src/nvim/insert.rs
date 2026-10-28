@@ -100,7 +100,6 @@ use crate::keycodes::{
 use crate::mapping::{check_abbr, map_to_exists_mode};
 use crate::mark::{mark_view_make, reset_fmark};
 use crate::marktree::kMTMetaInline;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{
     GraphemeState, mb_adjust_cursor, mb_get_class, ptr2cells, utf_ClusterInfo, utf_char2bytes,
     utf_char2len, utf_composinglike, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char, utf_ptr2len,
@@ -933,7 +932,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 goto_normalchar = true;
             }
             c if c == b' ' as c_int || c == K_ZERO || c == NUL as c_int || c == Ctrl_A => {
-                if stuff_inserted(NUL as c_int, 1, c_int::from(s.c == Ctrl_A)) == FAIL
+                if !stuff_inserted(NUL as c_int, 1, c_int::from(s.c == Ctrl_A))
                     && s.c != Ctrl_A
                 {
                     return 0;
@@ -2280,7 +2279,7 @@ pub fn beginline(flags: c_int) {
     }
 }
 
-pub fn oneright() -> c_int {
+pub fn oneright() -> bool {
     unsafe {
         if virtual_active(*curwin.as_ptr()) {
             let prevpos = (**curwin.as_ptr()).w_cursor;
@@ -2292,28 +2291,22 @@ pub fn oneright() -> c_int {
             };
             coladvance(&mut **curwin.as_ptr(), getviscol() + step);
             (**curwin.as_ptr()).w_set_curswant = true;
-            return if prevpos.col != (**curwin.as_ptr()).w_cursor.col
-                || prevpos.coladd != (**curwin.as_ptr()).w_cursor.coladd
-            {
-                OK
-            } else {
-                FAIL
-            };
+            return prevpos.col != (**curwin.as_ptr()).w_cursor.col || prevpos.coladd != (**curwin.as_ptr()).w_cursor.coladd;
         }
 
         let ptr = get_cursor_pos_ptr();
         if *ptr == NUL {
-            return FAIL;
+            return false;
         }
 
         let l = utfc_ptr2len(ptr);
         if *ptr.add(l as usize) == NUL && (get_ve_flags(*curwin.as_ptr()) & kOptVeFlagOnemore) == 0 {
-            return FAIL;
+            return false;
         }
         (**curwin.as_ptr()).w_cursor.col += l;
         (**curwin.as_ptr()).w_set_curswant = true;
         adjust_skipcol();
-        OK
+        true
     }
 }
 
@@ -2465,13 +2458,13 @@ pub fn cursor_down(n: c_int, upd_topline: bool) -> bool {
 }
 
 /// Stuff the last inserted text in the read buffer.
-pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int {
+pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> bool {
     unsafe {
         let mut last: c_char = NUL;
         let mut insert = get_last_insert();
         if insert.data.is_null() {
             emsg(gettext(e_noinstext.as_ptr()));
-            return FAIL;
+            return false;
         }
 
         if c != NUL as c_int {
@@ -2519,7 +2512,7 @@ pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int {
             stuffcharReadbuff(ESC);
         }
 
-        OK
+        true
     }
 }
 
@@ -2750,7 +2743,7 @@ fn ins_reg() {
                 redo_append_char(Ctrl_R);
                 redo_append_char(regname);
                 do_put(regname, ptr::null_mut(), BACKWARD, 1, PUT_CURSEND);
-            } else if insert_reg(regname, ptr::null_mut(), literally != 0) == FAIL {
+            } else if !insert_reg(regname, ptr::null_mut(), literally != 0) {
                 vim_beep(kOptBoFlagRegister);
                 need_redraw = true;
             } else if g_st().Ins.stop_insert_mode {

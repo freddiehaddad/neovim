@@ -10,7 +10,6 @@ use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{CMOD_KEEPPATTERNS, exarg_T};
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 use crate::globals::*;
-use crate::math::{FAIL, OK};
 use crate::memory::xstrlcpy;
 use crate::message::{
     message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title, semsg,
@@ -403,7 +402,7 @@ fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
 }
 
 /// Clear all entries in a history (`clr_history`).
-pub fn clr_history(histype: c_int) -> c_int {
+pub fn clr_history(histype: c_int) -> bool {
     let hislen = hist_st().HISLEN;
     if hislen != 0 && histype >= 0 && (histype as usize) < HIST_COUNT {
         let htype = histype as usize;
@@ -412,9 +411,9 @@ pub fn clr_history(histype: c_int) -> c_int {
             }
             hist_st().HISIDX[htype] = -1;
             hist_st().HISNUM[htype] = 0;
-        OK
+        true
     } else {
-        FAIL
+        false
     }
 }
 
@@ -557,7 +556,7 @@ pub fn f_histdel(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             let htype = get_histtype(str_ptr, CStr::from_ptr(str_ptr).to_bytes().len(), false);
             let arg1 = &argvars[1];
             if arg1.v_type == VarType::VAR_UNKNOWN {
-                clr_history(htype)
+                c_int::from(clr_history(htype))
             } else if arg1.v_type == VarType::VAR_NUMBER {
                 del_history_idx(htype, tv_get_number(arg1) as c_int)
             } else {

@@ -771,7 +771,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock,buf: &mut buf_T) {
             if b0p.b0_fname[0] == b'~' as c_char {
                 let retval = os_get_username((&raw mut uname).cast(), B0_UNAME_SIZE);
                 let ulen = std::ffi::CStr::from_ptr((&raw const uname).cast()).to_bytes().len();
-                if retval == FAIL || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
+                if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
                     xstrlcpy(fname_ptr, buf.b_ffname, B0_FNAME_SIZE_CRYPT);
                 } else {
                     ptr::copy(fname_ptr.add(1), fname_ptr.add(ulen + 1), flen);
@@ -1754,7 +1754,7 @@ fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
                     file_info.stat.st_uid as u32,
                     (&raw mut uname).cast(),
                     B0_UNAME_SIZE,
-                ) == OK
+                )
                 {
                     sb_push_cstr(msg, tr(c"          owned by: "));
                     sb_push_cstr(msg, (&raw const uname).cast());

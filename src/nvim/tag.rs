@@ -792,7 +792,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                                     .as_ptr()
                                     .cast_mut(),
                                 &mut tagp2,
-                            ) == OK
+                            )
                             && !tagp2.user_data.is_null()
                         {
                             let ud_slice = std::slice::from_raw_parts(
@@ -1809,7 +1809,7 @@ fn findtags_parse_line(
     sinfo_p: &mut tagsearch_info_T,
 ) -> tagmatch_status_T {
     unsafe {
-        let status: c_int;
+        let status: bool;
         let lbuf = st.lbuf.as_mut_ptr();
 
         if st.orgpat.headlen != 0 {
@@ -1909,16 +1909,16 @@ fn findtags_parse_line(
             tagpp.fname = tagpp.tagname_end.add(1);
             tagpp.fname_end = vim_strchr(tagpp.fname, TAB as c_int);
             if tagpp.fname_end.is_null() {
-                status = FAIL;
+                status = false;
             } else {
                 tagpp.command = tagpp.fname_end.add(1);
-                status = OK;
+                status = true;
             }
         } else {
             status = parse_tag_line(lbuf, tagpp);
         }
 
-        if status == FAIL {
+        if !status {
             tagmatch_status_T::TAG_MATCH_FAIL
         } else {
             tagmatch_status_T::TAG_MATCH_SUCCESS
@@ -2556,12 +2556,12 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
     }
 }
 
-fn parse_tag_line(lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
+fn parse_tag_line(lbuf: *mut c_char, tagp: &mut tagptrs_T) -> bool {
     unsafe {
         tagp.tagname = lbuf;
         let mut p = vim_strchr(lbuf, TAB as c_int);
         if p.is_null() {
-            return FAIL;
+            return false;
         }
         tagp.tagname_end = p;
 
@@ -2571,7 +2571,7 @@ fn parse_tag_line(lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
         tagp.fname = p;
         p = vim_strchr(p, TAB as c_int);
         if p.is_null() {
-            return FAIL;
+            return false;
         }
         tagp.fname_end = p;
 
@@ -2579,11 +2579,11 @@ fn parse_tag_line(lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
             p = p.add(1);
         }
         if *p == NUL {
-            return FAIL;
+            return false;
         }
         tagp.command = p;
 
-        OK
+        true
     }
 }
 
@@ -2612,7 +2612,7 @@ fn matching_line_len(lbuf: *const c_char) -> usize {
     }
 }
 
-fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
+fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> bool {
     unsafe {
         tagp.tag_fname = lbuf.add(1);
         lbuf = lbuf.add(std::ffi::CStr::from_ptr(tagp.tag_fname).to_bytes().len() + 2);
@@ -2624,7 +2624,7 @@ fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
         tagp.tagline = 0;
         tagp.command_end = ptr::null_mut();
 
-        if retval != OK {
+        if !retval {
             return retval;
         }
 
@@ -2722,7 +2722,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
         let pbuf = pbuf_vec.as_mut_ptr();
 
         'erret: {
-            if parse_match(lbuf, &mut tagp) == FAIL {
+            if !parse_match(lbuf, &mut tagp) {
                 break 'erret;
             }
 
@@ -2792,14 +2792,14 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                 if (opt_vars().swb_flags & kOptSwbFlagNewtab) != 0 && g_st().cmdmod.cmod_tab == 0 {
                     g_st().cmdmod.cmod_tab = tabpage_index(g_st().curtab) + 1;
                 }
-                if win_split(
+                if !win_split(
                     if g_st().postponed_split > 0 {
                         g_st().postponed_split
                     } else {
                         0
                     },
                     g_st().postponed_split_flags,
-                ) == FAIL
+                )
                 {
                     g_st().RedrawingDisabled -= 1;
                     break 'erret;
@@ -3229,19 +3229,19 @@ fn add_tag_field(
 
 /// Add the tags matching the specified pattern `pat` to the list `list`
 /// as a dictionary. Use `buf_fname` for priority, unless NULL.
-pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> c_int {
+pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> bool {
     unsafe {
         let mut matches: Vec<Vec<c_char>> = Vec::new();
         let mut tp = tagptrs_T::default();
 
-        let mut ret = find_tags(pat, &mut matches, TAG_REGEXP | TAG_NOIC, MAXCOL, buf_fname);
-        if ret != OK || matches.is_empty() {
+        let mut ret = find_tags(pat, &mut matches, TAG_REGEXP | TAG_NOIC, MAXCOL, buf_fname) == OK;
+        if !ret || matches.is_empty() {
             return ret;
         }
 
         for mut match_vec in matches {
             let match_i = match_vec.as_mut_ptr();
-            if parse_match(match_i, &mut tp) == FAIL {
+            if !parse_match(match_i, &mut tp) {
                 continue;
             }
 
@@ -3275,7 +3275,7 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
                 )
                 || !tv_dict_add_nr(dict, c"static".as_ptr(), 6, varnumber_T::from(is_static))
             {
-                ret = FAIL;
+                ret = false;
             }
             drop(full_fname);
 
@@ -3306,7 +3306,7 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
                             }
                             *n.add(len as usize) = NUL;
                             if !add_tag_field(dict, n, s, p) {
-                                ret = FAIL;
+                                ret = false;
                             }
                             *n.add(len as usize) = b':' as c_char;
                         } else {

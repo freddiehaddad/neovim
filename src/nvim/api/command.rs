@@ -82,7 +82,6 @@ const KEYSET_OPTIDX_user_command__range: u64 = 8;
 const KEYSET_OPTIDX_user_command__preview: u64 = 9;
 const KEYSET_OPTIDX_user_command__complete: u64 = 10;
 
-use crate::math::FAIL;
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[repr(C)]
@@ -1189,7 +1188,7 @@ pub fn nvim_cmd(
                 while *ea.arg.add(0) == b'+' as c_char && *ea.arg.add(1) == b'+' as c_char {
                     let orig_arg = ea.arg;
                     let result = getargopt(&mut ea);
-                    if result == FAIL && !is_cmd_ni(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
+                    if !result && !is_cmd_ni(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
                     {
                         api_err_invalid(err, c"argument ".as_ptr(), orig_arg, 0, true);
                         break 'end;

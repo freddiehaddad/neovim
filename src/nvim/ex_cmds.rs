@@ -2064,7 +2064,7 @@ pub fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
         g_st().info_message = false;
 }
 
-pub fn rename_buffer(new_fname: *mut c_char) -> c_int {
+pub fn rename_buffer(new_fname: *mut c_char) -> bool {
     unsafe {
         let mut buf = g_st().curbuf;
         apply_autocmds(
@@ -2075,10 +2075,10 @@ pub fn rename_buffer(new_fname: *mut c_char) -> c_int {
             g_st().curbuf,
         );
         if buf != g_st().curbuf {
-            return FAIL;
+            return false;
         }
         if aborting() {
-            return FAIL;
+            return false;
         }
         let xfname = (*g_st().curbuf).b_fname;
         let (fname_cstr, sfname_cstr) = (*g_st().curbuf).take_fnames();
@@ -2087,7 +2087,7 @@ pub fn rename_buffer(new_fname: *mut c_char) -> c_int {
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if !setfname(g_st().curbuf, new_fname, ptr::null_mut(), true) {
             (*g_st().curbuf).restore_fnames(fname_cstr, sfname_cstr);
-            return FAIL;
+            return false;
         }
         (*g_st().curbuf).b_flags |= BF_NOTEDITED;
         if !xfname.is_null() && *xfname != NUL {
@@ -2106,7 +2106,7 @@ pub fn rename_buffer(new_fname: *mut c_char) -> c_int {
             g_st().curbuf,
         );
         do_autochdir();
-        OK
+        true
     }
 }
 
@@ -2121,7 +2121,7 @@ pub fn ex_file(eap: &mut exarg_T) {
         }
 
         if *eap.arg != NUL || eap.addr_count == 1 {
-            if rename_buffer(eap.arg) == FAIL {
+            if !rename_buffer(eap.arg) {
                 return;
             }
             g_st().redraw_tabline = true;
@@ -2182,15 +2182,15 @@ fn handle_mkdir_p_arg(eap: &mut exarg_T, fname: *mut c_char) -> bool {
 }
 
 /// Write current buffer to file `eap->arg`.
-pub fn do_write(eap: &mut exarg_T) -> c_int {
+pub fn do_write(eap: &mut exarg_T) -> bool {
     unsafe {
         let mut fname: *mut c_char = ptr::null_mut();
-        let mut retval = FAIL;
+        let mut retval = false;
         let mut free_fname: Option<std::ffi::CString> = None;
         let mut alt_buf: *mut buf_T = ptr::null_mut();
 
         if not_writing() {
-            return FAIL;
+            return false;
         }
 
         let mut ffname = eap.arg;
@@ -2284,7 +2284,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
                         alt_buf,
                     );
                     if g_st().curbuf != was_curbuf || aborting() {
-                        retval = FAIL;
+                        retval = false;
                         break 'theend;
                     }
 
@@ -2315,7 +2315,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
                         );
                     }
                     if g_st().curbuf != was_curbuf || aborting() {
-                        retval = FAIL;
+                        retval = false;
                         break 'theend;
                     }
 
@@ -2334,7 +2334,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
                 }
 
                 if !handle_mkdir_p_arg(eap, fname) {
-                    retval = FAIL;
+                    retval = false;
                     break 'theend;
                 }
 
@@ -2350,9 +2350,9 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
                     eap.forceit != 0,
                     true,
                     false,
-                );
+                ) == OK;
 
-                if eap.cmdidx == cmdidx_T::CMD_saveas as c_int && retval == OK {
+                if eap.cmdidx == cmdidx_T::CMD_saveas as c_int && retval {
                     (*g_st().curbuf).b_p_ro = 0;
                     g_st().redraw_tabline = true;
                 }
@@ -2461,7 +2461,7 @@ pub fn ex_wnext(eap: &mut exarg_T) {
         };
         eap.line1 = 1;
         eap.line2 = (*g_st().curbuf).b_ml.ml_line_count;
-        if do_write(eap) != FAIL {
+        if do_write(eap) {
             do_argfile(eap, i);
         }
     }
@@ -2653,7 +2653,7 @@ pub fn getfile(
                 && (*g_st().curbuf).b_nwindows == 1
                 && !buf_hide(&*g_st().curbuf)
                 && curbufIsChanged()
-                && autowrite(&mut *g_st().curbuf, forceit) == FAIL
+                && !autowrite(&mut *g_st().curbuf, forceit)
             {
                 if opt_vars().p_confirm != 0 && opt_vars().p_write != 0 {
                     dialog_changed(&mut *g_st().curbuf, false);
@@ -2687,7 +2687,7 @@ pub fn getfile(
                 (if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 })
                     + (if forceit { ECMD_FORCEIT } else { 0 }),
                 *curwin.as_ptr(),
-            ) == OK
+            )
             {
                 retval = GETFILE_OPEN_OTHER;
             } else {
@@ -2731,7 +2731,7 @@ pub fn do_ecmd(
     mut newlnum: linenr_T,
     flags: c_int,
     mut oldwin: *mut win_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let other_file: bool;
         let oldbuf: bool;
@@ -2742,7 +2742,7 @@ pub fn do_ecmd(
         let mut bufref: bufref_T = bufref_T::new();
         let mut old_curbuf: bufref_T = bufref_T::new();
         let mut free_fname: Option<std::ffi::CString> = None;
-        let mut retval = FAIL;
+        let mut retval = false;
         let mut topline: linenr_T = 0;
         let mut newcol: c_int = -1;
         let mut solcol: c_int = -1;
@@ -2765,7 +2765,7 @@ pub fn do_ecmd(
         'theend: {
             if fnum != 0 {
                 if fnum == (*g_st().curbuf).b_fnum {
-                    return OK;
+                    return true;
                 }
                 other_file = true;
             } else {
@@ -2802,7 +2802,7 @@ pub fn do_ecmd(
             if !other_file && !(*g_st().curbuf).terminal.is_null() {
                 check_arg_idx(&mut **curwin.as_ptr());
                 maketitle();
-                retval = OK;
+                retval = true;
                 break 'theend;
             }
 
@@ -3080,7 +3080,7 @@ pub fn do_ecmd(
                 (*g_st().curbuf).b_op_end.lnum = 0;
             }
 
-            retval = OK;
+            retval = true;
 
             if !other_file {
                 (*g_st().curbuf).b_flags &= !BF_NOTEDITED;
@@ -3119,23 +3119,24 @@ pub fn do_ecmd(
                         readfile_flags |= READ_NOWINENTER;
                     }
                     if should_abort(open_buffer(false, (eap.is_some()).then(||  { eap.unwrap() }), readfile_flags)) {
-                        retval = FAIL;
+                        retval = false;
                     }
 
                     if g_st().swap_exists_action == SEA_QUIT {
-                        retval = FAIL;
+                        retval = false;
                     }
                     handle_swap_exists(Some(&mut old_curbuf));
                 } else {
                     do_modelines(OPT_WINONLY);
 
+                    let mut au_retval = if retval { OK } else { FAIL };
                     apply_autocmds_retval(
                         EVENT_BUFENTER,
                         ptr::null_mut(),
                         ptr::null_mut(),
                         false,
                         g_st().curbuf,
-                        &mut retval,
+                        &mut au_retval,
                     );
                     if (flags & ECMD_NOWINENTER) == 0 {
                         apply_autocmds_retval(
@@ -3144,9 +3145,10 @@ pub fn do_ecmd(
                             ptr::null_mut(),
                             false,
                             g_st().curbuf,
-                            &mut retval,
+                            &mut au_retval,
                         );
                     }
+                    retval = au_retval == OK;
                 }
                 check_arg_idx(&mut **curwin.as_ptr());
 
@@ -3167,7 +3169,7 @@ pub fn do_ecmd(
                 changed_line_abv_curs();
 
                 maketitle();
-                if retval != FAIL {
+                if retval {
                     win_float_update_preview(&mut **curwin.as_ptr());
                 }
             }
@@ -5106,14 +5108,14 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
             win_enter(wp, undo_sync);
             return true;
         }
-        if win_split(
+        if !win_split(
             if g_st().g_do_tagpreview > 0 {
                 g_st().g_do_tagpreview
             } else {
                 0
             },
             0,
-        ) == FAIL
+        )
         {
             return false;
         }

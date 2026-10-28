@@ -48,7 +48,6 @@ use crate::drawline::{
     VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, kCpoNumcol, kOptCuloptFlagScreenline,
 };
 use crate::ex_cmds::{BL_FIX, BL_SOL};
-use crate::math::FAIL;
 use crate::regexp::MAXCOL;
 use crate::search::{BACKWARD, Direction, FORWARD};
 
@@ -1396,7 +1395,7 @@ fn cursor_correct_sms(wp: *mut win_T) {
             let rc = coladvance(&mut *wp, (*wp).w_curswant);
             (*wp).w_valid &=
                 !(VALID_WROW | VALID_WCOL | VALID_CHEIGHT | VALID_CROW | VALID_VIRTCOL);
-            if rc == FAIL
+            if !rc
                 && (*wp).w_skipcol > 0
                 && (*wp).w_cursor.lnum < (*(*wp).w_buffer).b_ml.ml_line_count
             {

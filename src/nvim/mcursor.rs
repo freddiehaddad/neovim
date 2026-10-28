@@ -93,7 +93,6 @@ const MC_REGS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789\"-\0";
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise, kMTUnknown};
 use crate::ex_getln::K_LUA;
-use crate::math::FAIL;
 use crate::regexp::{Ctrl_V, MAXCOL};
 
 #[repr(C)]
@@ -1695,7 +1694,7 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
                         coladd: 0,
                     },
                 ];
-                if getvpos(*curwin.as_ptr(), &mut line[0], vcols[0]) == FAIL {
+                if !getvpos(*curwin.as_ptr(), &mut line[0], vcols[0]) {
                     line[0].col = ml_get_len(lnum);
                 } else if vcols[1] != MAXCOL {
                     getvpos(*curwin.as_ptr(), &mut line[1], vcols[1]);

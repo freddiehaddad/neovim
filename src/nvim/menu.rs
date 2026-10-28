@@ -128,7 +128,6 @@ use crate::eval::funcs::{MENU_ALL_MODES, MENU_INDEX_TIP};
 use crate::eval::kListLenMayKnow;
 use crate::extmark::{kFalse, kNone, kTrue};
 use crate::mapping::{REMAP_NONE, REMAP_YES};
-use crate::math::{FAIL, OK};
 use crate::regexp::{MAXCOL, NUMBUFLEN};
 
 #[repr(C)]
@@ -423,7 +422,7 @@ fn add_menu_path(
     menuarg: &mut vimmenu_T,
     pri_tab: *const c_int,
     call_data: *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut modes = menuarg.modes;
         let mut menu: *mut vimmenu_T = ptr::null_mut();
@@ -441,7 +440,7 @@ fn add_menu_path(
         let mut ancestor_stack: Vec<(*mut Vec<vimmenu_T>, usize)> = Vec::new();
         let mut name = path_name;
 
-        let cleanup_erret = |ancestor_stack: &[(*mut Vec<vimmenu_T>, usize)]| -> c_int {
+        let cleanup_erret = |ancestor_stack: &[(*mut Vec<vimmenu_T>, usize)]| -> bool {
             for &(mp, idx) in ancestor_stack.iter().rev() {
                 if (&(*mp))[idx].children.is_empty() {
                     (*mp).remove(idx);
@@ -449,7 +448,7 @@ fn add_menu_path(
                     break;
                 }
             }
-            FAIL
+            false
         };
 
         while *name != NUL {
@@ -598,7 +597,7 @@ fn add_menu_path(
                 }
             }
         }
-        OK
+        true
     }
 }
 

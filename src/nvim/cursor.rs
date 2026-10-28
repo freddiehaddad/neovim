@@ -7,7 +7,6 @@ use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
 use crate::mark::mark_mb_adjustpos;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char};
 use crate::memline::{
     dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_replace,
@@ -131,7 +130,7 @@ pub fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
 }
 
 /// Go to column `wcol`, and add/insert white space as necessary (`coladvance_force`).
-pub fn coladvance_force(wcol: colnr_T) -> c_int {
+pub fn coladvance_force(wcol: colnr_T) -> bool {
     unsafe {
         let rc = coladvance2(&mut **curwin.as_ptr(), &mut (**curwin.as_ptr()).w_cursor, true, false, wcol);
 
@@ -145,11 +144,11 @@ pub fn coladvance_force(wcol: colnr_T) -> c_int {
 }
 
 /// Try to advance the Cursor to the specified screen column (`coladvance`).
-pub fn coladvance(wp: &mut win_T, wcol: colnr_T) -> c_int {
+pub fn coladvance(wp: &mut win_T, wcol: colnr_T) -> bool {
     unsafe {
         let rc = getvpos(wp, &mut wp.w_cursor, wcol);
 
-        if wcol == MAXCOL || rc == FAIL {
+        if wcol == MAXCOL || !rc {
             wp.w_valid &= !VALID_VIRTCOL;
         } else if *(ml_get_buf(wp.w_buffer, wp.w_cursor.lnum)
             .add(wp.w_cursor.col as usize))
@@ -167,7 +166,7 @@ fn coladvance2(
     addspaces: bool,
     finetune: bool,
     wcol_arg: colnr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         debug_assert!(ptr::eq(wp, *curwin.as_ptr()) || !addspaces);
         let mut wcol = wcol_arg;
@@ -263,7 +262,7 @@ fn coladvance2(
                 } else {
                     let correct = wcol - col - csize + 1;
                     if -correct > csize {
-                        return FAIL;
+                        return false;
                     }
 
                     let alloc_n = ((linelen - 1) as usize)
@@ -313,14 +312,14 @@ fn coladvance2(
         mark_mb_adjustpos(wp.w_buffer, pos);
 
         if wcol < 0 || col < wcol {
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).
-pub fn getvpos(wp: *mut win_T, pos: &mut pos_T, wcol: colnr_T) -> c_int {
+pub fn getvpos(wp: *mut win_T, pos: &mut pos_T, wcol: colnr_T) -> bool {
     unsafe { coladvance2(&mut *wp, pos, false, virtual_active(wp), wcol) }
 }
 
@@ -518,7 +517,7 @@ pub fn set_leftcol(leftcol: colnr_T) -> bool {
             coladvance(&mut **curwin.as_ptr(), s - 1);
         } else if s < (**curwin.as_ptr()).w_leftcol {
             retval = true;
-            if coladvance(&mut **curwin.as_ptr(), e + 1) == FAIL {
+            if !coladvance(&mut **curwin.as_ptr(), e + 1) {
                 (**curwin.as_ptr()).w_leftcol = s;
                 changed_cline_bef_curs(&mut **curwin.as_ptr());
             }

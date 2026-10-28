@@ -2207,9 +2207,9 @@ fn thesaurus_add_words_in_line(
     buf_arg: *mut *mut c_char,
     dir: c_int,
     skip_word: *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
-        let mut status = OK;
+        let mut status = true;
         let mut ptr = *buf_arg;
 
         while !g_st().got_int {
@@ -2236,8 +2236,8 @@ fn thesaurus_add_words_in_line(
                     dir,
                     false,
                     FUZZY_SCORE_NONE,
-                );
-                if status == FAIL {
+                ) != FAIL;
+                if !status {
                     break;
                 }
             }
@@ -2358,12 +2358,16 @@ fn ins_compl_files(
                         );
                         if thesaurus {
                             ptr = buf;
-                            add_r = thesaurus_add_words_in_line(
+                            add_r = if thesaurus_add_words_in_line(
                                 file,
                                 &raw mut ptr,
                                 *dir,
                                 regmatch.startp[0],
-                            );
+                            ) {
+                                OK
+                            } else {
+                                FAIL
+                            };
                         }
                         if add_r == OK {
                             *dir = FORWARD;
@@ -3452,7 +3456,7 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
             preselect,
             commit_chars,
         );
-        if status != OK {
+        if status == FAIL {
             tv_clear(&raw mut user_data);
         }
         status
@@ -3468,7 +3472,7 @@ fn ins_compl_add_list(list: *mut list_T) {
         }
         let mut li = (*list).lv_first;
         while !li.is_null() {
-            if ins_compl_add_tv(&mut (*li).li_tv, dir, true) == OK {
+            if ins_compl_add_tv(&mut (*li).li_tv, dir, true) != FAIL {
                 dir = FORWARD;
             } else if g_st().did_emsg != 0 {
                 break;
@@ -4660,12 +4664,16 @@ fn get_next_default_completion(
                 || ctrl_x_mode_eval()
                 || (insexp().compl_cont_status & CONT_SOL) != 0
             {
-                found_new_match = search_for_exact_line(
+                found_new_match = if search_for_exact_line(
                     &mut *st.ins_buf,
                     &mut *st.cur_match_pos_ptr(),
                     insexp().compl_direction,
                     compl_pattern_ptr(),
-                );
+                ) {
+                    OK
+                } else {
+                    FAIL
+                };
             } else {
                 found_new_match = searchit(
                     ptr::null_mut(),
@@ -5044,7 +5052,7 @@ fn prepare_cpt_compl_funcs() {
             let cb = get_callback_if_cpt_func(p, idx).as_ptr();
             if !cb.is_null() {
                 let mut startcol: c_int = 0;
-                if get_userdefined_compl_info((**curwin.as_ptr()).w_cursor.col, cb, Some(&mut startcol)) == FAIL
+                if !get_userdefined_compl_info((**curwin.as_ptr()).w_cursor.col, cb, Some(&mut startcol))
                 {
                     if startcol == -3 {
                         insexp().cpt_sources_array[idx as usize].cs_refresh_always = false;
@@ -6182,7 +6190,7 @@ fn get_userdefined_compl_info(
     curs_col: colnr_T,
     mut cb: *mut Callback,
     startcol: Option<&mut c_int>,
-) -> c_int {
+) -> bool {
     unsafe {
         let save_State = g_st().State;
 
@@ -6200,7 +6208,7 @@ fn get_userdefined_compl_info(
                         c"omnifunc".as_ptr()
                     },
                 );
-                return FAIL;
+                return false;
             }
         }
 
@@ -6228,7 +6236,7 @@ fn get_userdefined_compl_info(
         validate_cursor(*curwin.as_ptr());
         if !equalpos((**curwin.as_ptr()).w_cursor, pos) {
             emsg(gettext(E_COMPLDEL.as_ptr()));
-            return FAIL;
+            return false;
         }
 
         if let Some(startcol) = startcol {
@@ -6236,19 +6244,19 @@ fn get_userdefined_compl_info(
         }
 
         if col == -2 || aborting() {
-            return FAIL;
+            return false;
         }
 
         if col == -3 {
             if is_cpt_function {
-                return FAIL;
+                return false;
             }
             insexp().ctrl_x_mode = CTRL_X_NORMAL;
             g_st().edit_submode = ptr::null();
             if !shortmess(kShmCompletionmenu) {
                 msg_clr_cmdline();
             }
-            return FAIL;
+            return false;
         }
 
         insexp().compl_opt_refresh_always = false;
@@ -6256,7 +6264,7 @@ fn get_userdefined_compl_info(
         if !is_cpt_function {
             set_compl_globals(col, curs_col, false);
         }
-        OK
+        true
     }
 }
 
@@ -6307,7 +6315,7 @@ fn compl_get_info(
             || ctrl_x_mode_omni()
             || thesaurus_func_complete(insexp().ctrl_x_mode)
         {
-            if get_userdefined_compl_info(curs_col, ptr::null_mut(), None) != OK {
+            if !get_userdefined_compl_info(curs_col, ptr::null_mut(), None) {
                 return false;
             }
             *line_invalid = true;
@@ -6951,7 +6959,7 @@ fn cpt_compl_refresh() {
                     let mut startcol: c_int = 0;
                     let ret =
                         get_userdefined_compl_info((**curwin.as_ptr()).w_cursor.col, cb, Some(&mut startcol));
-                    if ret == FAIL {
+                    if !ret {
                         if startcol == -3 {
                             insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_refresh_always = false;
                         } else {
@@ -6961,7 +6969,7 @@ fn cpt_compl_refresh() {
                         startcol = (**curwin.as_ptr()).w_cursor.col;
                     }
                     insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_startcol = startcol;
-                    if ret == OK {
+                    if ret {
                         compl_source_start_timer(insexp().cpt_sources_index);
                         get_cpt_func_completion_matches(&mut *cb);
                     }

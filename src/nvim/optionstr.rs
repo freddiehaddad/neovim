@@ -34,7 +34,6 @@ use crate::indent_c::parse_cino;
 use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
 use crate::mark::{fmark_T, fmarkv_T};
-use crate::math::FAIL;
 use crate::mbyte::{
     enc_canonize, get_encoding_name, utf_ClusterInfo, utf_ptr2StrCharInfo, utf_ptr2char,
     utfc_ptr2len,
@@ -2499,7 +2498,7 @@ pub fn did_set_isopt(args: &mut optset_T) -> *const c_char {
         } else {
             init_isi_chartab()
         };
-        if res == FAIL {
+        if !res {
             e_invarg.as_ptr()
         } else {
             ptr::null()

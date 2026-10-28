@@ -42,7 +42,6 @@ use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{
     api_free_luaref, api_new_luaref, kRetObject, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
 };
-use crate::math::FAIL;
 use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
@@ -1875,9 +1874,9 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
                             }
                             if did_cpo
                                 && (fputs(c"let s:cpo_save=&cpo".as_ptr(), fd) < 0
-                                    || put_eol(fd) == FAIL
+                                    || !put_eol(fd)
                                     || fputs(c"set cpo&vim".as_ptr(), fd) < 0
-                                    || put_eol(fd) == FAIL)
+                                    || !put_eol(fd))
                             {
                                 return false;
                             }
@@ -1908,7 +1907,7 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
                             || !put_escstr(fd, mp.m_keys.as_ptr(), 0)
                             || fputc(b' ' as c_int, fd) < 0
                             || !put_escstr(fd, mp.m_str.as_ptr(), 1)
-                            || put_eol(fd) == FAIL
+                            || !put_eol(fd)
                         {
                             return false;
                         }
@@ -1924,9 +1923,9 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
         }
         if did_cpo
             && (fputs(c"let &cpo=s:cpo_save".as_ptr(), fd) < 0
-                || put_eol(fd) == FAIL
+                || !put_eol(fd)
                 || fputs(c"unlet s:cpo_save".as_ptr(), fd) < 0
-                || put_eol(fd) == FAIL)
+                || !put_eol(fd))
         {
             return false;
         }

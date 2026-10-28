@@ -1490,7 +1490,7 @@ pub fn set_mark(
             &mut pos,
             (*buf).b_fnum,
             None,
-        ) != 0;
+        );
         if !res {
             if deleting {
                 api_set_error!(
