@@ -2191,9 +2191,9 @@ fn add_mark<S: crate::strings::IntoCCharPtr>(
         );
         tv_list_append_number( &mut *lpos, i64::from(pos.coladd));
 
-        if !tv_dict_add_str_len(d, c"mark", mname, crate::memory::cstr_len(mname) as c_int)
-            || !tv_dict_add_list(d, c"pos", lpos)
-            || (!fname.is_null() && !tv_dict_add_str(d, c"file", fname))
+        if !tv_dict_add_str_len(&mut *d, c"mark", mname, crate::memory::cstr_len(mname) as c_int)
+            || !tv_dict_add_list(&mut *d, c"pos", lpos)
+            || (!fname.is_null() && !tv_dict_add_str(&mut *d, c"file", fname))
         {
             return false;
         }

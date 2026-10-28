@@ -715,9 +715,9 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 
-        tv_dict_add_nr(dict, c"bufnr", buf.b_fnum as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"bufnr", buf.b_fnum as varnumber_T);
         tv_dict_add_str(
-            dict,
+            &mut *dict,
             c"name",
             if !buf.b_ffname.is_null() {
                 buf.b_ffname
@@ -730,36 +730,36 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
         } else {
             buflist_findlnum(buf)
         };
-        tv_dict_add_nr(dict, c"lnum", lnum as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"lnum", lnum as varnumber_T);
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"linecount",
             buf.b_ml.ml_line_count as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"loaded",
             varnumber_T::from(buf.b_ml.ml_mfp.is_some()),
         );
-        tv_dict_add_nr(dict, c"listed", buf.b_p_bl as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"listed", buf.b_p_bl as varnumber_T);
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"changed",
             varnumber_T::from(bufIsChanged(buf)),
         );
-        tv_dict_add_nr(dict, c"changedtick", buf_get_changedtick(&*buf));
+        tv_dict_add_nr(&mut *dict, c"changedtick", buf_get_changedtick(&*buf));
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"hidden",
             varnumber_T::from(buf.b_ml.ml_mfp.is_some() && buf.b_nwindows == 0),
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"command",
             varnumber_T::from(bt_cmdwin(&raw mut *buf)),
         );
 
-        tv_dict_add_dict(dict, c"variables", buf.b_vars());
+        tv_dict_add_dict(&mut *dict, c"variables", buf.b_vars());
 
         let windows = tv_list_alloc(kListLenMayKnow);
         for tp in for_all_tabpages_ptr() {
@@ -769,13 +769,13 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
                 }
             }
         }
-        tv_dict_add_list(dict, c"windows", windows);
+        tv_dict_add_list(&mut *dict, c"windows", windows);
 
         if buf_has_signs(&*buf) {
-            tv_dict_add_list(dict, c"signs", get_buffer_signs(buf));
+            tv_dict_add_list(&mut *dict, c"signs", get_buffer_signs(buf));
         }
 
-        tv_dict_add_nr(dict, c"lastused", buf.b_last_used);
+        tv_dict_add_nr(&mut *dict, c"lastused", buf.b_last_used);
 
         dict
     }

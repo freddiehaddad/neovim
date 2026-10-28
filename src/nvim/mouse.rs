@@ -2191,8 +2191,7 @@ pub fn f_getmousepos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let mut column: varnumber_T = 0;
         let mut coladd: colnr_T = 0;
 
-        tv_dict_alloc_ret(rettv);
-        let d = rettv.vval.v_dict();
+        let d = tv_dict_alloc_ret(rettv);
 
         tv_dict_add_nr(
             d,

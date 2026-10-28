@@ -752,7 +752,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             };
                         } else {
                             let di = tv_dict_item_alloc_len(s, len);
-                            if !tv_dict_add((*cur.tv).vval.v_dict(), di) {
+                            if !tv_dict_add(&mut *(*cur.tv).vval.v_dict(), di) {
                                 std::process::abort();
                             }
                             stack.push(cur);

@@ -1681,7 +1681,7 @@ pub fn set_var_lval(
                 }
 
                 let di = tv_dict_item_alloc(newkey_ptr);
-                if !tv_dict_add((*lp.ll_tv).vval.v_dict(), di) {
+                if !tv_dict_add(&mut *(*lp.ll_tv).vval.v_dict(), di) {
                     tv_dict_item_free(di);
                     return;
                 }
@@ -4764,7 +4764,7 @@ fn eval_dict(
                 item = tv_dict_item_alloc(key);
                 (*item).di_tv = tv;
                 (*item).di_tv.v_lock = VAR_UNLOCKED;
-                if !tv_dict_add(d, item) {
+                if !tv_dict_add(&mut *d, item) {
                     tv_dict_item_free(item);
                 }
             }
@@ -5319,18 +5319,18 @@ pub fn add_timer_info(rettv: &mut typval_T, timer: &mut timer_T) {
 
         tv_list_append_dict( &mut *list, dict);
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"id",
             varnumber_T::from(timer.timer_id),
         );
-        tv_dict_add_nr(dict, c"time", timer.timeout);
+        tv_dict_add_nr(&mut *dict, c"time", timer.timeout);
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"paused",
             varnumber_T::from(timer.paused),
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"repeat",
             if timer.repeat_count < 0 {
                 -1
@@ -5340,7 +5340,7 @@ pub fn add_timer_info(rettv: &mut typval_T, timer: &mut timer_T) {
         );
 
         let di = tv_dict_item_alloc(c"callback");
-        if !tv_dict_add(dict, di) {
+        if !tv_dict_add(&mut *dict, di) {
             tv_dict_item_free(di);
         } else {
             callback_put(&mut timer.callback, &mut (*di).di_tv);

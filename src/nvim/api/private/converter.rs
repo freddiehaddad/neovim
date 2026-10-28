@@ -429,7 +429,7 @@ pub fn object_to_vim_take_luaref(
             for item in d.as_mut_slice() {
                 let di = tv_dict_item_alloc(item.key.data);
                 object_to_vim_take_luaref(&mut item.value, &mut (*di).di_tv, take_luaref, _err);
-                tv_dict_add(dict, di);
+                tv_dict_add(&mut *dict, di);
             }
             (*dict).dv_refcount += 1;
             tv_ref.v_type = VarType::VAR_DICT;

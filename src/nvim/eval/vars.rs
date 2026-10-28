@@ -624,7 +624,7 @@ pub fn evalvars_init() {
             *(&raw mut (*eval_msgpack_type_lists_mut()))
                 .cast::<*const list_T>()
                 .add(i) = type_list;
-            if !tv_dict_add(msgpack_types_dict, di) {
+            if !tv_dict_add(&mut *msgpack_types_dict, di) {
                 std::process::abort();
             }
         }

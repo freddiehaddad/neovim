@@ -634,18 +634,18 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
                     word.add(stp.st_wordlen as usize),
                     el as usize,
                 );
-                tv_dict_add_str(d, c"word", word);
+                tv_dict_add_str(&mut *d, c"word", word);
             } else {
-                tv_dict_add_str(d, c"word", stp.st_word.as_ptr());
+                tv_dict_add_str(&mut *d, c"word", stp.st_word.as_ptr());
             }
             if sug.su_badlen < stp.st_orglen {
-                tv_dict_add_str_len(d, c"extra", sug.su_badptr, stp.st_orglen);
+                tv_dict_add_str_len(&mut *d, c"extra", sug.su_badptr, stp.st_orglen);
             }
-            tv_dict_add_nr(d, c"score", stp.st_score as i64);
+            tv_dict_add_nr(&mut *d, c"score", stp.st_score as i64);
             if (sps_st().sps_flags & (SPS_DOUBLE | SPS_BEST)) != 0 {
-                tv_dict_add_nr(d, c"altscore", stp.st_altscore as i64);
+                tv_dict_add_nr(&mut *d, c"altscore", stp.st_altscore as i64);
                 tv_dict_add_bool(
-                    d,
+                    &mut *d,
                     c"salscore",
                     if stp.st_salscore {
                         kBoolVarTrue

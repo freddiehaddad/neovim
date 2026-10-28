@@ -1655,7 +1655,7 @@ pub fn make_percent_swname(
 }
 
 /// For Vimscript `swapinfo()`.
-pub fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
+pub fn swapfile_dict(fname: *const c_char, d: &mut dict_T) {
     unsafe {
         let mut b0 = ZeroBlock::new();
         let fd = os_open(fname, O_RDONLY, 0);

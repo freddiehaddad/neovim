@@ -1742,7 +1742,7 @@ fn free_buffer(buf: *mut buf_T) {
         free_buffer_stuff( &mut *buf, kBffClearWinInfo);
         if (*(*buf).b_vars()).dv_refcount > DO_NOT_FREE_CNT {
             tv_dict_add(
-                (*buf).b_vars(),
+                &mut *(*buf).b_vars(),
                 tv_dict_item_copy(&mut *(&raw mut (*buf).changedtick_di).cast()),
             );
         }
@@ -2716,7 +2716,7 @@ fn buf_init_changedtick(buf: &mut buf_T) {
             vval: TypvalVval::Number(buf_get_changedtick(buf)),
         };
         buf.changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-        tv_dict_add(buf.b_vars(), (&raw mut buf.changedtick_di).cast());
+        tv_dict_add(unsafe { &mut *buf.b_vars() }, (&raw mut buf.changedtick_di).cast());
 }
 
 /// Add a file name to the buffer list.

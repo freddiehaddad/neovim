@@ -1611,36 +1611,34 @@ pub fn pum_get_height() -> c_int {
 }
 
 /// Add size information about the pum to `dict` (`pum_set_event_info`).
-pub fn pum_set_event_info(dict: *mut dict_T) {
+pub fn pum_set_event_info(dict: &mut dict_T) {
     if !pum_visible() {
-            return;
-        }
-        let mut w: f64 = 0.0;
-        let mut h: f64 = 0.0;
-        let mut r: f64 = 0.0;
-        let mut c: f64 = 0.0;
-        if !ui_pum_get_pos(&mut w, &mut h, &mut r, &mut c) {
-            w = f64::from(pum().width);
-            h = f64::from(pum().height);
-            r = f64::from(pum().row);
-            c = f64::from(pum().col);
-        }
-        unsafe {
-            tv_dict_add_float(&mut *dict, c"height", h);
-            tv_dict_add_float(&mut *dict, c"width", w);
-            tv_dict_add_float(&mut *dict, c"row", r);
-            tv_dict_add_float(&mut *dict, c"col", c);
-        }
-        tv_dict_add_nr(dict, c"size", i64::from(pum().size));
-        tv_dict_add_bool(
-            dict,
-            c"scrollbar",
-            if pum().scrollbar != 0 {
-                kBoolVarTrue
-            } else {
-                kBoolVarFalse
-            },
-        );
+        return;
+    }
+    let mut w: f64 = 0.0;
+    let mut h: f64 = 0.0;
+    let mut r: f64 = 0.0;
+    let mut c: f64 = 0.0;
+    if !ui_pum_get_pos(&mut w, &mut h, &mut r, &mut c) {
+        w = f64::from(pum().width);
+        h = f64::from(pum().height);
+        r = f64::from(pum().row);
+        c = f64::from(pum().col);
+    }
+    tv_dict_add_float(dict, c"height", h);
+    tv_dict_add_float(dict, c"width", w);
+    tv_dict_add_float(dict, c"row", r);
+    tv_dict_add_float(dict, c"col", c);
+    tv_dict_add_nr(dict, c"size", i64::from(pum().size));
+    tv_dict_add_bool(
+        dict,
+        c"scrollbar",
+        if pum().scrollbar != 0 {
+            kBoolVarTrue
+        } else {
+            kBoolVarFalse
+        },
+    );
 }
 
 fn pum_position_at_mouse(min_width: c_int) {

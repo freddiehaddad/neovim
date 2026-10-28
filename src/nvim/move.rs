@@ -1211,8 +1211,7 @@ pub fn textpos2screenpos(
 pub fn f_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
     unsafe {
-        tv_dict_alloc_ret(rettv);
-        let dict = rettv.vval.v_dict();
+        let dict = tv_dict_alloc_ret(rettv);
 
         let wp = find_win_by_nr_or_id(&argvars[0]);
         if wp.is_null() {

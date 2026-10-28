@@ -2954,24 +2954,24 @@ fn u_eval_tree(buf: &mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
         while let Some(uh) = uhp {
             let dict = tv_dict_alloc();
             tv_dict_add_nr(
-                dict,
+                &mut *dict,
                 c"seq",
                 uhp_ref(&*buf, uh).uh_seq as varnumber_T,
             );
             tv_dict_add_nr(
-                dict,
+                &mut *dict,
                 c"time",
                 uhp_ref(&*buf, uh).uh_time as varnumber_T,
             );
             if Some(uh) == buf.b_u_newhead {
-                tv_dict_add_nr(dict, c"newhead", 1);
+                tv_dict_add_nr(&mut *dict, c"newhead", 1);
             }
             if Some(uh) == buf.b_u_curhead {
-                tv_dict_add_nr(dict, c"curhead", 1);
+                tv_dict_add_nr(&mut *dict, c"curhead", 1);
             }
             if uhp_ref(&*buf, uh).uh_save_nr > 0 {
                 tv_dict_add_nr(
-                    dict,
+                    &mut *dict,
                     c"save",
                     uhp_ref(&*buf, uh).uh_save_nr as varnumber_T,
                 );
@@ -2980,7 +2980,7 @@ fn u_eval_tree(buf: &mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
             let alt_next = uhp_ref(&*buf, uh).uh_alt_next;
             let prev = uhp_ref(&*buf, uh).uh_prev;
             if alt_next.is_some() {
-                tv_dict_add_list(dict, c"alt", u_eval_tree(buf, alt_next));
+                tv_dict_add_list(&mut *dict, c"alt", u_eval_tree(buf, alt_next));
             }
 
             tv_list_append_dict( &mut *list, dict);
@@ -3026,38 +3026,38 @@ pub fn f_undotree(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         let dict = rettv.vval.v_dict();
 
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"synced",
             varnumber_T::from((*buf).b_u_synced),
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"seq_last",
             (*buf).b_u_seq_last as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"save_last",
             (*buf).b_u_save_nr_last as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"seq_cur",
             (*buf).b_u_seq_cur as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"time_cur",
             (*buf).b_u_time_cur as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"save_cur",
             (*buf).b_u_save_nr_cur as varnumber_T,
         );
 
         tv_dict_add_list(
-            dict,
+            &mut *dict,
             c"entries",
             u_eval_tree(&mut *buf, (*buf).b_u_oldhead),
         );

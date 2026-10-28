@@ -585,7 +585,7 @@ pub fn dict_set_var(
 
             if di.is_null() {
                 di = tv_dict_item_alloc_len(key.data, key.size);
-                tv_dict_add(&raw mut *dict, di);
+                tv_dict_add(dict, di);
             } else {
                 if retval {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);

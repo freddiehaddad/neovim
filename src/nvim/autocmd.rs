@@ -2604,7 +2604,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
                         api_clear_error(&mut err);
                         continue;
                     }
-                    tv_dict_add_tv(v_event, item.key.data, item.key.size, &mut tv);
+                    tv_dict_add_tv(&mut *v_event, item.key.data, item.key.size, &mut tv);
                     tv_clear(&raw mut tv);
                 }
             }
@@ -3895,7 +3895,7 @@ pub fn do_autocmd_uienter(chanid: u64, attached: bool) {
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&mut save_v_event);
         assert!(chanid < i64::MAX as u64);
-        tv_dict_add_nr(dict, c"chan", chanid as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"chan", chanid as varnumber_T);
         tv_dict_set_keys_readonly(&mut *dict);
         apply_autocmds(
             if attached {

@@ -153,7 +153,7 @@ fn filter_map_dict(
                     (*di).di_tv = newtv;
                 } else if filtermap == FilterMap::MapNew {
                     let key_len = crate::memory::cstr_len(key_ptr);
-                    let add_res = tv_dict_add_tv(d_ret, key_ptr, key_len, &mut newtv);
+                    let add_res = tv_dict_add_tv(&mut *d_ret, key_ptr, key_len, &mut newtv);
                     tv_clear(&mut newtv);
                     if !add_res {
                         break;

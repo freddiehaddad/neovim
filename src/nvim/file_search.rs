@@ -1691,13 +1691,13 @@ pub fn do_autocmd_dirchanged(
         xstrlcpy(buf.as_mut_ptr(), scope_cstr.as_ptr(), buf.len());
 
         if pre {
-            tv_dict_add_str(dict, c"directory", new_dir);
+            tv_dict_add_str(&mut *dict, c"directory", new_dir);
         } else {
-            tv_dict_add_str(dict, c"cwd", new_dir);
+            tv_dict_add_str(&mut *dict, c"cwd", new_dir);
         }
-        tv_dict_add_str(dict, c"scope", buf.as_ptr());
+        tv_dict_add_str(&mut *dict, c"scope", buf.as_ptr());
         tv_dict_add_bool(
-            dict,
+            &mut *dict,
             c"changed_window",
             c_int::from(cause == kCdCauseWindow),
         );

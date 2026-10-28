@@ -8551,7 +8551,7 @@ pub fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
                     let ov = opt_from_varp(opt_idx, varp);
                     let mut opt_tv = opt_to_tv(ov, true);
                     tv_dict_add_tv(
-                        d,
+                        &mut *d,
                         (*opt).fullname.as_ptr(),
                         (*opt).fullname.to_bytes().len(),
                         &mut opt_tv,

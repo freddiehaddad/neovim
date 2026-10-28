@@ -910,7 +910,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
                     let data = buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
                     let _type_len = reader_type.to_bytes().len();
                     let _ = tv_dict_add_list(
-                        reader.self_dict,
+                        unsafe { &mut *reader.self_dict },
                         reader_type,
                         data,
                     );
@@ -1181,7 +1181,7 @@ pub fn set_info_event(chan: &mut Channel, event: event_T) {
             &mut crate::api::private::validate::Error::new(),
         );
         assert_eq!(retval.v_type, VarType::VAR_DICT);
-        let _ = tv_dict_add_dict(dict, c"info", retval.vval.v_dict());
+        let _ = tv_dict_add_dict(&mut *dict, c"info", retval.vval.v_dict());
         tv_dict_set_keys_readonly(&mut *dict);
 
         let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, g_st().curbuf);

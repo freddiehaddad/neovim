@@ -5978,28 +5978,28 @@ pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
 
         let retdict = rettv.vval.v_dict();
         let mut ret = tv_dict_add_str_len(
-            retdict,
+            &mut *retdict,
             c"cmdline_orig",
             orig_ref.map_or(ptr::null(), |v| v.as_ptr().cast::<c_char>()),
             orig_ref.map_or(0, |v| v.len() as c_int),
         );
         if ret {
             ret = tv_dict_add_nr(
-                retdict,
+                &mut *retdict,
                 c"pum_visible",
                 i64::from(pum_visible()),
             );
         }
         if ret {
             ret = tv_dict_add_nr(
-                retdict,
+                &mut *retdict,
                 c"selected",
                 i64::from((*(*ccline).xpc).xp_selected),
             );
         }
         if ret {
             let li = tv_list_alloc((*(*ccline).xpc).xp_numfiles as isize);
-            ret = tv_dict_add_list(retdict, c"matches", li);
+            ret = tv_dict_add_list(&mut *retdict, c"matches", li);
             let files = (*(*ccline).xpc).xp_files.as_slice();
             let mut idx: usize = 0;
             while ret && (idx as c_int) < (*(*ccline).xpc).xp_numfiles {

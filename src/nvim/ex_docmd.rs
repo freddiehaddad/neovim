@@ -9142,7 +9142,7 @@ fn ex_restart(eap: &mut exarg_T) {
         if eap.forceit == 0 {
             let extra_d = tv_dict_alloc();
             tv_dict_add_str(
-                extra_d,
+                &mut *extra_d,
                 c"quit_cmd",
                 if !eap.do_ecmd_cmd.is_null() {
                     eap.do_ecmd_cmd
@@ -9300,7 +9300,7 @@ fn ex_restart(eap: &mut exarg_T) {
 
         let env = create_environment(ptr::null(), false, false, false, ptr::null());
         tv_dict_add_str(
-            env,
+            &mut *env,
             ENV_STARTREASON,
             startreason,
         );

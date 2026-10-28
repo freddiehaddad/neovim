@@ -1588,7 +1588,7 @@ pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                 if !tv_check_for_dict_arg(argvars, 2) {
                     break 'done;
                 }
-                selfdict = argvars[2].vval.v_dict().cast();
+                selfdict = argvars[2].vval.v_dict();
             }
 
             func_call(func, (&raw mut argvars[1]), partial, selfdict, &mut *rettv);
@@ -2030,7 +2030,7 @@ pub fn f_dictwatcheradd(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: 
         }
 
         tv_dict_watcher_add(
-            argvars[0].vval.v_dict().cast(),
+            argvars[0].vval.v_dict(),
             key_pattern,
             key_pattern_len,
             callback,
@@ -2067,7 +2067,7 @@ pub fn f_dictwatcherdel(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: 
         }
 
         if !tv_dict_watcher_remove(
-            argvars[0].vval.v_dict().cast(),
+            argvars[0].vval.v_dict(),
             key_pattern,
             crate::memory::cstr_len(key_pattern),
             &callback,
@@ -2108,7 +2108,7 @@ pub fn f_empty(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 n = tv_list_len(argvars[0].vval.v_list()) == 0;
             }
             VarType::VAR_DICT => {
-                n = tv_dict_len(argvars[0].vval.v_dict().cast()) == 0;
+                n = tv_dict_len(argvars[0].vval.v_dict()) == 0;
             }
             VarType::VAR_BOOL => {
                 n = argvars[0].vval.v_bool() as c_int != kBoolVarTrue;
@@ -2439,7 +2439,7 @@ pub fn f_expandcmd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
         if argvars[1].v_type == VarType::VAR_DICT
             && tv_dict_get_bool(
-                argvars[1].vval.v_dict().cast(),
+                argvars[1].vval.v_dict(),
                 c"errmsg",
                 kBoolVarFalse,
             ) != 0
@@ -2742,7 +2742,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
                     }
 
                     if dict_idx > 0 {
-                        (*pt).pt_dict = argvars[dict_idx].vval.v_dict().cast();
+                        (*pt).pt_dict = argvars[dict_idx].vval.v_dict();
                         (*(*pt).pt_dict).dv_refcount += 1;
                     } else if !arg_pt.is_null() {
                         (*pt).pt_dict = (*arg_pt).pt_dict;
@@ -2832,7 +2832,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 }
             }
         } else if argvars[0].v_type == VarType::VAR_DICT {
-            let d = argvars[0].vval.v_dict().cast::<dict_T>();
+            let d = argvars[0].vval.v_dict();
             if !d.is_null() {
                 let di = tv_dict_find(d, tv_get_string(&argvars[1]), -1);
                 if !di.is_null() {
@@ -2887,8 +2887,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                     get_func_arity(name, &mut required, &mut optional, &mut varargs);
 
                     rettv.v_type = VarType::VAR_DICT;
-                    tv_dict_alloc_ret(rettv);
-                    let dict = rettv.vval.v_dict().cast::<dict_T>();
+                    let dict = tv_dict_alloc_ret(rettv);
                     let pt_argc = (*pt).pt_argv.len() as c_int;
 
                     if pt_argc >= required + optional {
@@ -2972,17 +2971,17 @@ pub fn f_getchangelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             let d = tv_dict_alloc();
             tv_list_append_dict( &mut *l, d);
             tv_dict_add_nr(
-                d,
+                &mut *d,
                 c"lnum",
                 varnumber_T::from((*buf).b_changelist[i].mark.lnum),
             );
             tv_dict_add_nr(
-                d,
+                &mut *d,
                 c"col",
                 varnumber_T::from((*buf).b_changelist[i].mark.col),
             );
             tv_dict_add_nr(
-                d,
+                &mut *d,
                 c"coladd",
                 varnumber_T::from((*buf).b_changelist[i].mark.coladd),
             );
@@ -3092,8 +3091,7 @@ pub fn f_getcharpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// "getcharsearch()" function
 pub fn f_getcharsearch(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    tv_dict_alloc_ret(rettv);
-        let dict = rettv.vval.v_dict().cast::<dict_T>();
+    let dict = tv_dict_alloc_ret(rettv);
         tv_dict_add_str(dict, c"char", last_csearch());
         tv_dict_add_nr(
             dict,
@@ -3136,27 +3134,27 @@ pub fn f_getjumplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             let d = tv_dict_alloc();
             tv_list_append_dict( &mut *l, d);
             tv_dict_add_nr(
-                d,
+                &mut *d,
                 c"lnum",
                 varnumber_T::from((*wp).w_jumplist[i].fmark.mark.lnum),
             );
             tv_dict_add_nr(
-                d,
+                &mut *d,
                 c"col",
                 varnumber_T::from((*wp).w_jumplist[i].fmark.mark.col),
             );
             tv_dict_add_nr(
-                d,
+                &mut *d,
                 c"coladd",
                 varnumber_T::from((*wp).w_jumplist[i].fmark.mark.coladd),
             );
             tv_dict_add_nr(
-                d,
+                &mut *d,
                 c"bufnr",
                 varnumber_T::from((*wp).w_jumplist[i].fmark.fnum),
             );
             if let Some(ref fname) = (*wp).w_jumplist[i].fname {
-                tv_dict_add_str(d, c"filename", fname.as_ptr());
+                tv_dict_add_str(&mut *d, c"filename", fname.as_ptr());
             }
         }
     }
@@ -3240,7 +3238,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
         let mut type_str: *mut c_char;
         let mut default_type = [b'v' as c_char, NUL];
         if argvars[2].v_type == VarType::VAR_DICT {
-            let d = argvars[2].vval.v_dict().cast::<dict_T>();
+            let d = argvars[2].vval.v_dict();
             is_select_exclusive = tv_dict_get_bool(
                 d,
                 c"exclusive",
@@ -3467,7 +3465,7 @@ pub fn f_getregionpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         }
 
         if argvars[2].v_type == VarType::VAR_DICT {
-            let d = argvars[2].vval.v_dict().cast::<dict_T>();
+            let d = argvars[2].vval.v_dict();
             allow_eol = tv_dict_get_bool(d, c"eol", 0) != 0;
             bounds_only = tv_dict_get_bool(d, c"bounds", 0) != 0;
         }
@@ -3649,7 +3647,7 @@ pub fn f_gettagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 return;
             }
         }
-        get_tagstack(&mut *wp, &mut *rettv.vval.v_dict().cast());
+        get_tagstack(&mut *wp, &mut *rettv.vval.v_dict());
     }
 }
 
@@ -4210,7 +4208,7 @@ pub fn f_indexof(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let mut startidx: varnumber_T = 0;
         if argvars[2].v_type == VarType::VAR_DICT {
             startidx = tv_dict_get_number_def(
-                argvars[2].vval.v_dict().cast(),
+                argvars[2].vval.v_dict(),
                 c"startidx",
                 0,
             );
@@ -4498,7 +4496,7 @@ pub fn create_environment(
                         }
                     }
                     let _ = namelen;
-                    tv_dict_add_str(env, name, (*envitems.add(i)).value);
+                    tv_dict_add_str(&mut *env, name, (*envitems.add(i)).value);
                 }
                 uv_os_free_environ(envitems, envcount);
             }
@@ -4511,7 +4509,7 @@ pub fn create_environment(
                     }
                 }
                 if opt_vars().p_tgc != 0 {
-                    tv_dict_add_str(env, c"COLORTERM", c"truecolor");
+                    tv_dict_add_str(&mut *env, c"COLORTERM", c"truecolor");
                 }
             }
         }
@@ -4521,7 +4519,7 @@ pub fn create_environment(
             if !dv.is_null() {
                 tv_dict_item_remove(&mut *env,  &mut *dv);
             }
-            tv_dict_add_str(env, c"TERM", pty_term_name);
+            tv_dict_add_str(&mut *env, c"TERM", pty_term_name);
         }
 
         if set_nvim_addr {
@@ -4531,14 +4529,14 @@ pub fn create_environment(
                 if !dv.is_null() {
                     tv_dict_item_remove(&mut *env,  &mut *dv);
                 }
-                tv_dict_add_str(env, c"NVIM", nvim_addr);
+                tv_dict_add_str(&mut *env, c"NVIM", nvim_addr);
             }
         }
 
         if !job_env.is_null() {
             #[cfg(windows)]
             {
-                let d = (*job_env).di_tv.vval.v_dict().cast::<dict_T>();
+                let d = (*job_env).di_tv.vval.v_dict();
                 if !d.is_null() {
                     let ht = &raw const (*d).dv_hashtab;
                     let mut todo = (*ht).ht_used;
@@ -4559,7 +4557,7 @@ pub fn create_environment(
                                 tv_dict_item_remove(&mut *env,  &mut *dv);
                             }
                             tv_dict_add_str(
-                                env,
+                                &mut *env,
                                 name,
                                 tv_get_string(&(*var).di_tv),
                             );
@@ -4581,7 +4579,7 @@ pub fn create_environment(
                 if dv.is_null()
                     && let Some(env_var) = os_getenv_cstr(req.as_ptr())
                 {
-                    tv_dict_add_str(env, req, env_var.as_ptr());
+                    tv_dict_add_str(&mut *env, req, env_var.as_ptr());
                 }
             }
         }
@@ -4631,7 +4629,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         let mut job_env: *mut dictitem_T = ptr::null_mut();
 
         if argvars[1].v_type == VarType::VAR_DICT {
-            job_opts = argvars[1].vval.v_dict().cast();
+            job_opts = argvars[1].vval.v_dict();
 
             detach = tv_dict_get_number(job_opts, c"detach") != 0;
             rpc = tv_dict_get_number(job_opts, c"rpc") != 0;
@@ -5109,7 +5107,7 @@ pub fn f_len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_list_len(argvars[0].vval.v_list())));
             }
             VarType::VAR_DICT => {
-                rettv.vval = crate::eval::typval::TypvalVval::Number(tv_dict_len(argvars[0].vval.v_dict().cast()) as varnumber_T);
+                rettv.vval = crate::eval::typval::TypvalVval::Number(tv_dict_len(argvars[0].vval.v_dict()) as varnumber_T);
             }
             VarType::VAR_UNKNOWN
             | VarType::VAR_BOOL
@@ -5489,19 +5487,19 @@ fn get_matches_in_str(
             tv_list_append_dict( &mut *mlist, d);
 
             if matchbuf {
-                tv_dict_add_nr(d, c"lnum", varnumber_T::from(idx));
+                tv_dict_add_nr(&mut *d, c"lnum", varnumber_T::from(idx));
             } else {
-                tv_dict_add_nr(d, c"idx", varnumber_T::from(idx));
+                tv_dict_add_nr(&mut *d, c"idx", varnumber_T::from(idx));
             }
 
             tv_dict_add_nr(
-                d,
+                &mut *d,
                 c"byteidx",
                 rmp.startp[0].offset_from(str_) as varnumber_T,
             );
 
             tv_dict_add_str_len(
-                d,
+                &mut *d,
                 c"text",
                 rmp.startp[0],
                 rmp.endp[0].offset_from(rmp.startp[0]) as c_int,
@@ -5509,7 +5507,7 @@ fn get_matches_in_str(
 
             if submatches {
                 let sml = tv_list_alloc((NSUBEXP - 1) as isize);
-                tv_dict_add_list(d, c"submatches", sml);
+                tv_dict_add_list(&mut *d, c"submatches", sml);
                 for i in 1..NSUBEXP {
                     if rmp.endp[i].is_null() {
                         tv_list_append_string( &mut *sml, c"", 0);
@@ -5591,7 +5589,7 @@ pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
         let mut submatches = false;
         if argvars[4].v_type != VarType::VAR_UNKNOWN {
-            let d = argvars[4].vval.v_dict().cast::<dict_T>();
+            let d = argvars[4].vval.v_dict();
             if !d.is_null() {
                 let di = tv_dict_find(d, c"submatches", 10);
                 if !di.is_null() {
@@ -5682,7 +5680,7 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
             'cleanup: {
                 let mut submatches = false;
                 if argvars[2].v_type != VarType::VAR_UNKNOWN {
-                    let d = argvars[2].vval.v_dict().cast::<dict_T>();
+                    let d = argvars[2].vval.v_dict();
                     if !d.is_null() {
                         let di = tv_dict_find(d, c"submatches", 10);
                         if !di.is_null() {
@@ -5742,7 +5740,7 @@ fn max_min(tv: &typval_T, rettv: &mut typval_T, domax: bool) {
                 }
             }
         } else if tv.v_type == VarType::VAR_DICT {
-            let d = tv.vval.v_dict().cast::<dict_T>();
+            let d = tv.vval.v_dict();
             if tv_dict_len(d) == 0 {
                 return;
             }
@@ -6132,8 +6130,7 @@ pub fn f_printf(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 /// "pum_getpos()" function
 pub fn f_pum_getpos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    tv_dict_alloc_ret(rettv);
-        pum_set_event_info(rettv.vval.v_dict().cast());
+    pum_set_event_info(tv_dict_alloc_ret(rettv));
 }
 
 /// "pumvisible()" function
@@ -6355,8 +6352,7 @@ pub fn f_getreginfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             regname = b'"' as c_int;
         }
 
-        tv_dict_alloc_ret(rettv);
-        let dict = rettv.vval.v_dict().cast::<dict_T>();
+        let dict = tv_dict_alloc_ret(rettv);
 
         let list = get_reg_contents_list(regname, kGRegExprSrc);
         if list.is_null() {
@@ -7807,7 +7803,7 @@ pub fn f_setcharsearch(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
         if !tv_check_for_dict_arg(argvars, 0) {
             return;
         }
-        let d = argvars[0].vval.v_dict().cast::<dict_T>();
+        let d = argvars[0].vval.v_dict();
         if d.is_null() {
             return;
         }
@@ -7948,7 +7944,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         let mut regcontents: *const typval_T = ptr::null();
         let mut pointreg: c_char = 0;
         if argvars[1].v_type == VarType::VAR_DICT {
-            let d = argvars[1].vval.v_dict().cast::<dict_T>();
+            let d = argvars[1].vval.v_dict();
             if tv_dict_len(d) == 0 {
                 let mut lstval: [*mut c_char; 2] = [ptr::null_mut(), ptr::null_mut()];
                 write_reg_contents_lst(
@@ -8084,7 +8080,7 @@ pub fn f_settagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         if !tv_check_for_dict_arg(argvars, 1) {
             return;
         }
-        let d = argvars[1].vval.v_dict().cast::<dict_T>();
+        let d = argvars[1].vval.v_dict();
         if d.is_null() {
             return;
         }
@@ -8203,7 +8199,7 @@ pub fn f_sockconnect(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             let mut rpc = false;
             let mut on_data = CallbackReader::none();
             if argvars[2].v_type == VarType::VAR_DICT {
-                let opts = argvars[2].vval.v_dict().cast::<dict_T>();
+                let opts = argvars[2].vval.v_dict();
                 rpc = tv_dict_get_number(opts, c"rpc") != 0;
 
                 if !tv_dict_get_callback(opts, c"on_data", 7, &mut on_data.cb) {
@@ -8239,7 +8235,7 @@ pub fn f_stdioopen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         }
 
         let mut on_stdin = CallbackReader::none();
-        let opts = argvars[0].vval.v_dict().cast::<dict_T>();
+        let opts = argvars[0].vval.v_dict();
         let rpc = tv_dict_get_number(opts, c"rpc") != 0;
 
         if !tv_dict_get_callback(opts, c"on_stdin", 8, &mut on_stdin.cb) {
@@ -8745,9 +8741,7 @@ pub fn f_swapfilelist(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// "swapinfo(swap_filename)" function
 pub fn f_swapinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-
-    tv_dict_alloc_ret(rettv);
-        swapfile_dict(tv_get_string(&argvars[0]), rettv.vval.v_dict().cast());
+    swapfile_dict(tv_get_string(&argvars[0]), tv_dict_alloc_ret(rettv));
 }
 
 /// "swapname(expr)" function
@@ -9083,7 +9077,7 @@ pub fn f_timer_start(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             if !tv_check_for_nonnull_dict_arg(argvars, 2) {
                 return;
             }
-            let dict = argvars[2].vval.v_dict().cast::<dict_T>();
+            let dict = argvars[2].vval.v_dict();
             let di = tv_dict_find(dict, c"repeat", 6);
             if !di.is_null() {
                 repeat = tv_get_number(&(*di).di_tv) as c_int;
@@ -9225,7 +9219,7 @@ pub fn f_windowsversion(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 /// "wordcount()" function
 pub fn f_wordcount(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     tv_dict_alloc_ret(rettv);
-        cursor_pos_info(rettv.vval.v_dict().cast());
+        cursor_pos_info(rettv.vval.v_dict());
 }
 
 /// "xor(expr, expr)" function

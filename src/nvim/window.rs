@@ -6479,7 +6479,7 @@ fn make_win_info_dict(
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(i64::from(val)),
             };
-            if !tv_dict_add_tv(d, key.as_ptr(), key.to_bytes().len(), &mut tv) {
+            if !tv_dict_add_tv(&mut *d, key.as_ptr(), key.to_bytes().len(), &mut tv) {
                 tv_dict_unref(d);
                 return ptr::null_mut();
             }
@@ -6565,7 +6565,7 @@ fn check_window_scroll_resize(
                     (*wp).handle,
                 );
                 let _ = key_len;
-                if !tv_dict_add_dict(v_event, winid.as_ptr(), d) {
+                if !tv_dict_add_dict(&mut *v_event, winid.as_ptr(), d) {
                     tv_dict_unref(d);
                     break;
                 }
@@ -6591,7 +6591,7 @@ fn check_window_scroll_resize(
                 tot_skipcol,
             );
             if !alldict.is_null() {
-                if !tv_dict_add_dict(v_event, c"all", alldict) {
+                if !tv_dict_add_dict(&mut *v_event, c"all", alldict) {
                     tv_dict_unref(alldict);
                 } else {
                     (*alldict).dv_refcount -= 1;
@@ -6690,7 +6690,7 @@ pub fn may_trigger_win_scrolled_resized() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&mut save_v_event);
 
-            if tv_dict_add_list(v_event, c"windows", windows_list) {
+            if tv_dict_add_list(&mut *v_event, c"windows", windows_list) {
                 tv_dict_set_keys_readonly(&mut *v_event);
                 let buf = if bufref_valid(Some(&resize_bufref)) {
                     resize_bufref.br_buf

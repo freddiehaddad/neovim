@@ -4475,14 +4475,14 @@ fn call_qftf_func(
 
             let dict = tv_dict_alloc_lock(VAR_FIXED);
             tv_dict_add_nr(
-                dict,
+                &mut *dict,
                 c"quickfix",
                 varnumber_T::from(is_qf_list(qfl)),
             );
-            tv_dict_add_nr(dict, c"winid", varnumber_T::from(qf_winid));
-            tv_dict_add_nr(dict, c"id", varnumber_T::from(qfl.qf_id));
-            tv_dict_add_nr(dict, c"start_idx", varnumber_T::from(start_idx));
-            tv_dict_add_nr(dict, c"end_idx", varnumber_T::from(end_idx));
+            tv_dict_add_nr(&mut *dict, c"winid", varnumber_T::from(qf_winid));
+            tv_dict_add_nr(&mut *dict, c"id", varnumber_T::from(qfl.qf_id));
+            tv_dict_add_nr(&mut *dict, c"start_idx", varnumber_T::from(start_idx));
+            tv_dict_add_nr(&mut *dict, c"end_idx", varnumber_T::from(end_idx));
             (*dict).dv_refcount += 1;
             args[0].v_type = VarType::VAR_DICT;
             args[0].vval = crate::eval::typval::TypvalVval::Dict(dict);
@@ -6091,41 +6091,41 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
         let buf = [qfp.qf_type, NUL];
         let buflen: usize = if buf[0] == NUL { 0 } else { 1 };
         let empty = c"".as_ptr();
-        if !tv_dict_add_nr(dict, c"bufnr", varnumber_T::from(bufnum))
-            || !tv_dict_add_nr(dict, c"lnum", varnumber_T::from(qfp.qf_lnum))
+        if !tv_dict_add_nr(unsafe { &mut *dict }, c"bufnr", varnumber_T::from(bufnum))
+            || !tv_dict_add_nr(unsafe { &mut *dict }, c"lnum", varnumber_T::from(qfp.qf_lnum))
             || !tv_dict_add_nr(
-                dict,
+                unsafe { &mut *dict },
                 c"end_lnum",
                 varnumber_T::from(qfp.qf_end_lnum),
             )
-            || !tv_dict_add_nr(dict, c"col", varnumber_T::from(qfp.qf_col))
+            || !tv_dict_add_nr(unsafe { &mut *dict }, c"col", varnumber_T::from(qfp.qf_col))
             || !tv_dict_add_nr(
-                dict,
+                unsafe { &mut *dict },
                 c"end_col",
                 varnumber_T::from(qfp.qf_end_col),
             )
             || !tv_dict_add_nr(
-                dict,
+                unsafe { &mut *dict },
                 c"vcol",
                 varnumber_T::from(qfp.qf_viscol),
             )
-            || !tv_dict_add_nr(dict, c"nr", varnumber_T::from(qfp.qf_nr))
+            || !tv_dict_add_nr(unsafe { &mut *dict }, c"nr", varnumber_T::from(qfp.qf_nr))
             || !tv_dict_add_str(
-                dict,
+                unsafe { &mut *dict },
                 c"module",
                 qfp.qf_module.as_ref().map_or(empty, |s| s.as_ptr()),
             )
             || !tv_dict_add_str(
-                dict,
+                unsafe { &mut *dict },
                 c"pattern",
                 qfp.qf_pattern.as_ref().map_or(empty, |s| s.as_ptr()),
             )
-            || !tv_dict_add_str(dict, c"text", qfp.qf_text.as_ptr())
-            || !tv_dict_add_str_len(dict, c"type", buf.as_ptr(), buflen as c_int)
+            || !tv_dict_add_str(unsafe { &mut *dict }, c"text", qfp.qf_text.as_ptr())
+            || !tv_dict_add_str_len(unsafe { &mut *dict }, c"type", buf.as_ptr(), buflen as c_int)
             || (qfp.qf_user_data.v_type != VarType::VAR_UNKNOWN
-                && !tv_dict_add_tv(dict, c"user_data", 9, &mut qfp.qf_user_data))
+                && !tv_dict_add_tv(unsafe { &mut *dict }, c"user_data", 9, &mut qfp.qf_user_data))
             || !tv_dict_add_nr(
-                dict,
+                unsafe { &mut *dict },
                 c"valid",
                 varnumber_T::from(qfp.qf_valid),
             )

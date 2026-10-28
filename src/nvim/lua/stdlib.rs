@@ -443,7 +443,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
 
             if di.is_null() {
                 di = tv_dict_item_alloc_len(key.data, key.size);
-                let _ = tv_dict_add(dict, di);
+                let _ = tv_dict_add(&mut *dict, di);
             } else {
                 let mut type_error = false;
                 if dict == get_vimvar_dict()

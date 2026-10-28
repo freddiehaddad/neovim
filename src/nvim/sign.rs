@@ -1100,18 +1100,18 @@ pub fn ex_sign(eap: &mut exarg_T) {
 fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
     let d = tv_dict_alloc();
 
-        tv_dict_add_str(d, c"name", sp.sn_name.as_ptr());
+        tv_dict_add_str(unsafe { &mut *d }, c"name", sp.sn_name.as_ptr());
 
         if let Some(ref icon) = sp.sn_icon {
-            tv_dict_add_str(d, c"icon", icon.as_ptr());
+            tv_dict_add_str(unsafe { &mut *d }, c"icon", icon.as_ptr());
         }
         if sp.sn_text[0] != 0 {
             let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
             describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
-            tv_dict_add_str(d, c"text", buf.as_ptr());
+            tv_dict_add_str(unsafe { &mut *d }, c"text", buf.as_ptr());
         }
         if sp.sn_priority > 0 {
-            tv_dict_add_nr(d, c"priority", i64::from(sp.sn_priority));
+            tv_dict_add_nr(unsafe { &mut *d }, c"priority", i64::from(sp.sn_priority));
         }
         let args = [
             (c"linehl", sp.sn_line_hl),
@@ -1123,9 +1123,9 @@ fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
             if hl > 0 {
                 let p = get_highlight_name_ext(&mut crate::os::env::expand_T::new(), hl - 1, false);
                 if p.is_null() {
-                    tv_dict_add_str_len(d, name, c"NONE", 4);
+                    tv_dict_add_str_len(unsafe { &mut *d }, name, c"NONE", 4);
                 } else {
-                    tv_dict_add_str(d, name, p);
+                    tv_dict_add_str(unsafe { &mut *d }, name, p);
                 }
             }
         }
@@ -1136,15 +1136,15 @@ fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
     let d = tv_dict_alloc();
         let sh = decor_find_sign(mt_decor(mark)).unwrap();
 
-        tv_dict_add_str(d, c"name", sign_get_name(sh));
-        tv_dict_add_nr(d, c"id", i64::from(mark.id as c_int));
+        tv_dict_add_str(unsafe { &mut *d }, c"name", sign_get_name(sh));
+        tv_dict_add_nr(unsafe { &mut *d }, c"id", i64::from(mark.id as c_int));
         tv_dict_add_str(
-            d,
+            unsafe { &mut *d },
             c"group",
             describe_ns(mark.ns as c_int, c""),
         );
-        tv_dict_add_nr(d, c"lnum", i64::from(mark.pos.row + 1));
-        tv_dict_add_nr(d, c"priority", i64::from(sh.priority));
+        tv_dict_add_nr(unsafe { &mut *d }, c"lnum", i64::from(mark.pos.row + 1));
+        tv_dict_add_nr(unsafe { &mut *d }, c"priority", i64::from(sh.priority));
         d
 }
 
@@ -1178,10 +1178,10 @@ fn sign_get_placed_in_buf(
         let d = tv_dict_alloc();
         tv_list_append_dict( &mut *retlist, d);
 
-        tv_dict_add_nr(d, c"bufnr", i64::from(buf.b_fnum));
+        tv_dict_add_nr(&mut *d, c"bufnr", i64::from(buf.b_fnum));
 
         let l = tv_list_alloc(kListLenMayKnow);
-        tv_dict_add_list(d, c"signs", l);
+        tv_dict_add_list(&mut *d, c"signs", l);
 
         let ns = group_get_ns(group);
         if !buf_has_signs( buf) || ns < 0 {
@@ -1436,7 +1436,7 @@ fn sign_define_multiple(l: *const list_T, retlist: &mut list_T) {
             if li.li_tv.v_type == VarType::VAR_DICT {
                 retval = sign_define_from_dict(
                     ptr::null_mut(),
-                    li.li_tv.vval.v_dict().cast::<dict_T>(),
+                    li.li_tv.vval.v_dict(),
                 );
             } else {
                 emsg(gettext(e_dictreq));
@@ -1469,7 +1469,7 @@ pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         }
 
         let d = if argvars[1].v_type == VarType::VAR_DICT {
-            argvars[1].vval.v_dict().cast::<dict_T>()
+            argvars[1].vval.v_dict()
         } else {
             ptr::null_mut()
         };
@@ -1517,7 +1517,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
                 if !tv_check_for_nonnull_dict_arg(argvars, 1) {
                     return;
                 }
-                let dict = argvars[1].vval.v_dict().cast::<dict_T>();
+                let dict = argvars[1].vval.v_dict();
                 let di_lnum = tv_dict_find(dict, c"lnum", -1);
                 if !di_lnum.is_null() {
                     lnum = tv_get_lnum(&(*di_lnum).di_tv);
@@ -1691,7 +1691,7 @@ pub fn f_sign_place(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         if !tv_check_for_nonnull_dict_arg(argvars, 4) {
             return;
         }
-        dict = argvars[4].vval.v_dict().cast::<dict_T>();
+        dict = argvars[4].vval.v_dict();
     }
 
     let [arg0, arg1, arg2, arg3, ..] = argvars else {
@@ -1725,7 +1725,7 @@ pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
                         None,
                         None,
                         None,
-                        li.li_tv.vval.v_dict().cast::<dict_T>(),
+                        li.li_tv.vval.v_dict(),
                     );
                 } else {
                     emsg(gettext(e_dictreq));
@@ -1826,7 +1826,7 @@ pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
     }
 
     if argvars[1].v_type != VarType::VAR_UNKNOWN {
-        dict = argvars[1].vval.v_dict().cast::<dict_T>();
+        dict = argvars[1].vval.v_dict();
     }
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_unplace_from_dict(
@@ -1853,7 +1853,7 @@ pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
                 if li.li_tv.v_type == VarType::VAR_DICT {
                     retval = sign_unplace_from_dict(
                         None,
-                        li.li_tv.vval.v_dict().cast::<dict_T>(),
+                        li.li_tv.vval.v_dict(),
                     );
                 } else {
                     emsg(gettext(e_dictreq));

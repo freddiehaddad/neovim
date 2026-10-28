@@ -396,69 +396,69 @@ fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
 
         validate_botline_win(&mut *wp);
 
-        tv_dict_add_nr(dict, c"tabnr", tpnr as varnumber_T);
-        tv_dict_add_nr(dict, c"winnr", winnr as varnumber_T);
-        tv_dict_add_nr(dict, c"winid", wp.handle as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"tabnr", tpnr as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"winnr", winnr as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"winid", wp.handle as varnumber_T);
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"height",
             wp.w_view_height as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"status_height",
             wp.w_status_height as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"winrow",
             (wp.w_winrow + 1) as varnumber_T,
         );
-        tv_dict_add_nr(dict, c"topline", wp.w_topline as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"topline", wp.w_topline as varnumber_T);
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"botline",
             (wp.w_botline - 1) as varnumber_T,
         );
-        tv_dict_add_nr(dict, c"leftcol", wp.w_leftcol as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"leftcol", wp.w_leftcol as varnumber_T);
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"winbar",
             wp.w_winbar_height as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"width",
             wp.w_view_width as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"bufnr",
             wp.buf_mut().b_fnum as varnumber_T,
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"wincol",
             (wp.w_wincol + 1) as varnumber_T,
         );
-        tv_dict_add_nr(dict, c"textoff", win_col_off(&raw mut *wp) as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"textoff", win_col_off(&raw mut *wp) as varnumber_T);
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"terminal",
             varnumber_T::from(bt_terminal(wp.w_buffer)),
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"quickfix",
             varnumber_T::from(bt_quickfix(wp.w_buffer)),
         );
         tv_dict_add_nr(
-            dict,
+            &mut *dict,
             c"loclist",
             varnumber_T::from(bt_quickfix(wp.w_buffer) && !wp.w_llist_ref.is_null()),
         );
 
-        tv_dict_add_dict(dict, c"variables", wp.w_vars());
+        tv_dict_add_dict(&mut *dict, c"variables", wp.w_vars());
 
         dict
     }
@@ -469,15 +469,15 @@ fn get_tabpage_info(tp: &mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 
-        tv_dict_add_nr(dict, c"tabnr", tp_idx as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"tabnr", tp_idx as varnumber_T);
 
         let l = tv_list_alloc(kListLenMayKnow);
         for wp in win_iter_mut(first_win_in_tab(tp)) {
             tv_list_append_number( &mut *l, wp.handle as varnumber_T);
         }
-        tv_dict_add_list(dict, c"windows", l);
+        tv_dict_add_list(&mut *dict, c"windows", l);
 
-        tv_dict_add_dict(dict, c"variables", tp.tp_vars());
+        tv_dict_add_dict(&mut *dict, c"variables", tp.tp_vars());
 
         dict
     }
@@ -1021,8 +1021,7 @@ pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
 /// `winsaveview()` function (`f_winsaveview`).
 pub fn f_winsaveview(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
      {
-        tv_dict_alloc_ret(rettv);
-        let dict = rettv.vval.v_dict();
+        let dict = tv_dict_alloc_ret(rettv);
 
         tv_dict_add_nr(
             dict,

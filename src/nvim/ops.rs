@@ -3365,12 +3365,12 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
         }
 
         if !dict.is_null() {
-            tv_dict_add_nr(dict, c"words", word_count);
-            tv_dict_add_nr(dict, c"chars", char_count);
-            tv_dict_add_nr(dict, c"bytes", byte_count + bom_count);
+            tv_dict_add_nr(&mut *dict, c"words", word_count);
+            tv_dict_add_nr(&mut *dict, c"chars", char_count);
+            tv_dict_add_nr(&mut *dict, c"bytes", byte_count + bom_count);
 
             tv_dict_add_nr(
-                dict,
+                &mut *dict,
                 if l_VIsual_active {
                     c"visual_bytes"
                 } else {
@@ -3379,7 +3379,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                 byte_count_cursor,
             );
             tv_dict_add_nr(
-                dict,
+                &mut *dict,
                 if l_VIsual_active {
                     c"visual_chars"
                 } else {
@@ -3388,7 +3388,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                 char_count_cursor,
             );
             tv_dict_add_nr(
-                dict,
+                &mut *dict,
                 if l_VIsual_active {
                     c"visual_words"
                 } else {

@@ -925,27 +925,27 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
             && !word.data.is_null()
         {
             tv_dict_add_str_len(
-                v_event,
+                &mut *v_event,
                 c"complete_word",
                 word.data,
                 word.size as c_int,
             );
         } else {
-            tv_dict_add_str_len(v_event, c"complete_word", c"", 0);
+            tv_dict_add_str_len(&mut *v_event, c"complete_word", c"", 0);
         }
 
         let idx = (mode & !CTRL_X_WANT_IDENT) as usize;
         match CTRL_X_MODE_NAMES.get(idx).copied().flatten() {
             Some(mode_cstr) => {
                 tv_dict_add_str_len(
-                    v_event,
+                    &mut *v_event,
                     c"complete_type",
                     mode_cstr.as_ptr(),
                     mode_cstr.to_bytes().len() as c_int,
                 );
             }
             None => {
-                tv_dict_add_str_len(v_event, c"complete_type", c"", 0);
+                tv_dict_add_str_len(&mut *v_event, c"complete_type", c"", 0);
             }
         }
 
@@ -956,7 +956,7 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
         } else {
             c"discard".as_ptr()
         };
-        tv_dict_add_str(v_event, c"reason", reason);
+        tv_dict_add_str(&mut *v_event, c"reason", reason);
         tv_dict_set_keys_readonly(&mut *v_event);
 
         ins_apply_autocmds(EVENT_COMPLETEDONE);
@@ -1658,8 +1658,8 @@ fn trigger_complete_changed_event(cur: c_int) {
         };
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let v_event = get_v_event(&mut save_v_event);
-        tv_dict_add_dict(v_event, c"completed_item", item);
-        pum_set_event_info(v_event);
+        tv_dict_add_dict(&mut *v_event, c"completed_item", item);
+        pum_set_event_info(&mut *v_event);
         tv_dict_set_keys_readonly(&mut *v_event);
 
         RECURSIVE.store(true, std::sync::atomic::Ordering::Relaxed);

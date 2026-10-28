@@ -598,12 +598,12 @@ pub fn do_record(c: c_int) -> bool {
             let mut p_vec = get_recorded().into_bytes_with_nul();
             let p = p_vec.as_mut_ptr().cast::<c_char>();
             vim_unescape_ks(p);
-            tv_dict_add_str(dict, c"regcontents", p);
+            tv_dict_add_str(&mut *dict, c"regcontents", p);
 
             let mut buf = [0 as c_char; NUMBUFLEN + 2];
             buf[0] = reg_st().do_record_regname as u8 as c_char;
             buf[1] = NUL;
-            tv_dict_add_str(dict, c"regname", buf.as_ptr());
+            tv_dict_add_str(&mut *dict, c"regname", buf.as_ptr());
             tv_dict_set_keys_readonly(&mut *dict);
 
             apply_autocmds(
@@ -1348,7 +1348,7 @@ pub fn format_reg_type(
 
 fn add_regtype_to_dict(
     reg: *mut yankreg_T,
-    dict: *mut dict_T,
+    dict: &mut dict_T,
     buf: *mut c_char,
     bufsize: usize,
 ) {
@@ -1383,17 +1383,17 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
             tv_list_append_string( &mut *list, item.data, item.size as isize);
         }
         (*list).lv_lock = VAR_FIXED;
-        tv_dict_add_list(dict, c"regcontents", list);
+        tv_dict_add_list(&mut *dict, c"regcontents", list);
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
-        add_regtype_to_dict(&raw mut *reg, dict, buf.as_mut_ptr(), buf.len());
+        add_regtype_to_dict(&raw mut *reg, &mut *dict, buf.as_mut_ptr(), buf.len());
 
         buf[0] = oap.regname as u8 as c_char;
         buf[1] = NUL;
-        tv_dict_add_str(dict, c"regname", buf.as_ptr());
+        tv_dict_add_str(&mut *dict, c"regname", buf.as_ptr());
 
         tv_dict_add_bool(
-            dict,
+            &mut *dict,
             c"inclusive",
             if oap.inclusive {
                 kBoolVarTrue
@@ -1404,10 +1404,10 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
 
         buf[0] = get_op_char(oap.op_type) as u8 as c_char;
         buf[1] = NUL;
-        tv_dict_add_str(dict, c"operator", buf.as_ptr());
+        tv_dict_add_str(&mut *dict, c"operator", buf.as_ptr());
 
         tv_dict_add_bool(
-            dict,
+            &mut *dict,
             c"visual",
             if oap.is_VIsual {
                 kBoolVarTrue
@@ -1471,22 +1471,22 @@ fn put_do_autocmd(
         }
 
         (*list).lv_lock = VAR_FIXED;
-        tv_dict_add_list(v_event, c"regcontents", list);
+        tv_dict_add_list(&mut *v_event, c"regcontents", list);
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
         buf[0] = regname as u8 as c_char;
         buf[1] = NUL;
         let buflen = if buf[0] == NUL { 0 } else { 1 };
-        tv_dict_add_str_len(v_event, c"regname", buf.as_ptr(), buflen);
+        tv_dict_add_str_len(&mut *v_event, c"regname", buf.as_ptr(), buflen);
 
         buf[0] = if dir == BACKWARD { b'P' } else { b'p' } as c_char;
         buf[1] = NUL;
-        tv_dict_add_str_len(v_event, c"operator", buf.as_ptr(), 1);
+        tv_dict_add_str_len(&mut *v_event, c"operator", buf.as_ptr(), 1);
 
-        add_regtype_to_dict(reg, v_event, buf.as_mut_ptr(), buf.len());
+        add_regtype_to_dict(reg, &mut *v_event, buf.as_mut_ptr(), buf.len());
 
         tv_dict_add_bool(
-            v_event,
+            &mut *v_event,
             c"visual",
             if g_st().Visual.active {
                 kBoolVarTrue

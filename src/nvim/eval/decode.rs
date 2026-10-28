@@ -62,11 +62,11 @@ fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
         (*type_di).di_tv.v_lock = VAR_UNLOCKED;
         (*type_di).di_tv.vval = crate::eval::typval::TypvalVval::List((*eval_msgpack_type_lists_mut())[mp_type].cast_mut());
         tv_list_ref((*type_di).di_tv.vval.v_list());
-        tv_dict_add(dict, type_di);
+        tv_dict_add(&mut *dict, type_di);
 
         let val_di = tv_dict_item_alloc_len(c"_VAL", 4);
         (*val_di).di_tv = val;
-        tv_dict_add(dict, val_di);
+        tv_dict_add(&mut *dict, val_di);
         (*dict).dv_refcount += 1;
         *rettv = typval_T {
             v_type: VarType::VAR_DICT,
@@ -191,7 +191,7 @@ fn json_decoder_pop(
                 let obj_di = tv_dict_item_alloc(key.val.vval.v_string());
                 tv_clear(&mut key.val);
                 let dict = last_container.container.vval.v_dict();
-                if !tv_dict_add(dict, obj_di) {
+                if !tv_dict_add(&mut *dict, obj_di) {
                     std::process::abort();
                 }
                 (*obj_di).di_tv = obj.val;
@@ -1246,7 +1246,7 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                         let key = pair[0].vval.v_string();
                         let keylen = crate::memory::cstr_len(key);
                         let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
-                        if !tv_dict_add(dict, di) {
+                        if !tv_dict_add(&mut *dict, di) {
                             let mut todo = (*dict).dv_hashtab.ht_used;
                             let mut hi = (*dict).dv_hashtab.array_ptr();
                             while todo > 0 {
