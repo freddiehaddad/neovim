@@ -197,7 +197,7 @@ impl Default for exception_state_T {
 
 use crate::charset::NUL;
 use crate::globals::IOSIZE;
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 
 struct ExEvalModuleState {
     cause_abort: bool,
@@ -836,7 +836,7 @@ pub fn ex_eval(eap: &mut exarg_T) {
 
         fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
 
-        if eval0(eap.arg, &mut tv, Some(&mut *eap), &mut evalarg) == OK {
+        if eval0(eap.arg, &mut tv, Some(&mut *eap), &mut evalarg) {
             tv_clear(&mut tv);
         }
 }

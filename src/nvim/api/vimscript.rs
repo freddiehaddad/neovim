@@ -39,7 +39,6 @@ pub struct KeyDict_exec_opts {
 }
 
 use crate::eval::funcs::MAX_FUNC_ARGS;
-use crate::math::{FAIL, OK};
 
 struct ApiVimscriptState {
     EVAL_RECURSIVE: c_int,
@@ -217,7 +216,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
         try_leave(&tstate, err);
 
         if !error_set(err) {
-            if ok == FAIL {
+            if !ok {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -374,7 +373,7 @@ pub fn nvim_call_dict_function(
                 if error_set(err) {
                     return rv;
                 }
-                if eval_ret != OK {
+                if !eval_ret {
                     std::process::abort();
                 }
                 mustfree = true;

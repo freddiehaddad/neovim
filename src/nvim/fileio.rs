@@ -2917,7 +2917,7 @@ fn readfile_charconvert(
             Some(ref tn) => {
                 close(*fdp);
                 *fdp = -1;
-                if eval_charconvert(fenc, c"utf-8".as_ptr(), fname, tn.as_ptr()) == FAIL {
+                if !eval_charconvert(fenc, c"utf-8".as_ptr(), fname, tn.as_ptr()) {
                     errmsg = tr(c"Conversion with 'charconvert' failed".as_ptr());
                 }
                 if errmsg.is_null() {

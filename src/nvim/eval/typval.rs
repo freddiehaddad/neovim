@@ -45,7 +45,7 @@ use crate::cmdexpand::MB_MAXBYTES;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 
 use crate::eval::funcs::kSpecialVarNull;
-use crate::math::{FAIL, OK};
+use crate::math::OK;
 use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;
 pub type float_T = f64;
@@ -1322,13 +1322,13 @@ pub fn tv_list_copy(
             }
             let ni = tv_list_item_alloc();
             if deep {
-                if var_item_copy(
+                if !var_item_copy(
                     conv,
                     &mut (*item).li_tv,
                     &mut (*ni).li_tv,
                     deep,
                     copyID,
-                ) == FAIL
+                )
                 {
                     drop(Box::from_raw(ni));
                     tv_list_unref(copy);
@@ -2055,7 +2055,7 @@ fn item_compare2(
         funcexe.fe_evaluate = true;
         funcexe.fe_partial = partial;
         funcexe.fe_selfdict = info.item_compare_selfdict;
-        let mut res = call_func(
+        let ok = call_func(
             func_name,
             -1,
             &mut rettv,
@@ -2066,19 +2066,19 @@ fn item_compare2(
         tv_clear(&raw mut argv[0]);
         tv_clear(&raw mut argv[1]);
 
-        if res == FAIL {
-            res = ITEM_COMPARE_FAIL;
+        let mut res = if !ok {
             info.item_compare_func_err = true;
+            ITEM_COMPARE_FAIL
         } else {
             let n = tv_get_number_chk(&rettv, Some(&mut info.item_compare_func_err));
-            res = if n > 0 {
+            if n > 0 {
                 1
             } else if n < 0 {
                 -1
             } else {
                 0
-            };
-        }
+            }
+        };
         if info.item_compare_func_err {
             res = ITEM_COMPARE_FAIL;
         }
@@ -3459,13 +3459,13 @@ pub fn tv_dict_copy(
                     tv_dict_item_alloc(key_ptr)
                 };
                 if deep {
-                    if var_item_copy(
+                    if !var_item_copy(
                         conv,
                         &mut (*di).di_tv,
                         &mut (*new_di).di_tv,
                         deep,
                         copyID,
-                    ) == FAIL
+                    )
                     {
                         tv_dict_item_free(new_di);
                         break;

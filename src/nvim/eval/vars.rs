@@ -82,7 +82,7 @@ use std::ptr;
 pub type VimVarIndex = c_int;
 pub type ScopeType = c_int;
 pub type scid_T = c_int;
-type ex_unletlock_callback = fn(&mut lval_T, *mut c_char, &mut exarg_T, c_int) -> c_int;
+type ex_unletlock_callback = fn(&mut lval_T, *mut c_char, &mut exarg_T, c_int) -> bool;
 
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::change::MB_MAXCHAR;
@@ -754,7 +754,7 @@ pub fn eval_charconvert(
     enc_to: *const c_char,
     fname_from: *const c_char,
     fname_to: *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         let saved_sctx = g_st().current_sctx;
 
@@ -785,7 +785,7 @@ pub fn eval_charconvert(
         set_vim_var_string(VV_FNAME_OUT, ptr::null(), -1);
         g_st().current_sctx = saved_sctx;
 
-        if err { FAIL } else { OK }
+        !err
     }
 }
 
@@ -860,7 +860,11 @@ pub fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
 
         let mut r = may_call_simple_func(p, &mut rettv);
         if r == NOTDONE {
-            r = eval1(&raw mut p, &mut rettv, Some(&mut g_st().EVALARG_EVALUATE));
+            r = if eval1(&raw mut p, &mut rettv, Some(&mut g_st().EVALARG_EVALUATE)) {
+                OK
+            } else {
+                FAIL
+            };
         }
         if r == OK {
             if rettv.v_type != VarType::VAR_LIST {
@@ -967,7 +971,7 @@ pub fn eval_one_expr_in_str(
             semsg!(gettext(e_missing_close_curly_str.as_ptr()), p);
             return ptr::null_mut();
         }
-        if skip_expr(&raw mut block_end, None) == FAIL {
+        if !skip_expr(&raw mut block_end, None) {
             return ptr::null_mut();
         }
         block_end = skipwhite(block_end);
@@ -1299,7 +1303,7 @@ pub fn ex_let(eap: &mut exarg_T) {
             g_st().emsg_skip -= 1;
         }
 
-        if eap.skip == 0 && eval_res != FAIL {
+        if eap.skip == 0 && eval_res {
             ex_let_vars(
                 eap.arg,
                 &mut rettv,
@@ -1310,7 +1314,7 @@ pub fn ex_let(eap: &mut exarg_T) {
                 op.as_mut_ptr(),
             );
         }
-        if eval_res != FAIL {
+        if eval_res {
             tv_clear(&raw mut rettv);
         }
     }
@@ -1585,16 +1589,16 @@ fn list_arg_vars(
                     if let Some(ref tf) = tofree {
                         name = tf.as_ptr().cast_mut();
                     }
-                    if eval_variable(name, len, Some(&mut tv), ptr::null_mut(), true, false) == FAIL {
+                    if !eval_variable(name, len, Some(&mut tv), ptr::null_mut(), true, false) {
                         error = true;
                     } else {
                         let arg_subsc = arg;
-                        if handle_subscript(
+                        if !handle_subscript(
                             (&raw mut arg).cast(),
                             &mut tv,
                             Some(&mut g_st().EVALARG_EVALUATE),
                             true,
-                        ) == FAIL
+                        )
                         {
                             error = true;
                         } else {
@@ -1980,7 +1984,7 @@ fn ex_unletlock(
                     return;
                 }
                 arg = arg_const.cast_mut();
-                if !error && eap.skip == 0 && callback(&mut lv, arg, eap, deep) == FAIL {
+                if !error && eap.skip == 0 && !callback(&mut lv, arg, eap, deep) {
                     error = true;
                 }
                 name_end = arg;
@@ -2007,7 +2011,7 @@ fn ex_unletlock(
                     break;
                 }
 
-                if !error && eap.skip == 0 && callback(&mut lv, name_end, eap, deep) == FAIL
+                if !error && eap.skip == 0 && !callback(&mut lv, name_end, eap, deep)
                 {
                     error = true;
                 }
@@ -2028,10 +2032,10 @@ fn do_unlet_var(
     name_end: *mut c_char,
     eap: &mut exarg_T,
     _deep: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let forceit = eap.forceit != 0;
-        let mut ret = OK;
+        let mut ret = true;
 
         if lp.ll_tv.is_null() {
             let cc = *name_end;
@@ -2040,7 +2044,7 @@ fn do_unlet_var(
             if *lp.ll_name == b'$' as c_char {
                 vim_unsetenv_ext(lp.ll_name.add(1));
             } else if !do_unlet(lp.ll_name, lp.ll_name_len, forceit) {
-                ret = FAIL;
+                ret = false;
             }
             *name_end = cc;
         } else if (!lp.ll_list.is_null()
@@ -2052,7 +2056,7 @@ fn do_unlet_var(
             || (!lp.ll_dict.is_null()
                 && value_check_lock((*lp.ll_dict).dv_lock, lp.ll_name, lp.ll_name_len))
         {
-            return FAIL;
+            return false;
         } else if lp.ll_range {
             tv_list_unlet_range(
                 lp.ll_list,
@@ -2183,25 +2187,25 @@ fn do_lock_var(
     _name_end: *mut c_char,
     eap: &mut exarg_T,
     deep: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let lock = eap.cmdidx == cmdidx_T::CMD_lockvar as c_int;
-        let mut ret = OK;
+        let mut ret = true;
 
         if lp.ll_tv.is_null() {
             if *lp.ll_name == b'$' as c_char {
                 semsg!(gettext(E_LOCK_UNLOCK.as_ptr()), lp.ll_name);
-                ret = FAIL;
+                ret = false;
             } else {
                 let di = find_var(lp.ll_name, lp.ll_name_len, ptr::null_mut(), 1);
                 if di.is_null() {
-                    ret = FAIL;
+                    ret = false;
                 } else if ((*di).di_flags & DI_FLAGS_FIX) != 0
                     && (*di).di_tv.v_type != VarType::VAR_DICT
                     && (*di).di_tv.v_type != VarType::VAR_LIST
                 {
                     semsg!(gettext(E_LOCK_UNLOCK.as_ptr()), lp.ll_name);
-                    ret = FAIL;
+                    ret = false;
                 } else {
                     if lock {
                         (*di).di_flags |= DI_FLAGS_LOCK;
@@ -2619,9 +2623,9 @@ pub fn eval_variable(
     dip: *mut *mut dictitem_T,
     verbose: bool,
     no_autoload: bool,
-) -> c_int {
+) -> bool {
     unsafe {
-        let mut ret = OK;
+        let mut ret = true;
         let mut tv: *mut typval_T = ptr::null_mut();
 
         let v = find_var(
@@ -2645,7 +2649,7 @@ pub fn eval_variable(
                     name,
                 );
             }
-            ret = FAIL;
+            ret = false;
         } else if rettv.is_some() {
             tv_copy(&*tv, rettv.unwrap());
         }
@@ -3318,7 +3322,7 @@ fn get_var_from(
                             tv_dict_set_ret(rettv, opts);
                             done = true;
                         }
-                    } else if eval_option(&raw mut varname, Some(rettv), true) == OK {
+                    } else if eval_option(&raw mut varname, Some(rettv), true) {
                         done = true;
                     }
 
@@ -3629,10 +3633,9 @@ pub fn var_exists(mut var: *const c_char) -> bool {
             if let Some(ref tf) = tofree {
                 name = tf.as_ptr();
             }
-            n = eval_variable(name, len, Some(&mut tv), ptr::null_mut(), false, true) == OK;
+            n = eval_variable(name, len, Some(&mut tv), ptr::null_mut(), false, true);
             if n {
-                n = handle_subscript(&raw mut var, &mut tv, Some(&mut g_st().EVALARG_EVALUATE), false)
-                    == OK;
+                n = handle_subscript(&raw mut var, &mut tv, Some(&mut g_st().EVALARG_EVALUATE), false);
                 if n {
                     tv_clear(&raw mut tv);
                 }

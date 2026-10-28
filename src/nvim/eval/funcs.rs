@@ -2163,7 +2163,7 @@ pub fn f_eval(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             s = skipwhite(s);
         }
         let expr_start = s;
-        if s.is_null() || eval1(&raw mut s, &mut *rettv, Some(&mut g_st().EVALARG_EVALUATE)) == FAIL {
+        if s.is_null() || !eval1(&raw mut s, &mut *rettv, Some(&mut g_st().EVALARG_EVALUATE)) {
             if !expr_start.is_null() && !aborting() {
                 semsg!(gettext(e_invexpr2.as_ptr()), expr_start);
             }
@@ -2301,7 +2301,7 @@ pub fn f_exists(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 }
             }
         } else if *p == b'&' as c_char || *p == b'+' as c_char {
-            n = c_int::from(eval_option(&raw mut p, None, true) == OK);
+            n = c_int::from(eval_option(&raw mut p, None, true));
             if *skipwhite(p) != NUL {
                 n = 0;
             }
@@ -3721,7 +3721,7 @@ pub fn f_wait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 
         let mut remaining = i64::from(timeout);
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
-        while !(eval_expr_typval(&expr, false, &raw mut argv, 0, &mut exprval) != OK
+        while !(!eval_expr_typval(&expr, false, &raw mut argv, 0, &mut exprval)
             || tv_get_number_chk(&exprval, Some(&mut error)) != 0
             || g_st().called_emsg > called_emsg_before
             || error
@@ -4112,7 +4112,7 @@ fn indexof_eval_expr(expr: &mut typval_T) -> varnumber_T {
         argv[1] = *get_vim_var_tv(VV_VAL);
         let mut newtv = tv_initial_value();
 
-        if eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 2, &mut newtv) == FAIL {
+        if !eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 2, &mut newtv) {
             return 0;
         }
 
@@ -6668,7 +6668,7 @@ fn reduce_list(argvars: &mut [typval_T], rettv: &mut typval_T) {
 
             let r = eval_expr_typval(&*expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
             tv_clear(&raw mut argv[0]);
-            if r == FAIL || g_st().called_emsg != called_emsg_start {
+            if !r || g_st().called_emsg != called_emsg_start {
                 break;
             }
             li = (*li).li_next;
@@ -6716,7 +6716,7 @@ fn reduce_string(argvars: &mut [typval_T], rettv: &mut typval_T) {
             let r = eval_expr_typval(&*expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
             tv_clear(&raw mut argv[0]);
             tv_clear(&raw mut argv[1]);
-            if r == FAIL || g_st().called_emsg != called_emsg_start {
+            if !r || g_st().called_emsg != called_emsg_start {
                 break;
             }
             p = p.add(len as usize);
@@ -6764,7 +6764,7 @@ fn reduce_blob(argvars: &mut [typval_T], rettv: &mut typval_T) {
             };
 
             let r = eval_expr_typval(&*expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
-            if r == FAIL || g_st().called_emsg != called_emsg_start {
+            if !r || g_st().called_emsg != called_emsg_start {
                 return;
             }
             i += 1;
@@ -7933,7 +7933,7 @@ pub fn f_setpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 fn get_yank_type(
     pp: *mut *mut c_char,yank_type: &mut crate::register::MotionType,
     block_len: &mut c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut stropt = *pp;
         match *stropt {
@@ -7951,10 +7951,10 @@ fn get_yank_type(
                     stropt = stropt.sub(1);
                 }
             }
-            _ => return FAIL,
+            _ => return false,
         }
         *pp = stropt;
-        OK
+        true
     }
 }
 
@@ -8002,7 +8002,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             if !stropt.is_null() {
                 let ret = get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
                 stropt = stropt.add(1);
-                if ret == FAIL || *stropt != NUL {
+                if !ret || *stropt != NUL {
                     semsg!(gettext(e_invargval.as_ptr()), c"value".as_ptr());
                     return;
                 }

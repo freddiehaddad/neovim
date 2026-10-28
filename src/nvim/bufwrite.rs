@@ -1773,7 +1773,7 @@ pub fn buf_write(
 
                         if wfname != fname {
                             if end != 0
-                                && eval_charconvert(c"utf-8".as_ptr(), fenc, wfname, fname) == FAIL
+                                && !eval_charconvert(c"utf-8".as_ptr(), fenc, wfname, fname)
                             {
                                 write_info.bw_conv_error = 1;
                                 end = 0;

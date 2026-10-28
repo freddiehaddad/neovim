@@ -21,7 +21,6 @@ use crate::eval::{eval_expr_typval, get_copyID, tv_blob_set_ret};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
-use crate::math::FAIL;
 use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
 use crate::message::{emsg, semsg};
 use crate::strings::reverse_text;
@@ -70,7 +69,7 @@ fn filter_map_one(
                 vval: TypvalVval::Number(0),
             },
         ];
-        if eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 2, &mut *newtv) == FAIL {
+        if !eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 2, &mut *newtv) {
             tv_clear(get_vim_var_tv(VV_VAL));
             return false;
         }

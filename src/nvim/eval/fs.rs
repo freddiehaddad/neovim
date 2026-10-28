@@ -1393,7 +1393,7 @@ pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> var
         argv[0].vval = crate::eval::typval::TypvalVval::String(name.cast_mut());
 
         let mut rettv = tv_init;
-        if eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 1, &mut rettv) != FAIL {
+        if eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 1, &mut rettv) {
             retval = tv_get_number_chk(&rettv, Some(&mut error));
             if error {
                 retval = -1;

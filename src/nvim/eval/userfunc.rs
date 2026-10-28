@@ -384,7 +384,7 @@ fn get_function_args(
     mut newargs: Option<&mut Vec<std::ffi::CString>>,mut varargs: Option<&mut c_int>,
     mut default_args: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut mustend = false;
         let mut arg = *argp;
@@ -416,7 +416,7 @@ fn get_function_args(
                     p = skipwhite(p).add(1);
                     p = skipwhite(p);
                     let expr = p;
-                    if eval1(&raw mut p, &mut rettv, None) != FAIL {
+                    if eval1(&raw mut p, &mut rettv, None) {
                         while p > expr && ascii_iswhite(*p.sub(1) as c_int) {
                             p = p.sub(1);
                         }
@@ -450,7 +450,7 @@ fn get_function_args(
                         if let Some(default_args) = default_args.as_deref_mut() {
                             default_args.clear();
                         }
-                        return FAIL;
+                        return false;
                     }
                     p = skipwhite(p);
                 }
@@ -475,12 +475,12 @@ fn get_function_args(
             if let Some(default_args) = default_args {
                 default_args.clear();
             }
-            return FAIL;
+            return false;
         }
         p = p.add(1); // skip "endchar"
 
         *argp = p;
-        OK
+        true
     }
 }
 
@@ -582,7 +582,7 @@ pub fn get_lambda_tv(
             None,
             true,
         );
-        if ret == FAIL || *s != b'>' as c_char {
+        if !ret || *s != b'>' as c_char {
             return NOTDONE;
         }
 
@@ -595,7 +595,7 @@ pub fn get_lambda_tv(
             None,
             false,
         );
-        if ret == FAIL || **arg != b'>' as c_char {
+        if !ret || **arg != b'>' as c_char {
             eval_st().eval_lavars_used = old_eval_lavars;
             return FAIL;
         }
@@ -608,7 +608,7 @@ pub fn get_lambda_tv(
         let start = *arg;
         ret = skip_expr(arg, evalarg);
         let end = *arg;
-        if ret == FAIL {
+        if !ret {
             eval_st().eval_lavars_used = old_eval_lavars;
             return FAIL;
         }
@@ -748,10 +748,10 @@ fn get_func_arguments(
     partial_argc: c_int,
     argvars: *mut typval_T,
     argcount: &mut c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut argp = *arg;
-        let mut ret = OK;
+        let mut ret = true;
 
         while *argcount < MAX_FUNC_ARGS as c_int - partial_argc {
             argp = skipwhite(argp.add(1));
@@ -759,8 +759,8 @@ fn get_func_arguments(
             if *argp == b')' as c_char || *argp == b',' as c_char || *argp == NUL {
                 break;
             }
-            if eval1(&raw mut argp, &mut *argvars.add(*argcount as usize), evalarg.as_deref_mut()) == FAIL {
-                ret = FAIL;
+            if !eval1(&raw mut argp, &mut *argvars.add(*argcount as usize), evalarg.as_deref_mut()) {
+                ret = false;
                 break;
             }
             *argcount += 1;
@@ -773,7 +773,7 @@ fn get_func_arguments(
         if *argp == b')' as c_char {
             argp = argp.add(1);
         } else {
-            ret = FAIL;
+            ret = false;
         }
         *arg = argp;
         ret
@@ -786,7 +786,7 @@ pub fn get_func_tv(
     len: c_int,rettv: &mut typval_T,
     arg: *mut *mut c_char,evalarg: Option<&mut evalarg_T>,
     funcexe: &mut funcexe_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argcount: c_int = 0;
@@ -806,7 +806,7 @@ pub fn get_func_tv(
             &mut argcount,
         );
 
-        if ret == OK {
+        if ret {
             let mut i = 0usize;
 
             if get_vim_var_nr(VV_TESTING) != 0 {
@@ -1317,11 +1317,11 @@ pub fn call_user_func(
                     let mut default_expr = (&(*fp).uf_def_args)[(ai + uf_def_args_len) as usize]
                         .as_ptr()
                         .cast_mut();
-                    if eval1(
+                    if !eval1(
                         &raw mut default_expr,
                         &mut def_rettv,
                         Some(&mut g_st().EVALARG_EVALUATE),
-                    ) == FAIL
+                    )
                     {
                         default_arg_err = true;
                         break;
@@ -1730,11 +1730,11 @@ pub fn func_call(
     args: *mut typval_T,
     partial: *mut partial_T,
     selfdict: *mut dict_T,rettv: &mut typval_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut argv: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argc = 0;
-        let mut r = 0;
+        let mut r = false;
 
         let list = (*args).vval.v_list();
         let max_argc = MAX_FUNC_ARGS as c_int
@@ -1854,9 +1854,9 @@ pub fn call_func(
     argcount_in: c_int,
     argvars_in: *mut typval_T,
     funcexe: &mut funcexe_T,
-) -> c_int {
+) -> bool {
     unsafe {
-        let mut ret = FAIL;
+        let mut ret = false;
         let mut error = FCERR_NONE;
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
@@ -1989,7 +1989,7 @@ pub fn call_func(
             update_force_abort();
         }
         if !skip_eval && error == FCERR_NONE {
-            ret = OK;
+            ret = true;
         }
 
         if !aborting() {
@@ -2587,7 +2587,7 @@ fn get_function_body(
     newlines: &mut Vec<Option<std::ffi::CString>>,
     line_arg_in: *mut c_char,
     show_block: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut saved_wait_return = g_st().need_wait_return;
         let mut line_arg = line_arg_in;
@@ -2595,7 +2595,7 @@ fn get_function_body(
         let mut indent: c_int = 2;
         let mut nesting: c_int = 0;
         let mut skip_until: Option<std::ffi::CString> = None;
-        let mut ret = FAIL;
+        let mut ret = false;
         let mut is_heredoc = false;
         let mut heredoc_trimmed: Option<std::ffi::CString> = None;
         let mut heredoc_trimmedlen: usize = 0;
@@ -2878,7 +2878,7 @@ fn get_function_body(
         }
 
         if g_st().did_emsg == 0 {
-            ret = OK;
+            ret = true;
         }
 
         g_st().need_wait_return |= saved_wait_return;
@@ -3031,14 +3031,14 @@ pub fn ex_function(eap: &mut exarg_T) {
             }
         }
 
-        if get_function_args(
+        if !get_function_args(
             &raw mut p,
             b')' as c_char,
             Some(&mut newargs),
             Some(&mut varargs),
             Some(&mut default_args),
             eap.skip != 0,
-        ) == FAIL
+        )
         {
             errret_2!();
         }
@@ -3101,7 +3101,7 @@ pub fn ex_function(eap: &mut exarg_T) {
 
         let sourcing_lnum_top = sourcing_lnum();
 
-        if get_function_body(eap, &mut newlines, line_arg, show_block) == FAIL
+        if !get_function_body(eap, &mut newlines, line_arg, show_block)
             || eap.skip != 0
         {
             erret!();
@@ -3528,7 +3528,7 @@ pub fn ex_return(eap: &mut exarg_T) {
 
         eap.nextcmd = ptr::null_mut();
         if (*arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char)
-            && eval0(arg, &mut rettv, Some(&mut *eap), &mut evalarg) != FAIL
+            && eval0(arg, &mut rettv, Some(&mut *eap), &mut evalarg)
         {
             if eap.skip == 0 {
                 returning = do_return(eap, false, true, Some(rettv));
@@ -3582,17 +3582,17 @@ fn ex_call_inner(
             funcexe.fe_doesrange = false;
             let mut rettv: typval_T = typval_T::new();
             rettv.v_type = VarType::VAR_UNKNOWN;
-            if get_func_tv(name, -1, &mut rettv, arg, Some(evalarg), &mut funcexe) == FAIL {
+            if !get_func_tv(name, -1, &mut rettv, arg, Some(evalarg), &mut funcexe) {
                 failed = true;
                 break;
             }
 
-            if handle_subscript(
+            if !handle_subscript(
                 arg.cast::<*const c_char>(),
                 &mut rettv,
                 Some(&mut g_st().EVALARG_EVALUATE),
                 true,
-            ) == FAIL
+            )
             {
                 failed = true;
                 break;
@@ -3656,14 +3656,14 @@ fn ex_defer_inner(
         );
         argcount += partial_argc;
 
-        if r == OK {
+        if r {
             if builtin_function(name, -1) {
                 let fdef = find_internal_func(name);
                 if fdef.is_null() {
                     emsg_funcname(e_unknown_function_str.as_ptr(), name);
-                    r = FAIL;
+                    r = false;
                 } else if check_internal_func(&*fdef, argcount) == -1 {
-                    r = FAIL;
+                    r = false;
                 }
             } else {
                 let ufunc = find_func(name);
@@ -3671,13 +3671,13 @@ fn ex_defer_inner(
                     let error = check_user_func_argcount(&mut *ufunc, argcount);
                     if error != FCERR_UNKNOWN {
                         user_func_error(error, name, false);
-                        r = FAIL;
+                        r = false;
                     }
                 }
             }
         }
 
-        if r == FAIL {
+        if !r {
             while argcount > 0 {
                 argcount -= 1;
                 tv_clear(&raw mut argvars[argcount as usize]);
@@ -3793,7 +3793,7 @@ pub fn ex_call(eap: &mut exarg_T) {
         if eap.skip != 0 {
             let mut rettv: typval_T = typval_T::new();
             g_st().emsg_skip += 1;
-            if eval0(eap.arg, &mut rettv, Some(&mut *eap), &mut evalarg) != FAIL {
+            if eval0(eap.arg, &mut rettv, Some(&mut *eap), &mut evalarg) {
                 tv_clear(&raw mut rettv);
             }
             g_st().emsg_skip -= 1;

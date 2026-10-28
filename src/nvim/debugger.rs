@@ -10,7 +10,6 @@ use crate::ex_getln::getcmdline_prompt;
 use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
 use crate::input::{restore_typeahead, save_typeahead, tasave_T};
-use crate::math::OK;
 
 use crate::message::{emsg, msg, msg_starthere, semsg, smsg};
 use crate::os::env::{expand_env_save, home_replace};
@@ -759,7 +758,7 @@ fn debuggy_find(
                 let mut line = false;
                 if let Some(mut tv) = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut()) {
                     if let Some(ref mut old_val) = bp.dbg_val {
-                        if typval_compare(&mut tv, &mut *old_val, EXPR_IS, false) == OK
+                        if typval_compare(&mut tv, &mut *old_val, EXPR_IS, false)
                             && tv.vval.v_number() == 0
                         {
                             line = true;
