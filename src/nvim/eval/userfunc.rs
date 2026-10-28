@@ -944,7 +944,7 @@ pub fn get_func_arity(
 
         let fdef = find_internal_func(name);
         if !fdef.is_null() {
-            let fdef = { &*fdef };
+            let fdef = &*fdef;
             argcount = fdef.max_argc as i32;
             min_argcount = fdef.min_argc as i32;
             *varargs = false;
@@ -1490,7 +1490,7 @@ pub fn call_user_func(
             fp.uf_tm_self = profile_self(fp.uf_tm_self, call_start, fp.uf_tm_children);
             if !fc.fc_caller.is_null() && (*(*fc.fc_caller).fc_func).uf_profiling != 0 {
                 let caller_fp = (*fc.fc_caller).fc_func;
-                let caller_fp = { &mut *caller_fp };
+                let caller_fp = &mut *caller_fp;
                 caller_fp.uf_tm_children = profile_add(caller_fp.uf_tm_children, call_start);
                 caller_fp.uf_tml_children = profile_add(caller_fp.uf_tml_children, call_start);
             }
@@ -1884,7 +1884,7 @@ pub fn call_func(
 
         let mut skip_eval = false;
         if !partial.is_null() {
-            let partial = { unsafe { &mut *partial } };
+            let partial = unsafe { &mut *partial };
             if !partial.pt_dict.is_null() && (selfdict.is_null() || !partial.pt_auto) {
                 selfdict = partial.pt_dict;
             }
@@ -2585,7 +2585,7 @@ fn list_one_function(
             emsg_funcname(c"E123: Undefined function: %s", name);
             return ptr::null_mut();
         }
-        let fp = { unsafe { &mut *fp } };
+        let fp = unsafe { &mut *fp };
 
         let prev_ht_changed = uf_st().func_hashtab_changed;
 
@@ -4153,7 +4153,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
                 pt.pt_name = crate::eval::typval::tv_take_string(rettv.vval.v_string());
             } else {
                 let ret_pt = rettv.vval.v_partial();
-                let ret_pt = { &mut *ret_pt };
+                let ret_pt = &mut *ret_pt;
                 if let Some(ref ret_name) = ret_pt.pt_name {
                     func_ref(ret_name.as_ptr().cast_mut());
                     pt.pt_name = Some(ret_name.clone());

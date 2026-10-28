@@ -287,7 +287,7 @@ pub fn charsize_regular(
 
         let wp = unsafe { &mut *csarg.win };
         let buf = wp.w_buffer;
-        let buf = { unsafe { &mut *buf } };
+        let buf = unsafe { &mut *buf };
         let line = csarg.line;
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;

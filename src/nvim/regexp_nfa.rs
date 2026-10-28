@@ -2634,7 +2634,7 @@ fn addstate_idx(
         }
 
         let st_ptr = states.wrapping_add(state_idx);
-        let st_ptr = { &mut *st_ptr };
+        let st_ptr = &mut *st_ptr;
         let st_c = st_ptr.c;
         match st_c {
             NFA_NCLOSE | NFA_MOPEN | NFA_ZEND | NFA_SPLIT | NFA_EMPTY => {
@@ -3615,7 +3615,7 @@ fn nfa_regmatch(
             flag ^= 1;
             let next_idx = flag;
             let thislist = (&raw mut list).cast::<NfaList>().wrapping_add(this_idx);
-            let thislist = { &mut *thislist };
+            let thislist = &mut *thislist;
             let nextlist = &mut *(&raw mut list).cast::<NfaList>().wrapping_add(next_idx);
             nextlist.n = 0;
             nextlist.has_pim = 0;

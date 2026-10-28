@@ -617,17 +617,15 @@ mod win_iconv {
                 };
 
                 let mut wide = [0u16; 2];
-                let wlen = {
-                    unsafe {
-                        MultiByteToWideChar(
-                            cp,
-                            MB_ERR_INVALID_CHARS,
-                            in_ptr.cast(),
-                            in_len,
-                            wide.as_mut_ptr(),
-                            2,
-                        )
-                    }
+                let wlen = unsafe {
+                    MultiByteToWideChar(
+                        cp,
+                        MB_ERR_INVALID_CHARS,
+                        in_ptr.cast(),
+                        in_len,
+                        wide.as_mut_ptr(),
+                        2,
+                    )
                 };
                 if wlen <= 0 {
                     return StepResult::Invalid;
@@ -691,36 +689,32 @@ mod win_iconv {
                 let mut wide = [0u16; 2];
                 let wlen = ch.encode_utf16(&mut wide).len() as i32;
                 if cp == 54936 || cp == 65001 {
-                    let n = {
-                        unsafe {
-                            WideCharToMultiByte(
-                                cp,
-                                WC_ERR_INVALID_CHARS,
-                                wide.as_ptr(),
-                                wlen,
-                                buf.as_mut_ptr().cast(),
-                                8,
-                                ptr::null(),
-                                ptr::null_mut(),
-                            )
-                        }
+                    let n = unsafe {
+                        WideCharToMultiByte(
+                            cp,
+                            WC_ERR_INVALID_CHARS,
+                            wide.as_ptr(),
+                            wlen,
+                            buf.as_mut_ptr().cast(),
+                            8,
+                            ptr::null(),
+                            ptr::null_mut(),
+                        )
                     };
                     if n <= 0 { None } else { Some(n as usize) }
                 } else {
                     let mut used_def: i32 = 0;
-                    let n = {
-                        unsafe {
-                            WideCharToMultiByte(
-                                cp,
-                                WC_NO_BEST_FIT_CHARS,
-                                wide.as_ptr(),
-                                wlen,
-                                buf.as_mut_ptr().cast(),
-                                8,
-                                ptr::null(),
-                                &raw mut used_def,
-                            )
-                        }
+                    let n = unsafe {
+                        WideCharToMultiByte(
+                            cp,
+                            WC_NO_BEST_FIT_CHARS,
+                            wide.as_ptr(),
+                            wlen,
+                            buf.as_mut_ptr().cast(),
+                            8,
+                            ptr::null(),
+                            &raw mut used_def,
+                        )
                     };
                     if n <= 0 || used_def != 0 {
                         None

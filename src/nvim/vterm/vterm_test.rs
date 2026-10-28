@@ -150,7 +150,7 @@ fn clear_test_output() {
 fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
     let len = frag.len();
     if len > 0 && !frag.str_.is_null() {
-        let slice = { crate::memory::cstr_slice(frag.str_, len) };
+        let slice = crate::memory::cstr_slice(frag.str_, len);
         out.extend_from_slice(slice);
     }
 }
@@ -252,7 +252,7 @@ pub fn parser_dcs<T>(
     if frag.initial() {
         out.push(b'[');
         if commandlen > 0 && !command.is_null() {
-            let cmd = { crate::memory::cstr_slice(command, commandlen) };
+            let cmd = crate::memory::cstr_slice(command, commandlen);
             out.extend_from_slice(cmd);
         }
     }
@@ -893,7 +893,7 @@ mod tests {
     }
 
     fn parser_escape(bytes: *const c_char, _len: usize, _user: *mut VTermStateFull) -> i32 {
-        let slice = { crate::memory::cstr_as_bytes(bytes) };
+        let slice = crate::memory::cstr_as_bytes(bytes);
         let mut out = b"escape ".to_vec();
         out.extend_from_slice(slice);
         out.push(b'\n');

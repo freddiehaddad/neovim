@@ -1487,7 +1487,7 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
         api_err_invalid(err, c"mark name", name.data, 0, true);
         return res;
     }
-    let fm = { unsafe { &mut *fm } };
+    let fm = unsafe { &mut *fm };
 
     if fm.mark.lnum != 0 && fm.fnum == b.b_fnum {
         res = set_mark((&raw mut *b), name, 0, 0, err);

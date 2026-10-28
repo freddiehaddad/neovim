@@ -220,7 +220,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> i32 {
         }
 
         let rv = lua_newuserdata(l, size_of::<LmpackUnpacker>()).cast::<LmpackUnpacker>();
-        let rv = { &mut *rv };
+        let rv = &mut *rv;
         ptr::write(
             rv,
             LmpackUnpacker {
@@ -554,7 +554,7 @@ fn lmpack_unparse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
         let parent = mpack_parent_node(&raw mut *node);
 
         if !parent.is_null() {
-            let parent = { &mut *parent };
+            let parent = &mut *parent;
             lmpack_geti(l, packer.reg, parent.data[0].i() as i32);
 
             if parent.tok.r#type > MpackTokenMap {
@@ -774,7 +774,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> i32 {
     unsafe {
         let rv = lua_newuserdata(l, size_of::<Session>()).cast::<Session>();
-        let rv = { &mut *rv };
+        let rv = &mut *rv;
         ptr::write(
             rv,
             Session {

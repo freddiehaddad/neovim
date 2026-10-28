@@ -179,19 +179,19 @@ fn resdyncaptures(l: *mut lua_State, fr: i32, curr: i32, limit: i32) -> i32 {
 fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: i32, fd: i32) {
     unsafe {
         let prev = capture.wrapping_sub(1);
-        let prev = { &mut *prev };
+        let prev = &mut *prev;
         debug_assert!(prev.kind == CGROUP && prev.siz == 0);
         prev.idx = 0;
         for i in 0..(n as usize) {
             let cap = capture.wrapping_add(i);
-            let cap = { &mut *cap };
+            let cap = &mut *cap;
             cap.kind = CRUNTIME;
             cap.siz = 1;
             cap.idx = (fd + i as i32) as u16;
             cap.index = index;
         }
         let close = capture.wrapping_add(n as usize);
-        let close = { &mut *close };
+        let close = &mut *close;
         close.kind = CCLOSE;
         close.siz = 1;
         close.index = index;
@@ -475,7 +475,7 @@ pub fn r#match(
                     let open = findopen_full(capture.wrapping_add(captop as usize), curr_idx);
                     debug_assert!(captop > 0);
                     if !open.is_null() {
-                        let open = { &mut *open };
+                        let open = &mut *open;
                         open.siz = (curr_idx - open.index + 1) as LpegByte;
                         p = p.wrapping_add(1);
                         continue;

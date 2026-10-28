@@ -416,7 +416,7 @@ fn draw_virt_text(
             g_st().win_extmark_arr.push(m);
         }
         if !vt.is_null() {
-            let vt = { unsafe { &mut *vt } };
+            let vt = unsafe { &mut *vt };
             let vcol = item.draw_col - col_off;
             let col = draw_virt_text_item(
                 buf,

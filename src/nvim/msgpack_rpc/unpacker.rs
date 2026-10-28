@@ -122,7 +122,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
 
         let parent = mpack_parent_node(&raw mut *node);
         if !parent.is_null() {
-            let parent = { &mut *parent };
+            let parent = &mut *parent;
             match parent.tok.r#type {
                 MpackTokenType::MpackTokenArray => {
                     let obj = parent.data[0].object();

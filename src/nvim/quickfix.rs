@@ -3406,7 +3406,7 @@ fn qf_jump_to_buffer(
     }
 
     let qf_ptr = &raw mut (&mut qfl.qf_items)[(qf_index - 1) as usize];
-    let qf_ptr = { unsafe { &mut *qf_ptr } };
+    let qf_ptr = unsafe { &mut *qf_ptr };
     qf_jump_goto_line(
         qf_ptr.qf_lnum,
         qf_ptr.qf_col,
@@ -4274,7 +4274,7 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
     if buf.is_null() {
         return;
     }
-    let buf = { unsafe { &mut *buf } };
+    let buf = unsafe { &mut *buf };
 
     let old_line_count = buf.b_ml.ml_line_count;
     let old_endcol = ml_get_buf_len(&mut *buf, old_line_count);
@@ -5770,7 +5770,7 @@ fn vgr_process_files(
                     }
 
                     if !buf.is_null() {
-                        let buf = { &mut *buf };
+                        let buf = &mut *buf;
                         buf.b_flags &= !BF_DUMMY;
 
                         if std::ptr::eq(buf, *first_match_buf)
@@ -6448,7 +6448,7 @@ fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut 
 
     let di = tv_dict_find(Some(what), c"idx", 3);
     if !di.is_null() {
-        let di = { unsafe { &mut *di } };
+        let di = unsafe { &mut *di };
         if di.di_tv.v_type != VarType::VarNumber {
             return false;
         }
@@ -6680,7 +6680,7 @@ fn qf_add_entries(
         let mut prev_col: i32 = 0;
         let cur_entry = qfl.cur_entry();
         if !cur_entry.is_null() {
-            let cur_entry = { unsafe { &mut *cur_entry } };
+            let cur_entry = unsafe { &mut *cur_entry };
             prev_fnum = cur_entry.qf_fnum;
             prev_lnum = cur_entry.qf_lnum;
             prev_col = cur_entry.qf_col;
@@ -7725,7 +7725,7 @@ fn set_qf_ll_list(wp: *mut WinInfoInfo, args: &mut [TypVal], rettv: &mut TypVal)
             }
 
             let what_arg = args.wrapping_add(2);
-            let what_arg = { &mut *what_arg };
+            let what_arg = &mut *what_arg;
             if what_arg.v_type != VarType::VarUnknown {
                 if what_arg.v_type == VarType::VarString {
                     title = tv_get_string_chk(&*what_arg);

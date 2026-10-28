@@ -508,7 +508,7 @@ fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) 
     if cell.is_null() {
         return 0;
     }
-    let cell = { unsafe { &mut *cell } };
+    let cell = unsafe { &mut *cell };
 
     cell.schar = info.schar;
     if info.schar != 0 {
@@ -1348,7 +1348,7 @@ pub fn vterm_screen_get_cell(
     if intcell.is_null() {
         return 0;
     }
-    let intcell = { unsafe { &mut *intcell } };
+    let intcell = unsafe { &mut *intcell };
 
     cell.schar = if intcell.schar == u32::MAX {
         0

@@ -4895,7 +4895,7 @@ fn idl_get_entry(list: &SynIdList) -> *mut IdlEntry {
         let round = cache.round as usize;
         cache.last = cache.round;
         let e = &raw mut cache.ent[round];
-        let e = { &mut *e };
+        let e = &mut *e;
         cache.round = (cache.round + 1) % (IDL_CACHE_SIZE as i32);
         e.idl_ids.clear();
         e.idl_key = list.clone();

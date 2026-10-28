@@ -1932,7 +1932,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
 pub fn atom_cmd_end(ca: &mut Cmdarg) {
     let is_root = atom_st().cmd_frames.len() == 1;
     let old = cur_frame_ptr();
-    let old = { unsafe { &mut *old } };
+    let old = unsafe { &mut *old };
     if atom_st().composite.follow == K_NONE
         && !mc_replaying()
         && (atom_origin_moved(old.origin) || nv_is(ca.cmdchar, NV_MOTION))

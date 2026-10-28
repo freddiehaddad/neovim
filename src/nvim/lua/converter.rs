@@ -1158,7 +1158,7 @@ fn lua_convert_one_value(
                     if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VarList {
                         let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
-                            let val_di = { &mut *val_di };
+                            let val_di = &mut *val_di;
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in
                                 { *eval_msgpack_type_lists_mut() }.into_iter().enumerate()
@@ -1188,13 +1188,13 @@ fn lua_convert_one_value(
                                             let val_list = val_di.di_tv.vval.v_list();
                                             if tv_list_len(val_list.as_ref()) == 4 {
                                                 let sign_li = tv_list_first(val_list.as_ref());
-                                                let sign_li = { &mut *sign_li };
+                                                let sign_li = &mut *sign_li;
                                                 let highest_li = sign_li.li_next;
-                                                let highest_li = { &mut *highest_li };
+                                                let highest_li = &mut *highest_li;
                                                 let high_li = highest_li.li_next;
-                                                let high_li = { &mut *high_li };
+                                                let high_li = &mut *high_li;
                                                 let low_li = tv_list_last(val_list.as_ref());
-                                                let low_li = { &mut *low_li };
+                                                let low_li = &mut *low_li;
                                                 if sign_li.li_tv.v_type == VarType::VarNumber
                                                     && sign_li.li_tv.vval.v_number() != 0
                                                     && highest_li.li_tv.v_type == VarType::VarNumber

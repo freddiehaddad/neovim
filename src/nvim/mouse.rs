@@ -401,7 +401,7 @@ fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> i32 {
     if wp.is_null() {
         return IN_UNKNOWN;
     }
-    let wp = { unsafe { &mut *wp } };
+    let wp = unsafe { &mut *wp };
     if !wpp.is_null() {
         unsafe {
             *wpp = wp;
@@ -843,7 +843,7 @@ pub fn do_mouse(
             if wp.is_null() {
                 return false;
             }
-            let wp = { &mut *wp };
+            let wp = &mut *wp;
 
             let mut click_defs: *mut StlClickDefinition = if in_status_line {
                 if wp.w_status_click_defs.is_empty() {
@@ -1475,7 +1475,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) ->
     if wp.is_null() {
         return IN_UNKNOWN;
     }
-    let wp = { unsafe { &mut *wp } };
+    let wp = unsafe { &mut *wp };
 
     let below_window = grid == DEFAULT_GRID_HANDLE && row + wp.w_winbar_height >= wp.w_height;
     mouse_st().on_status_line = below_window && row + wp.w_winbar_height - wp.w_height + 1 == 1;

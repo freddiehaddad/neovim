@@ -1361,7 +1361,7 @@ fn event_name2nr_hash(str_: impl crate::strings::IntoCCharPtr, len: usize) -> is
     if str_.is_null() {
         return -1;
     }
-    let s = { crate::memory::cstr_slice(str_, len) };
+    let s = crate::memory::cstr_slice(str_, len);
     let (low, high): (usize, usize) = match len {
         4 => (0, 1),
         6 => match s[0] {
@@ -3540,7 +3540,7 @@ pub fn aucmd_set_expand_context(
     doautocmd: bool,
 ) -> *mut c_char {
     let xp_pref = (&raw mut *xp).cast::<ExpandPrefix>();
-    let xp_pref = { unsafe { &mut *xp_pref } };
+    let xp_pref = unsafe { &mut *xp_pref };
     au_st().autocmd_include_groups = false;
     let mut p = arg;
     let mut group = arg_augroup_get(&raw mut arg);
@@ -3723,7 +3723,7 @@ pub fn aupat_is_buflocal(pat: impl crate::strings::IntoCCharPtr, patlen: i32) ->
     if patlen < 8 {
         return false;
     }
-    let slice = { crate::memory::cstr_slice(pat, patlen as usize) };
+    let slice = crate::memory::cstr_slice(pat, patlen as usize);
     slice.starts_with(b"<buffer") && slice[slice.len() - 1] == b'>'
 }
 

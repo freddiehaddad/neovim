@@ -486,7 +486,7 @@ pub fn u_savecommon(
                 for i in 0..limit {
                     let uep: *mut UEntry =
                         &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[i];
-                    let uep = { unsafe { &mut *uep } };
+                    let uep = unsafe { &mut *uep };
 
                     if u_entry_resized(buf, &*uep)
                         || ((*uep).ue_size() > 1
@@ -2953,7 +2953,7 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if buf.is_null() {
             return;
         }
-        let buf = { &mut *buf };
+        let buf = &mut *buf;
 
         let dict = rettv.vval.v_dict();
 

@@ -2717,7 +2717,7 @@ pub fn get_c_indent() -> i32 {
                                                     curbuf_mut().b_ind_maxparen,
                                                 );
                                                 if !trypos.is_null() {
-                                                    let trypos = { &mut *trypos };
+                                                    let trypos = &mut *trypos;
                                                     if trypos.lnum == curwin_mut().w_cursor.lnum - 1
                                                     {
                                                         break;

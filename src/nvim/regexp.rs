@@ -309,7 +309,7 @@ pub(super) fn cstring_from_bytes(
     len: usize,
 ) -> Option<std::ffi::CString> {
     let ptr = ptr.into_c_char_ptr();
-    let bytes = { crate::memory::cstr_slice(ptr, len) };
+    let bytes = crate::memory::cstr_slice(ptr, len);
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(len);
     std::ffi::CString::new(&bytes[..end]).ok()
 }
@@ -2105,7 +2105,7 @@ pub(super) fn reg_match_visual() -> bool {
     } else {
         re_st().rex.reg_win
     };
-    let wp = { unsafe { &mut *wp } };
+    let wp = unsafe { &mut *wp };
     if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi()
     {
         return false;

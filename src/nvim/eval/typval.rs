@@ -1070,7 +1070,7 @@ pub fn tv_list_init_static10(sl: &mut StaticList10) {
         const SL_SIZE: usize = 10;
         *sl = StaticList10::new();
         let l = &raw mut sl.sl_list;
-        let l = { &mut *l };
+        let l = &mut *l;
         let items = (&raw mut sl.sl_items).cast::<Listitem>();
 
         l.lv_first = items;
@@ -3924,7 +3924,7 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: i32) {
         if pt.is_null() {
             return;
         }
-        let pt = { unsafe { &mut *pt } };
+        let pt = unsafe { &mut *pt };
         let dict = pt.pt_dict.cast::<TvDict>();
         debug_assert!(dict.is_null() || unsafe { (*dict).dv_copy_id } == copy_id);
         pt.pt_dict = ptr::null_mut();
@@ -4163,7 +4163,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         nothing_conv_list_end(cur_tv.as_mut());
                         continue;
                     }
-                    let cur_li = { &mut *cur_li };
+                    let cur_li = &mut *cur_li;
                     *li = cur_li.li_next;
                     &raw mut cur_li.li_tv
                 }

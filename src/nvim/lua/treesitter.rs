@@ -1065,7 +1065,7 @@ unsafe extern "C" fn input_cb(
     bytes_read: *mut u32,
 ) -> *const c_char {
     let bp = payload.cast::<FileBuf>();
-    let bp = { unsafe { &mut *bp } };
+    let bp = unsafe { &mut *bp };
     let buf_ptr = (&raw mut ts_st().input_buf).cast::<c_char>();
 
     if (position.row as Linenr) >= bp.b_ml.ml_line_count {
@@ -1368,7 +1368,7 @@ unsafe extern "C-unwind" fn parser_set_ranges(lstate: *mut lua_State) -> i32 {
         let p = parser_check(lstate, 1);
         luaL_argcheck(lstate, lua_istable(lstate, 2), 2, c"table expected.");
 
-        let tbl_len = { lua_objlen(lstate, 2) };
+        let tbl_len = lua_objlen(lstate, 2);
         let mut ranges: Vec<TSRange> = vec![TSRange::new(); tbl_len];
 
         for (index, range) in ranges.iter_mut().enumerate() {
@@ -1399,7 +1399,7 @@ unsafe extern "C-unwind" fn parser_get_ranges(lstate: *mut lua_State) -> i32 {
 unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *const c_char) {
     unsafe {
         let opts = payload.cast::<TSLuaLoggerOpts>();
-        let opts = { &mut *opts };
+        let opts = &mut *opts;
         if (!opts.lex && logtype == TSLOG_TYPE_LEX) || (!opts.parse && logtype == TSLOG_TYPE_PARSE)
         {
             return;
@@ -1431,7 +1431,7 @@ unsafe extern "C-unwind" fn parser_set_logger(lstate: *mut lua_State) -> i32 {
         luaL_argcheck(lstate, lua_isfunction(lstate, 4), 4, c"function expected");
 
         lua_pushvalue(lstate, 4);
-        let ref_ = { luaL_ref(lstate, LUA_REGISTRYINDEX) };
+        let ref_ = luaL_ref(lstate, LUA_REGISTRYINDEX);
 
         let opts = Box::into_raw(Box::new(TSLuaLoggerOpts {
             lex: { lua_toboolean(lstate, 2) } != 0,
@@ -1521,7 +1521,7 @@ unsafe extern "C-unwind" fn tree_edit(lstate: *mut lua_State) -> i32 {
             new_end_point,
         };
 
-        let new_tree = { ts_tree_copy((*ud).tree) };
+        let new_tree = ts_tree_copy((*ud).tree);
         ts_tree_edit(new_tree, &edit);
 
         push_tree(lstate, new_tree);
@@ -1730,20 +1730,20 @@ unsafe extern "C-unwind" fn node_symbol(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn node_field(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
-        let count = { ts_node_child_count(node) };
+        let count = ts_node_child_count(node);
         let mut curr_index: i32 = 0;
 
         let mut name_len: usize = 0;
-        let field_name = { luaL_checklstring(lstate, 2, &mut name_len) };
+        let field_name = luaL_checklstring(lstate, 2, &mut name_len);
 
         lua_newtable(lstate);
 
         for i in 0..count {
-            let child_field_name = { ts_node_field_name_for_child(node, i) };
+            let child_field_name = ts_node_field_name_for_child(node, i);
             if crate::memory::cstr_as_opt_bytes(field_name)
                 == crate::memory::cstr_as_opt_bytes(child_field_name)
             {
-                let child = { ts_node_child(node, i) };
+                let child = ts_node_child(node, i);
                 push_node(lstate, child, 1);
                 curr_index += 1;
                 lua_rawseti(lstate, -2, curr_index);
@@ -1897,7 +1897,7 @@ unsafe extern "C-unwind" fn node_iter_children(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn node_parent(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
-        let parent = { ts_node_parent(node) };
+        let parent = ts_node_parent(node);
         push_node(lstate, parent, 1);
         1
     }
@@ -1943,7 +1943,7 @@ unsafe extern "C-unwind" fn node_child_with_descendant(lstate: *mut lua_State) -
     unsafe {
         let node = node_check(lstate, 1);
         let descendant = node_check(lstate, 2);
-        let child = { ts_node_child_with_descendant(node, descendant) };
+        let child = ts_node_child_with_descendant(node, descendant);
         push_node(lstate, child, 1);
         1
     }
@@ -1952,7 +1952,7 @@ unsafe extern "C-unwind" fn node_child_with_descendant(lstate: *mut lua_State) -
 unsafe extern "C-unwind" fn node_next_sibling(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
-        let sibling = { ts_node_next_sibling(node) };
+        let sibling = ts_node_next_sibling(node);
         push_node(lstate, sibling, 1);
         1
     }
@@ -1961,7 +1961,7 @@ unsafe extern "C-unwind" fn node_next_sibling(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn node_prev_sibling(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
-        let sibling = { ts_node_prev_sibling(node) };
+        let sibling = ts_node_prev_sibling(node);
         push_node(lstate, sibling, 1);
         1
     }
@@ -1970,7 +1970,7 @@ unsafe extern "C-unwind" fn node_prev_sibling(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn node_next_named_sibling(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
-        let sibling = { ts_node_next_named_sibling(node) };
+        let sibling = ts_node_next_named_sibling(node);
         push_node(lstate, sibling, 1);
         1
     }
@@ -1979,7 +1979,7 @@ unsafe extern "C-unwind" fn node_next_named_sibling(lstate: *mut lua_State) -> i
 unsafe extern "C-unwind" fn node_prev_named_sibling(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
-        let sibling = { ts_node_prev_named_sibling(node) };
+        let sibling = ts_node_prev_named_sibling(node);
         push_node(lstate, sibling, 1);
         1
     }
@@ -1992,9 +1992,9 @@ unsafe extern "C-unwind" fn node_named_children(lstate: *mut lua_State) -> i32 {
         lua_newtable(lstate);
         let mut curr_index: i32 = 0;
 
-        let n = { ts_node_child_count(source) };
+        let n = ts_node_child_count(source);
         for i in 0..n {
-            let child = { ts_node_child(source, i) };
+            let child = ts_node_child(source, i);
             if ts_node_is_named(child) {
                 push_node(lstate, child, 1);
                 curr_index += 1;
@@ -2009,7 +2009,7 @@ unsafe extern "C-unwind" fn node_named_children(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn node_root(lstate: *mut lua_State) -> i32 {
     unsafe {
         let node = node_check(lstate, 1);
-        let root = { ts_tree_root_node(node.tree) };
+        let root = ts_tree_root_node(node.tree);
         push_node(lstate, root, 1);
         1
     }
@@ -2133,7 +2133,7 @@ unsafe extern "C-unwind" fn querycursor_next_capture(lstate: *mut lua_State) -> 
             return 0;
         }
 
-        let capture = { *match_.captures.wrapping_add(capture_index as usize) };
+        let capture = *match_.captures.wrapping_add(capture_index as usize);
         lua_pushinteger(lstate, (capture.index + 1) as lua_Integer);
         push_node(lstate, capture.node, 1);
         push_querymatch(lstate, &match_, 1);

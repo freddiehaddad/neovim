@@ -1907,7 +1907,7 @@ fn ins_compl_build_pum() -> i32 {
         comp.cp_in_match_array = false;
 
         let leader = get_leader_for_startcol(Some(&*comp), true);
-        let leader = { unsafe { &mut *leader } };
+        let leader = unsafe { &mut *leader };
 
         if ctrl_x_mode_normal()
             && opt_vars().p_inf == 0
@@ -3879,7 +3879,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
             ret = tv_dict_add_nr(retdict, c"selected", Varnumber::from(selected_idx));
             let wp = win_float_find(K_WIN_INFO);
             if !wp.is_null() {
-                let wp = { unsafe { &mut *wp } };
+                let wp = unsafe { &mut *wp };
                 tv_dict_add_nr(retdict, c"preview_winid", Varnumber::from(wp.handle));
                 tv_dict_add_nr(
                     retdict,

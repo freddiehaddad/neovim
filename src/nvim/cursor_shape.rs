@@ -456,7 +456,7 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).
 #[cfg(test)]
 pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
-    let mode_bytes = { mode.to_bytes() };
+    let mode_bytes = mode.to_bytes();
     let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
     for (mode_idx, entry) in tbl.iter().enumerate() {
         if entry.full_name.to_bytes() == mode_bytes {

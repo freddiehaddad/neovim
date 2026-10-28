@@ -452,7 +452,7 @@ fn addcharset(compst: &mut CompileState, inst: i32, info: &CharsetInfo) {
         let isize = instsize(info.size);
         {
             let i_ptr = getinstr(compst, inst);
-            let i_ptr = { &mut *i_ptr };
+            let i_ptr = &mut *i_ptr;
             i_ptr.i.aux2.set.offset = (info.offset * 8) as LpegByte;
             i_ptr.i.aux2.set.size = isize as LpegByte;
             i_ptr.i.aux1 = info.deflt as LpegByte;
@@ -718,7 +718,7 @@ fn correctcalls(compst: &mut CompileState, positions: &[i32; MAXRULES], from: i3
         let mut i = from;
         while i < to {
             let inst = code.wrapping_add(i as usize);
-            let inst = { &mut *inst };
+            let inst = &mut *inst;
             if inst.i.code == IOPEN_CALL {
                 let n = inst.i.aux2.key as usize;
                 let rule = positions[n];

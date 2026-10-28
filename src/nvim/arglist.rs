@@ -505,7 +505,7 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
         {
             let last_entry = garglist().wrapping_add((gcount - 1) as usize);
             let buf = win.w_buffer;
-            let buf = { unsafe { &mut *buf } };
+            let buf = unsafe { &mut *buf };
             if buf.b_fnum == unsafe { (*last_entry).ae_fnum }
                 || (!buf.b_ffname.is_null()
                     && path_equal(
@@ -893,7 +893,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     (*wp).w_next
                 };
                 let buf = (*wp).w_buffer;
-                let buf = { &mut *buf };
+                let buf = &mut *buf;
                 let aall_ref = &mut *aall;
                 let opened_len = aall_ref.opened.len() as i32;
                 let mut i: i32;

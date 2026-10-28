@@ -1048,7 +1048,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", i);
                     let pos_di = tv_dict_find(d.as_ref(), buf.as_ptr(), -1);
                     if !pos_di.is_null() {
-                        let pos_di = { &mut *pos_di };
+                        let pos_di = &mut *pos_di;
                         if pos_di.di_tv.v_type != VarType::VarList {
                             tv_list_unref(s);
                             return;

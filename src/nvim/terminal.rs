@@ -1138,7 +1138,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
             }
 
             if !winopts.is_null() {
-                let winopts = { &mut *winopts };
+                let winopts = &mut *winopts;
                 if let Some(saved) = s.save_w_p_culopt.take() {
                     free_string_option(winopts.wo_culopt);
                     winopts.wo_culopt = alloc_string_option(saved.as_ptr());
@@ -2179,7 +2179,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
         let mut grid = g_st().mouse_grid;
         let mouse_win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if !mouse_win.is_null() {
-            let mouse_win = { &mut *mouse_win };
+            let mouse_win = &mut *mouse_win;
             let offset: i32;
             if !term.suspended
                 && !term.closed
@@ -2334,7 +2334,7 @@ fn refresh_terminal(term: &mut Terminal) {
     if buf.is_null() {
         return;
     }
-    let buf = { unsafe { &mut *buf } };
+    let buf = unsafe { &mut *buf };
     let ml_before = buf.b_ml.ml_line_count;
 
     let resized = refresh_size(term);

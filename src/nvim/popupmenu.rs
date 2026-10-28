@@ -562,7 +562,7 @@ pub fn pum_display(
             }
 
             if !pvwin.is_null() {
-                let pvwin = { &mut *pvwin };
+                let pvwin = &mut *pvwin;
                 if pvwin.w_winrow < curwin_mut().w_winrow {
                     above_row = pvwin.w_winrow + pvwin.w_height;
                 } else if pvwin.w_winrow > curwin_mut().w_winrow + curwin_mut().w_height {
@@ -1214,7 +1214,7 @@ fn pum_preview_set_text(
             capacity: 0,
         };
         let buf = win.w_buffer;
-        let buf = { unsafe { &mut *buf } };
+        let buf = unsafe { &mut *buf };
         buf.b_p_ma = 1;
 
         let mut curr = info;
@@ -1366,7 +1366,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
         {
             let wp = win_float_find(K_WIN_INFO);
             if !wp.is_null() {
-                let wp = { &mut *wp };
+                let wp = &mut *wp;
                 wp.w_config.hide = true;
                 let cfg = wp.w_config.clone();
                 win_config_float(wp, cfg);

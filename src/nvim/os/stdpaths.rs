@@ -101,7 +101,7 @@ pub fn appname_is_valid() -> bool {
     if path_is_absolute(appname_ptr) {
         return false;
     }
-    let bytes = { crate::memory::cstr_as_bytes(appname_ptr) };
+    let bytes = crate::memory::cstr_as_bytes(appname_ptr);
     if matches!(bytes, b"/" | b"\\" | b"." | b"..") {
         return false;
     }
@@ -209,7 +209,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
     let dir = stdpaths_get_xdg_var(idx)?;
 
-    let appname_bytes = { crate::memory::cstr_as_bytes(get_appname(false)) };
+    let appname_bytes = crate::memory::cstr_as_bytes(get_appname(false));
     let mut suffix = Vec::with_capacity(appname_bytes.len() + 6);
     suffix.extend_from_slice(appname_bytes);
     #[cfg(target_os = "windows")]

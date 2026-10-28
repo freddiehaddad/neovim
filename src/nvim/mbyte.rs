@@ -1045,7 +1045,7 @@ pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut i32) -> ClusterInfo {
 
 fn enc_canon_search(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
-    let bytes = { crate::memory::cstr_as_bytes(name) };
+    let bytes = crate::memory::cstr_as_bytes(name);
     for (i, entry) in ENC_CANON_TABLE.iter().enumerate() {
         if bytes == entry.name.to_bytes() {
             return i as i32;
@@ -2954,7 +2954,7 @@ pub fn enc_skip(p: *mut c_char) -> *mut c_char {
 
 fn enc_alias_search(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
-    let bytes = { crate::memory::cstr_as_bytes(name) };
+    let bytes = crate::memory::cstr_as_bytes(name);
     for entry in ENC_ALIAS_TABLE {
         if bytes == entry.name.to_bytes() {
             return entry.canon as i32;

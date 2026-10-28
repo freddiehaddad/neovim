@@ -1448,7 +1448,7 @@ fn find_tagfunc_tags(
                         let di = crate::eval::typval::tv_dict_hi2di(hi);
                         let dict_key = (&*hi).key_ptr();
                         let tv = &raw mut di.di_tv;
-                        let tv = { &mut *tv };
+                        let tv = &mut *tv;
 
                         if tv.v_type == VarType::VarString && !tv.vval.v_string().is_null() {
                             len += crate::memory::cstr_len(tv.vval.v_string()) + 1;
@@ -1543,7 +1543,7 @@ fn find_tagfunc_tags(
                     }
 
                     if !item_dict.is_null() {
-                        let item_dict = { &mut *item_dict };
+                        let item_dict = &mut *item_dict;
                         let mut todo = item_dict.dv_hashtab.ht_used;
                         let mut hi = item_dict.dv_hashtab.array_ptr();
                         while todo > 0 {
@@ -3623,7 +3623,7 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bo
 
     let di_items = tv_dict_find(d, c"items", -1);
     if !di_items.is_null() {
-        let di_items = { unsafe { &mut *di_items } };
+        let di_items = unsafe { &mut *di_items };
         if di_items.di_tv.v_type != VarType::VarList {
             emsg(gettext(E_LISTREQ));
             return false;

@@ -2610,7 +2610,7 @@ pub fn showmatch(c: i32) {
         vim_beep(K_OPT_BO_FLAG_SHOWMATCH);
         return;
     }
-    let lpos = { unsafe { &mut *lpos } };
+    let lpos = unsafe { &mut *lpos };
 
     if lpos.lnum < curwin_mut().w_topline || lpos.lnum >= curwin_mut().w_botline {
         return;
@@ -3157,7 +3157,7 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             }
             di = tv_dict_find(dict.as_ref(), c"pos", -1);
             if !di.is_null() {
-                let di = { &mut *di };
+                let di = &mut *di;
                 if di.di_tv.v_type != VarType::VarList {
                     semsg!(tr(E_INVARG2), c"pos");
                     return;

@@ -410,7 +410,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 
         let lnum = ((*buf).b_prompt_start.mark.lnum - 1).max(0);
         let lines = (&raw mut argvars[1]);
-        let lines = { &mut *lines };
+        let lines = &mut *lines;
         let mut did_concat = false;
 
         if !(*buf).b_prompt_append_new_line {
@@ -423,7 +423,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
                 let l = lines.vval.v_list();
                 if !l.is_null() && tv_list_len(l.as_ref()) > 0 {
                     let li = tv_list_first(l.as_ref());
-                    let li = { &mut *li };
+                    let li = &mut *li;
                     let str_ = tv_get_string(&li.li_tv);
                     let new_str = concat_str(text, str_);
                     crate::eval::typval::tv_set_string(&mut li.li_tv, new_str.as_ptr());
@@ -994,7 +994,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
     if buf.is_null() {
         return;
     }
-    let buf = { unsafe { &mut *buf } };
+    let buf = unsafe { &mut *buf };
 
     let new_prompt = tv_get_string(&argvars[1]);
     let new_prompt_len = crate::memory::cstr_len(new_prompt) as i32;

@@ -178,9 +178,7 @@ fn tv_op_float(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
 /// Execute compound assignment `tv1 <op>= tv2` (`eexe_mod_op`).
 pub fn eexe_mod_op(tv1: &mut TypVal, tv2: &TypVal, op: impl crate::strings::IntoCCharPtr) -> bool {
     let op = op.into_c_char_ptr();
-    let tv1 = { tv1 };
-    let tv2 = { tv2 };
-    let op_byte = { crate::memory::cstr_first_byte(op) };
+    let op_byte = crate::memory::cstr_first_byte(op);
 
     if tv2.v_type == VarType::VarFunc
         || tv2.v_type == VarType::VarDict

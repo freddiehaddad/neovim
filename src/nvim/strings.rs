@@ -734,7 +734,7 @@ pub fn tv_float(tvs: *mut TypVal, idxp: &mut i32) -> TvFloat {
     } else {
         *idxp += 1;
         let tv = tvs.wrapping_add(idx);
-        let tv = { unsafe { &mut *tv } };
+        let tv = unsafe { &mut *tv };
         if tv.v_type == VarType::VarFloat {
             f = tv.vval.v_float();
         } else if tv.v_type == VarType::VarNumber {

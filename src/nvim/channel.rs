@@ -239,7 +239,7 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
         }
         return false;
     }
-    let chan = { unsafe { &mut *chan } };
+    let chan = unsafe { &mut *chan };
 
     let mut close_main = false;
     if part == K_CHANNEL_PART_RPC_CONST || part == K_CHANNEL_PART_ALL {
@@ -480,7 +480,7 @@ pub fn channel_job_start(
     let cwd = cwd.into_c_char_ptr();
     unsafe {
         let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
-        let chan = { &mut *chan };
+        let chan = &mut *chan;
         chan.on_data = on_stdout;
         chan.on_stderr = on_stderr;
         chan.on_exit = on_exit;

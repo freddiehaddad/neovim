@@ -118,7 +118,7 @@ fn get_maxbacktrace_level(sname: impl crate::strings::IntoCCharPtr) -> i32 {
     if sname.is_null() {
         return 0;
     }
-    let bytes = { crate::memory::cstr_as_bytes(sname) };
+    let bytes = crate::memory::cstr_as_bytes(sname);
     let mut count: i32 = 0;
     let mut i = 0usize;
     while i + 1 < bytes.len() {

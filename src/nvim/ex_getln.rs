@@ -3099,7 +3099,7 @@ fn cmdpreview_prepare() -> CpInfo {
 
     for win in for_all_windows_ptr() {
         let buf = win.w_buffer;
-        let buf = { unsafe { &mut *buf } };
+        let buf = unsafe { &mut *buf };
 
         if buf.b_fnum != getln_st().cmdpreview_bufnr {
             if saved_bufs.insert(buf) {

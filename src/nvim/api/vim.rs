@@ -1464,7 +1464,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
             unblock_autocmds();
             break 'create;
         }
-        let buf = { unsafe { &mut *buf } };
+        let buf = unsafe { &mut *buf };
         if !ml_open(&mut *buf) {
             unblock_autocmds();
             break 'create;
@@ -1602,7 +1602,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
         let internal = &mut (*chan).internal;
         let prefix = chan;
         let tail = chan;
-        let tail = { &mut *tail };
+        let tail = &mut *tail;
         internal.cb = cb;
         internal.closed = false;
         let topts = TerminalOptions {
@@ -2813,7 +2813,7 @@ pub fn nvim_eval_statusline(
         if wp.is_null() {
             return result;
         }
-        let wp = { &mut *wp };
+        let wp = &mut *wp;
 
         if (opts.is_set_eval_statusline
             & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))

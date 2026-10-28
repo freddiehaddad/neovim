@@ -813,7 +813,7 @@ impl std::hash::Hash for PathKey {
         let mut p = self.0;
         let mut h: u32 = 0;
         if cfg!(target_os = "windows") {
-            let c0 = { crate::memory::cstr_first_byte(p) };
+            let c0 = crate::memory::cstr_first_byte(p);
             if c0.is_ascii_alphabetic() && { crate::memory::cstr_byte_at(p, 1) } == b':' {
                 p = p.wrapping_add(2);
             }
@@ -1587,7 +1587,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         let sfname = path_try_shorten_fname(fname_ptr);
                         let buf = buflist_new(fname_ptr, sfname, 0, BLN_LISTED);
                         if !buf.is_null() {
-                            let buf = { &mut *buf };
+                            let buf = &mut *buf;
                             buf.b_last_cursor = Fmark {
                                 mark: item.pos,
                                 fnum: 0,
@@ -1634,7 +1634,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         shada_free_shada_entry(&mut cur_entry);
                         continue;
                     }
-                    let buf = { &mut *buf };
+                    let buf = &mut *buf;
                     let fm = Fmark {
                         mark: fm_mark,
                         fnum: buf.b_fnum,

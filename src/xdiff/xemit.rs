@@ -13,7 +13,7 @@ fn xdl_get_rec(xdf: &Xdfile, ri: i64, rec: &mut *const c_char) -> i64 {
 }
 
 fn xdl_emit_record(xdf: &Xdfile, ri: i64, pre: &std::ffi::CStr, ecb: &mut Xdemitcb) -> i32 {
-    let psize = { pre.to_bytes().len() as i64 };
+    let psize = pre.to_bytes().len() as i64;
     let mut rec: *const c_char = ptr::null();
     let size = xdl_get_rec(xdf, ri, &mut rec);
     if xdl_emit_diffrec(rec, size, pre.as_ptr(), psize, ecb) < 0 {

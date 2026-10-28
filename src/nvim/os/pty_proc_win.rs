@@ -227,9 +227,9 @@ mod win_impl {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
-            let hdr = { &mut *hdr };
+            let hdr = &mut *hdr;
             let ptail = pty_proc_win_tail(ptyproc);
-            let ptail = { &mut *ptail };
+            let ptail = &mut *ptail;
             let s_in = &mut (*proc_).r#in;
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
@@ -427,7 +427,7 @@ mod win_impl {
         let proc_: *mut Proc = ptyproc;
         let proc_t = proc_;
         let ptail = pty_proc_win_tail(ptyproc);
-        let ptail = { unsafe { &mut *ptail } };
+        let ptail = unsafe { &mut *ptail };
 
         pty_proc_close_master(ptyproc);
 
@@ -461,7 +461,7 @@ mod win_impl {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
-            let hdr = { &mut *hdr };
+            let hdr = &mut *hdr;
             let ptail = pty_proc_win_tail(ptyproc);
 
             let mut exit_code: DWORD = 0;

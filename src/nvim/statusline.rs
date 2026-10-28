@@ -642,7 +642,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
 
         if maxwidth > 0 {
             let ewp = if wp.is_null() { curwin_ptr() } else { wp };
-            let ewp = { &mut *ewp };
+            let ewp = &mut *ewp;
             let p_crb_save = ewp.w_onebuf_opt.wo_crb;
             ewp.w_onebuf_opt.wo_crb = 0;
 

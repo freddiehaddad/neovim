@@ -1152,7 +1152,7 @@ pub fn decor_redraw_col_impl(
 ) -> i32 {
     unsafe {
         let buf = wp.w_buffer;
-        let buf = { &mut *buf };
+        let buf = &mut *buf;
         let row = state.row;
         let mut col_last = max_col_last;
 

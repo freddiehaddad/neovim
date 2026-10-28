@@ -9291,7 +9291,7 @@ fn ex_restart(eap: &mut Exarg) {
             if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--listen")) {
                 let next_li = (*li).li_next;
                 if !next_li.is_null() {
-                    let next_li = { &mut *next_li };
+                    let next_li = &mut *next_li;
                     let addr = tv_get_string(&next_li.li_tv);
                     if crate::memory::cstr_as_bytes(addr)
                         .iter()
@@ -12124,7 +12124,7 @@ pub fn eval_vars(
                                     gettext(c"E194: No alternate file name to substitute for '#'");
                                 return None;
                             }
-                            let buf = { &mut *buf };
+                            let buf = &mut *buf;
                             if let Some(lnump) = lnump {
                                 *lnump = ECMD_LAST;
                             }

@@ -434,7 +434,7 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::
     }
 
     let len = (end_subcmd as usize) - (arg as usize);
-    let sub_bytes = { crate::memory::cstr_slice(arg, len) };
+    let sub_bytes = crate::memory::cstr_slice(arg, len);
     if sub_bytes == b"start" || sub_bytes == b"file" {
         xp.xp_context = EXPAND_FILES;
         xp.xp_pattern = skipwhite(end_subcmd);

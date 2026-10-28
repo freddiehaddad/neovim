@@ -100,7 +100,7 @@ pub fn decode_string(
     let s = s.into_c_char_ptr();
     assert!(!s.is_null() || len == 0);
     let has_nul = if !s.is_null() && len > 0 {
-        let slice = { crate::memory::cstr_slice(s, len) };
+        let slice = crate::memory::cstr_slice(s, len);
         slice.contains(&0)
     } else {
         false
@@ -257,8 +257,8 @@ fn parse_json_string(
     didcolon: &mut bool,
 ) -> bool {
     let buf = buf.into_c_char_ptr();
-    let e = { buf.wrapping_add(buf_len) };
-    let mut p = { (*pp).wrapping_add(1) };
+    let e = buf.wrapping_add(buf_len);
+    let mut p = (*pp).wrapping_add(1);
     let s = p;
     let mut len = 0usize;
 
@@ -515,7 +515,7 @@ fn parse_json_number(
     didcolon: &mut bool,
 ) -> bool {
     let buf = buf.into_c_char_ptr();
-    let e = { buf.wrapping_add(buf_len) };
+    let e = buf.wrapping_add(buf_len);
     let mut p = *pp;
     let s = p;
     let mut fracs: *const c_char = std::ptr::null();

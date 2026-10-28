@@ -1998,7 +1998,7 @@ pub fn win_split_ins(
         } else {
             curwin_ptr()
         };
-        let oldwin = { &mut *oldwin };
+        let oldwin = &mut *oldwin;
 
         let mut need_status: i32 = 0;
         let mut new_size = size;
@@ -2296,7 +2296,7 @@ pub fn win_split_ins(
         } else {
             (*new_wp).w_frame
         };
-        let frp = { &mut *frp };
+        let frp = &mut *frp;
         frp.fr_parent = (*curfrp).fr_parent;
 
         if before {
@@ -4186,7 +4186,7 @@ pub fn winframe_find_altwin(
         }
 
         let frp_close = win.w_frame;
-        let frp_close = { &mut *frp_close };
+        let frp_close = &mut *frp_close;
         let mut frp2: *mut Frame = win_altframe(win, tp);
         let mut wp: *mut WinInfoInfo = frame2win(frp2);
 
@@ -4462,7 +4462,7 @@ pub fn frame_new_height(
         }
         if !topfrp.fr_win.is_null() {
             let wp = topfrp.fr_win;
-            let wp = { &mut *wp };
+            let wp = &mut *wp;
             if is_bottom_win(&mut *wp) {
                 wp.w_hsep_height = 0;
             }
@@ -7319,7 +7319,7 @@ pub fn win_fix_scroll(resize: bool) {
 
 fn win_fix_cursor(normal: bool) {
     let wp = curwin_mut();
-    let wp = { &mut *wp };
+    let wp = &mut *wp;
 
     if !wp.w_do_win_fix_cursor || (*wp).buf_mut().b_ml.ml_line_count < wp.w_view_height {
         return;

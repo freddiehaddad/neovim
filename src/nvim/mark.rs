@@ -1416,7 +1416,7 @@ pub fn mark_adjust_buf(
                 amount_after,
             );
             let fm = fm_base.wrapping_add(i);
-            let fm = { unsafe { &mut *fm } };
+            let fm = unsafe { &mut *fm };
             if fm.fmark.fnum == fnum {
                 one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
             }
@@ -1684,7 +1684,7 @@ pub fn mark_col_adjust(
             spaces_removed,
         );
         let fm = fm_base.wrapping_add(i);
-        let fm = { unsafe { &mut *fm } };
+        let fm = unsafe { &mut *fm };
         if fm.fmark.fnum == fnum {
             col_adjust(
                 &mut fm.fmark.mark,

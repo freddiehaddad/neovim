@@ -368,7 +368,7 @@ fn cstr_contains(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> 
     if haystack.is_null() {
         return false;
     }
-    let bytes = { crate::memory::cstr_as_bytes(haystack) };
+    let bytes = crate::memory::cstr_as_bytes(haystack);
     bytes.windows(needle.len()).any(|w| w == needle)
 }
 
@@ -2453,7 +2453,7 @@ fn parse_sscanf_int(val: impl crate::strings::IntoCCharPtr, out: &mut i32) -> bo
     if val.is_null() {
         return false;
     }
-    let bytes = { crate::memory::cstr_as_bytes(val) };
+    let bytes = crate::memory::cstr_as_bytes(val);
     let mut idx = 0;
     while idx < bytes.len() && bytes[idx].is_ascii_whitespace() {
         idx += 1;

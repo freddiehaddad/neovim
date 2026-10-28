@@ -144,7 +144,7 @@ pub fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
         let l = layers_mut();
         let size = l.len();
         let layer = l[layer_idx];
-        let layer = { &mut *layer };
+        let layer = &mut *layer;
 
         if raise {
             while layer_idx < size - 1 && layer.zindex > (*l[layer_idx + 1]).zindex {
@@ -371,7 +371,7 @@ pub fn ui_comp_mouse_focus(row: i32, col: i32) -> *mut ScreenGrid {
         if ui_has(K_UIMULTIGRID) {
             for wp in for_all_windows_ptr() {
                 let grid = &raw mut wp.w_grid_alloc;
-                let grid = { &mut *grid };
+                let grid = &mut *grid;
                 if grid.mouse_enabled
                     && row >= wp.w_winrow
                     && row < wp.w_winrow + grid.rows
@@ -402,7 +402,7 @@ pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> *mut ScreenGrid {
 
         for wp in for_all_windows_ptr() {
             let grid = &raw mut wp.w_grid_alloc;
-            let grid = { &mut *grid };
+            let grid = &mut *grid;
             if row >= grid.comp_row
                 && row < grid.comp_row + grid.rows
                 && col >= grid.comp_col

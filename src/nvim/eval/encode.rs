@@ -134,7 +134,7 @@ pub fn encode_list_write(
         let li = tv_list_last(list.as_deref());
 
         if !li.is_null() {
-            let li = { unsafe { &mut *li } };
+            let li = unsafe { &mut *li };
             line_end = {
                 let _a = (buf).cast::<u8>();
                 let _sz = len;
@@ -274,7 +274,7 @@ pub fn encode_read_from_list(
     read_bytes: &mut usize,
 ) -> i32 {
     let state = unsafe { &mut *state };
-    let buf_end = { buf.wrapping_add(nbuf) };
+    let buf_end = buf.wrapping_add(nbuf);
     let mut p = buf;
     while (p as usize) < (buf_end as usize) {
         while state.offset < state.li_length && (p as usize) < (buf_end as usize) {
@@ -321,7 +321,7 @@ pub fn encode_read_from_list(
 pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<c_char>> {
     let mut len = 0usize;
     for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
-        let tv = { &li.li_tv };
+        let tv = &li.li_tv;
         if tv.v_type != VarType::VarString {
             return None;
         }
@@ -1334,7 +1334,7 @@ fn convert_one_value(
                     if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VarList {
                         let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
-                            let val_di = { &mut *val_di };
+                            let val_di = &mut *val_di;
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in
                                 { *eval_msgpack_type_lists_mut() }.into_iter().enumerate()
@@ -1362,13 +1362,13 @@ fn convert_one_value(
                                             let val_list = val_di.di_tv.vval.v_list();
                                             if tv_list_len(val_list.as_ref()) == 4 {
                                                 let sign_li = tv_list_first(val_list.as_ref());
-                                                let sign_li = { &mut *sign_li };
+                                                let sign_li = &mut *sign_li;
                                                 let highest_li = sign_li.li_next;
-                                                let highest_li = { &mut *highest_li };
+                                                let highest_li = &mut *highest_li;
                                                 let high_li = highest_li.li_next;
-                                                let high_li = { &mut *high_li };
+                                                let high_li = &mut *high_li;
                                                 let low_li = tv_list_last(val_list.as_ref());
-                                                let low_li = { &mut *low_li };
+                                                let low_li = &mut *low_li;
                                                 if sign_li.li_tv.v_type == VarType::VarNumber
                                                     && sign_li.li_tv.vval.v_number() != 0
                                                     && highest_li.li_tv.v_type == VarType::VarNumber
@@ -1498,7 +1498,7 @@ fn convert_one_value(
                                         let val_list = val_di.di_tv.vval.v_list();
                                         if tv_list_len(val_list.as_ref()) == 2 {
                                             let first = tv_list_first(val_list.as_ref());
-                                            let first = { &mut *first };
+                                            let first = &mut *first;
                                             let last = tv_list_last(val_list.as_ref());
                                             if first.li_tv.v_type == VarType::VarNumber
                                                 && (i8::MIN as i64..=i8::MAX as i64)
@@ -1702,7 +1702,7 @@ fn encode_vim_with_backend(
                                 (*pt).pt_dict
                             };
                             if !dict.is_null() {
-                                let dict = { &mut *dict };
+                                let dict = &mut *dict;
                                 backend.conv_func_before_self(dict.dv_hashtab.ht_used as isize);
                                 if dict.dv_hashtab.ht_used == 0 {
                                     backend.conv_empty_dict();

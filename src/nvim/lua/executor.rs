@@ -634,7 +634,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
     unsafe {
         nlua_st().in_fast_callback += 1;
 
-        let top = { lua_gettop(lstate) };
+        let top = lua_gettop(lstate);
         let status = nlua_pcall(lstate, nargs, nresult);
         let retval = if status != 0 {
             if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
@@ -1715,7 +1715,7 @@ unsafe extern "C-unwind" fn nlua_empty_dict_tostring(lstate: *mut lua_State) -> 
 #[cfg(windows)]
 unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> i32 {
     unsafe {
-        let name = { luaL_checklstring(lstate, 1, ptr::null_mut()) };
+        let name = luaL_checklstring(lstate, 1, ptr::null_mut());
         let val = os_getenv_cstr(name);
         lua_pushstring(lstate, val.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
         1

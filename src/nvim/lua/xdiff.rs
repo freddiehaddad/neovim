@@ -188,7 +188,7 @@ fn get_linematch_results(
 pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer]) -> i32 {
     for chunk in mb {
         if chunk.size > 0 && !chunk.ptr.is_null() {
-            let slice = { crate::memory::cstr_slice(chunk.ptr, chunk.size as usize) };
+            let slice = crate::memory::cstr_slice(chunk.ptr, chunk.size as usize);
             out.extend_from_slice(slice);
         }
     }
@@ -202,7 +202,7 @@ pub(crate) fn hunk_locations_cb(
     count_b: i32,
     cb_data: &mut HunkPriv,
 ) -> i32 {
-    let priv_ref = { cb_data };
+    let priv_ref = cb_data;
     let lstate = priv_ref.lstate;
     if priv_ref.linematch > 0 && i64::from(count_a) + i64::from(count_b) <= priv_ref.linematch {
         get_linematch_results(
@@ -241,7 +241,7 @@ pub(crate) fn call_on_hunk_cb(
         start_b += 1;
     }
 
-    let priv_ref = { cb_data };
+    let priv_ref = cb_data;
     let lstate = priv_ref.lstate;
     let err = &mut priv_ref.err;
 

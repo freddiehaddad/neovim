@@ -2239,7 +2239,7 @@ fn spell_read_aff(
                     {
                         (*cur_aff).ah_entries.insert(0, aff_entry_val);
                         let aff_entry: *mut Affentry = (*cur_aff).ah_entries.as_mut_ptr();
-                        let aff_entry = { &mut *aff_entry };
+                        let aff_entry = &mut *aff_entry;
 
                         if crate::memory::cstr_as_bytes(items[4]) != b"." {
                             let mut buf = [0 as c_char; MAXLINELEN];
@@ -3262,7 +3262,7 @@ fn store_aff_word(
                 {
                     for ae_ref in &ah.ah_entries {
                         let ae: *mut Affentry = (&raw const *ae_ref).cast_mut();
-                        let ae = { unsafe { &mut *ae } };
+                        let ae = unsafe { &mut *ae };
                         let ae_chop = (*ae).chop_ptr();
                         let ae_add = (*ae).add_ptr();
                         let ae_flags = (*ae).flags_ptr();

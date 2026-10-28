@@ -99,8 +99,8 @@ fn key_matches(
     let hi_key = hi_key.into_c_char_ptr();
     let key = key.into_c_char_ptr();
     for i in 0..key_len {
-        let a = { crate::memory::cstr_byte_at(hi_key, i) };
-        let b = { crate::memory::cstr_byte_at(key, i) };
+        let a = crate::memory::cstr_byte_at(hi_key, i);
+        let b = crate::memory::cstr_byte_at(key, i);
         if a != b || a == 0 {
             return false;
         }
@@ -119,7 +119,7 @@ pub fn hash_clear(ht: &mut Hashtab) {
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
 pub fn hash_find(ht: &Hashtab, key: impl crate::strings::IntoCCharPtr) -> *mut Hashitem {
     let key = key.into_c_char_ptr();
-    let len = { crate::memory::cstr_len(key) };
+    let len = crate::memory::cstr_len(key);
     let hash = hash_hash(key);
     hash_lookup(ht, key, len, hash)
 }
@@ -146,7 +146,7 @@ pub fn hash_lookup(
     let arr_ptr = ht.array_ptr();
 
     let mut idx = hash & ht.ht_mask;
-    let mut hi = { arr_ptr.wrapping_add(idx) };
+    let mut hi = arr_ptr.wrapping_add(idx);
     let hi_ref = unsafe { &*hi };
 
     if hi_ref.is_null_slot() {
@@ -188,7 +188,7 @@ pub fn hash_lookup(
 /// `ht` and `di` must be valid pointers, and `di` must outlive the entry in `ht`.
 pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> bool {
     let key = di.di_key.as_mut_ptr();
-    let len = { crate::memory::cstr_len(key) };
+    let len = crate::memory::cstr_len(key);
     let hash = hash_hash(key);
     let hi = hash_lookup(ht, key, len, hash);
     if unsafe { !hashitem_empty(&*hi) } {
@@ -214,7 +214,7 @@ pub fn hash_add_item(
     hash: HashVal,
 ) {
     if ht.ht_array.is_empty() {
-        let offset = { crate::memory::ptr_offset_from(hi, empty_hasharray_ptr()) as usize };
+        let offset = crate::memory::ptr_offset_from(hi, empty_hasharray_ptr()) as usize;
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
         hi = ht.ht_array.as_mut_ptr().wrapping_add(offset);
     }
@@ -236,7 +236,7 @@ pub fn hash_add_item(
 /// # Safety
 /// `ht` and `hi` must be valid pointers, with `hi` pointing to an active item in `ht`.
 pub fn hash_remove(ht: &mut Hashtab, hi: &mut Hashitem) {
-    let hi_ref = { hi };
+    let hi_ref = hi;
     ht.ht_used -= 1;
     ht.ht_changed += 1;
     hi_ref.hi_removed = true;
@@ -349,7 +349,7 @@ pub fn hash_hash(key: impl crate::strings::IntoCCharPtr) -> HashVal {
         return 0;
     }
     let mut hash = usize::from(first);
-    let mut p = { key.cast::<u8>().wrapping_add(1) };
+    let mut p = key.cast::<u8>().wrapping_add(1);
     loop {
         let b = unsafe { *p };
         if b == 0 {
@@ -370,7 +370,7 @@ pub fn hash_hash_len(key: impl crate::strings::IntoCCharPtr, len: usize) -> Hash
     if len == 0 {
         return 0;
     }
-    let slice = { crate::memory::cstr_slice(key, len) };
+    let slice = crate::memory::cstr_slice(key, len);
     let mut hash = usize::from(slice[0]);
     for &b in &slice[1..] {
         hash = hash.wrapping_mul(101).wrapping_add(usize::from(b));

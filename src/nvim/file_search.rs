@@ -1892,16 +1892,16 @@ mod tests {
         let mut buf = *b"/a/b;/c/d\0";
         let stop = vim_findfile_stopdir(buf.as_mut_ptr().cast());
         assert!(!stop.is_null());
-        let first = { crate::memory::cstr_as_bytes(buf.as_ptr().cast()) };
-        let rest = { crate::memory::cstr_as_bytes(stop) };
+        let first = crate::memory::cstr_as_bytes(buf.as_ptr().cast());
+        let rest = crate::memory::cstr_as_bytes(stop);
         assert_eq!(first, b"/a/b");
         assert_eq!(rest, b"/c/d");
 
         let mut escaped = *b"/a\\;b;/c\0";
         let stop2 = vim_findfile_stopdir(escaped.as_mut_ptr().cast());
         assert!(!stop2.is_null());
-        let first2 = { crate::memory::cstr_as_bytes(escaped.as_ptr().cast()) };
-        let rest2 = { crate::memory::cstr_as_bytes(stop2) };
+        let first2 = crate::memory::cstr_as_bytes(escaped.as_ptr().cast());
+        let rest2 = crate::memory::cstr_as_bytes(stop2);
         assert_eq!(first2, b"/a;b");
         assert_eq!(rest2, b"/c");
 

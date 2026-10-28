@@ -1441,7 +1441,7 @@ pub fn schar_from_cluster_impl(
 #[inline]
 pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
     assert!(ci.chr.value >= 0);
-    let len = { crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as usize };
+    let len = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as usize;
     if len == 1 {
         return schar_from_ascii(ci.chr.value as u8);
     }

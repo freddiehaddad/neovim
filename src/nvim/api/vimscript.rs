@@ -407,7 +407,7 @@ pub fn nvim_call_dict_function(
                 );
                 break 'body;
             }
-            let di = { unsafe { &mut *di } };
+            let di = unsafe { &mut *di };
             if di.di_tv.v_type == VarType::VarPartial {
                 api_set_error!(
                     err,

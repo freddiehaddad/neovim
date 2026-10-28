@@ -250,7 +250,7 @@ pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> i32
 unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut s1_len: usize = 0;
-        let s1 = { luaL_checklstring(lstate, 1, &raw mut s1_len) };
+        let s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
         lua_newtable(lstate);
 
         let mut idx: i32 = 1;
@@ -512,8 +512,8 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut s1_len: usize = 0;
         let mut s2_len: usize = 0;
-        let mut s1 = { luaL_checklstring(lstate, 1, &raw mut s1_len) };
-        let mut s2 = { luaL_checklstring(lstate, 2, &raw mut s2_len) };
+        let mut s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
+        let mut s2 = luaL_checklstring(lstate, 2, &raw mut s2_len);
         let mut ret: i32;
         assert_eq!({ *s1.wrapping_add(s1_len) }, NUL);
         assert_eq!({ *s2.wrapping_add(s2_len) }, NUL);

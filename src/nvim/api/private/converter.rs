@@ -380,7 +380,7 @@ pub fn object_to_vim_take_luaref(
     take_luaref: bool,
     _err: &mut Error,
 ) {
-    let tv_ref = { tv };
+    let tv_ref = tv;
     tv_ref.v_type = VarType::VarUnknown;
     tv_ref.v_lock = VAR_UNLOCKED;
 

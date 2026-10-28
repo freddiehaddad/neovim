@@ -972,7 +972,7 @@ pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: us
     if str_in.is_null() {
         return -1;
     }
-    let bytes = { crate::memory::cstr_slice(str_in, len) };
+    let bytes = crate::memory::cstr_slice(str_in, len);
     let low: isize = match len {
         4 => 0,
         5 => match bytes[0] {

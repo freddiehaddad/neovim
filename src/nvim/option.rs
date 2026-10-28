@@ -2520,7 +2520,7 @@ pub fn insecure_flag(
 ) -> &'static mut u32 {
     if (opt_flags & OPT_LOCAL) != 0 {
         let wp: *mut WinInfoInfo = wp.unwrap();
-        let wp = { unsafe { &mut *wp } };
+        let wp = unsafe { &mut *wp };
         match opt_idx {
             K_OPT_WRAP => return &mut wp.w_onebuf_opt.wo_wrap_flags,
             K_OPT_STATUSLINE => return &mut wp.w_onebuf_opt.wo_stl_flags,
@@ -2537,7 +2537,7 @@ pub fn insecure_flag(
         match opt_idx {
             K_OPT_WRAP => {
                 let wp: *mut WinInfoInfo = wp.unwrap();
-                let wp = { unsafe { &mut *wp } };
+                let wp = unsafe { &mut *wp };
                 return &mut wp.w_allbuf_opt.wo_wrap_flags;
             }
             K_OPT_FOLDEXPR => {
@@ -5115,7 +5115,7 @@ pub fn find_option_len(name: impl crate::strings::IntoCCharPtr, len: usize) -> O
     if name.is_null() {
         return K_OPT_INVALID;
     }
-    let slice = { crate::memory::cstr_slice(name, len) };
+    let slice = crate::memory::cstr_slice(name, len);
     match OPTION_NAME_MAP.binary_search_by_key(&slice, |&(k, _)| k) {
         Ok(i) => OPTION_NAME_MAP[i].1,
         Err(_) => K_OPT_INVALID,

@@ -799,7 +799,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
         let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
 
         let buf = wp.w_buffer;
-        let buf = { unsafe { &mut *buf } };
+        let buf = unsafe { &mut *buf };
         let flp_val = crate::memory::cstr_from_ptr(get_flp_value(&mut *buf));
         let line_cstr = crate::memory::cstr_from_ptr(line);
         if ind_st().prev_fnum != buf.b_fnum
@@ -1059,7 +1059,7 @@ pub fn ins_try_si(c: i32) {
             ptr::null_mut()
         };
         if !pos.is_null() {
-            let pos = { unsafe { &mut *pos } };
+            let pos = unsafe { &mut *pos };
             let old_pos = curwin_mut().w_cursor;
             let ptr = ml_get(pos.lnum);
             let mut i = pos.col;
@@ -1671,7 +1671,7 @@ pub fn get_lisp_indent() -> i32 {
     }
 
     if !pos.is_null() {
-        let pos = { unsafe { &mut *pos } };
+        let pos = unsafe { &mut *pos };
         amount = -1;
         let mut parencount: i32 = 0;
 

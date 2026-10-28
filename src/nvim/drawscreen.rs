@@ -656,7 +656,7 @@ pub fn update_screen() -> bool {
                 update_window_hl(&mut *wp, type_ >= UPD_NOT_VALID || hl_changed);
 
                 let buf = (*wp).w_buffer;
-                let buf = { &mut *buf };
+                let buf = &mut *buf;
                 if buf.b_mod_set {
                     if buf.b_mod_tick_syn < display_tick_val() && syntax_present(&mut *wp) {
                         syn_stack_apply_changes(&mut *buf);

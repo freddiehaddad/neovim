@@ -1722,7 +1722,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         }
 
         let bp = (*wp).w_buffer;
-        let bp = { &mut *bp };
+        let bp = &mut *bp;
         let mut col: Colnr = 0;
         let mut fnum = bp.b_fnum;
         let fp = var2fpos(&argvars[0], false, &mut fnum, charcol, &mut *wp);
@@ -2652,7 +2652,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                         pt.pt_dict = argvars[dict_idx].vval.v_dict();
                         (*pt.pt_dict).dv_refcount += 1;
                     } else if !arg_pt.is_null() {
-                        let arg_pt = { &mut *arg_pt };
+                        let arg_pt = &mut *arg_pt;
                         pt.pt_dict = arg_pt.pt_dict;
                         pt.pt_auto = arg_pt.pt_auto;
                         if !pt.pt_dict.is_null() {
@@ -2755,7 +2755,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             };
 
             if !pt.is_null() {
-                let pt = { &mut *pt };
+                let pt = &mut *pt;
                 let what = tv_get_string(&argvars[1]);
                 if crate::memory::cstr_as_bytes(what) == b"func"
                     || crate::memory::cstr_as_bytes(what) == b"name"
@@ -2939,7 +2939,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
         tv_list_append_number(
             &mut *l,
             if !fp.is_null() {
-                let fp = { &mut *fp };
+                let fp = &mut *fp;
                 if fp.col == MAXCOL {
                     Varnumber::from(MAXCOL)
                 } else {
@@ -4233,7 +4233,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         } else if lv.ll_tv.is_null() {
             let di = find_var(lv.ll_name, lv.ll_name_len, ptr::null_mut(), 1);
             if !di.is_null() {
-                let di = { unsafe { &mut *di } };
+                let di = unsafe { &mut *di };
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
                     (di.di_flags & DI_FLAGS_LOCK) != 0 || tv_islocked(&di.di_tv),
                 ));
@@ -4653,7 +4653,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
             let pid = (*chan).uv.proc_.pid;
             let buf = g_st().curbuf;
-            let buf = { &mut *buf };
+            let buf = &mut *buf;
 
             buf.b_p_swf = 0;
             if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
@@ -5247,7 +5247,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                         SomeMatchType::SomeMatchStrPos => {
                             let ret_l = rettv.vval.v_list();
                             let li1 = tv_list_first(ret_l.as_ref());
-                            let li1 = { &mut *li1 };
+                            let li1 = &mut *li1;
                             let li2 = li1.li_next;
                             let li3 = (*li2).li_next;
                             let li4 = (*li3).li_next;
@@ -5469,7 +5469,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             if !d.is_null() {
                 let di = tv_dict_find(d.as_ref(), c"submatches", 10);
                 if !di.is_null() {
-                    let di = { &mut *di };
+                    let di = &mut *di;
                     if di.di_tv.v_type != VarType::VarBool {
                         semsg!(gettext(E_INVARGVAL), c"submatches");
                         return;
@@ -5559,7 +5559,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 if !d.is_null() {
                     let di = tv_dict_find(unsafe { d.as_ref() }, c"submatches", 10);
                     if !di.is_null() {
-                        let di = { unsafe { &mut *di } };
+                        let di = unsafe { &mut *di };
                         if di.di_tv.v_type != VarType::VarBool {
                             semsg!(gettext(E_INVARGVAL), c"submatches");
                             break 'cleanup;
@@ -8832,7 +8832,7 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         }
 
         let bp = unsafe { (*wp).w_buffer };
-        let bp = { unsafe { &mut *bp } };
+        let bp = unsafe { &mut *bp };
         let mut fnum = bp.b_fnum;
         let fp = var2fpos(&argvars[0], false, &mut fnum, false, unsafe { &mut *wp });
         if !fp.is_null() && unsafe { (*fp).lnum } <= bp.b_ml.ml_line_count && fnum == bp.b_fnum {

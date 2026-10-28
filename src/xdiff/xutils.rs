@@ -65,7 +65,7 @@ pub fn xdl_guess_lines(mf: &Mmfile, sample: i64) -> i64 {
     let data = xdl_mmfile_first(mf, &mut size);
     let mut cur = data;
     if !cur.is_null() {
-        let top = { data.wrapping_offset(size as isize) };
+        let top = data.wrapping_offset(size as isize);
         while nl < sample && cur < top {
             nl += 1;
             let rem = unsafe {
@@ -248,7 +248,7 @@ fn xdl_hash_record_with_whitespace(
                 ha = ha.wrapping_add(ha << 5);
                 ha ^= b' ' as u64;
             } else if (uflags & XDF_IGNORE_WHITESPACE_AT_EOL) != 0 && !at_eol {
-                let end = { ptr.wrapping_add(1) };
+                let end = ptr.wrapping_add(1);
                 while ptr2 != end {
                     ha = ha.wrapping_add(ha << 5);
                     ha ^= unsafe { *ptr2 } as u64;

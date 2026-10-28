@@ -525,7 +525,7 @@ fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: *mut Bhdr) ->
 pub fn ml_setname(buf: &mut FileBuf) {
     let mut success = false;
     let mfp = buf.b_ml.mfp_ptr();
-    let mfp = { unsafe { &mut *mfp } };
+    let mfp = unsafe { &mut *mfp };
     if mfp.mf_fd < 0 {
         if opt_vars().p_uc != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
             ml_open_file(buf);
@@ -919,7 +919,7 @@ pub fn ml_recover(checkext: bool) {
 
         let mut allocated_buf = Box::new(FileBuf::new());
         let buf: *mut FileBuf = &raw mut *allocated_buf;
-        let buf = { &mut *buf };
+        let buf = &mut *buf;
         buf_box = Some(allocated_buf);
 
         buf.b_ml.ml_mfp = mf_open(Some(fname_used.clone()), O_RDONLY);
@@ -2455,7 +2455,7 @@ fn ml_append_int(
                     .ml_stack
                     .as_mut_ptr()
                     .wrapping_add(stack_idx as usize);
-                let ip = { &mut *ip };
+                let ip = &mut *ip;
                 let pb_idx = ip.ip_index as usize;
                 hp = mf_get(&mut *mfp, ip.ip_bnum, 1);
                 if hp.is_null() {
@@ -2992,7 +2992,7 @@ pub fn ml_firstmarked() -> Linenr {
         if hp.is_null() {
             return 0;
         }
-        let hp = { unsafe { &mut *hp } };
+        let hp = unsafe { &mut *hp };
         let dp = hp_data_block(hp);
         let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
         while lnum <= curbuf_mut().b_ml.ml_locked_high {
@@ -3025,7 +3025,7 @@ pub fn ml_clearmarked() {
         if hp.is_null() {
             return;
         }
-        let hp = { unsafe { &mut *hp } };
+        let hp = unsafe { &mut *hp };
         let dp = hp_data_block(hp);
         let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
         while lnum <= curbuf_mut().b_ml.ml_locked_high {
@@ -3936,9 +3936,9 @@ pub fn ml_setflags(buf: &mut FileBuf) {
     let mfp = buf.b_ml.mfp_ptr();
     let hp = pmap_get_bhdr(unsafe { &(*mfp).mf_hash }, 0);
     if !hp.is_null() {
-        let hp = { unsafe { &mut *hp } };
+        let hp = unsafe { &mut *hp };
         let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
-        let b0p = { unsafe { &mut *b0p } };
+        let b0p = unsafe { &mut *b0p };
         (*b0p).set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
         let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
         (*b0p).set_flags(((*b0p).flags() & !B0_FF_MASK) | ff_bits);
@@ -3960,7 +3960,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
             buf.b_ml.ml_chunksize.resize(100, Chunksize::default());
             buf.b_ml.ml_usedchunks = 1;
             let cs0 = buf.b_ml.ml_chunksize.as_mut_ptr();
-            let cs0 = { &mut *cs0 };
+            let cs0 = &mut *cs0;
             cs0.mlcs_numlines = 1;
             cs0.mlcs_totalsize = 1;
             ml_st().ml_upd_lastbuf = ptr::null_mut();
@@ -4015,7 +4015,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
                         buf.b_ml.ml_usedchunks = -1;
                         return;
                     }
-                    let hp = { &mut *hp };
+                    let hp = &mut *hp;
                     let dp = hp_data_block(hp);
                     let count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1;
                     let idx = curline - buf.b_ml.ml_locked_low;
@@ -4167,7 +4167,7 @@ pub fn ml_find_line_or_offset(
                         + ffdos * unsafe { (*chunks.wrapping_add(curix as usize)).mlcs_numlines }))
     {
         let ch = chunks.wrapping_add(curix as usize);
-        let ch = { unsafe { &mut *ch } };
+        let ch = unsafe { &mut *ch };
         curline += ch.mlcs_numlines;
         size += ch.mlcs_totalsize;
         if offset != 0 && ffdos != 0 {

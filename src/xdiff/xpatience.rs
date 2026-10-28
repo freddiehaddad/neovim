@@ -75,7 +75,7 @@ fn insert_record(line: i32, map: &mut HashMap, pass: i32) {
             return;
         }
         let ent = map.entries.as_mut_ptr().wrapping_add(index);
-        let ent = { &mut *ent };
+        let ent = &mut *ent;
         ent.line1 = line as u64;
         ent.hash = record.ha;
         if map.first.is_null() {
@@ -207,7 +207,7 @@ fn walk_common_sequence(
             let mut next1: i32;
             let mut next2: i32;
             if !first.is_null() {
-                let first = { &mut *first };
+                let first = &mut *first;
                 next1 = first.line1 as i32;
                 next2 = first.line2 as i32;
                 while next1 > line1 && next2 > line2 && match_lines(map, next1 - 1, next2 - 1) {

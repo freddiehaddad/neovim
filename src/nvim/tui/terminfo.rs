@@ -2604,7 +2604,7 @@ fn unibi_from_term(termname: impl crate::strings::IntoCCharPtr) -> Option<UnibiT
     if termname.is_null() {
         return None;
     }
-    let term_bytes = { crate::memory::cstr_as_bytes(termname) };
+    let term_bytes = crate::memory::cstr_as_bytes(termname);
     if term_bytes.is_empty() || term_bytes[0] == b'.' || term_bytes.contains(&b'/') {
         return None;
     }

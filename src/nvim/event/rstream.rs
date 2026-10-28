@@ -163,7 +163,7 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     let mut req_buf = [0u64; 128];
     let req_ptr = req_buf.as_mut_ptr().cast::<uv_fs_t>();
     let stream = unsafe { *handle.cast::<*mut RStream>() };
-    let stream = { unsafe { &mut *stream } };
+    let stream = unsafe { &mut *stream };
 
     let write_ptr = stream.buffer.as_mut_ptr().wrapping_add(stream.write_pos);
     stream.uvbuf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));

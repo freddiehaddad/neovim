@@ -1528,7 +1528,7 @@ pub fn validate_backupcopy(args: &mut Optset) -> *const c_char {
 /// The 'backupcopy' option is changed.
 pub fn did_set_backupcopy(args: &mut Optset) -> *const c_char {
     let buf = args.os_buf;
-    let buf = { unsafe { &mut *buf } };
+    let buf = unsafe { &mut *buf };
     let opt_flags = args.os_flags;
     let mut bkc = opt_vars().p_bkc;
     let mut flags = &raw mut opt_vars().bkc_flags;
@@ -1643,7 +1643,7 @@ pub fn validate_buftype(args: &mut Optset) -> *const c_char {
 /// The 'buftype' option is changed.
 pub fn did_set_buftype(args: &mut Optset) -> *const c_char {
     let buf = args.os_buf;
-    let buf = { unsafe { &mut *buf } };
+    let buf = unsafe { &mut *buf };
     let win = args.os_win;
     if crate::memory::cstr_first_byte(buf.b_p_bt) == b'p' {
         set_option_direct(

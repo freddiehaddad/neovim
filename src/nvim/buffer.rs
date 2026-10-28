@@ -2741,7 +2741,7 @@ pub fn buflist_new(
         if !ffname.is_null() && (flags & (BLN_DUMMY | BLN_NEW)) == 0 {
             buf = buflist_findname_file_id(ffname, &mut file_id, file_id_valid);
             if !buf.is_null() {
-                let buf = { &mut *buf };
+                let buf = &mut *buf;
                 drop(ffname_cstr);
                 if lnum != 0 {
                     buflist_setfpos(
@@ -3536,7 +3536,7 @@ pub fn get_winopts(buf: &mut FileBuf) {
             && (*(*wip).wi_win).w_config.style != K_WIN_STYLE_MINIMAL
         {
             let wp = (*wip).wi_win;
-            let wp = { &mut *wp };
+            let wp = &mut *wp;
             copy_winopt(&mut wp.w_onebuf_opt, &mut curwin_mut().w_onebuf_opt);
             curwin_mut().w_fold_manual = wp.w_fold_manual;
             curwin_mut().w_foldinvalid = true;

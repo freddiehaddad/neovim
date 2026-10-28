@@ -435,7 +435,7 @@ pub fn nvim_open_win(
                 }
             });
             if !wp.is_null() {
-                let wp = { unsafe { &mut *wp } };
+                let wp = unsafe { &mut *wp };
                 wp.w_config = fconfig.clone();
                 if size > 0 {
                     if (flags & WSP_VERT) != 0 && wp.w_width != size {
