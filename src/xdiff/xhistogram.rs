@@ -5,7 +5,7 @@ use std::ffi::{c_int, c_long, c_uint};
 use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::{xdl_fall_back_diff, xdl_hashbits, xdl_recmatch};
 use crate::xdiff::{
-    XDF_DIFF_ALGORITHM_MASK, mmfile_t, xdfenv_t, xdl_hashlong, xpparam_t, xrecord_t,
+    XDF_DIFF_ALGORITHM_MASK, Mmfile, Xdfenv, xdl_hashlong, Xpparam, Xrecord,
 };
 
 const MAX_PTR: c_uint = c_int::MAX as c_uint;
@@ -29,8 +29,8 @@ struct HistIndex {
     ptr_shift: c_uint,
     cnt: c_uint,
     has_common: c_uint,
-    env: *mut xdfenv_t,
-    xpp: *const xpparam_t,
+    env: *mut Xdfenv,
+    xpp: *const Xpparam,
 }
 
 #[repr(C)]
@@ -43,7 +43,7 @@ struct Region {
 }
 
 #[inline]
-fn get_rec(env: &xdfenv_t, side: c_int, line: c_uint) -> xrecord_t {
+fn get_rec(env: &Xdfenv, side: c_int, line: c_uint) -> Xrecord {
     if side == 1 {
         env.xdf1.recs[(line as usize) - 1]
     } else {
@@ -52,7 +52,7 @@ fn get_rec(env: &xdfenv_t, side: c_int, line: c_uint) -> xrecord_t {
 }
 
 #[inline]
-fn cmp_recs(xpp: &xpparam_t, r1: &xrecord_t, r2: &xrecord_t) -> bool {
+fn cmp_recs(xpp: &Xpparam, r1: &Xrecord, r2: &Xrecord) -> bool {
     r1.ha == r2.ha && xdl_recmatch(r1.ptr, r1.size, r2.ptr, r2.size, xpp.flags as c_long) != 0
 }
 
@@ -222,22 +222,22 @@ fn try_lcs(
 }
 
 fn fall_back_to_classic_diff(
-    xpp: &xpparam_t,
-    env: &mut xdfenv_t,
+    xpp: &Xpparam,
+    env: &mut Xdfenv,
     line1: c_int,
     count1: c_int,
     line2: c_int,
     count2: c_int,
 ) -> c_int {
-    let xpparam = xpparam_t {
+    let xpparam = Xpparam {
         flags: xpp.flags & !XDF_DIFF_ALGORITHM_MASK,
     };
     xdl_fall_back_diff(env, &xpparam, line1, count1, line2, count2)
 }
 
 fn find_lcs(
-    xpp: &xpparam_t,
-    env: &mut xdfenv_t,
+    xpp: &Xpparam,
+    env: &mut Xdfenv,
     lcs: &mut Region,
     line1: c_int,
     count1: c_int,
@@ -279,8 +279,8 @@ fn find_lcs(
 }
 
 fn histogram_diff(
-    xpp: &xpparam_t,
-    env: &mut xdfenv_t,
+    xpp: &Xpparam,
+    env: &mut Xdfenv,
     mut line1: c_int,
     mut count1: c_int,
     mut line2: c_int,
@@ -352,10 +352,10 @@ fn histogram_diff(
 }
 
 pub fn xdl_do_histogram_diff(
-    file1: &mut mmfile_t,
-    file2: &mut mmfile_t,
-    xpp: &xpparam_t,
-    env: &mut xdfenv_t,
+    file1: &mut Mmfile,
+    file2: &mut Mmfile,
+    xpp: &Xpparam,
+    env: &mut Xdfenv,
 ) -> c_int {
     if xdl_prepare_env(file1, file2, xpp, env) < 0 {
         return -1;

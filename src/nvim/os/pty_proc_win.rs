@@ -29,7 +29,7 @@ use crate::event::proc::{Proc, PtyProc};
 use crate::event::stream::{Stream, uv_stream_t};
 #[cfg(windows)]
 use crate::os::pty_conpty_win::{
-    conpty_t, os_conpty_init, os_conpty_set_size, os_conpty_spawn, os_has_conpty_working,
+    Conpty, os_conpty_init, os_conpty_set_size, os_conpty_spawn, os_has_conpty_working,
 };
 
 #[cfg(any(test, windows))]
@@ -162,7 +162,7 @@ mod win_impl {
     unsafe extern "C" fn os_conpty_free_thread(arg: *mut c_void) {
         if !arg.is_null() {
             unsafe {
-                drop(Box::from_raw(arg.cast::<conpty_t>()));
+                drop(Box::from_raw(arg.cast::<Conpty>()));
             }
         }
     }
@@ -211,7 +211,7 @@ mod win_impl {
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
             let mut status: c_int;
-            let mut conpty_object: Option<Box<conpty_t>> = None;
+            let mut conpty_object: Option<Box<Conpty>> = None;
             let mut in_name: Option<std::ffi::CString> = None;
             let mut out_name: Option<std::ffi::CString> = None;
             let mut proc_handle: HANDLE = ptr::null_mut();

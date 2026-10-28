@@ -2382,14 +2382,14 @@ fn clear_sub(sub: &mut Regsub) {
     {
         let n = re_st().rex.nfa_nsubexpr as usize;
         if REG_MULTI() {
-            sub.list.multi_mut()[..n].fill(multipos {
+            sub.list.multi_mut()[..n].fill(MultiPos {
                 start_lnum: -1,
                 end_lnum: -1,
                 start_col: -1,
                 end_col: -1,
             });
         } else {
-            sub.list.line_mut()[..n].fill(linepos::new());
+            sub.list.line_mut()[..n].fill(LinePos::new());
         }
         sub.in_use = 0;
     }
@@ -2826,7 +2826,7 @@ fn addstate_eps(
                 };
 
                 let mut save_ptr: *mut u8 = ptr::null_mut();
-                let mut save_multipos = multipos::new();
+                let mut save_multipos = MultiPos::new();
                 let save_in_use: c_int;
 
                 if REG_MULTI() {
@@ -2918,7 +2918,7 @@ fn addstate_eps(
                         (*sub).in_use = subidx as c_int + 1;
                     }
                     let mut save_ptr: *mut u8 = ptr::null_mut();
-                    let mut save_multipos = multipos::new();
+                    let mut save_multipos = MultiPos::new();
                     if REG_MULTI() {
                         let multi = (*sub).list.multi_mut();
                         save_multipos = multi[subidx];

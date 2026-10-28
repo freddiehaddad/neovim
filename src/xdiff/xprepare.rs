@@ -6,8 +6,8 @@ use crate::xdiff::xutils::{
     xdl_bogosqrt, xdl_guess_lines, xdl_hash_record, xdl_hashbits, xdl_mmfile_first, xdl_recmatch,
 };
 use crate::xdiff::{
-    XDF_HISTOGRAM_DIFF, XDF_PATIENCE_DIFF, mmfile_t, xdf_diff_alg, xdfenv_t, xdfile_t,
-    xdl_hashlong, xpparam_t, xrecord_t,
+    XDF_HISTOGRAM_DIFF, XDF_PATIENCE_DIFF, Mmfile, xdf_diff_alg, Xdfenv, Xdfile,
+    xdl_hashlong, Xpparam, Xrecord,
 };
 
 const XDL_KPDIS_RUN: c_long = 4;
@@ -18,7 +18,7 @@ const XDL_GUESS_NLINES2: c_long = 20;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct xdlclass_t {
+struct Xdlclass {
     next: Option<usize>,
     ha: c_ulong,
     line: *const c_char,
@@ -28,14 +28,14 @@ struct xdlclass_t {
     len2: c_long,
 }
 
-struct xdlclassifier_t {
+struct Xdlclassifier {
     hbits: c_uint,
     rchash: Vec<Option<usize>>,
-    rcrecs: Vec<xdlclass_t>,
+    rcrecs: Vec<Xdlclass>,
     flags: c_long,
 }
 
-fn xdl_init_classifier(cf: &mut xdlclassifier_t, size: c_long, flags: c_long) -> c_int {
+fn xdl_init_classifier(cf: &mut Xdlclassifier, size: c_long, flags: c_long) -> c_int {
     cf.flags = flags;
     cf.hbits = xdl_hashbits(size as c_uint);
     let hsize = 1usize << cf.hbits;
@@ -46,8 +46,8 @@ fn xdl_init_classifier(cf: &mut xdlclassifier_t, size: c_long, flags: c_long) ->
 
 fn xdl_classify_record(
     pass: c_uint,
-    cf: &mut xdlclassifier_t,
-    rec: &mut xrecord_t,
+    cf: &mut Xdlclassifier,
+    rec: &mut Xrecord,
 ) -> c_int {
     let line = rec.ptr;
         let hi = xdl_hashlong(rec.ha, cf.hbits) as usize;
@@ -66,7 +66,7 @@ fn xdl_classify_record(
             idx
         } else {
             let new_idx = cf.rcrecs.len();
-            cf.rcrecs.push(xdlclass_t {
+            cf.rcrecs.push(Xdlclass {
                 next: cf.rchash[hi],
                 ha: rec.ha,
                 line,
@@ -92,11 +92,11 @@ fn xdl_classify_record(
 
 fn xdl_prepare_ctx(
     pass: c_uint,
-    mf: &mut mmfile_t,
+    mf: &mut Mmfile,
     narec: c_long,
-    xpp: &xpparam_t,
-    cf: &mut xdlclassifier_t,
-    xdf: &mut xdfile_t,
+    xpp: &Xpparam,
+    cf: &mut Xdlclassifier,
+    xdf: &mut Xdfile,
 ) -> c_int {
     unsafe {
         xdf.recs = Vec::with_capacity(narec.max(0) as usize);
@@ -110,7 +110,7 @@ fn xdl_prepare_ctx(
             while cur < top {
                 let prev = cur;
                 let hav = xdl_hash_record(&mut cur, top, xpp.flags as c_long);
-                let mut rec = xrecord_t {
+                let mut rec = Xrecord {
                     ptr: prev,
                     size: cur.offset_from(prev) as c_long,
                     ha: hav,
@@ -120,7 +120,7 @@ fn xdl_prepare_ctx(
                 if xdf_diff_alg(xpp.flags) != XDF_HISTOGRAM_DIFF
                     && xdl_classify_record(pass, cf, &mut rec) < 0
                 {
-                    *xdf = xdfile_t::new();
+                    *xdf = Xdfile::new();
                     return -1;
                 }
                 xdf.recs.push(rec);
@@ -142,12 +142,12 @@ fn xdl_prepare_ctx(
 }
 
 pub fn xdl_prepare_env(
-    mf1: &mut mmfile_t,
-    mf2: &mut mmfile_t,
-    xpp: &xpparam_t,
-    xe: &mut xdfenv_t,
+    mf1: &mut Mmfile,
+    mf2: &mut Mmfile,
+    xpp: &Xpparam,
+    xe: &mut Xdfenv,
 ) -> c_int {
-    let mut cf = xdlclassifier_t {
+    let mut cf = Xdlclassifier {
         hbits: 0,
         rchash: Vec::new(),
         rcrecs: Vec::new(),
@@ -173,7 +173,7 @@ pub fn xdl_prepare_env(
         return -1;
     }
     if xdl_prepare_ctx(2, mf2, enl2, xpp, &mut cf, &mut xe.xdf2) < 0 {
-        xe.xdf1 = xdfile_t::new();
+        xe.xdf1 = Xdfile::new();
         return -1;
     }
 
@@ -181,7 +181,7 @@ pub fn xdl_prepare_env(
         && xdf_diff_alg(xpp.flags) != XDF_HISTOGRAM_DIFF
         && xdl_optimize_ctxs(&cf, &mut xe.xdf1, &mut xe.xdf2) < 0
     {
-        *xe = xdfenv_t::new();
+        *xe = Xdfenv::new();
         return -1;
     }
 
@@ -238,9 +238,9 @@ fn xdl_clean_mmatch(dis: *const c_char, i: c_long, mut s: c_long, mut e: c_long)
 }
 
 fn xdl_cleanup_records(
-    cf: &xdlclassifier_t,
-    xdf1: &mut xdfile_t,
-    xdf2: &mut xdfile_t,
+    cf: &Xdlclassifier,
+    xdf1: &mut Xdfile,
+    xdf2: &mut Xdfile,
 ) -> c_int {
     unsafe {
         let total = (xdf1.nrec + xdf2.nrec + 2) as usize;
@@ -301,7 +301,7 @@ fn xdl_cleanup_records(
     0
 }
 
-fn xdl_trim_ends(xdf1: &mut xdfile_t, xdf2: &mut xdfile_t) -> c_int {
+fn xdl_trim_ends(xdf1: &mut Xdfile, xdf2: &mut Xdfile) -> c_int {
     let recs1 = &xdf1.recs;
     let recs2 = &xdf2.recs;
     let mut i: c_long = 0;
@@ -333,9 +333,9 @@ fn xdl_trim_ends(xdf1: &mut xdfile_t, xdf2: &mut xdfile_t) -> c_int {
 }
 
 fn xdl_optimize_ctxs(
-    cf: &xdlclassifier_t,
-    xdf1: &mut xdfile_t,
-    xdf2: &mut xdfile_t,
+    cf: &Xdlclassifier,
+    xdf1: &mut Xdfile,
+    xdf2: &mut Xdfile,
 ) -> c_int {
     if xdl_trim_ends(xdf1, xdf2) < 0 || xdl_cleanup_records(cf, xdf1, xdf2) < 0 {
         return -1;

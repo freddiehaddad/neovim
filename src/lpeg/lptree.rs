@@ -13,9 +13,9 @@ use crate::lpeg::{
     Cposition, Cquery, Csimple, Cstring, Csubst, Ctable, IAny, IChar, IFail, INITCAPSIZE, ISet,
     Instruction, MAXBACK, MAXBEHIND, MAXINDT, MAXRULES, MAXSTACKIDX, NUMSIBLINGS, PATTERN_T,
     Pattern, SUBJIDX, TAnd, TAny, TBehind, TCall, TCapture, TChar, TChoice, TFalse, TGrammar, TNot,
-    TOpenCall, TRep, TRule, TRunTime, TSeq, TSet, TTag, TTree, TTrue, TUTFR, TXInfo, byte,
-    bytes2slots, charsetinfo, clearset, lua_Integer, lua_Number, lua_State, lua_Unsigned, luaL_Reg,
-    setchar, sib1, sib2, treebuffer, ttree_bitmap_offset, uint,
+    TOpenCall, TRep, TRule, TRunTime, TSeq, TSet, TTag, TTree, TTrue, TUTFR, TXInfo, LpegByte,
+    bytes2slots, CharsetInfo, clearset, lua_Integer, lua_Number, lua_State, lua_Unsigned, luaL_Reg,
+    setchar, sib1, sib2, treebuffer, ttree_bitmap_offset, LpegUint,
 };
 
 use crate::lua::converter::{
@@ -317,9 +317,9 @@ fn newleaf(l: *mut lua_State, tag: TTag) -> *mut TTree {
     }
 }
 
-fn newcharset(l: *mut lua_State, cs: &[byte; CHARSETSIZE]) -> *mut TTree {
+fn newcharset(l: *mut lua_State, cs: &[LpegByte; CHARSETSIZE]) -> *mut TTree {
     unsafe {
-        let mut info = charsetinfo::new();
+        let mut info = CharsetInfo::new();
         let op = charsettype(cs, &mut info);
         match op {
             IFail => newleaf(l, TFalse),
@@ -334,9 +334,9 @@ fn newcharset(l: *mut lua_State, cs: &[byte; CHARSETSIZE]) -> *mut TTree {
                 let bsize = ttree_bitmap_offset() + (info.size as usize);
                 let tree = newtree(l, bytes2slots(bsize) as c_int);
                 (*tree).tag = TSet;
-                (*tree).u.set.offset = info.offset as byte;
-                (*tree).u.set.size = info.size as byte;
-                (*tree).u.set.deflt = info.deflt as byte;
+                (*tree).u.set.offset = info.offset as LpegByte;
+                (*tree).u.set.size = info.size as LpegByte;
+                (*tree).u.set.deflt = info.deflt as LpegByte;
                 let tb = treebuffer(tree);
                 for i in 0..(info.size as usize) {
                     *tb.add(i) = cs[(info.offset as usize) + i];
@@ -363,7 +363,7 @@ fn fillseq(mut tree: *mut TTree, tag: TTag, n: c_int, s: *const c_char) {
             (*tree).u.ps = 2;
             (*sib1(tree)).tag = tag;
             (*sib1(tree)).u.n = if !s.is_null() {
-                c_int::from(*s.add(i as usize) as byte)
+                c_int::from(*s.add(i as usize) as LpegByte)
             } else {
                 0
             };
@@ -371,7 +371,7 @@ fn fillseq(mut tree: *mut TTree, tag: TTag, n: c_int, s: *const c_char) {
         }
         (*tree).tag = tag;
         (*tree).u.n = if !s.is_null() {
-            c_int::from(*s.add((n - 1) as usize) as byte)
+            c_int::from(*s.add((n - 1) as usize) as LpegByte)
         } else {
             0
         };
@@ -593,11 +593,11 @@ unsafe extern "C-unwind" fn lp_set(l: *mut lua_State) -> c_int {
     unsafe {
         let mut len: usize = 0;
         let mut s = luaL_checklstring(l, 1, &mut len);
-        let mut buff = [0 as byte; CHARSETSIZE];
+        let mut buff = [0 as LpegByte; CHARSETSIZE];
         clearset(&mut buff);
         while len > 0 {
             len -= 1;
-            setchar(&mut buff, (*s as byte) as usize);
+            setchar(&mut buff, (*s as LpegByte) as usize);
             s = s.add(1);
         }
         newcharset(l, &buff);
@@ -608,14 +608,14 @@ unsafe extern "C-unwind" fn lp_set(l: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn lp_range(l: *mut lua_State) -> c_int {
     unsafe {
         let top = lua_gettop(l);
-        let mut buff = [0 as byte; CHARSETSIZE];
+        let mut buff = [0 as LpegByte; CHARSETSIZE];
         clearset(&mut buff);
         for arg in 1..=top {
             let mut len: usize = 0;
             let r = luaL_checklstring(l, arg, &mut len);
             luaL_argcheck(l, len == 2, arg, c"range must have two characters");
-            let start = (*r as byte) as usize;
-            let end = (*r.add(1) as byte) as usize;
+            let start = (*r as LpegByte) as usize;
+            let end = (*r.add(1) as LpegByte) as usize;
             for c in start..=end {
                 setchar(&mut buff, c);
             }
@@ -639,7 +639,7 @@ fn codeutftree(l: *mut lua_State, t: *mut TTree, cpu: lua_Unsigned, arg: c_int) 
             (4, 0xF0 | (cp >> 18))
         };
         (*t).u.n = cp;
-        (*t).cap = len as byte;
+        (*t).cap = len as LpegByte;
         (*t).key = fb as c_ushort;
     }
 }
@@ -650,7 +650,7 @@ unsafe extern "C-unwind" fn lp_utfr(l: *mut lua_State) -> c_int {
         let to = luaL_checkinteger(l, 2) as lua_Unsigned;
         luaL_argcheck(l, from <= to, 2, c"empty range");
         if to <= 0x7f {
-            let mut buff = [0 as byte; CHARSETSIZE];
+            let mut buff = [0 as LpegByte; CHARSETSIZE];
             clearset(&mut buff);
             for f in from..=to {
                 setchar(&mut buff, f);
@@ -704,7 +704,7 @@ unsafe extern "C-unwind" fn lp_V(l: *mut lua_State) -> c_int {
     }
 }
 
-fn capture_aux(l: *mut lua_State, cap: byte, labelidx: c_int) -> c_int {
+fn capture_aux(l: *mut lua_State, cap: LpegByte, labelidx: c_int) -> c_int {
     unsafe {
         let tree = newroot1sib(l, TCapture);
         (*tree).cap = cap;
@@ -717,7 +717,7 @@ fn capture_aux(l: *mut lua_State, cap: byte, labelidx: c_int) -> c_int {
     }
 }
 
-fn auxemptycap(tree: *mut TTree, cap: byte) -> *mut TTree {
+fn auxemptycap(tree: *mut TTree, cap: LpegByte) -> *mut TTree {
     unsafe {
         (*tree).tag = TCapture;
         (*tree).cap = cap;
@@ -726,7 +726,7 @@ fn auxemptycap(tree: *mut TTree, cap: byte) -> *mut TTree {
     }
 }
 
-fn newemptycap(l: *mut lua_State, cap: byte, key: c_int) -> *mut TTree {
+fn newemptycap(l: *mut lua_State, cap: LpegByte, key: c_int) -> *mut TTree {
     unsafe {
         let tree = auxemptycap(newtree(l, 2), cap);
         (*tree).key = key as c_ushort;
@@ -734,7 +734,7 @@ fn newemptycap(l: *mut lua_State, cap: byte, key: c_int) -> *mut TTree {
     }
 }
 
-fn newemptycapkey(l: *mut lua_State, cap: byte, idx: c_int) -> *mut TTree {
+fn newemptycapkey(l: *mut lua_State, cap: LpegByte, idx: c_int) -> *mut TTree {
     unsafe {
         let tree = auxemptycap(newtree(l, 2), cap);
         (*tree).key = addtonewktable(l, 0, idx) as c_ushort;
@@ -1110,7 +1110,7 @@ fn prepcompile(l: *mut lua_State, p: &mut Pattern, idx: c_int) -> *mut Instructi
         lua_getfenv(l, idx);
         finalfix(l, 0, ptr::null_mut(), pattern_tree_ptr(p));
         lua_pop(l, 1);
-        compile(l, p, getsize(l, idx) as uint)
+        compile(l, p, getsize(l, idx) as LpegUint)
     }
 }
 
@@ -1208,7 +1208,7 @@ pub unsafe extern "C-unwind" fn lp_gc(l: *mut lua_State) -> c_int {
 
 fn createcat(l: *mut lua_State, catname: &std::ffi::CStr, catf: fn(u8) -> bool) {
     unsafe {
-        let mut buff = [0 as byte; CHARSETSIZE];
+        let mut buff = [0 as LpegByte; CHARSETSIZE];
         clearset(&mut buff);
         for c in 0..=u8::MAX {
             if catf(c) {

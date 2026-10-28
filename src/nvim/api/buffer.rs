@@ -23,7 +23,7 @@ use crate::cursor::{
 };
 use crate::eval::vars::MAXCOL;
 use crate::ex_cmds::rename_buffer;
-use crate::extmark::{bcount_t, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
+use crate::extmark::{Bcount, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{
@@ -519,7 +519,7 @@ pub fn nvim_buf_set_lines(
             }
 
             let to_replace = old_len.min(new_len);
-            let mut inserted_bytes: bcount_t = 0;
+            let mut inserted_bytes: Bcount = 0;
             for i in 0..to_replace {
                 let lnum = start + (i as i64);
                 if lnum >= MAXLNUM {
@@ -542,7 +542,7 @@ pub fn nvim_buf_set_lines(
                     break 'end;
                 }
 
-                inserted_bytes += crate::memory::cstr_len(line_ptr) as bcount_t + 1;
+                inserted_bytes += crate::memory::cstr_len(line_ptr) as Bcount + 1;
             }
 
             for i in to_replace..new_len {
@@ -567,7 +567,7 @@ pub fn nvim_buf_set_lines(
                     break 'end;
                 }
 
-                inserted_bytes += crate::memory::cstr_len(line_ptr) as bcount_t + 1;
+                inserted_bytes += crate::memory::cstr_len(line_ptr) as Bcount + 1;
                 extra += 1;
             }
 
@@ -734,18 +734,18 @@ pub fn nvim_buf_set_text(
         }
 
         let new_len = replacement.size;
-        let mut new_byte: bcount_t = 0;
-        let mut old_byte: bcount_t = 0;
+        let mut new_byte: Bcount = 0;
+        let mut old_byte: Bcount = 0;
 
         if start_row == end_row {
-            old_byte = (end_col - start_col) as bcount_t;
+            old_byte = (end_col - start_col) as Bcount;
         } else {
-            old_byte += (i64::from(len_at_start) - start_col) as bcount_t;
+            old_byte += (i64::from(len_at_start) - start_col) as Bcount;
             for i in 1..(end_row - start_row) {
                 let lnum = start_row + i;
-                old_byte += (ml_get_buf_len(&mut *b, lnum as Linenr) as bcount_t) + 1;
+                old_byte += (ml_get_buf_len(&mut *b, lnum as Linenr) as Bcount) + 1;
             }
-            old_byte += (end_col as bcount_t) + 1;
+            old_byte += (end_col as Bcount) + 1;
         }
 
         let first_item = replacement[0].data.string();
@@ -789,17 +789,17 @@ pub fn nvim_buf_set_text(
         let lines = arena_alloc(arena, new_len * std::mem::size_of::<*mut c_char>(), true)
             .cast::<*mut c_char>();
         *lines.add(0) = first;
-        new_byte += first_item.size as bcount_t;
+        new_byte += first_item.size as Bcount;
         for i in 1..new_len.saturating_sub(1) {
             let l = replacement[i].data.string();
             let p = arena_memdupz(arena, l.data, l.size);
             { let _d = (p).cast::<u8>(); let _sz = l.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
             *lines.add(i) = p;
-            new_byte += (l.size as bcount_t) + 1;
+            new_byte += (l.size as Bcount) + 1;
         }
         if replacement.size > 1 {
             *lines.add(replacement.size - 1) = last;
-            new_byte += (last_item.size as bcount_t) + 1;
+            new_byte += (last_item.size as Bcount) + 1;
         }
 
         try_wrap_err(err, |err| 'end: {

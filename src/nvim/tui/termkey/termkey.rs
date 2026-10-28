@@ -25,7 +25,7 @@ use crate::tui::termkey::driver_ti::{
     TERMKEY_TYPE_APC, TERMKEY_TYPE_DCS, TERMKEY_TYPE_FUNCTION, TERMKEY_TYPE_KEYSYM,
     TERMKEY_TYPE_MODEREPORT, TERMKEY_TYPE_MOUSE, TERMKEY_TYPE_OSC, TERMKEY_TYPE_POSITION,
     TERMKEY_TYPE_UNICODE, TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyKey, TermKeyResult, TermKeySym,
-    TermKeyTI, TerminfoEntry, keyinfo, peekkey_ti, start_driver_ti,
+    TermKeyTI, TerminfoEntry, TiKeyInfo, peekkey_ti, start_driver_ti,
 };
 use std::ffi::{CStr, c_char, c_int};
 
@@ -371,7 +371,7 @@ pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -> Optio
             is_closed: 0,
             is_started: 0,
             keynames: vec![None; 64],
-            c0: [keyinfo {
+            c0: [TiKeyInfo {
                 r#type: 0,
                 sym: TERMKEY_SYM_NONE,
                 modifier_mask: 0,

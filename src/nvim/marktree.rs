@@ -184,7 +184,7 @@ pub type Intersection = Vec<u64>;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct mtnode_inner_s {
+pub struct MtnodeInner {
     pub i_ptr: [Option<usize>; 2 * MT_BRANCH_FACTOR],
     pub i_meta: [[u32; kMTMetaCount]; 2 * MT_BRANCH_FACTOR],
 }
@@ -197,7 +197,7 @@ pub struct MTNode {
     pub intersect: Intersection,
     pub parent: Option<usize>,
     pub key: [MTKey; 2 * MT_BRANCH_FACTOR - 1],
-    pub inner: Option<Box<mtnode_inner_s>>,
+    pub inner: Option<Box<MtnodeInner>>,
 }
 
 #[repr(C)]
@@ -444,7 +444,7 @@ fn key_cmp(a: MTKey, b: MTKey) -> c_int {
 }
 
 #[inline]
-fn node_inner(b: &MarkTree, x: usize) -> &mtnode_inner_s {
+fn node_inner(b: &MarkTree, x: usize) -> &MtnodeInner {
     b.nodes[x]
         .inner
         .as_deref()
@@ -452,7 +452,7 @@ fn node_inner(b: &MarkTree, x: usize) -> &mtnode_inner_s {
 }
 
 #[inline]
-fn node_inner_mut(b: &mut MarkTree, x: usize) -> &mut mtnode_inner_s {
+fn node_inner_mut(b: &mut MarkTree, x: usize) -> &mut MtnodeInner {
     b.nodes[x]
         .inner
         .as_deref_mut()
@@ -788,7 +788,7 @@ pub fn marktree_intersect_pair(
 
 fn marktree_alloc_node(b: &mut MarkTree, internal: bool) -> usize {
     let inner = if internal {
-        Some(Box::new(mtnode_inner_s {
+        Some(Box::new(MtnodeInner {
             i_ptr: [None; 2 * MT_BRANCH_FACTOR],
             i_meta: [[0; kMTMetaCount]; 2 * MT_BRANCH_FACTOR],
         }))

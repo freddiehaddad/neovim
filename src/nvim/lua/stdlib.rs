@@ -26,7 +26,7 @@ use crate::ex_eval::aborting;
 use crate::extmark::kTrue;
 use crate::fold::foldUpdate;
 use crate::globals::*;
-use crate::keycodes::{keychord, mod_mask_table, vim_strsave_escape_ks};
+use crate::keycodes::{KeyChord, mod_mask_table, vim_strsave_escape_ks};
 use crate::log::log_st;
 use crate::lua::base64::luaopen_base64;
 use crate::lua::converter::{
@@ -740,7 +740,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
 
         lua_newtable(lstate);
 
-        let mut data = keychord::new();
+        let mut data = KeyChord::new();
 
         while !crate::memory::cstr_is_empty(p) {
             let keys = str2special(&raw mut p, true, kTrue, Some(&mut data));

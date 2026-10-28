@@ -33,7 +33,7 @@ use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_cmds2::check_fname;
 use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, Exarg};
 use crate::ex_getln::{Ctrl_A, Ctrl_F, Ctrl_L, Ctrl_R, Ctrl_W, cmdline_paste_str, getcmdline};
-use crate::extmark::{bcount_t, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo};
+use crate::extmark::{Bcount, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
 use crate::fold::hasFolding;
 use crate::globals::*;
@@ -138,7 +138,7 @@ const E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES: &CStr =
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct block_def {
+pub struct BlockDef {
     pub startspaces: c_int,
     pub endspaces: c_int,
     pub textlen: c_int,
@@ -155,7 +155,7 @@ pub struct block_def {
     pub start_char_vcols: Colnr,
 }
 
-impl block_def {
+impl BlockDef {
     pub const fn new() -> Self {
         Self {
             startspaces: 0,
@@ -1082,7 +1082,7 @@ pub fn clear_registers() {
 
 fn yank_copy_line(
     reg: &mut Yankreg,
-    bd: &mut block_def,
+    bd: &mut BlockDef,
     y_idx: usize,
     exclude_trailing_space: bool,
 ) {
@@ -1125,7 +1125,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
         let mut yank_type = orig_motion;
         let mut yanklines = oap.line_count as usize;
         let mut yankendlnum = oap.end.lnum;
-        let mut bd = block_def::default();
+        let mut bd = BlockDef::default();
 
         let curr = reg;
         if append && (*reg).y_allocated {
@@ -1863,7 +1863,7 @@ pub fn do_put(
 
             if y_type == MotionType::kMTBlockWise {
                 let mut incr: c_int = 0;
-                let mut bd = block_def::default();
+                let mut bd = BlockDef::default();
                 let c = gchar_cursor();
                 let mut endcol2: Colnr = 0;
 
@@ -2297,17 +2297,17 @@ pub fn do_put(
                                 i += 1;
                             }
 
-                            let mut totsize: bcount_t = 0;
+                            let mut totsize: Bcount = 0;
                             let mut lastsize: c_int = 0;
                             if y_type == MotionType::kMTCharWise
                                 || (y_type == MotionType::kMTLineWise
                                     && (flags & PUT_LINE_SPLIT) != 0)
                             {
                                 for k in 0..(y_size - 1) {
-                                    totsize += ((*y_array.add(k)).size as bcount_t) + 1;
+                                    totsize += ((*y_array.add(k)).size as Bcount) + 1;
                                 }
                                 lastsize = (*y_array.add(y_size - 1)).size as c_int;
-                                totsize += lastsize as bcount_t;
+                                totsize += lastsize as Bcount;
                             }
                             if y_type == MotionType::kMTCharWise {
                                 extmark_splice(

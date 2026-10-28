@@ -59,7 +59,7 @@ pub struct Proc {
     #[cfg(unix)]
     pub tty_fd: c_int,
     #[cfg(windows)]
-    pub conpty: Option<Box<crate::os::pty_conpty_win::conpty_t>>,
+    pub conpty: Option<Box<crate::os::pty_conpty_win::Conpty>>,
     #[cfg(windows)]
     pub finish_wait: crate::os::os_win_console::HANDLE,
     #[cfg(windows)]

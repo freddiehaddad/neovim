@@ -626,14 +626,14 @@ struct Wcmd {
 }
 
 #[repr(C)]
-pub struct loop_cookie {
+pub struct LoopCookie {
     lines: Vec<Wcmd>,
     current_line: c_int,
     repeating: c_int,
     pub lc_getline: LineGetter,
 }
 
-impl loop_cookie {
+impl LoopCookie {
     const fn new() -> Self {
         Self {
             lines: Vec::new(),
@@ -644,13 +644,13 @@ impl loop_cookie {
     }
 }
 
-impl Default for loop_cookie {
+impl Default for LoopCookie {
     fn default() -> Self {
         Self::new()
     }
 }
 
-struct dbg_stuff {
+struct DbgStuff {
     trylevel: c_int,
     force_abort: c_int,
     caught_stack: Vec<std::rc::Rc<Except>>,
@@ -664,7 +664,7 @@ struct dbg_stuff {
     current_exception: Option<std::rc::Rc<Except>>,
 }
 
-impl dbg_stuff {
+impl DbgStuff {
     const fn new() -> Self {
         Self {
             trylevel: 0,
@@ -4856,7 +4856,7 @@ fn sourcing_lnum_ptr() -> *mut Linenr {
     }
 }
 
-fn save_dbg_stuff(dsp: &mut dbg_stuff) {
+fn save_dbg_stuff(dsp: &mut DbgStuff) {
      {
         dsp.trylevel = g_st().trylevel;
         g_st().trylevel = 0;
@@ -4881,7 +4881,7 @@ fn save_dbg_stuff(dsp: &mut dbg_stuff) {
     }
 }
 
-fn restore_dbg_stuff(dsp: &mut dbg_stuff) {
+fn restore_dbg_stuff(dsp: &mut DbgStuff) {
      {
         g_st().suppress_errthrow = false;
         g_st().trylevel = dsp.trylevel;
@@ -4990,10 +4990,10 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
         let mut fname: *mut c_char = ptr::null_mut();
         let mut breakpoint: *mut Linenr = ptr::null_mut();
         let mut dbg_tick: *mut c_int = ptr::null_mut();
-        let mut debug_saved = dbg_stuff::new();
+        let mut debug_saved = DbgStuff::new();
 
         let mut cmd_getline: LineGetter;
-        let mut cmd_loop_cookie = loop_cookie::new();
+        let mut cmd_loop_cookie = LoopCookie::new();
 
         let saved_msg_list = g_st().msg_list.replace(Vec::new());
 
@@ -5499,7 +5499,7 @@ pub fn handle_did_throw() {
 /// Obtain a line when inside a ":while" or ":for" loop.
 pub fn get_loop_line(
     c: c_int,
-    cp: &mut loop_cookie,
+    cp: &mut LoopCookie,
     indent: c_int,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {

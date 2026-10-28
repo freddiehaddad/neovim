@@ -8,7 +8,7 @@ use crate::cjson::fpconv::{FPCONV_G_FMT_BUFSIZE, fpconv_g_fmt, fpconv_strtod};
 use crate::cjson::strbuf::{
     strbuf_append_char, strbuf_append_char_unsafe, strbuf_append_mem, strbuf_append_mem_unsafe,
     strbuf_append_string, strbuf_ensure_empty_length, strbuf_ensure_null, strbuf_init,
-    strbuf_length, strbuf_reset, strbuf_set_length, strbuf_string, strbuf_t,
+    strbuf_length, strbuf_reset, strbuf_set_length, strbuf_string, Strbuf,
 };
 use crate::lua::converter::{
     LUA_REGISTRYINDEX, LUA_TBOOLEAN, LUA_TLIGHTUSERDATA, LUA_TNIL, LUA_TNUMBER, LUA_TSTRING,
@@ -54,7 +54,7 @@ fn json_lightudata_mask(ludata: *const u8) -> *mut u8 {
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq)]
-enum json_token_type_t {
+enum JsonTokenType {
     T_OBJ_BEGIN = 0,
     T_OBJ_END = 1,
     T_ARR_BEGIN = 2,
@@ -72,7 +72,7 @@ enum json_token_type_t {
     T_UNKNOWN = 14,
 }
 
-use json_token_type_t::*;
+use JsonTokenType::*;
 
 const JSON_TOKEN_TYPE_NAME: [&CStr; 15] = [
     c"T_OBJ_BEGIN",
@@ -100,40 +100,40 @@ enum KeyEntryRaw {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct key_entry_t {
-    buf: *mut strbuf_t,
+struct KeyEntry {
+    buf: *mut Strbuf,
     offset: usize,
     length: usize,
     raw: KeyEntryRaw,
 }
 
 #[repr(C)]
-struct keybuf_t {
-    buf: strbuf_t,
-    keys: Vec<key_entry_t>,
+struct Keybuf {
+    buf: Strbuf,
+    keys: Vec<KeyEntry>,
 }
 
-impl keybuf_t {
+impl Keybuf {
     const fn new() -> Self {
         Self {
-            buf: strbuf_t::new(),
+            buf: Strbuf::new(),
             keys: Vec::new(),
         }
     }
 }
 
-impl Default for keybuf_t {
+impl Default for Keybuf {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[repr(C)]
-struct json_config_t {
-    encode_buf: strbuf_t,
+struct JsonConfig {
+    encode_buf: Strbuf,
 }
 
-const CH2TOKEN: [json_token_type_t; 256] = {
+const CH2TOKEN: [JsonTokenType; 256] = {
     let mut tbl = [T_ERROR; 256];
     tbl[b'{' as usize] = T_OBJ_BEGIN;
     tbl[b'}' as usize] = T_OBJ_END;
@@ -178,32 +178,32 @@ const ESCAPE2CHAR: [c_char; 256] = {
 };
 
 #[repr(C)]
-struct json_encode_options_t {
+struct JsonEncodeOptions {
     char2escape: *const *const c_char,
     indent: *const c_char,
     sort_keys: c_int,
-    keybuf: keybuf_t,
+    keybuf: Keybuf,
 }
 
 #[repr(C)]
-struct json_encode_t {
-    options: *mut json_encode_options_t,
-    json: *mut strbuf_t,
+struct JsonEncode {
+    options: *mut JsonEncodeOptions,
+    json: *mut Strbuf,
 }
 
 #[repr(C)]
-struct json_options_t {
+struct JsonOptions {
     luanil_object: bool,
     luanil_array: bool,
     skip_comments: bool,
 }
 
 #[repr(C)]
-struct json_parse_t {
+struct JsonParse {
     data: *const c_char,
     ptr: *const c_char,
-    tmp: *mut strbuf_t,
-    options: *mut json_options_t,
+    tmp: *mut Strbuf,
+    options: *mut JsonOptions,
     current_depth: c_int,
 }
 
@@ -249,14 +249,14 @@ impl JsonTokenValue {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct json_token_t {
-    r#type: json_token_type_t,
+struct JsonToken {
+    r#type: JsonTokenType,
     index: usize,
     value: JsonTokenValue,
     string_len: usize,
 }
 
-impl json_token_t {
+impl JsonToken {
     const fn new() -> Self {
         Self {
             r#type: T_OBJ_BEGIN,
@@ -267,7 +267,7 @@ impl json_token_t {
     }
 }
 
-impl Default for json_token_t {
+impl Default for JsonToken {
     fn default() -> Self {
         Self::new()
     }
@@ -317,9 +317,9 @@ const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
 
 use std::process::abort;
 
-fn json_fetch_config(l: *mut lua_State) -> *mut json_config_t {
+fn json_fetch_config(l: *mut lua_State) -> *mut JsonConfig {
     unsafe {
-        let cfg = lua_touserdata(l, lua_upvalueindex(1)).cast::<json_config_t>();
+        let cfg = lua_touserdata(l, lua_upvalueindex(1)).cast::<JsonConfig>();
         if cfg.is_null() {
             luaL_error(l, c"BUG: Unable to fetch CJSON configuration".as_ptr());
         }
@@ -329,7 +329,7 @@ fn json_fetch_config(l: *mut lua_State) -> *mut json_config_t {
 
 unsafe extern "C-unwind" fn json_destroy_config(l: *mut lua_State) -> c_int {
     unsafe {
-        let cfg = lua_touserdata(l, 1).cast::<json_config_t>();
+        let cfg = lua_touserdata(l, 1).cast::<JsonConfig>();
         if !cfg.is_null() {
             ptr::drop_in_place(cfg);
         }
@@ -339,14 +339,14 @@ unsafe extern "C-unwind" fn json_destroy_config(l: *mut lua_State) -> c_int {
 
 fn json_create_config(l: *mut lua_State) {
     unsafe {
-        let cfg = lua_newuserdata(l, size_of::<json_config_t>()).cast::<json_config_t>();
+        let cfg = lua_newuserdata(l, size_of::<JsonConfig>()).cast::<JsonConfig>();
         if cfg.is_null() {
             abort();
         }
         ptr::write(
             cfg,
-            json_config_t {
-                encode_buf: strbuf_t::new(),
+            JsonConfig {
+                encode_buf: Strbuf::new(),
             },
         );
 
@@ -361,13 +361,13 @@ fn json_create_config(l: *mut lua_State) {
 
 fn json_encode_exception(
     l: *mut lua_State,
-    ctx: &mut json_encode_t,
+    ctx: &mut JsonEncode,
     lindex: c_int,
     reason: &std::ffi::CStr,
 ) -> ! {
     unsafe {
         if (*ctx.options).sort_keys != 0 {
-            (*ctx.options).keybuf = keybuf_t::new();
+            (*ctx.options).keybuf = Keybuf::new();
         }
 
         luaL_error(
@@ -382,7 +382,7 @@ fn json_encode_exception(
 
 fn json_append_string_contents(
     l: *mut lua_State,
-    ctx: &mut json_encode_t,
+    ctx: &mut JsonEncode,
     lindex: c_int,
     use_keybuf: bool,
 ) {
@@ -412,7 +412,7 @@ fn json_append_string_contents(
     }
 }
 
-fn json_append_string(l: *mut lua_State, ctx: &mut json_encode_t, lindex: c_int) {
+fn json_append_string(l: *mut lua_State, ctx: &mut JsonEncode, lindex: c_int) {
     unsafe {
         strbuf_append_char(&mut *ctx.json, b'"' as c_char);
         json_append_string_contents(l, ctx, lindex, false);
@@ -420,7 +420,7 @@ fn json_append_string(l: *mut lua_State, ctx: &mut json_encode_t, lindex: c_int)
     }
 }
 
-fn lua_array_length(l: *mut lua_State, ctx: &mut json_encode_t) -> c_int {
+fn lua_array_length(l: *mut lua_State, ctx: &mut JsonEncode) -> c_int {
     unsafe {
         let mut max: c_int = 0;
         let mut items: c_int = 0;
@@ -453,7 +453,7 @@ fn lua_array_length(l: *mut lua_State, ctx: &mut json_encode_t) -> c_int {
 
 fn json_check_encode_depth(
     l: *mut lua_State,
-    ctx: &mut json_encode_t,
+    ctx: &mut JsonEncode,
     current_depth: c_int,
 ) {
     unsafe {
@@ -462,7 +462,7 @@ fn json_check_encode_depth(
         }
 
         if (*ctx.options).sort_keys != 0 {
-            (*ctx.options).keybuf = keybuf_t::new();
+            (*ctx.options).keybuf = Keybuf::new();
         }
 
         luaL_error(
@@ -474,8 +474,8 @@ fn json_check_encode_depth(
 }
 
 fn json_append_newline_and_indent(
-    json: &mut strbuf_t,
-    ctx: &json_encode_t,
+    json: &mut Strbuf,
+    ctx: &JsonEncode,
     depth: c_int,
 ) {
     unsafe {
@@ -488,7 +488,7 @@ fn json_append_newline_and_indent(
 
 fn json_append_array(
     l: *mut lua_State,
-    ctx: &mut json_encode_t,
+    ctx: &mut JsonEncode,
     current_depth: c_int,
     array_length: c_int,
     raw: c_int,
@@ -540,7 +540,7 @@ fn json_append_array(
 
 fn json_append_number(
     l: *mut lua_State,
-    ctx: &mut json_encode_t,
+    ctx: &mut JsonEncode,
     lindex: c_int,
     use_keybuf: bool,
 ) {
@@ -560,7 +560,7 @@ fn json_append_number(
     }
 }
 
-fn cmp_key_entries(ka: &key_entry_t, kb: &key_entry_t) -> std::cmp::Ordering {
+fn cmp_key_entries(ka: &KeyEntry, kb: &KeyEntry) -> std::cmp::Ordering {
     unsafe {
         let a = std::slice::from_raw_parts(
             (*ka.buf).buf.as_ptr().add(ka.offset).cast::<u8>(),
@@ -574,7 +574,7 @@ fn cmp_key_entries(ka: &key_entry_t, kb: &key_entry_t) -> std::cmp::Ordering {
     }
 }
 
-fn json_append_object(l: *mut lua_State, ctx: &mut json_encode_t, current_depth: c_int) {
+fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: c_int) {
     unsafe {
         let json = &mut *ctx.json;
         let mut has_items = false;
@@ -592,7 +592,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut json_encode_t, current_depth:
                 has_items = true;
 
                 let keytype = lua_type(l, -2);
-                let mut key_entry = key_entry_t {
+                let mut key_entry = KeyEntry {
                     buf: &raw mut (*keybuf).buf,
                     offset: strbuf_length(&(*keybuf).buf),
                     length: 0,
@@ -721,7 +721,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut json_encode_t, current_depth:
 
 fn json_append_data(
     l: *mut lua_State,
-    ctx: &mut json_encode_t,
+    ctx: &mut JsonEncode,
     mut current_depth: c_int,
 ) -> c_int {
     unsafe {
@@ -836,13 +836,13 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
     unsafe {
         let cfg = json_fetch_config(l);
         let mut custom_char2escape = CHAR2ESCAPE;
-        let mut options = json_encode_options_t {
+        let mut options = JsonEncodeOptions {
             char2escape: custom_char2escape.as_ptr(),
             indent: DEFAULT_ENCODE_INDENT,
             sort_keys: DEFAULT_ENCODE_SORT_KEYS,
-            keybuf: keybuf_t::new(),
+            keybuf: Keybuf::new(),
         };
-        let mut ctx = json_encode_t {
+        let mut ctx = JsonEncode {
             options: &mut options,
             json: ptr::null_mut(),
         };
@@ -953,7 +953,7 @@ fn codepoint_to_utf8(utf8: &mut [u8; 4], codepoint: c_int) -> usize {
     0
 }
 
-fn json_append_unicode_escape(json: &mut json_parse_t) -> c_int {
+fn json_append_unicode_escape(json: &mut JsonParse) -> c_int {
     let mut utf8 = [0u8; 4];
     let mut escape_len: usize = 6;
 
@@ -1000,8 +1000,8 @@ fn json_append_unicode_escape(json: &mut json_parse_t) -> c_int {
 }
 
 fn json_set_token_error(
-    token: &mut json_token_t,
-    json: &json_parse_t,
+    token: &mut JsonToken,
+    json: &JsonParse,
     errtype: &std::ffi::CStr,
 ) {
     unsafe {
@@ -1011,7 +1011,7 @@ fn json_set_token_error(
     }
 }
 
-fn json_next_string_token(json: &mut json_parse_t, token: &mut json_token_t) {
+fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
     unsafe {
         debug_assert_eq!(*json.ptr, b'"' as c_char);
 
@@ -1074,7 +1074,7 @@ fn starts_with_ignore_ascii_case_3(p: *const c_char, target: &[u8; 3]) -> bool {
     }
 }
 
-fn json_is_invalid_number(json: &json_parse_t) -> bool {
+fn json_is_invalid_number(json: &JsonParse) -> bool {
     unsafe {
         let mut p = json.ptr;
         if *p == b'+' as c_char {
@@ -1101,7 +1101,7 @@ fn json_is_invalid_number(json: &json_parse_t) -> bool {
     }
 }
 
-fn json_next_number_token(json: &mut json_parse_t, token: &mut json_token_t) {
+fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
     unsafe {
         let mut s = json.ptr;
         while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
@@ -1170,7 +1170,7 @@ fn json_next_number_token(json: &mut json_parse_t, token: &mut json_token_t) {
     }
 }
 
-fn json_next_token(json: &mut json_parse_t, token: &mut json_token_t) {
+fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
     unsafe {
         let mut ch: usize;
 
@@ -1266,12 +1266,12 @@ fn json_next_token(json: &mut json_parse_t, token: &mut json_token_t) {
 
 fn json_throw_parse_error(
     l: *mut lua_State,
-    json: &mut json_parse_t,
+    json: &mut JsonParse,
     exp: &std::ffi::CStr,
-    token: &json_token_t,
+    token: &JsonToken,
 ) -> ! {
     unsafe {
-        *json.tmp = strbuf_t::new();
+        *json.tmp = Strbuf::new();
         let found = if token.r#type == T_ERROR {
             token.value.as_string()
         } else {
@@ -1290,18 +1290,18 @@ fn json_throw_parse_error(
 }
 
 #[inline]
-fn json_decode_ascend(json: &mut json_parse_t) {
+fn json_decode_ascend(json: &mut JsonParse) {
     json.current_depth -= 1;
 }
 
-fn json_decode_descend(l: *mut lua_State, json: &mut json_parse_t, slots: c_int) {
+fn json_decode_descend(l: *mut lua_State, json: &mut JsonParse, slots: c_int) {
     unsafe {
         json.current_depth += 1;
         if json.current_depth <= DEFAULT_DECODE_MAX_DEPTH && lua_checkstack(l, slots) != 0 {
             return;
         }
 
-        *json.tmp = strbuf_t::new();
+        *json.tmp = Strbuf::new();
         luaL_error(
             l,
             c"Found too many nested data structures (%d) at character %d".as_ptr(),
@@ -1311,9 +1311,9 @@ fn json_decode_descend(l: *mut lua_State, json: &mut json_parse_t, slots: c_int)
     }
 }
 
-fn json_parse_object_context(l: *mut lua_State, json: &mut json_parse_t) {
+fn json_parse_object_context(l: *mut lua_State, json: &mut JsonParse) {
     unsafe {
-        let mut token = json_token_t::new();
+        let mut token = JsonToken::new();
 
         json_decode_descend(l, json, 3);
         lua_newtable(l);
@@ -1357,9 +1357,9 @@ fn json_parse_object_context(l: *mut lua_State, json: &mut json_parse_t) {
     }
 }
 
-fn json_parse_array_context(l: *mut lua_State, json: &mut json_parse_t) {
+fn json_parse_array_context(l: *mut lua_State, json: &mut JsonParse) {
     unsafe {
-        let mut token = json_token_t::new();
+        let mut token = JsonToken::new();
 
         json_decode_descend(l, json, 2);
         lua_newtable(l);
@@ -1393,8 +1393,8 @@ fn json_parse_array_context(l: *mut lua_State, json: &mut json_parse_t) {
 
 fn json_process_value(
     l: *mut lua_State,
-    json: &mut json_parse_t,
-    token: &json_token_t,
+    json: &mut JsonParse,
+    token: &JsonToken,
     use_luanil: bool,
 ) {
     unsafe {
@@ -1433,7 +1433,7 @@ fn json_process_value(
 
 unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
     unsafe {
-        let mut options = json_options_t {
+        let mut options = JsonOptions {
             luanil_object: false,
             luanil_array: false,
             skip_comments: false,
@@ -1470,8 +1470,8 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
 
         let mut json_len: usize = 0;
         let data = luaL_checklstring(l, 1, &mut json_len);
-        let mut tmp_buf = strbuf_t::new();
-        let mut json = json_parse_t {
+        let mut tmp_buf = Strbuf::new();
+        let mut json = JsonParse {
             data,
             ptr: data,
             tmp: &mut tmp_buf,
@@ -1485,7 +1485,7 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
 
         strbuf_init(&mut *json.tmp, json_len);
 
-        let mut token = json_token_t::new();
+        let mut token = JsonToken::new();
         json_next_token(&mut json, &mut token);
         let luanil_object = (*json.options).luanil_object;
         json_process_value(l, &mut json, &token, luanil_object);

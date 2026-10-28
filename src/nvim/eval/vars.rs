@@ -82,7 +82,7 @@ use std::ptr;
 pub type VimVarIndex = c_int;
 pub type ScopeType = c_int;
 pub type Scid = c_int;
-type ex_unletlock_callback = fn(&mut Lval, *mut c_char, &mut Exarg, c_int) -> bool;
+type ExUnletlockCallback = fn(&mut Lval, *mut c_char, &mut Exarg, c_int) -> bool;
 
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::change::MB_MAXCHAR;
@@ -1963,7 +1963,7 @@ fn ex_unletlock(
     argstart: *mut c_char,
     deep: c_int,
     glv_flags: c_int,
-    callback: ex_unletlock_callback,
+    callback: ExUnletlockCallback,
 ) {
     unsafe {
         let mut arg = argstart;

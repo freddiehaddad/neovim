@@ -4,9 +4,9 @@ use std::ffi::{c_char, c_int};
 
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_OK, MPACK_TOKEN_ARRAY, MPACK_TOKEN_UINT, mpack_read, mpack_tokbuf_init,
-    mpack_tokbuf_t, mpack_token_t, mpack_uint32_t, mpack_write,
+    MpackTokbuf, MpackToken, MpackUint32, mpack_write,
 };
-use crate::mpack::object::{MPACK_NOMEM, mpack_data_t};
+use crate::mpack::object::{MPACK_NOMEM, MpackData};
 
 pub const MPACK_RPC_MAX_REQUESTS: usize = 32;
 
@@ -23,21 +23,21 @@ pub const MPACK_RPC_ERESPID: c_int = MPACK_RPC_ERROR + 4;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct mpack_rpc_header_t {
-    pub toks: [mpack_token_t; 3],
+pub struct MpackRpcHeader {
+    pub toks: [MpackToken; 3],
     pub index: c_int,
 }
 
-impl mpack_rpc_header_t {
+impl MpackRpcHeader {
     pub const fn new() -> Self {
         Self {
-            toks: [mpack_token_t::new(); 3],
+            toks: [MpackToken::new(); 3],
             index: 0,
         }
     }
 }
 
-impl Default for mpack_rpc_header_t {
+impl Default for MpackRpcHeader {
     fn default() -> Self {
         Self::new()
     }
@@ -45,46 +45,46 @@ impl Default for mpack_rpc_header_t {
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct mpack_rpc_message_t {
-    pub id: mpack_uint32_t,
-    pub data: mpack_data_t,
+pub struct MpackRpcMessage {
+    pub id: MpackUint32,
+    pub data: MpackData,
 }
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct mpack_rpc_slot_s {
+pub struct MpackRpcSlot {
     pub used: c_int,
-    pub msg: mpack_rpc_message_t,
+    pub msg: MpackRpcMessage,
 }
 
-pub struct mpack_rpc_session_t {
-    pub reader: mpack_tokbuf_t,
-    pub writer: mpack_tokbuf_t,
-    pub receive: mpack_rpc_header_t,
-    pub send: mpack_rpc_header_t,
-    pub request_id: mpack_uint32_t,
-    pub slots: Vec<mpack_rpc_slot_s>,
+pub struct MpackRpcSession {
+    pub reader: MpackTokbuf,
+    pub writer: MpackTokbuf,
+    pub receive: MpackRpcHeader,
+    pub send: MpackRpcHeader,
+    pub request_id: MpackUint32,
+    pub slots: Vec<MpackRpcSlot>,
 }
 
-impl mpack_rpc_session_t {
-    pub fn new(capacity: mpack_uint32_t) -> Self {
+impl MpackRpcSession {
+    pub fn new(capacity: MpackUint32) -> Self {
         let cap = if capacity != 0 {
             capacity as usize
         } else {
             MPACK_RPC_MAX_REQUESTS
         };
-        let empty_slot = mpack_rpc_slot_s {
+        let empty_slot = MpackRpcSlot {
             used: 0,
-            msg: mpack_rpc_message_t {
+            msg: MpackRpcMessage {
                 id: 0,
-                data: mpack_data_t::new(),
+                data: MpackData::new(),
             },
         };
-        let mut session = mpack_rpc_session_t {
-            reader: mpack_tokbuf_t::new(),
-            writer: mpack_tokbuf_t::new(),
-            receive: mpack_rpc_header_t::new(),
-            send: mpack_rpc_header_t::new(),
+        let mut session = MpackRpcSession {
+            reader: MpackTokbuf::new(),
+            writer: MpackTokbuf::new(),
+            receive: MpackRpcHeader::new(),
+            send: MpackRpcHeader::new(),
             request_id: 0,
             slots: vec![empty_slot; cap],
         };
@@ -96,13 +96,13 @@ impl mpack_rpc_session_t {
     }
 }
 
-pub fn mpack_rpc_session_grow(session: &mut mpack_rpc_session_t) {
+pub fn mpack_rpc_session_grow(session: &mut MpackRpcSession) {
     let new_cap = session.slots.len() * 2;
-    let empty_slot = mpack_rpc_slot_s {
+    let empty_slot = MpackRpcSlot {
         used: 0,
-        msg: mpack_rpc_message_t {
+        msg: MpackRpcMessage {
             id: 0,
-            data: mpack_data_t::new(),
+            data: MpackData::new(),
         },
     };
     let old_slots = std::mem::replace(&mut session.slots, vec![empty_slot; new_cap]);
@@ -114,9 +114,9 @@ pub fn mpack_rpc_session_grow(session: &mut mpack_rpc_session_t) {
 }
 
 pub fn mpack_rpc_receive_tok(
-    session: &mut mpack_rpc_session_t,
-    tok: mpack_token_t,
-    msg: &mut mpack_rpc_message_t,
+    session: &mut MpackRpcSession,
+    tok: MpackToken,
+    msg: &mut MpackRpcMessage,
 ) -> c_int {
     if session.receive.index == 0 {
         if tok.r#type != MPACK_TOKEN_ARRAY {
@@ -160,7 +160,7 @@ pub fn mpack_rpc_receive_tok(
     }
 
     msg.id = tok.data.value().lo;
-    msg.data = mpack_data_t::Null;
+    msg.data = MpackData::Null;
     let r#type = (session.receive.toks[1].data.value().lo as c_int) + MPACK_RPC_REQUEST;
 
     if r#type == MPACK_RPC_RESPONSE && mpack_rpc_pop(session, msg) == 0 {
@@ -172,13 +172,13 @@ pub fn mpack_rpc_receive_tok(
 }
 
 pub fn mpack_rpc_request_tok(
-    session: &mut mpack_rpc_session_t,
-    tok: &mut mpack_token_t,
-    data: mpack_data_t,
+    session: &mut MpackRpcSession,
+    tok: &mut MpackToken,
+    data: MpackData,
 ) -> c_int {
     if session.send.index == 0 {
         loop {
-            let msg = mpack_rpc_message_t {
+            let msg = MpackRpcMessage {
                 id: session.request_id,
                 data: data.clone(),
             };
@@ -213,9 +213,9 @@ pub fn mpack_rpc_request_tok(
 }
 
 pub fn mpack_rpc_reply_tok(
-    session: &mut mpack_rpc_session_t,
-    tok: &mut mpack_token_t,
-    id: mpack_uint32_t,
+    session: &mut MpackRpcSession,
+    tok: &mut MpackToken,
+    id: MpackUint32,
 ) -> c_int {
     if session.send.index == 0 {
         session.send = mpack_rpc_reply_hdr();
@@ -240,8 +240,8 @@ pub fn mpack_rpc_reply_tok(
 }
 
 pub fn mpack_rpc_notify_tok(
-    session: &mut mpack_rpc_session_t,
-    tok: &mut mpack_token_t,
+    session: &mut MpackRpcSession,
+    tok: &mut MpackToken,
 ) -> c_int {
     if session.send.index == 0 {
         session.send = mpack_rpc_notify_hdr();
@@ -257,14 +257,14 @@ pub fn mpack_rpc_notify_tok(
 }
 
 pub fn mpack_rpc_receive(
-    session: &mut mpack_rpc_session_t,
+    session: &mut MpackRpcSession,
     buf: &mut *const c_char,
     buflen: &mut usize,
-    msg: &mut mpack_rpc_message_t,
+    msg: &mut MpackRpcMessage,
 ) -> c_int {
     let mut status: c_int;
     loop {
-        let mut tok = mpack_token_t::new();
+        let mut tok = MpackToken::new();
         status = mpack_read(&mut session.reader, buf, buflen, &mut tok);
         if status != 0 {
             break;
@@ -278,13 +278,13 @@ pub fn mpack_rpc_receive(
 }
 
 pub fn mpack_rpc_request(
-    session: &mut mpack_rpc_session_t,
+    session: &mut MpackRpcSession,
     buf: &mut *mut c_char,
     buflen: &mut usize,
-    data: mpack_data_t,
+    data: MpackData,
 ) -> c_int {
     let mut status = MPACK_EOF;
-    let mut tok = mpack_token_t::new();
+    let mut tok = MpackToken::new();
     while status != 0 && *buflen != 0 {
         if session.writer.plen == 0 {
             status = mpack_rpc_request_tok(session, &mut tok, data.clone());
@@ -301,13 +301,13 @@ pub fn mpack_rpc_request(
 }
 
 pub fn mpack_rpc_reply(
-    session: &mut mpack_rpc_session_t,
+    session: &mut MpackRpcSession,
     buf: &mut *mut c_char,
     buflen: &mut usize,
-    id: mpack_uint32_t,
+    id: MpackUint32,
 ) -> c_int {
     let mut status = MPACK_EOF;
-    let mut tok = mpack_token_t::new();
+    let mut tok = MpackToken::new();
     while status != 0 && *buflen != 0 {
         if session.writer.plen == 0 {
             status = mpack_rpc_reply_tok(session, &mut tok, id);
@@ -321,12 +321,12 @@ pub fn mpack_rpc_reply(
 }
 
 pub fn mpack_rpc_notify(
-    session: &mut mpack_rpc_session_t,
+    session: &mut MpackRpcSession,
     buf: &mut *mut c_char,
     buflen: &mut usize,
 ) -> c_int {
     let mut status = MPACK_EOF;
-    let mut tok = mpack_token_t::new();
+    let mut tok = MpackToken::new();
     while status != 0 && *buflen != 0 {
         if session.writer.plen == 0 {
             status = mpack_rpc_notify_tok(session, &mut tok);
@@ -339,8 +339,8 @@ pub fn mpack_rpc_notify(
     status
 }
 
-fn mpack_rpc_request_hdr() -> mpack_rpc_header_t {
-    let mut hdr = mpack_rpc_header_t::new();
+fn mpack_rpc_request_hdr() -> MpackRpcHeader {
+    let mut hdr = MpackRpcHeader::new();
     hdr.toks[0].r#type = MPACK_TOKEN_ARRAY;
     hdr.toks[0].length = 4;
     hdr.toks[1].r#type = MPACK_TOKEN_UINT;
@@ -349,14 +349,14 @@ fn mpack_rpc_request_hdr() -> mpack_rpc_header_t {
     hdr
 }
 
-fn mpack_rpc_reply_hdr() -> mpack_rpc_header_t {
+fn mpack_rpc_reply_hdr() -> MpackRpcHeader {
     let mut hdr = mpack_rpc_request_hdr();
     hdr.toks[1].data.value_mut().lo = 1;
     hdr.toks[1].data.value_mut().hi = 0;
     hdr
 }
 
-fn mpack_rpc_notify_hdr() -> mpack_rpc_header_t {
+fn mpack_rpc_notify_hdr() -> MpackRpcHeader {
     let mut hdr = mpack_rpc_request_hdr();
     hdr.toks[0].length = 3;
     hdr.toks[1].data.value_mut().lo = 2;
@@ -364,9 +364,9 @@ fn mpack_rpc_notify_hdr() -> mpack_rpc_header_t {
     hdr
 }
 
-fn mpack_rpc_put(session: &mut mpack_rpc_session_t, msg: mpack_rpc_message_t) -> c_int {
+fn mpack_rpc_put(session: &mut MpackRpcSession, msg: MpackRpcMessage) -> c_int {
     let slots = &mut session.slots;
-    let cap = slots.len() as mpack_uint32_t;
+    let cap = slots.len() as MpackUint32;
     let mut hash = msg.id % cap;
     let mut found: Option<usize> = None;
 
@@ -390,9 +390,9 @@ fn mpack_rpc_put(session: &mut mpack_rpc_session_t, msg: mpack_rpc_message_t) ->
     1
 }
 
-fn mpack_rpc_pop(session: &mut mpack_rpc_session_t, msg: &mut mpack_rpc_message_t) -> c_int {
+fn mpack_rpc_pop(session: &mut MpackRpcSession, msg: &mut MpackRpcMessage) -> c_int {
     let slots = &mut session.slots;
-    let cap = slots.len() as mpack_uint32_t;
+    let cap = slots.len() as MpackUint32;
     let mut hash = msg.id % cap;
     let mut found: Option<usize> = None;
 
@@ -415,6 +415,6 @@ fn mpack_rpc_pop(session: &mut mpack_rpc_session_t, msg: &mut mpack_rpc_message_
 }
 
 #[inline]
-fn mpack_rpc_reset_hdr(hdr: &mut mpack_rpc_header_t) {
+fn mpack_rpc_reset_hdr(hdr: &mut MpackRpcHeader) {
     hdr.index = 0;
 }

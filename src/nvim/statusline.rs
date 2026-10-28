@@ -155,13 +155,13 @@ impl Default for StlClickRecord {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct stl_hlrec_t {
+pub struct StlHlrec {
     pub start: *mut c_char,
     pub userhl: c_int,
     pub item: StlFlag,
 }
 
-impl stl_hlrec_t {
+impl StlHlrec {
     pub const fn new() -> Self {
         Self {
             start: ptr::null_mut(),
@@ -171,7 +171,7 @@ impl stl_hlrec_t {
     }
 }
 
-impl Default for stl_hlrec_t {
+impl Default for StlHlrec {
     fn default() -> Self {
         Self::new()
     }
@@ -198,7 +198,7 @@ pub enum StlItemType {
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct stl_item_t {
+pub struct StlItem {
     pub start: *mut c_char,
     pub cmd: Option<std::ffi::CString>,
     pub minwid: c_int,
@@ -206,7 +206,7 @@ pub struct stl_item_t {
     pub type_: StlItemType,
 }
 
-impl stl_item_t {
+impl StlItem {
     pub const fn new() -> Self {
         Self {
             start: ptr::null_mut(),
@@ -218,7 +218,7 @@ impl stl_item_t {
     }
 }
 
-impl Default for stl_item_t {
+impl Default for StlItem {
     fn default() -> Self {
         Self::new()
     }
@@ -267,7 +267,7 @@ pub struct Statuscol {
     pub lnum: Linenr,
     pub sign_cul_id: c_int,
     pub draw: bool,
-    pub hlrec: Vec<stl_hlrec_t>,
+    pub hlrec: Vec<StlHlrec>,
     pub foldinfo: Foldinfo,
     pub fold_vcol: [Colnr; 9],
     pub sattrs: [SignTextAttrs; 9],
@@ -303,9 +303,9 @@ struct StatuslineState {
     stl_expr_entered: bool,
     winbar_entered: bool,
     did_show_ruler: bool,
-    stl_items_vec: Vec<stl_item_t>,
+    stl_items_vec: Vec<StlItem>,
     stl_groupitems_vec: Vec<c_int>,
-    stl_hltab_vec: Vec<stl_hlrec_t>,
+    stl_hltab_vec: Vec<StlHlrec>,
     stl_tabtab_vec: Vec<StlClickRecord>,
     curitem: c_int,
 }
@@ -494,7 +494,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         let mut stl: *mut c_char;
         let opt_idx: OptIndex;
         let mut opt_scope: c_int = 0;
-        let mut hltab: *mut stl_hlrec_t = ptr::null_mut();
+        let mut hltab: *mut StlHlrec = ptr::null_mut();
         let click_defs: *mut StlClickDefinition;
         let is_stl_global = global_stl_height() > 0;
 
@@ -1145,7 +1145,7 @@ pub fn build_statuscol_str(wp: &mut WinInfoInfo,
         set_vim_var_nr(VV_VIRTNUM, Varnumber::from(virtnum));
 
         let mut clickrec: *mut StlClickRecord = ptr::null_mut();
-        let mut hlrec_ptr: *mut stl_hlrec_t = ptr::null_mut();
+        let mut hlrec_ptr: *mut StlHlrec = ptr::null_mut();
         let buf_data = buf.data;
         let stc = crate::memory::cstr_to_cstring(wp.w_onebuf_opt.wo_stc);
         let width = build_stl_str_hl(
@@ -1190,7 +1190,7 @@ fn stl_truncate(
     mut minwid: c_int,
     maxwid: c_int,
     fillchar: Schar,
-    stl_items: &mut [stl_item_t],
+    stl_items: &mut [StlItem],
     startitem: c_int,
     curitem: &mut c_int,
     start_p: *mut c_char,
@@ -1286,7 +1286,7 @@ fn stl_expand(
     padding: StlPadding,
     remaining_capacity: c_int,
     fillchar: Schar,
-    stl_items: &mut [stl_item_t],
+    stl_items: &mut [StlItem],
     startitem: c_int,
     curitem: c_int,
     mut start_p: *mut c_char,
@@ -1373,7 +1373,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
     opt_scope: c_int,
     mut fillchar: Schar,
     maxwidth: c_int,
-    hltab: *mut *mut stl_hlrec_t,
+    hltab: *mut *mut StlHlrec,
     hltab_len: *mut usize,
     tabtab: *mut *mut StlClickRecord,
     stcp: *mut Statuscol,
@@ -1419,9 +1419,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
         if (*items_vec_ptr).is_empty() {
             const INIT_LEN: usize = 20;
-            stl_items!().resize(INIT_LEN, stl_item_t::new());
+            stl_items!().resize(INIT_LEN, StlItem::new());
             stl_groupitems!().resize(INIT_LEN, 0);
-            stl_hltab!().resize(INIT_LEN + 1, stl_hlrec_t::new());
+            stl_hltab!().resize(INIT_LEN + 1, StlHlrec::new());
             stl_tabtab!().resize(INIT_LEN + 1, StlClickRecord::new());
         }
 
@@ -1491,9 +1491,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
             () => {
                 if stl_st().curitem as usize == (*items_vec_ptr).len() {
                     let new_len = (*items_vec_ptr).len() * 3 / 2;
-                    stl_items!().resize(new_len, stl_item_t::new());
+                    stl_items!().resize(new_len, StlItem::new());
                     stl_groupitems!().resize(new_len, 0);
-                    stl_hltab!().resize(new_len + 1, stl_hlrec_t::new());
+                    stl_hltab!().resize(new_len + 1, StlHlrec::new());
                     stl_tabtab!().resize(new_len + 1, StlClickRecord::new());
                 }
             };

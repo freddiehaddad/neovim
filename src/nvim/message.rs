@@ -47,7 +47,7 @@ use crate::keycodes::{
     BS, CAR, ESC, K_BS, K_DOWN, K_IGNORE, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG,
     K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
     K_PAGEDOWN, K_PAGEUP, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_SPECIAL, K_UP, K_X1MOUSE,
-    K_X2MOUSE, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key, keychord,
+    K_X2MOUSE, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key, KeyChord,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::main_init::input_unanswerable;
@@ -2388,7 +2388,7 @@ pub fn str2special_arena(
 pub fn str2special(
     sp: *mut *const c_char,
     replace_spaces: bool,
-    replace_others: TriState,mut data: Option<&mut keychord>,
+    replace_others: TriState,mut data: Option<&mut KeyChord>,
 ) -> *const c_char {
     unsafe {
         let p = mb_unescape(sp);

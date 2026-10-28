@@ -29,7 +29,7 @@ use crate::eval::{callback_call, set_ref_in_callback};
 use crate::ex_docmd::{CMOD_LOCKMARKS, do_cmdline};
 use crate::ex_getln::{Ctrl_A, K_LUA};
 use crate::extmark::{
-    TriState, bcount_t, extmark_splice, extmark_splice_cols, kExtmarkUndo, kNone,
+    TriState, Bcount, extmark_splice, extmark_splice_cols, kExtmarkUndo, kNone,
 };
 use crate::fold::{deleteFold, foldCreate, foldOpenCursor, hasFolding, opFoldRange};
 use crate::globals::*;
@@ -76,7 +76,7 @@ use crate::plines::{
     CSType, CharsizeArg, getvcol, getvcols, getvvcol, init_charsize_arg, win_charsize,
 };
 use crate::register::{
-    YREG_YANK, block_def, do_autocmd_textyankpost, get_y_register, get_yank_register,
+    YREG_YANK, BlockDef, do_autocmd_textyankpost, get_y_register, get_yank_register,
     is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg, Yankreg,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
@@ -477,7 +477,7 @@ fn shift_block(oap: &mut Oparg, amount: c_int) {
         let oldcol = curwin_mut().w_cursor.col;
         let sw_val = get_sw_value_indent(curbuf_mut(), left);
         let ts_val = curbuf_mut().b_p_ts as c_int;
-        let mut bd = block_def::new();
+        let mut bd = BlockDef::new();
         let old_p_ri = opt_vars().p_ri;
 
         opt_vars().p_ri = 0;
@@ -679,7 +679,7 @@ fn block_insert(
     s: impl crate::strings::IntoCCharPtr,
     slen: usize,
     b_insert: bool,
-    bdp: &mut block_def,
+    bdp: &mut BlockDef,
 ) { let s = s.into_c_char_ptr();
     unsafe {
         let mut ts_val: c_int;
@@ -815,7 +815,7 @@ fn block_insert(
 /// Handle a delete operation.
 pub fn op_delete(oap: &mut Oparg) -> bool {
     unsafe {
-        let mut bd = block_def::new();
+        let mut bd = BlockDef::new();
         let old_lcount = curbuf_mut().b_ml.ml_line_count;
 
         if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
@@ -1174,7 +1174,7 @@ fn replace_character(c: c_int) {
 fn op_replace(oap: &mut Oparg, mut c: c_int) -> bool {
     unsafe {
         let mut n: c_int;
-        let mut bd = block_def::new();
+        let mut bd = BlockDef::new();
         let mut after_p: Vec<c_char> = Vec::new();
         let mut had_ctrl_v_cr = false;
 
@@ -1410,7 +1410,7 @@ fn op_replace(oap: &mut Oparg, mut c: c_int) -> bool {
 /// Handle the (non-standard vi) tilde operator. Also for "gu", "gU" and "g?".
 pub fn op_tilde(oap: &mut Oparg) {
      {
-        let mut bd = block_def::new();
+        let mut bd = BlockDef::new();
         let mut did_change = false;
 
         if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
@@ -1555,7 +1555,7 @@ pub fn op_insert(oap: &mut Oparg, count1: c_int) {
         let mut pre_textlen: c_int = 0;
         let mut ind_pre_col: Colnr = 0;
         let mut ind_pre_vcol: c_int = 0;
-        let mut bd = block_def::new();
+        let mut bd = BlockDef::new();
 
         bd.is_MAX = c_int::from(curwin_mut().w_curswant == MAXCOL);
 
@@ -1631,7 +1631,7 @@ pub fn op_insert(oap: &mut Oparg, count1: c_int) {
 
         if oap.motion_type == kMTBlockWise {
             let mut ind_post_vcol: c_int = 0;
-            let mut bd2 = block_def::new();
+            let mut bd2 = BlockDef::new();
             let mut did_indent = false;
 
             let ind_post_col = getwhitecols_curline() as Colnr;
@@ -1742,7 +1742,7 @@ pub fn op_change(oap: &mut Oparg) -> c_int {
         let mut pre_textlen: c_int = 0;
         let mut pre_indent: c_int = 0;
         let mut firstline: *mut c_char;
-        let mut bd = block_def::new();
+        let mut bd = BlockDef::new();
 
         let mut l = oap.start.col;
         if oap.motion_type == kMTLineWise {
@@ -2171,7 +2171,7 @@ pub fn restore_lbr(lbr_saved: bool) {
 }
 
 /// Prepare a few things for block mode yank/delete/tilde.
-pub fn block_prep(oap: &mut Oparg, bdp: &mut block_def, lnum: Linenr, is_del: bool) {
+pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: bool) {
     unsafe {
         let mut incr: c_int = 0;
         let lbr_saved = reset_lbr();
@@ -2375,7 +2375,7 @@ pub fn getregionpos_line(
             ret_p2.col = MAXCOL;
             ret_p2.coladd = 0;
         } else {
-            let mut bd = block_def::new();
+            let mut bd = BlockDef::new();
 
             if region_type == kMTBlockWise {
                 block_prep(oap, &mut bd, lnum, false);
@@ -2438,7 +2438,7 @@ pub fn getregionpos_line(
 pub fn charwise_block_prep(
     mut start: CursorPos,
     mut end: CursorPos,
-    bdp: &mut block_def,
+    bdp: &mut BlockDef,
     lnum: Linenr,
     inclusive: bool,
 ) {
@@ -2518,7 +2518,7 @@ pub fn charwise_block_prep(
 
 pub fn op_addsub(oap: &mut Oparg, Prenum1: Linenr, g_cmd: bool) {
      {
-        let mut bd = block_def::new();
+        let mut bd = BlockDef::new();
         let mut change_cnt: isize = 0;
         let mut amount = Prenum1;
 
@@ -3095,7 +3095,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             coladd: 0,
         };
         let mut oparg = Oparg::new();
-        let mut bd = block_def::new();
+        let mut bd = BlockDef::new();
         let l_VIsual_active = g_st().Visual.active;
         let l_VIsual_mode = g_st().Visual.mode;
 
@@ -4129,26 +4129,26 @@ pub fn get_region_bytecount(
     end_lnum: Linenr,
     start_col: Colnr,
     end_col: Colnr,
-) -> bcount_t {
+) -> Bcount {
     let max_lnum = buf.b_ml.ml_line_count;
         if start_lnum > max_lnum {
             return 0;
         }
         if start_lnum == end_lnum {
-            return (end_col - start_col) as bcount_t;
+            return (end_col - start_col) as Bcount;
         }
-        let mut deleted_bytes = (ml_get_buf_len(buf, start_lnum) - start_col + 1) as bcount_t;
+        let mut deleted_bytes = (ml_get_buf_len(buf, start_lnum) - start_col + 1) as Bcount;
 
         for i in 1..=(end_lnum - start_lnum - 1) {
             if start_lnum + i > max_lnum {
                 return deleted_bytes;
             }
-            deleted_bytes += (ml_get_buf_len(buf, start_lnum + i) + 1) as bcount_t;
+            deleted_bytes += (ml_get_buf_len(buf, start_lnum + i) + 1) as Bcount;
         }
         if end_lnum > max_lnum {
             return deleted_bytes;
         }
-        deleted_bytes + (end_col as bcount_t)
+        deleted_bytes + (end_col as Bcount)
 }
 
 #[cfg(test)]

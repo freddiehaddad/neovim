@@ -48,8 +48,8 @@ struct DebuggerState {
     DEBUG_NEWVAL: Option<CString>,
     DEBUG_BREAKPOINT_NAME: *mut c_char,
     DEBUG_SKIPPED_NAME: *mut c_char,
-    DBG_BREAKP: Vec<debuggy>,
-    PROF_GA: Vec<debuggy>,
+    DBG_BREAKP: Vec<Debuggy>,
+    PROF_GA: Vec<Debuggy>,
 }
 
 impl DebuggerState {
@@ -79,7 +79,7 @@ fn dbg_st() -> &'static mut DebuggerState {
 }
 
 #[inline]
-fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<debuggy> {
+fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<Debuggy> {
     if is_prof {
             &mut dbg_st().PROF_GA
         } else {
@@ -88,7 +88,7 @@ fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<debuggy> {
 }
 
 #[repr(C)]
-pub struct debuggy {
+pub struct Debuggy {
     pub dbg_nr: c_int,
     pub dbg_type: c_int,
     pub dbg_name: std::ffi::CString,
@@ -99,7 +99,7 @@ pub struct debuggy {
     pub dbg_level: c_int,
 }
 
-impl Drop for debuggy {
+impl Drop for Debuggy {
     fn drop(&mut self) {
         if let Some(ref mut val) = self.dbg_val {
                 tv_clear(val);
@@ -484,11 +484,11 @@ fn eval_expr_no_emsg(name: impl crate::strings::IntoCCharPtr) -> Option<TypVal> 
         tv
 }
 
-fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
+fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<Debuggy> {
     unsafe {
         let mut p = arg;
         let mut here = false;
-        let mut bp = debuggy {
+        let mut bp = Debuggy {
             dbg_nr: 0,
             dbg_type: 0,
             dbg_name: std::ffi::CString::default(),
@@ -720,7 +720,7 @@ fn debuggy_find(
     file: bool,
     fname: impl crate::strings::IntoCCharPtr,
     after: i32,
-    gap: &mut [debuggy],
+    gap: &mut [Debuggy],
     is_prof: bool,mut fp: Option<&mut bool>,
 ) -> i32 { let fname = fname.into_c_char_ptr();
     unsafe {

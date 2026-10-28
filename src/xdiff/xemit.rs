@@ -5,21 +5,21 @@ use std::ptr;
 
 use crate::xdiff::xutils::{xdl_emit_diffrec, xdl_emit_hunk_hdr};
 use crate::xdiff::{
-    XDL_EMIT_NO_HUNK_HDR, xdchange_t, xdemitcb_t, xdemitconf_t, xdfenv_t, xdfile_t,
+    XDL_EMIT_NO_HUNK_HDR, Xdchange, Xdemitcb, Xdemitconf, Xdfenv, Xdfile,
 };
 
 
-fn xdl_get_rec(xdf: &xdfile_t, ri: c_long, rec: &mut *const c_char) -> c_long {
+fn xdl_get_rec(xdf: &Xdfile, ri: c_long, rec: &mut *const c_char) -> c_long {
     let r = &xdf.recs[ri as usize];
     *rec = r.ptr;
     r.size
 }
 
 fn xdl_emit_record(
-    xdf: &xdfile_t,
+    xdf: &Xdfile,
     ri: c_long,
     pre: &std::ffi::CStr,
-    ecb: &mut xdemitcb_t,
+    ecb: &mut Xdemitcb,
 ) -> c_int {
     let psize =  { pre.to_bytes().len() as c_long };
     let mut rec: *const c_char = ptr::null();
@@ -31,9 +31,9 @@ fn xdl_emit_record(
 }
 
 pub fn xdl_get_hunk(
-    xscr: &[xdchange_t],
+    xscr: &[Xdchange],
     idx: &mut usize,
-    xecfg: &xdemitconf_t,
+    xecfg: &Xdemitconf,
 ) -> Option<usize> {
     let max_common = 2 * xecfg.ctxlen + xecfg.interhunkctxlen;
     let max_ignorable = xecfg.ctxlen;
@@ -88,10 +88,10 @@ pub fn xdl_get_hunk(
 }
 
 pub fn xdl_emit_diff(
-    xe: &mut xdfenv_t,
-    xscr: &[xdchange_t],
-    ecb: &mut xdemitcb_t,
-    xecfg: &xdemitconf_t,
+    xe: &mut Xdfenv,
+    xscr: &[Xdchange],
+    ecb: &mut Xdemitcb,
+    xecfg: &Xdemitconf,
 ) -> c_int {
     let mut idx = 0;
     while let Some(end_idx) = xdl_get_hunk(xscr, &mut idx, xecfg) {

@@ -318,7 +318,7 @@ impl Drop for VimTimer {
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct caller_scope {
+pub struct CallerScope {
     pub script_ctx: Sctx,
     pub es_entry: crate::profile::Estack,
     pub autocmd_fname: Option<std::ffi::CString>,
@@ -6915,7 +6915,7 @@ pub fn eval_call_provider(
             provider,
         );
 
-        let new_scope = caller_scope {
+        let new_scope = CallerScope {
             script_ctx: g_st().current_sctx,
             es_entry: rt_st().exestack.last().unwrap().clone(),
             autocmd_fname: g_st().autocmd_fname.clone(),

@@ -50,7 +50,7 @@ use crate::lua::converter::{
     luaL_loadbuffer, luaL_newstate, luaL_openlibs, luaL_ref, luaL_unref, luaL_where,
     nlua_init_types, nlua_pop_Array, nlua_pop_Array_opt, nlua_pop_Integer, nlua_pop_Object,
     nlua_pop_Object_opt, nlua_pop_typval,
-    nlua_push_Array, nlua_push_Object, nlua_push_typval, nlua_ref_state_t,
+    nlua_push_Array, nlua_push_Object, nlua_push_typval, NluaRefState,
 };
 use crate::lua::stdlib::nlua_state_add_stdlib;
 use crate::lua::treesitter::nlua_treesitter_init;
@@ -1020,11 +1020,11 @@ unsafe extern "C-unwind" fn nlua_os_exit(lstate: *mut lua_State) -> c_int {
     }
 }
 
-fn nlua_new_ref_state(lstate: *mut lua_State, is_thread: bool) -> *mut nlua_ref_state_t {
+fn nlua_new_ref_state(lstate: *mut lua_State, is_thread: bool) -> *mut NluaRefState {
     unsafe {
         let ref_state =
-            lua_newuserdata(lstate, size_of::<nlua_ref_state_t>()).cast::<nlua_ref_state_t>();
-        *ref_state = nlua_ref_state_t {
+            lua_newuserdata(lstate, size_of::<NluaRefState>()).cast::<NluaRefState>();
+        *ref_state = NluaRefState {
             nil_ref: LUA_NOREF,
             empty_dict_ref: LUA_NOREF,
             ref_count: 0,
@@ -1036,10 +1036,10 @@ fn nlua_new_ref_state(lstate: *mut lua_State, is_thread: bool) -> *mut nlua_ref_
     }
 }
 
-fn nlua_get_ref_state(lstate: *mut lua_State) -> *mut nlua_ref_state_t {
+fn nlua_get_ref_state(lstate: *mut lua_State) -> *mut NluaRefState {
     unsafe {
         lua_getfield(lstate, LUA_REGISTRYINDEX, c"nlua.ref_state");
-        let ref_state = lua_touserdata(lstate, -1).cast::<nlua_ref_state_t>();
+        let ref_state = lua_touserdata(lstate, -1).cast::<NluaRefState>();
         lua_pop(lstate, 1);
         ref_state
     }
@@ -1831,7 +1831,7 @@ unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> c_int {
 
 pub fn nlua_ref(
     lstate: *mut lua_State,
-    ref_state: &mut nlua_ref_state_t,
+    ref_state: &mut NluaRefState,
     index: c_int,
 ) -> LuaRef {
     unsafe {
@@ -1848,7 +1848,7 @@ pub fn nlua_ref_global(lstate: *mut lua_State, index: c_int) -> LuaRef {
     unsafe { nlua_ref(lstate, &mut *g_st().nlua_global_refs, index) }
 }
 
-pub fn nlua_unref(lstate: *mut lua_State, ref_state: &mut nlua_ref_state_t, ref_: LuaRef) {
+pub fn nlua_unref(lstate: *mut lua_State, ref_state: &mut NluaRefState, ref_: LuaRef) {
     unsafe {
         if ref_ > 0 {
             ref_state.ref_count -= 1;

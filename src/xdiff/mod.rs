@@ -37,26 +37,26 @@ pub const XDL_EMIT_NO_HUNK_HDR: c_ulong = 1 << 1;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-pub struct mmfile_t {
+pub struct Mmfile {
     pub ptr: *mut c_char,
     pub size: c_int,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct mmbuffer_t {
+pub struct Mmbuffer {
     pub ptr: *mut c_char,
     pub size: c_int,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
-pub struct xpparam_t {
+pub struct Xpparam {
     pub flags: c_ulong,
 }
 
 #[derive(Copy, Clone, Default)]
-pub enum xdemitcb_t {
+pub enum Xdemitcb {
     #[default]
     None,
     Unified(*mut Vec<u8>),
@@ -65,14 +65,14 @@ pub enum xdemitcb_t {
     Locations(*mut crate::lua::xdiff::HunkPriv),
 }
 
-impl xdemitcb_t {
+impl Xdemitcb {
     #[inline]
     pub const fn has_hunk_func(self) -> bool {
         matches!(self, Self::Diff(_) | Self::OnHunk(_) | Self::Locations(_))
     }
 
     #[inline]
-    pub fn out_line(self, mb: &[mmbuffer_t]) -> c_int {
+    pub fn out_line(self, mb: &[Mmbuffer]) -> c_int {
         match self {
             Self::Unified(out) => crate::lua::xdiff::write_string(unsafe { &mut *out }, mb),
             _ => 0,
@@ -100,7 +100,7 @@ impl xdemitcb_t {
 
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
-pub struct xdemitconf_t {
+pub struct Xdemitconf {
     pub ctxlen: c_long,
     pub interhunkctxlen: c_long,
     pub flags: c_ulong,
@@ -108,18 +108,18 @@ pub struct xdemitconf_t {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct xrecord_t {
+pub struct Xrecord {
     pub ptr: *const c_char,
     pub size: c_long,
     pub ha: c_ulong,
 }
 
 #[repr(C)]
-pub struct xdfile_t {
+pub struct Xdfile {
     pub nrec: c_long,
     pub dstart: c_long,
     pub dend: c_long,
-    pub recs: Vec<xrecord_t>,
+    pub recs: Vec<Xrecord>,
     pub rchg_vec: Vec<c_char>,
     pub rchg: *mut c_char,
     pub rindex: Vec<c_long>,
@@ -127,7 +127,7 @@ pub struct xdfile_t {
     pub ha: Vec<c_ulong>,
 }
 
-impl xdfile_t {
+impl Xdfile {
     pub const fn new() -> Self {
         Self {
             nrec: 0,
@@ -143,7 +143,7 @@ impl xdfile_t {
     }
 }
 
-impl Default for xdfile_t {
+impl Default for Xdfile {
     fn default() -> Self {
         Self::new()
     }
@@ -151,23 +151,23 @@ impl Default for xdfile_t {
 
 #[repr(C)]
 #[derive(Default)]
-pub struct xdfenv_t {
-    pub xdf1: xdfile_t,
-    pub xdf2: xdfile_t,
+pub struct Xdfenv {
+    pub xdf1: Xdfile,
+    pub xdf2: Xdfile,
 }
 
-impl xdfenv_t {
+impl Xdfenv {
     pub const fn new() -> Self {
         Self {
-            xdf1: xdfile_t::new(),
-            xdf2: xdfile_t::new(),
+            xdf1: Xdfile::new(),
+            xdf2: Xdfile::new(),
         }
     }
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct diffdata_t {
+pub struct Diffdata {
     pub nrec: c_long,
     pub ha: *const c_ulong,
     pub rindex: *mut c_long,
@@ -176,7 +176,7 @@ pub struct diffdata_t {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct xdalgoenv_t {
+pub struct Xdalgoenv {
     pub mxcost: c_long,
     pub snake_cnt: c_long,
     pub heur_min: c_long,
@@ -184,7 +184,7 @@ pub struct xdalgoenv_t {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct xdchange_t {
+pub struct Xdchange {
     pub i1: c_long,
     pub i2: c_long,
     pub chg1: c_long,
@@ -192,11 +192,11 @@ pub struct xdchange_t {
     pub ignore: c_int,
 }
 
-pub type emit_func_t = fn(
-    xe: &mut xdfenv_t,
-    xscr: &[xdchange_t],
-    ecb: &mut xdemitcb_t,
-    xecfg: &xdemitconf_t,
+pub type EmitFunc = fn(
+    xe: &mut Xdfenv,
+    xscr: &[Xdchange],
+    ecb: &mut Xdemitcb,
+    xecfg: &Xdemitconf,
 ) -> c_int;
 
 #[inline]

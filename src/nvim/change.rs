@@ -21,7 +21,7 @@ use crate::drawscreen::{
 };
 use crate::eval::vars::{VV_WARNINGMSG, set_vim_var_string};
 use crate::extmark::{
-    bcount_t, extmark_adjust, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo,
+    Bcount, extmark_adjust, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo,
 };
 use crate::fold::{find_wl_entry, foldUpdate, hasAnyFolding, hasFoldingWin};
 use crate::globals::*;
@@ -1702,10 +1702,10 @@ pub fn open_line(
                             mincol - 1 - cols_spliced,
                             0,
                             less_cols_off,
-                            less_cols_off as bcount_t,
+                            less_cols_off as Bcount,
                             1,
                             cols_added,
-                            (1 + cols_added) as bcount_t,
+                            (1 + cols_added) as Bcount,
                             kExtmarkUndo,
                         );
 
@@ -1736,7 +1736,7 @@ pub fn open_line(
                 curwin_mut().w_cursor.lnum = old_cursor.lnum + 1;
             }
             if did_append {
-                let extra = ml_get_len(curwin_mut().w_cursor.lnum) as bcount_t;
+                let extra = ml_get_len(curwin_mut().w_cursor.lnum) as Bcount;
                 extmark_splice(
                     curbuf_mut(),
                     curwin_mut().w_cursor.lnum - 1,

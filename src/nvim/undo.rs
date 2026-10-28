@@ -27,7 +27,7 @@ use crate::ex_docmd::{UNDO_HASH_SIZE, Exarg, expr_map_locked};
 use crate::ex_getln::{text_locked, text_locked_msg};
 use crate::extmark::{
     ExtmarkMove, ExtmarkSplice, ExtmarkUndoObject, UndoObjectType, extmark_apply_undo,
-    extmark_splice_cols, extmark_undo_vec_t, kExtmarkMove, kExtmarkNOOP, kExtmarkSplice,
+    extmark_splice_cols, ExtmarkUndoVec, kExtmarkMove, kExtmarkNOOP, kExtmarkSplice,
     kExtmarkUndo,
 };
 #[cfg(unix)]
@@ -135,7 +135,7 @@ pub struct UHeader {
     pub uh_cursor_vcol: Colnr,
     pub uh_flags: c_int,
     pub uh_namedm: [Fmark; NMARKS],
-    pub uh_extmark: extmark_undo_vec_t,
+    pub uh_extmark: ExtmarkUndoVec,
     pub uh_visual: Visualinfo,
     pub uh_time: time_t,
     pub uh_save_nr: c_int,

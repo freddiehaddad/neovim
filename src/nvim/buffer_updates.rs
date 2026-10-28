@@ -6,7 +6,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Object, ObjectType};
 use crate::buffer::{BufUpdateCallbacks, FileBuf, buf_get_changedtick};
-use crate::extmark::bcount_t;
+use crate::extmark::Bcount;
 use crate::globals::*;
 use crate::log::logmsg;
 use crate::lua::converter::LUA_NOREF;
@@ -325,13 +325,13 @@ pub fn buf_updates_send_changes(
 pub fn buf_updates_send_splice(buf: &mut FileBuf,
     start_row: c_int,
     start_col: Colnr,
-    start_byte: bcount_t,
+    start_byte: Bcount,
     old_row: c_int,
     old_col: Colnr,
-    old_byte: bcount_t,
+    old_byte: Bcount,
     new_row: c_int,
     new_col: Colnr,
-    new_byte: bcount_t,
+    new_byte: Bcount,
 ) {
      {
         if !buf_updates_active(buf) || (old_byte == 0 && new_byte == 0) {

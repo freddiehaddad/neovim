@@ -14,7 +14,7 @@ use crate::channel::Channel;
 use crate::context::CtxWin;
 use crate::cursor::{Colnr, Linenr, CursorPos};
 use crate::drawscreen::WinExtmark;
-use crate::eval::caller_scope;
+use crate::eval::CallerScope;
 use crate::eval::typval::Callback;
 use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::eval::vars::Evalarg;
@@ -23,7 +23,7 @@ use crate::ex_eval::{Except, Msglist};
 use crate::ex_getln::{Disptick, Hlf};
 use crate::extmark::TriState;
 use crate::grid::{GridView, ScreenGrid, Sattr, Schar};
-use crate::lua::converter::nlua_ref_state_t;
+use crate::lua::converter::NluaRefState;
 use crate::mapping::Typebuf;
 use crate::mark::Xfmark;
 use crate::r#match::{SearchState, SynMatch};
@@ -147,7 +147,7 @@ pub struct EditorState {
     pub current_sctx: Sctx,
     pub current_ui: u64,
     pub did_source_packages: bool,
-    pub provider_caller_scope: caller_scope,
+    pub provider_caller_scope: CallerScope,
     pub provider_call_nesting: c_int,
     pub t_colors: c_int,
     pub include_none: c_int,
@@ -363,7 +363,7 @@ pub struct EditorState {
     pub ns_hl_fast: NS,
     pub ns_hl_active: NS,
     pub hl_attr_active: Option<std::rc::Rc<crate::highlight::NSHlAttr>>,
-    pub nlua_global_refs: *mut nlua_ref_state_t,
+    pub nlua_global_refs: *mut NluaRefState,
     pub nlua_disable_preload: bool,
     pub tslua_query_parse_count: u64,
     pub repeat_luamap: c_int,
@@ -495,7 +495,7 @@ impl EditorState {
 },
             current_ui: 0,
             did_source_packages: false,
-            provider_caller_scope: caller_scope {
+            provider_caller_scope: CallerScope {
     script_ctx: Sctx {
         sc_sid: 0,
         sc_seq: 0,

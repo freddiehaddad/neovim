@@ -103,7 +103,7 @@ struct BwError {
 }
 
 #[repr(C)]
-struct bw_info {
+struct BwInfo {
     bw_fd: c_int,
     bw_buf: Vec<c_char>,
     bw_len: c_int,
@@ -179,7 +179,7 @@ fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: c_int) -> bool {
 }
 
 fn buf_write_convert_with_iconv(
-    ip: &mut bw_info,
+    ip: &mut BwInfo,
     bufp: *mut *mut c_char,
     lenp: &mut c_int,
 ) -> c_int {
@@ -227,7 +227,7 @@ fn buf_write_convert_with_iconv(
     }
 }
 
-fn buf_write_convert(ip: &mut bw_info, bufp: *mut *mut c_char, lenp: &mut c_int) -> c_int {
+fn buf_write_convert(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut c_int) -> c_int {
     unsafe {
         let flags = ip.bw_flags;
         let mut wlen = *lenp;
@@ -287,7 +287,7 @@ fn buf_write_convert(ip: &mut bw_info, bufp: *mut *mut c_char, lenp: &mut c_int)
     }
 }
 
-fn buf_write_bytes(ip: &mut bw_info) -> bool {
+fn buf_write_bytes(ip: &mut BwInfo) -> bool {
     let mut buf = ip.bw_buf.as_mut_ptr();
         let mut len = ip.bw_len;
         let flags = ip.bw_flags;
@@ -1144,7 +1144,7 @@ pub fn buf_write(
             return FAIL;
         }
 
-        let mut write_info = bw_info {
+        let mut write_info = BwInfo {
             bw_fd: 0,
             bw_buf: Vec::new(),
             bw_len: 0,

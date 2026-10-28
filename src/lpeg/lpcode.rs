@@ -10,8 +10,8 @@ use crate::lpeg::{
     IOpenCall, IOpenCapture, IPartialCommit, IRet, ISet, ISpan, ITestAny, ITestChar, ITestSet,
     IUTFR, Instruction, MAXBEHIND, MAXOFF, MAXRULES, NUMSIBLINGS, Opcode, Pattern, TAnd, TAny,
     TBehind, TCall, TCapture, TChar, TChoice, TFalse, TGrammar, TNot, TOpenCall, TRep, TRule,
-    TRunTime, TSeq, TSet, TTree, TTrue, TUTFR, TXInfo, byte, charsetinfo, clearset, instsize,
-    joinkindoff, lua_State, setchar, sib1, sib2, uint,
+    TRunTime, TSeq, TSet, TTree, TTrue, TUTFR, TXInfo, LpegByte, CharsetInfo, clearset, instsize,
+    joinkindoff, lua_State, setchar, sib1, sib2, LpegUint,
 };
 
 use crate::lua::converter::luaL_error;
@@ -367,8 +367,8 @@ fn nextinstruction(compst: &mut CompileState, n: c_int) -> c_int {
         let size = code.len() as c_int;
         let ncode = compst.ncode;
         if ncode > size - n {
-            let nsize = (size as uint) + ((size as uint) >> 1) + (n as uint);
-            if nsize >= (c_int::MAX as uint) {
+            let nsize = (size as LpegUint) + ((size as LpegUint) >> 1) + (n as LpegUint);
+            if nsize >= (c_int::MAX as LpegUint) {
                 luaL_error(compst.L, c"pattern code too large".as_ptr());
             }
             code.resize(nsize as usize, Instruction { offset: 0 });
@@ -388,7 +388,7 @@ fn addinstruction(compst: &mut CompileState, op: Opcode, aux: c_int) -> c_int {
         let i = nextinstruction(compst, 1);
         let inst = getinstr(compst, i);
         (*inst).i.code = op;
-        (*inst).i.aux1 = aux as byte;
+        (*inst).i.aux1 = aux as LpegByte;
         i
     }
 }
@@ -414,7 +414,7 @@ fn codeutfr(compst: &mut CompileState, tree: &mut TTree) {
         debug_assert_eq!((*sib1(&raw mut *tree)).tag, TXInfo);
         (*getinstr(compst, i + 1)).offset = tree.u.n;
         let inst = getinstr(compst, i);
-        (*inst).i.aux1 = (to & 0xff) as byte;
+        (*inst).i.aux1 = (to & 0xff) as LpegByte;
         (*inst).i.aux2.key = (to >> 8) as c_short;
     }
 }
@@ -464,24 +464,24 @@ fn codechar(compst: &mut CompileState, c: c_int, tt: c_int) {
     }
 }
 
-fn addcharset(compst: &mut CompileState, inst: c_int, info: &charsetinfo) {
+fn addcharset(compst: &mut CompileState, inst: c_int, info: &CharsetInfo) {
     unsafe {
         let isize = instsize(info.size);
         {
             let i_ptr = getinstr(compst, inst);
-            (*i_ptr).i.aux2.set.offset = (info.offset * 8) as byte;
-            (*i_ptr).i.aux2.set.size = isize as byte;
-            (*i_ptr).i.aux1 = info.deflt as byte;
+            (*i_ptr).i.aux2.set.offset = (info.offset * 8) as LpegByte;
+            (*i_ptr).i.aux2.set.size = isize as LpegByte;
+            (*i_ptr).i.aux1 = info.deflt as LpegByte;
         }
         let p = nextinstruction(compst, isize);
-        let charset = getinstr(compst, p).cast::<byte>();
+        let charset = getinstr(compst, p).cast::<LpegByte>();
         for i in 0..((isize as usize) * size_of::<Instruction>()) {
             *charset.add(i) = getbytefromcharset(info, i as c_int);
         }
     }
 }
 
-fn cs_equal(p: *const Instruction, info: &charsetinfo) -> bool {
+fn cs_equal(p: *const Instruction, info: &CharsetInfo) -> bool {
     unsafe {
         if (*p).i.code != ITestSet {
             return false;
@@ -493,7 +493,7 @@ fn cs_equal(p: *const Instruction, info: &charsetinfo) -> bool {
         {
             return false;
         }
-        let buff = p.add(2).cast::<byte>();
+        let buff = p.add(2).cast::<LpegByte>();
         for i in 0..((isize as usize) * size_of::<Instruction>()) {
             if *buff.add(i) != getbytefromcharset(info, i as c_int) {
                 return false;
@@ -504,7 +504,7 @@ fn cs_equal(p: *const Instruction, info: &charsetinfo) -> bool {
 }
 
 fn codecharset(compst: &mut CompileState, tree: &mut TTree, tt: c_int) {
-    let mut info = charsetinfo::new();
+    let mut info = CharsetInfo::new();
     tree2cset( tree, &mut info);
     if tt >= 0 && cs_equal(getinstr(compst, tt), &info) {
         addinstruction(compst, IAny, 0);
@@ -519,14 +519,14 @@ fn codetestset(compst: &mut CompileState, cs: &Charset, e: c_int) -> c_int {
         NOINST
     } else {
         unsafe {
-            let mut info = charsetinfo::new();
+            let mut info = CharsetInfo::new();
             let op = charsettype(&cs.cs, &mut info);
             match op {
                 IFail => addoffsetinst(compst, IJmp),
                 IAny => addoffsetinst(compst, ITestAny),
                 IChar => {
                     let i = addoffsetinst(compst, ITestChar);
-                    (*getinstr(compst, i)).i.aux1 = info.offset as byte;
+                    (*getinstr(compst, i)).i.aux1 = info.offset as LpegByte;
                     i
                 }
                 _ => {
@@ -681,13 +681,13 @@ fn coderepcharset(compst: &mut CompileState, tree: &mut TTree) -> bool {
             }
             TChar => {
                 let test = addoffsetinst(compst, ITestChar);
-                (*getinstr(compst, test)).i.aux1 = tree.u.n as byte;
+                (*getinstr(compst, test)).i.aux1 = tree.u.n as LpegByte;
                 addinstruction(compst, IAny, 0);
                 closeloop(compst, test);
                 true
             }
             TSet => {
-                let mut info = charsetinfo::new();
+                let mut info = CharsetInfo::new();
                 let i = addinstruction(compst, ISpan, 0);
                 tree2cset(tree, &mut info);
                 addcharset(compst, i, &info);
@@ -936,7 +936,7 @@ fn peephole(compst: &mut CompileState) {
     }
 }
 
-pub fn compile(l: *mut lua_State, p: &mut Pattern, size: uint) -> *mut Instruction {
+pub fn compile(l: *mut lua_State, p: &mut Pattern, size: LpegUint) -> *mut Instruction {
     let mut compst = CompileState { p, ncode: 0, L: l };
     let init_size = ((size / 2) + 2) as usize;
     p.code = vec![Instruction { offset: 0 }; init_size];

@@ -131,7 +131,7 @@ pub enum LineGetter {
     AutoCmd(*mut crate::autocmd::AutoPatCmd),
     Func(*mut crate::profile::Funccall),
     Source(*mut crate::runtime::SourceCookie),
-    Loop(*mut crate::ex_docmd::loop_cookie),
+    Loop(*mut crate::ex_docmd::LoopCookie),
     List(*mut crate::eval::funcs::GetListLineCookie),
     LuaEx(*mut crate::lua::executor::ExDocmdCookie),
 }

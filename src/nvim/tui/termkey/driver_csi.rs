@@ -16,7 +16,7 @@ use crate::tui::termkey::driver_ti::{
     TERMKEY_TYPE_DCS, TERMKEY_TYPE_FUNCTION, TERMKEY_TYPE_KEYSYM, TERMKEY_TYPE_MODEREPORT,
     TERMKEY_TYPE_MOUSE, TERMKEY_TYPE_OSC, TERMKEY_TYPE_POSITION, TERMKEY_TYPE_UNICODE,
     TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyEvent, TermKeyKey, TermKeyResult, TermKeySym,
-    TermKeyType, keyinfo,
+    TermKeyType, TiKeyInfo,
 };
 use crate::tui::termkey::termkey::{emit_codepoint, peekkey_mouse};
 
@@ -93,15 +93,15 @@ pub struct TermKeyCsi {
 
 const NCSIFUNCS: usize = 35;
 
-const EMPTY_KEYINFO: keyinfo = keyinfo {
+const EMPTY_KEYINFO: TiKeyInfo = TiKeyInfo {
     r#type: 0,
     sym: TERMKEY_SYM_UNKNOWN,
     modifier_mask: 0,
     modifier_set: 0,
 };
 
-const fn ki(r#type: TermKeyType, sym: TermKeySym) -> keyinfo {
-    keyinfo {
+const fn ki(r#type: TermKeyType, sym: TermKeySym) -> TiKeyInfo {
+    TiKeyInfo {
         r#type,
         sym,
         modifier_mask: 0,
@@ -109,7 +109,7 @@ const fn ki(r#type: TermKeyType, sym: TermKeySym) -> keyinfo {
     }
 }
 
-const CSI_SS3S: [keyinfo; 64] = {
+const CSI_SS3S: [TiKeyInfo; 64] = {
     let mut tbl = [EMPTY_KEYINFO; 64];
     tbl[(b'A' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_UP);
     tbl[(b'B' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_DOWN);
@@ -122,7 +122,7 @@ const CSI_SS3S: [keyinfo; 64] = {
     tbl[(b'Q' - 0x40) as usize] = ki(TERMKEY_TYPE_FUNCTION, 2);
     tbl[(b'R' - 0x40) as usize] = ki(TERMKEY_TYPE_FUNCTION, 3);
     tbl[(b'S' - 0x40) as usize] = ki(TERMKEY_TYPE_FUNCTION, 4);
-    tbl[(b'Z' - 0x40) as usize] = keyinfo {
+    tbl[(b'Z' - 0x40) as usize] = TiKeyInfo {
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_TAB,
         modifier_mask: TERMKEY_KEYMOD_SHIFT,
@@ -131,7 +131,7 @@ const CSI_SS3S: [keyinfo; 64] = {
     tbl
 };
 
-const SS3S: [keyinfo; 64] = {
+const SS3S: [TiKeyInfo; 64] = {
     let mut tbl = [EMPTY_KEYINFO; 64];
     tbl[(b'M' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPENTER);
     tbl[(b'X' - 0x40) as usize] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_KPEQUALS);
@@ -176,7 +176,7 @@ const SS3_KPALTS: [c_char; 64] = {
     tbl
 };
 
-const CSIFUNCS: [keyinfo; NCSIFUNCS] = {
+const CSIFUNCS: [TiKeyInfo; NCSIFUNCS] = {
     let mut tbl = [EMPTY_KEYINFO; NCSIFUNCS];
     tbl[1] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_FIND);
     tbl[2] = ki(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_INSERT);

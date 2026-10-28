@@ -167,7 +167,7 @@ fn luaconv_st() -> &'static mut LuaConverterState {
 }
 
 #[repr(C)]
-pub struct nlua_ref_state_t {
+pub struct NluaRefState {
     pub nil_ref: LuaRef,
     pub empty_dict_ref: LuaRef,
     pub ref_count: c_int,

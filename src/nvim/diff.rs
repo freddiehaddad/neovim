@@ -62,7 +62,7 @@ use crate::window::{
     win_valid, window_layout_lock, window_layout_unlock,
 };
 use crate::xdiff::xdiffi::xdl_diff;
-use crate::xdiff::{mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t};
+use crate::xdiff::{Mmfile, Xdemitcb, Xdemitconf, Xpparam};
 use std::ffi::{CString, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 const DB_COUNT: usize = 8;
@@ -146,7 +146,7 @@ pub struct Diffline {
 #[repr(C)]
 struct Diffin {
     din_fname: Option<CString>,
-    din_mmfile: mmfile_t,
+    din_mmfile: Mmfile,
     din_buf: Vec<c_char>,
 }
 #[repr(C)]
@@ -735,7 +735,7 @@ fn clear_diffout(dout: &mut Diffout) {
 }
 fn diff_write_buffer(
     buf: &mut FileBuf,
-    m: &mut mmfile_t,
+    m: &mut Mmfile,
     backing: &mut Vec<c_char>,
     start: Linenr,
     mut end: Linenr,
@@ -1009,7 +1009,7 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
             let mut diffio = Diffio {
                 dio_orig: Diffin {
                     din_fname: None,
-                    din_mmfile: mmfile_t {
+                    din_mmfile: Mmfile {
                         ptr: ptr::null_mut(),
                         size: 0,
                     },
@@ -1017,7 +1017,7 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
                 },
                 dio_new: Diffin {
                     din_fname: None,
-                    din_mmfile: mmfile_t {
+                    din_mmfile: Mmfile {
                         ptr: ptr::null_mut(),
                         size: 0,
                     },
@@ -1120,15 +1120,15 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
     }
 }
 fn diff_file_internal(diffio: &mut Diffio) -> bool {
-    let mut param = xpparam_t {
+    let mut param = Xpparam {
             flags: diff_st().diff_algorithm as c_ulong,
         };
-        let emit_cfg = xdemitconf_t {
+        let emit_cfg = Xdemitconf {
             ctxlen: 0,
             interhunkctxlen: 0,
             flags: 0,
         };
-        let mut emit_cb = xdemitcb_t::Diff(&raw mut diffio.dio_diff);
+        let mut emit_cb = Xdemitcb::Diff(&raw mut diffio.dio_diff);
         if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
             param.flags |= XDF_IGNORE_WHITESPACE_CHANGE;
         }
@@ -1992,7 +1992,7 @@ fn apply_linematch_results(dp_idx: usize, decisions: &[c_int]) {
 }
 fn run_linematch_algorithm(dp_idx: usize) {
     unsafe {
-        let mut diffbufs_mm: [mmfile_t; DB_COUNT] = [mmfile_t {
+        let mut diffbufs_mm: [Mmfile; DB_COUNT] = [Mmfile {
             ptr: ptr::null_mut(),
             size: 0,
         }; DB_COUNT];
@@ -2019,7 +2019,7 @@ fn run_linematch_algorithm(dp_idx: usize) {
                 ndiffs += 1;
             }
         }
-        let diffbuf_refs: Vec<&mmfile_t> = diffbufs_mm[..ndiffs].iter().collect();
+        let diffbuf_refs: Vec<&Mmfile> = diffbufs_mm[..ndiffs].iter().collect();
         let iwhite = (diff_st().diff_flags & (DIFF_IWHITEALL | DIFF_IWHITE)) != 0;
         let decisions = linematch_nbuffers(&diffbuf_refs, &diff_length[..ndiffs], iwhite);
         drop(diffbufs_vec);
@@ -2819,7 +2819,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
         let mut dio = Diffio {
             dio_orig: Diffin {
                 din_fname: None,
-                din_mmfile: mmfile_t {
+                din_mmfile: Mmfile {
                     ptr: ptr::null_mut(),
                     size: 0,
                 },
@@ -2827,7 +2827,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
             },
             dio_new: Diffin {
                 din_fname: None,
-                din_mmfile: mmfile_t {
+                din_mmfile: Mmfile {
                     ptr: ptr::null_mut(),
                     size: 0,
                 },

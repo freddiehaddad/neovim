@@ -13,7 +13,7 @@ use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{
     XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
-    XDF_PATIENCE_DIFF, mmbuffer_t, mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t,
+    XDF_PATIENCE_DIFF, Mmbuffer, Mmfile, Xdemitcb, Xdemitconf, Xpparam,
 };
 use std::ffi::{c_char, c_int, c_long};
 
@@ -89,8 +89,8 @@ impl KeyDict_xdl_diff {
 pub(crate) struct HunkPriv {
     lstate: *mut lua_State,
     err: Error,
-    ma: *mut mmfile_t,
-    mb: *mut mmfile_t,
+    ma: *mut Mmfile,
+    mb: *mut Mmfile,
     linematch: i64,
     iwhite: bool,
 }
@@ -132,8 +132,8 @@ fn lua_pushhunk(
 
 fn get_linematch_results(
     lstate: *mut lua_State,
-    ma: *mut mmfile_t,
-    mb: *mut mmfile_t,
+    ma: *mut Mmfile,
+    mb: *mut Mmfile,
     start_a: c_int,
     count_a: c_int,
     start_b: c_int,
@@ -187,7 +187,7 @@ fn get_linematch_results(
     }
 }
 
-pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[mmbuffer_t]) -> c_int {
+pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer]) -> c_int {
     for chunk in mb {
         if chunk.size > 0 && !chunk.ptr.is_null() {
             let slice =
@@ -276,7 +276,7 @@ pub(crate) fn call_on_hunk_cb(
     }
 }
 
-fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> mmfile_t {
+fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> Mmfile {
     unsafe {
         if lua_type(lstate, idx) != LUA_TSTRING {
             luaL_argerror(lstate, idx, c"expected string");
@@ -286,7 +286,7 @@ fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> mmfile_t {
         if size > (c_int::MAX as usize) {
             luaL_argerror(lstate, idx, c"string too long");
         }
-        mmfile_t {
+        Mmfile {
             ptr,
             size: size as c_int,
         }
@@ -295,8 +295,8 @@ fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> mmfile_t {
 
 fn process_xdl_diff_opts(
     lstate: *mut lua_State,
-    cfg: &mut xdemitconf_t,
-    params: &mut xpparam_t,
+    cfg: &mut Xdemitconf,
+    params: &mut Xpparam,
     linematch: &mut i64,
     err: &mut Error,
 ) -> NluaXdiffMode {
@@ -435,8 +435,8 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
 
         let mut err = Error::new();
 
-        let mut cfg = xdemitconf_t::default();
-        let mut params = xpparam_t::default();
+        let mut cfg = Xdemitconf::default();
+        let mut params = Xpparam::default();
         let mut linematch: i64 = 0;
         let mut mode = NluaXdiffMode::Unified;
 
@@ -459,11 +459,11 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
 
         if priv_state.err.err_type == ErrorType::kErrorTypeNone {
             let mut ecb = match mode {
-                NluaXdiffMode::Unified => xdemitcb_t::Unified(&raw mut unified_buf),
-                NluaXdiffMode::OnHunkCb => xdemitcb_t::OnHunk(&raw mut priv_state),
+                NluaXdiffMode::Unified => Xdemitcb::Unified(&raw mut unified_buf),
+                NluaXdiffMode::OnHunkCb => Xdemitcb::OnHunk(&raw mut priv_state),
                 NluaXdiffMode::Locations => {
                     lua_createtable(lstate, 0, 0);
-                    xdemitcb_t::Locations(&raw mut priv_state)
+                    Xdemitcb::Locations(&raw mut priv_state)
                 }
             };
 

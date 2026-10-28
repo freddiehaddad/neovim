@@ -392,7 +392,7 @@ impl Default for NormalState {
 }
 
 #[derive(Clone, Copy)]
-struct nv_cmd {
+struct NvCmd {
     cmd_char: c_int,
     cmd_func: NvFunc,
     cmd_flags: u16,
@@ -453,1130 +453,1130 @@ fn normal_state_init(s: &mut NormalState) {
 
 const NV_CMDS_SIZE: usize = 188;
 
-const nv_cmds: [nv_cmd; NV_CMDS_SIZE] = [
-    nv_cmd {
+const nv_cmds: [NvCmd; NV_CMDS_SIZE] = [
+    NvCmd {
         cmd_char: NUL as c_int,
         cmd_func: nv_error,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_A,
         cmd_func: nv_addsub,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_B,
         cmd_func: nv_page,
         cmd_flags: NV_STS,
         cmd_arg: BACKWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_C,
         cmd_func: nv_esc,
         cmd_flags: 0,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_D,
         cmd_func: nv_halfpage,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_E,
         cmd_func: nv_scroll_line_cmd,
         cmd_flags: 0,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_F,
         cmd_func: nv_page,
         cmd_flags: NV_STS,
         cmd_arg: FORWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_G,
         cmd_func: nv_ctrlg,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_H,
         cmd_func: nv_ctrlh,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_I,
         cmd_func: nv_pcmark,
         cmd_flags: NV_JUMP,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: NL,
         cmd_func: nv_down,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_K,
         cmd_func: nv_error,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_L,
         cmd_func: nv_clear,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: CAR,
         cmd_func: nv_down,
         cmd_flags: NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_N,
         cmd_func: nv_down,
         cmd_flags: NV_STS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_O,
         cmd_func: nv_ctrlo,
         cmd_flags: NV_JUMP,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_P,
         cmd_func: nv_up,
         cmd_flags: NV_STS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_Q,
         cmd_func: nv_visual,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_R,
         cmd_func: nv_redo_or_register,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_S,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_T,
         cmd_func: nv_tagpop,
         cmd_flags: NV_NCW | NV_JUMP,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_U,
         cmd_func: nv_halfpage,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_V,
         cmd_func: nv_visual,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'V' as c_int,
         cmd_func: nv_visual,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'v' as c_int,
         cmd_func: nv_visual,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_W,
         cmd_func: nv_window,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_X,
         cmd_func: nv_addsub,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_Y,
         cmd_func: nv_scroll_line_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_Z,
         cmd_func: nv_suspend,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: ESC,
         cmd_func: nv_esc,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_BSL,
         cmd_func: nv_normal,
         cmd_flags: NV_NCH_ALW,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_RSB,
         cmd_func: nv_ident,
         cmd_flags: NV_NCW,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl_HAT,
         cmd_func: nv_hat,
         cmd_flags: NV_NCW,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: Ctrl__,
         cmd_func: nv_error,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b' ' as c_int,
         cmd_func: nv_right,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'!' as c_int,
         cmd_func: nv_operator,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'"' as c_int,
         cmd_func: nv_regname,
         cmd_flags: NV_NCH_NOP | NV_NCH_ARG | NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'#' as c_int,
         cmd_func: nv_ident,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'$' as c_int,
         cmd_func: nv_dollar,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'%' as c_int,
         cmd_func: nv_percent,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'&' as c_int,
         cmd_func: nv_optrans,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'\'' as c_int,
         cmd_func: nv_gomark,
         cmd_flags: NV_NCH_ALW | NV_NCH_ARG,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'(' as c_int,
         cmd_func: nv_brace,
         cmd_flags: NV_MOTION,
         cmd_arg: BACKWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b')' as c_int,
         cmd_func: nv_brace,
         cmd_flags: NV_MOTION,
         cmd_arg: FORWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'*' as c_int,
         cmd_func: nv_ident,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'+' as c_int,
         cmd_func: nv_down,
         cmd_flags: NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b',' as c_int,
         cmd_func: nv_csearch,
         cmd_flags: NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'-' as c_int,
         cmd_func: nv_up,
         cmd_flags: NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'.' as c_int,
         cmd_func: nv_dot,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'/' as c_int,
         cmd_func: nv_search,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'0' as c_int,
         cmd_func: nv_beginline,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'1' as c_int,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'2' as c_int,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'3' as c_int,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'4' as c_int,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'5' as c_int,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'6' as c_int,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'7' as c_int,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'8' as c_int,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'9' as c_int,
         cmd_func: nv_ignore,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b':' as c_int,
         cmd_func: nv_colon,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b';' as c_int,
         cmd_func: nv_csearch,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'<' as c_int,
         cmd_func: nv_operator,
         cmd_flags: NV_RL,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'=' as c_int,
         cmd_func: nv_operator,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'>' as c_int,
         cmd_func: nv_operator,
         cmd_flags: NV_RL,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'?' as c_int,
         cmd_func: nv_search,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'@' as c_int,
         cmd_func: nv_at,
         cmd_flags: NV_NCH_NOP | NV_NCH_ARG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'A' as c_int,
         cmd_func: nv_edit,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'B' as c_int,
         cmd_func: nv_bck_word,
         cmd_flags: NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'C' as c_int,
         cmd_func: nv_abbrev,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'D' as c_int,
         cmd_func: nv_abbrev,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'E' as c_int,
         cmd_func: nv_wordcmd,
         cmd_flags: NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'F' as c_int,
         cmd_func: nv_csearch,
         cmd_flags: NV_NCH_ALW | NV_LANG | NV_MOTION,
         cmd_arg: BACKWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'G' as c_int,
         cmd_func: nv_goto,
         cmd_flags: NV_JUMP,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'H' as c_int,
         cmd_func: nv_scroll,
         cmd_flags: NV_JUMP,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'I' as c_int,
         cmd_func: nv_edit,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'J' as c_int,
         cmd_func: nv_join,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'K' as c_int,
         cmd_func: nv_ident,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'L' as c_int,
         cmd_func: nv_scroll,
         cmd_flags: NV_JUMP,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'M' as c_int,
         cmd_func: nv_scroll,
         cmd_flags: NV_JUMP,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'N' as c_int,
         cmd_func: nv_next,
         cmd_flags: NV_MOTION,
         cmd_arg: SEARCH_REV as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'O' as c_int,
         cmd_func: nv_open,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'P' as c_int,
         cmd_func: nv_put,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'Q' as c_int,
         cmd_func: nv_Q,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'R' as c_int,
         cmd_func: nv_Replace,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'S' as c_int,
         cmd_func: nv_subst,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'T' as c_int,
         cmd_func: nv_csearch,
         cmd_flags: NV_NCH_ALW | NV_LANG | NV_MOTION,
         cmd_arg: BACKWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'U' as c_int,
         cmd_func: nv_Undo,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'W' as c_int,
         cmd_func: nv_wordcmd,
         cmd_flags: NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'X' as c_int,
         cmd_func: nv_abbrev,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'Y' as c_int,
         cmd_func: nv_abbrev,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'Z' as c_int,
         cmd_func: nv_Zet,
         cmd_flags: NV_NCH_NOP | NV_NCW,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'[' as c_int,
         cmd_func: nv_brackets,
         cmd_flags: NV_NCH_ALW,
         cmd_arg: BACKWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'\\' as c_int,
         cmd_func: nv_error,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b']' as c_int,
         cmd_func: nv_brackets,
         cmd_flags: NV_NCH_ALW,
         cmd_arg: FORWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'^' as c_int,
         cmd_func: nv_beginline,
         cmd_flags: NV_MOTION,
         cmd_arg: (BL_WHITE | BL_FIX) as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'_' as c_int,
         cmd_func: nv_lineop,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'`' as c_int,
         cmd_func: nv_gomark,
         cmd_flags: NV_NCH_ALW | NV_NCH_ARG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'a' as c_int,
         cmd_func: nv_edit,
         cmd_flags: NV_NCH,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'b' as c_int,
         cmd_func: nv_bck_word,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'c' as c_int,
         cmd_func: nv_operator,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'd' as c_int,
         cmd_func: nv_operator,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'e' as c_int,
         cmd_func: nv_wordcmd,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'f' as c_int,
         cmd_func: nv_csearch,
         cmd_flags: NV_NCH_ALW | NV_LANG | NV_MOTION,
         cmd_arg: FORWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'g' as c_int,
         cmd_func: nv_g_cmd,
         cmd_flags: NV_NCH_ALW,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'h' as c_int,
         cmd_func: nv_left,
         cmd_flags: NV_RL | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'i' as c_int,
         cmd_func: nv_edit,
         cmd_flags: NV_NCH,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'j' as c_int,
         cmd_func: nv_down,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'k' as c_int,
         cmd_func: nv_up,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'l' as c_int,
         cmd_func: nv_right,
         cmd_flags: NV_RL | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'm' as c_int,
         cmd_func: nv_mark,
         cmd_flags: NV_NCH_NOP | NV_NCH_ARG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'n' as c_int,
         cmd_func: nv_next,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'o' as c_int,
         cmd_func: nv_open,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'p' as c_int,
         cmd_func: nv_put,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'q' as c_int,
         cmd_func: nv_q,
         cmd_flags: NV_NCH | NV_NCH_ARG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'r' as c_int,
         cmd_func: nv_replace,
         cmd_flags: NV_NCH_NOP | NV_LANG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b's' as c_int,
         cmd_func: nv_subst,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b't' as c_int,
         cmd_func: nv_csearch,
         cmd_flags: NV_NCH_ALW | NV_LANG | NV_MOTION,
         cmd_arg: FORWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'u' as c_int,
         cmd_func: nv_undo,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'w' as c_int,
         cmd_func: nv_wordcmd,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'x' as c_int,
         cmd_func: nv_abbrev,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'y' as c_int,
         cmd_func: nv_operator,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'z' as c_int,
         cmd_func: nv_zet,
         cmd_flags: NV_NCH_ALW,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'{' as c_int,
         cmd_func: nv_findpar,
         cmd_flags: NV_MOTION,
         cmd_arg: BACKWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'|' as c_int,
         cmd_func: nv_pipe,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'}' as c_int,
         cmd_func: nv_findpar,
         cmd_flags: NV_MOTION,
         cmd_arg: FORWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: b'~' as c_int,
         cmd_func: nv_tilde,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: POUND,
         cmd_func: nv_ident,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_MOUSEUP,
         cmd_func: nv_mousescroll_cmd,
         cmd_flags: 0,
         cmd_arg: MSCR_UP as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_MOUSEDOWN,
         cmd_func: nv_mousescroll_cmd,
         cmd_flags: 0,
         cmd_arg: MSCR_DOWN as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_MOUSELEFT,
         cmd_func: nv_mousescroll_cmd,
         cmd_flags: 0,
         cmd_arg: MSCR_LEFT as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_MOUSERIGHT,
         cmd_func: nv_mousescroll_cmd,
         cmd_flags: 0,
         cmd_arg: MSCR_RIGHT as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_LEFTMOUSE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_LEFTMOUSE_NM,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_LEFTDRAG,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_LEFTRELEASE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_LEFTRELEASE_NM,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_MOUSEMOVE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_MIDDLEMOUSE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_MIDDLEDRAG,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_MIDDLERELEASE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_RIGHTMOUSE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_RIGHTDRAG,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_RIGHTRELEASE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_X1MOUSE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_X1DRAG,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_X1RELEASE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_X2MOUSE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_X2DRAG,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_X2RELEASE,
         cmd_func: nv_mouse_cmd,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_IGNORE,
         cmd_func: nv_ignore,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_NOP,
         cmd_func: nv_nop,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_INS,
         cmd_func: nv_edit,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_KINS,
         cmd_func: nv_edit,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_BS,
         cmd_func: nv_ctrlh,
         cmd_flags: NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_UP,
         cmd_func: nv_up,
         cmd_flags: NV_SSS | NV_STS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_S_UP,
         cmd_func: nv_page,
         cmd_flags: NV_SS,
         cmd_arg: BACKWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_DOWN,
         cmd_func: nv_down,
         cmd_flags: NV_SSS | NV_STS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_S_DOWN,
         cmd_func: nv_page,
         cmd_flags: NV_SS,
         cmd_arg: FORWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_LEFT,
         cmd_func: nv_left,
         cmd_flags: NV_SSS | NV_STS | NV_RL | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_S_LEFT,
         cmd_func: nv_bck_word,
         cmd_flags: NV_SS | NV_RL | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_C_LEFT,
         cmd_func: nv_bck_word,
         cmd_flags: NV_SSS | NV_RL | NV_STS | NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_RIGHT,
         cmd_func: nv_right,
         cmd_flags: NV_SSS | NV_STS | NV_RL | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_S_RIGHT,
         cmd_func: nv_wordcmd,
         cmd_flags: NV_SS | NV_RL | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_C_RIGHT,
         cmd_func: nv_wordcmd,
         cmd_flags: NV_SSS | NV_RL | NV_STS | NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_PAGEUP,
         cmd_func: nv_page,
         cmd_flags: NV_SSS | NV_STS,
         cmd_arg: BACKWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_KPAGEUP,
         cmd_func: nv_page,
         cmd_flags: NV_SSS | NV_STS,
         cmd_arg: BACKWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_PAGEDOWN,
         cmd_func: nv_page,
         cmd_flags: NV_SSS | NV_STS,
         cmd_arg: FORWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_KPAGEDOWN,
         cmd_func: nv_page,
         cmd_flags: NV_SSS | NV_STS,
         cmd_arg: FORWARD as i16,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_END,
         cmd_func: nv_end,
         cmd_flags: NV_SSS | NV_STS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_KEND,
         cmd_func: nv_end,
         cmd_flags: NV_SSS | NV_STS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_S_END,
         cmd_func: nv_end,
         cmd_flags: NV_SS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_C_END,
         cmd_func: nv_end,
         cmd_flags: NV_SSS | NV_STS | NV_MOTION,
         cmd_arg: 1,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_HOME,
         cmd_func: nv_home,
         cmd_flags: NV_SSS | NV_STS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_KHOME,
         cmd_func: nv_home,
         cmd_flags: NV_SSS | NV_STS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_S_HOME,
         cmd_func: nv_home,
         cmd_flags: NV_SS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_C_HOME,
         cmd_func: nv_goto,
         cmd_flags: NV_SSS | NV_STS | NV_MOTION,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_DEL,
         cmd_func: nv_abbrev,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_KDEL,
         cmd_func: nv_abbrev,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_UNDO,
         cmd_func: nv_kundo,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_HELP,
         cmd_func: nv_help,
         cmd_flags: NV_NCW,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_F1,
         cmd_func: nv_help,
         cmd_flags: NV_NCW,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_XF1,
         cmd_func: nv_help,
         cmd_flags: NV_NCW,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_SELECT,
         cmd_func: nv_select,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_PASTE_START,
         cmd_func: nv_paste,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_EVENT,
         cmd_func: nv_event,
         cmd_flags: NV_KEEPREG,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_COMMAND,
         cmd_func: nv_colon,
         cmd_flags: 0,
         cmd_arg: 0,
     },
-    nv_cmd {
+    NvCmd {
         cmd_char: K_LUA,
         cmd_func: nv_colon,
         cmd_flags: 0,

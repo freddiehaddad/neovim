@@ -15,7 +15,7 @@ mod tests {
         mpack_unpack_sint, mpack_unpack_uint,
     };
     use crate::mpack::mpack_core::{
-        MPACK_OK, mpack_read, mpack_tokbuf_init, mpack_tokbuf_t, mpack_token_t, mpack_write,
+        MPACK_OK, mpack_read, mpack_tokbuf_init, MpackTokbuf, MpackToken, mpack_write,
     };
 
     #[test]
@@ -38,16 +38,16 @@ mod tests {
         let mut wbuf = [0 as c_char; 32];
             let mut wptr = wbuf.as_mut_ptr();
             let mut wlen = wbuf.len();
-            let mut wtb = mpack_tokbuf_t::new();
+            let mut wtb = MpackTokbuf::new();
             mpack_tokbuf_init(&mut wtb);
             assert_eq!(mpack_write(&mut wtb, &mut wptr, &mut wlen, &tu), MPACK_OK);
 
             let written = wbuf.len() - wlen;
             let mut rptr = wbuf.as_ptr();
             let mut rlen = written;
-            let mut rtb = mpack_tokbuf_t::new();
+            let mut rtb = MpackTokbuf::new();
             mpack_tokbuf_init(&mut rtb);
-            let mut out_tok = mpack_token_t::new();
+            let mut out_tok = MpackToken::new();
             assert_eq!(
                 mpack_read(&mut rtb, &mut rptr, &mut rlen, &mut out_tok),
                 MPACK_OK
@@ -58,18 +58,18 @@ mod tests {
             let tok = mpack_pack_number(val);
             assert_eq!(
                 tok.r#type,
-                crate::mpack::mpack_core::mpack_token_type_t::MPACK_TOKEN_SINT
+                crate::mpack::mpack_core::MpackTokenType::MPACK_TOKEN_SINT
             );
             assert_eq!(tok.length, expected_len);
         }
 
-        let mut p = crate::mpack::object::mpack_parser_t::new(2);
+        let mut p = crate::mpack::object::MpackParser::new(2);
             crate::mpack::object::mpack_parser_init(&mut p, 2);
             assert_eq!(p.capacity, 2);
             crate::mpack::object::mpack_parser_grow(&mut p);
             assert_eq!(p.capacity, 4);
 
-            let mut s = crate::mpack::rpc::mpack_rpc_session_t::new(2);
+            let mut s = crate::mpack::rpc::MpackRpcSession::new(2);
             assert_eq!(s.slots.len(), 2);
             crate::mpack::rpc::mpack_rpc_session_grow(&mut s);
             assert_eq!(s.slots.len(), 4);

@@ -5,7 +5,7 @@ use std::ptr;
 
 use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::xdl_fall_back_diff;
-use crate::xdiff::{XDF_DIFF_ALGORITHM_MASK, mmfile_t, xdfenv_t, xpparam_t};
+use crate::xdiff::{XDF_DIFF_ALGORITHM_MASK, Mmfile, Xdfenv, Xpparam};
 
 const NON_UNIQUE: c_ulong = c_ulong::MAX;
 
@@ -38,10 +38,10 @@ struct HashMap {
     first: *mut Entry,
     last: *mut Entry,
     has_matches: c_ulong,
-    file1: *mut mmfile_t,
-    file2: *mut mmfile_t,
-    env: *mut xdfenv_t,
-    xpp: *const xpparam_t,
+    file1: *mut Mmfile,
+    file2: *mut Mmfile,
+    env: *mut Xdfenv,
+    xpp: *const Xpparam,
 }
 
 fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
@@ -91,10 +91,10 @@ fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
 }
 
 fn fill_hashmap(
-    file1: &mut mmfile_t,
-    file2: &mut mmfile_t,
-    xpp: &xpparam_t,
-    env: &mut xdfenv_t,
+    file1: &mut Mmfile,
+    file2: &mut Mmfile,
+    xpp: &Xpparam,
+    env: &mut Xdfenv,
     mut line1: c_int,
     mut count1: c_int,
     mut line2: c_int,
@@ -264,7 +264,7 @@ fn fall_back_to_classic_diff(
     count2: c_int,
 ) -> c_int {
     unsafe {
-        let xpp = xpparam_t {
+        let xpp = Xpparam {
             flags: (*map.xpp).flags & !XDF_DIFF_ALGORITHM_MASK,
         };
         xdl_fall_back_diff(&mut *map.env, &xpp, line1, count1, line2, count2)
@@ -272,10 +272,10 @@ fn fall_back_to_classic_diff(
 }
 
 fn patience_diff(
-    file1: &mut mmfile_t,
-    file2: &mut mmfile_t,
-    xpp: &xpparam_t,
-    env: &mut xdfenv_t,
+    file1: &mut Mmfile,
+    file2: &mut Mmfile,
+    xpp: &Xpparam,
+    env: &mut Xdfenv,
     mut line1: c_int,
     mut count1: c_int,
     mut line2: c_int,
@@ -324,10 +324,10 @@ fn patience_diff(
 }
 
 pub fn xdl_do_patience_diff(
-    file1: &mut mmfile_t,
-    file2: &mut mmfile_t,
-    xpp: &xpparam_t,
-    env: &mut xdfenv_t,
+    file1: &mut Mmfile,
+    file2: &mut Mmfile,
+    xpp: &Xpparam,
+    env: &mut Xdfenv,
 ) -> c_int {
     if xdl_prepare_env(file1, file2, xpp, env) < 0 {
         return -1;

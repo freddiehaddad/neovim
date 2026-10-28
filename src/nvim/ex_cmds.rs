@@ -59,7 +59,7 @@ use crate::ex_docmd::{
 };
 use crate::ex_eval::{aborting, Cstack, should_abort};
 use crate::ex_getln::{curbuf_locked, gotocmdline, text_locked};
-use crate::extmark::{bcount_t, extmark_move_region, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
+use crate::extmark::{Bcount, extmark_move_region, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
 use crate::fileio::{
     READ_FILTER, READ_KEEP_UNDO, READ_NOWINENTER, buf_check_timestamp, readfile, set_file_options,
     set_forced_fenc, vim_tempname, write_lnum_adjust,
@@ -271,9 +271,9 @@ struct LineData {
     start: Lpos,
     end: Lpos,
     matchcols: c_int,
-    matchbytes: bcount_t,
+    matchbytes: Bcount,
     subcols: c_int,
-    subbytes: bcount_t,
+    subbytes: Bcount,
     lnum_before: Linenr,
     lnum_after: Linenr,
 }
@@ -866,8 +866,8 @@ pub fn ex_sort(eap: &mut Exarg) {
                 break 'sortend;
             }
 
-            let mut old_count: bcount_t = 0;
-            let mut new_count: bcount_t = 0;
+            let mut old_count: Bcount = 0;
+            let mut new_count: Bcount = 0;
 
             let mut lnum = eap.line2;
             while i < count {
@@ -884,14 +884,14 @@ pub fn ex_sort(eap: &mut Exarg) {
 
                 let s = ml_get(get_lnum);
                 let bytelen: Colnr = ml_get_len(get_lnum) + 1;
-                old_count += bytelen as bcount_t;
+                old_count += bytelen as Bcount;
                 if !unique || i == 0 || string_compare(s, sortbuf1) != 0 {
                     crate::memory::cstr_cpy(sortbuf1, s);
                     if !ml_append(lnum, sortbuf1, 0, false) {
                         break;
                     }
                     lnum += 1;
-                    new_count += bytelen as bcount_t;
+                    new_count += bytelen as Bcount;
                 }
                 fast_breakcheck();
                 if g_st().got_int {
@@ -1180,10 +1180,10 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
             return true;
         }
 
-        let start_byte = ml_find_line_or_offset(curbuf_mut(), line1, None, true) as bcount_t;
-        let end_byte = ml_find_line_or_offset(curbuf_mut(), line2 + 1, None, true) as bcount_t;
+        let start_byte = ml_find_line_or_offset(curbuf_mut(), line1, None, true) as Bcount;
+        let end_byte = ml_find_line_or_offset(curbuf_mut(), line2 + 1, None, true) as Bcount;
         let extent_byte = end_byte - start_byte;
-        let dest_byte = ml_find_line_or_offset(curbuf_mut(), dest + 1, None, true) as bcount_t;
+        let dest_byte = ml_find_line_or_offset(curbuf_mut(), dest + 1, None, true) as Bcount;
 
         let num_lines = line2 - line1 + 1;
 
@@ -1218,7 +1218,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         g_st().disable_fold_update -= 1;
 
         let mut line_off: c_int = 0;
-        let mut byte_off: bcount_t = 0;
+        let mut byte_off: Bcount = 0;
         if dest >= line2 {
             mark_adjust_nofold(line2 + 1, dest, -num_lines, 0, kExtmarkNOOP);
             for tab in for_all_tabpages_ptr() {
@@ -4468,13 +4468,13 @@ fn do_sub(
                                 copycol = 0;
                             }
 
-                            let mut replaced_bytes: bcount_t = 0;
+                            let mut replaced_bytes: Bcount = 0;
                             let start = regmatch.startpos[0];
                             let end = regmatch.endpos[0];
                             for j in 0..(nmatch - 1) {
-                                replaced_bytes += crate::memory::cstr_len(ml_get(lnum_start + j)) as bcount_t + 1;
+                                replaced_bytes += crate::memory::cstr_len(ml_get(lnum_start + j)) as Bcount + 1;
                             }
-                            replaced_bytes += (end.col - start.col) as bcount_t;
+                            replaced_bytes += (end.col - start.col) as Bcount;
 
                             let lnum_before_newlines = lnum;
 
@@ -4537,7 +4537,7 @@ fn do_sub(
                                 matchcols,
                                 matchbytes: replaced_bytes,
                                 subcols,
-                                subbytes: (sublen as Colnr - 1) as bcount_t,
+                                subbytes: (sublen as Colnr - 1) as Bcount,
                                 lnum_before: lnum_before_newlines,
                                 lnum_after: lnum,
                             });

@@ -599,14 +599,14 @@ impl Default for Frag {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub(super) struct multipos {
+pub(super) struct MultiPos {
     pub start_lnum: Linenr,
     pub end_lnum: Linenr,
     pub start_col: Colnr,
     pub end_col: Colnr,
 }
 
-impl multipos {
+impl MultiPos {
     pub(super) const fn new() -> Self {
         Self {
             start_lnum: 0,
@@ -619,12 +619,12 @@ impl multipos {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) struct linepos {
+pub(super) struct LinePos {
     pub start: *mut u8,
     pub end: *mut u8,
 }
 
-impl linepos {
+impl LinePos {
     pub(super) const fn new() -> Self {
         Self {
             start: ptr::null_mut(),
@@ -633,7 +633,7 @@ impl linepos {
     }
 }
 
-impl Default for linepos {
+impl Default for LinePos {
     fn default() -> Self {
         Self::new()
     }
@@ -653,23 +653,23 @@ impl RegSubList {
     }
 
     #[inline]
-    pub(super) fn multi(&self) -> &[multipos; NSUBEXP] {
-        unsafe { &*(&raw const self.raw).cast::<[multipos; NSUBEXP]>() }
+    pub(super) fn multi(&self) -> &[MultiPos; NSUBEXP] {
+        unsafe { &*(&raw const self.raw).cast::<[MultiPos; NSUBEXP]>() }
     }
 
     #[inline]
-    pub(super) fn multi_mut(&mut self) -> &mut [multipos; NSUBEXP] {
-        unsafe { &mut *(&raw mut self.raw).cast::<[multipos; NSUBEXP]>() }
+    pub(super) fn multi_mut(&mut self) -> &mut [MultiPos; NSUBEXP] {
+        unsafe { &mut *(&raw mut self.raw).cast::<[MultiPos; NSUBEXP]>() }
     }
 
     #[inline]
-    pub(super) fn line(&self) -> &[linepos; NSUBEXP] {
-        unsafe { &*(&raw const self.raw).cast::<[linepos; NSUBEXP]>() }
+    pub(super) fn line(&self) -> &[LinePos; NSUBEXP] {
+        unsafe { &*(&raw const self.raw).cast::<[LinePos; NSUBEXP]>() }
     }
 
     #[inline]
-    pub(super) fn line_mut(&mut self) -> &mut [linepos; NSUBEXP] {
-        unsafe { &mut *(&raw mut self.raw).cast::<[linepos; NSUBEXP]>() }
+    pub(super) fn line_mut(&mut self) -> &mut [LinePos; NSUBEXP] {
+        unsafe { &mut *(&raw mut self.raw).cast::<[LinePos; NSUBEXP]>() }
     }
 
     #[inline]

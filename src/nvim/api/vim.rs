@@ -110,7 +110,7 @@ use crate::runtime::{
 use crate::search::{BACKWARD, FORWARD};
 use crate::state::{MODE_MAX_LENGTH, get_mode};
 use crate::statusline::{
-    build_stl_str_hl, draw_tabline, fillchar_status, Foldinfo, Statuscol, stl_hlrec_t,
+    build_stl_str_hl, draw_tabline, fillchar_status, Foldinfo, Statuscol, StlHlrec,
     win_redr_status, win_redr_winbar,
 };
 use crate::terminal::{
@@ -3012,7 +3012,7 @@ pub fn nvim_eval_statusline(
             data: buf_data,
             size: MAXPATHL,
         };
-        let mut hltab: *mut stl_hlrec_t = ptr::null_mut();
+        let mut hltab: *mut StlHlrec = ptr::null_mut();
         let mut hltab_len: usize = 0;
 
         let p_crb_save = (*wp).w_onebuf_opt.wo_crb;

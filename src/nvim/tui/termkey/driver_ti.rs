@@ -177,7 +177,7 @@ impl Default for TermKeyKey {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct keyinfo {
+pub struct TiKeyInfo {
     pub r#type: TermKeyType,
     pub sym: TermKeySym,
     pub modifier_mask: c_int,
@@ -194,13 +194,13 @@ pub struct TermKey {
     pub is_closed: c_char,
     pub is_started: c_char,
     pub keynames: Vec<Option<&'static CStr>>,
-    pub c0: [keyinfo; 32],
+    pub c0: [TiKeyInfo; 32],
     pub ti: TermKeyTI,
     pub csi: crate::tui::termkey::driver_csi::TermKeyCsi,
 }
 
 enum TrieNode {
-    Key(keyinfo),
+    Key(TiKeyInfo),
     Arr {
         min: u8,
         max: u8,
@@ -383,7 +383,7 @@ const FUNCS: &[TiFuncEntry] = &[
     },
 ];
 
-fn insert_seq(root: &mut TrieNode, seq: &[u8], info: keyinfo) {
+fn insert_seq(root: &mut TrieNode, seq: &[u8], info: TiKeyInfo) {
     let mut cur = root;
     for (idx, &b) in seq.iter().enumerate() {
         let is_last = idx + 1 == seq.len();
@@ -415,7 +415,7 @@ fn try_load_terminfo_key(
     key: usize,
     shift: bool,
     name: impl crate::strings::IntoCCharPtr,
-    info: keyinfo,
+    info: TiKeyInfo,
 ) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut value: *const c_char = std::ptr::null();
@@ -462,7 +462,7 @@ fn load_terminfo(
             std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len());
             name_buf[s.len()] = 0;
 
-            let info = keyinfo {
+            let info = TiKeyInfo {
                 r#type: entry.r#type,
                 sym: entry.sym,
                 modifier_mask: entry.mods,
@@ -489,7 +489,7 @@ fn load_terminfo(
             );
             name_buf[s_shift.len()] = 0;
 
-            let shift_info = keyinfo {
+            let shift_info = TiKeyInfo {
                 r#type: entry.r#type,
                 sym: entry.sym,
                 modifier_mask: entry.mods | TERMKEY_KEYMOD_SHIFT,
@@ -513,7 +513,7 @@ fn load_terminfo(
             std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len());
             name_buf[s.len()] = 0;
 
-            let fn_info = keyinfo {
+            let fn_info = TiKeyInfo {
                 r#type: TERMKEY_TYPE_FUNCTION,
                 sym: i as c_int,
                 modifier_mask: 0,
@@ -629,7 +629,7 @@ mod tests {
         insert_seq(
             &mut root,
             b"\x1bOP",
-            keyinfo {
+            TiKeyInfo {
                 r#type: TERMKEY_TYPE_FUNCTION,
                 sym: 1,
                 modifier_mask: 0,

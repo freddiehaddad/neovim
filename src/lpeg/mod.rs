@@ -12,9 +12,9 @@ use std::ptr;
 
 use crate::lua::converter::{lua_Integer, lua_Number, lua_State, luaL_Reg};
 
-pub type byte = u8;
-pub type uint = c_uint;
-pub type Index_t = uint;
+pub type LpegByte = u8;
+pub type LpegUint = c_uint;
+pub type LpegIndex = LpegUint;
 pub type lua_Unsigned = usize;
 
 pub const PATTERN_T: &CStr = c"lpeg-pattern";
@@ -47,7 +47,7 @@ pub const CHARSETSIZE: usize = (u8::MAX as usize / BITSPERCHAR) + 1;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Charset {
-    pub cs: [byte; CHARSETSIZE],
+    pub cs: [LpegByte; CHARSETSIZE],
 }
 
 impl Charset {
@@ -65,12 +65,12 @@ impl Default for Charset {
 }
 
 #[inline]
-pub fn fillset(s: &mut [byte; CHARSETSIZE], c: byte) {
+pub fn fillset(s: &mut [LpegByte; CHARSETSIZE], c: LpegByte) {
     s.fill(c);
 }
 
 #[inline]
-pub fn clearset(s: &mut [byte; CHARSETSIZE]) {
+pub fn clearset(s: &mut [LpegByte; CHARSETSIZE]) {
     s.fill(0);
 }
 
@@ -80,13 +80,13 @@ pub const fn bytes2slots(n: usize) -> usize {
 }
 
 #[inline]
-pub fn setchar(cs: &mut [byte; CHARSETSIZE], b: usize) {
+pub fn setchar(cs: &mut [LpegByte; CHARSETSIZE], b: usize) {
     cs[b >> 3] |= 1u8 << (b & 7);
 }
 
 #[inline]
-pub fn testchar(st: *const byte, c: uint) -> c_int {
-    unsafe { (((*st.add((c >> 3) as usize) as uint) >> (c & 7)) & 1) as c_int }
+pub fn testchar(st: *const LpegByte, c: LpegUint) -> c_int {
+    unsafe { (((*st.add((c >> 3) as usize) as LpegUint) >> (c & 7)) & 1) as c_int }
 }
 
 pub const MAXOFF: c_int = 0xF;
@@ -98,7 +98,7 @@ pub const fn instsize(l: c_int) -> c_int {
     (l as usize).div_ceil(size_of::<Instruction>()) as c_int
 }
 
-pub type CapKind = byte;
+pub type CapKind = LpegByte;
 pub const Cclose: CapKind = 0;
 pub const Cposition: CapKind = 1;
 pub const Cconst: CapKind = 2;
@@ -116,16 +116,16 @@ pub const Cfold: CapKind = 13;
 pub const Cruntime: CapKind = 14;
 pub const Cgroup: CapKind = 15;
 
-pub const MAXINDT: Index_t = !0;
+pub const MAXINDT: LpegIndex = !0;
 pub const MAXLOP: c_int = 20;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Capture {
-    pub index: Index_t,
+    pub index: LpegIndex,
     pub idx: c_ushort,
-    pub kind: byte,
-    pub siz: byte,
+    pub kind: LpegByte,
+    pub siz: LpegByte,
 }
 
 impl Capture {
@@ -158,7 +158,7 @@ pub struct CapState {
 }
 
 #[inline]
-pub fn captype(cap: *const Capture) -> byte {
+pub fn captype(cap: *const Capture) -> LpegByte {
     unsafe { (*cap).kind }
 }
 
@@ -178,12 +178,12 @@ pub fn capinside(c1: &Capture, c2: *const Capture) -> bool {
         if isopencap( c1) {
             !isclosecap(c2)
         } else {
-            (*c2).index < c1.index + Index_t::from(c1.siz) - 1
+            (*c2).index < c1.index + LpegIndex::from(c1.siz) - 1
         }
     }
 }
 
-pub type TTag = byte;
+pub type TTag = LpegByte;
 pub const TChar: TTag = 0;
 pub const TSet: TTag = 1;
 pub const TAny: TTag = 2;
@@ -207,10 +207,10 @@ pub const TRunTime: TTag = 18;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct TTreeSet {
-    pub offset: byte,
-    pub size: byte,
-    pub deflt: byte,
-    pub bitmap: [byte; 1],
+    pub offset: LpegByte,
+    pub size: LpegByte,
+    pub deflt: LpegByte,
+    pub bitmap: [LpegByte; 1],
 }
 
 #[repr(C)]
@@ -224,8 +224,8 @@ pub union TTreeU {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct TTree {
-    pub tag: byte,
-    pub cap: byte,
+    pub tag: LpegByte,
+    pub cap: LpegByte,
     pub key: c_ushort,
     pub u: TTreeU,
 }
@@ -236,8 +236,8 @@ pub const fn ttree_bitmap_offset() -> usize {
 }
 
 #[inline]
-pub fn treebuffer(t: *mut TTree) -> *mut byte {
-    unsafe { t.cast::<byte>().add(ttree_bitmap_offset()) }
+pub fn treebuffer(t: *mut TTree) -> *mut LpegByte {
+    unsafe { t.cast::<LpegByte>().add(ttree_bitmap_offset()) }
 }
 
 #[inline]
@@ -256,7 +256,7 @@ pub struct Pattern {
     pub tree: [TTree; 1],
 }
 
-pub const NUMSIBLINGS: [byte; 19] = [
+pub const NUMSIBLINGS: [LpegByte; 19] = [
     0, 0, 0, // char, set, any
     0, 0, 0, // true, false, utf-range
     1, // rep
@@ -267,7 +267,7 @@ pub const NUMSIBLINGS: [byte; 19] = [
     1, 1, // capture, runtime capture
 ];
 
-pub type Opcode = byte;
+pub type Opcode = LpegByte;
 pub const IAny: Opcode = 0;
 pub const IChar: Opcode = 1;
 pub const ISet: Opcode = 2;
@@ -298,8 +298,8 @@ pub const IEmpty: Opcode = 25;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct InstAux2Set {
-    pub offset: byte,
-    pub size: byte,
+    pub offset: LpegByte,
+    pub size: LpegByte,
 }
 
 #[repr(C)]
@@ -312,8 +312,8 @@ pub union InstAux2 {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Inst {
-    pub code: byte,
-    pub aux1: byte,
+    pub code: LpegByte,
+    pub aux1: LpegByte,
     pub aux2: InstAux2,
 }
 
@@ -322,7 +322,7 @@ pub struct Inst {
 pub union Instruction {
     pub i: Inst,
     pub offset: c_int,
-    pub buff: [byte; 1],
+    pub buff: [LpegByte; 1],
 }
 
 #[inline]
@@ -347,14 +347,14 @@ pub fn utf_to(inst: &Instruction) -> c_int {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct charsetinfo {
-    pub cs: *const byte,
+pub struct CharsetInfo {
+    pub cs: *const LpegByte,
     pub offset: c_int,
     pub size: c_int,
     pub deflt: c_int,
 }
 
-impl charsetinfo {
+impl CharsetInfo {
     pub const fn new() -> Self {
         Self {
             cs: ptr::null(),
@@ -365,7 +365,7 @@ impl charsetinfo {
     }
 }
 
-impl Default for charsetinfo {
+impl Default for CharsetInfo {
     fn default() -> Self {
         Self::new()
     }
@@ -379,11 +379,11 @@ mod tests {
     #[test]
     fn test_charsettype_and_helpers() {
         let mut cs = [0u8; CHARSETSIZE];
-        let mut info = charsetinfo::new();
+        let mut info = CharsetInfo::new();
         assert_eq!(charsettype(&cs, &mut info), IFail);
 
         setchar(&mut cs, b'A' as usize);
-        assert_eq!(testchar(cs.as_ptr(), b'A' as uint), 1);
+        assert_eq!(testchar(cs.as_ptr(), b'A' as LpegUint), 1);
         assert_eq!(charsettype(&cs, &mut info), IChar);
         assert_eq!(info.offset, c_int::from(b'A'));
 

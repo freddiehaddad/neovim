@@ -5,7 +5,7 @@ use std::ptr;
 
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_ERROR, MPACK_OK, MPACK_TOKEN_CHUNK, MPACK_TOKEN_MAP, mpack_read,
-    mpack_sintmax_t, mpack_tokbuf_init, mpack_tokbuf_t, mpack_token_t, mpack_uint32_t, mpack_write,
+    MpackSintmax, mpack_tokbuf_init, MpackTokbuf, MpackToken, MpackUint32, mpack_write,
 };
 
 pub const MPACK_MAX_OBJECT_DEPTH: usize = 32;
@@ -13,10 +13,10 @@ pub const MPACK_EXCEPTION: c_int = -1;
 pub const MPACK_NOMEM: c_int = MPACK_ERROR + 1;
 
 #[derive(Clone, Default)]
-pub enum mpack_data_t {
+pub enum MpackData {
     #[default]
     Null,
-    Int(mpack_sintmax_t),
+    Int(MpackSintmax),
     LmpackUnpacker(*mut crate::mpack::lmpack::LmpackUnpacker),
     LmpackPacker(*mut crate::mpack::lmpack::Packer),
     Typval(*mut crate::eval::typval::TypVal),
@@ -28,13 +28,13 @@ pub enum mpack_data_t {
     Object(*mut crate::api::private::validate::Object),
 }
 
-impl mpack_data_t {
+impl MpackData {
     pub const fn new() -> Self {
         Self::Null
     }
 
     #[inline]
-    pub const fn i(&self) -> mpack_sintmax_t {
+    pub const fn i(&self) -> MpackSintmax {
         match *self {
             Self::Int(i) => i,
             _ => 0,
@@ -132,25 +132,25 @@ impl mpack_data_t {
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct mpack_node_t {
-    pub tok: mpack_token_t,
+pub struct MpackNode {
+    pub tok: MpackToken,
     pub pos: usize,
     pub key_visited: c_int,
-    pub data: [mpack_data_t; 2],
+    pub data: [MpackData; 2],
 }
 
-impl mpack_node_t {
+impl MpackNode {
     pub const fn new() -> Self {
         Self {
-            tok: mpack_token_t::new(),
+            tok: MpackToken::new(),
             pos: 0,
             key_visited: 0,
-            data: [mpack_data_t::new(), mpack_data_t::new()],
+            data: [MpackData::new(), MpackData::new()],
         }
     }
 }
 
-impl Default for mpack_node_t {
+impl Default for MpackNode {
     fn default() -> Self {
         Self::new()
     }
@@ -158,38 +158,38 @@ impl Default for mpack_node_t {
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct mpack_parser_t {
-    pub data: mpack_data_t,
-    pub size: mpack_uint32_t,
-    pub capacity: mpack_uint32_t,
+pub struct MpackParser {
+    pub data: MpackData,
+    pub size: MpackUint32,
+    pub capacity: MpackUint32,
     pub status: c_int,
     pub exiting: c_int,
-    pub tokbuf: mpack_tokbuf_t,
-    pub items: Vec<mpack_node_t>,
+    pub tokbuf: MpackTokbuf,
+    pub items: Vec<MpackNode>,
 }
 
-impl mpack_parser_t {
-    pub const fn new(capacity: mpack_uint32_t) -> Self {
+impl MpackParser {
+    pub const fn new(capacity: MpackUint32) -> Self {
         Self {
-            data: mpack_data_t::new(),
+            data: MpackData::new(),
             size: 0,
             capacity: if capacity != 0 {
                 capacity
             } else {
-                MPACK_MAX_OBJECT_DEPTH as mpack_uint32_t
+                MPACK_MAX_OBJECT_DEPTH as MpackUint32
             },
             status: 0,
             exiting: 0,
-            tokbuf: mpack_tokbuf_t::new(),
+            tokbuf: MpackTokbuf::new(),
             items: Vec::new(),
         }
     }
 }
 
-pub type mpack_walk_cb = Option<fn(w: &mut mpack_parser_t, n: &mut mpack_node_t)>;
+pub type MpackWalkCb = Option<fn(w: &mut MpackParser, n: &mut MpackNode)>;
 
 #[inline]
-pub fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
+pub fn mpack_parent_node(n: *mut MpackNode) -> *mut MpackNode {
     unsafe {
         let prev = n.sub(1);
         if (*prev).pos == usize::MAX {
@@ -200,36 +200,36 @@ pub fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
     }
 }
 
-pub fn mpack_parser_init(parser: &mut mpack_parser_t, capacity: mpack_uint32_t) {
+pub fn mpack_parser_init(parser: &mut MpackParser, capacity: MpackUint32) {
     mpack_tokbuf_init(&mut parser.tokbuf);
-    parser.data = mpack_data_t::Null;
+    parser.data = MpackData::Null;
     parser.capacity = if capacity != 0 {
         capacity
     } else {
-        MPACK_MAX_OBJECT_DEPTH as mpack_uint32_t
+        MPACK_MAX_OBJECT_DEPTH as MpackUint32
     };
     parser.size = 0;
     parser.exiting = 0;
     parser.items.clear();
     parser
         .items
-        .resize((parser.capacity as usize) + 1, mpack_node_t::new());
+        .resize((parser.capacity as usize) + 1, MpackNode::new());
     parser.items[0].pos = usize::MAX;
     parser.status = 0;
 }
 
-pub fn mpack_parser_grow(p: &mut mpack_parser_t) {
+pub fn mpack_parser_grow(p: &mut MpackParser) {
     let new_capacity = p.capacity * 2;
     p.items
-        .resize((new_capacity as usize) + 1, mpack_node_t::new());
+        .resize((new_capacity as usize) + 1, MpackNode::new());
     p.capacity = new_capacity;
 }
 
 pub fn mpack_parse_tok(
-    parser: &mut mpack_parser_t,
-    tok: mpack_token_t,
-    enter_cb: mpack_walk_cb,
-    exit_cb: mpack_walk_cb,
+    parser: &mut MpackParser,
+    tok: MpackToken,
+    enter_cb: MpackWalkCb,
+    exit_cb: MpackWalkCb,
 ) -> c_int {
     unsafe {
         if parser.status == MPACK_EXCEPTION {
@@ -274,10 +274,10 @@ pub fn mpack_parse_tok(
 }
 
 pub fn mpack_unparse_tok(
-    parser: &mut mpack_parser_t,
-    tok: &mut mpack_token_t,
-    enter_cb: mpack_walk_cb,
-    exit_cb: mpack_walk_cb,
+    parser: &mut MpackParser,
+    tok: &mut MpackToken,
+    enter_cb: MpackWalkCb,
+    exit_cb: MpackWalkCb,
 ) -> c_int {
     unsafe {
         if parser.status == MPACK_EXCEPTION {
@@ -322,11 +322,11 @@ pub fn mpack_unparse_tok(
 }
 
 pub fn mpack_parse(
-    parser: &mut mpack_parser_t,
+    parser: &mut MpackParser,
     buf: &mut *const c_char,
     buflen: &mut usize,
-    enter_cb: mpack_walk_cb,
-    exit_cb: mpack_walk_cb,
+    enter_cb: MpackWalkCb,
+    exit_cb: MpackWalkCb,
 ) -> c_int {
     let mut status = MPACK_EOF;
     if parser.status == MPACK_EXCEPTION {
@@ -334,7 +334,7 @@ pub fn mpack_parse(
     }
 
     while *buflen != 0 && status != 0 {
-        let mut tok = mpack_token_t::new();
+        let mut tok = MpackToken::new();
         let buf_save = *buf;
         let buflen_save = *buflen;
 
@@ -368,11 +368,11 @@ pub fn mpack_parse(
 }
 
 pub fn mpack_unparse(
-    parser: &mut mpack_parser_t,
+    parser: &mut MpackParser,
     buf: &mut *mut c_char,
     buflen: &mut usize,
-    enter_cb: mpack_walk_cb,
-    exit_cb: mpack_walk_cb,
+    enter_cb: MpackWalkCb,
+    exit_cb: MpackWalkCb,
 ) -> c_int {
     let mut status = MPACK_EOF;
     if parser.status == MPACK_EXCEPTION {
@@ -380,7 +380,7 @@ pub fn mpack_unparse(
     }
 
     while *buflen != 0 && status != 0 {
-        let mut tok = mpack_token_t::new();
+        let mut tok = MpackToken::new();
 
         if parser.tokbuf.plen == 0 {
             parser.status = mpack_unparse_tok(parser, &mut tok, enter_cb, exit_cb);
@@ -407,17 +407,17 @@ pub fn mpack_unparse(
 }
 
 #[inline]
-const fn mpack_parser_full(parser: &mpack_parser_t) -> bool {
+const fn mpack_parser_full(parser: &MpackParser) -> bool {
     parser.size == parser.capacity
 }
 
-fn mpack_parser_push(parser: &mut mpack_parser_t) -> *mut mpack_node_t {
+fn mpack_parser_push(parser: &mut MpackParser) -> *mut MpackNode {
     debug_assert!(parser.size < parser.capacity);
     let top_idx = (parser.size as usize) + 1;
     let top = &raw mut parser.items[top_idx];
     unsafe {
-        (*top).data[0] = mpack_data_t::Null;
-        (*top).data[1] = mpack_data_t::Null;
+        (*top).data[0] = MpackData::Null;
+        (*top).data[1] = MpackData::Null;
         (*top).pos = 0;
         (*top).key_visited = 0;
     }
@@ -425,7 +425,7 @@ fn mpack_parser_push(parser: &mut mpack_parser_t) -> *mut mpack_node_t {
     top
 }
 
-fn mpack_parser_pop(parser: &mut mpack_parser_t) -> *mut mpack_node_t {
+fn mpack_parser_pop(parser: &mut MpackParser) -> *mut MpackNode {
     unsafe {
         debug_assert!(parser.size != 0);
         let top_idx = parser.size as usize;

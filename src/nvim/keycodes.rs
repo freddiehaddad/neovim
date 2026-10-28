@@ -385,7 +385,7 @@ const K_CPO_BSLASH: c_int = b'B' as c_int;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct modmasktable {
+pub struct ModMaskTable {
     pub mod_mask: u16,
     pub mod_flag: u16,
     pub name: c_char,
@@ -393,14 +393,14 @@ pub struct modmasktable {
 
 #[repr(C)]
 #[derive(Default)]
-pub struct keychord {
+pub struct KeyChord {
     pub mods: c_int,
     pub key_mem: c_char,
     pub key: NvimString,
     pub key_alt: NvimString,
 }
 
-impl keychord {
+impl KeyChord {
     pub const fn new() -> Self {
         Self {
             mods: 0,
@@ -411,54 +411,54 @@ impl keychord {
     }
 }
 
-pub static mod_mask_table: [modmasktable; 10] = [
-    modmasktable {
+pub static mod_mask_table: [ModMaskTable; 10] = [
+    ModMaskTable {
         mod_mask: MOD_MASK_ALT,
         mod_flag: MOD_MASK_ALT,
         name: b'M' as c_char,
     },
-    modmasktable {
+    ModMaskTable {
         mod_mask: MOD_MASK_META,
         mod_flag: MOD_MASK_META,
         name: b'T' as c_char,
     },
-    modmasktable {
+    ModMaskTable {
         mod_mask: MOD_MASK_CTRL,
         mod_flag: MOD_MASK_CTRL,
         name: b'C' as c_char,
     },
-    modmasktable {
+    ModMaskTable {
         mod_mask: MOD_MASK_SHIFT,
         mod_flag: MOD_MASK_SHIFT,
         name: b'S' as c_char,
     },
-    modmasktable {
+    ModMaskTable {
         mod_mask: MOD_MASK_MULTI_CLICK,
         mod_flag: MOD_MASK_2CLICK,
         name: b'2' as c_char,
     },
-    modmasktable {
+    ModMaskTable {
         mod_mask: MOD_MASK_MULTI_CLICK,
         mod_flag: MOD_MASK_3CLICK,
         name: b'3' as c_char,
     },
-    modmasktable {
+    ModMaskTable {
         mod_mask: MOD_MASK_MULTI_CLICK,
         mod_flag: MOD_MASK_4CLICK,
         name: b'4' as c_char,
     },
-    modmasktable {
+    ModMaskTable {
         mod_mask: MOD_MASK_CMD,
         mod_flag: MOD_MASK_CMD,
         name: b'D' as c_char,
     },
     // 'A' must be the last one
-    modmasktable {
+    ModMaskTable {
         mod_mask: MOD_MASK_ALT,
         mod_flag: MOD_MASK_ALT,
         name: b'A' as c_char,
     },
-    modmasktable {
+    ModMaskTable {
         mod_mask: 0,
         mod_flag: 0,
         name: 0,
@@ -2151,7 +2151,7 @@ static SPECIAL_KEY_STRING: crate::globals::GlobalState<[c_char; MAX_KEY_NAME_LEN
 /// (`get_special_key`).
 pub fn get_special_key(
     mut c: c_int,
-    mut modifiers: c_int,mut data: Option<&mut keychord>,
+    mut modifiers: c_int,mut data: Option<&mut KeyChord>,
 ) -> *mut c_char {
     unsafe {
         let string = (*SPECIAL_KEY_STRING.as_ptr()).as_mut_ptr();

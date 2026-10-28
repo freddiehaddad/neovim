@@ -5,7 +5,7 @@ use std::ptr;
 
 use crate::lpeg::{
     Cacc, CapState, Capture, Carg, Cbackref, Cclose, Cconst, Cfold, Cfunction, Cgroup, Cnum,
-    Cposition, Cquery, Cruntime, Csimple, Cstring, Csubst, Ctable, FIXEDARGS, Index_t, MAXLOP,
+    Cposition, Cquery, Cruntime, Csimple, Cstring, Csubst, Ctable, FIXEDARGS, LpegIndex, MAXLOP,
     SUBJIDX, capinside, caplistidx, captype, isclosecap, isopencap, ktableidx, lua_Integer,
     lua_State,
 };
@@ -54,19 +54,19 @@ fn skipclose(cs: &mut CapState, head: &Capture) {
 }
 
 #[inline]
-fn capsize(cap: &Capture, close: *const Capture) -> Index_t {
+fn capsize(cap: &Capture, close: *const Capture) -> LpegIndex {
     unsafe {
         if isopencap( cap) {
             debug_assert!(isclosecap(close));
             (*close).index - cap.index
         } else {
-            Index_t::from(cap.siz) - 1
+            LpegIndex::from(cap.siz) - 1
         }
     }
 }
 
 #[inline]
-fn closesize(cs: &CapState, head: &Capture) -> Index_t {
+fn closesize(cs: &CapState, head: &Capture) -> LpegIndex {
     capsize( head, cs.cap)
 }
 
@@ -164,7 +164,7 @@ fn capvisible(cs: &CapState, grp: &Capture, r#ref: *const Capture) -> bool {
             if cap <= cs.ocap {
                 break;
             }
-            if isclosecap(cap) || grp.index - (*cap).index >= Index_t::from(u8::MAX) {
+            if isclosecap(cap) || grp.index - (*cap).index >= LpegIndex::from(u8::MAX) {
                 return true;
             } else if capinside( &*cap, (&raw const *grp)) {
                 return capinside( &*cap, r#ref);
@@ -354,7 +354,7 @@ pub fn runtimecap(
         debug_assert_eq!(captype(open), Cgroup);
         let id = finddyncap(open, close);
         (*close).kind = Cclose;
-        (*close).index = s.offset_from(cs.s) as Index_t;
+        (*close).index = s.offset_from(cs.s) as LpegIndex;
         cs.cap = open;
         cs.valuecached = 0;
         luaL_checkstack(l, 4, c"too many runtime captures");
@@ -378,7 +378,7 @@ pub fn runtimecap(
 #[derive(Copy, Clone)]
 enum StrAux {
     Capture(*mut Capture),
-    Span { idx: Index_t, siz: Index_t },
+    Span { idx: LpegIndex, siz: LpegIndex },
 }
 
 impl StrAux {

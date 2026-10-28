@@ -125,4 +125,4 @@ pub(crate) mod winfloat;
 pub(crate) mod xdiff;
 
 pub use cmdexpand::Cmdidx;
-pub use tui::terminfo::{unibi_boolean, unibi_numeric, unibi_string};
+pub use tui::terminfo::{UnibiBoolean, UnibiNumeric, UnibiString};

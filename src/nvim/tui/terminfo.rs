@@ -94,7 +94,7 @@ struct TPSTACK {
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum unibi_boolean {
+pub enum UnibiBoolean {
     unibi_boolean_begin_ = 0,
     unibi_auto_left_margin,
     unibi_auto_right_margin,
@@ -145,8 +145,8 @@ pub enum unibi_boolean {
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum unibi_numeric {
-    unibi_numeric_begin_ = unibi_boolean::unibi_boolean_end_ as isize,
+pub enum UnibiNumeric {
+    unibi_numeric_begin_ = UnibiBoolean::unibi_boolean_end_ as isize,
     unibi_columns,
     unibi_init_tabs,
     unibi_lines,
@@ -191,8 +191,8 @@ pub enum unibi_numeric {
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum unibi_string {
-    unibi_string_begin_ = unibi_numeric::unibi_numeric_end_ as isize,
+pub enum UnibiString {
+    unibi_string_begin_ = UnibiNumeric::unibi_numeric_end_ as isize,
     unibi_back_tab,
     unibi_bell,
     unibi_carriage_return,
@@ -2009,161 +2009,161 @@ static VTPCON_TERMINFO: BuiltinTerminfoEntry = {
     e
 };
 
-static UNI_IDS: [unibi_string; 41] = [
-    unibi_string::unibi_carriage_return,
-    unibi_string::unibi_change_scroll_region,
-    unibi_string::unibi_clear_screen,
-    unibi_string::unibi_clr_eol,
-    unibi_string::unibi_clr_eos,
-    unibi_string::unibi_cursor_address,
-    unibi_string::unibi_cursor_down,
-    unibi_string::unibi_cursor_invisible,
-    unibi_string::unibi_cursor_left,
-    unibi_string::unibi_cursor_home,
-    unibi_string::unibi_cursor_normal,
-    unibi_string::unibi_cursor_up,
-    unibi_string::unibi_cursor_right,
-    unibi_string::unibi_delete_line,
-    unibi_string::unibi_enter_blink_mode,
-    unibi_string::unibi_enter_bold_mode,
-    unibi_string::unibi_enter_ca_mode,
-    unibi_string::unibi_enter_dim_mode,
-    unibi_string::unibi_enter_italics_mode,
-    unibi_string::unibi_enter_reverse_mode,
-    unibi_string::unibi_enter_secure_mode,
-    unibi_string::unibi_enter_standout_mode,
-    unibi_string::unibi_enter_underline_mode,
-    unibi_string::unibi_erase_chars,
-    unibi_string::unibi_exit_attribute_mode,
-    unibi_string::unibi_exit_ca_mode,
-    unibi_string::unibi_from_status_line,
-    unibi_string::unibi_insert_line,
-    unibi_string::unibi_keypad_local,
-    unibi_string::unibi_keypad_xmit,
-    unibi_string::unibi_parm_delete_line,
-    unibi_string::unibi_parm_down_cursor,
-    unibi_string::unibi_parm_insert_line,
-    unibi_string::unibi_parm_left_cursor,
-    unibi_string::unibi_parm_right_cursor,
-    unibi_string::unibi_parm_up_cursor,
-    unibi_string::unibi_set_a_background,
-    unibi_string::unibi_set_a_foreground,
-    unibi_string::unibi_set_attributes,
-    unibi_string::unibi_set_lr_margin,
-    unibi_string::unibi_to_status_line,
+static UNI_IDS: [UnibiString; 41] = [
+    UnibiString::unibi_carriage_return,
+    UnibiString::unibi_change_scroll_region,
+    UnibiString::unibi_clear_screen,
+    UnibiString::unibi_clr_eol,
+    UnibiString::unibi_clr_eos,
+    UnibiString::unibi_cursor_address,
+    UnibiString::unibi_cursor_down,
+    UnibiString::unibi_cursor_invisible,
+    UnibiString::unibi_cursor_left,
+    UnibiString::unibi_cursor_home,
+    UnibiString::unibi_cursor_normal,
+    UnibiString::unibi_cursor_up,
+    UnibiString::unibi_cursor_right,
+    UnibiString::unibi_delete_line,
+    UnibiString::unibi_enter_blink_mode,
+    UnibiString::unibi_enter_bold_mode,
+    UnibiString::unibi_enter_ca_mode,
+    UnibiString::unibi_enter_dim_mode,
+    UnibiString::unibi_enter_italics_mode,
+    UnibiString::unibi_enter_reverse_mode,
+    UnibiString::unibi_enter_secure_mode,
+    UnibiString::unibi_enter_standout_mode,
+    UnibiString::unibi_enter_underline_mode,
+    UnibiString::unibi_erase_chars,
+    UnibiString::unibi_exit_attribute_mode,
+    UnibiString::unibi_exit_ca_mode,
+    UnibiString::unibi_from_status_line,
+    UnibiString::unibi_insert_line,
+    UnibiString::unibi_keypad_local,
+    UnibiString::unibi_keypad_xmit,
+    UnibiString::unibi_parm_delete_line,
+    UnibiString::unibi_parm_down_cursor,
+    UnibiString::unibi_parm_insert_line,
+    UnibiString::unibi_parm_left_cursor,
+    UnibiString::unibi_parm_right_cursor,
+    UnibiString::unibi_parm_up_cursor,
+    UnibiString::unibi_set_a_background,
+    UnibiString::unibi_set_a_foreground,
+    UnibiString::unibi_set_attributes,
+    UnibiString::unibi_set_lr_margin,
+    UnibiString::unibi_to_status_line,
 ];
 
 static UNI_EXT: [&CStr; 8] = [
     c"Se", c"Ss", c"smxx", c"setrgbf", c"setrgbb", c"Cs", c"Cr", c"Smulx",
 ];
 
-static UNI_KEYS: [[unibi_string; 2]; kTermKeyCount] = [
+static UNI_KEYS: [[UnibiString; 2]; kTermKeyCount] = [
     [
-        unibi_string::unibi_key_backspace,
-        unibi_string::unibi_string_begin_,
+        UnibiString::unibi_key_backspace,
+        UnibiString::unibi_string_begin_,
     ],
-    [unibi_string::unibi_key_beg, unibi_string::unibi_key_sbeg],
+    [UnibiString::unibi_key_beg, UnibiString::unibi_key_sbeg],
     [
-        unibi_string::unibi_key_btab,
-        unibi_string::unibi_string_begin_,
-    ],
-    [
-        unibi_string::unibi_key_clear,
-        unibi_string::unibi_string_begin_,
-    ],
-    [unibi_string::unibi_key_dc, unibi_string::unibi_key_sdc],
-    [unibi_string::unibi_key_end, unibi_string::unibi_key_send],
-    [unibi_string::unibi_key_find, unibi_string::unibi_key_sfind],
-    [unibi_string::unibi_key_home, unibi_string::unibi_key_shome],
-    [unibi_string::unibi_key_ic, unibi_string::unibi_key_sic],
-    [
-        unibi_string::unibi_key_npage,
-        unibi_string::unibi_string_begin_,
+        UnibiString::unibi_key_btab,
+        UnibiString::unibi_string_begin_,
     ],
     [
-        unibi_string::unibi_key_ppage,
-        unibi_string::unibi_string_begin_,
+        UnibiString::unibi_key_clear,
+        UnibiString::unibi_string_begin_,
+    ],
+    [UnibiString::unibi_key_dc, UnibiString::unibi_key_sdc],
+    [UnibiString::unibi_key_end, UnibiString::unibi_key_send],
+    [UnibiString::unibi_key_find, UnibiString::unibi_key_sfind],
+    [UnibiString::unibi_key_home, UnibiString::unibi_key_shome],
+    [UnibiString::unibi_key_ic, UnibiString::unibi_key_sic],
+    [
+        UnibiString::unibi_key_npage,
+        UnibiString::unibi_string_begin_,
     ],
     [
-        unibi_string::unibi_key_select,
-        unibi_string::unibi_string_begin_,
+        UnibiString::unibi_key_ppage,
+        UnibiString::unibi_string_begin_,
     ],
     [
-        unibi_string::unibi_key_suspend,
-        unibi_string::unibi_key_ssuspend,
+        UnibiString::unibi_key_select,
+        UnibiString::unibi_string_begin_,
     ],
-    [unibi_string::unibi_key_undo, unibi_string::unibi_key_sundo],
-    [unibi_string::unibi_key_left, unibi_string::unibi_key_sleft],
     [
-        unibi_string::unibi_key_right,
-        unibi_string::unibi_key_sright,
+        UnibiString::unibi_key_suspend,
+        UnibiString::unibi_key_ssuspend,
+    ],
+    [UnibiString::unibi_key_undo, UnibiString::unibi_key_sundo],
+    [UnibiString::unibi_key_left, UnibiString::unibi_key_sleft],
+    [
+        UnibiString::unibi_key_right,
+        UnibiString::unibi_key_sright,
     ],
 ];
 
-static UNI_FKEYS: [unibi_string; kTerminfoFuncKeyMax] = [
-    unibi_string::unibi_key_f1,
-    unibi_string::unibi_key_f2,
-    unibi_string::unibi_key_f3,
-    unibi_string::unibi_key_f4,
-    unibi_string::unibi_key_f5,
-    unibi_string::unibi_key_f6,
-    unibi_string::unibi_key_f7,
-    unibi_string::unibi_key_f8,
-    unibi_string::unibi_key_f9,
-    unibi_string::unibi_key_f10,
-    unibi_string::unibi_key_f11,
-    unibi_string::unibi_key_f12,
-    unibi_string::unibi_key_f13,
-    unibi_string::unibi_key_f14,
-    unibi_string::unibi_key_f15,
-    unibi_string::unibi_key_f16,
-    unibi_string::unibi_key_f17,
-    unibi_string::unibi_key_f18,
-    unibi_string::unibi_key_f19,
-    unibi_string::unibi_key_f20,
-    unibi_string::unibi_key_f21,
-    unibi_string::unibi_key_f22,
-    unibi_string::unibi_key_f23,
-    unibi_string::unibi_key_f24,
-    unibi_string::unibi_key_f25,
-    unibi_string::unibi_key_f26,
-    unibi_string::unibi_key_f27,
-    unibi_string::unibi_key_f28,
-    unibi_string::unibi_key_f29,
-    unibi_string::unibi_key_f30,
-    unibi_string::unibi_key_f31,
-    unibi_string::unibi_key_f32,
-    unibi_string::unibi_key_f33,
-    unibi_string::unibi_key_f34,
-    unibi_string::unibi_key_f35,
-    unibi_string::unibi_key_f36,
-    unibi_string::unibi_key_f37,
-    unibi_string::unibi_key_f38,
-    unibi_string::unibi_key_f39,
-    unibi_string::unibi_key_f40,
-    unibi_string::unibi_key_f41,
-    unibi_string::unibi_key_f42,
-    unibi_string::unibi_key_f43,
-    unibi_string::unibi_key_f44,
-    unibi_string::unibi_key_f45,
-    unibi_string::unibi_key_f46,
-    unibi_string::unibi_key_f47,
-    unibi_string::unibi_key_f48,
-    unibi_string::unibi_key_f49,
-    unibi_string::unibi_key_f50,
-    unibi_string::unibi_key_f51,
-    unibi_string::unibi_key_f52,
-    unibi_string::unibi_key_f53,
-    unibi_string::unibi_key_f54,
-    unibi_string::unibi_key_f55,
-    unibi_string::unibi_key_f56,
-    unibi_string::unibi_key_f57,
-    unibi_string::unibi_key_f58,
-    unibi_string::unibi_key_f59,
-    unibi_string::unibi_key_f60,
-    unibi_string::unibi_key_f61,
-    unibi_string::unibi_key_f62,
-    unibi_string::unibi_key_f63,
+static UNI_FKEYS: [UnibiString; kTerminfoFuncKeyMax] = [
+    UnibiString::unibi_key_f1,
+    UnibiString::unibi_key_f2,
+    UnibiString::unibi_key_f3,
+    UnibiString::unibi_key_f4,
+    UnibiString::unibi_key_f5,
+    UnibiString::unibi_key_f6,
+    UnibiString::unibi_key_f7,
+    UnibiString::unibi_key_f8,
+    UnibiString::unibi_key_f9,
+    UnibiString::unibi_key_f10,
+    UnibiString::unibi_key_f11,
+    UnibiString::unibi_key_f12,
+    UnibiString::unibi_key_f13,
+    UnibiString::unibi_key_f14,
+    UnibiString::unibi_key_f15,
+    UnibiString::unibi_key_f16,
+    UnibiString::unibi_key_f17,
+    UnibiString::unibi_key_f18,
+    UnibiString::unibi_key_f19,
+    UnibiString::unibi_key_f20,
+    UnibiString::unibi_key_f21,
+    UnibiString::unibi_key_f22,
+    UnibiString::unibi_key_f23,
+    UnibiString::unibi_key_f24,
+    UnibiString::unibi_key_f25,
+    UnibiString::unibi_key_f26,
+    UnibiString::unibi_key_f27,
+    UnibiString::unibi_key_f28,
+    UnibiString::unibi_key_f29,
+    UnibiString::unibi_key_f30,
+    UnibiString::unibi_key_f31,
+    UnibiString::unibi_key_f32,
+    UnibiString::unibi_key_f33,
+    UnibiString::unibi_key_f34,
+    UnibiString::unibi_key_f35,
+    UnibiString::unibi_key_f36,
+    UnibiString::unibi_key_f37,
+    UnibiString::unibi_key_f38,
+    UnibiString::unibi_key_f39,
+    UnibiString::unibi_key_f40,
+    UnibiString::unibi_key_f41,
+    UnibiString::unibi_key_f42,
+    UnibiString::unibi_key_f43,
+    UnibiString::unibi_key_f44,
+    UnibiString::unibi_key_f45,
+    UnibiString::unibi_key_f46,
+    UnibiString::unibi_key_f47,
+    UnibiString::unibi_key_f48,
+    UnibiString::unibi_key_f49,
+    UnibiString::unibi_key_f50,
+    UnibiString::unibi_key_f51,
+    UnibiString::unibi_key_f52,
+    UnibiString::unibi_key_f53,
+    UnibiString::unibi_key_f54,
+    UnibiString::unibi_key_f55,
+    UnibiString::unibi_key_f56,
+    UnibiString::unibi_key_f57,
+    UnibiString::unibi_key_f58,
+    UnibiString::unibi_key_f59,
+    UnibiString::unibi_key_f60,
+    UnibiString::unibi_key_f61,
+    UnibiString::unibi_key_f62,
+    UnibiString::unibi_key_f63,
 ];
 
 static STRING_NAMES: [&str; kTermCount] = [
@@ -2250,14 +2250,14 @@ const MAGIC_32BIT: u16 = 0o1036;
 const MAX15BITS: u16 = 0x7fff;
 const MAX31BITS: u32 = 0x7fff_ffff;
 const UNIBI_MAX_BUF: usize = 32768;
-const UNIBI_BOOL_COUNT: usize = (unibi_boolean::unibi_boolean_end_ as usize)
-    - (unibi_boolean::unibi_boolean_begin_ as usize)
+const UNIBI_BOOL_COUNT: usize = (UnibiBoolean::unibi_boolean_end_ as usize)
+    - (UnibiBoolean::unibi_boolean_begin_ as usize)
     - 1;
-const UNIBI_NUM_COUNT: usize = (unibi_numeric::unibi_numeric_end_ as usize)
-    - (unibi_numeric::unibi_numeric_begin_ as usize)
+const UNIBI_NUM_COUNT: usize = (UnibiNumeric::unibi_numeric_end_ as usize)
+    - (UnibiNumeric::unibi_numeric_begin_ as usize)
     - 1;
 const UNIBI_STR_COUNT: usize =
-    (unibi_string::unibi_string_end_ as usize) - (unibi_string::unibi_string_begin_ as usize) - 1;
+    (UnibiString::unibi_string_end_ as usize) - (UnibiString::unibi_string_begin_ as usize) - 1;
 
 const UNIBI_TERMINFO: &str = if cfg!(windows) {
     ""
@@ -2463,20 +2463,20 @@ impl UnibiTerm {
     }
 
     #[inline]
-    fn get_bool(&self, v: unibi_boolean) -> bool {
-        let idx = (v as usize).wrapping_sub((unibi_boolean::unibi_boolean_begin_ as usize) + 1);
+    fn get_bool(&self, v: UnibiBoolean) -> bool {
+        let idx = (v as usize).wrapping_sub((UnibiBoolean::unibi_boolean_begin_ as usize) + 1);
         self.bools.get(idx).copied().unwrap_or(false)
     }
 
     #[inline]
-    fn get_num(&self, v: unibi_numeric) -> c_int {
-        let idx = (v as usize).wrapping_sub((unibi_numeric::unibi_numeric_begin_ as usize) + 1);
+    fn get_num(&self, v: UnibiNumeric) -> c_int {
+        let idx = (v as usize).wrapping_sub((UnibiNumeric::unibi_numeric_begin_ as usize) + 1);
         self.nums.get(idx).copied().unwrap_or(-1)
     }
 
     #[inline]
-    fn get_str(&self, v: unibi_string) -> *const c_char {
-        let idx = (v as usize).wrapping_sub((unibi_string::unibi_string_begin_ as usize) + 1);
+    fn get_str(&self, v: UnibiString) -> *const c_char {
+        let idx = (v as usize).wrapping_sub((UnibiString::unibi_string_begin_ as usize) + 1);
         let off = self.str_offs.get(idx).copied().unwrap_or(-1);
         if off < 0 || (off as usize) >= self.str_table.len() {
             ptr::null()
@@ -2733,10 +2733,10 @@ pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: impl crate::stri
             return false;
         };
 
-        ti.back_color_erase = ut.get_bool(unibi_boolean::unibi_back_color_erase);
-        ti.max_colors = ut.get_num(unibi_numeric::unibi_max_colors);
-        ti.lines = ut.get_num(unibi_numeric::unibi_lines);
-        ti.columns = ut.get_num(unibi_numeric::unibi_columns);
+        ti.back_color_erase = ut.get_bool(UnibiBoolean::unibi_back_color_erase);
+        ti.max_colors = ut.get_num(UnibiNumeric::unibi_max_colors);
+        ti.lines = ut.get_num(UnibiNumeric::unibi_lines);
+        ti.columns = ut.get_num(UnibiNumeric::unibi_columns);
 
         ti.Tc = false;
         ti.RGB = false;
@@ -2785,7 +2785,7 @@ pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: impl crate::stri
             let val = ut.get_str(pair[0]);
             if !val.is_null() {
                 ti.keys[i][0] = Some(Cow::Owned(crate::memory::cstr_to_cstring(val)));
-                if pair[1] != unibi_string::unibi_string_begin_ {
+                if pair[1] != UnibiString::unibi_string_begin_ {
                     let sval = ut.get_str(pair[1]);
                     ti.keys[i][1] = if !sval.is_null() {
                         Some(Cow::Owned(crate::memory::cstr_to_cstring(sval)))
@@ -3328,14 +3328,14 @@ mod tests {
         data.extend_from_slice(b"\x1b[0 q\0Tc\0Se\0");
 
         let ut = UnibiTerm::from_mem(&data).expect("valid terminfo");
-        assert!(ut.get_bool(unibi_boolean::unibi_auto_left_margin));
-        assert!(!ut.get_bool(unibi_boolean::unibi_back_color_erase));
-        assert_eq!(ut.get_num(unibi_numeric::unibi_columns), 80);
-        assert_eq!(ut.get_num(unibi_numeric::unibi_max_colors), -1);
-        assert!(ut.get_str(unibi_string::unibi_back_tab).is_null());
+        assert!(ut.get_bool(UnibiBoolean::unibi_auto_left_margin));
+        assert!(!ut.get_bool(UnibiBoolean::unibi_back_color_erase));
+        assert_eq!(ut.get_num(UnibiNumeric::unibi_columns), 80);
+        assert_eq!(ut.get_num(UnibiNumeric::unibi_max_colors), -1);
+        assert!(ut.get_str(UnibiString::unibi_back_tab).is_null());
          {
             assert_eq!(
-                crate::memory::cstr_as_bytes(ut.get_str(unibi_string::unibi_carriage_return)),
+                crate::memory::cstr_as_bytes(ut.get_str(UnibiString::unibi_carriage_return)),
                 b"\r"
             );
             assert_eq!(ut.count_ext_bool(), 1);

@@ -12,7 +12,7 @@ mod tests {
     use crate::cjson::fpconv::{FPCONV_G_FMT_BUFSIZE, fpconv_g_fmt, fpconv_strtod};
     use crate::cjson::strbuf::{
         strbuf_append_char, strbuf_append_string, strbuf_init, strbuf_length, strbuf_string,
-        strbuf_t,
+        Strbuf,
     };
 
     #[test]
@@ -22,7 +22,7 @@ mod tests {
         assert_eq!(&fmt_buf[..fmt_len], b"-12.5");
 
         unsafe {
-            let mut sb = strbuf_t::new();
+            let mut sb = Strbuf::new();
             strbuf_init(&mut sb, 0);
             strbuf_append_string(&mut sb, c"hello");
             strbuf_append_char(&mut sb, b'!' as c_char);

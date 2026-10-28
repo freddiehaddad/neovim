@@ -4,7 +4,7 @@ use std::ffi::c_int;
 
 use crate::lpeg::{
     BITSPERCHAR, CHARSETSIZE, Charset, IAny, IChar, IFail, ISet, Opcode, TAny, TChar, TFalse, TSet,
-    TTree, byte, charsetinfo, clearset, fillset, setchar, treebuffer,
+    TTree, LpegByte, CharsetInfo, clearset, fillset, setchar, treebuffer,
 };
 
 fn onlybit(mut c: c_int, mut b: c_int) -> c_int {
@@ -22,7 +22,7 @@ fn onlybit(mut c: c_int, mut b: c_int) -> c_int {
     c
 }
 
-pub fn charsettype(cs: &[byte; CHARSETSIZE], info: &mut charsetinfo) -> Opcode {
+pub fn charsettype(cs: &[LpegByte; CHARSETSIZE], info: &mut CharsetInfo) -> Opcode {
     let mut low1 = 0usize;
     while low1 < CHARSETSIZE && cs[low1] == 0 {
         low1 += 1;
@@ -65,11 +65,11 @@ pub fn charsettype(cs: &[byte; CHARSETSIZE], info: &mut charsetinfo) -> Opcode {
     ISet
 }
 
-pub fn getbytefromcharset(info: &charsetinfo, index: c_int) -> byte {
+pub fn getbytefromcharset(info: &CharsetInfo, index: c_int) -> LpegByte {
     if index < info.size {
         unsafe { *info.cs.add(index as usize) }
     } else {
-        info.deflt as byte
+        info.deflt as LpegByte
     }
 }
 
@@ -103,7 +103,7 @@ pub fn tocharset(tree: *mut TTree, cs: &mut Charset) -> c_int {
     }
 }
 
-pub fn tree2cset(tree: &mut TTree, info: &mut charsetinfo) {
+pub fn tree2cset(tree: &mut TTree, info: &mut CharsetInfo) {
     unsafe {
         debug_assert_eq!(tree.tag, TSet);
         info.offset = c_int::from(tree.u.set.offset);

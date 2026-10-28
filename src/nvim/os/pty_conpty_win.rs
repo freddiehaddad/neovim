@@ -99,14 +99,14 @@ pub struct STARTUPINFOEXW {
 
 #[cfg(windows)]
 #[repr(C)]
-pub struct conpty_t {
+pub struct Conpty {
     pub pty: HPCON,
     pub si_ex: STARTUPINFOEXW,
     pub attr_list: Vec<u8>,
 }
 
 #[cfg(windows)]
-impl conpty_t {
+impl Conpty {
     pub const fn new() -> Self {
         Self {
             pty: std::ptr::null_mut(),
@@ -300,9 +300,9 @@ pub fn os_conpty_init(
     out_name: &mut Option<CString>,
     width: u16,
     height: u16,
-) -> Option<Box<conpty_t>> {
+) -> Option<Box<Conpty>> {
     unsafe {
-        let mut conpty_object = Box::new(conpty_t::new());
+        let mut conpty_object = Box::new(Conpty::new());
         let emsg: *const c_char;
         let in_read: HANDLE;
         let mut out_write: HANDLE = INVALID_HANDLE_VALUE;
@@ -436,7 +436,7 @@ pub fn os_conpty_init(
 
 #[cfg(windows)]
 pub fn os_conpty_spawn(
-    conpty_object: &mut conpty_t,
+    conpty_object: &mut Conpty,
     proc_handle: &mut HANDLE,
     name: *mut u16,
     cmd_line: *mut u16,
@@ -471,7 +471,7 @@ pub fn os_conpty_spawn(
 }
 
 #[cfg(windows)]
-pub fn os_conpty_set_size(conpty_object: &conpty_t, width: u16, height: u16) {
+pub fn os_conpty_set_size(conpty_object: &Conpty, width: u16, height: u16) {
     assert!(width <= i16::MAX as u16);
     assert!(height <= i16::MAX as u16);
     unsafe {
@@ -494,7 +494,7 @@ pub fn os_conpty_set_size(conpty_object: &conpty_t, width: u16, height: u16) {
 }
 
 #[cfg(windows)]
-impl Drop for conpty_t {
+impl Drop for Conpty {
     fn drop(&mut self) {
         unsafe {
             if !self.si_ex.lpAttributeList.is_null() {
@@ -515,7 +515,7 @@ mod tests {
     fn conpty_new_drops_cleanly() {
         #[cfg(windows)]
         {
-            let _ = super::conpty_t::new();
+            let _ = super::Conpty::new();
         }
     }
 }

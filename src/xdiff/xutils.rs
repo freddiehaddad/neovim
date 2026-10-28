@@ -6,8 +6,8 @@ use std::ptr;
 use crate::xdiff::xdiffi::xdl_do_diff;
 use crate::xdiff::{
     XDF_IGNORE_CR_AT_EOL, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
-    XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, mmbuffer_t, mmfile_t, xdemitcb_t, xdfenv_t,
-    xdl_isspace, xpparam_t,
+    XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, Mmbuffer, Mmfile, Xdemitcb, Xdfenv,
+    xdl_isspace, Xpparam,
 };
 
 pub fn xdl_bogosqrt(mut n: c_long) -> c_long {
@@ -24,10 +24,10 @@ pub fn xdl_emit_diffrec(
     size: c_long,
     pre: *const c_char,
     psize: c_long,
-    ecb: &mut xdemitcb_t,
+    ecb: &mut Xdemitcb,
 ) -> c_int {
     let mut i: usize = 2;
-    let mut mb = [mmbuffer_t {
+    let mut mb = [Mmbuffer {
         ptr: ptr::null_mut(),
         size: 0,
     }; 3];
@@ -49,16 +49,16 @@ pub fn xdl_emit_diffrec(
     0
 }
 
-pub fn xdl_mmfile_first(mmf: &mmfile_t, size: &mut c_long) -> *mut c_char {
+pub fn xdl_mmfile_first(mmf: &Mmfile, size: &mut c_long) -> *mut c_char {
     *size = mmf.size as c_long;
     mmf.ptr
 }
 
-pub fn xdl_mmfile_size(mmf: &mmfile_t) -> c_long {
+pub fn xdl_mmfile_size(mmf: &Mmfile) -> c_long {
     mmf.size as c_long
 }
 
-pub fn xdl_guess_lines(mf: &mmfile_t, sample: c_long) -> c_long {
+pub fn xdl_guess_lines(mf: &Mmfile, sample: c_long) -> c_long {
     let mut nl: c_long = 0;
     let mut size: c_long = 0;
     let mut tsize: c_long = 0;
@@ -310,7 +310,7 @@ fn xdl_format_hunk_hdr(
     c1: c_long,
     s2: c_long,
     c2: c_long,
-    ecb: &mut xdemitcb_t,
+    ecb: &mut Xdemitcb,
 ) -> c_int {
     use std::io::Write as _;
     let mut buf = [0u8; 128];
@@ -326,7 +326,7 @@ fn xdl_format_hunk_hdr(
     let _ = writeln!(cursor, " @@");
     let nb = cursor.position() as c_int;
 
-    let mb = [mmbuffer_t {
+    let mb = [Mmbuffer {
         ptr: buf.as_mut_ptr().cast::<c_char>(),
         size: nb,
     }];
@@ -341,21 +341,21 @@ pub fn xdl_emit_hunk_hdr(
     c1: c_long,
     s2: c_long,
     c2: c_long,
-    ecb: &mut xdemitcb_t,
+    ecb: &mut Xdemitcb,
 ) -> c_int {
     xdl_format_hunk_hdr(s1, c1, s2, c2, ecb)
 }
 
 pub fn xdl_fall_back_diff(
-    diff_env: &mut xdfenv_t,
-    xpp: &xpparam_t,
+    diff_env: &mut Xdfenv,
+    xpp: &Xpparam,
     line1: c_int,
     count1: c_int,
     line2: c_int,
     count2: c_int,
 ) -> c_int {
     unsafe {
-        let mut subfile1 = mmfile_t {
+        let mut subfile1 = Mmfile {
             ptr: diff_env.xdf1.recs[(line1 - 1) as usize].ptr.cast_mut(),
             size: 0,
         };
@@ -365,7 +365,7 @@ pub fn xdl_fall_back_diff(
             .offset(end_rec1.size as isize)
             .offset_from(subfile1.ptr) as c_int;
 
-        let mut subfile2 = mmfile_t {
+        let mut subfile2 = Mmfile {
             ptr: diff_env.xdf2.recs[(line2 - 1) as usize].ptr.cast_mut(),
             size: 0,
         };
@@ -375,7 +375,7 @@ pub fn xdl_fall_back_diff(
             .offset(end_rec2.size as isize)
             .offset_from(subfile2.ptr) as c_int;
 
-        let mut env = xdfenv_t::new();
+        let mut env = Xdfenv::new();
         if xdl_do_diff(&mut subfile1, &mut subfile2, xpp, &mut env) < 0 {
             return -1;
         }

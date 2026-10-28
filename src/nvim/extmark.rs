@@ -24,13 +24,13 @@ use crate::undo::u_force_get_undo_header;
 use std::ffi::c_int;
 use std::ptr;
 
-pub type bcount_t = isize;
+pub type Bcount = isize;
 pub type ExtmarkOp = c_int;
 pub type ExtmarkType = u16;
 pub type ExtmarkInfoArray = Vec<MTPair>;
 pub type UndoObjectType = c_int;
 pub type TriState = c_int;
-pub type extmark_undo_vec_t = Vec<ExtmarkUndoObject>;
+pub type ExtmarkUndoVec = Vec<ExtmarkUndoObject>;
 
 pub(crate) const kExtmarkNOOP: ExtmarkOp = 0;
 pub(crate) const kExtmarkUndo: ExtmarkOp = 1;
@@ -55,9 +55,9 @@ pub struct ExtmarkSplice {
     pub old_col: Colnr,
     pub new_row: c_int,
     pub new_col: Colnr,
-    pub start_byte: bcount_t,
-    pub old_byte: bcount_t,
-    pub new_byte: bcount_t,
+    pub start_byte: Bcount,
+    pub old_byte: Bcount,
+    pub new_byte: Bcount,
 }
 
 impl ExtmarkSplice {
@@ -85,9 +85,9 @@ pub struct ExtmarkMove {
     pub extent_col: c_int,
     pub new_row: c_int,
     pub new_col: c_int,
-    pub start_byte: bcount_t,
-    pub extent_byte: bcount_t,
-    pub new_byte: bcount_t,
+    pub start_byte: Bcount,
+    pub extent_byte: Bcount,
+    pub new_byte: Bcount,
 }
 
 impl ExtmarkMove {
@@ -633,7 +633,7 @@ pub fn extmark_splice_delete(
     l_col: Colnr,
     u_row: c_int,
     u_col: Colnr,
-    mut uvp: Option<&mut extmark_undo_vec_t>,
+    mut uvp: Option<&mut ExtmarkUndoVec>,
     only_copy: bool,
     op: ExtmarkOp,
 ) {
@@ -801,14 +801,14 @@ pub fn extmark_adjust(
         if g_st().curbuf_splice_pending != 0 {
             return;
         }
-        let start_byte = ml_find_line_or_offset(buf, line1, None, true) as bcount_t;
-        let mut old_byte: bcount_t = 0;
-        let mut new_byte: bcount_t = 0;
+        let start_byte = ml_find_line_or_offset(buf, line1, None, true) as Bcount;
+        let mut old_byte: Bcount = 0;
+        let mut new_byte: Bcount = 0;
         let old_row: c_int;
         let new_row: c_int;
         if amount == MAXLNUM {
             old_row = line2 - line1 + 1;
-            old_byte = buf.deleted_bytes2 as bcount_t;
+            old_byte = buf.deleted_bytes2 as Bcount;
             new_row = amount_after + old_row;
         } else {
             debug_assert_eq!(line2, MAXLNUM);
@@ -817,7 +817,7 @@ pub fn extmark_adjust(
         }
         if new_row > 0 {
             new_byte = (ml_find_line_or_offset(buf, line1 + new_row, None, true)
-                as bcount_t)
+                as Bcount)
                 - start_byte;
         }
         extmark_splice_impl(
@@ -843,10 +843,10 @@ pub fn extmark_splice(
     start_col: Colnr,
     old_row: c_int,
     old_col: Colnr,
-    old_byte: bcount_t,
+    old_byte: Bcount,
     new_row: c_int,
     new_col: Colnr,
-    new_byte: bcount_t,
+    new_byte: Bcount,
     undo: ExtmarkOp,
 ) {
      {
@@ -858,7 +858,7 @@ pub fn extmark_splice(
             buf,
             start_row,
             start_col,
-            (offset + start_col) as bcount_t,
+            (offset + start_col) as Bcount,
             old_row,
             old_col,
             old_byte,
@@ -874,13 +874,13 @@ pub fn extmark_splice_impl(
     buf: &mut FileBuf,
     start_row: c_int,
     start_col: Colnr,
-    start_byte: bcount_t,
+    start_byte: Bcount,
     old_row: c_int,
     old_col: Colnr,
-    old_byte: bcount_t,
+    old_byte: Bcount,
     new_row: c_int,
     new_col: Colnr,
-    new_byte: bcount_t,
+    new_byte: Bcount,
     undo: ExtmarkOp,
 ) {
     buf.deleted_bytes2 = 0;
@@ -1001,10 +1001,10 @@ pub fn extmark_splice_cols(
             start_col,
             0,
             old_col,
-            old_col as bcount_t,
+            old_col as Bcount,
             0,
             new_col,
-            new_col as bcount_t,
+            new_col as Bcount,
             undo,
         );
 }
@@ -1013,13 +1013,13 @@ pub fn extmark_move_region(
     buf: &mut FileBuf,
     start_row: c_int,
     start_col: Colnr,
-    start_byte: bcount_t,
+    start_byte: Bcount,
     extent_row: c_int,
     extent_col: Colnr,
-    extent_byte: bcount_t,
+    extent_byte: Bcount,
     new_row: c_int,
     new_col: Colnr,
-    new_byte: bcount_t,
+    new_byte: Bcount,
     undo: ExtmarkOp,
 ) {
     buf.deleted_bytes2 = 0;
@@ -1093,7 +1093,7 @@ mod tests {
 
     #[test]
     fn extmark_undo_vec_and_map_destroy_work() {
-        let v: extmark_undo_vec_t = vec![ExtmarkUndoObject::SavePos(ExtmarkSavePos {
+        let v: ExtmarkUndoVec = vec![ExtmarkUndoObject::SavePos(ExtmarkSavePos {
             mark: 10,
             undo_row: 1,
             undo_col: 2,

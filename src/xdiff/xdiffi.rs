@@ -9,8 +9,8 @@ use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::{xdl_blankline, xdl_bogosqrt, xdl_recmatch};
 use crate::xdiff::{
     XDF_HISTOGRAM_DIFF, XDF_IGNORE_BLANK_LINES, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
-    XDF_PATIENCE_DIFF, diffdata_t, emit_func_t, mmfile_t, xdalgoenv_t, xdchange_t, xdemitcb_t,
-    xdemitconf_t, xdf_diff_alg, xdfenv_t, xdfile_t, xdl_isspace, xpparam_t, xrecord_t,
+    XDF_PATIENCE_DIFF, Diffdata, EmitFunc, Mmfile, Xdalgoenv, Xdchange, Xdemitcb,
+    Xdemitconf, xdf_diff_alg, Xdfenv, Xdfile, xdl_isspace, Xpparam, Xrecord,
 };
 
 const XDL_MAX_COST_MIN: c_long = 256;
@@ -36,7 +36,7 @@ const INDENT_HEURISTIC_MAX_SLIDING: c_long = 100;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct xdpsplit_t {
+struct Xdpsplit {
     i1: c_long,
     i2: c_long,
     min_lo: c_int,
@@ -53,8 +53,8 @@ fn xdl_split(
     kvdf: *mut c_long,
     kvdb: *mut c_long,
     need_min: c_int,
-    spl: &mut xdpsplit_t,
-    xenv: &xdalgoenv_t,
+    spl: &mut Xdpsplit,
+    xenv: &Xdalgoenv,
 ) -> c_long {
     let dmin = off1 - lim2;
     let dmax = lim1 - off2;
@@ -288,16 +288,16 @@ fn xdl_split(
 }
 
 pub fn xdl_recs_cmp(
-    dd1: &mut diffdata_t,
+    dd1: &mut Diffdata,
     mut off1: c_long,
     mut lim1: c_long,
-    dd2: &mut diffdata_t,
+    dd2: &mut Diffdata,
     mut off2: c_long,
     mut lim2: c_long,
     kvdf: &mut c_long,
     kvdb: *mut c_long,
     need_min: c_int,
-    xenv: &xdalgoenv_t,
+    xenv: &Xdalgoenv,
 ) -> c_int {
     unsafe {
         let ha1 = dd1.ha;
@@ -331,7 +331,7 @@ pub fn xdl_recs_cmp(
                 off1 += 1;
             }
         } else {
-            let mut spl = xdpsplit_t {
+            let mut spl = Xdpsplit {
                 i1: 0,
                 i2: 0,
                 min_lo: 0,
@@ -360,10 +360,10 @@ pub fn xdl_recs_cmp(
 }
 
 pub fn xdl_do_diff(
-    mf1: &mut mmfile_t,
-    mf2: &mut mmfile_t,
-    xpp: &xpparam_t,
-    xe: &mut xdfenv_t,
+    mf1: &mut Mmfile,
+    mf2: &mut Mmfile,
+    xpp: &Xpparam,
+    xe: &mut Xdfenv,
 ) -> c_int {
     unsafe {
         if xdf_diff_alg(xpp.flags) == XDF_PATIENCE_DIFF {
@@ -386,19 +386,19 @@ pub fn xdl_do_diff(
         kvdf = kvdf.offset((xe.xdf2.nreff + 1) as isize);
         kvdb = kvdb.offset((xe.xdf2.nreff + 1) as isize);
 
-        let xenv = xdalgoenv_t {
+        let xenv = Xdalgoenv {
             mxcost: xdl_bogosqrt(ndiags).max(XDL_MAX_COST_MIN),
             snake_cnt: XDL_SNAKE_CNT,
             heur_min: XDL_HEUR_MIN_COST,
         };
 
-        let mut dd1 = diffdata_t {
+        let mut dd1 = Diffdata {
             nrec: xe.xdf1.nreff,
             ha: xe.xdf1.ha.as_ptr(),
             rchg: xe.xdf1.rchg,
             rindex: xe.xdf1.rindex.as_mut_ptr(),
         };
-        let mut dd2 = diffdata_t {
+        let mut dd2 = Diffdata {
             nrec: xe.xdf2.nreff,
             ha: xe.xdf2.ha.as_ptr(),
             rchg: xe.xdf2.rchg,
@@ -420,18 +420,18 @@ pub fn xdl_do_diff(
             &xenv,
         ) < 0
         {
-            *xe = xdfenv_t::new();
+            *xe = Xdfenv::new();
             return -1;
         }
     }
     0
 }
 
-fn recs_match(rec1: &xrecord_t, rec2: &xrecord_t, flags: c_long) -> bool {
+fn recs_match(rec1: &Xrecord, rec2: &Xrecord, flags: c_long) -> bool {
     rec1.ha == rec2.ha && xdl_recmatch(rec1.ptr, rec1.size, rec2.ptr, rec2.size, flags) != 0
 }
 
-fn xget_indent(rec: &xrecord_t) -> c_int {
+fn xget_indent(rec: &Xrecord) -> c_int {
     let mut ret: c_int = 0;
     unsafe {
         for i in 0..rec.size {
@@ -468,7 +468,7 @@ struct SplitScore {
     penalty: c_int,
 }
 
-fn measure_split(xdf: &xdfile_t, split: c_long, m: &mut SplitMeasurement) {
+fn measure_split(xdf: &Xdfile, split: c_long, m: &mut SplitMeasurement) {
     let recs = &xdf.recs;
     if split >= xdf.nrec {
         m.end_of_file = 1;
@@ -570,7 +570,7 @@ struct XdlGroup {
     end: c_long,
 }
 
-fn group_init(xdf: &mut xdfile_t, g: &mut XdlGroup) {
+fn group_init(xdf: &mut Xdfile, g: &mut XdlGroup) {
     g.start = 0;
     g.end = 0;
     unsafe {
@@ -581,7 +581,7 @@ fn group_init(xdf: &mut xdfile_t, g: &mut XdlGroup) {
 }
 
 #[inline]
-fn group_next(xdf: &mut xdfile_t, g: &mut XdlGroup) -> c_int {
+fn group_next(xdf: &mut Xdfile, g: &mut XdlGroup) -> c_int {
     unsafe {
         if g.end == xdf.nrec {
             return -1;
@@ -596,7 +596,7 @@ fn group_next(xdf: &mut xdfile_t, g: &mut XdlGroup) -> c_int {
 }
 
 #[inline]
-fn group_previous(xdf: &mut xdfile_t, g: &mut XdlGroup) -> c_int {
+fn group_previous(xdf: &mut Xdfile, g: &mut XdlGroup) -> c_int {
     if g.start == 0 {
         return -1;
     }
@@ -610,7 +610,7 @@ fn group_previous(xdf: &mut xdfile_t, g: &mut XdlGroup) -> c_int {
     0
 }
 
-fn group_slide_down(xdf: &mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int {
+fn group_slide_down(xdf: &mut Xdfile, g: &mut XdlGroup, flags: c_long) -> c_int {
     unsafe {
         let recs = &xdf.recs;
         if g.end < xdf.nrec && recs_match(&recs[g.start as usize], &recs[g.end as usize], flags) {
@@ -629,7 +629,7 @@ fn group_slide_down(xdf: &mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_in
     }
 }
 
-fn group_slide_up(xdf: &mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int {
+fn group_slide_up(xdf: &mut Xdfile, g: &mut XdlGroup, flags: c_long) -> c_int {
     unsafe {
         let recs = &xdf.recs;
         if g.start > 0
@@ -659,7 +659,7 @@ fn xdl_bug(msg: &str) -> ! {
     std::process::exit(1);
 }
 
-pub fn xdl_change_compact(xdf: &mut xdfile_t, xdfo: &mut xdfile_t, flags: c_long) -> c_int {
+pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: c_long) -> c_int {
     let mut g = XdlGroup::default();
     let mut go = XdlGroup::default();
 
@@ -767,7 +767,7 @@ pub fn xdl_change_compact(xdf: &mut xdfile_t, xdfo: &mut xdfile_t, flags: c_long
     0
 }
 
-pub fn xdl_build_script(xe: &mut xdfenv_t, xscr: &mut Vec<xdchange_t>) -> c_int {
+pub fn xdl_build_script(xe: &mut Xdfenv, xscr: &mut Vec<Xdchange>) -> c_int {
     xscr.clear();
     unsafe {
         let rchg1 = xe.xdf1.rchg;
@@ -786,7 +786,7 @@ pub fn xdl_build_script(xe: &mut xdfenv_t, xscr: &mut Vec<xdchange_t>) -> c_int 
                     i2 -= 1;
                 }
 
-                xscr.push(xdchange_t {
+                xscr.push(Xdchange {
                     i1,
                     i2,
                     chg1: l1 - i1,
@@ -804,10 +804,10 @@ pub fn xdl_build_script(xe: &mut xdfenv_t, xscr: &mut Vec<xdchange_t>) -> c_int 
 }
 
 fn xdl_call_hunk_func(
-    _xe: &mut xdfenv_t,
-    xscr: &[xdchange_t],
-    ecb: &mut xdemitcb_t,
-    xecfg: &xdemitconf_t,
+    _xe: &mut Xdfenv,
+    xscr: &[Xdchange],
+    ecb: &mut Xdemitcb,
+    xecfg: &Xdemitconf,
 ) -> c_int {
     let mut idx = 0;
     while let Some(end_idx) = xdl_get_hunk(xscr, &mut idx, xecfg) {
@@ -827,7 +827,7 @@ fn xdl_call_hunk_func(
     0
 }
 
-fn xdl_mark_ignorable_lines(xscr: &mut [xdchange_t], xe: &xdfenv_t, flags: c_long) {
+fn xdl_mark_ignorable_lines(xscr: &mut [Xdchange], xe: &Xdfenv, flags: c_long) {
     let recs1 = &xe.xdf1.recs;
     let recs2 = &xe.xdf2.recs;
     for xch in xscr {
@@ -851,24 +851,24 @@ fn xdl_mark_ignorable_lines(xscr: &mut [xdchange_t], xe: &xdfenv_t, flags: c_lon
 }
 
 fn xdl_emit_diff_wrapper(
-    xe: &mut xdfenv_t,
-    xscr: &[xdchange_t],
-    ecb: &mut xdemitcb_t,
-    xecfg: &xdemitconf_t,
+    xe: &mut Xdfenv,
+    xscr: &[Xdchange],
+    ecb: &mut Xdemitcb,
+    xecfg: &Xdemitconf,
 ) -> c_int {
     xdl_emit_diff(xe, xscr, ecb, xecfg)
 }
 
 pub fn xdl_diff(
-    mf1: &mut mmfile_t,
-    mf2: &mut mmfile_t,
-    xpp: &xpparam_t,
-    xecfg: &xdemitconf_t,
-    ecb: &mut xdemitcb_t,
+    mf1: &mut Mmfile,
+    mf2: &mut Mmfile,
+    xpp: &Xpparam,
+    xecfg: &Xdemitconf,
+    ecb: &mut Xdemitcb,
 ) -> c_int {
-    let mut xscr: Vec<xdchange_t> = Vec::new();
-    let mut xe = xdfenv_t::new();
-    let ef: emit_func_t = if ecb.has_hunk_func() {
+    let mut xscr: Vec<Xdchange> = Vec::new();
+    let mut xe = Xdfenv::new();
+    let ef: EmitFunc = if ecb.has_hunk_func() {
         xdl_call_hunk_func
     } else {
         xdl_emit_diff_wrapper

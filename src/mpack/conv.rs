@@ -5,8 +5,8 @@ use std::ffi::{c_char, c_double, c_int, c_uint};
 use crate::mpack::mpack_core::{
     MPACK_TOKEN_ARRAY, MPACK_TOKEN_BIN, MPACK_TOKEN_BOOLEAN, MPACK_TOKEN_CHUNK, MPACK_TOKEN_EXT,
     MPACK_TOKEN_FLOAT, MPACK_TOKEN_MAP, MPACK_TOKEN_NIL, MPACK_TOKEN_SINT, MPACK_TOKEN_STR,
-    MPACK_TOKEN_UINT, mpack_sintmax_t, mpack_token_data_t, mpack_token_t, mpack_uint32_t,
-    mpack_uintmax_t, mpack_value_t,
+    MPACK_TOKEN_UINT, MpackSintmax, MpackTokenData, MpackToken, MpackUint32,
+    MpackUintmax, MpackValue,
 };
 
 #[inline]
@@ -14,30 +14,30 @@ fn pow2(n: c_uint) -> c_double {
     f64::from(1u32 << (n / 2)) * f64::from(1u32 << (n / 2)) * f64::from(1u32 << (n % 2))
 }
 
-pub fn mpack_pack_nil() -> mpack_token_t {
-    mpack_token_t {
+pub fn mpack_pack_nil() -> MpackToken {
+    MpackToken {
         r#type: MPACK_TOKEN_NIL,
         length: 0,
-        data: mpack_token_data_t::new(),
+        data: MpackTokenData::new(),
     }
 }
 
-pub fn mpack_pack_boolean(v: c_uint) -> mpack_token_t {
-    mpack_token_t {
+pub fn mpack_pack_boolean(v: c_uint) -> MpackToken {
+    MpackToken {
         r#type: MPACK_TOKEN_BOOLEAN,
         length: 0,
-        data: mpack_token_data_t::Value(mpack_value_t {
+        data: MpackTokenData::Value(MpackValue {
             lo: u32::from(v != 0),
             hi: 0,
         }),
     }
 }
 
-pub fn mpack_pack_float_fast(v: c_double) -> mpack_token_t {
+pub fn mpack_pack_float_fast(v: c_double) -> MpackToken {
     let (length, value) = if mpack_fits_single(v) {
         (
             4,
-            mpack_value_t {
+            MpackValue {
                 lo: (v as f32).to_bits(),
                 hi: 0,
             },
@@ -46,27 +46,27 @@ pub fn mpack_pack_float_fast(v: c_double) -> mpack_token_t {
         let bits = v.to_bits();
         (
             8,
-            mpack_value_t {
-                lo: (bits & 0xffffffff) as mpack_uint32_t,
-                hi: (bits >> 32) as mpack_uint32_t,
+            MpackValue {
+                lo: (bits & 0xffffffff) as MpackUint32,
+                hi: (bits >> 32) as MpackUint32,
             },
         )
     };
 
-    mpack_token_t {
+    MpackToken {
         r#type: MPACK_TOKEN_FLOAT,
         length,
-        data: mpack_token_data_t::Value(value),
+        data: MpackTokenData::Value(value),
     }
 }
 
-pub fn mpack_pack_number(v: c_double) -> mpack_token_t {
+pub fn mpack_pack_number(v: c_double) -> MpackToken {
     if !(-9223372036854775808.0..18446744073709551616.0).contains(&v) {
         return mpack_pack_float_fast(v);
     }
     let vabs = if v < 0.0 { -v } else { v };
-    let mut hi = (vabs / pow2(32)) as mpack_uint32_t;
-    let mut lo = mpack_fmod_pow2_32(vabs) as mpack_uint32_t;
+    let mut hi = (vabs / pow2(32)) as MpackUint32;
+    let mut lo = mpack_fmod_pow2_32(vabs) as MpackUint32;
     let r#type;
     let length;
 
@@ -101,10 +101,10 @@ pub fn mpack_pack_number(v: c_double) -> mpack_token_t {
         }
     }
 
-    let tok = mpack_token_t {
+    let tok = MpackToken {
         r#type,
         length,
-        data: mpack_token_data_t::Value(mpack_value_t { lo, hi }),
+        data: MpackTokenData::Value(MpackValue { lo, hi }),
     };
 
     if mpack_unpack_number(tok) != v {
@@ -114,80 +114,80 @@ pub fn mpack_pack_number(v: c_double) -> mpack_token_t {
     tok
 }
 
-pub fn mpack_pack_chunk(p: *const c_char, l: mpack_uint32_t) -> mpack_token_t {
-    mpack_token_t {
+pub fn mpack_pack_chunk(p: *const c_char, l: MpackUint32) -> MpackToken {
+    MpackToken {
         r#type: MPACK_TOKEN_CHUNK,
         length: l,
-        data: mpack_token_data_t::ChunkPtr(p),
+        data: MpackTokenData::ChunkPtr(p),
     }
 }
 
-pub fn mpack_pack_str(l: mpack_uint32_t) -> mpack_token_t {
-    mpack_token_t {
+pub fn mpack_pack_str(l: MpackUint32) -> MpackToken {
+    MpackToken {
         r#type: MPACK_TOKEN_STR,
         length: l,
-        data: mpack_token_data_t::new(),
+        data: MpackTokenData::new(),
     }
 }
 
-pub fn mpack_pack_bin(l: mpack_uint32_t) -> mpack_token_t {
-    mpack_token_t {
+pub fn mpack_pack_bin(l: MpackUint32) -> MpackToken {
+    MpackToken {
         r#type: MPACK_TOKEN_BIN,
         length: l,
-        data: mpack_token_data_t::new(),
+        data: MpackTokenData::new(),
     }
 }
 
-pub fn mpack_pack_ext(t: c_int, l: mpack_uint32_t) -> mpack_token_t {
-    mpack_token_t {
+pub fn mpack_pack_ext(t: c_int, l: MpackUint32) -> MpackToken {
+    MpackToken {
         r#type: MPACK_TOKEN_EXT,
         length: l,
-        data: mpack_token_data_t::ExtType(t),
+        data: MpackTokenData::ExtType(t),
     }
 }
 
-pub fn mpack_pack_array(l: mpack_uint32_t) -> mpack_token_t {
-    mpack_token_t {
+pub fn mpack_pack_array(l: MpackUint32) -> MpackToken {
+    MpackToken {
         r#type: MPACK_TOKEN_ARRAY,
         length: l,
-        data: mpack_token_data_t::new(),
+        data: MpackTokenData::new(),
     }
 }
 
-pub fn mpack_pack_map(l: mpack_uint32_t) -> mpack_token_t {
-    mpack_token_t {
+pub fn mpack_pack_map(l: MpackUint32) -> MpackToken {
+    MpackToken {
         r#type: MPACK_TOKEN_MAP,
         length: l,
-        data: mpack_token_data_t::new(),
+        data: MpackTokenData::new(),
     }
 }
 
-pub fn mpack_unpack_boolean(t: mpack_token_t) -> bool {
+pub fn mpack_unpack_boolean(t: MpackToken) -> bool {
     let val = t.data.value();
     val.lo != 0 || val.hi != 0
 }
 
-pub fn mpack_unpack_uint(t: mpack_token_t) -> mpack_uintmax_t {
+pub fn mpack_unpack_uint(t: MpackToken) -> MpackUintmax {
     let val = t.data.value();
-    (((val.hi as mpack_uintmax_t) << 31) << 1) | (val.lo as mpack_uintmax_t)
+    (((val.hi as MpackUintmax) << 31) << 1) | (val.lo as MpackUintmax)
 }
 
-pub fn mpack_unpack_sint(t: mpack_token_t) -> mpack_sintmax_t {
+pub fn mpack_unpack_sint(t: MpackToken) -> MpackSintmax {
     let val = t.data.value();
     let hi = val.hi;
     let lo = val.lo;
-    let mut rv = lo as mpack_uintmax_t;
-    debug_assert!((t.length as usize) <= std::mem::size_of::<mpack_sintmax_t>());
+    let mut rv = lo as MpackUintmax;
+    debug_assert!((t.length as usize) <= std::mem::size_of::<MpackSintmax>());
 
     if t.length == 8 {
-        rv |= ((hi as mpack_uintmax_t) << 31) << 1;
+        rv |= ((hi as MpackUintmax) << 31) << 1;
     }
-    let mask = ((1 as mpack_uintmax_t) << ((t.length * 8) - 1)).wrapping_sub(1);
+    let mask = ((1 as MpackUintmax) << ((t.length * 8) - 1)).wrapping_sub(1);
     rv = (!rv & mask).wrapping_add(1);
-    -((rv.wrapping_sub(1)) as mpack_sintmax_t) - 1
+    -((rv.wrapping_sub(1)) as MpackSintmax) - 1
 }
 
-pub fn mpack_unpack_float_fast(t: mpack_token_t) -> c_double {
+pub fn mpack_unpack_float_fast(t: MpackToken) -> c_double {
     let val = t.data.value();
     if t.length == 4 {
         f64::from(f32::from_bits(val.lo))
@@ -197,7 +197,7 @@ pub fn mpack_unpack_float_fast(t: mpack_token_t) -> c_double {
     }
 }
 
-pub fn mpack_unpack_number(t: mpack_token_t) -> c_double {
+pub fn mpack_unpack_number(t: MpackToken) -> c_double {
     if t.r#type == MPACK_TOKEN_FLOAT {
         return mpack_unpack_float_fast(t);
     }
@@ -234,5 +234,5 @@ fn mpack_fits_single(v: c_double) -> bool {
 
 #[inline]
 fn mpack_fmod_pow2_32(a: c_double) -> c_double {
-    a - (f64::from((a / pow2(32)) as mpack_uint32_t) * pow2(32))
+    a - (f64::from((a / pow2(32)) as MpackUint32) * pow2(32))
 }

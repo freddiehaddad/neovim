@@ -145,7 +145,7 @@ use crate::message::{
 };
 use crate::r#move::{update_curswant, win_col_off};
 use crate::mpack::mpack_core::MPACK_OK;
-use crate::mpack::object::mpack_parser_t;
+use crate::mpack::object::MpackParser;
 use crate::msgpack_rpc::channel::{find_channel, get_client_info, rpc_send_call, rpc_send_event};
 use crate::msgpack_rpc::packer::{Integer, PackerBuffer, packer_string_buffer, packer_take_string};
 use crate::msgpack_rpc::server::{
@@ -181,7 +181,7 @@ use crate::regexp::{
     vim_regcomp, vim_regexec_nl, vim_regfree,
 };
 use crate::register::{
-    YREG_YANK, block_def, format_reg_type, get_reg_contents_list, get_reg_contents_str,
+    YREG_YANK, BlockDef, format_reg_type, get_reg_contents_list, get_reg_contents_str,
     get_reg_type, get_register_name, get_unname_register, get_yank_register, kGRegExprSrc,
     op_reg_set_previous, write_reg_contents_ex, write_reg_contents_lst,
 };
@@ -3195,8 +3195,8 @@ pub fn f_getpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     getpos_both(argvars, rettv, false, false);
 }
 
-/// Convert from `block_def` to a byte vector.
-fn block_def2str(bd: &block_def) -> Vec<c_char> {
+/// Convert from `BlockDef` to a byte vector.
+fn block_def2str(bd: &BlockDef) -> Vec<c_char> {
     unsafe {
         let startspaces = bd.startspaces as usize;
         let endspaces = bd.endspaces as usize;
@@ -3365,7 +3365,7 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
         for lnum in p1.lnum..=p2.lnum {
             if region_type == kMTBlockWise {
-                let mut bd = block_def::new();
+                let mut bd = BlockDef::new();
                 block_prep(&mut oa, &mut bd, lnum, false);
                 let akt = block_def2str(&bd);
                 tv_list_append_string(unsafe { &mut *rettv.vval.v_list() }, akt.as_ptr(), akt.len() as isize);
@@ -3376,7 +3376,7 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                     ml_get_len(lnum) as isize,
                 );
             } else {
-                let mut bd = block_def::new();
+                let mut bd = BlockDef::new();
                 charwise_block_prep(
                     crate::cursor::CursorPos {
                         lnum: p1.lnum,
@@ -5920,9 +5920,9 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
         let mut buf_size: usize = 0;
 
         let mut cur_item = tv_initial_value();
-        let mut parser = mpack_parser_t::new(0);
+        let mut parser = MpackParser::new(0);
         mpack_parser_init(&mut parser, 0);
-        parser.data = crate::mpack::object::mpack_data_t::Typval(&raw mut cur_item);
+        parser.data = crate::mpack::object::MpackData::Typval(&raw mut cur_item);
 
         let mut status = MPACK_OK;
         'end: {
