@@ -618,7 +618,7 @@ fn loop_uv_run(loop_: &mut Loop, ms: i64) -> bool {
     }
 
     loop_.recursive -= 1; // Can re-enter uv_run now
-    unsafe { *timeout_expired }
+    unsafe { ptr::read_volatile(timeout_expired) }
 }
 
 /// Processes one `Loop.uv` event (at most).

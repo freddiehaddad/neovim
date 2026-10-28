@@ -4822,14 +4822,14 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             if chan.is_null() || (*chan).streamtype != K_CHANNEL_STREAM_PROC {
                 jobs[i] = ptr::null_mut();
             } else {
-                let proc_ptr = &mut (*chan).uv.proc_;
-                if proc_is_stopped(proc_ptr) {
+                let proc_ptr = &raw mut (*chan).uv.proc_;
+                if proc_is_stopped(&mut *proc_ptr) {
                     proc_wait(proc_ptr, -1, ptr::null_mut());
                     jobs[i] = ptr::null_mut();
                 } else {
                     jobs[i] = chan;
                     channel_incref(&mut *chan);
-                    if proc_ptr.status < 0 {
+                    if (*proc_ptr).status < 0 {
                         let events = (*chan).events;
                         multiqueue_process_events(&mut *events);
                         multiqueue_replace_parent(&mut *events, &mut *waiting_jobs);
@@ -4858,7 +4858,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             if job.is_null() {
                 continue;
             }
-            let status = proc_wait(&mut (*job).uv.proc_, remaining, waiting_jobs);
+            let status = proc_wait(&raw mut (*job).uv.proc_, remaining, waiting_jobs);
             if status < 0 {
                 break;
             }

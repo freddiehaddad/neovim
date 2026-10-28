@@ -266,11 +266,12 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
 pub fn proc_teardown(loop_: &mut Loop) {
     unsafe {
         proc_st().proc_is_tearing_down = true;
-        let qc = loop_queues(loop_);
-        for &proc_ in &qc.children {
+        let qc = &raw mut *loop_queues(loop_);
+        let children = (*qc).children.clone();
+        for proc_ in children {
             if (*proc_).detach || (*proc_).r#type == K_PROC_TYPE_PTY {
-                if !qc.events.is_null() {
-                    multiqueue_put_event(&mut *qc.events, Event::ProcCloseHandles(proc_));
+                if !(*qc).events.is_null() {
+                    multiqueue_put_event(&mut *(*qc).events, Event::ProcCloseHandles(proc_));
                 } else {
                     proc_close_handles(&mut *proc_);
                 }
@@ -279,8 +280,9 @@ pub fn proc_teardown(loop_: &mut Loop) {
             }
         }
 
-        loop_process_events_until(loop_, qc.events, -1, || {
-            qc.children.is_empty() && multiqueue_empty(&*qc.events)
+        loop_process_events_until(loop_, (*qc).events, -1, || {
+            std::mem::ManuallyDrop::new(ptr::read_volatile(&raw const (*qc).children)).is_empty()
+                && multiqueue_empty(&*(*qc).events)
         });
         pty_proc_teardown(loop_);
     }
@@ -293,48 +295,49 @@ pub fn proc_close_streams(proc_: &mut Proc) {
 }
 
 /// Synchronously wait for a process to finish
-pub fn proc_wait(proc_: &mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 {
-    if proc_.refcount == 0 {
-        let status = proc_.status;
-        loop_process_events(
-            unsafe { &mut *proc_.loop_ },
-            unsafe { proc_.events.as_mut() },
-            0,
-        );
-        return status;
-    }
+pub fn proc_wait(proc_: *mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 {
+    unsafe {
+        if (*proc_).refcount == 0 {
+            let status = (*proc_).status;
+            loop_process_events(&mut *(*proc_).loop_, (*proc_).events.as_mut(), 0);
+            return status;
+        }
 
-    if events.is_null() {
-        events = proc_.events;
-    }
+        if events.is_null() {
+            events = (*proc_).events;
+        }
 
-    proc_.refcount += 1;
-    loop_process_events_until(proc_.loop_, events, i64::from(ms), || {
-        g_st().got_int || proc_.refcount == 1
-    });
+        (*proc_).refcount += 1;
+        loop_process_events_until((*proc_).loop_, events, i64::from(ms), || {
+            ptr::read_volatile(&raw const g_st().got_int)
+                || ptr::read_volatile(&raw const (*proc_).refcount) == 1
+        });
 
-    if g_st().got_int {
-        g_st().got_int = false;
-        proc_stop(proc_);
-        if ms == -1 {
-            loop_process_events_until(proc_.loop_, events, -1, || proc_.refcount == 1);
+        if g_st().got_int {
+            g_st().got_int = false;
+            proc_stop(&mut *proc_);
+            if ms == -1 {
+                loop_process_events_until((*proc_).loop_, events, -1, || {
+                    ptr::read_volatile(&raw const (*proc_).refcount) == 1
+                });
+            } else {
+                loop_process_events(&mut *(*proc_).loop_, events.as_mut(), 0);
+            }
+
+            (*proc_).status = -2;
+        }
+
+        if ptr::read_volatile(&raw const (*proc_).refcount) == 1 {
+            proc_decref(&mut *proc_);
+            if !(*proc_).events.is_null() {
+                multiqueue_process_events(&mut *(*proc_).events);
+            }
         } else {
-            loop_process_events(unsafe { &mut *proc_.loop_ }, unsafe { events.as_mut() }, 0);
+            (*proc_).refcount -= 1;
         }
 
-        proc_.status = -2;
+        ptr::read_volatile(&raw const (*proc_).status)
     }
-
-    if proc_.refcount == 1 {
-        proc_decref(proc_);
-        if !proc_.events.is_null() {
-            multiqueue_process_events(unsafe { &mut *proc_.events });
-        }
-    } else {
-        proc_.refcount -= 1;
-    }
-
-    proc_.status
 }
 
 /// Ask a process to terminate and eventually kill if it doesn't respond
@@ -447,48 +450,54 @@ fn proc_close(proc_: &mut Proc) {
     }
 }
 
-fn flush_stream(proc_: &mut Proc, stream: &mut RStream) {
-    if stream.s.closed {
-        return;
-    }
-
-    let mut max_bytes = usize::MAX;
-    let limit_bytes = if cfg!(windows) {
-        true
-    } else {
-        proc_.r#type != K_PROC_TYPE_PTY || proc_st().proc_is_tearing_down
-    };
-    if limit_bytes {
-        let mut system_buffer_size: i32 = 0;
-        let err =
-            unsafe { uv_recv_buffer_size((&raw mut stream.s.uv).cast(), &mut system_buffer_size) };
-        if err != 0 {
-            system_buffer_size = ARENA_BLOCK_SIZE as i32;
-        }
-        max_bytes = stream.num_bytes + system_buffer_size as usize;
-    }
-
-    while !unsafe { ptr::read_volatile(&raw const stream.s.closed) }
-        && unsafe { ptr::read_volatile(&raw const stream.num_bytes) } < max_bytes
-    {
-        let num_bytes = stream.num_bytes;
-
-        if proc_.r#type == K_PROC_TYPE_PTY && !stream.did_eof {
-            pty_proc_flush_master(unsafe { &mut *(&raw mut *proc_).cast() });
-        }
-        loop_poll_events(unsafe { &mut *proc_.loop_ }, 0);
-        if !stream.s.events.is_null() {
-            multiqueue_process_events(unsafe { &mut *stream.s.events });
+fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
+    unsafe {
+        if (*stream).s.closed {
+            return;
         }
 
-        if num_bytes == stream.num_bytes {
-            if !stream.did_eof {
-                let _ = stream
-                    .s
-                    .cb_data
-                    .call_read_cb(stream, stream.buffer.as_ptr(), 0, true);
+        let mut max_bytes = usize::MAX;
+        let limit_bytes = if cfg!(windows) {
+            true
+        } else {
+            (*proc_).r#type != K_PROC_TYPE_PTY || proc_st().proc_is_tearing_down
+        };
+        if limit_bytes {
+            let mut system_buffer_size: i32 = 0;
+            let err =
+                uv_recv_buffer_size((&raw mut (*stream).s.uv).cast(), &mut system_buffer_size);
+            if err != 0 {
+                system_buffer_size = ARENA_BLOCK_SIZE as i32;
             }
-            break;
+            max_bytes = (*stream).num_bytes + system_buffer_size as usize;
+        }
+
+        while !ptr::read_volatile(&raw const (*stream).s.closed)
+            && ptr::read_volatile(&raw const (*stream).num_bytes) < max_bytes
+        {
+            let num_bytes = ptr::read_volatile(&raw const (*stream).num_bytes);
+
+            if (*proc_).r#type == K_PROC_TYPE_PTY
+                && !ptr::read_volatile(&raw const (*stream).did_eof)
+            {
+                pty_proc_flush_master(&mut *proc_.cast());
+            }
+            loop_poll_events(&mut *(*proc_).loop_, 0);
+            if !(*stream).s.events.is_null() {
+                multiqueue_process_events(&mut *(*stream).s.events);
+            }
+
+            if num_bytes == ptr::read_volatile(&raw const (*stream).num_bytes) {
+                if !ptr::read_volatile(&raw const (*stream).did_eof) {
+                    let _ = (*stream).s.cb_data.call_read_cb(
+                        &mut *stream,
+                        (*stream).buffer.as_ptr(),
+                        0,
+                        true,
+                    );
+                }
+                break;
+            }
         }
     }
 }
@@ -496,8 +505,8 @@ fn flush_stream(proc_: &mut Proc, stream: &mut RStream) {
 pub fn proc_close_handles(proc_: &mut Proc) {
     proc_st().exit_need_delay += 1;
     let p = &raw mut *proc_;
-    flush_stream(unsafe { &mut *p }, &mut proc_.out);
-    flush_stream(unsafe { &mut *p }, &mut proc_.err);
+    flush_stream(p, unsafe { &raw mut (*p).out });
+    flush_stream(p, unsafe { &raw mut (*p).err });
 
     proc_close_streams(proc_);
     proc_close(proc_);

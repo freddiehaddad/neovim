@@ -9600,8 +9600,8 @@ fn ex_restart(eap: &mut Exarg) {
             arena_mem_free(result_mem);
         }
 
-        let proc_ptr = &mut (*channel).uv.proc_;
-        proc_stop(proc_ptr);
+        let proc_ptr = &raw mut (*channel).uv.proc_;
+        proc_stop(&mut *proc_ptr);
         if proc_wait(proc_ptr, -1, ptr::null_mut()) < 0 {
             let _ = emsg(c"killing new nvim server failed");
         }

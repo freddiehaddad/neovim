@@ -974,7 +974,7 @@ fn do_os_system(
                 g_st().msg_no_more = true;
                 g_st().lines_left = -1;
             }
-            exitcode = proc_wait(proc_, -1, ptr::null_mut());
+            exitcode = proc_wait(&raw mut *proc_, -1, ptr::null_mut());
             if !g_st().got_int && out_data_decide_throttle(0) {
                 out_data_ring(ptr::null(), usize::MAX);
             }
