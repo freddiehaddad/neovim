@@ -2243,14 +2243,14 @@ unsafe extern "C-unwind" fn tslua_parse_query(lstate: *mut lua_State) -> c_int {
     }
 }
 
-fn query_err_to_string(error_type: TSQueryError) -> *const c_char {
+const fn query_err_to_string(error_type: TSQueryError) -> &'static std::ffi::CStr {
     match error_type {
-        TSQUERY_ERROR_SYNTAX => c"Invalid syntax:\n".as_ptr(),
-        TSQUERY_ERROR_NODE_TYPE => c"Invalid node type ".as_ptr(),
-        TSQUERY_ERROR_FIELD => c"Invalid field name ".as_ptr(),
-        TSQUERY_ERROR_CAPTURE => c"Invalid capture name ".as_ptr(),
-        TSQUERY_ERROR_STRUCTURE => c"Impossible pattern:\n".as_ptr(),
-        _ => c"error".as_ptr(),
+        TSQUERY_ERROR_SYNTAX => c"Invalid syntax:\n",
+        TSQUERY_ERROR_NODE_TYPE => c"Invalid node type ",
+        TSQUERY_ERROR_FIELD => c"Invalid field name ",
+        TSQUERY_ERROR_CAPTURE => c"Invalid capture name ",
+        TSQUERY_ERROR_STRUCTURE => c"Impossible pattern:\n",
+        _ => c"error",
     }
 }
 

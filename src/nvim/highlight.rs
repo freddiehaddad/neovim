@@ -841,8 +841,8 @@ pub fn hl_add_url(attr: c_int, url: impl crate::strings::IntoCCharPtr) -> c_int 
     }
 }
 
-pub fn hl_get_url(index: u32) -> *const c_char {
-    hl_st().urls.as_slice()[index as usize].as_ptr()
+pub fn hl_get_url(index: u32) -> &'static std::ffi::CStr {
+    hl_st().urls.as_slice()[index as usize].as_c_str()
 }
 
 pub fn hl_add_font_idx(font_name: impl crate::strings::IntoCCharPtr) -> i32 {

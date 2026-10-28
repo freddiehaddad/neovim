@@ -2351,8 +2351,8 @@ pub fn set_vim_var_tv(idx: VimVarIndex, tv: &mut TypVal) {
     }
 }
 
-pub fn get_vim_var_name(idx: VimVarIndex) -> *mut c_char {
-    vars_st().vimvars[idx as usize].vv_name.as_ptr().cast_mut()
+pub fn get_vim_var_name(idx: VimVarIndex) -> &'static std::ffi::CStr {
+    vars_st().vimvars[idx as usize].vv_name
 }
 
 pub fn get_vim_var_tv(idx: VimVarIndex) -> &'static mut TypVal {

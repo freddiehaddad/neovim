@@ -3531,8 +3531,8 @@ pub fn text_locked_msg() {
     emsg(gettext(get_text_locked_msg()));
 }
 
-pub fn get_text_locked_msg() -> *const c_char {
-    E_TEXTLOCK.as_ptr()
+pub const fn get_text_locked_msg() -> &'static std::ffi::CStr {
+    E_TEXTLOCK
 }
 
 /// Check for text, window or buffer locked.

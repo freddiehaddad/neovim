@@ -316,8 +316,8 @@ fn func_hashtab_add(fp: &mut UserFunc) -> bool {
 }
 
 #[inline]
-fn funcarg(fp: &UserFunc, j: c_int) -> *mut c_char {
-    (&fp.uf_args)[j as usize].as_ptr().cast_mut()
+fn funcarg(fp: &UserFunc, j: c_int) -> &std::ffi::CStr {
+    (&fp.uf_args)[j as usize].as_c_str()
 }
 
 /// Return the function hash table.
@@ -1313,7 +1313,7 @@ pub fn call_user_func(
 
             let ai = i - uf_args_len;
             if ai < 0 {
-                name = funcarg(&*fp, i);
+                name = funcarg(&*fp, i).as_ptr().cast_mut();
                 if islambda {
                     addlocal = true;
                 }

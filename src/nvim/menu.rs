@@ -1390,7 +1390,7 @@ pub fn get_menu_cmd_modes(
 }
 
 /// Return the string representation of the menu modes (`get_menu_mode_str`).
-const fn get_menu_mode_str(modes: c_int) -> *const c_char {
+const fn get_menu_mode_str(modes: c_int) -> &'static std::ffi::CStr {
     const ALL_A: c_int = MENU_INSERT_MODE
         | MENU_CMDLINE_MODE
         | MENU_NORMAL_MODE
@@ -1403,31 +1403,31 @@ const fn get_menu_mode_str(modes: c_int) -> *const c_char {
     const ALL_V: c_int = MENU_VISUAL_MODE | MENU_SELECT_MODE;
 
     if (modes & ALL_A) == ALL_A {
-        c"a".as_ptr()
+        c"a"
     } else if (modes & ALL_DEF) == ALL_DEF {
-        c" ".as_ptr()
+        c" "
     } else if (modes & ALL_BANG) == ALL_BANG {
-        c"!".as_ptr()
+        c"!"
     } else if (modes & ALL_V) == ALL_V {
-        c"v".as_ptr()
+        c"v"
     } else if (modes & MENU_VISUAL_MODE) != 0 {
-        c"x".as_ptr()
+        c"x"
     } else if (modes & MENU_SELECT_MODE) != 0 {
-        c"s".as_ptr()
+        c"s"
     } else if (modes & MENU_OP_PENDING_MODE) != 0 {
-        c"o".as_ptr()
+        c"o"
     } else if (modes & MENU_INSERT_MODE) != 0 {
-        c"i".as_ptr()
+        c"i"
     } else if (modes & MENU_TERMINAL_MODE) != 0 {
-        c"tl".as_ptr()
+        c"tl"
     } else if (modes & MENU_CMDLINE_MODE) != 0 {
-        c"c".as_ptr()
+        c"c"
     } else if (modes & MENU_NORMAL_MODE) != 0 {
-        c"n".as_ptr()
+        c"n"
     } else if (modes & MENU_TIP_MODE) != 0 {
-        c"t".as_ptr()
+        c"t"
     } else {
-        c"".as_ptr()
+        c""
     }
 }
 

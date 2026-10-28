@@ -751,7 +751,7 @@ pub fn infinity_str(
     fmt_spec: c_char,
     force_sign: c_int,
     space_for_positive: c_int,
-) -> *const c_char {
+) -> &'static CStr {
     const TABLE: [&CStr; 8] = [
         c"-inf", c"inf", c"+inf", c" inf", c"-INF", c"INF", c"+INF", c" INF",
     ];
@@ -763,7 +763,7 @@ pub fn infinity_str(
     if (fmt_spec as u8).is_ascii_uppercase() {
         idx += 4;
     }
-    TABLE[idx].as_ptr()
+    TABLE[idx]
 }
 
 pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> c_int {

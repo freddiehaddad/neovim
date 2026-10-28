@@ -631,8 +631,8 @@ fn cur_state_at(idx: c_int) -> &'static mut Stateitem {
 }
 
 #[inline]
-fn ke2hikey(kp: &Keyentry) -> *const c_char {
-    kp.keyword.as_ptr()
+fn ke2hikey(kp: &Keyentry) -> &std::ffi::CStr {
+    unsafe { std::ffi::CStr::from_ptr(kp.keyword.as_ptr()) }
 }
 
 #[inline]

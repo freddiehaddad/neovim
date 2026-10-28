@@ -114,11 +114,11 @@ impl LibuvProc {
 use crate::event::r#loop::{uv_pipe, uv_process_get_pid, uv_spawn};
 
 #[inline]
-pub fn proc_get_exepath(proc_: &mut Proc) -> *const c_char {
+pub fn proc_get_exepath(proc_: &Proc) -> &std::ffi::CStr {
     proc_
         .exepath
-        .as_ref()
-        .map_or_else(|| proc_.argv.as_slice()[0].as_ptr(), |s| s.as_ptr())
+        .as_deref()
+        .unwrap_or_else(|| proc_.argv.as_slice()[0].as_c_str())
 }
 
 fn libuv_proc_stdio(
@@ -218,7 +218,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
             .map(|s| s.as_ptr().cast_mut())
             .chain(std::iter::once(ptr::null_mut()))
             .collect();
-        uvproc.uvopts.file = proc_get_exepath(&mut *proc_);
+        uvproc.uvopts.file = proc_get_exepath(&*proc_).as_ptr();
         uvproc.uvopts.args = uvproc.args_ptrs.as_mut_ptr();
         uvproc.uvopts.flags |= UV_PROCESS_WINDOWS_HIDE;
 

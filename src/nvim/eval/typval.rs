@@ -4664,27 +4664,27 @@ pub fn tv_check_str_or_nr(tv: &TypVal) -> bool {
 }
 
 #[inline]
-const fn num_error(vt: VarType) -> *const c_char {
+const fn num_error(vt: VarType) -> &'static std::ffi::CStr {
     match vt {
-        VarType::VarPartial | VarType::VarFunc => c"E703: Using a Funcref as a Number".as_ptr(),
-        VarType::VarList => c"E745: Using a List as a Number".as_ptr(),
-        VarType::VarDict => c"E728: Using a Dictionary as a Number".as_ptr(),
-        VarType::VarFloat => c"E805: Using a Float as a Number".as_ptr(),
-        VarType::VarBlob => c"E974: Using a Blob as a Number".as_ptr(),
-        VarType::VarUnknown => c"E685: using an invalid value as a Number".as_ptr(),
-        _ => c"".as_ptr(),
+        VarType::VarPartial | VarType::VarFunc => c"E703: Using a Funcref as a Number",
+        VarType::VarList => c"E745: Using a List as a Number",
+        VarType::VarDict => c"E728: Using a Dictionary as a Number",
+        VarType::VarFloat => c"E805: Using a Float as a Number",
+        VarType::VarBlob => c"E974: Using a Blob as a Number",
+        VarType::VarUnknown => c"E685: using an invalid value as a Number",
+        _ => c"",
     }
 }
 
 #[inline]
-const fn str_error(vt: VarType) -> *const c_char {
+const fn str_error(vt: VarType) -> &'static std::ffi::CStr {
     match vt {
-        VarType::VarPartial | VarType::VarFunc => c"E729: Using a Funcref as a String".as_ptr(),
-        VarType::VarList => c"E730: Using a List as a String".as_ptr(),
-        VarType::VarDict => c"E731: Using a Dictionary as a String".as_ptr(),
-        VarType::VarBlob => c"E976: Using a Blob as a String".as_ptr(),
-        VarType::VarUnknown => E_USING_INVALID_VALUE_AS_STRING.as_ptr(),
-        _ => c"".as_ptr(),
+        VarType::VarPartial | VarType::VarFunc => c"E729: Using a Funcref as a String",
+        VarType::VarList => c"E730: Using a List as a String",
+        VarType::VarDict => c"E731: Using a Dictionary as a String",
+        VarType::VarBlob => c"E976: Using a Blob as a String",
+        VarType::VarUnknown => E_USING_INVALID_VALUE_AS_STRING,
+        _ => c"",
     }
 }
 

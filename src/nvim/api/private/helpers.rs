@@ -1152,20 +1152,20 @@ pub fn object_to_hl_id(
     }
 }
 
-pub fn api_typename(t: ObjectType) -> *const c_char {
+pub const fn api_typename(t: ObjectType) -> &'static std::ffi::CStr {
     match t {
-        ObjectType::ObjectTypeUnset => c"unset".as_ptr(),
-        ObjectType::ObjectTypeNil => c"nil".as_ptr(),
-        ObjectType::ObjectTypeBoolean => c"Boolean".as_ptr(),
-        ObjectType::ObjectTypeInteger => c"Integer".as_ptr(),
-        ObjectType::ObjectTypeFloat => c"Float".as_ptr(),
-        ObjectType::ObjectTypeString => c"String".as_ptr(),
-        ObjectType::ObjectTypeArray => c"Array".as_ptr(),
-        ObjectType::ObjectTypeDict => c"Dict".as_ptr(),
-        ObjectType::ObjectTypeLuaRef => c"Function".as_ptr(),
-        ObjectType::ObjectTypeBuffer => c"Buffer".as_ptr(),
-        ObjectType::ObjectTypeWindow => c"Window".as_ptr(),
-        ObjectType::ObjectTypeTabpage => c"Tabpage".as_ptr(),
+        ObjectType::ObjectTypeUnset => c"unset",
+        ObjectType::ObjectTypeNil => c"nil",
+        ObjectType::ObjectTypeBoolean => c"Boolean",
+        ObjectType::ObjectTypeInteger => c"Integer",
+        ObjectType::ObjectTypeFloat => c"Float",
+        ObjectType::ObjectTypeString => c"String",
+        ObjectType::ObjectTypeArray => c"Array",
+        ObjectType::ObjectTypeDict => c"Dict",
+        ObjectType::ObjectTypeLuaRef => c"Function",
+        ObjectType::ObjectTypeBuffer => c"Buffer",
+        ObjectType::ObjectTypeWindow => c"Window",
+        ObjectType::ObjectTypeTabpage => c"Tabpage",
     }
 }
 
@@ -4408,17 +4408,13 @@ mod tests {
 
     #[test]
     fn api_typename_and_cstr_helpers_work() {
-        unsafe {
+        {
             assert_eq!(
-                CStr::from_ptr(api_typename(ObjectType::ObjectTypeString))
-                    .to_str()
-                    .unwrap(),
+                api_typename(ObjectType::ObjectTypeString).to_str().unwrap(),
                 "String"
             );
             assert_eq!(
-                CStr::from_ptr(api_typename(ObjectType::ObjectTypeLuaRef))
-                    .to_str()
-                    .unwrap(),
+                api_typename(ObjectType::ObjectTypeLuaRef).to_str().unwrap(),
                 "Function"
             );
             let s = cstr_to_string(c"hello");

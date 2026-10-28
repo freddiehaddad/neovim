@@ -684,11 +684,11 @@ const fn unset_obj() -> Object {
 use crate::keycodes::{ctrl_chr, key2termcap0, key2termcap1};
 
 #[inline]
-fn optval_type_name(t: ObjectType) -> *const c_char {
+fn optval_type_name(t: ObjectType) -> &'static std::ffi::CStr {
     match t {
-        ObjectType::ObjectTypeBoolean => c"boolean".as_ptr(),
-        ObjectType::ObjectTypeInteger => c"number".as_ptr(),
-        ObjectType::ObjectTypeString => c"string".as_ptr(),
+        ObjectType::ObjectTypeBoolean => c"boolean",
+        ObjectType::ObjectTypeInteger => c"number",
+        ObjectType::ObjectTypeString => c"string",
         _ => std::process::abort(),
     }
 }
