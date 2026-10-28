@@ -387,45 +387,46 @@ pub fn setmark_pos(c: c_int, pos: &mut CursorPos, fnum: c_int, view_pt: Option<&
         if buf.is_null() {
             return false;
         }
+        let buf = { &mut *buf };
 
         if c == b'"' as c_int {
-            reset_fmark(&mut (*buf).b_last_cursor, *pos, (*buf).b_fnum, view);
+            reset_fmark(&mut buf.b_last_cursor, *pos, buf.b_fnum, view);
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;
         }
 
         if c == b'[' as c_int {
-            (*buf).b_op_start = *pos;
+            buf.b_op_start = *pos;
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;
         }
         if c == b']' as c_int {
-            (*buf).b_op_end = *pos;
+            buf.b_op_end = *pos;
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;
         }
 
         if c == b'<' as c_int || c == b'>' as c_int {
             if c == b'<' as c_int {
-                (*buf).b_visual.vi_start = *pos;
+                buf.b_visual.vi_start = *pos;
             } else {
-                (*buf).b_visual.vi_end = *pos;
+                buf.b_visual.vi_end = *pos;
             }
-            if (*buf).b_visual.vi_mode == c_int::from(NUL) {
-                (*buf).b_visual.vi_mode = b'v' as c_int;
+            if buf.b_visual.vi_mode == c_int::from(NUL) {
+                buf.b_visual.vi_mode = b'v' as c_int;
             }
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;
         }
 
-        if c == b':' as c_int && bt_prompt(buf.as_ref()) {
-            reset_fmark(&mut (*buf).b_prompt_start, *pos, (*buf).b_fnum, view);
+        if c == b':' as c_int && bt_prompt(Some(&*buf)) {
+            reset_fmark(&mut buf.b_prompt_start, *pos, buf.b_fnum, view);
             return true;
         }
 
         if ascii_islower(c) {
             let i = (c - b'a' as c_int) as usize;
-            reset_fmark(&mut (*buf).b_namedm[i], *pos, fnum, view);
+            reset_fmark(&mut buf.b_namedm[i], *pos, fnum, view);
             u_update_named_mark(&mut *buf, i as c_int);
             do_markset_autocmd(c as c_char, pos, &mut *buf);
             return true;

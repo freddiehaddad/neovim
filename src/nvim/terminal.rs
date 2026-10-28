@@ -2380,13 +2380,14 @@ fn refresh_terminal(term: &mut Terminal) {
         if buf.is_null() {
             return;
         }
-        let ml_before = (*buf).b_ml.ml_line_count;
+        let buf = { &mut *buf };
+        let ml_before = buf.b_ml.ml_line_count;
 
         let resized = refresh_size(term);
         refresh_scrollback(term, &mut *buf);
         refresh_screen(term, &mut *buf);
 
-        let ml_added = (*buf).b_ml.ml_line_count - ml_before;
+        let ml_added = buf.b_ml.ml_line_count - ml_before;
         adjust_topline_cursor(term, &mut *buf, ml_added);
 
         if resized {

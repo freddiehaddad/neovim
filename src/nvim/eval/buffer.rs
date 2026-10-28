@@ -640,33 +640,31 @@ pub fn f_bufwinnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// `deletebufline()` function (`f_deletebufline`).
 pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let did_emsg_before = g_st().did_emsg;
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL by default
         let buf = tv_get_buf(&mut argvars[0], 0);
         if buf.is_null() {
             return;
         }
+        let buf = unsafe { &mut *buf };
 
-        let first = tv_get_lnum_buf(&argvars[1], buf.as_ref());
+        let first = tv_get_lnum_buf(&argvars[1], Some(&*buf));
         if g_st().did_emsg > did_emsg_before {
             return;
         }
         let mut last = if argvars[2].v_type != VarType::VarUnknown {
-            tv_get_lnum_buf(&argvars[2], buf.as_ref())
+            tv_get_lnum_buf(&argvars[2], Some(&*buf))
         } else {
             first
         };
 
-        if (*buf).b_ml.ml_mfp.is_none()
-            || first < 1
-            || first > (*buf).b_ml.ml_line_count
-            || last < first
+        if buf.b_ml.ml_mfp.is_none() || first < 1 || first > buf.b_ml.ml_line_count || last < first
         {
             return;
         }
 
-        let is_curbuf = buf == g_st().curbuf;
+        let is_curbuf = std::ptr::eq(buf, g_st().curbuf);
         let mut cob = Cob::new();
         if !is_curbuf {
             change_other_buffer_prepare(&mut cob, buf);
@@ -954,7 +952,7 @@ pub fn f_setline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// `prompt_setcallback({buffer}, {callback})` function (`f_prompt_setcallback`).
 pub fn f_prompt_setcallback(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut prompt_callback = Callback::NONE;
 
         if check_secure() {
@@ -964,19 +962,20 @@ pub fn f_prompt_setcallback(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: 
         if buf.is_null() {
             return;
         }
+        let buf = unsafe { &mut *buf };
 
         if !callback_from_typval(&mut prompt_callback, &argvars[1]) {
             return;
         }
 
-        callback_free(&mut (*buf).b_prompt_callback);
-        (*buf).b_prompt_callback = prompt_callback;
+        callback_free(&mut buf.b_prompt_callback);
+        buf.b_prompt_callback = prompt_callback;
     }
 }
 
 /// `prompt_setinterrupt({buffer}, {callback})` function (`f_prompt_setinterrupt`).
 pub fn f_prompt_setinterrupt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut interrupt_callback = Callback::NONE;
 
         if check_secure() {
@@ -986,13 +985,14 @@ pub fn f_prompt_setinterrupt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr:
         if buf.is_null() {
             return;
         }
+        let buf = unsafe { &mut *buf };
 
         if !callback_from_typval(&mut interrupt_callback, &argvars[1]) {
             return;
         }
 
-        callback_free(&mut (*buf).b_prompt_interrupt);
-        (*buf).b_prompt_interrupt = interrupt_callback;
+        callback_free(&mut buf.b_prompt_interrupt);
+        buf.b_prompt_interrupt = interrupt_callback;
     }
 }
 
@@ -1039,24 +1039,25 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         if buf.is_null() {
             return;
         }
+        let buf = { &mut *buf };
 
         let new_prompt = tv_get_string(&argvars[1]);
         let new_prompt_len = crate::memory::cstr_len(new_prompt) as c_int;
 
-        if bt_prompt(buf.as_ref()) && (*buf).b_ml.ml_mfp.is_some() {
-            if (*buf).b_prompt_start.mark.lnum < 1
-                || (*buf).b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count
+        if bt_prompt(Some(&*buf)) && buf.b_ml.ml_mfp.is_some() {
+            if buf.b_prompt_start.mark.lnum < 1
+                || buf.b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count
             {
-                (*buf).b_prompt_start.mark.lnum = (*buf)
+                buf.b_prompt_start.mark.lnum = buf
                     .b_prompt_start
                     .mark
                     .lnum
-                    .min((*buf).b_ml.ml_line_count)
+                    .min(buf.b_ml.ml_line_count)
                     .max(1);
                 curbuf_mut().b_prompt_append_new_line = true;
             }
 
-            let prompt_lno = (*buf).b_prompt_start.mark.lnum;
+            let prompt_lno = buf.b_prompt_start.mark.lnum;
             let old_prompt = buf_prompt_text(&*buf);
             let old_line = ml_get_buf(&mut *buf, prompt_lno);
             let old_line_len = ml_get_buf_len(&mut *buf, prompt_lno);
@@ -1065,7 +1066,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             let old_prompt_len = old_prompt_bytes.len() as c_int;
             let mut cursor_col = curwin_mut().w_cursor.col;
 
-            let mark_col = (*buf).b_prompt_start.mark.col;
+            let mark_col = buf.b_prompt_start.mark.col;
             let prefix_matches = mark_col >= old_prompt_len
                 && mark_col <= old_line_len
                 && std::slice::from_raw_parts(
@@ -1114,7 +1115,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             u_clearallandblockfree(&mut *buf);
         }
 
-        (*buf).b_prompt_text = Some(crate::memory::cstr_to_cstring(new_prompt));
-        (*buf).b_prompt_start.mark.col = new_prompt_len as Colnr;
+        buf.b_prompt_text = Some(crate::memory::cstr_to_cstring(new_prompt));
+        buf.b_prompt_start.mark.col = new_prompt_len as Colnr;
     }
 }

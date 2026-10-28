@@ -1224,13 +1224,14 @@ pub fn textpos2screenpos(
 
 /// `"screenpos({winid}, {lnum}, {col})"` function.
 pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let dict = tv_dict_alloc_ret(rettv);
 
         let wp = find_win_by_nr_or_id(&argvars[0]);
         if wp.is_null() {
             return;
         }
+        let wp = unsafe { &mut *wp };
 
         let mut pos = CursorPos {
             lnum: tv_get_number(&argvars[1]) as Linenr,

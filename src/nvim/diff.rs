@@ -2408,26 +2408,26 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
 pub fn diffopt_changed() -> bool {
     unsafe {
         let v =
-            opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>();
-        let mut flags = (if (*v).filler { DIFF_FILLER } else { 0 })
-            | (if (*v).anchor { DIFF_ANCHOR } else { 0 })
-            | (if (*v).iblank { DIFF_IBLANK } else { 0 })
-            | (if (*v).icase { DIFF_ICASE } else { 0 })
-            | (if (*v).iwhiteall { DIFF_IWHITEALL } else { 0 })
-            | (if (*v).iwhiteeol { DIFF_IWHITEEOL } else { 0 })
-            | (if (*v).iwhite { DIFF_IWHITE } else { 0 })
-            | (if (*v).horizontal { DIFF_HORIZONTAL } else { 0 })
-            | (if (*v).vertical { DIFF_VERTICAL } else { 0 })
-            | (if (*v).closeoff { DIFF_CLOSE_OFF } else { 0 })
-            | (if (*v).hiddenoff { DIFF_HIDDEN_OFF } else { 0 })
-            | (if (*v).followwrap { DIFF_FOLLOWWRAP } else { 0 })
-            | (if (*v).internal { DIFF_INTERNAL } else { 0 });
-        if has_dip_key(&*v, KEYSET_OPTIDX_DIP_LINEMATCH) {
+            &*opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>();
+        let mut flags = (if v.filler { DIFF_FILLER } else { 0 })
+            | (if v.anchor { DIFF_ANCHOR } else { 0 })
+            | (if v.iblank { DIFF_IBLANK } else { 0 })
+            | (if v.icase { DIFF_ICASE } else { 0 })
+            | (if v.iwhiteall { DIFF_IWHITEALL } else { 0 })
+            | (if v.iwhiteeol { DIFF_IWHITEEOL } else { 0 })
+            | (if v.iwhite { DIFF_IWHITE } else { 0 })
+            | (if v.horizontal { DIFF_HORIZONTAL } else { 0 })
+            | (if v.vertical { DIFF_VERTICAL } else { 0 })
+            | (if v.closeoff { DIFF_CLOSE_OFF } else { 0 })
+            | (if v.hiddenoff { DIFF_HIDDEN_OFF } else { 0 })
+            | (if v.followwrap { DIFF_FOLLOWWRAP } else { 0 })
+            | (if v.internal { DIFF_INTERNAL } else { 0 });
+        if has_dip_key(v, KEYSET_OPTIDX_DIP_LINEMATCH) {
             flags |= DIFF_LINEMATCH | DIFF_FILLER;
         }
-        if has_dip_key(&*v, KEYSET_OPTIDX_DIP_INLINE) {
+        if has_dip_key(v, KEYSET_OPTIDX_DIP_INLINE) {
             flags &= !ALL_INLINE;
-            let inline_ptr = (&raw const (*v).inline_).cast::<c_char>();
+            let inline_ptr = (&raw const v.inline_).cast::<c_char>();
             if crate::memory::cstr_as_opt_bytes(inline_ptr) == Some(b"simple") {
                 flags |= DIFF_INLINE_SIMPLE;
             } else if crate::memory::cstr_as_opt_bytes(inline_ptr) == Some(b"char") {
@@ -2438,13 +2438,13 @@ pub fn diffopt_changed() -> bool {
                 flags |= DIFF_INLINE_NONE;
             }
         }
-        let mut algorithm = if (*v).indent_heuristic {
+        let mut algorithm = if v.indent_heuristic {
             XDF_INDENT_HEURISTIC
         } else {
             0
         };
-        if has_dip_key(&*v, KEYSET_OPTIDX_DIP_ALGORITHM) {
-            let algo_ptr = (&raw const (*v).algorithm).cast::<c_char>();
+        if has_dip_key(v, KEYSET_OPTIDX_DIP_ALGORITHM) {
+            let algo_ptr = (&raw const v.algorithm).cast::<c_char>();
             if crate::memory::cstr_as_opt_bytes(algo_ptr) == Some(b"minimal") {
                 algorithm |= XDF_NEED_MINIMAL;
             } else if crate::memory::cstr_as_opt_bytes(algo_ptr) == Some(b"patience") {
@@ -2462,20 +2462,20 @@ pub fn diffopt_changed() -> bool {
                     tp.tp_diff_invalid = 1;
                 }
             }
-            let context = if has_dip_key(&*v, KEYSET_OPTIDX_DIP_CONTEXT) {
-                (*v).context as c_int
+            let context = if has_dip_key(v, KEYSET_OPTIDX_DIP_CONTEXT) {
+                v.context as c_int
             } else {
                 6
             };
             diff_st().diff_flags = flags;
             g_st().diff_context = if context == 0 { 1 } else { context };
-            diff_st().linematch_lines = if has_dip_key(&*v, KEYSET_OPTIDX_DIP_LINEMATCH) {
-                (*v).linematch as c_int
+            diff_st().linematch_lines = if has_dip_key(v, KEYSET_OPTIDX_DIP_LINEMATCH) {
+                v.linematch as c_int
             } else {
                 0
             };
-            g_st().diff_foldcolumn = if has_dip_key(&*v, KEYSET_OPTIDX_DIP_FOLDCOLUMN) {
-                (*v).foldcolumn as c_int
+            g_st().diff_foldcolumn = if has_dip_key(v, KEYSET_OPTIDX_DIP_FOLDCOLUMN) {
+                v.foldcolumn as c_int
             } else {
                 2
             };

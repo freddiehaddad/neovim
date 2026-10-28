@@ -12246,14 +12246,15 @@ pub fn eval_vars(
                                     gettext(c"E194: No alternate file name to substitute for '#'");
                                 return None;
                             }
+                            let buf = { &mut *buf };
                             if let Some(lnump) = lnump {
                                 *lnump = ECMD_LAST;
                             }
-                            if (*buf).b_fname.is_null() {
+                            if buf.b_fname.is_null() {
                                 result = c"".as_ptr().cast_mut();
                                 valid = 0;
                             } else {
-                                result = (*buf).b_fname;
+                                result = buf.b_fname;
                                 tilde_file = crate::memory::cstr_as_bytes(result) == b"~";
                             }
                         }

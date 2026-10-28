@@ -481,7 +481,8 @@ pub fn dict_get_value(
             );
             return OBJECT_NIL;
         }
-        vim_to_object(&raw mut (*di).di_tv, arena, true)
+        let di = { &mut *di };
+        vim_to_object(&raw mut di.di_tv, arena, true)
     }
 }
 

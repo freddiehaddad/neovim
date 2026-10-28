@@ -2573,6 +2573,7 @@ fn list_one_function(
             emsg_funcname(c"E123: Undefined function: %s", name);
             return ptr::null_mut();
         }
+        let fp = { &mut *fp };
 
         let prev_ht_changed = uf_st().func_hashtab_changed;
 
@@ -2582,8 +2583,8 @@ fn list_one_function(
         }
 
         let mut j = 0;
-        while j < (*fp).uf_lines.len() as c_int && !g_st().got_int {
-            let Some(ref line_cstr) = (&(*fp).uf_lines)[j as usize] else {
+        while j < fp.uf_lines.len() as c_int && !g_st().got_int {
+            let Some(ref line_cstr) = (&fp.uf_lines)[j as usize] else {
                 j += 1;
                 continue;
             };

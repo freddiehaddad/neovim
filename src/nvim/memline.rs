@@ -427,32 +427,32 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
             iemsg(tr(c"E298: Didn't get block nr 0?"));
             return ml_open_error(buf, mfp.as_mut(), hp);
         }
-        let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
+        let b0p = &mut *(*hp).data_ptr().cast::<ZeroBlock>();
 
-        (*b0p).b0_id[0] = BLOCK0_ID0;
-        (*b0p).b0_id[1] = BLOCK0_ID1;
-        (*b0p).b0_magic_long = B0_MAGIC_LONG;
-        (*b0p).b0_magic_int = B0_MAGIC_INT;
-        (*b0p).b0_magic_short = B0_MAGIC_SHORT;
-        (*b0p).b0_magic_char = B0_MAGIC_CHAR;
-        let ver_dst = (&raw mut (*b0p).b0_version).cast::<c_char>();
+        b0p.b0_id[0] = BLOCK0_ID0;
+        b0p.b0_id[1] = BLOCK0_ID1;
+        b0p.b0_magic_long = B0_MAGIC_LONG;
+        b0p.b0_magic_int = B0_MAGIC_INT;
+        b0p.b0_magic_short = B0_MAGIC_SHORT;
+        b0p.b0_magic_char = B0_MAGIC_CHAR;
+        let ver_dst = (&raw mut b0p.b0_version).cast::<c_char>();
         ptr::copy_nonoverlapping(c"VIM ".as_ptr(), ver_dst, 5);
         let ver_dst = ver_dst.add(4);
         xstrlcpy(ver_dst, VERSIONS[0].as_ptr(), 6);
         long_to_char(
             (*mfp).mf_page_size as c_long,
-            (&raw mut (*b0p).b0_page_size).cast(),
+            (&raw mut b0p.b0_page_size).cast(),
         );
 
         if !buf.b_spell {
             (*b0p).set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
             (*b0p).set_flags((get_fileformat(&*buf) + 1) as u8);
             set_b0_fname(&mut *b0p, &mut *buf);
-            os_get_username((&raw mut (*b0p).b0_uname).cast(), B0_UNAME_SIZE);
-            (*b0p).b0_uname[B0_UNAME_SIZE - 1] = NUL;
-            os_get_hostname((&raw mut (*b0p).b0_hname).cast(), B0_HNAME_SIZE);
-            (*b0p).b0_hname[B0_HNAME_SIZE - 1] = NUL;
-            long_to_char(os_get_pid() as c_long, (&raw mut (*b0p).b0_pid).cast());
+            os_get_username((&raw mut b0p.b0_uname).cast(), B0_UNAME_SIZE);
+            b0p.b0_uname[B0_UNAME_SIZE - 1] = NUL;
+            os_get_hostname((&raw mut b0p.b0_hname).cast(), B0_HNAME_SIZE);
+            b0p.b0_hname[B0_HNAME_SIZE - 1] = NUL;
+            long_to_char(os_get_pid() as c_long, (&raw mut b0p.b0_pid).cast());
         }
 
         mf_put(&mut *mfp, hp, true, false);
@@ -2125,6 +2125,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> *m
                 }
                 return ml_get_errorret(buf, lnum);
             }
+            let hp = { &mut *hp };
 
             let dp = (*hp).data_ptr().cast::<DataBlock>();
             let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
@@ -2923,6 +2924,7 @@ pub fn ml_setmarked(lnum: Linenr) {
         if hp.is_null() {
             return;
         }
+        let hp = { &mut *hp };
         let dp = (*hp).data_ptr().cast::<DataBlock>();
         *db_idx_ptr(&mut *dp, (lnum - curbuf_mut().b_ml.ml_locked_low) as usize) |= DB_MARKED;
         curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
@@ -2942,6 +2944,7 @@ pub fn ml_firstmarked() -> Linenr {
             if hp.is_null() {
                 return 0;
             }
+            let hp = { &mut *hp };
             let dp = (*hp).data_ptr().cast::<DataBlock>();
             let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
             while lnum <= curbuf_mut().b_ml.ml_locked_high {
@@ -2974,6 +2977,7 @@ pub fn ml_clearmarked() {
             if hp.is_null() {
                 return;
             }
+            let hp = { &mut *hp };
             let dp = (*hp).data_ptr().cast::<DataBlock>();
             let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
             while lnum <= curbuf_mut().b_ml.ml_locked_high {
@@ -3963,6 +3967,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: c_int, updtype: c_in
                         buf.b_ml.ml_usedchunks = -1;
                         return;
                     }
+                    let hp = { &mut *hp };
                     let dp = (*hp).data_ptr().cast::<DataBlock>();
                     let count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1;
                     let idx = curline - buf.b_ml.ml_locked_low;

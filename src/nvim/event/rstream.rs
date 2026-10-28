@@ -118,8 +118,8 @@ pub fn rstream_stop(stream: &mut RStream) {
 
 unsafe extern "C" fn alloc_cb(handle: *mut uv_handle_t, _suggested: usize, buf: *mut uv_buf_t) {
     unsafe {
-        let stream = *handle.cast::<*mut RStream>();
-        let write_ptr = (*stream).buffer.as_mut_ptr().add((*stream).write_pos);
+        let stream = &mut **handle.cast::<*mut RStream>();
+        let write_ptr = stream.buffer.as_mut_ptr().add(stream.write_pos);
         *buf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));
     }
 }

@@ -3991,11 +3991,11 @@ fn bt_regexec_both(
             re_st().rex.reg_endp = (&raw mut (*re_st().rex.reg_match).endp).cast();
             p
         };
-
         if prog.is_null() || line.is_null() {
             iemsg(tr(E_NULL));
             return finish_bt_regexec(retval, col);
         }
+        let prog = &mut *prog;
 
         if prog_magic_wrong() {
             return finish_bt_regexec(retval, col);
@@ -4005,18 +4005,18 @@ fn bt_regexec_both(
             return finish_bt_regexec(retval, col);
         }
 
-        if ((*prog).regflags & RF_ICASE) != 0 {
+        if (prog.regflags & RF_ICASE) != 0 {
             re_st().rex.reg_ic = true;
-        } else if ((*prog).regflags & RF_NOICASE) != 0 {
+        } else if (prog.regflags & RF_NOICASE) != 0 {
             re_st().rex.reg_ic = false;
         }
 
-        if ((*prog).regflags & RF_ICOMBINE) != 0 {
+        if (prog.regflags & RF_ICOMBINE) != 0 {
             re_st().rex.reg_icombine = true;
         }
 
-        if let Some(off) = (*prog).regmust_off {
-            let regmust = (*prog).program.as_ptr().add(off).cast::<c_char>();
+        if let Some(off) = prog.regmust_off {
+            let regmust = prog.program.as_ptr().add(off).cast::<c_char>();
             let c = utf_ptr2char(regmust);
             let mut s = line.add(col as usize);
             if !re_st().rex.reg_ic {
@@ -4025,7 +4025,7 @@ fn bt_regexec_both(
                     if s.is_null() {
                         break;
                     }
-                    let mut len = (*prog).regmlen;
+                    let mut len = prog.regmlen;
                     if cstrncmp(s.cast(), regmust.cast_mut(), &mut len) == 0 {
                         break;
                     }
@@ -4037,7 +4037,7 @@ fn bt_regexec_both(
                     if s.is_null() {
                         break;
                     }
-                    let mut len = (*prog).regmlen;
+                    let mut len = prog.regmlen;
                     if cstrncmp(s.cast(), regmust.cast_mut(), &mut len) == 0 {
                         break;
                     }
@@ -4053,15 +4053,15 @@ fn bt_regexec_both(
         re_st().rex.lnum = 0;
         re_st().reg_toolong = 0;
 
-        if (*prog).reganch != 0 {
+        if prog.reganch != 0 {
             let c = utf_ptr2char(re_st().rex.line.add(col as usize).cast());
-            if (*prog).regstart == NUL as c_int
-                || (*prog).regstart == c
+            if prog.regstart == NUL as c_int
+                || prog.regstart == c
                 || (re_st().rex.reg_ic
-                    && (utf_fold((*prog).regstart) == utf_fold(c)
+                    && (utf_fold(prog.regstart) == utf_fold(c)
                         || (c < 255
-                            && (*prog).regstart < 255
-                            && mb_tolower((*prog).regstart) == mb_tolower(c))))
+                            && prog.regstart < 255
+                            && mb_tolower(prog.regstart) == mb_tolower(c))))
             {
                 retval = regtry(
                     &mut *prog,
@@ -4075,8 +4075,8 @@ fn bt_regexec_both(
         } else {
             let mut tm_count: c_int = 0;
             while !g_st().got_int {
-                if (*prog).regstart != NUL as c_int {
-                    let s = cstrchr(re_st().rex.line.add(col as usize).cast(), (*prog).regstart);
+                if prog.regstart != NUL as c_int {
+                    let s = cstrchr(re_st().rex.line.add(col as usize).cast(), prog.regstart);
                     if s.is_null() {
                         retval = 0;
                         break;

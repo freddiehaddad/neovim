@@ -510,6 +510,7 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
         if wp.is_null() {
             return win_float_special_fail(wp, &mut err);
         }
+        let wp = { &mut *wp };
 
         if new_buf {
             let b = nvim_create_buf(false, true, &mut err);
@@ -534,17 +535,17 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
             }
         }
         unblock_autocmds();
-        (*wp).w_onebuf_opt.wo_diff = 0;
-        (*wp).w_onebuf_opt.wo_wrap = 1; // 'wrap' is default on
-        (*wp).w_onebuf_opt.wo_so = 0; // 'scrolloff' zero
+        wp.w_onebuf_opt.wo_diff = 0;
+        wp.w_onebuf_opt.wo_wrap = 1; // 'wrap' is default on
+        wp.w_onebuf_opt.wo_so = 0; // 'scrolloff' zero
 
         if preview {
-            (*wp).w_onebuf_opt.wo_pvw = 1;
-            (*wp).w_onebuf_opt.wo_scb = 0;
-            (*wp).w_onebuf_opt.wo_crb = 0;
+            wp.w_onebuf_opt.wo_pvw = 1;
+            wp.w_onebuf_opt.wo_scb = 0;
+            wp.w_onebuf_opt.wo_crb = 0;
             win_float_anchor_preview(&mut *wp);
         }
-        (*wp).w_kind = kind;
+        wp.w_kind = kind;
 
         if enter {
             win_enter(wp, false);
@@ -650,28 +651,29 @@ pub fn win_previewpopup_config(
 ) -> bool {
     let value = value.into_c_char_ptr();
     unsafe {
-        let v = opt_keyset(value, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>();
+        let v =
+            &mut *opt_keyset(value, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>();
 
-        if (has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) && (*v).height < 1)
-            || (has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) && (*v).width < 1)
+        if (has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) && v.height < 1)
+            || (has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) && v.width < 1)
         {
             return false;
         }
-        config.height = if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) {
-            (*v).height as c_int
+        config.height = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) {
+            v.height as c_int
         } else {
             0
         };
-        config.width = if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
-            (*v).width as c_int
+        config.width = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
+            v.width as c_int
         } else {
             0
         };
 
         // Use 'previewpopup' border if set, else fallback to 'winborder'.
         let mut border: *mut c_char = ptr::null_mut();
-        if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_BORDER) {
-            border = (*v).border.as_mut_ptr();
+        if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_BORDER) {
+            border = v.border.as_mut_ptr();
         } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder) {
             border = opt_vars().p_winborder;
         }

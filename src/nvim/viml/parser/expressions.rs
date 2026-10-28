@@ -2368,7 +2368,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
                     highlighted_prev_spacing = true;
                 }
                 let pline = pstate.reader.lines.as_slice()[cur_token.start.line];
-                let top_node_p = *ast_stack.last().unwrap();
+                let top_node_p = &mut **ast_stack.last().unwrap();
                 debug_assert!(!ast_stack.is_empty());
 
                 let node_is_key = is_concat_or_subscript

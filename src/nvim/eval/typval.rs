@@ -2442,7 +2442,7 @@ pub fn tv_list_find_nr(
     n: c_int,
     mut ret_error: Option<&mut bool>,
 ) -> Varnumber {
-    unsafe {
+    {
         let li = tv_list_find(l, n);
         if li.is_null() {
             if let Some(ref mut p) = ret_error {
@@ -2450,8 +2450,9 @@ pub fn tv_list_find_nr(
             }
             return -1;
         }
+        let li = unsafe { &mut *li };
         tv_get_number_chk(
-            &(*li).li_tv,
+            &li.li_tv,
             (ret_error.is_some()).then(|| &mut *ret_error.unwrap()),
         )
     }
@@ -2943,13 +2944,14 @@ pub fn tv_dict_has_key(d: Option<&TvDict>, key: &std::ffi::CStr) -> bool {
 
 /// Get a typval item from a dictionary and copy it into "rettv".
 pub fn tv_dict_get_tv(d: Option<&TvDict>, key: &std::ffi::CStr, rettv: &mut TypVal) -> bool {
-    unsafe {
+    {
         let di = tv_dict_find(d, key.as_ptr(), -1);
         if di.is_null() {
             return false;
         }
+        let di = unsafe { &mut *di };
 
-        tv_copy(&(*di).di_tv, rettv);
+        tv_copy(&di.di_tv, rettv);
         true
     }
 }
@@ -2961,23 +2963,25 @@ pub fn tv_dict_get_number(d: Option<&TvDict>, key: &std::ffi::CStr) -> Varnumber
 
 /// Gets a number item from a dictionary, or a given default value.
 pub fn tv_dict_get_number_def(d: Option<&TvDict>, key: &std::ffi::CStr, def: c_int) -> Varnumber {
-    unsafe {
+    {
         let di = tv_dict_find(d, key.as_ptr(), -1);
         if di.is_null() {
             return i64::from(def);
         }
-        tv_get_number(&(*di).di_tv)
+        let di = unsafe { &mut *di };
+        tv_get_number(&di.di_tv)
     }
 }
 
 /// Gets a bool item from a dictionary, or a given default value.
 pub fn tv_dict_get_bool(d: Option<&TvDict>, key: &std::ffi::CStr, def: c_int) -> Varnumber {
-    unsafe {
+    {
         let di = tv_dict_find(d, key.as_ptr(), -1);
         if di.is_null() {
             return i64::from(def);
         }
-        tv_get_bool(&(*di).di_tv)
+        let di = unsafe { &mut *di };
+        tv_get_bool(&di.di_tv)
     }
 }
 
@@ -3038,12 +3042,13 @@ pub fn tv_dict_get_string_buf<S: crate::strings::IntoCCharPtr>(
     numbuf: *mut c_char,
 ) -> *const c_char {
     let key = key.into_c_char_ptr();
-    unsafe {
+    {
         let di = tv_dict_find(d, key, -1);
         if di.is_null() {
             return ptr::null();
         }
-        tv_get_string_buf(&(*di).di_tv, numbuf)
+        let di = unsafe { &mut *di };
+        tv_get_string_buf(&di.di_tv, numbuf)
     }
 }
 
@@ -3056,12 +3061,13 @@ pub fn tv_dict_get_string_buf_chk(
     def: impl crate::strings::IntoCCharPtr,
 ) -> *const c_char {
     let def = def.into_c_char_ptr();
-    unsafe {
+    {
         let di = tv_dict_find(d, key.as_ptr(), key_len);
         if di.is_null() {
             return def;
         }
-        tv_get_string_buf_chk(&(*di).di_tv, numbuf)
+        let di = unsafe { &mut *di };
+        tv_get_string_buf_chk(&di.di_tv, numbuf)
     }
 }
 
@@ -3072,21 +3078,22 @@ pub fn tv_dict_get_callback(
     key_len: isize,
     result: &mut Callback,
 ) -> bool {
-    unsafe {
+    {
         *result = Callback::NONE;
 
         let di = tv_dict_find(d.as_deref(), key.as_ptr(), key_len);
         if di.is_null() {
             return true;
         }
+        let di = unsafe { &mut *di };
 
-        if !tv_is_func_inline(&(*di).di_tv) && (*di).di_tv.v_type != VarType::VarString {
+        if !tv_is_func_inline(&di.di_tv) && di.di_tv.v_type != VarType::VarString {
             emsg(tr(c"E6000: Argument is not a function or function name"));
             return false;
         }
 
         let mut tv = tv_initial_value();
-        tv_copy(&(*di).di_tv, &mut tv);
+        tv_copy(&di.di_tv, &mut tv);
         set_selfdict(&mut tv, d.unwrap());
         let res = callback_from_typval(result, &tv);
         tv_clear(&mut tv);
@@ -3983,11 +3990,12 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: c_int) {
             if pt.is_null() {
                 return;
             }
-            let dict = (*pt).pt_dict.cast::<TvDict>();
+            let pt = { &mut *pt };
+            let dict = pt.pt_dict.cast::<TvDict>();
             debug_assert!(dict.is_null() || (*dict).dv_copy_id == copy_id);
-            (*pt).pt_dict = ptr::null_mut();
-            (*pt).pt_argv.clear();
-            debug_assert!((*pt).pt_refcount <= 1);
+            pt.pt_dict = ptr::null_mut();
+            pt.pt_argv.clear();
+            debug_assert!(pt.pt_refcount <= 1);
             partial_unref(pt);
             tv.vval = crate::eval::typval::TypvalVval::Partial(ptr::null_mut());
             debug_assert_eq!(tv.v_lock, VAR_UNLOCKED);
@@ -4224,8 +4232,9 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         nothing_conv_list_end(cur_tv.as_mut());
                         continue;
                     }
-                    *li = (*cur_li).li_next;
-                    &raw mut (*cur_li).li_tv
+                    let cur_li = { &mut *cur_li };
+                    *li = cur_li.li_next;
+                    &raw mut cur_li.li_tv
                 }
                 MPConvStackData::Partial { stage, pt } => {
                     match stage {

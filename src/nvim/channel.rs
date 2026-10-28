@@ -240,11 +240,12 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
             }
             return false;
         }
+        let chan = { &mut *chan };
 
         let mut close_main = false;
         if part == K_CHANNEL_PART_RPC_CONST || part == K_CHANNEL_PART_ALL {
             close_main = true;
-            if (*chan).is_rpc {
+            if chan.is_rpc {
                 rpc_close(&mut *chan);
             } else if part == K_CHANNEL_PART_RPC_CONST {
                 {
@@ -252,15 +253,14 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                 }
                 return false;
             }
-        } else if (part == K_CHANNEL_PART_STDIN || part == K_CHANNEL_PART_STDOUT) && (*chan).is_rpc
-        {
+        } else if (part == K_CHANNEL_PART_STDIN || part == K_CHANNEL_PART_STDOUT) && chan.is_rpc {
             {
                 *error = E_INVSTREAMRPC.as_ptr();
             }
             return false;
         }
 
-        match (*chan).streamtype {
+        match chan.streamtype {
             K_CHANNEL_STREAM_SOCKET => {
                 if !close_main {
                     {
@@ -268,10 +268,10 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                     }
                     return false;
                 }
-                rstream_may_close(&mut (*chan).socket);
+                rstream_may_close(&mut chan.socket);
             }
             K_CHANNEL_STREAM_PROC => {
-                let proc_ptr = &mut (*chan).uv.proc_;
+                let proc_ptr = &mut chan.uv.proc_;
                 if part == K_CHANNEL_PART_STDIN || close_main {
                     stream_may_close(&mut proc_ptr.r#in);
                 }
@@ -287,10 +287,10 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
             }
             K_CHANNEL_STREAM_STDIO => {
                 if part == K_CHANNEL_PART_STDIN || close_main {
-                    rstream_may_close(&mut (*chan).stdio_in);
+                    rstream_may_close(&mut chan.stdio_in);
                 }
                 if part == K_CHANNEL_PART_STDOUT || close_main {
-                    stream_may_close(&mut (*chan).stdio_out);
+                    stream_may_close(&mut chan.stdio_out);
                 }
                 if part == K_CHANNEL_PART_STDERR {
                     {
@@ -306,8 +306,8 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                     }
                     return false;
                 }
-                if !(*chan).err_closed {
-                    (*chan).err_closed = true;
+                if !chan.err_closed {
+                    chan.err_closed = true;
                     if !g_st().exiting {
                         redirect_stderr_to_null();
                     }
@@ -321,13 +321,13 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                     }
                     return false;
                 }
-                if !(*chan).term.is_null() {
-                    let internal = &mut (*chan).internal;
+                if !chan.term.is_null() {
+                    let internal = &mut chan.internal;
                     api_free_luaref(internal.cb);
                     internal.cb = LUA_NOREF;
                     internal.closed = true;
-                    terminal_close(&raw mut (*chan).term, 0);
-                    (*chan).exit_status = 0;
+                    terminal_close(&raw mut chan.term, 0);
+                    chan.exit_status = 0;
                 } else {
                     channel_decref(&mut *chan);
                 }

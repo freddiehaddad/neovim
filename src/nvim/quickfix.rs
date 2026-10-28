@@ -2599,18 +2599,19 @@ fn copy_loclist(from_qfl: &QfList, to_qfl: &mut QfList) -> bool {
 }
 
 pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
-    unsafe {
+    {
         let qi = get_loc_list(&*from);
         if qi.is_null() {
             return;
         }
+        let qi = unsafe { &mut *qi };
 
         let to_ll = qf_alloc_stack(QFLT_LOCATION, from.w_onebuf_opt.wo_lhi as c_int);
         to.w_llist = to_ll;
         to.w_onebuf_opt.wo_lhi = i64::from(to_ll.qf_maxcount);
-        to_ll.qf_listcount = (*qi).qf_listcount;
+        to_ll.qf_listcount = qi.qf_listcount;
 
-        for idx in 0..(*qi).qf_listcount {
+        for idx in 0..qi.qf_listcount {
             to_ll.qf_curlist = idx;
             if !copy_loclist(qf_get_list(&mut *qi, idx), qf_get_list(&mut *to_ll, idx)) {
                 qf_free_all(Some(&mut *to));
@@ -2618,7 +2619,7 @@ pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
             }
         }
 
-        to_ll.qf_curlist = (*qi).qf_curlist;
+        to_ll.qf_curlist = qi.qf_curlist;
     }
 }
 
@@ -3803,11 +3804,12 @@ fn qf_msg(qi: &mut QfInfo, which: c_int, lead: impl crate::strings::IntoCCharPtr
 }
 
 pub fn qf_age(eap: &mut Exarg) {
-    unsafe {
+    {
         let qi = qf_cmd_get_stack(eap, true);
         if qi.is_null() {
             return;
         }
+        let qi = unsafe { &mut *qi };
 
         let mut count = if eap.addr_count != 0 {
             eap.line2 as c_int
@@ -3817,20 +3819,20 @@ pub fn qf_age(eap: &mut Exarg) {
         while count > 0 {
             count -= 1;
             if eap.cmdidx == CMD_COLDER || eap.cmdidx == CMD_LOLDER {
-                if (*qi).qf_curlist == 0 {
+                if qi.qf_curlist == 0 {
                     emsg(gettext(c"E380: At bottom of quickfix stack"));
                     break;
                 }
-                (*qi).qf_curlist -= 1;
+                qi.qf_curlist -= 1;
             } else {
-                if (*qi).qf_curlist >= (*qi).qf_listcount - 1 {
+                if qi.qf_curlist >= qi.qf_listcount - 1 {
                     emsg(gettext(c"E381: At top of quickfix stack"));
                     break;
                 }
-                (*qi).qf_curlist += 1;
+                qi.qf_curlist += 1;
             }
         }
-        qf_msg(&mut *qi, (*qi).qf_curlist, c"");
+        qf_msg(qi, qi.qf_curlist, c"");
         qf_update_buffer(&mut *qi, 0);
     }
 }
@@ -4041,23 +4043,21 @@ pub fn ex_cclose(eap: &mut Exarg) {
 }
 
 fn qf_goto_cwindow(qi: &QfInfo, resize: bool, sz: c_int, vertsplit: bool) -> bool {
-    unsafe {
+    {
         let win = qf_find_win(qi);
         if win.is_null() {
             return false;
         }
+        let win = unsafe { &mut *win };
 
         win_goto(win);
         if resize {
             if vertsplit {
-                if sz != (*win).w_width {
+                if sz != win.w_width {
                     win_setwidth(sz);
                 }
-            } else if sz != (*win).w_height
-                && ((*win).w_height
-                    + (*win).w_hsep_height
-                    + (*win).w_status_height
-                    + tabline_height()
+            } else if sz != win.w_height
+                && (win.w_height + win.w_hsep_height + win.w_status_height + tabline_height()
                     < g_st().cmdline_row)
             {
                 win_setheight(sz);
@@ -4336,8 +4336,9 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
         if buf.is_null() {
             return;
         }
+        let buf = { &mut *buf };
 
-        let old_line_count = (*buf).b_ml.ml_line_count;
+        let old_line_count = buf.b_ml.ml_line_count;
         let old_endcol = ml_get_buf_len(&mut *buf, old_line_count);
         let old_bytecount = get_region_bytecount(&mut *buf, 1, old_line_count, 0, old_endcol);
         let mut qf_winid: c_int = 0;
@@ -4374,7 +4375,7 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
             qf_winid,
         );
 
-        let new_line_count = (*buf).b_ml.ml_line_count;
+        let new_line_count = buf.b_ml.ml_line_count;
         let new_endcol = ml_get_buf_len(&mut *buf, new_line_count);
         let delta = new_line_count - old_line_count;
 
@@ -4422,7 +4423,7 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
             );
             changed_lines(&mut *buf, start_lnum, 0, start_lnum, delta, true);
         }
-        (*buf).b_changed = 0;
+        buf.b_changed = 0;
 
         if old_count == 0 {
             qf_win_pos_update(&mut *qi, 0);

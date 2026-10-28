@@ -3641,9 +3641,9 @@ fn nfa_regmatch(
             flag ^= 1;
             let next_idx = flag;
             let thislist = (&raw mut list).cast::<NfaList>().add(this_idx);
-            let nextlist = (&raw mut list).cast::<NfaList>().add(next_idx);
-            (*nextlist).n = 0;
-            (*nextlist).has_pim = 0;
+            let nextlist = &mut *(&raw mut list).cast::<NfaList>().add(next_idx);
+            nextlist.n = 0;
+            nextlist.has_pim = 0;
             re_st().rex.nfa_listid += 1;
             if prog.re_engine == AUTOMATIC_ENGINE as c_uint
                 && re_st().rex.nfa_listid >= NFA_MAX_STATES
@@ -3653,7 +3653,7 @@ fn nfa_regmatch(
             }
 
             (*thislist).id = re_st().rex.nfa_listid;
-            (*nextlist).id = re_st().rex.nfa_listid + 1;
+            nextlist.id = re_st().rex.nfa_listid + 1;
 
             if (*thislist).n == 0 {
                 break;
@@ -3698,7 +3698,7 @@ fn nfa_regmatch(
                         if re_st().rex.nfa_has_zsubexpr != 0 {
                             copy_sub(&mut submatch.synt, &mut t.subs.synt);
                         }
-                        if (*nextlist).n == 0 {
+                        if nextlist.n == 0 {
                             clen = 0;
                         }
                         goto_nextchar = true;
@@ -3725,7 +3725,7 @@ fn nfa_regmatch(
                             }
                         }
                         nfa_st().nfa_match = 1;
-                        if (*nextlist).n == 0 {
+                        if nextlist.n == 0 {
                             clen = 0;
                         }
                         goto_nextchar = true;
@@ -4476,8 +4476,8 @@ fn nfa_regmatch(
                             0,
                         );
                         if add_count > 0 && !r.is_null() {
-                            let last_idx = ((*nextlist).n - 1) as usize;
-                            (&mut (*nextlist).t)[last_idx].count = add_count;
+                            let last_idx = (nextlist.n - 1) as usize;
+                            (&mut nextlist.t)[last_idx].count = add_count;
                         }
                         r
                     };
@@ -4512,7 +4512,7 @@ fn nfa_regmatch(
                 if toplevel {
                     let mut add = true;
                     if prog.regstart != NUL as c_int && clen != 0 {
-                        if (*nextlist).n == 0 {
+                        if nextlist.n == 0 {
                             let mut col =
                                 (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + clen;
                             if !skip_to_start(prog.regstart, &mut col) {
@@ -4763,37 +4763,37 @@ fn nfa_regexec_both(
             re_st().rex.reg_endp = (&raw mut (*re_st().rex.reg_match).endp).cast();
             p
         };
-
         if prog.is_null() || line.is_null() {
             iemsg(tr(E_NULL));
             return finish_nfa_regexec(retval, col);
         }
+        let prog = &mut *prog;
 
-        if ((*prog).regflags & RF_ICASE) != 0 {
+        if (prog.regflags & RF_ICASE) != 0 {
             re_st().rex.reg_ic = true;
-        } else if ((*prog).regflags & RF_NOICASE) != 0 {
+        } else if (prog.regflags & RF_NOICASE) != 0 {
             re_st().rex.reg_ic = false;
         }
 
-        if ((*prog).regflags & RF_ICOMBINE) != 0 {
+        if (prog.regflags & RF_ICOMBINE) != 0 {
             re_st().rex.reg_icombine = true;
         }
 
         re_st().rex.line = line;
         re_st().rex.lnum = 0;
 
-        re_st().rex.nfa_has_zend = (*prog).has_zend;
-        re_st().rex.nfa_has_backref = (*prog).has_backref;
-        re_st().rex.nfa_nsubexpr = (*prog).nsubexp;
+        re_st().rex.nfa_has_zend = prog.has_zend;
+        re_st().rex.nfa_has_backref = prog.has_backref;
+        re_st().rex.nfa_nsubexpr = prog.nsubexp;
         re_st().rex.nfa_listid = 1;
         re_st().rex.nfa_alt_listid = 2;
 
-        if (*prog).reganch != 0 && col > 0 {
+        if prog.reganch != 0 && col > 0 {
             return 0;
         }
 
         re_st().rex.need_clear_subexpr = 1;
-        if (*prog).reghasz == REX_SET {
+        if prog.reghasz == REX_SET {
             re_st().rex.nfa_has_zsubexpr = 1;
             re_st().rex.need_clear_zsubexpr = 1;
         } else {
@@ -4801,15 +4801,15 @@ fn nfa_regexec_both(
             re_st().rex.need_clear_zsubexpr = 0;
         }
 
-        if (*prog).regstart != NUL as c_int {
-            if !skip_to_start((*prog).regstart, &mut col) {
+        if prog.regstart != NUL as c_int {
+            if !skip_to_start(prog.regstart, &mut col) {
                 return 0;
             }
-            if let Some(ref mt) = (*prog).match_text
+            if let Some(ref mt) = prog.match_text
                 && !mt.as_bytes().is_empty()
                 && !re_st().rex.reg_icombine
             {
-                retval = find_match_text(&mut col, (*prog).regstart, mt.as_ptr().cast::<u8>());
+                retval = find_match_text(&mut col, prog.regstart, mt.as_ptr().cast::<u8>());
                 if reg_multi() {
                     (*re_st().rex.reg_mmatch).rmm_matchcol = col;
                 } else {
@@ -4824,7 +4824,7 @@ fn nfa_regexec_both(
         }
 
         re_st().nstate = 0;
-        for st in &mut (&mut (*prog).state)[..(*prog).nstate as usize] {
+        for st in &mut (&mut prog.state)[..prog.nstate as usize] {
             st.lastlist[0] = 0;
             st.lastlist[1] = 0;
         }

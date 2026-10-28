@@ -1688,6 +1688,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                 if wp.is_null() {
                     return;
                 }
+                let wp = { &mut *wp };
                 windows.insert(wp);
             }
 

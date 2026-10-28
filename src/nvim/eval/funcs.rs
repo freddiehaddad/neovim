@@ -3075,18 +3075,16 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if wp.is_null() {
             return;
         }
+        let wp = { &mut *wp };
 
         cleanup_jumplist(&mut *wp, true);
 
-        let l = tv_list_alloc((*wp).w_jumplistlen as isize);
+        let l = tv_list_alloc(wp.w_jumplistlen as isize);
         tv_list_append_list(&mut *rettv.vval.v_list(), l);
-        tv_list_append_number(
-            &mut *rettv.vval.v_list(),
-            Varnumber::from((*wp).w_jumplistidx),
-        );
+        tv_list_append_number(&mut *rettv.vval.v_list(), Varnumber::from(wp.w_jumplistidx));
 
-        for i in 0..((*wp).w_jumplistlen as usize) {
-            if (*wp).w_jumplist[i].fmark.mark.lnum == 0 {
+        for i in 0..(wp.w_jumplistlen as usize) {
+            if wp.w_jumplist[i].fmark.mark.lnum == 0 {
                 continue;
             }
             let d = tv_dict_alloc();
@@ -3094,24 +3092,24 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             tv_dict_add_nr(
                 &mut *d,
                 c"lnum",
-                Varnumber::from((*wp).w_jumplist[i].fmark.mark.lnum),
+                Varnumber::from(wp.w_jumplist[i].fmark.mark.lnum),
             );
             tv_dict_add_nr(
                 &mut *d,
                 c"col",
-                Varnumber::from((*wp).w_jumplist[i].fmark.mark.col),
+                Varnumber::from(wp.w_jumplist[i].fmark.mark.col),
             );
             tv_dict_add_nr(
                 &mut *d,
                 c"coladd",
-                Varnumber::from((*wp).w_jumplist[i].fmark.mark.coladd),
+                Varnumber::from(wp.w_jumplist[i].fmark.mark.coladd),
             );
             tv_dict_add_nr(
                 &mut *d,
                 c"bufnr",
-                Varnumber::from((*wp).w_jumplist[i].fmark.fnum),
+                Varnumber::from(wp.w_jumplist[i].fmark.fnum),
             );
-            if let Some(ref fname) = (*wp).w_jumplist[i].fname {
+            if let Some(ref fname) = wp.w_jumplist[i].fname {
                 tv_dict_add_str(&mut *d, c"filename", fname.as_ptr());
             }
         }
@@ -4392,7 +4390,7 @@ pub fn f_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// "jobpid(id)" function
 pub fn f_jobpid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
@@ -4408,7 +4406,8 @@ pub fn f_jobpid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         if data.is_null() {
             return;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from((*data).uv.proc_.pid));
+        let data = unsafe { &mut *data };
+        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(data.uv.proc_.pid));
     }
 }
 
@@ -4862,7 +4861,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "jobstop()" function
 pub fn f_jobstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
@@ -4878,12 +4877,13 @@ pub fn f_jobstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         if data.is_null() {
             return;
         }
+        let data = unsafe { &mut *data };
 
         let mut error: *const c_char = ptr::null();
-        if (*data).is_rpc {
-            channel_close((*data).id, K_CHANNEL_PART_RPC_CONST, &mut error);
+        if data.is_rpc {
+            channel_close(data.id, K_CHANNEL_PART_RPC_CONST, &mut error);
         }
-        proc_stop(&mut (*data).uv.proc_);
+        proc_stop(&mut data.uv.proc_);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         if !error.is_null() {
             emsg(error);

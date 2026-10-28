@@ -3064,10 +3064,11 @@ fn find_match(lookfor: c_int, ourscope: Linenr) -> bool {
             if theirscope.is_null() {
                 break;
             }
-            if (*theirscope).lnum < ourscope {
+            let theirscope = { &mut *theirscope };
+            if theirscope.lnum < ourscope {
                 break;
             }
-            if (*theirscope).lnum > ourscope {
+            if theirscope.lnum > ourscope {
                 continue;
             }
             look = cin_skipcomment(get_cursor_line_ptr());

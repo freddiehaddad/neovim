@@ -714,7 +714,7 @@ fn sign_place(
 ) -> bool {
     let group = group.into_c_char_ptr();
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if !group.is_null()
             && (crate::memory::cstr_first_byte(group) == b'*'
                 || crate::memory::cstr_is_empty(group))
@@ -727,10 +727,11 @@ fn sign_place(
             semsg!(gettext(c"E155: Unknown sign: %s"), name);
             return false;
         }
+        let sp = unsafe { &mut *sp };
 
         if prio == -1 {
-            prio = if (*sp).sn_priority != -1 {
-                (*sp).sn_priority
+            prio = if sp.sn_priority != -1 {
+                sp.sn_priority
             } else {
                 SIGN_DEF_PRIO
             };

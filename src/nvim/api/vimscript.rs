@@ -410,7 +410,8 @@ pub fn nvim_call_dict_function(
                     );
                     break 'body;
                 }
-                if (*di).di_tv.v_type == VarType::VarPartial {
+                let di = { &mut *di };
+                if di.di_tv.v_type == VarType::VarPartial {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
@@ -418,7 +419,7 @@ pub fn nvim_call_dict_function(
                     );
                     break 'body;
                 }
-                if (*di).di_tv.v_type != VarType::VarFunc {
+                if di.di_tv.v_type != VarType::VarFunc {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
@@ -427,7 +428,7 @@ pub fn nvim_call_dict_function(
                     );
                     break 'body;
                 }
-                let s = (*di).di_tv.vval.v_string();
+                let s = di.di_tv.vval.v_string();
                 fn_name = NvimString {
                     data: s,
                     size: crate::memory::cstr_len(s),

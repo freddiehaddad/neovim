@@ -1507,14 +1507,15 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                 unblock_autocmds();
                 break 'create;
             }
+            let buf = { &mut *buf };
             if !ml_open(&mut *buf) {
                 unblock_autocmds();
                 break 'create;
             }
             let tick = buf_get_changedtick(&*buf);
-            (*buf).b_last_changedtick = tick;
-            (*buf).b_last_changedtick_i = tick;
-            (*buf).b_last_changedtick_pum = tick;
+            buf.b_last_changedtick = tick;
+            buf.b_last_changedtick_i = tick;
+            buf.b_last_changedtick_pum = tick;
 
             buf_copy_options(&mut *buf, BCO_ENTER | BCO_NOHELP);
 
@@ -1533,9 +1534,9 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                     0,
                     OptTarget::Buf(buf),
                 );
-                assert!((*(*buf).b_ml.mfp_ptr()).mf_fd < 0);
-                (*buf).b_p_swf = 0;
-                (*buf).b_p_ml = 0;
+                assert!((*buf.b_ml.mfp_ptr()).mf_fd < 0);
+                buf.b_p_swf = 0;
+                buf.b_p_ml = 0;
             }
 
             unblock_autocmds();
@@ -1554,7 +1555,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                 break 'create;
             }
 
-            ret = (*buf).b_fnum;
+            ret = buf.b_fnum;
         }
         try_leave(&tstate, err);
 
@@ -2882,6 +2883,7 @@ pub fn nvim_eval_statusline(
         if wp.is_null() {
             return result;
         }
+        let wp = { &mut *wp };
 
         if (opts.is_set_eval_statusline
             & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
@@ -2919,7 +2921,7 @@ pub fn nvim_eval_statusline(
             let mut cursorline_fi = Foldinfo::new();
             decor_redraw_signs(
                 wp,
-                (*wp).w_buffer,
+                wp.w_buffer,
                 lnum - 1,
                 statuscol.sattrs.as_mut_ptr(),
                 Some(&mut line_id),
@@ -2937,8 +2939,8 @@ pub fn nvim_eval_statusline(
                 stc_hl_id = num_id;
             } else if use_cul {
                 stc_hl_id = HLF_CLN;
-            } else if (*wp).w_onebuf_opt.wo_rnu != 0 {
-                stc_hl_id = if lnum < (*wp).w_cursor.lnum {
+            } else if wp.w_onebuf_opt.wo_rnu != 0 {
+                stc_hl_id = if lnum < wp.w_cursor.lnum {
                     HLF_LNA
                 } else {
                     HLF_LNB
@@ -2953,7 +2955,7 @@ pub fn nvim_eval_statusline(
             set_vim_var_nr(VV_VIRTNUM, 0);
         } else if fillchar == 0 && !opts.use_tabline {
             if opts.use_winbar {
-                fillchar = (*wp).w_p_fcs_chars.wbr;
+                fillchar = wp.w_p_fcs_chars.wbr;
             } else {
                 let mut group: Hlf = 0;
                 fillchar = fillchar_status(&mut group, &mut *wp);
@@ -2970,7 +2972,7 @@ pub fn nvim_eval_statusline(
         } else if opts.use_tabline || (!opts.use_winbar && global_stl_height() > 0) {
             g_st().columns_global
         } else {
-            (*wp).w_width
+            wp.w_width
         };
 
         result = arena_dict(arena, 3);
@@ -2982,8 +2984,8 @@ pub fn nvim_eval_statusline(
         let mut hltab: *mut StlHlrec = ptr::null_mut();
         let mut hltab_len: usize = 0;
 
-        let p_crb_save = (*wp).w_onebuf_opt.wo_crb;
-        (*wp).w_onebuf_opt.wo_crb = 0;
+        let p_crb_save = wp.w_onebuf_opt.wo_crb;
+        wp.w_onebuf_opt.wo_crb = 0;
 
         let width = build_stl_str_hl(
             wp,
@@ -3009,7 +3011,7 @@ pub fn nvim_eval_statusline(
 
         put_c(&mut result, c"width", integer_obj(Integer::from(width)));
 
-        (*wp).w_onebuf_opt.wo_crb = p_crb_save;
+        wp.w_onebuf_opt.wo_crb = p_crb_save;
 
         if opts.highlights {
             let mut hl_values = arena_array(arena, hltab_len + 1);

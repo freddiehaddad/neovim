@@ -185,9 +185,10 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
             );
             return;
         }
+        let c = { &mut *c };
         #[cfg(windows)]
-        let detach_stdio = (*c).streamtype == K_CHANNEL_STREAM_STDIO;
-        (*c).detach = true;
+        let detach_stdio = c.streamtype == K_CHANNEL_STREAM_STDIO;
+        c.detach = true;
         remote_ui_disconnect(chan, err, true);
         if error_set(err) {
             return;

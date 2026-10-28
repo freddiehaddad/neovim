@@ -4974,7 +4974,7 @@ fn nv_dollar(cap: &mut Cmdarg) {
 
 fn nv_search(cap: &mut Cmdarg) {
     unsafe {
-        let oap = cap.oap;
+        let oap = &mut *cap.oap;
         let save_cursor = curwin_mut().w_cursor;
 
         if cap.cmdchar == b'?' as c_int && cap.oap_mut().op_type == OP_ROT13 {
@@ -6490,13 +6490,13 @@ fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
 
 fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
     unsafe {
-        let oap = cap.oap;
+        let oap = &mut *cap.oap;
         let mut i: c_int;
         let col_off = win_col_off(curwin_ptr());
         let flag = cap.nchar == K_END || cap.nchar == K_KEND;
 
-        (*oap).motion_type = MT_CHAR_WISE;
-        (*oap).inclusive = true;
+        oap.motion_type = MT_CHAR_WISE;
+        oap.inclusive = true;
         if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
             curwin_mut().w_curswant = MAXCOL;
             if cap.count1 == 1 {
@@ -6576,7 +6576,7 @@ fn nv_gi_cmd(cap: &mut Cmdarg) {
 
 fn nv_g_cmd(cap: &mut Cmdarg) {
     unsafe {
-        let oap = cap.oap;
+        let oap = &mut *cap.oap;
 
         match cap.nchar {
             CTRL_A | CTRL_X_CONST => {
@@ -6640,8 +6640,8 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
             }
             c if c == b'j' as c_int || c == K_DOWN => {
                 let ok = if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-                    (*oap).motion_type = MT_LINE_WISE;
-                    cursor_down(cap.count1, (*oap).op_type == OP_NOP)
+                    oap.motion_type = MT_LINE_WISE;
+                    cursor_down(cap.count1, oap.op_type == OP_NOP)
                 } else {
                     nv_screengo(&mut *oap, FORWARD, cap.count1, false)
                 };
@@ -6651,8 +6651,8 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
             }
             c if c == b'k' as c_int || c == K_UP => {
                 let ok = if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-                    (*oap).motion_type = MT_LINE_WISE;
-                    cursor_up(cap.count1, (*oap).op_type == OP_NOP)
+                    oap.motion_type = MT_LINE_WISE;
+                    cursor_up(cap.count1, oap.op_type == OP_NOP)
                 } else {
                     nv_screengo(&mut *oap, BACKWARD, cap.count1, false)
                 };
@@ -6672,8 +6672,8 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                 nv_g_home_m_cmd(cap);
             }
             c if c == b'M' as c_int => {
-                (*oap).motion_type = MT_CHAR_WISE;
-                (*oap).inclusive = false;
+                oap.motion_type = MT_CHAR_WISE;
+                oap.inclusive = false;
                 let i = linetabsize(curwin_mut(), curwin_mut().w_cursor.lnum);
                 if cap.count0 > 0 && cap.count0 <= 100 {
                     coladvance(curwin_mut(), i * cap.count0 / 100);
@@ -6697,9 +6697,9 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                 nv_ident(cap);
             }
             c if c == b'e' as c_int || c == b'E' as c_int => {
-                (*oap).motion_type = MT_CHAR_WISE;
+                oap.motion_type = MT_CHAR_WISE;
                 curwin_mut().w_set_curswant = true;
-                (*oap).inclusive = true;
+                oap.inclusive = true;
                 if !bckend_word(cap.count1, cap.nchar == b'E' as c_int, false) {
                     clearopbeep(&mut *oap);
                 }
@@ -6747,7 +6747,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                 nv_goto(cap);
             }
             c if c == b'q' as c_int || c == b'w' as c_int => {
-                (*oap).cursor_start = curwin_mut().w_cursor;
+                oap.cursor_start = curwin_mut().w_cursor;
                 nv_operator(cap);
             }
             c if c == b'~' as c_int
@@ -6762,7 +6762,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                 nv_gd(&mut *oap, cap.nchar, cap.count0);
             }
             K_LEFTMOUSE => {
-                if do_mouse(oap.as_mut(), cap.nchar, BACKWARD, cap.count1, false) {
+                if do_mouse(Some(&mut *oap), cap.nchar, BACKWARD, cap.count1, false) {
                     stuffchar_readbuff(CTRL_RSB_CONST);
                     exec_stuffed(Some(cap));
                 }
@@ -6771,14 +6771,14 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
             | K_MOUSEMOVE | K_RIGHTMOUSE | K_RIGHTDRAG | K_RIGHTRELEASE | K_X1MOUSE | K_X1DRAG
             | K_X1RELEASE | K_X2MOUSE | K_X2DRAG | K_X2RELEASE => {
                 g_st().mod_mask = MOD_MASK_CTRL;
-                do_mouse(oap.as_mut(), cap.nchar, BACKWARD, cap.count1, false);
+                do_mouse(Some(&mut *oap), cap.nchar, BACKWARD, cap.count1, false);
             }
             K_IGNORE => {}
             c if c == b'p' as c_int || c == b'P' as c_int => {
                 nv_put(cap);
             }
             c if c == b'o' as c_int => {
-                (*oap).inclusive = false;
+                oap.inclusive = false;
                 goto_byte(cap.count0);
             }
             c if c == b',' as c_int => {
@@ -7778,9 +7778,9 @@ pub fn exec_stuffed(mut cap: Option<&mut Cmdarg>) {
         }
         let mut oa = Oparg::new();
         let oap = if let Some(ref cap) = cap {
-            cap.oap
+            &mut *cap.oap
         } else {
-            &raw mut oa
+            &mut oa
         };
         g_st().finish_op = false;
         while !stuff_empty() && !g_st().got_int {

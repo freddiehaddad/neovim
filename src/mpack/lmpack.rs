@@ -475,7 +475,7 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
             return luaL_error(l, c"expecting at most 1 table argument".as_ptr());
         }
 
-        let rv = lua_newuserdata(l, size_of::<Packer>()).cast::<Packer>();
+        let rv = &mut *lua_newuserdata(l, size_of::<Packer>()).cast::<Packer>();
         ptr::write(
             rv,
             Packer {
@@ -490,17 +490,17 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
                 is_bin_fn: LUA_NOREF,
             },
         );
-        mpack_parser_init(&mut (*rv).parser, 0);
-        (*rv).parser.data = MpackData::LmpackPacker(rv);
+        mpack_parser_init(&mut rv.parser, 0);
+        rv.parser.data = MpackData::LmpackPacker(rv);
         luaL_getmetatable(l, PACKER_META_NAME);
         lua_setmetatable(l, -2);
 
         lua_newtable(l);
-        (*rv).reg = luaL_ref(l, LUA_REGISTRYINDEX);
-        (*rv).ext = LUA_NOREF;
+        rv.reg = luaL_ref(l, LUA_REGISTRYINDEX);
+        rv.ext = LUA_NOREF;
 
         lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
-        (*rv).mtdict = lmpack_ref(l, (*rv).reg);
+        rv.mtdict = lmpack_ref(l, rv.reg);
 
         if lua_istable(l, 1) {
             lua_getfield(l, 1, c"ext");
@@ -510,7 +510,7 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
                 }
                 lmpack_shallow_copy(l);
             }
-            (*rv).ext = lmpack_ref(l, (*rv).reg);
+            rv.ext = lmpack_ref(l, rv.reg);
 
             lua_getfield(l, 1, c"is_bin");
             if !lua_isnil(l, -1) {
@@ -520,9 +520,9 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
                         c"\"is_bin\" option must be a boolean or function".as_ptr(),
                     );
                 }
-                (*rv).is_bin = lua_toboolean(l, -1);
+                rv.is_bin = lua_toboolean(l, -1);
                 if lua_isfunction(l, -1) {
-                    (*rv).is_bin_fn = lmpack_ref(l, (*rv).reg);
+                    rv.is_bin_fn = lmpack_ref(l, rv.reg);
                 } else {
                     lua_pop(l, 1);
                 }

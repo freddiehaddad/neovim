@@ -409,6 +409,7 @@ fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> c_int 
         if wp.is_null() {
             return IN_UNKNOWN;
         }
+        let wp = { &mut *wp };
         if !wpp.is_null() {
             *wpp = wp;
         }
@@ -418,9 +419,9 @@ fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> c_int 
         let below_buffer = mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut mpos.lnum);
 
         if !below_buffer
-            && !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stc)
-            && (if (*wp).w_onebuf_opt.wo_rl != 0 {
-                wincol >= (*wp).w_view_width - win_col_off(wp)
+            && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+            && (if wp.w_onebuf_opt.wo_rl != 0 {
+                wincol >= wp.w_view_width - win_col_off(wp)
             } else {
                 wincol < win_col_off(wp)
             })
@@ -428,7 +429,7 @@ fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> c_int 
             return MOUSE_STATUSCOL;
         }
 
-        if winrow >= (*wp).w_view_height + (*wp).w_status_height {
+        if winrow >= wp.w_view_height + wp.w_status_height {
             if g_st().mouse_grid <= 1
                 && i64::from(g_st().mouse_row) < i64::from(g_st().rows_global) - opt_vars().p_ch
                 && i64::from(g_st().mouse_row)
@@ -439,19 +440,19 @@ fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> c_int 
                 return IN_STATUS_LINE;
             }
             return IN_UNKNOWN;
-        } else if winrow >= (*wp).w_view_height {
+        } else if winrow >= wp.w_view_height {
             return IN_STATUS_LINE;
         }
 
-        if winrow < 0 && winrow + (*wp).w_winbar_height >= 0 {
+        if winrow < 0 && winrow + wp.w_winbar_height >= 0 {
             return MOUSE_WINBAR;
         }
 
-        if wincol >= (*wp).w_view_width {
+        if wincol >= wp.w_view_width {
             return IN_SEP_LINE;
         }
 
-        if (wpp.is_null() && wp != curwin_ptr()) || below_buffer {
+        if (wpp.is_null() && !std::ptr::eq(wp, curwin_ptr())) || below_buffer {
             return IN_UNKNOWN;
         }
 
@@ -854,30 +855,31 @@ pub fn do_mouse(
             if wp.is_null() {
                 return false;
             }
+            let wp = { &mut *wp };
 
             let mut click_defs: *mut StlClickDefinition = if in_status_line {
-                if (*wp).w_status_click_defs.is_empty() {
+                if wp.w_status_click_defs.is_empty() {
                     ptr::null_mut()
                 } else {
-                    (*wp).w_status_click_defs.as_mut_ptr()
+                    wp.w_status_click_defs.as_mut_ptr()
                 }
             } else if in_winbar {
-                if (*wp).w_winbar_click_defs.is_empty() {
+                if wp.w_winbar_click_defs.is_empty() {
                     ptr::null_mut()
                 } else {
-                    (*wp).w_winbar_click_defs.as_mut_ptr()
+                    wp.w_winbar_click_defs.as_mut_ptr()
                 }
             } else {
                 ptr::null_mut()
             };
-            if in_statuscol && (*wp).w_onebuf_opt.wo_rl != 0 {
-                click_col = (*wp).w_view_width - click_col - 1;
+            if in_statuscol && wp.w_onebuf_opt.wo_rl != 0 {
+                click_col = wp.w_view_width - click_col - 1;
             }
 
             if in_statuscol {
                 let lnum = get_vim_var_nr(VV_LNUM) as c_int;
                 let virtnum = get_vim_var_nr(VV_VIRTNUM) as c_int;
-                let Some(row_click_defs) = (*wp)
+                let Some(row_click_defs) = wp
                     .w_statuscol_click_defs
                     .get_mut(&lnum)
                     .and_then(|m| m.get_mut(&virtnum))
@@ -1494,21 +1496,20 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
         if wp.is_null() {
             return IN_UNKNOWN;
         }
+        let wp = { &mut *wp };
 
-        let below_window =
-            grid == DEFAULT_GRID_HANDLE && row + (*wp).w_winbar_height >= (*wp).w_height;
-        mouse_st().on_status_line =
-            below_window && row + (*wp).w_winbar_height - (*wp).w_height + 1 == 1;
+        let below_window = grid == DEFAULT_GRID_HANDLE && row + wp.w_winbar_height >= wp.w_height;
+        mouse_st().on_status_line = below_window && row + wp.w_winbar_height - wp.w_height + 1 == 1;
         mouse_st().on_sep_line =
-            grid == DEFAULT_GRID_HANDLE && col >= (*wp).w_width && col - (*wp).w_width + 1 == 1;
-        mouse_st().on_winbar = row < 0 && row + (*wp).w_winbar_height >= 0;
+            grid == DEFAULT_GRID_HANDLE && col >= wp.w_width && col - wp.w_width + 1 == 1;
+        mouse_st().on_winbar = row < 0 && row + wp.w_winbar_height >= 0;
         mouse_st().on_statuscol = !below_window
             && !mouse_st().on_status_line
             && !mouse_st().on_sep_line
             && !mouse_st().on_winbar
-            && !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stc)
-            && (if (*wp).w_onebuf_opt.wo_rl != 0 {
-                col >= (*wp).w_view_width - win_col_off(wp)
+            && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+            && (if wp.w_onebuf_opt.wo_rl != 0 {
+                col >= wp.w_view_width - win_col_off(wp)
             } else {
                 col < win_col_off(wp)
             });
@@ -1539,15 +1540,14 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                 mouse_st().dragwin = ptr::null_mut();
 
                 if below_window {
-                    mouse_st().status_line_offset =
-                        row + (*wp).w_winbar_height - (*wp).w_height + 1;
+                    mouse_st().status_line_offset = row + wp.w_winbar_height - wp.w_height + 1;
                     mouse_st().dragwin = wp;
                 } else {
                     mouse_st().status_line_offset = 0;
                 }
 
-                if grid == DEFAULT_GRID_HANDLE && col >= (*wp).w_width {
-                    mouse_st().sep_line_offset = col - (*wp).w_width + 1;
+                if grid == DEFAULT_GRID_HANDLE && col >= wp.w_width {
+                    mouse_st().sep_line_offset = col - wp.w_width + 1;
                     mouse_st().dragwin = wp;
                 } else {
                     mouse_st().sep_line_offset = 0;
@@ -1562,11 +1562,11 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                 }
 
                 if g_st().visual_global.active
-                    && ((*wp).w_buffer != curwin_mut().w_buffer
+                    && (wp.w_buffer != curwin_mut().w_buffer
                         || (mouse_st().status_line_offset == 0
                             && mouse_st().sep_line_offset == 0
-                            && (if (*wp).w_onebuf_opt.wo_rl != 0 {
-                                col < (*wp).w_view_width - fdc
+                            && (if wp.w_onebuf_opt.wo_rl != 0 {
+                                col < wp.w_view_width - fdc
                             } else {
                                 col >= fdc
                             })

@@ -21,24 +21,25 @@ fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     if b2.is_null() {
         return true;
     }
+    let b2 = unsafe { &mut *b2 };
 
     let b1 = tv1.vval.v_blob();
     if b1.is_null() {
         tv1.vval = crate::eval::typval::TypvalVval::Blob(b2);
-        unsafe {
-            (*b2).bv_refcount += 1;
+        {
+            b2.bv_refcount += 1;
         }
         return true;
     }
 
     unsafe {
-        if !(*b2).bv_ga.is_empty() {
+        if !b2.bv_ga.is_empty() {
             let b1_ref = &mut *b1;
             if std::ptr::eq(b1_ref, b2) {
                 let copy = b1_ref.bv_ga.clone();
                 b1_ref.bv_ga.extend_from_slice(&copy);
             } else {
-                b1_ref.bv_ga.extend_from_slice(&(*b2).bv_ga);
+                b1_ref.bv_ga.extend_from_slice(&b2.bv_ga);
             }
         }
     }

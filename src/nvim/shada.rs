@@ -1642,9 +1642,10 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                         shada_free_shada_entry(&mut cur_entry);
                         continue;
                     }
+                    let buf = { &mut *buf };
                     let fm = Fmark {
                         mark: fm_mark,
-                        fnum: (*buf).b_fnum,
+                        fnum: buf.b_fnum,
                         timestamp: cur_entry.timestamp,
                         view: INIT_FMARKV,
                         additional_data: cur_entry.additional_data.take(),
@@ -1656,9 +1657,9 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                         }
                     } else {
                         cl_bufs.insert(buf);
-                        let mut i = (*buf).b_changelistlen;
+                        let mut i = buf.b_changelistlen;
                         while i > 0 {
-                            let jl_entry = &(*buf).b_changelist[(i - 1) as usize];
+                            let jl_entry = &buf.b_changelist[(i - 1) as usize];
                             if jl_entry.timestamp <= cur_entry.timestamp {
                                 if marks_equal(jl_entry.mark, fm_mark) {
                                     i = -1;
@@ -1667,11 +1668,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                             }
                             i -= 1;
                         }
-                        i = marklist_insert(&mut (*buf).b_changelist, (*buf).b_changelistlen, i);
+                        i = marklist_insert(&mut buf.b_changelist, buf.b_changelistlen, i);
                         if i != -1 {
-                            (*buf).b_changelist[i as usize] = fm;
-                            if (*buf).b_changelistlen < (JUMPLISTSIZE as c_int) {
-                                (*buf).b_changelistlen += 1;
+                            buf.b_changelist[i as usize] = fm;
+                            if buf.b_changelistlen < (JUMPLISTSIZE as c_int) {
+                                buf.b_changelistlen += 1;
                             }
                         }
                     }

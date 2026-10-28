@@ -1358,6 +1358,7 @@ pub fn close_buffer(
     set_context: bool,
 ) -> bool {
     unsafe {
+        let buf = &mut *buf;
         let mut unload_buf = action != 0;
         let mut del_buf = action == DOBUF_DEL || action == DOBUF_WIPE;
         let mut wipe_buf = action == DOBUF_WIPE;
@@ -1366,8 +1367,8 @@ pub fn close_buffer(
             !(curwin_ptr()).is_null() && curwin_ptr() == win && curwin_mut().w_buffer == buf;
         let the_curtab = g_st().curtab;
 
-        if (*buf).terminal.is_null() {
-            let bh0 = *(*buf).b_p_bh;
+        if buf.terminal.is_null() {
+            let bh0 = *buf.b_p_bh;
             if bh0 == b'd' as c_char {
                 del_buf = true;
                 unload_buf = true;
@@ -1380,7 +1381,7 @@ pub fn close_buffer(
             }
         }
 
-        if !(*buf).terminal.is_null() && (unload_buf || del_buf || wipe_buf) {
+        if !buf.terminal.is_null() && (unload_buf || del_buf || wipe_buf) {
             unload_buf = true;
             del_buf = true;
             wipe_buf = true;
@@ -1392,7 +1393,7 @@ pub fn close_buffer(
 
         let mut win_valid = win_valid_any_tab(win);
         if set_context && win_valid && (*win).w_buffer == buf {
-            if (*buf).b_nwindows == 1 {
+            if buf.b_nwindows == 1 {
                 set_last_cursor(&mut *win);
             }
             buflist_setfpos(
@@ -1411,13 +1412,13 @@ pub fn close_buffer(
         let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, buf);
 
-        if win_valid && (*win).w_buffer == buf && (*buf).b_nwindows == 1 {
-            (*buf).b_locked += 1;
-            (*buf).b_locked_split += 1;
+        if win_valid && (*win).w_buffer == buf && buf.b_nwindows == 1 {
+            buf.b_locked += 1;
+            buf.b_locked_split += 1;
             if apply_autocmds_win(
                 EVENT_BUFWINLEAVE,
-                (*buf).b_fname,
-                (*buf).b_fname,
+                buf.b_fname,
+                buf.b_fname,
                 false,
                 buf,
                 win.as_ref(),
@@ -1426,24 +1427,24 @@ pub fn close_buffer(
                 emsg(gettext(E_AUABORT));
                 return false;
             }
-            (*buf).b_locked -= 1;
-            (*buf).b_locked_split -= 1;
+            buf.b_locked -= 1;
+            buf.b_locked_split -= 1;
             if abort_if_last && one_window(&mut *win, ptr::null_mut()) {
                 emsg(gettext(E_AUABORT));
                 return false;
             }
 
             if !unload_buf {
-                (*buf).b_locked += 1;
-                (*buf).b_locked_split += 1;
-                if apply_autocmds(EVENT_BUFHIDDEN, (*buf).b_fname, (*buf).b_fname, false, buf)
+                buf.b_locked += 1;
+                buf.b_locked_split += 1;
+                if apply_autocmds(EVENT_BUFHIDDEN, buf.b_fname, buf.b_fname, false, buf)
                     && !bufref_valid(Some(&bufref))
                 {
                     emsg(gettext(E_AUABORT));
                     return false;
                 }
-                (*buf).b_locked -= 1;
-                (*buf).b_locked_split -= 1;
+                buf.b_locked -= 1;
+                buf.b_locked_split -= 1;
                 if abort_if_last && one_window(&mut *win, ptr::null_mut()) {
                     emsg(gettext(E_AUABORT));
                     return false;
@@ -1461,12 +1462,12 @@ pub fn close_buffer(
             unblock_autocmds();
         }
 
-        if bt_quickfix(buf.as_ref()) && win_valid && (*win).w_buffer == buf {
+        if bt_quickfix(Some(&*buf)) && win_valid && (*win).w_buffer == buf {
             (*win).w_onebuf_opt.wo_wfh = 0;
         }
 
-        let hiding_buf = (*buf).b_nwindows <= 0
-            || (win_valid && (*win).w_buffer == buf && (*buf).b_nwindows == 1);
+        let hiding_buf =
+            buf.b_nwindows <= 0 || (win_valid && (*win).w_buffer == buf && buf.b_nwindows == 1);
 
         if diffopt_hiddenoff() && !unload_buf && hiding_buf {
             diff_buf_delete(buf);
@@ -1476,7 +1477,7 @@ pub fn close_buffer(
             return false;
         }
 
-        if (*buf).b_ffname.is_null() {
+        if buf.b_ffname.is_null() {
             del_buf = true;
         }
 
@@ -1492,41 +1493,39 @@ pub fn close_buffer(
         let mut clear_w_buf = false;
         win_valid = win_valid && win_valid_any_tab(win);
         if win_valid && (*win).w_buffer == buf {
-            (*buf).b_nwindows -= 1;
+            buf.b_nwindows -= 1;
             clear_w_buf = true;
         }
 
         if wipe_buf
-            && (*buf).b_nwindows <= 0
-            && (!(*buf).b_prev.is_null()
-                || !(*buf).b_next.is_null()
-                || mem_st().entered_free_all_mem)
+            && buf.b_nwindows <= 0
+            && (!buf.b_prev.is_null() || !buf.b_next.is_null() || mem_st().entered_free_all_mem)
         {
             if clear_w_buf {
                 (*win).w_buffer = ptr::null_mut();
             }
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_mut(&*tp) {
-                    mark_forget_file(wp, (*buf).b_fnum);
+                    mark_forget_file(wp, buf.b_fnum);
                 }
             }
             (*buf).clear_fnames();
-            if (*buf).b_prev.is_null() {
-                g_st().firstbuf = (*buf).b_next;
+            if buf.b_prev.is_null() {
+                g_st().firstbuf = buf.b_next;
             } else {
-                (*(*buf).b_prev).b_next = (*buf).b_next;
+                (*buf.b_prev).b_next = buf.b_next;
             }
-            if (*buf).b_next.is_null() {
-                g_st().lastbuf = (*buf).b_prev;
+            if buf.b_next.is_null() {
+                g_st().lastbuf = buf.b_prev;
             } else {
-                (*(*buf).b_next).b_prev = (*buf).b_prev;
+                (*buf.b_next).b_prev = buf.b_prev;
             }
             free_buffer(buf);
         } else {
             if del_buf {
                 free_buffer_stuff(&mut *buf, K_BFF_CLEAR_WIN_INFO | K_BFF_INIT_CHANGEDTICK);
-                (*buf).b_flags = BF_CHECK_RO | BF_NEVERLOADED;
-                (*buf).b_p_initialized = false;
+                buf.b_flags = BF_CHECK_RO | BF_NEVERLOADED;
+                buf.b_p_initialized = false;
             }
             g_st().textlock += 1;
             buf_clear_file(&mut *buf);
@@ -1535,7 +1534,7 @@ pub fn close_buffer(
                 (*win).w_buffer = ptr::null_mut();
             }
             if del_buf {
-                (*buf).b_p_bl = 0;
+                buf.b_p_bl = 0;
             }
         }
 
@@ -3448,12 +3447,13 @@ pub fn buflist_nr2name(n: c_int, fullname: c_int, helptail: c_int) -> Option<std
         if buf.is_null() {
             return None;
         }
+        let buf = &mut *buf;
         Some(home_replace_save(
-            (if helptail != 0 { buf } else { ptr::null_mut() }).as_ref(),
+            (helptail != 0).then_some(&*buf),
             if fullname != 0 {
-                (*buf).b_ffname
+                buf.b_ffname
             } else {
-                (*buf).b_fname
+                buf.b_fname
             },
         ))
     }

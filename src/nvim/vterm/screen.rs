@@ -510,10 +510,11 @@ fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) 
         if cell.is_null() {
             return 0;
         }
+        let cell = { &mut *cell };
 
-        (*cell).schar = info.schar;
+        cell.schar = info.schar;
         if info.schar != 0 {
-            (*cell).pen = screen.pen;
+            cell.pen = screen.pen;
         }
 
         for col in 1..info.width {
@@ -531,9 +532,9 @@ fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) 
             end_col: pos.col + info.width,
         };
 
-        (*cell).pen.set_protected_cell(info.protected_cell());
-        (*cell).pen.set_dwl(info.dwl());
-        (*cell).pen.set_dhl(info.dhl());
+        cell.pen.set_protected_cell(info.protected_cell());
+        cell.pen.set_dwl(info.dwl());
+        cell.pen.set_dhl(info.dhl());
 
         damagerect(screen, rect);
 
@@ -1380,33 +1381,34 @@ pub fn vterm_screen_get_cell(
         if intcell.is_null() {
             return 0;
         }
+        let intcell = { &mut *intcell };
 
-        cell.schar = if (*intcell).schar == u32::MAX {
+        cell.schar = if intcell.schar == u32::MAX {
             0
         } else {
-            (*intcell).schar
+            intcell.schar
         };
 
-        cell.attrs.set_bold((*intcell).pen.bold());
-        cell.attrs.set_underline((*intcell).pen.underline());
-        cell.attrs.set_italic((*intcell).pen.italic());
-        cell.attrs.set_blink((*intcell).pen.blink());
+        cell.attrs.set_bold(intcell.pen.bold());
+        cell.attrs.set_underline(intcell.pen.underline());
+        cell.attrs.set_italic(intcell.pen.italic());
+        cell.attrs.set_blink(intcell.pen.blink());
         cell.attrs
-            .set_reverse((*intcell).pen.reverse() ^ screen.global_reverse());
-        cell.attrs.set_conceal((*intcell).pen.conceal());
-        cell.attrs.set_strike((*intcell).pen.strike());
-        cell.attrs.set_font((*intcell).pen.font());
-        cell.attrs.set_small((*intcell).pen.small());
-        cell.attrs.set_baseline((*intcell).pen.baseline());
-        cell.attrs.set_dim((*intcell).pen.dim());
-        cell.attrs.set_overline((*intcell).pen.overline());
+            .set_reverse(intcell.pen.reverse() ^ screen.global_reverse());
+        cell.attrs.set_conceal(intcell.pen.conceal());
+        cell.attrs.set_strike(intcell.pen.strike());
+        cell.attrs.set_font(intcell.pen.font());
+        cell.attrs.set_small(intcell.pen.small());
+        cell.attrs.set_baseline(intcell.pen.baseline());
+        cell.attrs.set_dim(intcell.pen.dim());
+        cell.attrs.set_overline(intcell.pen.overline());
 
-        cell.attrs.set_dwl((*intcell).pen.dwl());
-        cell.attrs.set_dhl((*intcell).pen.dhl());
+        cell.attrs.set_dwl(intcell.pen.dwl());
+        cell.attrs.set_dhl(intcell.pen.dhl());
 
-        cell.fg = (*intcell).pen.fg;
-        cell.bg = (*intcell).pen.bg;
-        cell.uri = (*intcell).pen.uri;
+        cell.fg = intcell.pen.fg;
+        cell.bg = intcell.pen.bg;
+        cell.uri = intcell.pen.uri;
 
         if pos.col < (screen.cols - 1) && (*getcell(screen, pos.row, pos.col + 1)).schar == u32::MAX
         {

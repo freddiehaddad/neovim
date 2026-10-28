@@ -1229,6 +1229,7 @@ pub fn nvim_buf_get_keymap(
     if b.is_null() {
         return Array::new();
     }
+    let b = unsafe { &mut *b };
     keymap_array(mode, b, arena)
 }
 
@@ -1509,8 +1510,9 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
             api_err_invalid(err, c"mark name", name.data, 0, true);
             return res;
         }
+        let fm = { &mut *fm };
 
-        if (*fm).mark.lnum != 0 && (*fm).fnum == b.b_fnum {
+        if fm.mark.lnum != 0 && fm.fnum == b.b_fnum {
             res = set_mark((&raw mut *b), name, 0, 0, err);
         }
 

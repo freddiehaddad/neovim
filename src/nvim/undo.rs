@@ -711,7 +711,7 @@ fn corruption_error(mesg: &std::ffi::CStr, file_name: impl crate::strings::IntoC
 
 fn serialize_header(bi: &mut Bufinfo, hash: *mut u8) -> bool {
     unsafe {
-        let buf = bi.bi_buf;
+        let buf = &mut *bi.bi_buf;
         let fp = bi.bi_fp.as_ptr();
 
         if fwrite(UF_START_MAGIC.as_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) != 1 {
@@ -724,17 +724,13 @@ fn serialize_header(bi: &mut Bufinfo, hash: *mut u8) -> bool {
             return false;
         }
 
-        undo_write_bytes(bi, (*buf).b_ml.ml_line_count as u64, 4);
-        let len = (*buf)
-            .b_u_line_ptr
-            .as_ref()
-            .map_or(0, |s| s.as_bytes().len());
+        undo_write_bytes(bi, buf.b_ml.ml_line_count as u64, 4);
+        let len = buf.b_u_line_ptr.as_ref().map_or(0, |s| s.as_bytes().len());
         undo_write_bytes(bi, len as u64, 4);
         if len > 0
             && !undo_write(
                 bi,
-                (*buf)
-                    .b_u_line_ptr
+                buf.b_u_line_ptr
                     .as_ref()
                     .unwrap()
                     .as_ptr()
@@ -745,22 +741,22 @@ fn serialize_header(bi: &mut Bufinfo, hash: *mut u8) -> bool {
         {
             return false;
         }
-        undo_write_bytes(bi, (*buf).b_u_line_lnum as u64, 4);
-        undo_write_bytes(bi, (*buf).b_u_line_colnr as u64, 4);
+        undo_write_bytes(bi, buf.b_u_line_lnum as u64, 4);
+        undo_write_bytes(bi, buf.b_u_line_colnr as u64, 4);
 
-        put_header_ptr(bi, (*buf).b_u_oldhead);
-        put_header_ptr(bi, (*buf).b_u_newhead);
-        put_header_ptr(bi, (*buf).b_u_curhead);
+        put_header_ptr(bi, buf.b_u_oldhead);
+        put_header_ptr(bi, buf.b_u_newhead);
+        put_header_ptr(bi, buf.b_u_curhead);
 
-        undo_write_bytes(bi, (*buf).b_u_numhead as u64, 4);
-        undo_write_bytes(bi, (*buf).b_u_seq_last as u64, 4);
-        undo_write_bytes(bi, (*buf).b_u_seq_cur as u64, 4);
-        let mut time_buf = ((*buf).b_u_time_cur as u64).to_be_bytes();
+        undo_write_bytes(bi, buf.b_u_numhead as u64, 4);
+        undo_write_bytes(bi, buf.b_u_seq_last as u64, 4);
+        undo_write_bytes(bi, buf.b_u_seq_cur as u64, 4);
+        let mut time_buf = (buf.b_u_time_cur as u64).to_be_bytes();
         undo_write(bi, time_buf.as_mut_ptr(), time_buf.len());
 
         undo_write_bytes(bi, 4, 1);
         undo_write_bytes(bi, UF_LAST_SAVE_NR as u64, 1);
-        undo_write_bytes(bi, (*buf).b_u_save_nr_last as u64, 4);
+        undo_write_bytes(bi, buf.b_u_save_nr_last as u64, 4);
 
         undo_write_bytes(bi, 0, 1);
 
@@ -2640,19 +2636,20 @@ fn u_get_headentry(buf: &mut FileBuf) -> *mut UEntry {
 }
 
 fn u_getbot(buf: &mut FileBuf) {
-    unsafe {
+    {
         let uep = u_get_headentry(buf);
         if uep.is_null() {
             return;
         }
+        let uep = unsafe { &mut *uep };
 
         let newhead = buf.b_u_newhead.unwrap();
         if uhp_ref(buf, newhead).uh_getbot_entry {
-            let extra = buf.b_ml.ml_line_count - (*uep).ue_lcount;
-            (*uep).ue_bot = (*uep).ue_top + (*uep).ue_size() + 1 + extra;
-            if (*uep).ue_bot < 1 || (*uep).ue_bot > buf.b_ml.ml_line_count {
+            let extra = buf.b_ml.ml_line_count - uep.ue_lcount;
+            uep.ue_bot = uep.ue_top + (*uep).ue_size() + 1 + extra;
+            if uep.ue_bot < 1 || uep.ue_bot > buf.b_ml.ml_line_count {
                 iemsg(gettext(E_UNDO_LINE_MISSING));
-                (*uep).ue_bot = (*uep).ue_top + 1;
+                uep.ue_bot = uep.ue_top + 1;
             }
 
             uhp_mut(buf, newhead).uh_getbot_entry = false;
@@ -3004,25 +3001,18 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if buf.is_null() {
             return;
         }
+        let buf = { &mut *buf };
 
         let dict = rettv.vval.v_dict();
 
-        tv_dict_add_nr(&mut *dict, c"synced", Varnumber::from((*buf).b_u_synced));
-        tv_dict_add_nr(&mut *dict, c"seq_last", (*buf).b_u_seq_last as Varnumber);
-        tv_dict_add_nr(
-            &mut *dict,
-            c"save_last",
-            (*buf).b_u_save_nr_last as Varnumber,
-        );
-        tv_dict_add_nr(&mut *dict, c"seq_cur", (*buf).b_u_seq_cur as Varnumber);
-        tv_dict_add_nr(&mut *dict, c"time_cur", (*buf).b_u_time_cur as Varnumber);
-        tv_dict_add_nr(&mut *dict, c"save_cur", (*buf).b_u_save_nr_cur as Varnumber);
+        tv_dict_add_nr(&mut *dict, c"synced", Varnumber::from(buf.b_u_synced));
+        tv_dict_add_nr(&mut *dict, c"seq_last", buf.b_u_seq_last as Varnumber);
+        tv_dict_add_nr(&mut *dict, c"save_last", buf.b_u_save_nr_last as Varnumber);
+        tv_dict_add_nr(&mut *dict, c"seq_cur", buf.b_u_seq_cur as Varnumber);
+        tv_dict_add_nr(&mut *dict, c"time_cur", buf.b_u_time_cur as Varnumber);
+        tv_dict_add_nr(&mut *dict, c"save_cur", buf.b_u_save_nr_cur as Varnumber);
 
-        tv_dict_add_list(
-            &mut *dict,
-            c"entries",
-            u_eval_tree(&mut *buf, (*buf).b_u_oldhead),
-        );
+        tv_dict_add_list(&mut *dict, c"entries", u_eval_tree(buf, buf.b_u_oldhead));
     }
 }
 

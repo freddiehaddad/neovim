@@ -2575,8 +2575,9 @@ pub fn showmatch(c: c_int) {
             vim_beep(K_OPT_BO_FLAG_SHOWMATCH);
             return;
         }
+        let lpos = { &mut *lpos };
 
-        if (*lpos).lnum < curwin_mut().w_topline || (*lpos).lnum >= curwin_mut().w_botline {
+        if lpos.lnum < curwin_mut().w_topline || lpos.lnum >= curwin_mut().w_botline {
             return;
         }
 
