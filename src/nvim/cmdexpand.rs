@@ -5987,7 +5987,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
             orig_ref.map_or(ptr::null(), |v| v.as_ptr().cast::<c_char>()),
             orig_ref.map_or(0, |v| v.len() as c_int),
         );
-        if ret == OK {
+        if ret {
             ret = tv_dict_add_nr(
                 retdict,
                 c"pum_visible".as_ptr(),
@@ -5995,7 +5995,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
                 i64::from(pum_visible()),
             );
         }
-        if ret == OK {
+        if ret {
             ret = tv_dict_add_nr(
                 retdict,
                 c"selected".as_ptr(),
@@ -6003,12 +6003,12 @@ pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
                 i64::from((*(*ccline).xpc).xp_selected),
             );
         }
-        if ret == OK {
+        if ret {
             let li = tv_list_alloc((*(*ccline).xpc).xp_numfiles as isize);
             ret = tv_dict_add_list(retdict, c"matches".as_ptr(), 7, li);
             let files = (*(*ccline).xpc).xp_files.as_slice();
             let mut idx: usize = 0;
-            while ret == OK && (idx as c_int) < (*(*ccline).xpc).xp_numfiles {
+            while ret && (idx as c_int) < (*(*ccline).xpc).xp_numfiles {
                 tv_list_append_string(
                     li,
                     files[idx].as_ptr(),

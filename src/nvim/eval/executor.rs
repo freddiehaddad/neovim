@@ -7,20 +7,19 @@ use crate::eval::typval::{
     typval_T,
 };
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
-use crate::math::{FAIL, OK};
 use crate::message::semsg;
 use crate::regexp::NUMBUFLEN;
 use crate::strings::concat_str;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_char;
 
-fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
     if op != b'+' || tv2.v_type != VarType::VAR_BLOB {
-        return FAIL;
+        return false;
     }
 
     let b2 = tv2.vval.v_blob();
     if b2.is_null() {
-        return OK;
+        return true;
     }
 
     let b1 = tv1.vval.v_blob();
@@ -29,7 +28,7 @@ fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
         unsafe {
             (*b2).bv_refcount += 1;
         }
-        return OK;
+        return true;
     }
 
     unsafe {
@@ -44,17 +43,17 @@ fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
         }
     }
 
-    OK
+    true
 }
 
-fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
     if op != b'+' || tv2.v_type != VarType::VAR_LIST {
-        return FAIL;
+        return false;
     }
 
     let l2 = tv2.vval.v_list();
     if l2.is_null() {
-        return OK;
+        return true;
     }
 
     let l1 = tv1.vval.v_list();
@@ -67,16 +66,16 @@ fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
         tv_list_extend(l1, l2, std::ptr::null_mut());
     }
 
-    OK
+    true
 }
 
-fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
     let mut n = tv_get_number(&*tv1);
 
     if tv2.v_type == VarType::VAR_FLOAT {
         let mut f = n as f64;
         if op == b'%' {
-            return FAIL;
+            return false;
         }
         let rhs = tv2.vval.v_float();
         match op {
@@ -109,19 +108,19 @@ fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
         tv1.vval = TypvalVval::Number(n);
     }
 
-    OK
+    true
 }
 
-fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
+fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> bool {
     if tv2.v_type == VarType::VAR_FLOAT {
-        return FAIL;
+        return false;
     }
 
     unsafe {
         let mut numbuf = [0 as c_char; NUMBUFLEN];
         let s2 = tv_get_string_buf(tv2, numbuf.as_mut_ptr());
         if grow_string_tv(&mut *tv1, s2) {
-            return OK;
+            return true;
         }
 
         let tvs = tv_get_string(&*tv1);
@@ -129,12 +128,12 @@ fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
         crate::eval::typval::tv_set_string(tv1, s.as_ptr());
     }
 
-    OK
+    true
 }
 
-fn tv_op_nr_or_string(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_nr_or_string(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
     if tv2.v_type == VarType::VAR_LIST {
-        return FAIL;
+        return false;
     }
     if matches!(op, b'+' | b'-' | b'*' | b'/' | b'%') {
         tv_op_number(tv1, tv2, op)
@@ -143,7 +142,7 @@ fn tv_op_nr_or_string(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     }
 }
 
-fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
     if op == b'%'
         || op == b'.'
         || !matches!(
@@ -151,7 +150,7 @@ fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             VarType::VAR_FLOAT | VarType::VAR_NUMBER | VarType::VAR_STRING
         )
     {
-        return FAIL;
+        return false;
     }
 
     let f = if tv2.v_type == VarType::VAR_FLOAT {
@@ -168,11 +167,11 @@ fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
         _ => {}
     }
 
-    OK
+    true
 }
 
 /// Execute compound assignment `tv1 <op>= tv2` (`eexe_mod_op`).
-pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: *const c_char) -> c_int {
+pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: *const c_char) -> bool {
     let tv1 =  { tv1 };
     let tv2 =  { tv2 };
     let op_byte = unsafe { *op as u8 };
@@ -182,7 +181,7 @@ pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: *const c_char) -> c_in
         || (matches!(tv2.v_type, VarType::VAR_BOOL | VarType::VAR_SPECIAL) && op_byte == b'.')
     {
         semsg!(e_letwrong.as_ptr(), op);
-        return FAIL;
+        return false;
     }
 
     let retval = match tv1.v_type {
@@ -190,7 +189,7 @@ pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: *const c_char) -> c_in
         | VarType::VAR_FUNC
         | VarType::VAR_PARTIAL
         | VarType::VAR_BOOL
-        | VarType::VAR_SPECIAL => FAIL,
+        | VarType::VAR_SPECIAL => false,
         VarType::VAR_BLOB => tv_op_blob(tv1, tv2, op_byte),
         VarType::VAR_LIST => tv_op_list(tv1, tv2, op_byte),
         VarType::VAR_NUMBER | VarType::VAR_STRING => tv_op_nr_or_string(tv1, tv2, op_byte),
@@ -198,7 +197,7 @@ pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: *const c_char) -> c_in
         VarType::VAR_UNKNOWN => std::process::abort(),
     };
 
-    if retval != OK {
+    if !retval {
         semsg!(e_letwrong.as_ptr(), op);
     }
 
@@ -221,9 +220,9 @@ mod tests {
             v_lock: 0,
             vval: TypvalVval::Number(5),
         };
-        assert_eq!(eexe_mod_op(&mut tv1, &tv2, c"+".as_ptr()), OK);
+        assert!(eexe_mod_op(&mut tv1, &tv2, c"+".as_ptr()));
             assert_eq!(tv1.vval.v_number(), 15);
-            assert_eq!(eexe_mod_op(&mut tv1, &tv2, c"*".as_ptr()), OK);
+            assert!(eexe_mod_op(&mut tv1, &tv2, c"*".as_ptr()));
             assert_eq!(tv1.vval.v_number(), 75);
     }
 }

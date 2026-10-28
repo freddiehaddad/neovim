@@ -3836,13 +3836,13 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             }
         }
 
-        let mut ret = OK;
+        let mut ret = true;
         if (what_flag & CI_WHAT_MODE) != 0 {
             let mode = ins_compl_mode();
             ret = tv_dict_add_str_len(retdict, c"mode".as_ptr(), 4, mode.data, mode.size as c_int);
         }
 
-        if ret == OK && (what_flag & CI_WHAT_PUM_VISIBLE) != 0 {
+        if ret && (what_flag & CI_WHAT_PUM_VISIBLE) != 0 {
             ret = tv_dict_add_nr(
                 retdict,
                 c"pum_visible".as_ptr(),
@@ -3851,7 +3851,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             );
         }
 
-        if ret == OK && (what_flag & CI_WHAT_AUTO) != 0 {
+        if ret && (what_flag & CI_WHAT_AUTO) != 0 {
             ret = tv_dict_add_nr(
                 retdict,
                 c"auto".as_ptr(),
@@ -3860,7 +3860,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             );
         }
 
-        if ret == OK && (what_flag & CI_WHAT_PREINSERTED_TEXT) != 0 {
+        if ret && (what_flag & CI_WHAT_PREINSERTED_TEXT) != 0 {
             let line = get_cursor_line_ptr();
             let len = insexp().compl_ins_end_col - (**curwin.as_ptr()).w_cursor.col;
             ret = tv_dict_add_str_len(
@@ -3876,7 +3876,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             );
         }
 
-        if ret == OK
+        if ret
             && (what_flag
                 & (CI_WHAT_ITEMS | CI_WHAT_SELECTED | CI_WHAT_MATCHES | CI_WHAT_COMPLETED))
                 != 0
@@ -3895,7 +3895,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
                 };
                 ret = tv_dict_add_list(retdict, key.as_ptr(), key.to_bytes().len(), li);
             }
-            if ret == OK
+            if ret
                 && (what_flag & CI_WHAT_SELECTED) != 0
                 && let Some(ci) = insexp().compl_curr_idx
                 && (*compl_at(ci)).cp_number == -1
@@ -3904,7 +3904,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             }
             let list = &raw mut insexp().compl_list;
             let curr = compl_opt(insexp().compl_curr_idx);
-            if ret == OK && !(*list).is_empty() {
+            if ret && !(*list).is_empty() {
                 let mut list_idx: c_int = 0;
                 for match_ in &mut *list {
                     if !match_at_original_text(match_) {
@@ -3922,7 +3922,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
                     }
                 }
             }
-            if ret == OK && (what_flag & CI_WHAT_SELECTED) != 0 {
+            if ret && (what_flag & CI_WHAT_SELECTED) != 0 {
                 ret = tv_dict_add_nr(
                     retdict,
                     c"selected".as_ptr(),
@@ -3945,7 +3945,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
                     );
                 }
             }
-            if ret == OK && selected_idx != -1 && has_completed {
+            if ret && selected_idx != -1 && has_completed {
                 let di = tv_dict_alloc();
                 fill_complete_info_dict(&mut *di, compl_opt(insexp().compl_curr_idx), false);
                 let _ = tv_dict_add_dict(retdict, c"completed".as_ptr(), 9, di);

@@ -3210,7 +3210,7 @@ pub fn ex_function(eap: &mut exarg_T) {
             if !fudi.fd_dict.is_null() {
                 if fudi.fd_di.is_null() {
                     fudi.fd_di = tv_dict_item_alloc(fudi.fd_newkey.as_ref().unwrap().as_ptr());
-                    if tv_dict_add(fudi.fd_dict, fudi.fd_di) == FAIL {
+                    if !tv_dict_add(fudi.fd_dict, fudi.fd_di) {
                         crate::eval::typval::tv_dict_item_free(fudi.fd_di);
                         erret!();
                     }

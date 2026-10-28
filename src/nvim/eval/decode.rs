@@ -11,7 +11,6 @@ use crate::eval::typval::{
 };
 use crate::eval::vars::eval_msgpack_type_lists_mut;
 use crate::hashtab::hashitem_empty;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
 use crate::message::{emsg, semsg};
 use crate::mpack::object::mpack_data_t;
@@ -147,10 +146,10 @@ fn json_decoder_pop(
     next_map_special: &mut bool,
     didcomma: &mut bool,
     didcolon: &mut bool,
-) -> c_int {
+) -> bool {
     if container_stack.is_empty() {
         stack.push(obj);
-        return OK;
+        return true;
     }
     let mut last_container = *container_stack.last().unwrap();
     let mut val_location = *pp;
@@ -171,7 +170,7 @@ fn json_decoder_pop(
                 );
                 let mut v = obj.val;
                 tv_clear(&mut v);
-                return FAIL;
+                return false;
             }
             assert!(last_container.special_val.is_null());
             tv_list_append_owned_tv(last_container.container.vval.v_list(), obj.val);
@@ -183,7 +182,7 @@ fn json_decoder_pop(
                 );
                 let mut v = obj.val;
                 tv_clear(&mut v);
-                return FAIL;
+                return false;
             }
             let mut key = stack.pop().unwrap();
             if last_container.special_val.is_null() {
@@ -191,7 +190,7 @@ fn json_decoder_pop(
                 let obj_di = tv_dict_item_alloc(key.val.vval.v_string());
                 tv_clear(&mut key.val);
                 let dict = last_container.container.vval.v_dict();
-                if tv_dict_add(dict, obj_di) == FAIL {
+                if !tv_dict_add(dict, obj_di) {
                     std::process::abort();
                 }
                 (*obj_di).di_tv = obj.val;
@@ -206,7 +205,7 @@ fn json_decoder_pop(
                 semsg!(c"E474: Expected string key: %s".as_ptr(), *pp);
                 let mut v = obj.val;
                 tv_clear(&mut v);
-                return FAIL;
+                return false;
             } else if !obj.didcomma && last_container.special_val.is_null() {
                 let dict = last_container.container.vval.v_dict();
                 if (*dict).dv_hashtab.ht_used != 0 {
@@ -216,7 +215,7 @@ fn json_decoder_pop(
                     );
                     let mut v = obj.val;
                     tv_clear(&mut v);
-                    return FAIL;
+                    return false;
                 }
             }
             let dict = last_container.container.vval.v_dict();
@@ -237,12 +236,12 @@ fn json_decoder_pop(
                 *didcomma = last_container_val.didcomma;
                 *didcolon = last_container_val.didcolon;
                 *next_map_special = true;
-                return OK;
+                return true;
             }
             stack.push(obj);
         }
     }
-    OK
+    true
 }
 
 fn parse_json_string(
@@ -254,7 +253,7 @@ fn parse_json_string(
     next_map_special: &mut bool,
     didcomma: &mut bool,
     didcolon: &mut bool,
-) -> c_int {
+) -> bool {
     let e = unsafe { buf.add(buf_len) };
     let mut p = unsafe { (*pp).add(1) };
     let s = p;
@@ -271,7 +270,7 @@ fn parse_json_string(
                         buf,
                     );
                     *pp = p;
-                    return FAIL;
+                    return false;
                 }
                 match *p as u8 {
                     b'u' => {
@@ -282,7 +281,7 @@ fn parse_json_string(
                                 buf,
                             );
                             *pp = p;
-                            return FAIL;
+                            return false;
                         }
                         if !((*p.add(1) as u8).is_ascii_hexdigit()
                             && (*p.add(2) as u8).is_ascii_hexdigit()
@@ -296,7 +295,7 @@ fn parse_json_string(
                                 start,
                             );
                             *pp = p;
-                            return FAIL;
+                            return false;
                         }
                         len += 3;
                         p = p.add(5);
@@ -313,7 +312,7 @@ fn parse_json_string(
                             start,
                         );
                         *pp = p;
-                        return FAIL;
+                        return false;
                     }
                 }
             } else {
@@ -326,7 +325,7 @@ fn parse_json_string(
                         p,
                     );
                     *pp = p;
-                    return FAIL;
+                    return false;
                 }
                 let ch = utf_ptr2char(p);
                 if ch >= 0x80
@@ -339,7 +338,7 @@ fn parse_json_string(
                         p,
                     );
                     *pp = p;
-                    return FAIL;
+                    return false;
                 } else if ch > 0x10FFFF {
                     semsg!(
                         c"E474: Only UTF-8 code points up to U+10FFFF are allowed to appear unescaped: %.*s"
@@ -348,7 +347,7 @@ fn parse_json_string(
                         p,
                     );
                     *pp = p;
-                    return FAIL;
+                    return false;
                 }
                 let ch_len = utf_char2len(ch) as usize;
                 debug_assert_eq!(ch_len, if ch != 0 { utf_ptr2len(p) as usize } else { 1 });
@@ -364,7 +363,7 @@ fn parse_json_string(
                 buf,
             );
             *pp = p;
-            return FAIL;
+            return false;
         }
 
         let mut str_buf_vec: Vec<c_char> = vec![0; len + 1];
@@ -611,7 +610,7 @@ fn parse_json_number(
             tv.vval = TypvalVval::Number(nr);
         }
 
-        if json_decoder_pop(
+        if !json_decoder_pop(
             ValuesStackItem {
                 is_special_string: false,
                 didcomma: *didcomma,
@@ -624,7 +623,7 @@ fn parse_json_number(
             next_map_special,
             didcomma,
             didcolon,
-        ) == FAIL
+        )
         {
             *pp = p;
             return false;
@@ -642,7 +641,7 @@ pub fn json_decode_string(
     buf: *const c_char,
     buf_len: usize,
     rettv: &mut typval_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut p = buf;
         let e = buf.add(buf_len);
@@ -651,7 +650,7 @@ pub fn json_decode_string(
         }
         if p == e {
             emsg(c"E474: Attempt to decode a blank string".as_ptr());
-            return FAIL;
+            return false;
         }
 
         let mut stack: Vec<ValuesStackItem> = Vec::new();
@@ -661,11 +660,11 @@ pub fn json_decode_string(
         let mut didcolon = false;
         let mut next_map_special = false;
 
-        let fail_cleanup = |mut stack: Vec<ValuesStackItem>| -> c_int {
+        let fail_cleanup = |mut stack: Vec<ValuesStackItem>| -> bool {
             while let Some(mut item) = stack.pop() {
                 tv_clear(&mut item.val);
             }
-            FAIL
+            false
         };
 
         'outer: while p < e {
@@ -716,7 +715,7 @@ pub fn json_decode_string(
                             break 'outer;
                         } else {
                             let popped = stack.pop().unwrap();
-                            if json_decoder_pop(
+                            if !json_decoder_pop(
                                 popped,
                                 &mut stack,
                                 &mut container_stack,
@@ -724,7 +723,7 @@ pub fn json_decode_string(
                                 &mut next_map_special,
                                 &mut didcomma,
                                 &mut didcolon,
-                            ) == FAIL
+                            )
                             {
                                 return fail_cleanup(stack);
                             }
@@ -822,7 +821,7 @@ pub fn json_decode_string(
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(K_SPECIAL_VAR_NULL),
                         };
-                        if json_decoder_pop(
+                        if !json_decoder_pop(
                             ValuesStackItem {
                                 is_special_string: false,
                                 didcomma,
@@ -835,7 +834,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        ) == FAIL
+                        )
                         {
                             return fail_cleanup(stack);
                         }
@@ -856,7 +855,7 @@ pub fn json_decode_string(
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(K_BOOL_VAR_TRUE),
                         };
-                        if json_decoder_pop(
+                        if !json_decoder_pop(
                             ValuesStackItem {
                                 is_special_string: false,
                                 didcomma,
@@ -869,7 +868,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        ) == FAIL
+                        )
                         {
                             return fail_cleanup(stack);
                         }
@@ -890,7 +889,7 @@ pub fn json_decode_string(
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(K_BOOL_VAR_FALSE),
                         };
-                        if json_decoder_pop(
+                        if !json_decoder_pop(
                             ValuesStackItem {
                                 is_special_string: false,
                                 didcomma,
@@ -903,7 +902,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        ) == FAIL
+                        )
                         {
                             return fail_cleanup(stack);
                         }
@@ -912,7 +911,7 @@ pub fn json_decode_string(
                         }
                     }
                     b'"' => {
-                        if parse_json_string(
+                        if !parse_json_string(
                             buf,
                             buf_len,
                             &mut p,
@@ -921,7 +920,7 @@ pub fn json_decode_string(
                             &mut next_map_special,
                             &mut didcomma,
                             &mut didcolon,
-                        ) == FAIL
+                        )
                         {
                             return fail_cleanup(stack);
                         }
@@ -1029,7 +1028,7 @@ pub fn json_decode_string(
 
         if stack.len() == 1 && container_stack.is_empty() {
             *rettv = stack.pop().unwrap().val;
-            return OK;
+            return true;
         }
         semsg!(
             c"E474: Unexpected end of input: %.*s".as_ptr(),
@@ -1247,7 +1246,7 @@ fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                         let key = pair[0].vval.v_string();
                         let keylen = CStr::from_ptr(key).to_bytes().len();
                         let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
-                        if tv_dict_add(dict, di) == FAIL {
+                        if !tv_dict_add(dict, di) {
                             let mut todo = (*dict).dv_hashtab.ht_used;
                             let mut hi = (*dict).dv_hashtab.array_ptr();
                             while todo > 0 {
@@ -1394,11 +1393,11 @@ mod tests {
                 (b"1?test", 2),
                 (b"[1test", 2),
             ] {
-                assert_eq!(json_decode_string(s.as_ptr().cast(), len, &mut rettv), FAIL);
+                assert!(!json_decode_string(s.as_ptr().cast(), len, &mut rettv));
                 assert_eq!(rettv.v_type, VarType::VAR_UNKNOWN);
             }
 
-            assert_eq!(json_decode_string(c"true".as_ptr(), 4, &mut rettv), OK);
+            assert!(json_decode_string(c"true".as_ptr(), 4, &mut rettv));
             assert_eq!(rettv.v_type, VarType::VAR_BOOL);
             assert_eq!(rettv.vval.v_bool(), K_BOOL_VAR_TRUE as c_int);
             tv_clear(&mut rettv);

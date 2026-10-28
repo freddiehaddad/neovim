@@ -279,7 +279,7 @@ pub fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>> {
     let mut lrstate = encode_init_lrstate(list);
     let mut buf = vec![0 as c_char; len];
     let mut read_bytes = 0usize;
-    if encode_read_from_list(&mut lrstate, buf.as_mut_ptr(), len, &mut read_bytes) != OK
+    if encode_read_from_list(&mut lrstate, buf.as_mut_ptr(), len, &mut read_bytes) == FAIL
     {
         std::process::abort();
     }
@@ -467,13 +467,13 @@ fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char, len: u
     }
 }
 
-fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> c_int {
+fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> bool {
     const XDIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
     unsafe {
         if buf.is_null() {
             ga_concat_literal(gap, b"\"\"");
-            return OK;
+            return true;
         }
 
         let mut str_len = 0usize;
@@ -501,7 +501,7 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> 
                             (len - start) as c_int,
                             buf.add(start),
                         );
-                        return FAIL;
+                        return false;
                     } else if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch)
                         || (SURROGATE_LO_START..=SURROGATE_LO_END).contains(&ch)
                     {
@@ -512,7 +512,7 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> 
                             (len - start) as c_int,
                             buf.add(start),
                         );
-                        return FAIL;
+                        return false;
                     } else if ch >= 0x20 && utf_printable(ch) {
                         str_len += shift;
                     } else if ch >= SURROGATE_FIRST_CHAR {
@@ -582,7 +582,7 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> 
             i += shift;
         }
         gap.push(b'"');
-        OK
+        true
     }
 }
 
@@ -777,7 +777,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_string(&mut self, buf: *const c_char, len: usize) -> c_int {
+    fn conv_string(&mut self, buf: *const c_char, len: usize) -> bool {
         unsafe {
             match self {
                 Self::Text {
@@ -785,7 +785,7 @@ impl EncodeBackend<'_> {
                     mode: TextEncodeMode::String | TextEncodeMode::Echo,
                 } => {
                     convert_to_single_quoted_string(gap, buf, len);
-                    OK
+                    true
                 }
                 Self::Text {
                     gap,
@@ -799,14 +799,14 @@ impl EncodeBackend<'_> {
                         },
                         &mut **packer,
                     );
-                    OK
+                    true
                 }
             }
         }
     }
 
     #[inline]
-    fn conv_str_string(&mut self, buf: *const c_char, len: usize) -> c_int {
+    fn conv_str_string(&mut self, buf: *const c_char, len: usize) -> bool {
         unsafe {
             match self {
                 Self::Text { .. } => self.conv_string(buf, len),
@@ -818,14 +818,14 @@ impl EncodeBackend<'_> {
                         },
                         &mut **packer,
                     );
-                    OK
+                    true
                 }
             }
         }
     }
 
     #[inline]
-    fn conv_ext_string(&mut self, buf: *mut c_char, len: usize, ext_type: i8) -> c_int {
+    fn conv_ext_string(&mut self, buf: *mut c_char, len: usize, ext_type: i8) -> bool {
         unsafe {
             match self {
                 Self::Text {
@@ -833,12 +833,12 @@ impl EncodeBackend<'_> {
                     ..
                 } => {
                     emsg(c"E474: Unable to convert EXT string to JSON".as_ptr());
-                    FAIL
+                    false
                 }
-                Self::Text { .. } => OK,
+                Self::Text { .. } => true,
                 Self::Msgpack { packer } => {
                     mpack_ext(buf, len, ext_type, &mut **packer);
-                    OK
+                    true
                 }
             }
         }
@@ -1185,7 +1185,7 @@ fn convert_one_value(
                 } else {
                     CStr::from_ptr(s).to_bytes().len()
                 };
-                if backend.conv_string(s, len) == FAIL {
+                if !backend.conv_string(s, len) {
                     return FAIL;
                 }
             }
@@ -1357,9 +1357,7 @@ fn convert_one_value(
                                             && let Some(buf) =
                                                 encode_vim_list_to_buf((*val_di).di_tv.vval.v_list())
                                         {
-                                            let res =
-                                                backend.conv_str_string(buf.as_ptr(), buf.len());
-                                            if res == FAIL {
+                                            if !backend.conv_str_string(buf.as_ptr(), buf.len()) {
                                                 return FAIL;
                                             }
                                             handled_special = true;
@@ -1451,12 +1449,11 @@ fn convert_one_value(
                                                 )
                                             {
                                                 let ext_type = (*first).li_tv.vval.v_number() as i8;
-                                                let res = backend.conv_ext_string(
+                                                if !backend.conv_ext_string(
                                                     buf.as_mut_ptr(),
                                                     buf.len(),
                                                     ext_type,
-                                                );
-                                                if res == FAIL {
+                                                ) {
                                                     return FAIL;
                                                 }
                                                 handled_special = true;
@@ -1506,13 +1503,13 @@ fn convert_one_value(
 fn encode_vim_with_backend(
     backend: &mut EncodeBackend,top_tv: &mut typval_T,
     objname: *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
 
         if convert_one_value(backend, &mut mpstack, top_tv, copy_id, objname) == FAIL {
-            return FAIL;
+            return false;
         }
 
         while !mpstack.is_empty() {
@@ -1546,8 +1543,8 @@ fn encode_vim_with_backend(
                     }
                     let key_ptr = (*di).di_key.as_ptr();
                     let key_len = CStr::from_ptr(key_ptr).to_bytes().len();
-                    if backend.conv_str_string(key_ptr, key_len) == FAIL {
-                        return FAIL;
+                    if !backend.conv_str_string(key_ptr, key_len) {
+                        return false;
                     }
                     backend.conv_dict_after_key();
                     &mut (*di).di_tv
@@ -1577,7 +1574,7 @@ fn encode_vim_with_backend(
                     let kv_pair = (*li).li_tv.vval.v_list();
                     let first_item = tv_list_first(kv_pair);
                     if !backend.special_dict_key_check(&(*first_item).li_tv) {
-                        return FAIL;
+                        return false;
                     }
                     if convert_one_value(
                         backend,
@@ -1587,7 +1584,7 @@ fn encode_vim_with_backend(
                         objname,
                     ) == FAIL
                     {
-                        return FAIL;
+                        return false;
                     }
                     backend.conv_dict_after_key();
                     let last_item = tv_list_last(kv_pair);
@@ -1658,7 +1655,7 @@ fn encode_vim_with_backend(
                                 );
                                 if csr != NOTDONE {
                                     if csr == FAIL {
-                                        return FAIL;
+                                        return false;
                                     } else {
                                         continue;
                                     }
@@ -1705,11 +1702,11 @@ fn encode_vim_with_backend(
             };
 
             if convert_one_value(backend, &mut mpstack, next_tv, copy_id, objname) == FAIL {
-                return FAIL;
+                return false;
             }
         }
 
-        OK
+        true
     }
 }
 
@@ -1717,7 +1714,7 @@ fn encode_vim_with_backend(
 pub fn encode_vim_to_echo(
     gap: &mut Vec<u8>,tv: &mut typval_T,
     objname: *const c_char,
-) -> c_int {
+) -> bool {
     let mut backend = EncodeBackend::Text {
             gap,
             mode: TextEncodeMode::Echo,
@@ -1729,7 +1726,7 @@ pub fn encode_vim_to_echo(
 pub fn encode_vim_to_msgpack(
     packer: &mut PackerBuffer,tv: &mut typval_T,
     objname: *const c_char,
-) -> c_int {
+) -> bool {
     let mut backend = EncodeBackend::Msgpack { packer };
         encode_vim_with_backend(&mut backend, tv, objname)
 }
@@ -1744,7 +1741,7 @@ pub fn encode_tv2string(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::f
         };
         let evs_ret =
             encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument".as_ptr());
-        assert_eq!(evs_ret, OK);
+        assert!(evs_ret);
         encode_st().DID_ECHO_STRING_EMSG = false;
         if let Some(ref mut p) = len {
             **p = ga.len();
@@ -1763,7 +1760,7 @@ pub fn encode_tv2echo(tv: &mut typval_T, len: Option<&mut usize>) -> std::ffi::C
             }
         } else {
             let eve_ret = encode_vim_to_echo(&mut ga, tv, c":echo argument".as_ptr());
-            assert_eq!(eve_ret, OK);
+            assert!(eve_ret);
         }
         if let Some(len) = len {
             *len = ga.len();
@@ -1783,7 +1780,7 @@ pub fn encode_tv2json(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::ffi
         let evj_ret =
             encode_vim_with_backend(&mut backend, tv, c"encode_tv2json() argument".as_ptr());
         encode_st().DID_ECHO_STRING_EMSG = false;
-        if evj_ret == FAIL {
+        if !evj_ret {
             ga.clear();
         }
         if let Some(ref mut p) = len {

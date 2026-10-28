@@ -21,7 +21,7 @@ use crate::eval::{eval_expr_typval, get_copyID, tv_blob_set_ret};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
 use crate::message::{emsg, semsg};
 use crate::strings::reverse_text;
@@ -46,16 +46,16 @@ fn filter_map_one(
     filtermap: FilterMap,
     newtv: &mut typval_T,
     remp: &mut bool,
-) -> c_int {
+) -> bool {
     unsafe {
-        let mut retval = FAIL;
+        let mut retval = false;
         tv_copy(&*tv, &mut *get_vim_var_tv(VV_VAL));
 
         newtv.v_type = VarType::VAR_UNKNOWN;
         if filtermap == FilterMap::ForEach && expr.v_type == VarType::VAR_STRING {
             do_cmdline_cmd(expr.vval.v_string());
             if g_st().did_emsg == 0 {
-                retval = OK;
+                retval = true;
             }
             tv_clear(get_vim_var_tv(VV_VAL));
             return retval;
@@ -72,7 +72,7 @@ fn filter_map_one(
         ];
         if eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 2, &mut *newtv) == FAIL {
             tv_clear(get_vim_var_tv(VV_VAL));
-            return FAIL;
+            return false;
         }
         if filtermap == FilterMap::Filter {
             let mut error = false;
@@ -80,12 +80,12 @@ fn filter_map_one(
             tv_clear(newtv);
             if error {
                 tv_clear(get_vim_var_tv(VV_VAL));
-                return FAIL;
+                return false;
             }
         } else if filtermap == FilterMap::ForEach {
             tv_clear(newtv);
         }
-        retval = OK;
+        retval = true;
         tv_clear(get_vim_var_tv(VV_VAL));
         retval
     }
@@ -144,7 +144,7 @@ fn filter_map_dict(
                 let mut rem = false;
                 let r = filter_map_one(&mut (*di).di_tv, expr, filtermap, &mut newtv, &mut rem);
                 tv_clear(get_vim_var_tv(VV_KEY));
-                if r == FAIL || g_st().did_emsg != 0 {
+                if !r || g_st().did_emsg != 0 {
                     tv_clear(&mut newtv);
                     break;
                 }
@@ -156,7 +156,7 @@ fn filter_map_dict(
                     let key_len = CStr::from_ptr(key_ptr).to_bytes().len();
                     let add_res = tv_dict_add_tv(d_ret, key_ptr, key_len, &mut newtv);
                     tv_clear(&mut newtv);
-                    if add_res == FAIL {
+                    if !add_res {
                         break;
                     }
                 } else if filtermap == FilterMap::Filter && rem {
@@ -225,7 +225,7 @@ fn filter_map_blob(
                 vval: TypvalVval::Number(0),
             };
             let mut rem = false;
-            if filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem) == FAIL
+            if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem)
                 || g_st().did_emsg != 0
             {
                 break;
@@ -281,7 +281,7 @@ fn filter_map_string(
                 vval: TypvalVval::Number(0),
             };
             let mut rem = false;
-            if filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem) == FAIL
+            if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem)
                 || g_st().did_emsg != 0
             {
                 tv_clear(&mut newtv);
@@ -357,7 +357,7 @@ fn filter_map_list(
                 vval: TypvalVval::Number(0),
             };
             let mut rem = false;
-            if filter_map_one(&mut (*li).li_tv, expr, filtermap, &mut newtv, &mut rem) == FAIL {
+            if !filter_map_one(&mut (*li).li_tv, expr, filtermap, &mut newtv, &mut rem) {
                 break;
             }
             if g_st().did_emsg != 0 {

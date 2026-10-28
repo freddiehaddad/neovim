@@ -5076,7 +5076,7 @@ pub fn f_json_decode(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 return;
             }
         }
-        if json_decode_string(s, len, rettv) == FAIL {
+        if !json_decode_string(s, len, rettv) {
             semsg!(
                 gettext(c"E474: Failed to parse %.*s".as_ptr()),
                 len as c_int,
@@ -5894,7 +5894,7 @@ pub fn f_msgpackdump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         while !li.is_null() {
             vim_snprintf!(msgbuf.as_mut_ptr(), msgbuf.len(), msg, idx);
             idx += 1;
-            if encode_vim_to_msgpack(&mut packer, &mut (*li).li_tv, msgbuf.as_ptr()) == FAIL
+            if !encode_vim_to_msgpack(&mut packer, &mut (*li).li_tv, msgbuf.as_ptr())
             {
                 break;
             }

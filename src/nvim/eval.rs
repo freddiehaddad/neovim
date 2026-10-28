@@ -1621,7 +1621,7 @@ pub fn set_var_lval(
                     if (di.is_null()
                         || (!var_check_ro(c_int::from((*di).di_flags), lp.ll_name, TV_CSTRING)
                             && !tv_check_lock(&(*di).di_tv, lp.ll_name, TV_CSTRING)))
-                        && eexe_mod_op(&mut tv, &*rettv, op) == OK
+                        && eexe_mod_op(&mut tv, &*rettv, op)
                     {
                         set_var(lp.ll_name, lp.ll_name_len, &mut tv, false);
                     }
@@ -1678,7 +1678,7 @@ pub fn set_var_lval(
                 }
 
                 let di = tv_dict_item_alloc(newkey_ptr);
-                if tv_dict_add((*lp.ll_tv).vval.v_dict(), di) == FAIL {
+                if !tv_dict_add((*lp.ll_tv).vval.v_dict(), di) {
                     tv_dict_item_free(di);
                     return;
                 }
@@ -4770,7 +4770,7 @@ fn eval_dict(
                 item = tv_dict_item_alloc(key);
                 (*item).di_tv = tv;
                 (*item).di_tv.v_lock = VAR_UNLOCKED;
-                if tv_dict_add(d, item) == FAIL {
+                if !tv_dict_add(d, item) {
                     tv_dict_item_free(item);
                 }
             }
@@ -5350,7 +5350,7 @@ pub fn add_timer_info(rettv: &mut typval_T, timer: &mut timer_T) {
         );
 
         let di = tv_dict_item_alloc(c"callback".as_ptr());
-        if tv_dict_add(dict, di) == FAIL {
+        if !tv_dict_add(dict, di) {
             tv_dict_item_free(di);
         } else {
             callback_put(&mut timer.callback, &mut (*di).di_tv);

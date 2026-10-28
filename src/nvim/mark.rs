@@ -2208,9 +2208,9 @@ fn add_mark(
         );
         tv_list_append_number(lpos, i64::from(pos.coladd));
 
-        if tv_dict_add_str_len(d, c"mark".as_ptr(), 4, mname, mnamelen as c_int) == FAIL
-            || tv_dict_add_list(d, c"pos".as_ptr(), 3, lpos) == FAIL
-            || (!fname.is_null() && tv_dict_add_str(d, c"file".as_ptr(), 4, fname) == FAIL)
+        if !tv_dict_add_str_len(d, c"mark".as_ptr(), 4, mname, mnamelen as c_int)
+            || !tv_dict_add_list(d, c"pos".as_ptr(), 3, lpos)
+            || (!fname.is_null() && !tv_dict_add_str(d, c"file".as_ptr(), 4, fname))
         {
             return false;
         }

@@ -3090,11 +3090,11 @@ pub fn tv_dict_wrong_func_name(
 }
 
 /// Add item to dictionary.
-pub fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int {
+pub fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> bool {
     unsafe {
         let key_ptr = (*item).di_key.as_mut_ptr();
         if tv_dict_wrong_func_name(&mut *d, &mut (*item).di_tv, key_ptr) != 0 {
-            return FAIL;
+            return false;
         }
         hash_add(&mut (*d).dv_hashtab, &mut *item)
     }
@@ -3106,18 +3106,18 @@ pub fn tv_dict_add_list(
     key: *const c_char,
     key_len: usize,
     list: *mut list_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let item = tv_dict_item_alloc_len(key, key_len);
         (*item).di_tv.v_type = VarType::VAR_LIST;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::List(list);
-        if tv_dict_add(d, item) == FAIL {
+        if !tv_dict_add(d, item) {
             (*item).di_tv.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
             tv_dict_item_free(item);
-            return FAIL;
+            return false;
         }
         tv_list_ref_inline(list);
-        OK
+        true
     }
 }
 
@@ -3126,15 +3126,15 @@ pub fn tv_dict_add_tv(
     d: *mut dict_T,
     key: *const c_char,
     key_len: usize,tv: &mut typval_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let item = tv_dict_item_alloc_len(key, key_len);
         tv_copy(&*tv, &mut (*item).di_tv);
-        if tv_dict_add(d, item) == FAIL {
+        if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -3149,7 +3149,7 @@ pub fn tv_dict_add_dict(
         let item = tv_dict_item_alloc_len(key, key_len);
         (*item).di_tv.v_type = VarType::VAR_DICT;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
-        if tv_dict_add(d, item) == FAIL {
+        if !tv_dict_add(d, item) {
             (*item).di_tv.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
             tv_dict_item_free(item);
             return false;
@@ -3165,16 +3165,16 @@ pub fn tv_dict_add_nr(
     key: *const c_char,
     key_len: usize,
     nr: varnumber_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let item = tv_dict_item_alloc_len(key, key_len);
         (*item).di_tv.v_type = VarType::VAR_NUMBER;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Number(nr);
-        if tv_dict_add(d, item) == FAIL {
+        if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -3189,7 +3189,7 @@ pub fn tv_dict_add_float(
         let item = tv_dict_item_alloc_len(key, key_len);
         (*item).di_tv.v_type = VarType::VAR_FLOAT;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Float(nr);
-        if tv_dict_add(d, item) == FAIL {
+        if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
             return false;
         }
@@ -3208,7 +3208,7 @@ pub fn tv_dict_add_bool(
         let item = tv_dict_item_alloc_len(key, key_len);
         (*item).di_tv.v_type = VarType::VAR_BOOL;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Bool(val);
-        if tv_dict_add(d, item) == FAIL {
+        if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
             return false;
         }
@@ -3222,7 +3222,7 @@ pub fn tv_dict_add_str(
     key: *const c_char,
     key_len: usize,
     val: *const c_char,
-) -> c_int {
+) -> bool {
     tv_dict_add_str_len(d, key, key_len, val, -1)
 }
 
@@ -3233,7 +3233,7 @@ pub fn tv_dict_add_str_len(
     key_len: usize,
     val: *const c_char,
     len: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let s = if val.is_null() {
             ptr::null_mut()
@@ -3245,11 +3245,11 @@ pub fn tv_dict_add_str_len(
         let item = tv_dict_item_alloc_len(key, key_len);
         (*item).di_tv.v_type = VarType::VAR_STRING;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::String(s);
-        if tv_dict_add(d, item) == FAIL {
+        if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -3266,7 +3266,7 @@ pub fn tv_dict_add_func(
         tv_set_string_len(&mut (*item).di_tv, name_ptr, (*fp).uf_namelen);
         (*item).di_tv.v_type = VarType::VAR_FUNC;
         func_ref((*item).di_tv.vval.v_string());
-        if tv_dict_add(d, item) == FAIL {
+        if !tv_dict_add(d, item) {
             tv_dict_item_free(item);
             return false;
         }
@@ -3321,7 +3321,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
                 if di1.is_null() {
                     if *action == b'm' as c_char {
                         let new_di = di2;
-                        if tv_dict_add(&raw mut *d1, new_di) == OK {
+                        if tv_dict_add(&raw mut *d1, new_di) {
                             hash_remove(&mut d2.dv_hashtab, hi2);
                             tv_dict_watcher_notify(
                                 d1,
@@ -3332,7 +3332,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
                         }
                     } else {
                         let new_di = tv_dict_item_copy(&mut *di2);
-                        if tv_dict_add(&raw mut *d1, new_di) == FAIL {
+                        if !tv_dict_add(&raw mut *d1, new_di) {
                             tv_dict_item_free(new_di);
                         } else if watched {
                             tv_dict_watcher_notify(
@@ -3473,7 +3473,7 @@ pub fn tv_dict_copy(
                 } else {
                     tv_copy(&(*di).di_tv, &mut (*new_di).di_tv);
                 }
-                if tv_dict_add(copy, new_di) == FAIL {
+                if !tv_dict_add(copy, new_di) {
                     tv_dict_item_free(new_di);
                     break;
                 }
@@ -4198,13 +4198,13 @@ fn nothing_convert_one_value(
     }
 }
 
-fn encode_vim_to_nothing(top_tv: &mut typval_T) -> c_int {
+fn encode_vim_to_nothing(top_tv: &mut typval_T) -> bool {
     unsafe {
         let copy_id = get_copyID();
 
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
         if !nothing_convert_one_value(&mut mpstack, top_tv, copy_id) {
-            return FAIL;
+            return false;
         }
 
         while !mpstack.is_empty() {
@@ -4333,10 +4333,10 @@ fn encode_vim_to_nothing(top_tv: &mut typval_T) -> c_int {
             };
             debug_assert!(!tv.is_null());
             if !nothing_convert_one_value(&mut mpstack, &mut *tv, copy_id) {
-                return FAIL;
+                return false;
             }
         }
-        OK
+        true
     }
 }
 
@@ -4347,7 +4347,7 @@ pub fn tv_clear(tv: *mut typval_T) {
             return;
         }
         let evn_ret = encode_vim_to_nothing(&mut *tv);
-        debug_assert_eq!(evn_ret, OK);
+        debug_assert!(evn_ret);
     }
 }
 
@@ -5300,13 +5300,10 @@ mod tests {
             let d = tv_dict_alloc();
             assert!(!d.is_null());
             (*d).dv_refcount = 1;
-            assert_eq!(tv_dict_add_nr(d, c"foo".as_ptr(), 3, 42), OK);
+            assert!(tv_dict_add_nr(d, c"foo".as_ptr(), 3, 42));
             assert!(tv_dict_add_float(&mut *d, c"flt".as_ptr(), 3, 3.5));
-            assert_eq!(tv_dict_add_str(d, c"str".as_ptr(), 3, c"bar".as_ptr()), OK);
-            assert_eq!(
-                tv_dict_add_str_len(d, c"alloc".as_ptr(), 5, c"baz".as_ptr(), -1),
-                OK
-            );
+            assert!(tv_dict_add_str(d, c"str".as_ptr(), 3, c"bar".as_ptr()));
+            assert!(tv_dict_add_str_len(d, c"alloc".as_ptr(), 5, c"baz".as_ptr(), -1));
             assert!(tv_dict_has_key(d, c"foo".as_ptr()));
             assert!(!tv_dict_has_key(d, c"missing".as_ptr()));
 
@@ -5342,7 +5339,7 @@ mod tests {
 
             let d2 = tv_dict_alloc();
             (*d2).dv_refcount = 1;
-            assert_eq!(tv_dict_add_nr(d2, c"extra".as_ptr(), 5, 7), OK);
+            assert!(tv_dict_add_nr(d2, c"extra".as_ptr(), 5, 7));
             tv_dict_extend(&mut *d, &mut *d2, c"force".as_ptr());
             assert_eq!(tv_dict_get_number(d, c"extra".as_ptr()), 7);
             assert!(!tv_dict_equal(d, d_copy, false));
@@ -5470,7 +5467,7 @@ mod tests {
             for with_item in [false, true] {
                 let d_inner = tv_dict_alloc();
                 if with_item {
-                    assert_eq!(tv_dict_add_nr(d_inner, c"a".as_ptr(), 1, 1), OK);
+                    assert!(tv_dict_add_nr(d_inner, c"a".as_ptr(), 1, 1));
                 }
                 let outer_d = tv_list_alloc(2);
                 (*outer_d).lv_refcount = 1;

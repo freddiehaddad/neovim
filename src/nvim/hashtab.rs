@@ -3,7 +3,6 @@
 use crate::message::siemsg;
 use std::ffi::{CStr, c_char, c_int};
 
-use crate::math::{FAIL, OK};
 
 pub type hash_T = usize;
 
@@ -180,7 +179,7 @@ pub fn hash_lookup(
 ///
 /// # Safety
 /// `ht` and `di` must be valid pointers, and `di` must outlive the entry in `ht`.
-pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) -> c_int {
+pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) -> bool {
     let key = di.di_key.as_mut_ptr();
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
     let hash = hash_hash(key);
@@ -190,10 +189,10 @@ pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) ->
                 c"E685: Internal error: hash_add(): duplicate key \"%s\"".as_ptr(),
                 key,
             );
-        return FAIL;
+        return false;
     }
     hash_add_item(ht, hi, key, &mut *di, hash);
-    OK
+    true
 }
 
 /// Add item `hi` for `key` with precomputed `hash` to `ht` (`hash_add_item`).
@@ -391,12 +390,12 @@ mod tests {
                 .collect();
 
             for &di in &items {
-                assert_eq!(hash_add(&mut *ht, &mut *di), OK);
+                assert!(hash_add(&mut *ht, &mut *di));
             }
             assert_eq!((*ht).ht_used, 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
-            assert_eq!(hash_add(&mut *ht, &mut *items[0]), FAIL);
+            assert!(!hash_add(&mut *ht, &mut *items[0]));
             crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {

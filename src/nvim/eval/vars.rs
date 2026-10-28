@@ -624,7 +624,7 @@ pub fn evalvars_init() {
             *(&raw mut (*eval_msgpack_type_lists_mut()))
                 .cast::<*const list_T>()
                 .add(i) = type_list;
-            if tv_dict_add(msgpack_types_dict, di) == FAIL {
+            if !tv_dict_add(msgpack_types_dict, di) {
                 std::process::abort();
             }
         }
@@ -3121,7 +3121,7 @@ pub fn set_var_const(
             debug_assert!(!dict.is_null());
 
             di = crate::eval::typval::tv_dict_item_alloc_len(varname, varname_len);
-            if hash_add(&mut *ht, &mut *di) == FAIL {
+            if !hash_add(&mut *ht, &mut *di) {
                 crate::eval::typval::tv_dict_item_free(di);
                 return;
             }

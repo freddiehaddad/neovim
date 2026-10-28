@@ -3197,7 +3197,7 @@ fn add_tag_field(
     field_name: *const c_char,
     start: *const c_char,
     mut end: *const c_char,
-) -> c_int {
+) -> bool {
     unsafe {
         if !tv_dict_find(dict, field_name, -1).is_null() {
             if opt_vars().p_verbose > 0 {
@@ -3205,7 +3205,7 @@ fn add_tag_field(
                 smsg!(0, gettext(c"Duplicate field name: %s".as_ptr()), field_name);
                 verbose_leave();
             }
-            return FAIL;
+            return false;
         }
         let mut len: c_int = 0;
         let mut buf_vec = vec![0 as c_char; MAXPATHL];
@@ -3255,15 +3255,15 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
             tv_list_append_dict(list, dict);
 
             let full_fname = tag_full_fname(&mut tp);
-            if add_tag_field(dict, c"name".as_ptr(), tp.tagname, tp.tagname_end) == FAIL
-                || add_tag_field(
+            if !add_tag_field(dict, c"name".as_ptr(), tp.tagname, tp.tagname_end)
+                || !add_tag_field(
                     dict,
                     c"filename".as_ptr(),
                     full_fname.as_ptr().cast_mut(),
                     ptr::null(),
-                ) == FAIL
-                || add_tag_field(dict, c"cmd".as_ptr(), tp.command, tp.command_end) == FAIL
-                || add_tag_field(
+                )
+                || !add_tag_field(dict, c"cmd".as_ptr(), tp.command, tp.command_end)
+                || !add_tag_field(
                     dict,
                     c"kind".as_ptr(),
                     tp.tagkind,
@@ -3272,8 +3272,8 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
                     } else {
                         ptr::null()
                     },
-                ) == FAIL
-                || tv_dict_add_nr(dict, c"static".as_ptr(), 6, varnumber_T::from(is_static)) == FAIL
+                )
+                || !tv_dict_add_nr(dict, c"static".as_ptr(), 6, varnumber_T::from(is_static))
             {
                 ret = FAIL;
             }
@@ -3305,7 +3305,7 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
                                 p = p.add(1);
                             }
                             *n.add(len as usize) = NUL;
-                            if add_tag_field(dict, n, s, p) == FAIL {
+                            if !add_tag_field(dict, n, s, p) {
                                 ret = FAIL;
                             }
                             *n.add(len as usize) = b':' as c_char;
