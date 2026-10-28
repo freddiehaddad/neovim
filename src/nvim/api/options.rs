@@ -289,7 +289,7 @@ fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *
         };
         set_bufref(&mut bufref, ftbuf);
 
-        ctx_switch(&raw mut *aco, ptr::null_mut(), ptr::null_mut(), ftbuf.cast(), 0);
+        ctx_switch(&mut *aco, ptr::null_mut(), ptr::null_mut(), ftbuf.cast(), 0);
 
         set_option_direct(
             kOptBufhidden,

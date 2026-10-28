@@ -1385,7 +1385,8 @@ pub fn utf_composinglike(
     }
 }
 
-pub fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut GraphemeState) -> bool {
+pub fn utf_iscomposing(c1: c_int, c2: c_int,state: &mut GraphemeState) -> bool {
+    let state: *mut GraphemeState = &raw mut *state;
     unsafe { !utf8proc_grapheme_break_stateful(c1, c2, state.as_mut()) || arabic_combine(c1, c2) }
 }
 
@@ -2446,7 +2447,7 @@ pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterIn
             }
 
             let next_code = utf_ptr2CharInfo_impl(next, usize::from(next_len));
-            if next_code < 0 || !utf_iscomposing(prev_code, next_code, &raw mut state) {
+            if next_code < 0 || !utf_iscomposing(prev_code, next_code, &mut state) {
                 return ClusterInfo {
                     next: StrCharInfo {
                         ptr: next.cast::<c_char>(),

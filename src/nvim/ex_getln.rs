@@ -495,12 +495,12 @@ fn set_search_match(t: &mut pos_T) {
 /// Returns true if pattern is valid.
 /// Sets `skiplen`, `patlen`, `Search.first_line`, and `Search.last_line` and `magic` if overruled.
 pub fn parse_pattern_and_range(
-    incsearch_start: &mut pos_T,
-    search_delim: *mut c_int,
-    skiplen: *mut c_int,
-    patlen: *mut c_int,
-    is_magic: *mut bool,
+    incsearch_start: &mut pos_T,search_delim: &mut c_int,skiplen: &mut c_int,patlen: &mut c_int,is_magic: &mut bool,
 ) -> bool {
+    let search_delim: *mut c_int = &raw mut *search_delim;
+    let skiplen: *mut c_int = &raw mut *skiplen;
+    let patlen: *mut c_int = &raw mut *patlen;
+    let is_magic: *mut bool = &raw mut *is_magic;
     unsafe {
         let mut delim_optional = false;
         let mut dummy: *const c_char = ptr::null();
@@ -682,10 +682,10 @@ fn do_incsearch_highlighting(
         g_st().emsg_off += 1;
         let retval = parse_pattern_and_range(
             &mut is_state.search_start,
-            search_delim,
-            skiplen,
-            patlen,
-            magic,
+            &mut *search_delim,
+            &mut *skiplen,
+            &mut *patlen,
+            &mut *magic,
         );
         g_st().emsg_off -= 1;
 
@@ -2949,7 +2949,7 @@ fn cmdpreview_open_buf() -> *mut buf_T {
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(
-            &raw mut aco,
+            &mut aco,
             ptr::null_mut(),
             ptr::null_mut(),
             cmdpreview_buf,
@@ -2963,7 +2963,7 @@ fn cmdpreview_open_buf() -> *mut buf_T {
         }
 
         ctx_switch(
-            &raw mut aco,
+            &mut aco,
             ptr::null_mut(),
             ptr::null_mut(),
             cmdpreview_buf,

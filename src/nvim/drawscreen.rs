@@ -1428,7 +1428,7 @@ fn win_update(wp: &mut win_T) {
         let extmarks = &raw mut g_st().win_extmark_arr;
         (*extmarks).clear();
 
-        decor_redraw_reset(&raw mut *wp, &mut g_st().decor_state);
+        decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
         decor_providers_invoke_win(wp);
 
         if !(*buf).terminal.is_null() && terminal_suspended(&*(*buf).terminal) {
@@ -2126,7 +2126,7 @@ fn win_update(wp: &mut win_T) {
                             && syntax_last_parsed + 1 < lnum
                             && syntax_present(&raw mut *wp)
                         {
-                            syntax_end_parsing(&raw mut *wp, syntax_last_parsed + 1);
+                            syntax_end_parsing(&mut *wp, syntax_last_parsed + 1);
                         }
 
                         let display_buf_line = !concealed
@@ -2254,7 +2254,7 @@ fn win_update(wp: &mut win_T) {
                     lnum = wp.w_topline;
                     wp.w_lines_valid = 0;
                     wp.w_valid &= !VALID_WCOL;
-                    decor_redraw_reset(&raw mut *wp, &mut g_st().decor_state);
+                    decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
                     decor_providers_invoke_win(wp);
                     continue;
                 }
@@ -2275,7 +2275,7 @@ fn win_update(wp: &mut win_T) {
             wp.w_display_tick = *display_tick.as_ptr();
 
             if syntax_last_parsed != 0 && syntax_present(&raw mut *wp) {
-                syntax_end_parsing(&raw mut *wp, syntax_last_parsed + 1);
+                syntax_end_parsing(&mut *wp, syntax_last_parsed + 1);
             }
 
             let old_botline = wp.w_botline;
@@ -2357,7 +2357,7 @@ fn win_update(wp: &mut win_T) {
                             lnum = wp.w_topline;
                             wp.w_lines_valid = 0;
                             wp.w_valid &= !VALID_WCOL;
-                            decor_redraw_reset(&raw mut *wp, &mut g_st().decor_state);
+                            decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
                             decor_providers_invoke_win(wp);
                             continue 'statuscol_retry;
                         }

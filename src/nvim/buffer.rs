@@ -1013,7 +1013,7 @@ pub fn buf_ensure_loaded(buf: &mut buf_T) -> bool {
         let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&mut bufref, &raw mut *buf);
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
+        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
         let status = open_buffer(false, ptr::null_mut(), 0);
         ctx_restore(&mut aco);
         status != FAIL && bufref_valid(&raw mut bufref) && buf.b_ml.ml_mfp.is_some()
@@ -1237,7 +1237,7 @@ pub fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int) -> c_i
             let mut aco: CtxSwitch = CtxSwitch::new();
 
             ctx_switch(
-                &raw mut aco,
+                &mut aco,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 old_curbuf.br_buf,
@@ -2303,7 +2303,7 @@ fn do_buffer_ext(
                     debug_assert!((**curwin.as_ptr()).w_floating);
                     let mut switchwin: CtxSwitch = CtxSwitch::new();
                     let rv = ctx_switch(
-                        &raw mut switchwin,
+                        &mut switchwin,
                         g_st().firstwin,
                         g_st().curtab,
                         ptr::null_mut(),
@@ -4975,7 +4975,8 @@ pub fn set_buflisted(on: c_int) {
 }
 
 /// Read the file for `buf` again and check if the contents changed.
-pub fn buf_contents_changed(buf: *mut buf_T) -> bool {
+pub fn buf_contents_changed(buf: &mut buf_T) -> bool {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         let mut differ = true;
 
@@ -4988,7 +4989,7 @@ pub fn buf_contents_changed(buf: *mut buf_T) -> bool {
         let _ea_cmd = prep_exarg(&mut ea, &*buf);
 
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
+        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
 
         block_autocmds();
 

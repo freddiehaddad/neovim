@@ -1959,7 +1959,7 @@ fn normal_get_additional_char(s: &mut NormalState) {
                 } {
                     s.c = plain_vgetc();
 
-                    if !utf_iscomposing(prev_code, s.c, &raw mut state) {
+                    if !utf_iscomposing(prev_code, s.c, &mut state) {
                         vungetc(s.c);
                         break;
                     }
@@ -3370,7 +3370,7 @@ pub fn find_decl(
         opt_vars().p_ws = 0;
         opt_vars().p_scs = 0;
 
-        if !locally || !findpar(&raw mut incll, BACKWARD, 1, b'{' as c_int, false) {
+        if !locally || !findpar(&mut incll, BACKWARD, 1, b'{' as c_int, false) {
             setpcmark();
             (**curwin.as_ptr()).w_cursor.lnum = 1;
             par_pos = (**curwin.as_ptr()).w_cursor;
@@ -5338,7 +5338,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
             };
             (**curwin.as_ptr()).w_set_curswant = true;
             if !findpar(
-                &raw mut (*cap.oap).inclusive,
+                &mut (*cap.oap).inclusive,
                 cap.arg,
                 cap.count1,
                 flag,
@@ -5622,7 +5622,7 @@ fn nv_findpar(cap: &mut cmdarg_T) {
         (*cap.oap).use_reg_one = true;
         (**curwin.as_ptr()).w_set_curswant = true;
         if !findpar(
-            &raw mut (*cap.oap).inclusive,
+            &mut (*cap.oap).inclusive,
             cap.arg,
             cap.count1,
             NUL as c_int,

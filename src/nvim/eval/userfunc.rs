@@ -905,11 +905,11 @@ fn fname_trans_sid(
 }
 
 pub fn get_func_arity(
-    name: *const c_char,
-    required: *mut c_int,
-    optional: *mut c_int,
-    varargs: *mut bool,
+    name: *const c_char,required: &mut c_int,optional: &mut c_int,varargs: &mut bool,
 ) -> c_int {
+    let required: *mut c_int = &raw mut *required;
+    let optional: *mut c_int = &raw mut *optional;
+    let varargs: *mut bool = &raw mut *varargs;
     unsafe {
         let argcount: c_int;
         let min_argcount: c_int;
@@ -1996,7 +1996,7 @@ pub fn call_func(
                     error = call_user_func_check(fp, argcount, argvars, &mut *rettv, &mut *funcexe, selfdict);
                 }
             } else if !funcexe.fe_basetv.is_null() {
-                error = call_internal_method(fname, argcount, argvars, rettv, funcexe.fe_basetv);
+                error = call_internal_method(fname, argcount, argvars, &mut *rettv, funcexe.fe_basetv);
             } else {
                 error = call_internal_func(fname, argcount, argvars, &mut *rettv);
             }
@@ -2836,7 +2836,7 @@ fn get_function_body(
                     {
                         let mut var_count = 0;
                         let mut semicolon = 0;
-                        arg = skip_var_list(arg, &raw mut var_count, &raw mut semicolon, true)
+                        arg = skip_var_list(arg, &mut var_count, &mut semicolon, true)
                             .cast_mut();
                         if !arg.is_null() {
                             arg = skipwhite(arg);
@@ -4254,7 +4254,7 @@ pub fn list_func_vars(first: &mut c_int) {
                 &mut (*uf_st().current_funccal).fc_l_vars.dv_hashtab,
                 c"l:".as_ptr(),
                 0,
-                first,
+                &mut *first,
             );
         }
     }

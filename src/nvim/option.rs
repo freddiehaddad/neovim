@@ -1819,7 +1819,8 @@ fn find_tty_option_end(arg: *const c_char) -> *const c_char {
 }
 
 /// Skip over the name of an option.
-pub fn find_option_end(arg: *const c_char, opt_idxp: *mut OptIndex) -> *const c_char {
+pub fn find_option_end(arg: *const c_char,opt_idxp: &mut OptIndex) -> *const c_char {
+    let opt_idxp: *mut OptIndex = &raw mut *opt_idxp;
     unsafe {
         let mut p = find_tty_option_end(arg);
         if !p.is_null() {
@@ -2000,7 +2001,7 @@ fn do_one_set_option(
         let arg = *argp;
 
         let mut opt_idx: OptIndex = kOptInvalid;
-        let option_end = find_option_end(arg, &raw mut opt_idx);
+        let option_end = find_option_end(arg, &mut opt_idx);
 
         if opt_idx != kOptInvalid {
             assert!(option_end >= arg as *const c_char);
@@ -2542,9 +2543,9 @@ pub fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool {
         while option_next_keyval(
             &raw mut p,
             &raw mut key,
-            &raw mut keylen,
+            &mut keylen,
             &raw mut val,
-            &raw mut vallen,
+            &mut vallen,
         ) {
             if val.is_null() {
                 return false;
@@ -5376,9 +5377,9 @@ fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
 pub fn optval_from_obj(
     opt_idx: OptIndex,
     o: Object,
-    op: set_op_T,
-    error: *mut bool,
+    op: set_op_T,error: &mut bool,
 ) -> Object {
+    let error: *mut bool = &raw mut *error;
     unsafe {
         if o.obj_type == ObjectType::kObjectTypeNil {
             return nil_obj();
@@ -6135,7 +6136,7 @@ fn switch_option_context(
                 }
                 let mut cs = CtxSwitch::new();
                 if !ctx_switch(
-                    &raw mut cs,
+                    &mut cs,
                     win,
                     win_find_tabpage(win),
                     ptr::null_mut(),
@@ -6162,7 +6163,7 @@ fn switch_option_context(
                     return false;
                 }
                 let mut cs = CtxSwitch::new();
-                ctx_switch(&raw mut cs, ptr::null_mut(), ptr::null_mut(), buf, 0);
+                ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), buf, 0);
                 *ctx = OptSavedCtx::Switch(cs);
                 true
             }
@@ -8513,11 +8514,11 @@ pub fn copy_option_part(
 /// Iterates comma-separated parts of option, splitting each part at its first ':' into key/value.
 pub fn option_next_keyval(
     p: *mut *const c_char,
-    key: *mut *const c_char,
-    keylen: *mut usize,
-    val: *mut *const c_char,
-    vallen: *mut usize,
+    key: *mut *const c_char,keylen: &mut usize,
+    val: *mut *const c_char,vallen: &mut usize,
 ) -> bool {
+    let keylen: *mut usize = &raw mut *keylen;
+    let vallen: *mut usize = &raw mut *vallen;
     unsafe {
         let s = *p;
         if *s == NUL {

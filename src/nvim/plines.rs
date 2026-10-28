@@ -1162,12 +1162,12 @@ pub fn win_text_height(
     }
 }
 
-pub fn win_max_displaywidth(
-    wp: *mut win_T,
+pub fn win_max_displaywidth(wp: &mut win_T,
     first: linenr_T,
     last: linenr_T,
     max: c_int,
 ) -> c_int {
+    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         let mut width = 0;
         let mut lnum = first;

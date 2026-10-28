@@ -1468,7 +1468,8 @@ fn syn_stack_equal(sp: &synstate_T) -> bool {
 }
 
 /// We stop parsing syntax above line "lnum".
-pub fn syntax_end_parsing(wp: *mut win_T, lnum: linenr_T) {
+pub fn syntax_end_parsing(wp: &mut win_T, lnum: linenr_T) {
+    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         if syn_st().syn_block != win_s(&mut *wp) {
             return;
@@ -3859,7 +3860,7 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
         }
 
         eap.argt |= EX_XFILE | EX_NOSPC;
-        separate_nextcmd(&raw mut *eap);
+        separate_nextcmd(&mut *eap);
         if *eap.arg == b'<' as c_char
             || *eap.arg == b'$' as c_char
             || path_is_absolute(eap.arg)

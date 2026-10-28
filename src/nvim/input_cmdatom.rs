@@ -729,7 +729,8 @@ fn atom_dict(atom: *const CmdAtom) -> Dict {
     }
 }
 
-fn atom_emit(atom: *const CmdAtom) {
+fn atom_emit(atom: &CmdAtom) {
+    let atom: *const CmdAtom = &raw const *atom;
     unsafe {
         if !has_event(EVENT_CMDATOM) {
             return;
@@ -764,7 +765,8 @@ fn atom_emit(atom: *const CmdAtom) {
     }
 }
 
-pub fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
+pub fn atom_push_raw(cascade: bool,atom: &mut CmdAtom) {
+    let atom: *mut CmdAtom = &raw mut *atom;
     unsafe {
         assert!((*atom).keys.is_some());
         if !(*atom).origin.buf.br_buf.is_null() {
@@ -824,7 +826,7 @@ pub fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
             (*comp_atoms).push(std::mem::take(&mut *atom));
         } else {
             if (*atom).r#type != kAInsertSpan {
-                atom_emit(atom);
+                atom_emit(&*atom);
             }
             *atom = CmdAtom::new();
         }
@@ -837,7 +839,7 @@ fn atom_push(cascade: bool, atom: &mut CmdAtom) {
             *atom = CmdAtom::new();
             return;
         }
-        atom_push_raw(cascade && mc_buf_has_cursors(&mut *g_st().curbuf), atom);
+        atom_push_raw(cascade && mc_buf_has_cursors(&mut *g_st().curbuf), &mut *atom);
     }
 }
 

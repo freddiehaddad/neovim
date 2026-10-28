@@ -535,9 +535,9 @@ pub fn msg_multiline(
     str_: NvimString,
     hl_id: c_int,
     check_int: bool,
-    hist: bool,
-    need_clear: *mut bool,
+    hist: bool,need_clear: &mut bool,
 ) {
+    let need_clear: *mut bool = &raw mut *need_clear;
     unsafe {
         let mut s = str_.data.cast_const();
         let mut chunk = s;
@@ -707,7 +707,7 @@ pub fn msg_multihl(
             if err {
                 emsg_multiline(chunk.text.data, kind, chunk.hl_id, true);
             } else {
-                msg_multiline(chunk.text, chunk.hl_id, true, false, &raw mut need_clear);
+                msg_multiline(chunk.text, chunk.hl_id, true, false, &mut need_clear);
             }
             assert!(!ui_has(kUIMessages) || kind.is_null() || msg_st().msg_ext_kind == kind);
         }
@@ -788,7 +788,7 @@ pub fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline: bool)
 
         let mut need_clear = true;
         if multiline {
-            msg_multiline(cstr_as_string(s), hl_id, false, false, &raw mut need_clear);
+            msg_multiline(cstr_as_string(s), hl_id, false, false, &mut need_clear);
         } else {
             msg_outtrans(s, hl_id, false);
         }

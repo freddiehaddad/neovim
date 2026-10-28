@@ -1349,10 +1349,10 @@ pub fn tv_list_copy(
 
 /// Get the list item in "l" with index "n1".
 pub fn tv_list_check_range_index_one(
-    l: *mut list_T,
-    n1: *mut c_int,
+    l: *mut list_T,n1: &mut c_int,
     quiet: bool,
 ) -> *mut listitem_T {
+    let n1: *mut c_int = &raw mut *n1;
     unsafe {
         let li = tv_list_find_index(l, &mut *n1);
         if !li.is_null() {
@@ -1368,12 +1368,12 @@ pub fn tv_list_check_range_index_one(
 
 /// Check that "n2" can be used as the second index in a range of list "l".
 pub fn tv_list_check_range_index_two(
-    l: *mut list_T,
-    n1: *mut c_int,
-    li1: *const listitem_T,
-    n2: *mut c_int,
+    l: *mut list_T,n1: &mut c_int,
+    li1: *const listitem_T,n2: &mut c_int,
     quiet: bool,
 ) -> c_int {
+    let n1: *mut c_int = &raw mut *n1;
+    let n2: *mut c_int = &raw mut *n2;
     unsafe {
         if *n2 < 0 {
             let ni = tv_list_find(l, *n2);

@@ -618,7 +618,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
             && utf_iscomposing(
                 state.grapheme_last as c_int,
                 codepoints[i] as c_int,
-                &raw mut state.grapheme_state,
+                &mut state.grapheme_state,
             )
         {
             grapheme_len = state.grapheme_len;
@@ -641,7 +641,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
                     || !utf_iscomposing(
                         codepoints[i - 1] as c_int,
                         codepoints[i] as c_int,
-                        &raw mut grapheme_state,
+                        &mut grapheme_state,
                     )
                 {
                     break;

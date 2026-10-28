@@ -278,13 +278,13 @@ fn changed_lines_invalidate_win(
 }
 
 /// Like `changed_lines_invalidate_win()`, but for all windows displaying a buffer.
-pub fn changed_lines_invalidate_buf(
-    buf: *mut buf_T,
+pub fn changed_lines_invalidate_buf(buf: &mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
     lnume: linenr_T,
     xtra: linenr_T,
 ) {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         for_all_tab_windows(|wp| {
             if (*wp).w_buffer == buf {

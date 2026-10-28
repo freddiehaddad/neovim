@@ -262,11 +262,11 @@ fn mb_cptr_adv(p: &mut *const c_char) {
 /// Main spell-checking function.
 pub fn spell_check(
     wp: *mut win_T,
-    ptr: *mut c_char,
-    attrp: *mut hlf_T,
+    ptr: *mut c_char,attrp: &mut hlf_T,
     capcol: *mut c_int,
     docount: bool,
 ) -> usize {
+    let attrp: *mut hlf_T = &raw mut *attrp;
     unsafe {
         if (*ptr as u8) <= b' ' {
             return 1;
@@ -1085,12 +1085,12 @@ fn decor_spell_nav_col(wp: &mut win_T,
     col: c_int,
 ) -> TriState {
     if *decor_lnum != lnum {
-            decor_redraw_reset(wp, &mut g_st().decor_state);
-            decor_providers_invoke_spell(wp, lnum - 1, col, lnum - 1, -1);
-            decor_redraw_line(wp, lnum - 1, &mut g_st().decor_state);
+            decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
+            decor_providers_invoke_spell(&mut *wp, lnum - 1, col, lnum - 1, -1);
+            decor_redraw_line(&mut *wp, lnum - 1, &mut g_st().decor_state);
             *decor_lnum = lnum;
         }
-        decor_redraw_col(wp, col, 0, false, &mut g_st().decor_state, MAXCOL);
+        decor_redraw_col(&mut *wp, col, 0, false, &mut g_st().decor_state, MAXCOL);
         g_st().decor_state.spell
 }
 #[inline]
@@ -1171,7 +1171,7 @@ pub fn spell_move_to(
                         break;
                     }
                     attr = HLF_COUNT;
-                    len = spell_check(&raw mut *wp, p, &raw mut attr, &raw mut capcol, false);
+                    len = spell_check(&raw mut *wp, p, &mut attr, &raw mut capcol, false);
                     if attr != HLF_COUNT
                         && (behaviour == SMT_ALL
                             || (behaviour == SMT_BAD && attr == HLF_SPB)
@@ -3189,7 +3189,8 @@ fn dump_prefixes(
         lnum
     }
 }
-pub fn spell_to_word_end(start: *mut c_char, win: *mut win_T) -> *mut c_char {
+pub fn spell_to_word_end(start: *mut c_char,win: &mut win_T) -> *mut c_char {
+    let win: *mut win_T = &raw mut *win;
     unsafe {
         let mut p = start;
         while *p != NUL && spell_iswordp(p, &*win) {

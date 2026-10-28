@@ -3599,10 +3599,10 @@ fn set_context_with_pattern(xp: &mut expand_T) {
         let mut magic = opt_vars().p_magic != 0;
         let retval = parse_pattern_and_range(
             &mut cmdexp().pre_incsearch_pos,
-            &raw mut dummy,
-            &raw mut skiplen,
-            &raw mut patlen,
-            &raw mut magic,
+            &mut dummy,
+            &mut skiplen,
+            &mut patlen,
+            &mut magic,
         );
         g_st().emsg_off -= 1;
 

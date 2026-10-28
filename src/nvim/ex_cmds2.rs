@@ -721,7 +721,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                             g_st().curbuf,
                         );
                     } else {
-                        ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+                        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
                         apply_autocmds(EVENT_SYNTAX, (*buf).b_p_syn, (*buf).b_fname, true, buf);
                         ctx_restore(&mut aco);
                     }

@@ -1239,7 +1239,7 @@ fn get_lval_list(
 
         lp.ll_dict = ptr::null_mut();
         lp.ll_list = (*lp.ll_tv).vval.v_list();
-        lp.ll_li = tv_list_check_range_index_one(lp.ll_list, &raw mut lp.ll_n1, quiet);
+        lp.ll_li = tv_list_check_range_index_one(lp.ll_list, &mut lp.ll_n1, quiet);
         if lp.ll_li.is_null() {
             return FAIL;
         }
@@ -1248,9 +1248,9 @@ fn get_lval_list(
             lp.ll_n2 = tv_get_number(&*var2) as c_int;
             if tv_list_check_range_index_two(
                 lp.ll_list,
-                &raw mut lp.ll_n1,
+                &mut lp.ll_n1,
                 lp.ll_li,
-                &raw mut lp.ll_n2,
+                &mut lp.ll_n2,
                 quiet,
             ) == FAIL
             {
@@ -1756,8 +1756,8 @@ pub fn eval_for_line(
 
         let mut expr = skip_var_list(
             arg,
-            &raw mut fi.fi_varcount,
-            &raw mut fi.fi_semicolon,
+            &mut fi.fi_varcount,
+            &mut fi.fi_semicolon,
             false,
         );
         if expr.is_null() {
@@ -3641,7 +3641,7 @@ pub fn eval_option(arg: *mut *const c_char, rettv: *mut typval_T, evaluate: bool
         let mut opt_idx: OptIndex = 0;
         let mut opt_flags: c_int = 0;
 
-        let option_end = find_option_var_end(arg, &raw mut opt_idx, &mut opt_flags).cast_mut();
+        let option_end = find_option_var_end(arg, &mut opt_idx, &mut opt_flags).cast_mut();
 
         if option_end.is_null() {
             if !rettv.is_null() {
@@ -6623,7 +6623,7 @@ pub fn ex_echo(eap: &mut exarg_T) {
                     eval_st().echo_hl_id,
                     true,
                     false,
-                    &raw mut need_clear,
+                    &mut need_clear,
                 );
             }
             tv_clear(&raw mut rettv);
@@ -6738,10 +6738,10 @@ pub fn ex_execute(eap: &mut exarg_T) {
 
 /// Skip over the name of an option variable: "&option", "&g:option" or "&l:option".
 pub fn find_option_var_end(
-    arg: *mut *const c_char,
-    opt_idxp: *mut OptIndex,
+    arg: *mut *const c_char,opt_idxp: &mut OptIndex,
     opt_flags: &mut c_int,
 ) -> *const c_char {
+    let opt_idxp: *mut OptIndex = &raw mut *opt_idxp;
     unsafe {
         let mut p = (*arg).add(1);
         if *p == b'g' as c_char && *p.add(1) == b':' as c_char {
@@ -6754,7 +6754,7 @@ pub fn find_option_var_end(
             *opt_flags = 0;
         }
 
-        let end = find_option_end(p, opt_idxp);
+        let end = find_option_end(p, &mut *opt_idxp);
         *arg = if end.is_null() { *arg } else { p };
         end
     }

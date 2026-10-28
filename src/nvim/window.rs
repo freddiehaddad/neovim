@@ -1612,7 +1612,7 @@ pub fn win_set_buf(win: &mut win_T, buf: &mut buf_T, err: &mut Error) {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let win_ok = ctx_switch(
-            &raw mut switchwin,
+            &mut switchwin,
             &raw mut *win,
             tab,
             ptr::null_mut(),
@@ -2867,7 +2867,7 @@ pub fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> c_int {
         if (*wp).w_floating {
             win_remove(wp, ptr::null_mut());
         } else {
-            winframe_remove(wp, &raw mut dir, ptr::null_mut(), &raw mut unflat_altfr);
+            winframe_remove(wp, &mut dir, ptr::null_mut(), &raw mut unflat_altfr);
             debug_assert!(!unflat_altfr.is_null());
             win_remove(wp, ptr::null_mut());
             last_status(false);
@@ -4096,7 +4096,7 @@ fn win_free_mem(win: *mut win_T, dirp: &mut c_int, tp: *mut tabpage_T) -> *mut w
 
         if !(*win).w_floating {
             let frp = (*win).w_frame;
-            wp = winframe_remove(win, &raw mut *dirp, tp, ptr::null_mut());
+            wp = winframe_remove(win, &mut *dirp, tp, ptr::null_mut());
             drop(Box::from_raw(frp));
         } else {
             *dirp = b'h' as c_int;
@@ -4159,14 +4159,14 @@ pub fn win_free_all() {
 }
 
 pub fn winframe_remove(
-    win: *mut win_T,
-    dirp: *mut c_int,
+    win: *mut win_T,dirp: &mut c_int,
     tp: *mut tabpage_T,
     unflat_altfr: *mut *mut frame_T,
 ) -> *mut win_T {
+    let dirp: *mut c_int = &raw mut *dirp;
     unsafe {
         let mut altfr: *mut frame_T = ptr::null_mut();
-        let wp = winframe_find_altwin(win, dirp, tp, &raw mut altfr);
+        let wp = winframe_find_altwin(win, &mut *dirp, tp, &raw mut altfr);
         if wp.is_null() {
             return ptr::null_mut();
         }
@@ -4223,11 +4223,11 @@ pub fn winframe_remove(
 }
 
 pub fn winframe_find_altwin(
-    win: *mut win_T,
-    dirp: *mut c_int,
+    win: *mut win_T,dirp: &mut c_int,
     tp: *mut tabpage_T,
     altfr: *mut *mut frame_T,
 ) -> *mut win_T {
+    let dirp: *mut c_int = &raw mut *dirp;
     unsafe {
         debug_assert!(tp.is_null() || !ptr::eq(tp, g_st().curtab));
 
@@ -5246,7 +5246,7 @@ pub fn win_new_tabpage(
 
             let mut switchwin: CtxSwitch = CtxSwitch::new();
             let sw_ok = ctx_switch(
-                &raw mut switchwin,
+                &mut switchwin,
                 (*newtp).tp_curwin,
                 newtp,
                 ptr::null_mut(),
@@ -7985,7 +7985,7 @@ pub fn set_winbar_all(make_room: bool) {
             if !ptr::eq(tp, g_st().curtab) {
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
                 if ctx_switch(
-                    &raw mut switchwin,
+                    &mut switchwin,
                     (*tp).tp_curwin,
                     tp,
                     ptr::null_mut(),

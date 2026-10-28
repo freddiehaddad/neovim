@@ -3141,7 +3141,7 @@ pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut buf_T) {
             }
 
             let mut cs: CtxSwitch = CtxSwitch::new();
-            ctx_switch(&raw mut cs, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
+            ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
             if !(*g_st().curbuf).b_u_synced {
                 u_sync(true);
             }

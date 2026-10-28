@@ -6057,7 +6057,7 @@ pub fn parse_cmdline(
             }
 
             if !skipmods && (eap.argt & EX_TRLBAR) != 0 {
-                separate_nextcmd(eap);
+                separate_nextcmd(&mut *eap);
             } else if !skipmods
                 && eap.cmdidx >= 0
                 && cmd_has_expr_args(cmdidx_T::from_raw(eap.cmdidx))
@@ -6709,7 +6709,7 @@ fn do_one_cmd(
             }
 
             if (ea.argt & EX_TRLBAR) != 0 && ea.usefilter == 0 {
-                separate_nextcmd(&raw mut ea);
+                separate_nextcmd(&mut ea);
             } else if ea.cmdidx == cmdidx_T::CMD_bang as c_int
                 || ea.cmdidx == cmdidx_T::CMD_terminal as c_int
                 || ea.cmdidx == cmdidx_T::CMD_global as c_int
@@ -8422,7 +8422,8 @@ fn repl_cmdline(
     }
 }
 
-pub fn separate_nextcmd(eap: *mut exarg_T) {
+pub fn separate_nextcmd(eap: &mut exarg_T) {
+    let eap: *mut exarg_T = &raw mut *eap;
     unsafe {
         let mut p = skip_grep_pat(&mut *eap);
 

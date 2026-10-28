@@ -109,7 +109,7 @@ pub fn win_new_float(
                 win_tp
             };
             let mut dir: c_int = 0;
-            winframe_remove(wp, &raw mut dir, tp, ptr::null_mut());
+            winframe_remove(wp, &mut dir, tp, ptr::null_mut());
             if !(*wp).w_frame.is_null() {
                 drop(Box::from_raw((*wp).w_frame));
             }
@@ -601,7 +601,7 @@ pub fn win_float_update_preview(wp: &mut win_T) {
         // If a dimension is not given in 'previewpopup', autosize to the content.
         let last: linenr_T = (*wp.w_buffer).b_ml.ml_line_count;
         if want_w == 0 {
-            want_w = win_max_displaywidth(&raw mut *wp, 1, last, g_st().Columns).max(1);
+            want_w = win_max_displaywidth(&mut *wp, 1, last, g_st().Columns).max(1);
         }
         want_w = want_w.min(g_st().Columns);
 

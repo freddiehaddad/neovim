@@ -557,9 +557,9 @@ pub fn spell_check_sps(
         while option_next_keyval(
             &raw mut p,
             &raw mut key,
-            &raw mut keylen,
+            &mut keylen,
             &raw mut val,
-            &raw mut vallen,
+            &mut vallen,
         ) {
             let mut f: c_int = 0;
             if val.is_null() {
@@ -903,7 +903,7 @@ fn spell_find_suggest(
             let tmplen = spell_check(
                 *curwin.as_ptr(),
                 su.su_badptr,
-                &raw mut attr,
+                &mut attr,
                 ptr::null_mut(),
                 false,
             );
@@ -2863,7 +2863,7 @@ fn check_suggestions(su: &mut suginfo_T, use_sga: bool) {
             let _ = spell_check(
                 *curwin.as_ptr(),
                 (&raw mut longword).cast(),
-                &raw mut attr,
+                &mut attr,
                 ptr::null_mut(),
                 false,
             );

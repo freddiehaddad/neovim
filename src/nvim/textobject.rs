@@ -197,13 +197,13 @@ pub fn findsent(dir: Direction, mut count: c_int) -> c_int {
 }
 
 /// Find the next paragraph or section in direction `dir` (`findpar`).
-pub fn findpar(
-    pincl: *mut bool,
+pub fn findpar(pincl: &mut bool,
     dir: c_int,
     mut count: c_int,
     what: c_int,
     both: bool,
 ) -> bool {
+    let pincl: *mut bool = &raw mut *pincl;
     unsafe {
         let mut fold_first: linenr_T = 0;
         let mut fold_last: linenr_T = 0;

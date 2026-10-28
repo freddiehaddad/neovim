@@ -698,7 +698,7 @@ pub fn mark_get_motion(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fm
         if name == b'{' as c_int || name == b'}' as c_int {
             let mut oa = oparg_T::new();
             if findpar(
-                &raw mut oa.inclusive,
+                &mut oa.inclusive,
                 if name == b'}' as c_int {
                     FORWARD
                 } else {

@@ -3813,7 +3813,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                     (c"deleted".as_ptr(), 7isize)
                 } else if bufIsChanged(buf) {
                     (c"conflict".as_ptr(), 8isize)
-                } else if orig_size != buf.b_orig_size || buf_contents_changed(&raw mut *buf) {
+                } else if orig_size != buf.b_orig_size || buf_contents_changed(&mut *buf) {
                     (c"changed".as_ptr(), 7isize)
                 } else if orig_mode != buf.b_orig_mode {
                     (c"mode".as_ptr(), 4isize)
@@ -3992,7 +3992,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
         let mut aco: CtxSwitch = CtxSwitch::new();
         let mut flags = READ_NEW;
 
-        ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 
         mc_buf_clear(buf);
 
@@ -4296,7 +4296,7 @@ pub fn readdir_core(
         entries.clear();
 
         let mut dir = Directory::new();
-        if !os_scandir(&raw mut dir, path) {
+        if !os_scandir(&mut dir, path) {
             smsg!(0, tr(e_notopen.as_ptr()), path);
             return FAIL;
         }
@@ -4324,7 +4324,7 @@ pub fn readdir_core(
             }
         }
 
-        os_closedir(&raw mut dir);
+        os_closedir(&mut dir);
 
         entries.sort_unstable();
 

@@ -636,7 +636,8 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
     }
 }
 
-fn ctx_dirs_save(cs: *mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *mut buf_T) {
+fn ctx_dirs_save(cs: &mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *mut buf_T) {
+    let cs: *mut CtxSwitch = &raw mut *cs;
     unsafe {
         if ((*cs).cs_flags & (kCtxKeepCwd | kCtxKeepDirs)) == 0 {
             return;
@@ -813,13 +814,13 @@ pub fn ctx_saved_curwin() -> *mut win_T {
         }
 }
 
-pub fn ctx_switch(
-    cs: *mut CtxSwitch,
+pub fn ctx_switch(cs: &mut CtxSwitch,
     mut wp: *mut win_T,
     tp: *mut tabpage_T,
     buf: *mut buf_T,
     flags: CtxSwitchFlags,
 ) -> bool {
+    let cs: *mut CtxSwitch = &raw mut *cs;
     unsafe {
         assert!((wp.is_null() != buf.is_null()) || (wp.is_null() && (flags & kCtxKeepDirs) != 0));
         assert!(buf.is_null() || tp.is_null());
@@ -859,7 +860,7 @@ pub fn ctx_switch(
             (*cs).cs_target_old_pos = (*wp).w_cursor;
         }
         if !wp.is_null() {
-            ctx_dirs_save(cs, wp, if tp.is_null() { g_st().curtab } else { tp }, buf);
+            ctx_dirs_save(&mut *cs, wp, if tp.is_null() { g_st().curtab } else { tp }, buf);
         }
 
         (*cs).cs_curwin = (**curwin.as_ptr()).handle;

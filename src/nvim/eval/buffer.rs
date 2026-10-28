@@ -127,7 +127,7 @@ fn change_other_buffer_prepare(cob: &mut cob_T, buf: *mut buf_T) {
         if (**curwin.as_ptr()).w_buffer != buf {
             g_st().curbuf = (**curwin.as_ptr()).w_buffer;
             ctx_switch(
-                &raw mut cob.cob_aco,
+                &mut cob.cob_aco,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 buf,

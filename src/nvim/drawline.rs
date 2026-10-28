@@ -1947,7 +1947,7 @@ pub fn win_line(
                 ptr = line.add(linecol as usize);
 
                 if len == 0 || wp.w_cursor.col > linecol {
-                    word_end = spell_to_word_end(ptr.cast_mut(), &raw mut *wp).offset_from(line) as c_int + 1;
+                    word_end = spell_to_word_end(ptr.cast_mut(), &mut *wp).offset_from(line) as c_int + 1;
                 } else {
                     debug_assert!(len <= c_int::MAX as usize);
                     word_end = wp.w_cursor.col + len as c_int + 1;
@@ -1972,7 +1972,7 @@ pub fn win_line(
             ptr = line.add(col as usize);
         }
 
-        decor_redraw_line(&raw mut *wp, lnum - 1, &mut g_st().decor_state);
+        decor_redraw_line(&mut *wp, lnum - 1, &mut g_st().decor_state);
         if !has_decor && decor_has_more_decorations(&mut g_st().decor_state, lnum - 1) {
             has_decor = true;
             extra_check = true;
@@ -2058,12 +2058,12 @@ pub fn win_line(
                         let target_row = total_virt_rows - virt_rows_todo;
                         while (virt_line_index as usize) < virt_lines.len() {
                             let vl_ptr = &raw const virt_lines[virt_line_index as usize];
-                            let line_rows = decor_virt_line_rows(&raw mut *wp, &*vl_ptr, 0, ptr::null_mut());
+                            let line_rows = decor_virt_line_rows(&mut *wp, &*vl_ptr, 0, ptr::null_mut());
                             if target_row < virt_line_start_row + line_rows {
                                 has_virt_line = true;
                                 virt_line_flags = (*vl_ptr).flags;
                                 decor_virt_line_rows(
-                                    &raw mut *wp,
+                                    &mut *wp,
                                     &*vl_ptr,
                                     target_row - virt_line_start_row,
                                     &raw mut virt_line_skip_cells,
@@ -2145,7 +2145,7 @@ pub fn win_line(
                 }
                 if has_decor && wlv.row == startrow + wlv.filler_lines {
                     decor_redraw_col(
-                        &raw mut *wp,
+                        &mut *wp,
                         (ptr.offset_from(line) as colnr_T) - 1,
                         wlv.off,
                         true,
@@ -2213,7 +2213,7 @@ pub fn win_line(
                             decor_need_recheck = false;
                         }
                         extmark_attr = decor_redraw_col(
-                            &raw mut *wp,
+                            &mut *wp,
                             ptr.offset_from(line) as colnr_T,
                             if may_have_inline_virt { -3 } else { wlv.off },
                             selected,
@@ -2619,7 +2619,7 @@ pub fn win_line(
                                 let tmplen = spell_check(
                                     &raw mut *wp,
                                     p,
-                                    &raw mut spell_hlf,
+                                    &mut spell_hlf,
                                     &raw mut spv.spv_cap_col,
                                     spv.spv_unchanged,
                                 );
@@ -3219,7 +3219,7 @@ pub fn win_line(
 
                     if has_decor {
                         decor_redraw_eol(
-                            &raw mut *wp,
+                            &mut *wp,
                             &mut g_st().decor_state,
                             &mut wlv.line_attr,
                             wlv.col + eol_skip,
@@ -3336,7 +3336,7 @@ pub fn win_line(
                 {
                     if has_decor && *ptr == NUL && lcs_eol == 0 && lcs_eol_todo {
                         decor_redraw_col(
-                            &raw mut *wp,
+                            &mut *wp,
                             ptr.offset_from(line) as colnr_T,
                             -1,
                             false,
@@ -3505,7 +3505,7 @@ pub fn win_line(
                 if has_decor && wlv.filler_todo <= 0 && wlv.col >= view_width {
                     if is_wrapped && wlv.n_extra == 0 {
                         decor_redraw_col(
-                            &raw mut *wp,
+                            &mut *wp,
                             ptr.offset_from(line) as colnr_T,
                             -3,
                             false,
@@ -3516,7 +3516,7 @@ pub fn win_line(
                     } else if !is_wrapped {
                         decor_recheck_draw_col(-1, true, &mut g_st().decor_state);
                         decor_redraw_col(
-                            &raw mut *wp,
+                            &mut *wp,
                             MAXCOL,
                             -1,
                             true,

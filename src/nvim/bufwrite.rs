@@ -401,7 +401,7 @@ fn buf_write_do_autocmds(
         let buf_fname_f = *fnamep == (*buf).b_ffname;
         let buf_fname_s = *fnamep == (*buf).b_sfname;
 
-        let _ = ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        let _ = ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
         set_bufref(&mut bufref, buf);
 
         if append {
@@ -564,7 +564,7 @@ fn buf_write_do_post_autocmds(
         let mut aco: CtxSwitch = CtxSwitch::new();
         (*g_st().curbuf).b_no_eol_lnum = 0;
 
-        let _ = ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        let _ = ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 
         if append {
             let _ = apply_autocmds_exarg(EVENT_FILEAPPENDPOST, fname, fname, false, g_st().curbuf, eap);

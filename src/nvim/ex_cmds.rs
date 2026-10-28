@@ -395,7 +395,7 @@ pub fn do_ascii(_eap: &mut exarg_T) {
                 0,
                 true,
                 false,
-                &raw mut need_clear,
+                &mut need_clear,
             );
 
             off += utf_ptr2len(data) as usize;
@@ -454,7 +454,7 @@ pub fn do_ascii(_eap: &mut exarg_T) {
                 0,
                 true,
                 false,
-                &raw mut need_clear,
+                &mut need_clear,
             );
 
             off += utf_ptr2len(data.add(off)) as usize;

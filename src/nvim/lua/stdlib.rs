@@ -690,7 +690,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
                     ptr::null_mut()
                 };
                 switched = ctx_switch(
-                    &raw mut cs,
+                    &mut cs,
                     win,
                     tab,
                     buf,

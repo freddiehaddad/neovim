@@ -1228,10 +1228,10 @@ pub fn call_internal_func(
 pub fn call_internal_method(
     fname: *const c_char,
     argcount: c_int,
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    argvars: *mut typval_T,rettv: &mut typval_T,
     basetv: *mut typval_T,
 ) -> c_int {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let fdef = find_internal_func(fname);
         if fdef.is_null() {
@@ -2896,7 +2896,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                     let mut optional: c_int = 0;
                     let mut varargs = false;
                     let name = partial_name(pt);
-                    get_func_arity(name, &raw mut required, &raw mut optional, &raw mut varargs);
+                    get_func_arity(name, &mut required, &mut optional, &mut varargs);
 
                     rettv.v_type = VarType::VAR_DICT;
                     tv_dict_alloc_ret(rettv);
@@ -3342,7 +3342,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
             *region_type,
             is_select_exclusive,
             block_width,
-            inclusive,
+            &mut *inclusive,
             oap,
         );
         OK
@@ -8358,7 +8358,7 @@ pub fn f_spellbadword(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                     len = spell_check(
                         *curwin.as_ptr(),
                         str_.cast_mut(),
-                        &raw mut attr,
+                        &mut attr,
                         &raw mut capcol,
                         false,
                     );

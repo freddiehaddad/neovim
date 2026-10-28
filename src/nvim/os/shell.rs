@@ -1067,7 +1067,7 @@ pub fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
             data: str_copy.as_mut_ptr(),
             size: str_copy.len(),
         };
-        msg_multiline(str_arg, hl, false, false, &raw mut need_clear);
+        msg_multiline(str_arg, hl, false, false, &mut need_clear);
         drop(str_copy);
         ui_flush();
 }

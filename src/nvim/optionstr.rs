@@ -3437,9 +3437,9 @@ pub fn opt_strings_check(
         while option_next_keyval(
             &raw mut p,
             &raw mut key,
-            &raw mut keylen,
+            &mut keylen,
             &raw mut v,
-            &raw mut vlen,
+            &mut vlen,
         ) {
             if keylen == 0 && v.is_null() {
                 continue;
@@ -3552,9 +3552,9 @@ pub fn opt_fill(value: *const c_char, get_field: FieldHashfn, out: *mut OptKeySe
         while option_next_keyval(
             &raw mut p,
             &raw mut key,
-            &raw mut keylen,
+            &mut keylen,
             &raw mut v,
-            &raw mut vlen,
+            &mut vlen,
         ) {
             let key_bytes = if key.is_null() || keylen == 0 {
                 &[][..]

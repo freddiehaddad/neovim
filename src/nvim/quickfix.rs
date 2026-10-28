@@ -4324,7 +4324,7 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         if old_count == 0 {
-            ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+            ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
         }
 
         qf_update_win_titlevar(qi);
@@ -5837,7 +5837,7 @@ fn vgr_process_files(
                         }
 
                         let mut aco: CtxSwitch = CtxSwitch::new();
-                        ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+                        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
                         apply_autocmds(EVENT_FILETYPE, (*buf).b_p_ft, (*buf).b_fname, true, buf);
                         do_modelines(OPT_NOWIN);
                         ctx_restore(&mut aco);
@@ -5998,7 +5998,7 @@ fn load_dummy_buffer(
         if ml_open(&mut *newbuf) == OK {
             (*newbuf).b_locked += 1;
             let mut aco: CtxSwitch = CtxSwitch::new();
-            ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
+            ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
 
             setfname(g_st().curbuf, fname, ptr::null_mut(), false);
             check_need_swap(true);

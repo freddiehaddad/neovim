@@ -939,7 +939,7 @@ fn list_vim_vars(first: &mut c_int) {
             &mut vars_st().vimvardict.dv_hashtab,
             c"v:".as_ptr(),
             false as c_int,
-            first,
+            &mut *first,
         );
 }
 
@@ -951,7 +951,7 @@ fn list_script_vars(first: &mut c_int) {
                 &mut *script_vars_ht(g_st().current_sctx.sc_sid),
                 c"s:".as_ptr(),
                 false as c_int,
-                first,
+                &mut *first,
             );
         }
     }
@@ -1223,7 +1223,7 @@ pub fn ex_let(eap: &mut exarg_T) {
         let mut op: [c_char; 2] = [0; 2];
         let mut first: c_int = 1;
 
-        let argend = skip_var_list(arg, &raw mut var_count, &raw mut semicolon, false);
+        let argend = skip_var_list(arg, &mut var_count, &mut semicolon, false);
         if argend.is_null() {
             return;
         }
@@ -1414,11 +1414,11 @@ pub fn ex_let_vars(
 
 /// Skip over assignable variable "var" or list of variables "[var, var]".
 pub fn skip_var_list(
-    arg: *const c_char,
-    var_count: *mut c_int,
-    semicolon: *mut c_int,
+    arg: *const c_char,var_count: &mut c_int,semicolon: &mut c_int,
     silent: bool,
 ) -> *const c_char {
+    let var_count: *mut c_int = &raw mut *var_count;
+    let semicolon: *mut c_int = &raw mut *semicolon;
     unsafe {
         if *arg == b'[' as c_char {
             let mut p = arg;
@@ -1480,9 +1480,9 @@ fn skip_var_one(arg: *const c_char) -> *const c_char {
 pub fn list_hashtable_vars(
     ht: &mut hashtab_T,
     prefix: *const c_char,
-    empty: c_int,
-    first: *mut c_int,
+    empty: c_int,first: &mut c_int,
 ) {
+    let first: *mut c_int = &raw mut *first;
     unsafe {
         let mut todo = ht.ht_used as c_int;
         let mut hi = (*ht).array_ptr();
@@ -1503,7 +1503,7 @@ pub fn list_hashtable_vars(
                     || (*di).di_tv.v_type != VarType::VAR_STRING
                     || !(*di).di_tv.vval.v_string().is_null()
                 {
-                    list_one_var(&mut *di, prefix, first);
+                    list_one_var(&mut *di, prefix, &mut *first);
                 }
             }
             hi = hi.add(1);
@@ -1516,7 +1516,7 @@ fn list_glob_vars(first: &mut c_int) {
             &mut vars_st().globvardict.dv_hashtab,
             c"".as_ptr(),
             true as c_int,
-            first,
+            &mut *first,
         );
 }
 
@@ -1526,7 +1526,7 @@ fn list_buf_vars(first: &mut c_int) {
             &mut (*(*g_st().curbuf).b_vars()).dv_hashtab,
             c"b:".as_ptr(),
             true as c_int,
-            first,
+            &mut *first,
         );
     }
 }
@@ -1537,7 +1537,7 @@ fn list_win_vars(first: &mut c_int) {
             &mut (*(**curwin.as_ptr()).w_vars()).dv_hashtab,
             c"w:".as_ptr(),
             true as c_int,
-            first,
+            &mut *first,
         );
     }
 }
@@ -1548,7 +1548,7 @@ fn list_tab_vars(first: &mut c_int) {
             &mut (*(*g_st().curtab).tp_vars()).dv_hashtab,
             c"t:".as_ptr(),
             true as c_int,
-            first,
+            &mut *first,
         );
     }
 }
@@ -1733,7 +1733,7 @@ fn ex_let_option(
         let mut opt_flags: c_int = 0;
 
         let mut arg_const: *const c_char = arg;
-        let p = find_option_var_end(&raw mut arg_const, &raw mut opt_idx, &mut opt_flags)
+        let p = find_option_var_end(&raw mut arg_const, &mut opt_idx, &mut opt_flags)
             .cast_mut();
         let arg_name = arg_const.cast_mut();
 
@@ -2923,7 +2923,8 @@ fn delete_var(ht: &mut hashtab_T, hi: *mut hashitem_T) {
 }
 
 /// List the value of one internal variable.
-fn list_one_var(v: &mut dictitem_T, prefix: *const c_char, first: *mut c_int) {
+fn list_one_var(v: &mut dictitem_T, prefix: *const c_char,first: &mut c_int) {
+    let first: *mut c_int = &raw mut *first;
     unsafe {
         let s = encode_tv2echo(&mut v.di_tv, None);
         list_one_var_a(
@@ -3315,7 +3316,7 @@ fn get_var_from(
             let mut switchwin: CtxSwitch = CtxSwitch::new();
             if !need_switch_win
                 || ctx_switch(
-                    &raw mut switchwin,
+                    &mut switchwin,
                     win,
                     tp,
                     ptr::null_mut(),
@@ -3586,7 +3587,7 @@ fn setwinvar(argvars: &mut [typval_T], off: usize) {
         let mut switchwin: CtxSwitch = CtxSwitch::new();
         if !need_switch_win
             || ctx_switch(
-                &raw mut switchwin,
+                &mut switchwin,
                 win,
                 tp,
                 ptr::null_mut(),
@@ -3930,7 +3931,7 @@ pub fn f_setbufvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
 
         if *varname == b'&' as c_char {
             let mut aco: CtxSwitch = CtxSwitch::new();
-            ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+            ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             set_option_from_tv(varname.add(1), &mut *varp);
             ctx_restore(&mut aco);
         } else {

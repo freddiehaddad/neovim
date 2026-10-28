@@ -261,8 +261,8 @@ pub fn extmark_set(
 
         if decor_flags != 0 || decor.is_ext() {
             let r2 = if end_row > -1 { end_row } else { row };
-            buf_put_decor(buf, decor, row, r2);
-            decor_redraw(buf, row, r2, col, decor);
+            buf_put_decor(&mut *buf, decor, row, r2);
+            decor_redraw(&mut *buf, row, r2, col, decor);
         }
 
         if !idp.is_null() {
@@ -296,7 +296,7 @@ fn extmark_setraw(buf: &mut buf_T, mark: u64, row: c_int, col: colnr_T, revive: 
         }
 
         if !invalid && mt_decor_any(key) && key.pos.row != row {
-            decor_redraw(&raw mut *buf, key.pos.row, key.pos.row, key.pos.col, mt_decor(key));
+            decor_redraw(&mut *buf, key.pos.row, key.pos.row, key.pos.col, mt_decor(key));
         }
 
         let mut row1: c_int = 0;
@@ -333,7 +333,7 @@ fn extmark_setraw(buf: &mut buf_T, mark: u64, row: c_int, col: colnr_T, revive: 
 
         if invalid {
             buf_put_decor(
-                &raw mut *buf,
+                &mut *buf,
                 mt_decor(key),
                 row.min(alt.pos.row),
                 row.max(alt.pos.row),
@@ -886,7 +886,7 @@ pub fn extmark_splice_impl(
 ) {
     buf.deleted_bytes2 = 0;
         buf_updates_send_splice(
-            buf, start_row, start_col, start_byte, old_row, old_col, old_byte, new_row, new_col,
+            &mut *buf, start_row, start_col, start_byte, old_row, old_col, old_byte, new_row, new_col,
             new_byte,
         );
 
@@ -1025,7 +1025,7 @@ pub fn extmark_move_region(
 ) {
     buf.deleted_bytes2 = 0;
         buf_updates_send_splice(
-            &raw mut *buf,
+            &mut *buf,
             start_row,
             start_col,
             start_byte,
@@ -1054,7 +1054,7 @@ pub fn extmark_move_region(
         buf_signcols_count_range(&raw mut *buf, row1, row2, 0, kNone);
 
         buf_updates_send_splice(
-            &raw mut *buf,
+            &mut *buf,
             new_row,
             new_col,
             new_byte,

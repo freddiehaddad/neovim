@@ -3340,7 +3340,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         let mut aco = CtxSwitch::new();
         if eap.cmdidx != CMD_diffget {
             ctx_switch(
-                &raw mut aco,
+                &mut aco,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 (*g_st().curtab).tp_diffbuf[idx_other],

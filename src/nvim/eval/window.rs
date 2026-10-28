@@ -670,7 +670,7 @@ pub fn f_win_execute(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
         let mut cs: CtxSwitch = CtxSwitch::new();
         if ctx_switch(
-            &raw mut cs,
+            &mut cs,
             wp,
             tp,
             ptr::null_mut(),

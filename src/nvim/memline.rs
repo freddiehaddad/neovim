@@ -3720,7 +3720,7 @@ fn findswapname(
                                 0,
                                 false,
                                 false,
-                                &raw mut need_clear,
+                                &mut need_clear,
                             );
                         }
                         g_st().no_wait_return -= 1;

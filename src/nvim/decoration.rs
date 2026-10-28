@@ -505,13 +505,13 @@ pub fn bufhl_add_hl_pos_offset(
     }
 }
 
-pub fn decor_redraw(
-    buf: *mut buf_T,
+pub fn decor_redraw(buf: &mut buf_T,
     row1: c_int,
     row2: c_int,
     col1: c_int,
     decor: DecorInline,
 ) {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         if decor.is_ext() {
             let mut vt = decor.data.ext().vt;
@@ -525,7 +525,7 @@ pub fn decor_redraw(
                     } else {
                         col1
                     };
-                    changed_lines_invalidate_buf(buf, vt_lnum, vt_col, vt_lnum + 1, 0);
+                    changed_lines_invalidate_buf(&mut *buf, vt_lnum, vt_col, vt_lnum + 1, 0);
                 }
                 vt = (*vt).next_ptr();
             }
@@ -535,16 +535,17 @@ pub fn decor_redraw(
             while idx != DECOR_ID_INVALID {
                 let sh = &(*items).as_slice()[idx as usize];
                 let next = sh.next;
-                decor_redraw_sh(buf, row1, row2, sh.clone());
+                decor_redraw_sh(&mut *buf, row1, row2, sh.clone());
                 idx = next;
             }
         } else {
-            decor_redraw_sh(buf, row1, row2, decor_sh_from_inline(decor.data.hl()));
+            decor_redraw_sh(&mut *buf, row1, row2, decor_sh_from_inline(decor.data.hl()));
         }
     }
 }
 
-pub fn decor_redraw_sh(buf: *mut buf_T, row1: c_int, row2: c_int, sh: DecorSignHighlight) {
+pub fn decor_redraw_sh(buf: &mut buf_T, row1: c_int, row2: c_int, sh: DecorSignHighlight) {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         if (sh.hl_id != 0
             || sh.url.is_some()
@@ -607,7 +608,8 @@ pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
     }
 }
 
-pub fn buf_put_decor(buf: *mut buf_T, decor: DecorInline, row: c_int, mut row2: c_int) {
+pub fn buf_put_decor(buf: &mut buf_T, decor: DecorInline, row: c_int, mut row2: c_int) {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         if decor.is_ext() && row < (*buf).b_ml.ml_line_count {
             let items = &raw mut g_st().decor_items;
@@ -616,14 +618,15 @@ pub fn buf_put_decor(buf: *mut buf_T, decor: DecorInline, row: c_int, mut row2: 
             while idx != DECOR_ID_INVALID {
                 let sh = &mut (&mut *items)[idx as usize];
                 let next = sh.next;
-                buf_put_decor_sh(buf, sh, row, row2);
+                buf_put_decor_sh(&mut *buf, sh, row, row2);
                 idx = next;
             }
         }
     }
 }
 
-fn may_force_numberwidth_recompute(buf: *mut buf_T, unplace: bool) {
+fn may_force_numberwidth_recompute(buf: &mut buf_T, unplace: bool) {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -648,19 +651,19 @@ fn may_force_numberwidth_recompute(buf: *mut buf_T, unplace: bool) {
 }
 
 pub fn buf_put_decor_sh(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     sh: &mut DecorSignHighlight,
     row1: c_int,
     row2: c_int,
 ) {
     if (sh.flags & kSHIsSign) != 0 {
-            sh.sign_add_id = decor_st().sign_add_id;
-            decor_st().sign_add_id += 1;
-            if sh.text[0] != 0 {
-                buf_signcols_count_range(buf, row1, row2, 1, kFalse);
-                may_force_numberwidth_recompute(buf, false);
-            }
+        sh.sign_add_id = decor_st().sign_add_id;
+        decor_st().sign_add_id += 1;
+        if sh.text[0] != 0 {
+            buf_signcols_count_range(&raw mut *buf, row1, row2, 1, kFalse);
+            may_force_numberwidth_recompute(buf, false);
         }
+    }
 }
 
 pub fn buf_decor_remove(
@@ -672,7 +675,7 @@ pub fn buf_decor_remove(
     free: bool,
 ) {
     unsafe {
-        decor_redraw(buf, row1, row2, col1, decor);
+        decor_redraw(&mut *buf, row1, row2, col1, decor);
         if decor.is_ext() && row1 < buf.b_ml.ml_line_count {
             let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
@@ -701,7 +704,7 @@ pub fn buf_remove_decor_sh(
             if buf_meta_total(&*buf, kMTMetaSignText) != 0 {
                 buf_signcols_count_range(buf, row1, row2, -1, kFalse);
             } else {
-                may_force_numberwidth_recompute(buf, true);
+                may_force_numberwidth_recompute(&mut *buf, true);
                 buf.b_signcols.count[0] = 0;
                 buf.b_signcols.max = 0;
             }
@@ -847,7 +850,8 @@ pub fn decor_find_virttext(buf: &mut buf_T, row: c_int, ns_id: u64) -> *mut Deco
     }
 }
 
-pub fn decor_redraw_reset(wp: *mut win_T, state: &mut DecorState) -> bool {
+pub fn decor_redraw_reset(wp: &mut win_T, state: &mut DecorState) -> bool {
+    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         state.row = -1;
         state.win = wp;
@@ -931,7 +935,8 @@ fn decor_state_pack(state: &mut DecorState) {
         state.future_begin = fut_beg;
 }
 
-pub fn decor_redraw_line(wp: *mut win_T, row: c_int, state: &mut DecorState) {
+pub fn decor_redraw_line(wp: &mut win_T, row: c_int, state: &mut DecorState) {
+    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         decor_state_pack(state);
 
@@ -1601,14 +1606,14 @@ pub fn buf_signcols_count_range(
 }
 
 #[inline]
-pub fn decor_redraw_col(
-    wp: *mut win_T,
+pub fn decor_redraw_col(wp: &mut win_T,
     col: c_int,
     win_col: c_int,
     hidden: bool,
     state: &mut DecorState,
     max_col_last: c_int,
 ) -> c_int {
+    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         if col <= state.col_last {
             return state.current;
@@ -1617,14 +1622,14 @@ pub fn decor_redraw_col(
     }
 }
 
-pub fn decor_redraw_eol(
-    wp: *mut win_T,
+pub fn decor_redraw_eol(wp: &mut win_T,
     state: &mut DecorState,
     eol_attr: &mut c_int,
     eol_col: c_int,
 ) -> bool {
+    let wp: *mut win_T = &raw mut *wp;
     unsafe {
-        decor_redraw_col(wp, MAXCOL, MAXCOL, false, state, MAXCOL);
+        decor_redraw_col(&mut *wp, MAXCOL, MAXCOL, false, state, MAXCOL);
         state.eol_col = eol_col;
 
         let count = state.current_end;
@@ -1649,12 +1654,12 @@ fn decor_virt_line_wrap(wp: &mut win_T, overflow: VirtLineOverflow) -> bool {
             || (overflow == kVLOverflowAuto && wp.w_onebuf_opt.wo_wrap != 0)
 }
 
-pub fn decor_virt_line_rows(
-    wp: *mut win_T,
+pub fn decor_virt_line_rows(wp: &mut win_T,
     vl: &VirtLine,
     target_row: c_int,
     skip_cells: *mut c_int,
 ) -> c_int {
+    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         if !skip_cells.is_null() {
             *skip_cells = 0;
@@ -1755,7 +1760,7 @@ pub fn decor_virt_lines(
                             if decor_virt_line_wrap(wp, virt_lines[0].overflow) {
                                 for item in virt_lines {
                                     let rows = decor_virt_line_rows(
-                                        wp,
+                                        &mut *wp,
                                         item,
                                         0,
                                         ptr::null_mut(),
@@ -1789,12 +1794,12 @@ pub fn decor_virt_lines(
     }
 }
 
-pub fn decor_to_dict_legacy(
-    dict: *mut Dict,
+pub fn decor_to_dict_legacy(dict: &mut Dict,
     decor: DecorInline,
     hl_name: bool,
     arena: &mut Arena,
 ) {
+    let dict: *mut Dict = &raw mut *dict;
     unsafe {
         let inline_sh;
         let mut sh_hl = &DECOR_SIGN_HIGHLIGHT_INIT;

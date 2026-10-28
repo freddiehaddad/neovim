@@ -56,7 +56,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
             let len = spell_check(
                 *curwin.as_ptr(),
                 str_.cast_mut(),
-                &raw mut attr,
+                &mut attr,
                 &raw mut capcol,
                 false,
             );

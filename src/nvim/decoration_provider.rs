@@ -186,13 +186,13 @@ fn decor_provider_invoke(
     }
 }
 
-pub fn decor_providers_invoke_spell(
-    wp: *mut win_T,
+pub fn decor_providers_invoke_spell(wp: &mut win_T,
     start_row: c_int,
     start_col: c_int,
     end_row: c_int,
     end_col: c_int,
 ) {
+    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         let mut i = 0usize;
         while i < providers_mut().len() {

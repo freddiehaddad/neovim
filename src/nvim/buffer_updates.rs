@@ -322,8 +322,7 @@ pub fn buf_updates_send_changes(
     }
 }
 
-pub fn buf_updates_send_splice(
-    buf: *mut buf_T,
+pub fn buf_updates_send_splice(buf: &mut buf_T,
     start_row: c_int,
     start_col: colnr_T,
     start_byte: bcount_t,
@@ -334,6 +333,7 @@ pub fn buf_updates_send_splice(
     new_col: colnr_T,
     new_byte: bcount_t,
 ) {
+    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         if !buf_updates_active(&mut *buf) || (old_byte == 0 && new_byte == 0) {
             return;

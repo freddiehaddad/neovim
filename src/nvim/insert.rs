@@ -1424,7 +1424,7 @@ pub fn ins_redraw(ready: bool) {
         {
             let mut aco = CtxSwitch::new();
             let tick = buf_get_changedtick(&*g_st().curbuf);
-            ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
+            ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
             apply_autocmds(
                 EVENT_TEXTCHANGEDI,
                 ptr::null_mut(),
@@ -1446,7 +1446,7 @@ pub fn ins_redraw(ready: bool) {
         {
             let mut aco = CtxSwitch::new();
             let tick = buf_get_changedtick(&*g_st().curbuf);
-            ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
+            ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
             apply_autocmds(
                 EVENT_TEXTCHANGEDP,
                 ptr::null_mut(),
