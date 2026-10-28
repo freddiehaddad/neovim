@@ -1991,19 +1991,20 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
 
 /// `menu_info()` function (`f_menu_info`).
 pub fn f_menu_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_dict_alloc_ret(rettv);
         let retdict = rettv.vval.v_dict();
 
-        let menu_name = tv_get_string_chk(argvars);
+        let menu_name = tv_get_string_chk(&argvars_slice[0]);
         if menu_name.is_null() {
             return;
         }
 
         let which = if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
-            tv_get_string_chk(argvars.add(1))
+            tv_get_string_chk(&argvars_slice[1])
         } else {
             c"".as_ptr()
         };

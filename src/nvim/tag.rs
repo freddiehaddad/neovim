@@ -3536,7 +3536,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> c_int {
         if !di_curidx.is_null() {
             tagstack_set_curidx(
                 wp,
-                tv_get_number(&raw const (*di_curidx).di_tv) as c_int - 1,
+                tv_get_number(&(*di_curidx).di_tv) as c_int - 1,
             );
         }
 

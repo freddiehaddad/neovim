@@ -7599,10 +7599,9 @@ pub fn cmd_exists(name: *const c_char) -> c_int {
 }
 
 pub fn f_fullcommand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
-        let mut name = tv_get_string(argvars).cast_mut();
+        let mut name = tv_get_string(&argvars[0]).cast_mut();
 
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -9218,14 +9217,14 @@ fn ex_restart(eap: &mut exarg_T) {
             (*l).lv_first
         };
         while !li.is_null() {
-            let arg = tv_get_string(&raw const (*li).li_tv);
+            let arg = tv_get_string(&(*li).li_tv);
             let i = argv_vec.len();
             if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--")) {
                 break;
             }
             if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"-S")) {
                 if !(*li).li_next.is_null() {
-                    let next_arg = tv_get_string(&raw const (*(*li).li_next).li_tv);
+                    let next_arg = tv_get_string(&(*(*li).li_next).li_tv);
                     if *next_arg != b'-' as c_char {
                         li = (*li).li_next;
                     }
@@ -9243,7 +9242,7 @@ fn ex_restart(eap: &mut exarg_T) {
             if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--listen")) {
                 let next_li = (*li).li_next;
                 if !next_li.is_null() {
-                    let addr = tv_get_string(&raw const (*next_li).li_tv);
+                    let addr = tv_get_string(&(*next_li).li_tv);
                     if CStr::from_ptr(addr)
                         .to_bytes()
                         .iter()

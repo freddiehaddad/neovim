@@ -3858,7 +3858,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     }
                     let mut error = false;
                     let first_li = tv_list_first(l);
-                    let start = tv_get_number_chk(&raw const (*first_li).li_tv, &mut error);
+                    let start = tv_get_number_chk(&(*first_li).li_tv, &mut error);
                     if error {
                         break 'color_cmdline_error;
                     } else if !(prev_end <= start
@@ -3901,7 +3901,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         });
                     }
                     let second_li = (*first_li).li_next;
-                    let end = tv_get_number_chk(&raw const (*second_li).li_tv, &mut error);
+                    let end = tv_get_number_chk(&(*second_li).li_tv, &mut error);
                     if error {
                         break 'color_cmdline_error;
                     } else if !(start < end && end <= colored_ccline.cmdlen as varnumber_T) {
@@ -3937,7 +3937,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     }
                     prev_end = end;
                     let last_li = tv_list_last(l);
-                    let group = tv_get_string_chk(&raw const (*last_li).li_tv);
+                    let group = tv_get_string_chk(&(*last_li).li_tv);
                     if group.is_null() {
                         break 'color_cmdline_error;
                     }
@@ -4956,7 +4956,7 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
 
-            pos = (tv_get_number_chk(argvars.add(1), &mut error) - 1) as c_int;
+            pos = (tv_get_number_chk(&argvars_slice[1], &mut error) - 1) as c_int;
             if error {
                 return;
             }
@@ -4966,16 +4966,14 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             }
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_str(tv_get_string(argvars), pos) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_str(tv_get_string(&argvars_slice[0]), pos) as varnumber_T);
     }
 }
 
 /// `"setcmdpos()"` function.
 pub fn f_setcmdpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    let pos = (tv_get_number(argvars) - 1) as c_int;
+    let pos = (tv_get_number(&argvars[0]) - 1) as c_int;
 
         if pos >= 0 {
             rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_pos(pos) as varnumber_T);
@@ -5208,7 +5206,7 @@ pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CStri
         let mut li = tv_list_first(l);
         while !li.is_null() {
             if eap.skip == 0 {
-                let s = tv_get_string(&raw const (*li).li_tv);
+                let s = tv_get_string(&(*li).li_tv);
                 if !s.is_null() {
                     buf.extend_from_slice(CStr::from_ptr(s).to_bytes());
                 }
@@ -5232,7 +5230,8 @@ pub fn get_user_input(argvars: &[typval_T],
     inputdialog: bool,
     secret: bool,
 ) {
-    let argvars: *const typval_T = argvars.as_ptr();
+    let argvars_slice: &[typval_T] = argvars;
+    let argvars: *const typval_T = argvars_slice.as_ptr();
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -5303,18 +5302,18 @@ pub fn get_user_input(argvars: &[typval_T],
                 return;
             }
         } else {
-            prompt = tv_get_string_buf_chk(argvars, prompt_buf.as_mut_ptr());
+            prompt = tv_get_string_buf_chk(&argvars_slice[0], prompt_buf.as_mut_ptr());
             if prompt.is_null() {
                 return;
             }
             if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
-                defstr = tv_get_string_buf_chk(argvars.add(1), defstr_buf.as_mut_ptr());
+                defstr = tv_get_string_buf_chk(&argvars_slice[1], defstr_buf.as_mut_ptr());
                 if defstr.is_null() {
                     return;
                 }
                 if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
                     let strarg2 =
-                        tv_get_string_buf_chk(argvars.add(2), cancelreturn_buf.as_mut_ptr());
+                        tv_get_string_buf_chk(&argvars_slice[2], cancelreturn_buf.as_mut_ptr());
                     if strarg2.is_null() {
                         return;
                     }

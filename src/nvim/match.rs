@@ -234,7 +234,7 @@ fn match_add(
                         failed = true;
                         break;
                     }
-                    lnum = tv_get_number_chk(&raw const (*subli).li_tv, &mut error) as linenr_T;
+                    lnum = tv_get_number_chk(&(*subli).li_tv, &mut error) as linenr_T;
                     if error {
                         failed = true;
                         break;
@@ -247,7 +247,7 @@ fn match_add(
                     subli = (*subli).li_next;
                     if !subli.is_null() {
                         col =
-                            tv_get_number_chk(&raw const (*subli).li_tv, &mut error) as colnr_T;
+                            tv_get_number_chk(&(*subli).li_tv, &mut error) as colnr_T;
                         if error {
                             failed = true;
                             break;
@@ -258,7 +258,7 @@ fn match_add(
                         }
                         subli = (*subli).li_next;
                         if !subli.is_null() {
-                            len = tv_get_number_chk(&raw const (*subli).li_tv, &mut error)
+                            len = tv_get_number_chk(&(*subli).li_tv, &mut error)
                                 as colnr_T;
                             if len < 0 {
                                 li = (*li).li_next;
@@ -942,7 +942,7 @@ fn matchadd_dict_arg(
 
         let di = tv_dict_find(tv.vval.v_dict(), c"conceal".as_ptr(), 7);
         if !di.is_null() {
-            *conceal_char = tv_get_string(&raw const (*di).di_tv);
+            *conceal_char = tv_get_string(&(*di).di_tv);
         }
 
         let di = tv_dict_find(tv.vval.v_dict(), c"window".as_ptr(), 6);
@@ -1112,7 +1112,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             let id = tv_dict_get_number(d, c"id".as_ptr()) as c_int;
             let conceal_di = tv_dict_find(d, c"conceal".as_ptr(), 7);
             let conceal = if !conceal_di.is_null() {
-                tv_get_string(&raw const (*conceal_di).di_tv)
+                tv_get_string(&(*conceal_di).di_tv)
             } else {
                 ptr::null()
             };
@@ -1138,13 +1138,14 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// `matchadd()` function (`f_matchadd`).
 pub fn f_matchadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut grpbuf = [0 as c_char; NUMBUFLEN];
         let mut patbuf = [0 as c_char; NUMBUFLEN];
-        let grp = tv_get_string_buf_chk(argvars, grpbuf.as_mut_ptr());
-        let pat = tv_get_string_buf_chk(argvars.add(1), patbuf.as_mut_ptr());
+        let grp = tv_get_string_buf_chk(&argvars_slice[0], grpbuf.as_mut_ptr());
+        let pat = tv_get_string_buf_chk(&argvars_slice[1], patbuf.as_mut_ptr());
         let mut prio: c_int = 10;
         let mut id: c_int = -1;
         let mut error = false;
@@ -1157,9 +1158,9 @@ pub fn f_matchadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             return;
         }
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            prio = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
+            prio = tv_get_number_chk(&argvars_slice[2], &mut error) as c_int;
             if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
-                id = tv_get_number_chk(argvars.add(3), &mut error) as c_int;
+                id = tv_get_number_chk(&argvars_slice[3], &mut error) as c_int;
                 if (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN
                     && matchadd_dict_arg(&mut *argvars.add(4), &raw mut conceal_char, &raw mut win)
                         == FAIL
@@ -1185,13 +1186,14 @@ pub fn f_matchadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// `matchaddpos()` function (`f_matchaddpos`).
 pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let mut buf = [0 as c_char; NUMBUFLEN];
-        let group = tv_get_string_buf_chk(argvars, buf.as_mut_ptr());
+        let group = tv_get_string_buf_chk(&argvars_slice[0], buf.as_mut_ptr());
         if group.is_null() {
             return;
         }
@@ -1216,9 +1218,9 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         let mut win = *curwin.as_ptr();
 
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            prio = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
+            prio = tv_get_number_chk(&argvars_slice[2], &mut error) as c_int;
             if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
-                id = tv_get_number_chk(argvars.add(3), &mut error) as c_int;
+                id = tv_get_number_chk(&argvars_slice[3], &mut error) as c_int;
                 if (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN
                     && matchadd_dict_arg(&mut *argvars.add(4), &raw mut conceal_char, &raw mut win)
                         == FAIL
@@ -1245,10 +1247,9 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// `matcharg()` function (`f_matcharg`).
 pub fn f_matcharg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
-        let id = tv_get_number(argvars) as c_int;
+        let id = tv_get_number(&argvars[0]) as c_int;
 
         tv_list_alloc_ret(rettv, if (1..=3).contains(&id) { 2 } else { 0 });
 
@@ -1273,15 +1274,13 @@ pub fn f_matcharg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// `matchdelete()` function (`f_matchdelete`).
 pub fn f_matchdelete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        let win = get_optional_window(argvars_slice, 1);
+        let win = get_optional_window(argvars, 1);
         rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
             -1
         } else {
-            match_delete(&mut *win, tv_get_number(argvars) as c_int, true) as varnumber_T
+            match_delete(&mut *win, tv_get_number(&argvars[0]) as c_int, true) as varnumber_T
         });
     }
 }

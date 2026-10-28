@@ -1961,7 +1961,7 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
                     }
                 }
                 n = varnumber_T::from(safe_vgetc());
-            } else if tv_get_bool_chk(argvars, &mut error) != 0 {
+            } else if tv_get_bool_chk(&argvars_slice[0], &mut error) != 0 {
                 n = varnumber_T::from(vpeekc_any());
             } else if error || vpeekc_any() == NUL {
                 n = 0;

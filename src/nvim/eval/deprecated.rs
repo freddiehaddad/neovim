@@ -29,7 +29,6 @@ const fn callback_reader_init() -> CallbackReader {
 
 /// `"rpcstart()"` function (`f_rpcstart`).
 pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_NUMBER;
@@ -39,8 +38,8 @@ pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             return;
         }
 
-        let arg0 = &*argvars;
-        let arg1 = &*argvars.add(1);
+        let arg0 = &argvars[0];
+        let arg1 = &argvars[1];
         if arg0.v_type != VarType::VAR_STRING
             || (arg1.v_type != VarType::VAR_LIST && arg1.v_type != VarType::VAR_UNKNOWN)
         {

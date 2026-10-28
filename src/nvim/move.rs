@@ -1219,7 +1219,8 @@ pub fn textpos2screenpos(
 
 /// `"screenpos({winid}, {lnum}, {col})"` function.
 pub fn f_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_dict_alloc_ret(rettv);
@@ -1231,8 +1232,8 @@ pub fn f_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         }
 
         let mut pos = pos_T {
-            lnum: tv_get_number(argvars.add(1)) as linenr_T,
-            col: (tv_get_number(argvars.add(2)) as colnr_T - 1).max(0),
+            lnum: tv_get_number(&argvars_slice[1]) as linenr_T,
+            col: (tv_get_number(&argvars_slice[2]) as colnr_T - 1).max(0),
             coladd: 0,
         };
         if pos.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
@@ -1308,12 +1309,12 @@ pub fn f_virtcol2col(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         }
 
         let mut error = false;
-        let lnum = tv_get_number_chk(argvars.add(1), &mut error) as linenr_T;
+        let lnum = tv_get_number_chk(&argvars_slice[1], &mut error) as linenr_T;
         if error || lnum < 0 || lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
             return;
         }
 
-        let screencol = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
+        let screencol = tv_get_number_chk(&argvars_slice[2], &mut error) as c_int;
         if error || screencol < 0 {
             return;
         }

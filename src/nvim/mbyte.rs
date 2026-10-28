@@ -3126,40 +3126,35 @@ fn iconv_string(
     }
 }
 
-pub fn f_iconv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+pub fn f_iconv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+    rettv.v_type = VarType::VAR_STRING;
+    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-    unsafe {
-        rettv.v_type = VarType::VAR_STRING;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    let str_ = tv_get_string(&argvars[0]);
+    let mut buf1 = [0 as c_char; NUMBUFLEN];
+    let from = enc_canonize(enc_skip(
+        tv_get_string_buf(&argvars[1], buf1.as_mut_ptr()).cast_mut(),
+    ));
+    let mut buf2 = [0 as c_char; NUMBUFLEN];
+    let to = enc_canonize(enc_skip(
+        tv_get_string_buf(&argvars[2], buf2.as_mut_ptr()).cast_mut(),
+    ));
+    let mut vimconv = vimconv_T {
+        vc_type: CONV_NONE,
+        vc_factor: 1,
+        vc_fd: None,
+        vc_fail: false,
+    };
+    convert_setup(
+        &mut vimconv,
+        from.as_ptr().cast_mut(),
+        to.as_ptr().cast_mut(),
+    );
 
-        let str_ = tv_get_string(argvars);
-        let mut buf1 = [0 as c_char; NUMBUFLEN];
-        let from = enc_canonize(enc_skip(
-            tv_get_string_buf(argvars.add(1), buf1.as_mut_ptr()).cast_mut(),
-        ));
-        let mut buf2 = [0 as c_char; NUMBUFLEN];
-        let to = enc_canonize(enc_skip(
-            tv_get_string_buf(argvars.add(2), buf2.as_mut_ptr()).cast_mut(),
-        ));
-        let mut vimconv = vimconv_T {
-            vc_type: CONV_NONE,
-            vc_factor: 1,
-            vc_fd: None,
-            vc_fail: false,
-        };
-        convert_setup(
-            &mut vimconv,
-            from.as_ptr().cast_mut(),
-            to.as_ptr().cast_mut(),
-        );
-
-        if vimconv.vc_type == CONV_NONE {
-            crate::eval::typval::tv_set_string(rettv, str_);
-        } else if let Some(conv_bytes) = string_convert(&vimconv, str_.cast_mut(), ptr::null_mut())
-        {
-            crate::eval::typval::tv_set_string(rettv, conv_bytes.as_ptr().cast());
-        }
+    if vimconv.vc_type == CONV_NONE {
+        crate::eval::typval::tv_set_string(rettv, str_);
+    } else if let Some(conv_bytes) = string_convert(&vimconv, str_.cast_mut(), ptr::null_mut()) {
+        crate::eval::typval::tv_set_string(rettv, conv_bytes.as_ptr().cast());
     }
 }
 
@@ -3393,7 +3388,8 @@ fn first_list_number(l: &list_T) -> varnumber_T {
 }
 
 pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST || (*argvars).vval.v_list().is_null() {

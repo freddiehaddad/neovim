@@ -76,7 +76,7 @@ fn filter_map_one(
         }
         if filtermap == FilterMap::Filter {
             let mut error = false;
-            *remp = tv_get_number_chk(newtv, &mut error) == 0;
+            *remp = tv_get_number_chk(&*newtv, &mut error) == 0;
             tv_clear(newtv);
             if error {
                 tv_clear(get_vim_var_tv(VV_VAL));
@@ -384,7 +384,8 @@ fn filter_map_list(
 }
 
 fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMap) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let (func_name, arg_errmsg) = match filtermap {
@@ -394,9 +395,9 @@ fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMa
             FilterMap::ForEach => (c"foreach()".as_ptr(), c"foreach() argument".as_ptr()),
         };
 
-        let arg0 = &*argvars;
+        let arg0 = &argvars_slice[0];
         if filtermap != FilterMap::MapNew && arg0.v_type != VarType::VAR_STRING {
-            tv_copy(&*argvars, &mut *rettv);
+            tv_copy(&argvars_slice[0], &mut *rettv);
         }
 
         if !matches!(
@@ -439,7 +440,7 @@ fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMa
                 filter_map_blob(arg0.vval.v_blob(), filtermap, expr, arg_errmsg, &mut *rettv);
             }
             VarType::VAR_STRING => {
-                filter_map_string(tv_get_string(argvars), filtermap, expr, &mut *rettv);
+                filter_map_string(tv_get_string(&argvars_slice[0]), filtermap, expr, &mut *rettv);
             }
             VarType::VAR_LIST => {
                 filter_map_list(arg0.vval.v_list(), filtermap, arg_errmsg, expr, &mut *rettv);
@@ -476,16 +477,17 @@ pub fn f_foreach(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 /// `"add(list, item)"` function (`f_add`).
 pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
-        let arg0 = &*argvars;
+        let arg0 = &argvars_slice[0];
         if arg0.v_type == VarType::VAR_LIST {
             let l = arg0.vval.v_list();
             if !value_check_lock(tv_list_locked(l), c"add() argument".as_ptr(), TV_TRANSLATE) {
                 tv_list_append_tv(l, argvars.add(1));
-                tv_copy(&*argvars, rettv);
+                tv_copy(&argvars_slice[0], rettv);
             }
         } else if arg0.v_type == VarType::VAR_BLOB {
             let b = arg0.vval.v_blob();
@@ -493,11 +495,11 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 && !value_check_lock((*b).bv_lock, c"add() argument".as_ptr(), TV_TRANSLATE)
             {
                 let mut error = false;
-                let n = tv_get_number_chk(argvars.add(1), &mut error);
+                let n = tv_get_number_chk(&argvars_slice[1], &mut error);
                 if !error {
                     let bv = &mut (*b).bv_ga;
                     bv.push(n as u8);
-                    tv_copy(&*argvars, rettv);
+                    tv_copy(&argvars_slice[0], rettv);
                 }
             }
         } else {
@@ -589,24 +591,25 @@ fn count_dict(d: *mut dict_T, needle: &typval_T, ic: bool) -> i64 {
 
 /// `"count()"` function (`f_count`).
 pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut n: i64 = 0;
         let mut ic = false;
         let mut error = false;
 
-        let arg0 = &*argvars;
+        let arg0 = &argvars_slice[0];
         let arg1 = argvars.add(1);
-        let arg2 = &*argvars.add(2);
-        let arg3 = &*argvars.add(3);
+        let arg2 = &argvars_slice[2];
+        let arg3 = &argvars_slice[3];
 
         if arg2.v_type != VarType::VAR_UNKNOWN {
             ic = tv_get_bool_chk(arg2, &mut error) != 0;
         }
 
         if !error && arg0.v_type == VarType::VAR_STRING {
-            n = count_string(arg0.vval.v_string(), tv_get_string_chk(arg1), ic);
+            n = count_string(arg0.vval.v_string(), tv_get_string_chk(&*arg1), ic);
         } else if !error && arg0.v_type == VarType::VAR_LIST {
             let mut idx: i64 = 0;
             if arg2.v_type != VarType::VAR_UNKNOWN && arg3.v_type != VarType::VAR_UNKNOWN {
@@ -639,7 +642,8 @@ fn extend_dict(argvars: &mut [typval_T],
     is_new: bool,
     rettv: &mut typval_T,
 ) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut d1 = (*argvars).vval.v_dict();
         if d1.is_null() {
@@ -662,7 +666,7 @@ fn extend_dict(argvars: &mut [typval_T],
         let d2 = (*argvars.add(1)).vval.v_dict();
         if !d2.is_null() {
             let mut action = c"force".as_ptr();
-            let arg2 = &*argvars.add(2);
+            let arg2 = &argvars_slice[2];
             if arg2.v_type != VarType::VAR_UNKNOWN {
                 action = tv_get_string_chk(arg2);
                 if action.is_null() {
@@ -690,7 +694,7 @@ fn extend_dict(argvars: &mut [typval_T],
                 vval: TypvalVval::Dict(d1),
             };
         } else {
-            tv_copy(&*argvars, &mut *rettv);
+            tv_copy(&argvars_slice[0], &mut *rettv);
         }
     }
 }
@@ -700,7 +704,8 @@ fn extend_list(argvars: &mut [typval_T],
     is_new: bool,
     rettv: &mut typval_T,
 ) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut error = false;
         let mut l1 = (*argvars).vval.v_list();
@@ -719,7 +724,7 @@ fn extend_list(argvars: &mut [typval_T],
         let l2 = (*argvars.add(1)).vval.v_list();
         if !l2.is_null() {
             let mut item: *mut listitem_T = std::ptr::null_mut();
-            let arg2 = &*argvars.add(2);
+            let arg2 = &argvars_slice[2];
             if arg2.v_type != VarType::VAR_UNKNOWN {
                 let before = tv_get_number_chk(arg2, &mut error) as c_int;
                 if error {
@@ -749,7 +754,7 @@ fn extend_list(argvars: &mut [typval_T],
                 vval: TypvalVval::List(l1),
             };
         } else {
-            tv_copy(&*argvars, &mut *rettv);
+            tv_copy(&argvars_slice[0], &mut *rettv);
         }
     }
 }
@@ -793,11 +798,12 @@ pub fn f_extendnew(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// `"insert()"` function (`f_insert`).
 pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut error = false;
-        let arg0 = &*argvars;
+        let arg0 = &argvars_slice[0];
         let arg1 = argvars.add(1);
         let arg2 = argvars.add(2);
 
@@ -813,21 +819,21 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             let len = tv_blob_len(b);
 
             if (*arg2).v_type != VarType::VAR_UNKNOWN {
-                before = tv_get_number_chk(arg2, &mut error) as c_int;
+                before = tv_get_number_chk(&*arg2, &mut error) as c_int;
                 if error {
                     return;
                 }
                 if before < 0 || before > len {
-                    semsg!(e_invarg2.as_ptr(), tv_get_string(arg2));
+                    semsg!(e_invarg2.as_ptr(), tv_get_string(&*arg2));
                     return;
                 }
             }
-            let val = tv_get_number_chk(arg1, &mut error) as c_int;
+            let val = tv_get_number_chk(&*arg1, &mut error) as c_int;
             if error {
                 return;
             }
             if !(0..=255).contains(&val) {
-                semsg!(e_invarg2.as_ptr(), tv_get_string(arg1));
+                semsg!(e_invarg2.as_ptr(), tv_get_string(&*arg1));
                 return;
             }
 
@@ -835,7 +841,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             let bv = &mut (*b).bv_ga;
             bv.insert(before as usize, val as u8);
 
-            tv_copy(&*argvars, rettv);
+            tv_copy(&argvars_slice[0], rettv);
         } else if arg0.v_type != VarType::VAR_LIST {
             semsg!(e_listblobarg.as_ptr(), c"insert()".as_ptr());
         } else {
@@ -850,7 +856,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
             let mut before: i64 = 0;
             if (*arg2).v_type != VarType::VAR_UNKNOWN {
-                before = tv_get_number_chk(arg2, &mut error);
+                before = tv_get_number_chk(&*arg2, &mut error);
             }
             if error {
                 return;
@@ -866,7 +872,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             }
             if !l.is_null() {
                 tv_list_insert_tv(l, arg1, item);
-                tv_copy(&*argvars, rettv);
+                tv_copy(&argvars_slice[0], rettv);
             }
         }
     }
@@ -892,15 +898,13 @@ pub fn f_remove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 /// `"reverse({list})"` function (`f_reverse`).
 pub fn f_reverse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_string_or_list_or_blob_arg(argvars_slice, 0) == FAIL {
+        if tv_check_for_string_or_list_or_blob_arg(argvars, 0) == FAIL {
             return;
         }
 
-        let arg0 = &*argvars;
+        let arg0 = &argvars[0];
         if arg0.v_type == VarType::VAR_BLOB {
             let b = arg0.vval.v_blob();
             let len = tv_blob_len(b);

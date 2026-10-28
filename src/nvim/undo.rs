@@ -3004,11 +3004,10 @@ fn u_eval_tree(buf: &mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
 
 /// `"undofile(name)"` function.
 pub fn f_undofile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
         crate::eval::typval::tv_set_string(rettv, ptr::null());
-        let fname = tv_get_string(argvars);
+        let fname = tv_get_string(&argvars[0]);
 
         if *fname != NUL
             && let Some(ffname) = FullName_save(fname, true)
@@ -3021,7 +3020,8 @@ pub fn f_undofile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// `"undotree(expr)"` function.
 pub fn f_undotree(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_dict_alloc_ret(rettv);

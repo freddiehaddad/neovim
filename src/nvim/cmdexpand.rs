@@ -5809,10 +5809,10 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         if tv_check_for_string_arg(argvars_slice, 1) == FAIL {
             return;
         }
-        let type_str = tv_get_string(argvars.add(1));
+        let type_str = tv_get_string(&argvars_slice[1]);
 
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            filtered = tv_get_bool_chk(argvars.add(2), ptr::null_mut()) != 0;
+            filtered = tv_get_bool_chk(&argvars_slice[2], ptr::null_mut()) != 0;
         }
 
         if opt_vars().p_wic != 0 {
@@ -5824,12 +5824,12 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         }
 
         if (*argvars).v_type != VarType::VAR_STRING {
-            if !tv_get_string_chk(argvars).is_null() {
+            if !tv_get_string_chk(&argvars_slice[0]).is_null() {
                 emsg(gettext(e_invarg.as_ptr()));
             }
             return;
         }
-        let pattern = tv_get_string(argvars);
+        let pattern = tv_get_string(&argvars_slice[0]);
         let mut pattern_start = pattern;
 
         if std::ffi::CStr::from_ptr(type_str).to_bytes() == b"cmdline" {
@@ -5938,18 +5938,16 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 /// "getcompletiontype()" function.
 pub fn f_getcompletiontype(argvars: &mut [typval_T], rettv: &mut typval_T,
     _fptr: EvalFuncData,){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-        if tv_check_for_string_arg(argvars_slice, 0) == FAIL {
+        if tv_check_for_string_arg(argvars, 0) == FAIL {
             return;
         }
 
-        let pat = tv_get_string(argvars);
+        let pat = tv_get_string(&argvars[0]);
         let mut xpc: expand_T = expand_T::new();
 
         let cmdline_len = std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int;

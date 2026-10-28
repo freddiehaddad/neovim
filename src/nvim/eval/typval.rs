@@ -1517,7 +1517,8 @@ pub fn tv_list_flatten(
 
 /// "items(blob)" function.
 fn tv_blob2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let blob = (*argvars).vval.v_blob();
 
@@ -1539,7 +1540,8 @@ fn tv_dict2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
 
 /// "items(list)" function.
 fn tv_list2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let l = (*argvars).vval.v_list();
 
@@ -1563,7 +1565,8 @@ fn tv_list2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
 
 /// "items(string)" function.
 fn tv_string2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut p: *const c_char = (*argvars).vval.v_string();
 
@@ -1775,7 +1778,8 @@ pub fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_char) -
 
 /// "join()" function.
 pub fn f_join(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
@@ -1785,7 +1789,7 @@ pub fn f_join(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
         let sep = if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
             c" ".as_ptr()
         } else {
-            tv_get_string_chk(argvars.add(1))
+            tv_get_string_chk(&argvars_slice[1])
         };
 
         rettv.v_type = VarType::VAR_STRING;
@@ -1802,7 +1806,8 @@ pub fn f_join(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 
 /// "list2str()" function.
 pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
@@ -1822,7 +1827,7 @@ pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
         let mut li = (*l).lv_first;
         while !li.is_null() {
-            let n = tv_get_number(&raw const (*li).li_tv);
+            let n = tv_get_number(&(*li).li_tv);
             let buflen = utf_char2bytes(n as c_int, buf.as_mut_ptr()) as usize;
             buf[buflen] = NUL;
             out.extend_from_slice(&buf[..buflen]);
@@ -1837,7 +1842,8 @@ pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let l = (*argvars).vval.v_list();
@@ -1846,7 +1852,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
         }
 
         let mut error = false;
-        let idx = tv_get_number_chk(argvars.add(1), &mut error);
+        let idx = tv_get_number_chk(&argvars_slice[1], &mut error);
 
         if error {
             return;
@@ -1859,7 +1865,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
             *rettv = std::mem::replace(&mut (*item).li_tv, tv_initial_value());
             drop(Box::from_raw(item));
         } else {
-            let end = tv_get_number_chk(argvars.add(2), &mut error);
+            let end = tv_get_number_chk(&argvars_slice[2], &mut error);
             if error {
                 return;
             }
@@ -1907,12 +1913,12 @@ fn item_compare(
             let v1 = if info.item_compare_keys_ready {
                 si1.key.as_int()
             } else {
-                tv_get_number(tv1)
+                tv_get_number(&*tv1)
             };
             let v2 = if info.item_compare_keys_ready {
                 si2.key.as_int()
             } else {
-                tv_get_number(tv2)
+                tv_get_number(&*tv2)
             };
 
             res = if v1 == v2 {
@@ -1932,12 +1938,12 @@ fn item_compare(
             let v1 = if info.item_compare_keys_ready {
                 si1.key.as_float()
             } else {
-                tv_get_float(tv1)
+                tv_get_float(&*tv1)
             };
             let v2 = if info.item_compare_keys_ready {
                 si2.key.as_float()
             } else {
-                tv_get_float(tv2)
+                tv_get_float(&*tv2)
             };
 
             res = if v1 == v2 {
@@ -2080,7 +2086,7 @@ fn item_compare2(
             res = ITEM_COMPARE_FAIL;
             info.item_compare_func_err = true;
         } else {
-            let n = tv_get_number_chk(&raw const rettv, &raw mut info.item_compare_func_err);
+            let n = tv_get_number_chk(&rettv, &raw mut info.item_compare_func_err);
             res = if n > 0 {
                 1
             } else if n < 0 {
@@ -2106,11 +2112,11 @@ fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut sortinfo_T) {
     unsafe {
         if info.item_compare_numbers {
             for si in ptrs.iter_mut() {
-                si.key = ListSortKey::Int(tv_get_number(&raw const (*si.item).li_tv));
+                si.key = ListSortKey::Int(tv_get_number(&(*si.item).li_tv));
             }
         } else if info.item_compare_float {
             for si in ptrs.iter_mut() {
-                si.key = ListSortKey::Float(tv_get_float(&raw const (*si.item).li_tv));
+                si.key = ListSortKey::Float(tv_get_float(&(*si.item).li_tv));
             }
         } else {
             for si in ptrs.iter_mut() {
@@ -2246,14 +2252,14 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
             info.item_compare_partial = (*argvars.add(1)).vval.v_partial();
         } else {
             let mut error = false;
-            let nr = tv_get_number_chk(argvars.add(1), &mut error) as c_int;
+            let nr = tv_get_number_chk(&argvars_slice[1], &mut error) as c_int;
             if error {
                 return FAIL;
             }
             if nr == 1 {
                 info.item_compare_ic = 1;
             } else if (*argvars.add(1)).v_type != VarType::VAR_NUMBER {
-                let s = tv_get_string(argvars.add(1));
+                let s = tv_get_string(&argvars_slice[1]);
                 if !s.is_null() {
                     info.item_compare_func = Some(CStr::from_ptr(s).to_owned());
                 }
@@ -2456,7 +2462,7 @@ pub fn tv_list_find_nr(l: *mut list_T, n: c_int, ret_error: *mut bool) -> varnum
             }
             return -1;
         }
-        tv_get_number_chk(&raw const (*li).li_tv, ret_error)
+        tv_get_number_chk(&(*li).li_tv, ret_error)
     }
 }
 
@@ -2468,7 +2474,7 @@ pub fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_char {
             semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(n));
             return ptr::null();
         }
-        tv_get_string(&raw const (*li).li_tv)
+        tv_get_string(&(*li).li_tv)
     }
 }
 
@@ -2960,7 +2966,7 @@ pub fn tv_dict_get_number_def(
         if di.is_null() {
             return i64::from(def);
         }
-        tv_get_number(&raw const (*di).di_tv)
+        tv_get_number(&(*di).di_tv)
     }
 }
 
@@ -2971,7 +2977,7 @@ pub fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> var
         if di.is_null() {
             return i64::from(def);
         }
-        tv_get_bool(&raw const (*di).di_tv)
+        tv_get_bool(&(*di).di_tv)
     }
 }
 
@@ -2988,7 +2994,7 @@ pub fn tv_dict_to_env(denv: *mut dict_T) -> Vec<std::ffi::CString> {
                 if !hashitem_empty(&*hi) {
                     todo -= 1;
                     let var = tv_dict_hi2di(hi);
-                    let str_ = tv_get_string(&raw const (*var).di_tv);
+                    let str_ = tv_get_string(&(*var).di_tv);
                     debug_assert!(!str_.is_null());
                     let key_bytes = CStr::from_ptr((*var).di_key.as_ptr()).to_bytes();
                     let val_bytes = CStr::from_ptr(str_).to_bytes();
@@ -3036,7 +3042,7 @@ pub fn tv_dict_get_string_buf(
         if di.is_null() {
             return ptr::null();
         }
-        tv_get_string_buf(&raw const (*di).di_tv, numbuf)
+        tv_get_string_buf(&(*di).di_tv, numbuf)
     }
 }
 
@@ -3053,7 +3059,7 @@ pub fn tv_dict_get_string_buf_chk(
         if di.is_null() {
             return def;
         }
-        tv_get_string_buf_chk(&raw const (*di).di_tv, numbuf)
+        tv_get_string_buf_chk(&(*di).di_tv, numbuf)
     }
 }
 
@@ -3708,7 +3714,8 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
     rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let b = (*argvars).vval.v_blob();
         if !b.is_null() && value_check_lock((*b).bv_lock, arg_errmsg, TV_TRANSLATE) {
@@ -3716,7 +3723,7 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
         }
 
         let mut error = false;
-        let mut idx = tv_get_number_chk(argvars.add(1), &mut error);
+        let mut idx = tv_get_number_chk(&argvars_slice[1], &mut error);
 
         if !error {
             let len = i64::from(tv_blob_len_inline(b));
@@ -3732,7 +3739,7 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
                 let removed = bv.remove(idx as usize);
                 rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(removed));
             } else {
-                let mut end = tv_get_number_chk(argvars.add(2), &mut error);
+                let mut end = tv_get_number_chk(&argvars_slice[2], &mut error);
                 if error {
                     return;
                 }
@@ -3799,7 +3806,7 @@ pub fn f_list2blob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         let mut li = (*l).lv_first;
         while !li.is_null() {
             let mut error = false;
-            let n = tv_get_number_chk(&raw const (*li).li_tv, &mut error);
+            let n = tv_get_number_chk(&(*li).li_tv, &mut error);
             if error || !(0..=255).contains(&n) {
                 if !error {
                     semsg!(tr(e_invalid_value_for_blob_nr.as_ptr()), n as c_int);
@@ -3931,7 +3938,7 @@ pub fn f_has_key(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(
-            !tv_dict_find((*argvars).vval.v_dict(), tv_get_string(argvars.add(1)), -1).is_null(),
+            !tv_dict_find((*argvars).vval.v_dict(), tv_get_string(&argvars_slice[1]), -1).is_null(),
         ));
     }
 }
@@ -3940,7 +3947,8 @@ pub fn f_has_key(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
@@ -3948,7 +3956,7 @@ pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
         } else {
             let d = (*argvars).vval.v_dict();
             if !d.is_null() && !value_check_lock((*d).dv_lock, arg_errmsg, TV_TRANSLATE) {
-                let key = tv_get_string_chk(argvars.add(1));
+                let key = tv_get_string_chk(&argvars_slice[1]);
                 if !key.is_null() {
                     let di = tv_dict_find(d, key, -1);
                     if di.is_null() {
@@ -4640,8 +4648,8 @@ pub fn tv_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
             VarType::VAR_STRING => {
                 let mut buf1: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
                 let mut buf2: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-                let s1 = tv_get_string_buf(tv1, buf1.as_mut_ptr());
-                let s2 = tv_get_string_buf(tv2, buf2.as_mut_ptr());
+                let s1 = tv_get_string_buf(&*tv1, buf1.as_mut_ptr());
+                let s2 = tv_get_string_buf(&*tv2, buf2.as_mut_ptr());
                 mb_strcmp_ic(ic, s1, s2) == 0
             }
             VarType::VAR_BOOL => (*tv1).vval.v_bool() == (*tv2).vval.v_bool(),
@@ -4652,57 +4660,55 @@ pub fn tv_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
 }
 
 /// Check that given value is a number or string.
-pub fn tv_check_str_or_nr(tv: *const typval_T) -> bool {
-    unsafe {
-        match (*tv).v_type {
-            VarType::VAR_NUMBER | VarType::VAR_STRING => true,
-            VarType::VAR_FLOAT => {
-                emsg(tr(
-                    c"E805: Expected a Number or a String, Float found".as_ptr()
-                ));
-                false
-            }
-            VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
-                emsg(tr(
-                    c"E703: Expected a Number or a String, Funcref found".as_ptr()
-                ));
-                false
-            }
-            VarType::VAR_LIST => {
-                emsg(tr(
-                    c"E745: Expected a Number or a String, List found".as_ptr()
-                ));
-                false
-            }
-            VarType::VAR_DICT => {
-                emsg(tr(
-                    c"E728: Expected a Number or a String, Dictionary found".as_ptr()
-                ));
-                false
-            }
-            VarType::VAR_BLOB => {
-                emsg(tr(
-                    c"E974: Expected a Number or a String, Blob found".as_ptr()
-                ));
-                false
-            }
-            VarType::VAR_BOOL => {
-                emsg(tr(
-                    c"E5299: Expected a Number or a String, Boolean found".as_ptr()
-                ));
-                false
-            }
-            VarType::VAR_SPECIAL => {
-                emsg(tr(c"E5300: Expected a Number or a String".as_ptr()));
-                false
-            }
-            VarType::VAR_UNKNOWN => {
-                semsg!(
-                    tr(e_intern2.as_ptr()),
-                    c"tv_check_str_or_nr(UNKNOWN)".as_ptr(),
-                );
-                false
-            }
+pub fn tv_check_str_or_nr(tv: &typval_T) -> bool {
+    match tv.v_type {
+        VarType::VAR_NUMBER | VarType::VAR_STRING => true,
+        VarType::VAR_FLOAT => {
+            emsg(tr(
+                c"E805: Expected a Number or a String, Float found".as_ptr()
+            ));
+            false
+        }
+        VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
+            emsg(tr(
+                c"E703: Expected a Number or a String, Funcref found".as_ptr()
+            ));
+            false
+        }
+        VarType::VAR_LIST => {
+            emsg(tr(
+                c"E745: Expected a Number or a String, List found".as_ptr()
+            ));
+            false
+        }
+        VarType::VAR_DICT => {
+            emsg(tr(
+                c"E728: Expected a Number or a String, Dictionary found".as_ptr()
+            ));
+            false
+        }
+        VarType::VAR_BLOB => {
+            emsg(tr(
+                c"E974: Expected a Number or a String, Blob found".as_ptr()
+            ));
+            false
+        }
+        VarType::VAR_BOOL => {
+            emsg(tr(
+                c"E5299: Expected a Number or a String, Boolean found".as_ptr()
+            ));
+            false
+        }
+        VarType::VAR_SPECIAL => {
+            emsg(tr(c"E5300: Expected a Number or a String".as_ptr()));
+            false
+        }
+        VarType::VAR_UNKNOWN => {
+            semsg!(
+                tr(e_intern2.as_ptr()),
+                c"tv_check_str_or_nr(&*UNKNOWN)".as_ptr(),
+            );
+            false
         }
     }
 }
@@ -4733,73 +4739,69 @@ const fn str_error(vt: VarType) -> *const c_char {
 }
 
 /// Check that given value is a number or can be converted to it.
-pub fn tv_check_num(tv: *const typval_T) -> bool {
-    unsafe {
-        match (*tv).v_type {
-            VarType::VAR_NUMBER
-            | VarType::VAR_BOOL
-            | VarType::VAR_SPECIAL
-            | VarType::VAR_STRING => true,
-            VarType::VAR_FUNC
-            | VarType::VAR_PARTIAL
-            | VarType::VAR_LIST
-            | VarType::VAR_DICT
-            | VarType::VAR_FLOAT
-            | VarType::VAR_BLOB
-            | VarType::VAR_UNKNOWN => {
-                emsg(tr(num_error((*tv).v_type)));
-                false
-            }
+pub fn tv_check_num(tv: &typval_T) -> bool {
+    match tv.v_type {
+        VarType::VAR_NUMBER
+        | VarType::VAR_BOOL
+        | VarType::VAR_SPECIAL
+        | VarType::VAR_STRING => true,
+        VarType::VAR_FUNC
+        | VarType::VAR_PARTIAL
+        | VarType::VAR_LIST
+        | VarType::VAR_DICT
+        | VarType::VAR_FLOAT
+        | VarType::VAR_BLOB
+        | VarType::VAR_UNKNOWN => {
+            emsg(tr(num_error(tv.v_type)));
+            false
         }
     }
 }
 
 /// Check that given value is a Vimscript String or can be "cast" to it.
-pub fn tv_check_str(tv: *const typval_T) -> bool {
-    unsafe {
-        match (*tv).v_type {
-            VarType::VAR_NUMBER
-            | VarType::VAR_BOOL
-            | VarType::VAR_SPECIAL
-            | VarType::VAR_STRING
-            | VarType::VAR_FLOAT => true,
-            VarType::VAR_PARTIAL
-            | VarType::VAR_FUNC
-            | VarType::VAR_LIST
-            | VarType::VAR_DICT
-            | VarType::VAR_BLOB
-            | VarType::VAR_UNKNOWN => {
-                emsg(tr(str_error((*tv).v_type)));
-                false
-            }
+pub fn tv_check_str(tv: &typval_T) -> bool {
+    match tv.v_type {
+        VarType::VAR_NUMBER
+        | VarType::VAR_BOOL
+        | VarType::VAR_SPECIAL
+        | VarType::VAR_STRING
+        | VarType::VAR_FLOAT => true,
+        VarType::VAR_PARTIAL
+        | VarType::VAR_FUNC
+        | VarType::VAR_LIST
+        | VarType::VAR_DICT
+        | VarType::VAR_BLOB
+        | VarType::VAR_UNKNOWN => {
+            emsg(tr(str_error(tv.v_type)));
+            false
         }
     }
 }
 
 /// Get the number value of a Vimscript object.
-pub fn tv_get_number(tv: *const typval_T) -> varnumber_T {
+pub fn tv_get_number(tv: &typval_T) -> varnumber_T {
     let mut error = false;
-        tv_get_number_chk(tv, &mut error)
+    tv_get_number_chk(tv, &mut error)
 }
 
 /// Get the number value of a Vimscript object.
-pub fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T {
+pub fn tv_get_number_chk(tv: &typval_T, ret_error: *mut bool) -> varnumber_T {
     unsafe {
-        match (*tv).v_type {
+        match tv.v_type {
             VarType::VAR_FUNC
             | VarType::VAR_PARTIAL
             | VarType::VAR_LIST
             | VarType::VAR_DICT
             | VarType::VAR_BLOB
             | VarType::VAR_FLOAT => {
-                emsg(tr(num_error((*tv).v_type)));
+                emsg(tr(num_error(tv.v_type)));
             }
-            VarType::VAR_NUMBER => return (*tv).vval.v_number(),
+            VarType::VAR_NUMBER => return tv.vval.v_number(),
             VarType::VAR_STRING => {
                 let mut n: varnumber_T = 0;
-                if !(*tv).vval.v_string().is_null() {
+                if !tv.vval.v_string().is_null() {
                     vim_str2nr(
-                        (*tv).vval.v_string(),
+                        tv.vval.v_string(),
                         None,
                         None,
                         STR2NR_ALL,
@@ -4812,10 +4814,10 @@ pub fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber
                 }
                 return n;
             }
-            VarType::VAR_BOOL => return i64::from((*tv).vval.v_bool() == kBoolVarTrue),
+            VarType::VAR_BOOL => return i64::from(tv.vval.v_bool() == kBoolVarTrue),
             VarType::VAR_SPECIAL => return 0,
             VarType::VAR_UNKNOWN => {
-                semsg!(tr(e_intern2.as_ptr()), c"tv_get_number(UNKNOWN)".as_ptr());
+                semsg!(tr(e_intern2.as_ptr()), c"tv_get_number(&*UNKNOWN)".as_ptr());
             }
         }
         if !ret_error.is_null() {
@@ -4826,11 +4828,11 @@ pub fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber
 }
 
 /// Get the boolean value of a Vimscript object.
-pub fn tv_get_bool(tv: *const typval_T) -> varnumber_T {
+pub fn tv_get_bool(tv: &typval_T) -> varnumber_T {
     tv_get_number_chk(tv, ptr::null_mut())
 }
 
-pub fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T {
+pub fn tv_get_bool_chk(tv: &typval_T, ret_error: *mut bool) -> varnumber_T {
     tv_get_number_chk(tv, ret_error)
 }
 
@@ -4838,7 +4840,7 @@ pub fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T
 pub fn tv_get_lnum(tv: &typval_T) -> linenr_T {
     unsafe {
         let did_emsg_before = g_st().did_emsg;
-        let mut lnum = tv_get_number_chk(&raw const *tv, ptr::null_mut()) as linenr_T;
+        let mut lnum = tv_get_number_chk(tv, ptr::null_mut()) as linenr_T;
         if lnum <= 0 && did_emsg_before == g_st().did_emsg && tv.v_type != VarType::VAR_NUMBER {
             let mut fnum: c_int = 0;
             let fp = var2fpos(tv, true, &mut fnum, false, &mut **curwin.as_ptr());
@@ -4861,48 +4863,46 @@ pub fn tv_get_lnum_buf(tv: &typval_T, buf: *const buf_T) -> linenr_T {
         {
             return (*buf).b_ml.ml_line_count;
         }
-        tv_get_number_chk(&raw const *tv, ptr::null_mut()) as linenr_T
+        tv_get_number_chk(tv, ptr::null_mut()) as linenr_T
     }
 }
 
 /// Get the floating-point value of a Vimscript object.
-pub fn tv_get_float(tv: *const typval_T) -> float_T {
-    unsafe {
-        match (*tv).v_type {
-            VarType::VAR_NUMBER => (*tv).vval.v_number() as float_T,
-            VarType::VAR_FLOAT => (*tv).vval.v_float(),
-            VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
-                emsg(tr(c"E891: Using a Funcref as a Float".as_ptr()));
-                0.0
-            }
-            VarType::VAR_STRING => {
-                emsg(tr(c"E892: Using a String as a Float".as_ptr()));
-                0.0
-            }
-            VarType::VAR_LIST => {
-                emsg(tr(c"E893: Using a List as a Float".as_ptr()));
-                0.0
-            }
-            VarType::VAR_DICT => {
-                emsg(tr(c"E894: Using a Dictionary as a Float".as_ptr()));
-                0.0
-            }
-            VarType::VAR_BOOL => {
-                emsg(tr(c"E362: Using a boolean value as a Float".as_ptr()));
-                0.0
-            }
-            VarType::VAR_SPECIAL => {
-                emsg(tr(c"E907: Using a special value as a Float".as_ptr()));
-                0.0
-            }
-            VarType::VAR_BLOB => {
-                emsg(tr(c"E975: Using a Blob as a Float".as_ptr()));
-                0.0
-            }
-            VarType::VAR_UNKNOWN => {
-                semsg!(tr(e_intern2.as_ptr()), c"tv_get_float(UNKNOWN)".as_ptr());
-                0.0
-            }
+pub fn tv_get_float(tv: &typval_T) -> float_T {
+    match tv.v_type {
+        VarType::VAR_NUMBER => tv.vval.v_number() as float_T,
+        VarType::VAR_FLOAT => tv.vval.v_float(),
+        VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
+            emsg(tr(c"E891: Using a Funcref as a Float".as_ptr()));
+            0.0
+        }
+        VarType::VAR_STRING => {
+            emsg(tr(c"E892: Using a String as a Float".as_ptr()));
+            0.0
+        }
+        VarType::VAR_LIST => {
+            emsg(tr(c"E893: Using a List as a Float".as_ptr()));
+            0.0
+        }
+        VarType::VAR_DICT => {
+            emsg(tr(c"E894: Using a Dictionary as a Float".as_ptr()));
+            0.0
+        }
+        VarType::VAR_BOOL => {
+            emsg(tr(c"E362: Using a boolean value as a Float".as_ptr()));
+            0.0
+        }
+        VarType::VAR_SPECIAL => {
+            emsg(tr(c"E907: Using a special value as a Float".as_ptr()));
+            0.0
+        }
+        VarType::VAR_BLOB => {
+            emsg(tr(c"E975: Using a Blob as a Float".as_ptr()));
+            0.0
+        }
+        VarType::VAR_UNKNOWN => {
+            semsg!(tr(e_intern2.as_ptr()), c"tv_get_float(&*UNKNOWN)".as_ptr());
+            0.0
         }
     }
 }
@@ -5137,22 +5137,22 @@ pub fn tv_check_for_list_or_blob_arg(args: &[typval_T], idx: c_int) -> c_int {
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char {
+pub fn tv_get_string_buf_chk(tv: &typval_T, buf: *mut c_char) -> *const c_char {
     unsafe {
-        match (*tv).v_type {
+        match tv.v_type {
             VarType::VAR_NUMBER => {
                 use std::io::Write;
                 let mut slice = std::slice::from_raw_parts_mut(buf.cast::<u8>(), NUMBUFLEN);
-                let _ = write!(slice, "{}\0", (*tv).vval.v_number());
+                let _ = write!(slice, "{}\0", tv.vval.v_number());
                 buf
             }
             VarType::VAR_FLOAT => {
-                vim_snprintf!(buf, NUMBUFLEN, c"%g".as_ptr(), (*tv).vval.v_float());
+                vim_snprintf!(buf, NUMBUFLEN, c"%g".as_ptr(), tv.vval.v_float());
                 buf
             }
             VarType::VAR_STRING => {
-                if !(*tv).vval.v_string().is_null() {
-                    (*tv).vval.v_string()
+                if !tv.vval.v_string().is_null() {
+                    tv.vval.v_string()
                 } else {
                     c"".as_ptr()
                 }
@@ -5160,7 +5160,7 @@ pub fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_
             VarType::VAR_BOOL => {
                 xstrlcpy(
                     buf,
-                    encode_bool_var_names[(*tv).vval.v_bool() as usize],
+                    encode_bool_var_names[tv.vval.v_bool() as usize],
                     NUMBUFLEN,
                 );
                 buf
@@ -5168,7 +5168,7 @@ pub fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_
             VarType::VAR_SPECIAL => {
                 xstrlcpy(
                     buf,
-                    encode_special_var_names[(*tv).vval.v_special() as usize],
+                    encode_special_var_names[tv.vval.v_special() as usize],
                     NUMBUFLEN,
                 );
                 buf
@@ -5179,7 +5179,7 @@ pub fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_
             | VarType::VAR_DICT
             | VarType::VAR_BLOB
             | VarType::VAR_UNKNOWN => {
-                emsg(tr(str_error((*tv).v_type)));
+                emsg(tr(str_error(tv.v_type)));
                 ptr::null()
             }
         }
@@ -5187,39 +5187,39 @@ pub fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_chk(tv: *const typval_T) -> *const c_char {
+pub fn tv_get_string_chk(tv: &typval_T) -> *const c_char {
     tv_get_string_buf_chk(tv, tv_st().mybuf_chk.as_mut_ptr())
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string(tv: *const typval_T) -> *const c_char {
+pub fn tv_get_string(tv: &typval_T) -> *const c_char {
     tv_get_string_buf(tv, tv_st().mybuf.as_mut_ptr())
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_buf(tv: *const typval_T, buf: *mut c_char) -> *const c_char {
+pub fn tv_get_string_buf(tv: &typval_T, buf: *mut c_char) -> *const c_char {
     let res = tv_get_string_buf_chk(tv, buf);
-        if !res.is_null() { res } else { c"".as_ptr() }
+    if !res.is_null() { res } else { c"".as_ptr() }
 }
 
 /// Return true when "tv" is not falsy.
-pub fn tv2bool(tv: *const typval_T) -> bool {
+pub fn tv2bool(tv: &typval_T) -> bool {
     unsafe {
-        match (*tv).v_type {
-            VarType::VAR_NUMBER => (*tv).vval.v_number() != 0,
-            VarType::VAR_FLOAT => (*tv).vval.v_float() != 0.0,
-            VarType::VAR_PARTIAL => !(*tv).vval.v_partial().is_null(),
+        match tv.v_type {
+            VarType::VAR_NUMBER => tv.vval.v_number() != 0,
+            VarType::VAR_FLOAT => tv.vval.v_float() != 0.0,
+            VarType::VAR_PARTIAL => !tv.vval.v_partial().is_null(),
             VarType::VAR_FUNC | VarType::VAR_STRING => {
-                !(*tv).vval.v_string().is_null() && *(*tv).vval.v_string() != NUL
+                !tv.vval.v_string().is_null() && *tv.vval.v_string() != NUL
             }
-            VarType::VAR_LIST => !(*tv).vval.v_list().is_null() && (*(*tv).vval.v_list()).lv_len > 0,
+            VarType::VAR_LIST => !tv.vval.v_list().is_null() && (*tv.vval.v_list()).lv_len > 0,
             VarType::VAR_DICT => {
-                !(*tv).vval.v_dict().is_null() && (*(*tv).vval.v_dict()).dv_hashtab.ht_used > 0
+                !tv.vval.v_dict().is_null() && (*tv.vval.v_dict()).dv_hashtab.ht_used > 0
             }
-            VarType::VAR_BOOL => (*tv).vval.v_bool() == kBoolVarTrue,
-            VarType::VAR_SPECIAL => (*tv).vval.v_special() != kSpecialVarNull,
+            VarType::VAR_BOOL => tv.vval.v_bool() == kBoolVarTrue,
+            VarType::VAR_SPECIAL => tv.vval.v_special() != kSpecialVarNull,
             VarType::VAR_BLOB => {
-                !(*tv).vval.v_blob().is_null() && !(*(*tv).vval.v_blob()).bv_ga.is_empty()
+                !tv.vval.v_blob().is_null() && !(*tv.vval.v_blob()).bv_ga.is_empty()
             }
             VarType::VAR_UNKNOWN => false,
         }
@@ -5433,16 +5433,16 @@ mod tests {
             let mut tv = tv_initial_value();
             tv.v_type = VarType::VAR_NUMBER;
             tv.vval = crate::eval::typval::TypvalVval::Number(0);
-            assert!(!tv2bool(&raw const tv));
+            assert!(!tv2bool(&tv));
             tv.vval = crate::eval::typval::TypvalVval::Number(5);
-            assert!(tv2bool(&raw const tv));
+            assert!(tv2bool(&tv));
 
             // tv_get_number, tv_get_float, tv_get_string, tv_equal
-            assert_eq!(tv_get_number(&raw const tv), 5);
-            assert_eq!(tv_get_float(&raw const tv), 5.0);
+            assert_eq!(tv_get_number(&tv), 5);
+            assert_eq!(tv_get_float(&tv), 5.0);
             let mut buf = [0 as c_char; NUMBUFLEN];
             assert_eq!(
-                CStr::from_ptr(tv_get_string_buf(&raw const tv, buf.as_mut_ptr())).to_bytes(),
+                CStr::from_ptr(tv_get_string_buf(&tv, buf.as_mut_ptr())).to_bytes(),
                 b"5"
             );
 
@@ -5453,17 +5453,17 @@ mod tests {
             };
             assert!(!tv_equal(&tv, &tv_flt, false));
             assert!(tv_equal(&tv_flt, &tv_flt, false));
-            assert_eq!(tv_get_float(&raw const tv_flt), 5.0);
+            assert_eq!(tv_get_float(&tv_flt), 5.0);
 
             let mut tv_str = typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(tv_alloc_string(c"hello".as_ptr())),
             };
-            assert!(tv_check_str_or_nr(&raw const tv_str));
-            assert!(tv_check_num(&raw const tv));
-            assert!(!tv_check_num(&raw const tv_flt));
-            assert!(tv_check_str(&raw const tv_str));
+            assert!(tv_check_str_or_nr(&tv_str));
+            assert!(tv_check_num(&tv));
+            assert!(!tv_check_num(&tv_flt));
+            assert!(tv_check_str(&tv_str));
 
             // tv_list_alloc_ret, tv_dict_alloc_ret, tv_item_lock, tv_islocked, tv_check_lock
             let mut tv_l = tv_initial_value();

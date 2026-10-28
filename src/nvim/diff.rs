@@ -3821,19 +3821,17 @@ pub(crate) fn xdiff_out(
         0
 }
 pub fn f_diff_filler(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(*curwin.as_ptr(), tv_get_lnum(&*argvars)).max(0) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(*curwin.as_ptr(), tv_get_lnum(&argvars[0])).max(0) as varnumber_T);
     }
 }
 pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
         let mut diffline = diffline_T::default();
         let cache_results = (diff_st().diff_flags & ALL_INLINE_DIFF) == 0;
-        let mut lnum = tv_get_lnum(&*argvars);
+        let mut lnum = tv_get_lnum(&argvars[0]);
         if lnum < 0 {
             lnum = 0;
         }
@@ -3874,7 +3872,7 @@ pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             }
         }
         if diff_st().f_diff_hlid_hlID == HLF_CHD || diff_st().f_diff_hlid_hlID == HLF_TXD {
-            let col = tv_get_number(argvars.add(1)) as c_int - 1;
+            let col = tv_get_number(&argvars[1]) as c_int - 1;
             if cache_results {
                 if col >= diff_st().f_diff_hlid_change_start && col < diff_st().f_diff_hlid_change_end {
                     diff_st().f_diff_hlid_hlID = HLF_TXD;

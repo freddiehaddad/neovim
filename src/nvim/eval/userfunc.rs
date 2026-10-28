@@ -1799,7 +1799,7 @@ pub fn callback_call_retnr(
             return -2;
         }
 
-        let retval = tv_get_number_chk(&raw const rettv, ptr::null_mut());
+        let retval = tv_get_number_chk(&rettv, ptr::null_mut());
         tv_clear(&raw mut rettv);
         retval
 }

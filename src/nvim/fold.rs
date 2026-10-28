@@ -2693,9 +2693,8 @@ fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> c_int {
 }
 
 fn foldclosed_both(argvars: &mut [typval_T], rettv: &mut typval_T, end: bool) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
-        let lnum = tv_get_lnum(&*argvars);
+        let lnum = tv_get_lnum(&argvars[0]);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
             let mut first: linenr_T = 0;
             let mut last: linenr_T = 0;
@@ -2720,10 +2719,9 @@ pub fn f_foldclosedend(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// "foldlevel()" function
 pub fn f_foldlevel(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
-        let lnum = tv_get_lnum(&*argvars);
+        let lnum = tv_get_lnum(&argvars[0]);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
             rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(foldLevel(lnum)));
         }
@@ -2783,7 +2781,6 @@ pub fn f_foldtext(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// "foldtextresult(lnum)" function
 pub fn f_foldtextresult(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
@@ -2792,7 +2789,7 @@ pub fn f_foldtextresult(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
             return;
         }
         fold_st().fdt_result_entered = true;
-        let lnum = tv_get_lnum(&*argvars).max(0);
+        let lnum = tv_get_lnum(&argvars[0]).max(0);
 
         let info = fold_info(*curwin.as_ptr(), lnum);
         if info.fi_lines > 0 {

@@ -281,9 +281,10 @@ fn fill_assert_error(
 }
 
 fn assert_equal_common(argvars: &mut [typval_T], atype: AssertType) -> c_int {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        if tv_equal(&*argvars, &*argvars.add(1), false) != (atype == AssertType::Equal) {
+        if tv_equal(&argvars_slice[0], &argvars_slice[1], false) != (atype == AssertType::Equal) {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             fill_assert_error(
@@ -302,12 +303,13 @@ fn assert_equal_common(argvars: &mut [typval_T], atype: AssertType) -> c_int {
 }
 
 fn assert_match_common(argvars: &mut [typval_T], atype: AssertType) -> c_int {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
-        let pat = tv_get_string_buf_chk(argvars, buf1.as_mut_ptr());
-        let text = tv_get_string_buf_chk(argvars.add(1), buf2.as_mut_ptr());
+        let pat = tv_get_string_buf_chk(&argvars_slice[0], buf1.as_mut_ptr());
+        let text = tv_get_string_buf_chk(&argvars_slice[1], buf2.as_mut_ptr());
 
         if !pat.is_null()
             && !text.is_null()
@@ -331,17 +333,18 @@ fn assert_match_common(argvars: &mut [typval_T], atype: AssertType) -> c_int {
 }
 
 fn assert_bool(argvars: &mut [typval_T], is_true: bool) -> c_int {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut error = false;
-        let arg0 = &*argvars;
+        let arg0 = &argvars_slice[0];
         let expected_bool = if is_true {
             K_BOOL_VAR_TRUE
         } else {
             K_BOOL_VAR_FALSE
         };
         if (arg0.v_type != VarType::VAR_NUMBER
-            || (tv_get_number_chk(argvars, &mut error) == 0) == is_true
+            || (tv_get_number_chk(&argvars_slice[0], &mut error) == 0) == is_true
             || error)
             && (arg0.v_type != VarType::VAR_BOOL || arg0.vval.v_bool() != expected_bool as c_int)
         {
@@ -367,7 +370,8 @@ fn assert_bool(argvars: &mut [typval_T], is_true: bool) -> c_int {
 }
 
 fn assert_append_cmd_or_arg(gap: &mut Vec<u8>,argvars: &mut [typval_T], cmd: *const c_char) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
             && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
@@ -381,8 +385,7 @@ fn assert_append_cmd_or_arg(gap: &mut Vec<u8>,argvars: &mut [typval_T], cmd: *co
 }
 
 fn assert_beeps(argvars: &mut [typval_T], no_beep: bool) -> c_int {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
-    let cmd = tv_get_string_chk(argvars);
+    let cmd = tv_get_string_chk(&argvars[0]);
         let mut ret: c_int = 0;
 
         let beeps = g_st().did_beep;
@@ -424,12 +427,13 @@ pub fn f_assert_equal(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 }
 
 fn assert_equalfile(argvars: &mut [typval_T]) -> c_int {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
-        let fname1 = tv_get_string_buf_chk(argvars, buf1.as_mut_ptr());
-        let fname2 = tv_get_string_buf_chk(argvars.add(1), buf2.as_mut_ptr());
+        let fname1 = tv_get_string_buf_chk(&argvars_slice[0], buf1.as_mut_ptr());
+        let fname2 = tv_get_string_buf_chk(&argvars_slice[1], buf2.as_mut_ptr());
 
         if fname1.is_null() || fname2.is_null() {
             return 0;
@@ -548,10 +552,11 @@ pub fn f_assert_notequal(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 /// `"assert_exception(string[, msg])"` function (`f_assert_exception`).
 pub fn f_assert_exception(argvars: &mut [typval_T], rettv: &mut typval_T,
     _fptr: EvalFuncData,){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        let error = tv_get_string_chk(argvars);
+        let error = tv_get_string_chk(&argvars_slice[0]);
         let v_exc = get_vim_var_str(VV_EXCEPTION);
         if *v_exc == 0 {
             let mut ga = Vec::new();
@@ -612,7 +617,7 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         g_st().in_assert_fails = true;
         g_st().no_wait_return += 1;
 
-        let cmd = tv_get_string_chk(argvars);
+        let cmd = tv_get_string_chk(&argvars_slice[0]);
         do_cmdline_cmd(cmd);
 
         g_st().trylevel = save_trylevel;
@@ -636,7 +641,7 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 .as_ref()
                 .map_or(c"[unknown]".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
 
-            let arg1 = &*argvars.add(1);
+            let arg1 = &argvars_slice[1];
             let mut valid_args = true;
             if arg1.v_type == VarType::VAR_STRING {
                 let expected = tv_get_string_buf_chk(arg1, buf.as_mut_ptr());
@@ -693,7 +698,7 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
                 && (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN
             {
-                let arg3 = &*argvars.add(3);
+                let arg3 = &argvars_slice[3];
                 if arg3.v_type != VarType::VAR_NUMBER {
                     wrong_arg_msg =
                         c"E1115: \"assert_fails()\" fourth argument must be a number".as_ptr();
@@ -706,7 +711,7 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                     error_found_index = 3;
                 }
                 if valid_args && !error_found && (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN {
-                    let arg4 = &*argvars.add(4);
+                    let arg4 = &argvars_slice[4];
                     if arg4.v_type != VarType::VAR_STRING {
                         wrong_arg_msg =
                             c"E1116: \"assert_fails()\" fifth argument must be a string".as_ptr();
@@ -793,12 +798,13 @@ pub fn f_assert_false(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 }
 
 fn assert_inrange(argvars: &mut [typval_T]) -> c_int {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut error = false;
-        let arg0 = &*argvars;
-        let arg1 = &*argvars.add(1);
-        let arg2 = &*argvars.add(2);
+        let arg0 = &argvars_slice[0];
+        let arg1 = &argvars_slice[1];
+        let arg2 = &argvars_slice[2];
 
         if arg0.v_type == VarType::VAR_FLOAT
             || arg1.v_type == VarType::VAR_FLOAT
@@ -882,11 +888,10 @@ pub fn f_assert_notmatch(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 
 /// `"assert_report(msg)"` function (`f_assert_report`).
 pub fn f_assert_report(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
-        buf_concat_cstr(&mut ga, tv_get_string(argvars));
+        buf_concat_cstr(&mut ga, tv_get_string(&argvars[0]));
         assert_error(&ga);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 }
@@ -909,9 +914,8 @@ pub fn f_test_garbagecollect_now(_argvars: &mut [typval_T], _rettv: &mut typval_
 /// `"test_write_list_log()"` function (`f_test_write_list_log`).
 pub fn f_test_write_list_log(argvars: &mut [typval_T], _rettv: &mut typval_T,
     _fptr: EvalFuncData,){
-    let argvars = argvars.as_mut_ptr();
 
-    let _fname = tv_get_string_chk(argvars);
+    let _fname = tv_get_string_chk(&argvars[0]);
 }
 
 #[cfg(test)]

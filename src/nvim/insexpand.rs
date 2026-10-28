@@ -3433,7 +3433,7 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
                 flags |= CP_EQUAL;
             }
         } else {
-            word = tv_get_string_chk(&raw mut *tv);
+            word = tv_get_string_chk(&*tv);
         }
         if word.is_null() || (!empty && *word == NUL) {
             tv_clear(&raw mut user_data);
@@ -3606,7 +3606,8 @@ fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
 }
 
 pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if (g_st().State & MODE_INSERT) == 0 {
@@ -3623,7 +3624,7 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
         if (*argvars.add(1)).v_type != VAR_LIST {
             emsg(gettext((&raw const e_invarg).cast()));
         } else {
-            let startcol = tv_get_number_chk(argvars, ptr::null_mut()) as colnr_T;
+            let startcol = tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as colnr_T;
             if startcol > 0 {
                 set_completion(startcol - 1, (*argvars.add(1)).vval.v_list());
             }
@@ -3632,7 +3633,8 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
 }
 
 pub fn f_complete_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_add_tv(&mut *argvars, 0, false)));
@@ -3816,7 +3818,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             what_flag = 0;
             let mut item: *mut listitem_T = (*what_list).lv_first;
             while !item.is_null() {
-                let what = tv_get_string(&raw const (*item).li_tv);
+                let what = tv_get_string(&(*item).li_tv);
                 if std::ffi::CStr::from_ptr(what).to_bytes() == b"mode" {
                     what_flag |= CI_WHAT_MODE;
                 } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"pum_visible" {
@@ -3957,7 +3959,8 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
 }
 
 pub fn f_complete_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_dict_alloc_ret(rettv);

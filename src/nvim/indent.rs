@@ -1931,10 +1931,9 @@ pub fn fix_indent() {
 
 /// `indent()` function (`f_indent`).
 pub fn f_indent(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
-        let lnum = tv_get_lnum(&*argvars);
+        let lnum = tv_get_lnum(&argvars[0]);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
             rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(get_indent_lnum(lnum)));
         } else {
@@ -1945,11 +1944,10 @@ pub fn f_indent(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 /// `lispindent(lnum)` function (`f_lispindent`).
 pub fn f_lispindent(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
         let pos = (**curwin.as_ptr()).w_cursor;
-        let lnum = tv_get_lnum(&*argvars);
+        let lnum = tv_get_lnum(&argvars[0]);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
             (**curwin.as_ptr()).w_cursor.lnum = lnum;
             rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(get_lisp_indent()));

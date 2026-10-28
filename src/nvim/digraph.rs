@@ -1949,7 +1949,7 @@ fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
 fn get_digraph_chars(arg: *const typval_T, char1: &mut c_int, char2: &mut c_int) -> c_int {
     unsafe {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
-        let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
+        let chars = tv_get_string_buf_chk(&*arg, buf_chars.as_mut_ptr());
         let mut p = chars;
 
         if !p.is_null() && *p != NUL {
@@ -1981,7 +1981,7 @@ fn digraph_set_common(argchars: *const typval_T, argdigraph: *const typval_T) ->
         }
 
         let mut buf_digraph = [0 as c_char; NUMBUFLEN];
-        let digraph = tv_get_string_buf_chk(argdigraph, buf_digraph.as_mut_ptr());
+        let digraph = tv_get_string_buf_chk(&*argdigraph, buf_digraph.as_mut_ptr());
         if digraph.is_null() {
             return false;
         }
@@ -2002,12 +2002,11 @@ fn digraph_set_common(argchars: *const typval_T, argdigraph: *const typval_T) ->
 
 /// `digraph_get()` function (`f_digraph_get`).
 pub fn f_digraph_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        let digraphs = tv_get_string_chk(argvars);
+        let digraphs = tv_get_string_chk(&argvars[0]);
 
         if digraphs.is_null() {
             return;
@@ -2041,7 +2040,7 @@ pub fn f_digraph_getlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
         let flag_list_all = if (*argvars).v_type == VarType::VAR_UNKNOWN {
             false
         } else {
-            tv_get_bool(argvars) != 0
+            tv_get_bool(&argvars_slice[0]) != 0
         };
 
         digraph_getlist_common(flag_list_all, rettv);
@@ -2050,7 +2049,8 @@ pub fn f_digraph_getlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 
 /// `digraph_set()` function (`f_digraph_set`).
 pub fn f_digraph_set(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_BOOL;
@@ -2066,7 +2066,8 @@ pub fn f_digraph_set(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
 pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_BOOL;

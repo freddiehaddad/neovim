@@ -775,7 +775,7 @@ pub fn eval_charconvert(
         if !callback_call(&raw mut opt_vars().p_ccv, 0, argv.as_mut_ptr(), &raw mut tv) {
             err = true;
         } else {
-            if tv_get_number_chk(&raw const tv, ptr::null_mut()) != 0 {
+            if tv_get_number_chk(&tv, ptr::null_mut()) != 0 {
                 err = true;
             }
             tv_clear(&raw mut tv);
@@ -1689,7 +1689,7 @@ fn ex_let_env(
             let mut tofree: Option<std::ffi::CString> = None;
             let c1 = *name.add(len);
             *name.add(len) = NUL;
-            let mut p = tv_get_string_chk(tv);
+            let mut p = tv_get_string_chk(&*tv);
             if !p.is_null()
                 && !op.is_null()
                 && *op == b'.' as c_char
@@ -1865,7 +1865,7 @@ fn ex_let_register(
             emsg(gettext(E_LETUNEXP.as_ptr()));
         } else {
             let mut ptofree: Option<std::ffi::CString> = None;
-            let mut p = tv_get_string_chk(tv);
+            let mut p = tv_get_string_chk(&*tv);
             if !p.is_null() && !op.is_null() && *op == b'.' as c_char {
                 let reg_c = if *arg == b'@' as c_char {
                     b'"' as c_int
@@ -2309,7 +2309,7 @@ pub fn get_vim_var_dict(idx: VimVarIndex) -> *mut dict_T {
 }
 
 pub fn get_vim_var_str(idx: VimVarIndex) -> *mut c_char {
-    tv_get_string(get_vim_var_tv(idx)).cast_mut()
+    unsafe { tv_get_string(&*get_vim_var_tv(idx)).cast_mut() }
 }
 
 pub fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
@@ -2850,7 +2850,7 @@ pub fn get_var_value(name: *const c_char) -> *mut c_char {
         if v.is_null() {
             return ptr::null_mut();
         }
-        tv_get_string(&raw const (*v).di_tv).cast_mut()
+        tv_get_string(&(*v).di_tv).cast_mut()
     }
 }
 
@@ -3005,7 +3005,7 @@ pub fn before_set_vvar(
             }
             tv_clear(&raw mut di.di_tv);
             if copy || (*tv).v_type != VarType::VAR_STRING {
-                let val = tv_get_string(tv);
+                let val = tv_get_string(&*tv);
                 crate::eval::typval::tv_set_string(&mut di.di_tv, val);
             } else {
                 di.di_tv.v_type = VarType::VAR_STRING;
@@ -3027,7 +3027,7 @@ pub fn before_set_vvar(
             if watched {
                 tv_copy(&di.di_tv, &mut oldtv);
             }
-            di.di_tv.vval = crate::eval::typval::TypvalVval::Number(tv_get_number(tv));
+            di.di_tv.vval = crate::eval::typval::TypvalVval::Number(tv_get_number(&*tv));
             if std::ffi::CStr::from_ptr(varname).to_bytes() == b"searchforward" {
                 set_search_direction(if di.di_tv.vval.v_number() != 0 {
                     b'/' as c_int
@@ -3380,16 +3380,17 @@ fn get_var_from(
 
 /// getwinvar() and gettabwinvar().
 fn getwinvar(argvars: &mut [typval_T],rettv: &mut typval_T, off: usize) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let tp = if off == 1 {
-            find_tabpage(tv_get_number_chk(argvars, ptr::null_mut()) as c_int)
+            find_tabpage(tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int)
         } else {
             g_st().curtab
         };
         let win = find_win_by_nr(argvars.add(off), tp);
-        let varname = tv_get_string_chk(argvars.add(off + 1));
+        let varname = tv_get_string_chk(&argvars_slice[off + 1]);
 
         get_var_from(
             varname,
@@ -3426,9 +3427,9 @@ fn opt_from_tv(
             value = crate::api::private::helpers::cstr_to_obj(strval.as_ptr());
         } else if option_has_bool || option_has_num {
             let n = if option_has_num {
-                tv_get_number_chk(tv, &mut err)
+                tv_get_number_chk(&*tv, &mut err)
             } else {
-                tv_get_bool_chk(tv, &mut err)
+                tv_get_bool_chk(&*tv, &mut err)
             };
             if !err && (*tv).v_type == VarType::VAR_STRING && n == 0 {
                 let mut idx: usize = 0;
@@ -3457,7 +3458,7 @@ fn opt_from_tv(
             };
         } else if option_has_str {
             if (*tv).v_type != VarType::VAR_BOOL && (*tv).v_type != VarType::VAR_SPECIAL {
-                let strval = tv_get_string_buf_chk(tv, nbuf.as_mut_ptr());
+                let strval = tv_get_string_buf_chk(&*tv, nbuf.as_mut_ptr());
                 err = strval.is_null();
                 value = string_obj(cstr_to_string(strval));
             } else {
@@ -3563,19 +3564,20 @@ fn set_option_from_tv(varname: *const c_char, varp: *mut typval_T) {
 
 /// "setwinvar()" and "settabwinvar()" functions.
 fn setwinvar(argvars: &mut [typval_T], off: usize) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         if check_secure() {
             return;
         }
 
         let tp = if off == 1 {
-            find_tabpage(tv_get_number_chk(argvars, ptr::null_mut()) as c_int)
+            find_tabpage(tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int)
         } else {
             g_st().curtab
         };
         let win = find_win_by_nr(argvars.add(off), tp);
-        let varname = tv_get_string_chk(argvars.add(off + 1));
+        let varname = tv_get_string_chk(&argvars_slice[off + 1]);
         let varp = argvars.add(off + 2);
 
         if win.is_null() || varname.is_null() {
@@ -3816,8 +3818,8 @@ pub fn f_gettabvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
     let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        let varname = tv_get_string_chk(argvars.add(1));
-        let tp = find_tabpage(tv_get_number_chk(argvars, ptr::null_mut()) as c_int);
+        let varname = tv_get_string_chk(&argvars_slice[1]);
+        let tp = find_tabpage(tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int);
         let mut win: *mut win_T = ptr::null_mut();
 
         if !tp.is_null() {
@@ -3856,7 +3858,7 @@ pub fn f_getbufvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
     let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        let varname = tv_get_string_chk(argvars.add(1));
+        let varname = tv_get_string_chk(&argvars_slice[1]);
         let buf = tv_get_buf_from_arg(argvars);
 
         get_var_from(
@@ -3881,8 +3883,8 @@ pub fn f_settabvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
             return;
         }
 
-        let tp = find_tabpage(tv_get_number_chk(argvars, ptr::null_mut()) as c_int);
-        let varname = tv_get_string_chk(argvars.add(1));
+        let tp = find_tabpage(tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int);
+        let varname = tv_get_string_chk(&argvars_slice[1]);
         let varp = argvars.add(2);
 
         if varname.is_null() || tp.is_null() {
@@ -3925,10 +3927,10 @@ pub fn f_setbufvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
     let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if check_secure() || !tv_check_str_or_nr(argvars) {
+        if check_secure() || !tv_check_str_or_nr(&argvars_slice[0]) {
             return;
         }
-        let varname = tv_get_string_chk(argvars.add(1));
+        let varname = tv_get_string_chk(&argvars_slice[1]);
         let buf = tv_get_buf(argvars, 0);
         let varp = argvars.add(2);
 

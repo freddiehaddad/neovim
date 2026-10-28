@@ -4569,7 +4569,7 @@ fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize, qf_win
                 let mut qftf_str: *mut c_char = ptr::null_mut();
 
                 if !qftf_li.is_null() && !invalid_val {
-                    qftf_str = tv_get_string_chk(&raw const (*qftf_li).li_tv).cast_mut();
+                    qftf_str = tv_get_string_chk(&(*qftf_li).li_tv).cast_mut();
                     if qftf_str.is_null() {
                         invalid_val = true;
                     }
@@ -7048,7 +7048,7 @@ fn qf_setprop_curidx(
             newidx = qfl.count();
         } else {
             let mut denote = false;
-            newidx = tv_get_number_chk(&raw const di.di_tv, &raw mut denote) as c_int;
+            newidx = tv_get_number_chk(&di.di_tv, &raw mut denote) as c_int;
             if denote {
                 return FAIL;
             }
@@ -7805,7 +7805,8 @@ fn get_qf_loc_list(
 }
 
 pub fn f_getloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
@@ -7814,7 +7815,8 @@ pub fn f_getloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 }
 
 pub fn f_getqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         get_qf_loc_list(true, ptr::null_mut(), &mut *argvars, rettv);
@@ -7844,7 +7846,7 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
                 emsg(gettext((&raw const e_string_required).cast()));
                 return;
             }
-            let act = tv_get_string_chk(action_arg);
+            let act = tv_get_string_chk(&*action_arg);
             if (*act == b'a' as c_char
                 || *act == b'r' as c_char
                 || *act == b'u' as c_char
@@ -7861,7 +7863,7 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
             let what_arg = args.add(2);
             if (*what_arg).v_type != VarType::VAR_UNKNOWN {
                 if (*what_arg).v_type == VarType::VAR_STRING {
-                    title = tv_get_string_chk(what_arg);
+                    title = tv_get_string_chk(&*what_arg);
                     if title.is_null() {
                         return;
                     }

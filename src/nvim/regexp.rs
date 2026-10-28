@@ -2721,7 +2721,7 @@ fn vim_regsub_both(
                         *eval_slot = None;
                     } else {
                         let mut buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-                        let s = tv_get_string_buf_chk(&raw const rettv, buf.as_mut_ptr());
+                        let s = tv_get_string_buf_chk(&rettv, buf.as_mut_ptr());
                         if !s.is_null() {
                             *eval_slot = Some(CStr::from_ptr(s).to_owned());
                         }

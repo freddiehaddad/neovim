@@ -71,7 +71,7 @@ fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
 }
 
 fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
-    let mut n = tv_get_number(tv1);
+    let mut n = tv_get_number(&*tv1);
 
     if tv2.v_type == VarType::VAR_FLOAT {
         let mut f = n as f64;
@@ -124,7 +124,7 @@ fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
             return OK;
         }
 
-        let tvs = tv_get_string(tv1);
+        let tvs = tv_get_string(&*tv1);
         let s = concat_str(std::ffi::CStr::from_ptr(tvs), std::ffi::CStr::from_ptr(s2));
         crate::eval::typval::tv_set_string(tv1, s.as_ptr());
     }
