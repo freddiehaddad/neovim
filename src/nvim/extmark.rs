@@ -153,7 +153,7 @@ fn extmark_push_savepos(
 /// Create or update an extmark (`extmark_set`).
 pub fn extmark_set(
     buf: &mut buf_T,
-    ns_id: u32,idp: Option<&mut u32>,
+    ns_id: u32,mut idp: Option<&mut u32>,
     row: c_int,
     col: colnr_T,
     end_row: c_int,
@@ -165,10 +165,9 @@ pub fn extmark_set(
     no_undo: bool,
     invalidate: bool,
 ) {
-    let idp: *mut u32 = idp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    unsafe {
+     {
         let ns = buf.b_extmark_ns.entry(ns_id).or_insert(0);
-        let mut id = if !idp.is_null() { *idp } else { 0 };
+        let mut id = if idp.is_some() { *idp.as_deref_mut().unwrap() } else { 0 };
         let mut created = true;
 
         let flags = mt_flags(right_gravity, no_undo, invalidate, decor.is_ext()) | decor_flags;
@@ -265,8 +264,8 @@ pub fn extmark_set(
             decor_redraw(&mut *buf, row, r2, col, decor);
         }
 
-        if !idp.is_null() {
-            *idp = id;
+        if let Some(ref mut p) = idp {
+            **p = id;
         }
 
         if created {

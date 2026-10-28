@@ -4652,7 +4652,6 @@ fn nfa_regtry(
     col: colnr_T,
     tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
-    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut subs = regsubs_T::new();
         let mut m = regsubs_T::new();
@@ -4660,7 +4659,7 @@ fn nfa_regtry(
 
         re_st().rex.input = re_st().rex.line.add(col as usize);
         nfa_st().nfa_time_limit = tm;
-        nfa_st().nfa_timed_out = timed_out;
+        nfa_st().nfa_timed_out = timed_out.map_or(ptr::null_mut(), |p| &raw mut *p);
         nfa_st().nfa_time_count = 0;
 
         clear_sub(&mut subs.norm);
@@ -4750,7 +4749,6 @@ fn nfa_regexec_both(
     startcol: colnr_T,
     tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
-    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut retval: c_int = 0;
         let mut col = startcol;
@@ -4833,7 +4831,7 @@ fn nfa_regexec_both(
             st.lastlist[1] = 0;
         }
 
-        retval = nfa_regtry(&mut *prog, col, tm, (!timed_out.is_null()).then(||  { &mut *timed_out }));
+        retval = nfa_regtry(&mut *prog, col, tm, (timed_out.is_some()).then(||  { &mut *timed_out.unwrap() }));
         finish_nfa_regexec(retval, col)
     }
 }
@@ -4957,7 +4955,6 @@ pub(super) fn nfa_regexec_multi(
     col: colnr_T,
     tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
-    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     init_regexec_multi(rmp, win, buf, lnum);
-        nfa_regexec_both(ptr::null_mut(), col, tm, (!timed_out.is_null()).then(|| unsafe { &mut *timed_out }))
+        nfa_regexec_both(ptr::null_mut(), col, tm, timed_out)
 }

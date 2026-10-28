@@ -3060,10 +3060,8 @@ pub fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize> {
 fn iconv_string(
     vcp: &vimconv_T,
     str_: *const c_char,
-    slen: usize,unconvlenp: Option<&mut usize>,resultlenp: Option<&mut usize>,
+    slen: usize,mut unconvlenp: Option<&mut usize>,mut resultlenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> {
-    let resultlenp: *mut usize = resultlenp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let unconvlenp: *mut usize = unconvlenp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut to: *mut c_char;
         let mut len = 0usize;
@@ -3096,9 +3094,9 @@ fn iconv_string(
             }
 
             let err = os_errno();
-            if !vcp.vc_fail && !unconvlenp.is_null() && err == ICONV_EINVAL {
+            if !vcp.vc_fail && unconvlenp.is_some() && err == ICONV_EINVAL {
                 *to = NUL;
-                *unconvlenp = fromlen;
+                *unconvlenp.as_deref_mut().unwrap() = fromlen;
                 done = to.offset_from(result) as usize;
                 break;
             } else if !vcp.vc_fail && (err == ICONV_EILSEQ || err == ICONV_EINVAL) {
@@ -3119,8 +3117,8 @@ fn iconv_string(
 
         result_vec.truncate(done);
         result_vec.push(0);
-        if !resultlenp.is_null() {
-            *resultlenp = done;
+        if let Some(ref mut p) = resultlenp {
+            **p = done;
         }
         Some(result_vec)
     }
@@ -3235,21 +3233,19 @@ pub fn string_convert(
     vcp: &vimconv_T,
     ptr: *mut c_char,lenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> {
-    let lenp: *mut usize = lenp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    string_convert_ext(vcp, ptr, (!lenp.is_null()).then(|| unsafe { &mut *lenp }), None)
+    string_convert_ext(vcp, ptr, lenp, None)
 }
 
 pub fn string_convert_ext(
     vcp: &vimconv_T,
-    ptr: *mut c_char,lenp: Option<&mut usize>,
+    ptr: *mut c_char,mut lenp: Option<&mut usize>,
     mut unconvlenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> {
-    let lenp: *mut usize = lenp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let len = if lenp.is_null() {
+        let len = if lenp.is_none() {
             CStr::from_ptr(ptr).to_bytes().len()
         } else {
-            *lenp
+            *lenp.as_deref_mut().unwrap()
         };
         if len == 0 {
             return Some(vec![0]);
@@ -3267,9 +3263,9 @@ pub fn string_convert_ext(
                         out.push(0x80 + (c & 0x3f));
                     }
                 }
-                if !lenp.is_null() {
-                    *lenp = out.len();
-                }
+                if let Some(ref mut p) = lenp {
+            **p = out.len();
+        }
                 out.push(0);
                 Some(out)
             }
@@ -3294,9 +3290,9 @@ pub fn string_convert_ext(
                         n,
                     ));
                 }
-                if !lenp.is_null() {
-                    *lenp = out.len();
-                }
+                if let Some(ref mut p) = lenp {
+            **p = out.len();
+        }
                 out.push(0);
                 Some(out)
             }
@@ -3352,13 +3348,13 @@ pub fn string_convert_ext(
                     }
                     i += 1;
                 }
-                if !lenp.is_null() {
-                    *lenp = out.len();
-                }
+                if let Some(ref mut p) = lenp {
+            **p = out.len();
+        }
                 out.push(0);
                 Some(out)
             }
-            CONV_ICONV => iconv_string(vcp, ptr, len, unconvlenp, (!lenp.is_null()).then(||  { &mut *lenp })),
+            CONV_ICONV => iconv_string(vcp, ptr, len, unconvlenp, (lenp.is_some()).then(||  { &mut *lenp.unwrap() })),
             _ => None,
         }
     }

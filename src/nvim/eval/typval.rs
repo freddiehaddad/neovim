@@ -2433,17 +2433,16 @@ pub fn tv_list_find(l: *mut list_T, mut n: c_int) -> *mut listitem_T {
 }
 
 /// Get list item l[n] as a number.
-pub fn tv_list_find_nr(l: *mut list_T, n: c_int,ret_error: Option<&mut bool>) -> varnumber_T {
-    let ret_error: *mut bool = ret_error.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+pub fn tv_list_find_nr(l: *mut list_T, n: c_int,mut ret_error: Option<&mut bool>) -> varnumber_T {
     unsafe {
         let li = tv_list_find(l, n);
         if li.is_null() {
-            if !ret_error.is_null() {
-                *ret_error = true;
-            }
+            if let Some(ref mut p) = ret_error {
+            **p = true;
+        }
             return -1;
         }
-        tv_get_number_chk(&(*li).li_tv, (!ret_error.is_null()).then(||  { &mut *ret_error }))
+        tv_get_number_chk(&(*li).li_tv, (ret_error.is_some()).then(||  { &mut *ret_error.unwrap() }))
     }
 }
 
@@ -4747,9 +4746,8 @@ pub fn tv_get_number(tv: &typval_T) -> varnumber_T {
 }
 
 /// Get the number value of a Vimscript object.
-pub fn tv_get_number_chk(tv: &typval_T,ret_error: Option<&mut bool>) -> varnumber_T {
-    let ret_error: *mut bool = ret_error.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    unsafe {
+pub fn tv_get_number_chk(tv: &typval_T,mut ret_error: Option<&mut bool>) -> varnumber_T {
+     {
         match tv.v_type {
             VarType::VAR_FUNC
             | VarType::VAR_PARTIAL
@@ -4783,10 +4781,10 @@ pub fn tv_get_number_chk(tv: &typval_T,ret_error: Option<&mut bool>) -> varnumbe
                 semsg!(tr(e_intern2.as_ptr()), c"tv_get_number(&*UNKNOWN)".as_ptr());
             }
         }
-        if !ret_error.is_null() {
-            *ret_error = true;
+        if let Some(ref mut p) = ret_error {
+            **p = true;
         }
-        if ret_error.is_null() { -1 } else { 0 }
+        if ret_error.is_none() { -1 } else { 0 }
     }
 }
 
@@ -4796,8 +4794,7 @@ pub fn tv_get_bool(tv: &typval_T) -> varnumber_T {
 }
 
 pub fn tv_get_bool_chk(tv: &typval_T,ret_error: Option<&mut bool>) -> varnumber_T {
-    let ret_error: *mut bool = ret_error.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    tv_get_number_chk(tv, (!ret_error.is_null()).then(|| unsafe { &mut *ret_error }))
+    tv_get_number_chk(tv, ret_error)
 }
 
 /// Get the line number from Vimscript object.

@@ -724,9 +724,8 @@ fn debuggy_find(
     fname: *mut c_char,
     after: i32,
     gap: &mut [debuggy],
-    is_prof: bool,fp: Option<&mut bool>,
+    is_prof: bool,mut fp: Option<&mut bool>,
 ) -> i32 {
-    let fp: *mut bool = fp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if gap.is_empty() {
             return 0;
@@ -754,9 +753,9 @@ fn debuggy_find(
                 g_st().got_int = false;
                 if vim_regexec_prog(bp.dbg_prog.as_deref(), false, name, 0) {
                     lnum = bp.dbg_lnum;
-                    if !fp.is_null() {
-                        *fp = bp.dbg_forceit != 0;
-                    }
+                    if let Some(ref mut p) = fp {
+            **p = bp.dbg_forceit != 0;
+        }
                 }
                 g_st().got_int |= prev_got_int;
             } else if bp.dbg_type == DBG_EXPR {
@@ -807,9 +806,8 @@ pub fn dbg_find_breakpoint(file: bool, fname: *mut c_char, after: i32) -> i32 {
 
 /// Check if profiling is enabled for a function or sourced file (`has_profiling`).
 pub fn has_profiling(file: bool, fname: *mut c_char,fp: Option<&mut bool>) -> bool {
-    let fp: *mut bool = fp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let gap = dbg_vec_mut(true);
-        debuggy_find(file, fname, 0, gap, true, (!fp.is_null()).then(|| unsafe { &mut *fp })) != 0
+        debuggy_find(file, fname, 0, gap, true, fp) != 0
 }
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).

@@ -260,13 +260,12 @@ pub fn prompt_for_input(
     hl_id: c_int,
     one_key: bool,mouse_used: Option<&mut bool>,
 ) -> c_int {
-    let mouse_used: *mut bool = mouse_used.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut ret = if one_key { ESC } else { 0 };
         let kmsg = g_st().keep_msg.clone();
 
         let prompt_ptr: *const c_char = if prompt.is_null() {
-            if !mouse_used.is_null() && ui_mouse_has(K_MOUSE_COMMAND) {
+            if mouse_used.is_some() && ui_mouse_has(K_MOUSE_COMMAND) {
                 c"Type number and <Enter> or click with the mouse (q or empty cancels): ".as_ptr()
             } else {
                 c"Type number and <Enter> (q or empty cancels): ".as_ptr()
@@ -289,7 +288,7 @@ pub fn prompt_for_input(
             std::ptr::null(),
             Callback::NONE,
             one_key,
-            mouse_used,
+            mouse_used.map_or(std::ptr::null_mut(), |p| &raw mut *p),
         );
         g_st().allow_keys -= 1;
         g_st().no_mapping -= 1;

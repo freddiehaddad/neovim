@@ -262,10 +262,9 @@ fn mb_cptr_adv(p: &mut *const c_char) {
 /// Main spell-checking function.
 pub fn spell_check(
     wp: *mut win_T,
-    ptr: *mut c_char,attrp: &mut hlf_T,capcol: Option<&mut c_int>,
+    ptr: *mut c_char,attrp: &mut hlf_T,mut capcol: Option<&mut c_int>,
     docount: bool,
 ) -> usize {
-    let capcol: *mut c_int = capcol.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if (*ptr as u8) <= b' ' {
             return 1;
@@ -307,15 +306,15 @@ pub fn spell_check(
                     }
                 }
             }
-            if !capcol.is_null() && *capcol == 0 && (*w_s).b_cap_prog.is_some() {
+            if capcol.is_some() && *capcol.as_deref_mut().unwrap() == 0 && (*w_s).b_cap_prog.is_some() {
                 let c = utf_ptr2char(ptr);
                 if !spell_isupper(c) {
                     wrongcaplen = mi.mi_fend.offset_from(ptr) as usize;
                 }
             }
         }
-        if !capcol.is_null() {
-            *capcol = -1;
+        if let Some(ref mut p) = capcol {
+            **p = -1;
         }
         mi.mi_end = mi.mi_fend;
         mi.mi_capflags = 0;
@@ -368,7 +367,9 @@ pub fn spell_check(
                     return nrlen;
                 }
             } else if !spell_iswordp_nmw(ptr, wp) {
-                if !capcol.is_null() && (*w_s).b_cap_prog.is_some() {
+                if let Some(capcol) = capcol
+                    && (*w_s).b_cap_prog.is_some()
+                {
                     let mut regmatch = regmatch_T::new();
                     regmatch.regprog = crate::regexp::regprog_as_ptr(&(*w_s).b_cap_prog);
                     regmatch.rm_ic = false;

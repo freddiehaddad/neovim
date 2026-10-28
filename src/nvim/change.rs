@@ -969,9 +969,8 @@ pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> 
 pub fn open_line(
     dir: c_int,
     flags: c_int,
-    second_line_indent: c_int,did_do_comment: Option<&mut bool>,
+    second_line_indent: c_int,mut did_do_comment: Option<&mut bool>,
 ) -> bool {
-    let did_do_comment: *mut bool = did_do_comment.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut next_line_vec: Vec<c_char> = Vec::new();
         let mut p_extra: *mut c_char = ptr::null_mut();
@@ -1195,9 +1194,9 @@ pub fn open_line(
                     );
                     if lead_len != 0 {
                         lead_len += comment_start;
-                        if !did_do_comment.is_null() {
-                            *did_do_comment = true;
-                        }
+                        if let Some(ref mut p) = did_do_comment {
+            **p = true;
+        }
                     }
                 }
             }

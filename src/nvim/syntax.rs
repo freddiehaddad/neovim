@@ -5291,7 +5291,6 @@ pub fn syn_get_id(
     trans: c_int,spellp: Option<&mut bool>,
     keep_state: c_int,
 ) -> c_int {
-    let spellp: *mut bool = spellp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if wp != syn_st().syn_win || (*wp).w_buffer != syn_st().syn_buf || lnum != syn_st().current_lnum || col < syn_st().current_col {
             syntax_start(wp, lnum);
@@ -5299,7 +5298,11 @@ pub fn syn_get_id(
             syn_st().next_match_idx = -1;
         }
 
-        get_syntax_attr(col, spellp, keep_state != 0);
+        get_syntax_attr(
+            col,
+            spellp.map_or(ptr::null_mut(), |p| &raw mut *p),
+            keep_state != 0,
+        );
 
         if trans != 0 {
             syn_st().current_trans_id

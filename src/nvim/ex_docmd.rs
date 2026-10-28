@@ -7418,17 +7418,16 @@ fn one_letter_cmd(p: *const c_char, idx: &mut cmdidx_T) -> c_int {
     }
 }
 
-pub fn find_ex_command(eap: &mut exarg_T,full: Option<&mut c_int>) -> *mut c_char {
-    let full: *mut c_int = full.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+pub fn find_ex_command(eap: &mut exarg_T,mut full: Option<&mut c_int>) -> *mut c_char {
     unsafe {
         let mut p = eap.cmd;
         let mut cmdidx_out = cmdidx_T::CMD_append;
         if one_letter_cmd(p, &mut cmdidx_out) != 0 {
             eap.cmdidx = cmdidx_out as c_int;
             p = p.add(1);
-            if !full.is_null() {
-                *full = c_int::from(true);
-            }
+            if let Some(ref mut p) = full {
+            **p = c_int::from(true);
+        }
         } else {
             while ascii_isalpha(*p) {
                 p = p.add(1);
@@ -7499,8 +7498,8 @@ pub fn find_ex_command(eap: &mut exarg_T,full: Option<&mut c_int>) -> *mut c_cha
             while eap.cmdidx < CMD_SIZE_I32 {
                 let cname = CMDNAMES[eap.cmdidx as usize].cmd_name.as_ptr();
                 if crate::memory::cstr_prefix_bytes(cname, len as usize) == crate::memory::cstr_prefix_bytes(eap.cmd, len as usize) {
-                    if !full.is_null() && *cname.add(len as usize) == NUL {
-                        *full = c_int::from(true);
+                    if full.is_some() && *cname.add(len as usize) == NUL {
+                        *full.as_deref_mut().unwrap() = c_int::from(true);
                     }
                     break;
                 }
@@ -7514,7 +7513,7 @@ pub fn find_ex_command(eap: &mut exarg_T,full: Option<&mut c_int>) -> *mut c_cha
                 while ascii_isalnum(*p) {
                     p = p.add(1);
                 }
-                p = find_ucmd(eap, p, (!full.is_null()).then(||  { &mut *full }), None, None);
+                p = find_ucmd(eap, p, (full.is_some()).then(||  { &mut *full.unwrap() }), None, None);
             }
             if p == eap.cmd {
                 eap.cmdidx = CMD_SIZE_I32;

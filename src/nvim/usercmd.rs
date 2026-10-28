@@ -238,11 +238,9 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).
 pub fn find_ucmd(
     eap: &mut exarg_T,
-    p: *mut c_char,full: Option<&mut c_int>,xp: Option<&mut expand_T>,complp: Option<&mut c_int>,
+    p: *mut c_char,mut full: Option<&mut c_int>,xp: Option<&mut expand_T>,mut complp: Option<&mut c_int>,
 ) -> *mut c_char {
-    let full: *mut c_int = full.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let xp: *mut expand_T = xp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let complp: *mut c_int = complp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let len = p.offset_from(eap.cmd) as c_int;
         let mut matchlen: c_int = 0;
@@ -292,9 +290,9 @@ pub fn find_ucmd(
                         eap.useridx = j;
                         eap.addr_type = uc.uc_addr_type;
 
-                        if !complp.is_null() {
-                            *complp = uc.uc_compl;
-                        }
+                        if let Some(ref mut p) = complp {
+            **p = uc.uc_compl;
+        }
                         if !xp.is_null() {
                             (*xp).xp_luaref = uc.uc_compl_luaref;
                             (*xp).xp_arg = uc
@@ -306,9 +304,9 @@ pub fn find_ucmd(
                         }
                         matchlen = k;
                         if k == len && *np == NUL {
-                            if !full.is_null() {
-                                *full = 1;
-                            }
+                            if let Some(ref mut p) = full {
+            **p = 1;
+        }
                             amb_local = false;
                             break;
                         }

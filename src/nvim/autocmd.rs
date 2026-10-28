@@ -2451,15 +2451,14 @@ pub fn aucmd_span_pattern(mut pat: *const c_char, start: *mut *const c_char) -> 
 
 pub fn do_doautocmd(
     arg_start: *mut c_char,
-    do_msg: bool,did_something: Option<&mut bool>,
+    do_msg: bool,mut did_something: Option<&mut bool>,
 ) -> c_int {
-    let did_something: *mut bool = did_something.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut arg = arg_start;
         let mut nothing_done = true;
 
-        if !did_something.is_null() {
-            *did_something = false;
+        if let Some(ref mut p) = did_something {
+            **p = false;
         }
 
         let group = arg_augroup_get(&raw mut arg);
@@ -2498,8 +2497,8 @@ pub fn do_doautocmd(
         if nothing_done && do_msg && !aborting() {
             smsg!(0, tr(c"No matching autocommands: %s"), arg_start);
         }
-        if !did_something.is_null() {
-            *did_something = !nothing_done;
+        if let Some(ref mut p) = did_something {
+            **p = !nothing_done;
         }
 
         if aborting() { FAIL } else { OK }

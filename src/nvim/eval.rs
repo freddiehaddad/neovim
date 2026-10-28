@@ -4948,7 +4948,6 @@ pub fn tv_to_argv(
     cmd_tv: &mut typval_T,
     cmd: Option<&mut std::ffi::CString>,executable: Option<&mut bool>,
 ) -> Vec<std::ffi::CString> {
-    let executable: *mut bool = executable.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if cmd_tv.v_type == VarType::VAR_STRING {
             let cmd_str = tv_get_string(&*cmd_tv);
@@ -4976,7 +4975,9 @@ pub fn tv_to_argv(
         let arg0 = tv_get_string_chk(&*tv_list_item_tv(&mut *tv_list_first(argl)));
         let mut exe_resolved: Option<std::ffi::CString> = None;
         if arg0.is_null() || !os_can_exe(arg0, Some(&mut exe_resolved), true) {
-            if !arg0.is_null() && !executable.is_null() {
+            if !arg0.is_null()
+                && let Some(executable) = executable
+            {
                 let mut buf = [0 as c_char; IOSIZE];
                 vim_snprintf!(
                     buf.as_mut_ptr(),
@@ -5844,26 +5845,24 @@ pub fn var2fpos(
 /// Convert list in "arg" into position "posp" and optional file number "fnump".
 pub fn list2fpos(
     arg: &mut typval_T,
-    posp: &mut pos_T,fnump: Option<&mut c_int>,curswantp: Option<&mut colnr_T>,
+    posp: &mut pos_T,mut fnump: Option<&mut c_int>,mut curswantp: Option<&mut colnr_T>,
     charcol: bool,
 ) -> c_int {
-    let fnump: *mut c_int = fnump.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let curswantp: *mut colnr_T = curswantp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if arg.v_type != VarType::VAR_LIST {
             return FAIL;
         }
         let l = arg.vval.v_list();
         if l.is_null()
-            || tv_list_len(l) < if fnump.is_null() { 2 } else { 3 }
-            || tv_list_len(l) > if fnump.is_null() { 4 } else { 5 }
+            || tv_list_len(l) < if fnump.is_none() { 2 } else { 3 }
+            || tv_list_len(l) > if fnump.is_none() { 4 } else { 5 }
         {
             return FAIL;
         }
 
         let mut i: c_int = 0;
         let mut n: c_int;
-        if !fnump.is_null() {
+        if fnump.is_some() {
             n = tv_list_find_nr(l, i, None) as c_int;
             i += 1;
             if n < 0 {
@@ -5874,7 +5873,7 @@ pub fn list2fpos(
                     n = (*g_st().curbuf).b_fnum;
                 }
             }
-            *fnump = n;
+            *fnump.as_deref_mut().unwrap() = n;
         }
 
         n = tv_list_find_nr(l, i, None) as c_int;
@@ -5890,10 +5889,10 @@ pub fn list2fpos(
             return FAIL;
         }
         if charcol {
-            let buf = buflist_findnr(if fnump.is_null() {
-                (*g_st().curbuf).b_fnum
-            } else {
+            let buf = buflist_findnr(if let Some(fnump) = fnump {
                 *fnump
+            } else {
+                (*g_st().curbuf).b_fnum
             });
             if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
                 return FAIL;
@@ -5918,8 +5917,8 @@ pub fn list2fpos(
             posp.coladd = n;
         }
 
-        if !curswantp.is_null() {
-            *curswantp = tv_list_find_nr(l, i + 1, None) as colnr_T;
+        if let Some(ref mut p) = curswantp {
+            **p = tv_list_find_nr(l, i + 1, None) as colnr_T;
         }
 
         OK

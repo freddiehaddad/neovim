@@ -164,19 +164,17 @@ pub fn hasFolding(
     lnum: linenr_T,firstp: Option<&mut linenr_T>,
     lastp: *mut linenr_T,
 ) -> bool {
-    let firstp: *mut linenr_T = firstp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    hasFoldingWin(win, lnum, (!firstp.is_null()).then(|| unsafe { &mut *firstp }), lastp, true, None)
+    hasFoldingWin(win, lnum, firstp, lastp, true, None)
 }
 
 /// Search folds starting at lnum.
 pub fn hasFoldingWin(
     win: *mut win_T,
-    lnum: linenr_T,firstp: Option<&mut linenr_T>,
+    lnum: linenr_T,mut firstp: Option<&mut linenr_T>,
     lastp: *mut linenr_T,
     cache: bool,
     mut infop: Option<&mut foldinfo_T>,
 ) -> bool {
-    let firstp: *mut linenr_T = firstp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         checkupdate(win);
 
@@ -250,8 +248,8 @@ pub fn hasFoldingWin(
         if !lastp.is_null() {
             *lastp = last;
         }
-        if !firstp.is_null() {
-            *firstp = first;
+        if let Some(ref mut p) = firstp {
+            **p = first;
         }
         if let Some(infop) = infop {
             infop.fi_level = level + 1;
@@ -964,7 +962,6 @@ fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
 }
 
 fn setManualFold(pos: pos_T, opening: bool, recurse: bool,donep: Option<&mut c_int>) -> linenr_T {
-    let donep: *mut c_int = donep.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if foldmethodIsDiff(&mut **curwin.as_ptr()) && (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
             let mut wp = g_st().firstwin;
@@ -979,7 +976,7 @@ fn setManualFold(pos: pos_T, opening: bool, recurse: bool,donep: Option<&mut c_i
             }
         }
 
-        setManualFoldWin(&mut **curwin.as_ptr(), pos.lnum, opening, recurse, (!donep.is_null()).then(|| &mut *donep))
+        setManualFoldWin(&mut **curwin.as_ptr(), pos.lnum, opening, recurse, donep)
     }
 }
 
@@ -987,9 +984,8 @@ fn setManualFoldWin(
     wp: &mut win_T,
     mut lnum: linenr_T,
     opening: bool,
-    recurse: bool,donep: Option<&mut c_int>,
+    recurse: bool,mut donep: Option<&mut c_int>,
 ) -> linenr_T {
-    let donep: *mut c_int = donep.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut found: *mut fold_T = ptr::null_mut();
         let mut level: c_int = 0;
@@ -1062,12 +1058,12 @@ fn setManualFoldWin(
                 changed_window_setting(&mut *wp);
             }
             done |= DONE_FOLD;
-        } else if donep.is_null() && ptr::eq(wp, *curwin.as_ptr()) {
+        } else if donep.is_none() && ptr::eq(wp, *curwin.as_ptr()) {
             emsg(gettext(E_NOFOLD.as_ptr()));
         }
 
-        if !donep.is_null() {
-            *donep |= done;
+        if let Some(ref mut p) = donep {
+            **p |= done;
         }
 
         next

@@ -4053,10 +4053,9 @@ fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtype: c_in
 /// Find offset for line or line with offset.
 pub fn ml_find_line_or_offset(
     buf: &mut buf_T,
-    lnum: linenr_T,offp: Option<&mut c_int>,
+    lnum: linenr_T,mut offp: Option<&mut c_int>,
     no_ff: bool,
 ) -> c_int {
-    let offp: *mut c_int = offp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let ffdos = c_int::from(!no_ff && get_fileformat(buf) == EOL_DOS);
         let mut extra: c_int = 0;
@@ -4075,7 +4074,7 @@ pub fn ml_find_line_or_offset(
             return -1;
         }
 
-        let offset = if offp.is_null() { 0 } else { *offp };
+        let offset = if offp.is_none() { 0 } else { *offp.as_deref_mut().unwrap() };
         if lnum == 0 && offset <= 0 {
             return 1;
         }
@@ -4149,11 +4148,11 @@ pub fn ml_find_line_or_offset(
             size += len;
             if offset != 0 && size >= offset {
                 if size + ffdos == offset {
-                    *offp = 0;
+                    *offp.as_deref_mut().unwrap() = 0;
                 } else if idx == start_idx {
-                    *offp = offset - size + len;
+                    *offp.as_deref_mut().unwrap() = offset - size + len;
                 } else {
-                    *offp = offset - size + len
+                    *offp.as_deref_mut().unwrap() = offset - size + len
                         - (text_end
                             - ((*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int));
                 }

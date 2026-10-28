@@ -381,26 +381,25 @@ fn one_function_arg(
 fn get_function_args(
     argp: *mut *mut c_char,
     endchar: c_char,
-    mut newargs: Option<&mut Vec<std::ffi::CString>>,varargs: Option<&mut c_int>,
+    mut newargs: Option<&mut Vec<std::ffi::CString>>,mut varargs: Option<&mut c_int>,
     mut default_args: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
 ) -> c_int {
-    let varargs: *mut c_int = varargs.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut mustend = false;
         let mut arg = *argp;
         let mut p = arg;
 
-        if !varargs.is_null() {
-            *varargs = 0;
+        if let Some(ref mut p) = varargs {
+            **p = 0;
         }
 
         let mut any_default = false;
         while *p != endchar {
             if *p == b'.' as c_char && *p.add(1) == b'.' as c_char && *p.add(2) == b'.' as c_char {
-                if !varargs.is_null() {
-                    *varargs = 1;
-                }
+                if let Some(ref mut p) = varargs {
+            **p = 1;
+        }
                 p = p.add(3);
                 mustend = true;
             } else {

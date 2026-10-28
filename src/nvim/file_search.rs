@@ -1422,7 +1422,6 @@ pub fn file_name_at_cursor(
     options: c_int,
     count: c_int,file_lnum: Option<&mut linenr_T>,
 ) -> Option<std::ffi::CString> {
-    let file_lnum: *mut linenr_T = file_lnum.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         file_name_in_line(
             get_cursor_line_ptr(),
@@ -1430,7 +1429,7 @@ pub fn file_name_at_cursor(
             options,
             count,
             (*g_st().curbuf).b_ffname,
-            (!file_lnum.is_null()).then(||  { &mut *file_lnum }),
+            (file_lnum.is_some()).then(||  { &mut *file_lnum.unwrap() }),
         )
     }
 }
@@ -1443,7 +1442,6 @@ pub fn file_name_in_line(
     count: c_int,
     rel_fname: *mut c_char,file_lnum: Option<&mut linenr_T>,
 ) -> Option<std::ffi::CString> {
-    let file_lnum: *mut linenr_T = file_lnum.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut ptr = line.add(col as usize);
         while *ptr != NUL && !vim_isfilec(c_int::from(*ptr as u8)) {
@@ -1504,7 +1502,7 @@ pub fn file_name_in_line(
             len -= 1;
         }
 
-        if !file_lnum.is_null() {
+        if let Some(file_lnum) = file_lnum {
             let english = b" line ";
             let mut p = ptr.add(len);
             let p_bytes = CStr::from_ptr(p).to_bytes();

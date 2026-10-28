@@ -2344,9 +2344,8 @@ pub fn trans_special(
     flags: c_int,
     escape_ks: bool,did_simplify: Option<&mut bool>,
 ) -> c_uint {
-    let did_simplify: *mut bool = did_simplify.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let mut modifiers: c_int = 0;
-    let key = find_special_key(srcp, src_len, &mut modifiers, flags, (!did_simplify.is_null()).then(|| unsafe { &mut *did_simplify }));
+    let key = find_special_key(srcp, src_len, &mut modifiers, flags, did_simplify);
     if key == 0 {
         return 0;
     }
@@ -2400,7 +2399,6 @@ fn extract_modifiers(
     modp: &mut c_int,
     simplify: bool,did_simplify: Option<&mut bool>,
 ) -> c_int {
-    let did_simplify: *mut bool = did_simplify.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let mut modifiers = *modp;
 
     if (modifiers & c_int::from(MOD_MASK_SHIFT)) != 0 && ascii_isalpha(key) {
@@ -2427,10 +2425,8 @@ fn extract_modifiers(
             // <C-@> is <Nul>
             key = K_ZERO;
         }
-        if !did_simplify.is_null() {
-            unsafe {
-                *did_simplify = true;
-            }
+        if let Some(did_simplify) = did_simplify {
+            *did_simplify = true;
         }
     }
 
@@ -2445,7 +2441,6 @@ pub fn find_special_key(
     modp: &mut c_int,
     flags: c_int,did_simplify: Option<&mut bool>,
 ) -> c_int {
-    let did_simplify: *mut bool = did_simplify.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if src_len == 0 {
             return 0;
@@ -2605,7 +2600,7 @@ pub fn find_special_key(
                             key,
                             &mut modifiers,
                             (flags & FSK_SIMPLIFY) != 0,
-                            (!did_simplify.is_null()).then(||  { &mut *did_simplify }),
+                            (did_simplify.is_some()).then(||  { &mut *did_simplify.unwrap() }),
                         );
                     }
 
@@ -2676,10 +2671,9 @@ pub fn replace_termcodes(
     from_len: usize,
     buf_limit: bool,
     sid_arg: scid_T,
-    flags: c_int,did_simplify: Option<&mut bool>,
+    flags: c_int,mut did_simplify: Option<&mut bool>,
     cpo_val: *const c_char,
 ) -> Option<std::ffi::CString> {
-    let did_simplify: *mut bool = did_simplify.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut dlen: usize = 0;
         let end_exclusive = from.add(from_len);
@@ -2751,7 +2745,7 @@ pub fn replace_termcodes(
                     result.add(dlen),
                     fsk_flags,
                     true,
-                    (!did_simplify.is_null()).then(||  { &mut *did_simplify }),
+                    (did_simplify.is_some()).then(||  { &mut *did_simplify.as_deref_mut().unwrap() }),
                 ) as usize;
                 if slen != 0 {
                     dlen += slen;

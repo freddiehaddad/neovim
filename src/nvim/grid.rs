@@ -526,16 +526,15 @@ pub fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int, col: c_int) {
     }
 }
 
-pub fn grid_line_getchar(mut col: c_int,attr: Option<&mut c_int>) -> schar_T {
-    let attr: *mut c_int = attr.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+pub fn grid_line_getchar(mut col: c_int,mut attr: Option<&mut c_int>) -> schar_T {
     unsafe {
         if col < grid_st().grid_line_maxcol {
             col += grid_st().grid_line_coloff;
             let grid = &*grid_st().grid_line_grid;
             let off = grid.line_offset[grid_st().grid_line_row as usize] + col as usize;
-            if !attr.is_null() {
-                *attr = grid.attrs[off];
-            }
+            if let Some(ref mut p) = attr {
+            **p = grid.attrs[off];
+        }
             grid.chars[off]
         } else {
             schar_from_ascii(b' ')

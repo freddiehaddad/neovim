@@ -1736,9 +1736,8 @@ pub fn encode_vim_to_msgpack(
 }
 
 /// Return a string with the string representation of a variable (`encode_tv2string`).
-pub fn encode_tv2string(tv: &mut typval_T,len: Option<&mut usize>) -> std::ffi::CString {
-    let len: *mut usize = len.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    unsafe {
+pub fn encode_tv2string(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::ffi::CString {
+     {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
             gap: &mut ga,
@@ -1748,8 +1747,8 @@ pub fn encode_tv2string(tv: &mut typval_T,len: Option<&mut usize>) -> std::ffi::
             encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument".as_ptr());
         assert_eq!(evs_ret, OK);
         encode_st().DID_ECHO_STRING_EMSG = false;
-        if !len.is_null() {
-            *len = ga.len();
+        if let Some(ref mut p) = len {
+            **p = ga.len();
         }
         cstr_from_bytes(&ga)
     }
@@ -1776,9 +1775,8 @@ pub fn encode_tv2echo(tv: &mut typval_T, len: Option<&mut usize>) -> std::ffi::C
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
-pub fn encode_tv2json(tv: &mut typval_T,len: Option<&mut usize>) -> std::ffi::CString {
-    let len: *mut usize = len.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    unsafe {
+pub fn encode_tv2json(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::ffi::CString {
+     {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
             gap: &mut ga,
@@ -1790,8 +1788,8 @@ pub fn encode_tv2json(tv: &mut typval_T,len: Option<&mut usize>) -> std::ffi::CS
         if evj_ret == FAIL {
             ga.clear();
         }
-        if !len.is_null() {
-            *len = ga.len();
+        if let Some(ref mut p) = len {
+            **p = ga.len();
         }
         cstr_from_bytes(&ga)
     }

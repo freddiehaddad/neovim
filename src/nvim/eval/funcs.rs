@@ -6806,8 +6806,7 @@ pub fn f_reduce(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
     }
 }
 
-fn get_search_arg(varp: &mut typval_T,flagsp: Option<&mut c_int>) -> c_int {
-    let flagsp: *mut c_int = flagsp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+fn get_search_arg(varp: &mut typval_T,mut flagsp: Option<&mut c_int>) -> c_int {
     unsafe {
         let mut dir = FORWARD;
         if varp.v_type == VarType::VAR_UNKNOWN {
@@ -6825,7 +6824,7 @@ fn get_search_arg(varp: &mut typval_T,flagsp: Option<&mut c_int>) -> c_int {
                 b'W' => opt_vars().p_ws = 0,
                 b => {
                     let mut mask: c_int = 0;
-                    if !flagsp.is_null() {
+                    if flagsp.is_some() {
                         mask = match b {
                             b'c' => SP_START,
                             b'e' => SP_END,
@@ -6842,7 +6841,7 @@ fn get_search_arg(varp: &mut typval_T,flagsp: Option<&mut c_int>) -> c_int {
                         semsg!(gettext(e_invarg2.as_ptr()), flags);
                         dir = 0;
                     } else {
-                        *flagsp |= mask;
+                        *flagsp.as_deref_mut().unwrap() |= mask;
                     }
                 }
             }

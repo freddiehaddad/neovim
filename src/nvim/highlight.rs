@@ -1440,11 +1440,10 @@ const fn apply_cterm_flag(val: bool, mut m: i32, flag: i32) -> i32 {
 
 pub fn dict2hlattrs(
     dict: &mut KeyDict_highlight,
-    use_rgb: bool,link_id: Option<&mut c_int>,
+    use_rgb: bool,mut link_id: Option<&mut c_int>,
     base: *mut HlAttrs,
     err: &mut Error,
 ) -> HlAttrs {
-    let link_id: *mut c_int = link_id.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut hlattrs = HLATTRS_INIT;
         let mut fg: i32 = if !base.is_null() {
@@ -1684,7 +1683,7 @@ pub fn dict2hlattrs(
         if has_key(is_set, KEYSET_OPTIDX_highlight__link)
             || has_key(is_set, KEYSET_OPTIDX_highlight__link_global)
         {
-            if link_id.is_null() {
+            if link_id.is_none() {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
@@ -1698,10 +1697,10 @@ pub fn dict2hlattrs(
                 return hlattrs;
             }
             if has_key(is_set, KEYSET_OPTIDX_highlight__link_global) {
-                *link_id = dict.link_global as c_int;
+                *link_id.as_deref_mut().unwrap() = dict.link_global as c_int;
                 mask |= HL_GLOBAL;
             } else {
-                *link_id = dict.link as c_int;
+                *link_id.unwrap() = dict.link as c_int;
             }
 
             if err.err_type != ErrorType::kErrorTypeNone {

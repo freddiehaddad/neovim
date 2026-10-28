@@ -85,10 +85,8 @@ pub fn plines_correct_topline(
     lnum: linenr_T,nextp: Option<&mut linenr_T>,
     limit_winheight: bool,foldedp: Option<&mut bool>,
 ) -> c_int {
-    let nextp: *mut linenr_T = nextp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let foldedp: *mut bool = foldedp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let mut n = plines_win_full(wp, lnum, (!nextp.is_null()).then(||  { &mut *nextp }), (!foldedp.is_null()).then(||  { &mut *foldedp }), true, false);
+        let mut n = plines_win_full(wp, lnum, (nextp.is_some()).then(||  { &mut *nextp.unwrap() }), (foldedp.is_some()).then(||  { &mut *foldedp.unwrap() }), true, false);
         if lnum == (*wp).w_topline {
             n -= adjust_plines_for_skipcol(wp);
         }

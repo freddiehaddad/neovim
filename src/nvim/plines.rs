@@ -701,12 +701,9 @@ fn virt_text_cursor_off(csarg: &CharsizeArg, on_nul: bool) -> c_int {
 
 pub fn getvcol(
     wp: &mut win_T,
-    pos: &mut pos_T,start: Option<&mut colnr_T>,cursor: Option<&mut colnr_T>,end: Option<&mut colnr_T>,
+    pos: &mut pos_T,mut start: Option<&mut colnr_T>,mut cursor: Option<&mut colnr_T>,end: Option<&mut colnr_T>,
     flags: c_int,
 ) {
-    let start: *mut colnr_T = start.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let cursor: *mut colnr_T = cursor.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let end: *mut colnr_T = end.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let line = ml_get_buf(wp.w_buffer, pos.lnum);
         let end_col = pos.col;
@@ -766,10 +763,10 @@ pub fn getvcol(
         let head = char_size.head;
         let tail = char_size.tail;
 
-        if !start.is_null() {
-            *start = vcol + head;
+        if let Some(ref mut p) = start {
+            **p = vcol + head;
         }
-        if !end.is_null() {
+        if let Some(end) = end {
             *end = vcol + incr
                 - if (flags & GETVCOL_END_EXCL_LBR) != 0 {
                     tail
@@ -778,17 +775,17 @@ pub fn getvcol(
                 }
                 - 1;
         }
-        if !cursor.is_null() {
+        if cursor.is_some() {
             if ci.chr.value == TAB
                 && (g_st().State & MODE_NORMAL) != 0
                 && wp.w_onebuf_opt.wo_list == 0
                 && !virtual_active(wp)
                 && !(g_st().Visual.active && (*opt_vars().p_sel == b'e' as c_char || ltoreq(*pos, g_st().Visual.start)))
             {
-                *cursor = vcol + incr - 1;
+                *cursor.as_deref_mut().unwrap() = vcol + incr - 1;
             } else {
                 vcol += virt_text_cursor_off(&csarg, on_nul);
-                *cursor = vcol + head;
+                *cursor.unwrap() = vcol + head;
             }
         }
     }
@@ -812,12 +809,9 @@ pub fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
 
 pub fn getvvcol(
     wp: *mut win_T,
-    pos: &mut pos_T,start: Option<&mut colnr_T>,cursor: Option<&mut colnr_T>,end: Option<&mut colnr_T>,
+    pos: &mut pos_T,mut start: Option<&mut colnr_T>,mut cursor: Option<&mut colnr_T>,mut end: Option<&mut colnr_T>,
     flags: c_int,
 ) {
-    let start: *mut colnr_T = start.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let cursor: *mut colnr_T = cursor.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let end: *mut colnr_T = end.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut col: colnr_T = 0;
 
@@ -840,17 +834,17 @@ pub fn getvvcol(
             }
             col += coladd;
 
-            if !start.is_null() {
-                *start = col;
-            }
-            if !cursor.is_null() {
-                *cursor = col;
-            }
-            if !end.is_null() {
-                *end = col + endadd;
-            }
+            if let Some(ref mut p) = start {
+            **p = col;
+        }
+            if let Some(ref mut p) = cursor {
+            **p = col;
+        }
+            if let Some(ref mut p) = end {
+            **p = col + endadd;
+        }
         } else {
-            getvcol(&mut *wp, pos, (!start.is_null()).then(||  { &mut *start }), (!cursor.is_null()).then(||  { &mut *cursor }), (!end.is_null()).then(||  { &mut *end }), flags);
+            getvcol(&mut *wp, pos, (start.is_some()).then(||  { &mut *start.unwrap() }), (cursor.is_some()).then(||  { &mut *cursor.unwrap() }), (end.is_some()).then(||  { &mut *end.unwrap() }), flags);
         }
     }
 }
@@ -1013,16 +1007,21 @@ pub fn plines_win_col(wp: &mut win_T, lnum: linenr_T, column: c_long) -> c_int {
 
 pub fn plines_win_full(
     wp: *mut win_T,
-    mut lnum: linenr_T,nextp: Option<&mut linenr_T>,foldedp: Option<&mut bool>,
+    mut lnum: linenr_T,nextp: Option<&mut linenr_T>,mut foldedp: Option<&mut bool>,
     cache: bool,
     limit_winheight: bool,
 ) -> c_int {
-    let nextp: *mut linenr_T = nextp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let foldedp: *mut bool = foldedp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let folded = hasFoldingWin(wp, lnum, Some(&mut lnum), nextp, cache, None);
-        if !foldedp.is_null() {
-            *foldedp = folded;
+        let folded = hasFoldingWin(
+            wp,
+            lnum,
+            Some(&mut lnum),
+            nextp.map_or(std::ptr::null_mut(), |p| &raw mut *p),
+            cache,
+            None,
+        );
+        if let Some(ref mut p) = foldedp {
+            **p = folded;
         }
 
         let filler_lines = if lnum == (*wp).w_topline {

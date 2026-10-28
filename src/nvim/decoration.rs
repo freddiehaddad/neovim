@@ -1444,11 +1444,8 @@ pub fn decor_redraw_signs(
     wp: *mut win_T,
     buf: *mut buf_T,
     row: c_int,
-    sattrs: *mut SignTextAttrs,line_id: Option<&mut c_int>,cul_id: Option<&mut c_int>,num_id: Option<&mut c_int>,
+    sattrs: *mut SignTextAttrs,mut line_id: Option<&mut c_int>,mut cul_id: Option<&mut c_int>,mut num_id: Option<&mut c_int>,
 ) {
-    let line_id: *mut c_int = line_id.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let cul_id: *mut c_int = cul_id.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let num_id: *mut c_int = num_id.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if !buf_has_signs(buf) {
             return;
@@ -1506,14 +1503,14 @@ pub fn decor_redraw_signs(
                     (*sattrs.add(idx)).hl_id = sh.hl_id;
                     idx += 1;
                 }
-                if !num_id.is_null() && *num_id <= 0 {
-                    *num_id = sh.number_hl_id;
+                if num_id.is_some() && *num_id.as_deref_mut().unwrap() <= 0 {
+                    *num_id.as_deref_mut().unwrap() = sh.number_hl_id;
                 }
-                if !line_id.is_null() && *line_id <= 0 {
-                    *line_id = sh.line_hl_id;
+                if line_id.is_some() && *line_id.as_deref_mut().unwrap() <= 0 {
+                    *line_id.as_deref_mut().unwrap() = sh.line_hl_id;
                 }
-                if !cul_id.is_null() && *cul_id <= 0 {
-                    *cul_id = sh.cursorline_hl_id;
+                if cul_id.is_some() && *cul_id.as_deref_mut().unwrap() <= 0 {
+                    *cul_id.as_deref_mut().unwrap() = sh.cursorline_hl_id;
                 }
             }
         }
@@ -1648,12 +1645,11 @@ fn decor_virt_line_wrap(wp: &mut win_T, overflow: VirtLineOverflow) -> bool {
 
 pub fn decor_virt_line_rows(wp: &mut win_T,
     vl: &VirtLine,
-    target_row: c_int,skip_cells: Option<&mut c_int>,
+    target_row: c_int,mut skip_cells: Option<&mut c_int>,
 ) -> c_int {
-    let skip_cells: *mut c_int = skip_cells.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        if !skip_cells.is_null() {
-            *skip_cells = 0;
+        if let Some(ref mut p) = skip_cells {
+            **p = 0;
         }
         if !decor_virt_line_wrap(wp, vl.overflow) {
             return 1;
@@ -1687,8 +1683,8 @@ pub fn decor_virt_line_rows(wp: &mut win_T,
                 virt_str = virt_str.add(bytes_to_next_char as usize);
                 if row_cells + cells > row_width {
                     row += 1;
-                    if !skip_cells.is_null() && row == target_row {
-                        *skip_cells = vcol;
+                    if skip_cells.is_some() && row == target_row {
+                        *skip_cells.as_deref_mut().unwrap() = vcol;
                     }
                     row_cells = 0;
                 }
@@ -1704,10 +1700,9 @@ pub fn decor_virt_line_rows(wp: &mut win_T,
 pub fn decor_virt_lines(
     wp: &mut win_T,
     start_row: c_int,
-    end_row: c_int,num_below: Option<&mut c_int>,lines: Option<&mut VirtLines>,
+    end_row: c_int,mut num_below: Option<&mut c_int>,lines: Option<&mut VirtLines>,
     apply_folds: bool,
 ) -> c_int {
-    let num_below: *mut c_int = num_below.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let lines: *mut VirtLines = lines.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let buf = wp.w_buffer;
@@ -1757,14 +1752,14 @@ pub fn decor_virt_lines(
                                         None,
                                     );
                                     n_virt_lines += rows;
-                                    if !num_below.is_null() && !above {
-                                        *num_below += rows;
+                                    if num_below.is_some() && !above {
+                                        *num_below.as_deref_mut().unwrap() += rows;
                                     }
                                 }
                             } else {
                                 n_virt_lines += virt_lines.len() as c_int;
-                                if !num_below.is_null() && !above {
-                                    *num_below += virt_lines.len() as c_int;
+                                if num_below.is_some() && !above {
+                                    *num_below.as_deref_mut().unwrap() += virt_lines.len() as c_int;
                                 }
                             }
                             if !lines.is_null() {
