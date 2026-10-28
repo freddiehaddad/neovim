@@ -3234,7 +3234,7 @@ fn add_tag_field(
 
 /// Add the tags matching the specified pattern `pat` to the list `list`
 /// as a dictionary. Use `buf_fname` for priority, unless NULL.
-pub fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> c_int {
+pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> c_int {
     unsafe {
         let mut matches: Vec<Vec<c_char>> = Vec::new();
         let mut tp = tagptrs_T::default();
@@ -3381,7 +3381,7 @@ fn get_tag_details(tag: &mut taggy_T, retdict: *mut dict_T) {
 }
 
 /// Return the tag stack entries of the specified window `wp` in dictionary `retdict`.
-pub fn get_tagstack(wp: &mut win_T, retdict: *mut dict_T) {
+pub fn get_tagstack(wp: &mut win_T, retdict: &mut dict_T) {
     unsafe {
         tv_dict_add_nr(
             retdict,

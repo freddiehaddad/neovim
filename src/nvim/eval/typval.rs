@@ -1150,23 +1150,23 @@ pub fn tv_list_remove_items(l: *mut list_T, item: *mut listitem_T, item2: *mut l
 
 /// Move items "item" to "item2" from list "l" to the end of the list "tgt_l".
 pub fn tv_list_move_items(
-    l: *mut list_T,
+    l: &mut list_T,
     item: *mut listitem_T,
-    item2: *mut listitem_T,
-    tgt_l: *mut list_T,
+    item2: &mut listitem_T,
+    tgt_l: &mut list_T,
     cnt: c_int,
 ) {
     unsafe {
         tv_list_drop_items(l, item, item2);
-        (*item).li_prev = (*tgt_l).lv_last;
-        (*item2).li_next = ptr::null_mut();
-        if (*tgt_l).lv_last.is_null() {
-            (*tgt_l).lv_first = item;
+        (*item).li_prev = tgt_l.lv_last;
+        item2.li_next = ptr::null_mut();
+        if tgt_l.lv_last.is_null() {
+            tgt_l.lv_first = item;
         } else {
-            (*(*tgt_l).lv_last).li_next = item;
+            (*tgt_l.lv_last).li_next = item;
         }
-        (*tgt_l).lv_last = item2;
-        (*tgt_l).lv_len += cnt;
+        tgt_l.lv_last = item2;
+        tgt_l.lv_len += cnt;
     }
 }
 
@@ -1655,7 +1655,6 @@ fn tv_list_slice(ol: *mut list_T, mut n1: varnumber_T, n2: varnumber_T) -> *mut 
 }
 
 pub fn tv_list_slice_or_index(
-    _list: *mut list_T,
     range: bool,
     n1_arg: varnumber_T,
     n2_arg: varnumber_T,
@@ -1880,7 +1879,7 @@ pub fn tv_list_remove(
                     emsg(tr(e_invrange.as_ptr()));
                 } else {
                     let tgt = tv_list_alloc_ret(&mut *rettv, cnt as isize);
-                    tv_list_move_items(l, item, item2, tgt, cnt);
+                    tv_list_move_items(&mut *l, item, &mut *item2, &mut *tgt, cnt);
                 }
             }
         }
@@ -2830,7 +2829,7 @@ pub fn tv_dict_item_copy(di: &mut dictitem_T) -> *mut dictitem_T {
 pub fn tv_dict_item_remove(dict: &mut dict_T, item: *mut dictitem_T) {
     unsafe {
         let key_ptr = (*item).di_key.as_ptr();
-        let hi = hash_find(&raw const dict.dv_hashtab, key_ptr);
+        let hi = hash_find(&dict.dv_hashtab, key_ptr);
         if hashitem_empty(&*hi) {
             semsg!(tr(e_intern2.as_ptr()), c"tv_dict_item_remove()".as_ptr());
         } else {
@@ -2915,9 +2914,9 @@ pub fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut di
             return ptr::null_mut();
         }
         let hi = if len < 0 {
-            hash_find(&raw const (*d).dv_hashtab, key)
+            hash_find(&(*d).dv_hashtab, key)
         } else {
-            hash_find_len(&raw const (*d).dv_hashtab, key, len as usize)
+            hash_find_len(&(*d).dv_hashtab, key, len as usize)
         };
         if hashitem_empty(&*hi) {
             return ptr::null_mut();
@@ -3194,7 +3193,7 @@ pub fn tv_dict_add_nr(
 
 /// Add a floating point number entry to dictionary.
 pub fn tv_dict_add_float(
-    d: *mut dict_T,
+    d: &mut dict_T,
     key: *const c_char,
     key_len: usize,
     nr: float_T,
@@ -3565,7 +3564,6 @@ pub fn tv_blob_equal(b1: *const blob_T, b2: *const blob_T) -> bool {
 }
 
 fn tv_blob_slice(
-    _blob: *const blob_T,
     len: c_int,
     mut n1: varnumber_T,
     mut n2: varnumber_T,
@@ -3606,7 +3604,6 @@ fn tv_blob_slice(
 }
 
 fn tv_blob_index(
-    _blob: *const blob_T,
     len: c_int,
     mut idx: varnumber_T,
     rettv: &mut typval_T,
@@ -3631,7 +3628,6 @@ fn tv_blob_index(
 }
 
 pub fn tv_blob_slice_or_index(
-    blob: *const blob_T,
     is_range: bool,
     n1: varnumber_T,
     n2: varnumber_T,
@@ -3639,11 +3635,11 @@ pub fn tv_blob_slice_or_index(
     rettv: &mut typval_T,
 ) -> c_int {
     let len = tv_blob_len_inline(rettv.vval.v_blob());
-        if is_range {
-            tv_blob_slice(blob, len, n1, n2, exclusive, rettv)
-        } else {
-            tv_blob_index(blob, len, n1, rettv)
-        }
+    if is_range {
+        tv_blob_slice(len, n1, n2, exclusive, rettv)
+    } else {
+        tv_blob_index(len, n1, rettv)
+    }
 }
 
 /// Check if "n1" is a valid index for a blob with length "bloblen".
@@ -5398,7 +5394,7 @@ mod tests {
             assert!(!d.is_null());
             (*d).dv_refcount = 1;
             assert_eq!(tv_dict_add_nr(d, c"foo".as_ptr(), 3, 42), OK);
-            assert_eq!(tv_dict_add_float(d, c"flt".as_ptr(), 3, 3.5), OK);
+            assert_eq!(tv_dict_add_float(&mut *d, c"flt".as_ptr(), 3, 3.5), OK);
             assert_eq!(tv_dict_add_str(d, c"str".as_ptr(), 3, c"bar".as_ptr()), OK);
             assert_eq!(
                 tv_dict_add_str_len(d, c"alloc".as_ptr(), 5, c"baz".as_ptr(), -1),

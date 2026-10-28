@@ -4289,7 +4289,7 @@ pub fn find_hi_in_scoped_ht(
         while !uf_st().current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
             if !ht.is_null() && *varname != NUL {
-                hi = hash_find_len(ht, varname, namelen - varname.offset_from(name) as usize);
+                hi = hash_find_len(&*ht, varname, namelen - varname.offset_from(name) as usize);
                 if !hashitem_empty(&*hi) {
                     *pht = ht;
                     break;

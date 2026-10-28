@@ -1639,8 +1639,10 @@ fn pum_enough_matches() -> bool {
 
 fn ins_compl_dict_alloc(match_: *mut compl_T) -> *mut dict_T {
     let dict = tv_dict_alloc_lock(VAR_FIXED);
-        fill_complete_info_dict(dict, match_, false);
-        dict
+    unsafe {
+        fill_complete_info_dict(&mut *dict, match_, false);
+    }
+    dict
 }
 
 fn trigger_complete_changed_event(cur: c_int) {
@@ -3363,7 +3365,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         } else if !matchlist.is_null() {
             ins_compl_add_list(matchlist);
         } else if !matchdict.is_null() {
-            ins_compl_add_dict(matchdict);
+            ins_compl_add_dict(&mut *matchdict);
         }
 
         g_st().State = save_State;
@@ -3475,7 +3477,7 @@ fn ins_compl_add_list(list: *mut list_T) {
     }
 }
 
-fn ins_compl_add_dict(dict: *mut dict_T) {
+fn ins_compl_add_dict(dict: &mut dict_T) {
     unsafe {
         insexp().compl_opt_refresh_always = false;
         let di_refresh = tv_dict_find(dict, c"refresh".as_ptr(), 7);
@@ -3713,7 +3715,7 @@ fn ins_compl_update_sequence_numbers() {
     }
 }
 
-fn fill_complete_info_dict(di: *mut dict_T, match_: *mut compl_T, add_match: bool) {
+fn fill_complete_info_dict(di: &mut dict_T, match_: *mut compl_T, add_match: bool) {
     unsafe {
         tv_dict_add_str_len(
             di,
@@ -3802,7 +3804,7 @@ fn fill_complete_info_dict(di: *mut dict_T, match_: *mut compl_T, add_match: boo
     }
 }
 
-fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
+fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
     unsafe {
         let mut what_flag: c_int;
 
@@ -3909,7 +3911,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
                         if has_items || (has_matches && match_.cp_in_match_array) {
                             let di = tv_dict_alloc();
                             tv_list_append_dict(li, di);
-                            fill_complete_info_dict(di, match_, has_matches && has_items);
+                            fill_complete_info_dict(&mut *di, match_, has_matches && has_items);
                         }
                         if !curr.is_null() && (*curr).cp_number == match_.cp_number {
                             selected_idx = list_idx;
@@ -3945,7 +3947,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
             }
             if ret == OK && selected_idx != -1 && has_completed {
                 let di = tv_dict_alloc();
-                fill_complete_info_dict(di, compl_opt(insexp().compl_curr_idx), false);
+                fill_complete_info_dict(&mut *di, compl_opt(insexp().compl_curr_idx), false);
                 let _ = tv_dict_add_dict(retdict, c"completed".as_ptr(), 9, di);
             }
         }
@@ -3967,7 +3969,7 @@ pub fn f_complete_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             }
             what_list = (*argvars).vval.v_list();
         }
-        get_complete_info(what_list, rettv.vval.v_dict());
+        get_complete_info(what_list, &mut *rettv.vval.v_dict());
     }
 }
 

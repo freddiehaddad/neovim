@@ -3383,7 +3383,7 @@ fn cw_value(c: c_int) -> c_int {
         .map_or(0, |idx| c_int::from(table[idx].width))
 }
 
-fn first_list_number(l: *const list_T) -> varnumber_T {
+fn first_list_number(l: &list_T) -> varnumber_T {
     unsafe {
         let li = tv_list_first(l);
         (*li).li_tv.vval.v_number()
@@ -3449,7 +3449,7 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
                 li = (*li).li_next;
             }
 
-            ptrs.sort_by_key(|&a| first_list_number(a));
+            ptrs.sort_by_key(|&a| first_list_number(&*a));
 
             for (idx, &li_l) in ptrs.iter().enumerate() {
                 let lili0 = tv_list_first(li_l);

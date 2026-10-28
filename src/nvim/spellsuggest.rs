@@ -1000,7 +1000,7 @@ fn spell_suggest_expr(su: &mut suginfo_T, expr: *mut c_char) {
             let mut li: *mut listitem_T = (*list).lv_first;
             while !li.is_null() {
                 if (*li).li_tv.v_type == VarType::VAR_LIST {
-                    let score = get_spellword((*li).li_tv.vval.v_list(), &raw mut p);
+                    let score = get_spellword(&mut *(*li).li_tv.vval.v_list(), &raw mut p);
                     if score >= 0 && score <= su.su_maxscore {
                         add_suggestion(
                             su,

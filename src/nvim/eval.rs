@@ -1271,8 +1271,6 @@ fn get_lval_subscript(
     mut p: *mut c_char,
     name: *mut c_char,
     rettv: *mut typval_T,
-    _ht: *mut hashtab_T,
-    _v: *mut dictitem_T,
     unlet: bool,
     flags: c_int,
 ) -> *mut c_char {
@@ -1556,7 +1554,7 @@ pub fn get_lval(
             return p;
         }
 
-        p = get_lval_subscript(&raw mut *lp, p, name, rettv, ht, v, unlet, flags);
+        p = get_lval_subscript(&raw mut *lp, p, name, rettv, unlet, flags);
         if p.is_null() {
             return ptr::null_mut();
         }
@@ -3580,7 +3578,7 @@ fn eval_index_inner(
                 }
             }
             VarType::VAR_BLOB => {
-                tv_blob_slice_or_index((*rettv).vval.v_blob(), is_range, n1, n2, exclusive, &mut *rettv);
+                tv_blob_slice_or_index(is_range, n1, n2, exclusive, &mut *rettv);
             }
             VarType::VAR_LIST => {
                 if var1.is_null() {
@@ -3590,7 +3588,6 @@ fn eval_index_inner(
                     n2 = VARNUMBER_MAX;
                 }
                 if tv_list_slice_or_index(
-                    (*rettv).vval.v_list(),
                     is_range,
                     n1,
                     n2,
@@ -6980,14 +6977,14 @@ pub fn script_host_eval(name: *mut c_char, argvars: *mut typval_T, rettv: *mut t
 
         let args = tv_list_alloc(1);
         tv_list_append_string(args, (*argvars).vval.v_string(), -1);
-        *rettv = eval_call_provider(name, c"eval".as_ptr().cast_mut(), args, false);
+        *rettv = eval_call_provider(name, c"eval".as_ptr().cast_mut(), &mut *args, false);
     }
 }
 
 pub fn eval_call_provider(
     provider: *mut c_char,
     method: *mut c_char,
-    arguments: *mut list_T,
+    arguments: &mut list_T,
     discard: bool,
 ) -> typval_T {
     unsafe {

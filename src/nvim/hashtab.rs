@@ -111,21 +111,15 @@ pub fn hash_clear(ht: &mut hashtab_T) {
 }
 
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
-///
-/// # Safety
-/// `ht` and `key` must be valid pointers.
-pub fn hash_find(ht: *const hashtab_T, key: *const c_char) -> *mut hashitem_T {
+pub fn hash_find(ht: &hashtab_T, key: *const c_char) -> *mut hashitem_T {
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
     let hash = hash_hash(key);
     hash_lookup(ht, key, len, hash)
 }
 
 /// Find item for `key[..len]` in `ht` (`hash_find_len`).
-///
-/// # Safety
-/// `ht` and `key` must be valid pointers.
 pub fn hash_find_len(
-    ht: *const hashtab_T,
+    ht: &hashtab_T,
     key: *const c_char,
     len: usize,
 ) -> *mut hashitem_T {
@@ -134,16 +128,12 @@ pub fn hash_find_len(
 }
 
 /// Find item for `key[..key_len]` with precomputed `hash` in `ht` (`hash_lookup`).
-///
-/// # Safety
-/// `ht` and `key` must be valid pointers.
 pub fn hash_lookup(
-    ht: *const hashtab_T,
+    ht: &hashtab_T,
     key: *const c_char,
     key_len: usize,
     hash: hash_T,
 ) -> *mut hashitem_T {
-    let ht = unsafe { &*ht };
     let arr_ptr = ht.array_ptr();
 
     let mut idx = hash & ht.ht_mask;
@@ -194,7 +184,7 @@ pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) ->
     let key = di.di_key.as_mut_ptr();
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
     let hash = hash_hash(key);
-    let hi = hash_lookup(&raw mut *ht, key, len, hash);
+    let hi = hash_lookup(ht, key, len, hash);
     if unsafe { !hashitem_empty(&*hi) } {
         siemsg!(
                 c"E685: Internal error: hash_add(): duplicate key \"%s\"".as_ptr(),
@@ -414,7 +404,7 @@ mod tests {
             crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {
-                let hi = hash_find(ht, k.as_ptr());
+                let hi = hash_find(&*ht, k.as_ptr());
                 assert!(!hashitem_empty(&*hi));
                 assert_eq!(CStr::from_ptr((*hi).key_ptr()), k.as_c_str());
                 assert_eq!((*hi).hi_di, di);
@@ -422,7 +412,7 @@ mod tests {
 
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE
             for k in &keys {
-                let hi = hash_find(ht, k.as_ptr());
+                let hi = hash_find(&*ht, k.as_ptr());
                 hash_remove(&mut *ht, hi);
             }
             assert_eq!((*ht).ht_used, 0);

@@ -3743,7 +3743,7 @@ pub fn f_gettagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 return;
             }
         }
-        get_tagstack(&mut *wp, rettv.vval.v_dict().cast());
+        get_tagstack(&mut *wp, &mut *rettv.vval.v_dict().cast());
     }
 }
 
@@ -5607,7 +5607,7 @@ fn find_some_match(argvars: *mut typval_T, rettv: &mut typval_T, type_: SomeMatc
 fn get_matches_in_str(
     str_: *const c_char,
     rmp: &mut regmatch_T,
-    mlist: *mut list_T,
+    mlist: &mut list_T,
     idx: c_int,
     submatches: bool,
     matchbuf: bool,
@@ -5753,7 +5753,7 @@ pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
             while slnum <= elnum {
                 let str_ = ml_get_buf(buf, slnum);
-                get_matches_in_str(str_, &mut regmatch, retlist, slnum, submatches, true);
+                get_matches_in_str(str_, &mut regmatch, &mut *retlist, slnum, submatches, true);
                 slnum += 1;
             }
 
@@ -5851,7 +5851,7 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                         get_matches_in_str(
                             (*li_tv).vval.v_string(),
                             &mut regmatch,
-                            retlist,
+                            &mut *retlist,
                             idx,
                             submatches,
                             false,
@@ -6081,7 +6081,7 @@ fn emsg_mpack_error(status: c_int) {
         }
 }
 
-fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
+fn msgpackparse_unpack_list(list: *const list_T, ret_list: &mut list_T) {
     unsafe {
         if tv_list_len(list) == 0 {
             return;
@@ -6155,7 +6155,7 @@ fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
     }
 }
 
-fn msgpackparse_unpack_blob(blob: *const blob_T, ret_list: *mut list_T) {
+fn msgpackparse_unpack_blob(blob: *const blob_T, ret_list: &mut list_T) {
     unsafe {
         let len = tv_blob_len(blob);
         if len == 0 {
@@ -6187,9 +6187,9 @@ pub fn f_msgpackparse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         }
         let ret_list = tv_list_alloc_ret(rettv, kListLenMayKnow);
         if (*argvars).v_type == VarType::VAR_LIST {
-            msgpackparse_unpack_list((*argvars).vval.v_list(), ret_list);
+            msgpackparse_unpack_list((*argvars).vval.v_list(), &mut *ret_list);
         } else {
-            msgpackparse_unpack_blob((*argvars).vval.v_blob().cast(), ret_list);
+            msgpackparse_unpack_blob((*argvars).vval.v_blob().cast(), &mut *ret_list);
         }
     }
 }
@@ -9265,7 +9265,7 @@ pub fn f_taglist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             fname = tv_get_string(argvars.add(1));
         }
         get_tags(
-            tv_list_alloc_ret(rettv, kListLenUnknown),
+            &mut *tv_list_alloc_ret(rettv, kListLenUnknown),
             tag_pattern.cast_mut(),
             fname.cast_mut(),
         );

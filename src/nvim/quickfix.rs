@@ -6100,7 +6100,7 @@ fn unload_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
         restore_start_dir(dirname_start);
 }
 
-fn get_qfline_items(qfp: &mut qfline_T, list: *mut list_T) -> c_int {
+fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> c_int {
     let mut bufnum = qfp.qf_fnum;
         if bufnum != 0 && buflist_findnr(bufnum).is_null() {
             bufnum = 0;
@@ -6207,9 +6207,9 @@ fn get_errorlist(
             let i = (idx + 1) as c_int;
             if eidx > 0 {
                 if eidx == i {
-                    return get_qfline_items(qfp, list);
+                    return get_qfline_items(qfp, &mut *list);
                 }
-            } else if get_qfline_items(qfp, list) == FAIL {
+            } else if get_qfline_items(qfp, &mut *list) == FAIL {
                 return FAIL;
             }
         }
@@ -6285,7 +6285,7 @@ fn qf_winid(qi: *mut qf_info_T) -> c_int {
     }
 }
 
-fn qf_getprop_qfbufnr(qi: *const qf_info_T, retdict: *mut dict_T) -> c_int {
+fn qf_getprop_qfbufnr(qi: *const qf_info_T, retdict: &mut dict_T) -> c_int {
     unsafe {
         let mut bufnum: c_int = 0;
         if !qi.is_null() && !buflist_findnr((*qi).qf_bufnr).is_null() {
@@ -6344,7 +6344,7 @@ fn qf_getprop_keys2flags(what: *const dict_T, loclist: bool) -> c_int {
         flags
 }
 
-fn qf_getprop_qfidx(qi: &mut qf_info_T, what: *mut dict_T) -> c_int {
+fn qf_getprop_qfidx(qi: &mut qf_info_T, what: &mut dict_T) -> c_int {
     unsafe {
         let mut qf_idx = qi.qf_curlist;
         let mut di = tv_dict_find(what, c"nr".as_ptr(), 2);
@@ -6427,7 +6427,7 @@ fn qf_getprop_defaults(
             status = tv_dict_add_nr(retdict, c"filewinid".as_ptr(), 9, 0);
         }
         if status == OK && (flags & QF_GETLIST_QFBUFNR) != 0 {
-            status = qf_getprop_qfbufnr(&raw mut *qi, retdict);
+            status = qf_getprop_qfbufnr(&raw mut *qi, &mut *retdict);
         }
         if status == OK && (flags & QF_GETLIST_QFTF) != 0 {
             status = tv_dict_add_str_len(retdict, c"quickfixtextfunc".as_ptr(), 16, empty, 0);
@@ -6449,7 +6449,7 @@ fn qf_getprop_title(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
 fn qf_getprop_filewinid(
     wp: *const win_T,
     qi: &qf_info_T,
-    retdict: *mut dict_T,
+    retdict: &mut dict_T,
 ) -> c_int {
     unsafe {
         let mut winid: handle_T = 0;
@@ -6469,7 +6469,7 @@ fn qf_getprop_items(
     qi: &mut qf_info_T,
     qf_idx: c_int,
     eidx: c_int,
-    retdict: *mut dict_T,
+    retdict: &mut dict_T,
 ) -> c_int {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
@@ -6479,7 +6479,7 @@ fn qf_getprop_items(
     }
 }
 
-fn qf_getprop_ctx(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
+fn qf_getprop_ctx(qfl: &mut qf_list_T, retdict: &mut dict_T) -> c_int {
     unsafe {
         if let Some(ref ctx) = qfl.qf_ctx {
             let di = tv_dict_item_alloc_len(c"context".as_ptr(), 7);
@@ -6495,7 +6495,7 @@ fn qf_getprop_ctx(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
     }
 }
 
-fn qf_getprop_idx(qfl: &mut qf_list_T, mut eidx: c_int, retdict: *mut dict_T) -> c_int {
+fn qf_getprop_idx(qfl: &mut qf_list_T, mut eidx: c_int, retdict: &mut dict_T) -> c_int {
     if eidx == 0 {
             eidx = qfl.qf_index;
             if qf_list_empty(qfl) {
@@ -6505,7 +6505,7 @@ fn qf_getprop_idx(qfl: &mut qf_list_T, mut eidx: c_int, retdict: *mut dict_T) ->
         tv_dict_add_nr(retdict, c"idx".as_ptr(), 3, varnumber_T::from(eidx))
 }
 
-fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
+fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: &mut dict_T) -> c_int {
     if qfl.qf_qftf_cb.cb_type() != kCallbackNone {
             let mut tv: typval_T = typval_T::new();
             callback_put(&mut qfl.qf_qftf_cb, &mut tv);
@@ -6517,7 +6517,7 @@ fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
         }
 }
 
-fn qf_get_properties(wp: *mut win_T, what: *mut dict_T, retdict: *mut dict_T) -> c_int {
+fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) -> c_int {
     unsafe {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
@@ -6625,7 +6625,7 @@ fn qf_setprop_qftf(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
 
 fn qf_add_entry_from_dict(
     qfl: &mut qf_list_T,
-    d: *mut dict_T,
+    d: &mut dict_T,
     first_entry: bool,
     valid_entry: &mut bool,
 ) -> c_int {
@@ -6826,7 +6826,7 @@ fn qf_add_entries(
             if (*li).li_tv.v_type == VarType::VAR_DICT {
                 let d = (*li).li_tv.vval.v_dict();
                 if !d.is_null() {
-                    retval = qf_add_entry_from_dict(qfl, d, li == first_li, &mut valid_entry);
+                    retval = qf_add_entry_from_dict(qfl, &mut *d, li == first_li, &mut valid_entry);
                     if retval == QF_FAIL {
                         break;
                     }
@@ -6869,7 +6869,7 @@ fn qf_add_entries(
 
 fn qf_setprop_get_qfidx(
     qi: &qf_info_T,
-    what: *const dict_T,
+    what: &dict_T,
     action: c_int,
     newlist: &mut bool,
 ) -> c_int {
@@ -6929,7 +6929,7 @@ fn qf_setprop_get_qfidx(
 fn qf_setprop_title(
     qi: &mut qf_info_T,
     qf_idx: c_int,
-    what: *const dict_T,
+    what: &dict_T,
     di: *const dictitem_T,
 ) -> c_int {
     unsafe {
@@ -6976,7 +6976,7 @@ fn qf_setprop_items(
 fn qf_setprop_items_from_lines(
     qi: &mut qf_info_T,
     qf_idx: c_int,
-    what: *const dict_T,
+    what: &dict_T,
     di: *mut dictitem_T,
     action: c_int,
 ) -> c_int {
@@ -7074,7 +7074,7 @@ fn qf_setprop_curidx(
 
 fn qf_set_properties(
     qi: &mut qf_info_T,
-    what: *const dict_T,
+    what: &dict_T,
     action: c_int,
     title: *mut c_char,
 ) -> c_int {
@@ -7196,7 +7196,7 @@ pub fn set_errorlist(
         incr_quickfix_busy();
 
         let retval = if !what.is_null() {
-            qf_set_properties(&mut *qi, what, action, title)
+            qf_set_properties(&mut *qi, &*what, action, title)
         } else {
             let r = qf_add_entries(&mut *qi, (*qi).qf_curlist, list, title, action);
             if r == OK {
@@ -7793,7 +7793,9 @@ fn get_qf_loc_list(
                 if what_arg.v_type == VarType::VAR_DICT {
                     let d = what_arg.vval.v_dict();
                     if !d.is_null() {
-                        qf_get_properties(wp, d, rettv.vval.v_dict());
+                        unsafe {
+                            qf_get_properties(wp, &mut *d, &mut *rettv.vval.v_dict());
+                        }
                     }
                 } else {
                     emsg(gettext((&raw const e_dictreq).cast()));

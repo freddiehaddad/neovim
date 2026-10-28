@@ -884,7 +884,7 @@ pub fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
 }
 
 /// Get spell word from an entry from spellsuggest=expr:
-pub fn get_spellword(list: *mut list_T, ret_word: *mut *const c_char) -> c_int {
+pub fn get_spellword(list: &mut list_T, ret_word: *mut *const c_char) -> c_int {
     unsafe {
         if tv_list_len(list) != 2 {
             emsg(gettext(
@@ -922,7 +922,7 @@ pub fn restore_vimvar(idx: c_int, save_tv: *mut typval_T) {
             return;
         }
 
-        let hi = hash_find(&raw const vars_st().vimvardict.dv_hashtab, (*p).vv_di.di_key.as_ptr());
+        let hi = hash_find(&vars_st().vimvardict.dv_hashtab, (*p).vv_di.di_key.as_ptr());
         if hashitem_empty(&*hi) {
             internal_error(c"restore_vimvar()".as_ptr());
         } else {
@@ -2146,7 +2146,7 @@ pub fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c_int {
                 }
             }
 
-            let mut hi = hash_find(ht, varname);
+            let mut hi = hash_find(&*ht, varname);
             if hashitem_empty(&*hi) {
                 hi = find_hi_in_scoped_ht(name, &raw mut ht);
             }
@@ -2742,13 +2742,13 @@ pub fn find_var_in_ht(
             };
         }
 
-        let mut hi = hash_find_len(ht, varname, varname_len);
+        let mut hi = hash_find_len(&*ht, varname, varname_len);
         if hashitem_empty(&*hi) {
             if ht == get_globvar_ht() && no_autoload == 0 {
                 if !script_autoload(varname, varname_len, false) || aborting() {
                     return ptr::null_mut();
                 }
-                hi = hash_find_len(ht, varname, varname_len);
+                hi = hash_find_len(&*ht, varname, varname_len);
             }
             if hashitem_empty(&*hi) {
                 return ptr::null_mut();
@@ -2777,7 +2777,7 @@ fn find_var_ht_dict(
             }
             *varname = name;
 
-            let hi = hash_find_len(&raw const vars_st().compat_hashtab, name, name_len);
+            let hi = hash_find_len(&vars_st().compat_hashtab, name, name_len);
             if !hashitem_empty(&*hi) {
                 return &raw mut vars_st().compat_hashtab;
             }

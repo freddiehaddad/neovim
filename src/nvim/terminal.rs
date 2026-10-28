@@ -2072,7 +2072,7 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
         eval_call_provider(
             c"clipboard".as_ptr().cast_mut(),
             c"set".as_ptr().cast_mut(),
-            args,
+            &mut *args,
             true,
         );
     }

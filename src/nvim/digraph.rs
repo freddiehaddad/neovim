@@ -1838,7 +1838,7 @@ pub fn listdigraphs(use_headers: bool) {
     }
 }
 
-fn digraph_getlist_appendpair(dp: &digr_T, l: *mut list_T) {
+fn digraph_getlist_appendpair(dp: &digr_T, l: &mut list_T) {
     unsafe {
         let l2 = tv_list_alloc(2);
         tv_list_append_list(l, l2);
@@ -1873,7 +1873,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
                     result: getexactdigraph(c_int::from(dp.char1), c_int::from(dp.char2), false),
                 };
                 if tmp.result != 0 && tmp.result != c_int::from(tmp.char2) {
-                    digraph_getlist_appendpair(&tmp, rettv.vval.v_list());
+                    digraph_getlist_appendpair(&tmp, &mut *rettv.vval.v_list());
                 }
             }
         }
@@ -1882,7 +1882,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
             if g_st().got_int {
                 break;
             }
-            digraph_getlist_appendpair(dp, rettv.vval.v_list());
+            digraph_getlist_appendpair(dp, &mut *rettv.vval.v_list());
         }
     }
 }

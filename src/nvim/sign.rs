@@ -1178,7 +1178,7 @@ fn sign_get_placed_in_buf(
     lnum: linenr_T,
     sign_id: c_int,
     group: *const c_char,
-    retlist: *mut list_T,
+    retlist: &mut list_T,
 ) {
     unsafe {
         let d = tv_dict_alloc();
@@ -1235,12 +1235,12 @@ fn sign_get_placed(
 ) {
     unsafe {
         if !buf.is_null() {
-            sign_get_placed_in_buf(buf, lnum, id, group, retlist);
+            sign_get_placed_in_buf(buf, lnum, id, group, &mut *retlist);
         } else {
             let mut cbuf = g_st().firstbuf;
             while !cbuf.is_null() {
                 if buf_has_signs(cbuf) {
-                    sign_get_placed_in_buf(cbuf, 0, id, group, retlist);
+                    sign_get_placed_in_buf(cbuf, 0, id, group, &mut *retlist);
                 }
                 cbuf = (*cbuf).b_next;
             }

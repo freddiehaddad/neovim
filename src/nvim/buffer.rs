@@ -1808,7 +1808,7 @@ fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         }
         {
             let changedtick_hi = hash_find(
-                &raw const (*(*buf).b_vars()).dv_hashtab,
+                &(*(*buf).b_vars()).dv_hashtab,
                 c"changedtick".as_ptr(),
             );
             debug_assert!(!changedtick_hi.is_null());

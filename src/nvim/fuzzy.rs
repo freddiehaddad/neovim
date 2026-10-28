@@ -421,7 +421,7 @@ fn fuzzy_match_in_list(
     key: *const c_char,
     item_cb: &mut Callback,
     retmatchpos: bool,
-    fmatchlist: *mut list_T,
+    fmatchlist: &mut list_T,
     max_matches: c_int,
 ) {
     unsafe {
@@ -536,7 +536,7 @@ fn fuzzy_match_in_list(
                 assert!(!first_li.is_null() && !(*first_li).li_tv.vval.v_list().is_null());
                 (*first_li).li_tv.vval.v_list()
             } else {
-                fmatchlist
+                &raw mut *fmatchlist
             };
 
             for cur in &items {
@@ -650,7 +650,7 @@ fn do_fuzzymatch(argvars: *const typval_T, rettv: &mut typval_T, retmatchpos: bo
             key,
             &mut cb,
             retmatchpos,
-            out_list,
+            &mut *out_list,
             max_matches,
         );
 
