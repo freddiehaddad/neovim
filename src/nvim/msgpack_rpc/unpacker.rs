@@ -955,9 +955,10 @@ pub fn unpack_skip(data: &mut *const c_char, size: &mut usize) -> c_int {
 /// Append raw msgpack key-value bytes to `AdditionalDataBuilder` (`push_additional_data`).
 pub fn push_additional_data(
     ad: &mut AdditionalDataBuilder,
-    data: *const c_char,
+    data: impl crate::strings::IntoCCharPtr,
     size: usize,
 ) {
+    let data = data.into_c_char_ptr();
     let entry = ad.get_or_insert_with(AdditionalData::default);
     entry.nitems += 1;
     if !data.is_null() && size > 0 {
@@ -1088,8 +1089,8 @@ mod tests {
     #[test]
     fn push_additional_data_populates_header_and_payload() {
         let mut ad = AdditionalDataBuilder::default();
-        push_additional_data(&mut ad, c"abc".as_ptr(), 3);
-            push_additional_data(&mut ad, c"de".as_ptr(), 2);
+        push_additional_data(&mut ad, c"abc", 3);
+            push_additional_data(&mut ad, c"de", 2);
             let hdr = ad.as_ref().unwrap();
             assert_eq!(hdr.nitems, 2);
             assert_eq!(hdr.bytes.len(), 5);

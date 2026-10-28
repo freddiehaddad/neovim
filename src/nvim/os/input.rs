@@ -108,7 +108,8 @@ fn ensure_input_ptrs_init() {
         }
 }
 
-fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> {
+fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(c_int, c_int, usize)> {
+    let s = s.into_c_char_ptr();
     unsafe {
         if s.is_null() || *s as u8 != b'<' {
             return None;
@@ -347,7 +348,8 @@ fn input_space() -> usize {
     }
 }
 
-pub fn input_enqueue_raw(data: *const c_char, size: usize) {
+pub fn input_enqueue_raw(data: impl crate::strings::IntoCCharPtr, size: usize) {
+    let data = data.into_c_char_ptr();
     unsafe {
         ensure_input_ptrs_init();
         let buf_start = input_buf_ptr();
@@ -670,7 +672,7 @@ fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
                     mode.as_ptr(),
                 );
             }
-            input_enqueue_raw(c"\x03".as_ptr(), 1);
+            input_enqueue_raw(c"\x03", 1);
             // Also interrupt the code that prompted. Skips remaining exit autocmds.
             g_st().got_int = true;
         }
@@ -749,7 +751,7 @@ mod tests {
             osi_st().input_read_pos = input_buf_ptr();
             osi_st().input_write_pos = input_buf_ptr();
             assert_eq!(input_available(), 0);
-            input_enqueue_raw(c"abc".as_ptr(), 3);
+            input_enqueue_raw(c"abc", 3);
             assert_eq!(input_available(), 3);
             osi_st().input_read_pos = input_buf_ptr();
             osi_st().input_write_pos = input_buf_ptr();
@@ -763,11 +765,11 @@ mod tests {
             assert_eq!(buf[2], KE_EVENT);
 
             assert_eq!(
-                parse_mouse_coords(c"<12,34>rest".as_ptr()),
+                parse_mouse_coords(c"<12,34>rest"),
                 Some((12, 34, 7))
             );
-            assert_eq!(parse_mouse_coords(c"<-1,0>".as_ptr()), Some((-1, 0, 6)));
-            assert_eq!(parse_mouse_coords(c"<12,34".as_ptr()), None);
+            assert_eq!(parse_mouse_coords(c"<-1,0>"), Some((-1, 0, 6)));
+            assert_eq!(parse_mouse_coords(c"<12,34"), None);
         }
     }
 }

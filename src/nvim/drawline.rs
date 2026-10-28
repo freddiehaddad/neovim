@@ -467,7 +467,7 @@ fn draw_virt_text_item(
             while *ci.ptr == NUL {
                 if virt_pos >= vt.len() {
                     if eol_hl {
-                        ci = utf_ptr2StrCharInfo(c" ".as_ptr());
+                        ci = utf_ptr2StrCharInfo(c" ");
                     } else {
                         break;
                     }

@@ -703,7 +703,7 @@ fn typval2string(tv: &mut typval_T, join_list: bool) -> Option<std::ffi::CString
         if join_list && tv.v_type == VarType::VAR_LIST {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
             if !tv.vval.v_list().is_null() {
-                tv_list_join(&mut out, tv.vval.v_list(), c"\n".as_ptr());
+                tv_list_join(&mut out, tv.vval.v_list(), c"\n");
                 if tv_list_len(tv.vval.v_list()) > 0 {
                     out.push(NL as c_char);
                 }
@@ -746,10 +746,11 @@ pub fn eval_to_string_eap(
 }
 
 pub fn eval_to_string(
-    arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     join_list: bool,
     use_simple_function: bool,
 ) -> Option<std::ffi::CString> {
+    let arg = arg.into_c_char_ptr().cast_mut();
     eval_to_string_eap(arg, join_list, None, use_simple_function)
 }
 
@@ -1554,8 +1555,9 @@ pub fn set_var_lval(
     endp: *mut c_char,rettv: &mut typval_T,
     copy: bool,
     is_const: bool,
-    op: *const c_char,
+    op: impl crate::strings::IntoCCharPtr,
 ) {
+    let op = op.into_c_char_ptr();
     unsafe {
         if lp.ll_tv.is_null() {
             let cc = *endp;
@@ -4837,7 +4839,8 @@ fn eval_lit_dict(
 }
 
 /// Convert the string to a floating point number.
-pub fn string2float(text: *const c_char, ret_value: *mut float_T) -> usize {
+pub fn string2float(text: impl crate::strings::IntoCCharPtr, ret_value: *mut float_T) -> usize {
+    let text = text.into_c_char_ptr();
     unsafe {
         let b0 = (*text as u8).to_ascii_lowercase();
         let b1 = if b0 != 0 {
@@ -5062,7 +5065,7 @@ fn get_system_output_as_rettv(argvars: &mut [typval_T], rettv: &mut typval_T, re
             if retlist {
                 tv_list_alloc_ret(rettv, 0);
             } else {
-                crate::eval::typval::tv_set_string(rettv, c"".as_ptr());
+                crate::eval::typval::tv_set_string(rettv, c"");
             }
             return;
         }
@@ -5352,7 +5355,7 @@ pub fn add_timer_info(rettv: &mut typval_T, timer: &mut timer_T) {
             },
         );
 
-        let di = tv_dict_item_alloc(c"callback".as_ptr());
+        let di = tv_dict_item_alloc(c"callback");
         if !tv_dict_add(dict, di) {
             tv_dict_item_free(di);
         } else {
@@ -6189,7 +6192,8 @@ pub fn skip_luafunc_name(mut p: *const c_char) -> *const c_char {
 }
 
 /// Check the function name after "v:lua."
-pub fn check_luafunc_name(str_: *const c_char, paren: bool) -> c_int {
+pub fn check_luafunc_name(str_: impl crate::strings::IntoCCharPtr, paren: bool) -> c_int {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         let p = skip_luafunc_name(str_);
         if *p != if paren { b'(' as c_char } else { NUL } {
@@ -6564,7 +6568,7 @@ pub fn ex_echo(eap: &mut exarg_T) {
                     || *eap.arg == b'|' as c_char
                     || *eap.arg == b'\n' as c_char)
             {
-                msg_puts_len(c"".as_ptr(), 0, 0, false);
+                msg_puts_len(c"", 0, 0, false);
             } else if need_clear {
                 msg_clr_eos();
             }
@@ -6639,7 +6643,7 @@ pub fn ex_execute(eap: &mut exarg_T) {
             } else if eap.cmdidx == cmdidx_T::CMD_echoerr as c_int {
                 let save_did_emsg = g_st().did_emsg;
                 msg_ext_no_fast();
-                emsg_multiline(buf.as_ptr(), c"echoerr".as_ptr(), HLF_E, true);
+                emsg_multiline(buf.as_ptr(), c"echoerr", HLF_E, true);
                 if !g_st().force_abort {
                     g_st().did_emsg = save_did_emsg;
                 }
@@ -6683,7 +6687,8 @@ pub fn find_option_var_end(
     }
 }
 
-pub fn var_flavour(varname: *mut c_char) -> var_flavour_T {
+pub fn var_flavour(varname: impl crate::strings::IntoCCharPtr) -> var_flavour_T {
+    let varname = varname.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = varname;
 
@@ -6910,11 +6915,12 @@ pub fn script_host_eval(name: &std::ffi::CStr,argvars: &mut [typval_T],rettv: &m
 }
 
 pub fn eval_call_provider(
-    provider: *mut c_char,
+    provider: impl crate::strings::IntoCCharPtr,
     method: &std::ffi::CStr,
     arguments: &mut list_T,
     discard: bool,
 ) -> typval_T {
+    let provider = provider.into_c_char_ptr().cast_mut();
     unsafe {
         if !eval_has_provider(provider, false) {
             semsg!(
@@ -7007,7 +7013,8 @@ pub fn eval_call_provider(
 }
 
 /// Checks if provider for feature `feat` is enabled.
-pub fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
+pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast: bool) -> bool {
+    let feat = feat.into_c_char_ptr();
     unsafe {
         if !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"clipboard"))
             && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"python3"))
@@ -7350,25 +7357,25 @@ mod tests {
 
     #[test]
     fn test_var_flavour_and_luafunc_name() {
-        assert_eq!(var_flavour(c"foo".as_ptr().cast_mut()), VAR_FLAVOUR_DEFAULT);
-            assert_eq!(var_flavour(c"Foo".as_ptr().cast_mut()), VAR_FLAVOUR_SESSION);
-            assert_eq!(var_flavour(c"FOO".as_ptr().cast_mut()), VAR_FLAVOUR_SHADA);
+        assert_eq!(var_flavour(c"foo"), VAR_FLAVOUR_DEFAULT);
+            assert_eq!(var_flavour(c"Foo"), VAR_FLAVOUR_SESSION);
+            assert_eq!(var_flavour(c"FOO"), VAR_FLAVOUR_SHADA);
 
-            assert_eq!(check_luafunc_name(c"my_mod.fn(".as_ptr(), true), 9);
-            assert_eq!(check_luafunc_name(c"my_mod.fn".as_ptr(), false), 9);
-            assert_eq!(check_luafunc_name(c"my_mod.fn(".as_ptr(), false), 0);
+            assert_eq!(check_luafunc_name(c"my_mod.fn(", true), 9);
+            assert_eq!(check_luafunc_name(c"my_mod.fn", false), 9);
+            assert_eq!(check_luafunc_name(c"my_mod.fn(", false), 0);
     }
 
     #[test]
     fn test_string2float() {
         let mut val: float_T = 0.0;
-            assert_eq!(string2float(c"1.5".as_ptr(), &raw mut val), 3);
+            assert_eq!(string2float(c"1.5", &raw mut val), 3);
             assert_eq!(val, 1.5);
-            assert_eq!(string2float(c"inf".as_ptr(), &raw mut val), 3);
+            assert_eq!(string2float(c"inf", &raw mut val), 3);
             assert!(val.is_infinite() && val.is_sign_positive());
-            assert_eq!(string2float(c"-inf".as_ptr(), &raw mut val), 4);
+            assert_eq!(string2float(c"-inf", &raw mut val), 4);
             assert!(val.is_infinite() && val.is_sign_negative());
-            assert_eq!(string2float(c"nan".as_ptr(), &raw mut val), 3);
+            assert_eq!(string2float(c"nan", &raw mut val), 3);
             assert!(val.is_nan());
     }
 

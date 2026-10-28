@@ -2498,9 +2498,9 @@ pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> bool {
         loop {
             stuffReadbuffLen(insert.data, insert.size as isize);
             if last == b'0' as c_char {
-                stuffReadbuffLen(c"\x16048".as_ptr(), 4);
+                stuffReadbuffLen(c"\x16048", 4);
             } else if last == b'^' as c_char {
-                stuffReadbuffLen(c"\x16^".as_ptr(), 2);
+                stuffReadbuffLen(c"\x16^", 2);
             }
             count -= 1;
             if count <= 0 {
@@ -2567,7 +2567,8 @@ fn echeck_abbr(c: c_int) -> bool {
 }
 
 /// Push character that is replaced onto the replace stack.
-pub fn replace_push(str_: *mut c_char, len: usize) {
+pub fn replace_push(str_: impl crate::strings::IntoCCharPtr, len: usize) {
+    let str_ = str_.into_c_char_ptr().cast_mut();
     unsafe {
         let stack = replace_stack_mut();
         let off = g_st().replace_offset as usize;
@@ -2581,7 +2582,7 @@ pub fn replace_push(str_: *mut c_char, len: usize) {
 }
 
 pub fn replace_push_nul() {
-    replace_push(c"".as_ptr().cast_mut(), 1);
+    replace_push(c"", 1);
 }
 
 fn replace_pop_if_nul() -> c_int {
@@ -2800,7 +2801,7 @@ fn ins_ctrl_g() {
 
 fn ins_ctrl_hat() {
     unsafe {
-        if map_to_exists_mode(c"".as_ptr(), MODE_LANGMAP, false) {
+        if map_to_exists_mode(c"", MODE_LANGMAP, false) {
             if (g_st().State & MODE_LANGMAP) != 0 {
                 (*g_st().curbuf).b_p_iminsert = B_IMODE_NONE;
                 g_st().State &= !MODE_LANGMAP;
@@ -3270,7 +3271,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                     if (g_st().State & VREPLACE_FLAG) != 0 {
                         ins_char(b' ' as c_int);
                     } else {
-                        ins_str(c" ".as_ptr().cast_mut(), 1);
+                        ins_str(c" ", 1);
                         if (g_st().State & REPLACE_FLAG) != 0 {
                             replace_push_nul();
                         }
@@ -3667,7 +3668,7 @@ fn ins_tab() -> bool {
             if (g_st().State & VREPLACE_FLAG) != 0 {
                 ins_char(b' ' as c_int);
             } else {
-                ins_str(c" ".as_ptr().cast_mut(), 1);
+                ins_str(c" ", 1);
                 if (g_st().State & REPLACE_FLAG) != 0 {
                     replace_push_nul();
                 }

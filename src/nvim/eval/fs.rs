@@ -112,7 +112,7 @@ fn cstr_into_char_vec(s: std::ffi::CString) -> Vec<c_char> {
 
 /// When there is an error, *fnamep is set to NULL.
 pub fn modify_fname(
-    src: *mut c_char,
+    src: impl crate::strings::IntoCCharPtr,
     tilde_file: bool,
     usedlen: &mut usize,
     fnamep: *mut *mut c_char,
@@ -120,6 +120,7 @@ pub fn modify_fname(
     fnamelen: &mut usize,
     use_shellslash: bool,
 ) -> c_int {
+    let src = src.into_c_char_ptr().cast_mut();
     unsafe {
         let mut valid: c_int = 0;
         let mut s: *mut c_char = ptr::null_mut();
@@ -1341,7 +1342,7 @@ pub fn f_mkdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                     c"d".as_ptr()
                 },
             );
-            add_defer(c"delete".as_ptr().cast_mut(), 2, tv.as_mut_ptr());
+            add_defer(c"delete", 2, tv.as_mut_ptr());
         }
     }
 }
@@ -2097,7 +2098,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                     } else {
                         tv.v_type = VarType::VAR_STRING;
                     }
-                    add_defer(c"delete".as_ptr().cast_mut(), 1, &raw mut tv);
+                    add_defer(c"delete", 1, &raw mut tv);
                 }
 
                 let write_ok = if argvars[0].v_type == VarType::VAR_BLOB {

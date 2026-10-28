@@ -225,7 +225,8 @@ pub fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> bool {
 /// # Safety
 /// `name` must be null or a valid C string.
 #[cfg_attr(not(unix), cfg(test))]
-pub fn os_get_userdir(name: *const c_char) -> Option<CString> {
+pub fn os_get_userdir(name: impl crate::strings::IntoCCharPtr) -> Option<CString> {
+    let name = name.into_c_char_ptr();
     #[cfg(unix)]
     unsafe {
         if name.is_null() || *name == 0 {
@@ -317,7 +318,7 @@ mod tests {
                 assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "250");
             }
 
-            assert!(os_get_userdir(c"neovim_user_not_found_test".as_ptr()).is_none());
+            assert!(os_get_userdir(c"neovim_user_not_found_test").is_none());
 
             let users = collect_usernames();
             assert!(users.iter().all(|u| !u.as_bytes().is_empty()));

@@ -1705,7 +1705,7 @@ fn shada_get_default_file() -> *const c_char {
             let shada_dir = stdpaths_user_state_subpath(c"shada", 0, false);
             shada_st().default_shada_file = Some(concat_fnames_cstr(
                 shada_dir.as_ptr(),
-                c"main.shada".as_ptr(),
+                c"main.shada",
                 true,
             ));
         }
@@ -3195,7 +3195,7 @@ pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> bool {
                 nomerge = true;
             } else {
                 did_open_reader = true;
-                if let Some(tn) = modname(fname, c".tmp.a".as_ptr(), false) {
+                if let Some(tn) = modname(fname, c".tmp.a", false) {
                     tempname_bytes = tn.into_bytes_with_nul();
                     let tempname = tempname_bytes.as_mut_ptr().cast::<c_char>();
                     let mut perm = os_getperm(fname) as c_int;

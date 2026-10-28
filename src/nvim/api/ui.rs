@@ -123,7 +123,8 @@ fn mpack_array_dyn16(buf: *mut *mut c_char) -> *mut c_char {
     }
 }
 
-fn mpack_str_small(buf: *mut *mut c_char, str_: *const c_char, len: usize) {
+fn mpack_str_small(buf: *mut *mut c_char, str_: impl crate::strings::IntoCCharPtr, len: usize) {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         debug_assert!(len < 0x20);
         mpack_w(buf, (0xa0 | len) as u8);
@@ -862,7 +863,7 @@ fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
             if ui.nevents_pos.is_none() {
                 mpack_array(buf, 3);
                 mpack_uint(buf, 2);
-                mpack_str_small(buf, c"redraw".as_ptr(), 6);
+                mpack_str_small(buf, c"redraw", 6);
                 let pos = mpack_array_dyn16(buf);
                 ui.nevents_pos = Some(pos.offset_from(ui.packer.startptr) as usize);
                 debug_assert!(ui.cur_event.is_none());
@@ -1219,7 +1220,8 @@ pub fn remote_ui_cursor_goto(ui: &mut RemoteUI, row: Integer, col: Integer) {
 }
 
 // DLLEXPORT void remote_ui_put(RemoteUI *ui, const char *cell);
-pub fn remote_ui_put(ui: &mut RemoteUI, cell: *const c_char) {
+pub fn remote_ui_put(ui: &mut RemoteUI, cell: impl crate::strings::IntoCCharPtr) {
+    let cell = cell.into_c_char_ptr();
     ui.client_col += 1;
         let mut args_items: [Object; 1] = [string_obj(cstr_as_string(cell))];
         let args = Array {
@@ -1275,7 +1277,7 @@ pub fn remote_ui_raw_line(
                             nelem += 1;
                             ui.ncells_pending += 1;
                             mpack_array(buf, 3);
-                            mpack_str_small(buf, c" ".as_ptr(), 1);
+                            mpack_str_small(buf, c" ", 1);
                             mpack_uint(buf, clearattr as u32);
                             mpack_uint(buf, 0);
                         }
@@ -1322,7 +1324,7 @@ pub fn remote_ui_raw_line(
                 nelem += 1;
                 ui.ncells_pending += 1;
                 mpack_array(buf, 3);
-                mpack_str_small(buf, c" ".as_ptr(), 1);
+                mpack_str_small(buf, c" ", 1);
                 mpack_uint(buf, clearattr as u32);
                 mpack_uint(buf, (clearcol - endcol) as u32);
             }
@@ -1348,7 +1350,7 @@ pub fn remote_ui_raw_line(
                 } else {
                     let mut c = endcol;
                     while c < clearcol {
-                        remote_ui_put(ui, c" ".as_ptr());
+                        remote_ui_put(ui, c" ");
                         c += 1;
                     }
                 }

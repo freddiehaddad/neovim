@@ -269,7 +269,7 @@ fn addtonewktable(l: *mut lua_State, p: c_int, idx: c_int) -> c_int {
 fn testpattern(l: *mut lua_State, idx: c_int) -> bool {
     unsafe {
         if !lua_touserdata(l, idx).is_null() && lua_getmetatable(l, idx) != 0 {
-            luaL_getmetatable(l, PATTERN_T.as_ptr());
+            luaL_getmetatable(l, PATTERN_T);
             if lua_rawequal(l, -1, -2) != 0 {
                 lua_pop(l, 2);
                 return true;
@@ -300,7 +300,7 @@ fn newtree(l: *mut lua_State, len: c_int) -> *mut TTree {
     unsafe {
         let size = offset_of!(Pattern, tree) + (len as usize) * size_of::<TTree>();
         let p = lua_newuserdata(l, size).cast::<Pattern>();
-        luaL_getmetatable(l, PATTERN_T.as_ptr());
+        luaL_getmetatable(l, PATTERN_T);
         lua_pushvalue(l, -1);
         lua_setfenv(l, -3);
         lua_setmetatable(l, -2);

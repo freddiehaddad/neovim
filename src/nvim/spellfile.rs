@@ -1186,7 +1186,7 @@ fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
             gap.push(salitem_T {
                 sm_leadlen: 0,
                 sm_rules: std::ffi::CString::default(),
-                sm_lead_w: mb_str2wide(c"".as_ptr()),
+                sm_lead_w: mb_str2wide(c""),
                 sm_oneof_w: Vec::new(),
                 sm_to_w: Vec::new(),
             });
@@ -1457,7 +1457,8 @@ fn set_sal_first(lp: &mut slang_T) {
         }
 }
 
-fn mb_str2wide(s: *const c_char) -> Vec<c_int> {
+fn mb_str2wide(s: impl crate::strings::IntoCCharPtr) -> Vec<c_int> {
+    let s = s.into_c_char_ptr();
     unsafe {
         let mut res = Vec::with_capacity(mb_charlen(s) as usize + 1);
         let mut p = s;

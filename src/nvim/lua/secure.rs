@@ -36,7 +36,7 @@ fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
         }
 
         if nlua_pcall(lstate, 1, 2) != 0 {
-            nlua_error(lstate, c"vim.secure.trust: %.*s".as_ptr());
+            nlua_error(lstate, c"vim.secure.trust: %.*s");
             lua_settop(lstate, top);
             return false;
         }

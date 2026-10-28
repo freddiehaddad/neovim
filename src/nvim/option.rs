@@ -638,9 +638,10 @@ use crate::os::lang::bind_textdomain_codeset;
 
 pub fn opt_error(
     errbuf: Option<CharBuf>,
-    fmt: *const c_char,
+    fmt: impl crate::strings::IntoCCharPtr,
     arg: *const c_char,
 ) -> *const c_char {
+    let fmt = fmt.into_c_char_ptr();
     let Some(errbuf) = errbuf else {
         return c"".as_ptr();
     };
@@ -650,9 +651,10 @@ pub fn opt_error(
 
 pub fn opt_error_int(
     errbuf: Option<CharBuf>,
-    fmt: *const c_char,
+    fmt: impl crate::strings::IntoCCharPtr,
     arg: c_int,
 ) -> *const c_char {
+    let fmt = fmt.into_c_char_ptr();
     let Some(errbuf) = errbuf else {
         return c"".as_ptr();
     };
@@ -838,7 +840,7 @@ fn set_init_default_backupskip() {
 /// Initialize the 'cdpath' option to a default value.
 fn set_init_default_cdpath() {
     unsafe {
-        let Some(cdpath_cstr) = vim_getenv(c"CDPATH".as_ptr()) else {
+        let Some(cdpath_cstr) = vim_getenv(c"CDPATH") else {
             return;
         };
         let cdpath = cdpath_cstr.as_ptr();
@@ -1634,9 +1636,10 @@ fn stropt_get_newval(
     opt_idx: OptIndex,
     argp: *mut *mut c_char,
     varp: *mut c_void,
-    origval: *const c_char,
+    origval: impl crate::strings::IntoCCharPtr,
     op_arg: &mut set_op_T,
 ) -> std::ffi::CString {
+    let origval = origval.into_c_char_ptr();
     unsafe {
         let mut arg = *argp;
         let mut op = *op_arg;
@@ -1973,7 +1976,7 @@ pub fn get_option_newval(
                 newval = cstr_to_obj(newval_str.as_ptr());
             }
             ObjectType::kObjectTypeLuaRef => {
-                let newval_str = stropt_get_newval(opt_idx, argp, varp, c"".as_ptr(), &mut op);
+                let newval_str = stropt_get_newval(opt_idx, argp, varp, c"", &mut op);
                 newval = cstr_to_obj(newval_str.as_ptr());
             }
             _ => std::process::abort(),
@@ -2659,7 +2662,7 @@ pub fn apply_optionset_autocmd_now(
         if (opt_flags & OPT_LOCAL) != 0 {
             set_vim_var_string(
                 VV_OPTION_COMMAND,
-                c"setlocal".as_ptr(),
+                c"setlocal",
                 "setlocal".len() as isize,
             );
             set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
@@ -2667,20 +2670,20 @@ pub fn apply_optionset_autocmd_now(
         if (opt_flags & OPT_GLOBAL) != 0 {
             set_vim_var_string(
                 VV_OPTION_COMMAND,
-                c"setglobal".as_ptr(),
+                c"setglobal",
                 "setglobal".len() as isize,
             );
             set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_tv);
         }
         if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0 {
-            set_vim_var_string(VV_OPTION_COMMAND, c"set".as_ptr(), "set".len() as isize);
+            set_vim_var_string(VV_OPTION_COMMAND, c"set", "set".len() as isize);
             set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_l_tv);
             set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_g_tv);
         }
         if (opt_flags & OPT_MODELINE) != 0 {
             set_vim_var_string(
                 VV_OPTION_COMMAND,
-                c"modeline".as_ptr(),
+                c"modeline",
                 "modeline".len() as isize,
             );
             set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
@@ -3597,7 +3600,7 @@ fn check_num_option_bounds(
             kOptLines => {
                 let min_r = min_rows_for_all_tabpages();
                 if *newval < OptInt::from(min_r) && g_st().full_screen {
-                    errmsg = opt_error_int(errbuf, c"E593: Need at least %d lines".as_ptr(), min_r);
+                    errmsg = opt_error_int(errbuf, c"E593: Need at least %d lines", min_r);
                     *newval = OptInt::from(min_r);
                 }
                 *newval = (*newval).min(OptInt::from(c_int::MAX));
@@ -3606,7 +3609,7 @@ fn check_num_option_bounds(
                 if *newval < OptInt::from(MIN_COLUMNS) && g_st().full_screen {
                     errmsg = opt_error_int(
                         errbuf,
-                        c"E594: Need at least %d columns".as_ptr(),
+                        c"E594: Need at least %d columns",
                         MIN_COLUMNS,
                     );
                     *newval = OptInt::from(MIN_COLUMNS);
@@ -3843,7 +3846,7 @@ pub fn get_tty_option(name: *const c_char) -> Object {
     unsafe {
         if crate::memory::cstr_as_opt_bytes(name) == Some(b"t_Co") {
             if g_st().t_colors <= 1 {
-                cstr_to_obj(c"".as_ptr())
+                cstr_to_obj(c"")
             } else {
                 let mut value = [0 as c_char; NUMBUFLEN];
                 vim_snprintf!(value.as_mut_ptr(), NUMBUFLEN, c"%d", g_st().t_colors);
@@ -3864,7 +3867,7 @@ pub fn get_tty_option(name: *const c_char) -> Object {
                     .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
             )
         } else if is_tty_option(name) {
-            cstr_to_obj(c"".as_ptr())
+            cstr_to_obj(c"")
         } else {
             nil_obj()
         }
@@ -5077,7 +5080,8 @@ const OPTION_NAME_MAP: &[(&[u8], OptIndex)] = &[
 ];
 
 /// Find index for an option. Don't go beyond `len` length (`find_option_len`).
-pub fn find_option_len(name: *const c_char, len: usize) -> OptIndex {
+pub fn find_option_len(name: impl crate::strings::IntoCCharPtr, len: usize) -> OptIndex {
+    let name = name.into_c_char_ptr();
     if name.is_null() {
         return kOptInvalid;
     }
@@ -5089,7 +5093,8 @@ pub fn find_option_len(name: *const c_char, len: usize) -> OptIndex {
 }
 
 /// Find index for an option.
-pub fn find_option(name: *const c_char) -> OptIndex {
+pub fn find_option(name: impl crate::strings::IntoCCharPtr) -> OptIndex {
+    let name = name.into_c_char_ptr();
      find_option_len(name, crate::memory::cstr_len(name))
 }
 
@@ -5214,7 +5219,7 @@ fn opt_from_callback(cb: &mut Callback) -> Object {
             kCallbackNone => {}
             _ => {}
         }
-        cstr_to_obj(c"".as_ptr())
+        cstr_to_obj(c"")
 }
 
 fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
@@ -7416,9 +7421,9 @@ pub fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                     (*buf).b_p_ro = 0;
                     (*buf).b_p_fenc = alloc_string_option(opt_vars().p_fenc);
                     (*buf).b_p_ff = match *opt_vars().p_ffs as u8 {
-                        b'm' => alloc_string_option(c"mac".as_ptr()),
-                        b'd' => alloc_string_option(c"dos".as_ptr()),
-                        b'u' => alloc_string_option(c"unix".as_ptr()),
+                        b'm' => alloc_string_option(c"mac"),
+                        b'd' => alloc_string_option(c"dos"),
+                        b'u' => alloc_string_option(c"unix"),
                         _ => alloc_string_option(opt_vars().p_ff),
                     };
                     (*buf).b_p_bh = empty_opt;
@@ -8788,10 +8793,10 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        assert_eq!(find_option(c"number".as_ptr()), kOptNumber);
-            assert_eq!(find_option(c"nu".as_ptr()), kOptNumber);
-            assert_eq!(find_option_len(c"tabstop=4".as_ptr(), 7), kOptTabstop);
-            assert_eq!(find_option(c"nonexistent_option".as_ptr()), kOptInvalid);
+        assert_eq!(find_option(c"number"), kOptNumber);
+            assert_eq!(find_option(c"nu"), kOptNumber);
+            assert_eq!(find_option_len(c"tabstop=4", 7), kOptTabstop);
+            assert_eq!(find_option(c"nonexistent_option"), kOptInvalid);
 
             assert!(option_has_type(kOptNumber, ObjectType::kObjectTypeBoolean));
             assert!(option_has_type(kOptTabstop, ObjectType::kObjectTypeInteger));

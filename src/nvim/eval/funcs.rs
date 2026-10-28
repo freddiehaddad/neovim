@@ -1157,7 +1157,8 @@ pub fn find_internal_func_hash(slice: &[u8]) -> c_int {
 }
 
 /// Gets a builtin (aka "vimfn", "eval") function from the generated hash table.
-pub fn find_internal_func(name: *const c_char) -> *const EvalFuncDef {
+pub fn find_internal_func(name: impl crate::strings::IntoCCharPtr) -> *const EvalFuncDef {
+    let name = name.into_c_char_ptr();
      {
         let index = find_internal_func_hash(crate::memory::cstr_as_bytes(name));
         if index >= 0 {
@@ -2527,7 +2528,7 @@ fn flatten_common(argvars: &mut [typval_T], rettv: &mut typval_T, make_copy: boo
         } else {
             if value_check_lock(
                 tv_list_locked(list),
-                c"flatten() argument".as_ptr(),
+                c"flatten() argument",
                 TV_TRANSLATE,
             ) {
                 return;
@@ -3825,9 +3826,9 @@ pub fn f_has(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
             if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"clipboard_working")
                 || (cfg!(not(windows)) && crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"unnamedplus"))
             {
-                n = eval_has_provider(c"clipboard".as_ptr(), true);
+                n = eval_has_provider(c"clipboard", true);
             } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"pythonx") {
-                n = eval_has_provider(c"python3".as_ptr(), true);
+                n = eval_has_provider(c"python3", true);
             } else if eval_has_provider(name, true) {
                 n = true;
             }
@@ -3958,7 +3959,8 @@ static EVAL_HAS_LIST: &[&CStr] = &[
     c"nvim",
 ];
 
-fn eval_has_static_feature(name: *const c_char) -> bool {
+fn eval_has_static_feature(name: impl crate::strings::IntoCCharPtr) -> bool {
+    let name = name.into_c_char_ptr();
      {
         for &feat in EVAL_HAS_LIST {
             if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(crate::memory::cstr_as_bytes(feat.as_ptr())) {
@@ -4399,12 +4401,12 @@ pub fn f_isnan(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 /// "id()" function
 pub fn f_id(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    let len = vim_snprintf_typval_only(ptr::null_mut(), 0, c"%p".as_ptr(), (&raw mut argvars[0]));
+    let len = vim_snprintf_typval_only(ptr::null_mut(), 0, c"%p", (&raw mut argvars[0]));
         let mut buf = vec![0 as c_char; (len as usize) + 1];
         vim_snprintf_typval_only(
             buf.as_mut_ptr(),
             (len as usize) + 1,
-            c"%p".as_ptr(),
+            c"%p",
             (&raw mut argvars[0]),
         );
         crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), len as usize);
@@ -4517,7 +4519,7 @@ pub fn create_environment(
                     }
                 }
                 if opt_vars().p_tgc != 0 {
-                    tv_dict_add_str(env, c"COLORTERM", c"truecolor".as_ptr());
+                    tv_dict_add_str(env, c"COLORTERM", c"truecolor");
                 }
             }
         }
@@ -4576,7 +4578,7 @@ pub fn create_environment(
             }
             #[cfg(not(windows))]
             {
-                tv_dict_extend(&mut *env, &mut *(*job_env).di_tv.vval.v_dict(), c"force".as_ptr());
+                tv_dict_extend(&mut *env, &mut *(*job_env).di_tv.vval.v_dict(), c"force");
             }
         }
 
@@ -7443,9 +7445,9 @@ pub fn f_searchpairpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// Search for a start/middle/end thing.
 pub fn do_searchpair(
-    spat: *const c_char,
-    mpat: *const c_char,
-    epat: *const c_char,
+    spat: impl crate::strings::IntoCCharPtr,
+    mpat: impl crate::strings::IntoCCharPtr,
+    epat: impl crate::strings::IntoCCharPtr,
     dir: c_int,
     skip: *const typval_T,
     flags: c_int,
@@ -7453,6 +7455,9 @@ pub fn do_searchpair(
     lnum_stop: linenr_T,
     time_limit: i64,
 ) -> c_int {
+    let spat = spat.into_c_char_ptr();
+    let mpat = mpat.into_c_char_ptr();
+    let epat = epat.into_c_char_ptr();
     unsafe {
         let mut retval: c_int = 0;
         let mut nest: c_int = 1;
@@ -8554,7 +8559,7 @@ pub fn f_stdpath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             }
         } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"log") {
             if let Some(state_home) = get_xdg_home(XDGVarType::kXDGStateHome) {
-                let log_dir = concat_fnames_cstr(state_home.as_ptr(), c"logs".as_ptr(), true);
+                let log_dir = concat_fnames_cstr(state_home.as_ptr(), c"logs", true);
                 crate::eval::typval::tv_set_string(rettv, log_dir.as_ptr());
             }
         } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"run") {
@@ -15201,10 +15206,10 @@ mod tests {
                 find_internal_func_hash(b"not_a_builtin_fn"),
                 -1
             );
-            assert!(find_internal_func(c"not_a_builtin_fn".as_ptr()).is_null());
-            assert!(eval_has_static_feature(c"nvim".as_ptr()));
-            assert!(eval_has_static_feature(c"AUTOCMD".as_ptr()));
-            assert!(!eval_has_static_feature(c"not_a_feature".as_ptr()));
+            assert!(find_internal_func(c"not_a_builtin_fn").is_null());
+            assert!(eval_has_static_feature(c"nvim"));
+            assert!(eval_has_static_feature(c"AUTOCMD"));
+            assert!(!eval_has_static_feature(c"not_a_feature"));
         }
     }
 }

@@ -250,7 +250,8 @@ pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCha
     }
 }
 
-pub fn path_tail(fname: *const c_char) -> *mut c_char {
+pub fn path_tail(fname: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let fname = fname.into_c_char_ptr();
     if fname.is_null() {
         return c"".as_ptr().cast_mut();
     }
@@ -279,7 +280,8 @@ pub fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char {
     }
 }
 
-pub fn invocation_path_tail(invocation: *const c_char, len: Option<&mut usize>) -> *const c_char {
+pub fn invocation_path_tail(invocation: impl crate::strings::IntoCCharPtr, len: Option<&mut usize>) -> *const c_char {
+    let invocation = invocation.into_c_char_ptr();
     unsafe {
         let mut tail: *const c_char = get_past_head(invocation);
         let mut tail_end = tail;
@@ -308,7 +310,8 @@ pub fn invocation_path_tail(invocation: *const c_char, len: Option<&mut usize>) 
     }
 }
 
-pub fn path_next_component(mut fname: *const c_char) -> *const c_char {
+pub fn path_next_component(fname: impl crate::strings::IntoCCharPtr) -> *const c_char {
+    let mut fname = fname.into_c_char_ptr();
     unsafe {
         while *fname != NUL && !vim_ispathsep(*fname as c_int) {
             fname = fname.add(1);
@@ -513,9 +516,10 @@ pub fn concat_fnames(
 
 pub fn concat_fnames_cstr(
     fname1: *const c_char,
-    fname2: *const c_char,
+    fname2: impl crate::strings::IntoCCharPtr,
     sep: bool,
 ) -> std::ffi::CString {
+    let fname2 = fname2.into_c_char_ptr();
     unsafe {
         let len1 = if fname1.is_null() {
             0
@@ -1665,7 +1669,7 @@ pub fn simplify_filename(filename: *mut c_char) -> usize {
                             if do_strip {
                                 let mut new_file_info: FileInfo = FileInfo::new();
                                 if p == start && relative {
-                                    os_fileinfo(c".".as_ptr(), &mut new_file_info);
+                                    os_fileinfo(c".", &mut new_file_info);
                                 } else {
                                     let saved_char = *p;
                                     *p = NUL;
@@ -1752,7 +1756,8 @@ pub fn path_is_url(p: *const c_char) -> c_int {
     }
 }
 
-pub fn path_with_url(fname: *const c_char) -> c_int {
+pub fn path_with_url(fname: impl crate::strings::IntoCCharPtr) -> c_int {
+    let fname = fname.into_c_char_ptr();
     unsafe {
         if !(*fname as u8).is_ascii_alphabetic() {
             return 0;
@@ -1779,7 +1784,8 @@ pub fn path_with_url(fname: *const c_char) -> c_int {
     }
 }
 
-pub fn path_with_extension(path: *const c_char, extension: &std::ffi::CStr) -> bool {
+pub fn path_with_extension(path: impl crate::strings::IntoCCharPtr, extension: &std::ffi::CStr) -> bool {
+    let path = path.into_c_char_ptr();
     unsafe {
         let bytes = crate::memory::cstr_as_bytes(path);
         let Some(pos) = bytes.iter().rposition(|&b| b == b'.') else {
@@ -1795,11 +1801,12 @@ pub fn vim_isAbsName(name: *const c_char) -> bool {
 }
 
 pub fn vim_FullName(
-    fname: *const c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     buf: *mut c_char,
     len: usize,
     force: bool,
 ) -> bool {
+    let fname = fname.into_c_char_ptr();
     unsafe {
         *buf = NUL;
         if fname.is_null() {
@@ -1870,7 +1877,7 @@ pub fn path_fix_case(name: *mut c_char) {
             *slash = b'/' as c_char;
             (ok, slash.add(1))
         } else {
-            let ok = os_scandir(&mut dir, c".".as_ptr());
+            let ok = os_scandir(&mut dir, c".");
             (ok, name)
         };
 
@@ -2177,7 +2184,8 @@ pub fn path_full_dir_name(directory: *mut c_char, buffer: *mut c_char, len: usiz
     }
 }
 
-pub fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) -> bool {
+pub fn append_path(path: *mut c_char, to_append: impl crate::strings::IntoCCharPtr, max_len: usize) -> bool {
+    let to_append = to_append.into_c_char_ptr();
     unsafe {
         let mut current_length = crate::memory::cstr_len(path);
         let to_append_bytes = crate::memory::cstr_as_bytes(to_append);
@@ -2285,7 +2293,8 @@ fn path_to_absolute(
     }
 }
 
-pub fn path_is_absolute(fname: *const c_char) -> bool {
+pub fn path_is_absolute(fname: impl crate::strings::IntoCCharPtr) -> bool {
+    let fname = fname.into_c_char_ptr();
     #[cfg(windows)]
     unsafe {
         if *fname == NUL {
@@ -2302,7 +2311,8 @@ pub fn path_is_absolute(fname: *const c_char) -> bool {
     }
 }
 
-pub fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize: usize) {
+pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf: *mut c_char, bufsize: usize) {
+    let argv0 = argv0.into_c_char_ptr();
     unsafe {
         let path_cstr = os_getenv_cstr(c"PATH");
         let argv0_bytes = crate::memory::cstr_as_bytes(argv0);
@@ -2359,7 +2369,7 @@ mod tests {
     fn init_progpath() {
         unsafe {
             if *crate::eval::vars::get_vim_var_str(VV_PROGPATH) == NUL {
-                set_vim_var_string(VV_PROGPATH, c"nvim".as_ptr(), -1);
+                set_vim_var_string(VV_PROGPATH, c"nvim", -1);
             }
         }
     }
@@ -2369,11 +2379,11 @@ mod tests {
          {
             assert!(vim_ispathsep(b'/' as c_int));
             assert_eq!(
-                crate::memory::cstr_as_bytes(path_tail(c"directory/file.txt".as_ptr())),
+                crate::memory::cstr_as_bytes(path_tail(c"directory/file.txt")),
                 b"file.txt"
             );
             assert_eq!(
-                crate::memory::cstr_as_bytes(path_tail(c"directory/".as_ptr())),
+                crate::memory::cstr_as_bytes(path_tail(c"directory/")),
                 b""
             );
 
@@ -2404,21 +2414,21 @@ mod tests {
             );
 
             assert_eq!(
-                crate::memory::cstr_as_bytes(path_next_component(c"some/directory/file.txt".as_ptr())),
+                crate::memory::cstr_as_bytes(path_next_component(c"some/directory/file.txt")),
                 b"directory/file.txt"
             );
             assert_eq!(
-                crate::memory::cstr_as_bytes(path_next_component(c"file.txt".as_ptr())),
+                crate::memory::cstr_as_bytes(path_next_component(c"file.txt")),
                 b""
             );
 
             let mut len = 0usize;
-            let inv = invocation_path_tail(c"directory/exe a b c".as_ptr(), Some(&mut len));
+            let inv = invocation_path_tail(c"directory/exe a b c", Some(&mut len));
             assert_eq!(len, 3);
             assert_eq!(crate::memory::cstr_as_bytes(inv), b"exe a b c");
             assert_eq!(
                 crate::memory::cstr_as_bytes(invocation_path_tail(
-                    c"directory/exe a b c".as_ptr(),
+                    c"directory/exe a b c",
                     None
                 )),
                 b"exe a b c"
@@ -2432,7 +2442,7 @@ mod tests {
             assert_eq!(len, 1);
             assert_eq!(crate::memory::cstr_as_bytes(inv2), b"z a b");
 
-            let inv3 = invocation_path_tail(c"exe a/b\\c".as_ptr(), Some(&mut len));
+            let inv3 = invocation_path_tail(c"exe a/b\\c", Some(&mut len));
             assert_eq!(len, 3);
             assert_eq!(crate::memory::cstr_as_bytes(inv3), b"exe a/b\\c");
 
@@ -2518,22 +2528,22 @@ mod tests {
 
             let mut buf = [0 as c_char; 100];
             xstrlcpy(buf.as_mut_ptr(), c"path1", buf.len());
-            assert!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100));
+            assert!(append_path(buf.as_mut_ptr(), c"path2", 100));
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1/path2");
 
             xstrlcpy(buf.as_mut_ptr(), c"path1/", buf.len());
-            assert!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100));
+            assert!(append_path(buf.as_mut_ptr(), c"path2", 100));
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1/path2");
-            assert!(!append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 11));
+            assert!(!append_path(buf.as_mut_ptr(), c"path2", 11));
 
             xstrlcpy(buf.as_mut_ptr(), c"path1", buf.len());
-            assert!(append_path(buf.as_mut_ptr(), c"".as_ptr(), 6));
+            assert!(append_path(buf.as_mut_ptr(), c"", 6));
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1");
-            assert!(append_path(buf.as_mut_ptr(), c".".as_ptr(), 6));
+            assert!(append_path(buf.as_mut_ptr(), c".", 6));
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1");
 
             buf[0] = NUL;
-            assert!(append_path(buf.as_mut_ptr(), c"/path2".as_ptr(), 7));
+            assert!(append_path(buf.as_mut_ptr(), c"/path2", 7));
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"/path2");
         }
     }
@@ -2543,48 +2553,48 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        assert!(path_is_absolute(c"/some/directory/".as_ptr()));
+        assert!(path_is_absolute(c"/some/directory/"));
             #[cfg(windows)]
-            assert!(path_is_absolute(c"C:/some/directory/".as_ptr()));
+            assert!(path_is_absolute(c"C:/some/directory/"));
             #[cfg(not(windows))]
-            assert!(path_is_absolute(c"~/in/my/home~/directory".as_ptr()));
-            assert!(!path_is_absolute(c"not/in/my/home~/directory".as_ptr()));
+            assert!(path_is_absolute(c"~/in/my/home~/directory"));
+            assert!(!path_is_absolute(c"not/in/my/home~/directory"));
 
             let saved_fic = opt_vars().p_fic;
             opt_vars().p_fic = 0;
             assert!(path_with_extension(
-                c"/some/path/file.lua".as_ptr(),
+                c"/some/path/file.lua",
                 c"lua"
             ));
             assert!(!path_with_extension(
-                c"/some/path/file.vim".as_ptr(),
+                c"/some/path/file.vim",
                 c"lua"
             ));
             assert!(!path_with_extension(
-                c"/some/path/file".as_ptr(),
+                c"/some/path/file",
                 c"lua"
             ));
             assert!(!path_with_extension(
-                c"/some/path/file.LUA".as_ptr(),
+                c"/some/path/file.LUA",
                 c"lua"
             ));
             opt_vars().p_fic = 1;
             assert!(path_with_extension(
-                c"/some/path/file.LUA".as_ptr(),
+                c"/some/path/file.LUA",
                 c"lua"
             ));
             opt_vars().p_fic = saved_fic;
 
-            assert_eq!(path_with_url(c"test://xyz/foo/b0".as_ptr()), 1);
-            assert_eq!(path_with_url(c"test:\\\\xyz\\foo\\b0".as_ptr()), 2);
-            assert_eq!(path_with_url(c"test123://xyz/foo/b0".as_ptr()), 1);
-            assert_eq!(path_with_url(c"test_abc://xyz/foo/b2".as_ptr()), 0);
-            assert_eq!(path_with_url(c"test+abc-123.ghi://xyz/foo/b1".as_ptr()), 1);
-            assert_eq!(path_with_url(c"-test://xyz/foo/b4".as_ptr()), 0);
-            assert_eq!(path_with_url(c"test-://xyz/foo/b5".as_ptr()), 0);
-            assert_eq!(path_with_url(c"test-C:/xyz/foo/b5".as_ptr()), 1);
-            assert_eq!(path_with_url(c"c:/xyz/foo/b5".as_ptr()), 0);
-            assert_eq!(path_with_url(c"C:/xyz/foo/b5".as_ptr()), 0);
+            assert_eq!(path_with_url(c"test://xyz/foo/b0"), 1);
+            assert_eq!(path_with_url(c"test:\\\\xyz\\foo\\b0"), 2);
+            assert_eq!(path_with_url(c"test123://xyz/foo/b0"), 1);
+            assert_eq!(path_with_url(c"test_abc://xyz/foo/b2"), 0);
+            assert_eq!(path_with_url(c"test+abc-123.ghi://xyz/foo/b1"), 1);
+            assert_eq!(path_with_url(c"-test://xyz/foo/b4"), 0);
+            assert_eq!(path_with_url(c"test-://xyz/foo/b5"), 0);
+            assert_eq!(path_with_url(c"test-C:/xyz/foo/b5"), 1);
+            assert_eq!(path_with_url(c"c:/xyz/foo/b5"), 0);
+            assert_eq!(path_with_url(c"C:/xyz/foo/b5"), 0);
     }
 
     #[test]
@@ -2672,7 +2682,7 @@ mod tests {
             // vim_FullName
             assert!(!vim_FullName(ptr::null(), out.as_mut_ptr(), 10, true));
             assert!(vim_FullName(
-                    c"http://www.neovim.org".as_ptr(),
+                    c"http://www.neovim.org",
                     out.as_mut_ptr(),
                     MAXPATHL,
                     true
@@ -2706,13 +2716,13 @@ mod tests {
             );
 
             // path_guess_exepath
-            path_guess_exepath(c"./nvim".as_ptr(), out.as_mut_ptr(), MAXPATHL);
+            path_guess_exepath(c"./nvim", out.as_mut_ptr(), MAXPATHL);
             assert_eq!(
                 CStr::from_ptr(out.as_ptr()).to_str().unwrap(),
                 format!("{cwd}/./nvim")
             );
 
-            path_guess_exepath(c"23u0293_not_in_path".as_ptr(), out.as_mut_ptr(), MAXPATHL);
+            path_guess_exepath(c"23u0293_not_in_path", out.as_mut_ptr(), MAXPATHL);
             assert_eq!(
                 CStr::from_ptr(out.as_ptr()).to_str().unwrap(),
                 "23u0293_not_in_path"

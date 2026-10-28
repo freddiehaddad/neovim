@@ -573,10 +573,11 @@ pub fn api_err_conflict<S1: crate::strings::IntoCCharPtr, S2: crate::strings::In
 /// `arr`, `name`, and `err` must be valid.
 pub fn check_string_array(
     arr: Array,
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     disallow_nl: bool,
     err: &mut Error,
 ) -> bool {
+    let name = name.into_c_char_ptr().cast_mut();
     let name_str = cstr_lossy(name);
     for i in 0..arr.size {
         let item = unsafe { &*arr.items.add(i) };

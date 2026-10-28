@@ -4975,7 +4975,8 @@ pub fn do_cmdline_cmd<S: crate::strings::IntoCCharPtr>(cmd: S) -> bool {
 }
 
 /// do_cmdline(): execute one Ex command line
-pub fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_int) -> bool {
+pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGetter, flags: c_int) -> bool {
+    let cmdline = cmdline.into_c_char_ptr().cast_mut();
     static RECURSIVE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
     unsafe {
@@ -5497,7 +5498,7 @@ pub fn handle_did_throw() {
             for msg in messages {
                 let _ = emsg_multiline(
                     msg.msg.as_ptr().cast_mut(),
-                    c"emsg".as_ptr(),
+                    c"emsg",
                     HLF_E,
                     msg.multiline,
                 );
@@ -7909,7 +7910,7 @@ pub fn get_address(
                                 } else {
                                     FORWARD
                                 },
-                                c"".as_ptr().cast_mut(),
+                                c"",
                                 0,
                                 1,
                                 SEARCH_MSG,
@@ -8990,7 +8991,7 @@ pub fn not_exiting(save_exiting: bool) {
 pub fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bool {
     unsafe {
         if *get_vim_var_str(VV_EXITREASON) == NUL {
-            set_vim_var_string(VV_EXITREASON, c"quit".as_ptr(), 4);
+            set_vim_var_string(VV_EXITREASON, c"quit", 4);
         }
         apply_autocmds_win(
             EVENT_QUITPRE,
@@ -9383,7 +9384,7 @@ fn ex_restart(eap: &mut exarg_T) {
             };
             rpc_send_call(
                 chan_id,
-                c"nvim_chan_set".as_ptr(),
+                c"nvim_chan_set",
                 detach_args,
                 &mut result_mem,
                 &mut err,
@@ -9428,7 +9429,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 };
                 rpc_send_call(
                     chan_id,
-                    c"nvim_create_autocmd".as_ptr(),
+                    c"nvim_create_autocmd",
                     autocmd_args,
                     &mut result_mem,
                     &mut err,
@@ -9448,7 +9449,7 @@ fn ex_restart(eap: &mut exarg_T) {
             };
             let result = rpc_send_call(
                 chan_id,
-                c"nvim_get_vvar".as_ptr(),
+                c"nvim_get_vvar",
                 servername_args,
                 &mut result_mem,
                 &mut err,
@@ -9493,7 +9494,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 };
                 rpc_send_call(
                     chan_id,
-                    c"nvim_exec_lua".as_ptr(),
+                    c"nvim_exec_lua",
                     lua_args,
                     &mut result_mem,
                     &mut err,
@@ -9548,7 +9549,7 @@ fn ex_restart(eap: &mut exarg_T) {
             };
             rpc_send_call(
                 chan_id,
-                c"nvim_eval".as_ptr(),
+                c"nvim_eval",
                 chanclose_args,
                 &mut result_mem,
                 &mut err,
@@ -10867,7 +10868,7 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
 
         if *new_dir == NUL && opt_vars().p_cdh != 0 {
             expand_env(
-                c"$HOME".as_ptr().cast_mut(),
+                c"$HOME",
                 (&raw mut g_st().NameBuff).cast(),
                 MAXPATHL as c_int,
             );
@@ -11479,7 +11480,7 @@ fn ex_redir(eap: &mut exarg_T) {
                         arg = arg.add(1);
                     }
                     if *arg == NUL && !ascii_isupper(g_st().redir_reg as c_char) {
-                        write_reg_contents(g_st().redir_reg, c"".as_ptr(), 0, c_int::from(false));
+                        write_reg_contents(g_st().redir_reg, c"", 0, c_int::from(false));
                     }
                 }
             }
@@ -12063,7 +12064,8 @@ const SPEC_AMATCH: isize = 12;
 const SPEC_SFLNUM: isize = 13;
 const SPEC_SID: isize = 14;
 
-pub fn find_cmdline_var(src: *const c_char, usedlen: &mut usize) -> isize {
+pub fn find_cmdline_var(src: impl crate::strings::IntoCCharPtr, usedlen: &mut usize) -> isize {
+    let src = src.into_c_char_ptr();
     const SPEC_STR: [&CStr; 15] = [
         c"%",
         c"#",
@@ -12516,20 +12518,20 @@ fn ex_filetype(eap: &mut exarg_T) {
 
         if crate::memory::cstr_as_bytes(arg) == b"on" || crate::memory::cstr_as_bytes(arg) == b"detect" {
             if *arg == b'o' as c_char || docmd_st().filetype_detect != kTrue {
-                source_runtime(FILETYPE_FILE.as_ptr().cast_mut(), DIP_ALL);
+                source_runtime(FILETYPE_FILE, DIP_ALL);
                 docmd_st().filetype_detect = kTrue;
                 if plugin {
-                    source_runtime(FTPLUGIN_FILE.as_ptr().cast_mut(), DIP_ALL);
+                    source_runtime(FTPLUGIN_FILE, DIP_ALL);
                     docmd_st().filetype_plugin = kTrue;
                 }
                 if indent {
-                    source_runtime(INDENT_FILE.as_ptr().cast_mut(), DIP_ALL);
+                    source_runtime(INDENT_FILE, DIP_ALL);
                     docmd_st().filetype_indent = kTrue;
                 }
             }
             if *arg == b'd' as c_char {
                 do_doautocmd(
-                    c"filetypedetect BufRead".as_ptr().cast_mut(),
+                    c"filetypedetect BufRead",
                     true,
                     None,
                 );
@@ -12538,15 +12540,15 @@ fn ex_filetype(eap: &mut exarg_T) {
         } else if crate::memory::cstr_as_bytes(arg) == b"off" {
             if plugin || indent {
                 if plugin {
-                    source_runtime(FTPLUGOF_FILE.as_ptr().cast_mut(), DIP_ALL);
+                    source_runtime(FTPLUGOF_FILE, DIP_ALL);
                     docmd_st().filetype_plugin = kFalse;
                 }
                 if indent {
-                    source_runtime(INDOFF_FILE.as_ptr().cast_mut(), DIP_ALL);
+                    source_runtime(INDOFF_FILE, DIP_ALL);
                     docmd_st().filetype_indent = kFalse;
                 }
             } else {
-                source_runtime(FTOFF_FILE.as_ptr().cast_mut(), DIP_ALL);
+                source_runtime(FTOFF_FILE, DIP_ALL);
                 docmd_st().filetype_detect = kFalse;
             }
         } else {
@@ -12563,18 +12565,18 @@ pub fn ex_errmsg(msg: &std::ffi::CStr, arg: *const c_char) -> *mut c_char {
 
 pub fn filetype_plugin_enable() {
     if docmd_st().filetype_plugin == kNone {
-            source_runtime(FTPLUGIN_FILE.as_ptr().cast_mut(), DIP_ALL);
+            source_runtime(FTPLUGIN_FILE, DIP_ALL);
             docmd_st().filetype_plugin = kTrue;
         }
         if docmd_st().filetype_indent == kNone {
-            source_runtime(INDENT_FILE.as_ptr().cast_mut(), DIP_ALL);
+            source_runtime(INDENT_FILE, DIP_ALL);
             docmd_st().filetype_indent = kTrue;
         }
 }
 
 pub fn filetype_maybe_enable() {
     if docmd_st().filetype_detect == kNone {
-            source_runtime(FILETYPE_FILE.as_ptr().cast_mut(), DIP_ALL);
+            source_runtime(FILETYPE_FILE, DIP_ALL);
             docmd_st().filetype_detect = kTrue;
         }
 }
@@ -13016,15 +13018,15 @@ mod tests {
     fn find_cmdline_var_matches_special_variables() {
         let mut usedlen = 0usize;
             assert_eq!(
-                find_cmdline_var(c"<cword>".as_ptr(), &mut usedlen),
+                find_cmdline_var(c"<cword>", &mut usedlen),
                 SPEC_CWORD
             );
             assert_eq!(usedlen, 7);
             assert_eq!(
-                find_cmdline_var(c"%:p".as_ptr(), &mut usedlen),
+                find_cmdline_var(c"%:p", &mut usedlen),
                 SPEC_PERC
             );
             assert_eq!(usedlen, 1);
-            assert_eq!(find_cmdline_var(c"foo".as_ptr(), &mut usedlen), -1);
+            assert_eq!(find_cmdline_var(c"foo", &mut usedlen), -1);
     }
 }

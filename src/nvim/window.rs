@@ -6812,7 +6812,7 @@ pub fn may_trigger_win_scrolled_resized() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&mut save_v_event);
 
-            tv_dict_extend(&mut *v_event, &mut *scroll_dict, c"move".as_ptr());
+            tv_dict_extend(&mut *v_event, &mut *scroll_dict, c"move");
             tv_dict_set_keys_readonly(&mut *v_event);
             tv_dict_unref(scroll_dict);
 

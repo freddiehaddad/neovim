@@ -2256,7 +2256,7 @@ pub fn get_keymap_str(
         *curwin.as_ptr() = wp;
         g_st().emsg_skip += 1;
         let s = eval_to_string(
-            c"b:keymap_name".as_ptr().cast_mut(),
+            c"b:keymap_name",
             false,
             false,
         );

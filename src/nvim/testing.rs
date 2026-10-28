@@ -87,7 +87,8 @@ fn prepare_assert_error(gap: &mut Vec<u8>) {
         }
 }
 
-fn ga_concat_esc(gap: &mut Vec<u8>, p: *const c_char, clen: c_int) {
+fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: c_int) {
+    let p = p.into_c_char_ptr();
     unsafe {
         if clen > 1 {
             buf_concat_len(gap, p, clen as usize);
@@ -915,9 +916,9 @@ mod tests {
     #[test]
     fn ga_concat_esc_formats_control_chars_and_printable_ascii() {
         let mut ga = Vec::new();
-        ga_concat_esc(&mut ga, c"\n".as_ptr(), 1);
-            ga_concat_esc(&mut ga, c"\x01".as_ptr(), 1);
-            ga_concat_esc(&mut ga, c"A".as_ptr(), 1);
+        ga_concat_esc(&mut ga, c"\n", 1);
+            ga_concat_esc(&mut ga, c"\x01", 1);
+            ga_concat_esc(&mut ga, c"A", 1);
             assert_eq!(&ga[..], b"\\n\\x01A");
     }
 }

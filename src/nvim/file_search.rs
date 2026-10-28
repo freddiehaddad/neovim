@@ -732,7 +732,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                                             .ffvl_visited_list,
                                         file_path.data,
                                         file_path.size,
-                                        EMPTY_C.as_ptr(),
+                                        EMPTY_C,
                                         0,
                                     )
                                 {
@@ -981,9 +981,10 @@ fn ff_check_visited(
     visited_list: &mut Vec<ff_visited_T>,
     fname: *const c_char,
     fnamelen: usize,
-    wc_path: *const c_char,
+    wc_path: impl crate::strings::IntoCCharPtr,
     wc_pathlen: usize,
 ) -> bool {
+    let wc_path = wc_path.into_c_char_ptr();
     unsafe {
         let mut url = false;
         let mut file_id = FileID::new();
@@ -1171,7 +1172,7 @@ pub fn find_directory_in_path(
             opt_vars().p_cdpath,
             FINDFILE_DIR,
             rel_fname,
-            EMPTY_C.as_ptr().cast_mut(),
+            EMPTY_C,
             file_to_find,
             search_ctx,
         )
@@ -1185,10 +1186,11 @@ pub fn find_file_in_path_option(
     path_option: *mut c_char,
     find_what: c_int,
     mut rel_fname: *mut c_char,
-    suffixes: *mut c_char,
+    suffixes: impl crate::strings::IntoCCharPtr,
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<ff_search_ctx_T>,
 ) -> Option<std::ffi::CString> {
+    let suffixes = suffixes.into_c_char_ptr().cast_mut();
     unsafe {
         struct FindFilePathOptState {
             dir: *mut c_char,

@@ -61,7 +61,7 @@ pub fn adjust_clipboard_name(
             return std::ptr::null_mut();
         }
 
-        if !eval_has_provider(c"clipboard".as_ptr(), false) {
+        if !eval_has_provider(c"clipboard", false) {
             if clip_st().BATCH_CHANGE_COUNT <= 1
                 && !quiet
                 && (!clip_st().CLIPBOARD_DIDWARN || (explicit_cb_reg && redirecting() == 0))
@@ -134,7 +134,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
         tv_list_append_string(args, &regname, 1);
 
         let result = eval_call_provider(
-            c"clipboard".as_ptr().cast_mut(),
+            c"clipboard",
             c"get",
             &mut *args,
             false,
@@ -265,7 +265,7 @@ pub fn set_clipboard(mut name: c_int, reg: &yankreg_T) {
         tv_list_append_string(args, &name_char, 1);
 
         let _ = eval_call_provider(
-            c"clipboard".as_ptr().cast_mut(),
+            c"clipboard",
             c"set",
             &mut *args,
             true,

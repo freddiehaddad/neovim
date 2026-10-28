@@ -950,7 +950,7 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
                 if status != -1 && term.cursor.row == height - 1 {
                     fetch_row(term, term.cursor.row, width);
                     if term.textbuf[0] != NUL {
-                        terminal_receive(term, c"\r\n".as_ptr(), 2);
+                        terminal_receive(term, c"\r\n", 2);
                     }
                 }
                 block_autocmds();
@@ -1118,7 +1118,7 @@ fn set_terminal_winopts(s: &mut TerminalState) {
                 s.save_w_p_culopt =
                     Some(crate::memory::cstr_to_cstring((**curwin.as_ptr()).w_onebuf_opt.wo_culopt));
                 free_string_option((**curwin.as_ptr()).w_onebuf_opt.wo_culopt);
-                (**curwin.as_ptr()).w_onebuf_opt.wo_culopt = alloc_string_option(c"number".as_ptr());
+                (**curwin.as_ptr()).w_onebuf_opt.wo_culopt = alloc_string_option(c"number");
             }
             (**curwin.as_ptr()).w_p_culopt_flags = kOptCuloptFlagNumber;
         } else {
@@ -1489,7 +1489,8 @@ pub fn terminal_destroy(termpp: *mut *mut Terminal) {
     }
 }
 
-fn terminal_send(term: &mut Terminal, data: *const c_char, size: usize) {
+fn terminal_send(term: &mut Terminal, data: impl crate::strings::IntoCCharPtr, size: usize) {
+    let data = data.into_c_char_ptr();
     unsafe {
         if term.closed {
             return;
@@ -1556,9 +1557,9 @@ pub fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
                 if j > 0 {
                     let term_now = &mut *(*g_st().curbuf).terminal;
                     #[cfg(windows)]
-                    terminal_send(term_now, c"\r\n".as_ptr(), 2);
+                    terminal_send(term_now, c"\r\n", 2);
                     #[cfg(not(windows))]
-                    terminal_send(term_now, c"\n".as_ptr(), 1);
+                    terminal_send(term_now, c"\n", 1);
                 }
                 let item = *y_array.add(j);
                 buff.clear();
@@ -1612,7 +1613,8 @@ pub fn on_sync_flush(buf_handle: handle_T) {
     }
 }
 
-pub fn terminal_receive(term: &mut Terminal, data: *const c_char, len: usize) {
+pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCharPtr, len: usize) {
+    let data = data.into_c_char_ptr();
     unsafe {
         if data.is_null() {
             return;
@@ -2069,7 +2071,7 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
         tv_list_append_string(args, &regtype, 1);
         tv_list_append_string(args, &regname, 1);
         eval_call_provider(
-            c"clipboard".as_ptr().cast_mut(),
+            c"clipboard",
             c"set",
             &mut *args,
             true,

@@ -342,7 +342,7 @@ fn find_substr(haystack: *const c_char, needle: &[u8]) -> bool {
 
 /// Translate search pattern for `vim_regcomp()`.
 pub fn search_regcomp(
-    mut pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     mut patlen: usize,
     used_pat: *mut *mut c_char,
     pat_save: c_int,
@@ -351,6 +351,7 @@ pub fn search_regcomp(
     mut magic: bool,
     regmatch: &mut regmmatch_T,
 ) -> bool {
+    let mut pat = pat.into_c_char_ptr().cast_mut();
     unsafe {
         g_st().rc_did_emsg = false;
 
@@ -679,7 +680,7 @@ pub fn last_pat_prog(regmatch: &mut regmmatch_T) {
         }
         g_st().emsg_off += 1;
         search_regcomp(
-            c"".as_ptr().cast_mut(),
+            c"",
             0,
             ptr::null_mut(),
             0,
@@ -697,13 +698,14 @@ pub fn searchit(
     pos: *mut pos_T,
     mut end_pos: Option<&mut pos_T>,
     dir: Direction,
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     patlen: usize,
     mut count: c_int,
     options: c_int,
     pat_use: c_int,
     magic: bool,mut extra_arg: Option<&mut searchit_arg_T>,
 ) -> c_int {
+    let pat = pat.into_c_char_ptr().cast_mut();
     unsafe {
         let mut found: c_int;
         let mut lnum: linenr_T;

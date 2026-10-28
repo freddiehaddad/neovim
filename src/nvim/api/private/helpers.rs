@@ -252,7 +252,8 @@ pub const fn static_cstr_as_obj(s: &'static CStr) -> Object {
 }
 
 #[inline]
-pub fn cstr_to_obj(s: *const c_char) -> Object {
+pub fn cstr_to_obj(s: impl crate::strings::IntoCCharPtr) -> Object {
+    let s = s.into_c_char_ptr();
     string_obj(cstr_to_string(s))
 }
 
@@ -689,7 +690,8 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
     }
 }
 
-pub fn cstr_to_string(str_: *const c_char) -> NvimString {
+pub fn cstr_to_string(str_: impl crate::strings::IntoCCharPtr) -> NvimString {
+    let str_ = str_.into_c_char_ptr();
      {
         if str_.is_null() {
             return NvimString {
@@ -1072,10 +1074,11 @@ pub fn copy_object(obj: Object, arena: Option<&mut Arena>) -> Object {
 
 pub fn api_object_to_bool(
     obj: Object,
-    what: *const c_char,
+    what: impl crate::strings::IntoCCharPtr,
     nil_value: bool,
     err: &mut Error,
 ) -> bool {
+    let what = what.into_c_char_ptr();
     match obj.obj_type {
             ObjectType::kObjectTypeBoolean => obj.data.boolean(),
             ObjectType::kObjectTypeInteger => obj.data.integer() != 0,
@@ -1087,7 +1090,8 @@ pub fn api_object_to_bool(
         }
 }
 
-pub fn object_to_hl_id(obj: Object, what: *const c_char, err: &mut Error) -> c_int {
+pub fn object_to_hl_id(obj: Object, what: impl crate::strings::IntoCCharPtr, err: &mut Error) -> c_int {
+    let what = what.into_c_char_ptr();
     unsafe {
         match obj.obj_type {
             ObjectType::kObjectTypeString => {
@@ -1166,7 +1170,7 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
 
             let str_ = copy_string((*chunk.items).data.string(), None);
             let hl_id = if chunk.size == 2 {
-                object_to_hl_id(chunk[1], c"text highlight".as_ptr(), err)
+                object_to_hl_id(chunk[1], c"text highlight", err)
             } else if is_err {
                 HLF_E
             } else {
@@ -4382,7 +4386,7 @@ mod tests {
                     .unwrap(),
                 "Function"
             );
-            let s = cstr_to_string(c"hello".as_ptr());
+            let s = cstr_to_string(c"hello");
             assert_eq!(s.size, 5);
             let cstr = string_to_cstr(s);
             assert_eq!(cstr.to_str().unwrap(), "hello");

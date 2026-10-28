@@ -929,9 +929,9 @@ pub fn pum_redraw() {
 
             if extra_space {
                 if pum().rl {
-                    grid_line_puts(col_off + 1, c" ".as_ptr(), 1, attr);
+                    grid_line_puts(col_off + 1, c" ", 1, attr);
                 } else {
-                    grid_line_puts(col_off - 1, c" ".as_ptr(), 1, attr);
+                    grid_line_puts(col_off - 1, c" ", 1, attr);
                 }
             }
 
@@ -1074,10 +1074,10 @@ pub fn pum_redraw() {
                         }
 
                         if pum().rl {
-                            grid_line_puts(grid_col - 1, c"  ".as_ptr(), 2, attr);
+                            grid_line_puts(grid_col - 1, c"  ", 2, attr);
                             grid_col -= 2;
                         } else {
-                            grid_line_puts(grid_col, c"  ".as_ptr(), 2, attr);
+                            grid_line_puts(grid_col, c"  ", 2, attr);
                             grid_col += 2;
                         }
                         totwidth += 2;

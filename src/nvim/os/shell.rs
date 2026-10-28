@@ -742,10 +742,11 @@ pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -
 
 /// Get the stdout of an external command.
 pub fn get_cmd_output(
-    cmd: *mut c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     infile: *mut c_char,
     flags: c_int,
 ) -> Option<std::ffi::CString> {
+    let cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
         if check_secure() {
             return None;
@@ -1136,7 +1137,8 @@ fn tokenize(str_in: *const c_char, argv: &mut Vec<std::ffi::CString>) {
     }
 }
 
-pub(crate) fn word_length(str_in: *const c_char) -> usize {
+pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
+    let str_in = str_in.into_c_char_ptr();
     unsafe {
         let mut p = str_in;
         let mut inquote = false;
@@ -1282,9 +1284,9 @@ mod tests {
 
     #[test]
     fn word_length_handles_quotes_and_escaped_chars() {
-        assert_eq!(word_length(c"foo bar".as_ptr()), 3);
-            assert_eq!(word_length(c"\"foo bar\" baz".as_ptr()), 9);
-            assert_eq!(word_length(c"/Program\" \"Files/zsh -f".as_ptr()), 20);
+        assert_eq!(word_length(c"foo bar"), 3);
+            assert_eq!(word_length(c"\"foo bar\" baz"), 9);
+            assert_eq!(word_length(c"/Program\" \"Files/zsh -f"), 20);
     }
 
     #[test]

@@ -937,7 +937,8 @@ pub fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
 }
 
 #[inline]
-pub fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
+pub fn utf_ptr2StrCharInfo(ptr: impl crate::strings::IntoCCharPtr) -> StrCharInfo {
+    let ptr = ptr.into_c_char_ptr();
     StrCharInfo {
             ptr,
             chr: utf_ptr2CharInfo(ptr),
@@ -1045,7 +1046,8 @@ fn enc_canon_search(name: *const c_char) -> c_int {
     -1
 }
 
-pub fn enc_canon_props(name: *const c_char) -> c_int {
+pub fn enc_canon_props(name: impl crate::strings::IntoCCharPtr) -> c_int {
+    let name = name.into_c_char_ptr();
      {
         let i = enc_canon_search(name);
         if i >= 0 {
@@ -1093,7 +1095,8 @@ pub fn remove_bom(s: *mut c_char) {
     }
 }
 
-pub fn mb_get_class(p: *const c_char) -> c_int {
+pub fn mb_get_class(p: impl crate::strings::IntoCCharPtr) -> c_int {
+    let p = p.into_c_char_ptr();
     unsafe { mb_get_class_tab(p, (*g_st().curbuf).b_chartab.as_ptr()) }
 }
 
@@ -1155,7 +1158,8 @@ pub fn ptr2cells(p_in: *const c_char) -> c_int {
     utf_ClusterInfo(utf_ptr2StrCharInfo(p_in)).cells
 }
 
-pub fn utf_ptr2cells(p_in: *const c_char) -> c_int {
+pub fn utf_ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> c_int {
+    let p_in = p_in.into_c_char_ptr();
     unsafe {
         if *p_in.cast::<u8>() < 0x80 {
             return 1;
@@ -2279,11 +2283,13 @@ pub fn mb_utf_index_to_bytes(
     }
 }
 
-pub fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int {
+pub fn mb_strnicmp(s1: *const c_char, s2: impl crate::strings::IntoCCharPtr, nn: usize) -> c_int {
+    let s2 = s2.into_c_char_ptr();
     utf_strnicmp(s1, s2, nn, nn)
 }
 
-pub fn mb_stricmp(s1: *const c_char, s2: *const c_char) -> c_int {
+pub fn mb_stricmp(s1: *const c_char, s2: impl crate::strings::IntoCCharPtr) -> c_int {
+    let s2 = s2.into_c_char_ptr();
     mb_strnicmp(s1, s2, MAXCOL)
 }
 
@@ -3028,7 +3034,9 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     }
 }
 
-pub fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize> {
+pub fn my_iconv_open(to: impl crate::strings::IntoCCharPtr, from: impl crate::strings::IntoCCharPtr) -> Option<usize> {
+    let from = from.into_c_char_ptr().cast_mut();
+    let to = to.into_c_char_ptr().cast_mut();
     const ICONV_TESTLEN: usize = 400;
         if mbyte_st().iconv_working == WorkingStatus::kBroken {
             return None;
@@ -3155,7 +3163,9 @@ pub fn f_iconv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
     }
 }
 
-pub fn convert_setup(vcp: &mut vimconv_T, from: *mut c_char, to: *mut c_char) -> bool {
+pub fn convert_setup(vcp: &mut vimconv_T, from: impl crate::strings::IntoCCharPtr, to: impl crate::strings::IntoCCharPtr) -> bool {
+    let to = to.into_c_char_ptr().cast_mut();
+    let from = from.into_c_char_ptr().cast_mut();
     convert_setup_ext(vcp, from, true, to, true)
 }
 
@@ -3541,7 +3551,7 @@ mod tests {
             assert!(utf_valid_string(buf.as_ptr(), ptr::null()));
             assert!(utf_printable(0x20ac));
             assert!(!utf_printable(0xd800));
-            assert_eq!(enc_canon_props(c"utf-8".as_ptr()), ENC_UNICODE);
+            assert_eq!(enc_canon_props(c"utf-8"), ENC_UNICODE);
 
             assert_eq!(utf_fold(0xddfb), 0xddfb);
             assert_eq!(utf_fold(0xd800), 0xd800);
@@ -3567,7 +3577,7 @@ mod tests {
                     exp_cells as usize
                 );
             }
-            assert_eq!(utf_ptr2cells(c"\xff".as_ptr()), 4);
+            assert_eq!(utf_ptr2cells(c"\xff"), 4);
 
             let mut firstc: c_int = 0;
             let mut sbuf = [0 as c_char; 32];

@@ -163,7 +163,7 @@ fn decor_provider_invoke(
                 return true;
             } else if api_object_to_bool(
                 ret,
-                c"provider %s retval".as_ptr(),
+                c"provider %s retval",
                 default_true,
                 &mut err,
             ) {

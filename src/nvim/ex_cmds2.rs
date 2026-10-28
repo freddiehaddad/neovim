@@ -758,8 +758,8 @@ pub fn ex_compiler(eap: &mut exarg_T) {
             }
             do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>");
         }
-        do_unlet(c"g:current_compiler".as_ptr(), 18, true);
-        do_unlet(c"b:current_compiler".as_ptr(), 18, true);
+        do_unlet(c"g:current_compiler", 18, true);
+        do_unlet(c"b:current_compiler", 18, true);
 
         vim_snprintf!(
             buf.as_mut_ptr(),
@@ -783,7 +783,7 @@ pub fn ex_compiler(eap: &mut exarg_T) {
             if let Some(ref old_comp) = old_cur_comp {
                 set_internal_string_var(c"g:current_compiler", old_comp.as_ptr());
             } else {
-                do_unlet(c"g:current_compiler".as_ptr(), 18, true);
+                do_unlet(c"g:current_compiler", 18, true);
             }
         }
     }

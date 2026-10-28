@@ -301,7 +301,7 @@ pub fn buf_updates_send_changes(
                 textlock_wrap(|| {
                     res = nlua_call_ref(
                         on_lines,
-                        c"lines".as_ptr(),
+                        c"lines",
                         args,
                         kRetNilBool,
                         None,
@@ -367,7 +367,7 @@ pub fn buf_updates_send_splice(buf: &mut buf_T,
                 textlock_wrap(|| {
                     res = nlua_call_ref(
                         on_bytes,
-                        c"bytes".as_ptr(),
+                        c"bytes",
                         args,
                         kRetNilBool,
                         None,
@@ -413,7 +413,7 @@ pub fn buf_updates_changedtick(buf: &mut buf_T) {
                 textlock_wrap(|| {
                     res = nlua_call_ref(
                         on_changedtick,
-                        c"changedtick".as_ptr(),
+                        c"changedtick",
                         args,
                         kRetNilBool,
                         None,

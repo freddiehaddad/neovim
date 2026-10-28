@@ -884,7 +884,8 @@ fn call_umask(mask: c_uint) -> c_uint {
 }
 
 /// Shows a message about file `name`, e.g. `"foo.txt" [New]`.
-fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id: *const c_char) {
+fn filemess(buf: *mut buf_T, name: *mut c_char, s: impl crate::strings::IntoCCharPtr, msg_id: *const c_char) {
+    let s = s.into_c_char_ptr();
     unsafe {
         let prev_msg_col = g_st().msg_col;
 
@@ -932,7 +933,7 @@ fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id: *const
 /// Shows file `name` before writing it, as a "bufwrite" message with `msg_id`, which buf_write()
 /// replaces when done (or with a progress-message, if slow).
 pub fn filemess_bufwrite(buf: *mut buf_T, name: *mut c_char, msg_id: *const c_char) {
-    filemess(buf, name, c"".as_ptr(), msg_id);
+    filemess(buf, name, c"", msg_id);
 }
 
 /// If a file read/write is slower than this, emit a progress-message.
@@ -949,10 +950,11 @@ pub fn slow_io_ns() -> u64 {
 fn readfile_progress(
     s: *const c_char,
     msg_id: *const c_char,
-    status: *const c_char,
+    status: impl crate::strings::IntoCCharPtr,
     percent: c_int,
     hist: bool,
 ) -> *mut c_char {
+    let status = status.into_c_char_ptr();
     unsafe {
         let buf = g_st().curbuf;
         (*buf).b_locked += 1;
@@ -1467,7 +1469,7 @@ pub fn readfile(
                 && !read_buffer
                 && g_st().msg_silent == 0;
             if show_msg && !silent {
-                filemess(g_st().curbuf, sfname, c"".as_ptr(), ptr::null());
+                filemess(g_st().curbuf, sfname, c"", ptr::null());
             }
 
             let mut msg_id = [0 as c_char; MAXPATHL + 32];
@@ -1588,7 +1590,7 @@ pub fn readfile(
                     }
 
                     if fio_flags == 0 && !did_iconv {
-                        iconv_fd = my_iconv_open(c"utf-8".as_ptr().cast_mut(), fenc)
+                        iconv_fd = my_iconv_open(c"utf-8", fenc)
                             .map_or(-1, |fd| fd as iconv_t);
                     }
 
@@ -2365,7 +2367,7 @@ pub fn readfile(
                             let _ = readfile_progress(
                                 iobuf_ptr,
                                 msg_id.as_ptr(),
-                                c"running".as_ptr(),
+                                c"running",
                                 percent,
                                 false,
                             );
@@ -2475,7 +2477,7 @@ pub fn readfile(
                         let _ = readfile_progress(
                             ptr::null(),
                             msg_id.as_ptr(),
-                            c"cancel".as_ptr(),
+                            c"cancel",
                             -1,
                             false,
                         );
@@ -2748,14 +2750,14 @@ pub fn readfile(
 
                     if !did_bufrp
                         && *(*g_st().curbuf).b_p_ft == NUL
-                        && augroup_exists(c"filetypedetect".as_ptr())
+                        && augroup_exists(c"filetypedetect")
                     {
                         apply_autocmds_group(
                             EVENT_BUFREADPOST,
                             sfname,
                             ptr::null_mut(),
                             true,
-                            augroup_find(c"filetypedetect".as_ptr()),
+                            augroup_find(c"filetypedetect"),
                             g_st().curbuf,
                             *curwin.as_ptr(),
                             None,
@@ -2797,7 +2799,8 @@ pub fn readfile(
 
 /// Returns true if the file name argument is of the form "/dev/fd/\d\+".
 #[cfg(test)]
-pub fn is_dev_fd_file(fname: *mut c_char) -> bool {
+pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         let bytes = crate::memory::cstr_as_bytes(fname);
         bytes.starts_with(b"/dev/fd/")
@@ -2922,7 +2925,7 @@ fn readfile_charconvert(
             Some(ref tn) => {
                 close(*fdp);
                 *fdp = -1;
-                if !eval_charconvert(fenc, c"utf-8".as_ptr(), fname, tn.as_ptr()) {
+                if !eval_charconvert(fenc, c"utf-8", fname, tn.as_ptr()) {
                     errmsg = tr(c"Conversion with 'charconvert' failed");
                 }
                 if errmsg.is_null() {
@@ -3004,9 +3007,9 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> bool {
         }
 
         if *(*g_st().curbuf).b_p_ft == NUL {
-            if augroup_exists(c"filetypedetect".as_ptr()) {
+            if augroup_exists(c"filetypedetect") {
                 do_doautocmd(
-                    c"filetypedetect BufRead".as_ptr().cast_mut(),
+                    c"filetypedetect BufRead",
                     false,
                     None,
                 );
@@ -3318,9 +3321,10 @@ pub fn shorten_fnames(force: c_int) {
 /// Get new filename ended by given extension.
 pub fn modname(
     fname: *const c_char,
-    ext: *const c_char,
+    ext: impl crate::strings::IntoCCharPtr,
     mut prepend_dot: bool,
 ) -> Option<std::ffi::CString> {
+    let ext = ext.into_c_char_ptr();
     unsafe {
         let mut retval_vec: Vec<c_char>;
         let retval: *mut c_char;
@@ -3828,7 +3832,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
 
                 BUSY.store(true, std::sync::atomic::Ordering::Relaxed);
                 set_vim_var_string(VV_FCS_REASON, reason, reasonlen);
-                set_vim_var_string(VV_FCS_CHOICE, c"".as_ptr(), 0);
+                set_vim_var_string(VV_FCS_CHOICE, c"", 0);
                 g_st().allbuf_lock += 1;
                 let mut n = apply_autocmds(
                     EVENT_FILECHANGEDSHELL,
@@ -4902,13 +4906,13 @@ mod tests {
 
     #[test]
     fn test_is_dev_fd_file() {
-        assert!(!is_dev_fd_file(c"/dev/fd/0".as_ptr().cast_mut()));
-            assert!(!is_dev_fd_file(c"/dev/fd/1".as_ptr().cast_mut()));
-            assert!(!is_dev_fd_file(c"/dev/fd/2".as_ptr().cast_mut()));
-            assert!(is_dev_fd_file(c"/dev/fd/3".as_ptr().cast_mut()));
-            assert!(is_dev_fd_file(c"/dev/fd/10".as_ptr().cast_mut()));
-            assert!(!is_dev_fd_file(c"/dev/fd/10a".as_ptr().cast_mut()));
-            assert!(!is_dev_fd_file(c"/tmp/foo".as_ptr().cast_mut()));
+        assert!(!is_dev_fd_file(c"/dev/fd/0"));
+            assert!(!is_dev_fd_file(c"/dev/fd/1"));
+            assert!(!is_dev_fd_file(c"/dev/fd/2"));
+            assert!(is_dev_fd_file(c"/dev/fd/3"));
+            assert!(is_dev_fd_file(c"/dev/fd/10"));
+            assert!(!is_dev_fd_file(c"/dev/fd/10a"));
+            assert!(!is_dev_fd_file(c"/tmp/foo"));
     }
 
     #[test]
@@ -4971,7 +4975,7 @@ mod tests {
             if *crate::eval::vars::get_vim_var_str(crate::eval::vars::VV_PROGPATH) == NUL {
                 crate::eval::vars::set_vim_var_string(
                     crate::eval::vars::VV_PROGPATH,
-                    c"nvim".as_ptr(),
+                    c"nvim",
                     -1,
                 );
             }

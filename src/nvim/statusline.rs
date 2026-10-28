@@ -1440,7 +1440,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 vval: TypvalVval::Number(varnumber_T::from((*wp).handle)),
             };
             set_var(
-                c"g:statusline_winid".as_ptr(),
+                c"g:statusline_winid",
                 "g:statusline_winid".len(),
                 &mut tv,
                 false,
@@ -1450,7 +1450,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             usefmt = owned_usefmt.as_ref().map_or(fmt, |s| s.as_ptr().cast_mut());
 
             do_unlet(
-                c"g:statusline_winid".as_ptr(),
+                c"g:statusline_winid",
                 "g:statusline_winid".len(),
                 true,
             );
@@ -1928,8 +1928,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         g_st().curbuf = save_curbuf;
                         g_st().Visual.active = save_VIsual_active;
 
-                        do_unlet(c"g:actual_curbuf".as_ptr(), "g:actual_curbuf".len(), true);
-                        do_unlet(c"g:actual_curwin".as_ptr(), "g:actual_curwin".len(), true);
+                        do_unlet(c"g:actual_curbuf", "g:actual_curbuf".len(), true);
+                        do_unlet(c"g:actual_curwin", "g:actual_curwin".len(), true);
 
                         if !zeropad && !str.is_null() && *str != NUL && *skipdigits(str) == NUL {
                             num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str)) as c_int;
@@ -2602,7 +2602,7 @@ mod tests {
                 (**curwin.as_ptr()).w_cursor.lnum = 0;
 
                 let fillchar = match fill {
-                    None => schar_from_str(c" ".as_ptr()),
+                    None => schar_from_str(c" "),
                     Some("") => 0,
                     Some(s) => {
                         let c = CString::new(s).unwrap();

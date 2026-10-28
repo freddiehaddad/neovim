@@ -639,7 +639,7 @@ pub fn evalvars_init() {
         set_vim_var_nr(VV_SEARCHFORWARD, 1);
         set_vim_var_nr(VV_HLSEARCH, 1);
         set_vim_var_nr(VV_COUNT1, 1);
-        set_vim_var_string(VV_STARTREASON, c"normal".as_ptr(), 6);
+        set_vim_var_string(VV_STARTREASON, c"normal", 6);
         set_vim_var_special(VV_EXITING, kSpecialVarNull);
 
         set_vim_var_nr(VV_TYPE_NUMBER, VAR_TYPE_NUMBER);
@@ -683,7 +683,7 @@ pub fn evalvars_init() {
             set_vim_var_string(VV_STARTREASON, startreason, -1);
         }
         if os_env_exists(ENV_STARTREASON, false) {
-            os_unsetenv(ENV_STARTREASON.as_ptr());
+            os_unsetenv(ENV_STARTREASON);
         }
     }
 }
@@ -750,11 +750,13 @@ pub fn set_internal_string_var(name: &std::ffi::CStr, value: *const c_char) {
 }
 
 pub fn eval_charconvert(
-    enc_from: *const c_char,
-    enc_to: *const c_char,
+    enc_from: impl crate::strings::IntoCCharPtr,
+    enc_to: impl crate::strings::IntoCCharPtr,
     fname_from: *const c_char,
     fname_to: *const c_char,
 ) -> bool {
+    let enc_from = enc_from.into_c_char_ptr();
+    let enc_to = enc_to.into_c_char_ptr();
     unsafe {
         let saved_sctx = g_st().current_sctx;
 
@@ -1366,7 +1368,7 @@ pub fn ex_let_vars(
                 &mut (*item).li_tv,
                 true,
                 is_const != 0,
-                c",;]".as_ptr(),
+                c",;]",
                 op,
             );
             if arg.is_null() {
@@ -1393,7 +1395,7 @@ pub fn ex_let_vars(
                     &mut ltv,
                     false,
                     is_const != 0,
-                    c"]".as_ptr(),
+                    c"]",
                     op,
                 );
                 tv_clear(&raw mut ltv);
@@ -1630,7 +1632,7 @@ fn list_arg_vars(
                                     arg.offset_from(used_name)
                                 };
                                 list_one_var_a(
-                                    c"".as_ptr(),
+                                    c"",
                                     used_name,
                                     name_size,
                                     tv.v_type,
@@ -1895,9 +1897,10 @@ fn ex_let_one(
     arg: *mut c_char,tv: &mut typval_T,
     copy: bool,
     is_const: bool,
-    endchars: *const c_char,
+    endchars: impl crate::strings::IntoCCharPtr,
     op: *const c_char,
 ) -> *mut c_char {
+    let endchars = endchars.into_c_char_ptr();
     unsafe {
         let mut arg_end: *mut c_char = ptr::null_mut();
 
@@ -2116,7 +2119,8 @@ fn tv_list_unlet_range(
 }
 
 /// unlet a variable.
-pub fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> bool {
+pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forceit: bool) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         let mut varname: *const c_char = ptr::null();
         let mut dict: *mut dict_T = ptr::null_mut();
@@ -2130,7 +2134,7 @@ pub fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> bool {
                 } else if ptr::eq(ht, &raw mut vars_st().compat_hashtab) {
                     d = &raw mut vars_st().vimvardict;
                 } else {
-                    let di = find_var_in_ht(ht, *name as u8 as c_int, c"".as_ptr(), 0, 0);
+                    let di = find_var_in_ht(ht, *name as u8 as c_int, c"", 0, 0);
                     d = (*di).di_tv.vval.v_dict();
                 }
                 if d.is_null() {
@@ -2447,7 +2451,8 @@ pub fn set_vim_var_char(c: c_int) {
         set_vim_var_string(VV_CHAR, buf.as_ptr(), buflen as isize);
 }
 
-pub fn set_vim_var_string(idx: VimVarIndex, val: *const c_char, len: isize) {
+pub fn set_vim_var_string(idx: VimVarIndex, val: impl crate::strings::IntoCCharPtr, len: isize) {
+    let val = val.into_c_char_ptr();
     unsafe {
         let tv = get_vim_var_tv(idx);
         if val.is_null() {
@@ -2714,10 +2719,11 @@ pub fn find_var(
 pub fn find_var_in_ht(
     ht: *mut hashtab_T,
     htname: c_int,
-    varname: *const c_char,
+    varname: impl crate::strings::IntoCCharPtr,
     varname_len: usize,
     no_autoload: c_int,
 ) -> *mut dictitem_T {
+    let varname = varname.into_c_char_ptr();
     unsafe {
         if varname_len == 0 {
             return match htname as u8 {
@@ -2928,13 +2934,14 @@ fn list_one_var(v: &mut dictitem_T, prefix: *const c_char,first: &mut c_int) {
 }
 
 fn list_one_var_a(
-    prefix: *const c_char,
+    prefix: impl crate::strings::IntoCCharPtr,
     name: *const c_char,
     name_len: isize,
     v_type: VarType,
     mut string: *const c_char,
     first: &mut c_int,
 ) {
+    let prefix = prefix.into_c_char_ptr();
     unsafe {
         if *first != 0 {
             msg_ext_set_kind(c"list_cmd");
@@ -3048,7 +3055,8 @@ pub fn before_set_vvar(
 }
 
 /// Set variable to the given value.
-pub fn set_var(name: *const c_char, name_len: usize,tv: &mut typval_T, copy: bool) {
+pub fn set_var(name: impl crate::strings::IntoCCharPtr, name_len: usize,tv: &mut typval_T, copy: bool) {
+    let name = name.into_c_char_ptr();
     set_var_const(name, name_len, tv, copy, false);
 }
 
@@ -3701,7 +3709,7 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> bool {
                 &mut tv,
                 true,
                 false,
-                c".".as_ptr(),
+                c".",
             );
         } else {
             set_var_lval(
@@ -3710,7 +3718,7 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> bool {
                 &mut tv,
                 true,
                 false,
-                c"=".as_ptr(),
+                c"=",
             );
         }
         *lval_ptr = lval_T::new();
@@ -3725,7 +3733,8 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> bool {
 }
 
 /// Append "value[value_len]" to the variable set by var_redir_start().
-pub fn var_redir_str(value: *const c_char, value_len: c_int) {
+pub fn var_redir_str(value: impl crate::strings::IntoCCharPtr, value_len: c_int) {
+    let value = value.into_c_char_ptr();
     unsafe {
         let rl = &raw const vars_st().redir_lval;
         if (*rl).is_none() {
@@ -3781,7 +3790,7 @@ pub fn var_redir_stop() {
                         &mut tv,
                         false,
                         false,
-                        c".".as_ptr(),
+                        c".",
                     );
                 }
             }

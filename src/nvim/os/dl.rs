@@ -16,13 +16,15 @@ pub struct UvLib {
 /// Pointer arguments must be null or valid C strings / output pointers, and the target symbol
 /// signature in `libname` must match the `(argv != null, str_out != null)` calling convention.
 pub fn os_libcall(
-    libname: *const c_char,
-    funcname: *const c_char,
+    libname: impl crate::strings::IntoCCharPtr,
+    funcname: impl crate::strings::IntoCCharPtr,
     argv: *const c_char,
     argi: c_int,
     str_out: Option<&mut Option<CString>>,
     int_out: Option<&mut c_int>,
 ) -> bool {
+    let funcname = funcname.into_c_char_ptr();
+    let libname = libname.into_c_char_ptr();
     if libname.is_null() || funcname.is_null() {
         return false;
     }
@@ -84,14 +86,14 @@ mod tests {
     fn null_libname_or_funcname_returns_false() {
         assert!(!os_libcall(
                 std::ptr::null(),
-                c"fn".as_ptr(),
+                c"fn",
                 std::ptr::null(),
                 0,
                 None,
                 None
             ));
             assert!(!os_libcall(
-                c"lib".as_ptr(),
+                c"lib",
                 std::ptr::null(),
                 std::ptr::null(),
                 0,

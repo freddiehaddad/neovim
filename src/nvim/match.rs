@@ -766,7 +766,7 @@ pub fn update_search_hl(
                     }
                     if !cur.is_null()
                         && !ptr::eq(shl, (&raw mut *search_hl))
-                        && syn_name2id(c"Conceal".as_ptr()) == (*cur).mit_hlg_id
+                        && syn_name2id(c"Conceal") == (*cur).mit_hlg_id
                     {
                         *has_match_conc = if col == (*shl).startcol { 2 } else { 1 };
                         *match_conc = (*cur).mit_conceal_char;

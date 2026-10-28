@@ -142,7 +142,8 @@ fn api_err_con(err: &mut Error, name: &std::ffi::CStr, name2: &std::ffi::CStr) {
 }
 
 #[inline]
-fn api_err_inv(err: &mut Error, name: &std::ffi::CStr, val_s: *const c_char) {
+fn api_err_inv(err: &mut Error, name: &std::ffi::CStr, val_s: impl crate::strings::IntoCCharPtr) {
+    let val_s = val_s.into_c_char_ptr();
     api_err_invalid(err, name.as_ptr(), val_s, 0, true);
 }
 
@@ -268,7 +269,7 @@ fn get_patterns_from_pattern_or_buf(
             } else if pattern.obj_type == ObjectType::kObjectTypeArray {
                 if !check_string_array(
                     pattern.data.array(),
-                    c"pattern".as_ptr().cast_mut(),
+                    c"pattern",
                     true,
                     err,
                 ) {
@@ -332,7 +333,7 @@ fn clear_autocmd(
     au_group: c_int,
     err: &mut Error,
 ) -> bool {
-    if !do_autocmd_event(event, pat, false, 0, c"".as_ptr(), true, au_group) {
+    if !do_autocmd_event(event, pat, false, 0, c"", true, au_group) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -851,11 +852,11 @@ pub fn nvim_create_autocmd(
                 match callback.obj_type {
                     ObjectType::kObjectTypeLuaRef => {
                         if callback.data.luaref() == LUA_NOREF {
-                            api_err_inv(err, c"callback", c"<no value>".as_ptr());
+                            api_err_inv(err, c"callback", c"<no value>");
                             break 'body;
                         }
                         if !nlua_ref_is_function(callback.data.luaref()) {
-                            api_err_inv(err, c"callback", c"<not a function>".as_ptr());
+                            api_err_inv(err, c"callback", c"<not a function>");
                             break 'body;
                         }
                         handler_fn.data =

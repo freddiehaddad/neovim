@@ -3974,7 +3974,8 @@ fn version_msg_wrap(s: *const c_char, wrap: bool) {
     }
 }
 
-fn version_msg(s: *const c_char) {
+fn version_msg(s: impl crate::strings::IntoCCharPtr) {
+    let s = s.into_c_char_ptr();
     version_msg_wrap(s, false);
 }
 
@@ -4086,22 +4087,22 @@ pub fn list_version() {
                 msg_putchar(b'\n' as c_int);
                 msg_puts(version_cflags());
             }
-            version_msg(c"\n\n".as_ptr());
+            version_msg(c"\n\n");
 
             version_msg(gettext(c"   system vimrc file: \""));
-            version_msg(c"$VIM/sysinit.vim".as_ptr());
-            version_msg(c"\"\n".as_ptr());
+            version_msg(c"$VIM/sysinit.vim");
+            version_msg(c"\"\n");
 
             if *default_vim_dir() != NUL {
                 version_msg(gettext(c"  fall-back for $VIM: \""));
                 version_msg(default_vim_dir());
-                version_msg(c"\"\n".as_ptr());
+                version_msg(c"\"\n");
             }
 
             if *default_vimruntime_dir() != NUL {
                 version_msg(gettext(c" f-b for $VIMRUNTIME: \""));
                 version_msg(default_vimruntime_dir());
-                version_msg(c"\"\n".as_ptr());
+                version_msg(c"\"\n");
             }
         }
 
@@ -4211,10 +4212,10 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
         };
         grid_line_start(grid, row);
 
-        let id_attr = syn_id2attr(syn_name2id(c"Identifier".as_ptr()));
-        let nontext_attr = syn_id2attr(syn_name2id(c"NonText".as_ptr()));
-        let special_attr = syn_id2attr(syn_name2id(c"Special".as_ptr()));
-        let string_attr = syn_id2attr(syn_name2id(c"String".as_ptr()));
+        let id_attr = syn_id2attr(syn_name2id(c"Identifier"));
+        let nontext_attr = syn_id2attr(syn_name2id(c"NonText"));
+        let special_attr = syn_id2attr(syn_name2id(c"Special"));
+        let string_attr = syn_id2attr(syn_name2id(c"String"));
 
         if is_logo {
             let mut seen_diagonal = false;

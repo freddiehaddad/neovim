@@ -931,7 +931,7 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
                 word.size as c_int,
             );
         } else {
-            tv_dict_add_str_len(v_event, c"complete_word", c"".as_ptr(), 0);
+            tv_dict_add_str_len(v_event, c"complete_word", c"", 0);
         }
 
         let idx = (mode & !CTRL_X_WANT_IDENT) as usize;
@@ -945,7 +945,7 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
                 );
             }
             None => {
-                tv_dict_add_str_len(v_event, c"complete_type", c"".as_ptr(), 0);
+                tv_dict_add_str_len(v_event, c"complete_type", c"", 0);
             }
         }
 
@@ -2282,8 +2282,8 @@ fn ins_compl_files(
                 );
                 msg_progress(
                     iobuff_ptr,
-                    c"nvim.completion".as_ptr().cast_mut(),
-                    c"running".as_ptr().cast_mut(),
+                    c"nvim.completion",
+                    c"running",
                     -1,
                     HLF_R,
                     false,
@@ -3786,11 +3786,11 @@ fn fill_complete_info_dict(di: &mut dict_T, match_: *mut compl_T, add_match: boo
             tv_dict_add_str(di, c"commit_chars", commit_chars.as_ptr());
         }
         if (*match_).cp_user_data.v_type == VAR_UNKNOWN {
-            tv_dict_add_str_len(di, c"user_data", c"".as_ptr(), 0);
+            tv_dict_add_str_len(di, c"user_data", c"", 0);
         } else {
             tv_dict_add_tv(
                 di,
-                c"user_data".as_ptr(),
+                c"user_data",
                 9,
                 &mut (*match_).cp_user_data,
             );
@@ -4054,8 +4054,8 @@ fn process_next_cpt_value(
                 vim_snprintf!(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s"), name);
                 msg_progress(
                     iobuff_ptr,
-                    c"nvim.completion".as_ptr().cast_mut(),
-                    c"running".as_ptr().cast_mut(),
+                    c"nvim.completion",
+                    c"running",
                     -1,
                     HLF_R,
                     false,
@@ -4110,8 +4110,8 @@ fn process_next_cpt_value(
                         );
                         msg_progress(
                             iobuff_ptr,
-                            c"nvim.completion".as_ptr().cast_mut(),
-                            c"running".as_ptr().cast_mut(),
+                            c"nvim.completion",
+                            c"running",
                             -1,
                             HLF_R,
                             false,
@@ -6620,8 +6620,8 @@ pub fn ins_complete(c: c_int, enable_pum: bool) -> bool {
         if !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
             msg_progress(
                 ptr::null_mut(),
-                c"nvim.completion".as_ptr().cast_mut(),
-                c"success".as_ptr().cast_mut(),
+                c"nvim.completion",
+                c"success",
                 -1,
                 0,
                 false,

@@ -1490,7 +1490,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                     if iarr.size == 2 {
                         hl_id = object_to_hl_id(
                             iarr[1],
-                            c"border char highlight".as_ptr(),
+                            c"border char highlight",
                             err,
                         );
                         if error_set(err) {

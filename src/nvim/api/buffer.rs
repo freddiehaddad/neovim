@@ -461,7 +461,7 @@ pub fn nvim_buf_set_lines(
         let disallow_nl = channel_id != VIML_INTERNAL_CALL;
         if !check_string_array(
             replacement,
-            c"replacement string".as_ptr().cast_mut(),
+            c"replacement string",
             disallow_nl,
             err,
         ) {
@@ -738,7 +738,7 @@ pub fn nvim_buf_set_text(
         let disallow_nl = channel_id != VIML_INTERNAL_CALL;
         if !check_string_array(
             replacement,
-            c"replacement string".as_ptr().cast_mut(),
+            c"replacement string",
             disallow_nl,
             err,
         ) {

@@ -396,7 +396,8 @@ pub fn may_trigger_safestate(safe: bool) {
         state_mod_st().was_safe = is_safe;
 }
 
-pub fn state_no_longer_safe(reason: *const c_char) {
+pub fn state_no_longer_safe(reason: impl crate::strings::IntoCCharPtr) {
+    let reason = reason.into_c_char_ptr();
     if state_mod_st().was_safe && !reason.is_null() && log_st().g_min_log_level <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,

@@ -2174,7 +2174,7 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
         } else {
             None
         };
-        if map_to_exists_mode(c"".as_ptr(), MODE_LANGMAP, false) {
+        if map_to_exists_mode(c"", MODE_LANGMAP, false) {
             g_st().State ^= MODE_LANGMAP;
             if let Some(use_insert) = use_insert_opt {
                 let val = if (g_st().State & MODE_LANGMAP) != 0 {
@@ -2583,7 +2583,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
 
                     K_MIDDLEMOUSE => {
                         cmdline_paste(
-                            if eval_has_provider(c"clipboard".as_ptr(), false) {
+                            if eval_has_provider(c"clipboard", false) {
                                 b'*' as c_int
                             } else {
                                 0
@@ -2947,7 +2947,7 @@ fn cmdpreview_open_buf() -> *mut buf_T {
             cmdpreview_buf,
             kCtxKeepDirs,
         );
-        let retv = rename_buffer(c"[Preview]".as_ptr().cast_mut());
+        let retv = rename_buffer(c"[Preview]");
         ctx_restore(&mut aco);
 
         if !retv {
@@ -4441,7 +4441,8 @@ fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
 }
 
 /// Put a string on the command line.
-pub fn cmdline_paste_str(mut s: *const c_char, literally: bool) {
+pub fn cmdline_paste_str(s: impl crate::strings::IntoCCharPtr, literally: bool) {
+    let mut s = s.into_c_char_ptr();
     unsafe {
         if literally {
             put_on_cmdline(s, -1, true);
@@ -5068,7 +5069,8 @@ pub fn did_set_cedit(_args: &mut optset_T) -> *const c_char {
 }
 
 /// Synchronously calls `vim._core.cmdwin.<action>(...)`.
-fn cmdwin_invoke(action: *const c_char, firstc: c_int, content: *mut c_char, pos: c_int) {
+fn cmdwin_invoke(action: impl crate::strings::IntoCCharPtr, firstc: c_int, content: *mut c_char, pos: c_int) {
+    let action = action.into_c_char_ptr();
     unsafe {
         let mut fc: [c_char; 2] = [firstc as c_char, 0];
         let mut tv_args = [
@@ -5120,7 +5122,7 @@ pub fn open_cmdwin_event(firstc: c_int, content: Option<std::ffi::CString>, pos:
     let content_ptr = content
             .as_ref()
             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
-        cmdwin_invoke(c"open".as_ptr(), firstc, content_ptr, pos);
+        cmdwin_invoke(c"open", firstc, content_ptr, pos);
 }
 
 /// Schedules cmdwin to open after the current cmdline-reader returns.
@@ -5254,7 +5256,7 @@ pub fn get_user_input(argvars: &[typval_T],
                 c"prompt",
                 6,
                 prompt_buf.as_mut_ptr(),
-                c"".as_ptr(),
+                c"",
             );
             if prompt.is_null() {
                 return;
@@ -5264,7 +5266,7 @@ pub fn get_user_input(argvars: &[typval_T],
                 c"default",
                 7,
                 defstr_buf.as_mut_ptr(),
-                c"".as_ptr(),
+                c"",
             );
             if defstr.is_null() {
                 return;

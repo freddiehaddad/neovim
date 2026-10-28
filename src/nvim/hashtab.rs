@@ -110,7 +110,8 @@ pub fn hash_clear(ht: &mut hashtab_T) {
 }
 
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
-pub fn hash_find(ht: &hashtab_T, key: *const c_char) -> *mut hashitem_T {
+pub fn hash_find(ht: &hashtab_T, key: impl crate::strings::IntoCCharPtr) -> *mut hashitem_T {
+    let key = key.into_c_char_ptr();
     let len =  { crate::memory::cstr_len(key) };
     let hash = hash_hash(key);
     hash_lookup(ht, key, len, hash)

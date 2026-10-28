@@ -272,7 +272,7 @@ pub(crate) fn on_signal(signum: c_int) {
         if signum == SIGUSR1 {
             apply_autocmds(
                 EVENT_SIGNAL,
-                c"SIGUSR1".as_ptr().cast_mut(),
+                c"SIGUSR1",
                 (*g_st().curbuf).b_fname,
                 true,
                 g_st().curbuf,
@@ -295,7 +295,7 @@ pub(crate) fn on_signal(signum: c_int) {
             SIGWINCH => {
                 apply_autocmds(
                     EVENT_SIGNAL,
-                    c"SIGWINCH".as_ptr().cast_mut(),
+                    c"SIGWINCH",
                     (*g_st().curbuf).b_fname,
                     true,
                     g_st().curbuf,

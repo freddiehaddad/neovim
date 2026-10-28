@@ -830,14 +830,14 @@ pub fn nvim_buf_set_extmark(
                     let arr = opts.hl_group.data.array();
                     if arr.size >= 1 {
                         hl.hl_id =
-                            object_to_hl_id(arr[0], c"hl_group item".as_ptr(), err);
+                            object_to_hl_id(arr[0], c"hl_group item", err);
                         if error_set(err) {
                             break 'error;
                         }
                     }
                     for i in 1..arr.size {
                         let hl_id =
-                            object_to_hl_id(arr[i], c"hl_group item".as_ptr(), err);
+                            object_to_hl_id(arr[i], c"hl_group item", err);
                         if error_set(err) {
                             break 'error;
                         }
@@ -846,7 +846,7 @@ pub fn nvim_buf_set_extmark(
                         }
                     }
                 } else {
-                    hl.hl_id = object_to_hl_id(opts.hl_group, c"hl_group".as_ptr(), err);
+                    hl.hl_id = object_to_hl_id(opts.hl_group, c"hl_group", err);
                     if error_set(err) {
                         break 'error;
                     }
@@ -1260,7 +1260,7 @@ pub fn nvim_buf_set_extmark(
                     let mut i = arr.size - 1;
                     while i > 0 {
                         let hl_id =
-                            object_to_hl_id(arr[i], c"hl_group item".as_ptr(), err);
+                            object_to_hl_id(arr[i], c"hl_group item", err);
                         if hl_id > 0 {
                             let mut sh = DECOR_SIGN_HIGHLIGHT_INIT;
                             sh.hl_id = hl_id;
@@ -1631,7 +1631,7 @@ pub fn parse_virt_text(
                         for j in 0..arr.size {
                             hl_id = object_to_hl_id(
                                 arr[j],
-                                c"virt_text highlight".as_ptr(),
+                                c"virt_text highlight",
                                 err,
                             );
                             if error_set(err) {
@@ -1642,7 +1642,7 @@ pub fn parse_virt_text(
                             }
                         }
                     } else {
-                        hl_id = object_to_hl_id(hl, c"virt_text highlight".as_ptr(), err);
+                        hl_id = object_to_hl_id(hl, c"virt_text highlight", err);
                         if error_set(err) {
                             break 'free_exit;
                         }

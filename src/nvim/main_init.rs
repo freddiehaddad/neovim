@@ -800,7 +800,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         if (opt_vars().cb_flags & (kOptCbFlagUnnamed | kOptCbFlagUnnamedplus)) != 0 {
-            eval_has_provider(c"clipboard".as_ptr(), false);
+            eval_has_provider(c"clipboard", false);
         }
 
         if let Some(ref luaf) = params.luaf {
@@ -808,10 +808,10 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             logmsg_str(
                 LOGLVL_DBG,
                 ptr::null(),
-                c"main".as_ptr(),
+                c"main",
                 line!() as c_int,
                 true,
-                c"executing Lua -l script".as_ptr(),
+                c"executing Lua -l script",
             );
             let lua_ok = nlua_exec_file(luaf.as_ptr());
             time_msg_if_enabled(c"executing Lua -l script");
@@ -827,10 +827,10 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 logmsg_str(
                     LOGLVL_DBG,
                     ptr::null(),
-                    c"main".as_ptr(),
+                    c"main",
                     line!() as c_int,
                     true,
-                    c"executing stdin as Ex commands".as_ptr(),
+                    c"executing stdin as Ex commands",
                 );
                 let mut args = [crate::eval::typval::typval_T::new(); 1];
                 nlua_call_typval(
@@ -855,10 +855,10 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         logmsg_str(
             LOGLVL_INF,
             ptr::null(),
-            c"main".as_ptr(),
+            c"main",
             line!() as c_int,
             true,
-            c"starting main loop".as_ptr(),
+            c"starting main loop",
         );
 
         normal_enter();
@@ -907,7 +907,7 @@ pub fn os_exit(mut r: c_int) -> ! {
         logmsg_str(
             LOGLVL_INF,
             ptr::null(),
-            c"os_exit".as_ptr(),
+            c"os_exit",
             line!() as c_int,
             true,
             msg.as_ptr().cast(),
@@ -935,7 +935,7 @@ pub fn getout(mut exitval: c_int) -> ! {
         set_vim_var_nr(VV_EXITING, varnumber_T::from(exitval));
 
         if *get_vim_var_str(VV_EXITREASON) == NUL {
-            set_vim_var_string(VV_EXITREASON, c"quit".as_ptr(), 4);
+            set_vim_var_string(VV_EXITREASON, c"quit", 4);
         }
 
         invoke_all_defer();
@@ -1065,7 +1065,8 @@ pub fn getout(mut exitval: c_int) -> ! {
     }
 }
 
-pub fn preserve_exit(errmsg: *const c_char) -> ! {
+pub fn preserve_exit(errmsg: impl crate::strings::IntoCCharPtr) -> ! {
+    let errmsg = errmsg.into_c_char_ptr();
     unsafe {
         if main_init_st().REALLY_EXITING {
             std::process::exit(2);
@@ -1128,7 +1129,8 @@ pub fn __asan_default_options() -> *const c_char {
     c"handle_abort=1,handle_sigill=1".as_ptr()
 }
 
-fn get_number_arg(p: *const c_char, idx: &mut c_int, mut def: c_int) -> c_int {
+fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut c_int, mut def: c_int) -> c_int {
+    let p = p.into_c_char_ptr();
     unsafe {
         let mut i = *idx as usize;
         if ascii_isdigit(*p.add(i) as c_int) {
@@ -1359,7 +1361,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
             let arg0 = *argv;
             if *arg0 == b'+' as c_char && !had_minmin {
                 if parmp.commands.len() >= MAX_ARG_CMDS {
-                    mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
+                    mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                 }
                 argv_idx = -1;
                 if *arg0.add(1) == NUL {
@@ -1381,7 +1383,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             parmp.no_swap_file = 1;
                         } else {
                             if parmp.edit_type > EDIT_STDIN {
-                                mainerr(ERR_TOO_MANY_ARGS.as_ptr(), arg0, ptr::null());
+                                mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
                             }
                             parmp.had_stdin_file = true;
                             parmp.edit_type = EDIT_STDIN;
@@ -1445,7 +1447,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             g_st().nlua_disable_preload = true;
                         } else {
                             if *sub != NUL {
-                                mainerr(ERR_OPT_UNKNOWN.as_ptr(), arg0, ptr::null());
+                                mainerr(ERR_OPT_UNKNOWN, arg0, ptr::null());
                             }
                             had_minmin = true;
                         }
@@ -1506,7 +1508,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                     }
                     b'q' => {
                         if parmp.edit_type != EDIT_NONE {
-                            mainerr(ERR_TOO_MANY_ARGS.as_ptr(), arg0, ptr::null());
+                            mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
                         }
                         parmp.edit_type = EDIT_QF;
                         if *arg0.add(argv_idx as usize) != NUL {
@@ -1543,7 +1545,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                     }
                     b't' => {
                         if parmp.edit_type != EDIT_NONE {
-                            mainerr(ERR_TOO_MANY_ARGS.as_ptr(), arg0, ptr::null());
+                            mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
                         }
                         parmp.edit_type = EDIT_TAG;
                         if *arg0.add(argv_idx as usize) != NUL {
@@ -1580,7 +1582,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                     b'c' => {
                         if *arg0.add(argv_idx as usize) != NUL {
                             if parmp.commands.len() >= MAX_ARG_CMDS {
-                                mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
+                                mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                             }
                             parmp
                                 .commands
@@ -1594,18 +1596,18 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         want_argument = true;
                     }
                     _ => {
-                        mainerr(ERR_OPT_UNKNOWN.as_ptr(), arg0, ptr::null());
+                        mainerr(ERR_OPT_UNKNOWN, arg0, ptr::null());
                     }
                 }
 
                 if want_argument {
                     if *arg0.add(argv_idx as usize) != NUL {
-                        mainerr(ERR_OPT_GARBAGE.as_ptr(), arg0, ptr::null());
+                        mainerr(ERR_OPT_GARBAGE, arg0, ptr::null());
                     }
 
                     argc -= 1;
                     if argc < 1 && c != b'S' {
-                        mainerr(ERR_ARG_MISSING.as_ptr(), arg0, ptr::null());
+                        mainerr(ERR_ARG_MISSING, arg0, ptr::null());
                     }
                     argv = argv.add(1);
                     argv_idx = -1;
@@ -1616,7 +1618,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                     match c {
                         b'c' | b'S' => {
                             if parmp.commands.len() >= MAX_ARG_CMDS {
-                                mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
+                                mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                             }
                             if c == b'S' {
                                 let a: *const c_char = if argc < 1 {
@@ -1643,7 +1645,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         b'-' => {
                             if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--cmd") {
                                 if parmp.pre_commands.len() >= MAX_ARG_CMDS {
-                                    mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
+                                    mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                                 }
                                 parmp
                                     .pre_commands
@@ -1751,7 +1753,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                 argv_idx = -1;
 
                 if parmp.edit_type > EDIT_STDIN {
-                    mainerr(ERR_TOO_MANY_ARGS.as_ptr(), arg0, ptr::null());
+                    mainerr(ERR_TOO_MANY_ARGS, arg0, ptr::null());
                 }
                 parmp.edit_type = EDIT_FILE;
 
@@ -1895,7 +1897,8 @@ fn check_and_set_isatty(_paramp: &mut mparm_T) {
         time_msg_if_enabled(c"window checked");
 }
 
-fn init_path(exename: *const c_char) {
+fn init_path(exename: impl crate::strings::IntoCCharPtr) {
+    let exename = exename.into_c_char_ptr();
     let mut exepath = [0 as c_char; MAXPATHL];
         let mut exepathlen: usize = MAXPATHL;
         if os_exepath(exepath.as_mut_ptr(), &mut exepathlen) != 0 {
@@ -2267,7 +2270,7 @@ fn exe_commands(parmp: &mut mparm_T) {
         if parmp.tagname.is_none() && (**curwin.as_ptr()).w_cursor.lnum <= 1 {
             (**curwin.as_ptr()).w_cursor.lnum = 0;
         }
-        estack_push(ETYPE_ARGS, c"command line".as_ptr().cast_mut(), 0);
+        estack_push(ETYPE_ARGS, c"command line", 0);
         g_st().current_sctx.sc_sid = SID_CARG;
         g_st().current_sctx.sc_seq = 0;
         let cmds = std::mem::take(&mut parmp.commands);
@@ -2522,7 +2525,8 @@ fn execute_env(env: &std::ffi::CStr) -> bool {
         true
 }
 
-fn mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) -> ! {
+fn mainerr(msg1: impl crate::strings::IntoCCharPtr, msg2: *const c_char, msg3: *const c_char) -> ! {
+    let msg1 = msg1.into_c_char_ptr();
     print_mainerr(msg1, msg2, msg3);
         os_exit(1);
 }
@@ -2658,7 +2662,7 @@ pub(crate) fn ensure_test_editor_init() {
         estack_init();
         cmdline_init();
         eval_init();
-        init_path(c"nvim".as_ptr());
+        init_path(c"nvim");
         init_normal_cmds();
         highlight_init();
         mc_init();
@@ -2682,7 +2686,7 @@ mod tests {
     #[test]
     fn get_number_arg_and_init_params_work() {
         let mut idx: c_int = 1;
-            let val = get_number_arg(c"o25x".as_ptr(), &mut idx, 0);
+            let val = get_number_arg(c"o25x", &mut idx, 0);
             assert_eq!(val, 25);
             assert_eq!(idx, 3);
 

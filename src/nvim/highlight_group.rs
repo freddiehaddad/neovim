@@ -1240,7 +1240,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         if doclear {
             line = linep;
             if ends_excmd(c_int::from(*line as u8)) != 0 {
-                do_unlet(c"g:colors_name".as_ptr(), 13, true);
+                do_unlet(c"g:colors_name", 13, true);
                 restore_cterm_colors();
 
                 for j in 0..hl_len() {
@@ -1429,7 +1429,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                         let color: c_int;
                         if (arg[0] as u8).is_ascii_digit() {
                             color = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg.as_ptr())) as c_int;
-                        } else if mb_stricmp(arg.as_ptr(), c"fg".as_ptr()) == 0 {
+                        } else if mb_stricmp(arg.as_ptr(), c"fg") == 0 {
                             if g_st().cterm_normal_fg_color != 0 {
                                 color = g_st().cterm_normal_fg_color - 1;
                             } else {
@@ -1437,7 +1437,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                                 error = true;
                                 break;
                             }
-                        } else if mb_stricmp(arg.as_ptr(), c"bg".as_ptr()) == 0 {
+                        } else if mb_stricmp(arg.as_ptr(), c"bg") == 0 {
                             if g_st().cterm_normal_bg_color > 0 {
                                 color = g_st().cterm_normal_bg_color - 1;
                             } else {
@@ -1763,7 +1763,7 @@ fn highlight_list_one(id: c_int) {
         }
 
         if !didh {
-            highlight_list_arg(id, didh, LIST_STRING, 0, c"cleared".as_ptr(), c"");
+            highlight_list_arg(id, didh, LIST_STRING, 0, c"cleared", c"");
         }
         if opt_vars().p_verbose > 0 {
             last_set_msg(sgp.sg_script_ctx);
@@ -1903,9 +1903,10 @@ fn highlight_list_arg(
     mut didh: bool,
     type_: c_int,
     mut iarg: c_int,
-    sarg: *const c_char,
+    sarg: impl crate::strings::IntoCCharPtr,
     name: &std::ffi::CStr,
 ) -> bool {
+    let sarg = sarg.into_c_char_ptr();
     unsafe {
         if g_st().got_int {
             return false;
@@ -2159,7 +2160,8 @@ fn set_hl_attr(idx: c_int) {
     }
 }
 
-pub fn syn_name2id(name: *const c_char) -> c_int {
+pub fn syn_name2id(name: impl crate::strings::IntoCCharPtr) -> c_int {
+    let name = name.into_c_char_ptr();
     unsafe {
         if *name == b'@' as c_char {
             return syn_check_group(name, crate::memory::cstr_len(name));
@@ -2618,13 +2620,13 @@ pub fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
             *idx = kColorIdxHex;
             let hex_str = std::str::from_utf8_unchecked(std::slice::from_raw_parts(name.add(1).cast::<u8>(), 6));
             return RgbValue::from_str_radix(hex_str, 16).unwrap_or(0);
-        } else if mb_stricmp(name, c"bg".as_ptr()) == 0
-            || mb_stricmp(name, c"background".as_ptr()) == 0
+        } else if mb_stricmp(name, c"bg") == 0
+            || mb_stricmp(name, c"background") == 0
         {
             *idx = kColorIdxBg;
             return g_st().normal_bg;
-        } else if mb_stricmp(name, c"fg".as_ptr()) == 0
-            || mb_stricmp(name, c"foreground".as_ptr()) == 0
+        } else if mb_stricmp(name, c"fg") == 0
+            || mb_stricmp(name, c"foreground") == 0
         {
             *idx = kColorIdxFg;
             return g_st().normal_fg;

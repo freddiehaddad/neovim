@@ -829,7 +829,7 @@ fn diff_write(
         }
         let save_ml_flags = buf.b_ml.ml_flags;
         let save_ff = buf.b_p_ff;
-        buf.b_p_ff = alloc_string_option(c"unix".as_ptr());
+        buf.b_p_ff = alloc_string_option(c"unix");
         let save_cmod_flags = g_st().cmdmod.cmod_flags != 0;
         g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
         if end < start {
@@ -1203,7 +1203,7 @@ fn diff_file(dio: &mut diffio_T) -> bool {
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
         if os_env_exists(c"DIFF_OPTIONS", true) {
-            let _ = os_unsetenv(c"DIFF_OPTIONS".as_ptr());
+            let _ = os_unsetenv(c"DIFF_OPTIONS");
         }
         vim_snprintf!(
             cmd,
@@ -1394,7 +1394,7 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
                         if !newname.is_null() {
                             eap.arg = newname;
                             ex_file(eap);
-                            if crate::autocmd::augroup_exists(c"filetypedetect".as_ptr()) {
+                            if crate::autocmd::augroup_exists(c"filetypedetect") {
                                 do_cmdline_cmd(c":doau filetypedetect BufRead");
                             }
                         }

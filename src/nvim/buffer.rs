@@ -1200,12 +1200,12 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
                 (*g_st().curbuf).b_ffname,
                 (*g_st().curbuf).b_ffname.add(crate::memory::cstr_len((*g_st().curbuf).b_ffname)),
             ) != 0
-            && augroup_exists(c"filetypedetect".as_ptr())
+            && augroup_exists(c"filetypedetect")
         {
             let mut bufref: bufref_T = bufref_T::new();
             set_bufref(&mut bufref, g_st().curbuf);
             do_doautocmd(
-                c"filetypedetect BufRead".as_ptr().cast_mut(),
+                c"filetypedetect BufRead",
                 false,
                 None,
             );
@@ -1809,7 +1809,7 @@ fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         {
             let changedtick_hi = hash_find(
                 &(*(*buf).b_vars()).dv_hashtab,
-                c"changedtick".as_ptr(),
+                c"changedtick",
             );
             debug_assert!(!changedtick_hi.is_null());
             hash_remove(&mut (*(*buf).b_vars()).dv_hashtab, changedtick_hi);
@@ -4452,7 +4452,7 @@ pub fn fname_expand(
             if let Some(dir_full) = full {
                 full_cstr = dir_full;
             }
-            full_cstr = concat_fnames_cstr(full_cstr.as_ptr(), c"".as_ptr(), true);
+            full_cstr = concat_fnames_cstr(full_cstr.as_ptr(), c"", true);
         }
 
         #[cfg(windows)]
@@ -4768,7 +4768,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
         s = linecopy_vec.as_mut_ptr();
         line_end = s.add(linecopy_vec.len() - 1);
 
-        estack_push(ETYPE_MODELINE, c"modelines".as_ptr().cast_mut(), lnum);
+        estack_push(ETYPE_MODELINE, c"modelines", lnum);
 
         let mut end = false;
         while !end {

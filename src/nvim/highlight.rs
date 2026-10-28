@@ -518,7 +518,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
             hl_st().ns_get_hl_recursive += 1;
             let ret = nlua_call_ref(
                 (*p).hl_def,
-                c"hl_def".as_ptr(),
+                c"hl_def",
                 args,
                 kRetObject,
                 None,
@@ -868,7 +868,8 @@ pub fn hl_get_url(index: u32) -> *const c_char {
     }
 }
 
-pub fn hl_add_font_idx(font_name: *const c_char) -> i32 {
+pub fn hl_add_font_idx(font_name: impl crate::strings::IntoCCharPtr) -> i32 {
+    let font_name = font_name.into_c_char_ptr();
     unsafe {
         if font_name.is_null() || *font_name == 0 {
             return -1;
@@ -1899,10 +1900,10 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
          {
             assert_eq!(hl_add_font_idx(ptr::null()), -1);
-            assert_eq!(hl_add_font_idx(c"".as_ptr()), -1);
-            let idx = hl_add_font_idx(c"Monospace:h12".as_ptr());
+            assert_eq!(hl_add_font_idx(c""), -1);
+            let idx = hl_add_font_idx(c"Monospace:h12");
             assert!(idx >= 0);
-            assert_eq!(hl_add_font_idx(c"Monospace:h12".as_ptr()), idx);
+            assert_eq!(hl_add_font_idx(c"Monospace:h12"), idx);
             let got = hl_get_font(idx);
             assert_eq!(crate::memory::cstr_as_bytes(got), b"Monospace:h12");
         }

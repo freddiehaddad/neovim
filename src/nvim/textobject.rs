@@ -1177,9 +1177,9 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
         'again: loop {
             for _ in 0..count {
                 if do_searchpair(
-                    c"<[^ \t>/!]\\+\\%(\\_s\\_[^>]\\{-}[^/]>\\|$\\|\\_s\\=>\\)".as_ptr(),
-                    c"".as_ptr(),
-                    c"</[^>]*>".as_ptr(),
+                    c"<[^ \t>/!]\\+\\%(\\_s\\_[^>]\\{-}[^/]>\\|$\\|\\_s\\=>\\)",
+                    c"",
+                    c"</[^>]*>",
                     BACKWARD,
                     ptr::null(),
                     0,
@@ -1221,7 +1221,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
 
             let r = do_searchpair(
                 spat.as_ptr().cast::<c_char>(),
-                c"".as_ptr(),
+                c"",
                 epat.as_ptr().cast::<c_char>(),
                 FORWARD,
                 ptr::null(),

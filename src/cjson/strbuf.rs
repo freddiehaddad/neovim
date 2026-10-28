@@ -52,7 +52,8 @@ pub fn strbuf_append_char_unsafe(s: &mut strbuf_t, c: c_char) {
 }
 
 #[inline]
-pub fn strbuf_append_mem(s: &mut strbuf_t, c: *const c_char, len: usize) {
+pub fn strbuf_append_mem(s: &mut strbuf_t, c: impl crate::strings::IntoCCharPtr, len: usize) {
+    let c = c.into_c_char_ptr();
     if len > 0 {
         unsafe {
             s.buf.extend_from_slice(std::slice::from_raw_parts(c, len));
@@ -61,7 +62,8 @@ pub fn strbuf_append_mem(s: &mut strbuf_t, c: *const c_char, len: usize) {
 }
 
 #[inline]
-pub fn strbuf_append_mem_unsafe(s: &mut strbuf_t, c: *const c_char, len: usize) {
+pub fn strbuf_append_mem_unsafe(s: &mut strbuf_t, c: impl crate::strings::IntoCCharPtr, len: usize) {
+    let c = c.into_c_char_ptr();
     if len > 0 {
         unsafe {
             s.buf.extend_from_slice(std::slice::from_raw_parts(c, len));
@@ -95,7 +97,8 @@ pub fn strbuf_init(s: &mut strbuf_t, len: usize) {
     strbuf_ensure_null(s);
 }
 
-pub fn strbuf_append_string(s: &mut strbuf_t, str_in: *const c_char) {
+pub fn strbuf_append_string(s: &mut strbuf_t, str_in: impl crate::strings::IntoCCharPtr) {
+    let str_in = str_in.into_c_char_ptr();
     unsafe {
         let bytes = CStr::from_ptr(str_in).to_bytes();
         strbuf_append_mem(s, bytes.as_ptr().cast::<c_char>(), bytes.len());

@@ -113,7 +113,8 @@ use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
 use crate::os::fs::MAXPATHL;
 use crate::state::MODE_NORMAL;
 
-fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
+fn get_maxbacktrace_level(sname: impl crate::strings::IntoCCharPtr) -> c_int {
+    let sname = sname.into_c_char_ptr();
     if sname.is_null() {
         return 0;
     }
@@ -819,9 +820,9 @@ mod tests {
     #[test]
     fn get_maxbacktrace_level_counts_dot_dot_separators() {
         assert_eq!(get_maxbacktrace_level(std::ptr::null()), 0);
-            assert_eq!(get_maxbacktrace_level(c"script.vim".as_ptr()), 0);
+            assert_eq!(get_maxbacktrace_level(c"script.vim"), 0);
             assert_eq!(
-                get_maxbacktrace_level(c"script.vim..FuncA..FuncB".as_ptr()),
+                get_maxbacktrace_level(c"script.vim..FuncA..FuncB"),
                 2
             );
     }

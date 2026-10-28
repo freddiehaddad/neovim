@@ -382,7 +382,8 @@ pub(crate) fn atom_st() -> &'static mut CmdAtomModuleState {
 }
 
 #[inline]
-pub fn sb_concat(sb: &mut Vec<c_char>, s: *const c_char) {
+pub fn sb_concat(sb: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) {
+    let s = s.into_c_char_ptr();
     unsafe {
         if !s.is_null() {
             let len = crate::memory::cstr_len(s);
@@ -2047,8 +2048,8 @@ mod tests {
     fn sb_concat_works() {
         unsafe {
             let mut sb: Vec<c_char> = Vec::new();
-            sb_concat(&mut sb, c"abc".as_ptr());
-            sb_concat(&mut sb, c"def".as_ptr());
+            sb_concat(&mut sb, c"abc");
+            sb_concat(&mut sb, c"def");
             assert_eq!(sb.len(), 6);
             assert_eq!(
                 std::slice::from_raw_parts(sb.as_ptr().cast::<u8>(), 6),

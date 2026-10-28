@@ -635,7 +635,7 @@ fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) -> bool
 
         put_reedit_in_typebuf(silent);
         if colon {
-            retval = ins_typebuf(c"\n".as_ptr().cast_mut(), REMAP_NONE, 0, true, is_silent);
+            retval = ins_typebuf(c"\n", REMAP_NONE, 0, true, is_silent);
         }
         if retval {
             let owned_p = if esc {
@@ -657,7 +657,7 @@ fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) -> bool
             }
         }
         if colon && retval {
-            retval = ins_typebuf(c":".as_ptr().cast_mut(), REMAP_NONE, 0, true, is_silent);
+            retval = ins_typebuf(c":", REMAP_NONE, 0, true, is_silent);
         }
         retval
 }
@@ -801,7 +801,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
                 if (reg.y_type == MotionType::kMTLineWise
                     || i < reg.y_array.len() - 1
                     || addcr != 0)
-                    && !ins_typebuf(c"\n".as_ptr().cast_mut(), remap, 0, true, is_silent)
+                    && !ins_typebuf(c"\n", remap, 0, true, is_silent)
                 {
                     return false;
                 }
@@ -827,7 +827,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
                     return false;
                 }
                 if colon != 0
-                    && !ins_typebuf(c":".as_ptr().cast_mut(), remap, 0, true, is_silent)
+                    && !ins_typebuf(c":", remap, 0, true, is_silent)
                 {
                     return false;
                 }
@@ -1046,7 +1046,7 @@ pub fn cmdline_paste_reg(regname: c_int, literally_arg: bool, remcr: bool) -> bo
             cmdline_paste_str(reg.y_array[i].data, literally);
 
             if i < reg.y_array.len() - 1 && !remcr {
-                cmdline_paste_str(c"\r".as_ptr(), literally);
+                cmdline_paste_str(c"\r", literally);
             }
 
             os_breakcheck();
@@ -1593,9 +1593,9 @@ pub fn do_put(
                 g_st().add_last_insert = 0;
                 stuffcharReadbuff(K_COMMAND);
                 if dir == FORWARD {
-                    stuffReadbuffLen(c"put _".as_ptr(), 5);
+                    stuffReadbuffLen(c"put _", 5);
                 } else {
-                    stuffReadbuffLen(c"put! _".as_ptr(), 6);
+                    stuffReadbuffLen(c"put! _", 6);
                 }
                 stuffcharReadbuff(c_int::from(CAR as u8));
                 g_st().add_last_insert = save_add_last_insert;
@@ -1632,7 +1632,7 @@ pub fn do_put(
 
             if (flags & PUT_CURSEND) != 0 {
                 if (flags & PUT_LINE) != 0 {
-                    stuffReadbuff(c"j0".as_ptr());
+                    stuffReadbuff(c"j0");
                 } else {
                     let cursor_pos = get_cursor_pos_ptr();
                     let one_past_line = *cursor_pos == NUL;
@@ -1650,7 +1650,7 @@ pub fn do_put(
                     }
                 }
             } else if (flags & PUT_LINE) != 0 {
-                stuffReadbuff(c"g'[".as_ptr());
+                stuffReadbuff(c"g'[");
             }
 
             if command_start_char == c_int::from(b'a')
@@ -1941,7 +1941,7 @@ pub fn do_put(
                     if (**curwin.as_ptr()).w_cursor.lnum > (*g_st().curbuf).b_ml.ml_line_count {
                         if !ml_append(
                             (*g_st().curbuf).b_ml.ml_line_count,
-                            c"".as_ptr().cast_mut(),
+                            c"",
                             1,
                             false,
                         )
@@ -2959,7 +2959,8 @@ fn finish_write_reg(name: c_int, reg: *mut yankreg_T, old_y_previous: *mut yankr
         }
 }
 
-pub fn write_reg_contents(name: c_int, str_: *const c_char, len: isize, must_append: c_int) {
+pub fn write_reg_contents(name: c_int, str_: impl crate::strings::IntoCCharPtr, len: isize, must_append: c_int) {
+    let str_ = str_.into_c_char_ptr();
     write_reg_contents_ex(name, str_, len, must_append != 0, MotionType::kMTUnknown, 0);
 }
 

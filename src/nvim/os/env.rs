@@ -215,7 +215,8 @@ pub fn env_init() {
 }
 
 /// Gets the length (bytes) of the env var name at `p`.
-pub fn env_name_len(p: *const c_char) -> usize {
+pub fn env_name_len(p: impl crate::strings::IntoCCharPtr) -> usize {
+    let p = p.into_c_char_ptr();
     unsafe {
         let mut s = p;
         loop {
@@ -363,7 +364,8 @@ pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCChar
 }
 
 /// Unset environment variable.
-pub fn os_unsetenv(name: *const c_char) -> c_int {
+pub fn os_unsetenv(name: impl crate::strings::IntoCCharPtr) -> c_int {
+    let name = name.into_c_char_ptr();
     unsafe {
         if !env_name_valid(name) {
             return -1;
@@ -603,19 +605,21 @@ pub fn expand_env_save_opt(
 }
 
 /// Expand environment variable with path name.
-pub fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize {
+pub fn expand_env(src: impl crate::strings::IntoCCharPtr, dst: *mut c_char, dstlen: c_int) -> usize {
+    let src = src.into_c_char_ptr().cast_mut();
     expand_env_esc(src, dst, dstlen, ptr::null_mut(), false, ptr::null_mut())
 }
 
 /// Expand environment variable with path name and escaping.
 pub fn expand_env_esc(
-    srcp: *const c_char,
+    srcp: impl crate::strings::IntoCCharPtr,
     mut dst: *mut c_char,
     mut dstlen: c_int,
     esc_chars: *mut c_char,
     one: bool,
     prefix: *mut c_char,
 ) -> usize {
+    let srcp = srcp.into_c_char_ptr();
     unsafe {
         let mut at_start = true;
         let dst_start = dst;
@@ -838,7 +842,8 @@ fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
     }
 }
 
-fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_char) -> *mut c_char {
+fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let dirname = dirname.into_c_char_ptr();
     unsafe {
         let len = crate::memory::cstr_len(dirname);
         if (pend as usize) > (path as usize) + len {
@@ -913,7 +918,8 @@ pub fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
 }
 
 /// Vim `getenv()` wrapper with special handling of `$HOME`, `$VIM`, `$VIMRUNTIME`.
-pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
+pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> {
+    let name = name.into_c_char_ptr();
     unsafe {
         assert!(*get_vim_var_str(VV_PROGPATH) != NUL);
 
@@ -966,7 +972,7 @@ pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
                     vim_get_prefix_from_exepath(exe_name.as_mut_ptr());
                     if append_path(
                         exe_name.as_mut_ptr(),
-                        c"share/nvim/runtime/".as_ptr(),
+                        c"share/nvim/runtime/",
                         MAXPATHL,
                     )
                     {
@@ -977,11 +983,11 @@ pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
                 if !vim_path.is_null() {
                     let mut vim_path_end = path_tail(vim_path);
                     if vim_path == opt_vars().p_hf {
-                        vim_path_end = remove_tail(vim_path, vim_path_end, c"doc".as_ptr());
+                        vim_path_end = remove_tail(vim_path, vim_path_end, c"doc");
                     }
                     if !vimruntime {
                         vim_path_end =
-                            remove_tail(vim_path, vim_path_end, RUNTIME_DIRNAME.as_ptr());
+                            remove_tail(vim_path, vim_path_end, RUNTIME_DIRNAME);
                     }
                     if (vim_path_end as usize) > (vim_path as usize)
                         && after_pathsep(vim_path, vim_path_end) != 0
@@ -1081,7 +1087,7 @@ pub fn home_replace(
             let mut flen = crate::memory::cstr_len(homedir_env_mod);
             let mut fbuf: Option<Vec<c_char>> = None;
             let _ = modify_fname(
-                c":p".as_ptr().cast_mut(),
+                c":p",
                 false,
                 &mut usedlen,
                 &raw mut homedir_env_mod,
@@ -1228,7 +1234,8 @@ pub fn os_setenv_append_path(fname: *const c_char) -> bool {
 
 /// Returns true if `sh` looks like it resolves to `"cmd.exe"`.
 #[cfg_attr(not(windows), cfg(test))]
-pub fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
+pub fn os_shell_is_cmdexe(sh: impl crate::strings::IntoCCharPtr) -> bool {
+    let sh = sh.into_c_char_ptr();
     unsafe {
         if *sh == NUL {
             return false;
@@ -1246,7 +1253,8 @@ pub fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
 }
 
 /// Removes environment variable `var` and takes care of side effects.
-pub fn vim_unsetenv_ext(var: *const c_char) {
+pub fn vim_unsetenv_ext(var: impl crate::strings::IntoCCharPtr) {
+    let var = var.into_c_char_ptr();
      {
         let _ = os_unsetenv(var);
         if crate::memory::cstr_as_bytes(var).eq_ignore_ascii_case(b"VIM") {
@@ -1293,8 +1301,8 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
-            assert_eq!(env_name_len(c"FOO_123/bar".as_ptr()), 7);
-            assert_eq!(env_name_len(c"-invalid".as_ptr()), 0);
+            assert_eq!(env_name_len(c"FOO_123/bar"), 7);
+            assert_eq!(env_name_len(c"-invalid"), 0);
 
             let val = c"/a:/bb:/ccc";
             let mut iter: *const c_char = ptr::null();
@@ -1332,7 +1340,7 @@ mod tests {
             assert!(iter.is_null());
 
             if *crate::eval::vars::get_vim_var_str(VV_PROGPATH) == NUL {
-                crate::eval::vars::set_vim_var_string(VV_PROGPATH, c"nvim".as_ptr(), -1);
+                crate::eval::vars::set_vim_var_string(VV_PROGPATH, c"nvim", -1);
             }
 
             assert!(!os_env_exists(c"", false));
@@ -1367,7 +1375,7 @@ mod tests {
             assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "val2");
 
             expand_env_esc(
-                c"$NVIM_RUST_ENV_TEST_KEY/sub".as_ptr(),
+                c"$NVIM_RUST_ENV_TEST_KEY/sub",
                 buf.as_mut_ptr(),
                 buf.len() as c_int,
                 ptr::null_mut(),
@@ -1382,9 +1390,9 @@ mod tests {
             assert!(!crate::memory::cstr_as_bytes(buf.as_ptr()).is_empty());
             assert!(os_getenvname_at_index(usize::MAX).is_none());
 
-            assert!(os_shell_is_cmdexe(c"cmd.exe".as_ptr()));
-            assert!(os_shell_is_cmdexe(c"CMD".as_ptr()));
-            assert!(!os_shell_is_cmdexe(c"powershell".as_ptr()));
+            assert!(os_shell_is_cmdexe(c"cmd.exe"));
+            assert!(os_shell_is_cmdexe(c"CMD"));
+            assert!(!os_shell_is_cmdexe(c"powershell"));
 
             let abs_path = if cfg!(windows) {
                 c"C:\\foo\\bar\\baz.exe"

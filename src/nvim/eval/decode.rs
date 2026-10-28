@@ -57,14 +57,14 @@ struct ValuesStackItem {
 fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
     unsafe {
         let dict = tv_dict_alloc();
-        let type_di = tv_dict_item_alloc_len(c"_TYPE".as_ptr(), 5);
+        let type_di = tv_dict_item_alloc_len(c"_TYPE", 5);
         (*type_di).di_tv.v_type = VarType::VAR_LIST;
         (*type_di).di_tv.v_lock = VAR_UNLOCKED;
         (*type_di).di_tv.vval = crate::eval::typval::TypvalVval::List((*eval_msgpack_type_lists_mut())[mp_type].cast_mut());
         tv_list_ref((*type_di).di_tv.vval.v_list());
         tv_dict_add(dict, type_di);
 
-        let val_di = tv_dict_item_alloc_len(c"_VAL".as_ptr(), 4);
+        let val_di = tv_dict_item_alloc_len(c"_VAL", 4);
         (*val_di).di_tv = val;
         tv_dict_add(dict, val_di);
         (*dict).dv_refcount += 1;
@@ -96,11 +96,12 @@ pub fn decode_create_map_special_dict(ret_tv: &mut typval_T, len: isize) -> *mut
 
 /// Convert `s[..len]` into a `VAR_STRING` or `VAR_BLOB` `typval_T` (`decode_string`).
 pub fn decode_string(
-    s: *const c_char,
+    s: impl crate::strings::IntoCCharPtr,
     len: usize,
     force_blob: bool,
     _s_allocated: bool,
 ) -> typval_T {
+    let s = s.into_c_char_ptr();
     assert!(!s.is_null() || len == 0);
     let has_nul = if !s.is_null() && len > 0 {
         let slice = unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) };
@@ -636,10 +637,11 @@ fn parse_json_number(
 
 /// Convert JSON string `buf[..buf_len]` into a Vimscript `typval_T` (`json_decode_string`).
 pub fn json_decode_string(
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     buf_len: usize,
     rettv: &mut typval_T,
 ) -> bool {
+    let buf = buf.into_c_char_ptr();
     unsafe {
         let mut p = buf;
         let e = buf.add(buf_len);
@@ -1325,7 +1327,7 @@ mod tests {
     #[test]
     fn decode_string_copies_ascii() {
         unsafe {
-            let mut tv = decode_string(c"hello".as_ptr(), 5, false, false);
+            let mut tv = decode_string(c"hello", 5, false, false);
             assert_eq!(tv.v_type, VarType::VAR_STRING);
             assert_eq!(CStr::from_ptr(tv.vval.v_string()).to_str().unwrap(), "hello");
             tv_clear(&raw mut tv);
@@ -1396,7 +1398,7 @@ mod tests {
                 assert_eq!(rettv.v_type, VarType::VAR_UNKNOWN);
             }
 
-            assert!(json_decode_string(c"true".as_ptr(), 4, &mut rettv));
+            assert!(json_decode_string(c"true", 4, &mut rettv));
             assert_eq!(rettv.v_type, VarType::VAR_BOOL);
             assert_eq!(rettv.vval.v_bool(), K_BOOL_VAR_TRUE as c_int);
             tv_clear(&mut rettv);

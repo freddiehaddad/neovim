@@ -3028,9 +3028,9 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
             } else {
                 syntax_clear(&mut *win_s(&mut **curwin.as_ptr()));
                 if win_s(&mut **curwin.as_ptr()) == &raw mut (*(**curwin.as_ptr()).w_buffer).b_s {
-                    do_unlet(c"b:current_syntax".as_ptr(), 16, true);
+                    do_unlet(c"b:current_syntax", 16, true);
                 }
-                do_unlet(c"w:current_syntax".as_ptr(), 16, true);
+                do_unlet(c"w:current_syntax", 16, true);
             }
         } else {
             while ends_excmd(*arg as c_int) == 0 {
@@ -3439,7 +3439,7 @@ fn put_pattern(s: &std::ffi::CStr, c: c_int, spp: &synpat_T, hl_id: c_int) {
             msg_puts_hl(c"matchgroup", hl_id, false);
             msg_putchar(b'=' as c_int);
             if syn_st().last_matchgroup == 0 {
-                msg_outtrans(c"NONE".as_ptr(), 0, false);
+                msg_outtrans(c"NONE", 0, false);
             } else {
                 msg_outtrans(highlight_group_name(syn_st().last_matchgroup - 1), 0, false);
             }
@@ -4597,7 +4597,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                     }
                     next_arg = skipwhite(arg_end);
                 } else if eap.skip == 0 {
-                    (*win_s(&mut **curwin.as_ptr())).b_syn_sync_id = syn_name2id(c"Comment".as_ptr()) as i16;
+                    (*win_s(&mut **curwin.as_ptr())).b_syn_sync_id = syn_name2id(c"Comment") as i16;
                 }
             } else if (crate::memory::cstr_prefix_bytes(key, 5) == &b"LINES"[..5])
                 || (crate::memory::cstr_prefix_bytes(key, 8) == &b"MINLINES"[..8])
@@ -5132,7 +5132,7 @@ pub fn ex_ownsyntax(eap: &mut exarg_T) {
         if let Some(ref old_cstr) = old_value {
             set_internal_string_var(c"b:current_syntax", old_cstr.as_ptr().cast_mut());
         } else {
-            do_unlet(c"b:current_syntax".as_ptr(), 16, true);
+            do_unlet(c"b:current_syntax", 16, true);
         }
     }
 }

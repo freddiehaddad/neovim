@@ -867,18 +867,18 @@ pub fn f_win_gettype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         if argvars[0].v_type != VarType::VAR_UNKNOWN {
             wp = find_win_by_nr_or_id(&argvars[0]);
             if wp.is_null() {
-                tv_set_string(rettv, c"unknown".as_ptr());
+                tv_set_string(rettv, c"unknown");
                 return;
             }
         }
         if is_ctx_win(wp) {
-            tv_set_string(rettv, c"autocmd".as_ptr());
+            tv_set_string(rettv, c"autocmd");
         } else if (*wp).w_onebuf_opt.wo_pvw != 0 {
-            tv_set_string(rettv, c"preview".as_ptr());
+            tv_set_string(rettv, c"preview");
         } else if (*wp).w_floating {
-            tv_set_string(rettv, c"popup".as_ptr());
+            tv_set_string(rettv, c"popup");
         } else if bt_cmdwin((*wp).w_buffer) {
-            tv_set_string(rettv, c"command".as_ptr());
+            tv_set_string(rettv, c"command");
         } else if bt_quickfix((*wp).w_buffer) {
             tv_set_string(
                 rettv,

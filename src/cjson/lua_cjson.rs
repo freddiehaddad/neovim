@@ -646,7 +646,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut json_encode_t, current_depth:
                     (*keybuf).buf.buf.as_ptr().add(current_key.offset),
                     current_key.length,
                 );
-                strbuf_append_mem_unsafe(json, c"\":".as_ptr(), 2);
+                strbuf_append_mem_unsafe(json, c"\":", 2);
 
                 if !(*ctx.options).indent.is_null() {
                     strbuf_append_char(json, b' ' as c_char);
@@ -687,7 +687,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut json_encode_t, current_depth:
                 if keytype == LUA_TNUMBER {
                     strbuf_append_char(json, b'"' as c_char);
                     json_append_number(l, ctx, -2, false);
-                    strbuf_append_mem(json, c"\":".as_ptr(), 2);
+                    strbuf_append_mem(json, c"\":", 2);
                 } else if keytype == LUA_TSTRING {
                     json_append_string(l, ctx, -2);
                     strbuf_append_char(json, b':' as c_char);
@@ -740,9 +740,9 @@ fn json_append_data(
             }
             LUA_TBOOLEAN => {
                 if lua_toboolean(l, -1) != 0 {
-                    strbuf_append_mem(json, c"true".as_ptr(), 4);
+                    strbuf_append_mem(json, c"true", 4);
                 } else {
-                    strbuf_append_mem(json, c"false".as_ptr(), 5);
+                    strbuf_append_mem(json, c"false", 5);
                 }
             }
             LUA_TTABLE => {
@@ -811,7 +811,7 @@ fn json_append_data(
                 }
             }
             LUA_TNIL => {
-                strbuf_append_mem(json, c"null".as_ptr(), 4);
+                strbuf_append_mem(json, c"null", 4);
             }
             LUA_TLIGHTUSERDATA => {
                 if lua_touserdata(l, -1) == (&raw const JSON_ARRAY).cast_mut().cast() {
@@ -823,7 +823,7 @@ fn json_append_data(
                 let is_nil = lua_rawequal(l, -2, -1) != 0;
                 lua_pop(l, 1);
                 if is_nil {
-                    strbuf_append_mem(json, c"null".as_ptr(), 4);
+                    strbuf_append_mem(json, c"null", 4);
                 } else {
                     json_encode_exception(l, ctx, -1, c"type not supported");
                 }

@@ -341,7 +341,7 @@ fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
         if convert_setup(
                 &mut vc,
                 cs_cstr.as_ptr().cast_mut(),
-                c"utf-8".as_ptr().cast_mut(),
+                c"utf-8",
             )
             && vc.vc_type != 0
         {
@@ -588,7 +588,8 @@ fn get_locale_val(what: c_int) -> *mut c_char {
 }
 
 #[inline]
-fn is_valid_mess_lang(lang: *const c_char) -> bool {
+fn is_valid_mess_lang(lang: impl crate::strings::IntoCCharPtr) -> bool {
+    let lang = lang.into_c_char_ptr();
     if lang.is_null() {
         return false;
     }
@@ -680,7 +681,7 @@ pub fn init_locale() {
         }
 
         if has_time_fd() {
-            time_msg(c"locale set".as_ptr(), None);
+            time_msg(c"locale set", None);
         }
     }
 }
@@ -695,19 +696,19 @@ pub fn ex_language(eap: &mut exarg_T) {
         let p = skiptowhite(eap.arg);
         let arg_len = (p as usize) - (eap.arg as usize);
         if (*p == NUL || matches!(*p as u8, b' ' | b'\t')) && arg_len >= 3 {
-            if mb_strnicmp(eap.arg, c"messages".as_ptr(), arg_len) == 0 {
+            if mb_strnicmp(eap.arg, c"messages", arg_len) == 0 {
                 what = VIM_LC_MESSAGES;
                 name = skipwhite(p);
                 whatstr = c"messages ".as_ptr();
-            } else if mb_strnicmp(eap.arg, c"ctype".as_ptr(), arg_len) == 0 {
+            } else if mb_strnicmp(eap.arg, c"ctype", arg_len) == 0 {
                 what = LC_CTYPE;
                 name = skipwhite(p);
                 whatstr = c"ctype ".as_ptr();
-            } else if mb_strnicmp(eap.arg, c"time".as_ptr(), arg_len) == 0 {
+            } else if mb_strnicmp(eap.arg, c"time", arg_len) == 0 {
                 what = LC_TIME;
                 name = skipwhite(p);
                 whatstr = c"time ".as_ptr();
-            } else if mb_strnicmp(eap.arg, c"collate".as_ptr(), arg_len) == 0 {
+            } else if mb_strnicmp(eap.arg, c"collate", arg_len) == 0 {
                 what = LC_COLLATE;
                 name = skipwhite(p);
                 whatstr = c"collate ".as_ptr();
@@ -780,7 +781,7 @@ pub fn ex_language(eap: &mut exarg_T) {
 #[cfg(not(windows))]
 fn find_locales() -> Vec<CString> {
     let Some(locale_a) = get_cmd_output(
-        c"locale -a".as_ptr().cast_mut(),
+        c"locale -a",
         ptr::null_mut(),
         kShellOptSilent,
     ) else {
@@ -854,9 +855,9 @@ mod tests {
     fn is_valid_mess_lang_and_get_lang_arg_work() {
          {
             assert!(!is_valid_mess_lang(ptr::null()));
-            assert!(!is_valid_mess_lang(c"C".as_ptr()));
-            assert!(!is_valid_mess_lang(c"C.UTF-8".as_ptr()));
-            assert!(is_valid_mess_lang(c"en_US.UTF-8".as_ptr()));
+            assert!(!is_valid_mess_lang(c"C"));
+            assert!(!is_valid_mess_lang(c"C.UTF-8"));
+            assert!(is_valid_mess_lang(c"en_US.UTF-8"));
 
             assert_eq!(
                 crate::memory::cstr_as_bytes(get_lang_arg(&mut crate::os::env::expand_T::new(), 0)),

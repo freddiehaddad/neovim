@@ -611,7 +611,7 @@ fn format_progress_message(
                 hl_id,
             });
             updated_msg.push(HlMessageChunk {
-                text: cstr_to_string(c": ".as_ptr()),
+                text: cstr_to_string(c": "),
                 hl_id: 0,
             });
         }
@@ -648,12 +648,13 @@ fn format_progress_message(
 pub fn msg_multihl(
     mut id: MsgID,
     hl_msg: &mut HlMessage,
-    kind: *const c_char,
+    kind: impl crate::strings::IntoCCharPtr,
     history: bool,
     err: bool,mut msg_data: Option<&mut MessageData>,
     needs_msg_clear: &mut bool,
     raw_for_lua_print: bool,
 ) -> MsgID {
+    let kind = kind.into_c_char_ptr();
     if id.obj_type == ObjectType::kObjectTypeNil {
             let next_id = msg_st().msg_id_next;
             msg_st().msg_id_next += 1;
@@ -1050,10 +1051,11 @@ pub fn emsg_not_now() -> bool {
 
 pub fn emsg_multiline(
     s: *const c_char,
-    kind: *const c_char,
+    kind: impl crate::strings::IntoCCharPtr,
     hl_id: c_int,
     multiline: bool,
 ) -> bool {
+    let kind = kind.into_c_char_ptr();
     unsafe {
         let mut ignore = false;
 
@@ -1107,12 +1109,12 @@ pub fn emsg_multiline(
                     if let Some(p) = get_emsg_source() {
                         let p_len = p.as_bytes().len();
                         redir_write(p.as_ptr(), p_len as isize);
-                        redir_write(c"\n".as_ptr(), 1);
+                        redir_write(c"\n", 1);
                     }
                     if let Some(p) = get_emsg_lnum() {
                         let p_len = p.as_bytes().len();
                         redir_write(p.as_ptr(), p_len as isize);
-                        redir_write(c"\n".as_ptr(), 1);
+                        redir_write(c"\n", 1);
                     }
                     redir_write(s, crate::memory::cstr_len(s) as isize);
                 }
@@ -1211,7 +1213,7 @@ pub fn emsg_multiline(
 
 /// emsg() - display an error message
 pub fn emsg<S: crate::strings::IntoCCharPtr>(s: S) -> bool {
-    emsg_multiline(s.into_c_char_ptr(), c"emsg".as_ptr(), HLF_E, false)
+    emsg_multiline(s.into_c_char_ptr(), c"emsg", HLF_E, false)
 }
 
 pub fn emsg_invreg(name: c_int) {
@@ -1248,7 +1250,7 @@ pub fn msg_schedule_semsg_cstr(s: *const c_char) {
 }
 
 pub fn msg_semsg_multiline_event(s: std::ffi::CString) {
-    emsg_multiline(s.as_ptr(), c"emsg".as_ptr(), HLF_E, true);
+    emsg_multiline(s.as_ptr(), c"emsg", HLF_E, true);
 }
 
 pub fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
@@ -1315,14 +1317,16 @@ pub fn msg_may_trunc(force: bool, mut s: *mut c_char) -> *mut c_char {
 /// progress task as "done".
 pub fn msg_progress(
     s: *mut c_char,
-    id: *mut c_char,
-    status: *mut c_char,
+    id: impl crate::strings::IntoCCharPtr,
+    status: impl crate::strings::IntoCCharPtr,
     percent: c_int,
     hl_id: c_int,
     hist: bool,
     trunc: bool,
     err: bool,
 ) -> *mut c_char {
+    let status = status.into_c_char_ptr().cast_mut();
+    let id = id.into_c_char_ptr().cast_mut();
     let mut data = MessageData {
             source: cstr_as_string(c"nvim"),
             percent: Integer::from(percent),
@@ -1773,7 +1777,7 @@ pub fn wait_return(redraw: c_int) {
 
         if ui_has(kUIMessages) {
             prompt_for_input(
-                c"Press any key to continue".as_ptr().cast_mut(),
+                c"Press any key to continue",
                 HLF_M,
                 true,
                 None,
@@ -2113,7 +2117,7 @@ pub fn msg_start() {
             if ((opt_vars().p_ch == 0 && !g_st().msg_didout) || msg_st().msg_special_case_for_lua_print)
                 && msg_use_printf() != 0
             {
-                msg_puts_display(c"\n".as_ptr(), 1, 0, 0);
+                msg_puts_display(c"\n", 1, 0, 0);
             } else {
                 msg_putchar(NL);
             }
@@ -2133,7 +2137,7 @@ pub fn msg_start() {
         }
 
         if !did_return {
-            redir_write(c"\n".as_ptr(), 1);
+            redir_write(c"\n", 1);
         }
 }
 
@@ -2181,7 +2185,8 @@ fn msg_home_replace_hl(fname: *const c_char, hl_id: c_int) {
 /// if "len" is -1, output up to a NUL character. Use highlight "hl_id".
 ///
 /// @return  the number of characters it takes on the screen.
-pub fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int {
+pub fn msg_outtrans(str_: impl crate::strings::IntoCCharPtr, hl_id: c_int, hist: bool) -> c_int {
+    let str_ = str_.into_c_char_ptr();
      {
         msg_outtrans_len(
             str_,
@@ -2713,7 +2718,8 @@ pub fn msg_puts_hl<S: crate::strings::IntoCCharPtr>(s: S, hl_id: c_int, hist: bo
 }
 
 /// Write a message with highlight id.
-pub fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: bool) {
+pub fn msg_puts_len(str_: impl crate::strings::IntoCCharPtr, len: isize, hl_id: c_int, hist: bool) {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         assert!(
             len < 0 || !std::slice::from_raw_parts(str_.cast::<u8>(), len as usize).contains(&0)
@@ -2808,7 +2814,8 @@ fn msg_ext_emit_chunk() {
 
 /// The display part of msg_puts_len().
 /// May be called recursively to display scroll-back text.
-fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, recurse: c_int) {
+fn msg_puts_display(str_: impl crate::strings::IntoCCharPtr, maxlen: c_int, hl_id: c_int, recurse: c_int) {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut s = str_;
         let mut sb_str = str_;
@@ -2924,7 +2931,7 @@ fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, recurse: c
                 };
 
                 if cw > 1 && g_st().msg_col == g_st().Columns - 1 {
-                    grid_line_puts(g_st().msg_col, c">".as_ptr(), 1, hl_attr(HLF_AT));
+                    grid_line_puts(g_st().msg_col, c">", 1, hl_attr(HLF_AT));
                     cw = 1;
                 } else {
                     grid_line_puts(g_st().msg_col, s, l, print_attr);
@@ -2950,7 +2957,7 @@ fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, recurse: c
                     }
                 } else if c == TAB as c_char {
                     loop {
-                        grid_line_puts(g_st().msg_col, c" ".as_ptr(), 1, print_attr);
+                        grid_line_puts(g_st().msg_col, c" ", 1, print_attr);
                         g_st().msg_col += 1;
 
                         if g_st().msg_col == g_st().Columns || (g_st().msg_col & 7) == 0 {
@@ -3859,7 +3866,8 @@ pub fn msg_check() {
 }
 
 /// May write a string to the redirection file.
-fn redir_write(str_: *const c_char, maxlen: isize) {
+fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut s = str_;
 
@@ -3882,9 +3890,9 @@ fn redir_write(str_: *const c_char, maxlen: isize) {
                         (*g_st().capture_ga).push(b' ' as c_char);
                     }
                     if g_st().redir_reg != 0 {
-                        write_reg_contents(g_st().redir_reg, c" ".as_ptr(), 1, 1);
+                        write_reg_contents(g_st().redir_reg, c" ", 1, 1);
                     } else if g_st().redir_vname {
-                        var_redir_str(c" ".as_ptr(), -1);
+                        var_redir_str(c" ", -1);
                     } else if let Some(ref rf) = g_st().redir_fd {
                         fputs(c" ", rf.as_ptr());
                     }

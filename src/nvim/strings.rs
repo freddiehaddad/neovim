@@ -176,7 +176,8 @@ pub fn ngettext<S1: IntoCCharPtr, S2: IntoCCharPtr, N: IntoNgettextCount>(
     }
 }
 
-pub fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
+pub fn strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut *mut c_char) -> c_double {
+    let nptr = nptr.into_c_char_ptr();
     unsafe {
         let mut s = nptr;
         while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
@@ -747,7 +748,8 @@ pub fn infinity_str(
     TABLE[idx].as_ptr()
 }
 
-pub fn format_typeof(mut type_: *const c_char) -> c_int {
+pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> c_int {
+    let mut type_ = type_.into_c_char_ptr();
     unsafe {
         let mut length_modifier: u8 = 0;
         let first = *type_ as u8;
@@ -2206,9 +2208,10 @@ pub use vim_snprintf_safelen;
 pub fn vim_snprintf_typval_only(
     str_out: *mut c_char,
     str_m: usize,
-    fmt: *const c_char,
+    fmt: impl crate::strings::IntoCCharPtr,
     tvs: *mut typval_T,
 ) -> c_int {
+    let fmt = fmt.into_c_char_ptr();
     vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[])
 }
 
@@ -3109,17 +3112,17 @@ mod tests {
             let cat = concat_str(c"hello ", c"world");
             assert_eq!(cat.to_str().unwrap(), "hello world");
 
-            assert_eq!(format_typeof(c"lld".as_ptr()), TYPE_LONGLONGINT);
-            assert_eq!(format_typeof(c"zu".as_ptr()), TYPE_SIZET);
+            assert_eq!(format_typeof(c"lld"), TYPE_LONGLONGINT);
+            assert_eq!(format_typeof(c"zu"), TYPE_SIZET);
 
             assert_eq!(crate::charset::parse_i64_prefix(b"  -1234px"), -1234);
             assert_eq!(crate::charset::parse_i64_prefix(b" +56789"), 56789);
             let mut end: *mut c_char = ptr::null_mut();
-            assert_eq!(strtod(c"  -12.5e2px".as_ptr(), &raw mut end), -1250.0);
+            assert_eq!(strtod(c"  -12.5e2px", &raw mut end), -1250.0);
             assert_eq!(*end as u8, b'p');
-            assert_eq!(strtod(c"0x1.8p+2".as_ptr(), &raw mut end), 6.0);
-            assert!(strtod(c"-INF".as_ptr(), &raw mut end).is_infinite());
-            assert!(strtod(c"NaN".as_ptr(), &raw mut end).is_nan());
+            assert_eq!(strtod(c"0x1.8p+2", &raw mut end), 6.0);
+            assert!(strtod(c"-INF", &raw mut end).is_infinite());
+            assert!(strtod(c"NaN", &raw mut end).is_nan());
         }
     }
 

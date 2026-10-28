@@ -2064,7 +2064,8 @@ pub fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
         g_st().info_message = false;
 }
 
-pub fn rename_buffer(new_fname: *mut c_char) -> bool {
+pub fn rename_buffer(new_fname: impl crate::strings::IntoCCharPtr) -> bool {
+    let new_fname = new_fname.into_c_char_ptr().cast_mut();
     unsafe {
         let mut buf = g_st().curbuf;
         apply_autocmds(
@@ -2320,9 +2321,9 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
                     }
 
                     if *(*g_st().curbuf).b_p_ft == NUL {
-                        if augroup_exists(c"filetypedetect".as_ptr()) {
+                        if augroup_exists(c"filetypedetect") {
                             do_doautocmd(
-                                c"filetypedetect BufRead".as_ptr().cast_mut(),
+                                c"filetypedetect BufRead",
                                 true,
                                 None,
                             );
@@ -3754,7 +3755,8 @@ impl SubBuf {
     }
 
     #[inline]
-    fn from_cbuf(p: *const c_char, len: usize) -> Self {
+    fn from_cbuf(p: impl crate::strings::IntoCCharPtr, len: usize) -> Self {
+    let p = p.into_c_char_ptr();
         let mut v = vec![0 as c_char; len + 1];
         if len > 0 {
             unsafe {
@@ -4379,7 +4381,7 @@ fn do_sub(
                                 }
                             }
                             if skip_match {
-                                sub_firstline = SubBuf::from_cbuf(c"".as_ptr(), 0);
+                                sub_firstline = SubBuf::from_cbuf(c"", 0);
                                 copycol = 0;
                             }
                             lnum += nmatch - 1;
@@ -4488,7 +4490,7 @@ fn do_sub(
                                 }
                             }
                             if skip_match {
-                                sub_firstline = SubBuf::from_cbuf(c"".as_ptr(), 0);
+                                sub_firstline = SubBuf::from_cbuf(c"", 0);
                                 copycol = 0;
                             }
 
@@ -4862,7 +4864,7 @@ fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
         (**curwin.as_ptr()).w_cursor.col = 0;
         if *cmd == NUL || *cmd == b'\n' as c_char {
             do_cmdline(
-                c"p".as_ptr().cast_mut(),
+                c"p",
                 crate::cmdexpand::LineGetter::None,
                 DOCMD_NOWAIT,
             );

@@ -815,7 +815,8 @@ pub fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
 }
 
 /// Insert a string at the cursor position.
-pub fn ins_str(s: *mut c_char, slen: usize) {
+pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
+    let s = s.into_c_char_ptr().cast_mut();
     unsafe {
         let lnum = (**curwin.as_ptr()).w_cursor.lnum;
 

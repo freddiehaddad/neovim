@@ -898,7 +898,7 @@ fn fname2fnum(fm: &mut xfmark_T) {
 
         if *fname == b'~' as c_char && vim_ispathsep_nocolon(c_int::from(*fname.add(1) as u8)) {
             let len = expand_env(
-                c"~/".as_ptr().cast_mut(),
+                c"~/",
                 &raw mut g_st().NameBuff[0],
                 MAXPATHL as c_int,
             );

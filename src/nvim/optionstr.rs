@@ -924,7 +924,7 @@ fn illegal_char(errbuf: Option<CharBuf>, c: c_int) -> *const c_char {
     }
     opt_error(
             errbuf,
-            c"E539: Illegal character <%s>".as_ptr(),
+            c"E539: Illegal character <%s>",
             transchar(c),
         )
 }
@@ -983,7 +983,8 @@ pub fn check_buf_options(buf: &mut buf_T) {
         check_string_option(&raw mut buf.b_p_vts);
 }
 
-pub fn alloc_string_option(s: *const c_char) -> *mut c_char {
+pub fn alloc_string_option(s: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let s = s.into_c_char_ptr();
      crate::memory::cstr_to_cstring(s).into_raw()
 }
 
@@ -1293,9 +1294,10 @@ pub fn validate_str_generic(args: &mut optset_T) -> *const c_char {
 /// Validate a list of character flags against "flags".
 fn check_option_listflag(
     val: *const c_char,
-    flags: *const c_char,
+    flags: impl crate::strings::IntoCCharPtr,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
+    let flags = flags.into_c_char_ptr();
     unsafe {
         let mut s = val;
         while *s != NUL {
@@ -1373,7 +1375,7 @@ fn expand_set_opt_generic(
         optstr_st().set_opt_callback_func = func;
 
         ExpandGeneric(
-            c"".as_ptr(),
+            c"",
             &mut *args.oe_xp,
             &mut *args.oe_regmatch,
             matches,
@@ -1390,9 +1392,10 @@ fn expand_set_opt_generic(
 /// Expand an option which is a list of flags.
 fn expand_set_opt_listflag(
     args: &mut optexpand_T,
-    flags: *const c_char,
+    flags: impl crate::strings::IntoCCharPtr,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
+    let flags = flags.into_c_char_ptr();
     unsafe {
         let option_val = args.oe_opt_value;
         let cmdline_val = args.oe_set_arg;
@@ -1466,7 +1469,7 @@ pub fn did_set_background(args: &mut optset_T) -> *const c_char {
 
         if dark != (*opt_vars().p_bg == b'd' as c_char) && !get_var_value(c"g:colors_name").is_null()
         {
-            do_unlet(c"g:colors_name".as_ptr(), 13, true);
+            do_unlet(c"g:colors_name", 13, true);
             free_string_option(opt_vars().p_bg);
             opt_vars().p_bg = alloc_string_option(if dark {
                 c"dark".as_ptr()
@@ -1944,7 +1947,7 @@ pub fn validate_complete(args: &mut optset_T) -> *const c_char {
             if char_before != 0 {
                 return crate::option::opt_error_int(
                     args.os_errbuf,
-                    E_ILLEGAL_CHARACTER_AFTER_CHR.as_ptr(),
+                    E_ILLEGAL_CHARACTER_AFTER_CHR,
                     c_int::from(char_before),
                 );
             }
@@ -1962,7 +1965,7 @@ pub fn did_set_complete(args: &mut optset_T) -> *const c_char {
     if !set_cpt_callbacks(args) {
             return crate::option::opt_error_int(
                 args.os_errbuf,
-                E_ILLEGAL_CHARACTER_AFTER_CHR.as_ptr(),
+                E_ILLEGAL_CHARACTER_AFTER_CHR,
                 b'F' as c_int,
             );
         }
@@ -2061,7 +2064,7 @@ pub fn did_set_completeslash(args: &mut optset_T) -> *const c_char {
 pub fn validate_concealcursor(args: &mut optset_T) -> *const c_char {
     check_option_listflag(
             args.os_newval.data.string().data,
-            COCU_ALL.as_ptr(),
+            COCU_ALL,
             args.os_errbuf,
         )
 }
@@ -2070,14 +2073,14 @@ pub fn expand_set_concealcursor(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    expand_set_opt_listflag(args, COCU_ALL.as_ptr(), matches)
+    expand_set_opt_listflag(args, COCU_ALL, matches)
 }
 
 /// Validate the 'cpoptions' option.
 pub fn validate_cpoptions(args: &mut optset_T) -> *const c_char {
     check_option_listflag(
             args.os_newval.data.string().data,
-            CPO_VI.as_ptr(),
+            CPO_VI,
             args.os_errbuf,
         )
 }
@@ -2086,7 +2089,7 @@ pub fn expand_set_cpoptions(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    expand_set_opt_listflag(args, CPO_VI.as_ptr(), matches)
+    expand_set_opt_listflag(args, CPO_VI, matches)
 }
 
 pub fn validate_cursorlineopt(args: &mut optset_T) -> *const c_char {
@@ -2389,7 +2392,7 @@ pub fn did_set_foldmethod(args: &mut optset_T) -> *const c_char {
 pub fn validate_formatoptions(args: &mut optset_T) -> *const c_char {
     check_option_listflag(
             args.os_newval.data.string().data,
-            FO_ALL.as_ptr(),
+            FO_ALL,
             args.os_errbuf,
         )
 }
@@ -2398,7 +2401,7 @@ pub fn expand_set_formatoptions(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    expand_set_opt_listflag(args, FO_ALL.as_ptr(), matches)
+    expand_set_opt_listflag(args, FO_ALL, matches)
 }
 
 /// The 'guicursor' option is changed.
@@ -2418,10 +2421,10 @@ pub fn did_set_guicursor(_args: &mut optset_T) -> *const c_char {
 /// The 'helpfile' option is changed.
 pub fn did_set_helpfile(_args: &mut optset_T) -> *const c_char {
     if g_st().didset_vim {
-            vim_unsetenv_ext(c"VIM".as_ptr());
+            vim_unsetenv_ext(c"VIM");
         }
         if g_st().didset_vimruntime {
-            vim_unsetenv_ext(c"VIMRUNTIME".as_ptr());
+            vim_unsetenv_ext(c"VIMRUNTIME");
         }
         ptr::null()
 }
@@ -2609,13 +2612,13 @@ pub fn validate_mkspellmem(args: &mut optset_T) -> *const c_char {
 pub fn validate_mouse(args: &mut optset_T) -> *const c_char {
     check_option_listflag(
             args.os_newval.data.string().data,
-            MOUSE_ALL.as_ptr(),
+            MOUSE_ALL,
             args.os_errbuf,
         )
 }
 
 pub fn expand_set_mouse(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> bool {
-    expand_set_opt_listflag(args, MOUSE_ALL.as_ptr(), matches)
+    expand_set_opt_listflag(args, MOUSE_ALL, matches)
 }
 
 /// Validate the 'mousescroll' option.
@@ -2736,7 +2739,7 @@ pub fn validate_shada(args: &mut optset_T) -> *const c_char {
                     if errbuf.is_some() {
                         return opt_error(
                             errbuf,
-                            c"E526: Missing number after <%s>".as_ptr(),
+                            c"E526: Missing number after <%s>",
                             transchar_byte(c_int::from(*s.sub(1) as u8)),
                         );
                     } else {
@@ -2797,14 +2800,14 @@ pub fn expand_set_shortmess(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    expand_set_opt_listflag(args, SHM_ALL.as_ptr(), matches)
+    expand_set_opt_listflag(args, SHM_ALL, matches)
 }
 
 /// Validate the 'shortmess' option.
 pub fn validate_shortmess(args: &mut optset_T) -> *const c_char {
     check_option_listflag(
             args.os_newval.data.string().data,
-            SHM_ALL.as_ptr(),
+            SHM_ALL,
             args.os_errbuf,
         )
 }
@@ -2887,7 +2890,7 @@ pub fn validate_spellcapcheck(args: &mut optset_T) -> *const c_char {
             } else {
                 err.msg_ptr()
             };
-            errmsg = opt_error(args.os_errbuf, c"%s".as_ptr(), msg);
+            errmsg = opt_error(args.os_errbuf, c"%s", msg);
             api_clear_error(&mut err);
             return errmsg;
         }
@@ -3244,7 +3247,7 @@ pub fn did_set_virtualedit(args: &mut optset_T) -> *const c_char {
 pub fn validate_whichwrap(args: &mut optset_T) -> *const c_char {
     check_option_listflag(
             args.os_newval.data.string().data,
-            WW_ALL_COMMA.as_ptr(),
+            WW_ALL_COMMA,
             args.os_errbuf,
         )
 }
@@ -3253,7 +3256,7 @@ pub fn expand_set_whichwrap(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    expand_set_opt_listflag(args, WW_ALL.as_ptr(), matches)
+    expand_set_opt_listflag(args, WW_ALL, matches)
 }
 
 pub fn validate_wildmode(args: &mut optset_T) -> *const c_char {
@@ -3598,7 +3601,8 @@ pub fn opt_keyset(
 }
 
 /// Return OK if "p" is a valid fileformat name, FAIL otherwise.
-pub fn check_ff_value(p: *mut c_char) -> bool {
+pub fn check_ff_value(p: impl crate::strings::IntoCCharPtr) -> bool {
+    let p = p.into_c_char_ptr().cast_mut();
     opt_strings_flags(
             p,
             &opt_ff_values,
@@ -4024,7 +4028,7 @@ pub fn set_chars_option(
                                 if c1 == 0 {
                                     return opt_error(
                                         errbuf,
-                                        E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR.as_ptr(),
+                                        E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR,
                                         name_ptr,
                                     );
                                 }
@@ -4033,7 +4037,7 @@ pub fn set_chars_option(
                             if multispace_len == 0 {
                                 return opt_error(
                                     errbuf,
-                                    E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR.as_ptr(),
+                                    E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR,
                                     name_ptr,
                                 );
                             }
@@ -4060,7 +4064,7 @@ pub fn set_chars_option(
                                 if c1 == 0 {
                                     return opt_error(
                                         errbuf,
-                                        E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR.as_ptr(),
+                                        E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR,
                                         name_ptr,
                                     );
                                 }
@@ -4069,7 +4073,7 @@ pub fn set_chars_option(
                             if lead_multispace_len == 0 {
                                 return opt_error(
                                     errbuf,
-                                    E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR.as_ptr(),
+                                    E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR,
                                     name_ptr,
                                 );
                             }
@@ -4090,7 +4094,7 @@ pub fn set_chars_option(
                     if *s == NUL {
                         return opt_error(
                             errbuf,
-                            E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR.as_ptr(),
+                            E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR,
                             name_ptr,
                         );
                     }
@@ -4098,7 +4102,7 @@ pub fn set_chars_option(
                     if c1 == 0 {
                         return opt_error(
                             errbuf,
-                            E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR.as_ptr(),
+                            E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR,
                             name_ptr,
                         );
                     }
@@ -4108,7 +4112,7 @@ pub fn set_chars_option(
                         if *s == NUL {
                             return opt_error(
                                 errbuf,
-                                E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR.as_ptr(),
+                                E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR,
                                 name_ptr,
                             );
                         }
@@ -4116,7 +4120,7 @@ pub fn set_chars_option(
                         if c2 == 0 {
                             return opt_error(
                                 errbuf,
-                                E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR.as_ptr(),
+                                E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR,
                                 name_ptr,
                             );
                         }
@@ -4125,7 +4129,7 @@ pub fn set_chars_option(
                             if c3 == 0 {
                                 return opt_error(
                                     errbuf,
-                                    E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR.as_ptr(),
+                                    E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR,
                                     name_ptr,
                                 );
                             }
@@ -4158,7 +4162,7 @@ pub fn set_chars_option(
                     } else {
                         return opt_error(
                             errbuf,
-                            E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR.as_ptr(),
+                            E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR,
                             name_ptr,
                         );
                     }
@@ -4291,10 +4295,10 @@ mod tests {
 
     #[test]
     fn check_ff_value_accepts_valid_and_rejects_invalid() {
-        assert!(check_ff_value(c"unix".as_ptr().cast_mut()));
-            assert!(check_ff_value(c"dos".as_ptr().cast_mut()));
-            assert!(check_ff_value(c"mac".as_ptr().cast_mut()));
-            assert!(!check_ff_value(c"".as_ptr().cast_mut()));
-            assert!(!check_ff_value(c"foo".as_ptr().cast_mut()));
+        assert!(check_ff_value(c"unix"));
+            assert!(check_ff_value(c"dos"));
+            assert!(check_ff_value(c"mac"));
+            assert!(!check_ff_value(c""));
+            assert!(!check_ff_value(c"foo"));
     }
 }

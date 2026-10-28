@@ -151,7 +151,8 @@ fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
 }
 
 /// Checks if an address string looks like a TCP endpoint, and returns the end of the host part.
-pub fn socket_address_tcp_host_end(address: *const c_char) -> *mut c_char {
+pub fn socket_address_tcp_host_end(address: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let address = address.into_c_char_ptr();
     if address.is_null() {
         return ptr::null_mut();
     }
@@ -572,8 +573,8 @@ mod tests {
     fn socket_address_tcp_host_end_detects_tcp_and_rejects_drive_letters() {
         unsafe {
             assert!(socket_address_tcp_host_end(std::ptr::null()).is_null());
-            assert!(socket_address_tcp_host_end(c"C:/tmp/nvim.sock".as_ptr()).is_null());
-            assert!(socket_address_tcp_host_end(c"/tmp/nvim.sock".as_ptr()).is_null());
+            assert!(socket_address_tcp_host_end(c"C:/tmp/nvim.sock").is_null());
+            assert!(socket_address_tcp_host_end(c"/tmp/nvim.sock").is_null());
             let s = c"127.0.0.1:6666".as_ptr();
             let host_end = socket_address_tcp_host_end(s);
             assert_eq!(host_end, s.add(9).cast_mut());

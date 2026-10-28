@@ -2488,7 +2488,7 @@ fn normal_check(s: &mut NormalState) -> c_int {
             g_st().do_redraw = false;
 
             if has_time_fd() {
-                time_msg(c"first screen update".as_ptr(), None);
+                time_msg(c"first screen update", None);
                 time_finish();
             }
             may_make_initial_scroll_size_snapshot();
@@ -2660,7 +2660,7 @@ pub fn find_ident_at_pos(
             bn = c_int::from(*ptr.add(col as usize) == b']' as c_char);
 
             if (find_type & FIND_EVAL) != 0 && *ptr.add(col as usize) == b']' as c_char {
-                this_class = mb_get_class(c"a".as_ptr());
+                this_class = mb_get_class(c"a");
             } else {
                 this_class = mb_get_class(ptr.add(col as usize));
             }
@@ -4153,7 +4153,7 @@ fn nv_colon(cap: &mut cmdarg_T) {
         } else if cap.count0 != 0 && !is_cmdkey && !is_lua {
             stuffcharReadbuff(b'.' as c_int);
             if cap.count0 > 1 {
-                stuffReadbuff(c",.+".as_ptr());
+                stuffReadbuff(c",.+");
                 stuffnumReadbuff(cap.count0 - 1);
             }
         }
@@ -4632,7 +4632,7 @@ fn nv_tagpop(cap: &mut cmdarg_T) {
         if !checkclearopq(&mut *cap.oap) {
             do_tag(
                 None,
-                c"".as_ptr().cast_mut(),
+                c"",
                 DT_POP,
                 cap.count1,
                 0,

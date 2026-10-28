@@ -162,7 +162,7 @@ fn lmpack_isunpacker(l: *mut lua_State, index: c_int) -> bool {
         if lua_isuserdata(l, index) == 0 || lua_getmetatable(l, index) == 0 {
             return false;
         }
-        luaL_getmetatable(l, UNPACKER_META_NAME.as_ptr());
+        luaL_getmetatable(l, UNPACKER_META_NAME);
         let rv = lua_rawequal(l, -1, -2) != 0;
         lua_pop(l, 2);
         rv
@@ -237,7 +237,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
         );
         mpack_parser_init(&mut (*rv).parser, 0);
         (*rv).parser.data = mpack_data_t::LmpackUnpacker(rv);
-        luaL_getmetatable(l, UNPACKER_META_NAME.as_ptr());
+        luaL_getmetatable(l, UNPACKER_META_NAME);
         lua_setmetatable(l, -2);
 
         lua_newtable(l);
@@ -497,7 +497,7 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
         );
         mpack_parser_init(&mut (*rv).parser, 0);
         (*rv).parser.data = mpack_data_t::LmpackPacker(rv);
-        luaL_getmetatable(l, PACKER_META_NAME.as_ptr());
+        luaL_getmetatable(l, PACKER_META_NAME);
         lua_setmetatable(l, -2);
 
         lua_newtable(l);
@@ -801,7 +801,7 @@ unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> c_int {
                 unpacker: LUA_REFNIL,
             },
         );
-        luaL_getmetatable(l, SESSION_META_NAME.as_ptr());
+        luaL_getmetatable(l, SESSION_META_NAME);
         lua_setmetatable(l, -2);
 
         lua_newtable(l);

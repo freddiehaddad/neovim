@@ -170,7 +170,7 @@ fn try_to_free_memory() {
 }
 
 fn out_of_memory_exit() -> ! {
-    preserve_exit(e_outofmem.as_ptr())
+    preserve_exit(e_outofmem)
 }
 
 /// Free all cached reusable arena blocks (`arena_free_reuse_blks`).
@@ -250,7 +250,7 @@ pub fn free_items<T>(items: *mut T) {
 /// Allocate `len + 1` bytes, copy `data[..len]`, and NUL-terminate.
 pub fn alloc_cstring_len(data: *const c_char, len: usize) -> *mut c_char {
     let Some(total_size) = len.checked_add(1) else {
-        preserve_exit(c"Nvim: Data too large to fit into virtual memory space\n".as_ptr());
+        preserve_exit(c"Nvim: Data too large to fit into virtual memory space\n");
     };
     let ret = raw_alloc(total_size).cast::<u8>();
     if len > 0 {
@@ -561,7 +561,8 @@ pub fn arena_memdupz_opt(arena: Option<&mut Arena>, buf: *const c_char, size: us
 }
 
 /// Duplicate C string `str_ptr` onto `arena` (`arena_strdup`).
-pub fn arena_strdup(arena: &mut Arena, str_ptr: *const c_char) -> *mut c_char {
+pub fn arena_strdup(arena: &mut Arena, str_ptr: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let str_ptr = str_ptr.into_c_char_ptr();
     let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
     arena_memdupz(arena, str_ptr, len)
 }
@@ -760,7 +761,7 @@ mod tests {
                 pos: 0,
                 size: 0,
             };
-            let s1 = arena_strdup(&mut arena, c"hello arena".as_ptr());
+            let s1 = arena_strdup(&mut arena, c"hello arena");
             let big = arena_alloc(&mut arena, 8192, true);
             assert!(!big.is_null());
             assert_eq!(CStr::from_ptr(s1).to_str().unwrap(), "hello arena");

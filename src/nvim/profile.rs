@@ -970,7 +970,8 @@ pub fn time_start(message: &std::ffi::CStr) {
 }
 
 /// Prints out timing info (`time_msg`).
-pub fn time_msg(mesg: *const c_char, start: Option<&proftime_T>) {
+pub fn time_msg(mesg: impl crate::strings::IntoCCharPtr, start: Option<&proftime_T>) {
+    let mesg = mesg.into_c_char_ptr();
     {
         let Some(ref tf) = g_st().time_fd else {
             return;
@@ -1033,7 +1034,7 @@ pub fn time_finish() {
             return;
         }
         assert!(!prof_st().STARTUPTIME_BUF.is_empty());
-        time_msg(c"--- NVIM STARTED ---\n".as_ptr(), None);
+        time_msg(c"--- NVIM STARTED ---\n", None);
 
         g_st().time_fd = None;
 

@@ -200,7 +200,7 @@ pub fn ui_client_attach(
         g_st().ui_client_attached = true;
 
         if has_time_fd() {
-            time_msg(c"nvim_ui_attach".as_ptr(), None);
+            time_msg(c"nvim_ui_attach", None);
         }
 
         let m = api_metadata();
@@ -268,7 +268,7 @@ pub fn ui_client_attach(
         );
 
         if has_time_fd() {
-            time_msg(c"nvim_set_client_info".as_ptr(), None);
+            time_msg(c"nvim_set_client_info", None);
         }
     }
 }

@@ -189,7 +189,8 @@ pub fn grid_adjust(
     }
 }
 
-pub fn schar_from_str(str_: *const c_char) -> schar_T {
+pub fn schar_from_str(str_: impl crate::strings::IntoCCharPtr) -> schar_T {
+    let str_ = str_.into_c_char_ptr();
      {
         if str_.is_null() {
             return 0;
@@ -552,10 +553,11 @@ pub fn grid_line_put_schar(col: c_int, schar: schar_T, attr: c_int) {
 
 pub fn grid_line_puts(
     mut col: c_int,
-    text: *const c_char,
+    text: impl crate::strings::IntoCCharPtr,
     textlen: c_int,
     attr: c_int,
 ) -> c_int {
+    let text = text.into_c_char_ptr();
     unsafe {
         assert!(!grid_st().grid_line_grid.is_null());
         let mut len = if textlen >= 0 { textlen } else { c_int::MAX };
@@ -1290,7 +1292,7 @@ fn grid_draw_bordertext(
         default_attr = hl_combine_attr(win_hl_attr_normal, default_attr);
 
         if overflow > 0 {
-            grid_line_puts(1, c"<".as_ptr(), -1, default_attr);
+            grid_line_puts(1, c"<", -1, default_attr);
             col += 1;
             overflow += 1;
         }

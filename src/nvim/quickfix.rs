@@ -647,7 +647,8 @@ fn ql_info_ptr() -> *mut qf_info_T {
 
 
 #[inline]
-fn c_strcat(dst: *mut c_char, src: *const c_char) {
+fn c_strcat(dst: *mut c_char, src: impl crate::strings::IntoCCharPtr) {
+    let src = src.into_c_char_ptr();
     unsafe {
         let dlen = crate::memory::cstr_len(dst);
         let slen = crate::memory::cstr_len(src);
@@ -1064,7 +1065,8 @@ fn efm_regpat_bufsz(efm: *const c_char) -> usize {
     }
 }
 
-fn efm_option_part_len(efm: *const c_char) -> c_int {
+fn efm_option_part_len(efm: impl crate::strings::IntoCCharPtr) -> c_int {
+    let efm = efm.into_c_char_ptr();
     unsafe {
         let mut len: usize = 0;
         while *efm.add(len) != NUL && *efm.add(len) != b',' as c_char {
@@ -3645,15 +3647,15 @@ pub fn qf_list(eap: &mut exarg_T) {
 
         shorten_fnames(0);
 
-        qf_st().qfFile_hl_id = syn_name2id(c"qfFileName".as_ptr());
+        qf_st().qfFile_hl_id = syn_name2id(c"qfFileName");
         if qf_st().qfFile_hl_id == 0 {
             qf_st().qfFile_hl_id = HLF_D;
         }
-        qf_st().qfSep_hl_id = syn_name2id(c"qfSeparator".as_ptr());
+        qf_st().qfSep_hl_id = syn_name2id(c"qfSeparator");
         if qf_st().qfSep_hl_id == 0 {
             qf_st().qfSep_hl_id = HLF_D;
         }
-        qf_st().qfLine_hl_id = syn_name2id(c"qfLineNr".as_ptr());
+        qf_st().qfLine_hl_id = syn_name2id(c"qfLineNr");
         if qf_st().qfLine_hl_id == 0 {
             qf_st().qfLine_hl_id = HLF_N;
         }
@@ -3733,7 +3735,8 @@ fn qf_range_text(gap: &mut Vec<c_char>, qfp: &qfline_T) {
     }
 }
 
-fn qf_msg(qi: &mut qf_info_T, which: c_int, lead: *const c_char) {
+fn qf_msg(qi: &mut qf_info_T, which: c_int, lead: impl crate::strings::IntoCCharPtr) {
+    let lead = lead.into_c_char_ptr();
     unsafe {
         let qfl = &(&qi.qf_lists)[which as usize];
         let title = qfl.qf_title.as_ref();
@@ -3791,7 +3794,7 @@ pub fn qf_age(eap: &mut exarg_T) {
                 (*qi).qf_curlist += 1;
             }
         }
-        qf_msg(&mut *qi, (*qi).qf_curlist, c"".as_ptr());
+        qf_msg(&mut *qi, (*qi).qf_curlist, c"");
         qf_update_buffer(&mut *qi, 0);
     }
 }
@@ -3808,7 +3811,7 @@ pub fn qf_history(eap: &mut exarg_T) {
 
             if eap.line2 > 0 && eap.line2 <= (*qi).qf_listcount {
                 (*qi).qf_curlist = eap.line2 - 1;
-                qf_msg(&mut *qi, (*qi).qf_curlist, c"".as_ptr());
+                qf_msg(&mut *qi, (*qi).qf_curlist, c"");
                 qf_update_buffer(&mut *qi, 0);
             } else {
                 emsg(gettext(e_invrange));
@@ -4620,14 +4623,14 @@ fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize, qf_win
             (*g_st().curbuf).b_keep_filetype = true;
             apply_autocmds(
                 EVENT_BUFREADPOST,
-                c"quickfix".as_ptr().cast_mut(),
+                c"quickfix",
                 ptr::null_mut(),
                 false,
                 g_st().curbuf,
             );
             apply_autocmds(
                 EVENT_BUFWINENTER,
-                c"quickfix".as_ptr().cast_mut(),
+                c"quickfix",
                 ptr::null_mut(),
                 false,
                 g_st().curbuf,
@@ -6150,7 +6153,7 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
             || !tv_dict_add_str(dict, c"text", qfp.qf_text.as_ptr())
             || !tv_dict_add_str_len(dict, c"type", buf.as_ptr(), buflen as c_int)
             || (qfp.qf_user_data.v_type != VarType::VAR_UNKNOWN
-                && !tv_dict_add_tv(dict, c"user_data".as_ptr(), 9, &mut qfp.qf_user_data))
+                && !tv_dict_add_tv(dict, c"user_data", 9, &mut qfp.qf_user_data))
             || !tv_dict_add_nr(
                 dict,
                 c"valid",
@@ -6478,7 +6481,7 @@ fn qf_getprop_items(
 fn qf_getprop_ctx(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
     unsafe {
         if let Some(ref ctx) = qfl.qf_ctx {
-            let di = tv_dict_item_alloc_len(c"context".as_ptr(), 7);
+            let di = tv_dict_item_alloc_len(c"context", 7);
             tv_copy(ctx, &mut (*di).di_tv);
             let status = tv_dict_add(retdict, di);
             if !status {
@@ -6486,7 +6489,7 @@ fn qf_getprop_ctx(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
             }
             status
         } else {
-            tv_dict_add_str_len(retdict, c"context", c"".as_ptr(), 0)
+            tv_dict_add_str_len(retdict, c"context", c"", 0)
         }
     }
 }
@@ -6505,11 +6508,11 @@ fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
     if qfl.qf_qftf_cb.cb_type() != kCallbackNone {
             let mut tv: typval_T = typval_T::new();
             callback_put(&mut qfl.qf_qftf_cb, &mut tv);
-            let status = tv_dict_add_tv(retdict, c"quickfixtextfunc".as_ptr(), 16, &mut tv);
+            let status = tv_dict_add_tv(retdict, c"quickfixtextfunc", 16, &mut tv);
             tv_clear(&raw mut tv);
             status
         } else {
-            tv_dict_add_str_len(retdict, c"quickfixtextfunc", c"".as_ptr(), 0)
+            tv_dict_add_str_len(retdict, c"quickfixtextfunc", c"", 0)
         }
 }
 
@@ -7616,7 +7619,7 @@ fn hgr_search_files_in_dir(
         let mut fnames: Vec<std::ffi::CString> = Vec::new();
 
         add_pathsep(dirname);
-        c_strcat(dirname, c"doc/*.\\(txt\\|??x\\)".as_ptr());
+        c_strcat(dirname, c"doc/*.\\(txt\\|??x\\)");
         if gen_expand_wildcards_vec(1, &raw mut dirname, &mut fnames, EW_FILE | EW_SILENT)
             && !fnames.is_empty()
         {
@@ -7897,8 +7900,8 @@ mod tests {
 
     #[test]
     fn efm_option_part_len_handles_escapes_and_commas() {
-        assert_eq!(efm_option_part_len(c"%f:%l:%m,%f:%l".as_ptr()), 8);
-            assert_eq!(efm_option_part_len(c"%f\\,bar:%l,%m".as_ptr()), 10);
+        assert_eq!(efm_option_part_len(c"%f:%l:%m,%f:%l"), 8);
+            assert_eq!(efm_option_part_len(c"%f\\,bar:%l,%m"), 10);
     }
 
     #[test]

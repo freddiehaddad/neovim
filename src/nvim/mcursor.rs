@@ -1405,7 +1405,8 @@ pub fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
     }
 }
 
-fn mc_zq_step(keys: *const c_char, pos: pos_T) -> pos_T {
+fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: pos_T) -> pos_T {
+    let keys = keys.into_c_char_ptr();
     unsafe {
         (**curwin.as_ptr()).w_cursor = pos;
         (**curwin.as_ptr()).w_set_curswant = false;
@@ -1452,7 +1453,7 @@ fn mc_zq_target(
                     b'v' as c_int
                 },
             };
-        } else if mc_zq_step(c"gn\x1b".as_ptr(), step).lnum == 0 {
+        } else if mc_zq_step(c"gn\x1b", step).lnum == 0 {
             (*g_st().curbuf).b_visual = visualinfo_T {
                 vi_start: INIT_POS,
                 vi_end: INIT_POS,

@@ -477,12 +477,13 @@ fn showmap(mp: &mapblock_T, local: bool) {
 fn set_maparg_lhs_rhs(
     orig_lhs: *const c_char,
     orig_lhs_len: usize,
-    orig_rhs: *const c_char,
+    orig_rhs: impl crate::strings::IntoCCharPtr,
     orig_rhs_len: usize,
     rhs_lua: LuaRef,
     cpo_val: *const c_char,
     mapargs: &mut MapArguments,
 ) -> bool {
+    let orig_rhs = orig_rhs.into_c_char_ptr();
     mapargs.rhs_lua = rhs_lua;
 
         let mut did_simplify = false;
@@ -1277,7 +1278,8 @@ pub fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, abbr: boo
 }
 
 /// Check if a map exists that has given string in the rhs.
-pub fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool {
+pub fn map_to_exists_mode(rhs: impl crate::strings::IntoCCharPtr, mode: c_int, abbr: bool) -> bool {
+    let rhs = rhs.into_c_char_ptr();
      {
         for exp_buffer in [false, true] {
             let b = if exp_buffer { g_st().curbuf } else { ptr::null() };
@@ -1354,13 +1356,14 @@ fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> CString {
 /// or abbreviation names.
 pub fn set_context_in_map_cmd(
     xp: &mut expand_T,
-    mut cmd: *mut c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     mut arg: *mut c_char,
     forceit: bool,
     isabbrev: bool,
     isunmap: bool,
     cmdidx: crate::cmdexpand::cmdidx_T,
 ) -> *mut c_char {
+    let mut cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
         if forceit
             && cmdidx != crate::cmdexpand::cmdidx_T::CMD_map
@@ -2286,7 +2289,7 @@ fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
         if !get_dict {
             if !rhs.is_null() {
                 if *rhs == NUL {
-                    crate::eval::typval::tv_set_string(&mut *rettv, c"<Nop>".as_ptr());
+                    crate::eval::typval::tv_set_string(&mut *rettv, c"<Nop>");
                 } else {
                     crate::eval::typval::tv_set_string(
                         &mut *rettv,
@@ -2460,7 +2463,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
         set_maparg_lhs_rhs(
             lhs,
             crate::memory::cstr_len(lhs),
-            c"".as_ptr(),
+            c"",
             0,
             LUA_NOREF,
             opt_vars().p_cpo,
@@ -2687,7 +2690,7 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
                 if to == NUL as c_int {
                     return opt_error(
                         args.os_errbuf,
-                        c"E357: 'langmap': Matching character missing for %s".as_ptr(),
+                        c"E357: 'langmap': Matching character missing for %s",
                         transchar(from),
                     );
                 }
@@ -2717,8 +2720,7 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
                             if *p != b',' as c_char {
                                 return opt_error(
                                     args.os_errbuf,
-                                    c"E358: 'langmap': Extra characters after semicolon: %s"
-                                        .as_ptr(),
+                                    c"E358: 'langmap': Extra characters after semicolon: %s",
                                     p,
                                 );
                             }

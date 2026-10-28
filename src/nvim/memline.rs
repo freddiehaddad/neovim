@@ -1592,7 +1592,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_
                 && tv_list_len(ret_list) == 0
                 && files.is_empty()
                 && !fname.is_null()
-                && let Some(swapname) = modname(fname_res, c".swp".as_ptr(), true)
+                && let Some(swapname) = modname(fname_res, c".swp", true)
                 && os_path_exists(swapname.as_ptr())
                 && cur_mfp_fname.is_none_or(|cur_p| !path_equal(cur_p, swapname.as_ptr(), kPathCmpFull))
             {
@@ -1670,12 +1670,12 @@ pub fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
                 == size_of::<ZeroBlock>() as isize
             {
                 if !ml_check_b0_id(&b0) {
-                    tv_dict_add_str_len(d, c"error", c"Not a swap file".as_ptr(), 15);
+                    tv_dict_add_str_len(d, c"error", c"Not a swap file", 15);
                 } else if b0_magic_wrong(&b0) {
                     tv_dict_add_str_len(
                         d,
                         c"error",
-                        c"Magic number mismatch".as_ptr(),
+                        c"Magic number mismatch",
                         21,
                     );
                 } else {
@@ -1722,11 +1722,11 @@ pub fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
                     );
                 }
             } else {
-                tv_dict_add_str_len(d, c"error", c"Cannot read file".as_ptr(), 16);
+                tv_dict_add_str_len(d, c"error", c"Cannot read file", 16);
             }
             close(fd);
         } else {
-            tv_dict_add_str_len(d, c"error", c"Cannot open file".as_ptr(), 16);
+            tv_dict_add_str_len(d, c"error", c"Cannot open file", 16);
         }
     }
 }
@@ -1902,7 +1902,7 @@ fn recov_file_names(
     prepend_dot: bool,
 ) {
     if prepend_dot {
-            let Some(m) = modname(path, c".sw?".as_ptr(), true) else {
+            let Some(m) = modname(path, c".sw?", true) else {
                 return;
             };
             names.push(m);
@@ -2600,7 +2600,8 @@ fn ml_append_flush(
 }
 
 /// Append a line after `lnum` (may be 0 to insert in front of the file).
-pub fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> bool {
+pub fn ml_append(lnum: linenr_T, line: impl crate::strings::IntoCCharPtr, len: colnr_T, newfile: bool) -> bool {
+    let line = line.into_c_char_ptr().cast_mut();
     ml_append_flags(lnum, line, len, if newfile { ML_APPEND_NEW } else { 0 })
 }
 
@@ -2682,10 +2683,11 @@ pub fn ml_replace_len(lnum: linenr_T, line: *mut c_char, len: usize, copy: bool)
 pub fn ml_replace_buf(
     buf: *mut buf_T,
     lnum: linenr_T,
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     copy: bool,
     noalloc: bool,
 ) -> bool {
+    let line = line.into_c_char_ptr().cast_mut();
      {
         let len = if !line.is_null() {
             crate::memory::cstr_len(line)
@@ -2786,7 +2788,7 @@ fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> bool {
             if (flags & ML_DEL_MESSAGE) != 0 {
                 set_keep_msg(gettext(no_lines_msg), 0);
             }
-            let i = ml_replace_buf(buf, 1, c"".as_ptr().cast_mut(), true, false);
+            let i = ml_replace_buf(buf, 1, c"", true, false);
             (*buf).b_ml.ml_flags |= ML_EMPTY;
             return i;
         }
@@ -3392,12 +3394,12 @@ pub fn makeswapname(
         let s = dir_name.add(len);
         if after_pathsep(dir_name, s) != 0 && len > 1 && *s.offset(-1) == *s.offset(-2) {
             let sw = make_percent_swname(dir_name, s, fname_res)?;
-            return modname(sw.as_ptr(), c".swp".as_ptr(), false);
+            return modname(sw.as_ptr(), c".swp", false);
         }
 
         let r = modname(
             fname_res,
-            c".swp".as_ptr(),
+            c".swp",
             *dir_name == b'.' as c_char && *dir_name.add(1) == NUL,
         )?;
 

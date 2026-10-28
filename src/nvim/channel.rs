@@ -1084,7 +1084,7 @@ pub fn channel_term_write(buf: *const c_char, size: usize, chan: &mut Channel) {
             g_st().textlock += 1;
             crate::lua::executor::nlua_call_ref(
                 cb,
-                c"input".as_ptr(),
+                c"input",
                 args,
                 crate::lua::executor::kRetNilBool,
                 None,

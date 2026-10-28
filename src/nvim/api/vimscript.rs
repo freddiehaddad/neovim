@@ -109,7 +109,7 @@ pub fn nvim_exec2(
         }
         if opts.output {
             result.push(KeyValuePair {
-                key: cstr_to_string(c"output".as_ptr()),
+                key: cstr_to_string(c"output"),
                 value: string_obj(output),
             });
         }
@@ -142,7 +142,7 @@ pub fn exec_impl(
         }
 
         let save_current_sctx = api_set_sctx(channel_id);
-        do_source_str(src.data, c"nvim_exec2()".as_ptr());
+        do_source_str(src.data, c"nvim_exec2()");
         if opts.output {
             g_st().capture_ga = save_capture_ga;
             g_st().msg_silent = save_msg_silent;

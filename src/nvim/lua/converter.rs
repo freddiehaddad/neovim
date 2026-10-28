@@ -488,7 +488,8 @@ pub fn luaL_typename(lstate: *mut lua_State, i: c_int) -> *const c_char {
 }
 
 #[inline]
-pub fn luaL_getmetatable(lstate: *mut lua_State, n: *const c_char) {
+pub fn luaL_getmetatable(lstate: *mut lua_State, n: impl crate::strings::IntoCCharPtr) {
+    let n = n.into_c_char_ptr();
     unsafe {
         lua_getfield(lstate, LUA_REGISTRYINDEX, n);
     }

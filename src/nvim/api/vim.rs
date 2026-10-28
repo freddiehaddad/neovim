@@ -298,7 +298,8 @@ fn validate_int(cond: bool, name: &std::ffi::CStr, val: i64, err: &mut Error) ->
 }
 
 #[inline]
-fn validate_s(cond: bool, name: &std::ffi::CStr, val: *const c_char, err: &mut Error) -> bool {
+fn validate_s(cond: bool, name: &std::ffi::CStr, val: impl crate::strings::IntoCCharPtr, err: &mut Error) -> bool {
+    let val = val.into_c_char_ptr();
     if !cond {
         api_err_invalid(err, name.as_ptr(), val, 0, true);
         false
@@ -890,7 +891,7 @@ pub fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
     if !validate_s(
             text.size <= (c_int::MAX as usize),
             c"text length",
-            c"(too long)".as_ptr(),
+            c"(too long)",
             err,
         ) {
             return 0;
@@ -1026,7 +1027,7 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
     if !validate_s(
             dir.size < MAXPATHL,
             c"directory name",
-            c"(too long)".as_ptr(),
+            c"(too long)",
             err,
         ) {
             return;

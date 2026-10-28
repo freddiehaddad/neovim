@@ -160,7 +160,8 @@ use crate::charset::NUL;
 use crate::os::fs::MAXPATHL;
 pub use logmsg;
 
-fn log_try_create(fname: *const c_char) -> bool {
+fn log_try_create(fname: impl crate::strings::IntoCCharPtr) -> bool {
+    let fname = fname.into_c_char_ptr();
     unsafe {
         if fname.is_null() || *fname == NUL {
             return false;
@@ -182,7 +183,7 @@ fn log_path_init() {
         let size = MAXPATHL + 1;
         let path_ptr = (&raw mut log_st().LOG_FILE_PATH).cast::<c_char>();
         expand_env(
-            c"$NVIM_LOG_FILE".as_ptr().cast_mut(),
+            c"$NVIM_LOG_FILE",
             path_ptr,
             (size - 1) as c_int,
         );
@@ -196,7 +197,7 @@ fn log_path_init() {
                 .unwrap_or_default();
             let loghome = concat_fnames_cstr(
                 state_home.as_ptr(),
-                c"logs".as_ptr(),
+                c"logs",
                 true,
             );
             let mut failed_dir: Option<std::ffi::CString> = None;
@@ -245,7 +246,7 @@ fn log_path_init() {
                 logmsg_str(
                     LOGLVL_WRN,
                     ptr::null(),
-                    c"log_path_init".as_ptr(),
+                    c"log_path_init",
                     line!() as c_int,
                     true,
                     msg.as_ptr().cast(),
@@ -286,11 +287,13 @@ pub fn log_should_log(log_level: c_int) -> bool {
 pub fn logmsg_str(
     log_level: c_int,
     context: *const c_char,
-    func_name: *const c_char,
+    func_name: impl crate::strings::IntoCCharPtr,
     line_num: c_int,
     eol: bool,
-    msg: *const c_char,
+    msg: impl crate::strings::IntoCCharPtr,
 ) -> bool {
+    let func_name = func_name.into_c_char_ptr();
+    let msg = msg.into_c_char_ptr();
     unsafe {
         if !log_st().DID_LOG_INIT {
             g_st().g_stats.log_skip += 1;
@@ -387,7 +390,7 @@ pub fn open_log_file() -> *mut FILE {
             stderr,
             LOGLVL_ERR,
             ptr::null(),
-            c"open_log_file".as_ptr(),
+            c"open_log_file",
             line!() as c_int,
             true,
             msg.as_ptr().cast(),
@@ -400,11 +403,12 @@ fn do_log_to_file_str(
     log_file: *mut FILE,
     log_level: c_int,
     context: *const c_char,
-    func_name: *const c_char,
+    func_name: impl crate::strings::IntoCCharPtr,
     line_num: c_int,
     eol: bool,
     msg: *const c_char,
 ) -> bool {
+    let func_name = func_name.into_c_char_ptr();
     unsafe {
         const LOG_LEVELS: [&CStr; 5] = [c"", c"DBG", c"INF", c"WRN", c"ERR"];
         assert!((LOGLVL_DBG..=LOGLVL_ERR).contains(&log_level));
@@ -530,6 +534,6 @@ mod tests {
         assert_eq!(LOGLVL_ERR, 4);
         assert!(!log_should_log(LOGLVL_ERR));
             assert!(!log_try_create(ptr::null()));
-            assert!(!log_try_create(c"".as_ptr()));
+            assert!(!log_try_create(c""));
     }
 }

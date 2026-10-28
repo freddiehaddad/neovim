@@ -480,14 +480,14 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
         let arg0 = &argvars[0];
         if arg0.v_type == VarType::VAR_LIST {
             let l = arg0.vval.v_list();
-            if !value_check_lock(tv_list_locked(l), c"add() argument".as_ptr(), TV_TRANSLATE) {
+            if !value_check_lock(tv_list_locked(l), c"add() argument", TV_TRANSLATE) {
                 tv_list_append_tv(l, &mut argvars[1]);
                 tv_copy(&argvars[0], rettv);
             }
         } else if arg0.v_type == VarType::VAR_BLOB {
             let b = arg0.vval.v_blob();
             if !b.is_null()
-                && !value_check_lock((*b).bv_lock, c"add() argument".as_ptr(), TV_TRANSLATE)
+                && !value_check_lock((*b).bv_lock, c"add() argument", TV_TRANSLATE)
             {
                 let mut error = false;
                 let n = tv_get_number_chk(&argvars[1], Some(&mut error));
@@ -791,7 +791,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         if arg0.v_type == VarType::VAR_BLOB {
             let b = arg0.vval.v_blob();
             if b.is_null()
-                || value_check_lock((*b).bv_lock, c"insert() argument".as_ptr(), TV_TRANSLATE)
+                || value_check_lock((*b).bv_lock, c"insert() argument", TV_TRANSLATE)
             {
                 return;
             }
@@ -829,7 +829,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             let mut l = arg0.vval.v_list();
             if value_check_lock(
                 tv_list_locked(l),
-                c"insert() argument".as_ptr(),
+                c"insert() argument",
                 TV_TRANSLATE,
             ) {
                 return;
@@ -907,7 +907,7 @@ pub fn f_reverse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             let l = arg0.vval.v_list();
             if !value_check_lock(
                 tv_list_locked(l),
-                c"reverse() argument".as_ptr(),
+                c"reverse() argument",
                 TV_TRANSLATE,
             ) {
                 tv_list_reverse(l);

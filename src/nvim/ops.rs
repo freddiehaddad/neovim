@@ -3403,7 +3403,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
 fn op_colon(oap: &mut oparg_T) {
     unsafe {
         if oap.is_VIsual {
-            stuffReadbuff(c"'<,'>".as_ptr());
+            stuffReadbuff(c"'<,'>");
         } else {
             if oap.start.lnum == (**curwin.as_ptr()).w_cursor.lnum {
                 stuffcharReadbuff(b'.' as c_int);
@@ -3427,7 +3427,7 @@ fn op_colon(oap: &mut oparg_T) {
                 } else if oap.start.lnum == (**curwin.as_ptr()).w_cursor.lnum
                     && !hasFolding(*curwin.as_ptr(), oap.end.lnum, None, ptr::null_mut())
                 {
-                    stuffReadbuff(c".+".as_ptr());
+                    stuffReadbuff(c".+");
                     stuffnumReadbuff(oap.line_count - 1);
                 } else {
                     stuffnumReadbuff(oap.end.lnum);
@@ -3435,20 +3435,20 @@ fn op_colon(oap: &mut oparg_T) {
             }
         }
         if oap.op_type != OP_COLON {
-            stuffReadbuff(c"!".as_ptr());
+            stuffReadbuff(c"!");
         }
         if oap.op_type == OP_INDENT {
             stuffReadbuff(get_equalprg());
-            stuffReadbuff(c"\n".as_ptr());
+            stuffReadbuff(c"\n");
         } else if oap.op_type == OP_FORMAT {
             if *(*g_st().curbuf).b_p_fp != NUL {
                 stuffReadbuff((*g_st().curbuf).b_p_fp);
             } else if *opt_vars().p_fp != NUL {
                 stuffReadbuff(opt_vars().p_fp);
             } else {
-                stuffReadbuff(c"fmt".as_ptr());
+                stuffReadbuff(c"fmt");
             }
-            stuffReadbuff(c"\n']".as_ptr());
+            stuffReadbuff(c"\n']");
         }
 
         do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::ExLine, 0);

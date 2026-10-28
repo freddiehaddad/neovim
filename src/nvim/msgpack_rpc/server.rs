@@ -111,7 +111,7 @@ pub fn server_init(mut listen_addr: *const c_char) -> bool {
         }
 
         if os_env_exists(ENV_LISTEN, false) {
-            os_unsetenv(ENV_LISTEN.as_ptr());
+            os_unsetenv(ENV_LISTEN);
         }
 
         drop(owned_addr);

@@ -2510,7 +2510,8 @@ pub fn tui_set_size(tui: &mut TUIData, width: c_int, height: c_int) {
         ui_client_set_size(width, height);
 }
 
-fn parse_sscanf_int(val: *const c_char, out: &mut c_int) -> bool {
+fn parse_sscanf_int(val: impl crate::strings::IntoCCharPtr, out: &mut c_int) -> bool {
+    let val = val.into_c_char_ptr();
     if val.is_null() {
         return false;
     }
@@ -3285,8 +3286,8 @@ mod tests {
         assert!(lookup_termdef_field(b"key_f64").is_none());
 
         let mut v = 0;
-        assert!(parse_sscanf_int(c"  120cols".as_ptr(), &mut v));
+        assert!(parse_sscanf_int(c"  120cols", &mut v));
             assert_eq!(v, 120);
-            assert!(!parse_sscanf_int(c"abc".as_ptr(), &mut v));
+            assert!(!parse_sscanf_int(c"abc", &mut v));
     }
 }

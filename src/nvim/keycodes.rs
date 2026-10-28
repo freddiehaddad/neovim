@@ -2624,7 +2624,8 @@ pub fn find_special_key_in_table(c: c_int) -> c_int {
 }
 
 /// Find the special key with the given name (`get_special_key_code`).
-pub fn get_special_key_code(name: *const c_char) -> c_int {
+pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> c_int {
+    let name = name.into_c_char_ptr();
     unsafe {
         if *name == b't' as c_char
             && *name.add(1) == b'_' as c_char
@@ -2938,9 +2939,9 @@ mod tests {
             let code = get_special_key_code(entry.name.as_ptr());
             assert_ne!(code, 0);
         }
-        assert_eq!(get_special_key_code(c"CR".as_ptr()), CAR);
-        assert_eq!(get_special_key_code(c"Esc".as_ptr()), ESC);
-        assert_eq!(get_special_key_code(c"NotAKey".as_ptr()), 0);
+        assert_eq!(get_special_key_code(c"CR"), CAR);
+        assert_eq!(get_special_key_code(c"Esc"), ESC);
+        assert_eq!(get_special_key_code(c"NotAKey"), 0);
     }
 
     #[test]

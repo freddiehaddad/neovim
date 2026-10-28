@@ -1840,7 +1840,8 @@ pub fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_mode: b
     }
 }
 
-pub fn augroup_find(name: *const c_char) -> c_int {
+pub fn augroup_find(name: impl crate::strings::IntoCCharPtr) -> c_int {
+    let name = name.into_c_char_ptr();
     unsafe {
         if name.is_null() {
             return AUGROUP_ERROR;
@@ -1886,7 +1887,8 @@ pub fn augroup_name(mut group: c_int) -> *mut c_char {
         get_deleted_augroup().cast_mut()
 }
 
-pub fn augroup_exists(name: *const c_char) -> bool {
+pub fn augroup_exists(name: impl crate::strings::IntoCCharPtr) -> bool {
+    let name = name.into_c_char_ptr();
     augroup_find(name) > 0
 }
 
@@ -1941,7 +1943,8 @@ pub fn free_all_autocmds() {
     }
 }
 
-pub fn event_name2nr(start: *const c_char, end: *mut *mut c_char) -> event_T {
+pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_char) -> event_T {
+    let start = start.into_c_char_ptr();
     unsafe {
         let mut p = start;
         while *p != NUL && !ascii_iswhite(*p) && *p != b',' as c_char && *p != b'|' as c_char {
@@ -2189,10 +2192,11 @@ pub fn do_autocmd_event(
     mut pat: *const c_char,
     once: bool,
     nested: c_int,
-    cmd: *const c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     del: bool,
     group: c_int,
 ) -> bool {
+    let cmd = cmd.into_c_char_ptr();
     unsafe {
         assert!(*pat != NUL || del);
 
@@ -2417,7 +2421,8 @@ pub fn autocmd_register(
     }
 }
 
-pub fn aucmd_span_pattern(mut pat: *const c_char, start: *mut *const c_char) -> usize {
+pub fn aucmd_span_pattern(pat: impl crate::strings::IntoCCharPtr, start: *mut *const c_char) -> usize {
+    let mut pat = pat.into_c_char_ptr();
     unsafe {
         while *pat == b',' as c_char {
             pat = pat.add(1);
@@ -2444,9 +2449,10 @@ pub fn aucmd_span_pattern(mut pat: *const c_char, start: *mut *const c_char) -> 
 }
 
 pub fn do_doautocmd(
-    arg_start: *mut c_char,
+    arg_start: impl crate::strings::IntoCCharPtr,
     do_msg: bool,mut did_something: Option<&mut bool>,
 ) -> bool {
+    let arg_start = arg_start.into_c_char_ptr().cast_mut();
     unsafe {
         let mut arg = arg_start;
         let mut nothing_done = true;
@@ -2665,11 +2671,12 @@ pub fn aucmd_defer_modified(buf: *mut buf_T, new_val: bool) {
 
 pub fn apply_autocmds(
     event: event_T,
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     fname_io: *mut c_char,
     force: bool,
     buf: *mut buf_T,
 ) -> bool {
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         apply_autocmds_group(
             event,
@@ -3981,7 +3988,7 @@ mod tests {
     fn event_name_lookup_and_span_pattern_work() {
          {
             let mut end: *mut c_char = ptr::null_mut();
-            let ev = event_name2nr(c"BufReadPost,BufEnter".as_ptr(), &raw mut end);
+            let ev = event_name2nr(c"BufReadPost,BufEnter", &raw mut end);
             assert_eq!(ev, EVENT_BUFREADPOST);
             assert_eq!(crate::memory::cstr_as_bytes(end), b"BufEnter");
             assert_eq!(
@@ -3990,7 +3997,7 @@ mod tests {
             );
 
             let mut start: *const c_char = ptr::null();
-            let len = aucmd_span_pattern(c",,*.{c,h},*.rs".as_ptr(), &raw mut start);
+            let len = aucmd_span_pattern(c",,*.{c,h},*.rs", &raw mut start);
             assert_eq!(len, 7);
             assert_eq!(&crate::memory::cstr_as_bytes(start)[..len], b"*.{c,h}");
         }

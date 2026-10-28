@@ -290,10 +290,11 @@ pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
 
 /// Return a heuristic indicating how well the given string matches (`help_heuristic`).
 pub fn help_heuristic(
-    matched_string: *mut c_char,
+    matched_string: impl crate::strings::IntoCCharPtr,
     mut offset: c_int,
     wrong_case: bool,
 ) -> c_int {
+    let matched_string = matched_string.into_c_char_ptr().cast_mut();
     unsafe {
         let mut num_letters: c_int = 0;
         let mut p = matched_string;
@@ -575,8 +576,8 @@ mod tests {
             assert_eq!(crate::memory::cstr_as_bytes(lang), b"en");
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr().cast()), b"options");
 
-            let exact = help_heuristic(c"help".as_ptr().cast_mut(), 0, false);
-            let wrong_case = help_heuristic(c"Help".as_ptr().cast_mut(), 0, true);
+            let exact = help_heuristic(c"help", 0, false);
+            let wrong_case = help_heuristic(c"Help", 0, true);
             assert!(wrong_case > exact);
         }
     }

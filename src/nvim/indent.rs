@@ -130,10 +130,11 @@ const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
 
 /// Set the integer values corresponding to the string setting of `'vartabstop'` (`tabstop_set`).
 pub fn tabstop_set(
-    mut var: *mut c_char,
+    var: impl crate::strings::IntoCCharPtr,
     array: &mut Vec<colnr_T>,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
+    let mut var = var.into_c_char_ptr().cast_mut();
     unsafe {
         let mut valcount: usize = 1;
 
@@ -151,7 +152,7 @@ pub fn tabstop_set(
                         return e_positive.as_ptr();
                     }
                     var = cp;
-                    return opt_error(errbuf, e_invarg2.as_ptr(), var);
+                    return opt_error(errbuf, e_invarg2, var);
                 }
             }
 
@@ -168,7 +169,7 @@ pub fn tabstop_set(
                 cp = cp.add(1);
                 continue;
             }
-            return opt_error(errbuf, e_invarg2.as_ptr(), var);
+            return opt_error(errbuf, e_invarg2, var);
         }
 
         let mut out = Vec::with_capacity(valcount);
@@ -178,7 +179,7 @@ pub fn tabstop_set(
             if n <= 0 || n > TABSTOP_MAX {
                 array.clear();
                 var = cp;
-                return opt_error(errbuf, e_invarg2.as_ptr(), var);
+                return opt_error(errbuf, e_invarg2, var);
             }
             out.push(n);
             while *cp != NUL && *cp != b',' as c_char {
@@ -430,7 +431,8 @@ pub fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, using tabstops (`indent_size_ts`).
-pub fn indent_size_ts(mut ptr: *const c_char, ts: OptInt, vts: &[colnr_T]) -> c_int {
+pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &[colnr_T]) -> c_int {
+    let mut ptr = ptr.into_c_char_ptr();
     unsafe {
         debug_assert!(char2cells(b' ' as c_int) == 1);
 
@@ -949,8 +951,8 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
                     (**curwin.as_ptr()).w_cursor.lnum = start_lnum;
                     msg_progress(
                         &raw mut g_st().IObuff[0],
-                        c"nvim.indent".as_ptr().cast_mut(),
-                        c"running".as_ptr().cast_mut(),
+                        c"nvim.indent",
+                        c"running",
                         -1,
                         0,
                         true,
@@ -1018,8 +1020,8 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
             g_st().IObuff[copy_len] = NUL;
             msg_progress(
                 &raw mut g_st().IObuff[0],
-                c"nvim.indent".as_ptr().cast_mut(),
-                c"success".as_ptr().cast_mut(),
+                c"nvim.indent",
+                c"success",
                 -1,
                 0,
                 true,
@@ -1964,7 +1966,7 @@ mod tests {
     #[test]
     fn tabstop_set_padding_and_at_work() {
         let mut vts: Vec<colnr_T> = Vec::new();
-            assert!(tabstop_set(c"4,8".as_ptr().cast_mut(), &mut vts, None).is_null());
+            assert!(tabstop_set(c"4,8", &mut vts, None).is_null());
             assert!(!vts.is_empty());
             assert_eq!(tabstop_count(&vts), 2);
             assert_eq!(tabstop_first(&vts), 4);
@@ -1972,15 +1974,15 @@ mod tests {
             assert_eq!(tabstop_padding(4, 8, &vts), 8);
             assert_eq!(tabstop_at(0, 8, &vts, false), 4);
 
-            assert_eq!(indent_size_ts(c"       a ".as_ptr(), 100, &[]), 7);
-            assert_eq!(indent_size_ts(c"   \t  \t \t\t   a ".as_ptr(), 4, &[]), 19);
+            assert_eq!(indent_size_ts(c"       a ", 100, &[]), 7);
+            assert_eq!(indent_size_ts(c"   \t  \t \t\t   a ", 4, &[]), 19);
             assert_eq!(
-                indent_size_ts(c"   \t  \t \t\t       a ".as_ptr(), 4, &[]),
+                indent_size_ts(c"   \t  \t \t\t       a ", 4, &[]),
                 23
             );
             let custom_vts = [7 as colnr_T, 2];
             assert_eq!(
-                indent_size_ts(c"      \t  \t \t\t   a ".as_ptr(), 4, &custom_vts),
+                indent_size_ts(c"      \t  \t \t\t   a ", 4, &custom_vts),
                 18
             );
     }

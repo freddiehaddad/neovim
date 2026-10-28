@@ -353,7 +353,7 @@ pub fn prompt_invoke_callback() {
             return;
         };
 
-        ml_append(lnum, c"".as_ptr().cast_mut(), 0, false);
+        ml_append(lnum, c"", 0, false);
         appended_lines_mark(lnum, 1);
         (**curwin.as_ptr()).w_cursor.lnum = lnum + 1;
         (**curwin.as_ptr()).w_cursor.col = 0;

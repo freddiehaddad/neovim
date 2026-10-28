@@ -393,12 +393,13 @@ pub fn set_ref_in_tagfunc(copyID: c_int) -> bool {
 
 /// Jump to tag; handling of tag commands and tag stack.
 pub fn do_tag(eap: Option<&exarg_T>,
-    tag: *mut c_char,
+    tag: impl crate::strings::IntoCCharPtr,
     mut type_: c_int,
     count: c_int,
     forceit: c_int,
     verbose: bool,
 ) {
+    let tag = tag.into_c_char_ptr().cast_mut();
     unsafe {
         let tagstack: *mut taggy_T = (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>();
         let mut tagstackidx = (**curwin.as_ptr()).w_tagstackidx;
@@ -1154,7 +1155,9 @@ pub fn do_tags(_eap: &mut exarg_T) {
     }
 }
 
-fn tag_strnicmp(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> c_int {
+fn tag_strnicmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr, mut len: usize) -> c_int {
+    let mut s1 = s1.into_c_char_ptr();
+    let mut s2 = s2.into_c_char_ptr();
     unsafe {
         while len > 0 {
             let i = toupper_asc(c_int::from(*s1 as u8)) - toupper_asc(c_int::from(*s2 as u8));
@@ -1619,7 +1622,7 @@ fn findtags_in_help_init(st: &mut findtags_state_T) -> bool {
             }
             if s.is_null() || *s == NUL {
                 st.help_pri += 1;
-                if mb_strnicmp(st.help_lang.as_ptr(), c"en".as_ptr(), MAXCOL as usize) != 0 {
+                if mb_strnicmp(st.help_lang.as_ptr(), c"en", MAXCOL as usize) != 0 {
                     st.help_pri += 1;
                 }
             }
@@ -2361,7 +2364,7 @@ pub fn find_tags(
                     if i > 4
                         && mb_strnicmp(
                             (*g_st().curbuf).b_fname.add((i - 4) as usize),
-                            c".txt".as_ptr(),
+                            c".txt",
                             MAXCOL as usize,
                         ) == 0
                     {
@@ -2463,7 +2466,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
             if first != 0 {
                 (*tf).clear();
                 do_in_runtimepath(
-                    c"doc/tags doc/tags-??".as_ptr().cast_mut(),
+                    c"doc/tags doc/tags-??",
                     DIP_ALL,
                     &mut RuntimeCallback::FoundTagfile,
                 );
@@ -3191,10 +3194,11 @@ pub fn expand_tags(
 
 fn add_tag_field(
     dict: *mut dict_T,
-    field_name: *const c_char,
+    field_name: impl crate::strings::IntoCCharPtr,
     start: *const c_char,
     mut end: *const c_char,
 ) -> bool {
+    let field_name = field_name.into_c_char_ptr();
     unsafe {
         if !tv_dict_find(dict, field_name, -1).is_null() {
             if opt_vars().p_verbose > 0 {
@@ -3252,17 +3256,17 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
             tv_list_append_dict(list, dict);
 
             let full_fname = tag_full_fname(&mut tp);
-            if !add_tag_field(dict, c"name".as_ptr(), tp.tagname, tp.tagname_end)
+            if !add_tag_field(dict, c"name", tp.tagname, tp.tagname_end)
                 || !add_tag_field(
                     dict,
-                    c"filename".as_ptr(),
+                    c"filename",
                     full_fname.as_ptr().cast_mut(),
                     ptr::null(),
                 )
-                || !add_tag_field(dict, c"cmd".as_ptr(), tp.command, tp.command_end)
+                || !add_tag_field(dict, c"cmd", tp.command, tp.command_end)
                 || !add_tag_field(
                     dict,
-                    c"kind".as_ptr(),
+                    c"kind",
                     tp.tagkind,
                     if !tp.tagkind.is_null() {
                         tp.tagkind_end.cast_const()
@@ -3557,7 +3561,7 @@ mod tests {
 
     #[test]
     fn tag_strnicmp_compares_ascii_case_folded_to_uppercase() {
-        assert_eq!(tag_strnicmp(c"abc".as_ptr(), c"ABC".as_ptr(), 3), 0);
-            assert!(tag_strnicmp(c"abc".as_ptr(), c"_bc".as_ptr(), 3) < 0);
+        assert_eq!(tag_strnicmp(c"abc", c"ABC", 3), 0);
+            assert!(tag_strnicmp(c"abc", c"_bc", 3) < 0);
     }
 }

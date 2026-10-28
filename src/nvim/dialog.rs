@@ -256,10 +256,11 @@ pub fn ask_yesno(str_ptr: *const c_char) -> c_int {
 
 /// Ask the user for input through a cmdline prompt (`prompt_for_input`).
 pub fn prompt_for_input(
-    prompt: *mut c_char,
+    prompt: impl crate::strings::IntoCCharPtr,
     hl_id: c_int,
     one_key: bool,mouse_used: Option<&mut bool>,
 ) -> c_int {
+    let prompt = prompt.into_c_char_ptr().cast_mut();
     unsafe {
         let mut ret = if one_key { ESC } else { 0 };
         let kmsg = g_st().keep_msg.clone();
@@ -333,11 +334,12 @@ pub fn do_dialog(
     _dlg_type: c_int,
     _title: *const c_char,
     message: *const c_char,
-    buttons: *const c_char,
+    buttons: impl crate::strings::IntoCCharPtr,
     dfltbutton: c_int,
     _textfield: *const c_char,
     ex_cmd: c_int,
 ) -> c_int {
+    let buttons = buttons.into_c_char_ptr();
     unsafe {
         if g_st().silent_mode {
             return dfltbutton;
@@ -381,7 +383,7 @@ pub fn do_dialog(
                     }
                     if c == (b':' as c_int) && ex_cmd != 0 {
                         retval = dfltbutton;
-                        ins_typebuf(c":".as_ptr().cast_mut(), REMAP_YES, 0, false, false);
+                        ins_typebuf(c":", REMAP_YES, 0, false, false);
                         break;
                     }
 
@@ -422,9 +424,10 @@ pub fn do_dialog(
 pub fn vim_dialog_yesno(
     dlg_type: c_int,
     title: *mut c_char,
-    message: *mut c_char,
+    message: impl crate::strings::IntoCCharPtr,
     dflt: c_int,
 ) -> c_int {
+    let message = message.into_c_char_ptr().cast_mut();
     let t = if title.is_null() {
         c"Question".as_ptr()
     } else {
@@ -434,7 +437,7 @@ pub fn vim_dialog_yesno(
             dlg_type,
             t,
             message,
-            c"&Yes\n&No".as_ptr(),
+            c"&Yes\n&No",
             dflt,
             std::ptr::null(),
             0,
@@ -462,7 +465,7 @@ pub fn vim_dialog_yesnocancel(
             dlg_type,
             t,
             message,
-            c"&Yes\n&No\n&Cancel".as_ptr(),
+            c"&Yes\n&No\n&Cancel",
             dflt,
             std::ptr::null(),
             0,
@@ -489,7 +492,7 @@ pub fn vim_dialog_yesnoallcancel(
             dlg_type,
             t,
             message,
-            c"&Yes\n&No\nSave &All\n&Discard All\n&Cancel".as_ptr(),
+            c"&Yes\n&No\nSave &All\n&Discard All\n&Cancel",
             dflt,
             std::ptr::null(),
             0,
@@ -510,11 +513,11 @@ mod tests {
     fn vim_dialog_yesno_uses_default_in_test_mode() {
         g_st().silent_mode = true;
             assert_eq!(
-                vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?".as_ptr().cast_mut(), 1),
+                vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?", 1),
                 VIM_YES
             );
             assert_eq!(
-                vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?".as_ptr().cast_mut(), 2),
+                vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?", 2),
                 VIM_NO
             );
     }

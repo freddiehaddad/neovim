@@ -1496,8 +1496,9 @@ fn convert_one_value(
 
 fn encode_vim_with_backend(
     backend: &mut EncodeBackend,top_tv: &mut typval_T,
-    objname: *const c_char,
+    objname: impl crate::strings::IntoCCharPtr,
 ) -> bool {
+    let objname = objname.into_c_char_ptr();
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
@@ -1734,7 +1735,7 @@ pub fn encode_tv2string(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::f
             mode: TextEncodeMode::String,
         };
         let evs_ret =
-            encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument".as_ptr());
+            encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument");
         assert!(evs_ret);
         encode_st().DID_ECHO_STRING_EMSG = false;
         if let Some(ref mut p) = len {
@@ -1772,7 +1773,7 @@ pub fn encode_tv2json(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::ffi
             mode: TextEncodeMode::Json,
         };
         let evj_ret =
-            encode_vim_with_backend(&mut backend, tv, c"encode_tv2json() argument".as_ptr());
+            encode_vim_with_backend(&mut backend, tv, c"encode_tv2json() argument");
         encode_st().DID_ECHO_STRING_EMSG = false;
         if !evj_ret {
             ga.clear();

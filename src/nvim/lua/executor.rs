@@ -600,7 +600,8 @@ fn nlua_get_error(lstate: *mut lua_State, len: &mut usize) -> *const c_char {
     }
 }
 
-pub fn nlua_error(lstate: *mut lua_State, msg: *const c_char) {
+pub fn nlua_error(lstate: *mut lua_State, msg: impl crate::strings::IntoCCharPtr) {
+    let msg = msg.into_c_char_ptr();
     let mut len: usize = 0;
         let str_ = nlua_get_error(lstate, &mut len);
         msg_ext_no_fast();
@@ -689,7 +690,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
         let status = nlua_pcall(lstate, nargs, nresult);
         let retval = if status != 0 {
             if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
-                preserve_exit(e_outofmem.as_ptr());
+                preserve_exit(e_outofmem);
             }
 
             let mut len: usize = 0;
@@ -1418,7 +1419,7 @@ pub fn nlua_print_event(text: NvimString) {
         msg_multihl(
             OBJECT_NIL,
             &mut msg,
-            c"lua_print".as_ptr(),
+            c"lua_print",
             true,
             false,
             None,
@@ -1966,11 +1967,12 @@ pub fn nlua_call_user_expand_func(xp: &mut expand_T, ret_tv: &mut typval_T) {
 fn nlua_exec_typval(
     lcmd: *const c_char,
     lcmd_len: usize,
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     args: *mut typval_T,
     argcount: c_int,
     special: bool,mut ret_tv: Option<&mut typval_T>,
 ) {
+    let name = name.into_c_char_ptr();
     unsafe {
         if check_secure() {
             if ret_tv.is_some() {
@@ -2128,7 +2130,7 @@ pub fn nlua_call_excmd(
         lua_getglobal(lstate, c"require");
         lua_pushstring(lstate, module.as_ptr());
         if lua_pcall(lstate, 1, 1, 0) != 0 {
-            nlua_error(lstate, c"E5108: %s".as_ptr());
+            nlua_error(lstate, c"E5108: %s");
             return false;
         }
         lua_getfield(lstate, -1, func.as_ptr());
@@ -2164,12 +2166,13 @@ pub fn nlua_ref_is_function(ref_: LuaRef) -> bool {
 
 pub fn nlua_call_ref(
     ref_: LuaRef,
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     args: Array,
     mode: LuaRetMode,
     arena: Option<&mut Arena>,
     err: Option<&mut Error>,
 ) -> Object {
+    let name = name.into_c_char_ptr();
     nlua_call_ref_ctx(false, ref_, name, args, mode, arena, err)
 }
 
@@ -2335,7 +2338,7 @@ pub fn ex_lua(eap: &mut exarg_T) {
         nlua_exec_typval(
             code_cstr.as_ptr(),
             len,
-            c":lua".as_ptr(),
+            c":lua",
             ptr::null_mut(),
             0,
             false,

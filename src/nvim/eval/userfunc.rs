@@ -848,7 +848,8 @@ pub fn get_func_tv(
 
 /// Check whether function name starts with `<SID>` or `s:`.
 #[inline]
-fn eval_fname_sid(name: *const c_char) -> bool {
+fn eval_fname_sid(name: impl crate::strings::IntoCCharPtr) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe { *name == b's' as c_char || toupper_asc(*name.add(2) as c_int) == b'I' as c_int }
 }
 
@@ -1247,7 +1248,7 @@ pub fn call_user_func(
             VAR_DEF_SCOPE,
         );
         if !selfdict.is_null() {
-            let v = tv_dict_item_alloc_len(c"self".as_ptr(), 4);
+            let v = tv_dict_item_alloc_len(c"self", 4);
             (*v).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             (*v).di_tv.v_type = VarType::VAR_DICT;
             (*v).di_tv.v_lock = VAR_UNLOCKED;
@@ -1276,7 +1277,7 @@ pub fn call_user_func(
         }
         (*fc).fc_l_avars.dv_lock = VAR_FIXED;
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
-            let v = tv_dict_item_alloc_len(c"000".as_ptr(), 3);
+            let v = tv_dict_item_alloc_len(c"000", 3);
             (*v).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             (*v).di_tv.v_type = VarType::VAR_LIST;
             (*v).di_tv.v_lock = VAR_FIXED;
@@ -1571,7 +1572,8 @@ pub fn call_user_func(
 }
 
 #[inline]
-fn func_name_refcount(name: *const c_char) -> bool {
+fn func_name_refcount(name: impl crate::strings::IntoCCharPtr) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         (*name as u8).is_ascii_digit()
             || (*name == b'<' as c_char && *name.add(1) == b'l' as c_char)
@@ -1715,7 +1717,8 @@ pub fn free_all_functions() {
 }
 
 /// Checks if a builtin function with the given name exists.
-fn builtin_function(name: *const c_char, len: c_int) -> bool {
+fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: c_int) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         if !ascii_islower(*name as c_int) || *name.add(1) == b':' as c_char {
             return false;
@@ -3271,8 +3274,8 @@ pub fn ex_function(eap: &mut exarg_T) {
 pub fn eval_fname_script(p: *const c_char) -> c_int {
     unsafe {
         if *p == b'<' as c_char
-            && (mb_strnicmp(p.add(1), c"SID>".as_ptr(), 4) == 0
-                || mb_strnicmp(p.add(1), c"SNR>".as_ptr(), 4) == 0)
+            && (mb_strnicmp(p.add(1), c"SID>", 4) == 0
+                || mb_strnicmp(p.add(1), c"SNR>", 4) == 0)
         {
             return 5;
         }
@@ -3705,7 +3708,8 @@ pub fn can_add_defer() -> bool {
         true
 }
 
-pub fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut typval_T) {
+pub fn add_defer(name: impl crate::strings::IntoCCharPtr, argcount_arg: c_int, argvars: *mut typval_T) {
+    let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let dr_name_cstr = cstr_to_cstring(name);
         let argcount = argcount_arg as usize;
@@ -4482,16 +4486,16 @@ mod tests {
 
     #[test]
     fn builtin_function_and_func_name_helpers_work() {
-        assert!(eval_fname_sid(c"s:Foo".as_ptr()));
-            assert!(eval_fname_sid(c"<SID>Foo".as_ptr()));
-            assert!(eval_fname_sid(c"<sid>Foo".as_ptr()));
-            assert!(!eval_fname_sid(c"<SNR>12_Foo".as_ptr()));
-            assert!(func_name_refcount(c"123".as_ptr()));
-            assert!(func_name_refcount(c"<lambda>1".as_ptr()));
-            assert!(!func_name_refcount(c"MyFunc".as_ptr()));
-            assert!(builtin_function(c"abs".as_ptr(), -1));
-            assert!(!builtin_function(c"s:abs".as_ptr(), -1));
-            assert!(!builtin_function(c"foo#bar".as_ptr(), -1));
-            assert!(!builtin_function(c"Foo".as_ptr(), -1));
+        assert!(eval_fname_sid(c"s:Foo"));
+            assert!(eval_fname_sid(c"<SID>Foo"));
+            assert!(eval_fname_sid(c"<sid>Foo"));
+            assert!(!eval_fname_sid(c"<SNR>12_Foo"));
+            assert!(func_name_refcount(c"123"));
+            assert!(func_name_refcount(c"<lambda>1"));
+            assert!(!func_name_refcount(c"MyFunc"));
+            assert!(builtin_function(c"abs", -1));
+            assert!(!builtin_function(c"s:abs", -1));
+            assert!(!builtin_function(c"foo#bar", -1));
+            assert!(!builtin_function(c"Foo", -1));
     }
 }

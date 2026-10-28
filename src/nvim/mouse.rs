@@ -623,7 +623,7 @@ pub fn do_mouse(
                 if g_st().Visual.active {
                     if g_st().Visual.select {
                         stuffcharReadbuff(Ctrl_G);
-                        stuffReadbuff(c"\"+p".as_ptr());
+                        stuffReadbuff(c"\"+p");
                     } else {
                         if regname != 0 {
                             stuffcharReadbuff(b'"' as c_int);
@@ -643,7 +643,7 @@ pub fn do_mouse(
                 if regname == b'.' as c_int {
                     insert_reg(regname, ptr::null_mut(), true);
                 } else {
-                    if regname == 0 && eval_has_provider(c"clipboard".as_ptr(), false) {
+                    if regname == 0 && eval_has_provider(c"clipboard", false) {
                         regname = b'*' as c_int;
                     }
                     let mut reg: *mut yankreg_T = ptr::null_mut();
@@ -1003,7 +1003,7 @@ pub fn do_mouse(
         }
 
         if which_button == MOUSE_MIDDLE {
-            if regname == 0 && eval_has_provider(c"clipboard".as_ptr(), false) {
+            if regname == 0 && eval_has_provider(c"clipboard", false) {
                 regname = b'*' as c_int;
             }
             let mut reg: *mut yankreg_T = ptr::null_mut();

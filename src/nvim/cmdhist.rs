@@ -586,7 +586,7 @@ pub fn f_histget(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             };
             let idx = calc_hist_idx(htype, req_idx);
             if idx < 0 {
-                tv_set_string(rettv, c"".as_ptr());
+                tv_set_string(rettv, c"");
             } else {
                 let entry = &hist_st().HISTORY[htype as usize][idx as usize];
                 tv_set_string(rettv, entry.hisstr_ptr());

@@ -345,7 +345,8 @@ fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> bool {
     true
 }
 
-fn make_bom(buf_in: *mut c_char, name: *mut c_char) -> c_int {
+fn make_bom(buf_in: *mut c_char, name: impl crate::strings::IntoCCharPtr) -> c_int {
+    let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let buf = buf_in.cast::<u8>();
         let flags = get_fio_flags(name);
@@ -616,7 +617,8 @@ fn set_err(msg: *const c_char) -> Error_T {
 }
 
 #[inline]
-fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
+fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: c_int) -> Error_T {
+    let msg = msg.into_c_char_ptr();
      {
         Error_T {
             num: None,
@@ -665,7 +667,7 @@ fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
             let _ = msg_progress(
                 errmsg.as_mut_ptr(),
                 msg_id.cast_mut(),
-                c"failed".as_ptr().cast_mut(),
+                c"failed",
                 -1,
                 HLF_E,
                 false,
@@ -1398,7 +1400,7 @@ pub fn buf_write(
                     }
 
                     if converted && wb_flags == 0 {
-                        write_info.bw_iconv_fd = my_iconv_open(fenc, c"utf-8".as_ptr().cast_mut())
+                        write_info.bw_iconv_fd = my_iconv_open(fenc, c"utf-8")
                             .map_or(-1, |fd| fd as iconv_t);
                         if write_info.bw_iconv_fd != -1 {
                             write_info.bw_conv_buf = vec![0; (bufsize as usize) * ICONV_MULT];
@@ -1665,7 +1667,7 @@ pub fn buf_write(
                                     let _ = msg_progress(
                                         iobuf,
                                         msg_id.as_mut_ptr(),
-                                        c"running".as_ptr().cast_mut(),
+                                        c"running",
                                         progress,
                                         0,
                                         false,
@@ -1717,7 +1719,7 @@ pub fn buf_write(
                         if do_fsync {
                             let error = os_fsync(fd);
                             if error != 0 && error != UV_ENOTSUP && !device {
-                                err = set_err_arg(e_fsync.as_ptr(), error);
+                                err = set_err_arg(e_fsync, error);
                                 end = 0;
                             }
                         }
@@ -1770,7 +1772,7 @@ pub fn buf_write(
 
                         if wfname != fname {
                             if end != 0
-                                && !eval_charconvert(c"utf-8".as_ptr(), fenc, wfname, fname)
+                                && !eval_charconvert(c"utf-8", fenc, wfname, fname)
                             {
                                 write_info.bw_conv_error = 1;
                                 end = 0;
@@ -1892,7 +1894,7 @@ pub fn buf_write(
                                 msg_progress(
                                     iobuf,
                                     msg_id.as_mut_ptr(),
-                                    c"success".as_ptr().cast_mut(),
+                                    c"success",
                                     -1,
                                     0,
                                     true,
@@ -2097,7 +2099,7 @@ mod tests {
     #[test]
     fn ucs2bytes_and_make_bom_encode_utf8_and_utf16() {
         let mut buf = [0 as c_char; 8];
-            assert_eq!(make_bom(buf.as_mut_ptr(), c"utf-8".as_ptr().cast_mut()), 3);
+            assert_eq!(make_bom(buf.as_mut_ptr(), c"utf-8"), 3);
             assert_eq!(
                 [buf[0] as u8, buf[1] as u8, buf[2] as u8],
                 [0xef, 0xbb, 0xbf]

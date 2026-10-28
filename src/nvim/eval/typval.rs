@@ -713,7 +713,8 @@ pub fn tv_list_set_ret(tv: &mut typval_T, l: *mut list_T) {
 }
 
 #[inline]
-pub fn tv_alloc_string(s: *const c_char) -> *mut c_char {
+pub fn tv_alloc_string(s: impl crate::strings::IntoCCharPtr) -> *mut c_char {
+    let s = s.into_c_char_ptr();
      crate::memory::cstr_to_cstring(s).into_raw()
 }
 
@@ -741,7 +742,8 @@ pub fn tv_take_string(p: *mut c_char) -> Option<std::ffi::CString> {
 }
 
 #[inline]
-pub fn tv_set_string(tv: &mut typval_T, s: *const c_char) {
+pub fn tv_set_string(tv: &mut typval_T, s: impl crate::strings::IntoCCharPtr) {
+    let s = s.into_c_char_ptr();
     tv.v_type = VarType::VAR_STRING;
         tv.vval = crate::eval::typval::TypvalVval::String(if s.is_null() {
             ptr::null_mut()
@@ -1760,7 +1762,8 @@ fn list_join_inner(
 }
 
 /// Join list into a string using given separator.
-pub fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_char) -> bool {
+pub fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: impl crate::strings::IntoCCharPtr) -> bool {
+    let sep = sep.into_c_char_ptr();
     unsafe {
         let len = tv_list_len_inline(l);
         if len == 0 {
@@ -2726,7 +2729,7 @@ pub fn tv_dict_watcher_notify(
         (*changes_dict).dv_refcount += 1;
 
         if !newtv.is_null() {
-            let v = tv_dict_item_alloc_len(c"new".as_ptr(), 3);
+            let v = tv_dict_item_alloc_len(c"new", 3);
             tv_copy(&*newtv, &mut (*v).di_tv);
             tv_dict_add(changes_dict, v);
         }
@@ -2734,7 +2737,7 @@ pub fn tv_dict_watcher_notify(
         if let Some(oldtv) = oldtv
             && oldtv.v_type != VarType::VAR_UNKNOWN
         {
-            let v = tv_dict_item_alloc_len(c"old".as_ptr(), 3);
+            let v = tv_dict_item_alloc_len(c"old", 3);
             tv_copy(oldtv, &mut (*v).di_tv);
             tv_dict_add(changes_dict, v);
         }
@@ -2773,7 +2776,8 @@ pub fn tv_dict_watcher_notify(
 }
 
 /// Allocate a dictionary item.
-pub fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictitem_T {
+pub fn tv_dict_item_alloc_len(key: impl crate::strings::IntoCCharPtr, key_len: usize) -> *mut dictitem_T {
+    let key = key.into_c_char_ptr();
     unsafe {
         let mut key_vec = Vec::with_capacity(key_len + 1);
         if key_len > 0 {
@@ -2793,7 +2797,8 @@ pub fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictit
 }
 
 /// Allocate a dictionary item.
-pub fn tv_dict_item_alloc(key: *const c_char) -> *mut dictitem_T {
+pub fn tv_dict_item_alloc(key: impl crate::strings::IntoCCharPtr) -> *mut dictitem_T {
+    let key = key.into_c_char_ptr();
      tv_dict_item_alloc_len(key, crate::memory::cstr_len(key))
 }
 
@@ -3043,8 +3048,9 @@ pub fn tv_dict_get_string_buf_chk(
     key: &std::ffi::CStr,
     key_len: isize,
     numbuf: *mut c_char,
-    def: *const c_char,
+    def: impl crate::strings::IntoCCharPtr,
 ) -> *const c_char {
+    let def = def.into_c_char_ptr();
     unsafe {
         let di = tv_dict_find(d, key.as_ptr(), key_len);
         if di.is_null() {
@@ -3132,9 +3138,10 @@ pub fn tv_dict_add_list(
 /// Add a typval entry to dictionary.
 pub fn tv_dict_add_tv(
     d: *mut dict_T,
-    key: *const c_char,
+    key: impl crate::strings::IntoCCharPtr,
     key_len: usize,tv: &mut typval_T,
 ) -> bool {
+    let key = key.into_c_char_ptr();
     unsafe {
         let item = tv_dict_item_alloc_len(key, key_len);
         tv_copy(&*tv, &mut (*item).di_tv);
@@ -3224,8 +3231,9 @@ pub fn tv_dict_add_bool(
 pub fn tv_dict_add_str(
     d: *mut dict_T,
     key: &std::ffi::CStr,
-    val: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
 ) -> bool {
+    let val = val.into_c_char_ptr();
     tv_dict_add_str_len(d, key, val, -1)
 }
 
@@ -3233,9 +3241,10 @@ pub fn tv_dict_add_str(
 pub fn tv_dict_add_str_len(
     d: *mut dict_T,
     key: &std::ffi::CStr,
-    val: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
     len: c_int,
 ) -> bool {
+    let val = val.into_c_char_ptr();
     unsafe {
         let s = if val.is_null() {
             ptr::null_mut()
@@ -3298,7 +3307,8 @@ pub fn tv_dict_clear(d: &mut dict_T) {
 }
 
 /// Extend dictionary with items from another dictionary.
-pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
+pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::strings::IntoCCharPtr) {
+    let action = action.into_c_char_ptr();
     unsafe {
         let watched = tv_dict_is_watched_inline(&raw mut *d1);
         let arg_errmsg = tr(c"extend() argument");
@@ -4487,7 +4497,8 @@ pub fn tv_islocked(tv: &typval_T) -> bool {
 }
 
 /// Return true if typval is locked.
-pub fn tv_check_lock(tv: &typval_T, name: *const c_char, name_len: usize) -> bool {
+pub fn tv_check_lock(tv: &typval_T, name: impl crate::strings::IntoCCharPtr, name_len: usize) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         let mut lock = VAR_UNLOCKED;
 
@@ -4511,9 +4522,10 @@ pub fn tv_check_lock(tv: &typval_T, name: *const c_char, name_len: usize) -> boo
 /// Return true if variable "name" has a locked (immutable) value.
 pub fn value_check_lock(
     lock: VarLockStatus,
-    mut name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     mut name_len: usize,
 ) -> bool {
+    let mut name = name.into_c_char_ptr();
      {
         match lock {
             VAR_UNLOCKED => return false,
@@ -5257,7 +5269,7 @@ mod tests {
             assert!(!tv_list_equal(l2, ptr::null_mut(), false));
 
             let mut joined: Vec<c_char> = Vec::new();
-            assert!(tv_list_join(&mut joined, l2, c", ".as_ptr()));
+            assert!(tv_list_join(&mut joined, l2, c", "));
             assert_eq!(
                 std::slice::from_raw_parts(joined.as_ptr().cast::<u8>(), joined.len()),
                 b"99, hello, world"
@@ -5297,8 +5309,8 @@ mod tests {
             (*d).dv_refcount = 1;
             assert!(tv_dict_add_nr(d, c"foo", 42));
             assert!(tv_dict_add_float(&mut *d, c"flt", 3.5));
-            assert!(tv_dict_add_str(d, c"str", c"bar".as_ptr()));
-            assert!(tv_dict_add_str_len(d, c"alloc", c"baz".as_ptr(), -1));
+            assert!(tv_dict_add_str(d, c"str", c"bar"));
+            assert!(tv_dict_add_str_len(d, c"alloc", c"baz", -1));
             assert!(tv_dict_has_key(d, c"foo"));
             assert!(!tv_dict_has_key(d, c"missing"));
 
@@ -5319,8 +5331,7 @@ mod tests {
                     c"missing",
                     7,
                     numbuf.as_mut_ptr(),
-                    c"def".as_ptr()
-                )),
+                    c"def")),
                 b"def"
             );
 
@@ -5334,7 +5345,7 @@ mod tests {
             let d2 = tv_dict_alloc();
             (*d2).dv_refcount = 1;
             assert!(tv_dict_add_nr(d2, c"extra", 7));
-            tv_dict_extend(&mut *d, &mut *d2, c"force".as_ptr());
+            tv_dict_extend(&mut *d, &mut *d2, c"force");
             assert_eq!(tv_dict_get_number(d, c"extra"), 7);
             assert!(!tv_dict_equal(d, d_copy, false));
 
@@ -5389,7 +5400,7 @@ mod tests {
             let mut tv_str = typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(tv_alloc_string(c"hello".as_ptr())),
+                vval: TypvalVval::String(tv_alloc_string(c"hello")),
             };
             assert!(tv_check_str_or_nr(&tv_str));
             assert!(tv_check_num(&tv));
@@ -5403,7 +5414,7 @@ mod tests {
             assert!(!tv_islocked(&tv_l));
             tv_item_lock(&mut tv_l, 2, true, false);
             assert!(tv_islocked(&tv_l));
-            assert!(tv_check_lock(&tv_l, c"test".as_ptr(), 4));
+            assert!(tv_check_lock(&tv_l, c"test", 4));
             tv_item_lock(&mut tv_l, 2, false, false);
             assert!(!tv_islocked(&tv_l));
 

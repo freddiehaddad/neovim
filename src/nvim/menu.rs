@@ -1004,10 +1004,11 @@ fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
 /// Work out what to complete when doing command line completion of menu names (`set_context_in_menu_cmd`).
 pub fn set_context_in_menu_cmd(
     xp: &mut expand_T,
-    cmd: *const c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     mut arg: *mut c_char,
     forceit: bool,
 ) -> *mut c_char {
+    let cmd = cmd.into_c_char_ptr();
     unsafe {
         let mut path_name: *mut c_char = ptr::null_mut();
         let mut unmenu = false;
@@ -1920,7 +1921,7 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
             if bit < MENU_MODES {
                 if let Some(ref s) = menu.strings[bit] {
                     if s.as_bytes().is_empty() {
-                        tv_dict_add_str(dict, c"rhs", c"<Nop>".as_ptr());
+                        tv_dict_add_str(dict, c"rhs", c"<Nop>");
                     } else {
                         tv_dict_add_str(
                             dict,

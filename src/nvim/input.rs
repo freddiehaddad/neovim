@@ -461,7 +461,8 @@ pub fn redo_spec() -> CmdSpec {
     }
 }
 
-fn add_buff(buf: &mut StuffBuf, s: *const c_char, mut slen: isize) {
+fn add_buff(buf: &mut StuffBuf, s: impl crate::strings::IntoCCharPtr, mut slen: isize) {
+    let s = s.into_c_char_ptr();
     unsafe {
         if slen < 0 {
             slen = crate::memory::cstr_len(s) as isize;
@@ -850,7 +851,8 @@ pub fn redo_append_char(c: c_int) {
 }
 
 /// Appends string `s` (must be typeahead encoding) to the stuff buffer.
-pub fn stuffReadbuff(s: *const c_char) {
+pub fn stuffReadbuff(s: impl crate::strings::IntoCCharPtr) {
+    let s = s.into_c_char_ptr();
     add_buff(&mut inp_st().readbuf1, s, -1);
 }
 
@@ -859,7 +861,8 @@ pub fn stuffRedoReadbuff(s: &std::ffi::CStr) {
     add_buff(&mut inp_st().readbuf2, s.as_ptr(), -1);
 }
 
-pub fn stuffReadbuffLen(s: *const c_char, len: isize) {
+pub fn stuffReadbuffLen(s: impl crate::strings::IntoCCharPtr, len: isize) {
+    let s = s.into_c_char_ptr();
     unsafe {
         if g_st().add_last_insert == 1 && len > 0 {
             let last_ins = &raw mut g_st().last_insert_ga;
@@ -976,7 +979,7 @@ pub fn start_redo_ins() -> bool {
             }
             if !vim_strchr(c"AaIiRrOo", *p as u8 as c_int).is_null() {
                 if *p == b'O' as c_char || *p == b'o' as c_char {
-                    add_buff(&mut inp_st().readbuf2, NL_STR.as_ptr(), -1);
+                    add_buff(&mut inp_st().readbuf2, NL_STR, -1);
                 }
                 p = p.add(1);
                 break;
@@ -1017,19 +1020,20 @@ pub fn noremap_keys() -> bool {
 
 /// Insert a string in position `offset` in the typeahead buffer.
 pub fn ins_typebuf(
-    str_: *mut c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     noremap: c_int,
     offset: c_int,
     nottyped: bool,
     silent: bool,
 ) -> bool {
+    let str_ = str_.into_c_char_ptr().cast_mut();
     unsafe {
         init_typebuf();
         g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
         if g_st().typebuf.tb_change_cnt == 0 {
             g_st().typebuf.tb_change_cnt = 1;
         }
-        state_no_longer_safe(c"ins_typebuf()".as_ptr());
+        state_no_longer_safe(c"ins_typebuf()");
 
         let addlen = crate::memory::cstr_len(str_) as c_int;
 
@@ -1742,7 +1746,7 @@ pub fn vgetc() -> c_int {
                     g_st().mod_mask = 0;
                     requeue_key(c, 0, 3, true);
                     ins_typebuf(
-                        ESC_STR.as_ptr().cast_mut(),
+                        ESC_STR,
                         inp_st().KeyNoremap,
                         0,
                         !g_st().KeyTyped,
@@ -1827,7 +1831,7 @@ pub fn vgetc() -> c_int {
         *okb = Vec::new();
 
         if c != K_IGNORE {
-            state_no_longer_safe(c"key typed".as_ptr());
+            state_no_longer_safe(c"key typed");
         }
 
         c

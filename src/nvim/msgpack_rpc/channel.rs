@@ -296,11 +296,12 @@ pub fn rpc_send_event<S: crate::strings::IntoCCharPtr>(id: u64, name: S, args: A
 
 pub fn rpc_send_call(
     id: u64,
-    method_name: *const c_char,
+    method_name: impl crate::strings::IntoCCharPtr,
     args: Array,
     result_mem: &mut ArenaMem,
     err: &mut Error,
 ) -> Object {
+    let method_name = method_name.into_c_char_ptr();
     unsafe {
         let mut channel = find_rpc_channel(id);
         if channel.is_null() {
@@ -513,7 +514,7 @@ fn parse_msgpack(channel: &mut Channel) {
                 if (*p).result.obj_type != ObjectType::kObjectTypeArray {
                     chan_close_on_err(
                         channel,
-                        c"msgpack-rpc request args must be an array".as_ptr(),
+                        c"msgpack-rpc request args must be an array",
                         LOGLVL_ERR,
                     );
                     return;
@@ -689,7 +690,7 @@ pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) 
             if (*p).read_size != 0 && !channel.rpc.closed {
                 chan_close_on_err(
                     channel,
-                    c"internal channel: internal error".as_ptr(),
+                    c"internal channel: internal error",
                     LOGLVL_ERR,
                 );
             }
@@ -801,7 +802,8 @@ pub fn rpc_close_event(channel: *mut Channel) {
     }
 }
 
-fn chan_close_on_err(channel: &mut Channel, msg: *const c_char, loglevel: c_int) {
+fn chan_close_on_err(channel: &mut Channel, msg: impl crate::strings::IntoCCharPtr, loglevel: c_int) {
+    let msg = msg.into_c_char_ptr();
     unsafe {
         logmsg!(
             loglevel,
@@ -847,9 +849,10 @@ fn serialize_request(
     chans: *mut *mut Channel,
     nchans: usize,
     request_id: u32,
-    method: *const c_char,
+    method: impl crate::strings::IntoCCharPtr,
     args: Array,
 ) {
+    let method = method.into_c_char_ptr();
     let mut packer = PackerBuffer::new();
         packer_buffer_init_channels(chans, nchans, &mut packer);
 
@@ -903,7 +906,7 @@ pub fn serialize_response(
                     capacity: 2,
                 };
                 let mut ch_ptr = &raw mut *channel;
-                serialize_request(&raw mut ch_ptr, 1, 0, c"nvim_error_event".as_ptr(), args);
+                serialize_request(&raw mut ch_ptr, 1, 0, c"nvim_error_event", args);
             }
             return;
         }

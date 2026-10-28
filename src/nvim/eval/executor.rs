@@ -171,7 +171,8 @@ fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
 }
 
 /// Execute compound assignment `tv1 <op>= tv2` (`eexe_mod_op`).
-pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: *const c_char) -> bool {
+pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: impl crate::strings::IntoCCharPtr) -> bool {
+    let op = op.into_c_char_ptr();
     let tv1 =  { tv1 };
     let tv2 =  { tv2 };
     let op_byte = unsafe { *op as u8 };
@@ -220,9 +221,9 @@ mod tests {
             v_lock: 0,
             vval: TypvalVval::Number(5),
         };
-        assert!(eexe_mod_op(&mut tv1, &tv2, c"+".as_ptr()));
+        assert!(eexe_mod_op(&mut tv1, &tv2, c"+"));
             assert_eq!(tv1.vval.v_number(), 15);
-            assert!(eexe_mod_op(&mut tv1, &tv2, c"*".as_ptr()));
+            assert!(eexe_mod_op(&mut tv1, &tv2, c"*"));
             assert_eq!(tv1.vval.v_number(), 75);
     }
 }

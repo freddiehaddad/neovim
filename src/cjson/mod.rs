@@ -24,7 +24,7 @@ mod tests {
         unsafe {
             let mut sb = strbuf_t::new();
             strbuf_init(&mut sb, 0);
-            strbuf_append_string(&mut sb, c"hello".as_ptr());
+            strbuf_append_string(&mut sb, c"hello");
             strbuf_append_char(&mut sb, b'!' as c_char);
             assert_eq!(strbuf_length(&sb), 6);
             let mut len = 0usize;
@@ -33,7 +33,7 @@ mod tests {
             assert_eq!(bytes, b"hello!");
 
             let mut endptr: *mut c_char = ptr::null_mut();
-            let v = fpconv_strtod(c"3.25".as_ptr(), &mut endptr);
+            let v = fpconv_strtod(c"3.25", &mut endptr);
             assert!((v - 3.25).abs() < f64::EPSILON);
         }
     }

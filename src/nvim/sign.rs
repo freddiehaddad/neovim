@@ -1127,7 +1127,7 @@ fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
             if hl > 0 {
                 let p = get_highlight_name_ext(&mut crate::os::env::expand_T::new(), hl - 1, false);
                 if p.is_null() {
-                    tv_dict_add_str_len(d, name, c"NONE".as_ptr(), 4);
+                    tv_dict_add_str_len(d, name, c"NONE", 4);
                 } else {
                     tv_dict_add_str(d, name, p);
                 }

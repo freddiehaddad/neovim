@@ -1700,7 +1700,8 @@ fn cmdexp() -> &'static mut CmdexpandState {
 }
 
 #[inline]
-fn c_strchr(mut s: *const c_char, c: c_char) -> *mut c_char {
+fn c_strchr(s: impl crate::strings::IntoCCharPtr, c: c_char) -> *mut c_char {
+    let mut s = s.into_c_char_ptr();
     unsafe {
         loop {
             if *s == c {
@@ -3390,7 +3391,7 @@ fn find_cmd_after_substitute_cmd(mut arg: *const c_char) -> *const c_char {
                 }
             }
         }
-        while *arg != NUL && c_strchr(c"|\"#".as_ptr(), *arg).is_null() {
+        while *arg != NUL && c_strchr(c"|\"#", *arg).is_null() {
             arg = arg.add(1);
         }
         if *arg != NUL {
@@ -3419,7 +3420,7 @@ fn find_cmd_after_isearch_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *con
         if *arg != NUL {
             arg = skipwhite(arg.add(1));
 
-            if *arg == NUL || c_strchr(c"|\"\n".as_ptr(), *arg).is_null() {
+            if *arg == NUL || c_strchr(c"|\"\n", *arg).is_null() {
                 xp.xp_context = EXPAND_NOTHING;
             } else {
                 return arg;
@@ -4178,7 +4179,7 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char 
             }
         }
 
-        if (ea.argt & EX_EXTRA) == 0 && *arg != NUL && c_strchr(c"|\"".as_ptr(), *arg).is_null() {
+        if (ea.argt & EX_EXTRA) == 0 && *arg != NUL && c_strchr(c"|\"", *arg).is_null() {
             return ptr::null();
         }
 
@@ -5034,13 +5035,14 @@ fn ExpandFromContext(
 
 /// Expand a list of names.
 pub fn ExpandGeneric(
-    pat: *const c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     xp: &mut expand_T,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<CString>,
     func: CompleteListItemGetter,
     escaped: bool,
 ) {
+    let pat = pat.into_c_char_ptr();
     unsafe {
         let fuzzy = cmdline_fuzzy_complete(pat);
         matches.clear();
@@ -5207,7 +5209,7 @@ fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flagsarg: c
             c".".as_ptr().cast_mut()
         } else {
             if !path_is_absolute(pat) {
-                path_owned = vim_getenv(c"PATH".as_ptr());
+                path_owned = vim_getenv(c"PATH");
             }
             path_owned
                 .as_ref()
@@ -5869,7 +5871,7 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 }
                 EXPAND_MENUS => {
                     let pat_p = xpc.xp_pattern;
-                    set_context_in_menu_cmd(&mut xpc, c"menu".as_ptr(), pat_p, false);
+                    set_context_in_menu_cmd(&mut xpc, c"menu", pat_p, false);
                     xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
                 }
                 EXPAND_SIGN => {

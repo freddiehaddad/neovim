@@ -404,7 +404,8 @@ pub fn estack_init() {
 }
 
 /// Add an item to the execution stack.
-pub fn estack_push(type_: etype_T, name: *const c_char, lnum: linenr_T) -> *mut estack_T {
+pub fn estack_push(type_: etype_T, name: impl crate::strings::IntoCCharPtr, lnum: linenr_T) -> *mut estack_T {
+    let name = name.into_c_char_ptr();
     unsafe {
         let es = &raw mut rt_st().exestack;
         (*es).push(estack_T {
@@ -736,10 +737,11 @@ fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut c_int) 
 pub fn do_in_path(
     path: *const c_char,
     prefix: &std::ffi::CStr,
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
+    let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let mut did_one = false;
 
@@ -1363,10 +1365,11 @@ pub fn update_runtime_search_path_thread(force: bool) {
 
 /// Just like do_in_path_and_pp(), using 'runtimepath' for "path".
 pub fn do_in_runtimepath(
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     mut flags: c_int,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
+    let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let mut success = false;
         if (flags & DIP_NORTP) == 0 {
@@ -1386,7 +1389,8 @@ pub fn do_in_runtimepath(
 }
 
 /// Source the file "name" from all directories in 'runtimepath'.
-pub fn source_runtime(name: *mut c_char, flags: c_int) -> bool {
+pub fn source_runtime(name: impl crate::strings::IntoCCharPtr, flags: c_int) -> bool {
+    let name = name.into_c_char_ptr().cast_mut();
     do_in_runtimepath(
             name,
             flags,
@@ -1511,7 +1515,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
             }
 
             fname_len = crate::memory::cstr_len(fname);
-            let ad = crate::path::concat_fnames_cstr(fname, c"after".as_ptr(), true);
+            let ad = crate::path::concat_fnames_cstr(fname, c"after", true);
             let mut afterdir = NvimString {
                 data: ad.as_ptr().cast_mut(),
                 size: ad.as_bytes().len(),
@@ -1782,7 +1786,7 @@ pub fn load_start_packages() {
         do_in_path(
             opt_vars().p_pp,
             c"",
-            c"pack/*/start/*".as_ptr() as *mut c_char,
+            c"pack/*/start/*",
             DIP_ALL + DIP_DIR,
             &mut RuntimeCallback::AddPackPlugins {
                 opt: false,
@@ -1792,7 +1796,7 @@ pub fn load_start_packages() {
         do_in_path(
             opt_vars().p_pp,
             c"",
-            c"start/*".as_ptr() as *mut c_char,
+            c"start/*",
             DIP_ALL + DIP_DIR,
             &mut RuntimeCallback::AddPackPlugins {
                 opt: false,
@@ -1827,7 +1831,7 @@ pub fn load_plugins() {
 
             source_in_path_vim_lua(rtp_copy, plugin_pattern, DIP_ALL | DIP_NOAFTER);
             if has_time_fd() {
-                time_msg(c"loading rtp plugins".as_ptr(), None);
+                time_msg(c"loading rtp plugins", None);
             }
 
             if !g_st().did_source_packages {
@@ -1835,12 +1839,12 @@ pub fn load_plugins() {
                 load_start_packages();
             }
             if has_time_fd() {
-                time_msg(c"loading packages".as_ptr(), None);
+                time_msg(c"loading packages", None);
             }
 
             source_runtime_vim_lua(plugin_pattern, DIP_ALL | DIP_AFTER);
             if has_time_fd() {
-                time_msg(c"loading after plugins".as_ptr(), None);
+                time_msg(c"loading after plugins", None);
             }
         }
 }
@@ -2187,12 +2191,14 @@ fn compute_double_env_sep_len(
 fn add_env_sep_dirs(
     mut dest: *mut c_char,
     val: *const c_char,
-    suf1: *const c_char,
+    suf1: impl crate::strings::IntoCCharPtr,
     len1: usize,
-    suf2: *const c_char,
+    suf2: impl crate::strings::IntoCCharPtr,
     len2: usize,
     forward: bool,
 ) -> *mut c_char {
+    let suf1 = suf1.into_c_char_ptr();
+    let suf2 = suf2.into_c_char_ptr();
     unsafe {
         if val.is_null() || *val == NUL {
             return dest;
@@ -2244,11 +2250,13 @@ fn add_dir(
     dir: *const c_char,
     dir_len: usize,
     type_: XDGVarType,
-    suf1: *const c_char,
+    suf1: impl crate::strings::IntoCCharPtr,
     len1: usize,
-    suf2: *const c_char,
+    suf2: impl crate::strings::IntoCCharPtr,
     len2: usize,
 ) -> *mut c_char {
+    let suf1 = suf1.into_c_char_ptr();
+    let suf2 = suf2.into_c_char_ptr();
     unsafe {
         if dir.is_null() || dir_len == 0 {
             return dest;
@@ -2304,7 +2312,7 @@ pub fn get_lib_dir() -> Option<std::ffi::CString> {
 
         let mut exe_name = [0 as c_char; MAXPATHL];
         vim_get_prefix_from_exepath(exe_name.as_mut_ptr());
-        if append_path(exe_name.as_mut_ptr(), c"lib/nvim".as_ptr(), MAXPATHL) {
+        if append_path(exe_name.as_mut_ptr(), c"lib/nvim", MAXPATHL) {
             return Some(crate::memory::cstr_to_cstring(exe_name.as_ptr()));
         }
         None
@@ -2331,7 +2339,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
         let libdir_cstr = get_lib_dir();
         let data_dirs_cstr = stdpaths_get_xdg_var(XDGVarType::kXDGDataDirs);
         let config_dirs_cstr = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs);
-        let vimruntime_cstr = vim_getenv(c"VIMRUNTIME".as_ptr());
+        let vimruntime_cstr = vim_getenv(c"VIMRUNTIME");
 
         let data_home = data_home_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
         let config_home = config_home_cstr
@@ -2420,7 +2428,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 data_home,
                 data_len,
                 XDGVarType::kXDGDataHome,
-                c"site".as_ptr(),
+                c"site",
                 SITE_SIZE,
                 ptr::null(),
                 0,
@@ -2428,7 +2436,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
             rtp_cur = add_env_sep_dirs(
                 rtp_cur,
                 data_dirs,
-                c"site".as_ptr(),
+                c"site",
                 SITE_SIZE,
                 ptr::null(),
                 0,
@@ -2457,9 +2465,9 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
             rtp_cur = add_env_sep_dirs(
                 rtp_cur,
                 data_dirs,
-                c"site".as_ptr(),
+                c"site",
                 SITE_SIZE,
-                c"after".as_ptr(),
+                c"after",
                 AFTER_SIZE,
                 false,
             );
@@ -2468,15 +2476,15 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 data_home,
                 data_len,
                 XDGVarType::kXDGDataHome,
-                c"site".as_ptr(),
+                c"site",
                 SITE_SIZE,
-                c"after".as_ptr(),
+                c"after",
                 AFTER_SIZE,
             );
             rtp_cur = add_env_sep_dirs(
                 rtp_cur,
                 config_dirs,
-                c"after".as_ptr(),
+                c"after",
                 AFTER_SIZE,
                 ptr::null(),
                 0,
@@ -2487,7 +2495,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 config_home,
                 config_len,
                 XDGVarType::kXDGConfigHome,
-                c"after".as_ptr(),
+                c"after",
                 AFTER_SIZE,
                 ptr::null(),
                 0,
@@ -2501,7 +2509,8 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     }
 }
 
-fn cmd_source(fname: *mut c_char,mut eap: Option<&mut exarg_T>) {
+fn cmd_source(fname: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut exarg_T>) {
+    let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         if *fname != NUL && eap.is_some() && eap.as_deref_mut().unwrap().addr_count > 0 {
             emsg(gettext(e_norange));
@@ -2542,7 +2551,7 @@ pub fn ex_options(_eap: &mut exarg_T) {
 
         os_setenv(c"OPTWIN_CMD", buf.as_ptr(), 1);
         cmd_source(
-            c"$VIMRUNTIME/scripts/optwin.lua".as_ptr() as *mut c_char,
+            c"$VIMRUNTIME/scripts/optwin.lua",
             None,
         );
 }
@@ -2711,7 +2720,8 @@ pub fn cmd_source_buffer(eap: Option<&exarg_T>, ex_lua: bool) {
 }
 
 /// Executes lines in `str` as Ex commands.
-pub fn do_source_str(str_ptr: *const c_char, mut traceback_name: *const c_char) -> bool {
+pub fn do_source_str(str_ptr: *const c_char, traceback_name: impl crate::strings::IntoCCharPtr) -> bool {
+    let mut traceback_name = traceback_name.into_c_char_ptr();
     let sname = sourcing_name();
         let slnum = sourcing_lnum();
         let mut sname_buf = [0 as c_char; 256];
@@ -2994,7 +3004,7 @@ fn do_source_ext(
                 if let Some(ref fl) = firstline
                     && fl.to_bytes().starts_with(&[0xef, 0xbb, 0xbf])
                 {
-                    convert_setup(&mut cookie.conv, c"utf-8".as_ptr().cast_mut(), opt_vars().p_enc);
+                    convert_setup(&mut cookie.conv, c"utf-8", opt_vars().p_enc);
                     let after_bom = fl.as_ptr().add(3).cast_mut();
                     firstline = Some(
                         string_convert(&cookie.conv, after_bom, None).map_or_else(

@@ -487,7 +487,8 @@ pub fn os_set_errno(val: c_int) {
 }
 
 /// Changes the current directory to `path`.
-pub fn os_chdir(path: *const c_char) -> c_int {
+pub fn os_chdir(path: impl crate::strings::IntoCCharPtr) -> c_int {
+    let path = path.into_c_char_ptr();
     unsafe {
         if opt_vars().p_verbose >= 5 {
             verbose_enter();
@@ -533,7 +534,8 @@ pub fn os_isrealdir(name: *const c_char) -> bool {
 }
 
 /// Check if the given path exists and is a directory.
-pub fn os_isdir(name: *const c_char) -> bool {
+pub fn os_isdir(name: impl crate::strings::IntoCCharPtr) -> bool {
+    let name = name.into_c_char_ptr();
     let mode = os_getperm(name);
         if mode < 0 {
             return false;
@@ -542,7 +544,8 @@ pub fn os_isdir(name: *const c_char) -> bool {
 }
 
 /// Check what `name` is (`NODE_NORMAL`, `NODE_WRITABLE`, or `NODE_OTHER`).
-pub fn os_nodetype(name: *const c_char) -> c_int {
+pub fn os_nodetype(name: impl crate::strings::IntoCCharPtr) -> c_int {
+    let name = name.into_c_char_ptr();
     #[cfg(not(windows))]
     {
         let mut statbuf = uv_stat_t::default();
@@ -588,10 +591,11 @@ pub fn os_exepath(buffer: *mut c_char, size: &mut usize) -> c_int {
 
 /// Checks if the file `name` is executable.
 pub fn os_can_exe(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     abspath: Option<&mut Option<std::ffi::CString>>,
     use_path: bool,
 ) -> bool {
+    let name = name.into_c_char_ptr();
     if !use_path || gettail_dir(name) != name {
             #[cfg(windows)]
             return is_executable_ext(name, abspath);
@@ -756,7 +760,8 @@ fn is_executable_in_path(
 }
 
 /// Opens or creates a file and returns a file descriptor, or negative libuv error code.
-pub fn os_open(path: *const c_char, flags: c_int, mode: c_int) -> c_int {
+pub fn os_open(path: impl crate::strings::IntoCCharPtr, flags: c_int, mode: c_int) -> c_int {
+    let path = path.into_c_char_ptr();
     if path.is_null() {
         return UV_EINVAL;
     }
@@ -1138,7 +1143,8 @@ fn os_stat(name: *const c_char, statbuf: &mut uv_stat_t) -> c_int {
 }
 
 /// Get the file permissions for a given file.
-pub fn os_getperm(name: *const c_char) -> i32 {
+pub fn os_getperm(name: impl crate::strings::IntoCCharPtr) -> i32 {
+    let name = name.into_c_char_ptr();
     let mut statbuf = uv_stat_t::default();
         let stat_result = os_stat(name, &mut statbuf);
         if stat_result == 0 {
@@ -1149,7 +1155,8 @@ pub fn os_getperm(name: *const c_char) -> i32 {
 }
 
 /// Set the permission of a file.
-pub fn os_setperm(name: *const c_char, perm: c_int) -> bool {
+pub fn os_setperm(name: impl crate::strings::IntoCCharPtr, perm: c_int) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_chmod(ptr::null_mut(), &raw mut req, name, perm, ptr::null());
@@ -1310,7 +1317,8 @@ pub fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) -> c_int {
 }
 
 /// Check if a path exists.
-pub fn os_path_exists(path: *const c_char) -> bool {
+pub fn os_path_exists(path: impl crate::strings::IntoCCharPtr) -> bool {
+    let path = path.into_c_char_ptr();
     let mut statbuf = uv_stat_t::default();
         os_stat(path, &mut statbuf) == 0
 }
@@ -1485,7 +1493,8 @@ pub fn os_rmdir(path: *const c_char) -> c_int {
 }
 
 /// Opens a directory.
-pub fn os_scandir(dir: &mut Directory, path: *const c_char) -> bool {
+pub fn os_scandir(dir: &mut Directory, path: impl crate::strings::IntoCCharPtr) -> bool {
+    let path = path.into_c_char_ptr();
     unsafe {
         debug_assert!(uv_req_size(UV_FS) + size_of::<uv_dirent_t>() <= size_of::<Directory>());
         let req = (&raw mut *dir).cast::<uv_fs_buf_t>();
@@ -1532,7 +1541,8 @@ pub fn os_remove(path: *const c_char) -> c_int {
 }
 
 /// Get the file information for a given path.
-pub fn os_fileinfo(path: *const c_char, file_info: &mut FileInfo) -> bool {
+pub fn os_fileinfo(path: impl crate::strings::IntoCCharPtr, file_info: &mut FileInfo) -> bool {
+    let path = path.into_c_char_ptr();
     *file_info = FileInfo::new();
         os_stat(path, &mut file_info.stat) == 0
 }
@@ -1685,7 +1695,8 @@ pub fn os_fileinfo_blocksize(file_info: &FileInfo) -> u64 {
 }
 
 /// Get the `FileID` for a given path.
-pub fn os_fileid(path: *const c_char, file_id: &mut FileID) -> bool {
+pub fn os_fileid(path: impl crate::strings::IntoCCharPtr, file_id: &mut FileID) -> bool {
+    let path = path.into_c_char_ptr();
     let mut statbuf = uv_stat_t::default();
         if os_stat(path, &mut statbuf) == 0 {
             file_id.inode = statbuf.st_ino;
@@ -1906,26 +1917,26 @@ mod tests {
             assert!(!os_dirname(tiny.as_mut_ptr(), cwd_len.min(3)));
 
             // os_chdir("~") fails and leaves cwd unchanged
-            assert!(!os_isdir(c"~".as_ptr()));
-            assert_ne!(os_chdir(c"~".as_ptr()), 0);
-            assert_ne!(os_chdir(c"~/".as_ptr()), 0);
+            assert!(!os_isdir(c"~"));
+            assert_ne!(os_chdir(c"~"), 0);
+            assert_ne!(os_chdir(c"~/"), 0);
 
-            assert!(!os_isdir(c"".as_ptr()));
-            assert!(!os_isdir(c"non-existing-directory-xyz".as_ptr()));
-            assert!(!os_isdir(c"/non-existing-directory-xyz".as_ptr()));
-            assert!(os_isdir(c".".as_ptr()));
-            assert!(os_isdir(c"..".as_ptr()));
+            assert!(!os_isdir(c""));
+            assert!(!os_isdir(c"non-existing-directory-xyz"));
+            assert!(!os_isdir(c"/non-existing-directory-xyz"));
+            assert!(os_isdir(c"."));
+            assert!(os_isdir(c".."));
             assert!(os_isdir(cwd.as_ptr()));
 
-            assert_eq!(os_nodetype(c"non-existing-file-xyz".as_ptr()), NODE_NORMAL);
+            assert_eq!(os_nodetype(c"non-existing-file-xyz"), NODE_NORMAL);
             #[cfg(not(windows))]
-            assert_eq!(os_nodetype(c"/dev/stderr".as_ptr()), NODE_WRITABLE);
+            assert_eq!(os_nodetype(c"/dev/stderr"), NODE_WRITABLE);
 
             let mut abspath: Option<CString> = None;
-            assert!(!os_can_exe(c".".as_ptr(), Some(&mut abspath), true));
+            assert!(!os_can_exe(c".", Some(&mut abspath), true));
             assert!(abspath.is_none());
             assert!(!os_can_exe(
-                c"does-not-exist.file".as_ptr(),
+                c"does-not-exist.file",
                 Some(&mut abspath),
                 true
             ));
@@ -1958,15 +1969,15 @@ mod tests {
             assert_ne!(os_mkdir(base_c.as_ptr(), 0o700), 0);
             assert!(os_isdir(base_c.as_ptr()));
             assert!(os_path_exists(base_c.as_ptr()));
-            assert!(!os_path_exists(c"non-existing-file-xyz".as_ptr()));
-            assert_eq!(os_getperm(c"non-existing-file-xyz".as_ptr()), UV_ENOENT);
+            assert!(!os_path_exists(c"non-existing-file-xyz"));
+            assert_eq!(os_getperm(c"non-existing-file-xyz"), UV_ENOENT);
             assert!(os_getperm(base_c.as_ptr()) > 0);
-            assert!(!os_setperm(c"non-existing-file-xyz".as_ptr(), 0o700));
+            assert!(!os_setperm(c"non-existing-file-xyz", 0o700));
             assert_eq!(os_file_is_writable(base_c.as_ptr()), 2);
 
             // os_open / os_write / os_read / os_close
             assert_eq!(
-                os_open(c"non-existing-file-xyz".as_ptr(), O_RDWR, 0),
+                os_open(c"non-existing-file-xyz", O_RDWR, 0),
                 UV_ENOENT
             );
             assert!(os_close(-1) < 0);
@@ -2031,14 +2042,14 @@ mod tests {
             // os_fileinfo & os_fileid
             let mut fi = FileInfo::new();
             assert!(!os_fileinfo(ptr::null(), &mut fi));
-            assert!(!os_fileinfo(c"/non-existent-xyz".as_ptr(), &mut fi));
+            assert!(!os_fileinfo(c"/non-existent-xyz", &mut fi));
             assert!(os_fileinfo(fpath_c.as_ptr(), &mut fi));
             assert!(os_fileinfo_link(fpath_c.as_ptr(), &mut fi));
             assert_eq!(os_fileinfo_size(&fi), payload.len() as u64);
             assert!(os_fileinfo_blocksize(&fi) > 0);
 
             let mut fid = FileID::new();
-            assert!(!os_fileid(c"/non-existent-xyz".as_ptr(), &mut fid));
+            assert!(!os_fileid(c"/non-existent-xyz", &mut fid));
             assert!(os_fileid(fpath_c.as_ptr(), &mut fid));
             assert!(os_fileid_equal(&fid, &fid));
 
