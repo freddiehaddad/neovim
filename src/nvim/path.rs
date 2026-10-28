@@ -2914,19 +2914,16 @@ mod tests {
                 .unwrap()
                 .into_bytes_with_nul();
             path_fix_case(case_buf.as_mut_ptr().cast());
-            #[cfg(any(windows, target_os = "macos"))]
-            assert_eq!(
-                crate::memory::cstr_from_ptr(case_buf.as_ptr().cast())
-                    .to_str()
-                    .unwrap(),
+            let expected_case = if std::path::Path::new(&format!("{abs_dir}/camelcase")).exists() {
                 format!("{rel_dir}/CamelCase")
-            );
-            #[cfg(not(any(windows, target_os = "macos")))]
+            } else {
+                format!("{rel_dir}/camelcase")
+            };
             assert_eq!(
                 crate::memory::cstr_from_ptr(case_buf.as_ptr().cast())
                     .to_str()
                     .unwrap(),
-                format!("{rel_dir}/camelcase")
+                expected_case
             );
 
             // path_guess_exepath
