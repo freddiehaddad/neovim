@@ -1197,7 +1197,10 @@ pub fn atom_typed_add(chars: *const u8, len: usize) {
         if len == 3
             && *chars == K_SPECIAL
             && (atom_key_class(
-                termcap2key(i32::from(*chars.add(1)), i32::from(*chars.add(2))),
+                termcap2key(
+                    i32::from(*chars.wrapping_add(1)),
+                    i32::from(*chars.wrapping_add(2)),
+                ),
                 NUL,
                 NUL,
             ) & K_KEY_SYNTHETIC)
@@ -1298,7 +1301,7 @@ pub fn atom_map_start(lhs: impl crate::strings::IntoCCharPtr, len: usize, peeked
         }
         let op = get_vim_var_str(VV_OP);
         if get_real_state() == MODE_OP_PENDING && *op != 0 {
-            assert!(*lhs.add(len) == 0);
+            assert!(*lhs.wrapping_add(len) == 0);
             let mut full_bytes = Vec::from(crate::memory::cstr_as_bytes(op));
             full_bytes.extend_from_slice(crate::memory::cstr_slice(lhs, len));
             let full = cstr_from_bytes(&full_bytes);

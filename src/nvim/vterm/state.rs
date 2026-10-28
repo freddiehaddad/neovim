@@ -609,7 +609,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 
                 if grapheme_len < state.grapheme_buf.len() - 4 {
                     grapheme_len += utf_char2bytes(
                         codepoints[i] as i32,
-                        state.grapheme_buf.as_mut_ptr().add(grapheme_len),
+                        state.grapheme_buf.as_mut_ptr().wrapping_add(grapheme_len),
                     ) as usize;
                 }
                 i += 1;
@@ -893,7 +893,7 @@ fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i3
                 }
                 let setnum = ((crate::memory::cstr_first_byte(bytes)) - 0x28) as usize;
                 if let Some(newenc) =
-                    vterm_lookup_encoding(VTermEncodingType::EncSingle94, *bytes.add(1))
+                    vterm_lookup_encoding(VTermEncodingType::EncSingle94, *bytes.wrapping_add(1))
                 {
                     state.encoding[setnum].init(newenc);
                 }
@@ -1229,7 +1229,7 @@ fn on_csi(
         let mut cancel_phantom: i32 = 1;
 
         if !leader_ptr.is_null() && *leader_ptr != 0 {
-            if *leader_ptr.add(1) != 0 {
+            if *leader_ptr.wrapping_add(1) != 0 {
                 return 0;
             }
             match crate::memory::cstr_first_byte(leader_ptr) {
@@ -1241,7 +1241,7 @@ fn on_csi(
         }
 
         if !intermed_ptr.is_null() && *intermed_ptr != 0 {
-            if *intermed_ptr.add(1) != 0 {
+            if *intermed_ptr.wrapping_add(1) != 0 {
                 return 0;
             }
             match crate::memory::cstr_first_byte(intermed_ptr) {
@@ -1340,10 +1340,10 @@ fn on_csi(
             0x48 => {
                 // CUP - ECMA-48 8.3.21
                 let row = csi_arg_or(*args, 1);
-                let col = if argcount < 2 || csi_arg_is_missing(*args.add(1)) {
+                let col = if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
                     1
                 } else {
-                    csi_arg(*args.add(1))
+                    csi_arg(*args.wrapping_add(1))
                 };
                 state.pos.row = row - 1;
                 state.pos.col = col - 1;
@@ -1605,10 +1605,10 @@ fn on_csi(
             0x66 => {
                 // HVP - ECMA-48 8.3.63
                 let row = csi_arg_or(*args, 1);
-                let col = if argcount < 2 || csi_arg_is_missing(*args.add(1)) {
+                let col = if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
                     1
                 } else {
-                    csi_arg(*args.add(1))
+                    csi_arg(*args.wrapping_add(1))
                 };
                 state.pos.row = row - 1;
                 state.pos.col = col - 1;
@@ -1641,8 +1641,8 @@ fn on_csi(
             CMD_DECSET => {
                 // DEC private mode set
                 for i in 0..(argcount as usize) {
-                    if !csi_arg_is_missing(*args.add(i)) {
-                        set_dec_mode(state, csi_arg(*args.add(i)), 1);
+                    if !csi_arg_is_missing(*args.wrapping_add(i)) {
+                        set_dec_mode(state, csi_arg(*args.wrapping_add(i)), 1);
                     }
                 }
             }
@@ -1667,8 +1667,8 @@ fn on_csi(
             CMD_DECRST => {
                 // DEC private mode reset
                 for i in 0..(argcount as usize) {
-                    if !csi_arg_is_missing(*args.add(i)) {
-                        set_dec_mode(state, csi_arg(*args.add(i)), 0);
+                    if !csi_arg_is_missing(*args.wrapping_add(i)) {
+                        set_dec_mode(state, csi_arg(*args.wrapping_add(i)), 0);
                     }
                 }
             }
@@ -1679,7 +1679,7 @@ fn on_csi(
             CMD_DECSGR => {
                 // DECSGR
                 for argi in 0..(argcount as usize) {
-                    match csi_arg(*args.add(argi)) {
+                    match csi_arg(*args.wrapping_add(argi)) {
                         4 => {
                             let arg: i64 = 73;
                             vterm_state_setpen(state, &raw const arg, 1);
@@ -1802,11 +1802,12 @@ fn on_csi(
             0x72 => {
                 // DECSTBM - DEC custom
                 state.scrollregion_top = csi_arg_or(*args, 1) - 1;
-                state.scrollregion_bottom = if argcount < 2 || csi_arg_is_missing(*args.add(1)) {
-                    -1
-                } else {
-                    csi_arg(*args.add(1))
-                };
+                state.scrollregion_bottom =
+                    if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
+                        -1
+                    } else {
+                        csi_arg(*args.wrapping_add(1))
+                    };
                 state.scrollregion_top = state.scrollregion_top.clamp(0, state.rows);
                 if state.scrollregion_bottom < -1 {
                     state.scrollregion_bottom = -1;
@@ -1832,11 +1833,12 @@ fn on_csi(
             0x73 => {
                 // DECSLRM - DEC custom
                 state.scrollregion_left = csi_arg_or(*args, 1) - 1;
-                state.scrollregion_right = if argcount < 2 || csi_arg_is_missing(*args.add(1)) {
-                    -1
-                } else {
-                    csi_arg(*args.add(1))
-                };
+                state.scrollregion_right =
+                    if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
+                        -1
+                    } else {
+                        csi_arg(*args.wrapping_add(1))
+                    };
                 state.scrollregion_left = state.scrollregion_left.clamp(0, state.cols);
                 if state.scrollregion_right < -1 {
                     state.scrollregion_right = -1;
@@ -1871,10 +1873,10 @@ fn on_csi(
                 pop_key_encoding_flags(state, csi_arg_or(*args, 1));
             }
             CMD_KITTY_SET => {
-                let val = if argcount < 2 || csi_arg_is_missing(*args.add(1)) {
+                let val = if argcount < 2 || csi_arg_is_missing(*args.wrapping_add(1)) {
                     1
                 } else {
-                    csi_arg(*args.add(1))
+                    csi_arg(*args.wrapping_add(1))
                 };
                 set_key_encoding_flags(state, csi_arg_or(*args, 0), val);
             }
@@ -1975,7 +1977,7 @@ const fn unbase64one(c: u8) -> u8 {
 }
 
 fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
-    unsafe {
+    {
         let mut frag_str = frag.str_;
         let mut frag_len = frag.len();
         let frag_initial = frag.initial();
@@ -2022,7 +2024,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
                 _ => {}
             }
 
-            frag_str = frag_str.add(1);
+            frag_str = frag_str.wrapping_add(1);
             frag_len -= 1;
         }
 
@@ -2097,7 +2099,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
                     }
 
                     while frag_len != 0 && (crate::memory::cstr_first_byte(frag_str)) == b'=' {
-                        frag_str = frag_str.add(1);
+                        frag_str = frag_str.wrapping_add(1);
                         frag_len -= 1;
                     }
 
@@ -2119,7 +2121,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
 
                     x = (x << 6) | u32::from(b);
                     n += 1;
-                    frag_str = frag_str.add(1);
+                    frag_str = frag_str.wrapping_add(1);
                     frag_len -= 1;
 
                     if n == 4 {
@@ -2198,28 +2200,30 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
 
         if frag.initial() {
             *tmp = 0;
-            *tmp.add(1) = 0;
-            *tmp.add(2) = 0;
-            *tmp.add(3) = 0;
+            *tmp.wrapping_add(1) = 0;
+            *tmp.wrapping_add(2) = 0;
+            *tmp.wrapping_add(3) = 0;
         }
 
         let mut i: usize = 0;
-        while i < 3 && *tmp.add(i) != 0 {
+        while i < 3 && *tmp.wrapping_add(i) != 0 {
             i += 1;
         }
         while i < 3 && frag_len != 0 {
-            *tmp.add(i) = crate::memory::cstr_first_byte(frag_str);
+            *tmp.wrapping_add(i) = crate::memory::cstr_first_byte(frag_str);
             i += 1;
-            frag_str = frag_str.add(1);
+            frag_str = frag_str.wrapping_add(1);
             frag_len -= 1;
         }
-        *tmp.add(i) = 0;
+        *tmp.wrapping_add(i) = 0;
 
         if !frag.final_() {
             return;
         }
 
-        let key = u32::from(*tmp) | (u32::from(*tmp.add(1)) << 8) | (u32::from(*tmp.add(2)) << 16);
+        let key = u32::from(*tmp)
+            | (u32::from(*tmp.wrapping_add(1)) << 8)
+            | (u32::from(*tmp.wrapping_add(2)) << 16);
         const KEY_M: u32 = b'm' as u32;
         const KEY_R: u32 = b'r' as u32;
         const KEY_S: u32 = b's' as u32;

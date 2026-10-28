@@ -1306,7 +1306,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     && !ascii_iswhite(crate::memory::cstr_first_byte(linep))
                     && crate::memory::cstr_first_byte(linep) != b'='
                 {
-                    linep = linep.add(1);
+                    linep = linep.wrapping_add(1);
                 }
                 let key_len = linep as usize - key_start as usize;
                 if key_len > key.len() - 1 {
@@ -1337,17 +1337,17 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     error = true;
                     break;
                 }
-                linep = linep.add(1);
+                linep = linep.wrapping_add(1);
 
                 linep = skipwhite(linep);
                 let arg_start: *const c_char;
                 if crate::memory::cstr_first_byte(linep) == b'\'' {
-                    linep = linep.add(1);
+                    linep = linep.wrapping_add(1);
                     arg_start = linep;
                     linep = crate::memory::cstr_as_bytes(linep)
                         .iter()
                         .position(|&b| b == b'\'')
-                        .map_or(ptr::null(), |i| linep.add(i));
+                        .map_or(ptr::null(), |i| linep.wrapping_add(i));
                     if linep.is_null() {
                         semsg!(gettext(E_INVARG2), key_start);
                         error = true;
@@ -1372,7 +1372,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                 arg[arg_len] = NUL;
 
                 if crate::memory::cstr_first_byte(linep) == b'\'' {
-                    linep = linep.add(1);
+                    linep = linep.wrapping_add(1);
                 }
 
                 if *key_bytes == b"TERM" || *key_bytes == b"CTERM" || *key_bytes == b"GUI" {
@@ -1383,7 +1383,8 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                         while i >= 0 {
                             let hname = HL_NAME_TABLE[i as usize];
                             let len = hname.to_bytes().len();
-                            if mb_strnicmp(arg.as_ptr().add(off), hname.as_ptr(), len) == 0 {
+                            if mb_strnicmp(arg.as_ptr().wrapping_add(off), hname.as_ptr(), len) == 0
+                            {
                                 if (HL_ATTR_TABLE[i as usize] & HL_UNDERLINE_MASK) != 0 {
                                     attr &= !HL_UNDERLINE_MASK;
                                 }
@@ -1470,7 +1471,10 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                             while i >= 0 {
                                 let cname = COLOR_NAMES[i as usize].as_ptr();
                                 if off == *cname
-                                    && mb_stricmp(arg.as_ptr().add(1), cname.add(1)) == 0
+                                    && mb_stricmp(
+                                        arg.as_ptr().wrapping_add(1),
+                                        cname.wrapping_add(1),
+                                    ) == 0
                                 {
                                     break;
                                 }
@@ -1878,7 +1882,7 @@ fn highlight_list_arg(
     name: &std::ffi::CStr,
 ) -> bool {
     let sarg = sarg.into_c_char_ptr();
-    unsafe {
+    {
         if g_st().got_int {
             return false;
         }
@@ -1910,7 +1914,7 @@ fn highlight_list_arg(
                             let _dst: *mut c_char = buf.as_mut_ptr();
                             let _dsize: usize = 100;
                             let _dlen = crate::memory::cstr_len(_dst);
-                            crate::memory::xstrlcpy(_dst.add(_dlen), c",", _dsize - _dlen);
+                            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c",", _dsize - _dlen);
                         };
                     }
                     {
@@ -1918,7 +1922,7 @@ fn highlight_list_arg(
                         let _dsize: usize = 100;
                         let _dlen = crate::memory::cstr_len(_dst);
                         crate::memory::xstrlcpy(
-                            _dst.add(_dlen),
+                            _dst.wrapping_add(_dlen),
                             HL_NAME_TABLE[i].as_ptr(),
                             _dsize - _dlen,
                         );
@@ -2236,7 +2240,7 @@ fn syn_add_group(name: impl crate::strings::IntoCCharPtr, len: usize) -> i32 {
                         .iter()
                         .rposition(|&_b| _b == b'.')
                         .map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| {
-                            _s.add(_i).cast_mut().cast::<std::ffi::c_void>()
+                            _s.wrapping_add(_i).cast_mut().cast::<std::ffi::c_void>()
                         })
                 }
             }
@@ -2410,7 +2414,7 @@ fn combine_stl_hlt(
             hl_table_at(dst).sg_rgb_sp = hl_table_at(u_idx).sg_rgb_sp;
         }
         set_hl_attr(hlcnt + i);
-        *table.add(i as usize) = syn_id2attr(hlcnt + i + 1);
+        *table.wrapping_add(i as usize) = syn_id2attr(hlcnt + i + 1);
     }
 }
 
@@ -2562,9 +2566,9 @@ fn highlight_list() {
 }
 
 fn highlight_list_two(cnt: i32, id: i32) {
-    unsafe {
+    {
         const MSG: &CStr = c"N \x08I \x08!  \x08";
-        msg_puts_hl(MSG.as_ptr().add((cnt / 11) as usize), id, false);
+        msg_puts_hl(MSG.as_ptr().wrapping_add((cnt / 11) as usize), id, false);
         msg_clr_eos();
         ui_flush();
         os_delay(if cnt == 99 { 40 } else { (cnt as u64) * 50 }, false);
@@ -2619,7 +2623,7 @@ pub fn name_to_color(name: impl crate::strings::IntoCCharPtr, idx: *mut i32) -> 
         {
             *idx = K_COLOR_IDX_HEX;
             let hex_str = std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-                name.add(1).cast::<u8>(),
+                name.wrapping_add(1).cast::<u8>(),
                 6,
             ));
             return RgbValue::from_str_radix(hex_str, 16).unwrap_or(0);
@@ -2674,7 +2678,7 @@ pub fn name_to_ctermcolor(name: impl crate::strings::IntoCCharPtr) -> i32 {
         let mut i = COLOR_NAMES.len() as isize - 1;
         while i >= 0 {
             let cname = COLOR_NAMES[i as usize].as_ptr();
-            if off == *cname && mb_stricmp(name.add(1), cname.add(1)) == 0 {
+            if off == *cname && mb_stricmp(name.wrapping_add(1), cname.wrapping_add(1)) == 0 {
                 break;
             }
             i -= 1;

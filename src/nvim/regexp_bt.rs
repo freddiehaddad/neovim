@@ -173,27 +173,27 @@ fn next_fn(p: *const u8) -> i32 {
 
 #[inline]
 fn operand_fn(p: *mut u8) -> *mut u8 {
-    unsafe { p.add(3) }
+    p.wrapping_add(3)
 }
 
 #[inline]
 fn operand_min(p: *const u8) -> i64 {
     unsafe {
-        ((*p.add(3) as i64) << 24)
-            + ((*p.add(4) as i64) << 16)
-            + ((*p.add(5) as i64) << 8)
-            + (*p.add(6) as i64)
+        ((*p.wrapping_add(3) as i64) << 24)
+            + ((*p.wrapping_add(4) as i64) << 16)
+            + ((*p.wrapping_add(5) as i64) << 8)
+            + (*p.wrapping_add(6) as i64)
     }
 }
 
 #[inline]
 fn operand_max(p: *const u8) -> i64 {
-    unsafe { operand_min(p.add(4)) }
+    operand_min(p.wrapping_add(4))
 }
 
 #[inline]
 fn operand_cmp(p: *const u8) -> u8 {
-    unsafe { *p.add(7) }
+    unsafe { *p.wrapping_add(7) }
 }
 
 #[inline]
@@ -246,19 +246,19 @@ fn regc(b: i32) {
             re_st().regsize += 1;
         } else {
             *re_st().regcode = b as u8;
-            re_st().regcode = re_st().regcode.add(1);
+            re_st().regcode = re_st().regcode.wrapping_add(1);
         }
     }
 }
 
 fn regmbc(c: i32) {
-    unsafe {
+    {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += i64::from(utf_char2len(c));
         } else {
             re_st().regcode = re_st()
                 .regcode
-                .add(utf_char2bytes(c, re_st().regcode.cast()) as usize);
+                .wrapping_add(utf_char2bytes(c, re_st().regcode.cast()) as usize);
         }
     }
 }
@@ -715,9 +715,9 @@ fn regnode(op: i32) -> *mut u8 {
             re_st().regsize += 3;
         } else {
             *re_st().regcode = op as u8;
-            *re_st().regcode.add(1) = NUL;
-            *re_st().regcode.add(2) = NUL;
-            re_st().regcode = re_st().regcode.add(3);
+            *re_st().regcode.wrapping_add(1) = NUL;
+            *re_st().regcode.wrapping_add(2) = NUL;
+            re_st().regcode = re_st().regcode.wrapping_add(3);
         }
         ret
     }
@@ -726,15 +726,15 @@ fn regnode(op: i32) -> *mut u8 {
 fn re_put_uint32(p: *mut u8, val: u32) -> *mut u8 {
     unsafe {
         *p = ((val >> 24) & 0o377) as u8;
-        *p.add(1) = ((val >> 16) & 0o377) as u8;
-        *p.add(2) = ((val >> 8) & 0o377) as u8;
-        *p.add(3) = (val & 0o377) as u8;
-        p.add(4)
+        *p.wrapping_add(1) = ((val >> 16) & 0o377) as u8;
+        *p.wrapping_add(2) = ((val >> 8) & 0o377) as u8;
+        *p.wrapping_add(3) = (val & 0o377) as u8;
+        p.wrapping_add(4)
     }
 }
 
 fn regnext(p: *mut u8) -> *mut u8 {
-    unsafe {
+    {
         if p == just_calc_size() || re_st().reg_toolong != 0 {
             return ptr::null_mut();
         }
@@ -743,9 +743,9 @@ fn regnext(p: *mut u8) -> *mut u8 {
             return ptr::null_mut();
         }
         if op_fn(p) == BACK {
-            p.sub(offset as usize)
+            p.wrapping_sub(offset as usize)
         } else {
-            p.add(offset as usize)
+            p.wrapping_add(offset as usize)
         }
     }
 }
@@ -771,8 +771,8 @@ fn regtail(p: *mut u8, val: *const u8) {
         if offset > 0xffff {
             re_st().reg_toolong = 1;
         } else {
-            *scan.add(1) = (((offset as u32) >> 8) & 0o377) as u8;
-            *scan.add(2) = (offset & 0o377) as u8;
+            *scan.wrapping_add(1) = (((offset as u32) >> 8) & 0o377) as u8;
+            *scan.wrapping_add(2) = (offset & 0o377) as u8;
         }
     }
 }
@@ -794,16 +794,16 @@ fn reginsert(op: i32, opnd: *mut u8) {
             return;
         }
         let mut src = re_st().regcode;
-        re_st().regcode = re_st().regcode.add(3);
+        re_st().regcode = re_st().regcode.wrapping_add(3);
         let mut dst = re_st().regcode;
         while src > opnd {
-            src = src.sub(1);
-            dst = dst.sub(1);
+            src = src.wrapping_sub(1);
+            dst = dst.wrapping_sub(1);
             *dst = *src;
         }
         *opnd = op as u8;
-        *opnd.add(1) = NUL;
-        *opnd.add(2) = NUL;
+        *opnd.wrapping_add(1) = NUL;
+        *opnd.wrapping_add(2) = NUL;
     }
 }
 
@@ -814,17 +814,17 @@ fn reginsert_nr(op: i32, val: i64, opnd: *mut u8) {
             return;
         }
         let mut src = re_st().regcode;
-        re_st().regcode = re_st().regcode.add(7);
+        re_st().regcode = re_st().regcode.wrapping_add(7);
         let mut dst = re_st().regcode;
         while src > opnd {
-            src = src.sub(1);
-            dst = dst.sub(1);
+            src = src.wrapping_sub(1);
+            dst = dst.wrapping_sub(1);
             *dst = *src;
         }
         *opnd = op as u8;
-        *opnd.add(1) = NUL;
-        *opnd.add(2) = NUL;
-        re_put_uint32(opnd.add(3), val as u32);
+        *opnd.wrapping_add(1) = NUL;
+        *opnd.wrapping_add(2) = NUL;
+        re_put_uint32(opnd.wrapping_add(3), val as u32);
     }
 }
 
@@ -835,17 +835,17 @@ fn reginsert_limits(op: i32, minval: i64, maxval: i64, opnd: *mut u8) {
             return;
         }
         let mut src = re_st().regcode;
-        re_st().regcode = re_st().regcode.add(11);
+        re_st().regcode = re_st().regcode.wrapping_add(11);
         let mut dst = re_st().regcode;
         while src > opnd {
-            src = src.sub(1);
-            dst = dst.sub(1);
+            src = src.wrapping_sub(1);
+            dst = dst.wrapping_sub(1);
             *dst = *src;
         }
         *opnd = op as u8;
-        *opnd.add(1) = NUL;
-        *opnd.add(2) = NUL;
-        let place = re_put_uint32(opnd.add(3), minval as u32);
+        *opnd.wrapping_add(1) = NUL;
+        *opnd.wrapping_add(2) = NUL;
+        let place = re_put_uint32(opnd.wrapping_add(3), minval as u32);
         let place = re_put_uint32(place, maxval as u32);
         regtail(opnd, place);
     }
@@ -1298,8 +1298,8 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                                     re_st().regsize += 2;
                                 } else {
                                     *re_st().regcode = c as u8;
-                                    *re_st().regcode.add(1) = cmp as u8;
-                                    re_st().regcode = re_st().regcode.add(2);
+                                    *re_st().regcode.wrapping_add(1) = cmp as u8;
+                                    re_st().regcode = re_st().regcode.wrapping_add(2);
                                 }
                                 return ret;
                             } else if (c == b'l' as i32 || c == b'c' as i32 || c == b'v' as i32)
@@ -1347,7 +1347,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                                 } else {
                                     re_st().regcode = re_put_uint32(re_st().regcode, n);
                                     *re_st().regcode = cmp as u8;
-                                    re_st().regcode = re_st().regcode.add(1);
+                                    re_st().regcode = re_st().regcode.wrapping_add(1);
                                 }
                                 return ret;
                             }
@@ -1386,7 +1386,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
 
                 if crate::memory::cstr_first_byte(re_st().regparse) == b'^' {
                     ret = regnode(ANYBUT + extra);
-                    re_st().regparse = re_st().regparse.add(1);
+                    re_st().regparse = re_st().regparse.wrapping_add(1);
                 } else {
                     ret = regnode(ANYOF + extra);
                 }
@@ -1396,14 +1396,14 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                 {
                     startc = crate::memory::cstr_first_byte(re_st().regparse) as i32;
                     regc(startc);
-                    re_st().regparse = re_st().regparse.add(1);
+                    re_st().regparse = re_st().regparse.wrapping_add(1);
                 }
 
                 while !crate::memory::cstr_is_empty(re_st().regparse)
                     && crate::memory::cstr_first_byte(re_st().regparse) != b']'
                 {
                     if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
-                        re_st().regparse = re_st().regparse.add(1);
+                        re_st().regparse = re_st().regparse.wrapping_add(1);
                         if crate::memory::cstr_first_byte(re_st().regparse) == b']'
                             || crate::memory::cstr_is_empty(re_st().regparse)
                             || startc == -1
@@ -1462,13 +1462,13 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                                 crate::memory::cstr_byte_at(re_st().regparse, 1) as i32,
                             )))
                     {
-                        re_st().regparse = re_st().regparse.add(1);
+                        re_st().regparse = re_st().regparse.wrapping_add(1);
                         if crate::memory::cstr_first_byte(re_st().regparse) == b'n' {
                             if ret != just_calc_size() && *ret == ANYOF as u8 {
                                 *ret = (ANYOF + ADD_NL) as u8;
                                 *flagp |= HASNL;
                             }
-                            re_st().regparse = re_st().regparse.add(1);
+                            re_st().regparse = re_st().regparse.wrapping_add(1);
                             startc = -1;
                         } else if matches!(
                             crate::memory::cstr_first_byte(re_st().regparse),
@@ -1489,7 +1489,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                             startc = backslash_trans(crate::memory::cstr_first_byte(
                                 re_st().regparse,
                             ) as i32);
-                            re_st().regparse = re_st().regparse.add(1);
+                            re_st().regparse = re_st().regparse.wrapping_add(1);
                             regc(startc);
                         }
                     } else if crate::memory::cstr_first_byte(re_st().regparse) == b'[' {
@@ -1507,7 +1507,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                                     } else {
                                         startc =
                                             crate::memory::cstr_first_byte(re_st().regparse) as i32;
-                                        re_st().regparse = re_st().regparse.add(1);
+                                        re_st().regparse = re_st().regparse.wrapping_add(1);
                                         regc(startc);
                                     }
                                 }
@@ -1630,7 +1630,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                             len >= 0
                         } {
                             regc(crate::memory::cstr_first_byte(re_st().regparse) as i32);
-                            re_st().regparse = re_st().regparse.add(1);
+                            re_st().regparse = re_st().regparse.wrapping_add(1);
                         }
                     }
                 }
@@ -1680,7 +1680,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                 let l = utf_ptr2len(re_st().regparse);
                 if !utf_composinglike(
                     re_st().regparse,
-                    re_st().regparse.add(l as usize),
+                    re_st().regparse.wrapping_add(l as usize),
                     Some(&mut state),
                 ) {
                     break;
@@ -2080,7 +2080,7 @@ fn reg(paren: i32, flagp: &mut i32) -> *mut u8 {
         if paren == REG_PAREN {
             *(&raw mut re_st().had_endbrace)
                 .cast::<u8>()
-                .add(parno as usize) = 1;
+                .wrapping_add(parno as usize) = 1;
         }
 
         re_st().bt_reg_parse_depth -= 1;
@@ -2141,7 +2141,7 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: i32) -> Option<BtRegprog> {
         }
         r.reghasz = re_st().re_has_z as u8;
 
-        let mut scan = r.program.as_mut_ptr().add(1);
+        let mut scan = r.program.as_mut_ptr().wrapping_add(1);
         if op_fn(regnext(scan)) == END {
             scan = operand_fn(scan);
 
@@ -2207,14 +2207,14 @@ fn reg_save(save: &mut Regsave) {
 }
 
 fn reg_restore(save: &mut Regsave) {
-    unsafe {
+    {
         if reg_multi() {
             let pos = save.rs_u.pos();
             if re_st().rex.lnum != pos.lnum {
                 re_st().rex.lnum = pos.lnum;
                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
             }
-            re_st().rex.input = re_st().rex.line.add(pos.col as usize);
+            re_st().rex.input = re_st().rex.line.wrapping_add(pos.col as usize);
         } else {
             re_st().rex.input = save.rs_u.ptr();
         }
@@ -2223,11 +2223,11 @@ fn reg_restore(save: &mut Regsave) {
 }
 
 fn reg_save_equal(save: &Regsave) -> bool {
-    unsafe {
+    {
         if reg_multi() {
             let pos = save.rs_u.pos();
             re_st().rex.lnum == pos.lnum
-                && re_st().rex.input == re_st().rex.line.add(pos.col as usize)
+                && re_st().rex.input == re_st().rex.line.wrapping_add(pos.col as usize)
         } else {
             re_st().rex.input == save.rs_u.ptr()
         }
@@ -2298,11 +2298,11 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                         if testval != 0 {
                             break;
                         }
-                        *scan = (*scan).add(l as usize);
+                        *scan = (*scan).wrapping_add(l as usize);
                     } else if ((re_st().class_tab[**scan as usize] & mask) == testval)
                         || (re_st().rex.reg_line_lbr && **scan == b'\n' && with_nl(op))
                     {
-                        *scan = (*scan).add(1);
+                        *scan = (*scan).wrapping_add(1);
                     } else {
                         break;
                     }
@@ -2355,7 +2355,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                         break;
                     }
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.add(1);
+                    scan = scan.wrapping_add(1);
                 } else {
                     break;
                 }
@@ -2384,7 +2384,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                         break;
                     }
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.add(1);
+                    scan = scan.wrapping_add(1);
                 } else {
                     break;
                 }
@@ -2413,7 +2413,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                         break;
                     }
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.add(1);
+                    scan = scan.wrapping_add(1);
                 } else {
                     break;
                 }
@@ -2442,7 +2442,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                 {
                     mb_ptr_adv(&raw mut scan);
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.add(1);
+                    scan = scan.wrapping_add(1);
                 } else {
                     break;
                 }
@@ -2490,13 +2490,13 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                 let cl = mb_tolower(*opnd as i32);
                 while count < maxcount && (*scan as i32 == cu || *scan as i32 == cl) {
                     count += 1;
-                    scan = scan.add(1);
+                    scan = scan.wrapping_add(1);
                 }
             } else {
                 let cu = *opnd;
                 while count < maxcount && *scan == cu {
                     count += 1;
-                    scan = scan.add(1);
+                    scan = scan.wrapping_add(1);
                 }
             }
         } else if op == MULTIBYTECODE {
@@ -2510,7 +2510,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                 while count < maxcount && (utfc_ptr2len(scan.cast()) as usize) >= len {
                     let mut i = 0;
                     while i < len {
-                        if *opnd.add(i) != *scan.add(i) {
+                        if *opnd.wrapping_add(i) != *scan.wrapping_add(i) {
                             break;
                         }
                         i += 1;
@@ -2519,7 +2519,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                     {
                         break;
                     }
-                    scan = scan.add(len);
+                    scan = scan.wrapping_add(len);
                     count += 1;
                 }
             }
@@ -2540,19 +2540,19 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                         break;
                     }
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.add(1);
+                    scan = scan.wrapping_add(1);
                 } else {
                     let len = utfc_ptr2len(scan.cast());
                     if len > 1 {
                         if cstrchr(opnd.cast(), utf_ptr2char(scan.cast())).is_null() == is_anyof {
                             break;
                         }
-                        scan = scan.add(len as usize);
+                        scan = scan.wrapping_add(len as usize);
                     } else {
                         if cstrchr(opnd.cast(), *scan as i32).is_null() == is_anyof {
                             break;
                         }
-                        scan = scan.add(1);
+                        scan = scan.wrapping_add(1);
                     }
                 }
                 count += 1;
@@ -2601,7 +2601,11 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
             .regstack
             .resize(old_len + size_of::<Regitem>() / 8, 0);
 
-        let rp = &mut *re_st().regstack.as_mut_ptr().add(old_len).cast::<Regitem>();
+        let rp = &mut *re_st()
+            .regstack
+            .as_mut_ptr()
+            .wrapping_add(old_len)
+            .cast::<Regitem>();
         rp.rs_state = state;
         rp.rs_scan = scan;
         rp
@@ -2613,9 +2617,9 @@ fn regstack_pop(scan: *mut *mut u8) {
         let rp = &mut *re_st()
             .regstack
             .as_mut_ptr()
-            .add(re_st().regstack.len())
+            .wrapping_add(re_st().regstack.len())
             .cast::<Regitem>()
-            .sub(1);
+            .wrapping_sub(1);
         *scan = rp.rs_scan;
         re_st()
             .regstack
@@ -2632,11 +2636,14 @@ fn save_subexpr(bp: &mut Regbehind) {
         for i in 0..NSUBEXP {
             if reg_multi() {
                 bp.save_start[i].se_u =
-                    crate::regexp::RegPos::Pos(*re_st().rex.reg_startpos.add(i));
-                bp.save_end[i].se_u = crate::regexp::RegPos::Pos(*re_st().rex.reg_endpos.add(i));
+                    crate::regexp::RegPos::Pos(*re_st().rex.reg_startpos.wrapping_add(i));
+                bp.save_end[i].se_u =
+                    crate::regexp::RegPos::Pos(*re_st().rex.reg_endpos.wrapping_add(i));
             } else {
-                bp.save_start[i].se_u = crate::regexp::RegPos::Ptr(*re_st().rex.reg_startp.add(i));
-                bp.save_end[i].se_u = crate::regexp::RegPos::Ptr(*re_st().rex.reg_endp.add(i));
+                bp.save_start[i].se_u =
+                    crate::regexp::RegPos::Ptr(*re_st().rex.reg_startp.wrapping_add(i));
+                bp.save_end[i].se_u =
+                    crate::regexp::RegPos::Ptr(*re_st().rex.reg_endp.wrapping_add(i));
             }
         }
     }
@@ -2650,11 +2657,11 @@ fn restore_subexpr(bp: &mut Regbehind) {
         }
         for i in 0..NSUBEXP {
             if reg_multi() {
-                *re_st().rex.reg_startpos.add(i) = bp.save_start[i].se_u.pos();
-                *re_st().rex.reg_endpos.add(i) = bp.save_end[i].se_u.pos();
+                *re_st().rex.reg_startpos.wrapping_add(i) = bp.save_start[i].se_u.pos();
+                *re_st().rex.reg_endpos.wrapping_add(i) = bp.save_end[i].se_u.pos();
             } else {
-                *re_st().rex.reg_startp.add(i) = bp.save_start[i].se_u.ptr();
-                *re_st().rex.reg_endp.add(i) = bp.save_end[i].se_u.ptr();
+                *re_st().rex.reg_startp.wrapping_add(i) = bp.save_start[i].se_u.ptr();
+                *re_st().rex.reg_endp.wrapping_add(i) = bp.save_end[i].se_u.ptr();
             }
         }
     }
@@ -2745,7 +2752,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                         RE_MARK => {
                             let mark = *operand_fn(scan) as i32;
-                            let cmp = *operand_fn(scan).add(1) as i32;
+                            let cmp = *operand_fn(scan).wrapping_add(1) as i32;
                             let col = if reg_multi() {
                                 re_st().rex.input.offset_from(re_st().rex.line) as usize
                             } else {
@@ -2760,7 +2767,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             );
                             if reg_multi() {
                                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
-                                re_st().rex.input = re_st().rex.line.add(col);
+                                re_st().rex.input = re_st().rex.line.wrapping_add(col);
                             }
                             if fm.is_null() || (*fm).mark.lnum <= 0 {
                                 status = RA_NOMATCH;
@@ -3090,7 +3097,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 if status != RA_NOMATCH
                                     && utf_composinglike(
                                         re_st().rex.input.cast(),
-                                        re_st().rex.input.add(len as usize).cast(),
+                                        re_st().rex.input.wrapping_add(len as usize).cast(),
                                         None,
                                     )
                                     && !re_st().rex.reg_icombine
@@ -3099,7 +3106,8 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     status = RA_NOMATCH;
                                 }
                                 if status != RA_NOMATCH {
-                                    re_st().rex.input = re_st().rex.input.add(len as usize);
+                                    re_st().rex.input =
+                                        re_st().rex.input.wrapping_add(len as usize);
                                 }
                             }
                         }
@@ -3113,16 +3121,17 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 re_st().rex.input = re_st()
                                     .rex
                                     .input
-                                    .add(utf_ptr2len(re_st().rex.input.cast()) as usize);
-                                q = q.add(utf_ptr2len(q.cast()) as usize);
+                                    .wrapping_add(utf_ptr2len(re_st().rex.input.cast()) as usize);
+                                q = q.wrapping_add(utf_ptr2len(q.cast()) as usize);
                                 if len != 0 {
                                     for i in 0..len {
-                                        if *q.add(i) != *re_st().rex.input.add(i) {
+                                        if *q.wrapping_add(i) != *re_st().rex.input.wrapping_add(i)
+                                        {
                                             status = RA_NOMATCH;
                                             break;
                                         }
                                     }
-                                    re_st().rex.input = re_st().rex.input.add(len);
+                                    re_st().rex.input = re_st().rex.input.wrapping_add(len);
                                 }
                             }
                         }
@@ -3136,31 +3145,37 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 if utf_iscomposing_legacy(opndc) {
                                     status = RA_NOMATCH;
                                     let mut i: usize = 0;
-                                    while *re_st().rex.input.add(i) != NUL {
+                                    while *re_st().rex.input.wrapping_add(i) != NUL {
                                         let step =
-                                            utf_ptr2len(re_st().rex.input.add(i).cast()) as usize;
-                                        let inpc = utf_ptr2char(re_st().rex.input.add(i).cast());
+                                            utf_ptr2len(re_st().rex.input.wrapping_add(i).cast())
+                                                as usize;
+                                        let inpc =
+                                            utf_ptr2char(re_st().rex.input.wrapping_add(i).cast());
                                         if !utf_iscomposing_legacy(inpc) {
                                             if i > 0 {
                                                 break;
                                             }
                                         } else if opndc == inpc {
                                             len = (i as i32)
-                                                + utfc_ptr2len(re_st().rex.input.add(i).cast());
+                                                + utfc_ptr2len(
+                                                    re_st().rex.input.wrapping_add(i).cast(),
+                                                );
                                             status = RA_MATCH;
                                             break;
                                         }
                                         i += step;
                                     }
                                     if status != RA_NOMATCH {
-                                        re_st().rex.input = re_st().rex.input.add(len as usize);
+                                        re_st().rex.input =
+                                            re_st().rex.input.wrapping_add(len as usize);
                                     }
                                 } else if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &mut len)
                                     != 0
                                 {
                                     status = RA_NOMATCH;
                                 } else {
-                                    re_st().rex.input = re_st().rex.input.add(len as usize);
+                                    re_st().rex.input =
+                                        re_st().rex.input.wrapping_add(len as usize);
                                 }
                             }
                         }
@@ -3169,7 +3184,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 re_st().rex.input = re_st()
                                     .rex
                                     .input
-                                    .add(utf_ptr2len(re_st().rex.input.cast()) as usize);
+                                    .wrapping_add(utf_ptr2len(re_st().rex.input.cast()) as usize);
                             }
                         }
                         NOTHING => {}
@@ -3208,12 +3223,12 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     if re_st().rex.reg_startpos.is_null() {
                                         ptr::null_mut()
                                     } else {
-                                        re_st().rex.reg_startpos.add(no)
+                                        re_st().rex.reg_startpos.wrapping_add(no)
                                     },
                                     if re_st().rex.reg_startp.is_null() {
                                         ptr::null_mut()
                                     } else {
-                                        re_st().rex.reg_startp.add(no)
+                                        re_st().rex.reg_startp.wrapping_add(no)
                                     },
                                 );
                             }
@@ -3233,8 +3248,12 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 (*rp).rs_no = no as i16;
                                 save_se(
                                     (*rp).rs_un.sesave_mut(),
-                                    (&raw mut re_st().reg_startzpos).cast::<Lpos>().add(no),
-                                    (&raw mut re_st().reg_startzp).cast::<*mut u8>().add(no),
+                                    (&raw mut re_st().reg_startzpos)
+                                        .cast::<Lpos>()
+                                        .wrapping_add(no),
+                                    (&raw mut re_st().reg_startzp)
+                                        .cast::<*mut u8>()
+                                        .wrapping_add(no),
                                 );
                             }
                         }
@@ -3251,12 +3270,12 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     if re_st().rex.reg_endpos.is_null() {
                                         ptr::null_mut()
                                     } else {
-                                        re_st().rex.reg_endpos.add(no)
+                                        re_st().rex.reg_endpos.wrapping_add(no)
                                     },
                                     if re_st().rex.reg_endp.is_null() {
                                         ptr::null_mut()
                                     } else {
-                                        re_st().rex.reg_endp.add(no)
+                                        re_st().rex.reg_endp.wrapping_add(no)
                                     },
                                 );
                             }
@@ -3271,8 +3290,12 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 (*rp).rs_no = no as i16;
                                 save_se(
                                     (*rp).rs_un.sesave_mut(),
-                                    (&raw mut re_st().reg_endzpos).cast::<Lpos>().add(no),
-                                    (&raw mut re_st().reg_endzp).cast::<*mut u8>().add(no),
+                                    (&raw mut re_st().reg_endzpos)
+                                        .cast::<Lpos>()
+                                        .wrapping_add(no),
+                                    (&raw mut re_st().reg_endzp)
+                                        .cast::<*mut u8>()
+                                        .wrapping_add(no),
                                 );
                             }
                         }
@@ -3281,14 +3304,14 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             let mut len: i32 = 0;
                             cleanup_subexpr();
                             if !reg_multi() {
-                                if !(*re_st().rex.reg_startp.add(no)).is_null()
-                                    && !(*re_st().rex.reg_endp.add(no)).is_null()
+                                if !(*re_st().rex.reg_startp.wrapping_add(no)).is_null()
+                                    && !(*re_st().rex.reg_endp.wrapping_add(no)).is_null()
                                 {
-                                    len = (*re_st().rex.reg_endp.add(no))
-                                        .offset_from(*re_st().rex.reg_startp.add(no))
+                                    len = (*re_st().rex.reg_endp.wrapping_add(no))
+                                        .offset_from(*re_st().rex.reg_startp.wrapping_add(no))
                                         as i32;
                                     if cstrncmp(
-                                        (*re_st().rex.reg_startp.add(no)).cast(),
+                                        (*re_st().rex.reg_startp.wrapping_add(no)).cast(),
                                         re_st().rex.input.cast(),
                                         &mut len,
                                     ) != 0
@@ -3297,15 +3320,15 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     }
                                 }
                             } else {
-                                let spos = *re_st().rex.reg_startpos.add(no);
-                                let epos = *re_st().rex.reg_endpos.add(no);
+                                let spos = *re_st().rex.reg_startpos.wrapping_add(no);
+                                let epos = *re_st().rex.reg_endpos.wrapping_add(no);
                                 if spos.lnum >= 0 && epos.lnum >= 0 {
                                     if spos.lnum == re_st().rex.lnum
                                         && epos.lnum == re_st().rex.lnum
                                     {
                                         len = epos.col - spos.col;
                                         if cstrncmp(
-                                            re_st().rex.line.add(spos.col as usize).cast(),
+                                            re_st().rex.line.wrapping_add(spos.col as usize).cast(),
                                             re_st().rex.input.cast(),
                                             &mut len,
                                         ) != 0
@@ -3322,7 +3345,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     }
                                 }
                             }
-                            re_st().rex.input = re_st().rex.input.add(len as usize);
+                            re_st().rex.input = re_st().rex.input.wrapping_add(len as usize);
                         }
                         x if (ZREF + 1..=ZREF + 9).contains(&x) => {
                             cleanup_zsubexpr();
@@ -3336,7 +3359,8 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 if cstrncmp(m, re_st().rex.input.cast(), &mut len) != 0 {
                                     status = RA_NOMATCH;
                                 } else {
-                                    re_st().rex.input = re_st().rex.input.add(len as usize);
+                                    re_st().rex.input =
+                                        re_st().rex.input.wrapping_add(len as usize);
                                 }
                             }
                         }
@@ -3360,11 +3384,13 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 && op_fn(next) < BRACE_COMPLEX + 10
                             {
                                 let no = (op_fn(next) - BRACE_COMPLEX) as usize;
-                                *(&raw mut re_st().brace_min).cast::<i64>().add(no) =
+                                *(&raw mut re_st().brace_min).cast::<i64>().wrapping_add(no) =
                                     operand_min(scan);
-                                *(&raw mut re_st().brace_max).cast::<i64>().add(no) =
+                                *(&raw mut re_st().brace_max).cast::<i64>().wrapping_add(no) =
                                     operand_max(scan);
-                                *(&raw mut re_st().brace_count).cast::<i32>().add(no) = 0;
+                                *(&raw mut re_st().brace_count)
+                                    .cast::<i32>()
+                                    .wrapping_add(no) = 0;
                             } else {
                                 internal_error(c"BRACE_LIMITS");
                                 status = RA_FAIL;
@@ -3372,7 +3398,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                         x if (BRACE_COMPLEX..=BRACE_COMPLEX + 9).contains(&x) => {
                             let no = (op - BRACE_COMPLEX) as usize;
-                            let bcount = (&raw mut re_st().brace_count).cast::<i32>().add(no);
+                            let bcount = (&raw mut re_st().brace_count)
+                                .cast::<i32>()
+                                .wrapping_add(no);
                             let bmin = re_st().brace_min[no];
                             let bmax = re_st().brace_max[no];
                             *bcount += 1;
@@ -3462,7 +3490,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     if rp.is_null() {
                                         status = RA_FAIL;
                                     } else {
-                                        *rp.cast::<Regstar>().sub(1) = rst;
+                                        *rp.cast::<Regstar>().wrapping_sub(1) = rst;
                                         status = RA_BREAK;
                                     }
                                 }
@@ -3494,7 +3522,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 if rp.is_null() {
                                     status = RA_FAIL;
                                 } else {
-                                    save_subexpr(&mut *rp.cast::<Regbehind>().sub(1));
+                                    save_subexpr(&mut *rp.cast::<Regbehind>().wrapping_sub(1));
                                     (*rp).rs_no = op as i16;
                                     reg_save((*rp).rs_un.regsave_mut());
                                 }
@@ -3547,9 +3575,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                 let rp = &mut *re_st()
                     .regstack
                     .as_mut_ptr()
-                    .add(re_st().regstack.len())
+                    .wrapping_add(re_st().regstack.len())
                     .cast::<Regitem>()
-                    .sub(1);
+                    .wrapping_sub(1);
                 match rp.rs_state {
                     RS_NOPEN => {
                         regstack_pop(&raw mut scan);
@@ -3562,12 +3590,12 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 if re_st().rex.reg_startpos.is_null() {
                                     ptr::null_mut()
                                 } else {
-                                    re_st().rex.reg_startpos.add(no)
+                                    re_st().rex.reg_startpos.wrapping_add(no)
                                 },
                                 if re_st().rex.reg_startp.is_null() {
                                     ptr::null_mut()
                                 } else {
-                                    re_st().rex.reg_startp.add(no)
+                                    re_st().rex.reg_startp.wrapping_add(no)
                                 },
                             );
                         }
@@ -3578,8 +3606,12 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             let no = rp.rs_no as usize;
                             restore_se(
                                 rp.rs_un.sesave(),
-                                (&raw mut re_st().reg_startzpos).cast::<Lpos>().add(no),
-                                (&raw mut re_st().reg_startzp).cast::<*mut u8>().add(no),
+                                (&raw mut re_st().reg_startzpos)
+                                    .cast::<Lpos>()
+                                    .wrapping_add(no),
+                                (&raw mut re_st().reg_startzp)
+                                    .cast::<*mut u8>()
+                                    .wrapping_add(no),
                             );
                         }
                         regstack_pop(&raw mut scan);
@@ -3592,12 +3624,12 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 if re_st().rex.reg_endpos.is_null() {
                                     ptr::null_mut()
                                 } else {
-                                    re_st().rex.reg_endpos.add(no)
+                                    re_st().rex.reg_endpos.wrapping_add(no)
                                 },
                                 if re_st().rex.reg_endp.is_null() {
                                     ptr::null_mut()
                                 } else {
-                                    re_st().rex.reg_endp.add(no)
+                                    re_st().rex.reg_endp.wrapping_add(no)
                                 },
                             );
                         }
@@ -3608,8 +3640,12 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             let no = rp.rs_no as usize;
                             restore_se(
                                 rp.rs_un.sesave(),
-                                (&raw mut re_st().reg_endzpos).cast::<Lpos>().add(no),
-                                (&raw mut re_st().reg_endzp).cast::<*mut u8>().add(no),
+                                (&raw mut re_st().reg_endzpos)
+                                    .cast::<Lpos>()
+                                    .wrapping_add(no),
+                                (&raw mut re_st().reg_endzp)
+                                    .cast::<*mut u8>()
+                                    .wrapping_add(no),
                             );
                         }
                         regstack_pop(&raw mut scan);
@@ -3637,7 +3673,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             reg_restore(rp.rs_un.regsave_mut());
                             *(&raw mut re_st().brace_count)
                                 .cast::<i32>()
-                                .add(rp.rs_no as usize) -= 1;
+                                .wrapping_add(rp.rs_no as usize) -= 1;
                         }
                         regstack_pop(&raw mut scan);
                     }
@@ -3646,7 +3682,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             reg_restore(rp.rs_un.regsave_mut());
                             *(&raw mut re_st().brace_count)
                                 .cast::<i32>()
-                                .add(rp.rs_no as usize) -= 1;
+                                .wrapping_add(rp.rs_no as usize) -= 1;
                             status = RA_CONT;
                         }
                         regstack_pop(&raw mut scan);
@@ -3691,7 +3727,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 .regstack
                                 .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
                         } else {
-                            let bp = (&raw mut *rp).cast::<Regbehind>().sub(1);
+                            let bp = (&raw mut *rp).cast::<Regbehind>().wrapping_sub(1);
                             let bp = { &mut *bp };
                             let bp = { &mut *bp };
                             let bp = { &mut *bp };
@@ -3700,11 +3736,11 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             re_st().behind_pos = *rp.rs_un.regsave();
                             rp.rs_state = RS_BEHIND2;
                             reg_restore(rp.rs_un.regsave_mut());
-                            scan = operand_fn(rp.rs_scan).add(4);
+                            scan = operand_fn(rp.rs_scan).wrapping_add(4);
                         }
                     }
                     RS_BEHIND2 => {
-                        let bp = (&raw mut *rp).cast::<Regbehind>().sub(1);
+                        let bp = (&raw mut *rp).cast::<Regbehind>().wrapping_sub(1);
                         let bp = { &mut *bp };
                         let bp = { &mut *bp };
                         let bp = { &mut *bp };
@@ -3750,8 +3786,10 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     }
                                 } else {
                                     let line = reg_getline(rp_pos.lnum);
-                                    rp.rs_un.regsave_mut().rs_u.pos_mut().col -=
-                                        utf_head_off(line, line.add(rp_pos.col as usize - 1)) + 1;
+                                    rp.rs_un.regsave_mut().rs_u.pos_mut().col -= utf_head_off(
+                                        line,
+                                        line.wrapping_add(rp_pos.col as usize - 1),
+                                    ) + 1;
                                 }
                             } else if rp.rs_un.regsave().rs_u.ptr() == re_st().rex.line {
                                 no = FAIL;
@@ -3773,7 +3811,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
                             if no == OK {
                                 reg_restore(rp.rs_un.regsave_mut());
-                                scan = operand_fn(rp.rs_scan).add(4);
+                                scan = operand_fn(rp.rs_scan).wrapping_add(4);
                                 if status == RA_MATCH {
                                     status = RA_NOMATCH;
                                     restore_subexpr(&mut *bp);
@@ -3795,7 +3833,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                     }
                     RS_STAR_LONG | RS_STAR_SHORT => {
-                        let rst = (&raw mut *rp).cast::<Regstar>().sub(1);
+                        let rst = (&raw mut *rp).cast::<Regstar>().wrapping_sub(1);
                         let rst = { &mut *rst };
                         let rst = { &mut *rst };
                         let rst = { &mut *rst };
@@ -3825,10 +3863,13 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                             if re_st().rex.line.is_null() {
                                                 break;
                                             }
-                                            re_st().rex.input = re_st()
-                                                .rex
-                                                .line
-                                                .add(reg_getline_len(re_st().rex.lnum) as usize);
+                                            re_st().rex.input =
+                                                re_st()
+                                                    .rex
+                                                    .line
+                                                    .wrapping_add(
+                                                        reg_getline_len(re_st().rex.lnum) as usize,
+                                                    );
                                             reg_breakcheck();
                                         } else {
                                             mb_ptr_back(
@@ -3876,9 +3917,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                 let top = re_st()
                     .regstack
                     .as_mut_ptr()
-                    .add(re_st().regstack.len())
+                    .wrapping_add(re_st().regstack.len())
                     .cast::<Regitem>()
-                    .sub(1);
+                    .wrapping_sub(1);
                 if status == RA_CONT || ptr::eq(rp, top) {
                     break;
                 }
@@ -3905,12 +3946,12 @@ fn regtry(
     timed_out: Option<&mut i32>,
 ) -> i32 {
     unsafe {
-        re_st().rex.input = re_st().rex.line.add(col as usize);
+        re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
         re_st().rex.need_clear_subexpr = 1;
         re_st().rex.need_clear_zsubexpr = i32::from(prog.reghasz == REX_SET as u8);
 
         if !regmatch(
-            prog.program.as_mut_ptr().add(1),
+            prog.program.as_mut_ptr().wrapping_add(1),
             tm,
             (timed_out.is_some()).then(|| &mut *timed_out.unwrap()),
         ) {
@@ -3932,7 +3973,7 @@ fn regtry(
             }
         } else {
             if (*re_st().rex.reg_startp).is_null() {
-                *re_st().rex.reg_startp = re_st().rex.line.add(col as usize);
+                *re_st().rex.reg_startp = re_st().rex.line.wrapping_add(col as usize);
             }
             if (*re_st().rex.reg_endp).is_null() {
                 *re_st().rex.reg_endp = re_st().rex.input;
@@ -3950,7 +3991,7 @@ fn regtry(
                     let ez = re_st().reg_endzpos[i];
                     if sz.lnum >= 0 && ez.lnum == sz.lnum && ez.col >= sz.col {
                         extmatch.matches[i] = cstring_from_bytes(
-                            reg_getline(sz.lnum).add(sz.col as usize),
+                            reg_getline(sz.lnum).wrapping_add(sz.col as usize),
                             (ez.col - sz.col) as usize,
                         );
                     }
@@ -4024,9 +4065,9 @@ fn bt_regexec_both(
         }
 
         if let Some(off) = prog.regmust_off {
-            let regmust = prog.program.as_ptr().add(off).cast::<c_char>();
+            let regmust = prog.program.as_ptr().wrapping_add(off).cast::<c_char>();
             let c = utf_ptr2char(regmust);
-            let mut s = line.add(col as usize);
+            let mut s = line.wrapping_add(col as usize);
             if !re_st().rex.reg_ic {
                 loop {
                     s = vim_strchr(s.cast(), c).cast();
@@ -4062,7 +4103,7 @@ fn bt_regexec_both(
         re_st().reg_toolong = 0;
 
         if prog.reganch != 0 {
-            let c = utf_ptr2char(re_st().rex.line.add(col as usize).cast());
+            let c = utf_ptr2char(re_st().rex.line.wrapping_add(col as usize).cast());
             if prog.regstart == NUL as i32
                 || prog.regstart == c
                 || (re_st().rex.reg_ic
@@ -4084,7 +4125,10 @@ fn bt_regexec_both(
             let mut tm_count: i32 = 0;
             while !g_st().got_int {
                 if prog.regstart != NUL as i32 {
-                    let s = cstrchr(re_st().rex.line.add(col as usize).cast(), prog.regstart);
+                    let s = cstrchr(
+                        re_st().rex.line.wrapping_add(col as usize).cast(),
+                        prog.regstart,
+                    );
                     if s.is_null() {
                         retval = 0;
                         break;
@@ -4111,10 +4155,10 @@ fn bt_regexec_both(
                     re_st().rex.lnum = 0;
                     re_st().rex.line = reg_getline(0).cast();
                 }
-                if *re_st().rex.line.add(col as usize) == NUL {
+                if *re_st().rex.line.wrapping_add(col as usize) == NUL {
                     break;
                 }
-                col += utfc_ptr2len(re_st().rex.line.add(col as usize).cast());
+                col += utfc_ptr2len(re_st().rex.line.wrapping_add(col as usize).cast());
                 if let Some(tm_val) = tm {
                     tm_count += 1;
                     if tm_count == 20 {

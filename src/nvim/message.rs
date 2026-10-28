@@ -577,9 +577,9 @@ pub fn msg_multiline(
                 } else {
                     msg_putchar_hl((crate::memory::cstr_first_byte(s)) as i32, hl_id);
                 }
-                chunk = s.add(1);
+                chunk = s.wrapping_add(1);
             }
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
 
         // Print the remainder or emit empty event if entire message is empty.
@@ -913,16 +913,16 @@ pub fn trunc_string(
         while len < half && e < buflen {
             if crate::memory::cstr_byte_at(s, e as usize) == 0 {
                 // text fits without truncating!
-                *buf.add(e as usize) = NUL;
+                *buf.wrapping_add(e as usize) = NUL;
                 return;
             }
-            let mut n = ptr2cells(s.add(e as usize));
+            let mut n = ptr2cells(s.wrapping_add(e as usize));
             if len + n > half {
                 break;
             }
             len += n;
-            *buf.add(e as usize) = *s.add(e as usize);
-            n = utfc_ptr2len(s.add(e as usize));
+            *buf.wrapping_add(e as usize) = *s.wrapping_add(e as usize);
+            n = utfc_ptr2len(s.wrapping_add(e as usize));
             while {
                 n -= 1;
                 n > 0
@@ -931,7 +931,7 @@ pub fn trunc_string(
                 if e == buflen {
                     break;
                 }
-                *buf.add(e as usize) = *s.add(e as usize);
+                *buf.wrapping_add(e as usize) = *s.wrapping_add(e as usize);
             }
             e += 1;
         }
@@ -940,8 +940,8 @@ pub fn trunc_string(
         let mut i = crate::memory::cstr_len(s) as i32;
         half = i;
         loop {
-            half = half - utf_head_off(s, s.add((half - 1) as usize)) - 1;
-            let n = ptr2cells(s.add(half as usize));
+            half = half - utf_head_off(s, s.wrapping_add((half - 1) as usize)) - 1;
+            let n = ptr2cells(s.wrapping_add(half as usize));
             if len + n > room || half == 0 {
                 break;
             }
@@ -958,23 +958,31 @@ pub fn trunc_string(
                 }
                 len = len - e + 1;
                 if len < 1 {
-                    *buf.add((e - 1) as usize) = NUL;
+                    *buf.wrapping_add((e - 1) as usize) = NUL;
                 } else {
-                    ptr::copy(s.add(e as usize), buf.add(e as usize), len as usize);
+                    ptr::copy(
+                        s.wrapping_add(e as usize),
+                        buf.wrapping_add(e as usize),
+                        len as usize,
+                    );
                 }
             }
         } else if e + 3 < buflen {
             // set the middle and copy the last part
-            ptr::copy(c"...".as_ptr(), buf.add(e as usize), 3);
+            ptr::copy(c"...".as_ptr(), buf.wrapping_add(e as usize), 3);
             len = crate::memory::cstr_as_bytes(s)[i as usize..].len() as i32 + 1;
             if len >= buflen - e - 3 {
                 len = buflen - e - 3 - 1;
             }
-            ptr::copy(s.add(i as usize), buf.add((e + 3) as usize), len as usize);
-            *buf.add((e + 3 + len - 1) as usize) = NUL;
+            ptr::copy(
+                s.wrapping_add(i as usize),
+                buf.wrapping_add((e + 3) as usize),
+                len as usize,
+            );
+            *buf.wrapping_add((e + 3 + len - 1) as usize) = NUL;
         } else {
             // can't fit in the "...", just truncate it
-            *buf.add((buflen - 1) as usize) = NUL;
+            *buf.wrapping_add((buflen - 1) as usize) = NUL;
         }
     }
 }
@@ -1344,11 +1352,11 @@ pub fn msg_may_trunc(force: bool, mut s: *mut c_char) -> *mut c_char {
             }
             let mut n = 0usize;
             while size >= room {
-                size -= utf_ptr2cells(s.add(n));
-                n += utfc_ptr2len(s.add(n)) as usize;
+                size -= utf_ptr2cells(s.wrapping_add(n));
+                n += utfc_ptr2len(s.wrapping_add(n)) as usize;
             }
             n -= 1;
-            s = s.add(n);
+            s = s.wrapping_add(n);
             *s = b'<' as c_char;
         }
         s
@@ -1441,9 +1449,9 @@ fn msg_hist_add(s: impl crate::strings::IntoCCharPtr, len: i32, hl_id: i32) {
         // Remove leading and trailing newlines.
         while size > 0 && *s == NL as c_char {
             size -= 1;
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
-        while size > 0 && *s.add(size - 1) == NL as c_char {
+        while size > 0 && *s.wrapping_add(size - 1) == NL as c_char {
             size -= 1;
         }
         if size == 0 {
@@ -2041,7 +2049,7 @@ pub fn messaging() -> bool {
 }
 
 pub fn msgmore(n: i32) {
-    unsafe {
+    {
         if g_st().global_busy != 0 || !messaging() {
             return;
         }
@@ -2075,7 +2083,7 @@ pub fn msgmore(n: i32) {
                     let _dsize: usize = MSG_BUF_LEN;
                     let _dlen = crate::memory::cstr_len(_dst);
                     crate::memory::xstrlcpy(
-                        _dst.add(_dlen),
+                        _dst.wrapping_add(_dlen),
                         gettext(c" (Interrupted)"),
                         _dsize - _dlen,
                     );
@@ -2282,7 +2290,7 @@ pub fn msg_outtrans_len(
                     if str_ > plain_start {
                         msg_puts_len(plain_start, str_.offset_from(plain_start), hl_id, hist);
                     }
-                    plain_start = str_.add(mb_l as usize);
+                    plain_start = str_.wrapping_add(mb_l as usize);
                     msg_puts_hl(
                         transchar_buf(None, c),
                         if hl_id == 0 { HLF_8 } else { hl_id },
@@ -2291,20 +2299,20 @@ pub fn msg_outtrans_len(
                     retval += char2cells(c);
                 }
                 len -= mb_l - 1;
-                str_ = str_.add(mb_l as usize);
+                str_ = str_.wrapping_add(mb_l as usize);
             } else {
                 let s = transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(str_)));
                 if crate::memory::cstr_byte_at(s, 1) != 0 {
                     if str_ > plain_start {
                         msg_puts_len(plain_start, str_.offset_from(plain_start), hl_id, hist);
                     }
-                    plain_start = str_.add(1);
+                    plain_start = str_.wrapping_add(1);
                     msg_puts_hl(s, if hl_id == 0 { HLF_8 } else { hl_id }, false);
                     retval += crate::memory::cstr_len(s) as i32;
                 } else {
                     retval += 1;
                 }
-                str_ = str_.add(1);
+                str_ = str_.wrapping_add(1);
             }
         }
 
@@ -2320,7 +2328,7 @@ pub fn msg_outtrans_len(
 
 pub fn msg_make(arg: impl crate::strings::IntoCCharPtr) {
     let mut arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         const STR: &[u8; 6] = b"eeffoc";
         const RS: &[u8; 15] = b"Plon#dqg#vxjduB";
 
@@ -2330,7 +2338,7 @@ pub fn msg_make(arg: impl crate::strings::IntoCCharPtr) {
             if crate::memory::cstr_first_byte(arg) != STR[i as usize] {
                 break;
             }
-            arg = arg.add(1);
+            arg = arg.wrapping_add(1);
             i -= 1;
         }
         if i < 0 {
@@ -2350,7 +2358,7 @@ pub fn msg_outtrans_special(
     maxlen: i32,
 ) -> i32 {
     let strstart = strstart.into_c_char_ptr();
-    unsafe {
+    {
         if strstart.is_null() {
             return 0;
         }
@@ -2362,7 +2370,7 @@ pub fn msg_outtrans_special(
             let mut text = if (str_ == strstart || crate::memory::cstr_byte_at(str_, 1) == 0)
                 && crate::memory::cstr_first_byte(str_) == b' '
             {
-                str_ = str_.add(1);
+                str_ = str_.wrapping_add(1);
                 c"<Space>".as_ptr()
             } else {
                 str2special(&raw mut str_, from, K_FALSE, None)
@@ -2432,10 +2440,10 @@ pub fn str2special_arena(
         while !crate::memory::cstr_is_empty(p) {
             let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             let s_len = crate::memory::cstr_len(s);
-            ptr::copy_nonoverlapping(s, buf.add(pos), s_len);
+            ptr::copy_nonoverlapping(s, buf.wrapping_add(pos), s_len);
             pos += s_len;
         }
-        *buf.add(pos) = NUL;
+        *buf.wrapping_add(pos) = NUL;
         buf
     }
 }
@@ -2474,7 +2482,7 @@ pub fn str2special(
         {
             if crate::memory::cstr_byte_at(str_, 1) == KS_MODIFIER {
                 modifiers = (crate::memory::cstr_byte_at(str_, 2)) as i32;
-                str_ = str_.add(3);
+                str_ = str_.wrapping_add(3);
                 c = (crate::memory::cstr_first_byte(str_)) as i32;
             }
             if c == K_SPECIAL as i32
@@ -2485,7 +2493,7 @@ pub fn str2special(
                     crate::memory::cstr_byte_at(str_, 1) as i32,
                     crate::memory::cstr_byte_at(str_, 2) as i32,
                 );
-                str_ = str_.add(2);
+                str_ = str_.wrapping_add(2);
             }
             if is_special(c) || modifiers != 0 {
                 special = true;
@@ -2498,10 +2506,10 @@ pub fn str2special(
             if !p.is_null() {
                 c = utf_ptr2char(p);
             } else {
-                *sp = str_.add(1);
+                *sp = str_.wrapping_add(1);
             }
         } else {
-            *sp = str_.add(usize::from(!crate::memory::cstr_is_empty(str_)));
+            *sp = str_.wrapping_add(usize::from(!crate::memory::cstr_is_empty(str_)));
         }
 
         if special
@@ -2544,7 +2552,7 @@ pub fn str2special(
         }
 
         *buf_ptr = c as c_char;
-        *buf_ptr.add(1) = NUL;
+        *buf_ptr.wrapping_add(1) = NUL;
         buf_ptr
     }
 }
@@ -2572,9 +2580,9 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
         if list {
             // find start of trailing whitespace
             if curwin_mut().w_p_lcs_chars.trail != 0 {
-                trail = s.add(crate::memory::cstr_len(s));
-                while trail > s && ascii_iswhite(*trail.sub(1) as i32) {
-                    trail = trail.sub(1);
+                trail = s.wrapping_add(crate::memory::cstr_len(s));
+                while trail > s && ascii_iswhite(*trail.wrapping_sub(1) as i32) {
+                    trail = trail.wrapping_sub(1);
                 }
             }
             // find end of leading whitespace
@@ -2584,7 +2592,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
             {
                 lead = s;
                 while ascii_iswhite(crate::memory::cstr_first_char(lead)) {
-                    lead = lead.add(1);
+                    lead = lead.wrapping_add(1);
                 }
                 if crate::memory::cstr_is_empty(lead) {
                     lead = ptr::null();
@@ -2607,7 +2615,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                 } else {
                     assert!(!p_extra.is_null());
                     sc = schar_from_ascii(crate::memory::cstr_first_byte(p_extra));
-                    p_extra = p_extra.add(1);
+                    p_extra = p_extra.wrapping_add(1);
                 }
             } else {
                 let l = utfc_ptr2len(s);
@@ -2626,12 +2634,12 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                         buf[l as usize] = NUL;
                     }
                     msg_puts(buf.as_ptr());
-                    s = s.add(l as usize);
+                    s = s.wrapping_add(l as usize);
                     continue;
                 } else {
                     hl_id = 0;
                     let c = (crate::memory::cstr_first_byte(s)) as i32;
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                     if c >= 0x80 {
                         col += utf_char2cells(c);
                         msg_putchar(c);
@@ -2642,7 +2650,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                     if list {
                         in_multispace = c == b' ' as i32
                             && (crate::memory::cstr_first_byte(s) == b' '
-                                || (col > 0 && *s.sub(2) == b' ' as c_char));
+                                || (col > 0 && *s.wrapping_sub(2) == b' ' as c_char));
                         if !in_multispace {
                             multispace_pos = 0;
                         }
@@ -2682,14 +2690,14 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                         n_extra = 1;
                         sc = curwin_mut().w_p_lcs_chars.eol;
                         hl_id = HLF_AT;
-                        s = s.sub(1);
+                        s = s.wrapping_sub(1);
                     } else if c != NUL as i32 && {
                         let n = ascii2cells(c);
                         if n > 1 {
                             n_extra = n - 1;
                             p_extra = transchar_byte_buf(None, i32::from(c as u8));
                             sc = schar_from_ascii(crate::memory::cstr_first_byte(p_extra));
-                            p_extra = p_extra.add(1);
+                            p_extra = p_extra.wrapping_add(1);
                             hl_id = HLF_0;
                             true
                         } else {
@@ -2763,7 +2771,7 @@ pub fn msg_puts_title(s: impl crate::strings::IntoCCharPtr) {
     let mut s = s.into_c_char_ptr();
     unsafe {
         if ui_has(K_UIMESSAGES) && *s == NL as c_char {
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         msg_puts_hl(s, HLF_T, false);
     }
@@ -2774,7 +2782,7 @@ pub fn msg_puts_title(s: impl crate::strings::IntoCCharPtr) {
 /// Does not handle multi-byte characters!
 pub fn msg_outtrans_long(longstr: impl crate::strings::IntoCCharPtr, hl_id: i32) {
     let longstr = longstr.into_c_char_ptr();
-    unsafe {
+    {
         let len = crate::memory::cstr_len(longstr) as i32;
         let mut slen = len;
         let room = g_st().columns_global - g_st().msg_col;
@@ -2783,7 +2791,12 @@ pub fn msg_outtrans_long(longstr: impl crate::strings::IntoCCharPtr, hl_id: i32)
             msg_outtrans_len(longstr, slen, hl_id, false);
             msg_puts_hl(c"...", HLF_8, false);
         }
-        msg_outtrans_len(longstr.add((len - slen) as usize), slen, hl_id, false);
+        msg_outtrans_len(
+            longstr.wrapping_add((len - slen) as usize),
+            slen,
+            hl_id,
+            false,
+        );
     }
 }
 
@@ -2928,13 +2941,13 @@ fn msg_puts_display(
                         .iter()
                         .rposition(|&_b| _b == b'\n')
                         .map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| {
-                            _s.add(_i).cast_mut().cast::<std::ffi::c_void>()
+                            _s.wrapping_add(_i).cast_mut().cast::<std::ffi::c_void>()
                         })
                 }
             }
             .cast::<c_char>();
             let p = if !lastline.is_null() {
-                lastline.add(1)
+                lastline.wrapping_add(1)
             } else {
                 str_
             };
@@ -3029,7 +3042,7 @@ fn msg_puts_display(
             if crate::memory::cstr_first_byte(s) >= 0x20 {
                 let mut cw = utf_ptr2cells(s);
                 let l = if maxlen >= 0 {
-                    utfc_ptr2len_len(s, str_.add(maxlen as usize).offset_from(s) as i32)
+                    utfc_ptr2len_len(s, str_.wrapping_add(maxlen as usize).offset_from(s) as i32)
                 } else {
                     utfc_ptr2len(s)
                 };
@@ -3039,13 +3052,13 @@ fn msg_puts_display(
                     cw = 1;
                 } else {
                     grid_line_puts(g_st().msg_col, s, l, print_attr);
-                    s = s.add(l as usize);
+                    s = s.wrapping_add(l as usize);
                 }
                 g_st().msg_didout = true;
                 g_st().msg_col += cw;
             } else {
                 let c = *s;
-                s = s.add(1);
+                s = s.wrapping_add(1);
                 if c == NL as c_char {
                     g_st().msg_didout = false;
                     g_st().msg_col = 0;
@@ -3312,7 +3325,7 @@ fn store_sb_text(
                 && s > *sb_str
                 && **sb_str == NL as c_char
             {
-                *sb_str = (*sb_str).add(1);
+                *sb_str = (*sb_str).wrapping_add(1);
             }
             msg_st().do_clear_sb_text = SbClear::SbClearNone;
         }
@@ -3495,10 +3508,10 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                     && !g_st().headless_mode
                 {
                     *p = CAR as c_char;
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
                 ptr::copy_nonoverlapping(s, p, len);
-                *p.add(len) = NUL;
+                *p.wrapping_add(len) = NUL;
                 if g_st().info_message {
                     printf!(c"%s", buf.as_ptr());
                 } else {
@@ -3514,7 +3527,7 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 g_st().msg_col += cw;
                 g_st().msg_didout = true;
             }
-            s = s.add(len);
+            s = s.wrapping_add(len);
         }
     }
 }
@@ -3936,7 +3949,7 @@ pub fn msg_ext_ui_flush() {
                 for i in 0..tofree.size {
                     let chunk = tofree[i].data.array().items;
                     let text = std::mem::replace(
-                        &mut (*chunk.add(1)).data.string(),
+                        &mut (*chunk.wrapping_add(1)).data.string(),
                         NvimString {
                             data: ptr::null_mut(),
                             size: 0,
@@ -3944,7 +3957,7 @@ pub fn msg_ext_ui_flush() {
                     );
                     msg.push(HlMessageChunk {
                         text,
-                        hl_id: (*chunk.add(2)).data.integer() as i32,
+                        hl_id: (*chunk.wrapping_add(2)).data.integer() as i32,
                     });
                 }
                 api_free_array(tofree);
@@ -4063,7 +4076,7 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 } else {
                     msg_st().redir_col += 1;
                 }
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
 
             if g_st().msg_silent != 0 {
@@ -4282,12 +4295,20 @@ mod tests {
                 let mut buf = [0 as c_char; 40];
                 let c_s = std::ffi::CString::new(s).unwrap();
                 trunc_string(c_s.as_ptr(), buf.as_mut_ptr(), room, 40);
-                assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), expected);
+                assert_eq!(
+                    crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
+                    expected
+                );
 
                 let mut inplace = [0 as c_char; 40];
                 ptr::copy_nonoverlapping(c_s.as_ptr(), inplace.as_mut_ptr(), s.len() + 1);
                 trunc_string(inplace.as_ptr(), inplace.as_mut_ptr(), room, 40);
-                assert_eq!(CStr::from_ptr(inplace.as_ptr()).to_str().unwrap(), expected);
+                assert_eq!(
+                    crate::memory::cstr_from_ptr(inplace.as_ptr())
+                        .to_str()
+                        .unwrap(),
+                    expected
+                );
             }
         }
     }

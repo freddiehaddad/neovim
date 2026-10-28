@@ -92,7 +92,7 @@ fn console_dialog_alloc(
                     has_hotkey[idx] = false;
                 }
             } else if b == DLG_HOTKEY_CHAR {
-                r = r.add(1);
+                r = r.wrapping_add(1);
                 button_len += 1;
                 if idx < HAS_HOTKEY_LEN - 1 {
                     has_hotkey[idx] = true;
@@ -101,7 +101,7 @@ fn console_dialog_alloc(
             if *r == 0 {
                 break;
             }
-            r = r.add(utf_ptr2len(r) as usize);
+            r = r.wrapping_add(utf_ptr2len(r) as usize);
         }
 
         let msg_bytes = crate::memory::cstr_as_bytes(message);
@@ -137,7 +137,7 @@ fn copy_confirm_hotkeys(
     let buttons = buttons.into_c_char_ptr();
     unsafe {
         let first_len = copy_char(buttons, hotkeys_ptr, true);
-        *hotkeys_ptr.add(first_len) = 0;
+        *hotkeys_ptr.wrapping_add(first_len) = 0;
 
         let mut first_hotkey = !has_hotkey[0];
         let mut msgp = dlg_st().confirm_buttons.as_mut_ptr();
@@ -148,12 +148,12 @@ fn copy_confirm_hotkeys(
             let b = crate::memory::cstr_first_byte(r);
             if b == DLG_BUTTON_SEP {
                 *msgp = b',' as c_char;
-                *msgp.add(1) = b' ' as c_char;
-                msgp = msgp.add(2);
+                *msgp.wrapping_add(1) = b' ' as c_char;
+                msgp = msgp.wrapping_add(2);
 
-                hotkeys_ptr = hotkeys_ptr.add(crate::memory::cstr_len(hotkeys_ptr));
-                let nlen = copy_char(r.add(1), hotkeys_ptr, true);
-                *hotkeys_ptr.add(nlen) = 0;
+                hotkeys_ptr = hotkeys_ptr.wrapping_add(crate::memory::cstr_len(hotkeys_ptr));
+                let nlen = copy_char(r.wrapping_add(1), hotkeys_ptr, true);
+                *hotkeys_ptr.wrapping_add(nlen) = 0;
 
                 if default_button_idx != 0 {
                     default_button_idx -= 1;
@@ -167,45 +167,45 @@ fn copy_confirm_hotkeys(
                 }
             } else if b == DLG_HOTKEY_CHAR || first_hotkey {
                 if b == DLG_HOTKEY_CHAR {
-                    r = r.add(1);
+                    r = r.wrapping_add(1);
                 }
                 first_hotkey = false;
                 if crate::memory::cstr_first_byte(r) == DLG_HOTKEY_CHAR {
                     *msgp = *r;
-                    msgp = msgp.add(1);
+                    msgp = msgp.wrapping_add(1);
                 } else {
                     *msgp = if default_button_idx == 1 {
                         b'[' as c_char
                     } else {
                         b'(' as c_char
                     };
-                    msgp = msgp.add(1);
+                    msgp = msgp.wrapping_add(1);
                     let clen = copy_char(r, msgp, false);
-                    msgp = msgp.add(clen);
+                    msgp = msgp.wrapping_add(clen);
                     *msgp = if default_button_idx == 1 {
                         b']' as c_char
                     } else {
                         b')' as c_char
                     };
-                    msgp = msgp.add(1);
+                    msgp = msgp.wrapping_add(1);
 
                     let hlen = copy_char(r, hotkeys_ptr, true);
-                    *hotkeys_ptr.add(hlen) = 0;
+                    *hotkeys_ptr.wrapping_add(hlen) = 0;
                 }
             } else {
                 let clen = copy_char(r, msgp, false);
-                msgp = msgp.add(clen);
+                msgp = msgp.wrapping_add(clen);
             }
 
             if *r == 0 {
                 break;
             }
-            r = r.add(utf_ptr2len(r) as usize);
+            r = r.wrapping_add(utf_ptr2len(r) as usize);
         }
 
         *msgp = b':' as c_char;
-        *msgp.add(1) = b' ' as c_char;
-        *msgp.add(2) = 0;
+        *msgp.wrapping_add(1) = b' ' as c_char;
+        *msgp.wrapping_add(2) = 0;
     }
 }
 
@@ -388,14 +388,14 @@ pub fn do_dialog(
                     c = mb_tolower(c);
                     let mut candidate = 1_i32;
                     let mut i = 0usize;
-                    while *hotkeys.add(i) != 0 {
-                        if utf_ptr2char(hotkeys.add(i)) == c {
+                    while *hotkeys.wrapping_add(i) != 0 {
+                        if utf_ptr2char(hotkeys.wrapping_add(i)) == c {
                             break;
                         }
-                        i += utfc_ptr2len(hotkeys.add(i)) as usize;
+                        i += utfc_ptr2len(hotkeys.wrapping_add(i)) as usize;
                         candidate += 1;
                     }
-                    if *hotkeys.add(i) != 0 {
+                    if *hotkeys.wrapping_add(i) != 0 {
                         retval = candidate;
                         break;
                     }

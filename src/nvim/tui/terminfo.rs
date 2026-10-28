@@ -2478,7 +2478,10 @@ impl UnibiTerm {
         if off < 0 || (off as usize) >= self.str_table.len() {
             ptr::null()
         } else {
-            unsafe { self.str_table.as_ptr().add(off as usize).cast::<c_char>() }
+            self.str_table
+                .as_ptr()
+                .wrapping_add(off as usize)
+                .cast::<c_char>()
         }
     }
 
@@ -2493,7 +2496,7 @@ impl UnibiTerm {
             return ptr::null();
         }
         let off = self.ext_name_offs[i];
-        unsafe { self.ext_table.as_ptr().add(off).cast::<c_char>() }
+        self.ext_table.as_ptr().wrapping_add(off).cast::<c_char>()
     }
 
     #[inline]
@@ -2507,7 +2510,7 @@ impl UnibiTerm {
             return ptr::null();
         }
         let off = self.ext_name_offs[self.ext_bool_count + self.ext_num_count + i];
-        unsafe { self.ext_table.as_ptr().add(off).cast::<c_char>() }
+        self.ext_table.as_ptr().wrapping_add(off).cast::<c_char>()
     }
 
     #[inline]
@@ -2516,7 +2519,10 @@ impl UnibiTerm {
         if off < 0 || (off as usize) >= self.ext_table.len() {
             ptr::null()
         } else {
-            unsafe { self.ext_table.as_ptr().add(off as usize).cast::<c_char>() }
+            self.ext_table
+                .as_ptr()
+                .wrapping_add(off as usize)
+                .cast::<c_char>()
         }
     }
 }
@@ -2929,7 +2935,7 @@ fn ochar(buf: *mut *mut c_char, buf_end: impl crate::strings::IntoCCharPtr, mut 
             return false;
         }
         **buf = c as c_char;
-        *buf = (*buf).add(1);
+        *buf = (*buf).wrapping_add(1);
         true
     }
 }
@@ -2955,7 +2961,7 @@ fn onum(
             if l < 0 {
                 return false;
             }
-            *buf = (*buf).add(l as usize);
+            *buf = (*buf).wrapping_add(l as usize);
         }
         true
     }
@@ -2987,13 +2993,13 @@ pub fn terminfo_fmt(
 
         loop {
             let mut c = *str_;
-            str_ = str_.add(1);
+            str_ = str_.wrapping_add(1);
             if c == NUL {
                 break;
             }
             if c != b'%' as c_char || {
                 c = *str_;
-                str_ = str_.add(1);
+                str_ = str_.wrapping_add(1);
                 c == b'%' as c_char
             } {
                 if c == NUL {
@@ -3070,7 +3076,7 @@ pub fn terminfo_fmt(
                 }
                 if done == 0 {
                     c = *str_;
-                    str_ = str_.add(1);
+                    str_ = str_.wrapping_add(1);
                 }
             }
 
@@ -3109,7 +3115,7 @@ pub fn terminfo_fmt(
                         {
                             let r = vim_snprintf!(buf, l + 1, fmt.as_ptr(), ostr_ptr);
                             if r >= 0 {
-                                buf = buf.add(r as usize);
+                                buf = buf.wrapping_add(r as usize);
                             }
                         }
                     }
@@ -3130,9 +3136,9 @@ pub fn terminfo_fmt(
                     if !(b'1'..=b'9').contains(&sc) {
                         continue;
                     }
-                    str_ = str_.add(1);
+                    str_ = str_.wrapping_add(1);
                     let l = (sc - b'1') as usize;
-                    let param = *params.add(l);
+                    let param = *params.wrapping_add(l);
                     if push(param.num, param.string, &mut stack) != 0 {
                         return 0;
                     }
@@ -3159,29 +3165,29 @@ pub fn terminfo_fmt(
                     }
                 }
                 b'i' => {
-                    (*params.add(0)).num += 1;
-                    (*params.add(1)).num += 1;
+                    (*params.wrapping_add(0)).num += 1;
+                    (*params.wrapping_add(1)).num += 1;
                 }
                 b'\'' => {
                     let ch = crate::memory::cstr_first_byte(str_);
-                    str_ = str_.add(1);
+                    str_ = str_.wrapping_add(1);
                     if push(i64::from(ch), None, &mut stack) != 0 {
                         return 0;
                     }
                     while !crate::memory::cstr_is_empty(str_)
                         && crate::memory::cstr_first_byte(str_) != b'\''
                     {
-                        str_ = str_.add(1);
+                        str_ = str_.wrapping_add(1);
                     }
                     if crate::memory::cstr_first_byte(str_) == b'\'' {
-                        str_ = str_.add(1);
+                        str_ = str_.wrapping_add(1);
                     }
                 }
                 b'{' => {
                     val = 0;
                     while (crate::memory::cstr_first_byte(str_)).is_ascii_digit() {
                         val = (val * 10) + i64::from((crate::memory::cstr_first_byte(str_)) - b'0');
-                        str_ = str_.add(1);
+                        str_ = str_.wrapping_add(1);
                     }
                     if push(val, None, &mut stack) != 0 {
                         return 0;
@@ -3189,10 +3195,10 @@ pub fn terminfo_fmt(
                     while !crate::memory::cstr_is_empty(str_)
                         && crate::memory::cstr_first_byte(str_) != b'}'
                     {
-                        str_ = str_.add(1);
+                        str_ = str_.wrapping_add(1);
                     }
                     if crate::memory::cstr_first_byte(str_) == b'}' {
-                        str_ = str_.add(1);
+                        str_ = str_.wrapping_add(1);
                     }
                 }
                 b'+' | b'-' | b'*' | b'/' | b'm' | b'A' | b'O' | b'&' | b'|' | b'^' | b'='
@@ -3249,25 +3255,25 @@ pub fn terminfo_fmt(
                         let mut l: usize = 0;
                         while !crate::memory::cstr_is_empty(str_) {
                             if crate::memory::cstr_first_byte(str_) != b'%' {
-                                str_ = str_.add(1);
+                                str_ = str_.wrapping_add(1);
                                 continue;
                             }
-                            str_ = str_.add(1);
+                            str_ = str_.wrapping_add(1);
                             if crate::memory::cstr_first_byte(str_) == b'?' {
                                 l += 1;
                             } else if crate::memory::cstr_first_byte(str_) == b';' {
                                 if l > 0 {
                                     l -= 1;
                                 } else {
-                                    str_ = str_.add(1);
+                                    str_ = str_.wrapping_add(1);
                                     break;
                                 }
                             } else if crate::memory::cstr_first_byte(str_) == b'e' && l == 0 {
-                                str_ = str_.add(1);
+                                str_ = str_.wrapping_add(1);
                                 break;
                             }
                             if !crate::memory::cstr_is_empty(str_) {
-                                str_ = str_.add(1);
+                                str_ = str_.wrapping_add(1);
                             }
                         }
                     }
@@ -3276,22 +3282,22 @@ pub fn terminfo_fmt(
                     let mut l: usize = 0;
                     while !crate::memory::cstr_is_empty(str_) {
                         if crate::memory::cstr_first_byte(str_) != b'%' {
-                            str_ = str_.add(1);
+                            str_ = str_.wrapping_add(1);
                             continue;
                         }
-                        str_ = str_.add(1);
+                        str_ = str_.wrapping_add(1);
                         if crate::memory::cstr_first_byte(str_) == b'?' {
                             l += 1;
                         } else if crate::memory::cstr_first_byte(str_) == b';' {
                             if l > 0 {
                                 l -= 1;
                             } else {
-                                str_ = str_.add(1);
+                                str_ = str_.wrapping_add(1);
                                 break;
                             }
                         }
                         if !crate::memory::cstr_is_empty(str_) {
-                            str_ = str_.add(1);
+                            str_ = str_.wrapping_add(1);
                         }
                     }
                 }
@@ -3373,9 +3379,9 @@ mod tests {
         let valid_fmt = format!("{}%c\0", "%p1".repeat(20));
         let overflow_fmt = format!("{}%c\0", "%p1".repeat(21));
 
-        unsafe {
+        {
             let start = buf.as_mut_ptr();
-            let end = start.add(buf.len());
+            let end = start.wrapping_add(buf.len());
             let valid_n = terminfo_fmt(start, end, valid_fmt.as_ptr().cast(), params.as_mut_ptr());
             assert_eq!(valid_n, 1);
             assert_eq!(buf[0] as u8, b'A');

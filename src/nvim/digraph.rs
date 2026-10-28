@@ -1754,16 +1754,16 @@ pub fn check_digraph_chars_valid(char1: i32, char2: i32) -> bool {
 
 /// Add the digraphs in the argument to the digraph table (`putdigraph`).
 pub fn putdigraph(mut str: *mut c_char) {
-    unsafe {
+    {
         while !crate::memory::cstr_is_empty(str) {
             str = skipwhite(str);
             if crate::memory::cstr_is_empty(str) {
                 return;
             }
             let char1 = crate::memory::cstr_first_byte(str);
-            str = str.add(1);
+            str = str.wrapping_add(1);
             let char2 = crate::memory::cstr_first_byte(str);
-            str = str.add(1);
+            str = str.wrapping_add(1);
 
             if !check_digraph_chars_valid(i32::from(char1), i32::from(char2)) {
                 return;
@@ -1924,16 +1924,16 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
         let mut p = buf.as_mut_ptr();
         if utf_iscomposing_first(dp.result) {
             *p = b' ' as c_char;
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
-        p = p.add(utf_char2bytes(dp.result, p) as usize);
+        p = p.wrapping_add(utf_char2bytes(dp.result, p) as usize);
         *p = NUL;
         msg_outtrans(buf.as_ptr(), HLF_8, false);
 
         p = buf.as_mut_ptr();
         if char2cells(dp.result) == 1 {
             *p = b' ' as c_char;
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         let used = p.offset_from(buf.as_ptr()) as usize;
         vim_snprintf!(p, buf.len() - used, c" %3d", dp.result);

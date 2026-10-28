@@ -505,13 +505,13 @@ fn insert_enter(s: &mut InsertState) {
             if (g_st().ins_at_eol && curwin_mut().w_cursor.lnum == g_st().ins_global.o_lnum)
                 || curwin_mut().w_curswant > curwin_mut().w_virtcol
             {
-                let ptr = get_cursor_line_ptr().offset(curwin_mut().w_cursor.col as isize);
+                let ptr = get_cursor_line_ptr().wrapping_offset(curwin_mut().w_cursor.col as isize);
                 if !crate::memory::cstr_is_empty(ptr) {
                     if crate::memory::cstr_byte_at(ptr, 1) == 0 {
                         curwin_mut().w_cursor.col += 1;
                     } else {
                         s.i = utfc_ptr2len(ptr);
-                        if *ptr.offset(s.i as isize) == NUL {
+                        if *ptr.wrapping_offset(s.i as isize) == NUL {
                             curwin_mut().w_cursor.col += s.i;
                         }
                     }
@@ -724,7 +724,7 @@ fn insert_check(s: &mut InsertState) -> i32 {
 }
 
 fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
-    unsafe {
+    {
         if g_st().ins_global.stop_insert_mode {
             if key != K_IGNORE && key != K_NOP {
                 vungetc(key);
@@ -777,7 +777,7 @@ fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
                         let mut p = str_.as_ptr().cast_mut();
                         while !crate::memory::cstr_is_empty(p) {
                             ins_compl_addleader(utf_ptr2char(p));
-                            p = p.add(utfc_ptr2len(p) as usize);
+                            p = p.wrapping_add(utfc_ptr2len(p) as usize);
                         }
                     } else {
                         ins_compl_addleader(s.c);
@@ -881,7 +881,7 @@ fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
 }
 
 fn insert_handle_key(s: &mut InsertState) -> i32 {
-    unsafe {
+    {
         let mut goto_normalchar = false;
         let mut goto_do_complete = false;
 
@@ -1275,7 +1275,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                             } else {
                                 ins_char(s.c);
                             }
-                            p = p.add(utfc_ptr2len(p) as usize);
+                            p = p.wrapping_add(utfc_ptr2len(p) as usize);
                         }
                         redo_append_lit(str_ptr, -1);
                     }
@@ -1593,8 +1593,10 @@ fn init_prompt(cmdchar_todo: i32) {
             && (curbuf_mut().b_prompt_start.mark.col < prompt_len
                 || curbuf_mut().b_prompt_start.mark.col > text_len
                 || std::slice::from_raw_parts(
-                    text.offset((curbuf_mut().b_prompt_start.mark.col - prompt_len) as isize)
-                        .cast::<u8>(),
+                    text.wrapping_offset(
+                        (curbuf_mut().b_prompt_start.mark.col - prompt_len) as isize,
+                    )
+                    .cast::<u8>(),
                     prompt_len as usize,
                 ) != crate::memory::cstr_slice(prompt, prompt_len as usize))
         {
@@ -1673,7 +1675,7 @@ pub fn edit_unputchar() {
 
 /// Display a `$` at the end of changed text when `$` is in `cpoptions`.
 pub fn display_dollar(col_arg: Colnr) {
-    unsafe {
+    {
         let col = col_arg.max(0);
         if !redrawing() {
             return;
@@ -1682,7 +1684,7 @@ pub fn display_dollar(col_arg: Colnr) {
         curwin_mut().w_cursor.col = col;
 
         let p = get_cursor_line_ptr();
-        curwin_mut().w_cursor.col -= utf_head_off(p, p.offset(col as isize));
+        curwin_mut().w_cursor.col -= utf_head_off(p, p.wrapping_offset(col as isize));
         curs_columns(curwin_mut(), 0);
         if curwin_mut().w_wcol < curwin_mut().w_view_width {
             edit_putchar(b'$' as i32, false);
@@ -1706,13 +1708,13 @@ pub fn undisplay_dollar() {
 pub fn truncate_spaces(line: *mut c_char, len: usize) {
     unsafe {
         let mut i = len as isize - 1;
-        while i >= 0 && ascii_iswhite(*line.offset(i) as u8 as i32) {
+        while i >= 0 && ascii_iswhite(*line.wrapping_offset(i) as u8 as i32) {
             if (g_st().state_global & REPLACE_FLAG) != 0 {
                 replace_join(0);
             }
             i -= 1;
         }
-        *line.offset(i + 1) = NUL;
+        *line.wrapping_offset(i + 1) = NUL;
     }
 }
 
@@ -1860,7 +1862,7 @@ fn insert_special(mut c: i32, mut allow_modmask: i32, mut ctrlv: i32) {
                 if !stop_arrow() {
                     return;
                 }
-                *p.add(len - 1) = NUL;
+                *p.wrapping_add(len - 1) = NUL;
                 ins_str(p, len - 1);
                 redo_append_lit(p, -1);
                 ctrlv = 0;
@@ -1916,8 +1918,8 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
             let line = get_cursor_line_ptr();
             let mut i = get_leader_len(line, &raw mut p, false, true);
             if i > 0 && crate::strings::vim_haschr(p, i32::from(COM_MIDDLE as u8)) {
-                while !crate::memory::cstr_is_empty(p) && *p.offset(-1) != b':' as c_char {
-                    p = p.add(1);
+                while !crate::memory::cstr_is_empty(p) && *p.wrapping_offset(-1) != b':' as c_char {
+                    p = p.wrapping_add(1);
                 }
                 let mut middle_len =
                     copy_option_part(&raw mut p, (&raw mut lead_end).cast(), COM_MAX_LEN, c",")
@@ -1928,8 +1930,8 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
                     middle_len -= 1;
                 }
 
-                while !crate::memory::cstr_is_empty(p) && *p.offset(-1) != b':' as c_char {
-                    p = p.add(1);
+                while !crate::memory::cstr_is_empty(p) && *p.wrapping_offset(-1) != b':' as c_char {
+                    p = p.wrapping_add(1);
                 }
                 let end_len =
                     copy_option_part(&raw mut p, (&raw mut lead_end).cast(), COM_MAX_LEN, c",")
@@ -2005,7 +2007,10 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
                 0
             };
             if buf[start_idx] != NUL {
-                redo_append_lit((&raw const buf).cast::<c_char>().add(start_idx), -1);
+                redo_append_lit(
+                    (&raw const buf).cast::<c_char>().wrapping_add(start_idx),
+                    -1,
+                );
             }
         } else {
             let cc = utf_char2len(c);
@@ -2197,7 +2202,7 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: i32, nomove: i32) {
                     strip_col -= 1;
                 }
 
-                if *skipwhite(get_cursor_line_ptr().offset(strip_col as isize)) == NUL {
+                if *skipwhite(get_cursor_line_ptr().wrapping_offset(strip_col as isize)) == NUL {
                     curwin_mut().w_cursor.col = strip_col;
                     loop {
                         if gchar_cursor() == NUL as i32 && curwin_mut().w_cursor.col > 0 {
@@ -2249,11 +2254,11 @@ pub fn set_last_insert(c: i32) {
         let mut s = buf.as_mut_ptr();
         if c < b' ' as i32 || c == DEL {
             *s = CTRL_V_CONST as c_char;
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         s = add_char2buf(c, s);
         *s = ESC as c_char;
-        s = s.add(1);
+        s = s.wrapping_add(1);
         *s = NUL;
         ins_st().last_insert = Some(crate::memory::cstr_to_cstring(buf.as_ptr()));
         ins_st().last_insert_skip = 0;
@@ -2265,7 +2270,7 @@ pub fn free_last_insert() {
 }
 
 pub fn beginline(flags: i32) {
-    unsafe {
+    {
         if (flags & BL_SOL) != 0 && opt_vars().p_sol == 0 {
             coladvance(curwin_mut(), curwin_mut().w_curswant);
         } else {
@@ -2278,7 +2283,7 @@ pub fn beginline(flags: i32) {
                     && !((flags & BL_FIX) != 0 && crate::memory::cstr_byte_at(ptr, 1) == 0)
                 {
                     curwin_mut().w_cursor.col += 1;
-                    ptr = ptr.add(1);
+                    ptr = ptr.wrapping_add(1);
                 }
             }
             curwin_mut().w_set_curswant = true;
@@ -2472,7 +2477,7 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
         }
 
         if insert.size > 0 {
-            let mut p = insert.data.add(insert.size - 1);
+            let mut p = insert.data.wrapping_add(insert.size - 1);
             while p >= insert.data {
                 if *p == ESC as c_char {
                     insert.size = p.offset_from(insert.data) as usize;
@@ -2481,12 +2486,12 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
                 if p == insert.data {
                     break;
                 }
-                p = p.sub(1);
+                p = p.wrapping_sub(1);
             }
         }
 
         if insert.size > 0 {
-            let p = insert.data.add(insert.size - 1);
+            let p = insert.data.wrapping_add(insert.size - 1);
             if (crate::memory::cstr_first_byte(p) == b'0'
                 || crate::memory::cstr_first_byte(p) == b'^')
                 && (no_esc != 0 || (*insert.data == CTRL_D_CONST as c_char && count > 1))
@@ -2518,12 +2523,12 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
 }
 
 pub fn get_last_insert() -> NvimString {
-    unsafe {
+    {
         if let Some(li) = &ins_st().last_insert {
             let skip = ins_st().last_insert_skip as usize;
             let bytes = li.as_bytes();
             NvimString {
-                data: li.as_ptr().add(skip).cast_mut(),
+                data: li.as_ptr().wrapping_add(skip).cast_mut(),
                 size: bytes.len().saturating_sub(skip),
             }
         } else {
@@ -2541,7 +2546,7 @@ pub fn get_last_insert_save() -> Option<std::ffi::CString> {
         if insert.data.is_null() {
             return None;
         }
-        if insert.size > 0 && *insert.data.add(insert.size - 1) == ESC as c_char {
+        if insert.size > 0 && *insert.data.wrapping_add(insert.size - 1) == ESC as c_char {
             insert.size -= 1;
         }
         let slice = crate::memory::cstr_slice(insert.data, insert.size);
@@ -2622,11 +2627,11 @@ fn replace_pop_ins() {
 }
 
 fn mb_replace_pop_ins() {
-    unsafe {
+    {
         let stack = replace_stack_mut();
         let ptr = stack.as_ptr();
         let size = stack.len();
-        let len = (utf_head_off(ptr, ptr.add(size - 1)) + 1) as usize;
+        let len = (utf_head_off(ptr, ptr.wrapping_add(size - 1)) + 1) as usize;
         let new_size = size - len;
         let mut popped = stack.split_off(new_size);
         ins_bytes_len(popped.as_mut_ptr(), len);
@@ -2634,7 +2639,7 @@ fn mb_replace_pop_ins() {
 }
 
 fn replace_do_bs(limit_col: i32) {
-    unsafe {
+    {
         let mut start_vcol: Colnr = 0;
         let l_state = g_st().state_global;
 
@@ -2665,8 +2670,8 @@ fn replace_do_bs(limit_col: i32) {
                 let mut vcol = start_vcol;
                 let mut i: i32 = 0;
                 while i < ins_len {
-                    vcol += win_chartabsize(curwin_mut(), p.offset(i as isize), vcol);
-                    i += utfc_ptr2len(p.offset(i as isize));
+                    vcol += win_chartabsize(curwin_mut(), p.wrapping_offset(i as isize), vcol);
+                    i += utfc_ptr2len(p.wrapping_offset(i as isize));
                 }
                 vcol -= start_vcol;
 
@@ -3163,7 +3168,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                         let ptr =
                             ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum);
                         let len = get_cursor_line_len();
-                        if len > 0 && *ptr.add((len - 1) as usize) == b' ' as c_char {
+                        if len > 0 && *ptr.wrapping_add((len - 1) as usize) == b' ' as c_char {
                             let new_line =
                                 std::slice::from_raw_parts(ptr, (len - 1) as usize).to_vec();
                             ml_replace_dirty_line(curbuf_mut(), &new_line, false);
@@ -3214,8 +3219,8 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 && ((opt_vars().p_sta != 0 && in_indent)
                     || ((get_sts_value() != 0 || tabstop_count(&curbuf_mut().b_p_vsts_array) != 0)
                         && curwin_mut().w_cursor.col > 0
-                        && (*get_cursor_pos_ptr().offset(-1) == TAB as c_char
-                            || (*get_cursor_pos_ptr().offset(-1) == b' ' as c_char
+                        && (*get_cursor_pos_ptr().wrapping_offset(-1) == TAB as c_char
+                            || (*get_cursor_pos_ptr().wrapping_offset(-1) == b' ' as c_char
                                 && (*inserted_space_p == 0
                                     || g_st().ins_global.moved != K_INS_NONE)))))
             {
@@ -3224,7 +3229,9 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 let use_ts =
                     curwin_mut().w_onebuf_opt.wo_list == 0 || curwin_mut().w_p_lcs_chars.tab1 != 0;
                 let line = get_cursor_line_ptr();
-                let cursor_ptr = line.offset(curwin_mut().w_cursor.col as isize).cast_const();
+                let cursor_ptr = line
+                    .wrapping_offset(curwin_mut().w_cursor.col as isize)
+                    .cast_const();
 
                 let mut vcol: Colnr = 0;
                 let mut space_vcol: Colnr = 0;
@@ -3339,7 +3346,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                             let p0 = get_cursor_pos_ptr();
                             has_composing = utf_composinglike(
                                 p0,
-                                p0.add(utf_ptr2len(p0) as usize),
+                                p0.wrapping_add(utf_ptr2len(p0) as usize),
                                 (ptr::null_mut::<GraphemeState>()).as_mut(),
                             );
                         }
@@ -3737,7 +3744,7 @@ fn ins_tab() -> bool {
                     std::slice::from_raw_parts(get_cursor_line_ptr(), line_len + 1).to_vec();
                 saved_line_vec[line_len] = NUL;
                 saved_line = saved_line_vec.as_mut_ptr();
-                ptr = saved_line.offset(pos.col as isize);
+                ptr = saved_line.wrapping_offset(pos.col as isize);
             } else {
                 ptr = get_cursor_pos_ptr();
                 cursor = &raw mut curwin_mut().w_cursor;
@@ -3748,16 +3755,16 @@ fn ins_tab() -> bool {
             }
 
             let mut fpos = curwin_mut().w_cursor;
-            while fpos.col > 0 && ascii_iswhite(*ptr.offset(-1) as u8 as i32) {
+            while fpos.col > 0 && ascii_iswhite(*ptr.wrapping_offset(-1) as u8 as i32) {
                 fpos.col -= 1;
-                ptr = ptr.offset(-1);
+                ptr = ptr.wrapping_offset(-1);
             }
 
             if (g_st().state_global & REPLACE_FLAG) != 0
                 && fpos.lnum == g_st().ins_global.start.lnum
                 && fpos.col < g_st().ins_global.start.col
             {
-                ptr = ptr.offset((g_st().ins_global.start.col - fpos.col) as isize);
+                ptr = ptr.wrapping_offset((g_st().ins_global.start.col - fpos.col) as isize);
                 fpos.col = g_st().ins_global.start.col;
             }
 
@@ -3793,7 +3800,7 @@ fn ins_tab() -> bool {
                     }
                 }
                 fpos.col += 1;
-                ptr = ptr.add(1);
+                ptr = ptr.wrapping_add(1);
                 vcol += i;
             }
 
@@ -3802,12 +3809,12 @@ fn ins_tab() -> bool {
                 cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, ptr);
                 while vcol < want_vcol && crate::memory::cstr_first_byte(ptr) == b' ' {
                     vcol += win_charsize(cstype, vcol, ptr, b' ' as i32, &mut csarg, 1).width;
-                    ptr = ptr.add(1);
+                    ptr = ptr.wrapping_add(1);
                     repl_off += 1;
                 }
 
                 if vcol > want_vcol {
-                    ptr = ptr.offset(-1);
+                    ptr = ptr.wrapping_offset(-1);
                     repl_off -= 1;
                 }
                 fpos.col += repl_off;
@@ -3819,11 +3826,13 @@ fn ins_tab() -> bool {
                         let col = ptr.offset_from(curbuf_mut().b_ml.ml_line_ptr) as usize;
                         let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
                         if col > 0 {
-                            new_line
-                                .extend_from_slice(std::slice::from_raw_parts(ptr.sub(col), col));
+                            new_line.extend_from_slice(std::slice::from_raw_parts(
+                                ptr.wrapping_sub(col),
+                                col,
+                            ));
                         }
                         new_line.extend_from_slice(std::slice::from_raw_parts(
-                            ptr.offset(i as isize),
+                            ptr.wrapping_offset(i as isize),
                             newp_len.saturating_sub(col + 1),
                         ));
                         ml_replace_dirty_line(curbuf_mut(), &new_line, true);
@@ -3834,8 +3843,8 @@ fn ins_tab() -> bool {
                             fpos.col - change_col,
                         );
                     } else {
-                        let rem = crate::memory::cstr_len(ptr.offset(i as isize)) + 1;
-                        ptr::copy(ptr.offset(i as isize), ptr, rem);
+                        let rem = crate::memory::cstr_len(ptr.wrapping_offset(i as isize)) + 1;
+                        ptr::copy(ptr.wrapping_offset(i as isize), ptr, rem);
                     }
                     if (g_st().state_global & REPLACE_FLAG) != 0
                         && (g_st().state_global & VREPLACE_FLAG) == 0
@@ -3850,7 +3859,7 @@ fn ins_tab() -> bool {
                 if (g_st().state_global & VREPLACE_FLAG) != 0 {
                     backspace_until_column(change_col);
                     ins_bytes_len(
-                        saved_line.offset(change_col as isize),
+                        saved_line.wrapping_offset(change_col as isize),
                         ((*cursor).col - change_col) as usize,
                     );
                 }

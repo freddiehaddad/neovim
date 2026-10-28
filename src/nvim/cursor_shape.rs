@@ -291,11 +291,11 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                 let colonp = crate::memory::cstr_as_bytes(modep)
                     .iter()
                     .position(|&b| b == b':')
-                    .map_or(std::ptr::null(), |i| modep.add(i));
+                    .map_or(std::ptr::null(), |i| modep.wrapping_add(i));
                 let commap = crate::memory::cstr_as_bytes(modep)
                     .iter()
                     .position(|&b| b == b',')
-                    .map_or(std::ptr::null(), |i| modep.add(i));
+                    .map_or(std::ptr::null(), |i| modep.wrapping_add(i));
 
                 if colonp.is_null() || (!commap.is_null() && (commap as usize) < (colonp as usize))
                 {
@@ -342,7 +342,7 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                                 found_ve = true;
                             }
                         }
-                        modep = modep.add(len + 1);
+                        modep = modep.wrapping_add(len + 1);
                     }
 
                     if all_idx >= 0 {
@@ -350,7 +350,7 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                         all_idx -= 1;
                     }
 
-                    p = colonp.add(1);
+                    p = colonp.wrapping_add(1);
                     while *p != 0 && crate::memory::cstr_first_byte(p) != b',' {
                         let first_byte = crate::memory::cstr_first_byte(p);
                         let len = if crate::memory::cstr_prefix_bytes(p, 3)
@@ -375,7 +375,7 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                         };
 
                         if len != 0 {
-                            p = p.add(len);
+                            p = p.wrapping_add(len);
                             if !(crate::memory::cstr_first_byte(p)).is_ascii_digit() {
                                 return c"E548: Digit expected".as_ptr();
                             }
@@ -407,15 +407,15 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                             if round == 2 {
                                 tbl[idx].shape = CursorShape::ShapeBlock;
                             }
-                            p = p.add(5);
+                            p = p.wrapping_add(5);
                         } else {
                             let mut endp = crate::memory::cstr_as_bytes(p)
                                 .iter()
                                 .position(|&b| b == b'-')
-                                .map_or(std::ptr::null(), |i| p.add(i));
+                                .map_or(std::ptr::null(), |i| p.wrapping_add(i));
                             if commap.is_null() {
                                 if endp.is_null() {
-                                    endp = p.add(crate::memory::cstr_len(p));
+                                    endp = p.wrapping_add(crate::memory::cstr_len(p));
                                 }
                             } else if endp.is_null() || (endp as usize) > (commap as usize) {
                                 endp = commap;
@@ -423,11 +423,11 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                             let slashp = crate::memory::cstr_as_bytes(p)
                                 .iter()
                                 .position(|&b| b == b'/')
-                                .map_or(std::ptr::null(), |i| p.add(i));
+                                .map_or(std::ptr::null(), |i| p.wrapping_add(i));
                             let mut saved_hl_id = first_byte as i32;
                             if !slashp.is_null() && (slashp as usize) < (endp as usize) {
                                 saved_hl_id = syn_check_group(p, (slashp as usize) - (p as usize));
-                                p = slashp.add(1);
+                                p = slashp.wrapping_add(1);
                             }
                             if round == 2 {
                                 tbl[idx].id = syn_check_group(p, (endp as usize) - (p as usize));
@@ -440,13 +440,13 @@ pub fn parse_shape_opt(what: i32) -> *const c_char {
                         }
 
                         if crate::memory::cstr_first_byte(p) == b'-' {
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                         }
                     }
                 }
                 modep = p;
                 if !modep.is_null() && crate::memory::cstr_first_byte(modep) == b',' {
-                    modep = modep.add(1);
+                    modep = modep.wrapping_add(1);
                 }
             }
         }

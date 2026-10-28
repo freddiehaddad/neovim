@@ -59,13 +59,13 @@ pub fn charsettype(cs: &[LpegByte; CHARSETSIZE], info: &mut CharsetInfo) -> Opco
         info.size = (high0 - low0 + 1) as i32;
         info.deflt = 0xFF;
     }
-    info.cs = unsafe { cs.as_ptr().add(info.offset as usize) };
+    info.cs = cs.as_ptr().wrapping_add(info.offset as usize);
     ISET
 }
 
 pub fn getbytefromcharset(info: &CharsetInfo, index: i32) -> LpegByte {
     if index < info.size {
-        unsafe { *info.cs.add(index as usize) }
+        unsafe { *info.cs.wrapping_add(index as usize) }
     } else {
         info.deflt as LpegByte
     }
@@ -92,7 +92,7 @@ pub fn tocharset(tree: &mut TTree, cs: &mut Charset) -> i32 {
                 fillset(&mut cs.cs, tree.u.set.deflt);
                 let tb = treebuffer(tree);
                 for i in 0..(tree.u.set.size as usize) {
-                    cs.cs[(tree.u.set.offset as usize) + i] = *tb.add(i);
+                    cs.cs[(tree.u.set.offset as usize) + i] = *tb.wrapping_add(i);
                 }
                 1
             }

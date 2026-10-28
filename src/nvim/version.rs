@@ -4248,7 +4248,7 @@ fn do_intro_line(row: i32, mesg: impl crate::strings::IntoCCharPtr, colon: bool,
                     };
                 }
                 col += grid_line_puts(col, p, clen, attr);
-                p = p.add(clen as usize);
+                p = p.wrapping_add(clen as usize);
             }
             grid_line_flush();
             return;
@@ -4265,7 +4265,7 @@ fn do_intro_line(row: i32, mesg: impl crate::strings::IntoCCharPtr, colon: bool,
             let mut p = mesg;
             while !crate::memory::cstr_is_empty(p) {
                 col += grid_line_puts(col, p, clen, attr);
-                p = p.add(clen as usize);
+                p = p.wrapping_add(clen as usize);
             }
             grid_line_flush();
             return;
@@ -4278,9 +4278,9 @@ fn do_intro_line(row: i32, mesg: impl crate::strings::IntoCCharPtr, colon: bool,
             while crate::memory::cstr_byte_at(p, l as usize) != 0
                 && (l == 0
                     || (crate::memory::cstr_byte_at(p, l as usize) != b'<'
-                        && *p.add((l - 1) as usize) != b'>' as c_char))
+                        && *p.wrapping_add((l - 1) as usize) != b'>' as c_char))
             {
-                l += utfc_ptr2len(p.add(l as usize));
+                l += utfc_ptr2len(p.wrapping_add(l as usize));
             }
 
             if crate::memory::cstr_first_byte(p) == b'<' {
@@ -4289,18 +4289,18 @@ fn do_intro_line(row: i32, mesg: impl crate::strings::IntoCCharPtr, colon: bool,
                 let colon_pos = crate::memory::cstr_slice(p, l as usize)
                     .iter()
                     .position(|&b| b == b':')
-                    .map_or(ptr::null(), |i| p.add(i));
+                    .map_or(ptr::null(), |i| p.wrapping_add(i));
                 if !colon_pos.is_null() && crate::memory::cstr_byte_at(p, l as usize) == b'<' {
                     let prefix_len = colon_pos.offset_from(p) as i32;
                     col += grid_line_puts(col, p, prefix_len, 0);
                     col += grid_line_puts(col, colon_pos, 1, hlf8_attr);
                     let cmd_len = l - prefix_len - 1;
-                    col += grid_line_puts(col, colon_pos.add(1), cmd_len, id_attr);
+                    col += grid_line_puts(col, colon_pos.wrapping_add(1), cmd_len, id_attr);
                 } else {
                     col += grid_line_puts(col, p, l, 0);
                 }
             }
-            p = p.add(l as usize);
+            p = p.wrapping_add(l as usize);
         }
         grid_line_flush();
     }

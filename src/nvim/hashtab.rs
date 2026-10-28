@@ -105,7 +105,7 @@ fn key_matches(
             return false;
         }
     }
-    unsafe { *hi_key.add(key_len) == 0 }
+    unsafe { *hi_key.wrapping_add(key_len) == 0 }
 }
 
 /// Free the array of a hash table without freeing contained values (`hash_clear`).
@@ -146,7 +146,7 @@ pub fn hash_lookup(
     let arr_ptr = ht.array_ptr();
 
     let mut idx = hash & ht.ht_mask;
-    let mut hi = unsafe { arr_ptr.add(idx) };
+    let mut hi = { arr_ptr.wrapping_add(idx) };
     let hi_ref = unsafe { &*hi };
 
     if hi_ref.is_null_slot() {
@@ -163,7 +163,7 @@ pub fn hash_lookup(
     let mut perturb = hash;
     loop {
         idx = idx.wrapping_mul(5).wrapping_add(perturb).wrapping_add(1);
-        hi = unsafe { arr_ptr.add(idx & ht.ht_mask) };
+        hi = arr_ptr.wrapping_add(idx & ht.ht_mask);
         let item = unsafe { &*hi };
 
         if item.is_null_slot() {
@@ -216,7 +216,7 @@ pub fn hash_add_item(
     if ht.ht_array.is_empty() {
         let offset = unsafe { hi.offset_from(empty_hasharray_ptr()) as usize };
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
-        hi = unsafe { ht.ht_array.as_mut_ptr().add(offset) };
+        hi = ht.ht_array.as_mut_ptr().wrapping_add(offset);
     }
     let hi_ref = unsafe { &mut *hi };
     ht.ht_used += 1;
@@ -349,14 +349,14 @@ pub fn hash_hash(key: impl crate::strings::IntoCCharPtr) -> HashVal {
         return 0;
     }
     let mut hash = usize::from(first);
-    let mut p = unsafe { key.cast::<u8>().add(1) };
+    let mut p = { key.cast::<u8>().wrapping_add(1) };
     loop {
         let b = unsafe { *p };
         if b == 0 {
             break;
         }
         hash = hash.wrapping_mul(101).wrapping_add(usize::from(b));
-        p = unsafe { p.add(1) };
+        p = p.wrapping_add(1);
     }
     hash
 }
@@ -381,7 +381,7 @@ pub fn hash_hash_len(key: impl crate::strings::IntoCCharPtr, len: usize) -> Hash
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
+
     use std::ffi::CString;
 
     #[test]
@@ -412,7 +412,7 @@ mod tests {
             for (k, &di) in keys.iter().zip(&items) {
                 let hi = hash_find(ht, k.as_ptr());
                 assert!(!hashitem_empty(&*hi));
-                assert_eq!(CStr::from_ptr((*hi).key_ptr()), k.as_c_str());
+                assert_eq!(crate::memory::cstr_from_ptr((*hi).key_ptr()), k.as_c_str());
                 assert_eq!((*hi).hi_di, di);
             }
 

@@ -483,7 +483,7 @@ pub fn nvim_option_to_object(
             for i in 0..n {
                 put_c(
                     &mut d,
-                    arena_memdupz(arena, str_ptr.add(i), 1),
+                    arena_memdupz(arena, str_ptr.wrapping_add(i), 1),
                     boolean_obj(true),
                 );
             }
@@ -528,11 +528,11 @@ pub fn nvim_option_to_object(
                 let colon = crate::memory::cstr_as_bytes(item)
                     .iter()
                     .position(|&b| b == b':')
-                    .map_or(ptr::null_mut(), |i| item.add(i));
+                    .map_or(ptr::null_mut(), |i| item.wrapping_add(i));
                 let mut val: *mut c_char = ptr::null_mut();
                 if !colon.is_null() {
                     *colon = NUL;
-                    val = colon.add(1);
+                    val = colon.wrapping_add(1);
                 }
                 let key = arena_string(arena, cstr_as_string(item));
                 let v = if (flags & K_OPT_FLAG_FLAG_LIST) != 0 || val.is_null() {
@@ -648,7 +648,7 @@ pub fn nvim_set_option_value(
                 item = Object {
                     obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(Array {
-                        items: value.data.array().items.add(i),
+                        items: value.data.array().items.wrapping_add(i),
                         size: 1,
                         capacity: 0,
                     }),
@@ -657,7 +657,7 @@ pub fn nvim_set_option_value(
                 item = Object {
                     obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(Dict {
-                        items: value.data.dict().items.add(i),
+                        items: value.data.dict().items.wrapping_add(i),
                         size: 1,
                         capacity: 0,
                     }),

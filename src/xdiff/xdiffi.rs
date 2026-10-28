@@ -67,8 +67,8 @@ fn xdl_split(
     let mut bmax = bmid;
 
     unsafe {
-        *kvdf.offset(fmid as isize) = off1;
-        *kvdb.offset(bmid as isize) = lim1;
+        *kvdf.wrapping_offset(fmid as isize) = off1;
+        *kvdb.wrapping_offset(bmid as isize) = lim1;
 
         let mut ec: i64 = 1;
         loop {
@@ -76,27 +76,31 @@ fn xdl_split(
 
             if fmin > dmin {
                 fmin -= 1;
-                *kvdf.offset((fmin - 1) as isize) = -1;
+                *kvdf.wrapping_offset((fmin - 1) as isize) = -1;
             } else {
                 fmin += 1;
             }
             if fmax < dmax {
                 fmax += 1;
-                *kvdf.offset((fmax + 1) as isize) = -1;
+                *kvdf.wrapping_offset((fmax + 1) as isize) = -1;
             } else {
                 fmax -= 1;
             }
 
             let mut d = fmax;
             while d >= fmin {
-                let mut i1 = if *kvdf.offset((d - 1) as isize) >= *kvdf.offset((d + 1) as isize) {
-                    *kvdf.offset((d - 1) as isize) + 1
+                let mut i1 = if *kvdf.wrapping_offset((d - 1) as isize)
+                    >= *kvdf.wrapping_offset((d + 1) as isize)
+                {
+                    *kvdf.wrapping_offset((d - 1) as isize) + 1
                 } else {
-                    *kvdf.offset((d + 1) as isize)
+                    *kvdf.wrapping_offset((d + 1) as isize)
                 };
                 let prev1 = i1;
                 let mut i2 = i1 - d;
-                while i1 < lim1 && i2 < lim2 && *ha1.offset(i1 as isize) == *ha2.offset(i2 as isize)
+                while i1 < lim1
+                    && i2 < lim2
+                    && *ha1.wrapping_offset(i1 as isize) == *ha2.wrapping_offset(i2 as isize)
                 {
                     i1 += 1;
                     i2 += 1;
@@ -104,8 +108,8 @@ fn xdl_split(
                 if i1 - prev1 > xenv.snake_cnt {
                     got_snake = true;
                 }
-                *kvdf.offset(d as isize) = i1;
-                if odd && bmin <= d && d <= bmax && *kvdb.offset(d as isize) <= i1 {
+                *kvdf.wrapping_offset(d as isize) = i1;
+                if odd && bmin <= d && d <= bmax && *kvdb.wrapping_offset(d as isize) <= i1 {
                     spl.i1 = i1;
                     spl.i2 = i2;
                     spl.min_lo = 1;
@@ -117,29 +121,32 @@ fn xdl_split(
 
             if bmin > dmin {
                 bmin -= 1;
-                *kvdb.offset((bmin - 1) as isize) = XDL_LINE_MAX;
+                *kvdb.wrapping_offset((bmin - 1) as isize) = XDL_LINE_MAX;
             } else {
                 bmin += 1;
             }
             if bmax < dmax {
                 bmax += 1;
-                *kvdb.offset((bmax + 1) as isize) = XDL_LINE_MAX;
+                *kvdb.wrapping_offset((bmax + 1) as isize) = XDL_LINE_MAX;
             } else {
                 bmax -= 1;
             }
 
             d = bmax;
             while d >= bmin {
-                let mut i1 = if *kvdb.offset((d - 1) as isize) < *kvdb.offset((d + 1) as isize) {
-                    *kvdb.offset((d - 1) as isize)
+                let mut i1 = if *kvdb.wrapping_offset((d - 1) as isize)
+                    < *kvdb.wrapping_offset((d + 1) as isize)
+                {
+                    *kvdb.wrapping_offset((d - 1) as isize)
                 } else {
-                    *kvdb.offset((d + 1) as isize) - 1
+                    *kvdb.wrapping_offset((d + 1) as isize) - 1
                 };
                 let prev1 = i1;
                 let mut i2 = i1 - d;
                 while i1 > off1
                     && i2 > off2
-                    && *ha1.offset((i1 - 1) as isize) == *ha2.offset((i2 - 1) as isize)
+                    && *ha1.wrapping_offset((i1 - 1) as isize)
+                        == *ha2.wrapping_offset((i2 - 1) as isize)
                 {
                     i1 -= 1;
                     i2 -= 1;
@@ -147,8 +154,8 @@ fn xdl_split(
                 if prev1 - i1 > xenv.snake_cnt {
                     got_snake = true;
                 }
-                *kvdb.offset(d as isize) = i1;
-                if !odd && fmin <= d && d <= fmax && i1 <= *kvdf.offset(d as isize) {
+                *kvdb.wrapping_offset(d as isize) = i1;
+                if !odd && fmin <= d && d <= fmax && i1 <= *kvdf.wrapping_offset(d as isize) {
                     spl.i1 = i1;
                     spl.i2 = i2;
                     spl.min_lo = 1;
@@ -168,7 +175,7 @@ fn xdl_split(
                 d = fmax;
                 while d >= fmin {
                     let dd = if d > fmid { d - fmid } else { fmid - d };
-                    let i1 = *kvdf.offset(d as isize);
+                    let i1 = *kvdf.wrapping_offset(d as isize);
                     let i2 = i1 - d;
                     let v = (i1 - off1) + (i2 - off2) - dd;
 
@@ -180,7 +187,9 @@ fn xdl_split(
                         && i2 < lim2
                     {
                         let mut k: i64 = 1;
-                        while *ha1.offset((i1 - k) as isize) == *ha2.offset((i2 - k) as isize) {
+                        while *ha1.wrapping_offset((i1 - k) as isize)
+                            == *ha2.wrapping_offset((i2 - k) as isize)
+                        {
                             if k == xenv.snake_cnt {
                                 best = v;
                                 spl.i1 = i1;
@@ -202,7 +211,7 @@ fn xdl_split(
                 d = bmax;
                 while d >= bmin {
                     let dd = if d > bmid { d - bmid } else { bmid - d };
-                    let i1 = *kvdb.offset(d as isize);
+                    let i1 = *kvdb.wrapping_offset(d as isize);
                     let i2 = i1 - d;
                     let v = (lim1 - i1) + (lim2 - i2) - dd;
 
@@ -214,7 +223,9 @@ fn xdl_split(
                         && i2 <= lim2 - xenv.snake_cnt
                     {
                         let mut k: i64 = 0;
-                        while *ha1.offset((i1 + k) as isize) == *ha2.offset((i2 + k) as isize) {
+                        while *ha1.wrapping_offset((i1 + k) as isize)
+                            == *ha2.wrapping_offset((i2 + k) as isize)
+                        {
                             if k == xenv.snake_cnt - 1 {
                                 best = v;
                                 spl.i1 = i1;
@@ -238,7 +249,7 @@ fn xdl_split(
                 let mut fbest1: i64 = -1;
                 d = fmax;
                 while d >= fmin {
-                    let mut i1 = (*kvdf.offset(d as isize)).min(lim1);
+                    let mut i1 = (*kvdf.wrapping_offset(d as isize)).min(lim1);
                     let mut i2 = i1 - d;
                     if lim2 < i2 {
                         i1 = lim2 + d;
@@ -255,7 +266,7 @@ fn xdl_split(
                 let mut bbest1: i64 = XDL_LINE_MAX;
                 d = bmax;
                 while d >= bmin {
-                    let mut i1 = off1.max(*kvdb.offset(d as isize));
+                    let mut i1 = off1.max(*kvdb.wrapping_offset(d as isize));
                     let mut i2 = i1 - d;
                     if i2 < off2 {
                         i1 = off2 + d;
@@ -303,14 +314,17 @@ pub fn xdl_recs_cmp(
         let ha1 = dd1.ha;
         let ha2 = dd2.ha;
 
-        while off1 < lim1 && off2 < lim2 && *ha1.offset(off1 as isize) == *ha2.offset(off2 as isize)
+        while off1 < lim1
+            && off2 < lim2
+            && *ha1.wrapping_offset(off1 as isize) == *ha2.wrapping_offset(off2 as isize)
         {
             off1 += 1;
             off2 += 1;
         }
         while off1 < lim1
             && off2 < lim2
-            && *ha1.offset((lim1 - 1) as isize) == *ha2.offset((lim2 - 1) as isize)
+            && *ha1.wrapping_offset((lim1 - 1) as isize)
+                == *ha2.wrapping_offset((lim2 - 1) as isize)
         {
             lim1 -= 1;
             lim2 -= 1;
@@ -320,14 +334,14 @@ pub fn xdl_recs_cmp(
             let rchg2 = dd2.rchg;
             let rindex2 = dd2.rindex;
             while off2 < lim2 {
-                *rchg2.offset(*rindex2.offset(off2 as isize) as isize) = 1;
+                *rchg2.wrapping_offset(*rindex2.wrapping_offset(off2 as isize) as isize) = 1;
                 off2 += 1;
             }
         } else if off2 == lim2 {
             let rchg1 = dd1.rchg;
             let rindex1 = dd1.rindex;
             while off1 < lim1 {
-                *rchg1.offset(*rindex1.offset(off1 as isize) as isize) = 1;
+                *rchg1.wrapping_offset(*rindex1.wrapping_offset(off1 as isize) as isize) = 1;
                 off1 += 1;
             }
         } else {
@@ -387,9 +401,9 @@ pub fn xdl_do_diff(mf1: &mut Mmfile, mf2: &mut Mmfile, xpp: &Xpparam, xe: &mut X
         let mut kvd_vec = vec![0_i64; (2 * ndiags + 2) as usize];
         let kvd = kvd_vec.as_mut_ptr();
         let mut kvdf = kvd;
-        let mut kvdb = kvdf.offset(ndiags as isize);
-        kvdf = kvdf.offset((xe.xdf2.nreff + 1) as isize);
-        kvdb = kvdb.offset((xe.xdf2.nreff + 1) as isize);
+        let mut kvdb = kvdf.wrapping_offset(ndiags as isize);
+        kvdf = kvdf.wrapping_offset((xe.xdf2.nreff + 1) as isize);
+        kvdb = kvdb.wrapping_offset((xe.xdf2.nreff + 1) as isize);
 
         let xenv = Xdalgoenv {
             mxcost: xdl_bogosqrt(ndiags).max(XDL_MAX_COST_MIN),
@@ -440,7 +454,7 @@ fn xget_indent(rec: &Xrecord) -> i32 {
     let mut ret: i32 = 0;
     unsafe {
         for i in 0..rec.size {
-            let c = *rec.ptr.offset(i as isize);
+            let c = *rec.ptr.wrapping_offset(i as isize);
             if !xdl_isspace(c) {
                 return ret;
             } else if c == b' ' as c_char {
@@ -579,7 +593,7 @@ fn group_init(xdf: &mut Xdfile, g: &mut XdlGroup) {
     g.start = 0;
     g.end = 0;
     unsafe {
-        while *xdf.rchg.offset(g.end as isize) != 0 {
+        while *xdf.rchg.wrapping_offset(g.end as isize) != 0 {
             g.end += 1;
         }
     }
@@ -593,7 +607,7 @@ fn group_next(xdf: &mut Xdfile, g: &mut XdlGroup) -> i32 {
         }
         g.start = g.end + 1;
         g.end = g.start;
-        while *xdf.rchg.offset(g.end as isize) != 0 {
+        while *xdf.rchg.wrapping_offset(g.end as isize) != 0 {
             g.end += 1;
         }
     }
@@ -608,7 +622,7 @@ fn group_previous(xdf: &mut Xdfile, g: &mut XdlGroup) -> i32 {
     g.end = g.start - 1;
     g.start = g.end;
     unsafe {
-        while *xdf.rchg.offset((g.start - 1) as isize) != 0 {
+        while *xdf.rchg.wrapping_offset((g.start - 1) as isize) != 0 {
             g.start -= 1;
         }
     }
@@ -619,12 +633,12 @@ fn group_slide_down(xdf: &mut Xdfile, g: &mut XdlGroup, flags: i64) -> i32 {
     unsafe {
         let recs = &xdf.recs;
         if g.end < xdf.nrec && recs_match(&recs[g.start as usize], &recs[g.end as usize], flags) {
-            *xdf.rchg.offset(g.start as isize) = 0;
+            *xdf.rchg.wrapping_offset(g.start as isize) = 0;
             g.start += 1;
-            *xdf.rchg.offset(g.end as isize) = 1;
+            *xdf.rchg.wrapping_offset(g.end as isize) = 1;
             g.end += 1;
 
-            while *xdf.rchg.offset(g.end as isize) != 0 {
+            while *xdf.rchg.wrapping_offset(g.end as isize) != 0 {
                 g.end += 1;
             }
             0
@@ -645,11 +659,11 @@ fn group_slide_up(xdf: &mut Xdfile, g: &mut XdlGroup, flags: i64) -> i32 {
             )
         {
             g.start -= 1;
-            *xdf.rchg.offset(g.start as isize) = 1;
+            *xdf.rchg.wrapping_offset(g.start as isize) = 1;
             g.end -= 1;
-            *xdf.rchg.offset(g.end as isize) = 0;
+            *xdf.rchg.wrapping_offset(g.end as isize) = 0;
 
-            while *xdf.rchg.offset((g.start - 1) as isize) != 0 {
+            while *xdf.rchg.wrapping_offset((g.start - 1) as isize) != 0 {
                 g.start -= 1;
             }
             0
@@ -781,13 +795,15 @@ pub fn xdl_build_script(xe: &mut Xdfenv, xscr: &mut Vec<Xdchange>) -> i32 {
         let mut i2 = xe.xdf2.nrec;
 
         while i1 >= 0 || i2 >= 0 {
-            if *rchg1.offset((i1 - 1) as isize) != 0 || *rchg2.offset((i2 - 1) as isize) != 0 {
+            if *rchg1.wrapping_offset((i1 - 1) as isize) != 0
+                || *rchg2.wrapping_offset((i2 - 1) as isize) != 0
+            {
                 let l1 = i1;
-                while *rchg1.offset((i1 - 1) as isize) != 0 {
+                while *rchg1.wrapping_offset((i1 - 1) as isize) != 0 {
                     i1 -= 1;
                 }
                 let l2 = i2;
-                while *rchg2.offset((i2 - 1) as isize) != 0 {
+                while *rchg2.wrapping_offset((i2 - 1) as isize) != 0 {
                     i2 -= 1;
                 }
 

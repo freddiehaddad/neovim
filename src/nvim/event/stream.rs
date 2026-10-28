@@ -227,7 +227,7 @@ pub fn stream_init(loop_: *mut Loop, stream: &mut Stream, fd: i32, has_uvstream:
                     uv_tty_set_mode(uv_ptr.cast(), UV_TTY_MODE_RAW);
                     let tty_handle = *uv_ptr
                         .cast::<u8>()
-                        .add(uv_handle_size(UV_STREAM))
+                        .wrapping_add(uv_handle_size(UV_STREAM))
                         .cast::<*mut c_void>();
                     let mut dw_mode: u32 = 0;
                     if GetConsoleMode(tty_handle, &mut dw_mode) != 0 {

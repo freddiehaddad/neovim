@@ -255,17 +255,17 @@ pub fn ui_refresh() {
 
         let ui_ext_ptr = (&raw mut ui_state().ui_ext).cast::<bool>();
         let ui_cb_ext_ptr = (&raw const ui_state().ui_cb_ext).cast::<bool>();
-        let had_message = *ui_ext_ptr.add(K_UIMESSAGES);
+        let had_message = *ui_ext_ptr.wrapping_add(K_UIMESSAGES);
 
         for (i, &widget) in ext_widgets.iter().enumerate().take(K_UIEXT_COUNT) {
-            let val = widget | *ui_cb_ext_ptr.add(i);
-            *ui_ext_ptr.add(i) = val;
+            let val = widget | *ui_cb_ext_ptr.wrapping_add(i);
+            *ui_ext_ptr.wrapping_add(i) = val;
             if i < K_UIGLOBAL_COUNT {
                 ui_call_option_set(cstr_as_string(UI_EXT_NAMES[i].as_ptr()), boolean_obj(val));
             }
         }
 
-        if had_message != *ui_ext_ptr.add(K_UIMESSAGES) {
+        if had_message != *ui_ext_ptr.wrapping_add(K_UIMESSAGES) {
             if g_st().ui_refresh_cmdheight {
                 set_option_value(
                     K_OPT_CMDHEIGHT,
@@ -528,7 +528,7 @@ pub fn ui_line(
     clearattr: i32,
     wrap: bool,
 ) {
-    unsafe {
+    {
         debug_assert!(0 <= row && row < grid.rows);
         let mut flags = if wrap { K_LINE_FLAG_WRAP } else { 0 };
         if startcol == 0 && invalid_row {
@@ -546,8 +546,8 @@ pub fn ui_line(
             Integer::from(clearcol),
             Integer::from(clearattr),
             flags,
-            grid.chars.as_mut_ptr().add(off),
-            grid.attrs.as_mut_ptr().add(off),
+            grid.chars.as_mut_ptr().wrapping_add(off),
+            grid.attrs.as_mut_ptr().wrapping_add(off),
         );
 
         if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_LINE) != 0 {
@@ -659,7 +659,7 @@ pub fn ui_flush() {
             };
             let full_name = (*(&raw const (*shape_table_mut()))
                 .cast::<Cursorentry>()
-                .add(idx as usize))
+                .wrapping_add(idx as usize))
             .full_name;
             ui_call_mode_change(cstr_as_string(full_name.as_ptr()), Integer::from(idx));
             ui_state().pending_mode_update = false;
@@ -952,7 +952,7 @@ fn ui_cb_update_ext() {
         for i in 0..K_UIGLOBAL_COUNT {
             for event_cb in cbs_ptr.values() {
                 if event_cb.ext_widgets[i] {
-                    *ui_cb_ext_ptr.add(i) = true;
+                    *ui_cb_ext_ptr.wrapping_add(i) = true;
                     break;
                 }
             }

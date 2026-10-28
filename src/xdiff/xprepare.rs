@@ -102,7 +102,7 @@ fn xdl_prepare_ctx(
         let blk = xdl_mmfile_first(mf, &mut bsize).cast_const();
         let mut cur = blk;
         if !cur.is_null() {
-            let top = blk.offset(bsize as isize);
+            let top = blk.wrapping_offset(bsize as isize);
             while cur < top {
                 let prev = cur;
                 let hav = xdl_hash_record(&mut cur, top, xpp.flags as i64);
@@ -128,7 +128,7 @@ fn xdl_prepare_ctx(
         xdf.ha = vec![0; (nrec + 1) as usize];
 
         xdf.nrec = nrec;
-        xdf.rchg = xdf.rchg_vec.as_mut_ptr().add(1);
+        xdf.rchg = xdf.rchg_vec.as_mut_ptr().wrapping_add(1);
         xdf.nreff = 0;
         xdf.dstart = 0;
         xdf.dend = nrec - 1;
@@ -191,7 +191,7 @@ fn xdl_clean_mmatch(dis: *const c_char, i: i64, mut s: i64, mut e: i64) -> i32 {
     let mut rdis0: i64 = 0;
     let mut rpdis0: i64 = 1;
     while (i - r) >= s {
-        let d = unsafe { *dis.offset((i - r) as isize) };
+        let d = unsafe { *dis.wrapping_offset((i - r) as isize) };
         if d == 0 {
             rdis0 += 1;
         } else if d == 2 {
@@ -209,7 +209,7 @@ fn xdl_clean_mmatch(dis: *const c_char, i: i64, mut s: i64, mut e: i64) -> i32 {
     let mut rdis1: i64 = 0;
     let mut rpdis1: i64 = 1;
     while (i + r) <= e {
-        let d = unsafe { *dis.offset((i + r) as isize) };
+        let d = unsafe { *dis.wrapping_offset((i + r) as isize) };
         if d == 0 {
             rdis1 += 1;
         } else if d == 2 {
@@ -233,12 +233,12 @@ fn xdl_cleanup_records(cf: &Xdlclassifier, xdf1: &mut Xdfile, xdf2: &mut Xdfile)
         let total = (xdf1.nrec + xdf2.nrec + 2) as usize;
         let mut dis_vec = vec![0 as c_char; total];
         let dis1 = dis_vec.as_mut_ptr();
-        let dis2 = dis1.offset((xdf1.nrec + 1) as isize);
+        let dis2 = dis1.wrapping_offset((xdf1.nrec + 1) as isize);
 
         let mut mlim = xdl_bogosqrt(xdf1.nrec).min(XDL_MAX_EQLIMIT);
         for i in xdf1.dstart..=xdf1.dend {
             let nm = cf.rcrecs[xdf1.recs[i as usize].ha as usize].len2;
-            *dis1.offset(i as isize) = if nm == 0 {
+            *dis1.wrapping_offset(i as isize) = if nm == 0 {
                 0
             } else if nm >= mlim {
                 2
@@ -250,7 +250,7 @@ fn xdl_cleanup_records(cf: &Xdlclassifier, xdf1: &mut Xdfile, xdf2: &mut Xdfile)
         mlim = xdl_bogosqrt(xdf2.nrec).min(XDL_MAX_EQLIMIT);
         for i in xdf2.dstart..=xdf2.dend {
             let nm = cf.rcrecs[xdf2.recs[i as usize].ha as usize].len1;
-            *dis2.offset(i as isize) = if nm == 0 {
+            *dis2.wrapping_offset(i as isize) = if nm == 0 {
                 0
             } else if nm >= mlim {
                 2
@@ -261,26 +261,26 @@ fn xdl_cleanup_records(cf: &Xdlclassifier, xdf1: &mut Xdfile, xdf2: &mut Xdfile)
 
         let mut nreff: i64 = 0;
         for i in xdf1.dstart..=xdf1.dend {
-            let d = *dis1.offset(i as isize);
+            let d = *dis1.wrapping_offset(i as isize);
             if d == 1 || (d == 2 && xdl_clean_mmatch(dis1, i, xdf1.dstart, xdf1.dend) == 0) {
                 xdf1.rindex[nreff as usize] = i;
                 xdf1.ha[nreff as usize] = xdf1.recs[i as usize].ha;
                 nreff += 1;
             } else {
-                *xdf1.rchg.offset(i as isize) = 1;
+                *xdf1.rchg.wrapping_offset(i as isize) = 1;
             }
         }
         xdf1.nreff = nreff;
 
         nreff = 0;
         for i in xdf2.dstart..=xdf2.dend {
-            let d = *dis2.offset(i as isize);
+            let d = *dis2.wrapping_offset(i as isize);
             if d == 1 || (d == 2 && xdl_clean_mmatch(dis2, i, xdf2.dstart, xdf2.dend) == 0) {
                 xdf2.rindex[nreff as usize] = i;
                 xdf2.ha[nreff as usize] = xdf2.recs[i as usize].ha;
                 nreff += 1;
             } else {
-                *xdf2.rchg.offset(i as isize) = 1;
+                *xdf2.rchg.wrapping_offset(i as isize) = 1;
             }
         }
         xdf2.nreff = nreff;

@@ -974,7 +974,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
 
             lua_createtable(lstate, 0, nsupertypes as i32);
             for i in 0..nsupertypes {
-                let supertype = *supertypes.add(i as usize);
+                let supertype = *supertypes.wrapping_add(i as usize);
 
                 let mut nsubtypes: u32 = 0;
                 let subtypes = ts_language_subtypes(lang, supertype, &mut nsubtypes);
@@ -983,7 +983,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                 for j in 1..=nsubtypes {
                     lua_pushstring(
                         lstate,
-                        ts_language_symbol_name(lang, *subtypes.add(j as usize)),
+                        ts_language_symbol_name(lang, *subtypes.wrapping_add(j as usize)),
                     );
                     lua_rawseti(lstate, -2, j as i32);
                 }
@@ -1080,9 +1080,9 @@ unsafe extern "C" fn input_cb(
         }
         let tocopy = (len - col).min(BUFSIZE);
 
-        ptr::copy_nonoverlapping(line.add(col), buf_ptr, tocopy);
+        ptr::copy_nonoverlapping(line.wrapping_add(col), buf_ptr, tocopy);
         for i in 0..tocopy {
-            let p = buf_ptr.add(i);
+            let p = buf_ptr.wrapping_add(i);
             if crate::memory::cstr_first_byte(p) == b'\n' {
                 *p = NUL;
             }
@@ -1093,7 +1093,7 @@ unsafe extern "C" fn input_cb(
                 || (bp.b_p_bin == 0 && bp.b_p_fixeol != 0)
                 || (lnum != bp.b_no_eol_lnum && bp.b_p_eol != 0))
         {
-            *buf_ptr.add(tocopy) = b'\n' as c_char;
+            *buf_ptr.wrapping_add(tocopy) = b'\n' as c_char;
             *bytes_read += 1;
         }
         buf_ptr
@@ -1104,7 +1104,7 @@ fn push_ranges(lstate: *mut lua_State, ranges: *const TSRange, length: usize, in
     unsafe {
         lua_createtable(lstate, length as i32, 0);
         for i in 0..length {
-            let r = *ranges.add(i);
+            let r = *ranges.wrapping_add(i);
             lua_createtable(lstate, if include_bytes { 6 } else { 4 }, 0);
             let mut j: i32 = 1;
             lua_pushnumber(lstate, r.start_point.row as lua_Number);
@@ -2122,7 +2122,7 @@ unsafe extern "C-unwind" fn querycursor_next_capture(lstate: *mut lua_State) -> 
             return 0;
         }
 
-        let capture = *match_.captures.add(capture_index as usize);
+        let capture = *match_.captures.wrapping_add(capture_index as usize);
         lua_pushinteger(lstate, (capture.index + 1) as lua_Integer);
         push_node(lstate, capture.node, 1);
         push_querymatch(lstate, &match_, 1);
@@ -2191,7 +2191,7 @@ unsafe extern "C-unwind" fn querymatch_captures(lstate: *mut lua_State) -> i32 {
         let match_ = luaL_checkudata(lstate, 1, TS_META_QUERYMATCH).cast::<TSQueryMatch>();
         lua_newtable(lstate);
         for i in 0..((*match_).capture_count as usize) {
-            let capture = *(*match_).captures.add(i);
+            let capture = *(*match_).captures.wrapping_add(i);
             let index = (capture.index + 1) as i32;
 
             lua_rawgeti(lstate, -1, index);
@@ -2269,7 +2269,7 @@ fn query_err_string(
         let mut error_line_len: i32 = 0;
 
         loop {
-            let src_tmp = src.offset(line_start as isize);
+            let src_tmp = src.wrapping_offset(line_start as isize);
             let src_tmp_bytes = crate::memory::cstr_as_bytes(src_tmp);
             let nl_pos = src_tmp_bytes.iter().position(|&b| b == b'\n');
             let line_length = nl_pos.unwrap_or(src_tmp_bytes.len()) as i32;
@@ -2298,16 +2298,16 @@ fn query_err_string(
         );
         let offset = crate::memory::cstr_len(err_data);
         err_size = err_size.saturating_sub(offset);
-        err_data = err_data.add(offset);
+        err_data = err_data.wrapping_add(offset);
 
         if error_type == TSQUERY_ERROR_NODE_TYPE
             || error_type == TSQUERY_ERROR_FIELD
             || error_type == TSQUERY_ERROR_CAPTURE
         {
-            let suffix = src.offset(error_offset as isize);
+            let suffix = src.wrapping_offset(error_offset as isize);
             let is_anonymous = error_type == TSQUERY_ERROR_NODE_TYPE
                 && error_offset > 0
-                && *suffix.offset(-1) == b'"' as c_char;
+                && *suffix.wrapping_offset(-1) == b'"' as c_char;
             let mut suffix_len: usize = 0;
             let mut c = crate::memory::cstr_byte_at(suffix, suffix_len);
             if is_anonymous {
@@ -2336,7 +2336,7 @@ fn query_err_string(
             );
             let offset = crate::memory::cstr_len(err_data);
             err_size = err_size.saturating_sub(offset);
-            err_data = err_data.add(offset);
+            err_data = err_data.wrapping_add(offset);
         }
 
         if error_line.is_null() {
@@ -2398,7 +2398,7 @@ unsafe extern "C-unwind" fn query_inspect(lstate: *mut lua_State) -> i32 {
             let mut nextpred: i32 = 1;
             let mut nextitem: i32 = 1;
             for k in 0..(len as usize) {
-                let s = *step.add(k);
+                let s = *step.wrapping_add(k);
                 if s.type_ == TSQUERY_PREDICATE_STEP_TYPE_DONE {
                     lua_rawseti(lstate, -2, nextpred);
                     nextpred += 1;

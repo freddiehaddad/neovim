@@ -104,7 +104,7 @@ pub fn viml_parser_get_remaining_line(
     }
     assert_eq!(pstate.pos.line, pstate.reader.lines.len() - 1);
     if !ret_pline.data.is_null() {
-        ret_pline.data = unsafe { ret_pline.data.add(pstate.pos.col) };
+        ret_pline.data = ret_pline.data.wrapping_add(pstate.pos.col);
         ret_pline.size -= pstate.pos.col;
     }
     !ret_pline.data.is_null()

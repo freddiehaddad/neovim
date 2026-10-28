@@ -1260,13 +1260,13 @@ fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
     unsafe {
         let offset = vcol2col(wp, lnum, vcol - 1, None);
         let line = ml_get_buf(wp.buf_mut(), lnum);
-        let mut p = line.add(offset as usize);
+        let mut p = line.wrapping_add(offset as usize);
 
         if crate::memory::cstr_is_empty(p) {
             if p == line {
                 return 0;
             }
-            p = p.sub(utf_head_off(line, p.sub(1)) as usize + 1);
+            p = p.wrapping_sub(utf_head_off(line, p.wrapping_sub(1)) as usize + 1);
         }
         p.offset_from(line) as i32 + 1
     }

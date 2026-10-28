@@ -448,7 +448,7 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut c_char) -> i32 {
         init_startuptime(&mut params);
 
         for i in 1..params.argc {
-            if crate::memory::cstr_as_opt_bytes(*params.argv.add(i as usize))
+            if crate::memory::cstr_as_opt_bytes(*params.argv.wrapping_add(i as usize))
                 .is_some_and(|b| b.eq_ignore_ascii_case(b"--clean"))
             {
                 params.clean = true;
@@ -1174,7 +1174,7 @@ fn remote_request(
 ) {
     let server_addr = server_addr.into_c_char_ptr();
     unsafe {
-        let is_ui = crate::memory::cstr_as_opt_bytes(*argv.add(remote_args as usize))
+        let is_ui = crate::memory::cstr_as_opt_bytes(*argv.wrapping_add(remote_args as usize))
             == Some(b"--remote-ui");
         if ui_only && !is_ui {
             return;
@@ -1214,7 +1214,7 @@ fn remote_request(
 
         let count = (argc - remote_args).max(0) as usize;
         let mut args_vec: Vec<Object> = (remote_args..argc)
-            .map(|t_argc| cstr_as_obj(*argv.add(t_argc as usize)))
+            .map(|t_argc| cstr_as_obj(*argv.wrapping_add(t_argc as usize)))
             .collect();
         let args = Array {
             items: if count > 0 {
@@ -1342,7 +1342,7 @@ fn edit_stdin(parmp: &mut Mparm) -> bool {
 fn command_line_scan(parmp: &mut Mparm) {
     unsafe {
         let mut argc = parmp.argc - 1;
-        let mut argv = parmp.argv.add(1);
+        let mut argv = parmp.argv.wrapping_add(1);
         let mut argv_idx: i32 = 1;
         let mut had_minmin = false;
 
@@ -1358,7 +1358,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                 } else {
                     parmp
                         .commands
-                        .push(crate::memory::cstr_to_cstring(arg0.add(1)));
+                        .push(crate::memory::cstr_to_cstring(arg0.wrapping_add(1)));
                 }
             } else if crate::memory::cstr_first_byte(arg0) == b'-' && !had_minmin {
                 let mut want_argument = false;
@@ -1380,7 +1380,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         argv_idx = -1;
                     }
                     b'-' => {
-                        let sub = arg0.add(argv_idx as usize);
+                        let sub = arg0.wrapping_add(argv_idx as usize);
                         if crate::memory::cstr_as_opt_bytes(sub)
                             .is_some_and(|b| b.eq_ignore_ascii_case(b"help"))
                         {
@@ -1507,8 +1507,9 @@ fn command_line_scan(parmp: &mut Mparm) {
                         }
                         parmp.edit_type = EDIT_QF;
                         if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
-                            parmp.use_ef =
-                                Some(crate::memory::cstr_to_cstring(arg0.add(argv_idx as usize)));
+                            parmp.use_ef = Some(crate::memory::cstr_to_cstring(
+                                arg0.wrapping_add(argv_idx as usize),
+                            ));
                             argv_idx = -1;
                         } else if argc > 1 {
                             want_argument = true;
@@ -1542,8 +1543,9 @@ fn command_line_scan(parmp: &mut Mparm) {
                         }
                         parmp.edit_type = EDIT_TAG;
                         if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
-                            parmp.tagname =
-                                Some(crate::memory::cstr_to_cstring(arg0.add(argv_idx as usize)));
+                            parmp.tagname = Some(crate::memory::cstr_to_cstring(
+                                arg0.wrapping_add(argv_idx as usize),
+                            ));
                             argv_idx = -1;
                         } else {
                             want_argument = true;
@@ -1558,7 +1560,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
                             set_option_value_give_err(
                                 K_OPT_VERBOSEFILE,
-                                cstr_as_obj(arg0.add(argv_idx as usize)),
+                                cstr_as_obj(arg0.wrapping_add(argv_idx as usize)),
                                 0,
                             );
                             argv_idx = crate::memory::cstr_len(arg0) as i32;
@@ -1581,9 +1583,9 @@ fn command_line_scan(parmp: &mut Mparm) {
                             if parmp.commands.len() >= MAX_ARG_CMDS {
                                 mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                             }
-                            parmp
-                                .commands
-                                .push(crate::memory::cstr_to_cstring(arg0.add(argv_idx as usize)));
+                            parmp.commands.push(crate::memory::cstr_to_cstring(
+                                arg0.wrapping_add(argv_idx as usize),
+                            ));
                             argv_idx = -1;
                         } else {
                             want_argument = true;
@@ -1606,11 +1608,11 @@ fn command_line_scan(parmp: &mut Mparm) {
                     if argc < 1 && c != b'S' {
                         mainerr(ERR_ARG_MISSING, arg0, ptr::null());
                     }
-                    argv = argv.add(1);
+                    argv = argv.wrapping_add(1);
                     argv_idx = -1;
 
                     let cur_arg = if argc >= 1 { *argv } else { ptr::null_mut() };
-                    let prev_arg = *argv.sub(1);
+                    let prev_arg = *argv.wrapping_sub(1);
 
                     match c {
                         b'c' | b'S' => {
@@ -1622,7 +1624,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                                     c"Session.vim".as_ptr()
                                 } else if crate::memory::cstr_first_byte(cur_arg) == b'-' {
                                     argc += 1;
-                                    argv = argv.sub(1);
+                                    argv = argv.wrapping_sub(1);
                                     c"Session.vim".as_ptr()
                                 } else {
                                     cur_arg
@@ -1790,7 +1792,7 @@ fn command_line_scan(parmp: &mut Mparm) {
 
             if argv_idx <= 0 || crate::memory::cstr_byte_at(*argv, argv_idx as usize) == 0 {
                 argc -= 1;
-                argv = argv.add(1);
+                argv = argv.wrapping_add(1);
                 argv_idx = 1;
             }
         }
@@ -1823,7 +1825,7 @@ fn set_argf_var() {
         let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         let count = gargcount();
         for i in 0..count {
-            let fname = alist_name(&*garglist().add(i as usize));
+            let fname = alist_name(&*garglist().wrapping_add(i as usize));
             if !fname.is_null() {
                 let _ = vim_full_name(fname, g_st().name_buff.as_mut_ptr(), MAXPATHL, false);
                 tv_list_append_string(&mut *list, g_st().name_buff.as_ptr(), -1);
@@ -1851,7 +1853,7 @@ fn init_startuptime(paramp: &mut Mparm) {
     unsafe {
         let mut is_embed = false;
         for i in 1..(paramp.argc - 1) {
-            if crate::memory::cstr_as_opt_bytes(*paramp.argv.add(i as usize))
+            if crate::memory::cstr_as_opt_bytes(*paramp.argv.wrapping_add(i as usize))
                 .is_some_and(|b| b.eq_ignore_ascii_case(b"--embed"))
             {
                 is_embed = true;
@@ -1859,11 +1861,11 @@ fn init_startuptime(paramp: &mut Mparm) {
             }
         }
         for i in 1..(paramp.argc - 1) {
-            if crate::memory::cstr_as_opt_bytes(*paramp.argv.add(i as usize))
+            if crate::memory::cstr_as_opt_bytes(*paramp.argv.wrapping_add(i as usize))
                 .is_some_and(|b| b.eq_ignore_ascii_case(b"--startuptime"))
             {
                 time_init(
-                    *paramp.argv.add((i + 1) as usize),
+                    *paramp.argv.wrapping_add((i + 1) as usize),
                     if is_embed {
                         c"Embedded".as_ptr()
                     } else {
@@ -2173,7 +2175,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                 curwin_mut().w_arg_idx = arg_idx;
                 g_st().swap_exists_did_quit = false;
                 let fname = if arg_idx < gargcount() {
-                    alist_name(&*garglist().add(arg_idx as usize))
+                    alist_name(&*garglist().wrapping_add(arg_idx as usize))
                 } else {
                     ptr::null_mut()
                 };

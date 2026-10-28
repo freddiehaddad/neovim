@@ -97,7 +97,7 @@ struct ContainerStackItem {
 pub(crate) fn mpack_w(b: *mut *mut c_char, byte: u8) {
     unsafe {
         **b = byte as c_char;
-        *b = (*b).add(1);
+        *b = (*b).wrapping_add(1);
     }
 }
 
@@ -106,7 +106,7 @@ pub fn mpack_w2(b: *mut *mut c_char, v: u32) {
     let bytes = (v as u16).to_be_bytes();
     unsafe {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).cast::<u8>(), 2);
-        *b = (*b).add(2);
+        *b = (*b).wrapping_add(2);
     }
 }
 
@@ -115,7 +115,7 @@ fn mpack_w4(b: *mut *mut c_char, v: u32) {
     let bytes = v.to_be_bytes();
     unsafe {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).cast::<u8>(), 4);
-        *b = (*b).add(4);
+        *b = (*b).wrapping_add(4);
     }
 }
 
@@ -124,7 +124,7 @@ fn mpack_w8(b: *mut *mut c_char, v: u64) {
     let bytes = v.to_be_bytes();
     unsafe {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).cast::<u8>(), 8);
-        *b = (*b).add(8);
+        *b = (*b).wrapping_add(8);
     }
 }
 
@@ -298,11 +298,11 @@ pub fn mpack_raw(data: impl crate::strings::IntoCCharPtr, len: usize, packer: &m
         if to_copy > 0 {
             unsafe {
                 std::ptr::copy_nonoverlapping(
-                    data.add(pos).cast::<u8>(),
+                    data.wrapping_add(pos).cast::<u8>(),
                     packer.ptr.cast::<u8>(),
                     to_copy,
                 );
-                packer.ptr = packer.ptr.add(to_copy);
+                packer.ptr = packer.ptr.wrapping_add(to_copy);
             }
             pos += to_copy;
         }
@@ -368,7 +368,7 @@ pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut Packer
                 packer.ptr.cast::<u8>(),
                 packsize,
             );
-            packer.ptr = packer.ptr.add(packsize);
+            packer.ptr = packer.ptr.wrapping_add(packsize);
         }
     }
 }
@@ -484,7 +484,7 @@ pub fn mpack_object_inner(
             let cont = &mut *container;
             if cont.obj_type == ObjectType::ObjectTypeArray {
                 let arr = cont.data.array();
-                current = arr.items.add(container_idx);
+                current = arr.items.wrapping_add(container_idx);
                 container_idx += 1;
                 if container_idx >= arr.size {
                     container = std::ptr::null_mut();
@@ -511,8 +511,8 @@ fn flush_string_buffer(buffer: &mut PackerBuffer) {
 
     buffer.owned_buf.resize(new_capacity, 0);
     buffer.startptr = buffer.owned_buf.as_mut_ptr();
-    buffer.ptr = unsafe { buffer.startptr.add(len) };
-    buffer.endptr = unsafe { buffer.startptr.add(new_capacity) };
+    buffer.ptr = buffer.startptr.wrapping_add(len);
+    buffer.endptr = buffer.startptr.wrapping_add(new_capacity);
 }
 
 /// Create a growable `PackerBuffer` backed by `Vec<c_char>` (`packer_string_buffer`).
@@ -523,7 +523,7 @@ pub fn packer_string_buffer() -> PackerBuffer {
     PackerBuffer {
         startptr: alloc,
         ptr: alloc,
-        endptr: unsafe { alloc.add(INITIAL_SIZE) },
+        endptr: { alloc.wrapping_add(INITIAL_SIZE) },
         anydata: PackerData::StringBuffer,
         anyint: 0,
         owned_buf,

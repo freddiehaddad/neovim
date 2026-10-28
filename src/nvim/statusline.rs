@@ -453,20 +453,20 @@ pub fn stl_fill_click_defs(
             func: None,
         };
         let mut i: usize = 0;
-        while !(*click_recs.add(i)).start.is_null() {
+        while !(*click_recs.wrapping_add(i)).start.is_null() {
             len += vim_strnsize(
                 buf.cast_mut(),
-                (*click_recs.add(i)).start.offset_from(buf) as i32,
+                (*click_recs.wrapping_add(i)).start.offset_from(buf) as i32,
             );
             debug_assert!(len <= width);
             if col < len {
                 while col < len {
-                    *click_defs.add(col as usize) = cur_click_def.clone();
+                    *click_defs.wrapping_add(col as usize) = cur_click_def.clone();
                     col += 1;
                 }
             }
-            buf = (*click_recs.add(i)).start;
-            cur_click_def = (*click_recs.add(i)).def.clone();
+            buf = (*click_recs.wrapping_add(i)).start;
+            cur_click_def = (*click_recs.wrapping_add(i)).def.clone();
             if !tabline
                 && !(cur_click_def.type_ == K_STL_CLICK_DISABLED
                     || cur_click_def.type_ == K_STL_CLICK_FUNC_RUN)
@@ -477,7 +477,7 @@ pub fn stl_fill_click_defs(
         }
         if col < width {
             while col < width {
-                *click_defs.add(col as usize) = cur_click_def.clone();
+                *click_defs.wrapping_add(col as usize) = cur_click_def.clone();
                 col += 1;
             }
         }
@@ -585,17 +585,17 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             stl = opt_vars().p_ruf;
             opt_idx = K_OPT_RULERFORMAT;
             if crate::memory::cstr_first_byte(stl) == b'%' {
-                stl = stl.add(1);
+                stl = stl.wrapping_add(1);
                 if crate::memory::cstr_first_byte(stl) == b'-' {
-                    stl = stl.add(1);
+                    stl = stl.wrapping_add(1);
                 }
                 if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl)) as i32 != 0 {
                     while ascii_isdigit(crate::memory::cstr_first_char(stl)) {
-                        stl = stl.add(1);
+                        stl = stl.wrapping_add(1);
                     }
                 }
                 let ch = *stl;
-                stl = stl.add(1);
+                stl = stl.wrapping_add(1);
                 if ch != b'(' as c_char {
                     stl = opt_vars().p_ruf;
                 }
@@ -696,9 +696,9 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 let textlen = if !(*sp).start.is_null() {
                     (*sp).start.offset_from(p)
                 } else {
-                    buf.as_mut_ptr().add(len).offset_from(p)
+                    buf.as_mut_ptr().wrapping_add(len).offset_from(p)
                 };
-                let src_p = if p >= buf.as_mut_ptr().add(len) {
+                let src_p = if p >= buf.as_mut_ptr().wrapping_add(len) {
                     c"".as_ptr()
                 } else {
                     p.cast_const()
@@ -758,13 +758,13 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                         b'r' as c_char,
                         ((*sp).userhl as u8 + b'0') as c_char,
                     ];
-                    curattr = *userhl.add(((*sp).userhl - 1) as usize);
+                    curattr = *userhl.wrapping_add(((*sp).userhl - 1) as usize);
                     curgroup = syn_name2id_len(userbuf.as_ptr(), 5);
                 }
                 if curattr != attr {
                     curattr = hl_combine_attr(attr, curattr);
                 }
-                sp = sp.add(1);
+                sp = sp.wrapping_add(1);
             }
 
             if opt_vars().p_sc != 0 && find_option(opt_vars().p_sloc) == opt_idx {
@@ -1081,7 +1081,7 @@ pub fn draw_tabline() {
                     let mut p = name_buff;
                     while len > room {
                         len -= ptr2cells(p);
-                        p = p.add(utfc_ptr2len(p) as usize);
+                        p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     }
                     let n = g_st().columns_global - col - 1;
                     len = len.min(n);
@@ -1192,7 +1192,7 @@ pub fn build_statuscol_str(
             let mut sp = hlrec_ptr;
             while !(*sp).start.is_null() {
                 stcp.hlrec.push(*sp);
-                sp = sp.add(1);
+                sp = sp.wrapping_add(1);
             }
         }
 
@@ -1250,7 +1250,7 @@ fn stl_truncate(
                     break;
                 }
                 *width += char_cells;
-                trunc_p = trunc_p.add(utfc_ptr2len(trunc_p) as usize);
+                trunc_p = trunc_p.wrapping_add(utfc_ptr2len(trunc_p) as usize);
             }
 
             for i in startitem..*curitem {
@@ -1266,26 +1266,27 @@ fn stl_truncate(
             }
 
             *trunc_p = b'>' as c_char;
-            trunc_p = trunc_p.add(1);
+            trunc_p = trunc_p.wrapping_add(1);
             *out_p = trunc_p;
         } else {
             let mut trunc_len: i32 = 0;
             while *width >= maxwid {
-                *width -= ptr2cells(trunc_p.add(trunc_len as usize));
-                trunc_len += utfc_ptr2len(trunc_p.add(trunc_len as usize));
+                *width -= ptr2cells(trunc_p.wrapping_add(trunc_len as usize));
+                trunc_len += utfc_ptr2len(trunc_p.wrapping_add(trunc_len as usize));
             }
 
-            let trunc_end_p = trunc_p.add(trunc_len as usize);
+            let trunc_end_p = trunc_p.wrapping_add(trunc_len as usize);
             let move_len = (*out_p).offset_from(trunc_end_p) as usize + 1;
-            ptr::copy(trunc_end_p, trunc_p.add(1), move_len);
-            *out_p = (*out_p).sub(trunc_end_p.offset_from(trunc_p.add(1)) as usize);
+            ptr::copy(trunc_end_p, trunc_p.wrapping_add(1), move_len);
+            *out_p =
+                (*out_p).wrapping_sub(trunc_end_p.offset_from(trunc_p.wrapping_add(1)) as usize);
 
             *trunc_p = b'<' as c_char;
 
             let item_offset = (trunc_len - 1) as isize;
             for item in &mut stl_items[(item_idx as usize)..(*curitem as usize)] {
                 if item.start >= trunc_end_p {
-                    item.start = item.start.offset(-item_offset);
+                    item.start = item.start.wrapping_offset(-item_offset);
                 } else {
                     item.start = trunc_p;
                 }
@@ -1334,7 +1335,7 @@ fn stl_expand(
             let mut cumulated_dislocation: isize = 0;
 
             for item in &mut stl_items[(startitem as usize)..(curitem as usize)] {
-                item.start = item.start.offset(cumulated_dislocation);
+                item.start = item.start.wrapping_offset(cumulated_dislocation);
 
                 if item.type_ == StlItemType::Separate {
                     num_separators -= 1;
@@ -1347,7 +1348,7 @@ fn stl_expand(
                     cumulated_dislocation += dislocation as isize;
 
                     let start = item.start;
-                    let seploc = start.add(dislocation as usize);
+                    let seploc = start.wrapping_add(dislocation as usize);
                     let len = crate::memory::cstr_len(start) + 1;
                     ptr::copy(start, seploc, len);
                     let mut s = start;
@@ -1358,7 +1359,7 @@ fn stl_expand(
             }
 
             *width += added_cells;
-            *out_p = (*out_p).add(added_bytes as usize);
+            *out_p = (*out_p).wrapping_add(added_bytes as usize);
         } else if padding == StlPadding::PaddingRight {
             while added_cells > 0 {
                 schar_get_adv(out_p, fillchar);
@@ -1368,7 +1369,7 @@ fn stl_expand(
         } else if padding == StlPadding::PaddingLeft {
             ptr::copy(
                 start_p,
-                start_p.add(added_bytes as usize),
+                start_p.wrapping_add(added_bytes as usize),
                 (*out_p).offset_from(start_p) as usize,
             );
 
@@ -1379,11 +1380,11 @@ fn stl_expand(
             }
 
             for item in &mut stl_items[(startitem as usize)..(curitem as usize)] {
-                item.start = item.start.add(added_bytes as usize);
+                item.start = item.start.wrapping_add(added_bytes as usize);
             }
 
             *width += orig_added_cells;
-            *out_p = (*out_p).add(added_bytes as usize);
+            *out_p = (*out_p).wrapping_add(added_bytes as usize);
         }
     }
 }
@@ -1472,7 +1473,7 @@ pub extern "C" fn build_stl_str_hl(
                 false,
             );
 
-            owned_usefmt = eval_to_string_safe(fmt.add(2), use_sandbox, false);
+            owned_usefmt = eval_to_string_safe(fmt.wrapping_add(2), use_sandbox, false);
             usefmt = owned_usefmt.as_ref().map_or(fmt, |s| s.as_ptr().cast_mut());
 
             do_unlet(c"g:statusline_winid", "g:statusline_winid".len(), true);
@@ -1497,7 +1498,7 @@ pub extern "C" fn build_stl_str_hl(
             wp.w_cursor.coladd = 0;
             0
         } else {
-            utf_ptr2char(line_ptr.add(wp.w_cursor.col as usize))
+            utf_ptr2char(line_ptr.wrapping_add(wp.w_cursor.col as usize))
         };
 
         let mut groupdepth: usize = 0;
@@ -1509,7 +1510,7 @@ pub extern "C" fn build_stl_str_hl(
         let mut prevchar_isitem = false;
 
         let mut out_p = out.data;
-        let out_end_p = out.data.add(out.size - 1);
+        let out_end_p = out.data.wrapping_add(out.size - 1);
 
         macro_rules! may_grow_stl_items_len {
             () => {
@@ -1537,30 +1538,30 @@ pub extern "C" fn build_stl_str_hl(
                 && out_p < out_end_p
             {
                 *out_p = *fmt_p;
-                out_p = out_p.add(1);
-                fmt_p = fmt_p.add(1);
+                out_p = out_p.wrapping_add(1);
+                fmt_p = fmt_p.wrapping_add(1);
             }
 
             if crate::memory::cstr_is_empty(fmt_p) || out_p >= out_end_p {
                 break;
             }
 
-            fmt_p = fmt_p.add(1);
+            fmt_p = fmt_p.wrapping_add(1);
             if crate::memory::cstr_is_empty(fmt_p) {
                 break;
             }
 
             if crate::memory::cstr_first_byte(fmt_p) == b'%' {
                 *out_p = *fmt_p;
-                out_p = out_p.add(1);
-                fmt_p = fmt_p.add(1);
+                out_p = out_p.wrapping_add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 prevchar_isflag = false;
                 prevchar_isitem = false;
                 continue;
             }
 
             if *fmt_p == STL_SEPARATE {
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Separate;
                 stl_items!()[stl_st().curitem as usize].start = out_p;
                 stl_st().curitem += 1;
@@ -1568,7 +1569,7 @@ pub extern "C" fn build_stl_str_hl(
             }
 
             if *fmt_p == STL_TRUNCMARK {
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Trunc;
                 stl_items!()[stl_st().curitem as usize].start = out_p;
                 stl_st().curitem += 1;
@@ -1576,7 +1577,7 @@ pub extern "C" fn build_stl_str_hl(
             }
 
             if crate::memory::cstr_first_byte(fmt_p) == b')' {
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 if groupdepth < 1 {
                     continue;
                 }
@@ -1687,11 +1688,11 @@ pub extern "C" fn build_stl_str_hl(
 
             let zeropad = crate::memory::cstr_first_byte(fmt_p) == b'0';
             if zeropad {
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
             }
 
             if crate::memory::cstr_first_byte(fmt_p) == b'-' {
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 left_align = true;
             }
 
@@ -1705,7 +1706,7 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!()[stl_st().curitem as usize].start = out_p;
                 stl_items!()[stl_st().curitem as usize].minwid =
                     if minwid > 9 { 1 } else { minwid };
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 stl_st().curitem += 1;
                 continue;
             }
@@ -1730,16 +1731,16 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!()[stl_st().curitem as usize].type_ = StlItemType::TabPage;
                 stl_items!()[stl_st().curitem as usize].start = out_p;
                 stl_items!()[stl_st().curitem as usize].minwid = minwid;
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 stl_st().curitem += 1;
                 continue;
             }
 
             if *fmt_p == STL_CLICK_FUNC {
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 let t = fmt_p;
                 while *fmt_p != STL_CLICK_FUNC && !crate::memory::cstr_is_empty(fmt_p) {
-                    fmt_p = fmt_p.add(1);
+                    fmt_p = fmt_p.wrapping_add(1);
                 }
                 if *fmt_p != STL_CLICK_FUNC {
                     break;
@@ -1753,13 +1754,13 @@ pub extern "C" fn build_stl_str_hl(
                     None
                 };
                 stl_items!()[stl_st().curitem as usize].minwid = minwid;
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 stl_st().curitem += 1;
                 continue;
             }
 
             if crate::memory::cstr_first_byte(fmt_p) == b'.' {
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 if ascii_isdigit(crate::memory::cstr_first_char(fmt_p)) {
                     maxwid = getdigits_int(&raw mut fmt_p, false, 50);
                     if maxwid <= 0 {
@@ -1779,13 +1780,13 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!()[stl_st().curitem as usize].start = out_p;
                 stl_items!()[stl_st().curitem as usize].minwid = minwid;
                 stl_items!()[stl_st().curitem as usize].maxwid = maxwid;
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 stl_st().curitem += 1;
                 continue;
             }
 
             if crate::memory::cstr_first_byte(fmt_p) == b'}' && evaldepth > 0 {
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 evaldepth -= 1;
                 if groupdepth > 0 {
                     let mut normal_items = false;
@@ -1811,7 +1812,7 @@ pub extern "C" fn build_stl_str_hl(
 
             if *fmt_p == STL_HIGHLIGHT {
                 if crate::memory::cstr_byte_at(fmt_p, 1) == b'(' {
-                    fmt_p = fmt_p.add(2);
+                    fmt_p = fmt_p.wrapping_add(2);
                     stl_groupitems!()[groupdepth] = stl_st().curitem;
                     groupdepth += 1;
                     stl_items!()[stl_st().curitem as usize].type_ = StlItemType::HighlightScope;
@@ -1820,7 +1821,7 @@ pub extern "C" fn build_stl_str_hl(
                     stl_st().curitem += 1;
                     continue;
                 } else if crate::memory::cstr_byte_at(fmt_p, 1) == b')' {
-                    fmt_p = fmt_p.add(2);
+                    fmt_p = fmt_p.wrapping_add(2);
                     if groupdepth < 1 {
                         continue;
                     }
@@ -1862,12 +1863,12 @@ pub extern "C" fn build_stl_str_hl(
                 if crate::memory::cstr_is_empty(fmt_p) {
                     break;
                 }
-                fmt_p = fmt_p.add(1);
+                fmt_p = fmt_p.wrapping_add(1);
                 continue;
             }
 
             let opt = *fmt_p;
-            fmt_p = fmt_p.add(1);
+            fmt_p = fmt_p.wrapping_add(1);
 
             let mut base = NumberBase::NumBaseDecimal;
             let mut itemisflag = false;
@@ -1899,27 +1900,27 @@ pub extern "C" fn build_stl_str_hl(
                     }
                 }
                 STL_VIM_EXPR => {
-                    let block_start = fmt_p.sub(1);
+                    let block_start = fmt_p.wrapping_sub(1);
                     let reevaluate = crate::memory::cstr_first_byte(fmt_p) == b'%';
                     if reevaluate {
-                        fmt_p = fmt_p.add(1);
+                        fmt_p = fmt_p.wrapping_add(1);
                     }
                     itemisflag = !zeropad;
 
                     let t = out_p;
                     while (crate::memory::cstr_first_byte(fmt_p) != b'}'
-                        || (reevaluate && *fmt_p.sub(1) != b'%' as c_char))
+                        || (reevaluate && *fmt_p.wrapping_sub(1) != b'%' as c_char))
                         && !crate::memory::cstr_is_empty(fmt_p)
                         && out_p < out_end_p
                     {
                         *out_p = *fmt_p;
-                        out_p = out_p.add(1);
-                        fmt_p = fmt_p.add(1);
+                        out_p = out_p.wrapping_add(1);
+                        fmt_p = fmt_p.wrapping_add(1);
                     }
                     if crate::memory::cstr_first_byte(fmt_p) == b'}' {
-                        fmt_p = fmt_p.add(1);
+                        fmt_p = fmt_p.wrapping_add(1);
                         if reevaluate && out_p > out.data {
-                            *out_p.sub(1) = NUL;
+                            *out_p.wrapping_sub(1) = NUL;
                         } else {
                             *out_p = NUL;
                         }
@@ -1994,7 +1995,7 @@ pub extern "C" fn build_stl_str_hl(
                             drop(owned_str);
                             owned_usefmt = Some(std::ffi::CString::new(new_bytes).unwrap());
                             usefmt = owned_usefmt.as_ref().unwrap().as_ptr().cast_mut();
-                            fmt_p = usefmt.add(parsed_usefmt);
+                            fmt_p = usefmt.wrapping_add(parsed_usefmt);
                             evaldepth += 1;
                             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Expression;
                             stl_items!()[stl_st().curitem as usize].start = out_p;
@@ -2162,7 +2163,7 @@ pub extern "C" fn build_stl_str_hl(
                         let mut t = buf_tmp.as_mut_ptr();
                         while !crate::memory::cstr_is_empty(t) {
                             *t = (crate::memory::cstr_first_byte(t)).to_ascii_uppercase() as c_char;
-                            t = t.add(1);
+                            t = t.wrapping_add(1);
                         }
                         str = buf_tmp.as_mut_ptr();
                     }
@@ -2204,7 +2205,7 @@ pub extern "C" fn build_stl_str_hl(
                 STL_HIGHLIGHT_COMB | STL_HIGHLIGHT => {
                     let t = fmt_p;
                     while *fmt_p != opt && !crate::memory::cstr_is_empty(fmt_p) {
-                        fmt_p = fmt_p.add(1);
+                        fmt_p = fmt_p.wrapping_add(1);
                     }
                     if *fmt_p == opt {
                         if opt == STL_HIGHLIGHT {
@@ -2218,7 +2219,7 @@ pub extern "C" fn build_stl_str_hl(
                         stl_items!()[stl_st().curitem as usize].minwid =
                             -syn_name2id_len(t, fmt_p.offset_from(t) as usize);
                         stl_st().curitem += 1;
-                        fmt_p = fmt_p.add(1);
+                        fmt_p = fmt_p.wrapping_add(1);
                     }
                     continue;
                 }
@@ -2264,18 +2265,18 @@ pub extern "C" fn build_stl_str_hl(
                             };
                         let mut buflen: usize = 0;
                         for &fc in fold_buf.iter().take(fdc as usize) {
-                            buflen += schar_get(buf_tmp.as_mut_ptr().add(buflen), fc);
+                            buflen += schar_get(buf_tmp.as_mut_ptr().wrapping_add(buflen), fc);
                         }
                     }
 
                     let mut signlen: usize = 0;
                     for i in 0..width {
-                        stl_items!()[stl_st().curitem as usize].start = out_p.add(signlen);
+                        stl_items!()[stl_st().curitem as usize].start = out_p.wrapping_add(signlen);
                         if fdc == 0 {
                             let mut sattr = (*stcp).sattrs[i as usize];
                             if sattr.text[0] != 0 && get_vim_var_nr(VV_VIRTNUM) == 0 {
                                 signlen += describe_sign_text(
-                                    buf_tmp.as_mut_ptr().add(signlen),
+                                    buf_tmp.as_mut_ptr().wrapping_add(signlen),
                                     sattr.text.as_mut_ptr(),
                                 );
                                 stl_items!()[stl_st().curitem as usize].minwid =
@@ -2317,7 +2318,7 @@ pub extern "C" fn build_stl_str_hl(
                         && ((!prevchar_isitem && crate::memory::cstr_first_byte(t) == b',')
                             || (prevchar_isflag && crate::memory::cstr_first_byte(t) == b' '))
                     {
-                        t = t.add(1);
+                        t = t.wrapping_add(1);
                     }
                     prevchar_isflag = true;
                 }
@@ -2330,13 +2331,13 @@ pub extern "C" fn build_stl_str_hl(
                 if l > maxwid {
                     while l >= maxwid {
                         l -= ptr2cells(t);
-                        t = t.add(utfc_ptr2len(t) as usize);
+                        t = t.wrapping_add(utfc_ptr2len(t) as usize);
                     }
                     if out_p >= out_end_p {
                         break;
                     }
                     *out_p = b'<' as c_char;
-                    out_p = out_p.add(1);
+                    out_p = out_p.wrapping_add(1);
                 }
 
                 if minwid > 0 {
@@ -2346,7 +2347,7 @@ pub extern "C" fn build_stl_str_hl(
                             && ascii_isdigit(crate::memory::cstr_first_char(t))
                         {
                             *out_p = b' ' as c_char;
-                            out_p = out_p.add(1);
+                            out_p = out_p.wrapping_add(1);
                         } else {
                             schar_get_adv(&raw mut out_p, fillchar);
                         }
@@ -2358,7 +2359,7 @@ pub extern "C" fn build_stl_str_hl(
                         for item in
                             &mut stl_items!()[(foldsignitem as usize)..(stl_st().curitem as usize)]
                         {
-                            item.start = item.start.offset(offset);
+                            item.start = item.start.wrapping_offset(offset);
                         }
                     }
                 } else {
@@ -2374,9 +2375,9 @@ pub extern "C" fn build_stl_str_hl(
                         schar_get_adv(&raw mut out_p, fillchar);
                     } else {
                         *out_p = *t;
-                        out_p = out_p.add(1);
+                        out_p = out_p.wrapping_add(1);
                     }
-                    t = t.add(1);
+                    t = t.wrapping_add(1);
                 }
 
                 if foldsignitem >= 0 {
@@ -2390,7 +2391,7 @@ pub extern "C" fn build_stl_str_hl(
                     l += 1;
                 }
             } else if num >= 0 {
-                if out_p.add(20) > out_end_p {
+                if out_p.wrapping_add(20) > out_end_p {
                     break;
                 }
                 prevchar_isitem = true;
@@ -2399,23 +2400,23 @@ pub extern "C" fn build_stl_str_hl(
                 let mut t = nstr.as_mut_ptr();
                 if opt == STL_VIRTCOL_ALT {
                     *t = b'-' as c_char;
-                    t = t.add(1);
+                    t = t.wrapping_add(1);
                     minwid -= 1;
                 }
                 *t = b'%' as c_char;
-                t = t.add(1);
+                t = t.wrapping_add(1);
                 if zeropad {
                     *t = b'0' as c_char;
-                    t = t.add(1);
+                    t = t.wrapping_add(1);
                 }
                 *t = b'*' as c_char;
-                t = t.add(1);
+                t = t.wrapping_add(1);
                 *t = if base == NumberBase::NumBaseHexadecimal {
                     b'X' as c_char
                 } else {
                     b'd' as c_char
                 };
-                *t.add(1) = NUL;
+                *t.wrapping_add(1) = NUL;
 
                 let mut num_chars: i32 = 1;
                 let mut n_tmp = num;
@@ -2436,13 +2437,13 @@ pub extern "C" fn build_stl_str_hl(
                         num_chars -= 1;
                     }
                     let base_ch = *t;
-                    t = t.add(1);
+                    t = t.wrapping_add(1);
                     *t = b'>' as c_char;
-                    *t.add(1) = b'%' as c_char;
-                    *t.add(2) = base_ch;
-                    *t.add(3) = NUL;
+                    *t.wrapping_add(1) = b'%' as c_char;
+                    *t.wrapping_add(2) = base_ch;
+                    *t.wrapping_add(3) = NUL;
 
-                    out_p = out_p.add(vim_snprintf_safelen!(
+                    out_p = out_p.wrapping_add(vim_snprintf_safelen!(
                         out_p,
                         remaining_buf_len,
                         nstr.as_ptr(),
@@ -2451,7 +2452,7 @@ pub extern "C" fn build_stl_str_hl(
                         n,
                     ));
                 } else {
-                    out_p = out_p.add(vim_snprintf_safelen!(
+                    out_p = out_p.wrapping_add(vim_snprintf_safelen!(
                         out_p,
                         remaining_buf_len,
                         nstr.as_ptr(),
@@ -2610,12 +2611,12 @@ mod tests {
     fn build_stl_str_hl_formats_aligns_truncates_and_groups() {
         use crate::buffer::setfname;
         use crate::grid::schar_from_str;
-        use std::ffi::{CStr, CString};
+        use std::ffi::CString;
 
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        {
             crate::main_init::ensure_test_editor_init();
             g_st().emsg_skip += 1;
 
@@ -2665,7 +2666,9 @@ mod tests {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
-                let got = CStr::from_ptr(out_buf.as_ptr()).to_str().unwrap();
+                let got = crate::memory::cstr_from_ptr(out_buf.as_ptr())
+                    .to_str()
+                    .unwrap();
                 assert_eq!(got, expected, "pat={pat:?}");
                 assert_eq!(cells, exp_cells.unwrap_or(max_cells), "pat={pat:?}");
             };

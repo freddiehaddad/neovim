@@ -256,15 +256,15 @@ fn parse_json_string(
     didcolon: &mut bool,
 ) -> bool {
     let buf = buf.into_c_char_ptr();
-    let e = unsafe { buf.add(buf_len) };
-    let mut p = unsafe { (*pp).add(1) };
+    let e = { buf.wrapping_add(buf_len) };
+    let mut p = { (*pp).wrapping_add(1) };
     let s = p;
     let mut len = 0usize;
 
     unsafe {
         while p < e && crate::memory::cstr_first_byte(p) != b'"' {
             if crate::memory::cstr_first_byte(p) == b'\\' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 if p == e {
                     semsg!(
                         c"E474: Unfinished escape sequence: %.*s",
@@ -276,7 +276,7 @@ fn parse_json_string(
                 }
                 match crate::memory::cstr_first_byte(p) {
                     b'u' => {
-                        if p.add(4) >= e {
+                        if p.wrapping_add(4) >= e {
                             semsg!(
                                 c"E474: Unfinished unicode escape sequence: %.*s",
                                 buf_len as i32,
@@ -290,7 +290,7 @@ fn parse_json_string(
                             && (crate::memory::cstr_byte_at(p, 3)).is_ascii_hexdigit()
                             && (crate::memory::cstr_byte_at(p, 4)).is_ascii_hexdigit())
                         {
-                            let start = p.sub(1);
+                            let start = p.wrapping_sub(1);
                             semsg!(
                                 c"E474: Expected four hex digits after \\u: %.*s",
                                 ((e as usize) - (start as usize)) as i32,
@@ -300,14 +300,14 @@ fn parse_json_string(
                             return false;
                         }
                         len += 3;
-                        p = p.add(5);
+                        p = p.wrapping_add(5);
                     }
                     b'\\' | b'/' | b'"' | b't' | b'b' | b'n' | b'r' | b'f' => {
                         len += 1;
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     }
                     _ => {
-                        let start = p.sub(1);
+                        let start = p.wrapping_sub(1);
                         semsg!(
                             c"E474: Unknown escape sequence: %.*s",
                             ((e as usize) - (start as usize)) as i32,
@@ -331,7 +331,9 @@ fn parse_json_string(
                 let ch = utf_ptr2char(p);
                 if ch >= 0x80
                     && i32::from(p_byte) == ch
-                    && !(ch == 0xC3 && p.add(1) < e && (crate::memory::cstr_byte_at(p, 1)) == 0x83)
+                    && !(ch == 0xC3
+                        && p.wrapping_add(1) < e
+                        && (crate::memory::cstr_byte_at(p, 1)) == 0x83)
                 {
                     semsg!(
                         c"E474: Only UTF-8 strings allowed: %.*s",
@@ -352,7 +354,7 @@ fn parse_json_string(
                 let ch_len = utf_char2len(ch) as usize;
                 debug_assert_eq!(ch_len, if ch != 0 { utf_ptr2len(p) as usize } else { 1 });
                 len += ch_len;
-                p = p.add(ch_len);
+                p = p.wrapping_add(ch_len);
             }
         }
 
@@ -373,11 +375,11 @@ fn parse_json_string(
                 || crate::memory::cstr_byte_at(t, 1) != b'u')
                 && fst_in_pair != 0
             {
-                str_end = str_end.add(utf_char2bytes(fst_in_pair, str_end) as usize);
+                str_end = str_end.wrapping_add(utf_char2bytes(fst_in_pair, str_end) as usize);
                 fst_in_pair = 0;
             }
             if crate::memory::cstr_first_byte(t) == b'\\' {
-                t = t.add(1);
+                t = t.wrapping_add(1);
                 match crate::memory::cstr_first_byte(t) {
                     b'u' => {
                         let ubuf = [
@@ -386,13 +388,13 @@ fn parse_json_string(
                             crate::memory::cstr_byte_at(t, 3),
                             crate::memory::cstr_byte_at(t, 4),
                         ];
-                        t = t.add(4);
+                        t = t.wrapping_add(4);
                         let hex_str = std::str::from_utf8_unchecked(&ubuf);
                         let ch = i32::from(u16::from_str_radix(hex_str, 16).unwrap_or(0));
                         if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch) {
                             if fst_in_pair != 0 {
-                                str_end =
-                                    str_end.add(utf_char2bytes(fst_in_pair, str_end) as usize);
+                                str_end = str_end
+                                    .wrapping_add(utf_char2bytes(fst_in_pair, str_end) as usize);
                             }
                             fst_in_pair = ch;
                         } else if (SURROGATE_LO_START..=SURROGATE_LO_END).contains(&ch)
@@ -401,60 +403,61 @@ fn parse_json_string(
                             let full_char = (ch - SURROGATE_LO_START)
                                 + ((fst_in_pair - SURROGATE_HI_START) << 10)
                                 + SURROGATE_FIRST_CHAR;
-                            str_end = str_end.add(utf_char2bytes(full_char, str_end) as usize);
+                            str_end =
+                                str_end.wrapping_add(utf_char2bytes(full_char, str_end) as usize);
                             fst_in_pair = 0;
                         } else {
                             if fst_in_pair != 0 {
-                                str_end =
-                                    str_end.add(utf_char2bytes(fst_in_pair, str_end) as usize);
+                                str_end = str_end
+                                    .wrapping_add(utf_char2bytes(fst_in_pair, str_end) as usize);
                                 fst_in_pair = 0;
                             }
-                            str_end = str_end.add(utf_char2bytes(ch, str_end) as usize);
+                            str_end = str_end.wrapping_add(utf_char2bytes(ch, str_end) as usize);
                         }
                     }
                     b'\\' => {
                         *str_end = b'\\' as c_char;
-                        str_end = str_end.add(1);
+                        str_end = str_end.wrapping_add(1);
                     }
                     b'/' => {
                         *str_end = b'/' as c_char;
-                        str_end = str_end.add(1);
+                        str_end = str_end.wrapping_add(1);
                     }
                     b'"' => {
                         *str_end = b'"' as c_char;
-                        str_end = str_end.add(1);
+                        str_end = str_end.wrapping_add(1);
                     }
                     b't' => {
                         *str_end = b'\t' as c_char;
-                        str_end = str_end.add(1);
+                        str_end = str_end.wrapping_add(1);
                     }
                     b'b' => {
                         *str_end = 0x08 as c_char;
-                        str_end = str_end.add(1);
+                        str_end = str_end.wrapping_add(1);
                     }
                     b'n' => {
                         *str_end = b'\n' as c_char;
-                        str_end = str_end.add(1);
+                        str_end = str_end.wrapping_add(1);
                     }
                     b'r' => {
                         *str_end = b'\r' as c_char;
-                        str_end = str_end.add(1);
+                        str_end = str_end.wrapping_add(1);
                     }
                     b'f' => {
                         *str_end = 0x0c as c_char;
-                        str_end = str_end.add(1);
+                        str_end = str_end.wrapping_add(1);
                     }
                     _ => std::process::abort(),
                 }
             } else {
                 *str_end = *t;
-                str_end = str_end.add(1);
+                str_end = str_end.wrapping_add(1);
             }
-            t = t.add(1);
+            t = t.wrapping_add(1);
         }
 
         if fst_in_pair != 0 {
-            str_end = str_end.add(utf_char2bytes(fst_in_pair, str_end) as usize);
+            str_end = str_end.wrapping_add(utf_char2bytes(fst_in_pair, str_end) as usize);
         }
         *str_end = 0;
 
@@ -491,23 +494,23 @@ fn parse_json_number(
     didcolon: &mut bool,
 ) -> bool {
     let buf = buf.into_c_char_ptr();
-    let e = unsafe { buf.add(buf_len) };
+    let e = { buf.wrapping_add(buf_len) };
     let mut p = *pp;
     let s = p;
     let mut fracs: *const c_char = std::ptr::null();
     let mut exps: *const c_char = std::ptr::null();
     let mut exps_s: *const c_char = std::ptr::null();
 
-    unsafe {
+    {
         if crate::memory::cstr_first_byte(p) == b'-' {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         let ints = p;
         if p < e {
             while p < e && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
-            if p != ints.add(1) && crate::memory::cstr_first_byte(ints) == b'0' {
+            if p != ints.wrapping_add(1) && crate::memory::cstr_first_byte(ints) == b'0' {
                 semsg!(
                     c"E474: Leading zeroes are not allowed: %.*s",
                     ((e as usize) - (s as usize)) as i32,
@@ -518,24 +521,24 @@ fn parse_json_number(
             }
             if p < e && p != ints {
                 if crate::memory::cstr_first_byte(p) == b'.' {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     fracs = p;
                     while p < e && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     }
                 }
                 if p < e
                     && (fracs.is_null() || p != fracs)
                     && matches!(crate::memory::cstr_first_byte(p), b'e' | b'E')
                 {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     exps_s = p;
                     if p < e && matches!(crate::memory::cstr_first_byte(p), b'-' | b'+') {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     }
                     exps = p;
                     while p < e && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     }
                 }
             }
@@ -549,7 +552,7 @@ fn parse_json_number(
             );
             *pp = p;
             return false;
-        } else if p == fracs || (!fracs.is_null() && exps_s == fracs.add(1)) {
+        } else if p == fracs || (!fracs.is_null() && exps_s == fracs.wrapping_add(1)) {
             semsg!(
                 c"E474: Missing number after decimal dot: %.*s",
                 ((e as usize) - (s as usize)) as i32,
@@ -631,7 +634,7 @@ fn parse_json_number(
             return false;
         }
         if !*next_map_special {
-            p = p.sub(1);
+            p = p.wrapping_sub(1);
         }
         *pp = p;
         true
@@ -647,14 +650,14 @@ pub fn json_decode_string(
     let buf = buf.into_c_char_ptr();
     unsafe {
         let mut p = buf;
-        let e = buf.add(buf_len);
+        let e = buf.wrapping_add(buf_len);
         while p < e
             && matches!(
                 crate::memory::cstr_first_byte(p),
                 b' ' | b'\t' | b'\n' | b'\r'
             )
         {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         if p == e {
             emsg(c"E474: Attempt to decode a blank string");
@@ -711,7 +714,7 @@ pub fn json_decode_string(
                             return fail_cleanup(stack);
                         }
                         if stack.len() == 1 {
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                             container_stack.pop();
                             break 'outer;
                         } else {
@@ -762,7 +765,7 @@ pub fn json_decode_string(
                             return fail_cleanup(stack);
                         }
                         didcomma = true;
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         continue 'outer;
                     }
                     b':' => {
@@ -785,21 +788,22 @@ pub fn json_decode_string(
                             return fail_cleanup(stack);
                         }
                         didcolon = true;
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         continue 'outer;
                     }
                     b' ' | b'\t' | b'\n' | b'\r' => {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         continue 'outer;
                     }
                     b'n' => {
-                        if p.add(3) >= e
-                            || std::slice::from_raw_parts(p.add(1).cast::<u8>(), 3) != b"ull"
+                        if p.wrapping_add(3) >= e
+                            || std::slice::from_raw_parts(p.wrapping_add(1).cast::<u8>(), 3)
+                                != b"ull"
                         {
                             semsg!(c"E474: Expected null: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
-                        p = p.add(3);
+                        p = p.wrapping_add(3);
                         let tv = TypVal {
                             v_type: VarType::VarSpecial,
                             v_lock: VAR_UNLOCKED,
@@ -826,13 +830,14 @@ pub fn json_decode_string(
                         }
                     }
                     b't' => {
-                        if p.add(3) >= e
-                            || std::slice::from_raw_parts(p.add(1).cast::<u8>(), 3) != b"rue"
+                        if p.wrapping_add(3) >= e
+                            || std::slice::from_raw_parts(p.wrapping_add(1).cast::<u8>(), 3)
+                                != b"rue"
                         {
                             semsg!(c"E474: Expected true: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
-                        p = p.add(3);
+                        p = p.wrapping_add(3);
                         let tv = TypVal {
                             v_type: VarType::VarBool,
                             v_lock: VAR_UNLOCKED,
@@ -859,13 +864,14 @@ pub fn json_decode_string(
                         }
                     }
                     b'f' => {
-                        if p.add(4) >= e
-                            || std::slice::from_raw_parts(p.add(1).cast::<u8>(), 4) != b"alse"
+                        if p.wrapping_add(4) >= e
+                            || std::slice::from_raw_parts(p.wrapping_add(1).cast::<u8>(), 4)
+                                != b"alse"
                         {
                             semsg!(c"E474: Expected false: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
-                        p = p.add(4);
+                        p = p.wrapping_add(4);
                         let tv = TypVal {
                             v_type: VarType::VarBool,
                             v_lock: VAR_UNLOCKED,
@@ -988,15 +994,15 @@ pub fn json_decode_string(
             didcomma = false;
             didcolon = false;
             if container_stack.is_empty() {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 break 'outer;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         while p < e {
             match crate::memory::cstr_first_byte(p) {
-                b'\n' | b' ' | b'\t' | b'\r' => p = p.add(1),
+                b'\n' | b' ' | b'\t' | b'\r' => p = p.wrapping_add(1),
                 _ => {
                     let len_rem = ((e as usize) - (p as usize)) as i32;
                     semsg!(c"E474: Trailing characters: %.*s", len_rem, p);
@@ -1231,7 +1237,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                                     d.di_tv.vval =
                                         crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                                 }
-                                hi = hi.add(1);
+                                hi = hi.wrapping_add(1);
                             }
                             tv_clear(&mut *result);
                             crate::eval::typval::tv_dict_item_free(di);
@@ -1293,15 +1299,16 @@ pub fn unpack_typval(data: &mut *const c_char, size: &mut usize, ret: &mut TypVa
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn decode_string_copies_ascii() {
-        unsafe {
+        {
             let mut tv = decode_string(c"hello", 5, false, false);
             assert_eq!(tv.v_type, VarType::VarString);
             assert_eq!(
-                CStr::from_ptr(tv.vval.v_string()).to_str().unwrap(),
+                crate::memory::cstr_from_ptr(tv.vval.v_string())
+                    .to_str()
+                    .unwrap(),
                 "hello"
             );
             tv_clear(&mut tv);

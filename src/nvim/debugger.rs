@@ -177,7 +177,7 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) {
                 let cur_bytes = crate::memory::cstr_as_bytes(cur);
                 let next_off = cur_bytes.windows(2).position(|w| w == b"..");
                 if let Some(off) = next_off {
-                    *cur.add(off) = 0;
+                    *cur.wrapping_add(off) = 0;
                 }
                 if i == max - g_st().debug_backtrace_level {
                     smsg!(0, c"->%d %s", max - i, cur);
@@ -186,8 +186,8 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) {
                 }
                 i += 1;
                 if let Some(off) = next_off {
-                    *cur.add(off) = b'.' as c_char;
-                    cur = cur.add(off + 2);
+                    *cur.wrapping_add(off) = b'.' as c_char;
+                    cur = cur.wrapping_add(off + 2);
                 } else {
                     break;
                 }
@@ -322,12 +322,12 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
                     };
 
                     if lcmd != 0 {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         while *p != 0
                             && !tail.is_empty()
                             && (crate::memory::cstr_first_byte(p)) == tail[0]
                         {
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                             tail = &tail[1..];
                         }
                         if (crate::memory::cstr_first_byte(p)).is_ascii_alphabetic()
@@ -432,7 +432,7 @@ pub fn ex_debug(eap: &mut Exarg) {
 
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
 pub fn dbg_check_breakpoint(eap: &mut Exarg) {
-    unsafe {
+    {
         dbg_st().debug_skipped = false;
         if !dbg_st().debug_breakpoint_name.is_null() {
             if eap.skip == 0 {
@@ -441,7 +441,7 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
                     && (crate::memory::cstr_byte_at(bp_name, 1)) == KS_EXTRA
                     && (crate::memory::cstr_byte_at(bp_name, 2)) == KE_SNR;
                 let (prefix, rest) = if is_snr {
-                    (c"<SNR>", bp_name.add(3))
+                    (c"<SNR>", bp_name.wrapping_add(3))
                 } else {
                     (c"", bp_name)
                 };
@@ -491,7 +491,7 @@ fn eval_expr_no_emsg(name: impl crate::strings::IntoCCharPtr) -> Option<TypVal> 
 
 fn dbg_parsearg(arg: impl crate::strings::IntoCCharPtr, is_prof: bool) -> Option<Debuggy> {
     let arg = arg.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut p = arg;
         let mut here = false;
         let mut bp = Debuggy {
@@ -523,7 +523,7 @@ fn dbg_parsearg(arg: impl crate::strings::IntoCCharPtr, is_prof: bool) -> Option
             semsg!(E_INVARG2, p);
             return None;
         }
-        p = skipwhite(p.add(4));
+        p = skipwhite(p.wrapping_add(4));
 
         if here {
             bp.dbg_lnum = curwin_mut().w_cursor.lnum;
@@ -545,7 +545,7 @@ fn dbg_parsearg(arg: impl crate::strings::IntoCCharPtr, is_prof: bool) -> Option
 
         if bp.dbg_type == DBG_FUNC {
             let name_src = if rem_bytes.starts_with(b"g:") {
-                p.add(2)
+                p.wrapping_add(2)
             } else {
                 p
             };

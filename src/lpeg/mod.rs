@@ -87,7 +87,7 @@ pub fn setchar(cs: &mut [LpegByte; CHARSETSIZE], b: usize) {
 
 #[inline]
 pub fn testchar(st: *const LpegByte, c: LpegUint) -> i32 {
-    unsafe { (((*st.add((c >> 3) as usize) as LpegUint) >> (c & 7)) & 1) as i32 }
+    unsafe { (((*st.wrapping_add((c >> 3) as usize) as LpegUint) >> (c & 7)) & 1) as i32 }
 }
 
 pub const MAXOFF: i32 = 0xF;
@@ -238,17 +238,17 @@ pub const fn ttree_bitmap_offset() -> usize {
 
 #[inline]
 pub fn treebuffer(t: *mut TTree) -> *mut LpegByte {
-    unsafe { t.cast::<LpegByte>().add(ttree_bitmap_offset()) }
+    t.cast::<LpegByte>().wrapping_add(ttree_bitmap_offset())
 }
 
 #[inline]
 pub fn sib1(t: *mut TTree) -> *mut TTree {
-    unsafe { t.add(1) }
+    t.wrapping_add(1)
 }
 
 #[inline]
 pub fn sib2(t: *mut TTree) -> *mut TTree {
-    unsafe { t.offset((*t).u.ps as isize) }
+    unsafe { t.wrapping_offset((*t).u.ps as isize) }
 }
 
 #[repr(C)]

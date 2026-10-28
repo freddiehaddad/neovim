@@ -428,26 +428,26 @@ pub fn get_error_exception_string(
                     out.extend_from_slice(crate::memory::cstr_as_bytes(mesg));
                 } else {
                     if crate::memory::cstr_first_byte(mesg) != b'"'
-                        || (p as usize) < (mesg.add(3) as usize)
-                        || *p.sub(2) != b'"' as c_char
-                        || *p.sub(1) != b' ' as c_char
+                        || (p as usize) < (mesg.wrapping_add(3) as usize)
+                        || *p.wrapping_sub(2) != b'"' as c_char
+                        || *p.wrapping_sub(1) != b' ' as c_char
                     {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         continue;
                     }
 
                     out.extend_from_slice(crate::memory::cstr_as_bytes(p));
-                    let quoted_len = (p.sub(2) as usize) - (mesg.add(1) as usize);
+                    let quoted_len = (p.wrapping_sub(2) as usize) - (mesg.wrapping_add(1) as usize);
                     out.extend_from_slice(b" (");
                     out.extend_from_slice(std::slice::from_raw_parts(
-                        mesg.add(1).cast::<u8>(),
+                        mesg.wrapping_add(1).cast::<u8>(),
                         quoted_len,
                     ));
                     out.push(b')');
                 }
                 break;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         crate::memory::cstr_from_bytes(&out)
     }
@@ -455,7 +455,7 @@ pub fn get_error_exception_string(
 
 fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCharPtr) -> bool {
     let cmdname = cmdname.into_c_char_ptr();
-    unsafe {
+    {
         let (r#type, mut messages, excp_value) = match value {
             ExceptionValue::User(val_str) => {
                 let bytes = val_str.as_bytes();
@@ -470,7 +470,10 @@ fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCha
             }
             ExceptionValue::Interrupt(val_str) => (ET_INTERRUPT, Vec::new(), val_str),
             ExceptionValue::Error(msgs) => {
-                let throw_ptr = msgs[msgs[0].throw_idx].msg.as_ptr().add(msgs[0].throw_off);
+                let throw_ptr = msgs[msgs[0].throw_idx]
+                    .msg
+                    .as_ptr()
+                    .wrapping_add(msgs[0].throw_off);
                 let excp_cstr = get_error_exception_string(throw_ptr, cmdname);
                 (ET_ERROR, msgs, excp_cstr)
             }
@@ -1207,7 +1210,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 eap.nextcmd = find_nextcmd(eap.arg);
                 (c".*".as_ptr(), ptr::null_mut())
             } else {
-                let pat = eap.arg.add(1);
+                let pat = eap.arg.wrapping_add(1);
                 let end =
                     skip_regexp_err(pat, i32::from(crate::memory::cstr_first_byte(eap.arg)), 1);
                 if end.is_null() {
@@ -1228,7 +1231,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 && (cstack.cs_flags[u_idx] & CSF_CAUGHT) == 0
             {
                 if !crate::memory::cstr_is_empty(end)
-                    && ends_excmd(i32::from(*skipwhite(end.add(1)) as u8)) == 0
+                    && ends_excmd(i32::from(*skipwhite(end.wrapping_add(1)) as u8)) == 0
                 {
                     semsg!(gettext(E_TRAILING_ARG), end);
                     return;
@@ -1684,19 +1687,19 @@ pub fn ex_endfunction(_eap: &mut Exarg) {
 
 pub fn has_loop_cmd(p: impl crate::strings::IntoCCharPtr) -> bool {
     let mut p = p.into_c_char_ptr();
-    unsafe {
+    {
         loop {
             while crate::memory::cstr_first_byte(p) == b' '
                 || crate::memory::cstr_first_byte(p) == b'\t'
                 || crate::memory::cstr_first_byte(p) == b':'
             {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             let len = modifier_len(p);
             if len == 0 {
                 break;
             }
-            p = p.add(len as usize);
+            p = p.wrapping_add(len as usize);
         }
         (crate::memory::cstr_first_byte(p) == b'w' && crate::memory::cstr_byte_at(p, 1) == b'h')
             || (crate::memory::cstr_first_byte(p) == b'f'

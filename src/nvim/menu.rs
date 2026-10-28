@@ -237,33 +237,33 @@ pub fn ex_menu(eap: &mut Exarg) {
         loop {
             if crate::memory::cstr_prefix_bytes(arg, 8) == &b"<script>"[..8] {
                 noremap = REMAP_SCRIPT;
-                arg = skipwhite(arg.add(8));
+                arg = skipwhite(arg.wrapping_add(8));
                 continue;
             }
             if crate::memory::cstr_prefix_bytes(arg, 8) == &b"<silent>"[..8] {
                 silent = true;
-                arg = skipwhite(arg.add(8));
+                arg = skipwhite(arg.wrapping_add(8));
                 continue;
             }
             if crate::memory::cstr_prefix_bytes(arg, 9) == &b"<special>"[..9] {
-                arg = skipwhite(arg.add(9));
+                arg = skipwhite(arg.wrapping_add(9));
                 continue;
             }
             break;
         }
 
         if crate::memory::cstr_prefix_bytes(arg, 5) == &b"icon="[..5] {
-            arg = arg.add(5);
+            arg = arg.wrapping_add(5);
             while !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b' '
             {
                 if crate::memory::cstr_first_byte(arg) == b'\\' {
-                    crate::memory::cstr_move(arg, arg.add(1));
+                    crate::memory::cstr_move(arg, arg.wrapping_add(1));
                 }
-                arg = arg.add(utfc_ptr2len(arg) as usize);
+                arg = arg.wrapping_add(utfc_ptr2len(arg) as usize);
             }
             if !crate::memory::cstr_is_empty(arg) {
                 *arg = NUL;
-                arg = skipwhite(arg.add(1));
+                arg = skipwhite(arg.wrapping_add(1));
             }
         }
 
@@ -274,7 +274,7 @@ pub fn ex_menu(eap: &mut Exarg) {
             {
                 break;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         let mut i: usize;
         if ascii_iswhite(crate::memory::cstr_first_char(p)) {
@@ -285,7 +285,7 @@ pub fn ex_menu(eap: &mut Exarg) {
                     pri_tab[i] = 500;
                 }
                 if crate::memory::cstr_first_byte(arg) == b'.' {
-                    arg = arg.add(1);
+                    arg = arg.wrapping_add(1);
                 }
                 i += 1;
             }
@@ -306,12 +306,12 @@ pub fn ex_menu(eap: &mut Exarg) {
             && ascii_iswhite(crate::memory::cstr_char_at(arg, 6))
         {
             enable = K_TRUE;
-            arg = skipwhite(arg.add(6));
+            arg = skipwhite(arg.wrapping_add(6));
         } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7])
             && ascii_iswhite(crate::memory::cstr_char_at(arg, 7))
         {
             enable = K_FALSE;
-            arg = skipwhite(arg.add(7));
+            arg = skipwhite(arg.wrapping_add(7));
         }
 
         if crate::memory::cstr_is_empty(arg) {
@@ -501,7 +501,7 @@ fn add_menu_path(
                 }
 
                 if (!ancestor_stack.is_empty() || menu_is_menubar(m.name.as_ptr()))
-                    && m.priority <= *pri_tab.add(pri_idx)
+                    && m.priority <= *pri_tab.wrapping_add(pri_idx)
                 {
                     lower_pri_idx = idx + 1;
                 }
@@ -535,7 +535,7 @@ fn add_menu_path(
                     new_menu.en_name = Some(crate::memory::cstr_to_cstring(en_name));
                     new_menu.en_dname = Some(menu_text(en_name, None, None));
                 }
-                new_menu.priority = *pri_tab.add(pri_idx);
+                new_menu.priority = *pri_tab.wrapping_add(pri_idx);
 
                 (*menup).insert(lower_pri_idx, new_menu);
                 menu = &raw mut (&mut (*menup))[lower_pri_idx];
@@ -551,7 +551,7 @@ fn add_menu_path(
             ancestor_stack.push((menup, found_idx));
             menup = &raw mut (*menu).children;
             name = next_name;
-            if *pri_tab.add(pri_idx + 1) != -1 {
+            if *pri_tab.wrapping_add(pri_idx + 1) != -1 {
                 pri_idx += 1;
             }
         }
@@ -1050,7 +1050,7 @@ pub fn set_context_in_menu_cmd(
             {
                 break;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         if !ascii_iswhite(crate::memory::cstr_first_char(p)) {
@@ -1058,19 +1058,19 @@ pub fn set_context_in_menu_cmd(
                 && (crate::memory::cstr_byte_at(arg, 6) == 0
                     || ascii_iswhite(crate::memory::cstr_char_at(arg, 6)))
             {
-                p = arg.add(6);
+                p = arg.wrapping_add(6);
             } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7])
                 && (crate::memory::cstr_byte_at(arg, 7) == 0
                     || ascii_iswhite(crate::memory::cstr_char_at(arg, 7)))
             {
-                p = arg.add(7);
+                p = arg.wrapping_add(7);
             } else {
                 p = arg;
             }
         }
 
         while !crate::memory::cstr_is_empty(p) && ascii_iswhite(crate::memory::cstr_first_char(p)) {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         let mut after_dot = p;
@@ -1081,11 +1081,11 @@ pub fn set_context_in_menu_cmd(
             if (crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST)
                 && crate::memory::cstr_byte_at(p, 1) != 0
             {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             } else if crate::memory::cstr_first_byte(p) == b'.' {
-                after_dot = p.add(1);
+                after_dot = p.wrapping_add(1);
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         let expand_menus = !((crate::memory::cstr_first_byte(cmd) == b't'
@@ -1281,16 +1281,16 @@ fn menu_name_skip(name: impl crate::strings::IntoCCharPtr) -> *mut c_char {
         let mut p = name;
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' {
             if crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST {
-                crate::memory::cstr_move(p, p.add(1));
+                crate::memory::cstr_move(p, p.wrapping_add(1));
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
             }
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
         if !crate::memory::cstr_is_empty(p) {
             *p = NUL;
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         p
     }
@@ -1319,14 +1319,14 @@ fn menu_namecmp(
     let mname = mname.into_c_char_ptr();
     unsafe {
         let mut i: usize = 0;
-        while crate::memory::cstr_byte_at(name, i) != 0 && *name.add(i) != TAB {
-            if *name.add(i) != *mname.add(i) {
+        while crate::memory::cstr_byte_at(name, i) != 0 && *name.wrapping_add(i) != TAB {
+            if *name.wrapping_add(i) != *mname.wrapping_add(i) {
                 break;
             }
             i += 1;
         }
-        (crate::memory::cstr_byte_at(name, i) == 0 || *name.add(i) == TAB)
-            && (crate::memory::cstr_byte_at(mname, i) == 0 || *mname.add(i) == TAB)
+        (crate::memory::cstr_byte_at(name, i) == 0 || *name.wrapping_add(i) == TAB)
+            && (crate::memory::cstr_byte_at(mname, i) == 0 || *mname.wrapping_add(i) == TAB)
     }
 }
 
@@ -1340,7 +1340,7 @@ pub fn get_menu_cmd_modes(
     let mut cmd = cmd.into_c_char_ptr();
     unsafe {
         let first = *cmd;
-        cmd = cmd.add(1);
+        cmd = cmd.wrapping_add(1);
         let modes = match first as u8 {
             b'v' => MENU_VISUAL_MODE | MENU_SELECT_MODE,
             b'x' => MENU_VISUAL_MODE,
@@ -1349,7 +1349,7 @@ pub fn get_menu_cmd_modes(
             b'i' => MENU_INSERT_MODE,
             b't' => {
                 if crate::memory::cstr_first_byte(cmd) == b'l' {
-                    cmd = cmd.add(1);
+                    cmd = cmd.wrapping_add(1);
                     MENU_TERMINAL_MODE
                 } else {
                     MENU_TIP_MODE
@@ -1366,7 +1366,7 @@ pub fn get_menu_cmd_modes(
             }
             b'n' if crate::memory::cstr_first_byte(cmd) != b'o' => MENU_NORMAL_MODE,
             _ => {
-                cmd = cmd.sub(1);
+                cmd = cmd.wrapping_sub(1);
                 if forceit {
                     MENU_INSERT_MODE | MENU_CMDLINE_MODE
                 } else {
@@ -1459,7 +1459,7 @@ fn menu_text(
         let mut p = vim_strchr(str, i32::from(TAB as u8));
         let mut text_vec: Vec<c_char> = if !p.is_null() {
             if let Some(actext_out) = actext {
-                *actext_out = Some(crate::memory::cstr_to_cstring(p.add(1)));
+                *actext_out = Some(crate::memory::cstr_to_cstring(p.wrapping_add(1)));
             }
             let len = p.offset_from(str) as usize;
             let mut v = Vec::with_capacity(len + 1);
@@ -1483,8 +1483,8 @@ fn menu_text(
                 {
                     **mnemonic = i32::from(crate::memory::cstr_byte_at(p, 1));
                 }
-                crate::memory::cstr_move(p, p.add(1));
-                p = p.add(1);
+                crate::memory::cstr_move(p, p.wrapping_add(1));
+                p = p.wrapping_add(1);
             }
         }
         crate::memory::cstr_to_cstring(text)
@@ -1763,7 +1763,7 @@ pub fn ex_emenu(eap: &mut Exarg) {
                     return;
                 }
             }
-            arg = skipwhite(arg.add(2));
+            arg = skipwhite(arg.wrapping_add(2));
         }
 
         let menu = menu_getbyname(arg);
@@ -1826,7 +1826,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         let menutrans = &mut menu_st().menutrans_ga;
 
         if (crate::memory::cstr_prefix_bytes(arg, 5) == &b"clear"[..5])
-            && ends_excmd(i32::from(*skipwhite(arg.add(5)) as u8)) != 0
+            && ends_excmd(i32::from(*skipwhite(arg.wrapping_add(5)) as u8)) != 0
         {
             menutrans.clear();
             del_menutrans_vars();
@@ -1874,9 +1874,9 @@ fn menu_skip_part(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
             if (crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST)
                 && crate::memory::cstr_byte_at(p, 1) != 0
             {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         p
     }
@@ -1898,10 +1898,10 @@ fn menutrans_lookup(name: *mut c_char, len: i32) -> *mut c_char {
             }
         }
 
-        let c = *name.add(u_len);
-        *name.add(u_len) = NUL;
+        let c = *name.wrapping_add(u_len);
+        *name.wrapping_add(u_len) = NUL;
         let dname = menu_text(name, None, None);
-        *name.add(u_len) = c;
+        *name.wrapping_add(u_len) = c;
         for entry in menutrans {
             if crate::memory::cstr_as_bytes(dname.as_ptr())
                 .eq_ignore_ascii_case(crate::memory::cstr_as_bytes(entry.from_noamp.as_ptr()))
@@ -1917,13 +1917,13 @@ fn menutrans_lookup(name: *mut c_char, len: i32) -> *mut c_char {
 /// Unescape the name in the translate dictionary table (`menu_unescape_name`).
 fn menu_unescape_name(name: impl crate::strings::IntoCCharPtr) {
     let name = name.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut p = name;
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' {
             if crate::memory::cstr_first_byte(p) == b'\\' {
-                crate::memory::cstr_move(p, p.add(1));
+                crate::memory::cstr_move(p, p.wrapping_add(1));
             }
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
     }
 }
@@ -1940,16 +1940,16 @@ fn menu_translate_tab_and_shift(arg_start: impl crate::strings::IntoCCharPtr) ->
             if (crate::memory::cstr_first_byte(arg) == b'\\' || *arg == CTRL_V_CONST)
                 && crate::memory::cstr_byte_at(arg, 1) != 0
             {
-                arg = arg.add(1);
+                arg = arg.wrapping_add(1);
             } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"<TAB>") {
                 *arg = TAB;
-                crate::memory::cstr_move(arg.add(1), arg.add(5));
+                crate::memory::cstr_move(arg.wrapping_add(1), arg.wrapping_add(5));
             }
-            arg = arg.add(1);
+            arg = arg.wrapping_add(1);
         }
         if !crate::memory::cstr_is_empty(arg) {
             *arg = NUL;
-            arg = arg.add(1);
+            arg = arg.wrapping_add(1);
         }
         skipwhite(arg)
     }

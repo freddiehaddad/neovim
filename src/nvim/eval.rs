@@ -859,12 +859,12 @@ pub fn call_vim_function(
     rettv: &mut TypVal,
 ) -> bool {
     let mut func = func.into_c_char_ptr();
-    unsafe {
+    {
         let mut len = crate::memory::cstr_len(func) as i32;
         let mut pt: *mut TvPartial = ptr::null_mut();
 
         if len >= 6 && crate::memory::cstr_slice(func, 6) == b"v:lua." {
-            func = func.add(6);
+            func = func.wrapping_add(6);
             len = check_luafunc_name(func, false);
             if len == 0 {
                 tv_clear(&mut *rettv);
@@ -1017,7 +1017,7 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
                     && crate::memory::cstr_first_byte(s) != b'-'
                 {
                     *cp = i32::from(crate::memory::cstr_first_byte(s));
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                 }
                 retval = Varnumber::from(crate::charset::parse_i64_prefix(
                     crate::memory::cstr_as_bytes(s),
@@ -1074,17 +1074,17 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
 /// does not recognize magic braces.
 fn to_name_end(arg: impl crate::strings::IntoCCharPtr, use_namespace: bool) -> *const c_char {
     let arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         if !eval_isnamec1(i32::from(crate::memory::cstr_first_byte(arg))) {
             return arg;
         }
 
-        let mut p = arg.add(1);
+        let mut p = arg.wrapping_add(1);
         while !crate::memory::cstr_is_empty(p)
             && eval_isnamec(i32::from(crate::memory::cstr_first_byte(p)))
         {
             if crate::memory::cstr_first_byte(p) == b':'
-                && (p != arg.add(1)
+                && (p != arg.wrapping_add(1)
                     || !use_namespace
                     || !crate::strings::vim_haschr(
                         c"bgstvw",
@@ -1093,7 +1093,7 @@ fn to_name_end(arg: impl crate::strings::IntoCCharPtr, use_namespace: bool) -> *
             {
                 break;
             }
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
         p
     }
@@ -1132,8 +1132,8 @@ fn get_lval_dict_item(
             && (*lp.ll_dict).dv_scope != 0
         {
             let prevval = if len != -1 {
-                let pv = *key.add(len as usize);
-                *key.add(len as usize) = NUL;
+                let pv = *key.wrapping_add(len as usize);
+                *key.wrapping_add(len as usize) = NUL;
                 pv
             } else {
                 0
@@ -1143,7 +1143,7 @@ fn get_lval_dict_item(
                 && var_wrong_func_name(key, lp.ll_di.is_null()))
                 || !valid_varname(key);
             if len != -1 {
-                *key.add(len as usize) = prevval;
+                *key.wrapping_add(len as usize) = prevval;
             }
             if wrong {
                 return GLV_FAIL;
@@ -1339,7 +1339,7 @@ fn get_lval_subscript(
             let mut len: i32 = -1;
             let mut key: *mut c_char = ptr::null_mut();
             if crate::memory::cstr_first_byte(p) == b'.' {
-                key = p.add(1);
+                key = p.wrapping_add(1);
                 len = 0;
                 while ascii_isalnum(crate::memory::cstr_char_at(key, len as usize))
                     || crate::memory::cstr_byte_at(key, len as usize) == b'_'
@@ -1352,9 +1352,9 @@ fn get_lval_subscript(
                     }
                     return ptr::null_mut();
                 }
-                p = key.add(len as usize);
+                p = key.wrapping_add(len as usize);
             } else {
-                p = skipwhite(p.add(1));
+                p = skipwhite(p.wrapping_add(1));
                 if crate::memory::cstr_first_byte(p) == b':' {
                     empty1 = true;
                 } else {
@@ -1399,7 +1399,7 @@ fn get_lval_subscript(
                         tv_clear(&mut var2);
                         return ptr::null_mut();
                     }
-                    p = skipwhite(p.add(1));
+                    p = skipwhite(p.wrapping_add(1));
                     if crate::memory::cstr_first_byte(p) == b']' {
                         lp.ll_empty2 = true;
                     } else {
@@ -1430,7 +1430,7 @@ fn get_lval_subscript(
                     return ptr::null_mut();
                 }
 
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
 
             if lp.tv_mut().v_type == VarType::VarDict {
@@ -1804,7 +1804,7 @@ pub fn eval_for_line(
         if skip {
             g_st().emsg_skip += 1;
         }
-        expr = skipwhite(expr.add(2));
+        expr = skipwhite(expr.wrapping_add(2));
         if eval0(expr.cast_mut(), &mut tv, Some(&mut *eap), &mut *evalarg) {
             *errp = false;
             if !skip {
@@ -1876,14 +1876,14 @@ pub fn next_for_item(fi: &mut Forinfo, arg: *mut c_char) -> bool {
             }
             ForSource::Str { text, byte_idx } => {
                 let str_ptr = text.as_ptr();
-                let len = utfc_ptr2len(str_ptr.add(*byte_idx));
+                let len = utfc_ptr2len(str_ptr.wrapping_add(*byte_idx));
                 if len == 0 {
                     return false;
                 }
                 let mut tv = TypVal::new();
                 crate::eval::typval::tv_set_string_len(
                     &mut tv,
-                    str_ptr.add(*byte_idx),
+                    str_ptr.wrapping_add(*byte_idx),
                     len as usize,
                 );
                 tv.v_lock = VAR_FIXED;
@@ -1943,10 +1943,10 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, mut arg: *mut c_char, cmdi
                 .iter()
                 .any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
             {
-                let mut p = arg.add(crate::memory::cstr_len(arg));
+                let mut p = arg.wrapping_add(crate::memory::cstr_len(arg));
                 while (p as usize) >= (arg as usize) {
                     xp.xp_pattern = p;
-                    p = p.offset(-((utf_head_off(arg, p.sub(1)) + 1) as isize));
+                    p = p.wrapping_offset(-((utf_head_off(arg, p.wrapping_sub(1)) + 1) as isize));
                     if (p as usize) >= (arg as usize)
                         && ascii_iswhite(crate::memory::cstr_first_char(p))
                     {
@@ -1966,14 +1966,14 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, mut arg: *mut c_char, cmdi
             xp.xp_pattern = crate::memory::cstr_as_bytes(arg)
                 .iter()
                 .position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
-                .map_or(ptr::null_mut(), |i| arg.add(i));
+                .map_or(ptr::null_mut(), |i| arg.wrapping_add(i));
             !xp.xp_pattern.is_null()
         } {
             let mut c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern));
             if c == b'&' as i32 {
                 c = i32::from(crate::memory::cstr_byte_at(xp.xp_pattern, 1));
                 if c == b'&' as i32 {
-                    xp.xp_pattern = xp.xp_pattern.add(1);
+                    xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
                     xp.xp_context = if cmdidx != Cmdidx::CmdLet || got_eq {
                         EXPAND_EXPRESSION
                     } else {
@@ -1984,7 +1984,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, mut arg: *mut c_char, cmdi
                     if (c == b'l' as i32 || c == b'g' as i32)
                         && crate::memory::cstr_byte_at(xp.xp_pattern, 2) == b':'
                     {
-                        xp.xp_pattern = xp.xp_pattern.add(2);
+                        xp.xp_pattern = xp.xp_pattern.wrapping_add(2);
                     }
                 }
             } else if c == b'$' as i32 {
@@ -2001,19 +2001,19 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, mut arg: *mut c_char, cmdi
             } else if cmdidx != Cmdidx::CmdLet || got_eq {
                 if c == b'"' as i32 {
                     loop {
-                        xp.xp_pattern = xp.xp_pattern.add(1);
+                        xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
                         c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern));
                         if c == NUL as i32 || c == b'"' as i32 {
                             break;
                         }
                         if c == b'\\' as i32 && crate::memory::cstr_byte_at(xp.xp_pattern, 1) != 0 {
-                            xp.xp_pattern = xp.xp_pattern.add(1);
+                            xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
                         }
                     }
                     xp.xp_context = EXPAND_NOTHING;
                 } else if c == b'\'' as i32 {
                     loop {
-                        xp.xp_pattern = xp.xp_pattern.add(1);
+                        xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
                         c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern));
                         if c == NUL as i32 || c == b'\'' as i32 {
                             break;
@@ -2022,7 +2022,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, mut arg: *mut c_char, cmdi
                     xp.xp_context = EXPAND_NOTHING;
                 } else if c == b'|' as i32 {
                     if crate::memory::cstr_byte_at(xp.xp_pattern, 1) == b'|' {
-                        xp.xp_pattern = xp.xp_pattern.add(1);
+                        xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
                         xp.xp_context = EXPAND_EXPRESSION;
                     } else {
                         xp.xp_context = EXPAND_COMMANDS;
@@ -2036,7 +2036,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, mut arg: *mut c_char, cmdi
             arg = xp.xp_pattern;
             if !crate::memory::cstr_is_empty(arg) {
                 loop {
-                    arg = arg.add(1);
+                    arg = arg.wrapping_add(1);
                     c = i32::from(crate::memory::cstr_first_byte(arg));
                     if c == NUL as i32 || (c != b' ' as i32 && c != b'\t' as i32) {
                         break;
@@ -2212,18 +2212,18 @@ pub fn may_call_simple_func(arg: impl crate::strings::IntoCCharPtr, rettv: &mut 
         let parens = crate::memory::cstr_as_bytes(arg)
             .windows(2)
             .position(|w| w == b"()")
-            .map_or(ptr::null(), |i| arg.add(i));
+            .map_or(ptr::null(), |i| arg.wrapping_add(i));
         let mut r = NOTDONE;
 
-        if !parens.is_null() && *skipwhite(parens.add(2)) == NUL {
+        if !parens.is_null() && *skipwhite(parens.wrapping_add(2)) == NUL {
             if crate::memory::cstr_as_bytes(arg).starts_with(b"v:lua.") {
-                let p = arg.add(6);
+                let p = arg.wrapping_add(6);
                 if p != parens && skip_luafunc_name(p) == parens {
                     r = call_simple_luafunc(p, (parens as usize).wrapping_sub(p as usize), rettv);
                 }
             } else {
                 let p = if crate::memory::cstr_prefix_bytes(arg, 5) == &b"<SNR>"[..5] {
-                    skipdigits(arg.add(5))
+                    skipdigits(arg.wrapping_add(5))
                 } else {
                     arg
                 };
@@ -2289,9 +2289,9 @@ pub fn eval1(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut
             }
 
             if op_falsy {
-                *arg = (*arg).add(1);
+                *arg = (*arg).wrapping_add(1);
             }
-            *arg = skipwhite((*arg).add(1));
+            *arg = skipwhite((*arg).wrapping_add(1));
             evalarg_used.eval_flags = if if op_falsy { !result } else { result } {
                 orig_flags
             } else {
@@ -2317,7 +2317,7 @@ pub fn eval1(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut
                     return false;
                 }
 
-                *arg = skipwhite((*arg).add(1));
+                *arg = skipwhite((*arg).wrapping_add(1));
                 evalarg_used.eval_flags = if !result {
                     orig_flags
                 } else {
@@ -2372,7 +2372,7 @@ fn eval2(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
             while crate::memory::cstr_first_byte(p) == b'|'
                 && crate::memory::cstr_byte_at(p, 1) == b'|'
             {
-                *arg = skipwhite((*arg).add(2));
+                *arg = skipwhite((*arg).wrapping_add(2));
                 evalarg_used.eval_flags = if !result {
                     orig_flags
                 } else {
@@ -2438,7 +2438,7 @@ fn eval3(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
             while crate::memory::cstr_first_byte(p) == b'&'
                 && crate::memory::cstr_byte_at(p, 1) == b'&'
             {
-                *arg = skipwhite((*arg).add(2));
+                *arg = skipwhite((*arg).wrapping_add(2));
                 evalarg_used.eval_flags = if result {
                     orig_flags
                 } else {
@@ -2524,7 +2524,7 @@ fn eval4(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
                 {
                     len = 5;
                 }
-                let next_c = *p.add(len);
+                let next_c = *p.wrapping_add(len);
                 if !ascii_isalnum(next_c) && next_c != b'_' as c_char {
                     expr_type = if len == 2 { EXPR_IS } else { EXPR_ISNOT };
                 }
@@ -2546,7 +2546,7 @@ fn eval4(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
                 }
             }
 
-            *arg = skipwhite(p.add(len));
+            *arg = skipwhite(p.wrapping_add(len));
             if !eval5(arg, &mut var2, evalarg.as_deref_mut()) {
                 tv_clear(rettv);
                 return false;
@@ -2739,9 +2739,9 @@ fn eval5(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut Eva
             }
 
             if op == b'.' as i32 && crate::memory::cstr_byte_at(*arg, 1) == b'.' {
-                *arg = (*arg).add(1);
+                *arg = (*arg).wrapping_add(1);
             }
-            *arg = skipwhite((*arg).add(1));
+            *arg = skipwhite((*arg).wrapping_add(1));
             let mut var2 = tv_initial_value();
             if !eval6(arg, &mut var2, evalarg.as_deref_mut(), op == b'.' as i32) {
                 tv_clear(rettv);
@@ -2875,7 +2875,7 @@ fn eval6(
                 .as_ref()
                 .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
-            *arg = skipwhite((*arg).add(1));
+            *arg = skipwhite((*arg).wrapping_add(1));
             let mut var2 = tv_initial_value();
             if !eval7(arg, &mut var2, evalarg.as_deref_mut(), false) {
                 return false;
@@ -2907,7 +2907,7 @@ fn eval7(
 
         let start_leader: *const c_char = *arg;
         while **arg == b'!' as c_char || **arg == b'-' as c_char || **arg == b'+' as c_char {
-            *arg = skipwhite((*arg).add(1));
+            *arg = skipwhite((*arg).wrapping_add(1));
         }
         let mut end_leader: *const c_char = *arg;
 
@@ -2964,7 +2964,7 @@ fn eval7(
                 };
             }
             b'$' => {
-                let next_c = *(*arg).add(1);
+                let next_c = *(*arg).wrapping_add(1);
                 let ok = if next_c == b'"' as c_char || next_c == b'\'' as c_char {
                     eval_interp_string(arg, &mut *rettv, evaluate)
                 } else {
@@ -2973,7 +2973,7 @@ fn eval7(
                 ret = if ok { OK } else { FAIL };
             }
             b'@' => {
-                *arg = (*arg).add(1);
+                *arg = (*arg).wrapping_add(1);
                 if evaluate {
                     let reg_str = get_reg_contents_str(i32::from(**arg as u8), K_GREG_EXPR_SRC);
                     crate::eval::typval::tv_set_string(
@@ -2982,16 +2982,16 @@ fn eval7(
                     );
                 }
                 if **arg != NUL {
-                    *arg = (*arg).add(1);
+                    *arg = (*arg).wrapping_add(1);
                 }
                 ret = OK;
             }
             b'(' => {
-                *arg = skipwhite((*arg).add(1));
+                *arg = skipwhite((*arg).wrapping_add(1));
 
                 let mut ok = eval1(arg, &mut *rettv, evalarg.as_deref_mut());
                 if **arg == b')' as c_char {
-                    *arg = (*arg).add(1);
+                    *arg = (*arg).wrapping_add(1);
                 } else if ok {
                     emsg(gettext(c"E110: Missing ')'"));
                     tv_clear(rettv);
@@ -3093,10 +3093,10 @@ fn eval7_leader(
             ret = false;
         } else {
             while (end_leader as usize) > (start_leader as usize) {
-                end_leader = end_leader.sub(1);
+                end_leader = end_leader.wrapping_sub(1);
                 if crate::memory::cstr_first_byte(end_leader) == b'!' {
                     if numeric_only {
-                        end_leader = end_leader.add(1);
+                        end_leader = end_leader.wrapping_add(1);
                         break;
                     }
                     if rettv.v_type == VarType::VarFloat {
@@ -3217,7 +3217,7 @@ fn eval_lambda(
         let evaluate = evalarg
             .as_ref()
             .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
-        *arg = (*arg).add(2);
+        *arg = (*arg).wrapping_add(2);
         let mut base = *rettv;
         rettv.v_type = VarType::VarUnknown;
 
@@ -3265,7 +3265,7 @@ fn eval_method(
             .as_ref()
             .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
-        *arg = (*arg).add(2);
+        *arg = (*arg).wrapping_add(2);
         let mut base = *rettv;
         rettv.v_type = VarType::VarUnknown;
 
@@ -3275,7 +3275,7 @@ fn eval_method(
         let mut alias: Option<std::ffi::CString> = None;
 
         if crate::memory::cstr_as_bytes(name).starts_with(b"v:lua.") {
-            lua_funcname = name.add(6);
+            lua_funcname = name.wrapping_add(6);
             *arg = skip_luafunc_name(lua_funcname).cast_mut();
             *arg = skipwhite(*arg);
             len = ((*arg as usize).wrapping_sub(lua_funcname as usize)) as i32;
@@ -3310,7 +3310,7 @@ fn eval_method(
                 *paren = NUL;
                 let mut ref_tv = tv_initial_value();
                 if !eval7(arg, &mut ref_tv, evalarg.as_deref_mut(), false) {
-                    *arg = name.add(len as usize);
+                    *arg = name.wrapping_add(len as usize);
                     ret = false;
                 } else if *skipwhite(*arg) != NUL {
                     if verbose {
@@ -3353,7 +3353,7 @@ fn eval_method(
                         semsg!(gettext(E_MISSINGPAREN), name);
                     }
                     ret = false;
-                } else if ascii_iswhite(*(*arg).sub(1)) {
+                } else if ascii_iswhite(*(*arg).wrapping_sub(1)) {
                     if verbose {
                         emsg(gettext(E_NOWHITESPACE));
                     }
@@ -3422,7 +3422,7 @@ fn eval_index(
         let mut var1 = tv_initial_value();
         let mut var2 = tv_initial_value();
         if **arg == b'.' as c_char {
-            key = (*arg).add(1);
+            key = (*arg).wrapping_add(1);
             keylen = 0;
             while eval_isdictc(i32::from(crate::memory::cstr_byte_at(key, keylen as usize))) {
                 keylen += 1;
@@ -3430,9 +3430,9 @@ fn eval_index(
             if keylen == 0 {
                 return false;
             }
-            *arg = skipwhite(key.add(keylen as usize));
+            *arg = skipwhite(key.wrapping_add(keylen as usize));
         } else {
-            *arg = skipwhite((*arg).add(1));
+            *arg = skipwhite((*arg).wrapping_add(1));
             if **arg == b':' as c_char {
                 empty1 = true;
             } else if !eval1(arg, &mut var1, evalarg.as_deref_mut()) {
@@ -3444,7 +3444,7 @@ fn eval_index(
 
             if **arg == b':' as c_char {
                 range = true;
-                *arg = skipwhite((*arg).add(1));
+                *arg = skipwhite((*arg).wrapping_add(1));
                 if **arg == b']' as c_char {
                     empty2 = true;
                 } else if !eval1(arg, &mut var2, evalarg) {
@@ -3471,7 +3471,7 @@ fn eval_index(
                 }
                 return false;
             }
-            *arg = skipwhite((*arg).add(1));
+            *arg = skipwhite((*arg).wrapping_add(1));
         }
 
         if evaluate {
@@ -3640,7 +3640,7 @@ fn eval_index_inner(
                         None
                     } else {
                         Some(cstr_from_bytes(std::slice::from_raw_parts(
-                            s.add(n1 as usize).cast::<u8>(),
+                            s.wrapping_add(n1 as usize).cast::<u8>(),
                             (n2 - n1 + 1) as usize,
                         )))
                     }
@@ -3648,7 +3648,7 @@ fn eval_index_inner(
                     None
                 } else {
                     Some(cstr_from_bytes(std::slice::from_raw_parts(
-                        s.add(n1 as usize).cast::<u8>(),
+                        s.wrapping_add(n1 as usize).cast::<u8>(),
                         1,
                     )))
                 };
@@ -3769,7 +3769,7 @@ fn eval_number(
     want_string: bool,
 ) -> bool {
     unsafe {
-        let mut p = skipdigits((*arg).add(1));
+        let mut p = skipdigits((*arg).wrapping_add(1));
         let mut get_float = false;
 
         if !want_string
@@ -3777,20 +3777,20 @@ fn eval_number(
             && ascii_isdigit(crate::memory::cstr_char_at(p, 1))
         {
             get_float = true;
-            p = skipdigits(p.add(2));
+            p = skipdigits(p.wrapping_add(2));
             if crate::memory::cstr_first_byte(p) == b'e'
                 || crate::memory::cstr_first_byte(p) == b'E'
             {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 if crate::memory::cstr_first_byte(p) == b'-'
                     || crate::memory::cstr_first_byte(p) == b'+'
                 {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
                 if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
                     get_float = false;
                 } else {
-                    p = skipdigits(p.add(1));
+                    p = skipdigits(p.wrapping_add(1));
                 }
             }
             if ascii_isalpha(crate::memory::cstr_first_char(p))
@@ -3801,7 +3801,7 @@ fn eval_number(
         }
         if get_float {
             let mut f: TvFloat = 0.0;
-            *arg = (*arg).add(string2float(*arg, &raw mut f));
+            *arg = (*arg).wrapping_add(string2float(*arg, &raw mut f));
             if evaluate {
                 rettv.v_type = VarType::VarFloat;
                 rettv.vval = crate::eval::typval::TypvalVval::Float(f);
@@ -3811,7 +3811,7 @@ fn eval_number(
                 || crate::memory::cstr_byte_at(*arg, 1) == b'Z')
         {
             let mut bytes: Vec<u8> = Vec::new();
-            let mut bp = (*arg).add(2);
+            let mut bp = (*arg).wrapping_add(2);
             while ascii_isxdigit(crate::memory::cstr_first_char(bp)) {
                 if !ascii_isxdigit(crate::memory::cstr_char_at(bp, 1)) {
                     if evaluate {
@@ -3830,9 +3830,9 @@ fn eval_number(
                 if crate::memory::cstr_byte_at(bp, 2) == b'.'
                     && ascii_isxdigit(crate::memory::cstr_char_at(bp, 3))
                 {
-                    bp = bp.add(1);
+                    bp = bp.wrapping_add(1);
                 }
-                bp = bp.add(2);
+                bp = bp.wrapping_add(2);
             }
             if evaluate {
                 let blob = tv_blob_alloc();
@@ -3860,7 +3860,7 @@ fn eval_number(
                 }
                 return false;
             }
-            *arg = (*arg).add(len as usize);
+            *arg = (*arg).wrapping_add(len as usize);
             if evaluate {
                 rettv.v_type = VarType::VarNumber;
                 rettv.vval = crate::eval::typval::TypvalVval::Number(n);
@@ -3878,15 +3878,15 @@ fn eval_string(
     interpolate: bool,
 ) -> bool {
     unsafe {
-        let arg_end = (*arg).add(crate::memory::cstr_len(*arg));
+        let arg_end = (*arg).wrapping_add(crate::memory::cstr_len(*arg));
         let mut extra: isize = if interpolate { 1 } else { 0 };
         let off: usize = if interpolate { 0 } else { 1 };
 
-        let mut p = (*arg).add(off);
+        let mut p = (*arg).wrapping_add(off);
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'"' {
             if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0
             {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 if crate::memory::cstr_first_byte(p) == b'<' {
                     let mut modifiers: i32 = 0;
                     let mut flags = FSK_KEYCODE | FSK_IN_STRING;
@@ -3905,7 +3905,7 @@ fn eval_string(
                         None,
                     ) != 0
                     {
-                        p = p_const.cast_mut().sub(1);
+                        p = p_const.cast_mut().wrapping_sub(1);
                     } else {
                         p = p_const.cast_mut();
                     }
@@ -3919,14 +3919,15 @@ fn eval_string(
                 {
                     break;
                 }
-                p = p.add(1);
-                if *p.sub(1) == b'}' as c_char && crate::memory::cstr_first_byte(p) != b'}' {
+                p = p.wrapping_add(1);
+                if *p.wrapping_sub(1) == b'}' as c_char && crate::memory::cstr_first_byte(p) != b'}'
+                {
                     semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                     return false;
                 }
                 extra -= 1;
             }
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
 
         if crate::memory::cstr_first_byte(p) != b'"'
@@ -3937,7 +3938,7 @@ fn eval_string(
         }
 
         if !evaluate {
-            *arg = p.add(off);
+            *arg = p.wrapping_add(off);
             return true;
         }
 
@@ -3946,40 +3947,40 @@ fn eval_string(
         let buf_ptr = buf_vec.as_mut_ptr();
         let mut end = buf_ptr;
 
-        p = (*arg).add(off);
+        p = (*arg).wrapping_add(off);
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'"' {
             if crate::memory::cstr_first_byte(p) == b'\\' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 match crate::memory::cstr_first_byte(p) {
                     b'b' => {
                         *end = BS;
-                        end = end.add(1);
-                        p = p.add(1);
+                        end = end.wrapping_add(1);
+                        p = p.wrapping_add(1);
                     }
                     b'e' => {
                         *end = ESC;
-                        end = end.add(1);
-                        p = p.add(1);
+                        end = end.wrapping_add(1);
+                        p = p.wrapping_add(1);
                     }
                     b'f' => {
                         *end = FF;
-                        end = end.add(1);
-                        p = p.add(1);
+                        end = end.wrapping_add(1);
+                        p = p.wrapping_add(1);
                     }
                     b'n' => {
                         *end = NL;
-                        end = end.add(1);
-                        p = p.add(1);
+                        end = end.wrapping_add(1);
+                        p = p.wrapping_add(1);
                     }
                     b'r' => {
                         *end = CAR;
-                        end = end.add(1);
-                        p = p.add(1);
+                        end = end.wrapping_add(1);
+                        p = p.wrapping_add(1);
                     }
                     b't' => {
                         *end = TAB;
-                        end = end.add(1);
-                        p = p.add(1);
+                        end = end.wrapping_add(1);
+                        p = p.wrapping_add(1);
                     }
                     b'X' | b'x' | b'u' | b'U' => {
                         if ascii_isxdigit(crate::memory::cstr_char_at(p, 1)) {
@@ -3994,35 +3995,35 @@ fn eval_string(
                             let mut nr: i32 = 0;
                             while n > 0 && ascii_isxdigit(crate::memory::cstr_char_at(p, 1)) {
                                 n -= 1;
-                                p = p.add(1);
+                                p = p.wrapping_add(1);
                                 nr = (nr << 4)
                                     + hex2nr(i32::from(crate::memory::cstr_first_byte(p)));
                             }
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                             if c != b'X' {
-                                end = end.add(utf_char2bytes(nr, end) as usize);
+                                end = end.wrapping_add(utf_char2bytes(nr, end) as usize);
                             } else {
                                 *end = nr as c_char;
-                                end = end.add(1);
+                                end = end.wrapping_add(1);
                             }
                         }
                     }
                     b'0'..=b'7' => {
                         *end = (crate::memory::cstr_first_byte(p) - b'0') as c_char;
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         if *p >= b'0' as c_char && *p <= b'7' as c_char {
                             *end = (((crate::memory::cstr_first_byte(end)) << 3)
                                 .wrapping_add(crate::memory::cstr_first_byte(p) - b'0'))
                                 as c_char;
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                             if *p >= b'0' as c_char && *p <= b'7' as c_char {
                                 *end = (((crate::memory::cstr_first_byte(end)) << 3)
                                     .wrapping_add(crate::memory::cstr_first_byte(p) - b'0'))
                                     as c_char;
-                                p = p.add(1);
+                                p = p.wrapping_add(1);
                             }
                         }
-                        end = end.add(1);
+                        end = end.wrapping_add(1);
                     }
                     b'<' => {
                         let mut flags = FSK_KEYCODE | FSK_IN_STRING;
@@ -4040,7 +4041,7 @@ fn eval_string(
                         );
                         p = p_const.cast_mut();
                         if spec_len != 0 {
-                            end = end.add(spec_len as usize);
+                            end = end.wrapping_add(spec_len as usize);
                             if (end as usize) >= (buf_ptr as usize + len) {
                                 iemsg(c"eval_string() used more space than allocated");
                             }
@@ -4066,7 +4067,7 @@ fn eval_string(
                     {
                         break;
                     }
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
                 let mut p_const: *const c_char = p;
                 mb_copy_char(&raw mut p_const, &raw mut end);
@@ -4076,7 +4077,7 @@ fn eval_string(
         *end = NUL;
         crate::eval::typval::tv_set_string(rettv, buf_ptr);
         if crate::memory::cstr_first_byte(p) == b'"' && !interpolate {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         *arg = p;
 
@@ -4095,23 +4096,23 @@ fn eval_lit_string(
         let mut reduce: isize = if interpolate { -1 } else { 0 };
         let off: usize = if interpolate { 0 } else { 1 };
 
-        let mut p = (*arg).add(off);
+        let mut p = (*arg).wrapping_add(off);
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'\'' {
                 if crate::memory::cstr_byte_at(p, 1) != b'\'' {
                     break;
                 }
                 reduce += 1;
-                p = p.add(1);
+                p = p.wrapping_add(1);
             } else if interpolate {
                 if crate::memory::cstr_first_byte(p) == b'{' {
                     if crate::memory::cstr_byte_at(p, 1) != b'{' {
                         break;
                     }
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     reduce += 1;
                 } else if crate::memory::cstr_first_byte(p) == b'}' {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     if crate::memory::cstr_first_byte(p) != b'}' {
                         semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                         return false;
@@ -4119,7 +4120,7 @@ fn eval_lit_string(
                     reduce += 1;
                 }
             }
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
 
         if crate::memory::cstr_first_byte(p) != b'\''
@@ -4130,7 +4131,7 @@ fn eval_lit_string(
         }
 
         if !evaluate {
-            *arg = p.add(off);
+            *arg = p.wrapping_add(off);
             return true;
         }
 
@@ -4138,13 +4139,13 @@ fn eval_lit_string(
         let mut buf_vec = vec![0 as c_char; alloc_len];
         let mut str_ptr = buf_vec.as_mut_ptr();
 
-        p = (*arg).add(off);
+        p = (*arg).wrapping_add(off);
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'\'' {
                 if crate::memory::cstr_byte_at(p, 1) != b'\'' {
                     break;
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             } else if interpolate
                 && (crate::memory::cstr_first_byte(p) == b'{'
                     || crate::memory::cstr_first_byte(p) == b'}')
@@ -4154,7 +4155,7 @@ fn eval_lit_string(
                 {
                     break;
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             let mut p_const: *const c_char = p;
             mb_copy_char(&raw mut p_const, &raw mut str_ptr);
@@ -4162,7 +4163,7 @@ fn eval_lit_string(
         }
         *str_ptr = NUL;
         crate::eval::typval::tv_set_string(rettv, buf_vec.as_ptr());
-        *arg = p.add(off);
+        *arg = p.wrapping_add(off);
 
         true
     }
@@ -4178,9 +4179,9 @@ pub fn eval_interp_string(arg: *mut *mut c_char, rettv: &mut TypVal, evaluate: b
             Vec::new()
         };
 
-        *arg = (*arg).add(1);
+        *arg = (*arg).wrapping_add(1);
         let quote = i32::from(**arg as u8);
-        *arg = (*arg).add(1);
+        *arg = (*arg).wrapping_add(1);
 
         loop {
             let mut tv = tv_initial_value();
@@ -4203,7 +4204,7 @@ pub fn eval_interp_string(arg: *mut *mut c_char, rettv: &mut TypVal, evaluate: b
             }
 
             if **arg != b'{' as c_char {
-                *arg = (*arg).add(1);
+                *arg = (*arg).wrapping_add(1);
                 break;
             }
             let p = eval_one_expr_in_str(*arg, &mut buf, evaluate);
@@ -4267,7 +4268,7 @@ fn eval_list(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut
             l = tv_list_alloc(K_LIST_LEN_SHOULD_KNOW);
         }
 
-        *arg = skipwhite((*arg).add(1));
+        *arg = skipwhite((*arg).wrapping_add(1));
         while **arg != b']' as c_char && **arg != NUL {
             let mut tv = tv_initial_value();
             if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
@@ -4283,7 +4284,7 @@ fn eval_list(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut
 
             let had_comma = **arg == b',' as c_char;
             if had_comma {
-                *arg = skipwhite((*arg).add(1));
+                *arg = skipwhite((*arg).wrapping_add(1));
             }
 
             if **arg == b']' as c_char {
@@ -4307,7 +4308,7 @@ fn eval_list(arg: *mut *mut c_char, rettv: &mut TypVal, mut evalarg: Option<&mut
             return false;
         }
 
-        *arg = skipwhite((*arg).add(1));
+        *arg = skipwhite((*arg).wrapping_add(1));
         if evaluate {
             tv_list_set_ret(rettv, l);
         }
@@ -4642,7 +4643,7 @@ pub fn set_ref_in_ht(ht: *mut Hashtab, copy_id: i32, list_stack: *mut ListStack)
                                 list_stack,
                             );
                     }
-                    hi = hi.add(1);
+                    hi = hi.wrapping_add(1);
                 }
             }
 
@@ -4820,7 +4821,7 @@ fn get_literal_key(arg: *mut *mut c_char, tv: &mut TypVal) -> bool {
             || crate::memory::cstr_first_byte(p) == b'_'
             || crate::memory::cstr_first_byte(p) == b'-'
         {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         crate::eval::typval::tv_set_string_len(
             &mut *tv,
@@ -4846,7 +4847,7 @@ fn eval_dict(
             .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         let mut tv = tv_initial_value();
         let mut key: *mut c_char = ptr::null_mut();
-        let mut curly_expr = skipwhite((*arg).add(1));
+        let mut curly_expr = skipwhite((*arg).wrapping_add(1));
         let mut buf = [0 as c_char; NUMBUFLEN];
 
         if crate::memory::cstr_first_byte(curly_expr) != b'}'
@@ -4864,7 +4865,7 @@ fn eval_dict(
         let mut tvkey = tv_initial_value();
         tv.v_type = VarType::VarUnknown;
 
-        *arg = skipwhite((*arg).add(1));
+        *arg = skipwhite((*arg).wrapping_add(1));
         while **arg != b'}' as c_char && **arg != NUL {
             let key_res = if literal {
                 get_literal_key(arg, &mut tvkey)
@@ -4896,7 +4897,7 @@ fn eval_dict(
                 }
             }
 
-            *arg = skipwhite((*arg).add(1));
+            *arg = skipwhite((*arg).wrapping_add(1));
             if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
                 tv_clear(&mut tvkey);
                 if !d.is_null() {
@@ -4926,7 +4927,7 @@ fn eval_dict(
 
             let had_comma = **arg == b',' as c_char;
             if had_comma {
-                *arg = skipwhite((*arg).add(1));
+                *arg = skipwhite((*arg).wrapping_add(1));
             }
 
             if **arg == b'}' as c_char {
@@ -4949,7 +4950,7 @@ fn eval_dict(
             return FAIL;
         }
 
-        *arg = skipwhite((*arg).add(1));
+        *arg = skipwhite((*arg).wrapping_add(1));
         if evaluate {
             tv_dict_set_ret(rettv, d);
         }
@@ -4962,7 +4963,7 @@ fn eval_dict(
 fn eval_lit_dict(arg: *mut *mut c_char, rettv: &mut TypVal, evalarg: Option<&mut Evalarg>) -> i32 {
     unsafe {
         if crate::memory::cstr_byte_at(*arg, 1) == b'{' {
-            *arg = (*arg).add(1);
+            *arg = (*arg).wrapping_add(1);
             eval_dict(arg, rettv, evalarg, true)
         } else {
             NOTDONE
@@ -5009,7 +5010,7 @@ pub fn string2float(text: impl crate::strings::IntoCCharPtr, ret_value: *mut TvF
 /// Get the value of an environment variable.
 fn eval_env_var(arg: *mut *mut c_char, rettv: &mut TypVal, evaluate: i32) -> bool {
     unsafe {
-        *arg = (*arg).add(1);
+        *arg = (*arg).wrapping_add(1);
         let name = *arg;
         let len = get_env_len(arg.cast());
 
@@ -5017,16 +5018,16 @@ fn eval_env_var(arg: *mut *mut c_char, rettv: &mut TypVal, evaluate: i32) -> boo
             if len == 0 {
                 return false;
             }
-            let cc = *name.add(len as usize);
-            *name.add(len as usize) = NUL;
+            let cc = *name.wrapping_add(len as usize);
+            *name.wrapping_add(len as usize) = NUL;
             let mut string = vim_getenv(name).filter(|s| !s.as_bytes().is_empty());
             if string.is_none() {
-                let exp = expand_env_save(name.sub(1));
+                let exp = expand_env_save(name.wrapping_sub(1));
                 if crate::memory::cstr_first_byte(exp.as_ptr()) != b'$' {
                     string = Some(exp);
                 }
             }
-            *name.add(len as usize) = cc;
+            *name.wrapping_add(len as usize) = cc;
             rettv.v_lock = VAR_UNLOCKED;
             if let Some(ref s) = string {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
@@ -5115,7 +5116,7 @@ fn string_to_list(
 ) -> &'static mut TvList {
     let str_ = str_.into_c_char_ptr();
     unsafe {
-        if !keepempty && len > 0 && *str_.add(len - 1) == NL {
+        if !keepempty && len > 0 && *str_.wrapping_add(len - 1) == NL {
             len -= 1;
         }
         let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
@@ -5330,7 +5331,7 @@ pub fn callback_call(
                 name = callback.data.as_funcref();
                 let len = crate::memory::cstr_len(name) as i32;
                 if len >= 6 && crate::memory::cstr_slice(name, 6) == b"v:lua." {
-                    name = name.add(6);
+                    name = name.wrapping_add(6);
                     if check_luafunc_name(name, false) == 0 {
                         return false;
                     }
@@ -5352,7 +5353,7 @@ pub fn callback_call(
                 let mut luaargs = arena_array(&mut arena, argcount_in as usize);
                 for i in 0..(argcount_in as usize) {
                     *luaargs.next_slot_mut() =
-                        vim_to_object(argvars_in.add(i), Some(&mut arena), false);
+                        vim_to_object(argvars_in.wrapping_add(i), Some(&mut arena), false);
                     luaargs.size += 1;
                 }
                 let mut err = Error::new();
@@ -5735,7 +5736,7 @@ pub fn buf_byteidx_to_charidx(
     mut lnum: Linenr,
     byteidx: i32,
 ) -> i32 {
-    unsafe {
+    {
         if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.is_none() {
             return -1;
         }
@@ -5754,7 +5755,7 @@ pub fn buf_byteidx_to_charidx(
         let mut count: i32 = 0;
         let limit = (str_ptr as isize) + (byteidx as isize);
         while !crate::memory::cstr_is_empty(t) && (t as isize) <= limit {
-            t = t.add(utfc_ptr2len(t) as usize);
+            t = t.wrapping_add(utfc_ptr2len(t) as usize);
             count += 1;
         }
 
@@ -5773,7 +5774,7 @@ pub fn buf_charidx_to_byteidx(
     mut lnum: Linenr,
     mut charidx: i32,
 ) -> i32 {
-    unsafe {
+    {
         if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.is_none() {
             return -1;
         }
@@ -5790,7 +5791,7 @@ pub fn buf_charidx_to_byteidx(
             if charidx <= 0 {
                 break;
             }
-            t = t.add(utfc_ptr2len(t) as usize);
+            t = t.wrapping_add(utfc_ptr2len(t) as usize);
         }
 
         ((t as usize).wrapping_sub(str_ptr as usize)) as i32
@@ -6032,7 +6033,7 @@ pub fn list2fpos(
 pub fn get_env_len(arg: *mut *const c_char) -> i32 {
     unsafe {
         let len = env_name_len(*arg);
-        *arg = (*arg).add(len);
+        *arg = (*arg).wrapping_add(len);
         len as i32
     }
 }
@@ -6050,7 +6051,7 @@ pub fn get_id_len(arg: *mut *const c_char) -> i32 {
                     break;
                 }
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         if p == *arg {
             return 0;
@@ -6074,15 +6075,15 @@ pub fn get_name_len(
         *alias = None;
 
         if **arg == K_SPECIAL as c_char
-            && *(*arg).add(1) == KS_EXTRA as c_char
-            && *(*arg).add(2) == KE_SNR as c_char
+            && *(*arg).wrapping_add(1) == KS_EXTRA as c_char
+            && *(*arg).wrapping_add(2) == KE_SNR as c_char
         {
-            *arg = (*arg).add(3);
+            *arg = (*arg).wrapping_add(3);
             return get_id_len(arg) + 3;
         }
         let mut len = eval_fname_script(*arg);
         if len > 0 {
-            *arg = (*arg).add(len as usize);
+            *arg = (*arg).wrapping_add(len as usize);
         }
 
         let mut expr_start: *const c_char = ptr::null();
@@ -6101,7 +6102,7 @@ pub fn get_name_len(
             }
 
             let Some(temp_string) = make_expanded_name(
-                (*arg).sub(len as usize),
+                (*arg).wrapping_sub(len as usize),
                 expr_start.cast_mut(),
                 expr_end.cast_mut(),
                 p.cast_mut(),
@@ -6159,31 +6160,31 @@ pub fn find_name_end(
                 || br_nest != 0)
         {
             if crate::memory::cstr_first_byte(p) == b'\'' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'\''
                 {
-                    p = p.add(utfc_ptr2len(p) as usize);
+                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 }
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
             } else if crate::memory::cstr_first_byte(p) == b'"' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'"'
                 {
                     if crate::memory::cstr_first_byte(p) == b'\\'
                         && crate::memory::cstr_byte_at(p, 1) != 0
                     {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     }
-                    p = p.add(utfc_ptr2len(p) as usize);
+                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 }
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
             } else if br_nest == 0 && mb_nest == 0 && crate::memory::cstr_first_byte(p) == b':' {
                 let len = ((p as usize).wrapping_sub(arg as usize)) as i32;
-                if (len > 1 && *p.sub(1) != b'}' as c_char)
+                if (len > 1 && *p.wrapping_sub(1) != b'}' as c_char)
                     || (len == 1
                         && vim_strchr(
                             NAMESPACE_CHAR,
@@ -6217,7 +6218,7 @@ pub fn find_name_end(
                 }
             }
 
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
 
         p
@@ -6244,7 +6245,7 @@ fn make_expanded_name(
         let c1 = *in_end;
         *in_end = NUL;
 
-        if let Some(temp_result) = eval_to_string(expr_start.add(1), false, false) {
+        if let Some(temp_result) = eval_to_string(expr_start.wrapping_add(1), false, false) {
             let retvalsize = (expr_start as usize).wrapping_sub(in_start as usize)
                 + temp_result.as_bytes().len()
                 + (in_end as usize).wrapping_sub(expr_end as usize)
@@ -6256,7 +6257,7 @@ fn make_expanded_name(
                 c"%s%s%s",
                 in_start,
                 temp_result.as_ptr(),
-                expr_end.add(1),
+                expr_end.wrapping_add(1),
             );
             retval = Some(cstr_to_cstring(buf.as_ptr()));
         }
@@ -6310,7 +6311,7 @@ pub fn set_argv_var(argv: *mut *mut c_char, argc: i32) {
 
         tv_list_set_lock(Some(&mut *l), VAR_FIXED);
         for i in 0..(argc as usize) {
-            tv_list_append_string(&mut *l, (*argv.add(i)).cast_const(), -1);
+            tv_list_append_string(&mut *l, (*argv.wrapping_add(i)).cast_const(), -1);
             tv_list_item_tv(&mut *tv_list_last(Some(&*l))).v_lock = VAR_FIXED;
         }
         set_vim_var_list(VV_ARGV, l);
@@ -6329,14 +6330,14 @@ fn tv_is_luafunc(tv: &mut TypVal) -> bool {
 /// Skips one character past the end of the name of a v:lua function.
 pub fn skip_luafunc_name(p: impl crate::strings::IntoCCharPtr) -> *const c_char {
     let mut p = p.into_c_char_ptr();
-    unsafe {
+    {
         while ascii_isalnum(crate::memory::cstr_first_char(p))
             || crate::memory::cstr_first_byte(p) == b'_'
             || crate::memory::cstr_first_byte(p) == b'-'
             || crate::memory::cstr_first_byte(p) == b'.'
             || crate::memory::cstr_first_byte(p) == b'\''
         {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         p
     }
@@ -6373,7 +6374,7 @@ pub fn char_from_string(
             let mut clen: Varnumber = 0;
             let mut nbyte: usize = 0;
             while nbyte < slen {
-                nbyte += utfc_ptr2len(str_.add(nbyte)) as usize;
+                nbyte += utfc_ptr2len(str_.wrapping_add(nbyte)) as usize;
                 clen += 1;
             }
             nchar = clen + index;
@@ -6384,35 +6385,35 @@ pub fn char_from_string(
 
         let mut nbyte: usize = 0;
         while nchar > 0 && nbyte < slen {
-            nbyte += utfc_ptr2len(str_.add(nbyte)) as usize;
+            nbyte += utfc_ptr2len(str_.wrapping_add(nbyte)) as usize;
             nchar -= 1;
         }
         if nbyte >= slen {
             return None;
         }
         Some(cstr_from_bytes(std::slice::from_raw_parts(
-            str_.add(nbyte).cast::<u8>(),
-            utfc_ptr2len(str_.add(nbyte)) as usize,
+            str_.wrapping_add(nbyte).cast::<u8>(),
+            utfc_ptr2len(str_.wrapping_add(nbyte)) as usize,
         )))
     }
 }
 
 fn char_idx2byte(str_: impl crate::strings::IntoCCharPtr, str_len: usize, idx: Varnumber) -> isize {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut nchar = idx;
         let mut nbyte: usize = 0;
 
         if nchar >= 0 {
             while nchar > 0 && nbyte < str_len {
-                nbyte += utfc_ptr2len(str_.add(nbyte)) as usize;
+                nbyte += utfc_ptr2len(str_.wrapping_add(nbyte)) as usize;
                 nchar -= 1;
             }
         } else {
             nbyte = str_len;
             while nchar < 0 && nbyte > 0 {
                 nbyte -= 1;
-                nbyte -= utf_head_off(str_, str_.add(nbyte)) as usize;
+                nbyte -= utf_head_off(str_, str_.wrapping_add(nbyte)) as usize;
                 nchar += 1;
             }
             if nchar < 0 {
@@ -6446,7 +6447,7 @@ pub fn string_slice(
         } else {
             end_byte = char_idx2byte(str_, slen, last);
             if !exclusive && end_byte >= 0 && end_byte < (slen as isize) {
-                end_byte += utfc_ptr2len(str_.add(end_byte as usize)) as isize;
+                end_byte += utfc_ptr2len(str_.wrapping_add(end_byte as usize)) as isize;
             }
         }
 
@@ -6454,7 +6455,7 @@ pub fn string_slice(
             return None;
         }
         Some(cstr_from_bytes(std::slice::from_raw_parts(
-            str_.add(start_byte as usize).cast::<u8>(),
+            str_.wrapping_add(start_byte as usize).cast::<u8>(),
             (end_byte - start_byte) as usize,
         )))
     }
@@ -6484,7 +6485,7 @@ pub fn handle_subscript(
                 tv_clear(rettv);
                 ret = false;
             } else {
-                *arg = (*arg).add(1);
+                *arg = (*arg).wrapping_add(1);
 
                 lua_funcname = *arg;
                 let len = check_luafunc_name(*arg, true);
@@ -6492,7 +6493,7 @@ pub fn handle_subscript(
                     tv_clear(rettv);
                     ret = false;
                 }
-                *arg = (*arg).add(len as usize);
+                *arg = (*arg).wrapping_add(len as usize);
             }
         }
 
@@ -6500,7 +6501,7 @@ pub fn handle_subscript(
             && (((**arg == b'[' as c_char
                 || (**arg == b'.' as c_char && rettv.v_type == VarType::VarDict)
                 || (**arg == b'(' as c_char && (!evaluate || tv_is_func(rettv))))
-                && !ascii_iswhite(*(*arg).sub(1)))
+                && !ascii_iswhite(*(*arg).wrapping_sub(1)))
                 || (**arg == b'-' as c_char && crate::memory::cstr_byte_at(*arg, 1) == b'>'))
         {
             if **arg == b'(' as c_char {
@@ -6847,15 +6848,15 @@ pub fn find_option_var_end(
     opt_flags: &mut i32,
 ) -> *const c_char {
     unsafe {
-        let mut p = (*arg).add(1);
+        let mut p = (*arg).wrapping_add(1);
         if crate::memory::cstr_first_byte(p) == b'g' && crate::memory::cstr_byte_at(p, 1) == b':' {
             *opt_flags = OPT_GLOBAL;
-            p = p.add(2);
+            p = p.wrapping_add(2);
         } else if crate::memory::cstr_first_byte(p) == b'l'
             && crate::memory::cstr_byte_at(p, 1) == b':'
         {
             *opt_flags = OPT_LOCAL;
-            p = p.add(2);
+            p = p.wrapping_add(2);
         } else {
             *opt_flags = 0;
         }
@@ -6868,12 +6869,12 @@ pub fn find_option_var_end(
 
 pub fn var_flavour(varname: impl crate::strings::IntoCCharPtr) -> VarFlavour {
     let varname = varname.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut p = varname;
 
         if ascii_isupper(crate::memory::cstr_first_char(p)) {
             loop {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
@@ -6938,7 +6939,7 @@ pub fn do_string_sub(
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
         if !regmatch.regprog.is_null() {
             let mut tail = str_;
-            let end = str_.add(len);
+            let end = str_.wrapping_add(len);
             let do_all = crate::memory::cstr_first_byte(flags) == b'g';
             let mut zero_width: *mut c_char = ptr::null_mut();
 
@@ -6953,7 +6954,7 @@ pub fn do_string_sub(
                         if let Some(buf) = &mut out {
                             buf.extend_from_slice(std::slice::from_raw_parts(tail, i));
                         }
-                        tail = tail.add(i);
+                        tail = tail.wrapping_add(i);
                         continue;
                     }
                     zero_width = regmatch.startp[0];
@@ -6976,7 +6977,7 @@ pub fn do_string_sub(
                     &mut regmatch,
                     sub,
                     expr,
-                    buf.as_mut_ptr().add(cur_len),
+                    buf.as_mut_ptr().wrapping_add(cur_len),
                     sublen,
                     REGSUB_COPY | REGSUB_MAGIC,
                 );
@@ -7300,7 +7301,7 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
 
 /// Gets the current user-input in prompt buffer `buf`, or `None` if buffer is not a prompt buffer.
 pub fn prompt_get_input(buf: &mut FileBuf) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         if !bt_prompt(Some(&*buf)) {
             return None;
         }
@@ -7309,7 +7310,7 @@ pub fn prompt_get_input(buf: &mut FileBuf) -> Option<std::ffi::CString> {
 
         let mut text = ml_get_buf(buf, lnum_start);
         if (crate::memory::cstr_len(text) as i32) >= buf.b_prompt_start.mark.col {
-            text = text.add(buf.b_prompt_start.mark.col as usize);
+            text = text.wrapping_add(buf.b_prompt_start.mark.col as usize);
         }
 
         let mut bytes = crate::memory::cstr_as_bytes(text).to_vec();

@@ -1104,18 +1104,18 @@ fn check_stl_str_adv_scope(
     unsafe {
         while **s != NUL {
             while **s != NUL && **s != b'%' as c_char {
-                *s = (*s).add(1);
+                *s = (*s).wrapping_add(1);
             }
             if **s == NUL {
                 break;
             }
-            *s = (*s).add(1);
+            *s = (*s).wrapping_add(1);
             if **s == b'%' as c_char || **s == STL_TRUNCMARK || **s == STL_SEPARATE {
-                *s = (*s).add(1);
+                *s = (*s).wrapping_add(1);
                 continue;
             }
             if **s == b')' as c_char {
-                *s = (*s).add(1);
+                *s = (*s).wrapping_add(1);
                 return if scope_type == StlScopeType::ItemGroup {
                     ptr::null()
                 } else {
@@ -1123,9 +1123,9 @@ fn check_stl_str_adv_scope(
                 };
             }
             if **s == STL_HIGHLIGHT {
-                *s = (*s).add(1);
+                *s = (*s).wrapping_add(1);
                 if **s == b'(' as c_char {
-                    *s = (*s).add(1);
+                    *s = (*s).wrapping_add(1);
                     let err = check_stl_str_adv_scope(s, errbuf, StlScopeType::KHighlightScope);
                     if err.is_null() {
                         continue;
@@ -1133,7 +1133,7 @@ fn check_stl_str_adv_scope(
                         return err;
                     }
                 } else if **s == b')' as c_char {
-                    *s = (*s).add(1);
+                    *s = (*s).wrapping_add(1);
                     return if scope_type == StlScopeType::KHighlightScope {
                         ptr::null()
                     } else {
@@ -1141,30 +1141,30 @@ fn check_stl_str_adv_scope(
                     };
                 }
                 while **s != NUL && **s != STL_HIGHLIGHT {
-                    *s = (*s).add(1);
+                    *s = (*s).wrapping_add(1);
                 }
                 if **s != NUL {
-                    *s = (*s).add(1);
+                    *s = (*s).wrapping_add(1);
                 }
                 continue;
             }
             if **s == b'-' as c_char {
-                *s = (*s).add(1);
+                *s = (*s).wrapping_add(1);
             }
             while ascii_isdigit(**s as i32) {
-                *s = (*s).add(1);
+                *s = (*s).wrapping_add(1);
             }
             if **s == STL_USER_HL {
                 continue;
             }
             if **s == b'.' as c_char {
-                *s = (*s).add(1);
+                *s = (*s).wrapping_add(1);
                 while **s != NUL && ascii_isdigit(**s as i32) {
-                    *s = (*s).add(1);
+                    *s = (*s).wrapping_add(1);
                 }
             }
             if **s == b'(' as c_char {
-                *s = (*s).add(1);
+                *s = (*s).wrapping_add(1);
                 let err = check_stl_str_adv_scope(s, errbuf, StlScopeType::ItemGroup);
                 if err.is_null() {
                     continue;
@@ -1176,19 +1176,20 @@ fn check_stl_str_adv_scope(
                 return illegal_char(errbuf, **s as u8 as i32);
             }
             if **s == b'{' as c_char {
-                *s = (*s).add(1);
+                *s = (*s).wrapping_add(1);
                 let reevaluate = **s == b'%' as c_char;
 
                 if reevaluate {
-                    *s = (*s).add(1);
+                    *s = (*s).wrapping_add(1);
                     if **s == b'}' as c_char {
                         return illegal_char(errbuf, b'}' as i32);
                     }
                 }
-                while (**s != b'}' as c_char || (reevaluate && *(*s).sub(1) != b'%' as c_char))
+                while (**s != b'}' as c_char
+                    || (reevaluate && *(*s).wrapping_sub(1) != b'%' as c_char))
                     && **s != NUL
                 {
-                    *s = (*s).add(1);
+                    *s = (*s).wrapping_add(1);
                 }
                 if **s != b'}' as c_char {
                     return E_UNCLOSED_EXPRESSION_SEQUENCE.as_ptr();
@@ -1416,7 +1417,7 @@ fn expand_set_opt_listflag(
                     crate::memory::cstr_first_byte(flag) as i32,
                 )
             {
-                flag = flag.add(1);
+                flag = flag.wrapping_add(1);
                 continue;
             }
 
@@ -1426,14 +1427,14 @@ fn expand_set_opt_listflag(
                     && crate::memory::cstr_byte_at(option_val, 1) == 0
                     && *flag == *option_val
                 {
-                    flag = flag.add(1);
+                    flag = flag.wrapping_add(1);
                     continue;
                 }
                 matches.push(crate::memory::cstr_from_bytes(&[
                     crate::memory::cstr_first_byte(flag),
                 ]));
             }
-            flag = flag.add(1);
+            flag = flag.wrapping_add(1);
         }
 
         if matches.is_empty() {
@@ -1445,11 +1446,11 @@ fn expand_set_opt_listflag(
 
 fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CStr) -> bool {
     unsafe {
-        let colon = (*args.oe_xp).xp_pattern.sub(1);
+        let colon = (*args.oe_xp).xp_pattern.wrapping_sub(1);
         let len = name_suffix.to_bytes().len();
 
         colon.offset_from(args.oe_set_arg) >= (len as isize)
-            && (crate::memory::cstr_prefix_bytes(colon.sub(len), len)
+            && (crate::memory::cstr_prefix_bytes(colon.wrapping_sub(len), len)
                 == crate::memory::cstr_prefix_bytes(name_suffix.as_ptr(), len))
     }
 }
@@ -1571,7 +1572,7 @@ pub fn did_set_backupcopy(args: &mut Optset) -> *const c_char {
 
 /// Validate the 'backupext' or 'patchmode' option.
 pub fn validate_backupext_or_patchmode(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let bex = if args.os_idx == K_OPT_BACKUPEXT {
             args.os_newval.data.string().data
         } else {
@@ -1583,12 +1584,12 @@ pub fn validate_backupext_or_patchmode(args: &mut Optset) -> *const c_char {
             opt_vars().p_pm
         };
         let bex_s = if crate::memory::cstr_first_byte(bex) == b'.' {
-            bex.add(1)
+            bex.wrapping_add(1)
         } else {
             bex
         };
         let pm_s = if crate::memory::cstr_first_byte(pm) == b'.' {
-            pm.add(1)
+            pm.wrapping_add(1)
         } else {
             pm
         };
@@ -1605,13 +1606,13 @@ pub fn did_set_breakat(_args: &mut Optset) -> *const c_char {
     unsafe {
         let flags_ptr = (&raw mut opt_vars().breakat_flags).cast::<c_char>();
         for i in 0..256 {
-            *flags_ptr.add(i) = 0;
+            *flags_ptr.wrapping_add(i) = 0;
         }
 
         if !opt_vars().p_breakat.is_null() {
             let p = opt_vars().p_breakat;
             for &p_byte in crate::memory::cstr_as_bytes(p) {
-                *flags_ptr.add(p_byte as usize) = 1;
+                *flags_ptr.wrapping_add(p_byte as usize) = 1;
             }
         }
 
@@ -1870,10 +1871,10 @@ pub fn validate_comments(args: &mut Optset) -> *const c_char {
                     errmsg = illegal_char(args.os_errbuf, crate::memory::cstr_first_byte(s) as i32);
                     break;
                 }
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
             let c = *s;
-            s = s.add(1);
+            s = s.wrapping_add(1);
             if c == NUL {
                 errmsg = c"E524: Missing colon".as_ptr();
             } else if crate::memory::cstr_first_byte(s) == b',' || crate::memory::cstr_is_empty(s) {
@@ -1886,9 +1887,9 @@ pub fn validate_comments(args: &mut Optset) -> *const c_char {
                 if crate::memory::cstr_first_byte(s) == b'\\'
                     && crate::memory::cstr_byte_at(s, 1) != 0
                 {
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                 }
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
             s = skip_to_option_part(s);
         }
@@ -1932,13 +1933,13 @@ pub fn validate_complete(args: &mut Optset) -> *const c_char {
                     && crate::memory::cstr_byte_at(p, 1) == b','
                 {
                     escape = true;
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 } else {
                     escape = false;
                     buffer[buf_idx] = *p;
                     buf_idx += 1;
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             buffer[buf_idx] = NUL;
 
@@ -1955,7 +1956,7 @@ pub fn validate_complete(args: &mut Optset) -> *const c_char {
                 let mut t = vim_strchr(buffer.as_ptr(), b'^' as i32);
                 if !t.is_null() {
                     *t = NUL;
-                    t = t.add(1);
+                    t = t.wrapping_add(1);
                     if crate::memory::cstr_is_empty(t) {
                         char_before = b'^';
                     } else {
@@ -1978,7 +1979,7 @@ pub fn validate_complete(args: &mut Optset) -> *const c_char {
             while crate::memory::cstr_first_byte(p) == b','
                 || crate::memory::cstr_first_byte(p) == b' '
             {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
 
@@ -2148,7 +2149,7 @@ pub fn expand_set_diffopt(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStr
         let xp = args.oe_xp;
 
         if ((*xp).xp_pattern as usize) > (args.oe_set_arg as usize)
-            && *(*xp).xp_pattern.sub(1) == b':' as c_char
+            && *(*xp).xp_pattern.wrapping_sub(1) == b':' as c_char
         {
             if completing_value_for_subopt(args, c"algorithm") {
                 return expand_set_opt_string(args, &OPT_DIP_ALGORITHM_VALUES, matches);
@@ -2427,7 +2428,7 @@ pub fn did_set_helpfile(_args: &mut Optset) -> *const c_char {
 
 /// Validate the 'helplang' option.
 pub fn validate_helplang(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let mut s = args.os_newval.data.string().data;
         while !crate::memory::cstr_is_empty(s) {
             if crate::memory::cstr_byte_at(s, 1) == 0
@@ -2440,7 +2441,7 @@ pub fn validate_helplang(args: &mut Optset) -> *const c_char {
             if crate::memory::cstr_byte_at(s, 2) == 0 {
                 break;
             }
-            s = s.add(3);
+            s = s.wrapping_add(3);
         }
         ptr::null()
     }
@@ -2569,20 +2570,20 @@ pub fn validate_lispoptions(args: &mut Optset) -> *const c_char {
 
 /// Validate the 'matchpairs' option.
 pub fn validate_matchpairs(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let mut p = args.os_newval.data.string().data;
         while !crate::memory::cstr_is_empty(p) {
             let mut x2: i32 = -1;
             let mut x3: i32 = -1;
 
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
             if !crate::memory::cstr_is_empty(p) {
                 x2 = crate::memory::cstr_first_byte(p) as i32;
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             if !crate::memory::cstr_is_empty(p) {
                 x3 = utf_ptr2char(p);
-                p = p.add(utfc_ptr2len(p) as usize);
+                p = p.wrapping_add(utfc_ptr2len(p) as usize);
             }
             if x2 != b':' as i32
                 || x3 == -1
@@ -2593,7 +2594,7 @@ pub fn validate_matchpairs(args: &mut Optset) -> *const c_char {
             if crate::memory::cstr_is_empty(p) {
                 break;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         ptr::null()
     }
@@ -2701,7 +2702,7 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
         let mut s = value;
         while !crate::memory::cstr_is_empty(s) {
             if crate::memory::cstr_first_byte(s) == b'\'' && marks.is_null() {
-                marks = s.add(1);
+                marks = s.wrapping_add(1);
             }
             if !crate::strings::vim_haschr(
                 c"!\"%'/:<@cfhnrs",
@@ -2713,7 +2714,7 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
                 break;
             } else if crate::memory::cstr_first_byte(s) == b'r' {
                 loop {
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                     if crate::memory::cstr_is_empty(s) || crate::memory::cstr_first_byte(s) == b','
                     {
                         break;
@@ -2721,7 +2722,7 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
                 }
             } else if crate::memory::cstr_first_byte(s) == b'%' {
                 loop {
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                     if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
                         break;
                     }
@@ -2730,21 +2731,21 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
                 || crate::memory::cstr_first_byte(s) == b'h'
                 || crate::memory::cstr_first_byte(s) == b'c'
             {
-                s = s.add(1);
+                s = s.wrapping_add(1);
             } else {
                 loop {
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                     if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
                         break;
                     }
                 }
 
-                if !ascii_isdigit(*s.sub(1) as i32) {
+                if !ascii_isdigit(*s.wrapping_sub(1) as i32) {
                     if errbuf.is_some() {
                         return opt_error(
                             errbuf,
                             c"E526: Missing number after <%s>",
-                            transchar_byte(i32::from(*s.sub(1) as u8)),
+                            transchar_byte(i32::from(*s.wrapping_sub(1) as u8)),
                         );
                     } else {
                         return c"".as_ptr();
@@ -2752,7 +2753,7 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
                 }
             }
             if crate::memory::cstr_first_byte(s) == b',' {
-                s = s.add(1);
+                s = s.wrapping_add(1);
             } else if !crate::memory::cstr_is_empty(s) {
                 if errbuf.is_some() {
                     return c"E527: Missing comma".as_ptr();
@@ -2774,20 +2775,20 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
 
 /// Validate 'shellpipe'/'shellredir' option.
 pub fn validate_shellpipe_redir(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let mut seen = false;
 
         let mut p = args.os_newval.data.string().data;
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) != b'%' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 continue;
             }
             if crate::memory::cstr_byte_at(p, 1) == 0 {
                 return E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S.as_ptr();
             }
             if crate::memory::cstr_byte_at(p, 1) == b'%' {
-                p = p.add(2);
+                p = p.wrapping_add(2);
                 continue;
             }
             if crate::memory::cstr_byte_at(p, 1) == b's' {
@@ -2795,7 +2796,7 @@ pub fn validate_shellpipe_redir(args: &mut Optset) -> *const c_char {
                     return E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S.as_ptr();
                 }
                 seen = true;
-                p = p.add(2);
+                p = p.wrapping_add(2);
                 continue;
             }
             return E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S.as_ptr();
@@ -2815,13 +2816,13 @@ pub fn validate_shortmess(args: &mut Optset) -> *const c_char {
 
 /// Validate the 'showbreak' option.
 pub fn validate_showbreak(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let mut s = args.os_newval.data.string().data;
         while !crate::memory::cstr_is_empty(s) {
             if ptr2cells(s) != 1 {
                 return E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER.as_ptr();
             }
-            s = s.add(utfc_ptr2len(s) as usize);
+            s = s.wrapping_add(utfc_ptr2len(s) as usize);
         }
         ptr::null()
     }
@@ -2870,7 +2871,7 @@ pub fn did_set_signcolumn(args: &mut Optset) -> *const c_char {
 
 /// Validate 'spellcapcheck' and prepare its regexp program.
 pub fn validate_spellcapcheck(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let mut prog: Option<Box<Regprog>> = None;
         let mut err = Error::new();
         let save_emsg_silent = g_st().emsg_silent;
@@ -2888,7 +2889,7 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> *const c_char {
         args.os_prep = OptSetPrep::SpellcapProg(prog);
         if err.err_type != ErrorType::ErrorTypeNone {
             let msg = if crate::memory::cstr_prefix_bytes(err.msg_ptr(), 4) == &b"Vim:"[..4] {
-                err.msg_ptr().add(4)
+                err.msg_ptr().wrapping_add(4)
             } else {
                 err.msg_ptr()
             };
@@ -3064,9 +3065,9 @@ fn did_set_statustabline_rulerformat(
         }
 
         if rulerformat && !ui_has(K_UIMESSAGES) && crate::memory::cstr_first_byte(s) == b'%' {
-            s = s.add(1);
+            s = s.wrapping_add(1);
             if crate::memory::cstr_first_byte(s) == b'-' {
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
             let wid = getdigits_int(&raw mut s, true, 0);
             if wid != 0 && crate::memory::cstr_first_byte(s) == b'(' {
@@ -3138,14 +3139,14 @@ pub fn validate_vartabstop(args: &mut Optset) -> *const c_char {
         let mut cp = value;
         while !crate::memory::cstr_is_empty(cp) {
             if ascii_isdigit(crate::memory::cstr_first_char(cp)) {
-                cp = cp.add(1);
+                cp = cp.wrapping_add(1);
                 continue;
             }
             if crate::memory::cstr_first_byte(cp) == b','
                 && (cp as usize) > (value as usize)
-                && *cp.sub(1) != b',' as c_char
+                && *cp.wrapping_sub(1) != b',' as c_char
             {
-                cp = cp.add(1);
+                cp = cp.wrapping_add(1);
                 continue;
             }
             return E_INVARG.as_ptr();
@@ -3304,7 +3305,7 @@ fn opt_values_err(
     values: &[&CStr],
 ) -> *const c_char {
     let item = item.into_c_char_ptr();
-    unsafe {
+    {
         let Some(errbuf) = errbuf else {
             return E_INVARG.as_ptr();
         };
@@ -3321,7 +3322,7 @@ fn opt_values_err(
                 break;
             }
             n += vim_snprintf!(
-                errbuf.data.add(n as usize),
+                errbuf.data.wrapping_add(n as usize),
                 errbuf.size - (n as usize),
                 c"%s%s",
                 if j == 0 {
@@ -3358,7 +3359,9 @@ fn opt_strings_flags(
                     && ((list && crate::memory::cstr_byte_at(val, len) == b',')
                         || crate::memory::cstr_byte_at(val, len) == 0)
                 {
-                    val = val.add(len + usize::from(crate::memory::cstr_byte_at(val, len) == b','));
+                    val = val.wrapping_add(
+                        len + usize::from(crate::memory::cstr_byte_at(val, len) == b','),
+                    );
                     debug_assert!(i < std::mem::size_of::<u32>() * 8);
                     new_flags |= 1u32 << i;
                     matched = true;
@@ -3538,7 +3541,7 @@ pub fn opt_fill(
             let Some(f) = get_field_fn(key_bytes) else {
                 continue;
             };
-            let field = out.cast::<u8>().add(f.ptr_off);
+            let field = out.cast::<u8>().wrapping_add(f.ptr_off);
             if f.key_type == ObjectType::ObjectTypeBoolean as i32 {
                 *field.cast::<Boolean>() = true;
             } else if f.key_type == ObjectType::ObjectTypeInteger as i32 {
@@ -3546,7 +3549,7 @@ pub fn opt_fill(
                 *field.cast::<Integer>() = Integer::from(getdigits_int(&raw mut end, false, 0));
             } else if f.key_type == ObjectType::ObjectTypeString as i32 {
                 ptr::copy_nonoverlapping(v.cast::<u8>(), field, vlen);
-                *field.add(vlen) = 0;
+                *field.wrapping_add(vlen) = 0;
             }
             (*out).is_set_ |= 1u64 << (f.opt_index as u32);
         }
@@ -3598,7 +3601,7 @@ fn get_encoded_char_adv(p: *mut *const c_char) -> Schar {
                 4
             };
             while bytes > 0 {
-                *p = (*p).add(2);
+                *p = (*p).wrapping_add(2);
                 let n = hexhex2nr(*p);
                 if n < 0 {
                     return 0;
@@ -3606,7 +3609,7 @@ fn get_encoded_char_adv(p: *mut *const c_char) -> Schar {
                 num = num * 256 + i64::from(n);
                 bytes -= 1;
             }
-            *p = (*p).add(2);
+            *p = (*p).wrapping_add(2);
             return if char2cells(num as i32) > 1 {
                 0
             } else {
@@ -3921,7 +3924,7 @@ pub fn set_chars_option(
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
     let mut value = value.into_c_char_ptr();
-    unsafe {
+    {
         let mut last_multispace: *const c_char = ptr::null();
         let mut last_lmultispace: *const c_char = ptr::null();
         let mut multispace_len: usize = 0;
@@ -3982,7 +3985,7 @@ pub fn set_chars_option(
                         continue;
                     }
 
-                    let mut s = p.add(name_len + 1);
+                    let mut s = p.wrapping_add(name_len + 1);
 
                     if tab[i].target == CharsTarget::LcsMultispace {
                         if round == 0 {
@@ -4145,7 +4148,7 @@ pub fn set_chars_option(
                 }
 
                 if crate::memory::cstr_first_byte(p) == b',' {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
             }
 
@@ -4250,7 +4253,7 @@ pub fn expand_set_popupoption(args: &mut Optexpand, matches: &mut Vec<std::ffi::
         let xp = args.oe_xp;
 
         if ((*xp).xp_pattern as usize) > (args.oe_set_arg as usize)
-            && *(*xp).xp_pattern.sub(1) == b':' as c_char
+            && *(*xp).xp_pattern.wrapping_sub(1) == b':' as c_char
         {
             if completing_value_for_subopt(args, c"border") {
                 return expand_set_opt_string(args, &OPT_PVP_BORDER_VALUES, matches);

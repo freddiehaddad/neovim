@@ -260,8 +260,8 @@ pub fn find_ucmd(
                 while k < len && !crate::memory::cstr_is_empty(np) && {
                     let c1 = *cp;
                     let c2 = *np;
-                    cp = cp.add(1);
-                    np = np.add(1);
+                    cp = cp.wrapping_add(1);
+                    np = np.wrapping_add(1);
                     c1 == c2
                 } {
                     k += 1;
@@ -334,7 +334,7 @@ pub fn find_ucmd(
         }
 
         if found || possible {
-            return p.offset((matchlen - len) as isize);
+            return p.wrapping_offset((matchlen - len) as isize);
         }
         p
     }
@@ -351,13 +351,13 @@ pub fn set_context_in_user_cmd(
         let mut p: *const c_char;
 
         while crate::memory::cstr_first_byte(arg) == b'-' {
-            arg = arg.add(1);
+            arg = arg.wrapping_add(1);
             p = skiptowhite(arg);
             if crate::memory::cstr_is_empty(p) {
                 p = crate::memory::cstr_as_bytes(arg)
                     .iter()
                     .position(|&b| b == b'=')
-                    .map_or(ptr::null(), |i| arg.add(i));
+                    .map_or(ptr::null(), |i| arg.wrapping_add(i));
                 if p.is_null() {
                     xp.xp_context = EXPAND_USER_CMD_FLAGS;
                     xp.xp_pattern = arg.cast_mut();
@@ -369,19 +369,19 @@ pub fn set_context_in_user_cmd(
                     .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"complete", attr_len))
                 {
                     xp.xp_context = EXPAND_USER_COMPLETE;
-                    xp.xp_pattern = p.add(1).cast_mut();
+                    xp.xp_pattern = p.wrapping_add(1).cast_mut();
                     return ptr::null();
                 } else if crate::memory::cstr_prefix_bytes(arg, attr_len)
                     .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nargs", attr_len))
                 {
                     xp.xp_context = EXPAND_USER_NARGS;
-                    xp.xp_pattern = p.add(1).cast_mut();
+                    xp.xp_pattern = p.wrapping_add(1).cast_mut();
                     return ptr::null();
                 } else if crate::memory::cstr_prefix_bytes(arg, attr_len)
                     .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"addr", attr_len))
                 {
                     xp.xp_context = EXPAND_USER_ADDR_TYPE;
-                    xp.xp_pattern = p.add(1).cast_mut();
+                    xp.xp_pattern = p.wrapping_add(1).cast_mut();
                     return ptr::null();
                 }
                 return ptr::null();
@@ -411,7 +411,7 @@ pub fn set_context_in_user_cmdarg(
 ) -> *const c_char {
     let cmd = cmd.into_c_char_ptr();
     let mut arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         if context == EXPAND_NOTHING {
             return ptr::null();
         }
@@ -441,13 +441,13 @@ pub fn set_context_in_user_cmdarg(
             let mut p = arg;
             while !crate::memory::cstr_is_empty(p) {
                 if crate::memory::cstr_first_byte(p) == b' ' {
-                    arg = p.add(1);
+                    arg = p.wrapping_add(1);
                 } else if crate::memory::cstr_first_byte(p) == b'\\'
                     && crate::memory::cstr_byte_at(p, 1) != 0
                 {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
-                p = p.add(utfc_ptr2len(p) as usize);
+                p = p.wrapping_add(utfc_ptr2len(p) as usize);
             }
         }
         xp.xp_pattern = arg.cast_mut();
@@ -673,7 +673,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                     len -= 1;
                 }
                 if len != 0 {
-                    msg_puts(c"    ".as_ptr().add(4 - len));
+                    msg_puts(c"    ".as_ptr().wrapping_add(4 - len));
                 }
 
                 msg_outtrans(cmd.uc_name.as_ptr(), HLF_D, false);
@@ -681,7 +681,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
 
                 if len < 21 {
                     const SPACES: &CStr = c"                 ";
-                    msg_puts(SPACES.as_ptr().add(len - 4));
+                    msg_puts(SPACES.as_ptr().wrapping_add(len - 4));
                     len = 21;
                 }
                 msg_putchar(b' ' as i32);
@@ -733,7 +733,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
                             bytes.as_ptr().cast::<c_char>(),
-                            (g_st().iobuff.as_mut_ptr()).add(len),
+                            (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
                             copy_len,
                         );
                         len += copy_len;
@@ -746,7 +746,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
                             bytes.as_ptr().cast::<c_char>(),
-                            (g_st().iobuff.as_mut_ptr()).add(len),
+                            (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
                             copy_len,
                         );
                         len += copy_len;
@@ -774,7 +774,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                             let copy_len = bytes.len().min(IOSIZE - 1 - len);
                             ptr::copy_nonoverlapping(
                                 bytes.as_ptr().cast::<c_char>(),
-                                (g_st().iobuff.as_mut_ptr()).add(len),
+                                (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
                                 copy_len,
                             );
                             len += copy_len;
@@ -797,7 +797,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                     let copy_len = bytes.len().min(IOSIZE - 1 - len);
                     ptr::copy_nonoverlapping(
                         bytes.as_ptr().cast::<c_char>(),
-                        (g_st().iobuff.as_mut_ptr()).add(len),
+                        (g_st().iobuff.as_mut_ptr()).wrapping_add(len),
                         copy_len,
                     );
                     len += copy_len;
@@ -879,7 +879,7 @@ pub fn parse_addr_type_arg(value: *mut c_char, vallen: i32, addr_type_arg: &mut 
         {
             i += 1;
         }
-        *err.add(i) = NUL;
+        *err.wrapping_add(i) = NUL;
         semsg!(gettext(c"E180: Invalid address type value: %s"), err,);
         false
     }
@@ -894,14 +894,14 @@ pub fn parse_compl_arg(
     compl_arg: &mut Option<CString>,
 ) -> bool {
     let value = value.into_c_char_ptr();
-    unsafe {
+    {
         let mut arg: *const c_char = ptr::null();
         let mut arglen: usize = 0;
         let mut valend: i32 = vallen;
 
         for i in 0..vallen {
             if crate::memory::cstr_byte_at(value, i as usize) == b',' {
-                arg = value.add((i + 1) as usize);
+                arg = value.wrapping_add((i + 1) as usize);
                 arglen = (vallen - i - 1) as usize;
                 valend = i;
                 break;
@@ -999,7 +999,7 @@ fn uc_scan_attr(
 
             for i in 0..len {
                 if crate::memory::cstr_byte_at(attr, i) == b'=' {
-                    val = attr.add(i + 1);
+                    val = attr.wrapping_add(i + 1);
                     vallen = len - i - 1;
                     attrlen = i;
                     break;
@@ -1042,7 +1042,7 @@ fn uc_scan_attr(
                     *def = getdigits_int(&raw mut p, true, 0);
                     *argt |= EX_ZEROR;
 
-                    if p != val.add(vallen) || vallen == 0 {
+                    if p != val.wrapping_add(vallen) || vallen == 0 {
                         emsg(gettext(c"E178: Invalid default value for count"));
                         return false;
                     }
@@ -1067,7 +1067,7 @@ fn uc_scan_attr(
 
                     *def = getdigits_int(&raw mut p, true, 0);
 
-                    if p != val.add(vallen) {
+                    if p != val.wrapping_add(vallen) {
                         emsg(gettext(c"E178: Invalid default value for count"));
                         return false;
                     }
@@ -1102,10 +1102,10 @@ fn uc_scan_attr(
                     *argt |= EX_ZEROR;
                 }
             } else {
-                let ch = *attr.add(len);
-                *attr.add(len) = NUL;
+                let ch = *attr.wrapping_add(len);
+                *attr.wrapping_add(len) = NUL;
                 semsg!(gettext(c"E181: Invalid attribute: %s"), attr);
-                *attr.add(len) = ch;
+                *attr.wrapping_add(len) = ch;
                 return false;
             }
         }
@@ -1116,10 +1116,10 @@ fn uc_scan_attr(
 
 /// Check for a valid user command name (`uc_validate_name`).
 pub fn uc_validate_name(mut name: *mut c_char) -> *mut c_char {
-    unsafe {
+    {
         if ascii_isalpha(crate::memory::cstr_first_char(name)) {
             while ascii_isalnum(crate::memory::cstr_first_char(name)) {
-                name = name.add(1);
+                name = name.wrapping_add(1);
             }
         }
         if ends_excmd(i32::from(crate::memory::cstr_first_byte(name))) == 0
@@ -1262,7 +1262,7 @@ pub fn ex_command(eap: &mut Exarg) {
         let mut p = eap.arg;
 
         while crate::memory::cstr_first_byte(p) == b'-' {
-            p = p.add(1);
+            p = p.wrapping_add(1);
             let end = skiptowhite(p);
             if !uc_scan_attr(
                 p,
@@ -1336,7 +1336,7 @@ pub fn ex_comclear(_eap: &mut Exarg) {
 }
 
 pub fn ex_delcommand(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut i: i32;
         let mut res: i32 = -1;
         let mut arg: *const c_char = eap.arg;
@@ -1346,7 +1346,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
             && ascii_iswhite(crate::memory::cstr_char_at(arg, 7))
         {
             buffer_only = true;
-            arg = skipwhite(arg.add(7));
+            arg = skipwhite(arg.wrapping_add(7));
         }
 
         let mut is_global = false;
@@ -1413,10 +1413,10 @@ pub fn uc_split_args_iter(
                     || ascii_iswhite(crate::memory::cstr_char_at(arg, pos + 1)))
             {
                 pos += 1;
-                *buf.add(l) = *arg.add(pos);
+                *buf.wrapping_add(l) = *arg.wrapping_add(pos);
                 l += 1;
             } else {
-                *buf.add(l) = *arg.add(pos);
+                *buf.wrapping_add(l) = *arg.wrapping_add(pos);
                 l += 1;
             }
             if ascii_iswhite(crate::memory::cstr_char_at(arg, pos + 1)) {
@@ -1428,7 +1428,7 @@ pub fn uc_split_args_iter(
         }
 
         if pos < arglen && !ascii_iswhite(crate::memory::cstr_char_at(arg, pos)) {
-            *buf.add(l) = *arg.add(pos);
+            *buf.wrapping_add(l) = *arg.wrapping_add(pos);
             l += 1;
         }
 
@@ -1470,17 +1470,17 @@ fn uc_split_args(
                     && crate::memory::cstr_byte_at(p, 1) == b'\\'
                 {
                     len += 2;
-                    p = p.add(2);
+                    p = p.wrapping_add(2);
                 } else if crate::memory::cstr_first_byte(p) == b'\\'
                     && ascii_iswhite(crate::memory::cstr_char_at(p, 1))
                 {
                     len += 1;
-                    p = p.add(2);
+                    p = p.wrapping_add(2);
                 } else if crate::memory::cstr_first_byte(p) == b'\\'
                     || crate::memory::cstr_first_byte(p) == b'"'
                 {
                     len += 2;
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 } else if ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     p = skipwhite(p);
                     if crate::memory::cstr_is_empty(p) {
@@ -1490,24 +1490,24 @@ fn uc_split_args(
                 } else {
                     let charlen = utfc_ptr2len(p);
                     len += charlen;
-                    p = p.add(charlen as usize);
+                    p = p.wrapping_add(charlen as usize);
                 }
             }
         } else {
             for (i, (&arg_i, &arglen_i)) in args.iter().zip(arglens).enumerate() {
                 let mut p: *const c_char = arg_i;
-                let arg_end = p.add(arglen_i);
+                let arg_end = p.wrapping_add(arglen_i);
 
                 while p < arg_end {
                     if crate::memory::cstr_first_byte(p) == b'\\'
                         || crate::memory::cstr_first_byte(p) == b'"'
                     {
                         len += 2;
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     } else {
                         let charlen = utfc_ptr2len(p);
                         len += charlen;
-                        p = p.add(charlen as usize);
+                        p = p.wrapping_add(charlen as usize);
                     }
                 }
 
@@ -1520,7 +1520,7 @@ fn uc_split_args(
         let mut buf_vec: Vec<c_char> = vec![0; (len as usize) + 1];
         let mut q = buf_vec.as_mut_ptr();
         *q = b'"' as c_char;
-        q = q.add(1);
+        q = q.wrapping_add(1);
 
         if args.is_empty() {
             let mut p = arg;
@@ -1529,32 +1529,32 @@ fn uc_split_args(
                     && crate::memory::cstr_byte_at(p, 1) == b'\\'
                 {
                     *q = b'\\' as c_char;
-                    *q.add(1) = b'\\' as c_char;
-                    q = q.add(2);
-                    p = p.add(2);
+                    *q.wrapping_add(1) = b'\\' as c_char;
+                    q = q.wrapping_add(2);
+                    p = p.wrapping_add(2);
                 } else if crate::memory::cstr_first_byte(p) == b'\\'
                     && ascii_iswhite(crate::memory::cstr_char_at(p, 1))
                 {
-                    *q = *p.add(1);
-                    q = q.add(1);
-                    p = p.add(2);
+                    *q = *p.wrapping_add(1);
+                    q = q.wrapping_add(1);
+                    p = p.wrapping_add(2);
                 } else if crate::memory::cstr_first_byte(p) == b'\\'
                     || crate::memory::cstr_first_byte(p) == b'"'
                 {
                     *q = b'\\' as c_char;
-                    *q.add(1) = *p;
-                    q = q.add(2);
-                    p = p.add(1);
+                    *q.wrapping_add(1) = *p;
+                    q = q.wrapping_add(2);
+                    p = p.wrapping_add(1);
                 } else if ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     p = skipwhite(p);
                     if crate::memory::cstr_is_empty(p) {
                         break;
                     }
                     *q = b'"' as c_char;
-                    *q.add(1) = b',' as c_char;
-                    *q.add(2) = b' ' as c_char;
-                    *q.add(3) = b'"' as c_char;
-                    q = q.add(4);
+                    *q.wrapping_add(1) = b',' as c_char;
+                    *q.wrapping_add(2) = b' ' as c_char;
+                    *q.wrapping_add(3) = b'"' as c_char;
+                    q = q.wrapping_add(4);
                 } else {
                     mb_copy_char(&raw mut p, &raw mut q);
                 }
@@ -1562,32 +1562,32 @@ fn uc_split_args(
         } else {
             for (i, (&arg_i, &arglen_i)) in args.iter().zip(arglens).enumerate() {
                 let mut p: *const c_char = arg_i;
-                let arg_end = p.add(arglen_i);
+                let arg_end = p.wrapping_add(arglen_i);
 
                 while p < arg_end {
                     if crate::memory::cstr_first_byte(p) == b'\\'
                         || crate::memory::cstr_first_byte(p) == b'"'
                     {
                         *q = b'\\' as c_char;
-                        *q.add(1) = *p;
-                        q = q.add(2);
-                        p = p.add(1);
+                        *q.wrapping_add(1) = *p;
+                        q = q.wrapping_add(2);
+                        p = p.wrapping_add(1);
                     } else {
                         mb_copy_char(&raw mut p, &raw mut q);
                     }
                 }
                 if i != args.len() - 1 {
                     *q = b'"' as c_char;
-                    *q.add(1) = b',' as c_char;
-                    *q.add(2) = b' ' as c_char;
-                    *q.add(3) = b'"' as c_char;
-                    q = q.add(4);
+                    *q.wrapping_add(1) = b',' as c_char;
+                    *q.wrapping_add(2) = b' ' as c_char;
+                    *q.wrapping_add(3) = b'"' as c_char;
+                    q = q.wrapping_add(4);
                 }
             }
         }
 
         *q = b'"' as c_char;
-        *q.add(1) = NUL;
+        *q.wrapping_add(1) = NUL;
 
         *lenp = len as usize;
         crate::memory::cstr_to_cstring(buf_vec.as_ptr())
@@ -1678,7 +1678,7 @@ pub fn uc_mods(mut buf: *mut c_char, cmod: &Cmdmod, quote: bool) -> usize {
         if !buf.is_null() {
             if quote {
                 *buf = b'"' as c_char;
-                buf = buf.add(1);
+                buf = buf.wrapping_add(1);
             }
             *buf = NUL;
         }
@@ -1711,7 +1711,7 @@ pub fn uc_mods(mut buf: *mut c_char, cmod: &Cmdmod, quote: bool) -> usize {
         result += add_win_cmd_modifiers(buf, cmod, &mut multi_mods);
 
         if quote && !buf.is_null() {
-            buf = buf.add(result - 2);
+            buf = buf.wrapping_add(result - 2);
             *buf = b'"' as c_char;
         }
         result
@@ -1745,7 +1745,7 @@ fn uc_check_code(
     let code = code.into_c_char_ptr();
     unsafe {
         let mut result: usize = 0;
-        let mut p = code.add(1);
+        let mut p = code.wrapping_add(1);
         let mut l = len - 2;
         let mut quote: i32 = 0;
         let mut type_ = CodeType::None;
@@ -1760,7 +1760,7 @@ fn uc_check_code(
             } else {
                 2
             };
-            p = p.add(2);
+            p = p.wrapping_add(2);
             l -= 2;
         }
 
@@ -1841,15 +1841,15 @@ fn uc_check_code(
 
                             if !buf.is_null() {
                                 *buf = b'"' as c_char;
-                                buf = buf.add(1);
+                                buf = buf.wrapping_add(1);
                                 let scan = eap.arg;
                                 for &scan_byte in crate::memory::cstr_as_bytes(scan) {
                                     if scan_byte == b'\\' || scan_byte == b'"' {
                                         *buf = b'\\' as c_char;
-                                        buf = buf.add(1);
+                                        buf = buf.wrapping_add(1);
                                     }
                                     *buf = scan_byte as c_char;
-                                    buf = buf.add(1);
+                                    buf = buf.wrapping_add(1);
                                 }
                                 *buf = b'"' as c_char;
                             }
@@ -1881,11 +1881,11 @@ fn uc_check_code(
                 if !buf.is_null() {
                     if quote != 0 {
                         *buf = b'"' as c_char;
-                        buf = buf.add(1);
+                        buf = buf.wrapping_add(1);
                     }
                     if eap.forceit != 0 {
                         *buf = b'!' as c_char;
-                        buf = buf.add(1);
+                        buf = buf.wrapping_add(1);
                     }
                     if quote != 0 {
                         *buf = b'"' as c_char;
@@ -1914,10 +1914,10 @@ fn uc_check_code(
                 if !buf.is_null() {
                     if quote != 0 {
                         *buf = b'"' as c_char;
-                        buf = buf.add(1);
+                        buf = buf.wrapping_add(1);
                     }
                     crate::memory::cstr_cpy(buf, num_str.as_ptr().cast::<c_char>());
-                    buf = buf.add(num_len);
+                    buf = buf.wrapping_add(num_len);
                     if quote != 0 {
                         *buf = b'"' as c_char;
                     }
@@ -1934,11 +1934,11 @@ fn uc_check_code(
                 if !buf.is_null() {
                     if quote != 0 {
                         *buf = b'\'' as c_char;
-                        buf = buf.add(1);
+                        buf = buf.wrapping_add(1);
                     }
                     if eap.regname != 0 {
                         *buf = eap.regname as c_char;
-                        buf = buf.add(1);
+                        buf = buf.wrapping_add(1);
                     }
                     if quote != 0 {
                         *buf = b'\'' as c_char;
@@ -1996,28 +1996,28 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
             loop {
                 let start = vim_strchr(p, b'<' as i32);
                 if !start.is_null() {
-                    end = vim_strchr(start.add(1), b'>' as i32);
+                    end = vim_strchr(start.wrapping_add(1), b'>' as i32);
                 }
                 if !buf.is_null() {
                     let mut ksp = p;
                     while !crate::memory::cstr_is_empty(ksp)
                         && (crate::memory::cstr_first_byte(ksp)) != K_SPECIAL
                     {
-                        ksp = ksp.add(1);
+                        ksp = ksp.wrapping_add(1);
                     }
                     if (crate::memory::cstr_first_byte(ksp)) == K_SPECIAL
                         && (start.is_null() || ksp < start || end.is_null())
                         && (crate::memory::cstr_byte_at(ksp, 1)) == KS_SPECIAL
-                        && *ksp.add(2) == KE_FILLER
+                        && *ksp.wrapping_add(2) == KE_FILLER
                     {
                         let len = ksp.offset_from(p) as usize;
                         if len > 0 {
                             ptr::copy(p, q, len);
-                            q = q.add(len);
+                            q = q.wrapping_add(len);
                         }
                         *q = K_SPECIAL as c_char;
-                        q = q.add(1);
-                        p = ksp.add(3);
+                        q = q.wrapping_add(1);
+                        p = ksp.wrapping_add(3);
                         continue;
                     }
                 }
@@ -2026,14 +2026,14 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
                     break;
                 }
 
-                end = end.add(1);
+                end = end.wrapping_add(1);
 
                 let mut len = start.offset_from(p) as usize;
                 if buf.is_null() {
                     totlen += len;
                 } else {
                     ptr::copy(p, q, len);
-                    q = q.add(len);
+                    q = q.wrapping_add(len);
                 }
 
                 len = uc_check_code(
@@ -2046,7 +2046,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
                     &mut split_len,
                 );
                 if len == usize::MAX {
-                    p = start.add(1);
+                    p = start.wrapping_add(1);
                     len = 1;
                 } else {
                     p = end;
@@ -2054,7 +2054,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
                 if buf.is_null() {
                     totlen += len;
                 } else {
-                    q = q.add(len);
+                    q = q.wrapping_add(len);
                 }
             }
             if !buf.is_null() {

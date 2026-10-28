@@ -259,7 +259,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
             if curwin_mut().w_cursor.col != 0 {
                 curwin_mut().w_cursor.col -= 1;
                 curwin_mut().w_cursor.col -=
-                    utf_head_off(line, line.add(curwin_mut().w_cursor.col as usize));
+                    utf_head_off(line, line.wrapping_add(curwin_mut().w_cursor.col as usize));
                 *pincl = true;
             }
         } else {
@@ -276,11 +276,11 @@ fn inmacro(opt: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoC
     unsafe {
         let mut macro_p = opt;
         let s0 = *s;
-        let s1 = if s0 == NUL { NUL } else { *s.add(1) };
+        let s1 = if s0 == NUL { NUL } else { *s.wrapping_add(1) };
 
         while !crate::memory::cstr_is_empty(macro_p) {
             let m0 = *macro_p;
-            let m1 = *macro_p.add(1);
+            let m1 = *macro_p.wrapping_add(1);
             if (m0 == s0 || (m0 == b' ' as c_char && (s0 == NUL || s0 == b' ' as c_char)))
                 && (m1 == s1
                     || ((m1 == NUL || m1 == b' ' as c_char)
@@ -288,11 +288,11 @@ fn inmacro(opt: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoC
             {
                 break;
             }
-            macro_p = macro_p.add(1);
+            macro_p = macro_p.wrapping_add(1);
             if crate::memory::cstr_is_empty(macro_p) {
                 break;
             }
-            macro_p = macro_p.add(1);
+            macro_p = macro_p.wrapping_add(1);
         }
         !crate::memory::cstr_is_empty(macro_p)
     }
@@ -300,7 +300,7 @@ fn inmacro(opt: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoC
 
 /// Return true if line `lnum` is the start of a section or paragraph (`startPS`).
 pub fn start_ps(lnum: Linenr, para: i32, both: bool) -> bool {
-    unsafe {
+    {
         let s = ml_get(lnum);
         if i32::from(crate::memory::cstr_first_byte(s)) == para
             || crate::memory::cstr_first_byte(s) == b'\x0c'
@@ -309,8 +309,8 @@ pub fn start_ps(lnum: Linenr, para: i32, both: bool) -> bool {
             return true;
         }
         if crate::memory::cstr_first_byte(s) == b'.'
-            && (inmacro(opt_vars().p_sections, s.add(1))
-                || (para == 0 && inmacro(opt_vars().p_para, s.add(1))))
+            && (inmacro(opt_vars().p_sections, s.wrapping_add(1))
+                || (para == 0 && inmacro(opt_vars().p_para, s.wrapping_add(1))))
         {
             return true;
         }
@@ -754,7 +754,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
 
         let line = ml_get(curwin_mut().w_cursor.lnum);
         let start = skipwhite(line);
-        let mut end = line.add(crate::memory::cstr_len(line));
+        let mut end = line.wrapping_add(crate::memory::cstr_len(line));
         while end > start {
             let prev = mb_prevptr(line, end);
             if !ascii_iswhite(i32::from(crate::memory::cstr_first_byte(prev))) {
@@ -1097,15 +1097,15 @@ pub fn current_block(
 fn in_html_tag(end_tag: bool) -> bool {
     unsafe {
         let line = get_cursor_line_ptr();
-        let mut p = line.add(curwin_mut().w_cursor.col as usize);
+        let mut p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
         let mut lc: i32 = i32::from(NUL);
 
         while p > line {
             if crate::memory::cstr_first_byte(p) == b'<' {
                 break;
             }
-            let off = utf_head_off(line, p.sub(1)) + 1;
-            p = p.sub(off as usize);
+            let off = utf_head_off(line, p.wrapping_sub(1)) + 1;
+            p = p.wrapping_sub(off as usize);
             if crate::memory::cstr_first_byte(p) == b'>' {
                 break;
             }
@@ -1120,7 +1120,7 @@ fn in_html_tag(end_tag: bool) -> bool {
             coladd: 0,
         };
 
-        p = p.add(utfc_ptr2len(p) as usize);
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
         if end_tag {
             return crate::memory::cstr_first_byte(p) == b'/';
         }
@@ -1223,7 +1223,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
                 && crate::memory::cstr_first_byte(cp) != b'>'
                 && !ascii_iswhite(i32::from(crate::memory::cstr_first_byte(cp)))
             {
-                cp = cp.add(utfc_ptr2len(cp) as usize);
+                cp = cp.wrapping_add(utfc_ptr2len(cp) as usize);
             }
             let len = cp.offset_from(p) as usize;
             if len == 0 {
@@ -1517,7 +1517,7 @@ fn find_next_quote(
 ) -> i32 {
     let line = line.into_c_char_ptr();
     let escape = escape.into_c_char_ptr();
-    unsafe {
+    {
         loop {
             let c = i32::from(crate::memory::cstr_byte_at(line, col as usize));
             if c == i32::from(NUL) {
@@ -1530,7 +1530,7 @@ fn find_next_quote(
             } else if c == quotechar {
                 break;
             }
-            col += utfc_ptr2len(line.add(col as usize));
+            col += utfc_ptr2len(line.wrapping_add(col as usize));
         }
         col
     }
@@ -1548,13 +1548,13 @@ fn find_prev_quote(
     unsafe {
         while col_start > 0 {
             col_start -= 1;
-            col_start -= utf_head_off(line, line.add(col_start as usize));
+            col_start -= utf_head_off(line, line.wrapping_add(col_start as usize));
             let mut n = 0;
             if !escape.is_null() {
                 while col_start - n > 0
                     && crate::strings::vim_haschr(
                         escape,
-                        i32::from(*line.add((col_start - n - 1) as usize) as u8),
+                        i32::from(*line.wrapping_add((col_start - n - 1) as usize) as u8),
                     )
                 {
                     n += 1;
@@ -1633,20 +1633,22 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
             let mut i: i32;
             if vis_bef_curs {
                 inside_quotes = g_st().visual_global.start.col > 0
-                    && i32::from(*line.add((g_st().visual_global.start.col - 1) as usize) as u8)
-                        == quotechar
-                    && *line.add(curwin_mut().w_cursor.col as usize) != NUL
-                    && i32::from(*line.add((curwin_mut().w_cursor.col + 1) as usize) as u8)
+                    && i32::from(
+                        *line.wrapping_add((g_st().visual_global.start.col - 1) as usize) as u8,
+                    ) == quotechar
+                    && *line.wrapping_add(curwin_mut().w_cursor.col as usize) != NUL
+                    && i32::from(*line.wrapping_add((curwin_mut().w_cursor.col + 1) as usize) as u8)
                         == quotechar;
                 i = g_st().visual_global.start.col;
                 col_end = curwin_mut().w_cursor.col;
             } else {
                 inside_quotes = curwin_mut().w_cursor.col > 0
-                    && i32::from(*line.add((curwin_mut().w_cursor.col - 1) as usize) as u8)
+                    && i32::from(*line.wrapping_add((curwin_mut().w_cursor.col - 1) as usize) as u8)
                         == quotechar
-                    && *line.add(g_st().visual_global.start.col as usize) != NUL
-                    && i32::from(*line.add((g_st().visual_global.start.col + 1) as usize) as u8)
-                        == quotechar;
+                    && *line.wrapping_add(g_st().visual_global.start.col as usize) != NUL
+                    && i32::from(
+                        *line.wrapping_add((g_st().visual_global.start.col + 1) as usize) as u8,
+                    ) == quotechar;
                 i = curwin_mut().w_cursor.col;
                 col_end = g_st().visual_global.start.col;
             }
@@ -1731,13 +1733,13 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
         }
 
         if include {
-            if ascii_iswhite(i32::from(*line.add((col_end + 1) as usize) as u8)) {
-                while ascii_iswhite(i32::from(*line.add((col_end + 1) as usize) as u8)) {
+            if ascii_iswhite(i32::from(*line.wrapping_add((col_end + 1) as usize) as u8)) {
+                while ascii_iswhite(i32::from(*line.wrapping_add((col_end + 1) as usize) as u8)) {
                     col_end += 1;
                 }
             } else {
                 while col_start > 0
-                    && ascii_iswhite(i32::from(*line.add((col_start - 1) as usize) as u8))
+                    && ascii_iswhite(i32::from(*line.wrapping_add((col_start - 1) as usize) as u8))
                 {
                     col_start -= 1;
                 }
@@ -1753,11 +1755,14 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
                 || (vis_bef_curs
                     && !selected_quote
                     && (inside_quotes
-                        || (i32::from(*line.add(g_st().visual_global.start.col as usize) as u8)
-                            != quotechar
+                        || (i32::from(
+                            *line.wrapping_add(g_st().visual_global.start.col as usize) as u8,
+                        ) != quotechar
                             && (g_st().visual_global.start.col == 0
                                 || i32::from(
-                                    *line.add((g_st().visual_global.start.col - 1) as usize) as u8,
+                                    *line
+                                        .wrapping_add((g_st().visual_global.start.col - 1) as usize)
+                                        as u8,
                                 ) != quotechar))))
             {
                 g_st().visual_global.start = curwin_mut().w_cursor;
@@ -1780,11 +1785,13 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
             } else {
                 if inside_quotes
                     || (!selected_quote
-                        && i32::from(*line.add(g_st().visual_global.start.col as usize) as u8)
-                            != quotechar
-                        && (*line.add(g_st().visual_global.start.col as usize) == NUL
+                        && i32::from(
+                            *line.wrapping_add(g_st().visual_global.start.col as usize) as u8
+                        ) != quotechar
+                        && (*line.wrapping_add(g_st().visual_global.start.col as usize) == NUL
                             || i32::from(
-                                *line.add((g_st().visual_global.start.col + 1) as usize) as u8
+                                *line.wrapping_add((g_st().visual_global.start.col + 1) as usize)
+                                    as u8,
                             ) != quotechar))
                 {
                     dec_cursor();

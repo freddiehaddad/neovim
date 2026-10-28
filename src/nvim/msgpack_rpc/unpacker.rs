@@ -126,7 +126,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             match parent.tok.r#type {
                 MpackTokenType::MpackTokenArray => {
                     let obj = parent.data[0].object();
-                    result = obj.data.array().items.add(parent.pos);
+                    result = obj.data.array().items.wrapping_add(parent.pos);
                 }
                 MpackTokenType::MpackTokenMap => {
                     let obj = parent.data[0].object();
@@ -183,7 +183,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
                 let len = tok.length as usize;
                 let mem = arena_alloc(&mut p.arena, len + 1, false).cast::<c_char>();
-                *mem.add(len) = 0;
+                *mem.wrapping_add(len) = 0;
                 let s = NvimString {
                     data: mem,
                     size: len,
@@ -211,7 +211,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                     if chunk_len > 0 {
                         std::ptr::copy_nonoverlapping(
                             tok.data.chunk_ptr().cast::<u8>(),
-                            data.add((*parent).pos),
+                            data.wrapping_add((*parent).pos),
                             chunk_len,
                         );
                     }
@@ -225,7 +225,10 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                     if chunk_len > 0 {
                         std::ptr::copy_nonoverlapping(
                             tok.data.chunk_ptr().cast::<u8>(),
-                            p.ext_buf.as_mut_ptr().cast::<u8>().add((*parent).pos),
+                            p.ext_buf
+                                .as_mut_ptr()
+                                .cast::<u8>()
+                                .wrapping_add((*parent).pos),
                             chunk_len,
                         );
                     }
@@ -639,7 +642,7 @@ fn next_type(
 
 /// Specialized redraw/grid_line parser (`unpacker_parse_redraw`).
 pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
-    unsafe {
+    {
         let mut tok = MpackToken::new();
         let mut data = p.read_ptr;
         let mut size = p.read_size;
@@ -691,7 +694,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             }
 
             p.ui_handler = ui_client_get_redraw_handler(data, str_len);
-            data = data.add(str_len);
+            data = data.wrapping_add(str_len);
             size -= str_len;
 
             p.nevents -= 1;
@@ -791,7 +794,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                 }
 
                 let cellbuf = data;
-                data = data.add(cellsize);
+                data = data.wrapping_add(cellsize);
                 size -= cellsize;
 
                 if cellarrsize >= 2 {
@@ -875,7 +878,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
 
 /// Unpack a complete msgpack string/bin token (`unpack_string`).
 pub fn unpack_string(data: &mut *const c_char, size: &mut usize) -> NvimString {
-    unsafe {
+    {
         let mut data2 = *data;
         let mut size2 = *size;
         let mut tok = MpackToken::new();
@@ -897,7 +900,7 @@ pub fn unpack_string(data: &mut *const c_char, size: &mut usize) -> NvimString {
                 size: 0,
             };
         }
-        *data = data2.add(len);
+        *data = data2.wrapping_add(len);
         *size = size2 - len;
         NvimString {
             data: data2.cast_mut(),
@@ -1030,7 +1033,7 @@ pub fn unpack_keydict(
             }
             (*ks).is_set_ |= flag;
 
-            let mem = retval.cast::<u8>().add(field.ptr_off);
+            let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
             if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
                 let cur_byte = if *size > 0 { **data as u8 } else { 0 };
                 if *size == 0 || (cur_byte & 0xfe) != 0xc2 {
@@ -1038,7 +1041,7 @@ pub fn unpack_keydict(
                     return false;
                 }
                 *mem.cast::<Boolean>() = (cur_byte & 0x01) != 0;
-                *data = (*data).add(1);
+                *data = (*data).wrapping_add(1);
                 *size -= 1;
             } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
                 if !unpack_integer(data, size, &mut *mem.cast::<Integer>()) {

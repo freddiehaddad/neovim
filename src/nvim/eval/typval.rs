@@ -1052,20 +1052,20 @@ pub fn tv_list_init_static10(sl: &mut StaticList10) {
         let items = (&raw mut sl.sl_items).cast::<Listitem>();
 
         l.lv_first = items;
-        l.lv_last = items.add(SL_SIZE - 1);
+        l.lv_last = items.wrapping_add(SL_SIZE - 1);
         l.lv_refcount = DO_NOT_FREE_CNT;
         tv_list_set_lock_inline(Some(&mut *l), VAR_FIXED);
         l.lv_len = 10;
 
         (*items).li_prev = ptr::null_mut();
-        (*items).li_next = items.add(1);
-        (*items.add(SL_SIZE - 1)).li_prev = items.add(SL_SIZE - 2);
-        (*items.add(SL_SIZE - 1)).li_next = ptr::null_mut();
+        (*items).li_next = items.wrapping_add(1);
+        (*items.wrapping_add(SL_SIZE - 1)).li_prev = items.wrapping_add(SL_SIZE - 2);
+        (*items.wrapping_add(SL_SIZE - 1)).li_next = ptr::null_mut();
 
         for i in 1..(SL_SIZE - 1) {
-            let li = items.add(i);
-            (*li).li_prev = li.sub(1);
-            (*li).li_next = li.add(1);
+            let li = items.wrapping_add(i);
+            (*li).li_prev = li.wrapping_sub(1);
+            (*li).li_next = li.wrapping_add(1);
         }
     }
 }
@@ -1574,7 +1574,7 @@ fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
             tv_list_append_list(&mut *rettv.vval.v_list(), l2);
             tv_list_append_number(&mut *l2, idx);
             tv_list_append_string(&mut *l2, p, len as isize);
-            p = p.add(len as usize);
+            p = p.wrapping_add(len as usize);
             idx += 1;
         }
     }
@@ -2881,7 +2881,7 @@ pub fn tv_dict_free_contents(d: &mut TvDict) {
                 hash_remove(&mut d.dv_hashtab, &mut *hi);
                 tv_dict_item_free(di);
             }
-            hi = hi.add(1);
+            hi = hi.wrapping_add(1);
         }
 
         d.watchers.clear();
@@ -3009,7 +3009,7 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
                     entry.extend_from_slice(val_bytes);
                     env.push(cstr_from_bytes(&entry));
                 }
-                hi = hi.add(1);
+                hi = hi.wrapping_add(1);
             }
         }
 
@@ -3300,7 +3300,7 @@ pub fn tv_dict_clear(d: &mut TvDict) {
                 tv_dict_item_free(tv_dict_hi2di(hi));
                 hash_remove(&mut d.dv_hashtab, &mut *hi);
             }
-            hi = hi.add(1);
+            hi = hi.wrapping_add(1);
         }
 
         hash_unlock(&mut d.dv_hashtab);
@@ -3387,7 +3387,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: impl crate::stri
                     }
                 }
             }
-            hi2 = hi2.add(1);
+            hi2 = hi2.wrapping_add(1);
         }
 
         if crate::memory::cstr_first_byte(action) == b'm' {
@@ -3427,7 +3427,7 @@ pub fn tv_dict_equal(d1: Option<&TvDict>, d2: Option<&TvDict>, ic: bool) -> bool
                     return false;
                 }
             }
-            hi = hi.add(1);
+            hi = hi.wrapping_add(1);
         }
         true
     }
@@ -3483,7 +3483,7 @@ pub fn tv_dict_copy(
                     break;
                 }
             }
-            hi = hi.add(1);
+            hi = hi.wrapping_add(1);
         }
 
         (*copy).dv_refcount += 1;
@@ -3507,7 +3507,7 @@ pub fn tv_dict_set_keys_readonly(dict: &mut TvDict) {
                 let di = tv_dict_hi2di(hi);
                 di.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             }
-            hi = hi.add(1);
+            hi = hi.wrapping_add(1);
         }
     }
 }
@@ -3848,7 +3848,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
 
                 tv_list_append_owned_tv(&mut *rettv.vval.v_list(), tv_item);
             }
-            hi = hi.add(1);
+            hi = hi.wrapping_add(1);
         }
     }
 }
@@ -4213,11 +4213,11 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         continue;
                     }
                     while hashitem_empty(&**hi) {
-                        *hi = (*hi).add(1);
+                        *hi = (*hi).wrapping_add(1);
                     }
                     let di = tv_dict_hi2di(*hi);
                     *todo -= 1;
-                    *hi = (*hi).add(1);
+                    *hi = (*hi).wrapping_add(1);
                     &raw mut di.di_tv
                 }
                 MPConvStackData::List { list, ref mut li } => {
@@ -4310,7 +4310,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         nothing_conv_list_end(cur_tv.as_mut());
                         continue;
                     }
-                    *arg = cur_arg.add(1);
+                    *arg = cur_arg.wrapping_add(1);
                     *todo -= 1;
                     cur_arg
                 }
@@ -4436,7 +4436,7 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: i32, lock: bool, check_refcount: bool
                                 let di = tv_dict_hi2di(hi);
                                 tv_item_lock(&mut di.di_tv, deep - 1, lock, check_refcount);
                             }
-                            hi = hi.add(1);
+                            hi = hi.wrapping_add(1);
                         }
                     }
                 }

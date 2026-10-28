@@ -51,7 +51,7 @@ use crate::strings::{gettext, ngettext};
 use crate::textformat::{Oparg, has_format_option};
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char};
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::msgpack_rpc::packer::ObjHandle;
@@ -148,7 +148,7 @@ pub fn tabstop_set(
 
         let mut cp = var;
         while !crate::memory::cstr_is_empty(cp) {
-            if cp == var || *cp.sub(1) == b',' as c_char {
+            if cp == var || *cp.wrapping_sub(1) == b',' as c_char {
                 let mut end = cp;
                 if getdigits(&raw mut end, false, 1) <= 0 {
                     if cp != end {
@@ -160,16 +160,16 @@ pub fn tabstop_set(
             }
 
             if ascii_isdigit(crate::memory::cstr_first_char(cp)) {
-                cp = cp.add(1);
+                cp = cp.wrapping_add(1);
                 continue;
             }
             if crate::memory::cstr_first_byte(cp) == b','
                 && cp > var
-                && *cp.sub(1) != b',' as c_char
+                && *cp.wrapping_sub(1) != b',' as c_char
                 && crate::memory::cstr_byte_at(cp, 1) != 0
             {
                 valcount += 1;
-                cp = cp.add(1);
+                cp = cp.wrapping_add(1);
                 continue;
             }
             return opt_error(errbuf, E_INVARG2, var);
@@ -186,10 +186,10 @@ pub fn tabstop_set(
             }
             out.push(n);
             while !crate::memory::cstr_is_empty(cp) && crate::memory::cstr_first_byte(cp) != b',' {
-                cp = cp.add(1);
+                cp = cp.wrapping_add(1);
             }
             if !crate::memory::cstr_is_empty(cp) {
-                cp = cp.add(1);
+                cp = cp.wrapping_add(1);
             }
         }
 
@@ -426,7 +426,7 @@ pub fn indent_size_no_ts(ptr: impl crate::strings::IntoCCharPtr) -> i32 {
         let mut vcol: i32 = 0;
         loop {
             let c = *ptr;
-            ptr = ptr.add(1);
+            ptr = ptr.wrapping_add(1);
             if c == b' ' as c_char {
                 vcol += 1;
             } else if c == TAB {
@@ -456,7 +456,7 @@ pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &
 
                 loop {
                     let c = *ptr;
-                    ptr = ptr.add(1);
+                    ptr = ptr.wrapping_add(1);
                     if c == b' ' as c_char {
                         cur_vcol += 1;
                     } else if c == TAB {
@@ -480,7 +480,7 @@ pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &
         debug_assert!(tabstop_width != 0);
         loop {
             let c = *ptr;
-            ptr = ptr.add(1);
+            ptr = ptr.wrapping_add(1);
             if c == b' ' as c_char {
                 vcol += 1;
                 if vcol == next_tab_vcol {
@@ -534,7 +534,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                         ind_len += 1;
                         ind_done += 1;
                     }
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
 
                 ind_col = ind_done;
@@ -560,7 +560,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                 if *p != TAB {
                     doit = true;
                 } else {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
                 todo -= tab_pad;
                 ind_len += 1;
@@ -572,7 +572,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             if crate::memory::cstr_first_byte(p) != b' ' {
                 doit = true;
             } else {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             todo -= 1;
             ind_len += 1;
@@ -611,13 +611,13 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
             while orig_char_len > 0 {
                 *s = *p;
-                s = s.add(1);
-                p = p.add(1);
+                s = s.wrapping_add(1);
+                p = p.wrapping_add(1);
                 orig_char_len -= 1;
             }
 
             while ascii_iswhite(crate::memory::cstr_first_char(p)) {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         } else {
             todo = size;
@@ -652,8 +652,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                         ind_done += 1;
                     }
                     *s = *p;
-                    s = s.add(1);
-                    p = p.add(1);
+                    s = s.wrapping_add(1);
+                    p = p.wrapping_add(1);
                     skipcols += 1;
                 }
 
@@ -661,7 +661,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                     tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
                 if todo >= tab_pad {
                     *s = TAB;
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                     todo -= tab_pad;
                     ind_done += tab_pad;
                 }
@@ -675,7 +675,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                     break;
                 }
                 *s = TAB;
-                s = s.add(1);
+                s = s.wrapping_add(1);
                 todo -= tab_pad;
                 ind_done += tab_pad;
             }
@@ -683,7 +683,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
         while todo > 0 {
             *s = b' ' as c_char;
-            s = s.add(1);
+            s = s.wrapping_add(1);
             todo -= 1;
         }
         ptr::copy(p, s, line_len as usize);
@@ -751,7 +751,11 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
 
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = false;
-            if vim_regexec(&mut regmatch, ml_get(lnum).add(lead_len as usize), 0) {
+            if vim_regexec(
+                &mut regmatch,
+                ml_get(lnum).wrapping_add(lead_len as usize),
+                0,
+            ) {
                 pos.lnum = lnum;
                 pos.col = regmatch.endp[0].offset_from(ml_get(lnum)) as Colnr;
                 pos.coladd = 0;
@@ -816,8 +820,8 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
 
         let buf = wp.w_buffer;
         let buf = { &mut *buf };
-        let flp_val = CStr::from_ptr(get_flp_value(&mut *buf));
-        let line_cstr = CStr::from_ptr(line);
+        let flp_val = crate::memory::cstr_from_ptr(get_flp_value(&mut *buf));
+        let line_cstr = crate::memory::cstr_from_ptr(line);
         if ind_st().prev_fnum != buf.b_fnum
             || ind_st().prev_ts != buf.b_p_ts
             || ind_st().prev_vts.as_slice() != buf.b_p_vts_array.as_slice()
@@ -872,7 +876,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
                             let mut indent: i32 = 0;
                             while ptr_cur < end_ptr {
                                 indent += win_chartabsize(wp, ptr_cur, indent);
-                                ptr_cur = ptr_cur.add(utfc_ptr2len(ptr_cur) as usize);
+                                ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur) as usize);
                             }
                             ind_st().prev_indent = indent;
                         }
@@ -911,12 +915,12 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
 
 /// Return true if the cursor is before (or on, when `extra == 0`) the first non-blank in the line (`inindent`).
 pub fn inindent(extra: i32) -> bool {
-    unsafe {
+    {
         let mut ptr = get_cursor_line_ptr();
         let mut col: Colnr = 0;
         while ascii_iswhite(crate::memory::cstr_first_char(ptr)) {
             col += 1;
-            ptr = ptr.add(1);
+            ptr = ptr.wrapping_add(1);
         }
         col >= curwin_mut().w_cursor.col + extra
     }
@@ -1347,9 +1351,9 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
 
                 if !p.is_null() {
                     *p = *s;
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
 
             tab_pad = tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
@@ -1360,7 +1364,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
 
                 if !p.is_null() {
                     *p = TAB;
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
             }
 
@@ -1376,7 +1380,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
                     ind_col += tab_pad;
                     if !p.is_null() {
                         *p = TAB;
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     }
                 }
             }
@@ -1387,7 +1391,7 @@ pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
 
                 if !p.is_null() {
                     *p = b' ' as c_char;
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
             }
 
@@ -1437,7 +1441,7 @@ pub fn ex_retab(eap: &mut Exarg) {
             && ascii_iswhite_or_nul(crate::memory::cstr_char_at(ptr, 11))
         {
             is_indent_only = true;
-            ptr = skipwhite(ptr.add(11));
+            ptr = skipwhite(ptr.wrapping_add(11));
         }
 
         let ts_start = ptr;
@@ -1454,7 +1458,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         while ascii_isdigit(crate::memory::cstr_first_char(ptr))
             || crate::memory::cstr_first_byte(ptr) == b','
         {
-            ptr = ptr.add(1);
+            ptr = ptr.wrapping_add(1);
         }
 
         let new_ts_str = if new_vts_array.is_empty() {
@@ -1532,13 +1536,13 @@ pub fn ex_retab(eap: &mut Exarg) {
                                 ptr::copy(ptr, new_line, start_col as usize);
                             }
                             ptr::copy(
-                                ptr.add(col as usize),
-                                new_line.add((start_col + len) as usize),
+                                ptr.wrapping_add(col as usize),
+                                new_line.wrapping_add((start_col + len) as usize),
                                 (old_len - col + 1) as usize,
                             );
-                            ptr = new_line.add(start_col as usize);
+                            ptr = new_line.wrapping_add(start_col as usize);
                             for c_idx in 0..len {
-                                *ptr.add(c_idx as usize) = if c_idx < num_tabs {
+                                *ptr.wrapping_add(c_idx as usize) = if c_idx < num_tabs {
                                     b'\t' as c_char
                                 } else {
                                     b' ' as c_char
@@ -1577,14 +1581,14 @@ pub fn ex_retab(eap: &mut Exarg) {
                 }
                 vcol += i64::from(win_chartabsize(
                     curwin_mut(),
-                    ptr.add(col as usize),
+                    ptr.wrapping_add(col as usize),
                     vcol as Colnr,
                 ));
                 if vcol >= i64::from(MAXCOL) {
                     emsg_text_too_long();
                     break;
                 }
-                col += utfc_ptr2len(ptr.add(col as usize));
+                col += utfc_ptr2len(ptr.wrapping_add(col as usize));
             }
             if new_line.is_null() {
                 break;
@@ -1718,17 +1722,17 @@ pub fn get_lisp_indent() -> i32 {
                 while !crate::memory::cstr_is_empty(that) {
                     if crate::memory::cstr_first_byte(that) == b';' {
                         while crate::memory::cstr_byte_at(that, 1) != 0 {
-                            that = that.add(1);
+                            that = that.wrapping_add(1);
                         }
-                        that = that.add(1);
+                        that = that.wrapping_add(1);
                         continue;
                     }
 
                     if crate::memory::cstr_first_byte(that) == b'\\' {
                         if crate::memory::cstr_byte_at(that, 1) != 0 {
-                            that = that.add(1);
+                            that = that.wrapping_add(1);
                         }
-                        that = that.add(1);
+                        that = that.wrapping_add(1);
                         continue;
                     }
 
@@ -1736,19 +1740,19 @@ pub fn get_lisp_indent() -> i32 {
                         && crate::memory::cstr_byte_at(that, 1) != 0
                     {
                         loop {
-                            that = that.add(1);
+                            that = that.wrapping_add(1);
                             if crate::memory::cstr_is_empty(that)
                                 || crate::memory::cstr_first_byte(that) == b'"'
                             {
                                 break;
                             }
                             if crate::memory::cstr_first_byte(that) == b'\\' {
-                                that = that.add(1);
+                                that = that.wrapping_add(1);
                                 if crate::memory::cstr_is_empty(that) {
                                     break;
                                 }
                                 if crate::memory::cstr_byte_at(that, 1) == 0 {
-                                    that = that.add(1);
+                                    that = that.wrapping_add(1);
                                     break;
                                 }
                             }
@@ -1766,7 +1770,7 @@ pub fn get_lisp_indent() -> i32 {
                     {
                         parencount -= 1;
                     }
-                    that = that.add(1);
+                    that = that.wrapping_add(1);
                 }
 
                 if parencount == 0 {
@@ -1804,12 +1808,12 @@ pub fn get_lisp_indent() -> i32 {
 
                 if (crate::memory::cstr_first_byte(that) == b'('
                     || crate::memory::cstr_first_byte(that) == b'[')
-                    && lisp_match(that.add(1))
+                    && lisp_match(that.wrapping_add(1))
                 {
                     amount += 2;
                 } else {
                     if !crate::memory::cstr_is_empty(that) {
-                        that = that.add(1);
+                        that = that.wrapping_add(1);
                         amount += 1;
                     }
                     let mut firsttry: Colnr = amount;
@@ -1824,7 +1828,7 @@ pub fn get_lisp_indent() -> i32 {
                             1,
                         )
                         .width;
-                        that = that.add(1);
+                        that = that.wrapping_add(1);
                     }
 
                     if !crate::memory::cstr_is_empty(that)
@@ -1893,7 +1897,7 @@ pub fn get_lisp_indent() -> i32 {
                                 1,
                             )
                             .width;
-                            that = that.add(1);
+                            that = that.wrapping_add(1);
                         }
 
                         if crate::memory::cstr_is_empty(that)

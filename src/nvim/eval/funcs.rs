@@ -473,12 +473,12 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
         let key_len = key_cstr.to_bytes().len();
         let iobuff = g_st().iobuff.as_mut_ptr();
         ptr::copy_nonoverlapping(key, iobuff, key_len);
-        *iobuff.add(key_len) = b'(' as c_char;
+        *iobuff.wrapping_add(key_len) = b'(' as c_char;
         if fdef.max_argc == 0 {
-            *iobuff.add(key_len + 1) = b')' as c_char;
-            *iobuff.add(key_len + 2) = NUL;
+            *iobuff.wrapping_add(key_len + 1) = b')' as c_char;
+            *iobuff.wrapping_add(key_len + 2) = NUL;
         } else {
-            *iobuff.add(key_len + 1) = NUL;
+            *iobuff.wrapping_add(key_len + 1) = NUL;
         }
         iobuff
     }
@@ -1215,7 +1215,7 @@ pub fn call_internal_func(
         } else if argcount > i32::from((*fdef).max_argc) {
             return FCERR_TOOMANY;
         }
-        (*argvars.add(argcount as usize)).v_type = VarType::VarUnknown;
+        (*argvars.wrapping_add(argcount as usize)).v_type = VarType::VarUnknown;
         if let Some(func) = (*fdef).func {
             let slice_len = (argcount as usize + 1).max(usize::from((*fdef).max_argc) + 1);
             func(
@@ -1261,8 +1261,8 @@ pub fn call_internal_method(
         ptr::copy_nonoverlapping(argvars, argv.as_mut_ptr(), base_index as usize);
         argv[base_index as usize] = *basetv;
         ptr::copy_nonoverlapping(
-            argvars.add(base_index as usize),
-            argv.as_mut_ptr().add((base_index + 1) as usize),
+            argvars.wrapping_add(base_index as usize),
+            argv.as_mut_ptr().wrapping_add((base_index + 1) as usize),
             (argcount as isize - base_index) as usize,
         );
         argv[(argcount + 1) as usize].v_type = VarType::VarUnknown;
@@ -1329,7 +1329,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         while (*tv).v_type != VarType::VarUnknown {
             *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
             args.size += 1;
-            tv = tv.add(1);
+            tv = tv.wrapping_add(1);
         }
 
         let mut err = Error::new();
@@ -1372,7 +1372,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         while (*tv).v_type != VarType::VarUnknown {
             *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
             args.size += 1;
-            tv = tv.add(1);
+            tv = tv.wrapping_add(1);
         }
 
         let EvalFuncData::LuaFunc(lua_name) = fptr else {
@@ -1462,7 +1462,7 @@ pub fn f_atan2(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
 /// Get buffer by number or pattern.
 pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> *mut FileBuf {
-    unsafe {
+    {
         if tv.v_type == VarType::VarNumber {
             return buflist_findnr(tv.vval.v_number() as i32);
         }
@@ -1486,7 +1486,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> *mut FileBuf {
 
         let buf = buflist_findnr(buflist_findpat(
             name,
-            name.add(crate::memory::cstr_len(name)),
+            name.wrapping_add(crate::memory::cstr_len(name)),
             true,
             false,
             curtab_only != 0,
@@ -1759,8 +1759,8 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
             } else {
                 col = (*fp).col + 1;
                 if virtual_active(&mut *wp) && ptr::eq(fp, &raw const (*wp).w_cursor) {
-                    let p =
-                        ml_get_buf(&mut *bp, (*wp).w_cursor.lnum).add((*wp).w_cursor.col as usize);
+                    let p = ml_get_buf(&mut *bp, (*wp).w_cursor.lnum)
+                        .wrapping_add((*wp).w_cursor.col as usize);
                     if (*wp).w_cursor.coladd
                         >= win_chartabsize(&mut *wp, p, (*wp).w_virtcol - (*wp).w_cursor.coladd)
                         && !crate::memory::cstr_is_empty(p)
@@ -2284,7 +2284,7 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         let mut n: i32 = 0;
         let mut p = tv_get_string(&argvars[0]);
         if crate::memory::cstr_first_byte(p) == b'$' {
-            if os_env_exists(p.add(1), false) {
+            if os_env_exists(p.wrapping_add(1), false) {
                 n = 1;
             } else {
                 let exp = expand_env_save(p.cast_mut());
@@ -2301,17 +2301,17 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             }
         } else if crate::memory::cstr_first_byte(p) == b'*' {
             n = i32::from(if crate::memory::cstr_as_bytes(p).starts_with(b"*v:lua.") {
-                nlua_func_exists(p.add(7))
+                nlua_func_exists(p.wrapping_add(7))
             } else {
-                function_exists(p.add(1), false)
+                function_exists(p.wrapping_add(1), false)
             });
         } else if crate::memory::cstr_first_byte(p) == b':' {
-            n = cmd_exists(p.add(1));
+            n = cmd_exists(p.wrapping_add(1));
         } else if crate::memory::cstr_first_byte(p) == b'#' {
             if crate::memory::cstr_byte_at(p, 1) == b'#' {
-                n = i32::from(autocmd_supported(p.add(2)));
+                n = i32::from(autocmd_supported(p.wrapping_add(2)));
             } else {
-                n = i32::from(au_exists(p.add(1)));
+                n = i32::from(au_exists(p.wrapping_add(1)));
             }
         } else {
             n = i32::from(var_exists(p));
@@ -3162,7 +3162,11 @@ fn block_def2str(bd: &BlockDef) -> Vec<c_char> {
         let textlen = bd.textlen as usize;
         let size = startspaces + endspaces + textlen;
         let mut data = vec![b' ' as c_char; size];
-        ptr::copy(bd.textstart, data.as_mut_ptr().add(startspaces), textlen);
+        ptr::copy(
+            bd.textstart,
+            data.as_mut_ptr().wrapping_add(startspaces),
+            textlen,
+        );
         data
     }
 }
@@ -3224,7 +3228,7 @@ fn getregionpos(
         {
             *region_type = MT_LINE_WISE;
         } else if *type_str == CTRL_V_CONST {
-            let mut p = type_str.add(1);
+            let mut p = type_str.wrapping_add(1);
             if !crate::memory::cstr_is_empty(p) {
                 block_width = getdigits_int(&raw mut p, false, 0);
                 if block_width <= 0 || !crate::memory::cstr_is_empty(p) {
@@ -3733,12 +3737,12 @@ pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 && (crate::memory::cstr_byte_at(name, 6) >= b'1'
                     && crate::memory::cstr_byte_at(name, 6) <= b'9')
             {
-                let s6 = name.add(6);
+                let s6 = name.wrapping_add(6);
                 let dlen = crate::memory::cstr_as_bytes(s6)
                     .iter()
                     .take_while(|b| b.is_ascii_digit())
                     .count();
-                let end = s6.add(dlen);
+                let end = s6.wrapping_add(dlen);
                 let major = std::str::from_utf8_unchecked(crate::memory::cstr_slice(s6, dlen))
                     .parse::<i32>()
                     .unwrap_or(0);
@@ -4468,7 +4472,7 @@ pub fn create_environment(
             if uv_os_environ(&raw mut envitems, &mut envcount) == 0 {
                 for i in 0..(envcount as usize) {
                     #[cfg(windows)]
-                    let mut name: *const c_char = (*envitems.add(i)).name;
+                    let mut name: *const c_char = (*envitems.wrapping_add(i)).name;
                     #[cfg(not(windows))]
                     let name: *const c_char = (*envitems.add(i)).name;
                     #[cfg(windows)]
@@ -4484,7 +4488,7 @@ pub fn create_environment(
                         }
                     }
                     let _ = namelen;
-                    tv_dict_add_str(&mut *env, name, (*envitems.add(i)).value);
+                    tv_dict_add_str(&mut *env, name, (*envitems.wrapping_add(i)).value);
                 }
                 uv_os_free_environ(envitems, envcount);
             }
@@ -4546,7 +4550,7 @@ pub fn create_environment(
                             }
                             tv_dict_add_str(&mut *env, name, tv_get_string(&var.di_tv));
                         }
-                        hi = hi.add(1);
+                        hi = hi.wrapping_add(1);
                     }
                 }
             }
@@ -4790,11 +4794,11 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                     && (crate::memory::cstr_byte_at(iobuff, len - 1) == b'\\'
                         || crate::memory::cstr_byte_at(iobuff, len - 1) == b'/')
                 {
-                    *iobuff.add(len - 1) = NUL;
+                    *iobuff.wrapping_add(len - 1) = NUL;
                 }
                 if len == 1 && crate::memory::cstr_first_byte(iobuff) == b'/' {
-                    *iobuff.add(1) = b'.' as c_char;
-                    *iobuff.add(2) = NUL;
+                    *iobuff.wrapping_add(1) = b'.' as c_char;
+                    *iobuff.wrapping_add(2) = NUL;
                 }
 
                 vim_snprintf!(
@@ -5303,7 +5307,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     if argvars[3].v_type != VarType::VarUnknown {
                         startcol = start as Colnr;
                     } else {
-                        str_ = str_.add(start as usize);
+                        str_ = str_.wrapping_add(start as usize);
                         len -= start;
                     }
                 }
@@ -5353,10 +5357,10 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                         idx += 1;
                     } else {
                         startcol = (regmatch.startp[0]
-                            .add(utfc_ptr2len(regmatch.startp[0]) as usize)
+                            .wrapping_add(utfc_ptr2len(regmatch.startp[0]) as usize)
                             .offset_from(str_)) as Colnr;
                         if i64::from(startcol) > len
-                            || str_.add(startcol as usize) <= regmatch.startp[0]
+                            || str_.wrapping_add(startcol as usize) <= regmatch.startp[0]
                         {
                             match_found = false;
                             break;
@@ -5511,7 +5515,7 @@ fn get_matches_in_str(
                 }
             }
             startidx = rmp.endp[0].offset_from(str_) as Colnr;
-            if (startidx as usize) >= len || str_.add(startidx as usize) <= rmp.startp[0] {
+            if (startidx as usize) >= len || str_.wrapping_add(startidx as usize) <= rmp.startp[0] {
                 break;
             }
         }
@@ -5751,7 +5755,7 @@ fn max_min(tv: &TypVal, rettv: &mut TypVal, domax: bool) {
                         n = i;
                     }
                 }
-                hi = hi.add(1);
+                hi = hi.wrapping_add(1);
             }
         } else {
             semsg!(
@@ -5919,7 +5923,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
                 let mut read_bytes: usize = 0;
                 let rlret = encode_read_from_list(
                     &raw mut lrstate,
-                    buf.add(buf_size),
+                    buf.wrapping_add(buf_size),
                     ARENA_BLOCK_SIZE - buf_size,
                     &mut read_bytes,
                 );
@@ -6545,7 +6549,7 @@ fn repeat_string(str_tv: &mut TypVal, n: Varnumber, rettv: &mut TypVal) {
         let mut done = slen;
         while done < len {
             let copy_len = done.min(len - done);
-            ptr::copy(r, r.add(done), copy_len);
+            ptr::copy(r, r.wrapping_add(done), copy_len);
             done += copy_len;
         }
         crate::eval::typval::tv_set_string_len(&mut *rettv, r, len);
@@ -6616,7 +6620,7 @@ fn reduce_list(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
 fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
     let expr = &argvars[1];
-    unsafe {
+    {
         let mut p = tv_get_string(&argvars[0]);
         let mut len: i32;
         let called_emsg_start = g_st().called_emsg;
@@ -6636,7 +6640,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
                 vval: TypvalVval::Number(0),
             };
             crate::eval::typval::tv_set_string_len(&mut *rettv, p, len as usize);
-            p = p.add(len as usize);
+            p = p.wrapping_add(len as usize);
         } else if !tv_check_for_string_arg(argvars, 2) {
             return;
         } else {
@@ -6656,7 +6660,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
             if !r || g_st().called_emsg != called_emsg_start {
                 break;
             }
-            p = p.add(len as usize);
+            p = p.wrapping_add(len as usize);
         }
     }
 }
@@ -6743,7 +6747,7 @@ pub fn f_reduce(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 }
 
 fn get_search_arg(varp: &mut TypVal, mut flagsp: Option<&mut i32>) -> i32 {
-    unsafe {
+    {
         let mut dir = FORWARD;
         if varp.v_type == VarType::VarUnknown {
             return FORWARD;
@@ -6784,7 +6788,7 @@ fn get_search_arg(varp: &mut TypVal, mut flagsp: Option<&mut i32>) -> i32 {
             if dir == 0 {
                 break;
             }
-            flags = flags.add(1);
+            flags = flags.wrapping_add(1);
         }
         dir
     }
@@ -6971,7 +6975,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         while (*tv).v_type != VarType::VarUnknown {
             *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
             args.size += 1;
-            tv = tv.add(1);
+            tv = tv.wrapping_add(1);
         }
 
         let ok = rpc_send_event(
@@ -7028,7 +7032,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         while (*tv).v_type != VarType::VarUnknown {
             *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
             args.size += 1;
-            tv = tv.add(1);
+            tv = tv.wrapping_add(1);
         }
 
         let mut save_current_sctx = Sctx::new();
@@ -7185,9 +7189,9 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
         let mut i: usize = 0;
         loop {
-            let c = utf_ptr2char(buf.as_ptr().add(i));
+            let c = utf_ptr2char(buf.as_ptr().wrapping_add(i));
             tv_list_append_number(&mut *rettv.vval.v_list(), Varnumber::from(c));
-            i += utf_ptr2len(buf.as_ptr().add(i)) as usize;
+            i += utf_ptr2len(buf.as_ptr().wrapping_add(i)) as usize;
             if buf[i] == NUL {
                 break;
             }
@@ -7846,9 +7850,9 @@ fn get_yank_type(
             c if c == b'b' as c_char || c == CTRL_V_CONST => {
                 *yank_type = crate::register::MotionType::MtBlockWise;
                 if ascii_isdigit(crate::memory::cstr_char_at(stropt, 1)) {
-                    stropt = stropt.add(1);
+                    stropt = stropt.wrapping_add(1);
                     *block_len = getdigits_int(&raw mut stropt, false, 0) - 1;
-                    stropt = stropt.sub(1);
+                    stropt = stropt.wrapping_sub(1);
                 }
             }
             _ => return false,
@@ -7900,7 +7904,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             let mut stropt = tv_dict_get_string(d.as_ref(), c"regtype");
             if !stropt.is_null() {
                 let ret = get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
-                stropt = stropt.add(1);
+                stropt = stropt.wrapping_add(1);
                 if !ret || !crate::memory::cstr_is_empty(stropt) {
                     semsg!(gettext(E_INVARGVAL), c"value");
                     return;
@@ -7939,7 +7943,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                         get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
                     }
                 }
-                stropt = stropt.add(1);
+                stropt = stropt.wrapping_add(1);
             }
         }
 
@@ -8258,7 +8262,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                         word = str_;
                         break;
                     }
-                    str_ = str_.add(len);
+                    str_ = str_.wrapping_add(len);
                     capcol -= len as i32;
                     len = 0;
                 }
@@ -8377,7 +8381,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                     let end: *const c_char = if match_found {
                         regmatch.startp[0]
                     } else {
-                        str_.add(crate::memory::cstr_len(str_))
+                        str_.wrapping_add(crate::memory::cstr_len(str_))
                     };
                     if keepempty
                         || end > str_
@@ -8483,11 +8487,11 @@ pub fn f_stdpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// "str2float()" function
 pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut p = skipwhite(tv_get_string(&argvars[0]));
         let isneg = crate::memory::cstr_first_byte(p) == b'-';
         if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
-            p = skipwhite(p.add(1));
+            p = skipwhite(p.wrapping_add(1));
         }
         string2float(p, rettv.vval.v_float_mut());
         if isneg {

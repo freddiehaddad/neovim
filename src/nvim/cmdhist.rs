@@ -644,7 +644,7 @@ pub fn ex_history(eap: &mut Exarg) {
                     b':' | b'=' | b'@' | b'>' | b'/' | b'?'
                 )
             {
-                end = end.add(1);
+                end = end.wrapping_add(1);
             }
             let name_len = (end as usize) - (arg as usize);
             histype1 = get_histtype(arg, name_len, false);
@@ -722,12 +722,16 @@ pub fn ex_history(eap: &mut Exarg) {
                         if vim_strsize(entry_ptr) > g_st().columns_global - 10 {
                             trunc_string(
                                 entry_ptr,
-                                iobuf.as_mut_ptr().add(len),
+                                iobuf.as_mut_ptr().wrapping_add(len),
                                 g_st().columns_global - 10,
                                 (IOSIZE - len) as i32,
                             );
                         } else {
-                            xstrlcpy(iobuf.as_mut_ptr().add(len), entry_ptr, IOSIZE - len);
+                            xstrlcpy(
+                                iobuf.as_mut_ptr().wrapping_add(len),
+                                entry_ptr,
+                                IOSIZE - len,
+                            );
                         }
                         msg_outtrans(iobuf.as_ptr(), 0, false);
                     }

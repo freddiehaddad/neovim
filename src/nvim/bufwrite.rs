@@ -125,16 +125,16 @@ fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: i32) -> bool {
         if (flags & FIO_UCS4) != 0 {
             if (flags & FIO_ENDIAN_L) != 0 {
                 *p = c as u8;
-                *p.add(1) = (c >> 8) as u8;
-                *p.add(2) = (c >> 16) as u8;
-                *p.add(3) = (c >> 24) as u8;
+                *p.wrapping_add(1) = (c >> 8) as u8;
+                *p.wrapping_add(2) = (c >> 16) as u8;
+                *p.wrapping_add(3) = (c >> 24) as u8;
             } else {
                 *p = (c >> 24) as u8;
-                *p.add(1) = (c >> 16) as u8;
-                *p.add(2) = (c >> 8) as u8;
-                *p.add(3) = c as u8;
+                *p.wrapping_add(1) = (c >> 16) as u8;
+                *p.wrapping_add(2) = (c >> 8) as u8;
+                *p.wrapping_add(3) = c as u8;
             }
-            p = p.add(4);
+            p = p.wrapping_add(4);
         } else if (flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
             if c >= 0x10000 {
                 if (flags & FIO_UTF16) != 0 {
@@ -145,12 +145,12 @@ fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: i32) -> bool {
                     let cc = ((c >> 10) & 0x3ff) + 0xd800;
                     if (flags & FIO_ENDIAN_L) != 0 {
                         *p = cc as u8;
-                        *p.add(1) = (cc >> 8) as u8;
+                        *p.wrapping_add(1) = (cc >> 8) as u8;
                     } else {
                         *p = (cc >> 8) as u8;
-                        *p.add(1) = cc as u8;
+                        *p.wrapping_add(1) = cc as u8;
                     }
-                    p = p.add(2);
+                    p = p.wrapping_add(2);
                     c = (c & 0x3ff) + 0xdc00;
                 } else {
                     error = true;
@@ -158,19 +158,19 @@ fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: i32) -> bool {
             }
             if (flags & FIO_ENDIAN_L) != 0 {
                 *p = c as u8;
-                *p.add(1) = (c >> 8) as u8;
+                *p.wrapping_add(1) = (c >> 8) as u8;
             } else {
                 *p = (c >> 8) as u8;
-                *p.add(1) = c as u8;
+                *p.wrapping_add(1) = c as u8;
             }
-            p = p.add(2);
+            p = p.wrapping_add(2);
         } else if c >= 0x100 {
             error = true;
             *p = 0xbf;
-            p = p.add(1);
+            p = p.wrapping_add(1);
         } else {
             *p = c as u8;
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         *pp = p.cast::<c_char>();
@@ -238,12 +238,12 @@ fn buf_write_convert(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut i32) ->
             };
             wlen = 0;
             while wlen < *lenp {
-                let n = utf_ptr2len_len((*bufp).add(wlen as usize), *lenp - wlen);
+                let n = utf_ptr2len_len((*bufp).wrapping_add(wlen as usize), *lenp - wlen);
                 if n > *lenp - wlen {
                     break;
                 }
                 let c: u32 = if n > 1 {
-                    utf_ptr2char((*bufp).add(wlen as usize)) as u32
+                    utf_ptr2char((*bufp).wrapping_add(wlen as usize)) as u32
                 } else {
                     u32::from(crate::memory::cstr_byte_at(*bufp, wlen as usize))
                 };
@@ -350,8 +350,8 @@ fn make_bom(buf_in: *mut c_char, name: impl crate::strings::IntoCCharPtr) -> i32
         }
         if flags == FIO_UTF8 {
             *buf = 0xef;
-            *buf.add(1) = 0xbb;
-            *buf.add(2) = 0xbf;
+            *buf.wrapping_add(1) = 0xbb;
+            *buf.wrapping_add(2) = 0xbf;
             return 3;
         }
         let mut p = buf_in;
@@ -877,7 +877,7 @@ pub fn buf_get_backup_name(
         let mut backup: Option<std::ffi::CString> = None;
         let iobuf = g_st().iobuff.as_mut_ptr();
         let dir_len = copy_option_part(dirp, iobuf, IOSIZE, c",");
-        let p = iobuf.add(dir_len);
+        let p = iobuf.wrapping_add(dir_len);
         if **dirp == NUL && !os_isdir(iobuf) {
             let mut failed_dir: Option<std::ffi::CString> = None;
             let ret = os_mkdir_recurse(iobuf, 0o755, &mut failed_dir, None);
@@ -891,7 +891,7 @@ pub fn buf_get_backup_name(
         }
         if dir_len > 1
             && after_pathsep(iobuf, p) != 0
-            && *p.sub(1) == *p.sub(2)
+            && *p.wrapping_sub(1) == *p.wrapping_sub(2)
             && let Some(swname) = make_percent_swname(iobuf, p, fname)
         {
             backup = modname(swname.as_ptr(), backup_ext, no_prepend_dot);
@@ -941,7 +941,7 @@ fn buf_write_make_backup(
                     let suffix = format!(".{i}.swp\0");
                     ptr::copy_nonoverlapping(
                         suffix.as_ptr().cast::<c_char>(),
-                        tmp_fname.as_mut_ptr().add(dirlen),
+                        tmp_fname.as_mut_ptr().wrapping_add(dirlen),
                         suffix.len(),
                     );
                     if !os_fileinfo_link(tmp_fname.as_ptr(), &mut file_info) {
@@ -1029,7 +1029,7 @@ fn buf_write_make_backup(
                             let blen = crate::memory::cstr_len(bk_ptr);
                             let extlen = crate::memory::cstr_len(backup_ext);
                             let mut wp = if blen > extlen + 1 {
-                                bk_ptr.add(blen - 1 - extlen)
+                                bk_ptr.wrapping_add(blen - 1 - extlen)
                             } else {
                                 bk_ptr
                             };
@@ -1119,7 +1119,7 @@ fn buf_write_make_backup(
                         let blen = crate::memory::cstr_len(bk_ptr);
                         let extlen = crate::memory::cstr_len(backup_ext);
                         let mut p = if blen > extlen + 1 {
-                            bk_ptr.add(blen - 1 - extlen)
+                            bk_ptr.wrapping_add(blen - 1 - extlen)
                         } else {
                             bk_ptr
                         };
@@ -1429,7 +1429,7 @@ pub fn buf_write(
                     let fenc: *mut c_char = if let Some(eap) = eap
                         && eap.force_enc != 0
                     {
-                        let e = enc_canonize(eap.cmd.add(eap.force_enc as usize));
+                        let e = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize));
                         let ptr = e.as_ptr().cast_mut();
                         fenc_tofree = Some(e);
                         ptr
@@ -1630,16 +1630,16 @@ pub fn buf_write(
                         let mut s = buffer;
                         lnum = start;
                         while lnum <= end {
-                            let mut ptr = ml_get_buf(&mut *buf, lnum).sub(1);
+                            let mut ptr = ml_get_buf(&mut *buf, lnum).wrapping_sub(1);
                             if write_undo_file {
-                                let line_ptr = ptr.add(1);
+                                let line_ptr = ptr.wrapping_add(1);
                                 sha_ctx.update(crate::memory::cstr_slice(
                                     line_ptr,
                                     crate::memory::cstr_len(line_ptr) + 1,
                                 ));
                             }
                             loop {
-                                ptr = ptr.add(1);
+                                ptr = ptr.wrapping_add(1);
                                 let c = *ptr;
                                 if c == NUL {
                                     break;
@@ -1651,7 +1651,7 @@ pub fn buf_write(
                                 } else {
                                     *s = c;
                                 }
-                                s = s.add(1);
+                                s = s.wrapping_add(1);
                                 write_info.bw_len += 1;
                                 if write_info.bw_len != bufsize {
                                     continue;
@@ -1661,7 +1661,7 @@ pub fn buf_write(
                                     break;
                                 }
                                 nchars += i64::from(bufsize - write_info.bw_len);
-                                s = buffer.add(write_info.bw_len as usize);
+                                s = buffer.wrapping_add(write_info.bw_len as usize);
                                 write_info.bw_start_lnum = lnum;
                             }
                             if end == 0
@@ -1676,10 +1676,10 @@ pub fn buf_write(
                             }
                             if fileformat == EOL_UNIX {
                                 *s = NL_CHAR;
-                                s = s.add(1);
+                                s = s.wrapping_add(1);
                             } else {
                                 *s = CAR_CHAR;
-                                s = s.add(1);
+                                s = s.wrapping_add(1);
                                 if fileformat == EOL_DOS {
                                     write_info.bw_len += 1;
                                     if write_info.bw_len == bufsize {
@@ -1688,10 +1688,10 @@ pub fn buf_write(
                                             break;
                                         }
                                         nchars += i64::from(bufsize - write_info.bw_len);
-                                        s = buffer.add(write_info.bw_len as usize);
+                                        s = buffer.wrapping_add(write_info.bw_len as usize);
                                     }
                                     *s = NL_CHAR;
-                                    s = s.add(1);
+                                    s = s.wrapping_add(1);
                                 }
                             }
                             write_info.bw_len += 1;
@@ -1701,7 +1701,7 @@ pub fn buf_write(
                                     break;
                                 }
                                 nchars += i64::from(bufsize - write_info.bw_len);
-                                s = buffer.add(write_info.bw_len as usize);
+                                s = buffer.wrapping_add(write_info.bw_len as usize);
 
                                 os_breakcheck();
                                 if g_st().got_int {
@@ -1899,7 +1899,7 @@ pub fn buf_write(
                                 let _dsize: usize = IOSIZE;
                                 let _dlen = crate::memory::cstr_len(_dst);
                                 crate::memory::xstrlcpy(
-                                    _dst.add(_dlen),
+                                    _dst.wrapping_add(_dlen),
                                     gettext(c" CONVERSION ERROR"),
                                     _dsize - _dlen,
                                 );
@@ -1919,7 +1919,7 @@ pub fn buf_write(
                                 let _dsize: usize = IOSIZE;
                                 let _dlen = crate::memory::cstr_len(_dst);
                                 crate::memory::xstrlcpy(
-                                    _dst.add(_dlen),
+                                    _dst.wrapping_add(_dlen),
                                     gettext(c"[NOT converted]"),
                                     _dsize - _dlen,
                                 );
@@ -1931,7 +1931,7 @@ pub fn buf_write(
                                 let _dsize: usize = IOSIZE;
                                 let _dlen = crate::memory::cstr_len(_dst);
                                 crate::memory::xstrlcpy(
-                                    _dst.add(_dlen),
+                                    _dst.wrapping_add(_dlen),
                                     gettext(c"[converted]"),
                                     _dsize - _dlen,
                                 );
@@ -1944,7 +1944,7 @@ pub fn buf_write(
                                 let _dsize: usize = IOSIZE;
                                 let _dlen = crate::memory::cstr_len(_dst);
                                 crate::memory::xstrlcpy(
-                                    _dst.add(_dlen),
+                                    _dst.wrapping_add(_dlen),
                                     gettext(c"[Device]"),
                                     _dsize - _dlen,
                                 );
@@ -1956,7 +1956,7 @@ pub fn buf_write(
                                 let _dsize: usize = IOSIZE;
                                 let _dlen = crate::memory::cstr_len(_dst);
                                 crate::memory::xstrlcpy(
-                                    _dst.add(_dlen),
+                                    _dst.wrapping_add(_dlen),
                                     gettext(c"[New]"),
                                     _dsize - _dlen,
                                 );
@@ -1969,7 +1969,7 @@ pub fn buf_write(
                                 let _dsize: usize = IOSIZE;
                                 let _dlen = crate::memory::cstr_len(_dst);
                                 crate::memory::xstrlcpy(
-                                    _dst.add(_dlen),
+                                    _dst.wrapping_add(_dlen),
                                     gettext(c"[noeol]"),
                                     _dsize - _dlen,
                                 );
@@ -1987,7 +1987,7 @@ pub fn buf_write(
                                     let _dsize: usize = IOSIZE;
                                     let _dlen = crate::memory::cstr_len(_dst);
                                     crate::memory::xstrlcpy(
-                                        _dst.add(_dlen),
+                                        _dst.wrapping_add(_dlen),
                                         if shortmess(K_SHM_WRI) {
                                             gettext(c" [a]")
                                         } else {
@@ -2002,7 +2002,7 @@ pub fn buf_write(
                                     let _dsize: usize = IOSIZE;
                                     let _dlen = crate::memory::cstr_len(_dst);
                                     crate::memory::xstrlcpy(
-                                        _dst.add(_dlen),
+                                        _dst.wrapping_add(_dlen),
                                         if shortmess(K_SHM_WRI) {
                                             gettext(c" [w]")
                                         } else {

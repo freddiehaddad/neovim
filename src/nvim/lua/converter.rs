@@ -1430,11 +1430,11 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                         lua_rawset(lstate, -3);
                     }
                     while hashitem_empty(&**hi) {
-                        *hi = (*hi).add(1);
+                        *hi = (*hi).wrapping_add(1);
                     }
                     let di = crate::eval::typval::tv_dict_hi2di(*hi);
                     *todo -= 1;
-                    *hi = (*hi).add(1);
+                    *hi = (*hi).wrapping_add(1);
                     let key_ptr = di.di_key.as_ptr();
                     let key_len = crate::memory::cstr_len(key_ptr);
                     lua_pushlstring(lstate, key_ptr, key_len);
@@ -1576,7 +1576,7 @@ pub fn nlua_push_array(lstate: *mut lua_State, array: Array, flags: i32) {
     unsafe {
         lua_createtable(lstate, array.size as i32, 0);
         for i in 0..array.size {
-            nlua_push_object(lstate, array.items.add(i), flags);
+            nlua_push_object(lstate, array.items.wrapping_add(i), flags);
             lua_rawseti(lstate, -2, (i as i32) + 1);
         }
     }
@@ -2249,7 +2249,7 @@ pub fn nlua_pop_keydict_opt(
             if field.opt_index >= 0 {
                 (*retval).is_set_ |= 1u64 << (field.opt_index as u32);
             }
-            let mem = retval.cast::<u8>().add(field.ptr_off);
+            let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
 
             if field.key_type == (ObjectType::ObjectTypeNil as i32) {
                 *mem.cast::<Object>() =
@@ -2302,8 +2302,8 @@ pub fn nlua_push_keydict(lstate: *mut lua_State, value: *mut OptKeySet, table: *
     unsafe {
         lua_createtable(lstate, 0, 0);
         let mut i = 0usize;
-        while let Some(field_str) = (*table.add(i)).str {
-            let field = &*table.add(i);
+        while let Some(field_str) = (*table.wrapping_add(i)).str {
+            let field = &*table.wrapping_add(i);
             let mut is_set = true;
             if field.opt_index >= 0 {
                 is_set = ((*value).is_set_ & (1u64 << (field.opt_index as u32))) != 0;
@@ -2313,7 +2313,7 @@ pub fn nlua_push_keydict(lstate: *mut lua_State, value: *mut OptKeySet, table: *
                 continue;
             }
 
-            let mem = value.cast::<u8>().add(field.ptr_off);
+            let mem = value.cast::<u8>().wrapping_add(field.ptr_off);
             lua_pushstring(lstate, field_str.as_ptr());
             if field.key_type == (ObjectType::ObjectTypeNil as i32) {
                 nlua_push_object(lstate, mem.cast::<Object>(), 0);

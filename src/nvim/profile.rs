@@ -509,7 +509,7 @@ fn prof_sort_list(
         fprintf!(fd, c"count  total (s)   self (s)  function\n");
         let limit = st_len.min(20);
         for i in 0..limit {
-            let fp = &**sorttab.add(i as usize);
+            let fp = &**sorttab.wrapping_add(i as usize);
             prof_func_line(
                 fd,
                 fp.uf_tm_count,
@@ -519,7 +519,7 @@ fn prof_sort_list(
             );
             let name_ptr = fp.uf_name.as_ptr();
             if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
-                fprintf!(fd, c" <SNR>%s()\n", name_ptr.add(3));
+                fprintf!(fd, c" <SNR>%s()\n", name_ptr.wrapping_add(3));
             } else {
                 fprintf!(fd, c" %s()\n", name_ptr);
             }
@@ -653,7 +653,7 @@ fn func_dump_profile(fd: *mut FILE) {
 
                 let name_ptr = (*fp).uf_name.as_ptr();
                 if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
-                    fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.add(3));
+                    fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.wrapping_add(3));
                 } else {
                     fprintf!(fd, c"FUNCTION  %s()\n", name_ptr);
                 }
@@ -1028,8 +1028,10 @@ mod tests {
         assert_eq!(profile_cmp(20, 10), -1);
         assert_eq!(profile_cmp(10, 10), 0);
         assert_eq!(profile_cmp(profile_zero(), profile_zero()), 0);
-        unsafe {
-            let msg = CStr::from_ptr(profile_msg(0)).to_str().unwrap();
+        {
+            let msg = crate::memory::cstr_from_ptr(profile_msg(0))
+                .to_str()
+                .unwrap();
             assert_eq!(msg.trim(), "0.000000");
         }
     }
@@ -1069,9 +1071,12 @@ mod tests {
         assert!(profile_passed_limit(now));
         assert!(!profile_passed_limit(profile_add(now, now)));
 
-        unsafe {
+        {
             let endt = profile_end(profile_start());
-            let s = CStr::from_ptr(profile_msg(endt)).to_str().unwrap().trim();
+            let s = crate::memory::cstr_from_ptr(profile_msg(endt))
+                .to_str()
+                .unwrap()
+                .trim();
             let (secs, _us) = s.split_once('.').unwrap();
             assert_eq!(secs, "0");
         }

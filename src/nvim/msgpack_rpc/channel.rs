@@ -911,7 +911,7 @@ pub fn serialize_response(
 fn packer_buffer_init_channels(chans: *mut *mut Channel, nchans: usize, packer: &mut PackerBuffer) {
     unsafe {
         for i in 0..nchans {
-            let chan = *chans.add(i);
+            let chan = *chans.wrapping_add(i);
             let ct = chan;
             if (*ct).rpc.has_ui {
                 remote_ui_flush_if_incomplete((*ct).id);
@@ -920,7 +920,7 @@ fn packer_buffer_init_channels(chans: *mut *mut Channel, nchans: usize, packer: 
         packer.owned_buf = vec![0; ARENA_BLOCK_SIZE];
         packer.startptr = packer.owned_buf.as_mut_ptr();
         packer.ptr = packer.startptr;
-        packer.endptr = packer.startptr.add(ARENA_BLOCK_SIZE);
+        packer.endptr = packer.startptr.wrapping_add(ARENA_BLOCK_SIZE);
         packer.anydata = crate::msgpack_rpc::packer::PackerData::Chans(chans);
         packer.anyint = nchans as i64;
     }
@@ -938,7 +938,7 @@ fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
             let buf = wstream_new_vec_buffer(vec);
             let chans = packer.anydata.as_chans();
             for i in 0..(packer.anyint as usize) {
-                let _ = channel_write(&mut **chans.add(i), std::rc::Rc::clone(&buf));
+                let _ = channel_write(&mut **chans.wrapping_add(i), std::rc::Rc::clone(&buf));
             }
         }
     }

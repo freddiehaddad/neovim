@@ -57,7 +57,7 @@ impl RStream {
 
     #[inline]
     pub fn read_ptr(&self) -> *const c_char {
-        unsafe { self.buffer.as_ptr().add(self.read_pos) }
+        self.buffer.as_ptr().wrapping_add(self.read_pos)
     }
 }
 
@@ -119,7 +119,7 @@ pub fn rstream_stop(stream: &mut RStream) {
 unsafe extern "C" fn alloc_cb(handle: *mut uv_handle_t, _suggested: usize, buf: *mut uv_buf_t) {
     unsafe {
         let stream = &mut **handle.cast::<*mut RStream>();
-        let write_ptr = stream.buffer.as_mut_ptr().add(stream.write_pos);
+        let write_ptr = stream.buffer.as_mut_ptr().wrapping_add(stream.write_pos);
         *buf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));
     }
 }
@@ -168,7 +168,7 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
         let stream = *handle.cast::<*mut RStream>();
         let stream = { &mut *stream };
 
-        let write_ptr = stream.buffer.as_mut_ptr().add(stream.write_pos);
+        let write_ptr = stream.buffer.as_mut_ptr().wrapping_add(stream.write_pos);
         stream.uvbuf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));
 
         let loop_ptr = uv_handle_get_loop(handle.cast());
@@ -197,10 +197,10 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
 }
 
 pub fn read_event(stream: &mut RStream) {
-    unsafe {
+    {
         stream.pending_read = false;
         let available = rstream_available(stream);
-        let read_ptr = stream.buffer.as_ptr().add(stream.read_pos);
+        let read_ptr = stream.buffer.as_ptr().wrapping_add(stream.read_pos);
         if let Some(consumed) =
             stream
                 .s

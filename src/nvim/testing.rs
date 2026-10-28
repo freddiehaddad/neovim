@@ -134,7 +134,7 @@ fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCC
             let clen = (s as usize) - (p as usize);
             while *s != 0 && c == utf_ptr2char(s) {
                 same_len += 1;
-                s = s.add(clen);
+                s = s.wrapping_add(clen);
             }
             if same_len > 20 {
                 ga_concat_literal(gap, b"\\[");
@@ -144,7 +144,7 @@ fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCC
                 p = s;
             } else {
                 ga_concat_esc(gap, p, clen as i32);
-                p = p.add(clen);
+                p = p.wrapping_add(clen);
             }
         }
     }
@@ -222,7 +222,7 @@ fn fill_assert_error(
                         }
                         todo -= 1;
                     }
-                    hi = hi.add(1);
+                    hi = hi.wrapping_add(1);
                 }
 
                 todo = (*got_d).dv_hashtab.ht_used as i32;
@@ -238,7 +238,7 @@ fn fill_assert_error(
                         }
                         todo -= 1;
                     }
-                    hi = hi.add(1);
+                    hi = hi.wrapping_add(1);
                 }
             }
 

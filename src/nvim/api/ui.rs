@@ -132,7 +132,7 @@ fn mpack_str_small(buf: *mut *mut c_char, str_: impl crate::strings::IntoCCharPt
         debug_assert!(len < 0x20);
         mpack_w(buf, (0xa0 | len) as u8);
         ptr::copy_nonoverlapping(str_, *buf, len);
-        *buf = (*buf).add(len);
+        *buf = (*buf).wrapping_add(len);
     }
 }
 
@@ -802,10 +802,10 @@ pub fn nvim_ui_pum_set_bounds(
 }
 
 fn flush_event(ui: &mut RemoteUI) {
-    unsafe {
+    {
         if ui.cur_event.is_some() {
             if let Some(off) = ui.ncalls_pos {
-                let mut pos = ui.packer.startptr.add(off);
+                let mut pos = ui.packer.startptr.wrapping_add(off);
                 mpack_w2(&raw mut pos, 1 + ui.ncalls);
             }
             ui.cur_event = None;
@@ -816,11 +816,11 @@ fn flush_event(ui: &mut RemoteUI) {
 }
 
 fn ui_alloc_buf(ui: &mut RemoteUI) {
-    unsafe {
+    {
         ui.packer.owned_buf = vec![0; UI_BUF_SIZE];
         ui.packer.startptr = ui.packer.owned_buf.as_mut_ptr();
         ui.packer.ptr = ui.packer.startptr;
-        ui.packer.endptr = ui.packer.startptr.add(UI_BUF_SIZE);
+        ui.packer.endptr = ui.packer.startptr.wrapping_add(UI_BUF_SIZE);
     }
 }
 
@@ -1228,8 +1228,8 @@ pub fn remote_ui_raw_line(
             for i in 0..ncells {
                 repeat += 1;
                 if i == ncells - 1
-                    || *attrs.add(i) != *attrs.add(i + 1)
-                    || *chunk.add(i) != *chunk.add(i + 1)
+                    || *attrs.wrapping_add(i) != *attrs.wrapping_add(i + 1)
+                    || *chunk.wrapping_add(i) != *chunk.wrapping_add(i + 1)
                 {
                     if UI_BUF_SIZE - buf_pos(ui) < 2 * (1 + 2 + MAX_SCHAR_SIZE + 5 + 5) + 1
                         || ui.ncells_pending >= 500
@@ -1257,7 +1257,7 @@ pub fn remote_ui_raw_line(
                     }
                     let csize: u32 = if repeat > 1 {
                         3
-                    } else if (*attrs.add(i)) != last_hl {
+                    } else if (*attrs.wrapping_add(i)) != last_hl {
                         2
                     } else {
                         1
@@ -1265,19 +1265,19 @@ pub fn remote_ui_raw_line(
                     nelem += 1;
                     mpack_array(buf, csize);
                     let size_byte = *buf;
-                    *buf = (*buf).add(1);
-                    let len = schar_get_adv(buf, *chunk.add(i));
+                    *buf = (*buf).wrapping_add(1);
+                    let len = schar_get_adv(buf, *chunk.wrapping_add(i));
                     *size_byte = (0xa0 | len) as c_char;
                     if csize >= 2 {
-                        mpack_uint(buf, *attrs.add(i) as u32);
+                        mpack_uint(buf, *attrs.wrapping_add(i) as u32);
                         if csize >= 3 {
                             mpack_uint(buf, repeat);
                         }
                     }
                     ui.ncells_pending += repeat.min(2) as usize;
-                    last_hl = *attrs.add(i);
+                    last_hl = *attrs.wrapping_add(i);
                     repeat = 0;
-                    was_space = *chunk.add(i) == schar_from_ascii(b' ');
+                    was_space = *chunk.wrapping_add(i) == schar_from_ascii(b' ');
                 }
             }
 
@@ -1295,9 +1295,9 @@ pub fn remote_ui_raw_line(
             let count = (endcol - startcol) as usize;
             for i in 0..count {
                 remote_ui_cursor_goto(ui, row, startcol + i as Integer);
-                remote_ui_highlight_set(ui, *attrs.add(i));
+                remote_ui_highlight_set(ui, *attrs.wrapping_add(i));
                 let mut sc_buf: [c_char; MAX_SCHAR_SIZE] = [0; MAX_SCHAR_SIZE];
-                schar_get(sc_buf.as_mut_ptr(), *chunk.add(i));
+                schar_get(sc_buf.as_mut_ptr(), *chunk.wrapping_add(i));
                 remote_ui_put(ui, sc_buf.as_ptr());
                 if utf_ambiguous_width(sc_buf.as_ptr()) {
                     ui.client_col = -1;
@@ -1321,7 +1321,7 @@ pub fn remote_ui_raw_line(
 }
 
 fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
-    unsafe {
+    {
         if ui.packer.startptr.is_null() || buf_pos(ui) == 0 {
             return;
         }
@@ -1329,7 +1329,7 @@ fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
 
         flush_event(ui);
         if let Some(off) = ui.nevents_pos {
-            let mut pos = ui.packer.startptr.add(off);
+            let mut pos = ui.packer.startptr.wrapping_add(off);
             mpack_w2(&raw mut pos, ui.nevents);
             ui.nevents = 0;
             ui.nevents_pos = None;

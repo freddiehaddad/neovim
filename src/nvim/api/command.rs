@@ -298,7 +298,7 @@ pub fn nvim_parse_cmd(
     arena: &mut Arena,
     err: &mut Error,
 ) -> KeyDict_cmd {
-    unsafe {
+    {
         let mut result = KeyDict_cmd::default();
         let mut ea: Exarg = Exarg::new();
         let mut cmod: Cmdmod = Cmdmod::new();
@@ -351,7 +351,7 @@ pub fn nvim_parse_cmd(
                 done = uc_split_args_iter(ea.arg, length, &mut end, buf, &mut len);
                 if len > 0 {
                     add_c(&mut args, string_obj(cstrn_as_string(buf, len)));
-                    buf = buf.add(len + 1);
+                    buf = buf.wrapping_add(len + 1);
                 }
             }
         }
@@ -763,9 +763,9 @@ pub fn nvim_cmd(
                         match elem.obj_type {
                             ObjectType::ObjectTypeBoolean => {
                                 let data_str = arena_alloc(arena, 2, false).cast::<c_char>();
-                                *data_str.add(0) =
+                                *data_str.wrapping_add(0) =
                                     if elem.data.boolean() { b'1' } else { b'0' } as c_char;
-                                *data_str.add(1) = NUL;
+                                *data_str.wrapping_add(1) = NUL;
                                 add_c(&mut args, string_obj(cstr_as_string(data_str)));
                             }
                             ObjectType::ObjectTypeBuffer
@@ -897,7 +897,7 @@ pub fn nvim_cmd(
                     ea.args.push(p);
                     let arglen = args[i].data.string().size;
                     ea.arglens.push(arglen);
-                    p = p.add(arglen + 1);
+                    p = p.wrapping_add(arglen + 1);
                 }
             }
 
@@ -1209,7 +1209,7 @@ pub fn nvim_cmd(
             if !error_set(err) && opts.output && capture_local.len() > 1 {
                 retv = cbuf_to_arena_str(arena, capture_local.as_ptr(), capture_local.len());
                 if crate::memory::cstr_first_byte(retv.data) == b'\n' {
-                    retv.data = retv.data.add(1);
+                    retv.data = retv.data.wrapping_add(1);
                     retv.size -= 1;
                 }
             }
@@ -1223,7 +1223,7 @@ pub fn nvim_cmd(
 fn string_iswhite(str_val: NvimString) -> bool {
     unsafe {
         for i in 0..str_val.size {
-            let c = *str_val.data.add(i);
+            let c = *str_val.data.wrapping_add(i);
             if !ascii_iswhite(c) {
                 return false;
             } else if c == NUL {

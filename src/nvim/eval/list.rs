@@ -168,7 +168,7 @@ fn filter_map_dict(
                     tv_dict_item_remove(d.as_deref_mut().unwrap(), &mut *di);
                 }
             }
-            hi = hi.add(1);
+            hi = hi.wrapping_add(1);
         }
 
         hash_unlock(&mut d.as_deref_mut().unwrap().dv_hashtab);
@@ -307,7 +307,7 @@ fn filter_map_string(
             tv_clear(&mut tv);
 
             idx += 1;
-            p = p.add(len);
+            p = p.wrapping_add(len);
         }
         crate::eval::typval::tv_set_string_len(
             &mut *rettv,
@@ -540,9 +540,9 @@ fn count_string(
             while *p != 0 {
                 if mb_strnicmp(p, needle, needlelen) == 0 {
                     n += 1;
-                    p = p.add(needlelen);
+                    p = p.wrapping_add(needlelen);
                 } else {
-                    p = p.add(utf_ptr2len(p) as usize);
+                    p = p.wrapping_add(utf_ptr2len(p) as usize);
                 }
             }
         } else {
@@ -601,7 +601,7 @@ fn count_dict(d: Option<&TvDict>, needle: &TypVal, ic: bool) -> i64 {
                     n += 1;
                 }
             }
-            hi = hi.add(1);
+            hi = hi.wrapping_add(1);
         }
         n
     }

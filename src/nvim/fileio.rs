@@ -741,11 +741,11 @@ mod win_iconv {
             unsafe { *errno_ptr() = EINVAL };
             return usize::MAX as *mut c_void;
         }
-        let Ok(to_str) = (unsafe { CStr::from_ptr(tocode) }).to_str() else {
+        let Ok(to_str) = ({ crate::memory::cstr_from_ptr(tocode) }).to_str() else {
             unsafe { *errno_ptr() = EINVAL };
             return usize::MAX as *mut c_void;
         };
-        let Ok(from_str) = (unsafe { CStr::from_ptr(fromcode) }).to_str() else {
+        let Ok(from_str) = ({ crate::memory::cstr_from_ptr(fromcode) }).to_str() else {
             unsafe { *errno_ptr() = EINVAL };
             return usize::MAX as *mut c_void;
         };
@@ -782,7 +782,7 @@ mod win_iconv {
                 let src = crate::memory::cstr_slice(*inbuf, *inbytesleft);
                 match decode_one(desc, src) {
                     StepResult::SkipBom(consumed) => {
-                        *inbuf = (*inbuf).add(consumed);
+                        *inbuf = (*inbuf).wrapping_add(consumed);
                         *inbytesleft -= consumed;
                     }
                     StepResult::Char(ch, consumed) => {
@@ -796,9 +796,9 @@ mod win_iconv {
                             return usize::MAX;
                         }
                         ptr::copy_nonoverlapping(encoded.as_ptr().cast(), *outbuf, enc_len);
-                        *outbuf = (*outbuf).add(enc_len);
+                        *outbuf = (*outbuf).wrapping_add(enc_len);
                         *outbytesleft -= enc_len;
-                        *inbuf = (*inbuf).add(consumed);
+                        *inbuf = (*inbuf).wrapping_add(consumed);
                         *inbytesleft -= consumed;
                     }
                     StepResult::Incomplete => {
@@ -897,7 +897,7 @@ fn filemess(
     let name = name.into_c_char_ptr();
     let msg_id = msg_id.into_c_char_ptr();
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         let prev_msg_col = g_st().msg_col;
 
         if g_st().msg_silent != 0 {
@@ -911,7 +911,7 @@ fn filemess(
             let _dst: *mut c_char = iobuf_ptr;
             let _dsize: usize = IOSIZE;
             let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.add(_dlen), s, _dsize - _dlen);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), s, _dsize - _dlen);
         };
 
         let msg_scroll_save = g_st().msg_scroll;
@@ -1182,7 +1182,7 @@ pub fn readfile(
                     break 'theend;
                 }
 
-                if after_pathsep(fname, fname.add(fnamelen)) != 0 {
+                if after_pathsep(fname, fname.wrapping_add(fnamelen)) != 0 {
                     if !silent {
                         filemess(g_st().curbuf, fname, tr(MSG_IS_A_DIRECTORY), ptr::null());
                     }
@@ -1538,7 +1538,7 @@ pub fn readfile(
             if let Some(eap) = eap
                 && eap.force_enc != 0
             {
-                fenc_owned = Some(enc_canonize(eap.cmd.add(eap.force_enc as usize)));
+                fenc_owned = Some(enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize)));
                 fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut();
                 keep_dest_enc = true;
             } else if curbuf_mut().b_p_bin != 0 {
@@ -1620,7 +1620,7 @@ pub fn readfile(
                 fio_flags = 0;
                 converted = need_conversion(fenc);
                 if converted {
-                    if CStr::from_ptr(fenc) == c"ucs-bom" {
+                    if crate::memory::cstr_from_ptr(fenc) == c"ucs-bom" {
                         fio_flags = FIO_UCSBOM;
                     } else {
                         fio_flags = get_fio_flags(fenc);
@@ -1696,11 +1696,15 @@ pub fn readfile(
                                 vec![0; (size as usize) + (linerest as usize) + 1];
                             let new_buffer = new_buffer_vec.as_mut_ptr();
                             if linerest != 0 {
-                                ptr::copy(ptr.offset(-linerest), new_buffer, linerest as usize);
+                                ptr::copy(
+                                    ptr.wrapping_offset(-linerest),
+                                    new_buffer,
+                                    linerest as usize,
+                                );
                             }
                             buffer_vec = new_buffer_vec;
                             buffer = buffer_vec.as_mut_ptr();
-                            ptr = buffer.offset(linerest);
+                            ptr = buffer.wrapping_offset(linerest);
                             line_start = buffer;
 
                             real_size = size as i32;
@@ -1718,7 +1722,7 @@ pub fn readfile(
 
                             if conv_restlen > 0 {
                                 ptr::copy(conv_rest.as_ptr(), ptr, conv_restlen as usize);
-                                ptr = ptr.offset(conv_restlen as isize);
+                                ptr = ptr.wrapping_offset(conv_restlen as isize);
                                 size -= conv_restlen as isize;
                             }
 
@@ -1730,14 +1734,14 @@ pub fn readfile(
                                     loop {
                                         p = ml_get(read_buf_lnum)
                                             .cast::<u8>()
-                                            .offset(read_buf_col as isize);
+                                            .wrapping_offset(read_buf_col as isize);
                                         let mut n =
                                             (ml_get_len(read_buf_lnum) - read_buf_col) as isize;
                                         if tlen + n + 1 > size {
                                             n = size - tlen;
                                             for ni in 0..n {
-                                                let ch = *p.offset(ni);
-                                                *ptr.offset(tlen) =
+                                                let ch = *p.wrapping_offset(ni);
+                                                *ptr.wrapping_offset(tlen) =
                                                     if ch == b'\n' { NUL } else { ch as c_char };
                                                 tlen += 1;
                                             }
@@ -1746,12 +1750,12 @@ pub fn readfile(
                                         }
 
                                         for ni in 0..n {
-                                            let ch = *p.offset(ni);
-                                            *ptr.offset(tlen) =
+                                            let ch = *p.wrapping_offset(ni);
+                                            *ptr.wrapping_offset(tlen) =
                                                 if ch == b'\n' { NUL } else { ch as c_char };
                                             tlen += 1;
                                         }
-                                        *ptr.offset(tlen) = NL;
+                                        *ptr.wrapping_offset(tlen) = NL;
                                         tlen += 1;
                                         read_buf_col = 0;
                                         read_buf_lnum += 1;
@@ -1796,14 +1800,14 @@ pub fn readfile(
                                             curbuf_mut().b_ml.ml_line_count - linecnt + 1;
                                     }
                                     if bad_char_behavior == BAD_DROP {
-                                        *ptr.offset(-(conv_restlen as isize)) = NUL;
+                                        *ptr.wrapping_offset(-(conv_restlen as isize)) = NUL;
                                         conv_restlen = 0;
                                     } else {
                                         if bad_char_behavior != BAD_KEEP
                                             && (fio_flags != 0 || iconv_fd != -1)
                                         {
                                             while conv_restlen > 0 {
-                                                ptr = ptr.sub(1);
+                                                ptr = ptr.wrapping_sub(1);
                                                 *ptr = bad_char_behavior as c_char;
                                                 conv_restlen -= 1;
                                             }
@@ -1845,7 +1849,7 @@ pub fn readfile(
                             if !ccname.is_null() {
                                 filesize += i64::from(blen);
                                 size -= blen as isize;
-                                ptr::copy(ptr.offset(blen as isize), ptr, size as usize);
+                                ptr::copy(ptr.wrapping_offset(blen as isize), ptr, size as usize);
                                 if set_options {
                                     curbuf_mut().b_p_bomb = 1;
                                     curbuf_mut().b_start_bomb = 1;
@@ -1864,7 +1868,7 @@ pub fn readfile(
                             }
                         }
 
-                        ptr = ptr.offset(-(conv_restlen as isize));
+                        ptr = ptr.wrapping_offset(-(conv_restlen as isize));
                         size += conv_restlen as isize;
                         conv_restlen = 0;
                         if size <= 0 {
@@ -1874,7 +1878,7 @@ pub fn readfile(
                         if iconv_fd != -1 {
                             let mut fromp: *const c_char = ptr;
                             let mut from_size = size as usize;
-                            ptr = ptr.offset(size);
+                            ptr = ptr.wrapping_offset(size);
                             let mut top: *mut c_char = ptr;
                             let mut to_size = (real_size as isize - size) as usize;
 
@@ -1904,15 +1908,15 @@ pub fn readfile(
                                     conv_error = readfile_linenr(linecnt, ptr, top);
                                 }
 
-                                fromp = fromp.add(1);
+                                fromp = fromp.wrapping_add(1);
                                 from_size -= 1;
                                 if bad_char_behavior == BAD_KEEP {
-                                    *top = *fromp.sub(1);
-                                    top = top.add(1);
+                                    *top = *fromp.wrapping_sub(1);
+                                    top = top.wrapping_add(1);
                                     to_size -= 1;
                                 } else if bad_char_behavior != BAD_DROP {
                                     *top = bad_char_behavior as c_char;
-                                    top = top.add(1);
+                                    top = top.wrapping_add(1);
                                     to_size -= 1;
                                 }
                             }
@@ -1922,7 +1926,7 @@ pub fn readfile(
                                 conv_restlen = from_size as i32;
                             }
 
-                            line_start = ptr.offset(-linerest);
+                            line_start = ptr.wrapping_offset(-linerest);
                             ptr::copy(buffer, line_start, linerest as usize);
                             size = top.offset_from(ptr);
                         }
@@ -1931,20 +1935,21 @@ pub fn readfile(
                             let mut u8c: u32;
                             let mut tail: *mut c_char = ptr::null_mut();
 
-                            let mut dest = ptr.offset(real_size as isize);
+                            let mut dest = ptr.wrapping_offset(real_size as isize);
                             if fio_flags == FIO_LATIN1 || fio_flags == FIO_UTF8 {
-                                p = ptr.cast::<u8>().offset(size);
+                                p = ptr.cast::<u8>().wrapping_offset(size);
                                 if fio_flags == FIO_UTF8 {
-                                    tail = ptr.offset(size - 1);
+                                    tail = ptr.wrapping_offset(size - 1);
                                     while tail > ptr
                                         && (crate::memory::cstr_first_byte(tail) & 0xc0) == 0x80
                                     {
-                                        tail = tail.sub(1);
+                                        tail = tail.wrapping_sub(1);
                                     }
-                                    if tail.offset(utf_byte2len(
+                                    if tail.wrapping_offset(utf_byte2len(
                                         crate::memory::cstr_first_byte(tail) as i32,
-                                    ) as isize)
-                                        <= ptr.offset(size)
+                                    )
+                                        as isize)
+                                        <= ptr.wrapping_offset(size)
                                     {
                                         tail = ptr::null_mut();
                                     } else {
@@ -1952,55 +1957,55 @@ pub fn readfile(
                                     }
                                 }
                             } else if (fio_flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
-                                p = ptr.cast::<u8>().offset(size & !1);
+                                p = ptr.cast::<u8>().wrapping_offset(size & !1);
                                 if (size & 1) != 0 {
                                     tail = p.cast::<c_char>();
                                 }
                                 if (fio_flags & FIO_UTF16) != 0 && p > ptr.cast::<u8>() {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c = u32::from(*p) << 8;
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p);
                                     } else {
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c = u32::from(*p);
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p) << 8;
                                     }
                                     if (0xd800..=0xdbff).contains(&u8c) {
                                         tail = p.cast::<c_char>();
                                     } else {
-                                        p = p.add(2);
+                                        p = p.wrapping_add(2);
                                     }
                                 }
                             } else {
-                                p = ptr.cast::<u8>().offset(size & !3);
+                                p = ptr.cast::<u8>().wrapping_offset(size & !3);
                                 if (size & 3) != 0 {
                                     tail = p.cast::<c_char>();
                                 }
                             }
 
                             if !tail.is_null() {
-                                conv_restlen = ptr.offset(size).offset_from(tail) as i32;
+                                conv_restlen = ptr.wrapping_offset(size).offset_from(tail) as i32;
                                 ptr::copy(tail, conv_rest.as_mut_ptr(), conv_restlen as usize);
                                 size -= conv_restlen as isize;
                             }
 
                             while p > ptr.cast::<u8>() {
                                 if (fio_flags & FIO_LATIN1) != 0 {
-                                    p = p.sub(1);
+                                    p = p.wrapping_sub(1);
                                     u8c = u32::from(*p);
                                 } else if (fio_flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c = u32::from(*p) << 8;
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p);
                                     } else {
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c = u32::from(*p);
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p) << 8;
                                     }
                                     if (fio_flags & FIO_UTF16) != 0
@@ -2034,14 +2039,14 @@ pub fn readfile(
 
                                         let mut u16c: i32;
                                         if (fio_flags & FIO_ENDIAN_L) != 0 {
-                                            p = p.sub(1);
+                                            p = p.wrapping_sub(1);
                                             u16c = i32::from(*p) << 8;
-                                            p = p.sub(1);
+                                            p = p.wrapping_sub(1);
                                             u16c += i32::from(*p);
                                         } else {
-                                            p = p.sub(1);
+                                            p = p.wrapping_sub(1);
                                             u16c = i32::from(*p);
-                                            p = p.sub(1);
+                                            p = p.wrapping_sub(1);
                                             u16c += i32::from(*p) << 8;
                                         }
                                         u8c = 0x10000
@@ -2076,34 +2081,34 @@ pub fn readfile(
                                     }
                                 } else if (fio_flags & FIO_UCS4) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c = u32::from(*p) << 24;
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p) << 16;
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p) << 8;
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p);
                                     } else {
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c = u32::from(*p);
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p) << 8;
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p) << 16;
-                                        p = p.sub(1);
+                                        p = p.wrapping_sub(1);
                                         u8c += u32::from(*p) << 24;
                                     }
                                     if u8c > i32::MAX as u32 {
                                         u8c = 0xfffd;
                                     }
                                 } else {
-                                    p = p.sub(1);
+                                    p = p.wrapping_sub(1);
                                     if *p < 0x80 {
                                         u8c = u32::from(*p);
                                     } else {
                                         let len = utf_head_off(ptr, p.cast());
-                                        p = p.offset(-(len as isize));
+                                        p = p.wrapping_offset(-(len as isize));
                                         u8c = utf_ptr2char(p.cast()) as u32;
                                         if len == 0 {
                                             if can_retry {
@@ -2133,13 +2138,13 @@ pub fn readfile(
                                     }
                                 }
                                 debug_assert!(u8c <= i32::MAX as u32);
-                                dest = dest.offset(-(utf_char2len(u8c as i32) as isize));
+                                dest = dest.wrapping_offset(-(utf_char2len(u8c as i32) as isize));
                                 utf_char2bytes(u8c as i32, dest);
                             }
 
-                            line_start = dest.offset(-linerest);
+                            line_start = dest.wrapping_offset(-linerest);
                             ptr::copy(buffer, line_start, linerest as usize);
-                            size = ptr.offset(real_size as isize).offset_from(dest);
+                            size = ptr.wrapping_offset(real_size as isize).offset_from(dest);
                             ptr = dest;
                         } else if curbuf_mut().b_p_bin == 0 {
                             let mut incomplete_tail = false;
@@ -2147,20 +2152,21 @@ pub fn readfile(
                             p = ptr.cast::<u8>();
                             loop {
                                 {
-                                    let ascii_end = ptr.cast::<u8>().offset(size);
+                                    let ascii_end = ptr.cast::<u8>().wrapping_offset(size);
                                     while ascii_end.offset_from(p) >= size_of::<u64>() as isize {
                                         let word = ptr::read_unaligned(p.cast::<u64>());
                                         if (word & NONASCII_MASK) != 0 {
                                             break;
                                         }
-                                        p = p.add(size_of::<u64>());
+                                        p = p.wrapping_add(size_of::<u64>());
                                     }
                                     while p < ascii_end && *p < 0x80 {
-                                        p = p.add(1);
+                                        p = p.wrapping_add(1);
                                     }
                                 }
 
-                                let todo = ptr.cast::<u8>().offset(size).offset_from(p) as i32;
+                                let todo =
+                                    ptr.cast::<u8>().wrapping_offset(size).offset_from(p) as i32;
                                 if todo <= 0 {
                                     break;
                                 }
@@ -2195,20 +2201,20 @@ pub fn readfile(
                                         }
 
                                         if bad_char_behavior == BAD_DROP {
-                                            ptr::copy(p.add(1), p, (todo - 1) as usize);
+                                            ptr::copy(p.wrapping_add(1), p, (todo - 1) as usize);
                                             size -= 1;
                                         } else {
                                             if bad_char_behavior != BAD_KEEP {
                                                 *p = bad_char_behavior as u8;
                                             }
-                                            p = p.add(1);
+                                            p = p.wrapping_add(1);
                                         }
                                     } else {
-                                        p = p.offset(l as isize);
+                                        p = p.wrapping_offset(l as isize);
                                     }
                                 }
                             }
-                            if p < ptr.cast::<u8>().offset(size) && !incomplete_tail {
+                            if p < ptr.cast::<u8>().wrapping_offset(size) && !incomplete_tail {
                                 if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv)
                                     != K_CALLBACK_NONE_CONST
                                     && iconv_fd != -1
@@ -2231,13 +2237,13 @@ pub fn readfile(
                                 }
 
                                 p = ptr.cast::<u8>();
-                                let end_p = ptr.cast::<u8>().offset(size);
+                                let end_p = ptr.cast::<u8>().wrapping_offset(size);
                                 while p < end_p {
                                     if *p == b'\n' {
                                         if try_unix == 0
                                             || (try_dos != 0
                                                 && p > ptr.cast::<u8>()
-                                                && *p.sub(1) == b'\r')
+                                                && *p.wrapping_sub(1) == b'\r')
                                         {
                                             fileformat = EOL_DOS;
                                         } else {
@@ -2247,7 +2253,7 @@ pub fn readfile(
                                     } else if *p == b'\r' && try_mac != 0 {
                                         try_mac += 1;
                                     }
-                                    p = p.add(1);
+                                    p = p.wrapping_add(1);
                                 }
 
                                 if fileformat == EOL_UNIX && try_mac != 0 {
@@ -2264,7 +2270,7 @@ pub fn readfile(
                                             } else if *p == b'\r' {
                                                 try_mac += 1;
                                             }
-                                            p = p.add(1);
+                                            p = p.wrapping_add(1);
                                         }
                                         if try_mac > try_unix {
                                             fileformat = EOL_MAC;
@@ -2329,11 +2335,11 @@ pub fn readfile(
                                 } else {
                                     skip_count -= 1;
                                 }
-                                line_start = ptr.add(1);
+                                line_start = ptr.wrapping_add(1);
                             }
                         }
                     } else {
-                        let end = ptr.offset(size);
+                        let end = ptr.wrapping_offset(size);
 
                         while ptr < end {
                             let rem = end.offset_from(ptr) as usize;
@@ -2350,7 +2356,7 @@ pub fn readfile(
                                 break;
                             };
 
-                            let nl = ptr.add(nl_pos);
+                            let nl = ptr.wrapping_add(nl_pos);
                             if nl_pos > 0 {
                                 let scan_slice =
                                     std::slice::from_raw_parts_mut(ptr.cast::<u8>(), nl_pos);
@@ -2366,8 +2372,8 @@ pub fn readfile(
                                 *ptr = NUL;
                                 let mut len = (ptr.offset_from(line_start) + 1) as Colnr;
                                 if fileformat == EOL_DOS {
-                                    if ptr > line_start && *ptr.sub(1) == CAR {
-                                        *ptr.sub(1) = NUL;
+                                    if ptr > line_start && *ptr.wrapping_sub(1) == CAR {
+                                        *ptr.wrapping_sub(1) = NUL;
                                         len -= 1;
                                     } else if ff_error != EOL_DOS {
                                         if try_unix != 0
@@ -2405,8 +2411,8 @@ pub fn readfile(
                             } else {
                                 skip_count -= 1;
                             }
-                            line_start = ptr.add(1);
-                            ptr = ptr.add(1);
+                            line_start = ptr.wrapping_add(1);
+                            ptr = ptr.wrapping_add(1);
                         }
                         size = -1;
                     }
@@ -2450,9 +2456,9 @@ pub fn readfile(
             if linerest != 0
                 && curbuf_mut().b_p_bin == 0
                 && fileformat == EOL_DOS
-                && *ptr.sub(1) == CTRL_Z
+                && *ptr.wrapping_sub(1) == CTRL_Z
             {
-                ptr = ptr.sub(1);
+                ptr = ptr.wrapping_sub(1);
                 linerest -= 1;
                 if set_options {
                     curbuf_mut().b_p_eof = 1;
@@ -2597,7 +2603,7 @@ pub fn readfile(
                     }
                     if curbuf_mut().b_p_ro != 0 {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.offset(buflen as isize),
+                            iobuf_ptr.wrapping_offset(buflen as isize),
                             (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             if shortmess(K_SHM_RO) {
@@ -2610,7 +2616,7 @@ pub fn readfile(
                     }
                     if read_no_eol_lnum != 0 {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.offset(buflen as isize),
+                            iobuf_ptr.wrapping_offset(buflen as isize),
                             (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[noeol]"),
@@ -2619,7 +2625,7 @@ pub fn readfile(
                     }
                     if ff_error == EOL_DOS {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.offset(buflen as isize),
+                            iobuf_ptr.wrapping_offset(buflen as isize),
                             (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[CR missing]"),
@@ -2628,7 +2634,7 @@ pub fn readfile(
                     }
                     if split != 0 {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.offset(buflen as isize),
+                            iobuf_ptr.wrapping_offset(buflen as isize),
                             (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[long lines split]"),
@@ -2637,7 +2643,7 @@ pub fn readfile(
                     }
                     if notconverted {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.offset(buflen as isize),
+                            iobuf_ptr.wrapping_offset(buflen as isize),
                             (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[NOT converted]"),
@@ -2645,7 +2651,7 @@ pub fn readfile(
                         c = true;
                     } else if converted {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.offset(buflen as isize),
+                            iobuf_ptr.wrapping_offset(buflen as isize),
                             (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[converted]"),
@@ -2654,7 +2660,7 @@ pub fn readfile(
                     }
                     if conv_error != 0 {
                         vim_snprintf!(
-                            iobuf_ptr.offset(buflen as isize),
+                            iobuf_ptr.wrapping_offset(buflen as isize),
                             (IOSIZE as i32 - buflen) as usize,
                             tr(c"[CONVERSION ERROR in line %lld]"),
                             i64::from(conv_error),
@@ -2662,7 +2668,7 @@ pub fn readfile(
                         c = true;
                     } else if illegal_byte > 0 {
                         vim_snprintf!(
-                            iobuf_ptr.offset(buflen as isize),
+                            iobuf_ptr.wrapping_offset(buflen as isize),
                             (IOSIZE as i32 - buflen) as usize,
                             tr(c"[ILLEGAL BYTE in line %lld]"),
                             i64::from(illegal_byte),
@@ -2670,7 +2676,7 @@ pub fn readfile(
                         c = true;
                     } else if error {
                         vim_snprintf!(
-                            iobuf_ptr.offset(buflen as isize),
+                            iobuf_ptr.wrapping_offset(buflen as isize),
                             (IOSIZE as i32 - buflen) as usize,
                             c"%s",
                             tr(c"[READ ERRORS]"),
@@ -2866,7 +2872,7 @@ pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
         bytes.starts_with(b"/dev/fd/")
             && bytes.len() > 8
             && ascii_isdigit(bytes[8])
-            && *skipdigits(fname.add(9)) == NUL
+            && *skipdigits(fname.wrapping_add(9)) == NUL
             && (crate::memory::cstr_byte_at(fname, 9) != 0
                 || (crate::memory::cstr_byte_at(fname, 8) != b'0'
                     && crate::memory::cstr_byte_at(fname, 8) != b'1'
@@ -2882,14 +2888,14 @@ fn readfile_linenr(
 ) -> Linenr {
     let p = p.into_c_char_ptr();
     let endp = endp.into_c_char_ptr();
-    unsafe {
+    {
         let mut lnum = curbuf_mut().b_ml.ml_line_count - linecnt + 1;
         let mut s: *const c_char = p;
         while s < endp {
             if crate::memory::cstr_first_byte(s) == b'\n' {
                 lnum += 1;
             }
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         lnum
     }
@@ -2945,12 +2951,12 @@ pub fn set_file_options(set_options: bool, eap: Option<&Exarg>) {
 
 /// Set forced 'fileencoding'.
 pub fn set_forced_fenc(eap: &Exarg) {
-    unsafe {
+    {
         if eap.force_enc == 0 {
             return;
         }
 
-        let fenc = enc_canonize(eap.cmd.add(eap.force_enc as usize));
+        let fenc = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize));
         set_option_direct(K_OPT_FILEENCODING, cstr_as_obj(fenc.as_ptr()), OPT_LOCAL, 0);
     }
 }
@@ -2965,13 +2971,13 @@ fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
         let p = vim_strchr(*pp, b',' as i32);
         if p.is_null() {
             let res = enc_canonize(*pp);
-            *pp = (*pp).add(crate::memory::cstr_len(*pp));
+            *pp = (*pp).wrapping_add(crate::memory::cstr_len(*pp));
             res
         } else {
             let len = p.offset_from(*pp) as usize;
             let tmp =
                 std::ffi::CString::new(crate::memory::cstr_slice(*pp, len)).unwrap_or_default();
-            *pp = p.add(1);
+            *pp = p.wrapping_add(1);
             enc_canonize(tmp.as_ptr())
         }
     }
@@ -3101,16 +3107,16 @@ pub fn add_quoted_fname(
             fname = c"-stdin-".as_ptr();
         }
         let mut len: usize = 0;
-        *ret_buf.add(len) = b'"' as c_char;
+        *ret_buf.wrapping_add(len) = b'"' as c_char;
         len += 1;
         len += home_replace(
             buf.cast_mut().as_ref(),
             fname,
-            ret_buf.add(len),
+            ret_buf.wrapping_add(len),
             bufsize - 4,
             true,
         );
-        xstrlcpy(ret_buf.add(len), c"\" ", bufsize - len);
+        xstrlcpy(ret_buf.wrapping_add(len), c"\" ", bufsize - len);
     }
 }
 
@@ -3126,21 +3132,21 @@ pub fn fname_msg_id(
     unsafe {
         let mut len = xstrlcpy(msg_id, prefix.as_ptr(), size);
         if len < size {
-            len += xstrlcpy(msg_id.add(len), c" ", size - len);
+            len += xstrlcpy(msg_id.wrapping_add(len), c" ", size - len);
         }
         if len < size {
-            add_quoted_fname(msg_id.add(len), size - len, buf, fname);
+            add_quoted_fname(msg_id.wrapping_add(len), size - len, buf, fname);
         }
         let total = crate::memory::cstr_len(msg_id);
         if total > 0 {
-            *msg_id.add(total - 1) = NUL;
+            *msg_id.wrapping_add(total - 1) = NUL;
         }
     }
 }
 
 /// Append message for text mode to IObuff.
 pub fn msg_add_fileformat(eol_type: i32) -> bool {
-    unsafe {
+    {
         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         #[cfg(not(windows))]
         if eol_type == EOL_DOS {
@@ -3157,7 +3163,7 @@ pub fn msg_add_fileformat(eol_type: i32) -> bool {
                 let _dst: *mut c_char = iobuf_ptr;
                 let _dsize: usize = IOSIZE;
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[mac]"), _dsize - _dlen);
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[mac]"), _dsize - _dlen);
             };
             return true;
         }
@@ -3167,7 +3173,7 @@ pub fn msg_add_fileformat(eol_type: i32) -> bool {
                 let _dst: *mut c_char = iobuf_ptr;
                 let _dsize: usize = IOSIZE;
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[unix]"), _dsize - _dlen);
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[unix]"), _dsize - _dlen);
             };
             return true;
         }
@@ -3177,7 +3183,7 @@ pub fn msg_add_fileformat(eol_type: i32) -> bool {
 
 /// Append line and character count to IObuff.
 pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
-    unsafe {
+    {
         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         let mut len = crate::memory::cstr_len(iobuf_ptr);
         let space = if insert_space != 0 {
@@ -3188,7 +3194,7 @@ pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
 
         if shortmess(K_SHM_LINES) {
             vim_snprintf!(
-                iobuf_ptr.add(len),
+                iobuf_ptr.wrapping_add(len),
                 IOSIZE - len,
                 tr(c"%s%lldL, %lldB"),
                 space,
@@ -3197,14 +3203,14 @@ pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
             );
         } else {
             len += vim_snprintf!(
-                iobuf_ptr.add(len),
+                iobuf_ptr.wrapping_add(len),
                 IOSIZE - len,
                 ngettext(c"%s%lld line, ", c"%s%lld lines, ", lnum as usize,),
                 space,
                 i64::from(lnum),
             ) as usize;
             vim_snprintf!(
-                iobuf_ptr.add(len),
+                iobuf_ptr.wrapping_add(len),
                 IOSIZE - len,
                 ngettext(c"%lld byte", c"%lld bytes", nchars as usize,),
                 nchars,
@@ -3229,12 +3235,12 @@ pub fn time_differs(file_info: &FileInfo, mtime: i64, mtime_ns: i64) -> bool {
 /// Return true if file encoding "fenc" requires conversion from or to 'encoding'.
 pub fn need_conversion(fenc: impl crate::strings::IntoCCharPtr) -> bool {
     let fenc = fenc.into_c_char_ptr();
-    unsafe {
+    {
         let same_encoding: bool;
         let fenc_flags: i32;
 
         if crate::memory::cstr_is_empty(fenc)
-            || CStr::from_ptr(opt_vars().p_enc) == CStr::from_ptr(fenc)
+            || crate::memory::cstr_from_ptr(opt_vars().p_enc) == crate::memory::cstr_from_ptr(fenc)
         {
             same_encoding = true;
             fenc_flags = 0;
@@ -3306,17 +3312,17 @@ fn check_for_bom(
         let mut len: i32 = 2;
 
         if *p == 0xef
-            && *p.add(1) == 0xbb
+            && *p.wrapping_add(1) == 0xbb
             && size >= 3
-            && *p.add(2) == 0xbf
+            && *p.wrapping_add(2) == 0xbf
             && (flags == FIO_ALL || flags == FIO_UTF8 || flags == 0)
         {
             name = c"utf-8".as_ptr();
             len = 3;
-        } else if *p == 0xff && *p.add(1) == 0xfe {
+        } else if *p == 0xff && *p.wrapping_add(1) == 0xfe {
             if size >= 4
-                && *p.add(2) == 0
-                && *p.add(3) == 0
+                && *p.wrapping_add(2) == 0
+                && *p.wrapping_add(3) == 0
                 && (flags == FIO_ALL || flags == (FIO_UCS4 | FIO_ENDIAN_L))
             {
                 name = c"ucs-4le".as_ptr();
@@ -3327,7 +3333,7 @@ fn check_for_bom(
                 name = c"utf-16le".as_ptr();
             }
         } else if *p == 0xfe
-            && *p.add(1) == 0xff
+            && *p.wrapping_add(1) == 0xff
             && (flags == FIO_ALL || flags == FIO_UCS2 || flags == FIO_UTF16)
         {
             if flags == FIO_UCS2 {
@@ -3337,9 +3343,9 @@ fn check_for_bom(
             }
         } else if size >= 4
             && *p == 0
-            && *p.add(1) == 0
-            && *p.add(2) == 0xfe
-            && *p.add(3) == 0xff
+            && *p.wrapping_add(1) == 0
+            && *p.wrapping_add(2) == 0xfe
+            && *p.wrapping_add(3) == 0xff
             && (flags == FIO_ALL || flags == FIO_UCS4)
         {
             name = c"ucs-4".as_ptr();
@@ -3353,7 +3359,7 @@ fn check_for_bom(
 
 /// Shorten filename of a buffer.
 pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: *mut c_char, force: i32) -> bool {
-    unsafe {
+    {
         if buf.b_fname.is_null()
             || bt_nofilename(Some(&*buf))
             || path_with_url(buf.b_fname) != 0
@@ -3364,13 +3370,16 @@ pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: *mut c_char, force: i32) ->
 
         let p = path_shorten_fname(buf.b_ffname, dirname);
         let shorten = !crate::memory::cstr_is_empty(p);
-        if shorten && !buf.b_sfname.is_null() && CStr::from_ptr(p) == CStr::from_ptr(buf.b_sfname) {
+        if shorten
+            && !buf.b_sfname.is_null()
+            && crate::memory::cstr_from_ptr(p) == crate::memory::cstr_from_ptr(buf.b_sfname)
+        {
             return false;
         }
 
         let new_fname = if shorten { p } else { buf.b_ffname };
-        let changed =
-            new_fname.is_null() || CStr::from_ptr(new_fname) != CStr::from_ptr(buf.b_fname);
+        let changed = new_fname.is_null()
+            || crate::memory::cstr_from_ptr(new_fname) != crate::memory::cstr_from_ptr(buf.b_fname);
 
         buf.set_sfname(shorten.then(|| cstr_to_cstring(p)));
         if shorten {
@@ -3430,35 +3439,37 @@ pub fn modname(
             ptr::copy_nonoverlapping(fname, retval, fnamelen + 1);
         }
 
-        let mut ptr = retval.add(fnamelen);
+        let mut ptr = retval.wrapping_add(fnamelen);
         while ptr > retval {
             if vim_ispathsep(crate::memory::cstr_first_char(ptr)) {
-                ptr = ptr.add(1);
+                ptr = ptr.wrapping_add(1);
                 break;
             }
-            ptr = ptr.offset(-((utf_head_off(retval, ptr.sub(1)) + 1) as isize));
+            ptr = ptr.wrapping_offset(-((utf_head_off(retval, ptr.wrapping_sub(1)) + 1) as isize));
         }
 
         let mut ptrlen = fnamelen - ptr.offset_from(retval) as usize;
         if ptrlen > BASENAMELEN {
             ptrlen = BASENAMELEN;
-            *ptr.add(ptrlen) = NUL;
+            *ptr.wrapping_add(ptrlen) = NUL;
         }
 
-        let mut s = ptr.add(ptrlen);
+        let mut s = ptr.wrapping_add(ptrlen);
 
         ptr::copy_nonoverlapping(ext, s, extlen + 1);
 
         let e = path_tail(retval);
         if prepend_dot && crate::memory::cstr_first_byte(e) != b'.' {
             let move_len = ((fnamelen + extlen) - e.offset_from(retval) as usize) + 1;
-            ptr::copy(e, e.add(1), move_len);
+            ptr::copy(e, e.wrapping_add(1), move_len);
             *e = b'.' as c_char;
         }
 
-        if !fname.is_null() && CStr::from_ptr(fname) == CStr::from_ptr(retval) {
+        if !fname.is_null()
+            && crate::memory::cstr_from_ptr(fname) == crate::memory::cstr_from_ptr(retval)
+        {
             loop {
-                s = s.sub(1);
+                s = s.wrapping_sub(1);
                 if s < ptr {
                     break;
                 }
@@ -3486,7 +3497,7 @@ pub fn vim_fgets(buf: *mut c_char, size: i32, fp: *mut FILE) -> bool {
             return true;
         }
 
-        *buf.offset((size - 2) as isize) = NUL;
+        *buf.wrapping_offset((size - 2) as isize) = NUL;
 
         let mut retval: *mut c_char;
         loop {
@@ -3497,11 +3508,11 @@ pub fn vim_fgets(buf: *mut c_char, size: i32, fp: *mut FILE) -> bool {
             }
         }
 
-        let penultimate = *buf.offset((size - 2) as isize);
+        let penultimate = *buf.wrapping_offset((size - 2) as isize);
         if penultimate != NUL && penultimate != b'\n' as c_char {
             let mut tbuf: [c_char; 200] = [0; 200];
 
-            *buf.offset((size - 1) as isize) = NUL;
+            *buf.wrapping_offset((size - 1) as isize) = NUL;
 
             loop {
                 tbuf[tbuf.len() - 2] = NUL;
@@ -3685,12 +3696,13 @@ pub fn vim_rename(
 ) -> i32 {
     let from = from.into_c_char_ptr();
     let to = to.into_c_char_ptr();
-    unsafe {
+    {
         let mut use_tmp_file = false;
 
         if path_equal(from, to, K_PATH_CMP_LITERAL) {
             if opt_vars().p_fic != 0
-                && CStr::from_ptr(path_tail(from)) != CStr::from_ptr(path_tail(to))
+                && crate::memory::cstr_from_ptr(path_tail(from))
+                    != crate::memory::cstr_from_ptr(path_tail(to))
             {
                 use_tmp_file = true;
             } else {
@@ -3852,7 +3864,7 @@ fn move_lines(frombuf: &mut FileBuf, tobuf: *mut FileBuf) -> bool {
 
 /// Check if buffer "buf" has been changed.
 pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
-    unsafe {
+    {
         static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
         const RELOAD_NONE: i32 = 0;
@@ -3945,7 +3957,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                     if !bufref_valid(Some(&bufref)) {
                         emsg(tr(c"E246: FileChangedShell autocommand deleted buffer"));
                     }
-                    let s = CStr::from_ptr(get_vim_var_str(VV_FCS_CHOICE));
+                    let s = crate::memory::cstr_from_ptr(get_vim_var_str(VV_FCS_CHOICE));
                     if s == c"reload" && crate::memory::cstr_first_byte(reason) != b'd' {
                         reload = RELOAD_NORMAL;
                     } else if s == c"edit" {
@@ -4012,7 +4024,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             if can_reload {
                 if !crate::memory::cstr_is_empty(mesg2) {
                     vim_snprintf!(
-                        tbuf.offset(tbuflen as isize),
+                        tbuf.wrapping_offset(tbuflen as isize),
                         tbufsize - (tbuflen as usize),
                         c"\n%s",
                         mesg2,
@@ -4037,7 +4049,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             {
                 if !crate::memory::cstr_is_empty(mesg2) {
                     vim_snprintf!(
-                        tbuf.offset(tbuflen as isize),
+                        tbuf.wrapping_offset(tbuflen as isize),
                         tbufsize - (tbuflen as usize),
                         c"; %s",
                         mesg2,
@@ -4311,9 +4323,9 @@ fn vim_mktempdir() {
                 continue;
             }
 
-            if after_pathsep(tmp.as_ptr(), tmp.as_ptr().add(tmplen)) == 0 {
+            if after_pathsep(tmp.as_ptr(), tmp.as_ptr().wrapping_add(tmplen)) == 0 {
                 tmplen += vim_snprintf!(
-                    tmp.as_mut_ptr().add(tmplen),
+                    tmp.as_mut_ptr().wrapping_add(tmplen),
                     tmp.len() - tmplen,
                     c"%s",
                     PATHSEPSTR,
@@ -4321,7 +4333,7 @@ fn vim_mktempdir() {
                 debug_assert!(tmplen < tmp.len());
             }
             tmplen += vim_snprintf!(
-                tmp.as_mut_ptr().add(tmplen),
+                tmp.as_mut_ptr().wrapping_add(tmplen),
                 tmp.len() - tmplen,
                 c"nvim.%s",
                 user.as_ptr(),
@@ -4337,9 +4349,9 @@ fn vim_mktempdir() {
             #[cfg(not(unix))]
             let valid = isdir && owned;
             if valid {
-                if after_pathsep(tmp.as_ptr(), tmp.as_ptr().add(tmplen)) == 0 {
+                if after_pathsep(tmp.as_ptr(), tmp.as_ptr().wrapping_add(tmplen)) == 0 {
                     tmplen += vim_snprintf!(
-                        tmp.as_mut_ptr().add(tmplen),
+                        tmp.as_mut_ptr().wrapping_add(tmplen),
                         tmp.len() - tmplen,
                         c"%s",
                         PATHSEPSTR,
@@ -4386,8 +4398,11 @@ fn vim_mktempdir() {
                 tmp[tmplen] = NUL;
             }
 
-            tmplen += vim_snprintf!(tmp.as_mut_ptr().add(tmplen), tmp.len() - tmplen, c"XXXXXX",)
-                as usize;
+            tmplen += vim_snprintf!(
+                tmp.as_mut_ptr().wrapping_add(tmplen),
+                tmp.len() - tmplen,
+                c"XXXXXX",
+            ) as usize;
             debug_assert!(tmplen < tmp.len());
             let _ = tmplen;
             let r = os_mkdtemp(tmp.as_ptr(), path.as_mut_ptr());
@@ -4466,7 +4481,7 @@ pub fn readdir_core(
 /// Delete "name" and everything in it, recursively.
 pub fn delete_recursive(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut result: i32 = 0;
 
         if os_isrealdir(name) {
@@ -4478,7 +4493,7 @@ pub fn delete_recursive(name: impl crate::strings::IntoCCharPtr) -> i32 {
 
                 for entry in &entries {
                     vim_snprintf!(
-                        namebuff_ptr.offset(len as isize),
+                        namebuff_ptr.wrapping_offset(len as isize),
                         MAXPATHL - (len as usize),
                         c"%s",
                         entry.as_ptr(),
@@ -4549,7 +4564,7 @@ pub fn vim_deltempdir() {
             .into_iter()
             .map(|b| b as c_char)
             .collect();
-        *path_tail(td_vec.as_mut_ptr()).sub(1) = NUL;
+        *path_tail(td_vec.as_mut_ptr()).wrapping_sub(1) = NUL;
         delete_recursive(td_vec.as_ptr());
     }
 }
@@ -4604,11 +4619,11 @@ fn vim_settempdir(tempdir: impl crate::strings::IntoCCharPtr) -> bool {
         vim_full_name(tempdir, buf, MAXPATHL, cfg!(windows));
 
         let mut buflen = crate::memory::cstr_len(buf);
-        if after_pathsep(buf, buf.add(buflen)) == 0 {
+        if after_pathsep(buf, buf.wrapping_add(buflen)) == 0 {
             let sep_bytes = PATHSEPSTR.to_bytes_with_nul();
             ptr::copy_nonoverlapping(
                 sep_bytes.as_ptr().cast::<c_char>(),
-                buf.add(buflen),
+                buf.wrapping_add(buflen),
                 sep_bytes.len(),
             );
             buflen += sep_bytes.len() - 1;
@@ -4729,7 +4744,7 @@ pub fn file_pat_to_reg_pat(
         }
 
         if pat_end.is_null() {
-            pat_end = pat.add(crate::memory::cstr_len(pat));
+            pat_end = pat.wrapping_add(crate::memory::cstr_len(pat));
         }
 
         if pat_end == pat {
@@ -4746,7 +4761,7 @@ pub fn file_pat_to_reg_pat(
                 b'\\' | b'/' => size += 4,
                 _ => size += 1,
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         let mut reg_pat_vec: Vec<c_char> = vec![0; size + 1];
         let reg_pat = reg_pat_vec.as_mut_ptr();
@@ -4754,18 +4769,18 @@ pub fn file_pat_to_reg_pat(
         let mut i: usize = 0;
 
         if crate::memory::cstr_first_byte(pat) == b'*' {
-            while crate::memory::cstr_first_byte(pat) == b'*' && pat < pat_end.sub(1) {
-                pat = pat.add(1);
+            while crate::memory::cstr_first_byte(pat) == b'*' && pat < pat_end.wrapping_sub(1) {
+                pat = pat.wrapping_add(1);
             }
         } else {
-            *reg_pat.add(i) = b'^' as c_char;
+            *reg_pat.wrapping_add(i) = b'^' as c_char;
             i += 1;
         }
-        let mut endp = pat_end.sub(1);
+        let mut endp = pat_end.wrapping_sub(1);
         let mut add_dollar = true;
         if endp >= pat && crate::memory::cstr_first_byte(endp) == b'*' {
             while endp.offset_from(pat) > 0 && crate::memory::cstr_first_byte(endp) == b'*' {
-                endp = endp.sub(1);
+                endp = endp.wrapping_sub(1);
             }
             add_dollar = false;
         }
@@ -4774,22 +4789,22 @@ pub fn file_pat_to_reg_pat(
         while !crate::memory::cstr_is_empty(p) && nested >= 0 && p <= endp {
             match crate::memory::cstr_first_byte(p) {
                 b'*' => {
-                    *reg_pat.add(i) = b'.' as c_char;
+                    *reg_pat.wrapping_add(i) = b'.' as c_char;
                     i += 1;
-                    *reg_pat.add(i) = b'*' as c_char;
+                    *reg_pat.wrapping_add(i) = b'*' as c_char;
                     i += 1;
                     while crate::memory::cstr_byte_at(p, 1) == b'*' {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     }
                 }
                 b'.' | b'~' => {
-                    *reg_pat.add(i) = b'\\' as c_char;
+                    *reg_pat.wrapping_add(i) = b'\\' as c_char;
                     i += 1;
-                    *reg_pat.add(i) = *p;
+                    *reg_pat.wrapping_add(i) = *p;
                     i += 1;
                 }
                 b'?' => {
-                    *reg_pat.add(i) = b'.' as c_char;
+                    *reg_pat.wrapping_add(i) = b'.' as c_char;
                     i += 1;
                 }
                 b'\\' => {
@@ -4802,25 +4817,25 @@ pub fn file_pat_to_reg_pat(
                         if (vim_isfilec(i32::from(next_ch)) || next_ch == b'*' || next_ch == b'?')
                             && next_ch != b'+'
                         {
-                            *reg_pat.add(i) = b'[' as c_char;
+                            *reg_pat.wrapping_add(i) = b'[' as c_char;
                             i += 1;
-                            *reg_pat.add(i) = b'\\' as c_char;
+                            *reg_pat.wrapping_add(i) = b'\\' as c_char;
                             i += 1;
-                            *reg_pat.add(i) = b'/' as c_char;
+                            *reg_pat.wrapping_add(i) = b'/' as c_char;
                             i += 1;
-                            *reg_pat.add(i) = b']' as c_char;
+                            *reg_pat.wrapping_add(i) = b']' as c_char;
                             i += 1;
                             if !allow_dirs.is_null() {
                                 *allow_dirs = 1;
                             }
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                             continue;
                         }
                     }
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     let ch = *p;
                     if ch == b'?' as c_char && (!BACKSLASH_IN_FILENAME_BOOL || no_bslash != 0) {
-                        *reg_pat.add(i) = b'?' as c_char;
+                        *reg_pat.wrapping_add(i) = b'?' as c_char;
                         i += 1;
                     } else if ch == b',' as c_char
                         || ch == b'%' as c_char
@@ -4829,17 +4844,17 @@ pub fn file_pat_to_reg_pat(
                         || ch == b'{' as c_char
                         || ch == b'}' as c_char
                     {
-                        *reg_pat.add(i) = ch;
+                        *reg_pat.wrapping_add(i) = ch;
                         i += 1;
                     } else if ch == b'\\' as c_char
                         && crate::memory::cstr_byte_at(p, 1) == b'\\'
                         && crate::memory::cstr_byte_at(p, 2) == b'{'
                     {
-                        *reg_pat.add(i) = b'\\' as c_char;
+                        *reg_pat.wrapping_add(i) = b'\\' as c_char;
                         i += 1;
-                        *reg_pat.add(i) = b'{' as c_char;
+                        *reg_pat.wrapping_add(i) = b'{' as c_char;
                         i += 1;
-                        p = p.add(2);
+                        p = p.wrapping_add(2);
                     } else {
                         if !allow_dirs.is_null()
                             && vim_ispathsep(i32::from(ch))
@@ -4849,48 +4864,48 @@ pub fn file_pat_to_reg_pat(
                         {
                             *allow_dirs = 1;
                         }
-                        *reg_pat.add(i) = b'\\' as c_char;
+                        *reg_pat.wrapping_add(i) = b'\\' as c_char;
                         i += 1;
-                        *reg_pat.add(i) = ch;
+                        *reg_pat.wrapping_add(i) = ch;
                         i += 1;
                     }
                 }
                 #[cfg(windows)]
                 b'/' => {
-                    *reg_pat.add(i) = b'[' as c_char;
+                    *reg_pat.wrapping_add(i) = b'[' as c_char;
                     i += 1;
-                    *reg_pat.add(i) = b'\\' as c_char;
+                    *reg_pat.wrapping_add(i) = b'\\' as c_char;
                     i += 1;
-                    *reg_pat.add(i) = b'/' as c_char;
+                    *reg_pat.wrapping_add(i) = b'/' as c_char;
                     i += 1;
-                    *reg_pat.add(i) = b']' as c_char;
+                    *reg_pat.wrapping_add(i) = b']' as c_char;
                     i += 1;
                     if !allow_dirs.is_null() {
                         *allow_dirs = 1;
                     }
                 }
                 b'{' => {
-                    *reg_pat.add(i) = b'\\' as c_char;
+                    *reg_pat.wrapping_add(i) = b'\\' as c_char;
                     i += 1;
-                    *reg_pat.add(i) = b'(' as c_char;
+                    *reg_pat.wrapping_add(i) = b'(' as c_char;
                     i += 1;
                     nested += 1;
                 }
                 b'}' => {
-                    *reg_pat.add(i) = b'\\' as c_char;
+                    *reg_pat.wrapping_add(i) = b'\\' as c_char;
                     i += 1;
-                    *reg_pat.add(i) = b')' as c_char;
+                    *reg_pat.wrapping_add(i) = b')' as c_char;
                     i += 1;
                     nested -= 1;
                 }
                 b',' => {
                     if nested != 0 {
-                        *reg_pat.add(i) = b'\\' as c_char;
+                        *reg_pat.wrapping_add(i) = b'\\' as c_char;
                         i += 1;
-                        *reg_pat.add(i) = b'|' as c_char;
+                        *reg_pat.wrapping_add(i) = b'|' as c_char;
                         i += 1;
                     } else {
-                        *reg_pat.add(i) = b',' as c_char;
+                        *reg_pat.wrapping_add(i) = b',' as c_char;
                         i += 1;
                     }
                 }
@@ -4898,17 +4913,17 @@ pub fn file_pat_to_reg_pat(
                     if !allow_dirs.is_null() && vim_ispathsep(crate::memory::cstr_first_char(p)) {
                         *allow_dirs = 1;
                     }
-                    *reg_pat.add(i) = *p;
+                    *reg_pat.wrapping_add(i) = *p;
                     i += 1;
                 }
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         if add_dollar {
-            *reg_pat.add(i) = b'$' as c_char;
+            *reg_pat.wrapping_add(i) = b'$' as c_char;
             i += 1;
         }
-        *reg_pat.add(i) = NUL;
+        *reg_pat.wrapping_add(i) = NUL;
         if nested != 0 {
             if nested < 0 {
                 emsg(tr(c"E219: Missing {."));
@@ -4944,7 +4959,8 @@ pub fn write_eintr(fd: i32, buf: *const c_void, bufsize: usize) -> isize {
         while (ret as usize) < bufsize {
             let rem = bufsize - (ret as usize);
             #[cfg(windows)]
-            let wlen = _write(fd, buf.cast::<u8>().offset(ret).cast(), rem as u32) as isize;
+            let wlen =
+                _write(fd, buf.cast::<u8>().wrapping_offset(ret).cast(), rem as u32) as isize;
             #[cfg(not(windows))]
             let wlen = write(fd, buf.cast::<u8>().offset(ret).cast(), rem);
             if wlen < 0 {
@@ -5055,24 +5071,24 @@ mod tests {
 
     #[test]
     fn test_check_for_bom() {
-        unsafe {
+        {
             let mut len = 0;
             let utf8_bom = [0xefu8, 0xbb, 0xbf, b'a'];
             let enc = check_for_bom(utf8_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
             assert!(!enc.is_null());
-            assert_eq!(CStr::from_ptr(enc), c"utf-8");
+            assert_eq!(crate::memory::cstr_from_ptr(enc), c"utf-8");
             assert_eq!(len, 3);
 
             let utf16le_bom = [0xffu8, 0xfe, b'a', 0];
             let enc = check_for_bom(utf16le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
             assert!(!enc.is_null());
-            assert_eq!(CStr::from_ptr(enc), c"utf-16le");
+            assert_eq!(crate::memory::cstr_from_ptr(enc), c"utf-16le");
             assert_eq!(len, 2);
 
             let ucs4le_bom = [0xffu8, 0xfe, 0x00, 0x00];
             let enc = check_for_bom(ucs4le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
             assert!(!enc.is_null());
-            assert_eq!(CStr::from_ptr(enc), c"ucs-4le");
+            assert_eq!(crate::memory::cstr_from_ptr(enc), c"ucs-4le");
             assert_eq!(len, 4);
         }
     }
@@ -5116,9 +5132,12 @@ mod tests {
             vim_deltempdir();
             let dir1_ptr = vim_gettempdir();
             assert!(!dir1_ptr.is_null());
-            let dir1 = CStr::from_ptr(dir1_ptr).to_str().unwrap().to_string();
+            let dir1 = crate::memory::cstr_from_ptr(dir1_ptr)
+                .to_str()
+                .unwrap()
+                .to_string();
             assert!(!dir1.is_empty());
-            let dir2 = CStr::from_ptr(vim_gettempdir())
+            let dir2 = crate::memory::cstr_from_ptr(vim_gettempdir())
                 .to_str()
                 .unwrap()
                 .to_string();

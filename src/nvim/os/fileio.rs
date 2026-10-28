@@ -240,7 +240,7 @@ pub fn file_flush(fp: *mut FileDescriptor) -> i32 {
     if to_write == 0 {
         return 0;
     }
-    let read_ptr = unsafe { fp.buffer.as_ptr().add(fp.read_pos) };
+    let read_ptr = { fp.buffer.as_ptr().wrapping_add(fp.read_pos) };
     let wres = os_write(fp.fd, read_ptr, to_write, fp.non_blocking);
     fp.read_pos = 0;
     fp.write_pos = 0;
@@ -262,7 +262,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
     if from_buffer > 0 {
         unsafe {
             std::ptr::copy_nonoverlapping(
-                fp.buffer.as_ptr().add(fp.read_pos).cast::<u8>(),
+                fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
                 ret_buf.cast::<u8>(),
                 from_buffer,
             );
@@ -272,7 +272,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
     #[cfg(unix)]
     let mut buf = unsafe { ret_buf.add(from_buffer) };
     #[cfg(not(unix))]
-    let buf = unsafe { ret_buf.add(from_buffer) };
+    let buf = { ret_buf.wrapping_add(from_buffer) };
     let mut read_remaining = size - from_buffer;
     if read_remaining == 0 {
         fp.bytes_read += from_buffer as u64;
@@ -335,7 +335,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
                     return r_ret;
                 }
             } else {
-                let write_ptr = unsafe { fp.buffer.as_mut_ptr().add(fp.write_pos) };
+                let write_ptr = { fp.buffer.as_mut_ptr().wrapping_add(fp.write_pos) };
                 let r_ret = os_read(
                     fp.fd,
                     &mut fp.eof,
@@ -351,7 +351,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
                 let to_copy = r_usize.min(read_remaining);
                 unsafe {
                     std::ptr::copy_nonoverlapping(
-                        fp.buffer.as_ptr().add(fp.read_pos).cast::<u8>(),
+                        fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
                         buf.cast::<u8>(),
                         to_copy,
                     );
@@ -374,7 +374,7 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
 pub fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut c_char {
     let fp = unsafe { &mut *fp };
     if fp.write_pos.saturating_sub(fp.read_pos) >= size {
-        let ret = unsafe { fp.buffer.as_mut_ptr().add(fp.read_pos) };
+        let ret = { fp.buffer.as_mut_ptr().wrapping_add(fp.read_pos) };
         fp.read_pos += size;
         fp.bytes_read += size as u64;
         ret
@@ -400,7 +400,10 @@ pub fn file_write(
             unsafe {
                 std::ptr::copy_nonoverlapping(
                     buf.cast::<u8>(),
-                    fp.buffer.as_mut_ptr().add(fp.write_pos).cast::<u8>(),
+                    fp.buffer
+                        .as_mut_ptr()
+                        .wrapping_add(fp.write_pos)
+                        .cast::<u8>(),
                     size,
                 );
             }
@@ -419,7 +422,10 @@ pub fn file_write(
             unsafe {
                 std::ptr::copy_nonoverlapping(
                     buf.cast::<u8>(),
-                    fp.buffer.as_mut_ptr().add(fp.write_pos).cast::<u8>(),
+                    fp.buffer
+                        .as_mut_ptr()
+                        .wrapping_add(fp.write_pos)
+                        .cast::<u8>(),
                     size,
                 );
             }

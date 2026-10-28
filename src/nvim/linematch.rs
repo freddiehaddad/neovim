@@ -146,7 +146,7 @@ pub fn fastforward_buf_to_lnum(mut s: Mmfile, lnum: Linenr) -> Mmfile {
         }
         let slice = { crate::memory::cstr_slice(s.ptr, s.size as usize) };
         if let Some(pos) = slice.iter().position(|&b| b == b'\n') {
-            s.ptr = unsafe { s.ptr.add(pos + 1) };
+            s.ptr = s.ptr.wrapping_add(pos + 1);
             s.size -= (pos as i32) + 1;
         } else {
             s.ptr = std::ptr::null_mut();

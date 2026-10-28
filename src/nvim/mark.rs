@@ -891,7 +891,7 @@ pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> *mut 
 
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
 fn fname2fnum(fm: &mut Xfmark) {
-    unsafe {
+    {
         let Some(ref fname_cstr) = fm.fname else {
             return;
         };
@@ -902,8 +902,8 @@ fn fname2fnum(fm: &mut Xfmark) {
         {
             let len = expand_env(c"~/", g_st().name_buff.as_mut_ptr(), MAXPATHL as i32);
             xstrlcpy(
-                (g_st().name_buff.as_mut_ptr()).add(len),
-                fname.add(2),
+                (g_st().name_buff.as_mut_ptr()).wrapping_add(len),
+                fname.wrapping_add(2),
                 MAXPATHL - len,
             );
         } else {
@@ -927,7 +927,7 @@ pub fn fmarks_check_names(buf: &mut FileBuf) {
 
         for i in 0..NGLOBALMARKS {
             fmarks_check_one(
-                &mut *(&raw mut g_st().namedfm).cast::<Xfmark>().add(i),
+                &mut *(&raw mut g_st().namedfm).cast::<Xfmark>().wrapping_add(i),
                 name,
                 buf,
             );
@@ -1033,13 +1033,13 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
 
         let mut len: i32 = 0;
         let mut p = line;
-        let end = line.add(max_bytes);
+        let end = line.wrapping_add(max_bytes);
         while p < end && !crate::memory::cstr_is_empty(p) {
             len += ptr2cells(p);
             if len >= g_st().columns_global - lead_len {
                 break;
             }
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
         let keep = (p.offset_from(line) as usize).min(max_bytes);
         std::ffi::CString::new(crate::memory::cstr_slice(line, keep)).unwrap_or_default()
@@ -1110,7 +1110,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
                             semsg!(gettext(E_INVARG2), p);
                             return;
                         }
-                        p = p.add(2);
+                        p = p.wrapping_add(2);
                     } else {
                         from = ch;
                         to = ch;
@@ -1195,7 +1195,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
                         }
                     }
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
     }
@@ -1451,14 +1451,14 @@ pub fn mark_adjust_buf(
                     amount,
                     amount_after,
                 );
-                let fm = fm_base.add(i);
+                let fm = fm_base.wrapping_add(i);
                 let fm = { &mut *fm };
                 if fm.fmark.fnum == fnum {
                     one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
                 }
             }
             for i in NMARKS..NGLOBALMARKS {
-                let fm = fm_base.add(i);
+                let fm = fm_base.wrapping_add(i);
                 if (*fm).fmark.fnum == fnum {
                     one_adjust_nodel(
                         &mut (*fm).fmark.mark.lnum,
@@ -1723,7 +1723,7 @@ pub fn mark_col_adjust(
                 col_amount,
                 spaces_removed,
             );
-            let fm = fm_base.add(i);
+            let fm = fm_base.wrapping_add(i);
             let fm = { &mut *fm };
             if fm.fmark.fnum == fnum {
                 col_adjust(
@@ -1737,7 +1737,7 @@ pub fn mark_col_adjust(
             }
         }
         for i in NMARKS..NGLOBALMARKS {
-            let fm = fm_base.add(i);
+            let fm = fm_base.wrapping_add(i);
             if (*fm).fmark.fnum == fnum {
                 col_adjust(
                     &mut (*fm).fmark.mark,
@@ -2110,7 +2110,7 @@ pub fn free_all_marks() {
     unsafe {
         let fm_base = (&raw mut g_st().namedfm).cast::<Xfmark>();
         for i in 0..NGLOBALMARKS {
-            let fm = fm_base.add(i);
+            let fm = fm_base.wrapping_add(i);
             if (*fm).fmark.mark.lnum != 0 {
                 free_xfmark(&mut *fm);
             }
@@ -2127,9 +2127,9 @@ pub fn mark_mb_adjustpos(buf: *mut FileBuf, lp: &mut CursorPos) {
             if crate::memory::cstr_is_empty(p) || ml_get_buf_len(&mut *buf, lp.lnum) < lp.col {
                 lp.col = 0;
             } else {
-                lp.col -= utf_head_off(p, p.add(lp.col as usize));
+                lp.col -= utf_head_off(p, p.wrapping_add(lp.col as usize));
             }
-            let p_at = p.add(lp.col as usize);
+            let p_at = p.wrapping_add(lp.col as usize);
             if lp.coladd == 1
                 && *p_at != TAB
                 && vim_isprintc(utf_ptr2char(p_at))
@@ -2236,7 +2236,7 @@ pub fn get_global_marks(l: &mut TvList) {
 
         let fm_base = (&raw const g_st().namedfm).cast::<Xfmark>();
         for i in 0..(NMARKS + EXTRA_MARKS) {
-            let fm = &*fm_base.add(i);
+            let fm = &*fm_base.wrapping_add(i);
             let owned_name = if fm.fmark.fnum != 0 {
                 buflist_nr2name(fm.fmark.fnum, 1, 1)
             } else {

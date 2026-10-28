@@ -191,7 +191,7 @@ pub type MpackWalkCb = Option<fn(w: &mut MpackParser, n: &mut MpackNode)>;
 #[inline]
 pub fn mpack_parent_node(n: *mut MpackNode) -> *mut MpackNode {
     unsafe {
-        let prev = n.sub(1);
+        let prev = n.wrapping_sub(1);
         if (*prev).pos == usize::MAX {
             ptr::null_mut()
         } else {

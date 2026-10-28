@@ -129,7 +129,7 @@ pub fn encode_list_write(
         if len == 0 {
             return;
         }
-        let end = buf.add(len);
+        let end = buf.wrapping_add(len);
         let mut line_end = buf;
         let li = tv_list_last(list.as_deref());
 
@@ -146,7 +146,7 @@ pub fn encode_list_write(
                         .position(|&_b| _b == (NL as c_char) as u8)
                         .unwrap_or(_sz)
                 };
-                _a.add(_off).cast_mut().cast::<std::ffi::c_void>()
+                _a.wrapping_add(_off).cast_mut().cast::<std::ffi::c_void>()
             }
             .cast_const()
             .cast::<c_char>();
@@ -162,7 +162,7 @@ pub fn encode_list_write(
                 if !str_ptr.is_null() {
                     std::ptr::copy_nonoverlapping(str_ptr, combined.as_mut_ptr(), li_len);
                 }
-                let dst = combined.as_mut_ptr().add(li_len);
+                let dst = combined.as_mut_ptr().wrapping_add(li_len);
                 std::ptr::copy_nonoverlapping(buf.cast::<u8>(), dst.cast::<u8>(), line_length);
                 {
                     let _d = (dst).cast::<u8>();
@@ -183,7 +183,7 @@ pub fn encode_list_write(
                     combined.len(),
                 );
             }
-            line_end = line_end.add(1);
+            line_end = line_end.wrapping_add(1);
         }
 
         while (line_end as usize) < (end as usize) {
@@ -199,7 +199,7 @@ pub fn encode_list_write(
                         .position(|&_b| _b == (NL as c_char) as u8)
                         .unwrap_or(_sz)
                 };
-                _a.add(_off).cast_mut().cast::<std::ffi::c_void>()
+                _a.wrapping_add(_off).cast_mut().cast::<std::ffi::c_void>()
             }
             .cast_const()
             .cast::<c_char>();
@@ -232,7 +232,7 @@ pub fn encode_list_write(
             } else {
                 tv_list_append_string(list.as_deref_mut().unwrap(), std::ptr::null(), 0);
             }
-            line_end = line_end.add(1);
+            line_end = line_end.wrapping_add(1);
         }
         if line_end == end {
             tv_list_append_string(list.unwrap(), std::ptr::null(), 0);
@@ -268,16 +268,16 @@ pub fn encode_read_from_list(
     read_bytes: &mut usize,
 ) -> i32 {
     let state = unsafe { &mut *state };
-    let buf_end = unsafe { buf.add(nbuf) };
+    let buf_end = { buf.wrapping_add(nbuf) };
     let mut p = buf;
     while (p as usize) < (buf_end as usize) {
         while state.offset < state.li_length && (p as usize) < (buf_end as usize) {
             let s = unsafe { (*state.li).li_tv.vval.v_string() };
-            let ch = unsafe { *s.add(state.offset) };
+            let ch = unsafe { *s.wrapping_add(state.offset) };
             state.offset += 1;
             unsafe {
                 *p = if ch == (NL as c_char) { 0 } else { ch };
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
         if (p as usize) < (buf_end as usize) {
@@ -288,7 +288,7 @@ pub fn encode_read_from_list(
             }
             unsafe {
                 *p = NL as c_char;
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             if unsafe { (*state.li).li_tv.v_type } != VarType::VarString {
                 *read_bytes = (p as usize) - (buf as usize);
@@ -416,7 +416,7 @@ fn conv_error(
                     let hi_ptr = if hi.is_null() {
                         (*dict).dv_hashtab.array_ptr()
                     } else {
-                        hi.sub(1)
+                        hi.wrapping_sub(1)
                     };
                     let mut key_tv = TypVal {
                         v_type: VarType::VarString,
@@ -535,7 +535,7 @@ fn convert_to_json_string(
     let buf = buf.into_c_char_ptr();
     const XDIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
-    unsafe {
+    {
         if buf.is_null() {
             ga_concat_literal(gap, b"\"\"");
             return true;
@@ -544,7 +544,7 @@ fn convert_to_json_string(
         let mut str_len = 0usize;
         let mut i = 0usize;
         while i < len {
-            let ptr = buf.add(i);
+            let ptr = buf.wrapping_add(i);
             let ch = utf_ptr2char(ptr);
             let shift = if ch == 0 {
                 1usize
@@ -563,7 +563,7 @@ fn convert_to_json_string(
                         semsg!(
                             c"E474: String \"%.*s\" contains byte that does not start any UTF-8 character",
                             (len - start) as i32,
-                            buf.add(start),
+                            buf.wrapping_add(start),
                         );
                         return false;
                     } else if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch)
@@ -573,7 +573,7 @@ fn convert_to_json_string(
                         semsg!(
                             c"E474: UTF-8 string contains code point which belongs to a surrogate pair: %.*s",
                             (len - start) as i32,
-                            buf.add(start),
+                            buf.wrapping_add(start),
                         );
                         return false;
                     } else if ch >= 0x20 && utf_printable(ch) {
@@ -591,7 +591,7 @@ fn convert_to_json_string(
         gap.reserve(str_len + 1);
         i = 0;
         while i < len {
-            let ptr = buf.add(i);
+            let ptr = buf.wrapping_add(i);
             let ch = utf_ptr2char(ptr);
             let shift = if ch == 0 {
                 1usize
@@ -1004,11 +1004,11 @@ impl EncodeBackend<'_> {
                         let fun_len = crate::memory::cstr_len(fun);
                         convert_to_single_quoted_string(gap, fun, fun_len);
                         let data = gap.as_mut_ptr();
-                        *data.add(name_off) = b'\'';
+                        *data.wrapping_add(name_off) = b'\'';
                         if !prefix.is_empty() {
                             std::ptr::copy_nonoverlapping(
                                 prefix.as_ptr(),
-                                data.add(name_off + 1),
+                                data.wrapping_add(name_off + 1),
                                 prefix.len(),
                             );
                         }
@@ -1608,7 +1608,7 @@ fn encode_vim_with_backend(
                         backend.conv_dict_between_items();
                     }
                     while hashitem_empty(&*hi) {
-                        hi = hi.add(1);
+                        hi = hi.wrapping_add(1);
                     }
                     let di = crate::eval::typval::tv_dict_hi2di(hi);
                     *todo -= 1;
@@ -1616,7 +1616,7 @@ fn encode_vim_with_backend(
                         hi: ref mut hi_ref, ..
                     } = mpstack[cur_idx].data
                     {
-                        *hi_ref = hi.add(1);
+                        *hi_ref = hi.wrapping_add(1);
                     }
                     let key_ptr = di.di_key.as_ptr();
                     let key_len = crate::memory::cstr_len(key_ptr);
@@ -1774,7 +1774,7 @@ fn encode_vim_with_backend(
                     } else if argv != cur_arg {
                         backend.conv_list_between_items();
                     }
-                    *arg = cur_arg.add(1);
+                    *arg = cur_arg.wrapping_add(1);
                     *todo -= 1;
                     cur_arg
                 }

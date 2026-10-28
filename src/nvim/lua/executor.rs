@@ -391,7 +391,7 @@ fn push_all_typvals(lstate: *mut lua_State, args: *mut TypVal, argcount: i32, sp
     unsafe {
         let flags = if special { K_NLUA_PUSH_SPECIAL } else { 0 };
         for i in 0..(argcount as usize) {
-            let arg = args.add(i);
+            let arg = args.wrapping_add(i);
             if (*arg).v_type == VarType::VarUnknown {
                 lua_pushnil(lstate);
             } else {
@@ -797,11 +797,11 @@ fn nlua_init_argv(lstate: *mut lua_State, argv: *mut *mut c_char, argc: i32, lua
         lua_newtable(lstate);
 
         if lua_arg0 > 0 {
-            lua_pushstring(lstate, *argv.add((lua_arg0 - 1) as usize));
+            lua_pushstring(lstate, *argv.wrapping_add((lua_arg0 - 1) as usize));
             lua_rawseti(lstate, -2, 0);
 
             while i + lua_arg0 < argc {
-                lua_pushstring(lstate, *argv.add((i + lua_arg0) as usize));
+                lua_pushstring(lstate, *argv.wrapping_add((i + lua_arg0) as usize));
                 lua_rawseti(lstate, -2, i + 1);
                 i += 1;
             }
@@ -1999,7 +1999,7 @@ pub fn nlua_exec(
         }
 
         for i in 0..args.size {
-            nlua_push_object(lstate, args.items.add(i), 0);
+            nlua_push_object(lstate, args.items.wrapping_add(i), 0);
         }
 
         if nlua_pcall(lstate, args.size as i32, 1) != 0 {
@@ -2031,7 +2031,7 @@ pub fn nlua_call_typval<S: crate::strings::IntoCCharPtr>(
         let mut tv = argvars;
         while (*tv).v_type != VarType::VarUnknown {
             argcount += 1;
-            tv = tv.add(1);
+            tv = tv.wrapping_add(1);
         }
 
         let mut buf = [0 as c_char; 256];
@@ -2141,7 +2141,7 @@ pub fn nlua_call_ref_ctx(
             nargs += 1;
         }
         for i in 0..args.size {
-            nlua_push_object(lstate, args.items.add(i), 0);
+            nlua_push_object(lstate, args.items.wrapping_add(i), 0);
         }
 
         if fast {
@@ -2212,7 +2212,7 @@ fn nlua_call_pop_retval(
                     nres.max(0) as usize,
                 );
                 for i in 0..(nres as usize) {
-                    *res.items.add((nres as usize) - i - 1) =
+                    *res.items.wrapping_add((nres as usize) - i - 1) =
                         nlua_pop_object_opt(lstate, false, arena.as_deref_mut(), perr);
                     if error_set(perr) {
                         return OBJECT_NIL;
@@ -2258,8 +2258,10 @@ pub fn ex_lua(eap: &mut Exarg) {
             || crate::memory::cstr_first_byte(raw_cstr.as_ptr()) == b'='
         {
             let off: usize = if eap.cmdidx == CMD_EQUAL { 0 } else { 1 };
-            let body =
-                std::slice::from_raw_parts(raw_cstr.as_ptr().add(off).cast::<u8>(), len - off);
+            let body = std::slice::from_raw_parts(
+                raw_cstr.as_ptr().wrapping_add(off).cast::<u8>(),
+                len - off,
+            );
             let mut buf = Vec::with_capacity(18 + body.len());
             buf.extend_from_slice(b"vim._print(true, ");
             buf.extend_from_slice(body);
@@ -2307,12 +2309,12 @@ pub fn ex_luado(eap: &mut Exarg) {
         ptr::copy_nonoverlapping(DOSTART.as_ptr(), lcmd.cast::<u8>(), DOSTART.len());
         ptr::copy_nonoverlapping(
             cmd.cast::<u8>(),
-            lcmd.cast::<u8>().add(DOSTART.len()),
+            lcmd.cast::<u8>().wrapping_add(DOSTART.len()),
             cmd_len,
         );
         ptr::copy_nonoverlapping(
             DOEND.as_ptr(),
-            lcmd.cast::<u8>().add(DOSTART.len() + cmd_len),
+            lcmd.cast::<u8>().wrapping_add(DOSTART.len() + cmd_len),
             DOEND.len(),
         );
 
@@ -2448,7 +2450,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
         luaL_checktype(lstate, -1, LUA_TFUNCTION);
 
         let pat = xp.xp_pattern;
-        let line_end = xp.xp_line.add(xp.xp_col as usize);
+        let line_end = xp.xp_line.wrapping_add(xp.xp_col as usize);
         assert!(line_end >= pat);
         let patlen = line_end.offset_from(pat);
         lua_pushlstring(lstate, pat, patlen as usize);
@@ -2486,7 +2488,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
                 }
 
                 if all_strings {
-                    xp.xp_pattern = xp.xp_pattern.offset(prefix_len);
+                    xp.xp_pattern = xp.xp_pattern.wrapping_offset(prefix_len);
                     status = OK;
                 }
             }
@@ -2640,7 +2642,7 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
             found = true;
             break;
         }
-        if found && let Some(source_path) = fix_fname(info.source.add(1)) {
+        if found && let Some(source_path) = fix_fname(info.source.wrapping_add(1)) {
             let mut sid = find_script_by_name(source_path.as_ptr().cast_mut());
             if sid <= 0 {
                 let si: *mut Scriptitem = new_script_item(Some(source_path), &mut sid);
@@ -2752,7 +2754,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
                     && crate::memory::cstr_first_byte(ar.source) == b'@'
                     && ar.linedefined >= 0
                 {
-                    let src = home_replace_save(None, ar.source.add(1));
+                    let src = home_replace_save(None, ar.source.wrapping_add(1));
                     let src_s = src.to_string_lossy();
                     let formatted = if show_ref {
                         format!("<Lua {ref_}: {src_s}:{}>", ar.linedefined)

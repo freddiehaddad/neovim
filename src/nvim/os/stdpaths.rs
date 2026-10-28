@@ -82,12 +82,12 @@ pub fn get_appname(namelike: bool) -> *const c_char {
         path_to_slash(name_buff.cast::<c_char>());
         if namelike {
             for i in 0..MAXPATHL {
-                let b = *name_buff.add(i);
+                let b = *name_buff.wrapping_add(i);
                 if b == 0 {
                     break;
                 }
                 if b == b'/' || b == b'\\' {
-                    *name_buff.add(i) = b'-';
+                    *name_buff.wrapping_add(i) = b'-';
                 }
             }
         }

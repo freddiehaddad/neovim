@@ -228,91 +228,92 @@ pub fn get_mode(buf: *mut c_char) {
             || g_st().state_global == MODE_SETWSIZE
             || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key)
         {
-            *buf.add(i) = b'r' as c_char;
+            *buf.wrapping_add(i) = b'r' as c_char;
             i += 1;
             if g_st().state_global == MODE_ASKMORE {
-                *buf.add(i) = b'm' as c_char;
+                *buf.wrapping_add(i) = b'm' as c_char;
                 i += 1;
             } else if (g_st().state_global & MODE_CMDLINE) != 0 {
-                *buf.add(i) = b'?' as c_char;
+                *buf.wrapping_add(i) = b'?' as c_char;
                 i += 1;
             }
         } else if g_st().state_global == MODE_EXTERNCMD {
-            *buf.add(i) = b'!' as c_char;
+            *buf.wrapping_add(i) = b'!' as c_char;
             i += 1;
         } else if (g_st().state_global & MODE_INSERT) != 0 {
             if (g_st().state_global & VREPLACE_FLAG) != 0 {
-                *buf.add(i) = b'R' as c_char;
+                *buf.wrapping_add(i) = b'R' as c_char;
                 i += 1;
-                *buf.add(i) = b'v' as c_char;
+                *buf.wrapping_add(i) = b'v' as c_char;
                 i += 1;
             } else if (g_st().state_global & REPLACE_FLAG) != 0 {
-                *buf.add(i) = b'R' as c_char;
+                *buf.wrapping_add(i) = b'R' as c_char;
                 i += 1;
             } else {
-                *buf.add(i) = b'i' as c_char;
+                *buf.wrapping_add(i) = b'i' as c_char;
                 i += 1;
             }
             if ins_compl_active() {
-                *buf.add(i) = b'c' as c_char;
+                *buf.wrapping_add(i) = b'c' as c_char;
                 i += 1;
             } else if ctrl_x_mode_not_defined_yet() {
-                *buf.add(i) = b'x' as c_char;
+                *buf.wrapping_add(i) = b'x' as c_char;
                 i += 1;
             }
         } else if (g_st().state_global & MODE_CMDLINE) != 0 || g_st().exmode_active {
-            *buf.add(i) = b'c' as c_char;
+            *buf.wrapping_add(i) = b'c' as c_char;
             i += 1;
             if g_st().exmode_active {
-                *buf.add(i) = b'v' as c_char;
+                *buf.wrapping_add(i) = b'v' as c_char;
                 i += 1;
             }
             if (g_st().state_global & MODE_CMDLINE) != 0 && cmdline_overstrike() {
-                *buf.add(i) = b'r' as c_char;
+                *buf.wrapping_add(i) = b'r' as c_char;
                 i += 1;
             }
         } else if (g_st().state_global & MODE_TERMINAL) != 0 {
-            *buf.add(i) = b't' as c_char;
+            *buf.wrapping_add(i) = b't' as c_char;
             i += 1;
         } else if g_st().visual_global.active {
             if g_st().visual_global.select {
-                *buf.add(i) = (g_st().visual_global.mode + (b's' as i32) - (b'v' as i32)) as c_char;
+                *buf.wrapping_add(i) =
+                    (g_st().visual_global.mode + (b's' as i32) - (b'v' as i32)) as c_char;
                 i += 1;
             } else {
-                *buf.add(i) = g_st().visual_global.mode as c_char;
+                *buf.wrapping_add(i) = g_st().visual_global.mode as c_char;
                 i += 1;
                 if g_st().visual_global.restart_select != 0 {
-                    *buf.add(i) = b's' as c_char;
+                    *buf.wrapping_add(i) = b's' as c_char;
                     i += 1;
                 }
             }
         } else {
-            *buf.add(i) = b'n' as c_char;
+            *buf.wrapping_add(i) = b'n' as c_char;
             i += 1;
             if g_st().finish_op {
-                *buf.add(i) = b'o' as c_char;
+                *buf.wrapping_add(i) = b'o' as c_char;
                 i += 1;
-                *buf.add(i) = g_st().motion_force as c_char;
+                *buf.wrapping_add(i) = g_st().motion_force as c_char;
                 i += 1;
             } else if !curbuf_mut().terminal.is_null() {
-                *buf.add(i) = b't' as c_char;
+                *buf.wrapping_add(i) = b't' as c_char;
                 i += 1;
                 if g_st().restart_edit == b'I' as i32 {
-                    *buf.add(i) = b'T' as c_char;
+                    *buf.wrapping_add(i) = b'T' as c_char;
                     i += 1;
                 }
             } else if g_st().restart_edit == b'I' as i32
                 || g_st().restart_edit == b'R' as i32
                 || g_st().restart_edit == b'V' as i32
             {
-                *buf.add(i) = b'i' as c_char;
+                *buf.wrapping_add(i) = b'i' as c_char;
                 i += 1;
-                *buf.add(i) = g_st().restart_edit as c_char;
+                *buf.wrapping_add(i) = g_st().restart_edit as c_char;
                 i += 1;
             }
         }
 
-        *buf.add(i) = 0;
+        *buf.wrapping_add(i) = 0;
     }
 }
 

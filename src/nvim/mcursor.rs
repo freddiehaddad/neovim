@@ -979,7 +979,7 @@ pub fn mc_ins_cascade() {
                     skip = 2;
                 }
                 keys.extend_from_slice(std::slice::from_raw_parts(
-                    ins.data.add(skip).cast::<u8>(),
+                    ins.data.wrapping_add(skip).cast::<u8>(),
                     ins.size - skip,
                 ));
                 keys.push(ESC as u8);
@@ -991,7 +991,7 @@ pub fn mc_ins_cascade() {
             mc_ins_cascade_restart();
         } else if ins.size > mc_st().mc_ins_span.done_len
             && mc_ins_keys_nonliteral(
-                ins.data.add(mc_st().mc_ins_span.done_len),
+                ins.data.wrapping_add(mc_st().mc_ins_span.done_len),
                 ins.size - mc_st().mc_ins_span.done_len,
             )
         {
@@ -1053,7 +1053,7 @@ fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
         keys.push(b'i' as c_char);
         if dlen > 0 {
             keys.extend_from_slice(std::slice::from_raw_parts(
-                ins.data.add(mc_st().mc_ins_span.done_len),
+                ins.data.wrapping_add(mc_st().mc_ins_span.done_len),
                 dlen,
             ));
         }
@@ -1062,7 +1062,9 @@ fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
         }
         let text = if commit && dlen > 1 {
             let text_slice = std::slice::from_raw_parts(
-                ins.data.add(mc_st().mc_ins_span.done_len).cast::<u8>(),
+                ins.data
+                    .wrapping_add(mc_st().mc_ins_span.done_len)
+                    .cast::<u8>(),
                 dlen - 1,
             );
             Some(std::ffi::CString::new(text_slice).unwrap())
@@ -1332,7 +1334,9 @@ pub fn mc_ins_commit() -> bool {
                 data: ins_cstr.as_ptr().cast_mut(),
                 size: ins_cstr.as_bytes().len(),
             };
-            if ins.size > mc_st().mc_ins_span.done_len && *ins.data.add(ins.size - 1) == ESC {
+            if ins.size > mc_st().mc_ins_span.done_len
+                && *ins.data.wrapping_add(ins.size - 1) == ESC
+            {
                 mc_ins_span_flush(&ins, true);
             }
         }
@@ -1507,7 +1511,7 @@ fn mc_zq_first(
     let keys = keys.into_c_char_ptr();
     unsafe {
         let start = *bounds;
-        let end_bound = *bounds.add(1);
+        let end_bound = *bounds.wrapping_add(1);
         let curswant = curwin_mut().w_curswant;
         let mut before = start;
         let bof = dec(&mut before) == -1;

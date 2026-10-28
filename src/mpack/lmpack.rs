@@ -90,8 +90,8 @@ struct Session {
 #[inline]
 #[allow(non_snake_case)]
 fn luaL_addsize(b: &mut luaL_Buffer, n: usize) {
-    unsafe {
-        b.p = b.p.add(n);
+    {
+        b.p = b.p.wrapping_add(n);
     }
 }
 
@@ -294,7 +294,10 @@ fn lmpack_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 let parent = mpack_parent_node(&raw mut *node);
                 ptr::copy_nonoverlapping(
                     node.tok.data.chunk_ptr(),
-                    unpacker.string_buffer.as_mut_ptr().add((*parent).pos),
+                    unpacker
+                        .string_buffer
+                        .as_mut_ptr()
+                        .wrapping_add((*parent).pos),
                     node.tok.length as usize,
                 );
             }
@@ -456,7 +459,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_unpack(l: *mut lua_State) -> i32 {
         );
 
         let offset = (startpos as usize) - 1;
-        str_ptr = str_ptr.add(offset);
+        str_ptr = str_ptr.wrapping_add(offset);
         len -= offset;
         let result = lmpack_unpacker_unpack_str(l, &mut *unpacker, &mut str_ptr, &mut len);
 
@@ -866,7 +869,7 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> i32 {
         );
 
         let offset = (startpos as usize) - 1;
-        str_ptr = str_ptr.add(offset);
+        str_ptr = str_ptr.wrapping_add(offset);
         len -= offset;
 
         let mut unpacker: *mut LmpackUnpacker = ptr::null_mut();

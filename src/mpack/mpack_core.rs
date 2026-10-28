@@ -145,7 +145,7 @@ fn advance(buf: &mut *const c_char, buflen: &mut usize) -> u8 {
     unsafe {
         *buflen -= 1;
         let b = **buf as u8;
-        *buf = (*buf).add(1);
+        *buf = (*buf).wrapping_add(1);
         b
     }
 }
@@ -213,7 +213,7 @@ pub fn mpack_read(
             let len = ((*buflen).min(tokbuf.passthrough as usize)) as MpackUint32;
             tok.length = len;
             tokbuf.passthrough -= len;
-            *buf = (*buf).add(len as usize);
+            *buf = (*buf).wrapping_add(len as usize);
             *buflen -= len as usize;
             return MPACK_OK;
         }
@@ -252,7 +252,7 @@ pub fn mpack_read(
         tokbuf.plen = 0;
         tokbuf.ppos = 0;
         *buflen -= advanced;
-        *buf = (*buf).add(advanced);
+        *buf = (*buf).wrapping_add(advanced);
 
         if tok.r#type > MpackTokenMap {
             tokbuf.passthrough = tok.length;
@@ -283,8 +283,8 @@ pub fn mpack_write(
             let written = tokbuf.ppos;
             let pending = (tok.length as usize) - written;
             let count = pending.min(*buflen);
-            ptr::copy_nonoverlapping(tok.data.chunk_ptr().add(written), *buf, count);
-            *buf = (*buf).add(count);
+            ptr::copy_nonoverlapping(tok.data.chunk_ptr().wrapping_add(written), *buf, count);
+            *buf = (*buf).wrapping_add(count);
             *buflen -= count;
             tokbuf.ppos += count;
             tokbuf.plen = if count == pending {
@@ -323,7 +323,7 @@ pub fn mpack_write(
             let toklen = tokbuf.pending.len() - ptrlen;
             let write_cnt = toklen.min(*buflen);
             ptr::copy_nonoverlapping(tokbuf.pending.as_ptr(), *buf, write_cnt);
-            *buf = (*buf).add(write_cnt);
+            *buf = (*buf).wrapping_add(write_cnt);
             *buflen -= write_cnt;
             if write_cnt < toklen {
                 debug_assert_eq!(*buflen, 0);
@@ -388,10 +388,14 @@ fn mpack_rpending(buf: &mut *const c_char, buflen: &mut usize, state: &mut Mpack
     unsafe {
         debug_assert!(state.ppos < state.plen);
         let count = (state.plen - state.ppos).min(*buflen);
-        ptr::copy_nonoverlapping(*buf, state.pending.as_mut_ptr().add(state.ppos), count);
+        ptr::copy_nonoverlapping(
+            *buf,
+            state.pending.as_mut_ptr().wrapping_add(state.ppos),
+            count,
+        );
         state.ppos += count;
         if state.ppos < state.plen {
-            *buf = (*buf).add(*buflen);
+            *buf = (*buf).wrapping_add(*buflen);
             *buflen = 0;
             return 0;
         }
@@ -491,9 +495,9 @@ fn mpack_wpending(buf: &mut *mut c_char, buflen: &mut usize, state: &mut MpackTo
     unsafe {
         debug_assert!(state.ppos < state.plen);
         let count = (state.plen - state.ppos).min(*buflen);
-        ptr::copy_nonoverlapping(state.pending.as_ptr().add(state.ppos), *buf, count);
+        ptr::copy_nonoverlapping(state.pending.as_ptr().wrapping_add(state.ppos), *buf, count);
         state.ppos += count;
-        *buf = (*buf).add(count);
+        *buf = (*buf).wrapping_add(count);
         *buflen -= count;
         if state.ppos == state.plen {
             state.plen = 0;
@@ -658,7 +662,7 @@ fn mpack_w1(b: &mut *mut c_char, bl: &mut usize, v: MpackUint32) -> i32 {
     unsafe {
         *bl -= 1;
         **b = (v & 0xff) as u8 as c_char;
-        *b = (*b).add(1);
+        *b = (*b).wrapping_add(1);
     }
     MPACK_OK
 }
@@ -668,9 +672,9 @@ fn mpack_w2(b: &mut *mut c_char, bl: &mut usize, v: MpackUint32) -> i32 {
     unsafe {
         *bl -= 2;
         **b = ((v >> 8) & 0xff) as u8 as c_char;
-        *b = (*b).add(1);
+        *b = (*b).wrapping_add(1);
         **b = (v & 0xff) as u8 as c_char;
-        *b = (*b).add(1);
+        *b = (*b).wrapping_add(1);
     }
     MPACK_OK
 }
@@ -680,13 +684,13 @@ fn mpack_w4(b: &mut *mut c_char, bl: &mut usize, v: MpackUint32) -> i32 {
     unsafe {
         *bl -= 4;
         **b = ((v >> 24) & 0xff) as u8 as c_char;
-        *b = (*b).add(1);
+        *b = (*b).wrapping_add(1);
         **b = ((v >> 16) & 0xff) as u8 as c_char;
-        *b = (*b).add(1);
+        *b = (*b).wrapping_add(1);
         **b = ((v >> 8) & 0xff) as u8 as c_char;
-        *b = (*b).add(1);
+        *b = (*b).wrapping_add(1);
         **b = (v & 0xff) as u8 as c_char;
-        *b = (*b).add(1);
+        *b = (*b).wrapping_add(1);
     }
     MPACK_OK
 }

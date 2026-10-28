@@ -1594,7 +1594,7 @@ pub fn init_normal_cmds() {
         let idx_ptr = (&raw mut norm_st().nv_cmd_idx).cast::<i16>();
 
         for i in 0..(NV_CMDS_SIZE as i16) {
-            *idx_ptr.add(i as usize) = i;
+            *idx_ptr.wrapping_add(i as usize) = i;
         }
 
         let slice = std::slice::from_raw_parts_mut(idx_ptr, NV_CMDS_SIZE);
@@ -1602,7 +1602,7 @@ pub fn init_normal_cmds() {
 
         let mut i: i16 = 0;
         while (i as usize) < NV_CMDS_SIZE {
-            if i32::from(i) != NV_CMDS[*idx_ptr.add(i as usize) as usize].cmd_char {
+            if i32::from(i) != NV_CMDS[*idx_ptr.wrapping_add(i as usize) as usize].cmd_char {
                 break;
             }
             i += 1;
@@ -1628,7 +1628,7 @@ fn find_command(mut cmdchar: i32) -> i32 {
         assert!(norm_st().nv_max_linear < NV_CMDS_SIZE as i32);
         let idx_ptr = (&raw const norm_st().nv_cmd_idx).cast::<i16>();
         if cmdchar <= norm_st().nv_max_linear {
-            return i32::from(*idx_ptr.add(cmdchar as usize));
+            return i32::from(*idx_ptr.wrapping_add(cmdchar as usize));
         }
 
         let mut bot = norm_st().nv_max_linear + 1;
@@ -1636,12 +1636,12 @@ fn find_command(mut cmdchar: i32) -> i32 {
         let mut idx = -1;
         while bot <= top {
             let i = (top + bot) / 2;
-            let mut c = NV_CMDS[*idx_ptr.add(i as usize) as usize].cmd_char;
+            let mut c = NV_CMDS[*idx_ptr.wrapping_add(i as usize) as usize].cmd_char;
             if c < 0 {
                 c = -c;
             }
             if cmdchar == c {
-                idx = i32::from(*idx_ptr.add(i as usize));
+                idx = i32::from(*idx_ptr.wrapping_add(i as usize));
                 break;
             }
             if cmdchar > c {
@@ -1978,7 +1978,7 @@ fn normal_get_additional_char(s: &mut NormalState) {
                             s.c,
                             s.ca.nchar_composing
                                 .as_mut_ptr()
-                                .add(s.ca.nchar_len as usize),
+                                .wrapping_add(s.ca.nchar_len as usize),
                         );
                     }
                     prev_code = s.c;
@@ -2594,7 +2594,9 @@ fn find_is_eval_item(
 
         let gt_off: isize = if dir == BACKWARD { 0 } else { 1 };
         let dash_off: isize = if dir == BACKWARD { -1 } else { 0 };
-        if *ptr.offset(gt_off) == b'>' as c_char && *ptr.offset(dash_off) == b'-' as c_char {
+        if *ptr.wrapping_offset(gt_off) == b'>' as c_char
+            && *ptr.wrapping_offset(dash_off) == b'-' as c_char
+        {
             *colp += dir;
             return true;
         }
@@ -2653,11 +2655,11 @@ pub fn find_ident_at_pos(
                 {
                     break;
                 }
-                this_class = mb_get_class(ptr.add(col as usize));
+                this_class = mb_get_class(ptr.wrapping_add(col as usize));
                 if this_class != 0 && (i == 1 || this_class != 1) {
                     break;
                 }
-                col += utfc_ptr2len(ptr.add(col as usize));
+                col += utfc_ptr2len(ptr.wrapping_add(col as usize));
             }
 
             bn = i32::from(crate::memory::cstr_byte_at(ptr, col as usize) == b']');
@@ -2667,17 +2669,17 @@ pub fn find_ident_at_pos(
             {
                 this_class = mb_get_class(c"a");
             } else {
-                this_class = mb_get_class(ptr.add(col as usize));
+                this_class = mb_get_class(ptr.wrapping_add(col as usize));
             }
             while col > 0 && this_class != 0 {
-                prevcol = col - 1 - utf_head_off(ptr, ptr.add((col - 1) as usize));
-                prev_class = mb_get_class(ptr.add(prevcol as usize));
+                prevcol = col - 1 - utf_head_off(ptr, ptr.wrapping_add((col - 1) as usize));
+                prev_class = mb_get_class(ptr.wrapping_add(prevcol as usize));
                 if this_class != prev_class
                     && (i == 0 || prev_class == 0 || (find_type & FIND_IDENT) != 0)
                     && ((find_type & FIND_EVAL) == 0
                         || prevcol == 0
                         || !find_is_eval_item(
-                            ptr.add(prevcol as usize),
+                            ptr.wrapping_add(prevcol as usize),
                             &mut prevcol,
                             &mut bn,
                             BACKWARD,
@@ -2703,7 +2705,7 @@ pub fn find_ident_at_pos(
             }
             return 0;
         }
-        ptr = ptr.add(col as usize);
+        ptr = ptr.wrapping_add(col as usize);
         *text = ptr;
         if !textcol.is_null() {
             *textcol = col;
@@ -2715,14 +2717,14 @@ pub fn find_ident_at_pos(
         this_class = mb_get_class(ptr);
         while crate::memory::cstr_byte_at(ptr, col as usize) != 0
             && ((if i == 0 {
-                mb_get_class(ptr.add(col as usize)) == this_class
+                mb_get_class(ptr.wrapping_add(col as usize)) == this_class
             } else {
-                mb_get_class(ptr.add(col as usize)) != 0
+                mb_get_class(ptr.wrapping_add(col as usize)) != 0
             }) || ((find_type & FIND_EVAL) != 0
                 && col <= startcol
-                && find_is_eval_item(ptr.add(col as usize), &mut col, &mut bn, FORWARD)))
+                && find_is_eval_item(ptr.wrapping_add(col as usize), &mut col, &mut bn, FORWARD)))
         {
-            col += utfc_ptr2len(ptr.add(col as usize));
+            col += utfc_ptr2len(ptr.wrapping_add(col as usize));
         }
 
         assert!(col >= 0);
@@ -2871,7 +2873,7 @@ pub fn clear_showcmd() {
                     }
                     bytes += l;
                     chars += 1;
-                    s = s.add(l as usize);
+                    s = s.wrapping_add(l as usize);
                 }
                 if bytes == chars {
                     vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%d", chars);
@@ -2884,7 +2886,7 @@ pub fn clear_showcmd() {
             } else {
                 SHOWCMD_COLS
             };
-            *sc_buf.add(limit) = NUL;
+            *sc_buf.wrapping_add(limit) = NUL;
             norm_st().showcmd_visual = true;
         } else {
             *sc_buf = NUL;
@@ -2969,7 +2971,11 @@ pub fn add_to_showcmd(c: i32) -> bool {
         };
         if old_len + extra_len > limit {
             let overflow = old_len + extra_len - limit;
-            ptr::copy(sc_buf.add(overflow), sc_buf, old_len - overflow + 1);
+            ptr::copy(
+                sc_buf.wrapping_add(overflow),
+                sc_buf,
+                old_len - overflow + 1,
+            );
         }
         crate::memory::cstr_cat(sc_buf, p);
 
@@ -2995,7 +3001,7 @@ fn del_from_showcmd(mut len: i32) {
         let sc_buf = (&raw mut g_st().showcmd_buf).cast::<c_char>();
         let old_len = crate::memory::cstr_len(sc_buf) as i32;
         len = len.min(old_len);
-        *sc_buf.add((old_len - len) as usize) = NUL;
+        *sc_buf.wrapping_add((old_len - len) as usize) = NUL;
 
         if !char_avail() {
             display_showcmd();
@@ -3032,7 +3038,7 @@ pub fn showcmd_update_clear_state() {
 }
 
 pub fn display_showcmd() {
-    unsafe {
+    {
         if mc_replaying() {
             return;
         }
@@ -3068,7 +3074,7 @@ pub fn display_showcmd() {
             let mut ext_buf: [c_char; 16 + SHOWCMD_BUFLEN] = [0; 16 + SHOWCMD_BUFLEN];
             crate::memory::cstr_cpy(ext_buf.as_mut_ptr(), mc_buf.as_ptr());
             xstrlcpy(
-                ext_buf.as_mut_ptr().add(mc_len),
+                ext_buf.as_mut_ptr().wrapping_add(mc_len),
                 if norm_st().showcmd_is_clear {
                     c"".as_ptr()
                 } else {
@@ -3117,7 +3123,7 @@ pub fn display_showcmd() {
 
         grid_line_puts(
             g_st().sc_col + len,
-            c"          ".as_ptr().add(len as usize),
+            c"          ".as_ptr().wrapping_add(len as usize),
             -1,
             hl_attr(HLF_MSG as i32),
         );
@@ -4306,7 +4312,7 @@ fn nv_k_getcmd(
             *buflen = vim_snprintf!(buf, bufsize, c"%s ", kp) as usize;
             if cap.count0 != 0 {
                 *buflen += vim_snprintf!(
-                    buf.add(*buflen),
+                    buf.wrapping_add(*buflen),
                     bufsize - *buflen,
                     c"%lld ",
                     cap.count0 as i64,
@@ -4318,7 +4324,7 @@ fn nv_k_getcmd(
         let mut ptr = *ptr_arg;
 
         while crate::memory::cstr_first_byte(ptr) == b'-' && n > 0 {
-            ptr = ptr.add(1);
+            ptr = ptr.wrapping_add(1);
             n -= 1;
         }
         if n == 0 {
@@ -4334,15 +4340,18 @@ fn nv_k_getcmd(
         }
 
         do_cmdline_cmd(c"tabnew");
-        *buflen += vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"terminal ") as usize;
+        *buflen +=
+            vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"terminal ") as usize;
         if cap.count0 == 0 && isman_s {
-            *buflen += vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"man ") as usize;
+            *buflen +=
+                vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"man ") as usize;
         } else {
-            *buflen += vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"%s ", kp) as usize;
+            *buflen +=
+                vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"%s ", kp) as usize;
         }
         if cap.count0 != 0 && (isman || isman_s) {
             *buflen += vim_snprintf!(
-                buf.add(*buflen),
+                buf.wrapping_add(*buflen),
                 bufsize - *buflen,
                 c"%lld ",
                 cap.count0 as i64,
@@ -4488,7 +4497,7 @@ fn nv_ident(cap: &mut Cmdarg) {
             };
             let plen = p.to_bytes().len();
             buf_vec.resize(buflen + plen + 1, 0);
-            crate::memory::cstr_cpy(buf_vec.as_mut_ptr().add(buflen), p.as_ptr());
+            crate::memory::cstr_cpy(buf_vec.as_mut_ptr().wrapping_add(buflen), p.as_ptr());
             buflen += plen;
         } else {
             let aux_ptr = if cmdchar == b'*' as i32 {
@@ -4514,7 +4523,7 @@ fn nv_ident(cap: &mut Cmdarg) {
             };
 
             let buf = buf_vec.as_mut_ptr();
-            let mut p = buf.add(buflen);
+            let mut p = buf.wrapping_add(buflen);
             while n > 0 {
                 n -= 1;
                 if crate::strings::vim_haschr(
@@ -4522,20 +4531,20 @@ fn nv_ident(cap: &mut Cmdarg) {
                     i32::from(crate::memory::cstr_first_byte(ptr)),
                 ) {
                     *p = b'\\' as c_char;
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
                 let len = (utfc_ptr2len(ptr) - 1) as usize;
                 let mut i = 0;
                 while i < len && n > 0 {
                     *p = *ptr;
-                    p = p.add(1);
-                    ptr = ptr.add(1);
+                    p = p.wrapping_add(1);
+                    ptr = ptr.wrapping_add(1);
                     i += 1;
                     n -= 1;
                 }
                 *p = *ptr;
-                p = p.add(1);
-                ptr = ptr.add(1);
+                p = p.wrapping_add(1);
+                ptr = ptr.wrapping_add(1);
             }
             *p = NUL;
             buflen = p.offset_from(buf) as usize;
@@ -4544,7 +4553,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         let buf = buf_vec.as_mut_ptr();
         if cmdchar == b'*' as i32 || cmdchar == b'#' as i32 {
             if !g_cmd && vim_iswordp(mb_prevptr(get_cursor_line_ptr(), ptr)) {
-                crate::memory::cstr_cpy(buf.add(buflen), c"\\>");
+                crate::memory::cstr_cpy(buf.wrapping_add(buflen), c"\\>");
                 buflen += 2;
             }
 
@@ -4602,8 +4611,9 @@ pub fn get_visual_text(cap: Option<&mut Cmdarg>, pp: &mut *mut c_char, lenp: &mu
                 *lenp = 0;
             }
             if *lenp > 0 {
-                *lenp =
-                    (*lenp).wrapping_add_signed((utfc_ptr2len((*pp).add(*lenp - 1)) - 1) as isize);
+                *lenp = (*lenp).wrapping_add_signed(
+                    (utfc_ptr2len((*pp).wrapping_add(*lenp - 1)) - 1) as isize,
+                );
             }
         }
         reset_visual_and_resel();
@@ -6012,7 +6022,7 @@ fn v_visop(cap: &mut Cmdarg) {
                 curwin_mut().w_curswant = MAXCOL;
             }
         }
-        cap.cmdchar = i32::from(*vim_strchr(trans, cap.cmdchar).add(1) as u8);
+        cap.cmdchar = i32::from(*vim_strchr(trans, cap.cmdchar).wrapping_add(1) as u8);
         nv_operator(cap);
     }
 }
@@ -6456,12 +6466,16 @@ fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
 
         let ptr = get_cursor_line_ptr();
 
-        if curwin_mut().w_cursor.col > 0 && *ptr.add(curwin_mut().w_cursor.col as usize) == NUL {
+        if curwin_mut().w_cursor.col > 0
+            && *ptr.wrapping_add(curwin_mut().w_cursor.col as usize) == NUL
+        {
             curwin_mut().w_cursor.col -= 1;
         }
 
         while curwin_mut().w_cursor.col > 0
-            && ascii_iswhite(i32::from(*ptr.add(curwin_mut().w_cursor.col as usize) as u8))
+            && ascii_iswhite(i32::from(
+                *ptr.wrapping_add(curwin_mut().w_cursor.col as usize) as u8,
+            ))
         {
             curwin_mut().w_cursor.col -= 1;
         }

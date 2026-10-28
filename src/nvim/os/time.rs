@@ -202,8 +202,8 @@ pub fn os_ctime_r(
         unsafe {
             let cur_len = crate::memory::cstr_len(result);
             if cur_len + 1 < result_len {
-                *result.add(cur_len) = b'\n' as c_char;
-                *result.add(cur_len + 1) = 0;
+                *result.wrapping_add(cur_len) = b'\n' as c_char;
+                *result.wrapping_add(cur_len + 1) = 0;
             }
         }
     }
@@ -242,16 +242,15 @@ pub fn os_time() -> Timestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn os_time_and_ctime_r_work() {
         assert!(os_time() > 0);
         let mut buf = [0 as c_char; 64];
         let t: time_t = 0;
-        unsafe {
+        {
             let out = os_ctime_r(&t, buf.as_mut_ptr(), buf.len(), true);
-            let s = CStr::from_ptr(out).to_str().unwrap();
+            let s = crate::memory::cstr_from_ptr(out).to_str().unwrap();
             assert!(s.ends_with('\n'));
             assert!(s.contains("1969") || s.contains("1970"));
         }

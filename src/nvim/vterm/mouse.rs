@@ -225,10 +225,16 @@ fn output_mouse(
 
                 len += fill_utf8(
                     (code | modifiers) + 0x20,
-                    utf8.as_mut_ptr().add(len).cast::<c_char>(),
+                    utf8.as_mut_ptr().wrapping_add(len).cast::<c_char>(),
                 ) as usize;
-                len += fill_utf8(col + 0x21, utf8.as_mut_ptr().add(len).cast::<c_char>()) as usize;
-                len += fill_utf8(row + 0x21, utf8.as_mut_ptr().add(len).cast::<c_char>()) as usize;
+                len += fill_utf8(
+                    col + 0x21,
+                    utf8.as_mut_ptr().wrapping_add(len).cast::<c_char>(),
+                ) as usize;
+                len += fill_utf8(
+                    row + 0x21,
+                    utf8.as_mut_ptr().wrapping_add(len).cast::<c_char>(),
+                ) as usize;
 
                 vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, &utf8[..len]);
             }

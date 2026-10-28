@@ -336,7 +336,7 @@ fn strpncmp_camel(strp: *mut *const c_char, strcamelp: *mut *const c_char, mut n
                 if crate::memory::cstr_first_byte(s) != b' ' {
                     break;
                 }
-                s = s.add(1);
+                s = s.wrapping_add(1);
                 if *s != b {
                     break;
                 }
@@ -345,8 +345,8 @@ fn strpncmp_camel(strp: *mut *const c_char, strcamelp: *mut *const c_char, mut n
             }
 
             prev_lower = sc_u8.is_ascii_lowercase();
-            s = s.add(1);
-            sc = sc.add(1);
+            s = s.wrapping_add(1);
+            sc = sc.wrapping_add(1);
             n -= 1;
         }
 
@@ -470,7 +470,7 @@ fn eat_bytes(tk: &mut TermKey, count: usize) {
 pub fn fill_utf8(codepoint: i32, str_out: *mut c_char) -> i32 {
     unsafe {
         let nbytes = utf_char2bytes(codepoint, str_out);
-        *str_out.add(nbytes as usize) = 0;
+        *str_out.wrapping_add(nbytes as usize) = 0;
         nbytes
     }
 }
@@ -862,7 +862,7 @@ fn termkey_lookup_keyname_format(
     format: TermKeyFormat,
 ) -> *const c_char {
     let str_in = str_in.into_c_char_ptr();
-    unsafe {
+    {
         let keynames = &tk.keynames;
         *sym = 0;
         while (*sym as usize) < keynames.len() {
@@ -884,7 +884,7 @@ fn termkey_lookup_keyname_format(
                         }
                     }
                     if matched {
-                        return str_in.add(len);
+                        return str_in.wrapping_add(len);
                     }
                 }
             }
@@ -990,8 +990,8 @@ fn append_str(buffer: *mut c_char, len: usize, pos: &mut usize, s: &[u8]) -> boo
         let avail = len - 1 - *pos;
         let to_copy = s.len().min(avail);
         unsafe {
-            std::ptr::copy_nonoverlapping(s.as_ptr().cast(), buffer.add(*pos), to_copy);
-            *buffer.add(*pos + to_copy) = 0;
+            std::ptr::copy_nonoverlapping(s.as_ptr().cast(), buffer.wrapping_add(*pos), to_copy);
+            *buffer.wrapping_add(*pos + to_copy) = 0;
         }
     } else if len > 0 && *pos == 0 {
         unsafe {

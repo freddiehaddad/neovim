@@ -180,14 +180,14 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
             if end > len || end < start {
                 return luaL_error(lstate, c"invalid end".as_ptr());
             }
-            save = *line.add(end as usize);
-            *line.add(end as usize) = NUL;
+            save = *line.wrapping_add(end as usize);
+            *line.wrapping_add(end as usize) = NUL;
         }
 
-        let nret = regex_match(lstate, prog, line.add(start as usize));
+        let nret = regex_match(lstate, prog, line.wrapping_add(start as usize));
 
         if end >= 0 {
-            *line.add(end as usize) = save;
+            *line.wrapping_add(end as usize) = save;
         }
 
         if (*prog).is_null() {
@@ -250,7 +250,7 @@ unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> i32 {
         let mut idx: i32 = 1;
         let mut i: usize = 0;
         while i < s1_len && crate::memory::cstr_byte_at(s1, i) != 0 {
-            let clen = utf_ptr2len_len(s1.add(i), (s1_len - i) as i32) as usize;
+            let clen = utf_ptr2len_len(s1.wrapping_add(i), (s1_len - i) as i32) as usize;
             lua_pushinteger(lstate, (i as lua_Integer) + 1);
             lua_rawseti(lstate, -2, idx);
             idx += 1;
@@ -270,8 +270,9 @@ unsafe extern "C-unwind" fn nlua_str_utf_start(lstate: *mut lua_State) -> i32 {
             return luaL_error(lstate, c"index out of range".as_ptr());
         }
         let off = (offset as usize) - 1;
-        let head_off =
-            -i32::from(utf_cp_bounds_len(s1, s1.add(off), (s1_len - off) as i32).begin_off);
+        let head_off = -i32::from(
+            utf_cp_bounds_len(s1, s1.wrapping_add(off), (s1_len - off) as i32).begin_off,
+        );
         lua_pushinteger(lstate, head_off as lua_Integer);
         1
     }
@@ -287,7 +288,8 @@ unsafe extern "C-unwind" fn nlua_str_utf_end(lstate: *mut lua_State) -> i32 {
         }
         let off = (offset as usize) - 1;
         let tail_off =
-            i32::from(utf_cp_bounds_len(s1, s1.add(off), (s1_len - off) as i32).end_off) - 1;
+            i32::from(utf_cp_bounds_len(s1, s1.wrapping_add(off), (s1_len - off) as i32).end_off)
+                - 1;
         lua_pushinteger(lstate, tail_off as lua_Integer);
         1
     }
@@ -507,8 +509,8 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
         let mut s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
         let mut s2 = luaL_checklstring(lstate, 2, &raw mut s2_len);
         let mut ret: i32;
-        assert_eq!(*s1.add(s1_len), NUL);
-        assert_eq!(*s2.add(s2_len), NUL);
+        assert_eq!(*s1.wrapping_add(s1_len), NUL);
+        assert_eq!(*s2.wrapping_add(s2_len), NUL);
 
         loop {
             let slice1 = crate::memory::cstr_slice(s1, s1_len);
@@ -524,8 +526,8 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
                 if let (Some(p1), Some(p2)) = (nul1, nul2) {
                     s1_len -= p1 + 1;
                     s2_len -= p2 + 1;
-                    s1 = s1.add(p1 + 1);
-                    s2 = s2.add(p2 + 1);
+                    s1 = s1.wrapping_add(p1 + 1);
+                    s2 = s2.wrapping_add(p2 + 1);
                 } else {
                     break;
                 }

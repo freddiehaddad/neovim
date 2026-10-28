@@ -117,7 +117,7 @@ use crate::event::r#loop::{
 fn getaddrinfo_req_addrinfo_ptr(req: *mut uv_getaddrinfo_t) -> *mut *mut addrinfo {
     unsafe {
         req.cast::<u8>()
-            .add(uv_req_size(UV_GETADDRINFO) - 2 * size_of::<*mut c_void>())
+            .wrapping_add(uv_req_size(UV_GETADDRINFO) - 2 * size_of::<*mut c_void>())
             .cast::<*mut addrinfo>()
     }
 }
@@ -126,7 +126,7 @@ fn getaddrinfo_req_addrinfo_ptr(req: *mut uv_getaddrinfo_t) -> *mut *mut addrinf
 fn connect_req_handle(req: *mut uv_connect_t) -> *mut uv_stream_t {
     unsafe {
         *req.cast::<u8>()
-            .add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
+            .wrapping_add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
             .cast::<*mut uv_stream_t>()
     }
 }
@@ -158,7 +158,7 @@ pub fn socket_address_tcp_host_end(address: impl crate::strings::IntoCCharPtr) -
     if address.is_null() {
         return ptr::null_mut();
     }
-    unsafe {
+    {
         // Windows drive letter path: "X:/..." is a local path, not TCP.
         let b0 = crate::memory::cstr_first_byte(address);
         if b0.is_ascii_alphabetic()
@@ -171,7 +171,7 @@ pub fn socket_address_tcp_host_end(address: impl crate::strings::IntoCCharPtr) -
         let colon = crate::memory::cstr_as_bytes(address)
             .iter()
             .rposition(|&b| b == b':')
-            .map_or(ptr::null_mut(), |i| address.add(i).cast_mut());
+            .map_or(ptr::null_mut(), |i| address.wrapping_add(i).cast_mut());
         if !colon.is_null() && colon != address.cast_mut() {
             colon
         } else {
@@ -194,7 +194,7 @@ pub fn socket_watcher_init(
 
         if !host_end.is_null() {
             *host_end = NUL;
-            let mut port = host_end.add(1);
+            let mut port = host_end.wrapping_add(1);
             let mut port_scan = port;
             let mut iport: i64 = 0;
 
@@ -316,7 +316,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
                     let len = crate::memory::cstr_len(addr);
                     vim_snprintf!(
-                        addr.add(len),
+                        addr.wrapping_add(len),
                         ADDRESS_MAX_SIZE - len,
                         c":%u",
                         u32::from(port),
@@ -513,7 +513,7 @@ pub fn socket_connect(
                 let host_end = crate::memory::cstr_as_bytes(addr)
                     .iter()
                     .rposition(|&b| b == b':')
-                    .map_or(ptr::null_mut(), |i| addr.add(i));
+                    .map_or(ptr::null_mut(), |i| addr.wrapping_add(i));
                 if host_end.is_null() {
                     *error = gettext(c"tcp address must be host:port");
                     break 'cleanup;
@@ -535,7 +535,7 @@ pub fn socket_connect(
                     addr_req_ptr,
                     ptr::null_mut(),
                     addr,
-                    host_end.add(1),
+                    host_end.wrapping_add(1),
                     &raw const hints,
                 );
                 if retval != 0 {
@@ -592,13 +592,13 @@ mod tests {
 
     #[test]
     fn socket_address_tcp_host_end_detects_tcp_and_rejects_drive_letters() {
-        unsafe {
+        {
             assert!(socket_address_tcp_host_end(std::ptr::null()).is_null());
             assert!(socket_address_tcp_host_end(c"C:/tmp/nvim.sock").is_null());
             assert!(socket_address_tcp_host_end(c"/tmp/nvim.sock").is_null());
             let s = c"127.0.0.1:6666".as_ptr();
             let host_end = socket_address_tcp_host_end(s);
-            assert_eq!(host_end, s.add(9).cast_mut());
+            assert_eq!(host_end, s.wrapping_add(9).cast_mut());
         }
     }
 }

@@ -169,10 +169,10 @@ fn collect_usernames() -> Vec<CString> {
         ) == 0
         {
             for i in 0..nusers as usize {
-                let name_ptr = (*uinfo.add(i)).usri0_name;
+                let name_ptr = (*uinfo.wrapping_add(i)).usri0_name;
                 if !name_ptr.is_null() {
                     let mut len = 0usize;
-                    while *name_ptr.add(len) != 0 {
+                    while *name_ptr.wrapping_add(len) != 0 {
                         len += 1;
                     }
                     if len > 0 {
@@ -307,17 +307,19 @@ pub fn match_user(name: impl crate::strings::IntoCCharPtr) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn get_usernames_null_returns_fail_and_uname_formats_fallback() {
-        unsafe {
+        {
             assert!(os_get_userdir(std::ptr::null()).is_none());
 
             let mut buf = [0 as c_char; 32];
             let res = os_get_uname(250 as uv_uid_t, buf.as_mut_ptr(), buf.len());
             if !res {
-                assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "250");
+                assert_eq!(
+                    crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
+                    "250"
+                );
             }
 
             assert!(os_get_userdir(c"neovim_user_not_found_test").is_none());

@@ -1072,7 +1072,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
                 && mark_col <= old_line_len
                 && std::slice::from_raw_parts(
                     old_line
-                        .add((mark_col - old_prompt_len) as usize)
+                        .wrapping_add((mark_col - old_prompt_len) as usize)
                         .cast::<u8>(),
                     old_prompt_bytes.len(),
                 ) == old_prompt_bytes;
@@ -1089,7 +1089,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
                 );
                 cursor_col = new_prompt_len;
             } else {
-                let new_line = concat_str(new_prompt, old_line.add(mark_col as usize));
+                let new_line = concat_str(new_prompt, old_line.wrapping_add(mark_col as usize));
                 let _ = ml_replace_buf(
                     &mut *buf,
                     prompt_lno,

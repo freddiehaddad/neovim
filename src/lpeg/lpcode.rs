@@ -375,7 +375,7 @@ fn nextinstruction(compst: &mut CompileState, n: i32) -> i32 {
 
 #[inline]
 fn getinstr(cs: &mut CompileState, i: i32) -> &'static mut Instruction {
-    unsafe { &mut *(*cs.p).code.as_mut_ptr().add(i as usize) }
+    unsafe { &mut *(*cs.p).code.as_mut_ptr().wrapping_add(i as usize) }
 }
 
 fn addinstruction(compst: &mut CompileState, op: Opcode, aux: i32) -> i32 {
@@ -424,7 +424,7 @@ fn addinstcap(compst: &mut CompileState, op: Opcode, cap: i32, key: i32, aux: i3
 
 #[inline]
 fn target(code: *const Instruction, i: i32) -> i32 {
-    unsafe { i + (*code.add((i + 1) as usize)).offset }
+    unsafe { i + (*code.wrapping_add((i + 1) as usize)).offset }
 }
 
 #[inline]
@@ -466,7 +466,7 @@ fn addcharset(compst: &mut CompileState, inst: i32, info: &CharsetInfo) {
         let p = nextinstruction(compst, isize);
         let charset = (&raw mut *getinstr(compst, p)).cast::<LpegByte>();
         for i in 0..((isize as usize) * size_of::<Instruction>()) {
-            *charset.add(i) = getbytefromcharset(info, i as i32);
+            *charset.wrapping_add(i) = getbytefromcharset(info, i as i32);
         }
     }
 }
@@ -483,9 +483,9 @@ fn cs_equal(p: &Instruction, info: &CharsetInfo) -> bool {
         {
             return false;
         }
-        let buff = (p as *const Instruction).add(2).cast::<LpegByte>();
+        let buff = (p as *const Instruction).wrapping_add(2).cast::<LpegByte>();
         for i in 0..((isize as usize) * size_of::<Instruction>()) {
-            if *buff.add(i) != getbytefromcharset(info, i as i32) {
+            if *buff.wrapping_add(i) != getbytefromcharset(info, i as i32) {
                 return false;
             }
         }
@@ -532,7 +532,7 @@ fn codetestset(compst: &mut CompileState, cs: &Charset, e: i32) -> i32 {
 
 fn finaltarget(code: *const Instruction, mut i: i32) -> i32 {
     unsafe {
-        while (*code.add(i as usize)).i.code == IJMP {
+        while (*code.wrapping_add(i as usize)).i.code == IJMP {
             i = target(code, i);
         }
         i
@@ -729,13 +729,19 @@ fn correctcalls(compst: &mut CompileState, positions: &[i32; MAXRULES], from: i3
         let code = (*compst.p).code.as_mut_ptr();
         let mut i = from;
         while i < to {
-            let inst = code.add(i as usize);
+            let inst = code.wrapping_add(i as usize);
             let inst = { &mut *inst };
             if inst.i.code == IOPEN_CALL {
                 let n = inst.i.aux2.key as usize;
                 let rule = positions[n];
-                debug_assert!(rule == from || (*code.add((rule - 1) as usize)).i.code == IRET);
-                if (*code.add(finaltarget(code, i + 2) as usize)).i.code == IRET {
+                debug_assert!(
+                    rule == from || (*code.wrapping_add((rule - 1) as usize)).i.code == IRET
+                );
+                if (*code.wrapping_add(finaltarget(code, i + 2) as usize))
+                    .i
+                    .code
+                    == IRET
+                {
                     inst.i.code = IJMP;
                 } else {
                     inst.i.code = ICALL;
@@ -878,7 +884,7 @@ fn peephole(compst: &mut CompileState) {
         let mut i: i32 = 0;
         while i < compst.ncode {
             loop {
-                let inst = code.add(i as usize);
+                let inst = code.wrapping_add(i as usize);
                 match (*inst).i.code {
                     ICHOICE | ICALL | ICOMMIT | IPARTIAL_COMMIT | IBACK_COMMIT | ITEST_CHAR
                     | ITEST_SET | ITEST_ANY => {
@@ -887,11 +893,11 @@ fn peephole(compst: &mut CompileState) {
                     }
                     IJMP => {
                         let ft = finaltarget(code, i);
-                        let ft_inst = code.add(ft as usize);
+                        let ft_inst = code.wrapping_add(ft as usize);
                         match (*ft_inst).i.code {
                             IRET | IFAIL | IFAIL_TWICE | IEND => {
                                 *inst = *ft_inst;
-                                (*code.add((i + 1) as usize)).i.code = IEMPTY;
+                                (*code.wrapping_add((i + 1) as usize)).i.code = IEMPTY;
                                 break;
                             }
                             ICOMMIT | IPARTIAL_COMMIT | IBACK_COMMIT => {
@@ -911,7 +917,7 @@ fn peephole(compst: &mut CompileState) {
             }
             i += sizei(&*(code.add(i as usize)));
         }
-        debug_assert_eq!((*code.add((i - 1) as usize)).i.code, IEND);
+        debug_assert_eq!((*code.wrapping_add((i - 1) as usize)).i.code, IEND);
     }
 }
 

@@ -815,7 +815,7 @@ impl std::hash::Hash for PathKey {
         if cfg!(target_os = "windows") {
             let c0 = { crate::memory::cstr_first_byte(p) };
             if c0.is_ascii_alphabetic() && { crate::memory::cstr_byte_at(p, 1) } == b':' {
-                p = unsafe { p.add(2) };
+                p = p.wrapping_add(2);
             }
         }
         let ic = CASE_INSENSITIVE_FILENAME;
@@ -823,17 +823,17 @@ impl std::hash::Hash for PathKey {
         let mut len: i32 = 0;
         while unsafe { *p != 0 } {
             let cur = unsafe { *p };
-            let next = unsafe { *p.add(1) };
+            let next = unsafe { *p.wrapping_add(1) };
             if vim_ispathsep_nocolon(i32::from(cur as u8))
                 && next == 0
                 && !ptr::eq(start, p)
-                && unsafe { !vim_ispathsep(i32::from(*p.sub(1) as u8)) }
+                && unsafe { !vim_ispathsep(i32::from(*p.wrapping_sub(1) as u8)) }
             {
                 break;
             }
             let c = path_fold_char(ic, p, &mut len);
             h = (h << 5).wrapping_sub(h).wrapping_add(c as u32);
-            p = unsafe { p.add(len as usize) };
+            p = p.wrapping_add(len as usize);
         }
         state.write_u32(h);
     }
@@ -1828,7 +1828,7 @@ fn shada_pack_entry(
                 let copy_len = varname.size.min(vardesc.len() - prefix.len() - 1);
                 ptr::copy_nonoverlapping(
                     varname.data,
-                    vardesc.as_mut_ptr().add(prefix.len()),
+                    vardesc.as_mut_ptr().wrapping_add(prefix.len()),
                     copy_len,
                 );
                 vardesc[prefix.len() + copy_len] = 0;
@@ -2552,8 +2552,12 @@ fn replace_numbered_mark(wms: &mut WriteMergerState, idx: usize, entry: ShadaEnt
             }
         }
         let base = (&raw mut wms.numbered_marks).cast::<ShadaEntry>();
-        ptr::copy(base.add(idx), base.add(idx + 1), EXTRA_MARKS - 1 - idx);
-        ptr::write(base.add(idx), entry);
+        ptr::copy(
+            base.wrapping_add(idx),
+            base.wrapping_add(idx + 1),
+            EXTRA_MARKS - 1 - idx,
+        );
+        ptr::write(base.wrapping_add(idx), entry);
         wms.numbered_marks[idx].data.filemark_mut().name = (b'0' + (idx as u8)) as c_char;
     }
 }
@@ -2581,25 +2585,25 @@ const fn hist_type2char(hist_type: i32) -> i32 {
 }
 
 pub(crate) fn flush_file_buffer(buffer: &mut PackerBuffer) {
-    unsafe {
+    {
         let fd = buffer.anydata.as_file();
         let base = fd.buffer.as_ptr();
         fd.write_pos = (buffer.ptr as usize).saturating_sub(base as usize);
         buffer.anyint = i64::from(file_flush(fd));
-        buffer.ptr = fd.buffer.as_mut_ptr().add(fd.write_pos);
+        buffer.ptr = fd.buffer.as_mut_ptr().wrapping_add(fd.write_pos);
     }
 }
 
 fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
-    unsafe {
+    {
         if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
             file_flush(&raw mut *file);
         }
         let base = file.buffer.as_mut_ptr();
         PackerBuffer {
             startptr: base,
-            ptr: base.add(file.write_pos),
-            endptr: base.add(ARENA_BLOCK_SIZE),
+            ptr: base.wrapping_add(file.write_pos),
+            endptr: base.wrapping_add(ARENA_BLOCK_SIZE),
             anydata: crate::msgpack_rpc::packer::PackerData::File(file),
             anyint: 0,
             owned_buf: Vec::new(),
@@ -3544,7 +3548,7 @@ fn msgpack_read_uint64(
             let mut buf = [0u8; 8];
             let fl_ret = fread_len(
                 (&raw mut *sd_reader),
-                buf.as_mut_ptr().add(8 - length).cast::<c_char>(),
+                buf.as_mut_ptr().wrapping_add(8 - length).cast::<c_char>(),
                 length,
             );
             if fl_ret != ShaDaReadResult::SDReadStatusSuccess {
@@ -4213,7 +4217,13 @@ fn shada_removable(name: impl crate::strings::IntoCCharPtr) -> bool {
             copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ");
             if part[0] == (b'r' as c_char) {
                 let name_buff_ptr = g_st().name_buff.as_mut_ptr();
-                let n = home_replace(None, part.as_ptr().add(1), name_buff_ptr, MAXPATHL, true);
+                let n = home_replace(
+                    None,
+                    part.as_ptr().wrapping_add(1),
+                    name_buff_ptr,
+                    MAXPATHL,
+                    true,
+                );
                 if mb_strnicmp(name_buff_ptr, new_name.as_ptr(), n) == 0 {
                     retval = true;
                     break;
@@ -4411,7 +4421,7 @@ pub fn shada_read_string(bytes: &[u8], flags: i32) {
 
 /// Find the parameter represented by the given character in 'shada' (`get_shada_parameter`).
 pub fn get_shada_parameter(param_type: i32) -> i32 {
-    unsafe {
+    {
         let p = find_shada_parameter(param_type);
         if !p.is_null() && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
             let mut val: i32 = 0;
@@ -4420,7 +4430,7 @@ pub fn get_shada_parameter(param_type: i32) -> i32 {
                 val = val
                     .wrapping_mul(10)
                     .wrapping_add(i32::from((crate::memory::cstr_first_byte(cur)) - b'0'));
-                cur = cur.add(1);
+                cur = cur.wrapping_add(1);
             }
             return val;
         }
@@ -4434,7 +4444,7 @@ pub fn find_shada_parameter(param_type: i32) -> *mut c_char {
         let mut p = opt_vars().p_shada;
         while *p != 0 {
             if i32::from(crate::memory::cstr_first_byte(p)) == param_type {
-                return p.add(1);
+                return p.wrapping_add(1);
             }
             if *p == (b'n' as c_char) {
                 break;
@@ -4443,7 +4453,7 @@ pub fn find_shada_parameter(param_type: i32) -> *mut c_char {
             if p.is_null() {
                 break;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         ptr::null_mut()
     }

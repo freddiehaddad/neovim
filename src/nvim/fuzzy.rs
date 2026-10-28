@@ -93,17 +93,17 @@ fn has_match(
                 let h_char = utf_ptr2char(h_ptr);
                 if h_char == n_char || h_char == n_upper {
                     found = true;
-                    h_ptr = h_ptr.add(utfc_ptr2len(h_ptr) as usize);
+                    h_ptr = h_ptr.wrapping_add(utfc_ptr2len(h_ptr) as usize);
                     break;
                 }
-                h_ptr = h_ptr.add(utfc_ptr2len(h_ptr) as usize);
+                h_ptr = h_ptr.wrapping_add(utfc_ptr2len(h_ptr) as usize);
             }
 
             if !found {
                 return false;
             }
 
-            n_ptr = n_ptr.add(utfc_ptr2len(n_ptr) as usize);
+            n_ptr = n_ptr.wrapping_add(utfc_ptr2len(n_ptr) as usize);
         }
 
         true
@@ -142,7 +142,7 @@ fn setup_match_struct(
             let c = utf_ptr2char(p);
             match_st.lower_needle[i] = mb_tolower(c);
             i += 1;
-            p = p.add(utf_ptr2len(p) as usize);
+            p = p.wrapping_add(utf_ptr2len(p) as usize);
         }
         match_st.needle_len = i;
 
@@ -154,7 +154,7 @@ fn setup_match_struct(
             match_st.lower_haystack[i] = mb_tolower(c);
             match_st.match_bonus[i] = compute_bonus_codepoint(prev_c, c);
             prev_c = c;
-            p = p.add(utf_ptr2len(p) as usize);
+            p = p.wrapping_add(utf_ptr2len(p) as usize);
             i += 1;
         }
         match_st.haystack_len = i;
@@ -194,17 +194,17 @@ fn match_row(
                     score =
                         (prev_m + match_st.match_bonus[j]).max(prev_d + SCORE_MATCH_CONSECUTIVE);
                 }
-                prev_d = *last_d.add(j);
-                prev_m = *last_m.add(j);
-                *curr_d.add(j) = score;
+                prev_d = *last_d.wrapping_add(j);
+                prev_m = *last_m.wrapping_add(j);
+                *curr_d.wrapping_add(j) = score;
                 prev_score = score.max(prev_score + gap_score);
-                *curr_m.add(j) = prev_score;
+                *curr_m.wrapping_add(j) = prev_score;
             } else {
-                prev_d = *last_d.add(j);
-                prev_m = *last_m.add(j);
-                *curr_d.add(j) = SCORE_MIN;
+                prev_d = *last_d.wrapping_add(j);
+                prev_m = *last_m.wrapping_add(j);
+                *curr_d.wrapping_add(j) = SCORE_MIN;
                 prev_score += gap_score;
-                *curr_m.add(j) = prev_score;
+                *curr_m.wrapping_add(j) = prev_score;
             }
         }
     }
@@ -241,7 +241,7 @@ fn match_positions(needle: *const c_char, haystack: *const c_char, positions: *m
             if equal {
                 if !positions.is_null() {
                     for i in 0..n {
-                        *positions.add(i) = i as u32;
+                        *positions.wrapping_add(i) = i as u32;
                     }
                 }
                 return SCORE_MAX;
@@ -254,7 +254,7 @@ fn match_positions(needle: *const c_char, haystack: *const c_char, positions: *m
 
         let mut block = vec![0.0f64; MATCH_MAX_LEN * n * 2];
         let d_base = block.as_mut_ptr();
-        let m_base = d_base.add(MATCH_MAX_LEN * n);
+        let m_base = d_base.wrapping_add(MATCH_MAX_LEN * n);
 
         match_row(&match_st, 0, d_base, m_base, d_base, m_base);
         for i in 1..n {
@@ -263,10 +263,10 @@ fn match_positions(needle: *const c_char, haystack: *const c_char, positions: *m
             match_row(
                 &match_st,
                 i,
-                d_base.add(row_off),
-                m_base.add(row_off),
-                d_base.add(prev_off),
-                m_base.add(prev_off),
+                d_base.wrapping_add(row_off),
+                m_base.wrapping_add(row_off),
+                d_base.wrapping_add(prev_off),
+                m_base.wrapping_add(prev_off),
             );
         }
 
@@ -276,15 +276,15 @@ fn match_positions(needle: *const c_char, haystack: *const c_char, positions: *m
             for i in (0..n).rev() {
                 while j >= 0 {
                     let ju = j as usize;
-                    let dij = *d_base.add(i * MATCH_MAX_LEN + ju);
-                    let mij = *m_base.add(i * MATCH_MAX_LEN + ju);
+                    let dij = *d_base.wrapping_add(i * MATCH_MAX_LEN + ju);
+                    let mij = *m_base.wrapping_add(i * MATCH_MAX_LEN + ju);
                     if dij != SCORE_MIN && (match_required || dij == mij) {
                         match_required = i > 0
                             && ju > 0
                             && mij
-                                == *d_base.add((i - 1) * MATCH_MAX_LEN + (ju - 1))
+                                == *d_base.wrapping_add((i - 1) * MATCH_MAX_LEN + (ju - 1))
                                     + SCORE_MATCH_CONSECUTIVE;
-                        *positions.add(i) = ju as u32;
+                        *positions.wrapping_add(i) = ju as u32;
                         j -= 1;
                         break;
                     }
@@ -293,7 +293,7 @@ fn match_positions(needle: *const c_char, haystack: *const c_char, positions: *m
             }
         }
 
-        *m_base.add((n - 1) * MATCH_MAX_LEN + (m - 1))
+        *m_base.wrapping_add((n - 1) * MATCH_MAX_LEN + (m - 1))
     }
 }
 
@@ -328,7 +328,7 @@ pub fn fuzzy_match(
                 }
                 pat = p;
                 while *p != 0 && !ascii_iswhite(utf_ptr2char(p)) {
-                    p = p.add(utf_ptr2len(p) as usize);
+                    p = p.wrapping_add(utf_ptr2len(p) as usize);
                 }
                 if *p == 0 {
                     complete = true;
@@ -348,7 +348,8 @@ pub fn fuzzy_match(
 
             let mut score = FUZZY_SCORE_NONE;
             if has_match(pat, str_ptr) {
-                let fzy_score = match_positions(pat, str_ptr, matches.add(num_matches as usize));
+                let fzy_score =
+                    match_positions(pat, str_ptr, matches.wrapping_add(num_matches as usize));
                 if fzy_score != SCORE_MIN {
                     score = if fzy_score == SCORE_MAX {
                         i32::MAX
@@ -380,7 +381,7 @@ pub fn fuzzy_match(
                 break;
             }
 
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         num_matches != 0
@@ -510,7 +511,7 @@ fn fuzzy_match_in_list(
                             matchpos.push(matches[j] as i64);
                             j += 1;
                         }
-                        p = p.add(utf_ptr2len(p) as usize);
+                        p = p.wrapping_add(utf_ptr2len(p) as usize);
                     }
                 }
 
@@ -749,7 +750,7 @@ pub fn fuzzy_match_str_with_pos(
                 match_positions.push(matches[j]);
                 j += 1;
             }
-            p = p.add(utf_ptr2len(p) as usize);
+            p = p.wrapping_add(utf_ptr2len(p) as usize);
         }
 
         Some(match_positions)
@@ -799,7 +800,7 @@ pub fn fuzzy_match_str_in_line(
 
             str_cur = end;
             while *str_cur != 0 && !vim_iswordp(str_cur) {
-                str_cur = str_cur.add(utf_ptr2len(str_cur) as usize);
+                str_cur = str_cur.wrapping_add(utf_ptr2len(str_cur) as usize);
             }
         }
 
@@ -857,7 +858,7 @@ pub fn search_for_fuzzy_match(
             if current_pos.lnum >= 1 && current_pos.lnum <= buf.b_ml.ml_line_count {
                 *ptr = ml_get_buf(buf, current_pos.lnum);
                 if !whole_line {
-                    *ptr = (*ptr).add(current_pos.col as usize);
+                    *ptr = (*ptr).wrapping_add(current_pos.col as usize);
                 }
 
                 if !(*ptr).is_null() && **ptr != 0 {

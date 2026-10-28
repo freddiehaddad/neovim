@@ -246,7 +246,7 @@ fn get_patterns_from_pattern_or_buf(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+    {
         let mut patterns = ArrayBuilder::new();
 
         if pattern.obj_type != ObjectType::ObjectTypeNil {
@@ -262,7 +262,7 @@ fn get_patterns_from_pattern_or_buf(
                         },
                     );
                     patterns.push(string_obj(s));
-                    patlen = aucmd_span_pattern(pat.add(patlen), &mut pat);
+                    patlen = aucmd_span_pattern(pat.wrapping_add(patlen), &mut pat);
                 }
             } else if pattern.obj_type == ObjectType::ObjectTypeArray {
                 if !check_string_array(pattern.data.array(), c"pattern", true, err) {
@@ -286,7 +286,7 @@ fn get_patterns_from_pattern_or_buf(
                             },
                         );
                         patterns.push(string_obj(s));
-                        patlen = aucmd_span_pattern(pat.add(patlen), &mut pat);
+                        patlen = aucmd_span_pattern(pat.wrapping_add(patlen), &mut pat);
                     }
                 }
             } else {

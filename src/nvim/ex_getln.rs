@@ -535,7 +535,7 @@ pub fn parse_pattern_and_range(
         // Skip over command name to find pattern separator
         let mut p = cmd;
         while ascii_isalpha(*p as i32) {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         if *skipwhite(p) == NUL {
             return false;
@@ -567,14 +567,14 @@ pub fn parse_pattern_and_range(
         {
             // skip over ! and flags
             if crate::memory::cstr_first_byte(p) == b'!' {
-                p = skipwhite(p.add(1));
+                p = skipwhite(p.wrapping_add(1));
             }
             loop {
                 p = skipwhite(p);
                 if !ascii_isalpha(*p as i32) {
                     break;
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             if crate::memory::cstr_is_empty(p) {
                 return false;
@@ -592,7 +592,7 @@ pub fn parse_pattern_and_range(
         {
             // skip optional "!"
             if crate::memory::cstr_first_byte(p) == b'!' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 if *skipwhite(p) == NUL {
                     return false;
                 }
@@ -609,7 +609,7 @@ pub fn parse_pattern_and_range(
             b' ' as i32
         } else {
             let d = *p as i32;
-            p = p.add(1);
+            p = p.wrapping_add(1);
             d
         };
         *search_delim = delim;
@@ -747,10 +747,17 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         s.incsearch_postponed = false;
 
         // Use the previous pattern for ":s//".
-        let mut next_char = *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize);
+        let mut next_char = *getln_st()
+            .ccline
+            .cmdbuff
+            .wrapping_add((skiplen + patlen) as usize);
         let use_last_pat = patlen == 0
             && skiplen > 0
-            && *getln_st().ccline.cmdbuff.add((skiplen - 1) as usize) == next_char;
+            && *getln_st()
+                .ccline
+                .cmdbuff
+                .wrapping_add((skiplen - 1) as usize)
+                == next_char;
 
         if patlen != 0 || use_last_pat {
             ui_busy_start();
@@ -788,7 +795,10 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
                 sa_timed_out: 0,
                 sa_wrapped: 0,
             };
-            *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = NUL;
+            *getln_st()
+                .ccline
+                .cmdbuff
+                .wrapping_add((skiplen + patlen) as usize) = NUL;
             g_st().emsg_off += 1; // So it doesn't beep if bad expr
             found = do_search(
                 None,
@@ -798,7 +808,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
                     firstc
                 },
                 search_delim,
-                getln_st().ccline.cmdbuff.add(skiplen as usize),
+                getln_st().ccline.cmdbuff.wrapping_add(skiplen as usize),
                 patlen as usize,
                 count,
                 search_flags,
@@ -806,7 +816,10 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
                 Some(&mut sia),
             );
             g_st().emsg_off -= 1;
-            *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
+            *getln_st()
+                .ccline
+                .cmdbuff
+                .wrapping_add((skiplen + patlen) as usize) = next_char;
             if curwin_mut().w_cursor.lnum < g_st().search_global.first_line
                 || curwin_mut().w_cursor.lnum > g_st().search_global.last_line
             {
@@ -851,10 +864,16 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         // Disable 'hlsearch' highlighting if the pattern matches
         // everything. Avoids a flash when typing "foo\|".
         if !use_last_pat {
-            next_char = *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize);
-            *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = NUL;
+            next_char = *getln_st()
+                .ccline
+                .cmdbuff
+                .wrapping_add((skiplen + patlen) as usize);
+            *getln_st()
+                .ccline
+                .cmdbuff
+                .wrapping_add((skiplen + patlen) as usize) = NUL;
             if empty_pattern(
-                getln_st().ccline.cmdbuff.add(skiplen as usize),
+                getln_st().ccline.cmdbuff.wrapping_add(skiplen as usize),
                 patlen as usize,
                 search_delim,
             ) && !g_st().search_global.no_hlsearch
@@ -862,7 +881,10 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
                 redraw_all_later(UPD_SOME_VALID);
                 set_no_hlsearch(true);
             }
-            *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
+            *getln_st()
+                .ccline
+                .cmdbuff
+                .wrapping_add((skiplen + patlen) as usize) = next_char;
         }
 
         validate_cursor(curwin_mut());
@@ -879,7 +901,12 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
         // Leave it at the end to make CTRL-R CTRL-W work.  But not when beyond the
         // end of the pattern, e.g. for ":s/pat/".
-        if *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) != NUL {
+        if *getln_st()
+            .ccline
+            .cmdbuff
+            .wrapping_add((skiplen + patlen) as usize)
+            != NUL
+        {
             curwin_mut().w_cursor = s.search_start;
         } else if found != 0 {
             curwin_mut().w_cursor = end_pos;
@@ -899,7 +926,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 /// May set `*c` to the added character.
 /// Return `OK` when calling `command_line_not_changed`.
 fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> bool {
-    unsafe {
+    {
         let mut skiplen: i32 = 0;
         let mut patlen: i32 = 0;
         let mut search_delim: i32 = 0;
@@ -932,7 +959,7 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
                 // the character to lowercase
                 if opt_vars().p_ic != 0
                     && opt_vars().p_scs != 0
-                    && !pat_has_uppercase(getln_st().ccline.cmdbuff.add(skiplen as usize))
+                    && !pat_has_uppercase(getln_st().ccline.cmdbuff.wrapping_add(skiplen as usize))
                 {
                     *c = mb_tolower(*c);
                 }
@@ -1024,7 +1051,7 @@ fn init_ccline(firstc: i32, indent: i32) {
                 b' ',
                 indent as usize,
             );
-            *getln_st().ccline.cmdbuff.add(indent as usize) = NUL;
+            *getln_st().ccline.cmdbuff.wrapping_add(indent as usize) = NUL;
             getln_st().ccline.cmdpos = indent;
             getln_st().ccline.cmdspos = indent;
             getln_st().ccline.cmdlen = indent;
@@ -1995,7 +2022,7 @@ fn may_do_command_line_next_incsearch(
         ui_flush();
 
         let mut t: CursorPos;
-        let mut pat = getln_st().ccline.cmdbuff.add(skiplen as usize);
+        let mut pat = getln_st().ccline.cmdbuff.wrapping_add(skiplen as usize);
         let mut dircp: *mut c_char = ptr::null_mut();
         let mut searchstr = pat;
         let mut strcopy: Vec<c_char> = Vec::new();
@@ -2126,7 +2153,7 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
                 getln_st()
                     .ccline
                     .cmdbuff
-                    .add(getln_st().ccline.cmdpos as usize),
+                    .wrapping_add(getln_st().ccline.cmdpos as usize),
             );
         }
 
@@ -2134,7 +2161,7 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
             let mut j = getln_st().ccline.cmdpos;
             let mut p = mb_prevptr(
                 getln_st().ccline.cmdbuff,
-                getln_st().ccline.cmdbuff.add(j as usize),
+                getln_st().ccline.cmdbuff.wrapping_add(j as usize),
             );
 
             if s.c == CTRL_W_CONST {
@@ -2148,7 +2175,7 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
                 }
 
                 if mb_get_class(p) != cls {
-                    p = p.add(utfc_ptr2len(p) as usize);
+                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 }
             }
 
@@ -2157,8 +2184,8 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
             let mut i = getln_st().ccline.cmdpos;
 
             while i < getln_st().ccline.cmdlen {
-                *getln_st().ccline.cmdbuff.add(i as usize) =
-                    *getln_st().ccline.cmdbuff.add(j as usize);
+                *getln_st().ccline.cmdbuff.wrapping_add(i as usize) =
+                    *getln_st().ccline.cmdbuff.wrapping_add(j as usize);
                 i += 1;
                 j += 1;
             }
@@ -2166,7 +2193,7 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
             *getln_st()
                 .ccline
                 .cmdbuff
-                .add(getln_st().ccline.cmdlen as usize) = NUL;
+                .wrapping_add(getln_st().ccline.cmdlen as usize) = NUL;
             if getln_st().ccline.cmdlen == 0 {
                 s.is_state.search_start = s.is_state.save_cursor;
                 s.is_state.old_viewstate = s.is_state.init_viewstate;
@@ -2290,7 +2317,7 @@ fn command_line_insert_reg(s: &mut CommandLineState) -> i32 {
 
 /// Handle the Left and Right mouse clicks in the command-line mode.
 fn command_line_left_right_mouse(s: &mut CommandLineState) {
-    unsafe {
+    {
         s.ignore_drag_release = s.c == K_LEFTRELEASE || s.c == K_RIGHTRELEASE;
 
         getln_st().ccline.cmdspos = cmd_startcol();
@@ -2313,7 +2340,7 @@ fn command_line_left_right_mouse(s: &mut CommandLineState) {
                 getln_st()
                     .ccline
                     .cmdbuff
-                    .add(getln_st().ccline.cmdpos as usize),
+                    .wrapping_add(getln_st().ccline.cmdpos as usize),
             ) - 1;
             getln_st().ccline.cmdspos += cells;
             getln_st().ccline.cmdpos += 1;
@@ -2433,20 +2460,23 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
                             && (j == 0 || crate::memory::cstr_byte_at(p, j - 1) != b'\\')
                         {
                             if i > 0 {
-                                *getln_st().ccline.cmdbuff.add(len as usize) = s.firstc as c_char;
+                                *getln_st().ccline.cmdbuff.wrapping_add(len as usize) =
+                                    s.firstc as c_char;
                             }
                         } else {
                             if crate::memory::cstr_char_at(p, j) == s.firstc
                                 && (j == 0 || crate::memory::cstr_byte_at(p, j - 1) != b'\\')
                             {
                                 if i > 0 {
-                                    *getln_st().ccline.cmdbuff.add(len as usize) = b'\\' as c_char;
+                                    *getln_st().ccline.cmdbuff.wrapping_add(len as usize) =
+                                        b'\\' as c_char;
                                 }
                                 len += 1;
                             }
 
                             if i > 0 {
-                                *getln_st().ccline.cmdbuff.add(len as usize) = *p.add(j);
+                                *getln_st().ccline.cmdbuff.wrapping_add(len as usize) =
+                                    *p.wrapping_add(j);
                             }
                         }
                         len += 1;
@@ -2457,7 +2487,7 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
                         alloc_cmdbuff(len);
                     }
                 }
-                *getln_st().ccline.cmdbuff.add(len as usize) = NUL;
+                *getln_st().ccline.cmdbuff.wrapping_add(len as usize) = NUL;
                 getln_st().ccline.cmdlen = len;
                 getln_st().ccline.cmdpos = len;
             } else {
@@ -2512,8 +2542,8 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         getln_st().ccline.cmdpos = 0;
                         let mut i = 0;
                         while i < getln_st().ccline.cmdlen {
-                            *getln_st().ccline.cmdbuff.add(i as usize) =
-                                *getln_st().ccline.cmdbuff.add(j as usize);
+                            *getln_st().ccline.cmdbuff.wrapping_add(i as usize) =
+                                *getln_st().ccline.cmdbuff.wrapping_add(j as usize);
                             i += 1;
                             j += 1;
                         }
@@ -2521,7 +2551,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         *getln_st()
                             .ccline
                             .cmdbuff
-                            .add(getln_st().ccline.cmdlen as usize) = NUL;
+                            .wrapping_add(getln_st().ccline.cmdlen as usize) = NUL;
                         if getln_st().ccline.cmdlen == 0 {
                             s.is_state.search_start = s.is_state.save_cursor;
                         }
@@ -2585,7 +2615,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                                 getln_st()
                                     .ccline
                                     .cmdbuff
-                                    .add(getln_st().ccline.cmdpos as usize),
+                                    .wrapping_add(getln_st().ccline.cmdpos as usize),
                             );
 
                             if !((s.c == K_S_RIGHT
@@ -2595,7 +2625,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                                 && *getln_st()
                                     .ccline
                                     .cmdbuff
-                                    .add(getln_st().ccline.cmdpos as usize)
+                                    .wrapping_add(getln_st().ccline.cmdpos as usize)
                                     != b' ' as c_char)
                             {
                                 break;
@@ -2616,7 +2646,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                                 getln_st()
                                     .ccline
                                     .cmdbuff
-                                    .add(getln_st().ccline.cmdpos as usize),
+                                    .wrapping_add(getln_st().ccline.cmdpos as usize),
                             );
                             getln_st().ccline.cmdspos -= cmdline_charsize(getln_st().ccline.cmdpos);
 
@@ -2629,7 +2659,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                                 && *getln_st()
                                     .ccline
                                     .cmdbuff
-                                    .add((getln_st().ccline.cmdpos - 1) as usize)
+                                    .wrapping_add((getln_st().ccline.cmdpos - 1) as usize)
                                     != b' ' as c_char)
                             {
                                 break;
@@ -2885,7 +2915,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
         } else {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             let j = utf_char2bytes(s.c, iobuff_ptr);
-            *iobuff_ptr.add(j as usize) = NUL;
+            *iobuff_ptr.wrapping_add(j as usize) = NUL;
             put_on_cmdline(iobuff_ptr, j, true);
         }
         if getln_st().ccline.one_key {
@@ -3483,7 +3513,7 @@ pub fn check_opt_wim(value: impl crate::strings::IntoCCharPtr, flags: *mut u8) -
             } else {
                 return false;
             }
-            p = p.add(i);
+            p = p.wrapping_add(i);
             if crate::memory::cstr_is_empty(p) {
                 break;
             }
@@ -3493,7 +3523,7 @@ pub fn check_opt_wim(value: impl crate::strings::IntoCCharPtr, flags: *mut u8) -
                 }
                 idx += 1;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         while idx < 3 {
@@ -3556,11 +3586,11 @@ pub fn allbuf_locked() -> bool {
 }
 
 fn cmdline_charsize(idx: i32) -> i32 {
-    unsafe {
+    {
         if g_st().cmdline_star > 0 {
             return 1;
         }
-        ptr2cells(getln_st().ccline.cmdbuff.add(idx as usize))
+        ptr2cells(getln_st().ccline.cmdbuff.wrapping_add(idx as usize))
     }
 }
 
@@ -3603,7 +3633,7 @@ pub fn cmd_screencol(bytepos: i32) -> i32 {
                 col -= c;
                 break;
             }
-            i += utfc_ptr2len(getln_st().ccline.cmdbuff.add(i as usize));
+            i += utfc_ptr2len(getln_st().ccline.cmdbuff.wrapping_add(i as usize));
         }
         col
     }
@@ -3612,9 +3642,9 @@ pub fn cmd_screencol(bytepos: i32) -> i32 {
 /// Check if the character at `idx`, which is `cells` wide, is a multi-byte
 /// character that doesn't fit, so that a `>` must be displayed.
 fn correct_screencol(idx: i32, cells: i32, col: &mut i32) {
-    unsafe {
-        if utfc_ptr2len(getln_st().ccline.cmdbuff.add(idx as usize)) > 1
-            && utf_ptr2cells(getln_st().ccline.cmdbuff.add(idx as usize)) > 1
+    {
+        if utfc_ptr2len(getln_st().ccline.cmdbuff.wrapping_add(idx as usize)) > 1
+            && utf_ptr2cells(getln_st().ccline.cmdbuff.wrapping_add(idx as usize)) > 1
             && (*col) % g_st().columns_global + cells > g_st().columns_global
         {
             *col += 1;
@@ -3685,7 +3715,7 @@ pub fn realloc_cmdbuff(mut len: i32) {
         *getln_st()
             .ccline
             .cmdbuff
-            .add(getln_st().ccline.cmdlen as usize) = NUL;
+            .wrapping_add(getln_st().ccline.cmdlen as usize) = NUL;
 
         if !getln_st().ccline.xpc.is_null()
             && !(*getln_st().ccline.xpc).xp_pattern.is_null()
@@ -3695,7 +3725,8 @@ pub fn realloc_cmdbuff(mut len: i32) {
             let i = (*getln_st().ccline.xpc).xp_pattern.offset_from(p) as i32;
 
             if i >= 0 && i <= getln_st().ccline.cmdlen {
-                (*getln_st().ccline.xpc).xp_pattern = getln_st().ccline.cmdbuff.add(i as usize);
+                (*getln_st().ccline.xpc).xp_pattern =
+                    getln_st().ccline.cmdbuff.wrapping_add(i as usize);
             }
         }
     }
@@ -4032,7 +4063,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
 
 /// Draw part of the cmdline at the current cursor position.
 fn draw_cmdline(start: i32, len: i32) {
-    unsafe {
+    {
         if getln_st().ccline.cmdbuff.is_null() || !color_cmdline(&mut getln_st().ccline) {
             return;
         }
@@ -4047,7 +4078,7 @@ fn draw_cmdline(start: i32, len: i32) {
             let mut i: i32 = 0;
             while i < len {
                 msg_putchar(b'*' as i32);
-                i += utfc_ptr2len(getln_st().ccline.cmdbuff.add((start + i) as usize)) - 1;
+                i += utfc_ptr2len(getln_st().ccline.cmdbuff.wrapping_add((start + i) as usize)) - 1;
                 i += 1;
             }
         } else if !getln_st().ccline.last_colors.colors.is_empty() {
@@ -4057,14 +4088,19 @@ fn draw_cmdline(start: i32, len: i32) {
                 }
                 let chunk_start = chunk.start.max(start);
                 msg_outtrans_len(
-                    getln_st().ccline.cmdbuff.add(chunk_start as usize),
+                    getln_st().ccline.cmdbuff.wrapping_add(chunk_start as usize),
                     chunk.end - chunk_start,
                     chunk.hl_id,
                     false,
                 );
             }
         } else {
-            msg_outtrans_len(getln_st().ccline.cmdbuff.add(start as usize), len, 0, false);
+            msg_outtrans_len(
+                getln_st().ccline.cmdbuff.wrapping_add(start as usize),
+                len,
+                0,
+                false,
+            );
         }
     }
 }
@@ -4082,7 +4118,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
             let mut len: usize = 0;
             let mut p = getln_st().ccline.cmdbuff;
             while !crate::memory::cstr_is_empty(p) {
-                p = p.add(utfc_ptr2len(p) as usize);
+                p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 len += 1;
             }
             let buf = arena_alloc(&mut arena, len, false).cast::<c_char>();
@@ -4109,7 +4145,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
                 add_c(
                     &mut item,
                     string_obj(cbuf_as_string(
-                        line.cmdbuff.add(chunk.start as usize),
+                        line.cmdbuff.wrapping_add(chunk.start as usize),
                         (chunk.end - chunk.start) as usize,
                     )),
                 );
@@ -4287,7 +4323,7 @@ pub fn putcmdline(c: c_char, shift: bool) {
 
 /// Undo a `putcmdline(c, false)`.
 pub fn unputcmdline() {
-    unsafe {
+    {
         if g_st().cmd_silent {
             return;
         }
@@ -4301,7 +4337,7 @@ pub fn unputcmdline() {
                     getln_st()
                         .ccline
                         .cmdbuff
-                        .add(getln_st().ccline.cmdpos as usize),
+                        .wrapping_add(getln_st().ccline.cmdpos as usize),
                 ),
             );
         }
@@ -4327,11 +4363,11 @@ pub fn put_on_cmdline(str: impl crate::strings::IntoCCharPtr, mut len: i32, redr
                 getln_st()
                     .ccline
                     .cmdbuff
-                    .add(getln_st().ccline.cmdpos as usize),
+                    .wrapping_add(getln_st().ccline.cmdpos as usize),
                 getln_st()
                     .ccline
                     .cmdbuff
-                    .add((getln_st().ccline.cmdpos + len) as usize),
+                    .wrapping_add((getln_st().ccline.cmdpos + len) as usize),
                 (getln_st().ccline.cmdlen - getln_st().ccline.cmdpos) as usize,
             );
             getln_st().ccline.cmdlen += len;
@@ -4340,20 +4376,20 @@ pub fn put_on_cmdline(str: impl crate::strings::IntoCCharPtr, mut len: i32, redr
             let mut i: i32 = 0;
             while i < len {
                 m += 1;
-                i += utfc_ptr2len(str.add(i as usize));
+                i += utfc_ptr2len(str.wrapping_add(i as usize));
             }
             i = getln_st().ccline.cmdpos;
             while i < getln_st().ccline.cmdlen && m > 0 {
                 m -= 1;
-                i += utfc_ptr2len(getln_st().ccline.cmdbuff.add(i as usize));
+                i += utfc_ptr2len(getln_st().ccline.cmdbuff.wrapping_add(i as usize));
             }
             if i < getln_st().ccline.cmdlen {
                 ptr::copy(
-                    getln_st().ccline.cmdbuff.add(i as usize),
+                    getln_st().ccline.cmdbuff.wrapping_add(i as usize),
                     getln_st()
                         .ccline
                         .cmdbuff
-                        .add((getln_st().ccline.cmdpos + len) as usize),
+                        .wrapping_add((getln_st().ccline.cmdpos + len) as usize),
                     (getln_st().ccline.cmdlen - i) as usize,
                 );
                 getln_st().ccline.cmdlen += getln_st().ccline.cmdpos + len - i;
@@ -4366,19 +4402,19 @@ pub fn put_on_cmdline(str: impl crate::strings::IntoCCharPtr, mut len: i32, redr
             getln_st()
                 .ccline
                 .cmdbuff
-                .add(getln_st().ccline.cmdpos as usize),
+                .wrapping_add(getln_st().ccline.cmdpos as usize),
             len as usize,
         );
         *getln_st()
             .ccline
             .cmdbuff
-            .add(getln_st().ccline.cmdlen as usize) = NUL;
+            .wrapping_add(getln_st().ccline.cmdlen as usize) = NUL;
 
         if getln_st().ccline.cmdpos > 0
             && (*getln_st()
                 .ccline
                 .cmdbuff
-                .add(getln_st().ccline.cmdpos as usize) as u8)
+                .wrapping_add(getln_st().ccline.cmdpos as usize) as u8)
                 >= 0x80
         {
             let i = utf_head_off(
@@ -4386,7 +4422,7 @@ pub fn put_on_cmdline(str: impl crate::strings::IntoCCharPtr, mut len: i32, redr
                 getln_st()
                     .ccline
                     .cmdbuff
-                    .add(getln_st().ccline.cmdpos as usize),
+                    .wrapping_add(getln_st().ccline.cmdpos as usize),
             );
             if i != 0 {
                 getln_st().ccline.cmdpos -= i;
@@ -4428,7 +4464,7 @@ pub fn put_on_cmdline(str: impl crate::strings::IntoCCharPtr, mut len: i32, redr
                 getln_st()
                     .ccline
                     .cmdbuff
-                    .add(getln_st().ccline.cmdpos as usize),
+                    .wrapping_add(getln_st().ccline.cmdpos as usize),
             ) - 1;
             c = c.min(len - i - 1);
             getln_st().ccline.cmdpos += c;
@@ -4494,18 +4530,18 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
                 let mut w = getln_st()
                     .ccline
                     .cmdbuff
-                    .add(getln_st().ccline.cmdpos as usize);
+                    .wrapping_add(getln_st().ccline.cmdpos as usize);
                 while w > getln_st().ccline.cmdbuff {
-                    let len = utf_head_off(getln_st().ccline.cmdbuff, w.sub(1)) + 1;
-                    if !vim_iswordc(utf_ptr2char(w.sub(len as usize))) {
+                    let len = utf_head_off(getln_st().ccline.cmdbuff, w.wrapping_sub(1)) + 1;
+                    if !vim_iswordc(utf_ptr2char(w.wrapping_sub(len as usize))) {
                         break;
                     }
-                    w = w.sub(len as usize);
+                    w = w.wrapping_sub(len as usize);
                 }
                 let len = getln_st()
                     .ccline
                     .cmdbuff
-                    .add(getln_st().ccline.cmdpos as usize)
+                    .wrapping_add(getln_st().ccline.cmdpos as usize)
                     .offset_from(w) as usize;
                 let matches = if opt_vars().p_ic != 0 {
                     crate::memory::cstr_prefix_bytes(w, len)
@@ -4515,7 +4551,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
                         == crate::memory::cstr_prefix_bytes(arg, len)
                 };
                 if matches {
-                    p = p.add(len);
+                    p = p.wrapping_add(len);
                 }
             }
 
@@ -4537,7 +4573,7 @@ pub fn cmdline_paste_str(s: impl crate::strings::IntoCCharPtr, literally: bool) 
             while !crate::memory::cstr_is_empty(s) {
                 let cv = (crate::memory::cstr_first_byte(s)) as i32;
                 if cv == CTRL_V_CONST && crate::memory::cstr_byte_at(s, 1) != 0 {
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                 }
                 let c = mb_cptr2char_adv(&raw mut s);
                 if cv == CTRL_V_CONST
@@ -4694,14 +4730,14 @@ fn ccheck_abbr(c: i32) -> i32 {
         }
 
         while spos < getln_st().ccline.cmdlen
-            && ascii_iswhite(*getln_st().ccline.cmdbuff.add(spos as usize) as i32)
+            && ascii_iswhite(*getln_st().ccline.cmdbuff.wrapping_add(spos as usize) as i32)
         {
             spos += 1;
         }
         if getln_st().ccline.cmdlen - spos > 5
             && crate::memory::cstr_byte_at(getln_st().ccline.cmdbuff, spos as usize) == b'\''
-            && *getln_st().ccline.cmdbuff.add((spos + 2) as usize) == b',' as c_char
-            && *getln_st().ccline.cmdbuff.add((spos + 3) as usize) == b'\'' as c_char
+            && *getln_st().ccline.cmdbuff.wrapping_add((spos + 2) as usize) == b',' as c_char
+            && *getln_st().ccline.cmdbuff.wrapping_add((spos + 3) as usize) == b'\'' as c_char
         {
             spos += 5;
         } else {
@@ -5094,7 +5130,7 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut i32, num2: &mut i32) -> 
                 false,
                 None,
             );
-            *str = (*str).add(len as usize);
+            *str = (*str).wrapping_add(len as usize);
             if num > i32::MAX as Varnumber {
                 return false;
             }
@@ -5104,7 +5140,7 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut i32, num2: &mut i32) -> 
         }
         *str = skipwhite(*str);
         if **str == b',' as c_char {
-            *str = skipwhite((*str).add(1));
+            *str = skipwhite((*str).wrapping_add(1));
             vim_str2nr(
                 *str,
                 None,
@@ -5117,7 +5153,7 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut i32, num2: &mut i32) -> 
                 None,
             );
             if len > 0 {
-                *str = skipwhite((*str).add(len as usize));
+                *str = skipwhite((*str).wrapping_add(len as usize));
                 if num > i32::MAX as Varnumber {
                     return false;
                 }
@@ -5174,7 +5210,7 @@ fn cmdwin_invoke(
 ) {
     let content = content.into_c_char_ptr().cast_mut();
     let action = action.into_c_char_ptr();
-    unsafe {
+    {
         let mut fc: [c_char; 2] = [firstc as c_char, 0];
         let mut tv_args = [
             TypVal {
@@ -5208,7 +5244,7 @@ fn cmdwin_invoke(
             if firstc != 0 {
                 tv_args.as_mut_ptr()
             } else {
-                tv_args.as_mut_ptr().add(3)
+                tv_args.as_mut_ptr().wrapping_add(3)
             },
             None,
         );
@@ -5290,7 +5326,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
                 Some(crate::memory::cstr_to_cstring(eap.arg))
             };
         }
-        cmd = cmd.add(2);
+        cmd = cmd.wrapping_add(2);
 
         let l = heredoc_get(eap, cmd, true);
         if l.is_null() {
@@ -5435,9 +5471,9 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             let lastnl = crate::memory::cstr_as_bytes(prompt)
                 .iter()
                 .rposition(|&b| b == b'\n')
-                .map_or(ptr::null_mut(), |i| prompt.add(i).cast_mut());
+                .map_or(ptr::null_mut(), |i| prompt.wrapping_add(i).cast_mut());
             if !lastnl.is_null() {
-                p = lastnl.add(1);
+                p = lastnl.wrapping_add(1);
                 msg_start();
                 msg_clr_eos();
                 msg_puts_len(prompt, p.offset_from(prompt), get_echo_hl_id(), false);

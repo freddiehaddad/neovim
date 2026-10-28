@@ -190,14 +190,14 @@ pub fn parser_csi<T>(
         if !leader.is_null() && *leader != 0 {
             out.extend_from_slice(b" L=");
             let mut i = 0usize;
-            while *leader.add(i) != 0 {
+            while *leader.wrapping_add(i) != 0 {
                 let _ = write!(out, "{:02x}", crate::memory::cstr_byte_at(leader, i));
                 i += 1;
             }
         }
         for i in 0..(argcount as usize) {
             let sep = if i > 0 { ',' } else { ' ' };
-            let a = *args.add(i);
+            let a = *args.wrapping_add(i);
             if a == CSI_ARG_MISSING {
                 let _ = write!(out, "{sep}*");
             } else {
@@ -213,7 +213,7 @@ pub fn parser_csi<T>(
         if !intermed.is_null() && *intermed != 0 {
             out.extend_from_slice(b" I=");
             let mut i = 0usize;
-            while *intermed.add(i) != 0 {
+            while *intermed.wrapping_add(i) != 0 {
                 let _ = write!(out, "{:02x}", crate::memory::cstr_byte_at(intermed, i));
                 i += 1;
             }
@@ -349,7 +349,7 @@ fn format_schar(out: &mut Vec<u8>, schar: Schar) {
                 let _ = write!(out, "{:x}", ci.chr.value);
             }
             did = true;
-            ci = utf_ptr2_str_char_info(ci.ptr.add(ci.chr.len as usize));
+            ci = utf_ptr2_str_char_info(ci.ptr.wrapping_add(ci.chr.len as usize));
         }
     }
 }
@@ -799,7 +799,7 @@ pub fn vterm_screen_get_text(
         ($src:expr, $n:expr) => {{
             let n: usize = $n;
             if !buffer.is_null() && outpos + n <= len {
-                ptr::copy_nonoverlapping($src, buffer.add(outpos), n);
+                ptr::copy_nonoverlapping($src, buffer.wrapping_add(outpos), n);
             }
             outpos += n;
         }};
@@ -1179,7 +1179,7 @@ mod tests {
 
     fn screen_cell(row: i32, col: i32, expected: &[u8], screen: &mut VTermScreen) {
         use std::fmt::Write as _;
-        unsafe {
+        {
             let pos = VTermPos { row, col };
             let mut cell = VTermScreenCell::default();
             vterm_screen_get_cell(screen, pos, &mut cell);
@@ -1190,7 +1190,7 @@ mod tests {
             let mut actual = String::from("{");
             let mut i = 0usize;
             while buf[i] > 0 {
-                let p = buf.as_ptr().add(i).cast::<c_char>();
+                let p = buf.as_ptr().wrapping_add(i).cast::<c_char>();
                 let ch = utf_ptr2char(p);
                 let chlen = utf_ptr2len(p) as usize;
                 if i > 0 {

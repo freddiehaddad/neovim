@@ -417,7 +417,10 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
         } else if let Some(ref msgs) = *ml
             && !msgs.is_empty()
         {
-            let throw_ptr = msgs[msgs[0].throw_idx].msg.as_ptr().add(msgs[0].throw_off);
+            let throw_ptr = msgs[msgs[0].throw_idx]
+                .msg
+                .as_ptr()
+                .wrapping_add(msgs[0].throw_off);
             let msg = get_error_exception_string(throw_ptr, ptr::null_mut());
             api_set_error!(err, ErrorType::ErrorTypeException, c"%s", msg.as_ptr());
             free_global_msglist();
@@ -773,18 +776,18 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
 
         let mut i: usize = 0;
         while i < input.size {
-            let start = input.data.add(i);
+            let start = input.data.wrapping_add(i);
             let mut end = start;
             let mut line_len: usize = 0;
             while line_len < input.size - i {
-                end = start.add(line_len);
+                end = start.wrapping_add(line_len);
                 if *end == NL || (crlf && *end == CAR) {
                     break;
                 }
                 line_len += 1;
             }
             i += line_len;
-            if crlf && *end == CAR && i + 1 < input.size && *end.add(1) == NL {
+            if crlf && *end == CAR && i + 1 < input.size && *end.wrapping_add(1) == NL {
                 i += 1;
             }
             let s = arena_string(
@@ -859,7 +862,7 @@ pub fn buf_get_text(
     mut end_col: i64,
     err: &mut Error,
 ) -> NvimString {
-    unsafe {
+    {
         let rv = NvimString {
             data: ptr::null_mut(),
             size: 0,
@@ -896,7 +899,7 @@ pub fn buf_get_text(
         }
 
         NvimString {
-            data: bufstr.add(start_col as usize),
+            data: bufstr.wrapping_add(start_col as usize),
             size: (end_col - start_col) as usize,
         }
     }
@@ -1244,7 +1247,7 @@ pub fn api_dict_to_keydict(
             }
 
             let field_name = field.str.map_or(ptr::null(), |s| s.as_ptr());
-            let mem = retval.cast::<u8>().add(field.ptr_off);
+            let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
             let value: *mut Object = &raw mut dict[i].value;
             let value = &mut *value;
             let field_type =
@@ -1387,8 +1390,8 @@ pub fn api_keydict_to_dict(
     unsafe {
         let mut rv = arena_dict(arena, max_size);
         let mut i: usize = 0;
-        while let Some(field_str) = (*table.add(i)).str {
-            let field = &*table.add(i);
+        while let Some(field_str) = (*table.wrapping_add(i)).str {
+            let field = &*table.wrapping_add(i);
             let mut is_set = true;
             if field.opt_index >= 0 {
                 is_set = ((*value).is_set_ & (1u64 << field.opt_index)) != 0;
@@ -1398,7 +1401,7 @@ pub fn api_keydict_to_dict(
                 continue;
             }
 
-            let mem = value.cast::<u8>().add(field.ptr_off);
+            let mem = value.cast::<u8>().wrapping_add(field.ptr_off);
             let field_type =
                 ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
             let val = match field_type {
@@ -1460,9 +1463,9 @@ pub fn api_luarefs_free_object(value: Object) {
 pub fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
     unsafe {
         let mut i: usize = 0;
-        while (*table.add(i)).str.is_some() {
-            let field = &*table.add(i);
-            let mem = dict.cast::<u8>().add(field.ptr_off);
+        while (*table.wrapping_add(i)).str.is_some() {
+            let field = &*table.wrapping_add(i);
+            let mem = dict.cast::<u8>().wrapping_add(field.ptr_off);
             let field_type =
                 ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
             match field_type {

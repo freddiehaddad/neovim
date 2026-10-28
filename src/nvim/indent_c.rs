@@ -105,29 +105,30 @@ pub fn check_linecomment(line: impl crate::strings::IntoCCharPtr) -> i32 {
                     p = crate::memory::cstr_as_bytes(p)
                         .iter()
                         .position(|&b| b == b'"' || b == b';')
-                        .map_or(std::ptr::null(), |i| p.add(i));
+                        .map_or(std::ptr::null(), |i| p.wrapping_add(i));
                     !p.is_null()
                 } {
                     if crate::memory::cstr_first_byte(p) == b'"' {
                         if in_str {
-                            if *p.sub(1) != b'\\' as c_char {
+                            if *p.wrapping_sub(1) != b'\\' as c_char {
                                 in_str = false;
                             }
                         } else if p == line
                             || (p.offset_from(line) >= 2
-                                && *p.sub(1) != b'\\' as c_char
-                                && *p.sub(2) != b'#' as c_char)
+                                && *p.wrapping_sub(1) != b'\\' as c_char
+                                && *p.wrapping_sub(2) != b'#' as c_char)
                         {
                             in_str = true;
                         }
                     } else if !in_str
                         && (p.offset_from(line) < 2
-                            || (*p.sub(1) != b'\\' as c_char && *p.sub(2) != b'#' as c_char))
+                            || (*p.wrapping_sub(1) != b'\\' as c_char
+                                && *p.wrapping_sub(2) != b'#' as c_char))
                         && is_pos_in_string(line, p.offset_from(line) as Colnr) == 0
                     {
                         break;
                     }
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
             } else {
                 p = std::ptr::null();
@@ -141,12 +142,12 @@ pub fn check_linecomment(line: impl crate::strings::IntoCCharPtr) -> i32 {
                 if crate::memory::cstr_first_byte(p) == b'/'
                     && crate::memory::cstr_byte_at(p, 1) == b'/'
                     && (p == line
-                        || *p.sub(1) != b'*' as c_char
+                        || *p.wrapping_sub(1) != b'*' as c_char
                         || crate::memory::cstr_byte_at(p, 2) != b'*')
                 {
                     break;
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             if crate::memory::cstr_is_empty(p) {
                 p = std::ptr::null();
@@ -242,46 +243,46 @@ fn skip_string(p: impl crate::strings::IntoCCharPtr) -> *const c_char {
                 if crate::memory::cstr_byte_at(p, i - 1) != 0
                     && crate::memory::cstr_byte_at(p, i) == b'\''
                 {
-                    p = p.add(i + 1);
+                    p = p.wrapping_add(i + 1);
                     continue;
                 }
             } else if crate::memory::cstr_first_byte(p) == b'"' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 while !crate::memory::cstr_is_empty(p) {
                     if crate::memory::cstr_first_byte(p) == b'\\'
                         && crate::memory::cstr_byte_at(p, 1) != 0
                     {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     } else if crate::memory::cstr_first_byte(p) == b'"' {
                         break;
                     }
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
                 if crate::memory::cstr_first_byte(p) == b'"' {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     continue;
                 }
             } else if crate::memory::cstr_first_byte(p) == b'R'
                 && crate::memory::cstr_byte_at(p, 1) == b'"'
             {
-                let delim = p.add(2);
+                let delim = p.wrapping_add(2);
                 let paren = vim_strchr(delim, b'(' as i32);
                 if !paren.is_null() {
                     let delim_len = paren.offset_from(delim) as usize;
-                    p = p.add(3);
+                    p = p.wrapping_add(3);
                     while !crate::memory::cstr_is_empty(p) {
                         if crate::memory::cstr_first_byte(p) == b')'
                             && ((&crate::memory::cstr_slice(p, (1) + (delim_len))[1..])
                                 == crate::memory::cstr_prefix_bytes(delim, delim_len))
                             && crate::memory::cstr_byte_at(p, delim_len + 1) == b'"'
                         {
-                            p = p.add(delim_len + 1);
+                            p = p.wrapping_add(delim_len + 1);
                             break;
                         }
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     }
                     if crate::memory::cstr_first_byte(p) == b'"' {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         continue;
                     }
                 }
@@ -289,7 +290,7 @@ fn skip_string(p: impl crate::strings::IntoCCharPtr) -> *const c_char {
             break;
         }
         if crate::memory::cstr_is_empty(p) {
-            p = p.sub(1);
+            p = p.wrapping_sub(1);
         }
         p
     }
@@ -300,7 +301,7 @@ pub fn is_pos_in_string(line: impl crate::strings::IntoCCharPtr, col: Colnr) -> 
         let mut p = line;
         while !crate::memory::cstr_is_empty(p) && (p.offset_from(line) as Colnr) < col {
             p = skip_string(p);
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         i32::from(!((p.offset_from(line) as Colnr) <= col))
     }
@@ -336,7 +337,7 @@ pub fn cindent_on() -> bool {
 }
 fn cin_skipcomment(s: impl crate::strings::IntoCCharPtr) -> *const c_char {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         while !crate::memory::cstr_is_empty(s) {
             let prev_s = s;
             s = skipwhite(s);
@@ -344,29 +345,29 @@ fn cin_skipcomment(s: impl crate::strings::IntoCCharPtr) -> *const c_char {
                 && s != prev_s
                 && crate::memory::cstr_first_byte(s) == b'#'
             {
-                s = s.add(crate::memory::cstr_len(s));
+                s = s.wrapping_add(crate::memory::cstr_len(s));
                 break;
             }
             if crate::memory::cstr_first_byte(s) != b'/' {
                 break;
             }
-            s = s.add(1);
+            s = s.wrapping_add(1);
             if crate::memory::cstr_first_byte(s) == b'/' {
-                s = s.add(crate::memory::cstr_len(s));
+                s = s.wrapping_add(crate::memory::cstr_len(s));
                 break;
             }
             if crate::memory::cstr_first_byte(s) != b'*' {
                 break;
             }
-            s = s.add(1);
+            s = s.wrapping_add(1);
             while !crate::memory::cstr_is_empty(s) {
                 if crate::memory::cstr_first_byte(s) == b'*'
                     && crate::memory::cstr_byte_at(s, 1) == b'/'
                 {
-                    s = s.add(2);
+                    s = s.wrapping_add(2);
                     break;
                 }
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
         }
         s
@@ -404,16 +405,16 @@ fn cin_has_js_key(text: impl crate::strings::IntoCCharPtr) -> bool {
         let mut quote: c_char = 0;
         if crate::memory::cstr_first_byte(s) == b'\'' || crate::memory::cstr_first_byte(s) == b'"' {
             quote = *s;
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         if !vim_is_idc(crate::memory::cstr_first_byte(s) as i32) {
             return false;
         }
         while vim_is_idc(crate::memory::cstr_first_byte(s) as i32) {
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         if !crate::memory::cstr_is_empty(s) && *s == quote {
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         s = cin_skipcomment(s);
         crate::memory::cstr_first_byte(s) == b':' && crate::memory::cstr_byte_at(s, 1) != b':'
@@ -425,11 +426,11 @@ fn cin_islabel_skip(s: *mut *const c_char) -> bool {
             return false;
         }
         while vim_is_idc(crate::memory::cstr_first_byte(*s) as i32) {
-            *s = (*s).add(utfc_ptr2len(*s) as usize);
+            *s = (*s).wrapping_add(utfc_ptr2len(*s) as usize);
         }
         *s = cin_skipcomment(*s);
         if crate::memory::cstr_first_byte(*s) == b':' {
-            *s = (*s).add(1);
+            *s = (*s).wrapping_add(1);
             crate::memory::cstr_first_byte(*s) != b':'
         } else {
             false
@@ -506,16 +507,16 @@ fn cin_is_compound_init(s: impl crate::strings::IntoCCharPtr) -> bool {
         let mut r: *const c_char = std::ptr::null();
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'=' {
-                r = cin_skipcomment(p.add(1));
+                r = cin_skipcomment(p.wrapping_add(1));
                 p = r;
             } else if (crate::memory::cstr_prefix_bytes(p, 6) == &b"return"[..6])
                 && !vim_is_idc(crate::memory::cstr_byte_at(p, 6) as i32)
-                && (p == s || (p > s && !vim_is_idc(*p.sub(1) as u8 as i32)))
+                && (p == s || (p > s && !vim_is_idc(*p.wrapping_sub(1) as u8 as i32)))
             {
-                r = cin_skipcomment(p.add(6));
+                r = cin_skipcomment(p.wrapping_add(6));
                 p = r;
             } else {
-                p = cin_skip_comment_and_string(p.add(1));
+                p = cin_skip_comment_and_string(p.wrapping_add(1));
             }
         }
         if r.is_null() {
@@ -526,12 +527,12 @@ fn cin_is_compound_init(s: impl crate::strings::IntoCCharPtr) -> bool {
             return true;
         }
         if crate::memory::cstr_first_byte(p) == b'&' {
-            p = cin_skipcomment(p.add(1));
+            p = cin_skipcomment(p.wrapping_add(1));
         }
         if crate::memory::cstr_first_byte(p) == b'(' {
             let mut open_count: i32 = 1;
             loop {
-                p = cin_skip_comment_and_string(p.add(1));
+                p = cin_skip_comment_and_string(p.wrapping_add(1));
                 if cin_nocode(p) {
                     return true;
                 }
@@ -541,29 +542,29 @@ fn cin_is_compound_init(s: impl crate::strings::IntoCCharPtr) -> bool {
                     break;
                 }
             }
-            p = cin_skipcomment(p.add(1));
+            p = cin_skipcomment(p.wrapping_add(1));
             if cin_nocode(p) {
                 return true;
             }
         }
         while crate::memory::cstr_first_byte(p) == b'{' {
-            p = cin_skipcomment(p.add(1));
+            p = cin_skipcomment(p.wrapping_add(1));
         }
         cin_nocode(p)
     }
 }
 fn cin_isinit() -> bool {
-    unsafe {
+    {
         const SKIP: [&std::ffi::CStr; 4] = [c"static", c"public", c"protected", c"private"];
         let mut s = cin_skipcomment(get_cursor_line_ptr());
         if cin_starts_with(s, c"typedef") {
-            s = cin_skipcomment(s.add(7));
+            s = cin_skipcomment(s.wrapping_add(7));
         }
         loop {
             let mut matched = false;
             for &word in &SKIP {
                 if cin_starts_with(s, word) {
-                    s = cin_skipcomment(s.add(word.to_bytes().len()));
+                    s = cin_skipcomment(s.wrapping_add(word.to_bytes().len()));
                     matched = true;
                     break;
                 }
@@ -580,10 +581,10 @@ fn cin_isinit() -> bool {
 }
 fn cin_iscase(s: impl crate::strings::IntoCCharPtr, strict: bool) -> bool {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         s = cin_skipcomment(s);
         if cin_starts_with(s, c"case") {
-            s = s.add(4);
+            s = s.wrapping_add(4);
             while !crate::memory::cstr_is_empty(s) {
                 s = cin_skipcomment(s);
                 if crate::memory::cstr_is_empty(s) {
@@ -591,7 +592,7 @@ fn cin_iscase(s: impl crate::strings::IntoCCharPtr, strict: bool) -> bool {
                 }
                 if crate::memory::cstr_first_byte(s) == b':' {
                     if crate::memory::cstr_byte_at(s, 1) == b':' {
-                        s = s.add(1);
+                        s = s.wrapping_add(1);
                     } else {
                         return true;
                     }
@@ -600,7 +601,7 @@ fn cin_iscase(s: impl crate::strings::IntoCCharPtr, strict: bool) -> bool {
                     && crate::memory::cstr_byte_at(s, 1) != 0
                     && crate::memory::cstr_byte_at(s, 2) == b'\''
                 {
-                    s = s.add(2);
+                    s = s.wrapping_add(2);
                 } else if crate::memory::cstr_first_byte(s) == b'/'
                     && (crate::memory::cstr_byte_at(s, 1) == b'*'
                         || crate::memory::cstr_byte_at(s, 1) == b'/')
@@ -612,7 +613,7 @@ fn cin_iscase(s: impl crate::strings::IntoCCharPtr, strict: bool) -> bool {
                     }
                     return true;
                 }
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
             return false;
         }
@@ -624,17 +625,17 @@ fn cin_iscase(s: impl crate::strings::IntoCCharPtr, strict: bool) -> bool {
 }
 fn cin_isdefault(s: impl crate::strings::IntoCCharPtr) -> bool {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         if !(crate::memory::cstr_prefix_bytes(s, 7) == &b"default"[..7]) {
             return false;
         }
-        s = cin_skipcomment(s.add(7));
+        s = cin_skipcomment(s.wrapping_add(7));
         crate::memory::cstr_first_byte(s) == b':' && crate::memory::cstr_byte_at(s, 1) != b':'
     }
 }
 fn cin_isscopedecl(p: impl crate::strings::IntoCCharPtr) -> bool {
     let p = p.into_c_char_ptr();
-    unsafe {
+    {
         let s = cin_skipcomment(p);
         let cinsd_len = crate::memory::cstr_len(curbuf_mut().b_p_cinsd) + 1;
         let mut cinsd_buf = vec![0 as c_char; cinsd_len];
@@ -645,7 +646,7 @@ fn cin_isscopedecl(p: impl crate::strings::IntoCCharPtr) -> bool {
             if crate::memory::cstr_prefix_bytes(s, len)
                 == crate::memory::cstr_prefix_bytes(cinsd_buf.as_ptr(), len)
             {
-                let skip = cin_skipcomment(s.add(len));
+                let skip = cin_skipcomment(s.wrapping_add(len));
                 if crate::memory::cstr_first_byte(skip) == b':'
                     && crate::memory::cstr_byte_at(skip, 1) != b':'
                 {
@@ -659,7 +660,7 @@ fn cin_isscopedecl(p: impl crate::strings::IntoCCharPtr) -> bool {
 }
 fn cin_is_cpp_namespace(s: impl crate::strings::IntoCCharPtr) -> bool {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut has_name = false;
         let mut has_name_start = false;
         s = cin_skipcomment(s);
@@ -668,13 +669,13 @@ fn cin_is_cpp_namespace(s: impl crate::strings::IntoCCharPtr) -> bool {
             && (crate::memory::cstr_byte_at(s, 6) == 0
                 || !vim_iswordc(crate::memory::cstr_byte_at(s, 6) as i32))
         {
-            s = cin_skipcomment(skipwhite(s.add(6)));
+            s = cin_skipcomment(skipwhite(s.wrapping_add(6)));
         }
         if (crate::memory::cstr_prefix_bytes(s, 9) == &b"namespace"[..9])
             && (crate::memory::cstr_byte_at(s, 9) == 0
                 || !vim_iswordc(crate::memory::cstr_byte_at(s, 9) as i32))
         {
-            let mut p = cin_skipcomment(skipwhite(s.add(9)));
+            let mut p = cin_skipcomment(skipwhite(s.wrapping_add(9)));
             while !crate::memory::cstr_is_empty(p) {
                 if ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     has_name = true;
@@ -686,7 +687,7 @@ fn cin_is_cpp_namespace(s: impl crate::strings::IntoCCharPtr) -> bool {
                     if has_name {
                         return false;
                     }
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 } else if crate::memory::cstr_first_byte(p) == b':'
                     && crate::memory::cstr_byte_at(p, 1) == b':'
                     && vim_iswordc(crate::memory::cstr_byte_at(p, 2) as i32)
@@ -694,7 +695,7 @@ fn cin_is_cpp_namespace(s: impl crate::strings::IntoCCharPtr) -> bool {
                     if !has_name_start || has_name {
                         return false;
                     }
-                    p = p.add(3);
+                    p = p.wrapping_add(3);
                 } else {
                     return false;
                 }
@@ -706,26 +707,26 @@ fn cin_is_cpp_namespace(s: impl crate::strings::IntoCCharPtr) -> bool {
 }
 fn after_label(l: impl crate::strings::IntoCCharPtr) -> *const c_char {
     let mut l = l.into_c_char_ptr();
-    unsafe {
+    {
         while !crate::memory::cstr_is_empty(l) {
             if crate::memory::cstr_first_byte(l) == b':' {
                 if crate::memory::cstr_byte_at(l, 1) == b':' {
-                    l = l.add(1);
-                } else if !cin_iscase(l.add(1), false) {
+                    l = l.wrapping_add(1);
+                } else if !cin_iscase(l.wrapping_add(1), false) {
                     break;
                 }
             } else if crate::memory::cstr_first_byte(l) == b'\''
                 && crate::memory::cstr_byte_at(l, 1) != 0
                 && crate::memory::cstr_byte_at(l, 2) == b'\''
             {
-                l = l.add(2);
+                l = l.wrapping_add(2);
             }
-            l = l.add(1);
+            l = l.wrapping_add(1);
         }
         if crate::memory::cstr_is_empty(l) {
             return std::ptr::null();
         }
-        l = cin_skipcomment(l.add(1));
+        l = cin_skipcomment(l.wrapping_add(1));
         if crate::memory::cstr_is_empty(l) {
             return std::ptr::null();
         }
@@ -777,17 +778,17 @@ fn cin_first_id_amount() -> i32 {
         let mut p = skipwhite(line);
         let mut len = skiptowhite(p).offset_from(p) as i32;
         if len == 6 && (crate::memory::cstr_prefix_bytes(p, 6) == &b"static"[..6]) {
-            p = skipwhite(p.add(6));
+            p = skipwhite(p.wrapping_add(6));
             len = skiptowhite(p).offset_from(p) as i32;
         }
         if len == 6 && (crate::memory::cstr_prefix_bytes(p, 6) == &b"struct"[..6]) {
-            p = skipwhite(p.add(6));
+            p = skipwhite(p.wrapping_add(6));
         } else if len == 4 && (crate::memory::cstr_prefix_bytes(p, 4) == &b"enum"[..4]) {
-            p = skipwhite(p.add(4));
+            p = skipwhite(p.wrapping_add(4));
         } else if (len == 8 && (crate::memory::cstr_prefix_bytes(p, 8) == &b"unsigned"[..8]))
             || (len == 6 && (crate::memory::cstr_prefix_bytes(p, 6) == &b"signed"[..6]))
         {
-            let s = skipwhite(p.add(len as usize));
+            let s = skipwhite(p.wrapping_add(len as usize));
             if ((crate::memory::cstr_prefix_bytes(s, 3) == &b"int"[..3])
                 && ascii_iswhite(crate::memory::cstr_char_at(s, 3)))
                 || ((crate::memory::cstr_prefix_bytes(s, 4) == &b"long"[..4])
@@ -808,7 +809,7 @@ fn cin_first_id_amount() -> i32 {
         {
             return 0;
         }
-        p = skipwhite(p.add(len as usize));
+        p = skipwhite(p.wrapping_add(len as usize));
         let mut fp = CursorPos {
             lnum: curwin_mut().w_cursor.lnum,
             col: p.offset_from(line) as Colnr,
@@ -824,7 +825,7 @@ fn cin_get_equal_amount(lnum: Linenr) -> i32 {
         if lnum > 1 {
             let line = ml_get(lnum - 1);
             if !crate::memory::cstr_is_empty(line)
-                && *line.add(crate::memory::cstr_len(line) - 1) == b'\\' as c_char
+                && *line.wrapping_add(crate::memory::cstr_len(line) - 1) == b'\\' as c_char
             {
                 return -1;
             }
@@ -837,18 +838,18 @@ fn cin_get_equal_amount(lnum: Linenr) -> i32 {
             if cin_iscomment(s) {
                 s = cin_skipcomment(s);
             } else {
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
         }
         if crate::memory::cstr_first_byte(s) != b'=' {
             return 0;
         }
-        s = skipwhite(s.add(1));
+        s = skipwhite(s.wrapping_add(1));
         if cin_nocode(s) {
             return 0;
         }
         if crate::memory::cstr_first_byte(s) == b'"' {
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         let mut fp = CursorPos {
             lnum,
@@ -871,7 +872,7 @@ fn cin_ispreproc_cont(pp: *mut *const c_char, lnump: &mut Linenr, amount: &mut i
         let mut retval = false;
         let mut candidate_amount = *amount;
         if !crate::memory::cstr_is_empty(line)
-            && *line.add(crate::memory::cstr_len(line) - 1) == b'\\' as c_char
+            && *line.wrapping_add(crate::memory::cstr_len(line) - 1) == b'\\' as c_char
         {
             candidate_amount = get_indent_lnum(lnum);
         }
@@ -887,7 +888,7 @@ fn cin_ispreproc_cont(pp: *mut *const c_char, lnump: &mut Linenr, amount: &mut i
             lnum -= 1;
             line = ml_get(lnum);
             if crate::memory::cstr_is_empty(line)
-                || *line.add(crate::memory::cstr_len(line) - 1) != b'\\' as c_char
+                || *line.wrapping_add(crate::memory::cstr_len(line) - 1) != b'\\' as c_char
             {
                 break;
             }
@@ -940,18 +941,18 @@ fn cin_isterminated(
                 && (crate::memory::cstr_first_byte(s) == b';'
                     || crate::memory::cstr_first_byte(s) == b'}'
                     || (incl_comma && crate::memory::cstr_first_byte(s) == b','))
-                && cin_nocode(s.add(1))
+                && cin_nocode(s.wrapping_add(1))
             {
                 return *s;
             } else if crate::memory::cstr_first_byte(s) == b'{' {
-                if incl_open && cin_nocode(s.add(1)) {
+                if incl_open && cin_nocode(s.wrapping_add(1)) {
                     return *s;
                 } else {
                     n_open += 1;
                 }
             }
             if !crate::memory::cstr_is_empty(s) {
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
         }
         found_start
@@ -994,12 +995,12 @@ fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: Linenr, min_lnum: Linenr) 
                 s = cin_skipcomment(s);
             } else if crate::memory::cstr_first_byte(s) == b':' {
                 if crate::memory::cstr_byte_at(s, 1) == b':' {
-                    s = s.add(2);
+                    s = s.wrapping_add(2);
                 } else {
                     return false;
                 }
             } else {
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
         }
         if crate::memory::cstr_first_byte(s) != b'(' {
@@ -1011,17 +1012,17 @@ fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: Linenr, min_lnum: Linenr) 
                 && crate::memory::cstr_first_byte(s) != b'\''
                 && crate::memory::cstr_first_byte(s) != b'"'
             {
-                if crate::memory::cstr_first_byte(s) == b')' && cin_nocode(s.add(1)) {
+                if crate::memory::cstr_first_byte(s) == b')' && cin_nocode(s.wrapping_add(1)) {
                     lnum = first_lnum - 1;
                     s = ml_get(lnum);
                     if crate::memory::cstr_is_empty(s)
-                        || *s.add(crate::memory::cstr_len(s) - 1) != b'\\' as c_char
+                        || *s.wrapping_add(crate::memory::cstr_len(s) - 1) != b'\\' as c_char
                     {
                         retval = true;
                     }
                     break 'done;
                 }
-                if (crate::memory::cstr_first_byte(s) == b',' && cin_nocode(s.add(1)))
+                if (crate::memory::cstr_first_byte(s) == b',' && cin_nocode(s.wrapping_add(1)))
                     || crate::memory::cstr_byte_at(s, 1) == 0
                     || cin_nocode(s)
                 {
@@ -1051,7 +1052,7 @@ fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: Linenr, min_lnum: Linenr) 
                 } else if cin_iscomment(s) {
                     s = cin_skipcomment(s);
                 } else {
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                     just_started = false;
                 }
             }
@@ -1068,9 +1069,9 @@ fn cin_isif(p: impl crate::strings::IntoCCharPtr) -> bool {
 }
 fn cin_iselse(p: impl crate::strings::IntoCCharPtr) -> bool {
     let mut p = p.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_first_byte(p) == b'}' {
-            p = cin_skipcomment(p.add(1));
+            p = cin_skipcomment(p.wrapping_add(1));
         }
         cin_starts_with(p, c"else")
     }
@@ -1085,7 +1086,7 @@ fn cin_iswhileofdo(p: impl crate::strings::IntoCCharPtr, lnum: Linenr) -> bool {
         let mut retval = false;
         p = cin_skipcomment(p);
         if crate::memory::cstr_first_byte(p) == b'}' {
-            p = cin_skipcomment(p.add(1));
+            p = cin_skipcomment(p.wrapping_add(1));
         }
         if cin_starts_with(p, c"while") {
             let cursor_save = curwin_mut().w_cursor;
@@ -1093,11 +1094,12 @@ fn cin_iswhileofdo(p: impl crate::strings::IntoCCharPtr, lnum: Linenr) -> bool {
             curwin_mut().w_cursor.col = 0;
             p = get_cursor_line_ptr();
             while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'w' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 curwin_mut().w_cursor.col += 1;
             }
             let trypos = findmatchlimit(None, 0, FM_SKIPCOMM, curbuf_mut().b_ind_maxparen as i64);
-            if !trypos.is_null() && *cin_skipcomment(ml_get_pos(&*trypos).add(1)) == b';' as c_char
+            if !trypos.is_null()
+                && *cin_skipcomment(ml_get_pos(&*trypos).wrapping_add(1)) == b';' as c_char
             {
                 retval = true;
             }
@@ -1144,7 +1146,7 @@ fn cin_is_if_for_while_before_offset(
         if !probably_found {
             return 0;
         }
-        if offset == 0 || !vim_is_idc(*line.add((offset - 1) as usize) as u8 as i32) {
+        if offset == 0 || !vim_is_idc(*line.wrapping_add((offset - 1) as usize) as u8 as i32) {
             *poffset = offset;
             return 1;
         }
@@ -1161,15 +1163,15 @@ fn cin_iswhileofdo_end(terminated: i32) -> bool {
         while !crate::memory::cstr_is_empty(p) {
             p = cin_skipcomment(p);
             if crate::memory::cstr_first_byte(p) == b')' {
-                let s = skipwhite(p.add(1));
-                if crate::memory::cstr_first_byte(s) == b';' && cin_nocode(s.add(1)) {
+                let s = skipwhite(p.wrapping_add(1));
+                if crate::memory::cstr_first_byte(s) == b';' && cin_nocode(s.wrapping_add(1)) {
                     let i = p.offset_from(line) as Colnr;
                     curwin_mut().w_cursor.col = i;
                     let trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                     if !trypos.is_null() {
                         let mut s2 = cin_skipcomment(ml_get((*trypos).lnum));
                         if crate::memory::cstr_first_byte(s2) == b'}' {
-                            s2 = cin_skipcomment(s2.add(1));
+                            s2 = cin_skipcomment(s2.wrapping_add(1));
                         }
                         if cin_starts_with(s2, c"while") {
                             curwin_mut().w_cursor.lnum = (*trypos).lnum;
@@ -1177,11 +1179,11 @@ fn cin_iswhileofdo_end(terminated: i32) -> bool {
                         }
                     }
                     line = get_cursor_line_ptr();
-                    p = line.add(i as usize);
+                    p = line.wrapping_add(i as usize);
                 }
             }
             if !crate::memory::cstr_is_empty(p) {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
         false
@@ -1221,12 +1223,12 @@ fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
                 s = cin_skipcomment(s);
                 if crate::memory::cstr_first_byte(s) == b'{'
                     || crate::memory::cstr_first_byte(s) == b'}'
-                    || (crate::memory::cstr_first_byte(s) == b';' && cin_nocode(s.add(1)))
+                    || (crate::memory::cstr_first_byte(s) == b';' && cin_nocode(s.wrapping_add(1)))
                 {
                     break;
                 }
                 if !crate::memory::cstr_is_empty(s) {
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                 }
             }
             if !crate::memory::cstr_is_empty(s) {
@@ -1259,19 +1261,19 @@ fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
                 || (crate::memory::cstr_first_byte(s) == b'R'
                     && crate::memory::cstr_byte_at(s, 1) == b'"')
             {
-                s = skip_string(s).add(1);
+                s = skip_string(s).wrapping_add(1);
             } else if crate::memory::cstr_first_byte(s) == b':' {
                 if crate::memory::cstr_byte_at(s, 1) == b':' {
                     lookfor_ctor_init = false;
-                    s = cin_skipcomment(s.add(2));
+                    s = cin_skipcomment(s.wrapping_add(2));
                 } else if lookfor_ctor_init || class_or_struct {
                     cpp_base_class = true;
                     lookfor_ctor_init = false;
                     class_or_struct = false;
                     pos.col = 0;
-                    s = cin_skipcomment(s.add(1));
+                    s = cin_skipcomment(s.wrapping_add(1));
                 } else {
-                    s = cin_skipcomment(s.add(1));
+                    s = cin_skipcomment(s.wrapping_add(1));
                 }
             } else if ((crate::memory::cstr_prefix_bytes(s, 5) == &b"class"[..5])
                 && !vim_is_idc(crate::memory::cstr_byte_at(s, 5) as i32))
@@ -1281,9 +1283,9 @@ fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
                 class_or_struct = true;
                 lookfor_ctor_init = false;
                 if crate::memory::cstr_first_byte(s) == b'c' {
-                    s = cin_skipcomment(s.add(5));
+                    s = cin_skipcomment(s.wrapping_add(5));
                 } else {
-                    s = cin_skipcomment(s.add(6));
+                    s = cin_skipcomment(s.wrapping_add(6));
                 }
             } else {
                 if crate::memory::cstr_first_byte(s) == b'{'
@@ -1309,11 +1311,11 @@ fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
                 }
                 if lnum == curwin_mut().w_cursor.lnum
                     && crate::memory::cstr_first_byte(s) == b','
-                    && cin_nocode(s.add(1))
+                    && cin_nocode(s.wrapping_add(1))
                 {
                     pos.col = 0;
                 }
-                s = cin_skipcomment(s.add(1));
+                s = cin_skipcomment(s.wrapping_add(1));
             }
         }
         cached.found = i32::from(cpp_base_class);
@@ -1358,7 +1360,7 @@ fn get_baseclass_amount(col: Colnr) -> i32 {
 }
 fn cin_ends_in(s: impl crate::strings::IntoCCharPtr, find: &std::ffi::CStr) -> bool {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = s;
         let len = find.to_bytes().len();
         while !crate::memory::cstr_is_empty(p) {
@@ -1366,13 +1368,13 @@ fn cin_ends_in(s: impl crate::strings::IntoCCharPtr, find: &std::ffi::CStr) -> b
             if crate::memory::cstr_prefix_bytes(p, len)
                 == crate::memory::cstr_prefix_bytes(find.as_ptr(), len)
             {
-                let r = skipwhite(p.add(len));
+                let r = skipwhite(p.wrapping_add(len));
                 if cin_nocode(r) {
                     return true;
                 }
             }
             if !crate::memory::cstr_is_empty(p) {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
         false
@@ -1390,14 +1392,14 @@ fn cin_starts_with(s: impl crate::strings::IntoCCharPtr, word: &std::ffi::CStr) 
 }
 fn cin_is_cpp_extern_c(s: impl crate::strings::IntoCCharPtr) -> bool {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut has_string_literal = false;
         s = cin_skipcomment(s);
         if (crate::memory::cstr_prefix_bytes(s, 6) == &b"extern"[..6])
             && (crate::memory::cstr_byte_at(s, 6) == 0
                 || !vim_iswordc(crate::memory::cstr_byte_at(s, 6) as i32))
         {
-            let mut p = cin_skipcomment(skipwhite(s.add(6)));
+            let mut p = cin_skipcomment(skipwhite(s.wrapping_add(6)));
             while !crate::memory::cstr_is_empty(p) {
                 if ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     p = cin_skipcomment(skipwhite(p));
@@ -1411,7 +1413,7 @@ fn cin_is_cpp_extern_c(s: impl crate::strings::IntoCCharPtr) -> bool {
                         return false;
                     }
                     has_string_literal = true;
-                    p = p.add(3);
+                    p = p.wrapping_add(3);
                 } else if crate::memory::cstr_first_byte(p) == b'"'
                     && crate::memory::cstr_byte_at(p, 1) == b'C'
                     && crate::memory::cstr_byte_at(p, 2) == b'+'
@@ -1422,7 +1424,7 @@ fn cin_is_cpp_extern_c(s: impl crate::strings::IntoCCharPtr) -> bool {
                         return false;
                     }
                     has_string_literal = true;
-                    p = p.add(5);
+                    p = p.wrapping_add(5);
                 } else {
                     return false;
                 }
@@ -1442,7 +1444,7 @@ fn cin_skip2pos(trypos: &mut CursorPos) -> i32 {
             } else {
                 let new_p = skip_string(p);
                 if new_p == p {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 } else {
                     p = new_p;
                 }
@@ -1554,14 +1556,14 @@ fn find_last_paren(l: impl crate::strings::IntoCCharPtr, start: c_char, end: c_c
         curwin_mut().w_cursor.col = 0;
         let mut i: usize = 0;
         while crate::memory::cstr_byte_at(l, i) != 0 {
-            i = cin_skipcomment(l.add(i)).offset_from(l) as usize;
+            i = cin_skipcomment(l.wrapping_add(i)).offset_from(l) as usize;
             if crate::memory::cstr_byte_at(l, i) == 0 {
                 break;
             }
-            i = skip_string(l.add(i)).offset_from(l) as usize;
-            if *l.add(i) == start {
+            i = skip_string(l.wrapping_add(i)).offset_from(l) as usize;
+            if *l.wrapping_add(i) == start {
                 open_count += 1;
-            } else if *l.add(i) == end {
+            } else if *l.wrapping_add(i) == end {
                 if open_count > 0 {
                     open_count -= 1;
                 } else {
@@ -1576,7 +1578,7 @@ fn find_last_paren(l: impl crate::strings::IntoCCharPtr, start: c_char, end: c_c
 }
 /// Parse 'cinoptions' and set the values in "buf".
 pub fn parse_cino(buf: &mut FileBuf) {
-    unsafe {
+    {
         let mut fraction: i32 = 0;
         let sw = get_sw_value(&mut *buf);
         buf.b_ind_level = sw;
@@ -1619,18 +1621,18 @@ pub fn parse_cino(buf: &mut FileBuf) {
         let mut p = buf.b_p_cino;
         while !crate::memory::cstr_is_empty(p) {
             let l = p;
-            p = p.add(1);
+            p = p.wrapping_add(1);
             if crate::memory::cstr_first_byte(p) == b'-' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             let digits_start = p;
             let mut n: i64 = getdigits_int(&raw mut p, true, 0) as i64;
             let mut divider: i32 = 0;
             if crate::memory::cstr_first_byte(p) == b'.' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 fraction = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p)) as i32;
                 while ascii_isdigit(crate::memory::cstr_first_char(p)) {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     if divider != 0 {
                         divider *= 10;
                     } else {
@@ -1647,7 +1649,7 @@ pub fn parse_cino(buf: &mut FileBuf) {
                         n += (sw as i64 * fraction as i64 + (divider / 2) as i64) / divider as i64;
                     }
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             if crate::memory::cstr_byte_at(l, 1) == b'-' {
                 n = -n;
@@ -1694,7 +1696,7 @@ pub fn parse_cino(buf: &mut FileBuf) {
                 _ => {}
             }
             if crate::memory::cstr_first_byte(p) == b',' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
     }
@@ -1744,9 +1746,9 @@ pub fn get_c_indent() -> i32 {
         let linecopy = linecopy_bytes.as_mut_ptr().cast::<c_char>();
         if (g_st().state_global & MODE_INSERT) != 0
             && (curwin_mut().w_cursor.col as usize) < crate::memory::cstr_len(linecopy)
-            && *linecopy.add(curwin_mut().w_cursor.col as usize) == b')' as c_char
+            && *linecopy.wrapping_add(curwin_mut().w_cursor.col as usize) == b')' as c_char
         {
-            *linecopy.add(curwin_mut().w_cursor.col as usize) = NUL;
+            *linecopy.wrapping_add(curwin_mut().w_cursor.col as usize) = NUL;
         }
         let theline = skipwhite(linecopy);
         curwin_mut().w_cursor.col = 0;
@@ -1767,7 +1769,7 @@ pub fn get_c_indent() -> i32 {
                     && (crate::memory::cstr_first_byte(linecopy) == b'#'
                         || in_cinkeys(b'#' as i32, b' ' as i32, true))
                 {
-                    let directive = skipwhite(theline.add(1));
+                    let directive = skipwhite(theline.wrapping_add(1));
                     if curbuf_mut().b_ind_pragma == 0
                         || !(crate::memory::cstr_prefix_bytes(directive, 6) == &b"pragma"[..6])
                     {
@@ -1834,20 +1836,20 @@ pub fn get_c_indent() -> i32 {
                         {
                             if *p == COM_START || *p == COM_END || *p == COM_MIDDLE {
                                 what = crate::memory::cstr_first_byte(p) as i32;
-                                p = p.add(1);
+                                p = p.wrapping_add(1);
                             } else if *p == COM_LEFT || *p == COM_RIGHT {
                                 align = crate::memory::cstr_first_byte(p) as i32;
-                                p = p.add(1);
+                                p = p.wrapping_add(1);
                             } else if ascii_isdigit(crate::memory::cstr_first_char(p))
                                 || crate::memory::cstr_first_byte(p) == b'-'
                             {
                                 off = getdigits_int(&raw mut p, true, 0);
                             } else {
-                                p = p.add(1);
+                                p = p.wrapping_add(1);
                             }
                         }
                         if crate::memory::cstr_first_byte(p) == b':' {
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                         }
                         lead_end_len = copy_option_part(
                             &raw mut p,
@@ -1905,7 +1907,7 @@ pub fn get_c_indent() -> i32 {
                                         break;
                                     } else if crate::memory::cstr_prefix_bytes(
                                         ml_get((*comment_pos).lnum)
-                                            .add((*comment_pos).col as usize),
+                                            .wrapping_add((*comment_pos).col as usize),
                                         lead_start_len as usize,
                                     ) != crate::memory::cstr_prefix_bytes(
                                         (&raw const lead_start).cast::<c_char>(),
@@ -1965,7 +1967,7 @@ pub fn get_c_indent() -> i32 {
                         if amount == -1 {
                             if curbuf_mut().b_ind_in_comment2 == 0 {
                                 start = ml_get((*comment_pos).lnum);
-                                look = start.add((*comment_pos).col as usize + 2);
+                                look = start.wrapping_add((*comment_pos).col as usize + 2);
                                 if !crate::memory::cstr_is_empty(look) {
                                     (*comment_pos).col =
                                         skipwhite(look).offset_from(start) as Colnr;
@@ -2099,7 +2101,7 @@ pub fn get_c_indent() -> i32 {
                                     ignore_paren_col = (*trypos).col + 1;
                                 }
                                 curwin_mut().w_cursor.lnum = save_lnum;
-                                look = ml_get(our_paren_pos.lnum).add(look_col as usize);
+                                look = ml_get(our_paren_pos.lnum).wrapping_add(look_col as usize);
                             }
                             if crate::memory::cstr_first_byte(theline) == b')'
                                 || (curbuf_mut().b_ind_unclosed == 0 && is_if_for_while == 0)
@@ -2587,7 +2589,7 @@ pub fn get_c_indent() -> i32 {
                                     if lookfor != LOOKFOR_ENUM_OR_INIT
                                         && (*skipwhite(l) == b'[' as c_char
                                             || (!crate::memory::cstr_is_empty(l)
-                                                && *l.add(crate::memory::cstr_len(l) - 1)
+                                                && *l.wrapping_add(crate::memory::cstr_len(l) - 1)
                                                     == b'[' as c_char))
                                     {
                                         amount += ind_continuation;
@@ -2621,7 +2623,7 @@ pub fn get_c_indent() -> i32 {
                                         while curwin_mut().w_cursor.lnum > 1 {
                                             l = ml_get(curwin_mut().w_cursor.lnum - 1);
                                             if crate::memory::cstr_is_empty(l)
-                                                || *l.add(crate::memory::cstr_len(l) - 1)
+                                                || *l.wrapping_add(crate::memory::cstr_len(l) - 1)
                                                     != b'\\' as c_char
                                             {
                                                 break;
@@ -2717,7 +2719,8 @@ pub fn get_c_indent() -> i32 {
                                             && terminated == b',' as c_char
                                             && (*skipwhite(l) == b']' as c_char
                                                 || (n >= 2
-                                                    && *l.add((n - 2) as usize) == b']' as c_char))
+                                                    && *l.wrapping_add((n - 2) as usize)
+                                                        == b']' as c_char))
                                         {
                                             break;
                                         }
@@ -2748,7 +2751,7 @@ pub fn get_c_indent() -> i32 {
                                         } else {
                                             if lookfor == LOOKFOR_INITIAL
                                                 && !crate::memory::cstr_is_empty(l)
-                                                && *l.add(crate::memory::cstr_len(l) - 1)
+                                                && *l.wrapping_add(crate::memory::cstr_len(l) - 1)
                                                     == b'\\' as c_char
                                             {
                                                 cont_amount = cin_get_equal_amount(
@@ -2928,7 +2931,7 @@ pub fn get_c_indent() -> i32 {
                     }
                     if cin_ends_in(l, c",")
                         || (!crate::memory::cstr_is_empty(l) && {
-                            n = *l.add(crate::memory::cstr_len(l) - 1) as u8 as i32;
+                            n = *l.wrapping_add(crate::memory::cstr_len(l) - 1) as u8 as i32;
                             n == b'\\' as i32
                         })
                     {
@@ -2941,7 +2944,8 @@ pub fn get_c_indent() -> i32 {
                         while n == 0 && curwin_mut().w_cursor.lnum > 1 {
                             l = ml_get(curwin_mut().w_cursor.lnum - 1);
                             if crate::memory::cstr_is_empty(l)
-                                || *l.add(crate::memory::cstr_len(l) - 1) != b'\\' as c_char
+                                || *l.wrapping_add(crate::memory::cstr_len(l) - 1)
+                                    != b'\\' as c_char
                             {
                                 break;
                             }
@@ -2972,7 +2976,9 @@ pub fn get_c_indent() -> i32 {
                         break;
                     }
                     look = skipwhite(l);
-                    if crate::memory::cstr_first_byte(look) == b';' && cin_nocode(look.add(1)) {
+                    if crate::memory::cstr_first_byte(look) == b';'
+                        && cin_nocode(look.wrapping_add(1))
+                    {
                         let curpos_save = curwin_mut().w_cursor;
                         while curwin_mut().w_cursor.lnum > 1 {
                             curwin_mut().w_cursor.lnum -= 1;
@@ -3000,7 +3006,8 @@ pub fn get_c_indent() -> i32 {
                         l = ml_get(curwin_mut().w_cursor.lnum - 1);
                         if cin_ends_in(l, c",")
                             || (!crate::memory::cstr_is_empty(l)
-                                && *l.add(crate::memory::cstr_len(l) - 1) == b'\\' as c_char)
+                                && *l.wrapping_add(crate::memory::cstr_len(l) - 1)
+                                    == b'\\' as c_char)
                         {
                             break;
                         }
@@ -3020,7 +3027,7 @@ pub fn get_c_indent() -> i32 {
                 if cur_curpos.lnum > 1 {
                     l = ml_get(cur_curpos.lnum - 1);
                     if !crate::memory::cstr_is_empty(l)
-                        && *l.add(crate::memory::cstr_len(l) - 1) == b'\\' as c_char
+                        && *l.wrapping_add(crate::memory::cstr_len(l) - 1) == b'\\' as c_char
                     {
                         cur_amount = cin_get_equal_amount(cur_curpos.lnum - 1);
                         if cur_amount > 0 {
@@ -3076,7 +3083,7 @@ fn find_match(lookfor: i32, ourscope: Linenr) -> bool {
             look = cin_skipcomment(get_cursor_line_ptr());
             if !(lookfor == LOOKFOR_IF && whilelevel != 0) {
                 if cin_iselse(look) {
-                    let mightbeif = cin_skipcomment(look.add(4));
+                    let mightbeif = cin_skipcomment(look.wrapping_add(4));
                     if !cin_isif(mightbeif) {
                         elselevel += 1;
                     }
@@ -3123,14 +3130,14 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
             if crate::memory::cstr_first_byte(look) == b'*'
                 || crate::memory::cstr_first_byte(look) == b'!'
             {
-                look = look.add(1);
+                look = look.wrapping_add(1);
             }
             let try_match_word = if crate::memory::cstr_first_byte(look) == b'0' {
                 let tmw = try_match;
                 if !line_is_empty {
                     try_match = false;
                 }
-                look = look.add(1);
+                look = look.wrapping_add(1);
                 tmw
             } else {
                 false
@@ -3144,30 +3151,30 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                 {
                     return true;
                 }
-                look = look.add(2);
+                look = look.wrapping_add(2);
             } else if crate::memory::cstr_first_byte(look) == b'o' {
                 if try_match && keytyped == KEY_OPEN_FORW {
                     return true;
                 }
-                look = look.add(1);
+                look = look.wrapping_add(1);
             } else if crate::memory::cstr_first_byte(look) == b'O' {
                 if try_match && keytyped == KEY_OPEN_BACK {
                     return true;
                 }
-                look = look.add(1);
+                look = look.wrapping_add(1);
             } else if crate::memory::cstr_first_byte(look) == b'e' {
                 if try_match && keytyped == b'e' as i32 && curwin_mut().w_cursor.col >= 4 {
                     let p = get_cursor_line_ptr();
-                    if skipwhite(p) == p.add(curwin_mut().w_cursor.col as usize - 4)
+                    if skipwhite(p) == p.wrapping_add(curwin_mut().w_cursor.col as usize - 4)
                         && (crate::memory::cstr_prefix_bytes(
-                            p.add(curwin_mut().w_cursor.col as usize - 4),
+                            p.wrapping_add(curwin_mut().w_cursor.col as usize - 4),
                             4,
                         ) == &b"else"[..4])
                     {
                         return true;
                     }
                 }
-                look = look.add(1);
+                look = look.wrapping_add(1);
             } else if crate::memory::cstr_first_byte(look) == b':' {
                 if try_match && keytyped == b':' as i32 {
                     let mut p = get_cursor_line_ptr();
@@ -3176,19 +3183,19 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     }
                     p = get_cursor_line_ptr();
                     if curwin_mut().w_cursor.col > 2
-                        && *p.add(curwin_mut().w_cursor.col as usize - 1) == b':' as c_char
-                        && *p.add(curwin_mut().w_cursor.col as usize - 2) == b':' as c_char
+                        && *p.wrapping_add(curwin_mut().w_cursor.col as usize - 1) == b':' as c_char
+                        && *p.wrapping_add(curwin_mut().w_cursor.col as usize - 2) == b':' as c_char
                     {
-                        *p.add(curwin_mut().w_cursor.col as usize - 1) = b' ' as c_char;
+                        *p.wrapping_add(curwin_mut().w_cursor.col as usize - 1) = b' ' as c_char;
                         let i = cin_iscase(p, false) || cin_isscopedecl(p) || cin_islabel();
                         p = get_cursor_line_ptr();
-                        *p.add(curwin_mut().w_cursor.col as usize - 1) = b':' as c_char;
+                        *p.wrapping_add(curwin_mut().w_cursor.col as usize - 1) = b':' as c_char;
                         if i {
                             return true;
                         }
                     }
                 }
-                look = look.add(1);
+                look = look.wrapping_add(1);
             } else if crate::memory::cstr_first_byte(look) == b'<' {
                 if try_match {
                     if crate::strings::vim_haschr(
@@ -3198,32 +3205,32 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     {
                         return true;
                     }
-                    if keytyped == get_special_key_code(look.add(1)) {
+                    if keytyped == get_special_key_code(look.wrapping_add(1)) {
                         return true;
                     }
                 }
                 while !crate::memory::cstr_is_empty(look)
                     && crate::memory::cstr_first_byte(look) != b'>'
                 {
-                    look = look.add(1);
+                    look = look.wrapping_add(1);
                 }
                 while crate::memory::cstr_first_byte(look) == b'>' {
-                    look = look.add(1);
+                    look = look.wrapping_add(1);
                 }
             } else if crate::memory::cstr_first_byte(look) == b'='
                 && crate::memory::cstr_byte_at(look, 1) != b','
                 && crate::memory::cstr_byte_at(look, 1) != 0
             {
-                look = look.add(1);
+                look = look.wrapping_add(1);
                 let icase = if crate::memory::cstr_first_byte(look) == b'~' {
-                    look = look.add(1);
+                    look = look.wrapping_add(1);
                     true
                 } else {
                     false
                 };
                 let mut p: *const c_char = vim_strchr(look, b',' as i32);
                 if p.is_null() {
-                    p = look.add(crate::memory::cstr_len(look));
+                    p = look.wrapping_add(crate::memory::cstr_len(look));
                 }
                 let word_len = p.offset_from(look) as usize;
                 if (try_match || try_match_word) && (curwin_mut().w_cursor.col as usize) >= word_len
@@ -3231,7 +3238,8 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     let mut matched = false;
                     if keytyped == KEY_COMPLETE {
                         let line = get_cursor_line_ptr();
-                        let mut s: *mut c_char = line.add(curwin_mut().w_cursor.col as usize);
+                        let mut s: *mut c_char =
+                            line.wrapping_add(curwin_mut().w_cursor.col as usize);
                         while s > line {
                             let n = mb_prevptr(line, s);
                             if !vim_iswordp(n) {
@@ -3239,7 +3247,8 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                             }
                             s = n;
                         }
-                        if s.add(word_len) <= line.add(curwin_mut().w_cursor.col as usize)
+                        if s.wrapping_add(word_len)
+                            <= line.wrapping_add(curwin_mut().w_cursor.col as usize)
                             && (if icase {
                                 mb_strnicmp(s, look, word_len)
                             } else {
@@ -3250,19 +3259,22 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                         {
                             matched = true;
                         }
-                    } else if keytyped == *p.sub(1) as u8 as i32
+                    } else if keytyped == *p.wrapping_sub(1) as u8 as i32
                         || (icase
                             && (0..256).contains(&keytyped)
-                            && (keytyped as u8).eq_ignore_ascii_case(&(*p.sub(1) as u8)))
+                            && (keytyped as u8).eq_ignore_ascii_case(&(*p.wrapping_sub(1) as u8)))
                     {
                         let line = get_cursor_pos_ptr();
                         if (curwin_mut().w_cursor.col as usize == word_len
-                            || !vim_iswordc(*line.sub(word_len + 1) as u8 as i32))
+                            || !vim_iswordc(*line.wrapping_sub(word_len + 1) as u8 as i32))
                             && (if icase {
-                                mb_strnicmp(line.sub(word_len), look, word_len)
+                                mb_strnicmp(line.wrapping_sub(word_len), look, word_len)
                             } else {
-                                crate::memory::cstr_prefix_bytes(line.sub(word_len), word_len)
-                                    .cmp(crate::memory::cstr_prefix_bytes(look, word_len))
+                                crate::memory::cstr_prefix_bytes(
+                                    line.wrapping_sub(word_len),
+                                    word_len,
+                                )
+                                .cmp(crate::memory::cstr_prefix_bytes(look, word_len))
                                     as i32
                             }) == 0
                         {
@@ -3287,7 +3299,7 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     return true;
                 }
                 if !crate::memory::cstr_is_empty(look) {
-                    look = look.add(1);
+                    look = look.wrapping_add(1);
                 }
             }
             look = skip_to_option_part(look);

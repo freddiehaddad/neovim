@@ -249,7 +249,7 @@ fn coladvance2(
                     let mut newline = vec![0 as c_char; newline_size + 1];
                     ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize);
                     ptr::write_bytes(
-                        newline.as_mut_ptr().add(idx as usize),
+                        newline.as_mut_ptr().wrapping_add(idx as usize),
                         b' ',
                         correct as usize,
                     );
@@ -269,14 +269,18 @@ fn coladvance2(
                         .expect("STRICT_ADD overflow");
                     let mut newline = vec![0 as c_char; alloc_n + 1];
                     ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize);
-                    ptr::write_bytes(newline.as_mut_ptr().add(idx as usize), b' ', csize as usize);
+                    ptr::write_bytes(
+                        newline.as_mut_ptr().wrapping_add(idx as usize),
+                        b' ',
+                        csize as usize,
+                    );
                     let rest_n = (linelen as usize)
                         .checked_sub(idx as usize)
                         .and_then(|v| v.checked_sub(1))
                         .expect("STRICT_SUB underflow");
                     ptr::copy_nonoverlapping(
-                        line.add(idx as usize + 1),
-                        newline.as_mut_ptr().add((idx + csize) as usize),
+                        line.wrapping_add(idx as usize + 1),
+                        newline.as_mut_ptr().wrapping_add((idx + csize) as usize),
                         rest_n,
                     );
 
@@ -535,15 +539,15 @@ pub fn gchar_cursor() -> i32 {
 
 /// Return the character immediately before the cursor (`char_before_cursor`).
 pub fn char_before_cursor() -> i32 {
-    unsafe {
+    {
         if curwin_mut().w_cursor.col == 0 {
             return -1;
         }
 
         let line = get_cursor_line_ptr();
-        let p = line.add(curwin_mut().w_cursor.col as usize);
-        let prev_len = utf_head_off(line, p.sub(1)) + 1;
-        utf_ptr2char(p.sub(prev_len as usize))
+        let p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
+        let prev_len = utf_head_off(line, p.wrapping_sub(1)) + 1;
+        utf_ptr2char(p.wrapping_sub(prev_len as usize))
     }
 }
 
@@ -551,7 +555,7 @@ pub fn char_before_cursor() -> i32 {
 pub fn pchar_cursor(c: c_char) {
     unsafe {
         *ml_get_buf_mut(curbuf_mut(), curwin_mut().w_cursor.lnum)
-            .add(curwin_mut().w_cursor.col as usize) = c;
+            .wrapping_add(curwin_mut().w_cursor.col as usize) = c;
     }
 }
 
@@ -562,9 +566,9 @@ pub fn get_cursor_line_ptr() -> *mut c_char {
 
 /// Return pointer to cursor position (`get_cursor_pos_ptr`).
 pub fn get_cursor_pos_ptr() -> *mut c_char {
-    unsafe {
+    {
         ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
-            .add(curwin_mut().w_cursor.col as usize)
+            .wrapping_add(curwin_mut().w_cursor.col as usize)
     }
 }
 

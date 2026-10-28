@@ -264,10 +264,10 @@ fn do_one_arg(str_: impl crate::strings::IntoCCharPtr) -> *mut c_char {
         while !crate::memory::cstr_is_empty(str_) {
             if rem_backslash(str_) {
                 *p = *str_;
-                p = p.add(1);
-                str_ = str_.add(1);
+                p = p.wrapping_add(1);
+                str_ = str_.wrapping_add(1);
                 *p = *str_;
-                p = p.add(1);
+                p = p.wrapping_add(1);
             } else {
                 if !inbacktick && ascii_isspace(crate::memory::cstr_first_char(str_)) {
                     break;
@@ -276,9 +276,9 @@ fn do_one_arg(str_: impl crate::strings::IntoCCharPtr) -> *mut c_char {
                     inbacktick = !inbacktick;
                 }
                 *p = *str_;
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
-            str_ = str_.add(1);
+            str_ = str_.wrapping_add(1);
         }
         str_ = skipwhite(str_);
         *p = NUL;
@@ -400,7 +400,7 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
                 let entries = arglist();
                 if vim_regexec(
                     &mut regmatch,
-                    alist_name(&*entries.add(match_idx as usize)),
+                    alist_name(&*entries.wrapping_add(match_idx as usize)),
                     0,
                 ) {
                     didone = true;
@@ -487,7 +487,7 @@ pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
         if idx >= wargcount(&*win) {
             return false;
         }
-        let entry = warglist(&*win).add(idx as usize);
+        let entry = warglist(&*win).wrapping_add(idx as usize);
         if win.buf_mut().b_fnum == (*entry).ae_fnum {
             return true;
         }
@@ -514,7 +514,7 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
                 && gcount > 0
                 && win.w_arg_idx < gcount
             {
-                let last_entry = garglist().add((gcount - 1) as usize);
+                let last_entry = garglist().wrapping_add((gcount - 1) as usize);
                 let buf = win.w_buffer;
                 let buf = { &mut *buf };
                 if buf.b_fnum == (*last_entry).ae_fnum
@@ -571,7 +571,7 @@ pub fn ex_args(eap: &mut Exarg) {
 
             let entries = arglist();
             let items: Vec<*mut c_char> = (0..(count as usize))
-                .map(|i| alist_name(&*entries.add(i)))
+                .map(|i| alist_name(&*entries.wrapping_add(i)))
                 .collect();
             list_in_columns(&items, curwin_mut().w_arg_idx);
             return;
@@ -583,7 +583,7 @@ pub fn ex_args(eap: &mut Exarg) {
             al.al_ga.reserve(gcount);
 
             for i in 0..gcount {
-                let ge = &*garglist().add(i);
+                let ge = &*garglist().wrapping_add(i);
                 if ge.ae_fname.is_some() {
                     al.al_ga.push(Aentry {
                         ae_fname: ge.ae_fname.clone(),
@@ -649,7 +649,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         }
 
         if !is_split_cmd
-            && (*arglist().add(argn as usize)).ae_fnum != curbuf_mut().b_fnum
+            && (*arglist().wrapping_add(argn as usize)).ae_fnum != curbuf_mut().b_fnum
             && !check_can_set_curbuf_forceit(eap.forceit)
         {
             return;
@@ -666,7 +666,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         } else {
             let mut other = true;
             if buf_hide(curbuf_mut()) {
-                let p = fix_fname(alist_name(&*arglist().add(argn as usize)));
+                let p = fix_fname(alist_name(&*arglist().wrapping_add(argn as usize)));
                 other = otherfile(
                     p.as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
@@ -694,7 +694,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
 
         if !do_ecmd(
             0,
-            alist_name(&*arglist().add(curwin_mut().w_arg_idx as usize)),
+            alist_name(&*arglist().wrapping_add(curwin_mut().w_arg_idx as usize)),
             ptr::null_mut(),
             Some(&*eap),
             ECMD_LAST,
@@ -740,7 +740,8 @@ pub fn ex_argdedupe(_eap: &mut Exarg) {
     unsafe {
         let mut i: i32 = 0;
         while i < argcount() {
-            let first_fullname = FullName_save((*arglist().add(i as usize)).fname_ptr(), false);
+            let first_fullname =
+                FullName_save((*arglist().wrapping_add(i as usize)).fname_ptr(), false);
             let first_ptr = first_fullname
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -748,7 +749,7 @@ pub fn ex_argdedupe(_eap: &mut Exarg) {
             let mut j = i + 1;
             while j < argcount() {
                 let second_fullname =
-                    FullName_save((*arglist().add(j as usize)).fname_ptr(), false);
+                    FullName_save((*arglist().wrapping_add(j as usize)).fname_ptr(), false);
                 let second_ptr = second_fullname
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -876,7 +877,7 @@ pub fn get_arglist_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
         if idx >= argcount() {
             return ptr::null_mut();
         }
-        alist_name(&*arglist().add(idx as usize))
+        alist_name(&*arglist().wrapping_add(idx as usize))
     }
 }
 
@@ -939,7 +940,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     while i < opened_len {
                         let al = aall_ref.alist;
                         if (i as usize) < (*al).al_ga.len() {
-                            let entry = aarglist(&mut *al).add(i as usize);
+                            let entry = aarglist(&mut *al).wrapping_add(i as usize);
                             if (*entry).ae_fnum == buf.b_fnum
                                 || path_equal(
                                     alist_name(&*entry),
@@ -1098,7 +1099,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                 }
                 do_ecmd(
                     0,
-                    alist_name(&*aarglist(&mut *aall.alist).add(i as usize)),
+                    alist_name(&*aarglist(&mut *aall.alist).wrapping_add(i as usize)),
                     ptr::null_mut(),
                     None,
                     ECMD_ONE,
@@ -1217,7 +1218,7 @@ pub fn arg_all() -> CString {
         let mut bytes: Vec<u8> = Vec::new();
         let count = argcount();
         for idx in 0..(count as usize) {
-            let p = alist_name(&*arglist().add(idx));
+            let p = alist_name(&*arglist().wrapping_add(idx));
             if p.is_null() {
                 continue;
             }
@@ -1280,7 +1281,7 @@ fn get_arglist_as_rettv(arglist_ptr: *mut Aentry, count: i32, rettv: &mut TypVal
             for idx in 0..(count as usize) {
                 tv_list_append_string(
                     &mut *rettv.vval.v_list(),
-                    alist_name(&*arglist_ptr.add(idx)),
+                    alist_name(&*arglist_ptr.wrapping_add(idx)),
                     -1,
                 );
             }
@@ -1316,7 +1317,7 @@ pub fn f_argv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         tv_set_string(rettv, ptr::null());
         let idx = tv_get_number_chk(&argvars[0], None) as i32;
         if !al_ptr.is_null() && idx >= 0 && idx < count {
-            tv_set_string(rettv, alist_name(&*al_ptr.add(idx as usize)));
+            tv_set_string(rettv, alist_name(&*al_ptr.wrapping_add(idx as usize)));
         } else if idx == -1 {
             get_arglist_as_rettv(al_ptr, count, rettv);
         }

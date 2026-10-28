@@ -1514,8 +1514,8 @@ pub fn decor_redraw_signs(
             for item in &signs {
                 let sh = item.sh;
                 if !sattrs.is_null() && (idx as i32) < len && sh.text[0] != 0 {
-                    (*sattrs.add(idx)).text = sh.text;
-                    (*sattrs.add(idx)).hl_id = sh.hl_id;
+                    (*sattrs.wrapping_add(idx)).text = sh.text;
+                    (*sattrs.wrapping_add(idx)).hl_id = sh.hl_id;
                     idx += 1;
                 }
                 if num_id.is_some() && *num_id.as_deref_mut().unwrap() <= 0 {
@@ -1697,7 +1697,7 @@ pub fn decor_virt_line_rows(
                 } else {
                     utf_ptr2cells(virt_str)
                 };
-                virt_str = virt_str.add(bytes_to_next_char as usize);
+                virt_str = virt_str.wrapping_add(bytes_to_next_char as usize);
                 if row_cells + cells > row_width {
                     row += 1;
                     if skip_cells.is_some() && row == target_row {

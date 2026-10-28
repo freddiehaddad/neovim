@@ -746,7 +746,7 @@ fn set_init_default_shell() {
 
 /// Set the default for 'backupskip' to include environment variables for temp files.
 fn set_init_default_backupskip() {
-    unsafe {
+    {
         #[cfg(unix)]
         let names: [*const c_char; 4] = [
             c"".as_ptr(),
@@ -797,7 +797,7 @@ fn set_init_default_backupskip() {
 
                 if plen == 0 {
                     plen = crate::memory::cstr_len(p);
-                    if after_pathsep(p, p.add(plen)) != 0 {
+                    if after_pathsep(p, p.wrapping_add(plen)) != 0 {
                         has_trailing_path_sep = true;
                     }
                 }
@@ -859,21 +859,21 @@ fn set_init_default_cdpath() {
         let mut j: usize = 1;
         let mut i: usize = 0;
         while crate::memory::cstr_byte_at(cdpath, i) != 0 {
-            let ch = *cdpath.add(i);
+            let ch = *cdpath.wrapping_add(i);
             if vim_ispathlistsep(ch as i32) {
-                *buf.add(j) = b',' as c_char;
+                *buf.wrapping_add(j) = b',' as c_char;
                 j += 1;
             } else {
                 if ch == b' ' as c_char || ch == b',' as c_char {
-                    *buf.add(j) = b'\\' as c_char;
+                    *buf.wrapping_add(j) = b'\\' as c_char;
                     j += 1;
                 }
-                *buf.add(j) = ch;
+                *buf.wrapping_add(j) = ch;
                 j += 1;
             }
             i += 1;
         }
-        *buf.add(j) = NUL;
+        *buf.wrapping_add(j) = NUL;
         change_option_default(K_OPT_CDPATH, cstr_to_obj(buf));
     }
 }
@@ -1101,7 +1101,7 @@ fn find_dup_item(
         while !crate::memory::cstr_is_empty(s) {
             if ((flags & K_OPT_FLAG_COMMA) == 0
                 || s == origval
-                || (*s.offset(-1) == b',' as c_char && (bs & 1) == 0))
+                || (*s.wrapping_offset(-1) == b',' as c_char && (bs & 1) == 0))
                 && (crate::memory::cstr_prefix_bytes(s, newvallen)
                     == crate::memory::cstr_prefix_bytes(newval, newvallen))
                 && ((flags & K_OPT_FLAG_COMMA) == 0
@@ -1110,16 +1110,16 @@ fn find_dup_item(
             {
                 return s;
             }
-            if (s > origval.add(1)
-                && *s.offset(-1) == b'\\' as c_char
-                && *s.offset(-2) != b',' as c_char)
-                || (s == origval.add(1) && *s.offset(-1) == b'\\' as c_char)
+            if (s > origval.wrapping_add(1)
+                && *s.wrapping_offset(-1) == b'\\' as c_char
+                && *s.wrapping_offset(-2) != b',' as c_char)
+                || (s == origval.wrapping_add(1) && *s.wrapping_offset(-1) == b'\\' as c_char)
             {
                 bs += 1;
             } else {
                 bs = 0;
             }
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         ptr::null()
     }
@@ -1331,17 +1331,17 @@ fn stropt_copy_value(
                     && crate::memory::cstr_byte_at(arg, 1) != 0
             };
             if remove_bs {
-                arg = arg.add(1);
+                arg = arg.wrapping_add(1);
             }
             let i = utfc_ptr2len(arg);
             if i > 1 {
                 ptr::copy(arg, s, i as usize);
-                arg = arg.add(i as usize);
-                s = s.add(i as usize);
+                arg = arg.wrapping_add(i as usize);
+                s = s.wrapping_add(i as usize);
             } else {
                 *s = *arg;
-                s = s.add(1);
-                arg = arg.add(1);
+                s = s.wrapping_add(1);
+                arg = arg.wrapping_add(1);
             }
         }
         *s = NUL;
@@ -1401,7 +1401,7 @@ fn stropt_concat_with_comma(
             }
             ptr::copy(
                 newval,
-                newval.add(len + comma),
+                newval.wrapping_add(len + comma),
                 crate::memory::cstr_len(newval) + 1,
             );
             ptr::copy(origval, newval, len);
@@ -1409,12 +1409,12 @@ fn stropt_concat_with_comma(
             len = crate::memory::cstr_len(newval);
             ptr::copy(
                 origval,
-                newval.add(len + comma),
+                newval.wrapping_add(len + comma),
                 crate::memory::cstr_len(origval) + 1,
             );
         }
         if comma != 0 {
-            *newval.add(len) = b',' as c_char;
+            *newval.wrapping_add(len) = b',' as c_char;
         }
     }
 }
@@ -1438,13 +1438,17 @@ fn stropt_remove_val(
                         len += 1;
                     }
                 } else {
-                    strval = strval.offset(-1);
+                    strval = strval.wrapping_offset(-1);
                     len += 1;
                 }
             }
-            let src = strval.add(len as usize);
+            let src = strval.wrapping_add(len as usize);
             let dst_off = strval.offset_from(origval) as usize;
-            ptr::copy(src, newval.add(dst_off), crate::memory::cstr_len(src) + 1);
+            ptr::copy(
+                src,
+                newval.wrapping_add(dst_off),
+                crate::memory::cstr_len(src) + 1,
+            );
         }
     }
 }
@@ -1462,18 +1466,18 @@ fn find_key_item(
         let mut p = src;
 
         while !crate::memory::cstr_is_empty(p) {
-            if (p == src || *p.offset(-1) == b',' as c_char)
+            if (p == src || *p.wrapping_offset(-1) == b',' as c_char)
                 && (crate::memory::cstr_prefix_bytes(p, keylen as usize)
                     == crate::memory::cstr_prefix_bytes(key, keylen as usize))
             {
                 let mut end = vim_strchr(p, b',' as i32);
                 if end.is_null() {
-                    end = p.add(crate::memory::cstr_len(p));
+                    end = p.wrapping_add(crate::memory::cstr_len(p));
                 }
                 *itemlenp = end.offset_from(p);
                 return p;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         ptr::null_mut()
     }
@@ -1487,12 +1491,16 @@ fn remove_comma_item(
 ) {
     let str_arg = str_arg.into_c_char_ptr();
     unsafe {
-        if *item.offset(itemlen) == b',' as c_char {
-            let src = item.offset(itemlen + 1);
+        if *item.wrapping_offset(itemlen) == b',' as c_char {
+            let src = item.wrapping_offset(itemlen + 1);
             ptr::copy(src, item, crate::memory::cstr_len(src) + 1);
-        } else if (item as *const c_char) > str_arg && *item.offset(-1) == b',' as c_char {
-            let src = item.offset(itemlen);
-            ptr::copy(src, item.offset(-1), crate::memory::cstr_len(src) + 1);
+        } else if (item as *const c_char) > str_arg && *item.wrapping_offset(-1) == b',' as c_char {
+            let src = item.wrapping_offset(itemlen);
+            ptr::copy(
+                src,
+                item.wrapping_offset(-1),
+                crate::memory::cstr_len(src) + 1,
+            );
         } else {
             *item = NUL;
         }
@@ -1509,7 +1517,7 @@ fn remove_key_item(
     let str_arg = str_arg.into_c_char_ptr().cast_mut();
     let key = key.into_c_char_ptr().cast_mut();
     let skip = skip.into_c_char_ptr();
-    unsafe {
+    {
         let mut itemlen: isize = 0;
         loop {
             let mut found = find_key_item(str_arg, key, keylen, &mut itemlen);
@@ -1517,9 +1525,9 @@ fn remove_key_item(
                 break;
             }
             if ptr::eq(found, skip) {
-                let mut next = found.offset(itemlen);
+                let mut next = found.wrapping_offset(itemlen);
                 if crate::memory::cstr_first_byte(next) == b',' {
-                    next = next.add(1);
+                    next = next.wrapping_add(1);
                 }
                 found = find_key_item(next, key, keylen, &mut itemlen);
                 if found.is_null() {
@@ -1537,11 +1545,11 @@ fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
     unsafe {
         let mut len = crate::memory::cstr_len(str_arg) as isize;
         if len > 0 {
-            *str_arg.offset(len) = b',' as c_char;
+            *str_arg.wrapping_offset(len) = b',' as c_char;
             len += 1;
         }
-        ptr::copy(item, str_arg.offset(len), item_len as usize);
-        *str_arg.offset(len + item_len) = NUL;
+        ptr::copy(item, str_arg.wrapping_offset(len), item_len as usize);
+        *str_arg.wrapping_offset(len + item_len) = NUL;
     }
 }
 
@@ -1553,12 +1561,12 @@ fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
 
         ptr::copy(
             str_arg,
-            str_arg.offset(item_len + comma),
+            str_arg.wrapping_offset(item_len + comma),
             (len + 1) as usize,
         );
         ptr::copy(item, str_arg, item_len as usize);
         if comma != 0 {
-            *str_arg.offset(item_len) = b',' as c_char;
+            *str_arg.wrapping_offset(item_len) = b',' as c_char;
         }
     }
 }
@@ -1592,7 +1600,7 @@ fn stropt_handle_keymatch(
 
             if item_len > 0 {
                 let colon = vim_strchr(item_start, b':' as i32);
-                if !colon.is_null() && colon < item_start.offset(item_len) {
+                if !colon.is_null() && colon < item_start.wrapping_offset(item_len) {
                     let keylen = colon.offset_from(item_start) + 1;
 
                     if op == OP_ADDING || op == OP_PREPENDING {
@@ -1646,7 +1654,7 @@ fn stropt_handle_keymatch(
             if p.is_null() {
                 break;
             }
-            item_start = p.add(1);
+            item_start = p.wrapping_add(1);
         }
 
         true
@@ -1663,22 +1671,25 @@ fn stropt_remove_dupflags(newval: impl crate::strings::IntoCCharPtr, flags: u32)
                 if crate::memory::cstr_first_byte(s) != b','
                     && crate::memory::cstr_byte_at(s, 1) == b','
                     && crate::strings::vim_haschr(
-                        s.add(2),
+                        s.wrapping_add(2),
                         crate::memory::cstr_first_byte(s) as i32,
                     )
                 {
-                    let src = s.add(2);
+                    let src = s.wrapping_add(2);
                     ptr::copy(src, s, crate::memory::cstr_len(src) + 1);
                     continue;
                 }
             } else if ((flags & K_OPT_FLAG_COMMA) == 0 || crate::memory::cstr_first_byte(s) != b',')
-                && crate::strings::vim_haschr(s.add(1), crate::memory::cstr_first_byte(s) as i32)
+                && crate::strings::vim_haschr(
+                    s.wrapping_add(1),
+                    crate::memory::cstr_first_byte(s) as i32,
+                )
             {
-                let src = s.add(1);
+                let src = s.wrapping_add(1);
                 ptr::copy(src, s, crate::memory::cstr_len(src) + 1);
                 continue;
             }
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
     }
 }
@@ -1699,7 +1710,7 @@ fn stropt_get_newval(
         let mut s: *const c_char = ptr::null();
         let flags = get_option(opt_idx).flags;
 
-        arg = arg.add(1);
+        arg = arg.wrapping_add(1);
 
         if varp == (&raw mut opt_vars().p_kp).cast::<c_void>()
             && (crate::memory::cstr_is_empty(arg) || crate::memory::cstr_first_byte(arg) == b' ')
@@ -1733,7 +1744,7 @@ fn stropt_get_newval(
                 }
 
                 if s.is_null() {
-                    s = origval.add(crate::memory::cstr_len(origval));
+                    s = origval.wrapping_add(crate::memory::cstr_len(origval));
                 }
             }
 
@@ -1778,10 +1789,10 @@ fn get_op(arg: impl crate::strings::IntoCCharPtr) -> SetOp {
 fn get_option_prefix(argp: *mut *mut c_char) -> SetPrefix {
     unsafe {
         if crate::memory::cstr_prefix_bytes(*argp, 2) == &b"no"[..2] {
-            *argp = (*argp).add(2);
+            *argp = (*argp).wrapping_add(2);
             PREFIX_NO
         } else if crate::memory::cstr_prefix_bytes(*argp, 3) == &b"inv"[..3] {
-            *argp = (*argp).add(3);
+            *argp = (*argp).wrapping_add(3);
             PREFIX_INV
         } else {
             PREFIX_NONE
@@ -1839,11 +1850,11 @@ fn validate_opt_idx(
 /// Skip over the name of a TTY option or keycode option.
 fn find_tty_option_end(arg: impl crate::strings::IntoCCharPtr) -> *const c_char {
     let arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_as_opt_bytes(arg) == Some(b"term") {
-            return arg.add("term".len());
+            return arg.wrapping_add("term".len());
         } else if crate::memory::cstr_as_opt_bytes(arg) == Some(b"ttytype") {
-            return arg.add("ttytype".len());
+            return arg.wrapping_add("ttytype".len());
         }
 
         let mut p = arg;
@@ -1851,24 +1862,24 @@ fn find_tty_option_end(arg: impl crate::strings::IntoCCharPtr) -> *const c_char 
 
         if crate::memory::cstr_first_byte(arg) == b'<' {
             delimit = true;
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         if crate::memory::cstr_first_byte(p) == b't'
             && crate::memory::cstr_byte_at(p, 1) == b'_'
             && crate::memory::cstr_byte_at(p, 2) != 0
             && crate::memory::cstr_byte_at(p, 3) != 0
         {
-            p = p.add(4);
+            p = p.wrapping_add(4);
         } else if delimit {
             while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'>' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
         if delimit {
             if crate::memory::cstr_first_byte(p) != b'>' {
                 return ptr::null();
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         if arg == p { ptr::null() } else { p }
@@ -1894,7 +1905,7 @@ pub fn find_option_end(
             return ptr::null();
         }
         while ascii_isalpha(crate::memory::cstr_first_char(p)) {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         *opt_idxp = find_option_len(arg, p.offset_from(arg) as usize);
@@ -1972,7 +1983,7 @@ pub fn get_option_newval(
                 let oldval_num = oldval.data.integer();
                 let mut newval_num: OptInt = 0;
 
-                arg = arg.add(1);
+                arg = arg.wrapping_add(1);
                 if (varp.cast::<OptInt>() == &raw mut opt_vars().p_wc
                     || varp.cast::<OptInt>() == &raw mut opt_vars().p_wcm)
                     && (crate::memory::cstr_first_byte(arg) == b'<'
@@ -2079,12 +2090,12 @@ fn do_one_set_option(
         let mut p = option_end.cast_mut();
 
         while ascii_iswhite(crate::memory::cstr_first_char(p)) {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         let op = get_op(p);
         if op != OP_NONE {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         let nextchar = crate::memory::cstr_first_byte(p) as i32;
@@ -2105,9 +2116,9 @@ fn do_one_set_option(
                 && crate::memory::cstr_byte_at(*argp, 2) == b'i'
             {
                 if crate::memory::cstr_byte_at(*argp, 3) == b'm' {
-                    *argp = (*argp).add(3);
+                    *argp = (*argp).wrapping_add(3);
                 } else {
-                    *argp = (*argp).add(2);
+                    *argp = (*argp).wrapping_add(2);
                 }
             }
             if crate::strings::vim_haschr(c"?!&<", nextchar)
@@ -2203,9 +2214,9 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: i32) -> bool {
                     && !ascii_isalpha(crate::memory::cstr_char_at(arg, 3))
                     && (opt_flags & OPT_MODELINE) == 0
                 {
-                    arg = arg.add(3);
+                    arg = arg.wrapping_add(3);
                     if crate::memory::cstr_first_byte(arg) == b'&' {
-                        arg = arg.add(1);
+                        arg = arg.wrapping_add(1);
                         set_options_default(opt_flags);
                         didset_options_all();
                         didset_options();
@@ -2240,13 +2251,13 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: i32) -> bool {
                         let arg_len = arg.offset_from(startarg);
                         if (i + arg_len) < IOSIZE as isize {
                             xstrlcpy(
-                                iobuf_ptr.offset(i - 2),
+                                iobuf_ptr.wrapping_offset(i - 2),
                                 c": ",
                                 (IOSIZE as isize - i + 2) as usize,
                             );
                             assert!(arg >= startarg);
-                            ptr::copy(startarg, iobuf_ptr.offset(i), arg_len as usize);
-                            *iobuf_ptr.offset(i + arg_len) = NUL;
+                            ptr::copy(startarg, iobuf_ptr.wrapping_offset(i), arg_len as usize);
+                            *iobuf_ptr.wrapping_offset(i + arg_len) = NUL;
                         }
                         trans_characters(iobuf_ptr, IOSIZE as i32);
 
@@ -2276,7 +2287,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: i32) -> bool {
 
 fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: bool) -> i32 {
     let arg_arg = arg_arg.into_c_char_ptr();
-    unsafe {
+    {
         let mut key: i32 = 0;
         let mut arg = arg_arg;
 
@@ -2291,7 +2302,7 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
                 );
             }
         } else if has_lt {
-            arg = arg.offset(-1);
+            arg = arg.wrapping_offset(-1);
             let mut modifiers: i32 = 0;
             key = find_special_key(
                 &raw mut arg,
@@ -2311,9 +2322,9 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
 /// Convert a key name or string into a key value.
 pub fn string_to_key(arg: impl crate::strings::IntoCCharPtr) -> i32 {
     let arg = arg.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_first_byte(arg) == b'<' && crate::memory::cstr_byte_at(arg, 1) != 0 {
-            return find_key_len(arg.add(1), crate::memory::cstr_len(arg), true);
+            return find_key_len(arg.wrapping_add(1), crate::memory::cstr_len(arg), true);
         }
         if crate::memory::cstr_first_byte(arg) == b'^' && crate::memory::cstr_byte_at(arg, 1) != 0 {
             let mut key = ctrl_chr(i32::from(crate::memory::cstr_byte_at(arg, 1)));
@@ -3630,7 +3641,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
         let mut q = ws.b_p_spl;
 
         if crate::memory::cstr_prefix_bytes(q, 4) == &b"cjk,"[..4] {
-            q = q.add(4);
+            q = q.wrapping_add(4);
         }
 
         let mut p = q;
@@ -3640,7 +3651,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
             {
                 break;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         if p > q {
             vim_snprintf!(
@@ -5459,7 +5470,7 @@ fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
 
 /// Converts a structured option (non-scalar Object) to the internal scalar (:set-style) form.
 pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool) -> Object {
-    unsafe {
+    {
         if o.obj_type == ObjectType::ObjectTypeNil {
             return nil_obj();
         }
@@ -5509,7 +5520,7 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
                     *error = true;
                     return nil_obj();
                 }
-                let s_cstr = CStr::from_ptr(item.data.string().data);
+                let s_cstr = crate::memory::cstr_from_ptr(item.data.string().data);
                 if !allow_dup && items.iter().any(|existing| existing.as_c_str() == s_cstr) {
                     continue;
                 }
@@ -5984,11 +5995,11 @@ fn set_option(
                         || (crate::memory::cstr_byte_at(p, 1) == b',' && allow_comma)
                         || (crate::memory::cstr_byte_at(p, 1) == b' ' && allow_space)
                     {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         continue;
                     }
                     *p = b'/' as c_char;
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
             }
         }
@@ -6778,7 +6789,7 @@ pub fn get_varp_scope_from(
             if option_is_window_local(opt_idx) {
                 return get_varp_from(&mut *p, buf, win)
                     .cast::<u8>()
-                    .add(std::mem::size_of::<Winopt>())
+                    .wrapping_add(std::mem::size_of::<Winopt>())
                     .cast::<c_void>();
             }
             return (*p).var;
@@ -7733,10 +7744,10 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             xp.xp_pattern = arg;
             return;
         }
-        let argend = arg.add(crate::memory::cstr_len(arg));
-        let mut p = argend.offset(-1);
-        if crate::memory::cstr_first_byte(p) == b' ' && *p.offset(-1) != b'\\' as c_char {
-            xp.xp_pattern = p.add(1);
+        let argend = arg.wrapping_add(crate::memory::cstr_len(arg));
+        let mut p = argend.wrapping_offset(-1);
+        if crate::memory::cstr_first_byte(p) == b' ' && *p.wrapping_offset(-1) != b'\\' as c_char {
+            xp.xp_pattern = p.wrapping_add(1);
             return;
         }
         while p > arg {
@@ -7744,24 +7755,24 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             if crate::memory::cstr_first_byte(p) == b' '
                 || crate::memory::cstr_first_byte(p) == b','
             {
-                while s > arg && *s.offset(-1) == b'\\' as c_char {
-                    s = s.offset(-1);
+                while s > arg && *s.wrapping_offset(-1) == b'\\' as c_char {
+                    s = s.wrapping_offset(-1);
                 }
             }
             if crate::memory::cstr_first_byte(p) == b' ' && (p.offset_from(s) & 1) == 0 {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 break;
             }
-            p = p.offset(-1);
+            p = p.wrapping_offset(-1);
         }
         if crate::memory::cstr_prefix_bytes(p, 2) == &b"no"[..2] {
             xp.xp_context = EXPAND_BOOL_SETTINGS;
             xp.xp_prefix = XP_PREFIX_NO;
-            p = p.add(2);
+            p = p.wrapping_add(2);
         } else if crate::memory::cstr_prefix_bytes(p, 3) == &b"inv"[..3] {
             xp.xp_context = EXPAND_BOOL_SETTINGS;
             xp.xp_prefix = XP_PREFIX_INV;
-            p = p.add(3);
+            p = p.wrapping_add(3);
         }
         xp.xp_pattern = p;
         arg = p;
@@ -7776,10 +7787,10 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
                 if crate::memory::cstr_is_empty(p) {
                     return;
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
-            p = p.add(1);
-            let key = get_special_key_code(arg.add(1));
+            p = p.wrapping_add(1);
+            let key = get_special_key_code(arg.wrapping_add(1));
             if key == 0 {
                 xp.xp_context = EXPAND_NOTHING;
                 return;
@@ -7791,24 +7802,24 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         } else if crate::memory::cstr_first_byte(p) == b't'
             && crate::memory::cstr_byte_at(p, 1) == b'_'
         {
-            p = p.add(2);
+            p = p.wrapping_add(2);
             if !crate::memory::cstr_is_empty(p) {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             if crate::memory::cstr_is_empty(p) {
                 return;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
             nextchar = *p;
             is_term_option = true;
-            opt_st().expand_option_name[2] = *p.offset(-2);
-            opt_st().expand_option_name[3] = *p.offset(-1);
+            opt_st().expand_option_name[2] = *p.wrapping_offset(-2);
+            opt_st().expand_option_name[3] = *p.wrapping_offset(-1);
         } else {
             while ascii_isalnum(crate::memory::cstr_first_char(p))
                 || crate::memory::cstr_first_byte(p) == b'_'
                 || crate::memory::cstr_first_byte(p) == b'*'
             {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             if crate::memory::cstr_is_empty(p) {
                 return;
@@ -7837,7 +7848,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             if nextchar == b'+' as c_char || nextchar == b'^' as c_char {
                 opt_st().expand_option_append = true;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
             nextchar = b'=' as c_char;
         }
         if (nextchar != b'=' as c_char && nextchar != b':' as c_char)
@@ -7853,8 +7864,8 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             opt_st().expand_option_idx = opt_idx;
         }
 
-        xp.xp_pattern = p.add(1);
-        opt_st().expand_option_start_col = p.add(1).offset_from(xp.xp_line) as i32;
+        xp.xp_pattern = p.wrapping_add(1);
+        opt_st().expand_option_start_col = p.wrapping_add(1).offset_from(xp.xp_line) as i32;
 
         let opt_var = get_option(opt_idx).var;
         if opt_var == (&raw mut opt_vars().p_syn).cast::<c_void>() {
@@ -7925,7 +7936,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             || (flags & K_OPT_FLAG_COMMA) != 0
             || (flags & K_OPT_FLAG_COLON) != 0
         {
-            p = argend.offset(-1);
+            p = argend.wrapping_offset(-1);
             while p > xp.xp_pattern {
                 if crate::memory::cstr_first_byte(p) == b' '
                     || crate::memory::cstr_first_byte(p) == b','
@@ -7933,8 +7944,8 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
                         && (flags & K_OPT_FLAG_COLON) != 0)
                 {
                     let mut s = p;
-                    while s > xp.xp_pattern && *s.offset(-1) == b'\\' as c_char {
-                        s = s.offset(-1);
+                    while s > xp.xp_pattern && *s.wrapping_offset(-1) == b'\\' as c_char {
+                        s = s.wrapping_offset(-1);
                     }
                     #[cfg(windows)]
                     let comma_unesc = crate::memory::cstr_first_byte(p) == b','
@@ -7951,11 +7962,11 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
                         || (crate::memory::cstr_first_byte(p) == b':'
                             && (flags & K_OPT_FLAG_COLON) != 0)
                     {
-                        xp.xp_pattern = p.add(1);
+                        xp.xp_pattern = p.wrapping_add(1);
                         break;
                     }
                 }
-                p = p.offset(-1);
+                p = p.wrapping_offset(-1);
             }
         }
 
@@ -7965,7 +7976,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
 
         if get_option(opt_idx).var == (&raw mut opt_vars().p_sps).cast() {
             if crate::memory::cstr_prefix_bytes(xp.xp_pattern, 5) == &b"file:"[..5] {
-                xp.xp_pattern = xp.xp_pattern.add(5);
+                xp.xp_pattern = xp.xp_pattern.wrapping_add(5);
             } else if get_option(opt_st().expand_option_idx)
                 .opt_expand_cb
                 .is_some()
@@ -8079,10 +8090,10 @@ pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> 
                 && (crate::memory::cstr_byte_at(var, 2) != b'\\'
                     || (var == buf && crate::memory::cstr_byte_at(var, 4) != b'\\'))
             {
-                let src = var.add(1);
+                let src = var.wrapping_add(1);
                 ptr::copy(src, var, crate::memory::cstr_len(src) + 1);
             }
-            var = var.add(utfc_ptr2len(var) as usize);
+            var = var.wrapping_add(utfc_ptr2len(var) as usize);
         }
         let len = crate::memory::cstr_len(buf);
         crate::memory::cstr_from_bytes(&bytes[..len])
@@ -8130,7 +8141,7 @@ pub fn expand_string_setting(
     regmatch: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    unsafe {
+    {
         if opt_st().expand_option_idx == K_OPT_INVALID {
             return false;
         }
@@ -8139,7 +8150,9 @@ pub fn expand_string_setting(
             return false;
         };
 
-        let set_arg = xp.xp_line.add(opt_st().expand_option_start_col as usize);
+        let set_arg = xp
+            .xp_line
+            .wrapping_add(opt_st().expand_option_start_col as usize);
         let mut args = Optexpand {
             oe_varp: get_varp_scope(opt, opt_st().expand_option_flags).cast::<c_char>(),
             oe_idx: opt_st().expand_option_idx,
@@ -8197,13 +8210,15 @@ pub fn expand_setting_subtract(
             loop {
                 let item = next_val;
                 let mut comma = vim_strchr(next_val, b',' as i32);
-                while !comma.is_null() && comma != next_val && *comma.offset(-1) == b'\\' as c_char
+                while !comma.is_null()
+                    && comma != next_val
+                    && *comma.wrapping_offset(-1) == b'\\' as c_char
                 {
-                    comma = vim_strchr(comma.add(1), b',' as i32);
+                    comma = vim_strchr(comma.wrapping_add(1), b',' as i32);
                 }
                 if !comma.is_null() {
                     *comma = NUL;
-                    next_val = comma.add(1);
+                    next_val = comma.wrapping_add(1);
                 } else {
                     next_val = ptr::null_mut();
                 }
@@ -8334,22 +8349,22 @@ pub fn reset_option_was_set(opt_idx: OptIndex) {
 /// Parse 'cursorlineopt', writing flags only when the value is valid.
 pub fn fill_culopt_flags(val: impl crate::strings::IntoCCharPtr, flags: &mut u32) -> bool {
     let val = val.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = val;
         let mut culopt_flags_new: u8 = 0;
 
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_prefix_bytes(p, 4) == &b"line"[..4] {
-                p = p.add(4);
+                p = p.wrapping_add(4);
                 culopt_flags_new |= K_OPT_CULOPT_FLAG_LINE;
             } else if crate::memory::cstr_prefix_bytes(p, 4) == &b"both"[..4] {
-                p = p.add(4);
+                p = p.wrapping_add(4);
                 culopt_flags_new |= K_OPT_CULOPT_FLAG_LINE | K_OPT_CULOPT_FLAG_NUMBER;
             } else if crate::memory::cstr_prefix_bytes(p, 6) == &b"number"[..6] {
-                p = p.add(6);
+                p = p.wrapping_add(6);
                 culopt_flags_new |= K_OPT_CULOPT_FLAG_NUMBER;
             } else if crate::memory::cstr_prefix_bytes(p, 10) == &b"screenline"[..10] {
-                p = p.add(10);
+                p = p.wrapping_add(10);
                 culopt_flags_new |= K_OPT_CULOPT_FLAG_SCREENLINE;
             }
 
@@ -8357,7 +8372,7 @@ pub fn fill_culopt_flags(val: impl crate::strings::IntoCCharPtr, flags: &mut u32
                 return false;
             }
             if crate::memory::cstr_first_byte(p) == b',' {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
 
@@ -8560,12 +8575,12 @@ pub fn set_fileformat(eol_style: i32, opt_flags: i32) {
 /// Skip to next part of an option argument: skip space and comma.
 pub fn skip_to_option_part(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     let mut p = p.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_first_byte(p) == b',' {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         while crate::memory::cstr_first_byte(p) == b' ' {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         p.cast_mut()
     }
@@ -8583,9 +8598,9 @@ pub fn copy_option_part(
         let mut p = *option;
 
         if crate::memory::cstr_first_byte(p) == b'.' {
-            *buf.add(len) = *p;
+            *buf.wrapping_add(len) = *p;
             len += 1;
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         while !crate::memory::cstr_is_empty(p)
             && !crate::strings::vim_haschr(
@@ -8599,18 +8614,18 @@ pub fn copy_option_part(
                     crate::memory::cstr_byte_at(p, 1) as i32,
                 )
             {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             if len < maxlen - 1 {
-                *buf.add(len) = *p;
+                *buf.wrapping_add(len) = *p;
                 len += 1;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
-        *buf.add(len) = NUL;
+        *buf.wrapping_add(len) = NUL;
 
         if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b',' {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         p = skip_to_option_part(p);
 
@@ -8637,15 +8652,15 @@ pub fn option_next_keyval(
         let end = if !comma.is_null() {
             comma as *const c_char
         } else {
-            s.add(crate::memory::cstr_len(s))
+            s.wrapping_add(crate::memory::cstr_len(s))
         };
         let colon = vim_strchr(s, b':' as i32) as *const c_char;
 
         *key = s;
         if !colon.is_null() && colon < end {
             *keylen = colon.offset_from(s) as usize;
-            *val = colon.add(1);
-            *vallen = end.offset_from(colon.add(1)) as usize;
+            *val = colon.wrapping_add(1);
+            *vallen = end.offset_from(colon.wrapping_add(1)) as usize;
         } else {
             *keylen = end.offset_from(s) as usize;
             *val = ptr::null();
@@ -8653,7 +8668,7 @@ pub fn option_next_keyval(
         }
 
         *p = if !comma.is_null() {
-            (comma as *const c_char).add(1)
+            (comma as *const c_char).wrapping_add(1)
         } else {
             end
         };

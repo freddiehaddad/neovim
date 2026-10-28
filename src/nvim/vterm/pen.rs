@@ -422,7 +422,8 @@ fn lookup_colour(
         match palette {
             2 => {
                 let mut grouplen: i32 = 0;
-                while grouplen < argcount && csi_arg_has_more(*args.add(grouplen as usize)) {
+                while grouplen < argcount && csi_arg_has_more(*args.wrapping_add(grouplen as usize))
+                {
                     grouplen += 1;
                 }
                 grouplen = if grouplen < argcount {
@@ -437,9 +438,9 @@ fn lookup_colour(
                 }
 
                 col.set_rgb(
-                    csi_arg(*args.add(skip as usize)) as u8,
-                    csi_arg(*args.add((skip + 1) as usize)) as u8,
-                    csi_arg(*args.add((skip + 2) as usize)) as u8,
+                    csi_arg(*args.wrapping_add(skip as usize)) as u8,
+                    csi_arg(*args.wrapping_add((skip + 1) as usize)) as u8,
+                    csi_arg(*args.wrapping_add((skip + 2) as usize)) as u8,
                 );
 
                 skip + 3
@@ -607,7 +608,7 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount
         let mut argi: i32 = 0;
 
         while argi < argcount {
-            let arg = csi_arg(*args.add(argi as usize));
+            let arg = csi_arg(*args.wrapping_add(argi as usize));
             match arg {
                 CSI_ARG_MISSING | 0 => {
                     vterm_state_resetpen(state);
@@ -635,9 +636,9 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount
                 }
                 4 => {
                     state.pen.set_underline(VTERM_UNDERLINE_SINGLE);
-                    if csi_arg_has_more(*args.add(argi as usize)) {
+                    if csi_arg_has_more(*args.wrapping_add(argi as usize)) {
                         argi += 1;
-                        match csi_arg(*args.add(argi as usize)) {
+                        match csi_arg(*args.wrapping_add(argi as usize)) {
                             0 => state.pen.set_underline(0),
                             1 => state.pen.set_underline(VTERM_UNDERLINE_SINGLE),
                             2 => state.pen.set_underline(VTERM_UNDERLINE_DOUBLE),
@@ -715,8 +716,8 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount
                     let mut fg = state.pen.fg;
                     argi += 1 + lookup_colour(
                         state,
-                        csi_arg(*args.add((argi + 1) as usize)),
-                        args.add((argi + 2) as usize),
+                        csi_arg(*args.wrapping_add((argi + 1) as usize)),
+                        args.wrapping_add((argi + 2) as usize),
                         argcount - argi - 2,
                         &mut fg,
                     );
@@ -738,8 +739,8 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount
                     let mut bg = state.pen.bg;
                     argi += 1 + lookup_colour(
                         state,
-                        csi_arg(*args.add((argi + 1) as usize)),
-                        args.add((argi + 2) as usize),
+                        csi_arg(*args.wrapping_add((argi + 1) as usize)),
+                        args.wrapping_add((argi + 2) as usize),
                         argcount - argi - 2,
                         &mut bg,
                     );
@@ -782,7 +783,7 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount
             }
 
             loop {
-                let cur = *args.add(argi as usize);
+                let cur = *args.wrapping_add(argi as usize);
                 argi += 1;
                 if !csi_arg_has_more(cur) {
                     break;

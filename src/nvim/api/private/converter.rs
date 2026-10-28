@@ -327,10 +327,10 @@ pub fn vim_to_object(
                     }
                     *first = false;
                     while hashitem_empty(&**hi) {
-                        *hi = (*hi).add(1);
+                        *hi = (*hi).wrapping_add(1);
                     }
                     let cur_hi = *hi;
-                    *hi = (*hi).add(1);
+                    *hi = (*hi).wrapping_add(1);
                     *todo -= 1;
 
                     let di = crate::eval::typval::tv_dict_hi2di(cur_hi);

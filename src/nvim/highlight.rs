@@ -28,7 +28,7 @@ use crate::popupmenu::pum_drawn;
 use crate::strings::gettext;
 use crate::ui::ui_call_hl_attr_define;
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char};
+use std::ffi::c_char;
 use std::ptr;
 
 pub type RgbValue = i32;
@@ -818,9 +818,9 @@ pub fn hl_get_underline() -> i32 {
 
 pub fn hl_add_url(attr: i32, url: impl crate::strings::IntoCCharPtr) -> i32 {
     let url = url.into_c_char_ptr();
-    unsafe {
+    {
         let mut attrs = HLATTRS_INIT;
-        let url_cstr = CStr::from_ptr(url);
+        let url_cstr = crate::memory::cstr_from_ptr(url);
         let k = if let Some(pos) = hl_st().urls.iter().position(|u| u.as_c_str() == url_cstr) {
             pos
         } else {
@@ -851,7 +851,7 @@ pub fn hl_add_font_idx(font_name: impl crate::strings::IntoCCharPtr) -> i32 {
         if font_name.is_null() || *font_name == 0 {
             return -1;
         }
-        let font_cstr = CStr::from_ptr(font_name);
+        let font_cstr = crate::memory::cstr_from_ptr(font_name);
         if let Some(pos) = hl_st().fonts.iter().position(|f| f.as_c_str() == font_cstr) {
             return pos as i32;
         }

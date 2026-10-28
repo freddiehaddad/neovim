@@ -85,7 +85,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
                 lua_rawseti(lstate, -2, no_res);
             }
 
-            str_ = str_.add(len);
+            str_ = str_.wrapping_add(len);
             pos += len;
             capcol -= len as i32;
         }

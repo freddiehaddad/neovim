@@ -176,8 +176,9 @@ fn tf_st() -> &'static mut TextformatState {
 
 #[inline]
 fn whitechar(cc: i32) -> bool {
-    unsafe {
-        ascii_iswhite(cc) && !utf_iscomposing_first(utf_ptr2char(get_cursor_pos_ptr().add(1)))
+    {
+        ascii_iswhite(cc)
+            && !utf_iscomposing_first(utf_ptr2char(get_cursor_pos_ptr().wrapping_add(1)))
     }
 }
 
@@ -251,7 +252,7 @@ pub fn internal_format(
                     let comment_start = check_linecomment(line);
                     if comment_start != MAXCOL {
                         leader_len = get_leader_len(
-                            line.add(comment_start as usize),
+                            line.wrapping_add(comment_start as usize),
                             ptr::null_mut(),
                             false,
                             true,
@@ -572,11 +573,11 @@ fn fmt_check_par(
                 && crate::memory::cstr_first_byte(flags) != b':'
                 && *flags != COM_END
             {
-                flags = flags.add(1);
+                flags = flags.wrapping_add(1);
             }
         }
 
-        *skipwhite(ptr.add(*leader_len as usize)) == NUL
+        *skipwhite(ptr.wrapping_add(*leader_len as usize)) == NUL
             || (*leader_len > 0 && *flags == COM_END)
             || start_ps(lnum, 0, false)
     }
@@ -631,11 +632,11 @@ fn same_leader(
                         if *p2 == COM_MIDDLE {
                             return true;
                         }
-                        p2 = p2.add(1);
+                        p2 = p2.wrapping_add(1);
                     }
                     return false;
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
 
@@ -651,7 +652,7 @@ fn same_leader(
             if !ascii_iswhite(crate::memory::cstr_char_at(line2, idx2 as usize)) {
                 let c1 = line1[idx1 as usize];
                 idx1 += 1;
-                if c1 != *line2.add(idx2 as usize) {
+                if c1 != *line2.wrapping_add(idx2 as usize) {
                     break;
                 }
             } else {
@@ -753,7 +754,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             && (g_st().state_global & MODE_INSERT) != 0
         {
             let line = get_cursor_line_ptr();
-            if whitechar(*line.add((pos.col - 1) as usize) as i32) {
+            if whitechar(*line.wrapping_add((pos.col - 1) as usize) as i32) {
                 curwin_mut().w_cursor = pos;
                 return;
             }

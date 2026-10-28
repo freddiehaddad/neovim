@@ -752,7 +752,7 @@ pub fn nvim_input_mouse(
 
         let mut modmask: i32 = 0;
         for i in 0..modifier.size {
-            let byte = *modifier.data.add(i);
+            let byte = *modifier.data.wrapping_add(i);
             if byte == (b'-' as c_char) {
                 continue;
             }
@@ -3064,7 +3064,7 @@ pub fn nvim_eval_statusline(
                 put_c(&mut hl_info, c"groups", array_obj(groups));
                 add_c(&mut hl_values, dict_obj(hl_info));
 
-                sp = sp.add(1);
+                sp = sp.wrapping_add(1);
             }
             put_c(&mut result, c"highlights", array_obj(hl_values));
         }

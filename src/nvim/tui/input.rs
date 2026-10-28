@@ -334,7 +334,10 @@ fn tinput_enqueue(input: &mut TermInput, buf: impl crate::strings::IntoCCharPtr,
         let to_copy = size.min(KEY_BUFFER_SIZE - input.key_buffer_len);
         ptr::copy_nonoverlapping(
             buf,
-            input.key_buffer.as_mut_ptr().add(input.key_buffer_len),
+            input
+                .key_buffer
+                .as_mut_ptr()
+                .wrapping_add(input.key_buffer_len),
             to_copy,
         );
         input.key_buffer_len += to_copy;
@@ -396,7 +399,7 @@ fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
                 len += 1;
             }
             assert!(len < buf.len());
-            ptr = ptr.add(1);
+            ptr = ptr.wrapping_add(1);
         }
 
         tinput_enqueue(input, buf.as_ptr().cast::<c_char>(), len);
@@ -439,7 +442,11 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
                 && (b'A' as i32..=b'Z' as i32).contains(&cp)
             {
                 assert!(len + 2 < buf.len());
-                ptr::copy(buf.as_ptr().add(1), buf.as_mut_ptr().add(3), len - 1);
+                ptr::copy(
+                    buf.as_ptr().wrapping_add(1),
+                    buf.as_mut_ptr().wrapping_add(3),
+                    len - 1,
+                );
                 buf[1] = b'S' as c_char;
                 buf[2] = b'-' as c_char;
                 len += 2;
@@ -452,13 +459,13 @@ fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
         if more_len > 0 {
             assert!(len + more_len < buf.len());
             ptr::copy(
-                buf.as_ptr().add(1),
-                buf.as_mut_ptr().add(1 + more_len),
+                buf.as_ptr().wrapping_add(1),
+                buf.as_mut_ptr().wrapping_add(1 + more_len),
                 len - 1,
             );
             ptr::copy_nonoverlapping(
                 more_str.as_ptr().cast::<c_char>(),
-                buf.as_mut_ptr().add(1),
+                buf.as_mut_ptr().wrapping_add(1),
                 more_len,
             );
             len += more_len;
@@ -876,14 +883,14 @@ fn handle_raw_buffer(
     mut size: usize,
 ) -> usize {
     let data = data.into_c_char_ptr();
-    unsafe {
+    {
         let mut ptr = data;
 
         loop {
             if !force {
                 let consumed = handle_focus_event(input, ptr, size);
                 if consumed != 0 {
-                    ptr = ptr.add(consumed);
+                    ptr = ptr.wrapping_add(consumed);
                     size -= consumed;
                     if size == 0 {
                         break;
@@ -897,7 +904,7 @@ fn handle_raw_buffer(
                     assert_eq!(consumed, 0);
                     return (ptr as usize) - (data as usize);
                 } else if consumed != 0 {
-                    ptr = ptr.add(consumed);
+                    ptr = ptr.wrapping_add(consumed);
                     size -= consumed;
                     if size == 0 {
                         break;
@@ -917,7 +924,7 @@ fn handle_raw_buffer(
 
             if input.paste != 0 {
                 tinput_enqueue(input, ptr, count);
-                ptr = ptr.add(count);
+                ptr = ptr.wrapping_add(count);
                 size -= count;
                 if size == 0 {
                     break;
@@ -938,7 +945,7 @@ fn handle_raw_buffer(
 
             let consumed = termkey_push_bytes(input.tk_mut(), ptr, to_use);
             assert!(consumed <= to_use);
-            ptr = ptr.add(consumed);
+            ptr = ptr.wrapping_add(consumed);
             size -= consumed;
 
             tk_getkeys(input, false);

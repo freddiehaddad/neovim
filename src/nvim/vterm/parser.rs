@@ -225,7 +225,7 @@ pub fn vterm_input_write(
     len: usize,
 ) -> usize {
     let bytes = bytes.into_c_char_ptr();
-    unsafe {
+    {
         let mut pos: usize = 0;
         let mut string_start: *const c_char = match vt.parser.state {
             OSC | DCS_VTERM | APC | PM | SOS => bytes,
@@ -242,11 +242,11 @@ pub fn vterm_input_write(
                     string_fragment(
                         vt,
                         string_start,
-                        (bytes.add(pos) as usize).wrapping_sub(string_start as usize),
+                        (bytes.wrapping_add(pos) as usize).wrapping_sub(string_start as usize),
                         false,
                         VTERM_TERMINATOR_ST,
                     );
-                    string_start = bytes.add(pos + 1);
+                    string_start = bytes.wrapping_add(pos + 1);
                 }
                 if vt.parser.emit_nul {
                     do_control(vt, c);
@@ -285,20 +285,21 @@ pub fn vterm_input_write(
                     string_fragment(
                         vt,
                         string_start,
-                        (bytes.add(pos) as usize).wrapping_sub(string_start as usize),
+                        (bytes.wrapping_add(pos) as usize).wrapping_sub(string_start as usize),
                         false,
                         VTERM_TERMINATOR_ST,
                     );
                 }
                 do_control(vt, c);
                 if is_string_state(vt.parser.state) {
-                    string_start = bytes.add(pos + 1);
+                    string_start = bytes.wrapping_add(pos + 1);
                 }
                 pos += 1;
                 continue;
             }
 
-            let mut string_len = (bytes.add(pos) as usize).wrapping_sub(string_start as usize);
+            let mut string_len =
+                (bytes.wrapping_add(pos) as usize).wrapping_sub(string_start as usize);
 
             if vt.parser.in_esc != 0 {
                 if vt.parser.intermedlen == 0
@@ -391,11 +392,11 @@ pub fn vterm_input_write(
                     }
                     if c == b';' {
                         vt.parser.state = OSC;
-                        string_start = bytes.add(pos + 1);
+                        string_start = bytes.wrapping_add(pos + 1);
                         break 'state_machine;
                     }
 
-                    string_start = bytes.add(pos);
+                    string_start = bytes.wrapping_add(pos);
                     string_len = 0;
                     vt.parser.state = OSC;
                     // Fall through to string_state
@@ -409,7 +410,7 @@ pub fn vterm_input_write(
                     }
 
                     if (0x40..=0x7e).contains(&c) {
-                        string_start = bytes.add(pos + 1);
+                        string_start = bytes.wrapping_add(pos + 1);
                         vt.parser.state = DCS_VTERM;
                     }
                     break 'state_machine;
@@ -462,7 +463,7 @@ pub fn vterm_input_write(
                                     // SOS
                                     vt.parser.string_initial = true;
                                     vt.parser.state = SOS;
-                                    string_start = bytes.add(pos + 1);
+                                    string_start = bytes.wrapping_add(pos + 1);
                                 }
                                 0x9b => {
                                     // CSI
@@ -481,13 +482,13 @@ pub fn vterm_input_write(
                                     // PM
                                     vt.parser.string_initial = true;
                                     vt.parser.state = PM;
-                                    string_start = bytes.add(pos + 1);
+                                    string_start = bytes.wrapping_add(pos + 1);
                                 }
                                 0x9f => {
                                     // APC
                                     vt.parser.string_initial = true;
                                     vt.parser.state = APC;
-                                    string_start = bytes.add(pos + 1);
+                                    string_start = bytes.wrapping_add(pos + 1);
                                 }
                                 _ => {
                                     do_control(vt, c);
@@ -498,7 +499,8 @@ pub fn vterm_input_write(
                             if let Some(callbacks) = vt.parser.callbacks
                                 && let Some(cb) = callbacks.text
                             {
-                                eaten = cb(bytes.add(pos), len - pos, vt.state_mut_ptr()) as usize;
+                                eaten = cb(bytes.wrapping_add(pos), len - pos, vt.state_mut_ptr())
+                                    as usize;
                             }
 
                             if eaten == 0 {
@@ -516,7 +518,8 @@ pub fn vterm_input_write(
         }
 
         if !string_start.is_null() {
-            let mut string_len = (bytes.add(pos) as usize).wrapping_sub(string_start as usize);
+            let mut string_len =
+                (bytes.wrapping_add(pos) as usize).wrapping_sub(string_start as usize);
             if string_len > 0 {
                 if vt.parser.in_esc != 0 {
                     string_len -= 1;

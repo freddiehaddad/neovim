@@ -1209,7 +1209,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
                 curbuf_mut().b_ffname,
                 curbuf_mut()
                     .b_ffname
-                    .add(crate::memory::cstr_len(curbuf_mut().b_ffname)),
+                    .wrapping_add(crate::memory::cstr_len(curbuf_mut().b_ffname)),
             ) != 0
             && augroup_exists(c"filetypedetect")
         {
@@ -3175,7 +3175,7 @@ pub fn buflist_findpat(
     unsafe {
         let mut match_fnum = -1;
 
-        if pattern_end == pattern.add(1)
+        if pattern_end == pattern.wrapping_add(1)
             && (crate::memory::cstr_first_byte(pattern) == b'%'
                 || crate::memory::cstr_first_byte(pattern) == b'#')
         {
@@ -3199,7 +3199,7 @@ pub fn buflist_findpat(
                 .map(|b| b as c_char)
                 .collect();
             let pat = pat_vec.as_mut_ptr();
-            let patend = pat.add(crate::memory::cstr_len(pat).saturating_sub(1));
+            let patend = pat.wrapping_add(crate::memory::cstr_len(pat).saturating_sub(1));
             let toggledollar = patend > pat && crate::memory::cstr_first_byte(patend) == b'$';
 
             let mut find_listed = 1;
@@ -3210,7 +3210,7 @@ pub fn buflist_findpat(
                     }
                     let mut p = pat;
                     if crate::memory::cstr_first_byte(p) == b'^' && (attempt & 1) == 0 {
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                     }
 
                     let mut regmatch: Regmatch = Regmatch::new();
@@ -3298,7 +3298,7 @@ pub fn expand_bufnames(
             let patc: *const c_char = if crate::memory::cstr_first_byte(pat) == b'^'
                 && crate::memory::cstr_byte_at(pat, 1) != 0
             {
-                let pc = cstr_to_cstring(pat.add(1));
+                let pc = cstr_to_cstring(pat.wrapping_add(1));
                 let ptr = pc.as_ptr();
                 patc_owned = Some(pc);
                 ptr
@@ -3761,7 +3761,7 @@ pub fn buflist_list(eap: &mut Exarg) {
 
             let mut i = 40 - vim_strsize(iobuff_ptr);
             loop {
-                *iobuff_ptr.add(len) = b' ' as c_char;
+                *iobuff_ptr.wrapping_add(len) = b' ' as c_char;
                 len += 1;
                 i -= 1;
                 if i <= 0 || len >= IOSIZE - 18 {
@@ -3769,10 +3769,10 @@ pub fn buflist_list(eap: &mut Exarg) {
                 }
             }
             if crate::strings::vim_haschr(eap.arg, b't' as i32) && buf.b_last_used != 0 {
-                undo_fmt_time(iobuff_ptr.add(len), IOSIZE - len, buf.b_last_used);
+                undo_fmt_time(iobuff_ptr.wrapping_add(len), IOSIZE - len, buf.b_last_used);
             } else {
                 vim_snprintf!(
-                    iobuff_ptr.add(len),
+                    iobuff_ptr.wrapping_add(len),
                     IOSIZE - len,
                     gettext(c"line %lld"),
                     if std::ptr::eq(buf, g_st().curbuf) {
@@ -4025,13 +4025,17 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             bufferlen = vim_snprintf_safelen!(buffer, IOSIZE, c"buf %d: ", curbuf_mut().b_fnum);
         }
 
-        *buffer.add(bufferlen) = b'"' as c_char;
+        *buffer.wrapping_add(bufferlen) = b'"' as c_char;
         bufferlen += 1;
 
         let mut name = buf_spname(&*(g_st().curbuf));
         if !name.is_null() {
-            bufferlen +=
-                vim_snprintf_safelen!(buffer.add(bufferlen), IOSIZE - bufferlen, c"%s", name,);
+            bufferlen += vim_snprintf_safelen!(
+                buffer.wrapping_add(bufferlen),
+                IOSIZE - bufferlen,
+                c"%s",
+                name,
+            );
         } else {
             name = if fullname == 0 && !curbuf_mut().b_fname.is_null() {
                 curbuf_mut().b_fname
@@ -4046,7 +4050,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
                 })
                 .as_ref(),
                 name,
-                buffer.add(bufferlen),
+                buffer.wrapping_add(bufferlen),
                 IOSIZE - bufferlen,
                 true,
             );
@@ -4097,7 +4101,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         };
 
         bufferlen += vim_snprintf_safelen!(
-            buffer.add(bufferlen),
+            buffer.wrapping_add(bufferlen),
             IOSIZE - bufferlen,
             c"\"%s%s%s%s%s%s",
             mod_str,
@@ -4112,14 +4116,14 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         let cur_lnum = i64::from(curwin_mut().w_cursor.lnum);
         if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
             bufferlen += vim_snprintf_safelen!(
-                buffer.add(bufferlen),
+                buffer.wrapping_add(bufferlen),
                 IOSIZE - bufferlen,
                 c"%s",
                 gettext(NO_LINES_MSG),
             );
         } else if opt_vars().p_ru != 0 {
             bufferlen += vim_snprintf_safelen!(
-                buffer.add(bufferlen),
+                buffer.wrapping_add(bufferlen),
                 IOSIZE - bufferlen,
                 ngettext(
                     c"%lld line --%d%%--",
@@ -4131,7 +4135,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             );
         } else {
             bufferlen += vim_snprintf_safelen!(
-                buffer.add(bufferlen),
+                buffer.wrapping_add(bufferlen),
                 IOSIZE - bufferlen,
                 gettext(c"line %lld of %lld --%d%%-- col "),
                 cur_lnum,
@@ -4140,14 +4144,18 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             );
             validate_virtcol(curwin_mut());
             bufferlen += col_print(
-                buffer.add(bufferlen),
+                buffer.wrapping_add(bufferlen),
                 IOSIZE - bufferlen,
                 curwin_mut().w_cursor.col + 1,
                 curwin_mut().w_virtcol + 1,
             ) as usize;
         }
 
-        append_arg_number(curwin_mut(), buffer.add(bufferlen), IOSIZE - bufferlen);
+        append_arg_number(
+            curwin_mut(),
+            buffer.wrapping_add(bufferlen),
+            IOSIZE - bufferlen,
+        );
 
         if dont_truncate {
             msg_start();
@@ -4284,8 +4292,9 @@ pub fn maketitle() {
                 let mut namelen = crate::memory::cstr_len(name) as i32;
                 if namelen > 100 {
                     namelen -= 100;
-                    namelen += i32::from(utf_cp_bounds(name, name.add(namelen as usize)).end_off);
-                    name = name.add(namelen as usize);
+                    namelen +=
+                        i32::from(utf_cp_bounds(name, name.wrapping_add(namelen as usize)).end_off);
+                    name = name.wrapping_add(namelen as usize);
                 }
                 crate::memory::cstr_cpy(buf.as_mut_ptr(), name);
                 trans_characters(buf.as_mut_ptr(), IOSIZE as i32);
@@ -4429,8 +4438,8 @@ pub fn fname_expand(
             let name = name_vec.as_mut_ptr();
             let name_len = name_vec.len() - 1;
             if name_len > 0
-                && after_pathsep(name, name.add(name_len)) != 0
-                && name.add(name_len) > get_past_head(name)
+                && after_pathsep(name, name.wrapping_add(name_len)) != 0
+                && name.wrapping_add(name_len) > get_past_head(name)
             {
                 *path_tail_with_sep(name) = NUL;
             }
@@ -4692,7 +4701,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
 
         let mut prev: i32 = -1;
         let mut s = ml_get(lnum);
-        let mut line_end = s.add(ml_get_len(lnum) as usize);
+        let mut line_end = s.wrapping_add(ml_get_len(lnum) as usize);
         while !crate::memory::cstr_is_empty(s) {
             if prev == -1 || ascii_isspace(prev) {
                 if (prev != -1 && (crate::memory::cstr_prefix_bytes(s, 3) == &b"ex:"[..3]))
@@ -4705,23 +4714,23 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                     && crate::memory::cstr_byte_at(s, 1) == b'i'
                     && crate::memory::cstr_byte_at(s, 2) == b'm'
                 {
-                    let s3 = *s.add(3);
+                    let s3 = *s.wrapping_add(3);
                     if s3 == b'<' as c_char || s3 == b'=' as c_char || s3 == b'>' as c_char {
-                        e = s.add(4);
+                        e = s.wrapping_add(4);
                     } else {
-                        e = s.add(3);
+                        e = s.wrapping_add(3);
                     }
                     let mut vers: i64 = 0;
                     if !try_getdigits(&raw mut e, &mut vers) {
                         prev = crate::memory::cstr_first_byte(s) as i32;
-                        s = s.add(1);
+                        s = s.wrapping_add(1);
                         continue;
                     }
 
                     let vim_version = i64::from(min_vim_version());
                     if crate::memory::cstr_first_byte(e) == b':'
                         && (crate::memory::cstr_first_byte(s) != b'V'
-                            || (crate::memory::cstr_prefix_bytes(skipwhite(e.add(1)), 3)
+                            || (crate::memory::cstr_prefix_bytes(skipwhite(e.wrapping_add(1)), 3)
                                 == &b"set"[..3]))
                         && (s3 == b':' as c_char
                             || (vim_version >= vers && (s3 as u8).is_ascii_digit())
@@ -4734,7 +4743,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                 }
             }
             prev = crate::memory::cstr_first_byte(s) as i32;
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
 
         if crate::memory::cstr_is_empty(s) {
@@ -4742,8 +4751,8 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
         }
 
         loop {
-            s = s.add(1);
-            if *s.sub(1) == b':' as c_char {
+            s = s.wrapping_add(1);
+            if *s.wrapping_sub(1) == b':' as c_char {
                 break;
             }
         }
@@ -4756,7 +4765,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
             .map(|b| b as c_char)
             .collect();
         s = linecopy_vec.as_mut_ptr();
-        line_end = s.add(linecopy_vec.len() - 1);
+        line_end = s.wrapping_add(linecopy_vec.len() - 1);
 
         estack_push(ETYPE_MODELINE, c"modelines", lnum);
 
@@ -4772,10 +4781,14 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                 if crate::memory::cstr_first_byte(e) == b'\\'
                     && crate::memory::cstr_byte_at(e, 1) == b':'
                 {
-                    ptr::copy(e.add(1), e, line_end.offset_from(e.add(1)) as usize + 1);
-                    line_end = line_end.sub(1);
+                    ptr::copy(
+                        e.wrapping_add(1),
+                        e,
+                        line_end.offset_from(e.wrapping_add(1)) as usize + 1,
+                    );
+                    line_end = line_end.wrapping_sub(1);
                 }
-                e = e.add(1);
+                e = e.wrapping_add(1);
             }
             if crate::memory::cstr_is_empty(e) {
                 end = true;
@@ -4788,7 +4801,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                     break;
                 }
                 end = true;
-                s = s.add(if crate::memory::cstr_byte_at(s, 2) == b' ' {
+                s = s.wrapping_add(if crate::memory::cstr_byte_at(s, 2) == b' ' {
                     3
                 } else {
                     4
@@ -4812,7 +4825,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
                     break;
                 }
             }
-            s = if e == line_end { e } else { e.add(1) };
+            s = if e == line_end { e } else { e.wrapping_add(1) };
         }
 
         estack_pop();
@@ -5100,18 +5113,18 @@ pub fn read_buffer_into(
         loop {
             if lplen == 0 {
                 len = 0;
-            } else if *lp.add(written) == NL {
+            } else if *lp.wrapping_add(written) == NL {
                 len = 1;
                 sb.push(NUL);
             } else {
-                let s = vim_strchr(lp.add(written), NL as i32);
+                let s = vim_strchr(lp.wrapping_add(written), NL as i32);
                 len = if s.is_null() {
                     lplen - written
                 } else {
-                    s.offset_from(lp.add(written)) as usize
+                    s.offset_from(lp.wrapping_add(written)) as usize
                 };
                 if len > 0 {
-                    sb.extend_from_slice(std::slice::from_raw_parts(lp.add(written), len));
+                    sb.extend_from_slice(std::slice::from_raw_parts(lp.wrapping_add(written), len));
                 }
             }
 

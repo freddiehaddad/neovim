@@ -825,8 +825,8 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
             let mut row = wp.w_wrow;
             let mut col = wp.w_wcol;
             if wp.w_onebuf_opt.wo_rl != 0 {
-                let cursor =
-                    ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum).add(wp.w_cursor.col as usize);
+                let cursor = ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum)
+                    .wrapping_add(wp.w_cursor.col as usize);
                 let wide = utf_ptr2cells(cursor) == 2 && vim_isprintc(utf_ptr2char(cursor));
                 col = wp.w_view_width - wp.w_wcol - if wide { 2 } else { 1 };
             }

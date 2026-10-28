@@ -403,8 +403,8 @@ fn json_append_string_contents(
 
         let escape_table = ctx.opts_mut().char2escape;
         for i in 0..len {
-            let ch = *str_ptr.add(i);
-            let escstr = *escape_table.add((ch as u8) as usize);
+            let ch = *str_ptr.wrapping_add(i);
+            let escstr = *escape_table.wrapping_add((ch as u8) as usize);
             if !escstr.is_null() {
                 strbuf_append_string(json, escstr);
             } else {
@@ -554,11 +554,11 @@ fn json_append_number(l: *mut lua_State, ctx: &mut JsonEncode, lindex: i32, use_
 fn cmp_key_entries(ka: &KeyEntry, kb: &KeyEntry) -> std::cmp::Ordering {
     unsafe {
         let a = std::slice::from_raw_parts(
-            (*ka.buf).buf.as_ptr().add(ka.offset).cast::<u8>(),
+            (*ka.buf).buf.as_ptr().wrapping_add(ka.offset).cast::<u8>(),
             ka.length,
         );
         let b = std::slice::from_raw_parts(
-            (*kb.buf).buf.as_ptr().add(kb.offset).cast::<u8>(),
+            (*kb.buf).buf.as_ptr().wrapping_add(kb.offset).cast::<u8>(),
             kb.length,
         );
         a.cmp(b)
@@ -626,7 +626,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
                 strbuf_append_char_unsafe(json, b'"' as c_char);
                 strbuf_append_mem_unsafe(
                     json,
-                    keybuf.buf.buf.as_ptr().add(current_key.offset),
+                    keybuf.buf.buf.as_ptr().wrapping_add(current_key.offset),
                     current_key.length,
                 );
                 strbuf_append_mem_unsafe(json, c"\":", 2);
@@ -896,7 +896,7 @@ fn decode_hex4(hex: *const c_char) -> i32 {
     let mut digit = [0_i32; 4];
     unsafe {
         for (i, d) in digit.iter_mut().enumerate() {
-            *d = hexdigit2int(*hex.add(i) as u8);
+            *d = hexdigit2int(*hex.wrapping_add(i) as u8);
             if *d < 0 {
                 return -1;
             }
@@ -936,7 +936,7 @@ fn json_append_unicode_escape(json: &mut JsonParse) -> i32 {
     let mut escape_len: usize = 6;
 
     unsafe {
-        let mut codepoint = decode_hex4(json.ptr.add(2));
+        let mut codepoint = decode_hex4(json.ptr.wrapping_add(2));
         if codepoint < 0 {
             return -1;
         }
@@ -945,13 +945,13 @@ fn json_append_unicode_escape(json: &mut JsonParse) -> i32 {
             if (codepoint & 0x400) != 0 {
                 return -1;
             }
-            if *json.ptr.add(escape_len) != b'\\' as c_char
-                || *json.ptr.add(escape_len + 1) != b'u' as c_char
+            if *json.ptr.wrapping_add(escape_len) != b'\\' as c_char
+                || *json.ptr.wrapping_add(escape_len + 1) != b'u' as c_char
             {
                 return -1;
             }
 
-            let mut surrogate_low = decode_hex4(json.ptr.add(2 + escape_len));
+            let mut surrogate_low = decode_hex4(json.ptr.wrapping_add(2 + escape_len));
             if surrogate_low < 0 {
                 return -1;
             }
@@ -971,7 +971,7 @@ fn json_append_unicode_escape(json: &mut JsonParse) -> i32 {
         }
 
         strbuf_append_mem_unsafe(&mut *json.tmp, utf8.as_ptr().cast::<c_char>(), len);
-        json.ptr = json.ptr.add(escape_len);
+        json.ptr = json.ptr.wrapping_add(escape_len);
     }
 
     0
@@ -989,7 +989,7 @@ fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
     unsafe {
         debug_assert_eq!(*json.ptr, b'"' as c_char);
 
-        json.ptr = json.ptr.add(1);
+        json.ptr = json.ptr.wrapping_add(1);
         strbuf_reset(&mut *json.tmp);
 
         loop {
@@ -1003,7 +1003,7 @@ fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
             }
 
             if ch == b'\\' as c_char {
-                ch = *json.ptr.add(1);
+                ch = *json.ptr.wrapping_add(1);
                 ch = ESCAPE2CHAR[(ch as u8) as usize];
                 if ch == b'u' as c_char {
                     if json_append_unicode_escape(json) == 0 {
@@ -1016,13 +1016,13 @@ fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
                     json_set_token_error(token, json, c"invalid escape code");
                     return;
                 }
-                json.ptr = json.ptr.add(1);
+                json.ptr = json.ptr.wrapping_add(1);
             }
 
             strbuf_append_char_unsafe(&mut *json.tmp, ch);
-            json.ptr = json.ptr.add(1);
+            json.ptr = json.ptr.wrapping_add(1);
         }
-        json.ptr = json.ptr.add(1);
+        json.ptr = json.ptr.wrapping_add(1);
 
         strbuf_ensure_null(&mut *json.tmp);
 
@@ -1038,11 +1038,11 @@ fn starts_with_ignore_ascii_case_3(p: *const c_char, target: &[u8; 3]) -> bool {
         if b0 == 0 || (b0 | 0x20) != target[0] {
             return false;
         }
-        let b1 = *p.add(1) as u8;
+        let b1 = *p.wrapping_add(1) as u8;
         if b1 == 0 || (b1 | 0x20) != target[1] {
             return false;
         }
-        let b2 = *p.add(2) as u8;
+        let b2 = *p.wrapping_add(2) as u8;
         b2 != 0 && (b2 | 0x20) == target[2]
     }
 }
@@ -1054,10 +1054,10 @@ fn json_is_invalid_number(json: &JsonParse) -> bool {
             return true;
         }
         if *p == b'-' as c_char {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         if *p == b'0' as c_char {
-            let ch2 = *p.add(1) as u8;
+            let ch2 = *p.wrapping_add(1) as u8;
             if (ch2 | 0x20) == b'x' || ch2.is_ascii_digit() {
                 return true;
             }
@@ -1078,14 +1078,14 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
     unsafe {
         let mut s = json.ptr;
         while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         let neg = if *s == b'-' as c_char {
-            s = s.add(1);
+            s = s.wrapping_add(1);
             true
         } else {
             if *s == b'+' as c_char {
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
             false
         };
@@ -1109,7 +1109,7 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
                     overflow = true;
                 }
             }
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         let mut endptr: *mut c_char = if any {
             s.cast_mut()
@@ -1158,7 +1158,7 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
                 if token.r#type != TWhitespace {
                     break;
                 }
-                json.ptr = json.ptr.add(1);
+                json.ptr = json.ptr.wrapping_add(1);
             }
 
             if !(*json.options).skip_comments {
@@ -1169,28 +1169,28 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
             if c0 != b'/' {
                 break;
             }
-            let c1 = *json.ptr.add(1) as u8;
+            let c1 = *json.ptr.wrapping_add(1) as u8;
             if c1 != b'/' && c1 != b'*' {
                 break;
             }
 
             if c1 == b'/' {
-                json.ptr = json.ptr.add(2);
+                json.ptr = json.ptr.wrapping_add(2);
                 while *json.ptr != 0 && *json.ptr != b'\n' as c_char {
-                    json.ptr = json.ptr.add(1);
+                    json.ptr = json.ptr.wrapping_add(1);
                 }
             } else {
-                json.ptr = json.ptr.add(2);
+                json.ptr = json.ptr.wrapping_add(2);
                 loop {
                     if *json.ptr == 0 {
                         json_set_token_error(token, json, c"unclosed multi-line comment");
                         return;
                     }
-                    if *json.ptr == b'*' as c_char && *json.ptr.add(1) == b'/' as c_char {
-                        json.ptr = json.ptr.add(2);
+                    if *json.ptr == b'*' as c_char && *json.ptr.wrapping_add(1) == b'/' as c_char {
+                        json.ptr = json.ptr.wrapping_add(2);
                         break;
                     }
-                    json.ptr = json.ptr.add(1);
+                    json.ptr = json.ptr.wrapping_add(1);
                 }
             }
         }
@@ -1207,7 +1207,7 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
         }
 
         if token.r#type != TUnknown {
-            json.ptr = json.ptr.add(1);
+            json.ptr = json.ptr.wrapping_add(1);
             return;
         }
 
@@ -1221,16 +1221,16 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
         } else if crate::memory::cstr_prefix_bytes(json.ptr, 4) == &b"true"[..4] {
             token.r#type = TBoolean;
             token.value = JsonTokenValue::Boolean(1);
-            json.ptr = json.ptr.add(4);
+            json.ptr = json.ptr.wrapping_add(4);
             return;
         } else if crate::memory::cstr_prefix_bytes(json.ptr, 5) == &b"false"[..5] {
             token.r#type = TBoolean;
             token.value = JsonTokenValue::Boolean(0);
-            json.ptr = json.ptr.add(5);
+            json.ptr = json.ptr.wrapping_add(5);
             return;
         } else if crate::memory::cstr_prefix_bytes(json.ptr, 4) == &b"null"[..4] {
             token.r#type = TNull;
-            json.ptr = json.ptr.add(4);
+            json.ptr = json.ptr.wrapping_add(4);
             return;
         } else if json_is_invalid_number(json) {
             json_next_number_token(json, token);
@@ -1456,7 +1456,7 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> i32 {
             current_depth: 0,
         };
 
-        if json_len >= 2 && (*json.data == 0 || *json.data.add(1) == 0) {
+        if json_len >= 2 && (*json.data == 0 || *json.data.wrapping_add(1) == 0) {
             luaL_error(l, c"JSON parser does not support UTF-16 or UTF-32".as_ptr());
         }
 

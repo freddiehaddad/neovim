@@ -1,6 +1,6 @@
 //! API argument validation helpers (`src/nvim/api/private/validate.c`).
 
-use std::ffi::{CStr, c_char};
+use std::ffi::c_char;
 
 use crate::memory::realloc_items;
 
@@ -156,7 +156,7 @@ impl Array {
     #[inline]
     pub fn next_slot_mut(&mut self) -> &'static mut Object {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.add(self.size) }
+        unsafe { &mut *self.items.wrapping_add(self.size) }
     }
 
     #[inline]
@@ -170,7 +170,7 @@ impl Array {
             self.items = realloc_items(self.items, self.capacity);
         }
         unsafe {
-            std::ptr::write(self.items.add(self.size), value);
+            std::ptr::write(self.items.wrapping_add(self.size), value);
         }
         self.size += 1;
     }
@@ -182,7 +182,7 @@ impl std::ops::Index<usize> for Array {
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &*self.items.add(index) }
+        unsafe { &*self.items.wrapping_add(index) }
     }
 }
 
@@ -190,7 +190,7 @@ impl std::ops::IndexMut<usize> for Array {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.add(index) }
+        unsafe { &mut *self.items.wrapping_add(index) }
     }
 }
 
@@ -240,7 +240,7 @@ impl Dict {
     #[inline]
     pub fn next_slot_mut(&mut self) -> &'static mut KeyValuePair {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.add(self.size) }
+        unsafe { &mut *self.items.wrapping_add(self.size) }
     }
 
     #[inline]
@@ -254,7 +254,7 @@ impl Dict {
             self.items = realloc_items(self.items, self.capacity);
         }
         unsafe {
-            std::ptr::write(self.items.add(self.size), value);
+            std::ptr::write(self.items.wrapping_add(self.size), value);
         }
         self.size += 1;
     }
@@ -266,7 +266,7 @@ impl std::ops::Index<usize> for Dict {
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &*self.items.add(index) }
+        unsafe { &*self.items.wrapping_add(index) }
     }
 }
 
@@ -274,7 +274,7 @@ impl std::ops::IndexMut<usize> for Dict {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.add(index) }
+        unsafe { &mut *self.items.wrapping_add(index) }
     }
 }
 
@@ -453,7 +453,7 @@ fn set_error_str(err: &mut Error, err_type: ErrorType, msg: &str) {
 
 #[inline]
 fn cstr_lossy<'a>(ptr: *const c_char) -> std::borrow::Cow<'a, str> {
-    unsafe { CStr::from_ptr(ptr).to_string_lossy() }
+    crate::memory::cstr_from_ptr(ptr).to_string_lossy()
 }
 
 /// Create `"Invalid …"` validation message on `err` (`api_err_invalid`).
@@ -587,7 +587,7 @@ pub fn check_string_array(
     let name = name.into_c_char_ptr().cast_mut();
     let name_str = cstr_lossy(name);
     for i in 0..arr.size {
-        let item = unsafe { &*arr.items.add(i) };
+        let item = unsafe { &*arr.items.wrapping_add(i) };
         if item.obj_type != ObjectType::ObjectTypeString {
             let msg = format!(
                 "Invalid '{name_str}' item: expected String, got {}",

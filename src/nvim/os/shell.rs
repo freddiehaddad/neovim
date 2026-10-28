@@ -643,7 +643,7 @@ pub fn shell_build_argv(
 
 /// Joins shell arguments from `argv` into a fixed 256-byte string buffer.
 pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
-    unsafe {
+    {
         let mut n: usize = 0;
         let maxsize: usize = 256;
         let mut rv: [c_char; 256] = [0; 256];
@@ -656,19 +656,19 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
                 let _dst: *mut c_char = rv_ptr;
                 let _dsize: usize = maxsize;
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), c"'", _dsize - _dlen);
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"'", _dsize - _dlen);
             };
             {
                 let _dst: *mut c_char = rv_ptr;
                 let _dsize: usize = maxsize;
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), arg.as_ptr(), _dsize - _dlen);
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), arg.as_ptr(), _dsize - _dlen);
             };
             n = {
                 let _dst: *mut c_char = rv_ptr;
                 let _dsize: usize = maxsize;
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), c"' ", _dsize - _dlen) + _dlen
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"' ", _dsize - _dlen) + _dlen
             };
             if n >= maxsize {
                 break;
@@ -1099,15 +1099,15 @@ fn out_data_ring(output: impl crate::strings::IntoCCharPtr, size: usize) {
 
         if size >= MAX_CHUNK_SIZE {
             let start = size - MAX_CHUNK_SIZE;
-            ptr::copy_nonoverlapping(output.add(start), ring_ptr, MAX_CHUNK_SIZE);
+            ptr::copy_nonoverlapping(output.wrapping_add(start), ring_ptr, MAX_CHUNK_SIZE);
             sh_st().last_skipped_len = MAX_CHUNK_SIZE;
         } else if size > 0 {
             let keep_len = sh_st().last_skipped_len.min(MAX_CHUNK_SIZE - size);
             let keep_start = sh_st().last_skipped_len - keep_len;
             if keep_start != 0 {
-                ptr::copy(ring_ptr.add(keep_start), ring_ptr, keep_len);
+                ptr::copy(ring_ptr.wrapping_add(keep_start), ring_ptr, keep_len);
             }
-            ptr::copy_nonoverlapping(output, ring_ptr.add(keep_len), size);
+            ptr::copy_nonoverlapping(output, ring_ptr.wrapping_add(keep_len), size);
             sh_st().last_skipped_len = keep_len + size;
         }
     }
@@ -1141,7 +1141,7 @@ fn out_data_append_to_screen(
     let output = output.into_c_char_ptr();
     unsafe {
         let mut p = output;
-        let end = output.add(*count);
+        let end = output.wrapping_add(*count);
         while (p as usize) < (end as usize) {
             let off = (p as usize).wrapping_sub(output as usize);
             let i = if !crate::memory::cstr_is_empty(p) {
@@ -1157,7 +1157,7 @@ fn out_data_append_to_screen(
                 *count = off;
                 break;
             }
-            p = p.add(i as usize);
+            p = p.wrapping_add(i as usize);
         }
 
         let str_copy = std::slice::from_raw_parts(output, *count).to_vec();
@@ -1188,13 +1188,13 @@ pub(crate) fn out_data_cb(
 
 fn tokenize(str_in: impl crate::strings::IntoCCharPtr, argv: &mut Vec<std::ffi::CString>) {
     let str_in = str_in.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = str_in;
 
         while !crate::memory::cstr_is_empty(p) {
             let len = word_length(p);
             argv.push(vim_strnsave_unquoted(crate::memory::cstr_slice(p, len)));
-            p = skipwhite(p.add(len));
+            p = skipwhite(p.wrapping_add(len));
         }
     }
 }
@@ -1212,11 +1212,11 @@ pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
             if crate::memory::cstr_first_byte(p) == b'"' {
                 inquote = !inquote;
             } else if crate::memory::cstr_first_byte(p) == b'\\' && inquote {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 length += 1;
             }
 
-            p = p.add(1);
+            p = p.wrapping_add(1);
             length += 1;
         }
 
@@ -1243,36 +1243,36 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
         let start = output;
         let mut off: usize = 0;
         while off < remaining {
-            if *output.add(off) == CAR
+            if *output.wrapping_add(off) == CAR
                 && off + 1 < remaining
-                && *output.add(off + 1) == NL
+                && *output.wrapping_add(off + 1) == NL
                 && curbuf_mut().b_p_bin == 0
             {
-                *output.add(off) = NUL;
+                *output.wrapping_add(off) = NUL;
                 let lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
                 ml_append(lnum, output, off as i32 + 1, false);
                 let skip = off + 2;
-                output = output.add(skip);
+                output = output.wrapping_add(skip);
                 remaining -= skip;
                 off = 0;
                 continue;
-            } else if (*output.add(off) == CAR && curbuf_mut().b_p_bin == 0)
-                || *output.add(off) == NL
+            } else if (*output.wrapping_add(off) == CAR && curbuf_mut().b_p_bin == 0)
+                || *output.wrapping_add(off) == NL
             {
-                *output.add(off) = NUL;
+                *output.wrapping_add(off) = NUL;
                 let lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
                 ml_append(lnum, output, off as i32 + 1, false);
                 let skip = off + 1;
-                output = output.add(skip);
+                output = output.wrapping_add(skip);
                 remaining -= skip;
                 off = 0;
                 continue;
             }
 
             if crate::memory::cstr_byte_at(output, off) == 0 {
-                *output.add(off) = NL;
+                *output.wrapping_add(off) = NL;
             }
             off += 1;
         }
@@ -1283,7 +1283,7 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
                 curwin_mut().w_cursor.lnum += 1;
                 ml_append(lnum, output, 0, false);
                 curbuf_mut().b_no_eol_lnum = curwin_mut().w_cursor.lnum;
-                output = output.add(remaining);
+                output = output.wrapping_add(remaining);
             } else {
                 curbuf_mut().b_no_eol_lnum = 0;
             }
@@ -1351,7 +1351,6 @@ fn shell_xescape_xquote(cmd: impl crate::strings::IntoCCharPtr) -> std::ffi::CSt
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn word_length_handles_quotes_and_escaped_chars() {
@@ -1362,7 +1361,7 @@ mod tests {
 
     #[test]
     fn shell_build_argv_and_argv_to_str() {
-        unsafe {
+        {
             let save_sh = opt_vars().p_sh;
             let save_shcf = opt_vars().p_shcf;
             let save_sxq = opt_vars().p_sxq;
@@ -1435,7 +1434,7 @@ mod tests {
             let argv_arr = [c"foo".to_owned(), c"".to_owned(), c"bar".to_owned()];
             let s = shell_argv_to_str(&argv_arr);
             assert_eq!(
-                CStr::from_ptr(s.as_ptr()).to_str().unwrap(),
+                crate::memory::cstr_from_ptr(s.as_ptr()).to_str().unwrap(),
                 "'foo' '' 'bar'"
             );
 

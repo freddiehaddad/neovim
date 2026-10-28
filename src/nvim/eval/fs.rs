@@ -162,7 +162,7 @@ pub fn modify_fname(
                     {
                         break;
                     }
-                    p = p.add(utfc_ptr2len(p) as usize);
+                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 }
 
                 // FullName_save() is slow, don't use it when not needed.
@@ -248,12 +248,12 @@ pub fn modify_fname(
                         // Do not call shorten_fname() here since it removes the prefix
                         // even though the path does not have a prefix.
                         if path_cmp(opt_vars().p_fic != 0, p, dirname.as_ptr(), dirnamelen) == 0 {
-                            p = p.add(dirnamelen);
+                            p = p.wrapping_add(dirnamelen);
                             if vim_ispathsep(crate::memory::cstr_first_byte(p) as i32) {
                                 while !crate::memory::cstr_is_empty(p)
                                     && vim_ispathsep(crate::memory::cstr_first_byte(p) as i32)
                                 {
-                                    p = p.add(1);
+                                    p = p.wrapping_add(1);
                                 }
                                 *fnamep = p;
                                 if let Some(pb) = pbuf.take() {
@@ -280,8 +280,8 @@ pub fn modify_fname(
             if crate::memory::cstr_byte_at(src, *usedlen) == b':'
                 && crate::memory::cstr_byte_at(src, *usedlen + 1) == b'h'
             {
-                s = (*fnamep).add(file_info.rest_off);
-                *fnamep = (*fnamep).add(file_info.prefix_off);
+                s = (*fnamep).wrapping_add(file_info.rest_off);
+                *fnamep = (*fnamep).wrapping_add(file_info.prefix_off);
             }
 
             let mut tail = path_tail(*fnamep);
@@ -295,7 +295,8 @@ pub fn modify_fname(
                 valid |= VALID_HEAD;
                 *usedlen += 2;
                 while (tail as usize) > (s as usize) && after_pathsep(s, tail) != 0 {
-                    tail = tail.sub(utf_head_off(*fnamep, tail.sub(1)) as usize + 1);
+                    tail =
+                        tail.wrapping_sub(utf_head_off(*fnamep, tail.wrapping_sub(1)) as usize + 1);
                 }
                 *fnamelen = if (tail as usize) <= (s as usize) {
                     (s as usize).wrapping_sub(*fnamep as usize)
@@ -310,7 +311,8 @@ pub fn modify_fname(
                     *fnamelen = 1;
                 } else {
                     while (tail as usize) > (s as usize) && after_pathsep(s, tail) == 0 {
-                        tail = tail.sub(utf_head_off(*fnamep, tail.sub(1)) as usize + 1);
+                        tail = tail
+                            .wrapping_sub(utf_head_off(*fnamep, tail.wrapping_sub(1)) as usize + 1);
                     }
                 }
             }
@@ -356,7 +358,7 @@ pub fn modify_fname(
                 if crate::memory::cstr_byte_at(src, *usedlen + 1) == b'e' {
                     if (s as usize) > (tail as usize) {
                         // we stopped at a '.' (so anchor to &'.' + 1)
-                        let newstart = s.add(1);
+                        let newstart = s.wrapping_add(1);
                         let distance_stepped_back =
                             (*fnamep as usize).wrapping_sub(newstart as usize);
                         *fnamelen = (*fnamelen).wrapping_add(distance_stepped_back);
@@ -396,14 +398,14 @@ pub fn modify_fname(
                         && crate::memory::cstr_byte_at(src, *usedlen + 2) == b's'))
             {
                 let mut flags = c"".as_ptr();
-                s = src.add(*usedlen + 2);
+                s = src.wrapping_add(*usedlen + 2);
                 if crate::memory::cstr_byte_at(src, *usedlen + 1) == b'g' {
                     flags = c"g".as_ptr();
-                    s = s.add(1);
+                    s = s.wrapping_add(1);
                 }
 
                 let sep = crate::memory::cstr_first_byte(s) as i32;
-                s = s.add(1);
+                s = s.wrapping_add(1);
                 if sep != 0 {
                     // find end of pattern
                     p = vim_strchr(s, sep);
@@ -412,7 +414,7 @@ pub fn modify_fname(
                             s,
                             (p as usize).wrapping_sub(s as usize),
                         ));
-                        s = p.add(1);
+                        s = p.wrapping_add(1);
                         // find end of substitution
                         p = vim_strchr(s, sep);
                         if !p.is_null() {
@@ -424,7 +426,7 @@ pub fn modify_fname(
                             if *fnamelen > 0 {
                                 ptr::copy_nonoverlapping(*fnamep, str_copy.as_mut_ptr(), *fnamelen);
                             }
-                            *usedlen = (p.add(1) as usize).wrapping_sub(src as usize);
+                            *usedlen = (p.wrapping_add(1) as usize).wrapping_sub(src as usize);
                             let sub_res = do_string_sub(
                                 str_copy.as_mut_ptr(),
                                 *fnamelen,
@@ -454,11 +456,11 @@ pub fn modify_fname(
                 // vim_strsave_shellescape() needs a NUL terminated string.
                 c = crate::memory::cstr_byte_at(*fnamep, *fnamelen) as i32;
                 if c != NUL as i32 {
-                    *(*fnamep).add(*fnamelen) = NUL;
+                    *(*fnamep).wrapping_add(*fnamelen) = NUL;
                 }
                 let esc = vim_strsave_shellescape(*fnamep, false, false);
                 if c != NUL as i32 {
-                    *(*fnamep).add(*fnamelen) = c as c_char;
+                    *(*fnamep).wrapping_add(*fnamelen) = c as c_char;
                 }
                 *fnamelen = esc.as_bytes().len();
                 set_fname_buf(fnamep, bufp, cstr_into_char_vec(esc));
@@ -1572,7 +1574,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
 
             let mut p = buf_ptr; // Position in buf.
             let mut start = buf_ptr; // Start of current line.
-            while (p as usize) < (buf_ptr.offset(readlen) as usize)
+            while (p as usize) < (buf_ptr.wrapping_offset(readlen) as usize)
                 || (readlen <= 0 && (!prev.is_empty() || binary))
             {
                 if readlen <= 0 || crate::memory::cstr_first_byte(p) == b'\n' {
@@ -1599,7 +1601,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                         prev.clear();
                     }
 
-                    start = p.add(1); // Step over newline.
+                    start = p.wrapping_add(1); // Step over newline.
                     if maxline < 0 {
                         if i64::from(tv_list_len(l.as_ref())) > -maxline {
                             debug_assert_eq!(i64::from(tv_list_len(l.as_ref())), 1 + (-maxline));
@@ -1617,14 +1619,14 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 } else if crate::memory::cstr_first_byte(p) == 0xbf && !binary {
                     // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
                     // when finding the BF and check the previous two bytes.
-                    let back1 = if (p as usize) >= (buf_ptr.add(1) as usize) {
-                        *p.sub(1)
+                    let back1 = if (p as usize) >= (buf_ptr.wrapping_add(1) as usize) {
+                        *p.wrapping_sub(1)
                     } else {
                         prev.last().copied().unwrap_or(NUL)
                     };
-                    let back2 = if (p as usize) >= (buf_ptr.add(2) as usize) {
-                        *p.sub(2)
-                    } else if p == buf_ptr.add(1) {
+                    let back2 = if (p as usize) >= (buf_ptr.wrapping_add(2) as usize) {
+                        *p.wrapping_sub(2)
+                    } else if p == buf_ptr.wrapping_add(1) {
                         prev.last().copied().unwrap_or(NUL)
                     } else if prev.len() >= 2 {
                         prev[prev.len() - 2]
@@ -1633,12 +1635,12 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                     };
 
                     if back2 as u8 == 0xef && back1 as u8 == 0xbb {
-                        let mut dest = p.sub(2);
+                        let mut dest = p.wrapping_sub(2);
 
                         // Usually a BOM is at the beginning of a file, and so at
                         // the beginning of a line; then we can just step over it.
                         if start == dest {
-                            start = p.add(1);
+                            start = p.wrapping_add(1);
                         } else {
                             // have to shuffle buf to close gap
                             let mut adjust_prevlen: usize = 0;
@@ -1650,15 +1652,15 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                             }
                             let p_off = (p as usize).wrapping_sub(buf_ptr as usize) as isize;
                             if readlen > p_off + 1 {
-                                ptr::copy(p.add(1), dest, (readlen - p_off - 1) as usize);
+                                ptr::copy(p.wrapping_add(1), dest, (readlen - p_off - 1) as usize);
                             }
                             readlen -= 3 - adjust_prevlen as isize;
                             prev.truncate(prev.len() - adjust_prevlen);
-                            p = dest.sub(1);
+                            p = dest.wrapping_sub(1);
                         }
                     }
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
 
             if (maxline >= 0 && i64::from(tv_list_len(l.as_ref())) >= maxline) || readlen <= 0 {
@@ -1950,7 +1952,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                     if crate::memory::cstr_is_empty(p) {
                         break;
                     } else {
-                        hunk_start = p.add(1);
+                        hunk_start = p.wrapping_add(1);
                         let nul_byte: c_char = NUL;
                         let written = file_write(fp, &raw const nul_byte, 1);
                         if written < 0 {
@@ -1959,7 +1961,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                         }
                     }
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             if !binary || !(*li).li_next.is_null() {
                 let nl_byte: c_char = NL;
@@ -2073,7 +2075,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                         return;
                     }
                 }
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
 

@@ -424,6 +424,17 @@ pub fn cstr_cat<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S) {
     }
 }
 
+/// View a NUL-terminated C string as a `&CStr`, returning `c""` if null.
+#[inline]
+pub fn cstr_from_ptr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a CStr {
+    let s = s.into_c_char_ptr();
+    if s.is_null() {
+        c""
+    } else {
+        unsafe { CStr::from_ptr(s) }
+    }
+}
+
 /// View a NUL-terminated C string as a byte slice (including trailing NUL), returning `b"\0"` if null.
 #[inline]
 pub fn cstr_as_bytes_with_nul<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a [u8] {

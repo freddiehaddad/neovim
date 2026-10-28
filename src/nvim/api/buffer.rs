@@ -482,7 +482,7 @@ pub fn nvim_buf_set_lines(
                     }
                 }
             };
-            *lines.add(i) = p;
+            *lines.wrapping_add(i) = p;
         }
 
         try_wrap_err(err, |err| 'end: {
@@ -532,7 +532,7 @@ pub fn nvim_buf_set_lines(
                     break 'end;
                 }
 
-                let line_ptr = *lines.add(i);
+                let line_ptr = *lines.wrapping_add(i);
                 if !ml_replace_buf(&mut *b, lnum as Linenr, line_ptr, false, true) {
                     api_set_error!(
                         err,
@@ -557,7 +557,7 @@ pub fn nvim_buf_set_lines(
                     break 'end;
                 }
 
-                let line_ptr = *lines.add(i);
+                let line_ptr = *lines.wrapping_add(i);
                 if !ml_append_buf(&mut *b, lnum as Linenr, line_ptr, 0, false) {
                     api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                     break 'end;
@@ -756,7 +756,7 @@ pub fn nvim_buf_set_text(
         if first_item.size > 0 {
             ptr::copy_nonoverlapping(
                 first_item.data,
-                first.add(start_col as usize),
+                first.wrapping_add(start_col as usize),
                 first_item.size,
             );
         }
@@ -775,8 +775,8 @@ pub fn nvim_buf_set_text(
         };
         if replacement.size == 1 {
             ptr::copy_nonoverlapping(
-                str_at_end.add(end_col as usize),
-                first.add((start_col as usize) + first_item.size),
+                str_at_end.wrapping_add(end_col as usize),
+                first.wrapping_add((start_col as usize) + first_item.size),
                 last_part_len,
             );
         } else {
@@ -798,15 +798,15 @@ pub fn nvim_buf_set_text(
                 }
             };
             ptr::copy_nonoverlapping(
-                str_at_end.add(end_col as usize),
-                last.add(last_item.size),
+                str_at_end.wrapping_add(end_col as usize),
+                last.wrapping_add(last_item.size),
                 last_part_len,
             );
         }
 
         let lines = arena_alloc(arena, new_len * std::mem::size_of::<*mut c_char>(), true)
             .cast::<*mut c_char>();
-        *lines.add(0) = first;
+        *lines.wrapping_add(0) = first;
         new_byte += first_item.size as Bcount;
         for i in 1..new_len.saturating_sub(1) {
             let l = replacement[i].data.string();
@@ -824,11 +824,11 @@ pub fn nvim_buf_set_text(
                     }
                 }
             };
-            *lines.add(i) = p;
+            *lines.wrapping_add(i) = p;
             new_byte += (l.size as Bcount) + 1;
         }
         if replacement.size > 1 {
-            *lines.add(replacement.size - 1) = last;
+            *lines.wrapping_add(replacement.size - 1) = last;
             new_byte += (last_item.size as Bcount) + 1;
         }
 
@@ -879,7 +879,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_replace_buf(&mut *b, lnum as Linenr, *lines.add(i), false, true) {
+                if !ml_replace_buf(&mut *b, lnum as Linenr, *lines.wrapping_add(i), false, true) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -901,7 +901,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_append_buf(&mut *b, lnum as Linenr, *lines.add(i), 0, false) {
+                if !ml_append_buf(&mut *b, lnum as Linenr, *lines.wrapping_add(i), 0, false) {
                     api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                     break 'end;
                 }

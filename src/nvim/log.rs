@@ -228,7 +228,7 @@ fn log_path_init() {
                 let err_s = if err_str.is_null() {
                     ""
                 } else {
-                    CStr::from_ptr(err_str).to_str().unwrap_or("")
+                    crate::memory::cstr_from_ptr(err_str).to_str().unwrap_or("")
                 };
                 let mut msg = Vec::with_capacity(128);
                 let _ = write!(
@@ -374,9 +374,11 @@ pub fn open_log_file() -> *mut FILE {
         let err_s = if err_ptr.is_null() {
             ""
         } else {
-            CStr::from_ptr(err_ptr).to_str().unwrap_or("")
+            crate::memory::cstr_from_ptr(err_ptr).to_str().unwrap_or("")
         };
-        let path_s = CStr::from_ptr(path_ptr).to_str().unwrap_or("");
+        let path_s = crate::memory::cstr_from_ptr(path_ptr)
+            .to_str()
+            .unwrap_or("");
         let mut msg = Vec::with_capacity(128);
         let _ = write!(msg, "failed to open $NVIM_LOG_FILE ({err_s}): {path_s}\0");
         do_log_to_file_str(
@@ -463,7 +465,7 @@ fn do_log_to_file_str(
             }
             let copy_len = formatted.len().min(31);
             ptr::copy_nonoverlapping(formatted.as_ptr(), name_ptr, copy_len);
-            *name_ptr.add(copy_len) = 0;
+            *name_ptr.wrapping_add(copy_len) = 0;
         }
 
         let level_ptr = LOG_LEVELS[log_level as usize].as_ptr();

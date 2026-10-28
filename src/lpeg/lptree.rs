@@ -341,7 +341,7 @@ fn newcharset(l: *mut lua_State, cs: &[LpegByte; CHARSETSIZE]) -> &'static mut T
                 tree.u.set.deflt = info.deflt as LpegByte;
                 let tb = treebuffer(tree);
                 for i in 0..(info.size as usize) {
-                    *tb.add(i) = cs[(info.offset as usize) + i];
+                    *tb.wrapping_add(i) = cs[(info.offset as usize) + i];
                 }
                 tree
             }
@@ -365,7 +365,7 @@ fn fillseq(mut tree: *mut TTree, tag: TTag, n: i32, s: *const c_char) {
             (*tree).u.ps = 2;
             (*sib1(tree)).tag = tag;
             (*sib1(tree)).u.n = if !s.is_null() {
-                i32::from(*s.add(i as usize) as LpegByte)
+                i32::from(*s.wrapping_add(i as usize) as LpegByte)
             } else {
                 0
             };
@@ -373,7 +373,7 @@ fn fillseq(mut tree: *mut TTree, tag: TTag, n: i32, s: *const c_char) {
         }
         (*tree).tag = tag;
         (*tree).u.n = if !s.is_null() {
-            i32::from(*s.add((n - 1) as usize) as LpegByte)
+            i32::from(*s.wrapping_add((n - 1) as usize) as LpegByte)
         } else {
             0
         };
@@ -600,7 +600,7 @@ unsafe extern "C-unwind" fn lp_set(l: *mut lua_State) -> i32 {
         while len > 0 {
             len -= 1;
             setchar(&mut buff, (*s as LpegByte) as usize);
-            s = s.add(1);
+            s = s.wrapping_add(1);
         }
         newcharset(l, &buff);
         1
@@ -617,7 +617,7 @@ unsafe extern "C-unwind" fn lp_range(l: *mut lua_State) -> i32 {
             let r = luaL_checklstring(l, arg, &mut len);
             luaL_argcheck(l, len == 2, arg, c"range must have two characters");
             let start = (*r as LpegByte) as usize;
-            let end = (*r.add(1) as LpegByte) as usize;
+            let end = (*r.wrapping_add(1) as LpegByte) as usize;
             for c in start..=end {
                 setchar(&mut buff, c);
             }
@@ -1147,7 +1147,15 @@ unsafe extern "C-unwind" fn lp_match(l: *mut lua_State) -> i32 {
         lua_pushnil(l);
         lua_pushlightuserdata(l, capture.as_mut_ptr().cast());
         lua_getfenv(l, 1);
-        let r = r#match(l, s, s.add(i), s.add(len), code, capture.as_mut_ptr(), ptop);
+        let r = r#match(
+            l,
+            s,
+            s.wrapping_add(i),
+            s.wrapping_add(len),
+            code,
+            capture.as_mut_ptr(),
+            ptop,
+        );
         if r.is_null() {
             lua_pushnil(l);
             return 1;

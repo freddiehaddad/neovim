@@ -1123,7 +1123,7 @@ pub fn swbuf_goto_win_with_buf(buf: *mut FileBuf) -> *mut WinInfoInfo {
 
 #[allow(non_snake_case)]
 fn do_window_newwindow(nchar: i32, Prenum: i32, cbuf: &mut [c_char; 40]) {
-    unsafe {
+    {
         if Prenum != 0 {
             vim_snprintf!(
                 cbuf.as_mut_ptr(),
@@ -1139,14 +1139,14 @@ fn do_window_newwindow(nchar: i32, Prenum: i32, cbuf: &mut [c_char; 40]) {
                 let _dst: *mut c_char = cbuf.as_mut_ptr();
                 let _dsize: usize = cbuf.len();
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), c"v", _dsize - _dlen);
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"v", _dsize - _dlen);
             };
         }
         {
             let _dst: *mut c_char = cbuf.as_mut_ptr();
             let _dsize: usize = cbuf.len();
             let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.add(_dlen), c"new", _dsize - _dlen);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"new", _dsize - _dlen);
         };
         do_cmdline_cmd(cbuf.as_ptr());
     }
@@ -1603,10 +1603,10 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
 }
 
 fn cmd_with_count(cmd: &std::ffi::CStr, bufp: *mut c_char, bufsize: usize, prenum: i64) {
-    unsafe {
+    {
         let len = xstrlcpy(bufp, cmd.as_ptr(), bufsize);
         if prenum > 0 && len < bufsize {
-            vim_snprintf!(bufp.add(len), bufsize - len, c"%lld", prenum);
+            vim_snprintf!(bufp.wrapping_add(len), bufsize - len, c"%lld", prenum);
         }
     }
 }
@@ -8276,7 +8276,7 @@ fn frame_check_width(topfrp: &Frame, width: i32) -> bool {
 }
 
 pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *const c_char {
-    unsafe {
+    {
         if wp.is_some() && wp.as_deref_mut().unwrap().w_buffer.is_null() {
             return ptr::null();
         }
@@ -8307,7 +8307,7 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *
                 } else {
                     1
                 };
-                s = s.add(1);
+                s = s.wrapping_add(1);
                 if !ascii_isdigit(i32::from(crate::memory::cstr_first_byte(s))) {
                     return E_INVARG.as_ptr();
                 }
@@ -8335,7 +8335,7 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *
             if crate::memory::cstr_first_byte(s) != b',' {
                 return E_INVARG.as_ptr();
             }
-            s = s.add(1);
+            s = s.wrapping_add(1);
             if crate::memory::cstr_is_empty(s) {
                 return E_INVARG.as_ptr();
             }

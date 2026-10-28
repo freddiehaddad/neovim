@@ -465,18 +465,27 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                 let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as i32) as Sattr;
                 for i in col..until {
                     let idx = (i - startcol as i32) as usize;
-                    *lbuf.add(idx) = comp().msg_sep_char;
-                    *abuf.add(idx) = msg_sep_attr;
+                    *lbuf.wrapping_add(idx) = comp().msg_sep_char;
+                    *abuf.wrapping_add(idx) = msg_sep_attr;
                 }
             } else {
                 let g = &*grid;
                 let off =
                     g.line_offset[(row as i32 - g.comp_row) as usize] + (col - g.comp_col) as usize;
                 let dst_idx = (col - startcol as i32) as usize;
-                ptr::copy_nonoverlapping(g.chars.as_ptr().add(off), lbuf.add(dst_idx), n);
-                ptr::copy_nonoverlapping(g.attrs.as_ptr().add(off), abuf.add(dst_idx), n);
+                ptr::copy_nonoverlapping(
+                    g.chars.as_ptr().wrapping_add(off),
+                    lbuf.wrapping_add(dst_idx),
+                    n,
+                );
+                ptr::copy_nonoverlapping(
+                    g.attrs.as_ptr().wrapping_add(off),
+                    abuf.wrapping_add(dst_idx),
+                    n,
+                );
                 if g.comp_col + g.cols > until && g.chars[off + n] == 0 {
-                    *lbuf.add((until - 1 - startcol as i32) as usize) = schar_from_ascii(b' ');
+                    *lbuf.wrapping_add((until - 1 - startcol as i32) as usize) =
+                        schar_from_ascii(b' ');
                     if (col as Integer) == startcol && n == 1 {
                         skipstart = 0;
                     }
@@ -490,38 +499,48 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                 while i < limit {
                     let mut width: i32 = 1;
                     let idx = i as usize;
-                    let mut thru = schar_invisible(*lbuf.add(idx)) && *bg_line.add(idx) != 0;
-                    if i + 1 < end_rel && *bg_line.add(idx + 1) == 0 {
+                    let mut thru =
+                        schar_invisible(*lbuf.wrapping_add(idx)) && *bg_line.wrapping_add(idx) != 0;
+                    if i + 1 < end_rel && *bg_line.wrapping_add(idx + 1) == 0 {
                         width = 2;
-                        thru &= schar_invisible(*lbuf.add(idx + 1));
+                        thru &= schar_invisible(*lbuf.wrapping_add(idx + 1));
                     }
-                    *abuf.add(idx) =
-                        hl_blend_attrs(*bg_attrs.add(idx), *abuf.add(idx), &mut thru) as Sattr;
+                    *abuf.wrapping_add(idx) = hl_blend_attrs(
+                        *bg_attrs.wrapping_add(idx),
+                        *abuf.wrapping_add(idx),
+                        &mut thru,
+                    ) as Sattr;
                     if width == 2 {
-                        *abuf.add(idx + 1) =
-                            hl_blend_attrs(*bg_attrs.add(idx + 1), *abuf.add(idx + 1), &mut thru)
-                                as Sattr;
+                        *abuf.wrapping_add(idx + 1) = hl_blend_attrs(
+                            *bg_attrs.wrapping_add(idx + 1),
+                            *abuf.wrapping_add(idx + 1),
+                            &mut thru,
+                        ) as Sattr;
                     }
                     if thru {
-                        ptr::copy_nonoverlapping(bg_line.add(idx), lbuf.add(idx), width as usize);
+                        ptr::copy_nonoverlapping(
+                            bg_line.wrapping_add(idx),
+                            lbuf.wrapping_add(idx),
+                            width as usize,
+                        );
                     }
                     i += width;
                 }
             }
 
             let col_idx = (col - startcol as i32) as usize;
-            if *lbuf.add(col_idx) == 0 {
-                *lbuf.add(col_idx) = schar_from_ascii(b' ');
+            if *lbuf.wrapping_add(col_idx) == 0 {
+                *lbuf.wrapping_add(col_idx) = schar_from_ascii(b' ');
                 if (col as Integer) == endcol - 1 {
                     skipend = 0;
                 }
-            } else if (col as Integer) == startcol && n > 1 && *lbuf.add(1) == 0 {
+            } else if (col as Integer) == startcol && n > 1 && *lbuf.wrapping_add(1) == 0 {
                 skipstart = 0;
             }
 
             col = until;
         }
-        if *lbuf.add((endcol - startcol - 1) as usize) == 0 {
+        if *lbuf.wrapping_add((endcol - startcol - 1) as usize) == 0 {
             skipend = 0;
         }
 
@@ -537,7 +556,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
 
         let end_idx = ((endcol - skipend as Integer) - startcol) as i32;
         for i in skipstart..end_idx {
-            let p = abuf.add(i as usize);
+            let p = abuf.wrapping_add(i as usize);
             if *p < 0 {
                 if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
                     std::process::abort();
@@ -554,8 +573,8 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
             endcol - (skipend as Integer),
             0,
             flags,
-            lbuf.add(skipstart as usize),
-            abuf.add(skipstart as usize),
+            lbuf.wrapping_add(skipstart as usize),
+            abuf.wrapping_add(skipstart as usize),
         );
     }
 }
@@ -699,7 +718,7 @@ pub fn ui_comp_raw_line(
             );
             compose_debug(row, row + 1, endcol, clearcol, comp().dbghl_clear, true);
             for i in 0..((endcol - startcol) as usize) {
-                debug_assert!(*attrs.add(i) >= 0);
+                debug_assert!(*attrs.wrapping_add(i) >= 0);
             }
             ui_composed_call_raw_line(
                 1, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,

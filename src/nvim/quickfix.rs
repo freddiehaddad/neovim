@@ -648,7 +648,7 @@ fn c_strcat(dst: *mut c_char, src: impl crate::strings::IntoCCharPtr) {
     unsafe {
         let dlen = crate::memory::cstr_len(dst);
         let slen = crate::memory::cstr_len(src);
-        ptr::copy_nonoverlapping(src, dst.add(dlen), slen + 1);
+        ptr::copy_nonoverlapping(src, dst.wrapping_add(dlen), slen + 1);
     }
 }
 
@@ -852,13 +852,13 @@ fn efmpat_to_regpat(
         round += 1;
         efminfo.addr[idx] = round as c_char;
         *regpat = b'\\' as c_char;
-        regpat = regpat.add(1);
+        regpat = regpat.wrapping_add(1);
         *regpat = b'(' as c_char;
-        regpat = regpat.add(1);
+        regpat = regpat.wrapping_add(1);
         #[cfg(windows)]
         if crate::memory::cstr_first_byte(efmpat) == b'f' {
             crate::memory::cstr_cpy(regpat, c"\\%(\\a:\\)\\=");
-            regpat = regpat.add(10);
+            regpat = regpat.wrapping_add(10);
         }
         if crate::memory::cstr_first_byte(efmpat) == b'f'
             && crate::memory::cstr_byte_at(efmpat, 1) != 0
@@ -867,25 +867,25 @@ fn efmpat_to_regpat(
                 && crate::memory::cstr_byte_at(efmpat, 1) != b'%'
             {
                 crate::memory::cstr_cpy(regpat, c".\\{-1,}");
-                regpat = regpat.add(7);
+                regpat = regpat.wrapping_add(7);
             } else {
                 crate::memory::cstr_cpy(regpat, c"\\f\\+");
-                regpat = regpat.add(4);
+                regpat = regpat.wrapping_add(4);
             }
         } else {
             let mut srcptr = FMT_PAT[idx].pattern.as_ptr();
             while {
                 *regpat = *srcptr;
-                srcptr = srcptr.add(1);
+                srcptr = srcptr.wrapping_add(1);
                 !crate::memory::cstr_is_empty(regpat)
             } {
-                regpat = regpat.add(1);
+                regpat = regpat.wrapping_add(1);
             }
         }
         *regpat = b'\\' as c_char;
-        regpat = regpat.add(1);
+        regpat = regpat.wrapping_add(1);
         *regpat = b')' as c_char;
-        regpat = regpat.add(1);
+        regpat = regpat.wrapping_add(1);
 
         regpat
     }
@@ -900,29 +900,29 @@ fn scanf_fmt_to_regpat(
     let efm = efm.into_c_char_ptr();
     unsafe {
         let mut efmp = *pefmp;
-        let end = efm.add(len as usize);
+        let end = efm.wrapping_add(len as usize);
 
         if crate::memory::cstr_first_byte(efmp) == b'['
             || crate::memory::cstr_first_byte(efmp) == b'\\'
         {
             *regpat = *efmp;
             let ch = *regpat;
-            regpat = regpat.add(1);
+            regpat = regpat.wrapping_add(1);
             if ch == b'[' as c_char {
                 if crate::memory::cstr_byte_at(efmp, 1) == b'^' {
-                    efmp = efmp.add(1);
+                    efmp = efmp.wrapping_add(1);
                     *regpat = *efmp;
-                    regpat = regpat.add(1);
+                    regpat = regpat.wrapping_add(1);
                 }
                 if efmp < end {
-                    efmp = efmp.add(1);
+                    efmp = efmp.wrapping_add(1);
                     *regpat = *efmp;
-                    regpat = regpat.add(1);
+                    regpat = regpat.wrapping_add(1);
                     while efmp < end && {
-                        efmp = efmp.add(1);
+                        efmp = efmp.wrapping_add(1);
                         *regpat = *efmp;
                         let c = *regpat;
-                        regpat = regpat.add(1);
+                        regpat = regpat.wrapping_add(1);
                         c != b']' as c_char
                     } {}
                     if efmp == end {
@@ -931,14 +931,14 @@ fn scanf_fmt_to_regpat(
                     }
                 }
             } else if efmp < end {
-                efmp = efmp.add(1);
+                efmp = efmp.wrapping_add(1);
                 *regpat = *efmp;
-                regpat = regpat.add(1);
+                regpat = regpat.wrapping_add(1);
             }
             *regpat = b'\\' as c_char;
-            regpat = regpat.add(1);
+            regpat = regpat.wrapping_add(1);
             *regpat = b'+' as c_char;
-            regpat = regpat.add(1);
+            regpat = regpat.wrapping_add(1);
         } else {
             semsg!(
                 gettext(c"E375: Unsupported %%%c in format string"),
@@ -957,7 +957,7 @@ fn efm_analyze_prefix(efmp: impl crate::strings::IntoCCharPtr, efminfo: &mut Efm
     unsafe {
         if crate::strings::vim_haschr(c"+-", i32::from(crate::memory::cstr_first_byte(efmp))) {
             efminfo.flags = *efmp;
-            efmp = efmp.add(1);
+            efmp = efmp.wrapping_add(1);
         }
         if crate::strings::vim_haschr(
             c"DXAEWINCZGOPQ",
@@ -986,13 +986,13 @@ fn efm_to_regpat(
     unsafe {
         let mut ptr = regpat;
         *ptr = b'^' as c_char;
-        ptr = ptr.add(1);
+        ptr = ptr.wrapping_add(1);
         let mut round: i32 = 0;
-        let end = efm.add(len as usize);
+        let end = efm.wrapping_add(len as usize);
         let mut efmp = efm;
         while efmp < end {
             if crate::memory::cstr_first_byte(efmp) == b'%' {
-                efmp = efmp.add(1);
+                efmp = efmp.wrapping_add(1);
                 let mut idx: usize = 0;
                 while idx < FMT_PATTERNS {
                     if FMT_PAT[idx].convchar as c_char == *efmp {
@@ -1007,7 +1007,7 @@ fn efm_to_regpat(
                     }
                     round += 1;
                 } else if crate::memory::cstr_first_byte(efmp) == b'*' {
-                    efmp = efmp.add(1);
+                    efmp = efmp.wrapping_add(1);
                     ptr = scanf_fmt_to_regpat(&raw mut efmp, efm, len, ptr);
                     if ptr.is_null() {
                         return false;
@@ -1017,13 +1017,13 @@ fn efm_to_regpat(
                     i32::from(crate::memory::cstr_first_byte(efmp)),
                 ) {
                     *ptr = *efmp;
-                    ptr = ptr.add(1);
+                    ptr = ptr.wrapping_add(1);
                 } else if crate::memory::cstr_first_byte(efmp) == b'#' {
                     *ptr = b'*' as c_char;
-                    ptr = ptr.add(1);
+                    ptr = ptr.wrapping_add(1);
                 } else if crate::memory::cstr_first_byte(efmp) == b'>' {
                     fmt_ptr.conthere = 1;
-                } else if efmp == efm.add(1) {
+                } else if efmp == efm.wrapping_add(1) {
                     efmp = efm_analyze_prefix(efmp, fmt_ptr);
                     if efmp.is_null() {
                         return false;
@@ -1036,24 +1036,24 @@ fn efm_to_regpat(
                     return false;
                 }
             } else {
-                if crate::memory::cstr_first_byte(efmp) == b'\\' && efmp.add(1) < end {
-                    efmp = efmp.add(1);
+                if crate::memory::cstr_first_byte(efmp) == b'\\' && efmp.wrapping_add(1) < end {
+                    efmp = efmp.wrapping_add(1);
                 } else if crate::strings::vim_haschr(
                     c".*^$~[",
                     i32::from(crate::memory::cstr_first_byte(efmp)),
                 ) {
                     *ptr = b'\\' as c_char;
-                    ptr = ptr.add(1);
+                    ptr = ptr.wrapping_add(1);
                 }
                 if !crate::memory::cstr_is_empty(efmp) {
                     *ptr = *efmp;
-                    ptr = ptr.add(1);
+                    ptr = ptr.wrapping_add(1);
                 }
             }
-            efmp = efmp.add(1);
+            efmp = efmp.wrapping_add(1);
         }
         *ptr = b'$' as c_char;
-        ptr = ptr.add(1);
+        ptr = ptr.wrapping_add(1);
         *ptr = NUL;
 
         true
@@ -1099,7 +1099,7 @@ fn efm_option_part_len(efm: impl crate::strings::IntoCCharPtr) -> i32 {
 
 fn parse_efm_option(efm: impl crate::strings::IntoCCharPtr) -> Vec<Efm> {
     let mut efm = efm.into_c_char_ptr();
-    unsafe {
+    {
         let mut fmt_list: Vec<Efm> = Vec::new();
 
         let sz = efm_regpat_bufsz(efm);
@@ -1127,7 +1127,7 @@ fn parse_efm_option(efm: impl crate::strings::IntoCCharPtr) -> Vec<Efm> {
                 break;
             }
             fmt_list.push(fmt_item);
-            efm = skip_to_option_part(efm.add(len as usize));
+            efm = skip_to_option_part(efm.wrapping_add(len as usize));
         }
 
         if errored {
@@ -1178,9 +1178,9 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str: impl crate::strings::IntoCCh
             g_st().iobuff.as_mut_ptr()
         };
         ptr::copy_nonoverlapping(p_str, linebuf, state.linelen);
-        *linebuf.add(state.linelen) = NUL;
+        *linebuf.wrapping_add(state.linelen) = NUL;
 
-        p_str = p_str.add(len);
+        p_str = p_str.wrapping_add(len);
         state.source = QfInputSource::Str(p_str);
 
         QF_OK
@@ -1263,7 +1263,7 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> i32 {
 
         let mut discard = false;
         state.linelen = crate::memory::cstr_len(iobuff_ptr);
-        if state.linelen == IOSIZE - 1 && *iobuff_ptr.add(state.linelen - 1) != NL {
+        if state.linelen == IOSIZE - 1 && *iobuff_ptr.wrapping_add(state.linelen - 1) != NL {
             if state.growbuf.len() < 2 * (IOSIZE - 1) {
                 state.growbuf.resize(2 * (IOSIZE - 1), 0);
             }
@@ -1276,7 +1276,7 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> i32 {
                 os_set_errno(0);
                 let growbufsiz = state.growbuf.len();
                 if fgets(
-                    state.growbuf.as_mut_ptr().add(growbuflen),
+                    state.growbuf.as_mut_ptr().wrapping_add(growbuflen),
                     (growbufsiz - growbuflen) as i32,
                     fd,
                 )
@@ -1312,7 +1312,7 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> i32 {
                         break;
                     }
                     if crate::memory::cstr_len(iobuff_ptr) < IOSIZE - 1
-                        || *iobuff_ptr.add(IOSIZE - 2) == NL
+                        || *iobuff_ptr.wrapping_add(IOSIZE - 2) == NL
                     {
                         break;
                     }
@@ -1365,11 +1365,11 @@ fn qf_get_nextline(state: &mut Qfstate) -> i32 {
         }
 
         let linebuf = state.linebuf_ptr();
-        if state.linelen > 0 && *linebuf.add(state.linelen - 1) == NL {
-            *linebuf.add(state.linelen - 1) = NUL;
+        if state.linelen > 0 && *linebuf.wrapping_add(state.linelen - 1) == NL {
+            *linebuf.wrapping_add(state.linelen - 1) = NUL;
             #[cfg(windows)]
-            if state.linelen > 1 && *linebuf.add(state.linelen - 2) == CAR {
-                *linebuf.add(state.linelen - 2) = NUL;
+            if state.linelen > 1 && *linebuf.wrapping_add(state.linelen - 2) == CAR {
+                *linebuf.wrapping_add(state.linelen - 2) = NUL;
             }
         }
 
@@ -1396,7 +1396,7 @@ fn qf_list_has_valid_entries(qfl: &QfList) -> bool {
 
 #[inline]
 fn qf_get_list(qi: &mut QfInfo, idx: i32) -> &'static mut QfList {
-    unsafe { &mut *qi.qf_lists.as_mut_ptr().add(idx as usize) }
+    unsafe { &mut *qi.qf_lists.as_mut_ptr().wrapping_add(idx as usize) }
 }
 
 fn qf_parse_line(
@@ -1901,7 +1901,7 @@ fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
                 fields.col += 7;
                 fields.col -= fields.col % 8;
             }
-            match_ptr = match_ptr.add(1);
+            match_ptr = match_ptr.wrapping_add(1);
         }
         fields.col += 1;
         fields.use_viscol = true;
@@ -1934,11 +1934,11 @@ fn qf_parse_fmt_s(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
             let _dst: *mut c_char = pat_ptr;
             let _dsize: usize = len + 4;
             let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.add(_dlen), rmp.startp[midx], _dsize - _dlen);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), rmp.startp[midx], _dsize - _dlen);
         };
-        *pat_ptr.add(len + 3) = b'\\' as c_char;
-        *pat_ptr.add(len + 4) = b'$' as c_char;
-        *pat_ptr.add(len + 5) = NUL;
+        *pat_ptr.wrapping_add(len + 3) = b'\\' as c_char;
+        *pat_ptr.wrapping_add(len + 4) = b'$' as c_char;
+        *pat_ptr.wrapping_add(len + 5) = NUL;
         QF_OK
     }
 }
@@ -1955,7 +1955,7 @@ fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
             let _dst: *mut c_char = mod_ptr;
             let _dsize: usize = dsize;
             let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.add(_dlen), rmp.startp[midx], _dsize - _dlen);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), rmp.startp[midx], _dsize - _dlen);
         };
         QF_OK
     }
@@ -3257,7 +3257,7 @@ fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
             if col > vcol {
                 break;
             }
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
         p.offset_from(line) as i32
     }
@@ -3653,7 +3653,7 @@ pub fn qf_list(eap: &mut Exarg) {
 
         let mut plus = false;
         if crate::memory::cstr_first_byte(arg) == b'+' {
-            arg = arg.add(1);
+            arg = arg.wrapping_add(1);
             plus = true;
         }
         let mut idx1: i32 = 1;
@@ -3719,7 +3719,7 @@ fn qf_fmt_text(gap: &mut Vec<c_char>, text: impl crate::strings::IntoCCharPtr) {
             if crate::memory::cstr_first_byte(p) == b'\n' {
                 gap.push(b' ' as c_char);
                 loop {
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     if crate::memory::cstr_is_empty(p) {
                         break;
                     }
@@ -3731,20 +3731,20 @@ fn qf_fmt_text(gap: &mut Vec<c_char>, text: impl crate::strings::IntoCCharPtr) {
                 }
             } else {
                 gap.push(*p);
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
         }
     }
 }
 
 fn qf_range_text(gap: &mut Vec<c_char>, qfp: &Qfline) {
-    unsafe {
+    {
         let buf_data = g_st().iobuff.as_mut_ptr();
         let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d", qfp.qf_lnum);
 
         if qfp.qf_end_lnum > 0 && qfp.qf_lnum != qfp.qf_end_lnum {
             buf_size += vim_snprintf_safelen!(
-                buf_data.add(buf_size),
+                buf_data.wrapping_add(buf_size),
                 IOSIZE - buf_size,
                 c"-%d",
                 qfp.qf_end_lnum,
@@ -3752,14 +3752,14 @@ fn qf_range_text(gap: &mut Vec<c_char>, qfp: &Qfline) {
         }
         if qfp.qf_col > 0 {
             buf_size += vim_snprintf_safelen!(
-                buf_data.add(buf_size),
+                buf_data.wrapping_add(buf_size),
                 IOSIZE - buf_size,
                 c" col %d",
                 qfp.qf_col,
             );
             if qfp.qf_end_col > 0 && qfp.qf_col != qfp.qf_end_col {
                 buf_size += vim_snprintf_safelen!(
-                    buf_data.add(buf_size),
+                    buf_data.wrapping_add(buf_size),
                     IOSIZE - buf_size,
                     c"-%d",
                     qfp.qf_end_col,
@@ -3792,14 +3792,14 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: impl crate::strings::IntoCCharPtr) 
         if let Some(title) = title {
             let len = crate::memory::cstr_len(buf.as_ptr());
             if len < 34 {
-                ptr::write_bytes(buf.as_mut_ptr().add(len), b' ', 34 - len);
+                ptr::write_bytes(buf.as_mut_ptr().wrapping_add(len), b' ', 34 - len);
                 buf[34] = NUL;
             }
             {
                 let _dst: *mut c_char = buf.as_mut_ptr();
                 let _dsize: usize = IOSIZE;
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), title.as_ptr(), _dsize - _dlen);
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), title.as_ptr(), _dsize - _dlen);
             };
         }
         trunc_string(
@@ -3972,8 +3972,8 @@ fn qf_types(c: i32, nr: i32) -> *const c_char {
         } else {
             let cc = (&raw mut qf_st().qf_types_cc).cast::<c_char>();
             *cc = b' ' as c_char;
-            *cc.add(1) = c as c_char;
-            *cc.add(2) = NUL;
+            *cc.wrapping_add(1) = c as c_char;
+            *cc.wrapping_add(2) = NUL;
             cc
         };
 
@@ -4895,7 +4895,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
             {
                 break;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
 
         if crate::memory::cstr_is_empty(p) {
@@ -4914,13 +4914,13 @@ fn get_mef_name() -> Option<std::ffi::CString> {
             crate::memory::cstr_cpy(name, opt_vars().p_mef);
             let off_idx = p.offset_from(opt_vars().p_mef) as usize;
             vim_snprintf!(
-                name.add(off_idx),
+                name.wrapping_add(off_idx),
                 mef_len + 30 - off_idx,
                 c"%d%d",
                 qf_st().mef_start,
                 qf_st().mef_off,
             );
-            c_strcat(name, p.add(2));
+            c_strcat(name, p.wrapping_add(2));
             let mut file_info = FileInfo::new();
             let file_or_link_found = os_fileinfo_link(name, &mut file_info);
             if !file_or_link_found {
@@ -5573,7 +5573,7 @@ fn vgr_match_buflines(
 ) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
     let spat = spat.into_c_char_ptr();
-    unsafe {
+    {
         let mut found_match = false;
         let pat_len = crate::memory::cstr_len(spat).min(FUZZY_MATCH_MAX_LEN);
 
@@ -5633,7 +5633,7 @@ fn vgr_match_buflines(
                 let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
                 while fuzzy_match(
-                    str_.add(col as usize),
+                    str_.wrapping_add(col as usize),
                     spat,
                     false,
                     &mut score,
@@ -7568,7 +7568,7 @@ fn hgr_search_file(
                 let mut l = crate::memory::cstr_len(line);
                 while l > 0 && (crate::memory::cstr_byte_at(line, l - 1)) <= b' ' {
                     l -= 1;
-                    *line.add(l) = NUL;
+                    *line.wrapping_add(l) = NUL;
                 }
 
                 if qf_add_entry(
@@ -7609,7 +7609,7 @@ fn hgr_search_files_in_dir(
 ) {
     let mut dirname = dirname.into_c_char_ptr().cast_mut();
     let lang = lang.into_c_char_ptr();
-    unsafe {
+    {
         let mut fnames: Vec<std::ffi::CString> = Vec::new();
 
         add_pathsep(dirname);
@@ -7630,7 +7630,7 @@ fn hgr_search_files_in_dir(
                     ))
                     && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(b"en")
                         && b"txt".eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
-                            f.add(flen - 3),
+                            f.wrapping_add(flen - 3),
                             3,
                         )))
                 {
@@ -7825,7 +7825,7 @@ fn set_qf_ll_list(wp: *mut WinInfoInfo, args: &mut [TypVal], rettv: &mut TypVal)
             return;
         }
 
-        let action_arg = args.add(1);
+        let action_arg = args.wrapping_add(1);
         if (*action_arg).v_type != VarType::VarUnknown {
             if (*action_arg).v_type != VarType::VarString {
                 emsg(gettext(E_STRING_REQUIRED));
@@ -7845,7 +7845,7 @@ fn set_qf_ll_list(wp: *mut WinInfoInfo, args: &mut [TypVal], rettv: &mut TypVal)
                 return;
             }
 
-            let what_arg = args.add(2);
+            let what_arg = args.wrapping_add(2);
             let what_arg = { &mut *what_arg };
             if what_arg.v_type != VarType::VarUnknown {
                 if what_arg.v_type == VarType::VarString {

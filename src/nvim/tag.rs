@@ -719,7 +719,7 @@ pub fn do_tag(
 
                     if !no_regexp && crate::memory::cstr_first_byte(name) == b'/' {
                         tag_st().do_tag_flags = TAG_REGEXP;
-                        name = name.add(1);
+                        name = name.wrapping_add(1);
                     } else {
                         tag_st().do_tag_flags = TAG_NOIC;
                     }
@@ -881,7 +881,7 @@ pub fn do_tag(
                                 let _dsize: usize = IOSIZE;
                                 let _dlen = crate::memory::cstr_len(_dst);
                                 crate::memory::xstrlcpy(
-                                    _dst.add(_dlen),
+                                    _dst.wrapping_add(_dlen),
                                     gettext(c"  Using tag with different case!"),
                                     _dsize - _dlen,
                                 );
@@ -1083,22 +1083,22 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>
                         && crate::memory::cstr_first_byte(p_iter) != b'\r'
                         && crate::memory::cstr_first_byte(p_iter) != b'\n'
                     {
-                        p_iter = p_iter.add(1);
+                        p_iter = p_iter.wrapping_add(1);
                     }
                     cmd_end = p_iter;
                 }
 
-                cmd_end = cmd_end.sub(1);
+                cmd_end = cmd_end.wrapping_sub(1);
 
                 if crate::memory::cstr_first_byte(cmd_start) == b'/'
                     || crate::memory::cstr_first_byte(cmd_start) == b'?'
                 {
-                    cmd_start = cmd_start.add(1);
+                    cmd_start = cmd_start.wrapping_add(1);
                 }
                 if crate::memory::cstr_first_byte(cmd_end) == b'/'
                     || crate::memory::cstr_first_byte(cmd_end) == b'?'
                 {
-                    cmd_end = cmd_end.sub(1);
+                    cmd_end = cmd_end.wrapping_sub(1);
                 }
 
                 len = 0;
@@ -1106,29 +1106,33 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>
 
                 if crate::memory::cstr_first_byte(cmd_start) == b'^' {
                     crate::memory::cstr_cpy(cmd, c"^");
-                    cmd_start = cmd_start.add(1);
+                    cmd_start = cmd_start.wrapping_add(1);
                     len += 1;
                 }
 
-                crate::memory::cstr_cpy(cmd.add(len as usize), c"\\V");
+                crate::memory::cstr_cpy(cmd.wrapping_add(len as usize), c"\\V");
                 len += 2;
 
                 let cmd_len = ((cmd_end.offset_from(cmd_start) as i32) + 1)
                     .min(CMDBUFFSIZE as i32 - 5)
                     .max(0);
                 if cmd_len > 0 {
-                    ptr::copy_nonoverlapping(cmd_start, cmd.add(len as usize), cmd_len as usize);
+                    ptr::copy_nonoverlapping(
+                        cmd_start,
+                        cmd.wrapping_add(len as usize),
+                        cmd_len as usize,
+                    );
                     len += cmd_len;
                 }
-                *cmd.add(len as usize) = NUL;
+                *cmd.wrapping_add(len as usize) = NUL;
 
-                if *cmd.add((len - 1) as usize) == b'$' as c_char {
-                    *cmd.add((len - 1) as usize) = b'\\' as c_char;
-                    *cmd.add(len as usize) = b'$' as c_char;
+                if *cmd.wrapping_add((len - 1) as usize) == b'$' as c_char {
+                    *cmd.wrapping_add((len - 1) as usize) = b'\\' as c_char;
+                    *cmd.wrapping_add(len as usize) = b'$' as c_char;
                     len += 1;
                 }
 
-                *cmd.add(len as usize) = NUL;
+                *cmd.wrapping_add(len as usize) = NUL;
             }
 
             let dict = tv_dict_alloc();
@@ -1213,7 +1217,7 @@ fn tag_strnicmp(
 ) -> i32 {
     let mut s1 = s1.into_c_char_ptr();
     let mut s2 = s2.into_c_char_ptr();
-    unsafe {
+    {
         while len > 0 {
             let i = toupper_asc(i32::from(crate::memory::cstr_first_byte(s1)))
                 - toupper_asc(i32::from(crate::memory::cstr_first_byte(s2)));
@@ -1223,8 +1227,8 @@ fn tag_strnicmp(
             if crate::memory::cstr_is_empty(s1) {
                 break;
             }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
+            s1 = s1.wrapping_add(1);
+            s2 = s2.wrapping_add(1);
             len -= 1;
         }
         0
@@ -1232,16 +1236,16 @@ fn tag_strnicmp(
 }
 
 fn prepare_pats(pats: &mut Pat, has_re: bool) {
-    unsafe {
+    {
         pats.head = pats.pat;
         pats.headlen = pats.len;
         if has_re {
             if crate::memory::cstr_first_byte(pats.pat) == b'^' {
-                pats.head = pats.pat.add(1);
+                pats.head = pats.pat.wrapping_add(1);
             } else if crate::memory::cstr_first_byte(pats.pat) == b'\\'
                 && crate::memory::cstr_byte_at(pats.pat, 1) == b'<'
             {
-                pats.head = pats.pat.add(2);
+                pats.head = pats.pat.wrapping_add(2);
             }
             if pats.head == pats.pat {
                 pats.headlen = 0;
@@ -1289,7 +1293,7 @@ fn tagfunc_cmd_kind(cmd: impl crate::strings::IntoCCharPtr) -> Tagcmd {
         if crate::memory::cstr_first_byte(cmd) == b'/'
             || crate::memory::cstr_first_byte(cmd) == b'?'
         {
-            let end = skip_regexp(cmd.add(1), *cmd as i32, 0);
+            let end = skip_regexp(cmd.wrapping_add(1), *cmd as i32, 0);
             return if *end == *cmd && crate::memory::cstr_byte_at(end, 1) == 0 {
                 Tagcmd::TagcmdAddress
             } else {
@@ -1333,9 +1337,9 @@ fn find_tagfunc_tags(
         if curwin_mut().w_tagstacklen > 0 {
             let tagstack_ptr = (&raw mut curwin_mut().w_tagstack).cast::<Taggy>();
             if curwin_mut().w_tagstackidx == curwin_mut().w_tagstacklen {
-                tag = tagstack_ptr.add((curwin_mut().w_tagstackidx - 1) as usize);
+                tag = tagstack_ptr.wrapping_add((curwin_mut().w_tagstackidx - 1) as usize);
             } else {
-                tag = tagstack_ptr.add(curwin_mut().w_tagstackidx as usize);
+                tag = tagstack_ptr.wrapping_add(curwin_mut().w_tagstackidx as usize);
             }
         }
 
@@ -1455,7 +1459,7 @@ fn find_tagfunc_tags(
                             }
                         }
                     }
-                    hi = hi.add(1);
+                    hi = hi.wrapping_add(1);
                 }
             }
 
@@ -1490,26 +1494,26 @@ fn find_tagfunc_tags(
             if !name_only {
                 let mut p = mfp;
                 *p = (MT_GL_OTH + 1) as c_char;
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 *p = TAG_SEP;
-                p = p.add(1);
+                p = p.wrapping_add(1);
 
                 crate::memory::cstr_cpy(p, res_name);
-                p = p.add(crate::memory::cstr_len(p));
+                p = p.wrapping_add(crate::memory::cstr_len(p));
 
                 *p = TAB;
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 crate::memory::cstr_cpy(p, res_fname);
-                p = p.add(crate::memory::cstr_len(p));
+                p = p.wrapping_add(crate::memory::cstr_len(p));
 
                 *p = TAB;
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 crate::memory::cstr_cpy(p, res_cmd);
-                p = p.add(crate::memory::cstr_len(p));
+                p = p.wrapping_add(crate::memory::cstr_len(p));
 
                 if cmdkind == Tagcmd::TagcmdGeneric {
                     *p = b'|' as c_char;
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                 }
                 if cmdkind == Tagcmd::TagcmdGeneric || has_extra {
                     {
@@ -1517,16 +1521,16 @@ fn find_tagfunc_tags(
                         std::ptr::copy_nonoverlapping(
                             s,
                             p,
-                            std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len(),
+                            crate::memory::cstr_from_ptr(s).to_bytes_with_nul().len(),
                         );
                     };
-                    p = p.add(crate::memory::cstr_len(p));
+                    p = p.wrapping_add(crate::memory::cstr_len(p));
 
                     if !res_kind.is_null() {
                         *p = TAB;
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         crate::memory::cstr_cpy(p, res_kind);
-                        p = p.add(crate::memory::cstr_len(p));
+                        p = p.wrapping_add(crate::memory::cstr_len(p));
                     }
 
                     if !item_dict.is_null() {
@@ -1547,16 +1551,16 @@ fn find_tagfunc_tags(
                                     && crate::memory::cstr_as_bytes(dict_key) != b"kind"
                                 {
                                     *p = TAB;
-                                    p = p.add(1);
+                                    p = p.wrapping_add(1);
                                     crate::memory::cstr_cpy(p, dict_key);
-                                    p = p.add(crate::memory::cstr_len(p));
+                                    p = p.wrapping_add(crate::memory::cstr_len(p));
                                     crate::memory::cstr_cpy(p, c":");
-                                    p = p.add(crate::memory::cstr_len(p));
+                                    p = p.wrapping_add(crate::memory::cstr_len(p));
                                     crate::memory::cstr_cpy(p, tv.vval.v_string());
-                                    p = p.add(crate::memory::cstr_len(p));
+                                    p = p.wrapping_add(crate::memory::cstr_len(p));
                                 }
                             }
-                            hi = hi.add(1);
+                            hi = hi.wrapping_add(1);
                         }
                     }
                 }
@@ -1638,10 +1642,10 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
             crate::memory::cstr_cpy(st.help_lang.as_mut_ptr(), c"en");
         } else {
             let i = crate::memory::cstr_len(tag_fname) as i32;
-            if i > 3 && *tag_fname.add((i - 3) as usize) == b'-' as c_char {
+            if i > 3 && *tag_fname.wrapping_add((i - 3) as usize) == b'-' as c_char {
                 crate::memory::cstr_ncpy(
                     st.help_lang.as_mut_ptr(),
-                    tag_fname.add((i - 2) as usize),
+                    tag_fname.wrapping_add((i - 2) as usize),
                     2,
                 );
             } else {
@@ -1664,10 +1668,10 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
             && st.help_lang_find.is_none()
             && !curbuf_mut().b_fname.is_null()
             && fname_len > 4
-            && *curbuf_mut().b_fname.add((fname_len - 1) as usize) == b'x' as c_char
-            && *curbuf_mut().b_fname.add((fname_len - 4) as usize) == b'.' as c_char
+            && *curbuf_mut().b_fname.wrapping_add((fname_len - 1) as usize) == b'x' as c_char
+            && *curbuf_mut().b_fname.wrapping_add((fname_len - 4) as usize) == b'.' as c_char
             && mb_strnicmp(
-                curbuf_mut().b_fname.add((fname_len - 3) as usize),
+                curbuf_mut().b_fname.wrapping_add((fname_len - 3) as usize),
                 st.help_lang.as_ptr(),
                 2,
             ) == 0
@@ -1685,7 +1689,7 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
                 if s.is_null() {
                     break;
                 }
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
             if crate::memory::cstr_is_empty(s) {
                 st.help_pri += 1;
@@ -1803,14 +1807,14 @@ fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
             st.tag_file_sorted = crate::memory::cstr_byte_at(lbuf, 18) as i32;
         }
         if crate::memory::cstr_prefix_bytes(lbuf, 20) == &b"!_TAG_FILE_ENCODING\t"[..20] {
-            let mut p = lbuf.add(20);
+            let mut p = lbuf.wrapping_add(20);
             while (crate::memory::cstr_first_byte(p)) > b' '
                 && (crate::memory::cstr_first_byte(p)) < 127
             {
-                p = p.add(1);
+                p = p.wrapping_add(1);
             }
             *p = NUL;
-            convert_setup(&mut st.vimconv, lbuf.add(20), opt_vars().p_enc);
+            convert_setup(&mut st.vimconv, lbuf.wrapping_add(20), opt_vars().p_enc);
         }
 
         false
@@ -1979,12 +1983,12 @@ fn findtags_parse_line(
                 }
             }
 
-            tagpp.fname = tagpp.tagname_end.add(1);
+            tagpp.fname = tagpp.tagname_end.wrapping_add(1);
             tagpp.fname_end = vim_strchr(tagpp.fname, TAB as i32);
             if tagpp.fname_end.is_null() {
                 status = false;
             } else {
-                tagpp.command = tagpp.fname_end.add(1);
+                tagpp.command = tagpp.fname_end.wrapping_add(1);
                 status = true;
             }
         } else {
@@ -2110,15 +2114,15 @@ fn findtags_add_match(
             let mut v = vec![0 as c_char; mfp_size];
             let p = v.as_mut_ptr();
             crate::memory::cstr_cpy(p, tagpp.tagname);
-            *p.add(len) = b'@' as c_char;
-            crate::memory::cstr_cpy(p.add(len + 1), st.help_lang.as_ptr());
+            *p.wrapping_add(len) = b'@' as c_char;
+            crate::memory::cstr_cpy(p.wrapping_add(len + 1), st.help_lang.as_ptr());
             let heur = help_heuristic(
                 tagpp.tagname,
                 if margs.match_re { margs.matchoff } else { 0 },
                 !margs.match_no_ic,
             ) + st.help_pri;
             vim_snprintf!(
-                p.add(len + 1 + ML_EXTRA),
+                p.wrapping_add(len + 1 + ML_EXTRA),
                 mfp_size - (len + 1 + ML_EXTRA),
                 c"%06d",
                 heur,
@@ -2135,14 +2139,14 @@ fn findtags_add_match(
                         && crate::memory::cstr_first_byte(temp_end) != b'\n'
                         && crate::memory::cstr_first_byte(temp_end) != b'$'
                     {
-                        temp_end = temp_end.add(1);
+                        temp_end = temp_end.wrapping_add(1);
                     }
                 }
 
-                if tagpp.command.add(2) < temp_end {
-                    let len = temp_end.offset_from(tagpp.command.add(2)) as usize;
+                if tagpp.command.wrapping_add(2) < temp_end {
+                    let len = temp_end.offset_from(tagpp.command.wrapping_add(2)) as usize;
                     let mut v = vec![0 as c_char; len + 2];
-                    crate::memory::cstr_ncpy(v.as_mut_ptr(), tagpp.command.add(2), len);
+                    crate::memory::cstr_ncpy(v.as_mut_ptr(), tagpp.command.wrapping_add(2), len);
                     mfp_vec = Some(v);
                 }
                 st.get_searchpat = false;
@@ -2162,9 +2166,9 @@ fn findtags_add_match(
             let mut v = vec![0 as c_char; 1 + len + 1];
             let p = v.as_mut_ptr();
             *p = (mtt + 1) as c_char;
-            crate::memory::cstr_cpy(p.add(1), tag_fname_ptr);
-            *p.add(tag_fname_len + 1) = TAG_SEP;
-            let s = p.add(1 + tag_fname_len + 1);
+            crate::memory::cstr_cpy(p.wrapping_add(1), tag_fname_ptr);
+            *p.wrapping_add(tag_fname_len + 1) = TAG_SEP;
+            let s = p.wrapping_add(1 + tag_fname_len + 1);
             crate::memory::cstr_cpy(s, lbuf_ptr);
             mfp_vec = Some(v);
         }
@@ -2333,12 +2337,12 @@ fn findtags_copy_matches(st: &mut FindtagsState, matches: &mut Vec<Vec<c_char>>)
                     if !name_only {
                         let mfp = mfp_vec.as_mut_ptr();
                         *mfp -= 1;
-                        let mut p = mfp.add(1);
+                        let mut p = mfp.wrapping_add(1);
                         while !crate::memory::cstr_is_empty(p) {
                             if *p == TAG_SEP {
                                 *p = NUL;
                             }
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                         }
                     }
                     matches.push(mfp_vec);
@@ -2395,15 +2399,15 @@ pub fn find_tags(
 
         if curbuf_mut().b_help
             && st.orgpat.len > 3
-            && *pat.add((st.orgpat.len - 3) as usize) == b'@' as c_char
-            && ascii_isalpha(*pat.add((st.orgpat.len - 2) as usize))
-            && ascii_isalpha(*pat.add((st.orgpat.len - 1) as usize))
+            && *pat.wrapping_add((st.orgpat.len - 3) as usize) == b'@' as c_char
+            && ascii_isalpha(*pat.wrapping_add((st.orgpat.len - 2) as usize))
+            && ascii_isalpha(*pat.wrapping_add((st.orgpat.len - 1) as usize))
         {
             let keep = (st.orgpat.len - 3) as usize;
             let cstr = std::ffi::CString::new(crate::memory::cstr_slice(pat, keep)).unwrap();
             st.help_lang_find = Some([
-                *pat.add((st.orgpat.len - 2) as usize),
-                *pat.add((st.orgpat.len - 1) as usize),
+                *pat.wrapping_add((st.orgpat.len - 2) as usize),
+                *pat.wrapping_add((st.orgpat.len - 1) as usize),
                 NUL,
             ]);
             st.orgpat.pat = cstr.as_ptr().cast_mut();
@@ -2432,7 +2436,7 @@ pub fn find_tags(
                     let i = crate::memory::cstr_len(curbuf_mut().b_fname) as i32;
                     if i > 4
                         && mb_strnicmp(
-                            curbuf_mut().b_fname.add((i - 4) as usize),
+                            curbuf_mut().b_fname.wrapping_add((i - 4) as usize),
                             c".txt",
                             MAXCOL as usize,
                         ) == 0
@@ -2598,16 +2602,20 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: *mut c_char) -> bool {
                 let mut r_ptr = vim_findfile_stopdir(buf);
                 let mut filename = path_tail(buf);
                 if !r_ptr.is_null() {
-                    ptr::copy(r_ptr, r_ptr.add(1), crate::memory::cstr_len(r_ptr) + 1);
-                    r_ptr = r_ptr.add(1);
+                    ptr::copy(
+                        r_ptr,
+                        r_ptr.wrapping_add(1),
+                        crate::memory::cstr_len(r_ptr) + 1,
+                    );
+                    r_ptr = r_ptr.wrapping_add(1);
                 }
                 ptr::copy(
                     filename,
-                    filename.add(1),
+                    filename.wrapping_add(1),
                     crate::memory::cstr_len(filename) + 1,
                 );
                 *filename = NUL;
-                filename = filename.add(1);
+                filename = filename.wrapping_add(1);
 
                 tnp.tn_search_ctx = vim_findfile_init(
                     buf,
@@ -2634,7 +2642,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: *mut c_char) -> bool {
 
 fn parse_tag_line(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> bool {
     let lbuf = lbuf.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         tagp.tagname = lbuf;
         let mut p = vim_strchr(lbuf, TAB as i32);
         if p.is_null() {
@@ -2643,7 +2651,7 @@ fn parse_tag_line(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -
         tagp.tagname_end = p;
 
         if !crate::memory::cstr_is_empty(p) {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         tagp.fname = p;
         p = vim_strchr(p, TAB as i32);
@@ -2653,7 +2661,7 @@ fn parse_tag_line(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -
         tagp.fname_end = p;
 
         if !crate::memory::cstr_is_empty(p) {
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         if crate::memory::cstr_is_empty(p) {
             return false;
@@ -2665,14 +2673,14 @@ fn parse_tag_line(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -
 }
 
 fn test_for_static(tagp: &Tagptrs) -> bool {
-    unsafe {
+    {
         let mut p = tagp.command;
         loop {
             p = vim_strchr(p, b'\t' as i32);
             if p.is_null() {
                 break;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
             if crate::memory::cstr_prefix_bytes(p, 5) == &b"file:"[..5] {
                 return true;
             }
@@ -2684,8 +2692,8 @@ fn test_for_static(tagp: &Tagptrs) -> bool {
 fn matching_line_len(lbuf: impl crate::strings::IntoCCharPtr) -> usize {
     let lbuf = lbuf.into_c_char_ptr();
     unsafe {
-        let mut p = lbuf.add(1);
-        p = p.add(crate::memory::cstr_len(p) + 1);
+        let mut p = lbuf.wrapping_add(1);
+        p = p.wrapping_add(crate::memory::cstr_len(p) + 1);
         p.offset_from(lbuf) as usize + crate::memory::cstr_len(p)
     }
 }
@@ -2693,8 +2701,8 @@ fn matching_line_len(lbuf: impl crate::strings::IntoCCharPtr) -> usize {
 fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> bool {
     let mut lbuf = lbuf.into_c_char_ptr().cast_mut();
     unsafe {
-        tagp.tag_fname = lbuf.add(1);
-        lbuf = lbuf.add(crate::memory::cstr_len(tagp.tag_fname) + 2);
+        tagp.tag_fname = lbuf.wrapping_add(1);
+        lbuf = lbuf.wrapping_add(crate::memory::cstr_len(tagp.tag_fname) + 2);
 
         let retval = parse_tag_line(lbuf, tagp);
 
@@ -2710,17 +2718,17 @@ fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> b
         let mut p = tagp.command;
         if find_extra(&raw mut p) {
             tagp.command_end = p;
-            if p > tagp.command && *p.sub(1) == b'|' as c_char {
-                tagp.command_end = p.sub(1);
+            if p > tagp.command && *p.wrapping_sub(1) == b'|' as c_char {
+                tagp.command_end = p.wrapping_sub(1);
             }
-            p = p.add(2);
+            p = p.wrapping_add(2);
             if *p == TAB {
-                p = p.add(1);
+                p = p.wrapping_add(1);
                 while ascii_isalpha(*p) || utfc_ptr2len(p) > 1 {
                     if crate::memory::cstr_prefix_bytes(p, 5) == &b"kind:"[..5] {
-                        tagp.tagkind = p.add(5);
+                        tagp.tagkind = p.wrapping_add(5);
                     } else if crate::memory::cstr_prefix_bytes(p, 10) == &b"user_data:"[..10] {
-                        tagp.user_data = p.add(10);
+                        tagp.user_data = p.wrapping_add(10);
                     } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"line:"[..5] {
                         tagp.tagline =
                             crate::charset::parse_i64_prefix(&crate::memory::cstr_as_bytes(p)[5..])
@@ -2818,8 +2826,8 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: i32, keep_he
                 && crate::memory::cstr_first_byte(str_) != b'\r'
             {
                 *pbuf_end = *str_;
-                pbuf_end = pbuf_end.add(1);
-                str_ = str_.add(1);
+                pbuf_end = pbuf_end.wrapping_add(1);
+                str_ = str_.wrapping_add(1);
                 if pbuf_end.offset_from(pbuf) as i32 + 1 >= LSIZE {
                     break;
                 }
@@ -2829,8 +2837,8 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: i32, keep_he
             {
                 str_ = pbuf;
                 if find_extra(&raw mut str_) {
-                    if str_ > pbuf && *str_.sub(1) == b'|' as c_char {
-                        pbuf_end = str_.sub(1);
+                    if str_ > pbuf && *str_.wrapping_sub(1) == b'|' as c_char {
+                        pbuf_end = str_.wrapping_sub(1);
                     } else {
                         pbuf_end = str_;
                     }
@@ -2927,9 +2935,9 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: i32, keep_he
                 if crate::memory::cstr_first_byte(pbuf) == b'/'
                     || crate::memory::cstr_first_byte(pbuf) == b'?'
                 {
-                    str_ = skip_regexp(pbuf.add(1), *pbuf as i32, 0).add(1);
+                    str_ = skip_regexp(pbuf.wrapping_add(1), *pbuf as i32, 0).wrapping_add(1);
                 }
-                if str_ > pbuf_end.sub(1) {
+                if str_ > pbuf_end.wrapping_sub(1) {
                     let mut pbuflen = pbuf_end.offset_from(pbuf) as usize;
 
                     let save_p_ws = opt_vars().p_ws;
@@ -2950,7 +2958,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: i32, keep_he
                         None,
                         *pbuf as i32,
                         *pbuf as i32,
-                        pbuf.add(1),
+                        pbuf.wrapping_add(1),
                         pbuflen - 1,
                         1,
                         search_options,
@@ -2966,7 +2974,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: i32, keep_he
                             None,
                             *pbuf as i32,
                             *pbuf as i32,
-                            pbuf.add(1),
+                            pbuf.wrapping_add(1),
                             pbuflen - 1,
                             1,
                             search_options,
@@ -3127,7 +3135,11 @@ fn expand_tag_fname(
                 let mut retval = [0 as c_char; MAXPATHL];
                 crate::memory::cstr_cpy(retval.as_mut_ptr(), tag_fname);
                 let off = p.offset_from(tag_fname) as usize;
-                xstrlcpy(retval.as_mut_ptr().add(off), fname.as_ptr(), MAXPATHL - off);
+                xstrlcpy(
+                    retval.as_mut_ptr().wrapping_add(off),
+                    fname.as_ptr(),
+                    MAXPATHL - off,
+                );
                 simplify_filename(retval.as_mut_ptr());
                 return crate::memory::cstr_to_cstring(retval.as_ptr());
             }
@@ -3170,23 +3182,23 @@ fn find_extra(pp: *mut *mut c_char) -> bool {
 
         loop {
             if ascii_isdigit(*str_) {
-                str_ = skipdigits(str_.add(1));
+                str_ = skipdigits(str_.wrapping_add(1));
             } else if crate::memory::cstr_first_byte(str_) == b'/'
                 || crate::memory::cstr_first_byte(str_) == b'?'
             {
-                str_ = skip_regexp(str_.add(1), *str_ as i32, 0);
+                str_ = skip_regexp(str_.wrapping_add(1), *str_ as i32, 0);
                 if *str_ != first_char {
                     str_ = ptr::null_mut();
                 } else {
-                    str_ = str_.add(1);
+                    str_ = str_.wrapping_add(1);
                 }
             } else {
                 str_ = crate::memory::cstr_as_bytes(str_)
                     .windows(3)
                     .position(|w| w == b"|;\"")
-                    .map_or(ptr::null_mut(), |i| str_.add(i));
+                    .map_or(ptr::null_mut(), |i| str_.wrapping_add(i));
                 if !str_.is_null() {
-                    str_ = str_.add(1);
+                    str_ = str_.wrapping_add(1);
                     break;
                 }
             }
@@ -3198,7 +3210,7 @@ fn find_extra(pp: *mut *mut c_char) -> bool {
             {
                 break;
             }
-            str_ = str_.add(1);
+            str_ = str_.wrapping_add(1);
             first_char = *str_;
         }
 
@@ -3235,7 +3247,7 @@ pub fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<std::ffi::CS
         let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
         let ret = if crate::memory::cstr_first_byte(pat) == b'/' {
             find_tags(
-                pat.add(1),
+                pat.wrapping_add(1),
                 &mut raw_matches,
                 TAG_REGEXP | extra_flag | TAG_VERBOSE,
                 TAG_MANY,
@@ -3311,17 +3323,18 @@ fn add_tag_field(
         let buf = buf_vec.as_mut_ptr();
         if !start.is_null() {
             if end.is_null() {
-                end = start.add(crate::memory::cstr_len(start));
+                end = start.wrapping_add(crate::memory::cstr_len(start));
                 while end > start
-                    && (*end.sub(1) == b'\r' as c_char || *end.sub(1) == b'\n' as c_char)
+                    && (*end.wrapping_sub(1) == b'\r' as c_char
+                        || *end.wrapping_sub(1) == b'\n' as c_char)
                 {
-                    end = end.sub(1);
+                    end = end.wrapping_sub(1);
                 }
             }
             len = (end.offset_from(start) as i32).min(MAXPATHL as i32 - 1);
             crate::memory::cstr_ncpy(buf, start, len as usize);
         }
-        *buf.add(len as usize) = NUL;
+        *buf.wrapping_add(len as usize) = NUL;
         tv_dict_add_str(dict.unwrap(), field_name, buf)
     }
 }
@@ -3384,18 +3397,18 @@ pub fn get_tags(
             drop(full_fname);
 
             if !tp.command_end.is_null() {
-                let mut p = tp.command_end.add(3);
+                let mut p = tp.command_end.wrapping_add(3);
                 while !crate::memory::cstr_is_empty(p)
                     && crate::memory::cstr_first_byte(p) != b'\n'
                     && crate::memory::cstr_first_byte(p) != b'\r'
                 {
                     if p == tp.tagkind
-                        || (p.add(5) == tp.tagkind
+                        || (p.wrapping_add(5) == tp.tagkind
                             && (crate::memory::cstr_prefix_bytes(p, 5) == &b"kind:"[..5]))
                     {
-                        p = tp.tagkind_end.sub(1);
+                        p = tp.tagkind_end.wrapping_sub(1);
                     } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"file:"[..5] {
-                        p = p.add(4);
+                        p = p.wrapping_add(4);
                     } else if !ascii_iswhite(*p) {
                         let n = p;
                         while !crate::memory::cstr_is_empty(p)
@@ -3403,27 +3416,27 @@ pub fn get_tags(
                             && (crate::memory::cstr_first_byte(p)) < 127
                             && crate::memory::cstr_first_byte(p) != b':'
                         {
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                         }
                         let len = p.offset_from(n) as i32;
                         if crate::memory::cstr_first_byte(p) == b':' && len > 0 {
-                            p = p.add(1);
+                            p = p.wrapping_add(1);
                             let s = p;
                             while !crate::memory::cstr_is_empty(p)
                                 && (crate::memory::cstr_first_byte(p)) >= b' '
                             {
-                                p = p.add(1);
+                                p = p.wrapping_add(1);
                             }
-                            *n.add(len as usize) = NUL;
+                            *n.wrapping_add(len as usize) = NUL;
                             if !add_tag_field(Some(&mut *dict), n, s, p) {
                                 ret = false;
                             }
-                            *n.add(len as usize) = b':' as c_char;
+                            *n.wrapping_add(len as usize) = b':' as c_char;
                         } else {
                             while !crate::memory::cstr_is_empty(p)
                                 && (crate::memory::cstr_first_byte(p)) >= b' '
                             {
-                                p = p.add(1);
+                                p = p.wrapping_add(1);
                             }
                         }
                         if crate::memory::cstr_is_empty(p) {

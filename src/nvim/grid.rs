@@ -168,7 +168,7 @@ const fn arabic_char(ch: i32) -> bool {
 fn strnlen_4(p: *const u8) -> usize {
     unsafe {
         for i in 0..4 {
-            if *p.add(i) == 0 {
+            if *p.wrapping_add(i) == 0 {
                 return i;
             }
         }
@@ -278,7 +278,7 @@ pub fn schar_get_adv(buf_out: *mut *mut c_char, sc: Schar) -> usize {
         if schar_high(sc) {
             let idx = schar_idx(sc) as usize;
             assert!(idx < grid_st().glyph_cache_keys.len());
-            let key_ptr = grid_st().glyph_cache_keys.as_ptr().add(idx);
+            let key_ptr = grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx);
             len = crate::memory::cstr_len(key_ptr);
             ptr::copy_nonoverlapping(key_ptr, *buf_out, len);
         } else {
@@ -286,7 +286,7 @@ pub fn schar_get_adv(buf_out: *mut *mut c_char, sc: Schar) -> usize {
             len = strnlen_4(sc_ptr);
             ptr::copy_nonoverlapping(sc_ptr.cast::<c_char>(), *buf_out, len);
         }
-        *buf_out = (*buf_out).add(len);
+        *buf_out = (*buf_out).wrapping_add(len);
         len
     }
 }
@@ -344,7 +344,7 @@ fn schar_in_arabic_block(sc: Schar) -> bool {
 
 #[inline]
 fn schar_get_first_two_codepoints(sc: Schar, c0: &mut i32, c1: &mut i32) {
-    unsafe {
+    {
         let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(sc_buf.as_mut_ptr(), sc);
 
@@ -353,7 +353,7 @@ fn schar_get_first_two_codepoints(sc: Schar, c0: &mut i32, c1: &mut i32) {
         if *c0 == 0 {
             *c1 = 0;
         } else {
-            *c1 = utf_ptr2char(sc_buf.as_ptr().add(len as usize));
+            *c1 = utf_ptr2char(sc_buf.as_ptr().wrapping_add(len as usize));
         }
     }
 }
@@ -362,7 +362,7 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
     unsafe {
         let mut i: i32 = 0;
         while i < cols {
-            if schar_in_arabic_block(*buf.add(i as usize)) {
+            if schar_in_arabic_block(*buf.wrapping_add(i as usize)) {
                 break;
             }
             i += 1;
@@ -375,13 +375,13 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
         let mut c0prev: i32 = 0;
         let mut c0: i32 = 0;
         let mut c1: i32 = 0;
-        schar_get_first_two_codepoints(*buf.add(i as usize), &mut c0, &mut c1);
+        schar_get_first_two_codepoints(*buf.wrapping_add(i as usize), &mut c0, &mut c1);
 
         while i < cols {
             let mut c0next: i32 = 0;
             let mut c1next: i32 = 0;
             let next_sc = if i + 1 < cols {
-                *buf.add((i + 1) as usize)
+                *buf.wrapping_add((i + 1) as usize)
             } else {
                 0
             };
@@ -393,12 +393,13 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
 
                 if !(c0new == c0 && c1new == c1) {
                     let mut scbuf = [0 as c_char; MAX_SCHAR_SIZE];
-                    schar_get(scbuf.as_mut_ptr(), *buf.add(i as usize));
+                    schar_get(scbuf.as_mut_ptr(), *buf.wrapping_add(i as usize));
 
                     let mut scbuf_new = [0 as c_char; MAX_SCHAR_SIZE];
                     let mut len = utf_char2bytes(c0new, scbuf_new.as_mut_ptr()) as usize;
                     if c1new != 0 {
-                        len += utf_char2bytes(c1new, scbuf_new.as_mut_ptr().add(len)) as usize;
+                        len += utf_char2bytes(c1new, scbuf_new.as_mut_ptr().wrapping_add(len))
+                            as usize;
                     }
 
                     let off =
@@ -406,17 +407,17 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
                     let mut rest = crate::memory::cstr_as_bytes(scbuf.as_ptr())[off..].len();
                     if rest + len + 1 > MAX_SCHAR_SIZE {
                         let bounds = utf_cp_bounds(
-                            scbuf.as_ptr().add(off),
-                            scbuf.as_ptr().add(off + rest - 1),
+                            scbuf.as_ptr().wrapping_add(off),
+                            scbuf.as_ptr().wrapping_add(off + rest - 1),
                         );
                         rest = (rest as isize - (isize::from(bounds.begin_off) + 1)) as usize;
                     }
                     ptr::copy_nonoverlapping(
-                        scbuf.as_ptr().add(off),
-                        scbuf_new.as_mut_ptr().add(len),
+                        scbuf.as_ptr().wrapping_add(off),
+                        scbuf_new.as_mut_ptr().wrapping_add(len),
                         rest,
                     );
-                    *buf.add(i as usize) = schar_from_buf(scbuf_new.as_ptr(), len + rest);
+                    *buf.wrapping_add(i as usize) = schar_from_buf(scbuf_new.as_ptr(), len + rest);
                 }
             }
 
@@ -656,18 +657,18 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
         let scratch_char = scratch_ptr.cast::<Schar>();
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_char[first as usize],
-            scratch_char.add(first as usize),
+            scratch_char.wrapping_add(first as usize),
             n,
         );
         let mut col = first;
         while col < last {
             let rev = mirror - col;
-            if col + 1 < last && *scratch_char.add((col + 1) as usize) == 0 {
-                g_st().linebuf_char[(rev - 1) as usize] = *scratch_char.add(col as usize);
+            if col + 1 < last && *scratch_char.wrapping_add((col + 1) as usize) == 0 {
+                g_st().linebuf_char[(rev - 1) as usize] = *scratch_char.wrapping_add(col as usize);
                 g_st().linebuf_char[rev as usize] = 0;
                 col += 1;
             } else {
-                g_st().linebuf_char[rev as usize] = *scratch_char.add(col as usize);
+                g_st().linebuf_char[rev as usize] = *scratch_char.wrapping_add(col as usize);
             }
             col += 1;
         }
@@ -675,21 +676,21 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
         let scratch_attr = scratch_ptr.cast::<Sattr>();
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_attr[first as usize],
-            scratch_attr.add(first as usize),
+            scratch_attr.wrapping_add(first as usize),
             n,
         );
         for c in first..last {
-            g_st().linebuf_attr[(mirror - c) as usize] = *scratch_attr.add(c as usize);
+            g_st().linebuf_attr[(mirror - c) as usize] = *scratch_attr.wrapping_add(c as usize);
         }
 
         let scratch_vcol = scratch_ptr.cast::<Colnr>();
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_vcol[first as usize],
-            scratch_vcol.add(first as usize),
+            scratch_vcol.wrapping_add(first as usize),
             n,
         );
         for c in first..last {
-            g_st().linebuf_vcol[(mirror - c) as usize] = *scratch_vcol.add(c as usize);
+            g_st().linebuf_vcol[(mirror - c) as usize] = *scratch_vcol.wrapping_add(c as usize);
         }
 
         *firstp = width - *clearp;
@@ -1233,7 +1234,7 @@ fn grid_draw_bordertext(
     bt: BorderTextType,
     mut overflow: i32,
 ) {
-    unsafe {
+    {
         let hlf_idx = if bt == K_BORDER_TEXT_TITLE {
             HLF_BTITLE
         } else {
@@ -1269,7 +1270,7 @@ fn grid_draw_bordertext(
                 let mut p = text;
                 while !crate::memory::cstr_is_empty(p) && overflow > 0 {
                     overflow -= utf_ptr2cells(p);
-                    p = p.add(utfc_ptr2len(p) as usize);
+                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 }
                 text = p;
             }
@@ -1316,9 +1317,9 @@ pub fn grid_draw_border(
         }
 
         let adj0 = *adj;
-        let adj1 = *adj.add(1);
-        let adj2 = *adj.add(2);
-        let adj3 = *adj.add(3);
+        let adj1 = *adj.wrapping_add(1);
+        let adj2 = *adj.wrapping_add(2);
+        let adj3 = *adj.wrapping_add(3);
 
         let irow = grid.rows - adj0 - adj2;
         let icol = grid.cols - adj1 - adj3;
@@ -1457,7 +1458,7 @@ pub fn schar_from_cluster_impl(
         let maxlen = MAX_SCHAR_SIZE - 1 - usize::from(first_compose);
         if len > maxlen {
             len = maxlen;
-            while (*buf.add(len).cast::<u8>() & 0xC0) != 0xC0 {
+            while (*buf.wrapping_add(len).cast::<u8>() & 0xC0) != 0xC0 {
                 len -= 1;
             }
         }
@@ -1465,7 +1466,7 @@ pub fn schar_from_cluster_impl(
         if first_compose {
             let mut cbuf = [0 as c_char; MAX_SCHAR_SIZE];
             cbuf[0] = b' ' as c_char;
-            ptr::copy_nonoverlapping(buf, cbuf.as_mut_ptr().add(1), len);
+            ptr::copy_nonoverlapping(buf, cbuf.as_mut_ptr().wrapping_add(1), len);
             schar_from_buf(cbuf.as_ptr(), len + 1)
         } else {
             schar_from_buf(buf, len)
@@ -1505,14 +1506,13 @@ pub fn unittest_schar_from_cluster(buf: &std::ffi::CStr, firstc: &mut i32) -> Sc
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn schar_roundtrip_ascii_and_unicode() {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        {
             let sc_a = schar_from_ascii(b'A');
             assert_eq!(schar_get_ascii(sc_a), b'A' as c_char);
 
@@ -1520,7 +1520,10 @@ mod tests {
             let mut buf = [0 as c_char; 16];
             let len = schar_get(buf.as_mut_ptr(), sc_u);
             assert_eq!(len, 3);
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "☃");
+            assert_eq!(
+                crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
+                "☃"
+            );
         }
     }
 }

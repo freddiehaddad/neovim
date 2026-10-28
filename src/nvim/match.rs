@@ -476,7 +476,7 @@ fn next_search_hl(
                 || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
             {
                 matchcol = shl.rm.startpos[0].col;
-                let ml = ml_get_buf(&mut *shl.buf, lnum).add(matchcol as usize);
+                let ml = ml_get_buf(&mut *shl.buf, lnum).wrapping_add(matchcol as usize);
                 if crate::memory::cstr_is_empty(ml) {
                     shl.lnum = 0;
                     break;
@@ -675,7 +675,7 @@ pub fn prepare_search_hl_line(
                 }
 
                 if shl.startcol == shl.endcol {
-                    let p = (*line).add(shl.endcol as usize);
+                    let p = (*line).wrapping_add(shl.endcol as usize);
                     if !crate::memory::cstr_is_empty(p) {
                         shl.endcol += utfc_ptr2len(p);
                     } else {
@@ -736,7 +736,7 @@ pub fn update_search_hl(
             let mut pos_inprogress = true;
             while !shl.rm.regprog.is_null() || (!cur.is_null() && pos_inprogress) {
                 if shl.startcol != MAXCOL && col >= shl.startcol && col < shl.endcol {
-                    let next_col = col + utfc_ptr2len((*line).add(col as usize));
+                    let next_col = col + utfc_ptr2len((*line).wrapping_add(col as usize));
                     if shl.endcol < next_col {
                         shl.endcol = next_col;
                     }
@@ -784,7 +784,7 @@ pub fn update_search_hl(
                         }
 
                         if shl.startcol == shl.endcol {
-                            let p = (*line).add(shl.endcol as usize);
+                            let p = (*line).wrapping_add(shl.endcol as usize);
                             if crate::memory::cstr_is_empty(p) {
                                 shl.endcol += 1;
                             } else {
@@ -1276,7 +1276,7 @@ pub fn ex_match(eap: &mut Exarg) {
                 && (ascii_iswhite(crate::memory::cstr_char_at(arg, 4))
                     || ends_excmd(crate::memory::cstr_char_at(arg, 4)) != 0)
             {
-                end = arg.add(4);
+                end = arg.wrapping_add(4);
             } else {
                 let mut p = skiptowhite(arg);
                 if eap.skip == 0 {
@@ -1293,10 +1293,14 @@ pub fn ex_match(eap: &mut Exarg) {
                     semsg!(gettext(E_INVARG2), arg);
                     return;
                 }
-                end = skip_regexp(p.add(1), i32::from(crate::memory::cstr_first_byte(p)), 1);
+                end = skip_regexp(
+                    p.wrapping_add(1),
+                    i32::from(crate::memory::cstr_first_byte(p)),
+                    1,
+                );
                 if eap.skip == 0 {
                     if !crate::memory::cstr_is_empty(end)
-                        && ends_excmd(i32::from(*skipwhite(end.add(1)))) == 0
+                        && ends_excmd(i32::from(*skipwhite(end.wrapping_add(1)))) == 0
                     {
                         eap.errmsg = ex_errmsg(E_TRAILING_ARG, end);
                         return;
@@ -1311,7 +1315,7 @@ pub fn ex_match(eap: &mut Exarg) {
                     match_add(
                         curwin_mut(),
                         g.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                        p.add(1),
+                        p.wrapping_add(1),
                         10,
                         id,
                         None,

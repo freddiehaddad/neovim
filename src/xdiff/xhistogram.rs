@@ -295,14 +295,14 @@ fn histogram_diff(
             if count1 == 0 {
                 while count2 > 0 {
                     count2 -= 1;
-                    *env.xdf2.rchg.offset((line2 - 1) as isize) = 1;
+                    *env.xdf2.rchg.wrapping_offset((line2 - 1) as isize) = 1;
                     line2 += 1;
                 }
                 return 0;
             } else if count2 == 0 {
                 while count1 > 0 {
                     count1 -= 1;
-                    *env.xdf1.rchg.offset((line1 - 1) as isize) = 1;
+                    *env.xdf1.rchg.wrapping_offset((line1 - 1) as isize) = 1;
                     line1 += 1;
                 }
                 return 0;
@@ -317,12 +317,12 @@ fn histogram_diff(
             } else if lcs.begin1 == 0 && lcs.begin2 == 0 {
                 while count1 > 0 {
                     count1 -= 1;
-                    *env.xdf1.rchg.offset((line1 - 1) as isize) = 1;
+                    *env.xdf1.rchg.wrapping_offset((line1 - 1) as isize) = 1;
                     line1 += 1;
                 }
                 while count2 > 0 {
                     count2 -= 1;
-                    *env.xdf2.rchg.offset((line2 - 1) as isize) = 1;
+                    *env.xdf2.rchg.wrapping_offset((line2 - 1) as isize) = 1;
                     line2 += 1;
                 }
                 return 0;

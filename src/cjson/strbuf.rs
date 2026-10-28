@@ -76,7 +76,7 @@ pub fn strbuf_ensure_null(s: &mut Strbuf) {
     s.buf.reserve(1);
     let len = s.buf.len();
     unsafe {
-        *s.buf.as_mut_ptr().add(len) = 0;
+        *s.buf.as_mut_ptr().wrapping_add(len) = 0;
     }
 }
 

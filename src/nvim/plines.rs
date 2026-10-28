@@ -455,7 +455,7 @@ pub fn charsize_regular(
         {
             let mut t = csarg.line;
             while vim_isbreak(i32::from(crate::memory::cstr_first_byte(t))) {
-                t = t.add(1);
+                t = t.wrapping_add(1);
             }
             need_lbr = cur >= t;
         }
@@ -478,7 +478,7 @@ pub fn charsize_regular(
             let mut vcol2 = vcol;
             loop {
                 let ps = s;
-                s = s.add(utfc_ptr2len(s) as usize);
+                s = s.wrapping_add(utfc_ptr2len(s) as usize);
                 let c = i32::from(crate::memory::cstr_first_byte(s));
                 if !(c != 0
                     && (vim_isbreak(c)
@@ -842,7 +842,7 @@ pub fn getvvcol(
     mut end: Option<&mut Colnr>,
     flags: i32,
 ) {
-    unsafe {
+    {
         let mut col: Colnr = 0;
 
         if virtual_active(&mut *wp) {
@@ -852,9 +852,9 @@ pub fn getvvcol(
 
             let ptr_val = ml_get_buf((*wp).buf_mut(), pos.lnum);
             if pos.col < ml_get_buf_len((*wp).buf_mut(), pos.lnum) {
-                let c = utf_ptr2char(ptr_val.add(pos.col as usize));
+                let c = utf_ptr2char(ptr_val.wrapping_add(pos.col as usize));
                 if c != TAB && vim_isprintc(c) {
-                    endadd = ptr2cells(ptr_val.add(pos.col as usize)) - 1;
+                    endadd = ptr2cells(ptr_val.wrapping_add(pos.col as usize)) - 1;
                     if coladd > endadd {
                         endadd = 0;
                     } else {
@@ -1021,7 +1021,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 }
 
 pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
-    unsafe {
+    {
         let mut lines = win_get_fill(wp, lnum);
         if wp.w_onebuf_opt.wo_wrap == 0 || wp.w_view_width == 0 {
             return lines + 1;
@@ -1033,7 +1033,7 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
 
         let mut vcol: Colnr = 0;
         let mut ci = utf_ptr2_str_char_info(line);
-        let limit_ptr = (line as *const c_char).add(column as usize);
+        let limit_ptr = (line as *const c_char).wrapping_add(column as usize);
         if cstype == K_CHARSIZE_FAST {
             let use_tabstop = csarg.use_tabstop;
             while !crate::memory::cstr_is_empty(ci.ptr) && ci.ptr < limit_ptr {

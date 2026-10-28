@@ -173,7 +173,7 @@ pub fn uhp_ref(buf: &FileBuf, uh: usize) -> &UHeader {
 
 #[inline]
 pub fn uhp_mut<'a>(buf: &mut FileBuf, uh: usize) -> &'a mut UHeader {
-    unsafe { &mut *buf.b_u_headers.as_mut_ptr().add(uh) }
+    unsafe { &mut *buf.b_u_headers.as_mut_ptr().wrapping_add(uh) }
 }
 
 fn u_alloc_header(buf: &mut FileBuf) -> usize {
@@ -357,7 +357,7 @@ fn get_undolevel(buf: &mut FileBuf) -> OptInt {
 fn zero_fmark_additional_data(fmarks: *mut Fmark) {
     unsafe {
         for i in 0..NMARKS {
-            (*fmarks.add(i)).additional_data = None;
+            (*fmarks.wrapping_add(i)).additional_data = None;
         }
     }
 }
@@ -639,9 +639,9 @@ pub fn u_get_undo_file_name(
                 ptr::copy(ffname, ufn, ffname_len + 1);
                 let tail = path_tail(ufn);
                 let tail_len = ffname_len - (tail.offset_from(ufn) as usize);
-                ptr::copy(tail, tail.add(1), tail_len + 1);
+                ptr::copy(tail, tail.wrapping_add(1), tail_len + 1);
                 *tail = b'.' as c_char;
-                ptr::copy(c".un~".as_ptr(), tail.add(tail_len + 1), 5);
+                ptr::copy(c".un~".as_ptr(), tail.wrapping_add(tail_len + 1), 5);
                 undo_file_name = Some(crate::memory::cstr_to_cstring(ufn));
             } else {
                 dir_name[dir_len] = NUL;
@@ -674,7 +674,7 @@ pub fn u_get_undo_file_name(
                             if vim_ispathsep(crate::memory::cstr_first_char(p)) {
                                 *p = b'%' as c_char;
                             }
-                            p = p.add(utfc_ptr2len(p) as usize);
+                            p = p.wrapping_add(utfc_ptr2len(p) as usize);
                         }
                     }
                     let dir_str = NvimString {
@@ -2434,7 +2434,7 @@ pub fn u_sync(force: bool) {
 
 /// `":undolist"`: List the leafs of the undo tree.
 pub fn ex_undolist(_eap: &mut Exarg) {
-    unsafe {
+    {
         let mut changes: i32 = 1;
 
         undo_st().lastmark += 1;
@@ -2454,14 +2454,14 @@ pub fn ex_undolist(_eap: &mut Exarg) {
             if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
                 vim_snprintf!(iobuf_ptr, IOSIZE, c"%6d %7d  ", uh_seq, changes,);
                 let cur_len = crate::memory::cstr_len(iobuf_ptr);
-                undo_fmt_time(iobuf_ptr.add(cur_len), IOSIZE - cur_len, uh_time);
+                undo_fmt_time(iobuf_ptr.wrapping_add(cur_len), IOSIZE - cur_len, uh_time);
                 if uh_save_nr > 0 {
                     while crate::memory::cstr_len(iobuf_ptr) < 33 {
                         {
                             let _dst: *mut c_char = iobuf_ptr;
                             let _dsize: usize = IOSIZE;
                             let _dlen = crate::memory::cstr_len(_dst);
-                            crate::memory::xstrlcpy(_dst.add(_dlen), c" ", _dsize - _dlen);
+                            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c" ", _dsize - _dlen);
                         };
                     }
                     vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d", uh_save_nr);
@@ -3139,7 +3139,7 @@ mod tests {
     fn u_write_undo_and_hash_work() {
         use crate::buffer::{BLN_LISTED, DOBUF_WIPE, buflist_new, close_buffer};
         use crate::os::fs::{MAXPATHL, os_dirname};
-        use std::ffi::{CStr, CString};
+        use std::ffi::CString;
 
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
@@ -3150,7 +3150,9 @@ mod tests {
 
             let mut cwd_buf = [0 as c_char; MAXPATHL];
             assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
-            let cwd = CStr::from_ptr(cwd_buf.as_ptr()).to_str().unwrap();
+            let cwd = crate::memory::cstr_from_ptr(cwd_buf.as_ptr())
+                .to_str()
+                .unwrap();
             let base = format!("{cwd}/target/ut_undo_{}", std::process::id());
             let _ = std::fs::remove_dir_all(&base);
             std::fs::create_dir_all(&base).unwrap();

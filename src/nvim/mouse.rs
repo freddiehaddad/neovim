@@ -231,14 +231,14 @@ fn get_mouse_class(p: impl crate::strings::IntoCCharPtr) -> i32 {
 
 /// Move "pos" back to the start of the word it's in.
 fn find_start_of_word(pos: &mut CursorPos) {
-    unsafe {
+    {
         let line = ml_get(pos.lnum);
-        let cclass = get_mouse_class(line.add(pos.col as usize));
+        let cclass = get_mouse_class(line.wrapping_add(pos.col as usize));
 
         while pos.col > 0 {
             let mut col = pos.col - 1;
-            col -= utf_head_off(line, line.add(col as usize));
-            if get_mouse_class(line.add(col as usize)) != cclass {
+            col -= utf_head_off(line, line.wrapping_add(col as usize));
+            if get_mouse_class(line.wrapping_add(col as usize)) != cclass {
                 break;
             }
             pos.col = col;
@@ -249,16 +249,16 @@ fn find_start_of_word(pos: &mut CursorPos) {
 /// Move "pos" forward to the end of the word it's in.
 /// When 'selection' is "exclusive", the position is just after the word.
 fn find_end_of_word(pos: &mut CursorPos) {
-    unsafe {
+    {
         let line = ml_get(pos.lnum);
         if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && pos.col > 0 {
             pos.col -= 1;
-            pos.col -= utf_head_off(line, line.add(pos.col as usize));
+            pos.col -= utf_head_off(line, line.wrapping_add(pos.col as usize));
         }
-        let cclass = get_mouse_class(line.add(pos.col as usize));
+        let cclass = get_mouse_class(line.wrapping_add(pos.col as usize));
         while crate::memory::cstr_byte_at(line, pos.col as usize) != 0 {
-            let col = pos.col + utfc_ptr2len(line.add(pos.col as usize));
-            if get_mouse_class(line.add(col as usize)) != cclass {
+            let col = pos.col + utfc_ptr2len(line.wrapping_add(pos.col as usize));
+            if get_mouse_class(line.wrapping_add(col as usize)) != cclass {
                 if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                     pos.col = col;
                 }
@@ -358,7 +358,9 @@ fn call_click_def_func(click_defs: *mut StlClickDefinition, col: i32, which_butt
             TypVal {
                 v_type: VarType::VarNumber,
                 v_lock: VAR_FIXED,
-                vval: TypvalVval::Number(Varnumber::from((*click_defs.add(col as usize)).tabnr)),
+                vval: TypvalVval::Number(Varnumber::from(
+                    (*click_defs.wrapping_add(col as usize)).tabnr,
+                )),
             },
             TypVal {
                 v_type: VarType::VarNumber,
@@ -379,7 +381,7 @@ fn call_click_def_func(click_defs: *mut StlClickDefinition, col: i32, which_butt
 
         let mut rettv: TypVal = TypVal::new();
         call_vim_function(
-            (*click_defs.add(col as usize))
+            (*click_defs.wrapping_add(col as usize))
                 .func
                 .as_ref()
                 .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut()),
@@ -912,7 +914,7 @@ pub fn do_mouse(
             }
 
             if !click_defs.is_null() {
-                match (*click_defs.add(click_col as usize)).type_ {
+                match (*click_defs.wrapping_add(click_col as usize)).type_ {
                     K_STL_CLICK_DISABLED => {
                         if in_statuscol
                             && mouse_model_popup()
@@ -2109,13 +2111,13 @@ fn set_mouse_topline(wp: &mut WinInfoInfo) {
 
 /// Return length of line "lnum" for horizontal scrolling.
 fn scroll_line_len(lnum: Linenr) -> Colnr {
-    unsafe {
+    {
         let mut col: Colnr = 0;
         let mut line = ml_get(lnum);
         if !crate::memory::cstr_is_empty(line) {
             loop {
                 let numchar = win_chartabsize(curwin_mut(), line, col);
-                line = line.add(utfc_ptr2len(line) as usize);
+                line = line.wrapping_add(utfc_ptr2len(line) as usize);
                 if crate::memory::cstr_is_empty(line) {
                     break;
                 }

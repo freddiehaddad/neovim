@@ -32,7 +32,7 @@ static GIVEUP: Instruction = Instruction {
 
 #[inline]
 fn getoffset(p: *const Instruction) -> isize {
-    unsafe { (*p.add(1)).offset as isize }
+    unsafe { (*p.wrapping_add(1)).offset as isize }
 }
 
 pub fn charinset(i: &Instruction, buff: *const LpegByte, mut c: LpegUint) -> i32 {
@@ -57,7 +57,7 @@ fn utf8_decode(o: *const c_char, val: &mut i32) -> *const c_char {
             let mut count: usize = 0;
             while (c & 0x40) != 0 {
                 count += 1;
-                let cc = LpegUint::from(*s.add(count));
+                let cc = LpegUint::from(*s.wrapping_add(count));
                 if (cc & 0xC0) != 0x80 {
                     return ptr::null();
                 }
@@ -68,10 +68,10 @@ fn utf8_decode(o: *const c_char, val: &mut i32) -> *const c_char {
             if count > 3 || res > 0x10FFFF || res <= LIMITS[count] {
                 return ptr::null();
             }
-            s = s.add(count);
+            s = s.wrapping_add(count);
         }
         *val = res as i32;
-        s.add(1).cast::<c_char>()
+        s.wrapping_add(1).cast::<c_char>()
     }
 }
 
@@ -149,8 +149,8 @@ fn doublestack(l: *mut lua_State, stacklimit: &mut *mut Stack, ptop: i32) -> *mu
         let newstack = lua_newuserdata(l, (newn as usize) * size_of::<Stack>()).cast::<Stack>();
         ptr::copy_nonoverlapping(stack, newstack, n as usize);
         lua_replace(l, stackidx(ptop));
-        *stacklimit = newstack.add(newn as usize);
-        newstack.add(n as usize)
+        *stacklimit = newstack.wrapping_add(newn as usize);
+        newstack.wrapping_add(n as usize)
     }
 }
 
@@ -178,19 +178,19 @@ fn resdyncaptures(l: *mut lua_State, fr: i32, curr: i32, limit: i32) -> i32 {
 
 fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: i32, fd: i32) {
     unsafe {
-        let prev = capture.sub(1);
+        let prev = capture.wrapping_sub(1);
         let prev = { &mut *prev };
         debug_assert!(prev.kind == CGROUP && prev.siz == 0);
         prev.idx = 0;
         for i in 0..(n as usize) {
-            let cap = capture.add(i);
+            let cap = capture.wrapping_add(i);
             let cap = { &mut *cap };
             cap.kind = CRUNTIME;
             cap.siz = 1;
             cap.idx = (fd + i as i32) as u16;
             cap.index = index;
         }
-        let close = capture.add(n as usize);
+        let close = capture.wrapping_add(n as usize);
         let close = { &mut *close };
         close.kind = CCLOSE;
         close.siz = 1;
@@ -200,7 +200,10 @@ fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: i32, fd: i32) {
 
 fn removedyncap(l: *mut lua_State, capture: *mut Capture, level: i32, last: i32) -> i32 {
     unsafe {
-        let id = finddyncap(capture.add(level as usize), capture.add(last as usize));
+        let id = finddyncap(
+            capture.wrapping_add(level as usize),
+            capture.wrapping_add(last as usize),
+        );
         let top = lua_gettop(l);
         if id == 0 {
             return 0;
@@ -212,7 +215,7 @@ fn removedyncap(l: *mut lua_State, capture: *mut Capture, level: i32, last: i32)
 
 fn findopen_full(mut cap: *mut Capture, currindex: LpegIndex) -> *mut Capture {
     unsafe {
-        cap = cap.sub(1);
+        cap = cap.wrapping_sub(1);
         if !isopencap(&*cap) && (*cap).index == currindex {
             return ptr::null_mut();
         }
@@ -224,7 +227,7 @@ fn findopen_full(mut cap: *mut Capture, currindex: LpegIndex) -> *mut Capture {
             } else if (*cap).kind == CCLOSE {
                 return ptr::null_mut();
             }
-            cap = cap.sub(1);
+            cap = cap.wrapping_sub(1);
         }
     }
     ptr::null_mut()
@@ -245,7 +248,7 @@ pub fn r#match(
             p: ptr::null(),
             caplevel: 0,
         }; INITBACK];
-        let mut stacklimit = stackbase.as_mut_ptr().add(INITBACK);
+        let mut stacklimit = stackbase.as_mut_ptr().wrapping_add(INITBACK);
         let mut stack = stackbase.as_mut_ptr();
         let mut capsize = INITCAPSIZE as i32;
         let mut captop: i32 = 0;
@@ -255,7 +258,7 @@ pub fn r#match(
         (*stack).p = &raw const GIVEUP;
         (*stack).s = s;
         (*stack).caplevel = 0;
-        stack = stack.add(1);
+        stack = stack.wrapping_add(1);
         lua_pushlightuserdata(l, stackbase.as_mut_ptr().cast());
 
         loop {
@@ -263,8 +266,8 @@ pub fn r#match(
 
             match (*p).i.code {
                 IEND => {
-                    debug_assert_eq!(stack, getstackbase(l, ptop).add(1));
-                    let cap = capture.add(captop as usize);
+                    debug_assert_eq!(stack, getstackbase(l, ptop).wrapping_add(1));
+                    let cap = capture.wrapping_add(captop as usize);
                     (*cap).kind = CCLOSE;
                     (*cap).index = MAXINDT;
                     return s;
@@ -274,15 +277,17 @@ pub fn r#match(
                     return ptr::null();
                 }
                 IRET => {
-                    debug_assert!(stack > getstackbase(l, ptop) && (*stack.sub(1)).s.is_null());
-                    stack = stack.sub(1);
+                    debug_assert!(
+                        stack > getstackbase(l, ptop) && (*stack.wrapping_sub(1)).s.is_null()
+                    );
+                    stack = stack.wrapping_sub(1);
                     p = (*stack).p;
                     continue;
                 }
                 IANY => {
                     if s < e {
-                        p = p.add(1);
-                        s = s.add(1);
+                        p = p.wrapping_add(1);
+                        s = s.wrapping_add(1);
                         continue;
                     }
                 }
@@ -291,43 +296,43 @@ pub fn r#match(
                         let mut codepoint: i32 = 0;
                         s = utf8_decode(s, &mut codepoint);
                         if !s.is_null()
-                            && (*p.add(1)).offset <= codepoint
+                            && (*p.wrapping_add(1)).offset <= codepoint
                             && codepoint <= utf_to(&*p)
                         {
-                            p = p.add(2);
+                            p = p.wrapping_add(2);
                             continue;
                         }
                     }
                 }
                 ITEST_ANY => {
                     if s < e {
-                        p = p.add(2);
+                        p = p.wrapping_add(2);
                     } else {
-                        p = p.offset(getoffset(p));
+                        p = p.wrapping_offset(getoffset(p));
                     }
                     continue;
                 }
                 ICHAR => {
                     if s < e && (*s as LpegByte) == (*p).i.aux1 {
-                        p = p.add(1);
-                        s = s.add(1);
+                        p = p.wrapping_add(1);
+                        s = s.wrapping_add(1);
                         continue;
                     }
                 }
                 ITEST_CHAR => {
                     if s < e && (*s as LpegByte) == (*p).i.aux1 {
-                        p = p.add(2);
+                        p = p.wrapping_add(2);
                     } else {
-                        p = p.offset(getoffset(p));
+                        p = p.wrapping_offset(getoffset(p));
                     }
                     continue;
                 }
                 ISET => {
                     if s < e {
                         let c = LpegUint::from(*s as LpegByte);
-                        if charinset(&*p, p.add(1).cast::<LpegByte>(), c) != 0 {
-                            p = p.add(1 + (*p).i.aux2.set.size as usize);
-                            s = s.add(1);
+                        if charinset(&*p, p.wrapping_add(1).cast::<LpegByte>(), c) != 0 {
+                            p = p.wrapping_add(1 + (*p).i.aux2.set.size as usize);
+                            s = s.wrapping_add(1);
                             continue;
                         }
                     }
@@ -335,46 +340,46 @@ pub fn r#match(
                 ITEST_SET => {
                     if s < e {
                         let c = LpegUint::from(*s as LpegByte);
-                        if charinset(&*p, p.add(2).cast::<LpegByte>(), c) != 0 {
-                            p = p.add(2 + (*p).i.aux2.set.size as usize);
+                        if charinset(&*p, p.wrapping_add(2).cast::<LpegByte>(), c) != 0 {
+                            p = p.wrapping_add(2 + (*p).i.aux2.set.size as usize);
                             continue;
                         }
                     }
-                    p = p.offset(getoffset(p));
+                    p = p.wrapping_offset(getoffset(p));
                     continue;
                 }
                 IBEHIND => {
                     let n = (*p).i.aux1 as isize;
                     if n <= s.offset_from(o) {
-                        s = s.offset(-n);
-                        p = p.add(1);
+                        s = s.wrapping_offset(-n);
+                        p = p.wrapping_add(1);
                         continue;
                     }
                 }
                 ISPAN => {
                     while s < e {
                         let c = LpegUint::from(*s as LpegByte);
-                        if charinset(&*p, p.add(1).cast::<LpegByte>(), c) == 0 {
+                        if charinset(&*p, p.wrapping_add(1).cast::<LpegByte>(), c) == 0 {
                             break;
                         }
-                        s = s.add(1);
+                        s = s.wrapping_add(1);
                     }
-                    p = p.add(1 + (*p).i.aux2.set.size as usize);
+                    p = p.wrapping_add(1 + (*p).i.aux2.set.size as usize);
                     continue;
                 }
                 IJMP => {
-                    p = p.offset(getoffset(p));
+                    p = p.wrapping_offset(getoffset(p));
                     continue;
                 }
                 ICHOICE => {
                     if stack == stacklimit {
                         stack = doublestack(l, &mut stacklimit, ptop);
                     }
-                    (*stack).p = p.offset(getoffset(p));
+                    (*stack).p = p.wrapping_offset(getoffset(p));
                     (*stack).s = s;
                     (*stack).caplevel = captop;
-                    stack = stack.add(1);
-                    p = p.add(2);
+                    stack = stack.wrapping_add(1);
+                    p = p.wrapping_add(2);
                     continue;
                 }
                 ICALL => {
@@ -382,38 +387,44 @@ pub fn r#match(
                         stack = doublestack(l, &mut stacklimit, ptop);
                     }
                     (*stack).s = ptr::null();
-                    (*stack).p = p.add(2);
-                    stack = stack.add(1);
-                    p = p.offset(getoffset(p));
+                    (*stack).p = p.wrapping_add(2);
+                    stack = stack.wrapping_add(1);
+                    p = p.wrapping_offset(getoffset(p));
                     continue;
                 }
                 ICOMMIT => {
-                    debug_assert!(stack > getstackbase(l, ptop) && !(*stack.sub(1)).s.is_null());
-                    stack = stack.sub(1);
-                    p = p.offset(getoffset(p));
+                    debug_assert!(
+                        stack > getstackbase(l, ptop) && !(*stack.wrapping_sub(1)).s.is_null()
+                    );
+                    stack = stack.wrapping_sub(1);
+                    p = p.wrapping_offset(getoffset(p));
                     continue;
                 }
                 IPARTIAL_COMMIT => {
-                    debug_assert!(stack > getstackbase(l, ptop) && !(*stack.sub(1)).s.is_null());
-                    (*stack.sub(1)).s = s;
-                    (*stack.sub(1)).caplevel = captop;
-                    p = p.offset(getoffset(p));
+                    debug_assert!(
+                        stack > getstackbase(l, ptop) && !(*stack.wrapping_sub(1)).s.is_null()
+                    );
+                    (*stack.wrapping_sub(1)).s = s;
+                    (*stack.wrapping_sub(1)).caplevel = captop;
+                    p = p.wrapping_offset(getoffset(p));
                     continue;
                 }
                 IBACK_COMMIT => {
-                    debug_assert!(stack > getstackbase(l, ptop) && !(*stack.sub(1)).s.is_null());
-                    stack = stack.sub(1);
+                    debug_assert!(
+                        stack > getstackbase(l, ptop) && !(*stack.wrapping_sub(1)).s.is_null()
+                    );
+                    stack = stack.wrapping_sub(1);
                     s = (*stack).s;
                     if ndyncap > 0 {
                         ndyncap -= removedyncap(l, capture, (*stack).caplevel, captop);
                     }
                     captop = (*stack).caplevel;
-                    p = p.offset(getoffset(p));
+                    p = p.wrapping_offset(getoffset(p));
                     continue;
                 }
                 IFAIL_TWICE => {
                     debug_assert!(stack > getstackbase(l, ptop));
-                    stack = stack.sub(1);
+                    stack = stack.wrapping_sub(1);
                 }
                 IFAIL => {}
                 ICLOSE_RUN_TIME => {
@@ -429,14 +440,15 @@ pub fn r#match(
                     };
                     let mut rem: i32 = 0;
                     let mut fr = lua_gettop(l) + 1;
-                    let mut n = runtimecap(&mut cs, capture.add(captop as usize), s, &mut rem);
+                    let mut n =
+                        runtimecap(&mut cs, capture.wrapping_add(captop as usize), s, &mut rem);
                     captop -= n;
                     ndyncap -= rem;
                     fr -= rem;
                     let res =
                         resdyncaptures(l, fr, s.offset_from(o) as i32, e.offset_from(o) as i32);
                     if res != -1 {
-                        s = o.add(res as usize);
+                        s = o.wrapping_add(res as usize);
                         n = lua_gettop(l) - fr + 1;
                         ndyncap += n;
                         if n == 0 {
@@ -448,58 +460,58 @@ pub fn r#match(
                             capture = growcap(l, capture, &mut capsize, captop, n + 1, ptop);
                             adddyncaptures(
                                 s.offset_from(o) as LpegIndex,
-                                capture.add(captop as usize),
+                                capture.wrapping_add(captop as usize),
                                 n,
                                 fr,
                             );
                             captop += n + 1;
                         }
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         continue;
                     }
                 }
                 ICLOSE_CAPTURE => {
                     let curr_idx = s.offset_from(o) as LpegIndex;
-                    let open = findopen_full(capture.add(captop as usize), curr_idx);
+                    let open = findopen_full(capture.wrapping_add(captop as usize), curr_idx);
                     debug_assert!(captop > 0);
                     if !open.is_null() {
                         let open = { &mut *open };
                         open.siz = (curr_idx - open.index + 1) as LpegByte;
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         continue;
                     } else {
-                        let cap = capture.add(captop as usize);
+                        let cap = capture.wrapping_add(captop as usize);
                         (*cap).siz = 1;
                         (*cap).index = curr_idx;
                         (*cap).idx = (*p).i.aux2.key as u16;
                         (*cap).kind = getkind(&*p) as LpegByte;
                         captop += 1;
                         capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
-                        p = p.add(1);
+                        p = p.wrapping_add(1);
                         continue;
                     }
                 }
                 IOPEN_CAPTURE => {
-                    let cap = capture.add(captop as usize);
+                    let cap = capture.wrapping_add(captop as usize);
                     (*cap).siz = 0;
                     (*cap).index = s.offset_from(o) as LpegIndex;
                     (*cap).idx = (*p).i.aux2.key as u16;
                     (*cap).kind = getkind(&*p) as LpegByte;
                     captop += 1;
                     capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     continue;
                 }
                 IFULL_CAPTURE => {
                     let off = getoff(&*p);
-                    let cap = capture.add(captop as usize);
+                    let cap = capture.wrapping_add(captop as usize);
                     (*cap).siz = (off + 1) as LpegByte;
                     (*cap).index = (s.offset_from(o) as i32 - off) as LpegIndex;
                     (*cap).idx = (*p).i.aux2.key as u16;
                     (*cap).kind = getkind(&*p) as LpegByte;
                     captop += 1;
                     capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
-                    p = p.add(1);
+                    p = p.wrapping_add(1);
                     continue;
                 }
                 _ => {
@@ -510,7 +522,7 @@ pub fn r#match(
 
             loop {
                 debug_assert!(stack > getstackbase(l, ptop));
-                stack = stack.sub(1);
+                stack = stack.wrapping_sub(1);
                 s = (*stack).s;
                 if !s.is_null() {
                     break;

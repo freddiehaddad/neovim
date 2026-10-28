@@ -314,7 +314,7 @@ fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString {
             if crate::memory::cstr_first_byte(p) == b'\\' {
                 *p = b'/' as c_char;
             }
-            p = p.add(utfc_ptr2len(p) as usize);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
         }
 
         vim_strsave_fnameescape(sname_vec.as_ptr(), VSE_NONE)
@@ -561,7 +561,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                         } else if crate::memory::cstr_first_byte(t) == b'\r' {
                             *t = b'r' as c_char;
                         }
-                        t = t.add(1);
+                        t = t.wrapping_add(1);
                     }
                     let quote = if this_var.di_tv.v_type == VarType::VarString {
                         '"'
@@ -596,7 +596,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                     }
                 }
             }
-            hi = hi.add(1);
+            hi = hi.wrapping_add(1);
         }
         true
     }
@@ -1181,7 +1181,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
             {
                 len += 1;
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         let sname_len = sname_cstr.as_bytes().len();
         let vdir_len = crate::memory::cstr_len(opt_vars().p_vdir);
@@ -1189,18 +1189,18 @@ fn get_view_file(c: c_char) -> Option<CString> {
         let retval = retval_vec.as_mut_ptr();
         ptr::copy_nonoverlapping(opt_vars().p_vdir, retval, vdir_len + 1);
         add_pathsep(retval);
-        let mut s = retval.add(crate::memory::cstr_len(retval));
+        let mut s = retval.wrapping_add(crate::memory::cstr_len(retval));
         p = sname;
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'=' {
                 *s = b'=' as c_char;
-                *s.add(1) = b'=' as c_char;
-                s = s.add(2);
+                *s.wrapping_add(1) = b'=' as c_char;
+                s = s.wrapping_add(2);
             } else if vim_ispathsep(i32::from(crate::memory::cstr_first_byte(p))) {
                 *s = b'=' as c_char;
                 #[cfg(windows)]
                 {
-                    *s.add(1) = if crate::memory::cstr_first_byte(p) == b':' {
+                    *s.wrapping_add(1) = if crate::memory::cstr_first_byte(p) == b':' {
                         b'-' as c_char
                     } else {
                         b'+' as c_char
@@ -1210,16 +1210,16 @@ fn get_view_file(c: c_char) -> Option<CString> {
                 {
                     *s.add(1) = b'+' as c_char;
                 }
-                s = s.add(2);
+                s = s.wrapping_add(2);
             } else {
                 *s = *p;
-                s = s.add(1);
+                s = s.wrapping_add(1);
             }
-            p = p.add(1);
+            p = p.wrapping_add(1);
         }
         *s = b'=' as c_char;
-        *s.add(1) = c;
-        s = s.add(2);
+        *s.wrapping_add(1) = c;
+        s = s.wrapping_add(2);
         crate::memory::cstr_ncpy(s, c".vim", 4);
 
         Some(crate::memory::cstr_to_cstring(retval))

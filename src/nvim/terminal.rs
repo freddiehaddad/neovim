@@ -559,7 +559,7 @@ fn schedule_termrequest(term: &mut Terminal) {
 
 fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut i32) -> i32 {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut i: usize = 0;
         while crate::memory::cstr_byte_at(str_, i) != 0 {
             if crate::memory::cstr_byte_at(str_, i) == b';' {
@@ -579,7 +579,7 @@ fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut i32) -> i32 {
             return 1;
         }
 
-        *attr = hl_add_url(0, str_.add(i));
+        *attr = hl_add_url(0, str_.wrapping_add(i));
         1
     }
 }
@@ -617,7 +617,11 @@ fn on_osc(command: i32, frag: VTermStringFragment, term: *mut Terminal) -> i32 {
                 term.termrequest_buffer.push(NUL);
                 let off = b"\x1b]8;".len();
                 let mut attr: i32 = 0;
-                if parse_osc8(term.termrequest_buffer.as_ptr().add(off), &mut attr) != 0 {
+                if parse_osc8(
+                    term.termrequest_buffer.as_ptr().wrapping_add(off),
+                    &mut attr,
+                ) != 0
+                {
                     let state = vterm_obtain_state(&mut term.vt);
                     let mut value = VTermValue::Number(attr);
                     vterm_state_set_penattr(state, VTERM_ATTR_URI, VTERM_VALUETYPE_INT, &mut value);
@@ -1543,7 +1547,7 @@ pub fn terminal_paste(count: i32, y_array: *mut NvimString, y_size: usize) {
                     #[cfg(not(windows))]
                     terminal_send(term_now, c"\n", 1);
                 }
-                let item = *y_array.add(j);
+                let item = *y_array.wrapping_add(j);
                 buff.clear();
                 buff.reserve(item.size);
                 let mut src = item.data;
@@ -1553,7 +1557,7 @@ pub fn terminal_paste(count: i32, y_array: *mut NvimString, y_size: usize) {
                     if !is_filter_char(c) {
                         buff.extend_from_slice(std::slice::from_raw_parts(src, len));
                     }
-                    src = src.add(len);
+                    src = src.wrapping_add(len);
                 }
                 let term_now = &mut *curbuf_mut().terminal;
                 terminal_send(term_now, buff.as_ptr(), buff.len());
@@ -1605,7 +1609,7 @@ pub fn terminal_receive(term: &mut Terminal, data: impl crate::strings::IntoCCha
         if term.opts.force_crlf {
             let mut crlf_data: Vec<c_char> = Vec::with_capacity(len);
             for i in 0..len {
-                let b = *data.add(i);
+                let b = *data.wrapping_add(i);
                 if b == b'\n' as c_char
                     && (i == 0 || crate::memory::cstr_byte_at(data, i - 1) != b'\r')
                 {
@@ -1764,7 +1768,7 @@ pub fn terminal_get_line_attributes(term: &mut Terminal, linenr: i32, term_attrs
                 attr_id = hl_combine_attr(attr_id, cell.uri);
             }
 
-            *term_attrs.add(col as usize) = attr_id;
+            *term_attrs.wrapping_add(col as usize) = attr_id;
         }
     }
 }
@@ -2022,7 +2026,7 @@ fn term_sb_clear(term: *mut Terminal) -> i32 {
 }
 
 pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
-    unsafe {
+    {
         let regname: c_char = match mask as u16 {
             VTERM_SELECTION_CLIPBOARD => b'+' as c_char,
             VTERM_SELECTION_PRIMARY => b'*' as c_char,
@@ -2035,7 +2039,7 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
             let start_bytes = crate::memory::cstr_as_bytes(start);
             if let Some(pos) = start_bytes.iter().position(|&b| b == b'\n') {
                 tv_list_append_string(&mut *lines, start, pos as isize);
-                start = start.add(pos + 1);
+                start = start.wrapping_add(pos + 1);
             } else {
                 break;
             }
@@ -2319,12 +2323,12 @@ fn fetch_row(term: &mut Terminal, row: i32, end_col: i32) {
                 line_len = ptr.offset_from(textbuf_ptr) as usize;
             } else {
                 *ptr = b' ' as c_char;
-                ptr = ptr.add(1);
+                ptr = ptr.wrapping_add(1);
             }
             col += i32::from(cell.width);
         }
 
-        *textbuf_ptr.add(line_len) = NUL;
+        *textbuf_ptr.wrapping_add(line_len) = NUL;
     }
 }
 

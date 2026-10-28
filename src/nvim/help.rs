@@ -64,11 +64,11 @@ pub fn ex_help(eap: &mut Exarg) {
                         && crate::memory::cstr_byte_at(arg, 1) != b'|')
                 {
                     *arg = NUL;
-                    arg = arg.add(1);
+                    arg = arg.wrapping_add(1);
                     eap.nextcmd = arg;
                     break;
                 }
-                arg = arg.add(1);
+                arg = arg.wrapping_add(1);
             }
             arg = eap.arg;
 
@@ -82,13 +82,13 @@ pub fn ex_help(eap: &mut Exarg) {
         // remove trailing blanks
         let arg_len = crate::memory::cstr_len(arg);
         if arg_len > 0 {
-            let mut p = arg.add(arg_len - 1);
+            let mut p = arg.wrapping_add(arg_len - 1);
             while p > arg
                 && ascii_iswhite(crate::memory::cstr_first_char(p))
-                && *p.sub(1) != b'\\' as c_char
+                && *p.wrapping_sub(1) != b'\\' as c_char
             {
                 *p = NUL;
-                p = p.sub(1);
+                p = p.wrapping_sub(1);
             }
         }
 
@@ -277,8 +277,8 @@ pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
             && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 2))
             && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 1))
         {
-            *arg.add(len - 3) = NUL;
-            return arg.add(len - 2);
+            *arg.wrapping_add(len - 3) = NUL;
+            return arg.wrapping_add(len - 2);
         }
         ptr::null_mut()
     }
@@ -302,7 +302,7 @@ pub fn help_heuristic(
 
         if offset > 0
             && ascii_isalnum(crate::memory::cstr_char_at(matched_string, offset as usize))
-            && ascii_isalnum(*matched_string.add((offset - 1) as usize))
+            && ascii_isalnum(*matched_string.wrapping_add((offset - 1) as usize))
         {
             offset += 10000;
         } else if offset > 2 {
@@ -322,13 +322,13 @@ pub fn help_heuristic(
 }
 
 fn help_compare(str1: &[c_char], str2: &[c_char]) -> std::cmp::Ordering {
-    unsafe {
+    {
         let p1 = str1.as_ptr();
         let p2 = str2.as_ptr();
         let b1 = crate::memory::cstr_as_bytes(p1);
         let b2 = crate::memory::cstr_as_bytes(p2);
-        let pri1 = crate::memory::cstr_as_bytes(p1.add(b1.len() + 1));
-        let pri2 = crate::memory::cstr_as_bytes(p2.add(b2.len() + 1));
+        let pri1 = crate::memory::cstr_as_bytes(p1.wrapping_add(b1.len() + 1));
+        let pri2 = crate::memory::cstr_as_bytes(p2.wrapping_add(b2.len() + 1));
 
         pri1.cmp(pri2).then_with(|| b1.cmp(b2))
     }
@@ -510,7 +510,7 @@ pub fn ex_viusage(_eap: &mut Exarg) {
 
 /// `:helptags` (`ex_helptags`).
 pub fn ex_helptags(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut add_help_tags = false;
 
         let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
@@ -519,7 +519,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
             && ascii_iswhite(crate::memory::cstr_char_at(eap.arg, 3))
         {
             add_help_tags = true;
-            eap.arg = skipwhite(eap.arg.add(3));
+            eap.arg = skipwhite(eap.arg.wrapping_add(3));
         }
 
         let mut tv_args = [

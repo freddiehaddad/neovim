@@ -19,7 +19,7 @@ use crate::os::shell::get_cmd_output;
 use crate::path::{path_tail, path_tail_with_sep};
 use crate::profile::time_msg;
 use crate::strings::gettext;
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CString, c_char};
 use std::path::{Path, PathBuf};
 use std::ptr;
 
@@ -460,7 +460,7 @@ fn current_message_locale() -> Option<String> {
             let p = os_getenv_buf(var.as_ptr(), buf.as_mut_ptr(), buf.len());
             if !p.is_null()
                 && *p != 0
-                && let Ok(s) = CStr::from_ptr(p).to_str()
+                && let Ok(s) = crate::memory::cstr_from_ptr(p).to_str()
             {
                 return Some(s.to_string());
             }
@@ -471,7 +471,7 @@ fn current_message_locale() -> Option<String> {
         let p = get_locale_val(LC_CTYPE);
         if !p.is_null()
             && *p != 0
-            && let Ok(s) = CStr::from_ptr(p).to_str()
+            && let Ok(s) = crate::memory::cstr_from_ptr(p).to_str()
         {
             return Some(s.to_string());
         }

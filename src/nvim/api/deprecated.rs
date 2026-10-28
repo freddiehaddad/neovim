@@ -1221,7 +1221,7 @@ fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
             if g_st().got_int {
                 break;
             }
-            push_char(line_buf, *message.data.add(i), to_err);
+            push_char(line_buf, *message.data.wrapping_add(i), to_err);
         }
         if writeln {
             push_char(line_buf, NL, to_err);

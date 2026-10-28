@@ -233,7 +233,7 @@ fn pum_compute_size() {
         pum().kind_width = 0;
         pum().extra_width = 0;
         for i in 0..(pum().size as usize) {
-            let item = &*pum().array.add(i);
+            let item = &*pum().array.wrapping_add(i);
             if let Some(ref text) = item.pum_text {
                 let w = vim_strsize(text.as_ptr().cast_mut());
                 if pum().base_width < w {
@@ -539,7 +539,7 @@ pub fn pum_display(
                     };
                     let mut arr = arena_array(&mut arena, size as usize);
                     for i in 0..(size as usize) {
-                        let elem = &*array.add(i);
+                        let elem = &*array.wrapping_add(i);
                         let mut item = arena_array(&mut arena, 4);
                         add_c(&mut item, cstr_as_obj(elem.text_ptr()));
                         add_c(&mut item, cstr_as_obj(elem.kind_ptr()));
@@ -629,7 +629,7 @@ fn pum_compute_text_attrs(
     user_hlattr: i32,
 ) -> Option<Vec<i32>> {
     let text = text.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_is_empty(text)
             || (hlf != HLF_PSI && hlf != HLF_PNI)
             || (win_hl_attr(curwin_mut(), HLF_PMSI) == win_hl_attr(curwin_mut(), HLF_PSI)
@@ -703,7 +703,7 @@ fn pum_compute_text_attrs(
             }
             cell_idx += char_cells;
 
-            ptr = ptr.add(utfc_ptr2len(ptr) as usize);
+            ptr = ptr.wrapping_add(utfc_ptr2len(ptr) as usize);
             char_pos += 1;
         }
 
@@ -725,7 +725,7 @@ fn pum_grid_puts_with_attrs(
         let mut ptr = text;
 
         while !crate::memory::cstr_is_empty(ptr)
-            && (textlen < 0 || ptr < text.add(textlen as usize))
+            && (textlen < 0 || ptr < text.wrapping_add(textlen as usize))
         {
             let char_len = utfc_ptr2len(ptr);
             let attr_idx = if pum().rl {
@@ -733,10 +733,10 @@ fn pum_grid_puts_with_attrs(
             } else {
                 col - col_start
             };
-            let attr = *attrs.add(attr_idx as usize);
+            let attr = *attrs.wrapping_add(attr_idx as usize);
             grid_line_puts(col, ptr, char_len, attr);
             col += utf_ptr2cells(ptr);
-            ptr = ptr.add(char_len as usize);
+            ptr = ptr.wrapping_add(char_len as usize);
         }
     }
 }
@@ -764,7 +764,7 @@ fn pum_align_order(order: &mut [i32; 3]) {
 #[inline]
 fn pum_get_item(index: i32, type_: i32) -> *mut c_char {
     unsafe {
-        let item = &*pum().array.add(index as usize);
+        let item = &*pum().array.wrapping_add(index as usize);
         match type_ {
             CPT_ABBR => item.text_ptr(),
             CPT_KIND => item.kind_ptr(),
@@ -777,7 +777,7 @@ fn pum_get_item(index: i32, type_: i32) -> *mut c_char {
 #[inline]
 fn pum_user_attr_combine(idx: i32, type_: i32, attr: i32) -> i32 {
     unsafe {
-        let item = &*pum().array.add(idx as usize);
+        let item = &*pum().array.wrapping_add(idx as usize);
         let user_attr = [item.pum_user_abbr_hlattr, item.pum_user_kind_hlattr];
         let u = user_attr[type_ as usize];
         if u > 0 {
@@ -998,7 +998,7 @@ pub fn pum_redraw() {
                             && totwidth + w <= pum().width
                         {
                             width += w;
-                            p = p.add(utfc_ptr2len(p) as usize);
+                            p = p.wrapping_add(utfc_ptr2len(p) as usize);
                             continue;
                         }
                         let width_limit = pum().width;
@@ -1017,7 +1017,7 @@ pub fn pum_redraw() {
                             pum_compute_text_attrs(
                                 st,
                                 hlf,
-                                (*pum().array.add(idx as usize)).pum_user_abbr_hlattr,
+                                (*pum().array.wrapping_add(idx as usize)).pum_user_abbr_hlattr,
                             )
                         } else {
                             None
@@ -1035,14 +1035,14 @@ pub fn pum_redraw() {
                             if grid_col - cells < col_off - width_limit {
                                 loop {
                                     cells -= utf_ptr2cells(rt);
-                                    rt = rt.add(utfc_ptr2len(rt) as usize);
+                                    rt = rt.wrapping_add(utfc_ptr2len(rt) as usize);
                                     if grid_col - cells >= col_off - width_limit {
                                         break;
                                     }
                                 }
 
                                 if grid_col - cells > col_off - width_limit {
-                                    rt = rt.sub(1);
+                                    rt = rt.wrapping_sub(1);
                                     *rt = b'<' as c_char;
                                     cells += 1;
                                 }
@@ -1077,7 +1077,7 @@ pub fn pum_redraw() {
                                         break;
                                     }
                                     displayed += char_cells;
-                                    p_end = p_end.add(utfc_ptr2len(p_end) as usize);
+                                    p_end = p_end.wrapping_add(utfc_ptr2len(p_end) as usize);
                                 }
                                 *p_end = NUL;
                                 cells = displayed;
@@ -1113,7 +1113,7 @@ pub fn pum_redraw() {
                         totwidth += 2;
                         s = ptr::null_mut();
                         width = 0;
-                        p = p.add(utfc_ptr2len(p) as usize);
+                        p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     }
                 }
 
@@ -1238,7 +1238,7 @@ fn pum_preview_set_text(
             let next = crate::memory::cstr_as_bytes(curr)
                 .iter()
                 .position(|&b| b == b'\n')
-                .map_or(ptr::null_mut(), |i| curr.add(i));
+                .map_or(ptr::null_mut(), |i| curr.wrapping_add(i));
             if !next.is_null() {
                 *next = NUL;
             }
@@ -1255,7 +1255,7 @@ fn pum_preview_set_text(
 
             if !next.is_null() {
                 *next = b'\n' as c_char;
-                curr = next.add(1);
+                curr = next.wrapping_add(1);
             } else {
                 curr = ptr::null_mut();
             }
@@ -1372,7 +1372,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
 
         if use_float
             && (pum().selected < 0
-                || (*pum().array.add(pum().selected as usize))
+                || (*pum().array.wrapping_add(pum().selected as usize))
                     .pum_info
                     .is_none())
         {
@@ -1416,7 +1416,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             }
             pum().first = pum().first.min(pum().size - pum().height);
 
-            if (*pum().array.add(pum().selected as usize))
+            if (*pum().array.wrapping_add(pum().selected as usize))
                 .pum_info
                 .is_some()
                 && g_st().rows_global > 10
@@ -1509,7 +1509,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                         let mut max_info_width: i32 = 0;
                         pum_preview_set_text(
                             curwin_mut(),
-                            (*pum().array.add(pum().selected as usize)).info_ptr(),
+                            (*pum().array.wrapping_add(pum().selected as usize)).info_ptr(),
                             &mut lnum,
                             &mut max_info_width,
                         );
@@ -1810,7 +1810,7 @@ fn pum_select_mouse_pos() {
 
         if idx < 0 || idx >= pum().height {
             pum().selected = -1;
-        } else if (*pum().array.add(idx as usize))
+        } else if (*pum().array.wrapping_add(idx as usize))
             .pum_text
             .as_ref()
             .is_some_and(|s| !s.to_bytes().is_empty())
@@ -1909,7 +1909,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
             } else if c == b'k' as i32 || c == K_UP || c == K_MOUSEUP {
                 while pum().selected > 0 {
                     pum().selected -= 1;
-                    if (*array.add(pum().selected as usize))
+                    if (*array.wrapping_add(pum().selected as usize))
                         .pum_text
                         .as_ref()
                         .is_some_and(|s| !s.to_bytes().is_empty())
@@ -1920,7 +1920,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
             } else if c == b'j' as i32 || c == K_DOWN || c == K_MOUSEDOWN {
                 while pum().selected < pum().size - 1 {
                     pum().selected += 1;
-                    if (*array.add(pum().selected as usize))
+                    if (*array.wrapping_add(pum().selected as usize))
                         .pum_text
                         .as_ref()
                         .is_some_and(|s| !s.to_bytes().is_empty())

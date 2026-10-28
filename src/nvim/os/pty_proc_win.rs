@@ -66,13 +66,13 @@ pub(crate) fn quote_cmd_arg(
                 let _dst: *mut c_char = dest;
                 let _dsize: usize = dest_remaining;
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), src, _dsize - _dlen);
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), src, _dsize - _dlen);
             };
             {
                 let _dst: *mut c_char = dest;
                 let _dsize: usize = dest_remaining;
                 let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), c"\"", _dsize - _dlen);
+                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"\"", _dsize - _dlen);
             };
             return;
         }
@@ -80,28 +80,28 @@ pub(crate) fn quote_cmd_arg(
         debug_assert!(dest_remaining > 0);
         dest_remaining -= 1;
         *cur = NUL;
-        cur = cur.add(1);
+        cur = cur.wrapping_add(1);
         debug_assert!(dest_remaining > 0);
         dest_remaining -= 1;
         *cur = b'"' as c_char;
-        cur = cur.add(1);
+        cur = cur.wrapping_add(1);
         for i in (1..=src_len).rev() {
             debug_assert!(dest_remaining > 0);
             dest_remaining -= 1;
             let ch = src_bytes[i - 1];
             *cur = ch as c_char;
-            cur = cur.add(1);
+            cur = cur.wrapping_add(1);
             if quote_hit && ch == b'\\' {
                 debug_assert!(dest_remaining > 0);
                 dest_remaining -= 1;
                 *cur = b'\\' as c_char;
-                cur = cur.add(1);
+                cur = cur.wrapping_add(1);
             } else if ch == b'"' {
                 quote_hit = true;
                 debug_assert!(dest_remaining > 0);
                 dest_remaining -= 1;
                 *cur = b'\\' as c_char;
-                cur = cur.add(1);
+                cur = cur.wrapping_add(1);
             } else {
                 quote_hit = false;
             }
@@ -111,8 +111,8 @@ pub(crate) fn quote_cmd_arg(
 
         while (start as usize) < (cur as usize) {
             ptr::swap(start, cur);
-            start = start.add(1);
-            cur = cur.sub(1);
+            start = start.wrapping_add(1);
+            cur = cur.wrapping_sub(1);
         }
     }
 }
@@ -165,7 +165,7 @@ mod win_impl {
     fn connect_req_handle_ptr(req: *mut uv_connect_t) -> *mut *mut uv_stream_t {
         unsafe {
             req.cast::<u8>()
-                .add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
+                .wrapping_add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
                 .cast::<*mut uv_stream_t>()
         }
     }
@@ -533,7 +533,6 @@ pub use win_impl::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn quote_cmd_arg_matches_expected_windows_escaping() {
@@ -554,9 +553,9 @@ mod tests {
             c_in.extend_from_slice(input.as_bytes());
             c_in.push(0);
             let mut out = vec![0 as c_char; input.len() * 2 + 4];
-            unsafe {
+            {
                 quote_cmd_arg(out.as_mut_ptr(), out.len(), c_in.as_ptr().cast());
-                let got = CStr::from_ptr(out.as_ptr()).to_str().unwrap();
+                let got = crate::memory::cstr_from_ptr(out.as_ptr()).to_str().unwrap();
                 assert_eq!(got, expected, "failed for input {input:?}");
             }
         }

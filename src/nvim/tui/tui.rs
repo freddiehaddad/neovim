@@ -1624,7 +1624,7 @@ fn print_spaces(tui: &mut TUIData, width: i32) {
         let mut left = width as usize;
         loop {
             let buf_fit = left.min(tui.buf.len() - tui.bufpos);
-            ptr::write_bytes(tui.buf.as_mut_ptr().add(tui.bufpos), b' ', buf_fit);
+            ptr::write_bytes(tui.buf.as_mut_ptr().wrapping_add(tui.bufpos), b' ', buf_fit);
             tui.bufpos += buf_fit;
             left -= buf_fit;
             if left == 0 {
@@ -1996,12 +1996,12 @@ pub fn tui_grid_scroll(
 
 pub fn tui_add_url(_tui: &mut TUIData, url: impl crate::strings::IntoCCharPtr) -> i32 {
     let url = url.into_c_char_ptr();
-    unsafe {
+    {
         if url.is_null() {
             return -1;
         }
 
-        let url_cstr = CStr::from_ptr(url);
+        let url_cstr = crate::memory::cstr_from_ptr(url);
         if let Some(pos) = tui_st().urls.iter().position(|u| u.as_c_str() == url_cstr) {
             return pos as i32;
         }
@@ -2395,9 +2395,9 @@ pub fn tui_raw_line(
             for c in startcol..endcol {
                 let idx = (c - startcol) as usize;
                 let cell = &mut row_cells[c as usize];
-                cell.data = *chunk.add(idx);
-                assert!((*attrs.add(idx) as usize) < attr_count);
-                cell.attr = *attrs.add(idx);
+                cell.data = *chunk.wrapping_add(idx);
+                assert!((*attrs.wrapping_add(idx) as usize) < attr_count);
+                cell.attr = *attrs.wrapping_add(idx);
             }
         }
         for curcol in (startcol as i32)..(endcol as i32) {
@@ -2559,7 +2559,7 @@ fn out(tui: &mut TUIData, str_: *const c_char, len: usize) {
             }
         }
 
-        ptr::copy_nonoverlapping(str_, tui.buf.as_mut_ptr().add(tui.bufpos), len);
+        ptr::copy_nonoverlapping(str_, tui.buf.as_mut_ptr().wrapping_add(tui.bufpos), len);
         tui.bufpos += len;
     }
 }
@@ -2581,7 +2581,7 @@ fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
         let copy_len = bytes.len().min(limit.saturating_sub(1));
         ptr::copy_nonoverlapping(
             bytes.as_ptr().cast::<c_char>(),
-            tui.buf.as_mut_ptr().add(tui.bufpos),
+            tui.buf.as_mut_ptr().wrapping_add(tui.bufpos),
             copy_len,
         );
         if limit > 0 {
@@ -2627,12 +2627,12 @@ fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: *mut TPVAR) {
         let str_ = str_cow.as_ptr();
 
         let buf_start = tui.buf.as_mut_ptr();
-        let buf_end = buf_start.add(tui.buf.len());
+        let buf_end = buf_start.wrapping_add(tui.buf.len());
         if tui.buf.len() - tui.bufpos > TERMINFO_SEQ_LIMIT {
             let mut copy_params = [TPVAR::default(); 9];
             ptr::copy_nonoverlapping(params, copy_params.as_mut_ptr(), 9);
             let len = terminfo_fmt(
-                buf_start.add(tui.bufpos),
+                buf_start.wrapping_add(tui.bufpos),
                 buf_end,
                 str_,
                 copy_params.as_mut_ptr(),
@@ -2644,7 +2644,7 @@ fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: *mut TPVAR) {
         }
 
         flush_buf(tui, FlushBufFinish::FlushBufPartial);
-        let len = terminfo_fmt(buf_start.add(tui.bufpos), buf_end, str_, params);
+        let len = terminfo_fmt(buf_start.wrapping_add(tui.bufpos), buf_end, str_, params);
         if len > 0 {
             tui.bufpos += len;
         }
@@ -3020,8 +3020,8 @@ fn flush_buf_raw(
             tui.is_invisible = true;
             if let Some(ref str_) = tui.ti.defs[K_TERM_CURSOR_INVISIBLE] {
                 pre_len += terminfo_fmt(
-                    pre.as_mut_ptr().add(pre_len),
-                    pre.as_mut_ptr().add(pre.len()),
+                    pre.as_mut_ptr().wrapping_add(pre_len),
+                    pre.as_mut_ptr().wrapping_add(pre.len()),
                     str_.as_ptr(),
                     null_params.as_mut_ptr(),
                 );
@@ -3054,8 +3054,8 @@ fn flush_buf_raw(
             }
             if !str_.is_null() {
                 post_len += terminfo_fmt(
-                    post.as_mut_ptr().add(post_len),
-                    post.as_mut_ptr().add(post.len()),
+                    post.as_mut_ptr().wrapping_add(post_len),
+                    post.as_mut_ptr().wrapping_add(post.len()),
                     str_,
                     null_params.as_mut_ptr(),
                 );
@@ -3137,7 +3137,7 @@ fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
             if uv_handle_get_type(uv_ptr.cast()) == UV_TTY {
                 let tty_handle = *uv_ptr
                     .cast::<u8>()
-                    .add(uv_handle_size(UV_STREAM))
+                    .wrapping_add(uv_handle_size(UV_STREAM))
                     .cast::<HANDLE>();
                 if GetConsoleMode(tty_handle, &raw mut dw_mode) != 0
                     && (dw_mode & ENABLE_VIRTUAL_TERMINAL_INPUT) != 0
