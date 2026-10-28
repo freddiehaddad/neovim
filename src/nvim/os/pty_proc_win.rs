@@ -37,8 +37,8 @@ use crate::os::pty_conpty_win::{
 pub(crate) fn quote_cmd_arg(
     dest: *mut c_char,
     mut dest_remaining: usize,
-    src: *const c_char,
-) {
+    src: impl crate::strings::IntoCCharPtr,
+) { let src = src.into_c_char_ptr();
     unsafe {
         let src_bytes = crate::memory::cstr_as_bytes(src);
         let src_len = src_bytes.len();

@@ -1324,7 +1324,7 @@ fn au_st() -> &'static mut AutocmdState {
 
 use crate::strings::{vim_strchr};
 
-fn map_put_name_to_id(name: *const c_char, val: c_int) {
+fn map_put_name_to_id(name: impl crate::strings::IntoCCharPtr, val: c_int) { let name = name.into_c_char_ptr();
     unsafe {
         let name_cstr = CStr::from_ptr(name);
         for (existing_name, existing_val) in &mut au_st().map_augroup_name_to_id {
@@ -1345,13 +1345,13 @@ fn map_get_id_to_name(key: c_int) -> *mut c_char {
     }
 }
 
-fn map_put_id_to_name(key: c_int, name: *const c_char) {
+fn map_put_id_to_name(key: c_int, name: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr();
      {
         au_st().map_augroup_id_to_name.insert(key, crate::memory::cstr_to_cstring(name));
     }
 }
 
-fn event_name2nr_hash(str_: *const c_char, len: usize) -> isize {
+fn event_name2nr_hash(str_: impl crate::strings::IntoCCharPtr, len: usize) -> isize { let str_ = str_.into_c_char_ptr();
     if str_.is_null() {
         return -1;
     }
@@ -1506,7 +1506,7 @@ pub fn autocmd_free_all_mem() {
     multiqueue_free(g_st().deferred_events);
 }
 
-fn augroup_map_del(id: c_int, name: *const c_char) {
+fn augroup_map_del(id: c_int, name: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr();
     unsafe {
         if !name.is_null() {
             let name_cstr = CStr::from_ptr(name);
@@ -1531,13 +1531,13 @@ fn get_deleted_augroup() -> *const c_char {
         au_st().deleted_augroup
 }
 
-fn au_show_for_all_events(group: c_int, pat: *const c_char) {
+fn au_show_for_all_events(group: c_int, pat: impl crate::strings::IntoCCharPtr) { let pat = pat.into_c_char_ptr();
     for event in 0..NUM_EVENTS as event_T {
             au_show_for_event(group, event, pat);
         }
 }
 
-fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char) {
+fn au_show_for_event(group: c_int, event: event_T, pat: impl crate::strings::IntoCCharPtr) { let mut pat = pat.into_c_char_ptr();
     unsafe {
         let acs = &raw mut au_st().autocmds[event as usize];
         if (*acs).is_empty() {
@@ -1748,7 +1748,7 @@ pub fn aubuflocal_remove(buf: &mut buf_T) {
     }
 }
 
-pub fn augroup_add(name: *const c_char) -> c_int {
+pub fn augroup_add(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
      {
         assert!(!crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"end"));
 
@@ -2159,13 +2159,13 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
 }
 
 pub fn do_all_autocmd_events(
-    pat: *const c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     once: bool,
     nested: c_int,
     cmd: *mut c_char,
     del: bool,
     group: c_int,
-) {
+) { let pat = pat.into_c_char_ptr();
     for event in 0..NUM_EVENTS as event_T {
             if !do_autocmd_event(event, pat, once, nested, cmd, del, group) {
                 return;
@@ -2175,13 +2175,13 @@ pub fn do_all_autocmd_events(
 
 pub fn do_autocmd_event(
     event: event_T,
-    mut pat: *const c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     once: bool,
     nested: c_int,
     cmd: impl crate::strings::IntoCCharPtr,
     del: bool,
     group: c_int,
-) -> bool {
+) -> bool { let mut pat = pat.into_c_char_ptr();
     let cmd = cmd.into_c_char_ptr();
     unsafe {
         assert!(!crate::memory::cstr_is_empty(pat) || del);
@@ -2261,15 +2261,15 @@ pub fn do_autocmd_event(
 pub fn autocmd_register(
     id: i64,
     event: event_T,
-    mut pat: *const c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     mut patlen: c_int,
     group: c_int,
     once: bool,
     nested: bool,
     desc: *mut c_char,
-    handler_cmd: *const c_char,
+    handler_cmd: impl crate::strings::IntoCCharPtr,
     handler_fn: &mut Callback,
-) -> bool {
+) -> bool { let mut pat = pat.into_c_char_ptr(); let handler_cmd = handler_cmd.into_c_char_ptr();
     unsafe {
         assert!(group != 0);
 
@@ -3615,12 +3615,12 @@ pub fn get_event_name_no_group(_xp: &mut expand_T, idx: c_int, win: bool) -> *mu
     ptr::null_mut()
 }
 
-pub fn autocmd_supported(event: *const c_char) -> bool {
+pub fn autocmd_supported(event: impl crate::strings::IntoCCharPtr) -> bool { let event = event.into_c_char_ptr();
     let mut p: *mut c_char = ptr::null_mut();
         event_name2nr(event, &raw mut p) != NUM_EVENTS as event_T
 }
 
-pub fn au_exists(arg: *const c_char) -> bool {
+pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool { let arg = arg.into_c_char_ptr();
     unsafe {
         let mut buflocal_buf: *mut buf_T = ptr::null_mut();
         let mut retval = false;
@@ -3683,7 +3683,7 @@ pub fn au_exists(arg: *const c_char) -> bool {
     }
 }
 
-pub fn aupat_is_buflocal(pat: *const c_char, patlen: c_int) -> bool {
+pub fn aupat_is_buflocal(pat: impl crate::strings::IntoCCharPtr, patlen: c_int) -> bool { let pat = pat.into_c_char_ptr();
     if patlen < 8 {
         return false;
     }
@@ -3691,7 +3691,7 @@ pub fn aupat_is_buflocal(pat: *const c_char, patlen: c_int) -> bool {
     slice.starts_with(b"<buffer") && slice[slice.len() - 1] == b'>'
 }
 
-pub fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int {
+pub fn aupat_get_buflocal_nr(pat: impl crate::strings::IntoCCharPtr, patlen: c_int) -> c_int { let pat = pat.into_c_char_ptr();
     unsafe {
         assert!(aupat_is_buflocal(pat, patlen));
 
@@ -3716,10 +3716,10 @@ pub fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int {
 
 pub fn aupat_normalize_buflocal_pat(
     dest: *mut c_char,
-    pat: *const c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     patlen: c_int,
     mut buflocal_nr: c_int,
-) {
+) { let pat = pat.into_c_char_ptr();
     unsafe {
         assert!(aupat_is_buflocal(pat, patlen));
 

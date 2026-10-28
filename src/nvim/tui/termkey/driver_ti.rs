@@ -414,9 +414,9 @@ fn try_load_terminfo_key(
     fn_nr: bool,
     key: usize,
     shift: bool,
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     info: keyinfo,
-) -> bool {
+) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut value: *const c_char = std::ptr::null();
 

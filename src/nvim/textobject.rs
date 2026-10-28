@@ -269,7 +269,7 @@ pub fn findpar(pincl: &mut bool,
 }
 
 /// Check if the string `s` is a nroff macro that is in option `opt` (`inmacro`).
-fn inmacro(opt: *mut c_char, s: *const c_char) -> bool {
+fn inmacro(opt: *mut c_char, s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_char_ptr();
     unsafe {
         let mut macro_p = opt;
         let s0 = *s;

@@ -579,7 +579,7 @@ fn linelen(has_tab: *mut c_int) -> c_int {
     }
 }
 
-fn string_compare(s1: *const c_char, s2: *const c_char) -> c_int {
+fn string_compare(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> c_int { let s1 = s1.into_c_char_ptr(); let s2 = s2.into_c_char_ptr();
     unsafe {
         if excmds_st().sort_lc {
             return strcoll(s1, s2);
@@ -1832,7 +1832,7 @@ pub fn do_shell(cmd: *mut c_char, flags: c_int) {
 }
 
 #[cfg(not(unix))]
-fn find_pipe(cmd: *const c_char) -> *mut c_char {
+fn find_pipe(cmd: impl crate::strings::IntoCCharPtr) -> *mut c_char { let cmd = cmd.into_c_char_ptr();
     unsafe {
         let mut inquote = false;
         let mut p = cmd;
@@ -1965,9 +1965,9 @@ pub fn make_filter_cmd(
 pub fn append_redir(
     buf: *mut c_char,
     buflen: usize,
-    opt: *const c_char,
-    fname: *const c_char,
-) {
+    opt: impl crate::strings::IntoCCharPtr,
+    fname: impl crate::strings::IntoCCharPtr,
+) { let opt = opt.into_c_char_ptr(); let fname = fname.into_c_char_ptr();
     unsafe {
         let end = buf.add(crate::memory::cstr_len(buf));
         let mut p = opt;
@@ -2146,7 +2146,7 @@ pub fn ex_write(eap: &mut exarg_T) {
 }
 
 #[cfg(unix)]
-fn check_writable(fname: *const c_char) -> bool {
+fn check_writable(fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
     if os_nodetype(fname) == NODE_OTHER {
         semsg!(
             gettext(c"E503: \"%s\" is not a file or writable device"),
@@ -3639,11 +3639,11 @@ pub fn sub_set_replacement(sub: SubReplacementString) {
 fn sub_joining_lines(
     eap: &mut exarg_T,
     pat: NvimString,
-    sub: *const c_char,
-    cmd: *const c_char,
+    sub: impl crate::strings::IntoCCharPtr,
+    cmd: impl crate::strings::IntoCCharPtr,
     save: bool,
     keeppatterns: bool,
-) -> bool {
+) -> bool { let sub = sub.into_c_char_ptr(); let cmd = cmd.into_c_char_ptr();
      {
         if !pat.data.is_null()
             && crate::memory::cstr_as_bytes(pat.data) == b"\\n"

@@ -328,10 +328,10 @@ fn get_patterns_from_pattern_or_buf(
 
 fn clear_autocmd(
     event: event_T,
-    pat: *const c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     au_group: c_int,
     err: &mut Error,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
     if !do_autocmd_event(event, pat, false, 0, c"", true, au_group) {
             api_set_error!(
                 err,

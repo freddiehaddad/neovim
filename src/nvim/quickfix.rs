@@ -722,7 +722,7 @@ fn qfga_clear() {
 }
 
 #[inline]
-fn qfga_concat(gap: &mut Vec<c_char>, s: *const c_char) {
+fn qfga_concat(gap: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) { let s = s.into_c_char_ptr();
     unsafe {
         if !s.is_null() {
             let len = crate::memory::cstr_len(s);
@@ -734,7 +734,7 @@ fn qfga_concat(gap: &mut Vec<c_char>, s: *const c_char) {
 }
 
 #[inline]
-fn qfga_concat_len(gap: &mut Vec<c_char>, s: *const c_char, len: usize) {
+fn qfga_concat_len(gap: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr, len: usize) { let s = s.into_c_char_ptr();
     unsafe {
         if !s.is_null() && len > 0 {
             gap.extend_from_slice(std::slice::from_raw_parts(s, len));
@@ -796,12 +796,12 @@ fn qf_init_process_nextline(
 
 pub fn qf_init(
     wp: Option<&mut win_T>,
-    efile: *const c_char,
+    efile: impl crate::strings::IntoCCharPtr,
     errorformat: *mut c_char,
     newlist: c_int,
-    qf_title: *const c_char,
+    qf_title: impl crate::strings::IntoCCharPtr,
     enc: *mut c_char,
-) -> c_int {
+) -> c_int { let efile = efile.into_c_char_ptr(); let qf_title = qf_title.into_c_char_ptr();
     unsafe {
         let qi = wp.map_or_else(ql_info_ptr, ll_get_or_alloc_list);
         assert!(!qi.is_null());
@@ -823,12 +823,12 @@ pub fn qf_init(
 }
 
 fn efmpat_to_regpat(
-    efmpat: *const c_char,
+    efmpat: impl crate::strings::IntoCCharPtr,
     mut regpat: *mut c_char,
     efminfo: &mut efm_T,
     idx: usize,
     mut round: c_int,
-) -> *mut c_char {
+) -> *mut c_char { let efmpat = efmpat.into_c_char_ptr();
     unsafe {
         if efminfo.addr[idx] != 0 {
             semsg!(
@@ -889,10 +889,10 @@ fn efmpat_to_regpat(
 
 fn scanf_fmt_to_regpat(
     pefmp: *mut *const c_char,
-    efm: *const c_char,
+    efm: impl crate::strings::IntoCCharPtr,
     len: c_int,
     mut regpat: *mut c_char,
-) -> *mut c_char {
+) -> *mut c_char { let efm = efm.into_c_char_ptr();
     unsafe {
         let mut efmp = *pefmp;
         let end = efm.add(len as usize);
@@ -945,7 +945,7 @@ fn scanf_fmt_to_regpat(
     }
 }
 
-fn efm_analyze_prefix(mut efmp: *const c_char, efminfo: &mut efm_T) -> *const c_char {
+fn efm_analyze_prefix(efmp: impl crate::strings::IntoCCharPtr, efminfo: &mut efm_T) -> *const c_char { let mut efmp = efmp.into_c_char_ptr();
     unsafe {
         if !vim_strchr(c"+-", c_int::from(crate::memory::cstr_first_byte(efmp))).is_null() {
             efminfo.flags = *efmp;
@@ -965,11 +965,11 @@ fn efm_analyze_prefix(mut efmp: *const c_char, efminfo: &mut efm_T) -> *const c_
 }
 
 fn efm_to_regpat(
-    efm: *const c_char,
+    efm: impl crate::strings::IntoCCharPtr,
     len: c_int,
     fmt_ptr: &mut efm_T,
     regpat: *mut c_char,
-) -> bool {
+) -> bool { let efm = efm.into_c_char_ptr();
     unsafe {
         let mut ptr = regpat;
         *ptr = b'^' as c_char;
@@ -1041,7 +1041,7 @@ fn efm_to_regpat(
     }
 }
 
-fn efm_regpat_bufsz(efm: *const c_char) -> usize {
+fn efm_regpat_bufsz(efm: impl crate::strings::IntoCCharPtr) -> usize { let efm = efm.into_c_char_ptr();
      {
         let mut sz = (FMT_PATTERNS * 3) + (crate::memory::cstr_len(efm) << 2);
         for item in &FMT_PAT {
@@ -1471,11 +1471,11 @@ fn qf_parse_line(
 fn qf_setup_state(
     pstate: &mut qfstate_T,
     enc: *mut c_char,
-    efile: *const c_char,tv: Option<&mut typval_T>,
+    efile: impl crate::strings::IntoCCharPtr,tv: Option<&mut typval_T>,
     buf: *mut buf_T,
     lnumfirst: linenr_T,
     lnumlast: linenr_T,
-) -> bool {
+) -> bool { let efile = efile.into_c_char_ptr();
     unsafe {
         pstate.vc.vc_type = CONV_NONE;
         if !crate::memory::cstr_is_empty(enc) {
@@ -1514,15 +1514,15 @@ fn qf_setup_state(
 fn qf_init_ext(
     qi: &mut qf_info_T,
     mut qf_idx: c_int,
-    efile: *const c_char,
+    efile: impl crate::strings::IntoCCharPtr,
     buf: *mut buf_T,mut tv: Option<&mut typval_T>,
     errorformat: *mut c_char,
     newlist: bool,
     lnumfirst: linenr_T,
     lnumlast: linenr_T,
-    qf_title: *const c_char,
+    qf_title: impl crate::strings::IntoCCharPtr,
     enc: *mut c_char,
-) -> c_int {
+) -> c_int { let efile = efile.into_c_char_ptr(); let qf_title = qf_title.into_c_char_ptr();
     unsafe {
         let mut state = qfstate_T::default();
         let mut fields = qffields_T::default();
@@ -1631,7 +1631,7 @@ fn qf_init_ext(
     }
 }
 
-fn qf_store_title(qfl: &mut qf_list_T, title: *const c_char) {
+fn qf_store_title(qfl: &mut qf_list_T, title: impl crate::strings::IntoCCharPtr) { let title = title.into_c_char_ptr();
      {
         qfl.qf_title = if title.is_null() {
             None
@@ -1641,7 +1641,7 @@ fn qf_store_title(qfl: &mut qf_list_T, title: *const c_char) {
     }
 }
 
-fn qf_cmdtitle(cmd: *const c_char) -> *mut c_char {
+fn qf_cmdtitle(cmd: impl crate::strings::IntoCCharPtr) -> *mut c_char { let cmd = cmd.into_c_char_ptr();
     let buf = (&raw mut qf_st().qftitle_str).cast::<c_char>();
         vim_snprintf!(buf, IOSIZE, c":%s", cmd);
         buf
@@ -1668,7 +1668,7 @@ fn qf_pop_stack(qi: &mut qf_info_T, adjust: bool) {
         }
 }
 
-fn qf_new_list(qi: &mut qf_info_T, qf_title: *const c_char) {
+fn qf_new_list(qi: &mut qf_info_T, qf_title: impl crate::strings::IntoCCharPtr) { let qf_title = qf_title.into_c_char_ptr();
     while qi.qf_listcount > qi.qf_curlist + 1 {
             qi.qf_listcount -= 1;
             let lc = qi.qf_listcount;
@@ -1797,10 +1797,10 @@ fn qf_parse_fmt_t(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
 }
 
 fn copy_nonerror_line(
-    linebuf: *const c_char,
+    linebuf: impl crate::strings::IntoCCharPtr,
     linelen: usize,
     fields: &mut qffields_T,
-) -> c_int {
+) -> c_int { let linebuf = linebuf.into_c_char_ptr();
     if linelen >= fields.errmsg.len() {
             fields.errmsg.resize(linelen + 1, 0);
         }
@@ -2033,8 +2033,8 @@ fn qf_parse_file_pfx(
     idx: c_int,
     fields: &mut qffields_T,
     qfl: &mut qf_list_T,
-    tail: *const c_char,
-) -> c_int {
+    tail: impl crate::strings::IntoCCharPtr,
+) -> c_int { let tail = tail.into_c_char_ptr();
     unsafe {
         fields.valid = false;
         if crate::memory::cstr_is_empty(fields.namebuf.as_ptr()) || os_path_exists(fields.namebuf.as_ptr()) {
@@ -3657,7 +3657,7 @@ pub fn qf_list(eap: &mut exarg_T) {
     }
 }
 
-fn qf_fmt_text(gap: &mut Vec<c_char>, text: *const c_char) {
+fn qf_fmt_text(gap: &mut Vec<c_char>, text: impl crate::strings::IntoCCharPtr) { let text = text.into_c_char_ptr();
     unsafe {
         let mut p = text;
         while !crate::memory::cstr_is_empty(p) {
@@ -4681,7 +4681,7 @@ fn make_get_auname(cmdidx: c_int) -> *const c_char {
     }
 }
 
-fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std::ffi::CString {
+fn make_get_fullcmd(makecmd: impl crate::strings::IntoCCharPtr, fname: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let makecmd = makecmd.into_c_char_ptr(); let fname = fname.into_c_char_ptr();
      {
         let mut len = crate::memory::cstr_len(opt_vars().p_shq) * 2 + crate::memory::cstr_len(makecmd) + 1;
         if !crate::memory::cstr_is_empty(opt_vars().p_sp) {
@@ -7571,8 +7571,8 @@ fn hgr_search_files_in_dir(
     qfl: &mut qf_list_T,
     mut dirname: *mut c_char,
     p_regmatch: &mut regmatch_T,
-    lang: *const c_char,
-) {
+    lang: impl crate::strings::IntoCCharPtr,
+) { let lang = lang.into_c_char_ptr();
     unsafe {
         let mut fnames: Vec<std::ffi::CString> = Vec::new();
 
@@ -7602,7 +7602,7 @@ fn hgr_search_files_in_dir(
     }
 }
 
-fn hgr_search_in_rtp(qfl: &mut qf_list_T, p_regmatch: &mut regmatch_T, lang: *const c_char) {
+fn hgr_search_in_rtp(qfl: &mut qf_list_T, p_regmatch: &mut regmatch_T, lang: impl crate::strings::IntoCCharPtr) { let lang = lang.into_c_char_ptr();
      {
         let mut p = opt_vars().p_rtp;
         let name_buff_ptr = g_st().NameBuff.as_mut_ptr();

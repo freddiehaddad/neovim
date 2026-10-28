@@ -1848,12 +1848,12 @@ fn init_line_array(lstate: *mut lua_State, a: &mut Array, size: usize, arena: &m
 fn push_linestr(
     lstate: *mut lua_State,
     a: &mut Array,
-    s: *const c_char,
+    s: impl crate::strings::IntoCCharPtr,
     len: usize,
     idx: c_int,
     replace_nl: bool,
     arena: &mut Arena,
-) {
+) { let s = s.into_c_char_ptr();
     unsafe {
         if !lstate.is_null() {
             if !s.is_null() && replace_nl && crate::memory::cstr_as_bytes(s).contains(&b'\n') {

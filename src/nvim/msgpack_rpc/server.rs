@@ -55,7 +55,7 @@ fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
     &mut srv_st().watchers
 }
 
-pub fn server_init(mut listen_addr: *const c_char) -> bool {
+pub fn server_init(listen_addr: impl crate::strings::IntoCCharPtr) -> bool { let mut listen_addr = listen_addr.into_c_char_ptr();
     unsafe {
         let mut ok = true;
         let mut owned_addr: Option<std::ffi::CString> = None;
@@ -138,7 +138,7 @@ pub fn server_teardown() {
     }
 }
 
-pub fn server_address_new(name: *const c_char) -> std::ffi::CString {
+pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let name = name.into_c_char_ptr();
      {
         let mut fmt: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
         let cur_count = srv_st().server_addr_count;
@@ -197,7 +197,7 @@ pub fn server_address_new(name: *const c_char) -> std::ffi::CString {
     }
 }
 
-pub fn server_owns_pipe_address(address: *const c_char) -> bool {
+pub fn server_owns_pipe_address(address: impl crate::strings::IntoCCharPtr) -> bool { let address = address.into_c_char_ptr();
     unsafe {
         let path = fix_fname(address);
         for &watcher in watchers_mut().iter() {
@@ -210,7 +210,7 @@ pub fn server_owns_pipe_address(address: *const c_char) -> bool {
     }
 }
 
-pub fn server_start(addr: *const c_char) -> c_int {
+pub fn server_start(addr: impl crate::strings::IntoCCharPtr) -> c_int { let addr = addr.into_c_char_ptr();
     unsafe {
         if addr.is_null() || *addr == 0 {
             logmsg!(
@@ -288,7 +288,7 @@ pub fn server_start(addr: *const c_char) -> c_int {
     }
 }
 
-pub fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bool {
+pub fn server_stop(endpoint: impl crate::strings::IntoCCharPtr, keep_vservername: bool) -> bool { let endpoint = endpoint.into_c_char_ptr();
     unsafe {
         let mut addr: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 

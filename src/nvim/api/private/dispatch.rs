@@ -117,7 +117,7 @@ use crate::shada::{
     KeyDict__shada_search_pat,
 };
 use crate::ui_client::handle_ui_client_redraw;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_int;
 use std::mem::offset_of;
 use std::ptr;
 
@@ -15829,10 +15829,10 @@ pub fn msgpack_rpc_get_handler_at(hash: c_int) -> MsgpackRpcRequestHandler {
 }
 
 pub fn msgpack_rpc_get_handler_for(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     name_len: usize,
     error: &mut Error,
-) -> MsgpackRpcRequestHandler {
+) -> MsgpackRpcRequestHandler { let name = name.into_c_char_ptr();
     unsafe {
         let key_bytes = if name.is_null() || name_len == 0 { &[][..] } else { crate::memory::cstr_slice(name, name_len) };
         let hash = msgpack_rpc_get_handler_for_hash(key_bytes);

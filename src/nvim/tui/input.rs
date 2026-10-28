@@ -327,7 +327,7 @@ fn tinput_flush(input: &mut TermInput) {
         input.key_buffer_len = 0;
 }
 
-fn tinput_enqueue(input: &mut TermInput, buf: *const c_char, size: usize) {
+fn tinput_enqueue(input: &mut TermInput, buf: impl crate::strings::IntoCCharPtr, size: usize) { let buf = buf.into_c_char_ptr();
     unsafe {
         if input.key_buffer_len > KEY_BUFFER_SIZE.saturating_sub(size) {
             tinput_flush(input);
@@ -627,7 +627,7 @@ unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     }
 }
 
-fn handle_focus_event(_input: &mut TermInput, ptr: *const c_char, size: usize) -> usize {
+fn handle_focus_event(_input: &mut TermInput, ptr: impl crate::strings::IntoCCharPtr, size: usize) -> usize { let ptr = ptr.into_c_char_ptr();
      {
         if size >= 3 {
             let bytes = crate::memory::cstr_slice(ptr, 3);
@@ -649,10 +649,10 @@ fn handle_focus_event(_input: &mut TermInput, ptr: *const c_char, size: usize) -
 
 fn handle_bracketed_paste(
     input: &mut TermInput,
-    ptr: *const c_char,
+    ptr: impl crate::strings::IntoCCharPtr,
     size: usize,
     incomplete: &mut bool,
-) -> usize {
+) -> usize { let ptr = ptr.into_c_char_ptr();
      {
         let bytes = crate::memory::cstr_slice(ptr, size);
         if size >= 6 && (&bytes[..6] == START_PASTE || &bytes[..6] == END_PASTE) {
@@ -886,9 +886,9 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
 fn handle_raw_buffer(
     input: &mut TermInput,
     force: bool,
-    data: *const c_char,
+    data: impl crate::strings::IntoCCharPtr,
     mut size: usize,
-) -> usize {
+) -> usize { let data = data.into_c_char_ptr();
     unsafe {
         let mut ptr = data;
 
@@ -976,11 +976,11 @@ fn handle_raw_buffer(
 
 pub(crate) fn tinput_read_cb(
     _stream: &mut RStream,
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     count_: usize,
     input: &mut TermInput,
     eof: bool,
-) -> usize {
+) -> usize { let buf = buf.into_c_char_ptr();
     unsafe {
 
         let consumed = handle_raw_buffer(input, false, buf, count_);

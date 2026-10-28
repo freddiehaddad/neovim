@@ -553,9 +553,9 @@ fn atom_from_spec(r#type: CmdAtomType, spec: CmdSpec) -> CmdAtom {
 fn atom_from_cmdline(
     r#type: CmdAtomType,
     ca: &mut cmdarg_T,
-    cmdline: *const c_char,
+    cmdline: impl crate::strings::IntoCCharPtr,
     vis: bool,
-) -> CmdAtom {
+) -> CmdAtom { let cmdline = cmdline.into_c_char_ptr();
      {
         let mut sb: Vec<c_char> = Vec::new();
         if ca.cmdchar != b':' as c_int && ca.count0 != 0 {
@@ -905,7 +905,7 @@ pub fn atom_composite_active() -> bool {
     atom_st().composite.active
 }
 
-fn atom_composite_label(lhs: *const c_char, len: usize) {
+fn atom_composite_label(lhs: impl crate::strings::IntoCCharPtr, len: usize) { let lhs = lhs.into_c_char_ptr();
     unsafe {
         let copy_len = len.min(MAXMAPLEN + 3);
         ptr::copy_nonoverlapping(lhs, ptr::addr_of_mut!(atom_st().composite.lhs).cast(), copy_len);
@@ -913,7 +913,7 @@ fn atom_composite_label(lhs: *const c_char, len: usize) {
     }
 }
 
-fn atom_composite_start(lhs: *const c_char, len: usize) {
+fn atom_composite_start(lhs: impl crate::strings::IntoCCharPtr, len: usize) { let lhs = lhs.into_c_char_ptr();
     if !lhs.is_null() {
             atom_composite_label(lhs, len);
         }
@@ -1098,7 +1098,7 @@ pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
         0
 }
 
-pub fn atom_cmdline_set(firstc: c_int, line: *const c_char, len: usize) {
+pub fn atom_cmdline_set(firstc: c_int, line: impl crate::strings::IntoCCharPtr, len: usize) { let line = line.into_c_char_ptr();
     unsafe {
         let cur_frame = cur_frame_ptr();
         if cur_frame.is_null()
@@ -1259,7 +1259,7 @@ pub fn atom_stuff_start(cap: &cmdarg_T) {
         atom_composite_start(lhs.as_ptr(), lhs.as_bytes().len());
 }
 
-pub fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
+pub fn atom_map_start(lhs: impl crate::strings::IntoCCharPtr, len: usize, peeked: bool) { let lhs = lhs.into_c_char_ptr();
     unsafe {
         if mc_replaying() || g_st().reg_executing != 0 || g_st().ex_normal_busy != 0 {
             return;

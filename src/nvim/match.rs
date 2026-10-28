@@ -128,13 +128,13 @@ use crate::highlight::win_hl_attr;
 /// Add match to the match list of window `wp` (`match_add`).
 fn match_add(
     wp: &mut win_T,
-    grp: *const c_char,
-    pat: *const c_char,
+    grp: impl crate::strings::IntoCCharPtr,
+    pat: impl crate::strings::IntoCCharPtr,
     prio: c_int,
     mut id: c_int,
     pos_list: Option<&list_T>,
-    conceal_char: *const c_char,
-) -> c_int {
+    conceal_char: impl crate::strings::IntoCCharPtr,
+) -> c_int { let grp = grp.into_c_char_ptr(); let pat = pat.into_c_char_ptr(); let conceal_char = conceal_char.into_c_char_ptr();
     unsafe {
         let mut regprog: *mut regprog_T = ptr::null_mut();
         let mut rtype = UPD_SOME_VALID;

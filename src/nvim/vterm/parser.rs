@@ -170,11 +170,11 @@ fn do_escape(vt: &mut VTerm, command: c_char) {
 
 fn string_fragment(
     vt: &mut VTerm,
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     len: usize,
     final_: bool,
     terminator: VTermTerminator,
-) {
+) { let str_ = str_.into_c_char_ptr();
     let frag =
             VTermStringFragment::new(str_, len, vt.parser.string_initial, final_, terminator);
         let callbacks = vt.parser.callbacks;
@@ -227,7 +227,7 @@ fn string_fragment(
         vt.parser.string_initial = false;
 }
 
-pub fn vterm_input_write(vt: &mut VTerm, bytes: *const c_char, len: usize) -> usize {
+pub fn vterm_input_write(vt: &mut VTerm, bytes: impl crate::strings::IntoCCharPtr, len: usize) -> usize { let bytes = bytes.into_c_char_ptr();
     unsafe {
         let mut pos: usize = 0;
         let mut string_start: *const c_char = match vt.parser.state {

@@ -861,7 +861,7 @@ pub fn ui_grid_resize(grid_handle: handle_T, width: c_int, height: c_int, err: &
     }
 }
 
-fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
+fn ui_attach_error(ns_id: u32, name: impl crate::strings::IntoCCharPtr, msg: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let msg = msg.into_c_char_ptr();
     let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)");
         logmsg!(
             LOGLVL_ERR,

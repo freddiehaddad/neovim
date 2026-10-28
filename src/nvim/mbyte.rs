@@ -913,7 +913,7 @@ pub fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
 }
 
 #[inline]
-pub fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
+pub fn utf_ptr2CharInfo(p_in: impl crate::strings::IntoCCharPtr) -> CharInfo { let p_in = p_in.into_c_char_ptr();
     unsafe {
         let p = p_in.cast::<u8>();
         let first = *p;
@@ -946,7 +946,7 @@ pub fn utf_ptr2StrCharInfo(ptr: impl crate::strings::IntoCCharPtr) -> StrCharInf
 }
 
 #[inline]
-pub fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
+pub fn utf_ptr2CharInfo_len(p_in: impl crate::strings::IntoCCharPtr, size: c_int) -> CharInfo { let p_in = p_in.into_c_char_ptr();
     unsafe {
         let p = p_in.cast::<u8>();
         assert!(size >= 0);
@@ -977,7 +977,7 @@ pub fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
 }
 
 #[inline]
-pub fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCharInfo {
+pub fn utf_ptr2StrCharInfo_len(ptr: impl crate::strings::IntoCCharPtr, size: c_int) -> StrCharInfo { let ptr = ptr.into_c_char_ptr();
     StrCharInfo {
             ptr,
             chr: utf_ptr2CharInfo_len(ptr, size),
@@ -1036,7 +1036,7 @@ pub fn utf_ClusterInfo_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
     }
 }
 
-fn enc_canon_search(name: *const c_char) -> c_int {
+fn enc_canon_search(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
     let bytes =  { crate::memory::cstr_as_bytes(name) };
     for (i, entry) in ENC_CANON_TABLE.iter().enumerate() {
         if bytes == entry.name.to_bytes() {
@@ -1099,7 +1099,7 @@ pub fn mb_get_class(p: impl crate::strings::IntoCCharPtr) -> c_int {
      mb_get_class_tab(p, curbuf_mut().b_chartab.as_ptr())
 }
 
-pub fn mb_get_class_tab(p: *const c_char, chartab: *const u64) -> c_int {
+pub fn mb_get_class_tab(p: impl crate::strings::IntoCCharPtr, chartab: *const u64) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         let b0 = *p.cast::<u8>();
         if utf8len_tab[b0 as usize] == 1 {
@@ -1153,7 +1153,7 @@ pub fn utf_char2cells(c: c_int) -> c_int {
     }
 }
 
-pub fn ptr2cells(p_in: *const c_char) -> c_int {
+pub fn ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> c_int { let p_in = p_in.into_c_char_ptr();
     utf_ClusterInfo(utf_ptr2StrCharInfo(p_in)).cells
 }
 
@@ -1230,7 +1230,7 @@ pub fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 {
     }
 }
 
-pub fn mb_string2cells(str_: *const c_char) -> usize {
+pub fn mb_string2cells(str_: impl crate::strings::IntoCCharPtr) -> usize { let str_ = str_.into_c_char_ptr();
      {
         let mut clen = 0usize;
         let mut ci = utf_ptr2StrCharInfo(str_);
@@ -1247,7 +1247,7 @@ pub fn mb_string2cells(str_: *const c_char) -> usize {
     }
 }
 
-pub fn mb_string2cells_len(str_: *const c_char, size: usize) -> usize {
+pub fn mb_string2cells_len(str_: impl crate::strings::IntoCCharPtr, size: usize) -> usize { let str_ = str_.into_c_char_ptr();
     let mut clen = 0usize;
         let mut len = size as c_int;
         let mut ci = utf_ptr2StrCharInfo_len(str_, len);
@@ -1259,7 +1259,7 @@ pub fn mb_string2cells_len(str_: *const c_char, size: usize) -> usize {
         clen
 }
 
-pub fn utf_ptr2char(p_in: *const c_char) -> c_int {
+pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> c_int { let p_in = p_in.into_c_char_ptr();
     unsafe {
         let p = p_in.cast::<u8>();
         let v0 = u32::from(*p);
@@ -1370,10 +1370,10 @@ pub fn utf_iscomposing_first(c: c_int) -> bool {
 }
 
 pub fn utf_composinglike(
-    p1: *const c_char,
-    p2: *const c_char,
+    p1: impl crate::strings::IntoCCharPtr,
+    p2: impl crate::strings::IntoCCharPtr,
     state: Option<&mut GraphemeState>,
-) -> bool {
+) -> bool { let p1 = p1.into_c_char_ptr(); let p2 = p2.into_c_char_ptr();
     unsafe {
         if *p2.cast::<u8>() < 128 {
             return false;
@@ -1411,7 +1411,7 @@ pub fn utf_byte2len(b: c_int) -> c_int {
     c_int::from(utf8len_tab[b as usize])
 }
 
-pub fn utf_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
+pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: c_int) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         let bytes = p.cast::<u8>();
         let len = c_int::from(utf8len_tab[*bytes as usize]);
@@ -1458,7 +1458,7 @@ pub fn utfc_ptr2len(p: *const c_char) -> c_int {
     }
 }
 
-pub fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
+pub fn utfc_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: c_int) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         if size < 1 || crate::memory::cstr_is_empty(p) {
             return 0;
@@ -2016,7 +2016,7 @@ pub fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
         2
 }
 
-pub fn utf_ambiguous_width(p: *const c_char) -> bool {
+pub fn utf_ambiguous_width(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_is_empty(p) || crate::memory::cstr_byte_at(p, 1) == 0 {
             return false;
@@ -2093,11 +2093,11 @@ pub fn mb_isalpha(a: c_int) -> bool {
 }
 
 pub fn utf_strnicmp(
-    mut s1: *const c_char,
-    mut s2: *const c_char,
+    s1: impl crate::strings::IntoCCharPtr,
+    s2: impl crate::strings::IntoCCharPtr,
     mut n1: usize,
     mut n2: usize,
-) -> c_int {
+) -> c_int { let mut s1 = s1.into_c_char_ptr(); let mut s2 = s2.into_c_char_ptr();
     unsafe {
         let mut c1: c_int;
         let mut c2: c_int;
@@ -2158,7 +2158,7 @@ pub fn utf_strnicmp(
 }
 
 #[cfg(windows)]
-pub fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: &mut Vec<u16>) -> c_int {
+pub fn utf8_to_utf16(utf8: impl crate::strings::IntoCCharPtr, utf8len: c_int, utf16: &mut Vec<u16>) -> c_int { let utf8 = utf8.into_c_char_ptr();
     unsafe {
         utf16.clear();
         let mut bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, ptr::null_mut(), 0);
@@ -2223,11 +2223,11 @@ pub fn utf16_to_utf8(
 }
 
 pub fn mb_utflen(
-    s: *const c_char,
+    s: impl crate::strings::IntoCCharPtr,
     len: usize,
     codepoints: &mut usize,
     codeunits: &mut usize,
-) {
+) { let s = s.into_c_char_ptr();
     unsafe {
         let mut count = 0usize;
         let mut extra = 0usize;
@@ -2251,11 +2251,11 @@ pub fn mb_utflen(
 }
 
 pub fn mb_utf_index_to_bytes(
-    s: *const c_char,
+    s: impl crate::strings::IntoCCharPtr,
     len: usize,
     index: usize,
     use_utf16_units: bool,
-) -> isize {
+) -> isize { let s = s.into_c_char_ptr();
     unsafe {
         if index == 0 {
             return 0;
@@ -2282,12 +2282,12 @@ pub fn mb_utf_index_to_bytes(
     }
 }
 
-pub fn mb_strnicmp(s1: *const c_char, s2: impl crate::strings::IntoCCharPtr, nn: usize) -> c_int {
+pub fn mb_strnicmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr, nn: usize) -> c_int { let s1 = s1.into_c_char_ptr();
     let s2 = s2.into_c_char_ptr();
     utf_strnicmp(s1, s2, nn, nn)
 }
 
-pub fn mb_stricmp(s1: *const c_char, s2: impl crate::strings::IntoCCharPtr) -> c_int {
+pub fn mb_stricmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> c_int { let s1 = s1.into_c_char_ptr();
     let s2 = s2.into_c_char_ptr();
     mb_strnicmp(s1, s2, MAXCOL)
 }
@@ -2342,7 +2342,7 @@ const fn always_break_two(bc1: u32, bc2: u32) -> bool {
                 || bc1 == UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC))
 }
 
-pub fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int {
+pub fn utf_head_off(base_in: impl crate::strings::IntoCCharPtr, p_in: impl crate::strings::IntoCCharPtr) -> c_int { let base_in = base_in.into_c_char_ptr(); let p_in = p_in.into_c_char_ptr();
     unsafe {
         if *p_in.cast::<u8>() < 0x80 {
             return 0;
@@ -2606,7 +2606,7 @@ pub fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char) {
     }
 }
 
-pub fn mb_off_next(base: *const c_char, p: *const c_char) -> c_int {
+pub fn mb_off_next(base: impl crate::strings::IntoCCharPtr, p: impl crate::strings::IntoCCharPtr) -> c_int { let base = base.into_c_char_ptr(); let p = p.into_c_char_ptr();
     unsafe {
         let head_off = utf_head_off(base, p);
         if head_off == 0 {
@@ -2617,10 +2617,10 @@ pub fn mb_off_next(base: *const c_char, p: *const c_char) -> c_int {
 }
 
 pub fn utf_cp_bounds_len(
-    base: *const c_char,
-    p_in: *const c_char,
+    base: impl crate::strings::IntoCCharPtr,
+    p_in: impl crate::strings::IntoCCharPtr,
     p_len: c_int,
-) -> CharBoundsOff {
+) -> CharBoundsOff { let base = base.into_c_char_ptr(); let p_in = p_in.into_c_char_ptr();
     unsafe {
         assert!(base <= p_in && p_len > 0);
         let b = base.cast::<u8>();
@@ -2669,7 +2669,7 @@ pub fn utf_cp_bounds_len(
     }
 }
 
-pub fn utf_cp_bounds(base: *const c_char, p_in: *const c_char) -> CharBoundsOff {
+pub fn utf_cp_bounds(base: impl crate::strings::IntoCCharPtr, p_in: impl crate::strings::IntoCCharPtr) -> CharBoundsOff { let base = base.into_c_char_ptr(); let p_in = p_in.into_c_char_ptr();
     utf_cp_bounds_len(base, p_in, c_int::MAX)
 }
 
@@ -2737,7 +2737,7 @@ pub fn utf_find_illegal() {
     }
 }
 
-pub fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool {
+pub fn utf_valid_string(s: impl crate::strings::IntoCCharPtr, end: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_char_ptr(); let end = end.into_c_char_ptr();
     unsafe {
         let mut p = s.cast::<u8>();
         let end_u8 = end.cast::<u8>();
@@ -2813,7 +2813,7 @@ pub fn mb_prevptr(line: *mut c_char, mut p: *mut c_char) -> *mut c_char {
     }
 }
 
-pub fn mb_charlen(str_: *const c_char) -> c_int {
+pub fn mb_charlen(str_: impl crate::strings::IntoCCharPtr) -> c_int { let str_ = str_.into_c_char_ptr();
     unsafe {
         if str_.is_null() {
             return 0;
@@ -2828,7 +2828,7 @@ pub fn mb_charlen(str_: *const c_char) -> c_int {
     }
 }
 
-pub fn mb_charlen_len(str_: *const c_char, len: c_int) -> c_int {
+pub fn mb_charlen_len(str_: impl crate::strings::IntoCCharPtr, len: c_int) -> c_int { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut p = str_;
         let end = str_.add(len.max(0) as usize);
@@ -2890,7 +2890,7 @@ pub fn enc_skip(p: *mut c_char) -> *mut c_char {
     }
 }
 
-fn enc_alias_search(name: *const c_char) -> c_int {
+fn enc_alias_search(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
     let bytes =  { crate::memory::cstr_as_bytes(name) };
     for entry in ENC_ALIAS_TABLE {
         if bytes == entry.name.to_bytes() {
@@ -2900,7 +2900,7 @@ fn enc_alias_search(name: *const c_char) -> c_int {
     -1
 }
 
-pub fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
+pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let enc = enc.into_c_char_ptr();
     unsafe {
         let enc_bytes = crate::memory::cstr_as_bytes(enc);
         if enc_bytes == b"default" {
@@ -3065,9 +3065,9 @@ pub fn my_iconv_open(to: impl crate::strings::IntoCCharPtr, from: impl crate::st
 
 fn iconv_string(
     vcp: &vimconv_T,
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     slen: usize,mut unconvlenp: Option<&mut usize>,mut resultlenp: Option<&mut usize>,
-) -> Option<Vec<u8>> {
+) -> Option<Vec<u8>> { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut to: *mut c_char;
         let mut len = 0usize;
@@ -3506,7 +3506,7 @@ pub fn get_encoding_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     ENC_CANON_TABLE[idx as usize].name.as_ptr().cast_mut()
 }
 
-pub fn mb_strcmp_ic(ic: bool, s1: *const c_char, s2: *const c_char) -> c_int {
+pub fn mb_strcmp_ic(ic: bool, s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> c_int { let s1 = s1.into_c_char_ptr(); let s2 = s2.into_c_char_ptr();
      {
         if ic {
             mb_stricmp(s1, s2)

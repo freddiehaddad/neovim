@@ -3322,14 +3322,14 @@ pub fn getcmdline(
 /// Get a command line with a prompt.
 pub fn getcmdline_prompt(
     firstc: c_int,
-    prompt: *const c_char,
+    prompt: impl crate::strings::IntoCCharPtr,
     hl_id: c_int,
     xp_context: c_int,
-    xp_arg: *const c_char,
+    xp_arg: impl crate::strings::IntoCCharPtr,
     highlight_callback: Callback,
     one_key: bool,
     mouse_used: *mut bool,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let prompt = prompt.into_c_char_ptr(); let xp_arg = xp_arg.into_c_char_ptr();
     unsafe {
         let msg_col_save = g_st().msg_col;
 
@@ -3385,7 +3385,7 @@ pub fn getcmdline_prompt(
 }
 
 /// Parse `'wildmode'`, updating flags only when non-NULL and the value is valid.
-pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> bool {
+pub fn check_opt_wim(value: impl crate::strings::IntoCCharPtr, flags: *mut u8) -> bool { let value = value.into_c_char_ptr();
     unsafe {
         let mut new_wim_flags: [u8; 4] = [0; 4];
         let mut idx: usize = 0;
@@ -4093,7 +4093,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     }
 }
 
-pub fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
+pub fn ui_ext_cmdline_block_append(indent: usize, line: impl crate::strings::IntoCCharPtr) { let line = line.into_c_char_ptr();
     unsafe {
         let line_len = crate::memory::cstr_len(line);
         let mut buf: Vec<c_char> = Vec::with_capacity(indent + line_len);
@@ -4247,7 +4247,7 @@ pub fn unputcmdline() {
 }
 
 /// Put the given string, of the given length, onto the command line.
-pub fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
+pub fn put_on_cmdline(str: impl crate::strings::IntoCCharPtr, mut len: c_int, redraw: bool) { let str = str.into_c_char_ptr();
     unsafe {
         if len < 0 {
             len = crate::memory::cstr_len(str) as c_int;
@@ -4596,7 +4596,7 @@ fn ccheck_abbr(c: c_int) -> c_int {
 }
 
 /// Escape special characters in `fname`, depending on `what`.
-pub fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> std::ffi::CString {
+pub fn vim_strsave_fnameescape(fname: impl crate::strings::IntoCCharPtr, what: c_int) -> std::ffi::CString { let fname = fname.into_c_char_ptr();
     #[cfg(windows)]
     let mut p = unsafe {
         let mut buf: [c_char; 32] = [0; 32];
@@ -4865,7 +4865,7 @@ pub fn f_getcmdtype(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// Set the command line str to `str`.
 /// @return 1 when failed, 0 when OK.
-fn set_cmdline_str(str: *const c_char, pos: c_int) -> c_int {
+fn set_cmdline_str(str: impl crate::strings::IntoCCharPtr, pos: c_int) -> c_int { let str = str.into_c_char_ptr();
     unsafe {
         let p = get_ccline_ptr();
 

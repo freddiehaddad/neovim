@@ -639,8 +639,8 @@ use crate::os::lang::bind_textdomain_codeset;
 pub fn opt_error(
     errbuf: Option<CharBuf>,
     fmt: impl crate::strings::IntoCCharPtr,
-    arg: *const c_char,
-) -> *const c_char {
+    arg: impl crate::strings::IntoCCharPtr,
+) -> *const c_char { let arg = arg.into_c_char_ptr();
     let fmt = fmt.into_c_char_ptr();
     let Some(errbuf) = errbuf else {
         return c"".as_ptr();
@@ -663,7 +663,7 @@ pub fn opt_error_int(
 }
 
 #[inline]
-fn c_str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
+fn c_str_contains(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> bool { let haystack = haystack.into_c_char_ptr();
      {
         needle.is_empty()
             || crate::memory::cstr_as_bytes(haystack)
@@ -1068,18 +1068,18 @@ fn set_options_default(opt_flags: c_int) {
 }
 
 /// Set the Vi-default value of a string option.
-fn set_string_default(opt_idx: OptIndex, val: *const c_char) {
+fn set_string_default(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) { let val = val.into_c_char_ptr();
     assert!(opt_idx != kOptInvalid);
         change_option_default(opt_idx, cstr_to_obj(val));
 }
 
 /// For an option value that contains comma separated items, find "newval" in "origval".
 fn find_dup_item(
-    origval: *const c_char,
-    newval: *const c_char,
+    origval: impl crate::strings::IntoCCharPtr,
+    newval: impl crate::strings::IntoCCharPtr,
     newvallen: usize,
     flags: u32,
-) -> *const c_char {
+) -> *const c_char { let origval = origval.into_c_char_ptr(); let newval = newval.into_c_char_ptr();
     unsafe {
         if origval.is_null() {
             return ptr::null();
@@ -1215,7 +1215,7 @@ pub fn set_init_3() {
 }
 
 /// When 'helplang' is still at its default value, set it to "lang".
-pub fn set_helplang_default(lang: *const c_char) {
+pub fn set_helplang_default(lang: impl crate::strings::IntoCCharPtr) { let lang = lang.into_c_char_ptr();
     unsafe {
         if lang.is_null() {
             return;
@@ -1278,11 +1278,11 @@ pub fn ex_set(eap: &mut exarg_T) {
 
 /// Copy the new string value into allocated memory for the option.
 fn stropt_copy_value(
-    origval: *const c_char,
+    origval: impl crate::strings::IntoCCharPtr,
     argp: *mut *mut c_char,
     op: set_op_T,
     flags: u32,
-) -> Vec<c_char> {
+) -> Vec<c_char> { let origval = origval.into_c_char_ptr();
     unsafe {
         let mut arg = *argp;
 
@@ -1332,10 +1332,10 @@ fn stropt_copy_value(
 /// Expand environment variables and ~ in string option value 'newval'.
 fn stropt_expand_envvar(
     opt_idx: OptIndex,
-    origval: *const c_char,
+    origval: impl crate::strings::IntoCCharPtr,
     newval: &mut Vec<c_char>,
     op: set_op_T,
-) {
+) { let origval = origval.into_c_char_ptr();
      {
         let s = option_expand(opt_idx, newval.as_mut_ptr());
         if s.is_null() {
@@ -1353,11 +1353,11 @@ fn stropt_expand_envvar(
 
 /// Concatenate the original and new values of a string option, adding a "," if needed.
 fn stropt_concat_with_comma(
-    origval: *const c_char,
+    origval: impl crate::strings::IntoCCharPtr,
     newval: *mut c_char,
     op: set_op_T,
     flags: u32,
-) {
+) { let origval = origval.into_c_char_ptr();
     unsafe {
         let mut len: usize;
         let comma = usize::from((flags & kOptFlagComma) != 0 && !crate::memory::cstr_is_empty(origval) && !crate::memory::cstr_is_empty(newval));
@@ -1385,12 +1385,12 @@ fn stropt_concat_with_comma(
 
 /// Remove a value from a string option.
 fn stropt_remove_val(
-    origval: *const c_char,
+    origval: impl crate::strings::IntoCCharPtr,
     newval: *mut c_char,
     flags: u32,
-    mut strval: *const c_char,
+    strval: impl crate::strings::IntoCCharPtr,
     mut len: c_int,
-) {
+) { let origval = origval.into_c_char_ptr(); let mut strval = strval.into_c_char_ptr();
     unsafe {
         crate::memory::cstr_cpy(newval, origval);
         if !crate::memory::cstr_is_empty(strval) {
@@ -1439,7 +1439,7 @@ fn find_key_item(
 }
 
 /// Remove one item of length "itemlen" at position "item" from comma-separated string "str" in-place.
-fn remove_comma_item(str_arg: *const c_char, item: *mut c_char, itemlen: isize) {
+fn remove_comma_item(str_arg: impl crate::strings::IntoCCharPtr, item: *mut c_char, itemlen: isize) { let str_arg = str_arg.into_c_char_ptr();
     unsafe {
         if *item.offset(itemlen) == b',' as c_char {
             let src = item.offset(itemlen + 1);
@@ -1458,8 +1458,8 @@ fn remove_key_item(
     str_arg: *mut c_char,
     key: *mut c_char,
     keylen: isize,
-    skip: *const c_char,
-) {
+    skip: impl crate::strings::IntoCCharPtr,
+) { let skip = skip.into_c_char_ptr();
     unsafe {
         let mut itemlen: isize = 0;
         loop {
@@ -1516,11 +1516,11 @@ fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
 
 /// For a P_COMMA option: process "key:value" items in "newval" individually.
 fn stropt_handle_keymatch(
-    origval: *const c_char,
+    origval: impl crate::strings::IntoCCharPtr,
     newval: *mut c_char,
     op: set_op_T,
     _flags: u32,
-) -> bool {
+) -> bool { let origval = origval.into_c_char_ptr();
     unsafe {
         if vim_strchr(newval, b':' as c_int).is_null()
             && vim_strchr(newval, b',' as c_int).is_null()
@@ -1696,7 +1696,7 @@ fn stropt_get_newval(
     }
 }
 
-fn get_op(arg: *const c_char) -> set_op_T {
+fn get_op(arg: impl crate::strings::IntoCCharPtr) -> set_op_T { let arg = arg.into_c_char_ptr();
      {
         let mut op = OP_NONE;
         if !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_byte_at(arg, 1) == b'=' {
@@ -1774,7 +1774,7 @@ fn validate_opt_idx(
 }
 
 /// Skip over the name of a TTY option or keycode option.
-fn find_tty_option_end(arg: *const c_char) -> *const c_char {
+fn find_tty_option_end(arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_as_opt_bytes(arg) == Some(b"term") {
             return arg.add("term".len());
@@ -1812,7 +1812,7 @@ fn find_tty_option_end(arg: *const c_char) -> *const c_char {
 }
 
 /// Skip over the name of an option.
-pub fn find_option_end(arg: *const c_char,opt_idxp: &mut OptIndex) -> *const c_char {
+pub fn find_option_end(arg: impl crate::strings::IntoCCharPtr,opt_idxp: &mut OptIndex) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         let mut p = find_tty_option_end(arg);
         if !p.is_null() {
@@ -2205,7 +2205,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
     }
 }
 
-fn find_key_len(arg_arg: *const c_char, len: usize, has_lt: bool) -> c_int {
+fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: bool) -> c_int { let arg_arg = arg_arg.into_c_char_ptr();
     unsafe {
         let mut key: c_int = 0;
         let mut arg = arg_arg;
@@ -2309,7 +2309,7 @@ pub fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int) {
 }
 
 /// Expand environment variables for some string options.
-fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_char {
+fn option_expand(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mut val = val.into_c_char_ptr();
     unsafe {
         let opt = get_option(opt_idx);
         if ((*opt).flags & kOptFlagExpand) == 0 || is_option_hidden(opt_idx) {
@@ -2474,7 +2474,7 @@ pub fn redraw_titles() {
 }
 
 /// Return true if "val" is a valid name.
-pub fn valid_name(val: *const c_char, allowed: &std::ffi::CStr) -> bool {
+pub fn valid_name(val: impl crate::strings::IntoCCharPtr, allowed: &std::ffi::CStr) -> bool { let val = val.into_c_char_ptr();
     unsafe {
         let mut s = val;
         while !crate::memory::cstr_is_empty(s) {
@@ -2493,7 +2493,7 @@ pub fn check_blending(wp: &mut win_T) {
 }
 
 /// Handle setting 'winhighlight' in window "wp".
-pub fn parse_winhl_opt(winhl: *const c_char, mut wp: Option<&mut win_T>) -> bool {
+pub fn parse_winhl_opt(winhl: impl crate::strings::IntoCCharPtr, mut wp: Option<&mut win_T>) -> bool { let winhl = winhl.into_c_char_ptr();
     unsafe {
         let mut p: *const c_char = empty_string_option.as_ptr().cast();
         if !winhl.is_null() {
@@ -3804,12 +3804,12 @@ pub fn check_redraw(flags: u32) {
     }
 }
 
-pub fn is_tty_option(name: *const c_char) -> bool {
+pub fn is_tty_option(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     !find_tty_option_end(name).is_null()
 }
 
 /// Get value of TTY option.
-pub fn get_tty_option(name: *const c_char) -> Object {
+pub fn get_tty_option(name: impl crate::strings::IntoCCharPtr) -> Object { let name = name.into_c_char_ptr();
      {
         if crate::memory::cstr_as_opt_bytes(name) == Some(b"t_Co") {
             if g_st().t_colors <= 1 {
@@ -7156,7 +7156,7 @@ pub fn win_copy_options(wp_from: &mut win_T, wp_to: &mut win_T) {
         didset_window_options( &mut *wp_to, true);
 }
 
-fn copy_option_val(val: *const c_char) -> *mut c_char {
+fn copy_option_val(val: impl crate::strings::IntoCCharPtr) -> *mut c_char { let val = val.into_c_char_ptr();
     let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         if ptr::eq(val, empty_opt) {
             empty_opt
@@ -8426,7 +8426,7 @@ pub fn set_fileformat(eol_style: c_int, opt_flags: c_int) {
 }
 
 /// Skip to next part of an option argument: skip space and comma.
-pub fn skip_to_option_part(mut p: *const c_char) -> *mut c_char {
+pub fn skip_to_option_part(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(p) == b',' {
             p = p.add(1);
@@ -8517,7 +8517,7 @@ pub fn option_next_keyval(
 }
 
 /// Compare a (non-NUL-terminated) slice from option_next_keyval() against a name.
-pub fn option_slice_eq(slice: *const c_char, slicelen: usize, name: &std::ffi::CStr) -> bool {
+pub fn option_slice_eq(slice: impl crate::strings::IntoCCharPtr, slicelen: usize, name: &std::ffi::CStr) -> bool { let slice = slice.into_c_char_ptr();
      !slice.is_null() && name.to_bytes().len() == slicelen && (crate::memory::cstr_prefix_bytes(slice, slicelen) == crate::memory::cstr_prefix_bytes(name.as_ptr(), slicelen))
 }
 

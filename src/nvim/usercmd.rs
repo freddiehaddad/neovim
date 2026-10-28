@@ -336,7 +336,7 @@ pub fn find_ucmd(
 }
 
 /// Set completion context for `:command` (`set_context_in_user_cmd`).
-pub fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) -> *const c_char {
+pub fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg_in = arg_in.into_c_char_ptr();
     unsafe {
         let mut arg = arg_in;
         let mut p: *const c_char;
@@ -384,13 +384,13 @@ pub fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) -> *con
 
 /// Set the completion context for the argument of a user defined command (`set_context_in_user_cmdarg`).
 pub fn set_context_in_user_cmdarg(
-    cmd: *const c_char,
-    mut arg: *const c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
+    arg: impl crate::strings::IntoCCharPtr,
     argt: u32,
     context: c_int,
     xp: &mut expand_T,
     forceit: bool,
-) -> *const c_char {
+) -> *const c_char { let cmd = cmd.into_c_char_ptr(); let mut arg = arg.into_c_char_ptr();
     unsafe {
         if context == EXPAND_NOTHING {
             return ptr::null();
@@ -547,7 +547,7 @@ pub fn get_user_cmd_complete(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Get the name of completion type `expand` as an allocated string (`cmdcomplete_type_to_str`).
-pub fn cmdcomplete_type_to_str(expand: c_int, compl_arg: *const c_char) -> Option<CString> {
+pub fn cmdcomplete_type_to_str(expand: c_int, compl_arg: impl crate::strings::IntoCCharPtr) -> Option<CString> { let compl_arg = compl_arg.into_c_char_ptr();
      {
         let cmd_compl = get_command_complete(expand);
         if cmd_compl.is_null() || expand == EXPAND_USER_LUA {
@@ -568,7 +568,7 @@ pub fn cmdcomplete_type_to_str(expand: c_int, compl_arg: *const c_char) -> Optio
     }
 }
 
-pub fn cmdcomplete_str_to_type(complete_str: *const c_char) -> c_int {
+pub fn cmdcomplete_str_to_type(complete_str: impl crate::strings::IntoCCharPtr) -> c_int { let complete_str = complete_str.into_c_char_ptr();
      {
         if crate::memory::cstr_prefix_bytes(complete_str, 7) == &b"custom,"[..7] {
             return EXPAND_USER_DEFINED;
@@ -854,12 +854,12 @@ pub fn parse_addr_type_arg(
 
 /// Parse a completion argument `value[vallen]` (`parse_compl_arg`).
 pub fn parse_compl_arg(
-    value: *const c_char,
+    value: impl crate::strings::IntoCCharPtr,
     vallen: c_int,
     complp: &mut c_int,
     argt: &mut u32,
     compl_arg: &mut Option<CString>,
-) -> bool {
+) -> bool { let value = value.into_c_char_ptr();
     unsafe {
         let mut arg: *const c_char = ptr::null();
         let mut arglen: usize = 0;
@@ -1086,7 +1086,7 @@ pub fn uc_validate_name(mut name: *mut c_char) -> *mut c_char {
 pub fn uc_add_command(
     name: *mut c_char,
     name_len: usize,
-    rep: *const c_char,
+    rep: impl crate::strings::IntoCCharPtr,
     argt: u32,
     def: i64,
     flags: c_int,
@@ -1096,9 +1096,9 @@ pub fn uc_add_command(
     mut preview_luaref: LuaRef,
     addr_type: cmd_addr_T,
     mut luaref: LuaRef,
-    desc: *const c_char,
+    desc: impl crate::strings::IntoCCharPtr,
     force: bool,
-) -> bool {
+) -> bool { let rep = rep.into_c_char_ptr(); let desc = desc.into_c_char_ptr();
     unsafe {
         let mut cmd: *mut ucmd_T = ptr::null_mut();
         let mut cmp: c_int = 1;
@@ -1326,12 +1326,12 @@ pub fn ex_delcommand(eap: &mut exarg_T) {
 
 /// Split a string by unescaped whitespace (space & tab) (`uc_split_args_iter`).
 pub fn uc_split_args_iter(
-    arg: *const c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     arglen: usize,
     end: &mut usize,
     buf: *mut c_char,
     len: &mut usize,
-) -> bool {
+) -> bool { let arg = arg.into_c_char_ptr();
     unsafe {
         if arglen == 0 {
             return true;
@@ -1372,7 +1372,7 @@ pub fn uc_split_args_iter(
     }
 }
 
-pub fn uc_nargs_upper_bound(arg: *const c_char, arglen: usize) -> usize {
+pub fn uc_nargs_upper_bound(arg: impl crate::strings::IntoCCharPtr, arglen: usize) -> usize { let arg = arg.into_c_char_ptr();
     unsafe {
         let mut was_white = true;
         let mut nargs: usize = 0;
@@ -1389,11 +1389,11 @@ pub fn uc_nargs_upper_bound(arg: *const c_char, arglen: usize) -> usize {
 
 /// Split and quote args for `<f-args>` (`uc_split_args`).
 fn uc_split_args(
-    arg: *const c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     args: &[*mut c_char],
     arglens: &[usize],
     lenp: &mut usize,
-) -> CString {
+) -> CString { let arg = arg.into_c_char_ptr();
     unsafe {
         let mut len: c_int = 2;
         if args.is_empty() {

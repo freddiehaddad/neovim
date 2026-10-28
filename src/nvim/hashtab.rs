@@ -90,7 +90,7 @@ pub fn hashitem_empty(hi: &hashitem_T) -> bool {
 }
 
 #[inline]
-fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize) -> bool {
+fn key_matches(hi_key: impl crate::strings::IntoCCharPtr, key: impl crate::strings::IntoCCharPtr, key_len: usize) -> bool { let hi_key = hi_key.into_c_char_ptr(); let key = key.into_c_char_ptr();
     for i in 0..key_len {
         let a =  { crate::memory::cstr_byte_at(hi_key, i) };
         let b =  { crate::memory::cstr_byte_at(key, i) };
@@ -120,9 +120,9 @@ pub fn hash_find(ht: &hashtab_T, key: impl crate::strings::IntoCCharPtr) -> *mut
 /// Find item for `key[..len]` in `ht` (`hash_find_len`).
 pub fn hash_find_len(
     ht: &hashtab_T,
-    key: *const c_char,
+    key: impl crate::strings::IntoCCharPtr,
     len: usize,
-) -> *mut hashitem_T {
+) -> *mut hashitem_T { let key = key.into_c_char_ptr();
     let hash = hash_hash_len(key, len);
     hash_lookup(ht, key, len, hash)
 }
@@ -130,10 +130,10 @@ pub fn hash_find_len(
 /// Find item for `key[..key_len]` with precomputed `hash` in `ht` (`hash_lookup`).
 pub fn hash_lookup(
     ht: &hashtab_T,
-    key: *const c_char,
+    key: impl crate::strings::IntoCCharPtr,
     key_len: usize,
     hash: hash_T,
-) -> *mut hashitem_T {
+) -> *mut hashitem_T { let key = key.into_c_char_ptr();
     let arr_ptr = ht.array_ptr();
 
     let mut idx = hash & ht.ht_mask;
@@ -335,7 +335,7 @@ fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {
 ///
 /// # Safety
 /// `key` must be a valid NUL-terminated C string.
-pub fn hash_hash(key: *const c_char) -> hash_T {
+pub fn hash_hash(key: impl crate::strings::IntoCCharPtr) -> hash_T { let key = key.into_c_char_ptr();
     let first = unsafe { *key.cast::<u8>() };
     if first == 0 {
         return 0;
@@ -357,7 +357,7 @@ pub fn hash_hash(key: *const c_char) -> hash_T {
 ///
 /// # Safety
 /// `key` must be valid for `len` bytes when `len > 0`.
-pub fn hash_hash_len(key: *const c_char, len: usize) -> hash_T {
+pub fn hash_hash_len(key: impl crate::strings::IntoCCharPtr, len: usize) -> hash_T { let key = key.into_c_char_ptr();
     if len == 0 {
         return 0;
     }

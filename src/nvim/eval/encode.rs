@@ -118,7 +118,7 @@ pub(crate) struct MPConvStackVal {
 }
 
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
-pub fn encode_list_write(mut list: Option<&mut list_T>, buf: *const c_char, len: usize) {
+pub fn encode_list_write(mut list: Option<&mut list_T>, buf: impl crate::strings::IntoCCharPtr, len: usize) { let buf = buf.into_c_char_ptr();
     unsafe {
         if len == 0 {
             return;
@@ -443,7 +443,7 @@ fn conv_error(
     }
 }
 
-fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) {
+fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: impl crate::strings::IntoCCharPtr, len: usize) { let buf = buf.into_c_char_ptr();
     unsafe {
         if buf.is_null() {
             ga_concat_literal(gap, b"''");
@@ -463,7 +463,7 @@ fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char, len: u
     }
 }
 
-fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> bool {
+fn convert_to_json_string(gap: &mut Vec<u8>, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let buf = buf.into_c_char_ptr();
     const XDIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
     unsafe {
@@ -771,7 +771,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_string(&mut self, buf: *const c_char, len: usize) -> bool {
+    fn conv_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let buf = buf.into_c_char_ptr();
         unsafe {
             match self {
                 Self::Text {
@@ -800,7 +800,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_str_string(&mut self, buf: *const c_char, len: usize) -> bool {
+    fn conv_str_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let buf = buf.into_c_char_ptr();
         unsafe {
             match self {
                 Self::Text { .. } => self.conv_string(buf, len),
@@ -910,11 +910,11 @@ impl EncodeBackend<'_> {
     #[inline]
     fn conv_func_start(
         &mut self,
-        fun: *const c_char,
+        fun: impl crate::strings::IntoCCharPtr,
         prefix: &[u8],
         mpstack: &[MPConvStackVal],
-        objname: *const c_char,
-    ) -> c_int {
+        objname: impl crate::strings::IntoCCharPtr,
+    ) -> c_int { let fun = fun.into_c_char_ptr(); let objname = objname.into_c_char_ptr();
         unsafe {
             match self {
                 Self::Text {
@@ -1081,8 +1081,8 @@ impl EncodeBackend<'_> {
         val_copy_id: &mut c_int,
         mpstack: &[MPConvStackVal],
         copy_id: c_int,
-        objname: *const c_char,
-    ) -> c_int {
+        objname: impl crate::strings::IntoCCharPtr,
+    ) -> c_int { let objname = objname.into_c_char_ptr();
         if *val_copy_id != copy_id {
                 *val_copy_id = copy_id;
                 return NOTDONE;
@@ -1715,8 +1715,8 @@ pub fn encode_vim_to_echo(
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
 pub fn encode_vim_to_msgpack(
     packer: &mut PackerBuffer,tv: &mut typval_T,
-    objname: *const c_char,
-) -> bool {
+    objname: impl crate::strings::IntoCCharPtr,
+) -> bool { let objname = objname.into_c_char_ptr();
     let mut backend = EncodeBackend::Msgpack { packer };
         encode_vim_with_backend(&mut backend, tv, objname)
 }

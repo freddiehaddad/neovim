@@ -256,7 +256,7 @@ fn validate_option_value_args(
     }
 }
 
-fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *mut buf_T {
+fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, err: &mut Error) -> *mut buf_T { let filetype = filetype.into_c_char_ptr();
     unsafe {
         if filetype.is_null() {
             return ptr::null_mut();

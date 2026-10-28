@@ -3136,12 +3136,12 @@ fn buflist_findname_file_id(
 
 /// Find file in buffer list by a regexp pattern.
 pub fn buflist_findpat(
-    pattern: *const c_char,
-    pattern_end: *const c_char,
+    pattern: impl crate::strings::IntoCCharPtr,
+    pattern_end: impl crate::strings::IntoCCharPtr,
     unlisted: bool,
     diffmode: bool,
     curtab_only: bool,
-) -> c_int {
+) -> c_int { let pattern = pattern.into_c_char_ptr(); let pattern_end = pattern_end.into_c_char_ptr();
     unsafe {
         let mut match_fnum = -1;
 

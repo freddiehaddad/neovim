@@ -2667,13 +2667,13 @@ pub fn get_mouse_button(code: c_int, is_click: &mut bool, is_drag: &mut bool) ->
 
 /// Encode `<key>` notation into Nvim's internal key representation (`replace_termcodes`).
 pub fn replace_termcodes(
-    from: *const c_char,
+    from: impl crate::strings::IntoCCharPtr,
     from_len: usize,
     buf_limit: bool,
     sid_arg: scid_T,
     flags: c_int,mut did_simplify: Option<&mut bool>,
-    cpo_val: *const c_char,
-) -> Option<std::ffi::CString> {
+    cpo_val: impl crate::strings::IntoCCharPtr,
+) -> Option<std::ffi::CString> { let from = from.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
     unsafe {
         let mut dlen: usize = 0;
         let end_exclusive = from.add(from_len);
@@ -2855,7 +2855,7 @@ pub fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
 }
 
 /// Copy `p` to an owned `CString`, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
-pub fn vim_strsave_escape_ks(p: *const c_char) -> std::ffi::CString {
+pub fn vim_strsave_escape_ks(p: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let p = p.into_c_char_ptr();
     unsafe {
         let mut res = vec![0 as c_char; crate::memory::cstr_len(p) * 4 + 1];
         let mut d = res.as_mut_ptr();

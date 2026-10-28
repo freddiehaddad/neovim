@@ -538,7 +538,7 @@ pub fn copy_register(name: c_int) -> yankreg_T {
     }
 }
 
-fn stuff_yank(regname: c_int, p: *const c_char) -> bool {
+fn stuff_yank(regname: c_int, p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_char_ptr();
     unsafe {
         if regname != 0 && !valid_yank_reg(regname, true) {
             return false;
@@ -2474,7 +2474,7 @@ pub fn do_put(
     }
 }
 
-fn dis_msg(mut p: *const c_char, skip_esc: bool) {
+fn dis_msg(p: impl crate::strings::IntoCCharPtr, skip_esc: bool) { let mut p = p.into_c_char_ptr();
     unsafe {
         let mut n = g_st().Columns - 6;
         while !crate::memory::cstr_is_empty(p) && !(*p == ESC && skip_esc && crate::memory::cstr_byte_at(p, 1) == 0) {
@@ -2817,11 +2817,11 @@ fn init_write_reg(
 fn str_to_reg(
     y_ptr: &mut yankreg_T,
     mut yank_type: MotionType,
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     len: usize,
     blocklen: colnr_T,
     str_list: bool,
-) {
+) { let str_ = str_.into_c_char_ptr();
     unsafe {
         if !y_ptr.y_allocated {
             y_ptr.y_array.clear();
@@ -2996,12 +2996,12 @@ pub fn write_reg_contents_lst(
 
 pub fn write_reg_contents_ex(
     name: c_int,
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     mut len: isize,
     must_append: bool,
     yank_type: MotionType,
     block_len: colnr_T,
-) {
+) { let str_ = str_.into_c_char_ptr();
     unsafe {
         if len < 0 {
             len = crate::memory::cstr_len(str_) as isize;

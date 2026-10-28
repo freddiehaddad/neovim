@@ -412,11 +412,11 @@ pub fn rpc_send_call(
 
 pub(crate) fn receive_msgpack(
     _stream: &mut RStream,
-    rbuf: *const c_char,
+    rbuf: impl crate::strings::IntoCCharPtr,
     c: usize,
     channel: &mut Channel,
     eof: bool,
-) -> usize {
+) -> usize { let rbuf = rbuf.into_c_char_ptr();
     unsafe {
         channel_incref(&mut *channel);
 
@@ -703,8 +703,8 @@ fn send_error(
     handler: MsgpackRpcRequestHandler,
     r#type: MessageType,
     id: u32,
-    err: *const c_char,
-) {
+    err: impl crate::strings::IntoCCharPtr,
+) { let err = err.into_c_char_ptr();
     unsafe {
         let mut e = Error::new();
         api_set_error!(
@@ -719,7 +719,7 @@ fn send_error(
     }
 }
 
-fn broadcast_event(name: *const c_char, args: Array) {
+fn broadcast_event(name: impl crate::strings::IntoCCharPtr, args: Array) { let name = name.into_c_char_ptr();
     unsafe {
         let mut chans = Vec::<*mut Channel>::new();
 

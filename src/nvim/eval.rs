@@ -838,11 +838,11 @@ pub fn eval_expr_ext(
 
 /// Call some Vim script function and return the result in "*rettv".
 pub fn call_vim_function(
-    mut func: *const c_char,
+    func: impl crate::strings::IntoCCharPtr,
     argc: c_int,
     argv: *mut typval_T,
     rettv: &mut typval_T,
-) -> bool {
+) -> bool { let mut func = func.into_c_char_ptr();
     unsafe {
         let mut len = crate::memory::cstr_len(func) as c_int;
         let mut pt: *mut partial_T = ptr::null_mut();
@@ -1053,7 +1053,7 @@ pub fn eval_foldtext(wp: &mut win_T) -> Object {
 
 /// Find the end of a variable or function name. Unlike find_name_end() this
 /// does not recognize magic braces.
-fn to_name_end(arg: *const c_char, use_namespace: bool) -> *const c_char {
+fn to_name_end(arg: impl crate::strings::IntoCCharPtr, use_namespace: bool) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         if !eval_isnamec1(c_int::from(crate::memory::cstr_first_byte(arg))) {
             return arg;
@@ -1726,11 +1726,11 @@ pub fn set_var_lval(
 
 /// Evaluate the expression used in a ":for var in expr" command.
 pub fn eval_for_line(
-    arg: *const c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     errp: &mut bool,
     eap: &mut exarg_T,
     evalarg: &mut evalarg_T,
-) -> Box<forinfo_T> {
+) -> Box<forinfo_T> { let arg = arg.into_c_char_ptr();
     unsafe {
         let mut fi = Box::new(forinfo_T {
             fi_semicolon: 0,
@@ -2016,7 +2016,7 @@ pub fn set_context_for_expression(
 }
 
 /// Does not use 'cpo' and always uses 'magic'.
-pub fn pattern_match(pat: *const c_char, text: *const c_char, ic: bool) -> c_int {
+pub fn pattern_match(pat: impl crate::strings::IntoCCharPtr, text: impl crate::strings::IntoCCharPtr, ic: bool) -> c_int { let pat = pat.into_c_char_ptr(); let text = text.into_c_char_ptr();
     let mut matches: c_int = 0;
         let mut regmatch: regmatch_T = regmatch_T::new();
 
@@ -2145,7 +2145,7 @@ pub fn eval0(
 
 /// If "arg" is a simple function call without arguments then call it and return
 /// the result. Otherwise return NOTDONE.
-pub fn may_call_simple_func(arg: *const c_char,rettv: &mut typval_T) -> c_int {
+pub fn may_call_simple_func(arg: impl crate::strings::IntoCCharPtr,rettv: &mut typval_T) -> c_int { let arg = arg.into_c_char_ptr();
     unsafe {
         let parens = crate::memory::cstr_as_bytes(arg).windows(2).position(|w| w == b"()").map_or(ptr::null(), |i| arg.add(i));
         let mut r = NOTDONE;
@@ -2535,7 +2535,7 @@ fn eval_addlist(tv1: &mut typval_T, tv2: &mut typval_T) -> bool {
 }
 
 /// Append string "s2" to the string in "tv1".
-pub fn grow_string_tv(tv1: &mut typval_T, s2: *const c_char) -> bool {
+pub fn grow_string_tv(tv1: &mut typval_T, s2: impl crate::strings::IntoCCharPtr) -> bool { let s2 = s2.into_c_char_ptr();
      {
         if tv1.v_type != VarType::VAR_STRING || tv1.vval.v_string().is_null() {
             return false;
@@ -2960,9 +2960,9 @@ fn eval7(
 /// Apply the leading "!" and "-" before an eval7 expression to "rettv".
 fn eval7_leader(rettv: &mut typval_T,
     numeric_only: bool,
-    start_leader: *const c_char,
+    start_leader: impl crate::strings::IntoCCharPtr,
     end_leaderp: *mut *const c_char,
-) -> bool {
+) -> bool { let start_leader = start_leader.into_c_char_ptr();
     unsafe {
         let mut end_leader = *end_leaderp;
         let mut ret = true;
@@ -3024,8 +3024,8 @@ fn call_func_rettv(
     arg: *mut *mut c_char,evalarg: Option<&mut evalarg_T>,rettv: &mut typval_T,
     evaluate: bool,
     selfdict: *mut dict_T,basetv: Option<&mut typval_T>,
-    lua_funcname: *const c_char,
-) -> bool {
+    lua_funcname: impl crate::strings::IntoCCharPtr,
+) -> bool { let lua_funcname = lua_funcname.into_c_char_ptr();
     unsafe {
         let mut pt: *mut partial_T = ptr::null_mut();
         let mut functv = tv_initial_value();
@@ -3455,10 +3455,10 @@ fn eval_index_inner(rettv: &mut typval_T,
     var1: Option<&typval_T>,
     var2: Option<&typval_T>,
     exclusive: bool,
-    mut key: *const c_char,
+    key: impl crate::strings::IntoCCharPtr,
     keylen: isize,
     verbose: bool,
-) -> bool {
+) -> bool { let mut key = key.into_c_char_ptr();
     unsafe {
         let mut n1: varnumber_T = 0;
         let mut n2: varnumber_T = 0;
@@ -4971,7 +4971,7 @@ pub fn tv_to_argv(
     }
 }
 
-fn string_to_list(str_: *const c_char, mut len: usize, keepempty: bool) -> *mut list_T {
+fn string_to_list(str_: impl crate::strings::IntoCCharPtr, mut len: usize, keepempty: bool) -> *mut list_T { let str_ = str_.into_c_char_ptr();
     unsafe {
         if !keepempty && len > 0 && *str_.add(len - 1) == NL {
             len -= 1;
@@ -5962,11 +5962,11 @@ pub fn get_name_len(
 
 /// Find the end of a variable or function name, taking care of magic braces.
 pub fn find_name_end(
-    arg: *const c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     expr_start: *mut *const c_char,
     expr_end: *mut *const c_char,
     flags: c_int,
-) -> *const c_char {
+) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         if !expr_start.is_null() {
             *expr_start = ptr::null();
@@ -6053,11 +6053,11 @@ pub fn find_name_end(
 
 /// Expands out the 'magic' {}'s in a variable/function name.
 fn make_expanded_name(
-    in_start: *const c_char,
+    in_start: impl crate::strings::IntoCCharPtr,
     mut expr_start: *mut c_char,
     mut expr_end: *mut c_char,
     in_end: *mut c_char,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let in_start = in_start.into_c_char_ptr();
     unsafe {
         if expr_end.is_null() || in_end.is_null() {
             return None;
@@ -6153,7 +6153,7 @@ fn tv_is_luafunc(tv: &mut typval_T) -> bool {
 }
 
 /// Skips one character past the end of the name of a v:lua function.
-pub fn skip_luafunc_name(mut p: *const c_char) -> *const c_char {
+pub fn skip_luafunc_name(p: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut p = p.into_c_char_ptr();
     unsafe {
         while ascii_isalnum(*p)
             || crate::memory::cstr_first_byte(p) == b'_'
@@ -6182,9 +6182,9 @@ pub fn check_luafunc_name(str_: impl crate::strings::IntoCCharPtr, paren: bool) 
 /// Return the character "str[index]" where "index" is the character index,
 /// including composing characters.
 pub fn char_from_string(
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     index: varnumber_T,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut nchar = index;
 
@@ -6221,7 +6221,7 @@ pub fn char_from_string(
     }
 }
 
-fn char_idx2byte(str_: *const c_char, str_len: usize, idx: varnumber_T) -> isize {
+fn char_idx2byte(str_: impl crate::strings::IntoCCharPtr, str_len: usize, idx: varnumber_T) -> isize { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut nchar = idx;
         let mut nbyte: usize = 0;
@@ -6248,11 +6248,11 @@ fn char_idx2byte(str_: *const c_char, str_len: usize, idx: varnumber_T) -> isize
 
 /// Return the slice "str[first : last]" using character indexes.
 pub fn string_slice(
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     first: varnumber_T,
     last: varnumber_T,
     exclusive: bool,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let str_ = str_.into_c_char_ptr();
     unsafe {
         if str_.is_null() {
             return None;
@@ -6684,7 +6684,7 @@ pub fn var_flavour(varname: impl crate::strings::IntoCCharPtr) -> var_flavour_T 
     }
 }
 
-pub fn var_set_global(name: *const c_char, mut vartv: typval_T) {
+pub fn var_set_global(name: impl crate::strings::IntoCCharPtr, mut vartv: typval_T) { let name = name.into_c_char_ptr();
      {
         save_funccal();
         set_var(name, crate::memory::cstr_len(name), &mut vartv, false);
@@ -6720,8 +6720,8 @@ pub fn do_string_sub(
     pat: *mut c_char,
     sub: *mut c_char,
     expr: Option<&typval_T>,
-    flags: *const c_char,
-) -> std::ffi::CString {
+    flags: impl crate::strings::IntoCCharPtr,
+) -> std::ffi::CString { let flags = flags.into_c_char_ptr();
     unsafe {
         let mut regmatch: regmatch_T = regmatch_T::new();
         let mut out: Option<Vec<c_char>> = None;

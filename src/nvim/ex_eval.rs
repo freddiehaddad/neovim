@@ -253,12 +253,12 @@ pub fn aborted_in_try() -> bool {
 }
 
 pub fn cause_errthrow(
-    mesg: *const c_char,
+    mesg: impl crate::strings::IntoCCharPtr,
     multiline: bool,
     concat: bool,
     severe: bool,
     ignore: &mut bool,
-) -> bool {
+) -> bool { let mesg = mesg.into_c_char_ptr();
     unsafe {
         if g_st().suppress_errthrow {
             return false;
@@ -390,7 +390,7 @@ enum ExceptionValue {
     User(CString),
 }
 
-pub fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> CString {
+pub fn get_error_exception_string(mesg: impl crate::strings::IntoCCharPtr, cmdname: *mut c_char) -> CString { let mesg = mesg.into_c_char_ptr();
     unsafe {
         let mut out: Vec<u8> = Vec::new();
         if !crate::memory::cstr_is_empty(cmdname) {

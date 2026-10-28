@@ -605,9 +605,9 @@ pub fn u_compute_hash(buf: &mut buf_T, hash: *mut u8) {
 
 /// Return an allocated string of the full path of the target undofile.
 pub fn u_get_undo_file_name(
-    buf_ffname: *const c_char,
+    buf_ffname: impl crate::strings::IntoCCharPtr,
     reading: bool,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let buf_ffname = buf_ffname.into_c_char_ptr();
     unsafe {
         #[cfg(unix)]
         let mut ffname = buf_ffname;
@@ -709,7 +709,7 @@ pub fn u_get_undo_file_name(
     }
 }
 
-fn corruption_error(mesg: &std::ffi::CStr, file_name: *const c_char) {
+fn corruption_error(mesg: &std::ffi::CStr, file_name: impl crate::strings::IntoCCharPtr) { let file_name = file_name.into_c_char_ptr();
     semsg!(
             gettext(c"E825: Corrupted undo file (%s): %s"),
             mesg.as_ptr(),
@@ -985,8 +985,8 @@ fn serialize_uep(bi: &mut bufinfo_T, uep: &u_entry_T) -> bool {
 fn unserialize_uep(
     bi: &mut bufinfo_T,
     error: &mut bool,
-    file_name: *const c_char,
-) -> u_entry_T {
+    file_name: impl crate::strings::IntoCCharPtr,
+) -> u_entry_T { let file_name = file_name.into_c_char_ptr();
     let mut uep = u_entry_T {
             ue_top: undo_read_4c(bi),
             ue_bot: undo_read_4c(bi),
@@ -1050,7 +1050,7 @@ fn unserialize_visualinfo(bi: &mut bufinfo_T, info: &mut visualinfo_T) {
 }
 
 /// Write the undo tree in an undo file.
-pub fn u_write_undo(name: *const c_char, forceit: bool, buf: &mut buf_T, hash: *mut u8) {
+pub fn u_write_undo(name: impl crate::strings::IntoCCharPtr, forceit: bool, buf: &mut buf_T, hash: *mut u8) { let name = name.into_c_char_ptr();
     unsafe {
         let f_owned: Option<std::ffi::CString>;
         let file_name = if name.is_null() {
@@ -1273,7 +1273,7 @@ fn uhp_table_find(uhp_table: &[(u_header_T, [c_int; 4])], seq: c_int) -> c_int {
 }
 
 /// Loads the undo tree from an undo file.
-pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char) {
+pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: impl crate::strings::IntoCCharPtr) { let orig_name = orig_name.into_c_char_ptr();
     unsafe {
         #[cfg(not(unix))]
         let _ = orig_name;
@@ -1585,8 +1585,8 @@ fn undo_read_4c(bi: &mut bufinfo_T) -> c_int {
 fn undo_read_len(
     bi: &mut bufinfo_T,
     what: &std::ffi::CStr,
-    file_name: *const c_char,
-) -> c_int {
+    file_name: impl crate::strings::IntoCCharPtr,
+) -> c_int { let file_name = file_name.into_c_char_ptr();
     unsafe {
         let len = undo_read_4c(bi);
         let fp = bi.bi_fp.as_ptr();

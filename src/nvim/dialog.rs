@@ -207,10 +207,10 @@ fn copy_confirm_hotkeys(
 }
 
 fn msg_show_console_dialog(
-    message: *const c_char,
-    buttons: *const c_char,
+    message: impl crate::strings::IntoCCharPtr,
+    buttons: impl crate::strings::IntoCCharPtr,
     dfltbutton: c_int,
-) -> Vec<c_char> {
+) -> Vec<c_char> { let message = message.into_c_char_ptr(); let buttons = buttons.into_c_char_ptr();
     let mut has_hotkey = [false; HAS_HOTKEY_LEN];
         let mut hotk = console_dialog_alloc(message, buttons, &mut has_hotkey);
         copy_confirm_hotkeys(buttons, dfltbutton, &has_hotkey, hotk.as_mut_ptr());
@@ -219,7 +219,7 @@ fn msg_show_console_dialog(
 }
 
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
-pub fn ask_yesno(str_ptr: *const c_char) -> c_int {
+pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int { let str_ptr = str_ptr.into_c_char_ptr();
      {
         let save_state = g_st().State;
         g_st().no_wait_return += 1;
@@ -333,12 +333,12 @@ pub fn prompt_for_input(
 pub fn do_dialog(
     _dlg_type: c_int,
     _title: *const c_char,
-    message: *const c_char,
+    message: impl crate::strings::IntoCCharPtr,
     buttons: impl crate::strings::IntoCCharPtr,
     dfltbutton: c_int,
     _textfield: *const c_char,
     ex_cmd: c_int,
-) -> c_int {
+) -> c_int { let message = message.into_c_char_ptr();
     let buttons = buttons.into_c_char_ptr();
     unsafe {
         if g_st().silent_mode {

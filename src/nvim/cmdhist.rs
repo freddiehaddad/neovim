@@ -206,10 +206,10 @@ pub fn init_history() {
 
 fn in_history(
     hist_type: usize,
-    str_ptr: *const c_char,
+    str_ptr: impl crate::strings::IntoCCharPtr,
     move_to_front: bool,
     sep: c_int,
-) -> bool {
+) -> bool { let str_ptr = str_ptr.into_c_char_ptr();
      {
         let cur_idx = hist_st().HISIDX[hist_type];
         if cur_idx < 0 {
@@ -267,7 +267,7 @@ fn in_history(
     }
 }
 
-fn get_histtype(name: *const c_char, len: usize, return_default: bool) -> c_int {
+fn get_histtype(name: impl crate::strings::IntoCCharPtr, len: usize, return_default: bool) -> c_int { let name = name.into_c_char_ptr();
      {
         if len == 0 {
             return if return_default {
@@ -295,11 +295,11 @@ fn get_histtype(name: *const c_char, len: usize, return_default: bool) -> c_int 
 /// Add the given string to the given history (`add_to_history`).
 pub fn add_to_history(
     histype: c_int,
-    new_entry: *const c_char,
+    new_entry: impl crate::strings::IntoCCharPtr,
     new_entrylen: usize,
     in_map: bool,
     sep: c_int,
-) {
+) { let new_entry = new_entry.into_c_char_ptr();
     let hislen = hist_st().HISLEN;
     if hislen == 0 || histype == HIST_INVALID {
         return;

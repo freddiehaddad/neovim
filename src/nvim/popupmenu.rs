@@ -692,10 +692,10 @@ fn pum_compute_text_attrs(
 fn pum_grid_puts_with_attrs(
     mut col: c_int,
     cells: c_int,
-    text: *const c_char,
+    text: impl crate::strings::IntoCCharPtr,
     textlen: c_int,
     attrs: *const c_int,
-) {
+) { let text = text.into_c_char_ptr();
     unsafe {
         let col_start = col;
         let mut ptr = text;
@@ -1901,7 +1901,7 @@ pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
     }
 }
 
-pub fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
+pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_pos: c_int) { let path_name = path_name.into_c_char_ptr();
     unsafe {
         if use_mouse_pos == 0 {
             g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;

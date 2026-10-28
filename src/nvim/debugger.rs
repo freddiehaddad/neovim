@@ -159,7 +159,7 @@ fn do_setdebugtracelevel(arg: *mut c_char) {
     }
 }
 
-fn do_showbacktrace(cmd: *const c_char) {
+fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_char_ptr();
     unsafe {
         let sname_cstr = estack_sfile(ESTACK_NONE);
         let max =

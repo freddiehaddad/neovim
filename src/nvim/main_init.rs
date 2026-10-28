@@ -295,7 +295,7 @@ fn to_slash_if_needed(p: *mut c_char) {
 }
 
 #[inline]
-fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
+fn strnicmp_ascii(a: impl crate::strings::IntoCCharPtr, b: &[u8]) -> bool { let a = a.into_c_char_ptr();
      {
         if a.is_null() {
             return false;
@@ -1138,7 +1138,7 @@ fn get_number_arg(p: impl crate::strings::IntoCCharPtr, idx: &mut c_int, mut def
     }
 }
 
-fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char) -> u64 {
+fn server_connect(server_addr: impl crate::strings::IntoCCharPtr, errmsg: *mut *const c_char) -> u64 { let server_addr = server_addr.into_c_char_ptr();
     unsafe {
         if server_addr.is_null() {
             *errmsg = c"no address specified".as_ptr();
@@ -1159,11 +1159,11 @@ fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char) -> u64
 fn remote_request(
     params: &mut mparm_T,
     remote_args: c_int,
-    server_addr: *const c_char,
+    server_addr: impl crate::strings::IntoCCharPtr,
     argc: c_int,
     argv: *mut *mut c_char,
     ui_only: bool,
-) {
+) { let server_addr = server_addr.into_c_char_ptr();
     unsafe {
         let is_ui = crate::memory::cstr_as_opt_bytes(*argv.add(remote_args as usize)) == Some(b"--remote-ui");
         if ui_only && !is_ui {
@@ -2511,13 +2511,13 @@ fn execute_env(env: &std::ffi::CStr) -> bool {
         true
 }
 
-fn mainerr(msg1: impl crate::strings::IntoCCharPtr, msg2: *const c_char, msg3: *const c_char) -> ! {
+fn mainerr(msg1: impl crate::strings::IntoCCharPtr, msg2: impl crate::strings::IntoCCharPtr, msg3: impl crate::strings::IntoCCharPtr) -> ! { let msg2 = msg2.into_c_char_ptr(); let msg3 = msg3.into_c_char_ptr();
     let msg1 = msg1.into_c_char_ptr();
     print_mainerr(msg1, msg2, msg3);
         os_exit(1);
 }
 
-fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) {
+fn print_mainerr(msg1: impl crate::strings::IntoCCharPtr, msg2: impl crate::strings::IntoCCharPtr, msg3: impl crate::strings::IntoCCharPtr) { let msg1 = msg1.into_c_char_ptr(); let msg2 = msg2.into_c_char_ptr(); let msg3 = msg3.into_c_char_ptr();
     let prgname = path_tail(main_init_st().ARGV0);
         signal_stop();
 

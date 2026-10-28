@@ -289,7 +289,7 @@ pub fn mpack_bin(str_val: NvimString, packer: &mut PackerBuffer) {
 ///
 /// # Safety
 /// `data` must be valid for `len` bytes when `len > 0`, and `packer` must be valid.
-pub fn mpack_raw(data: *const c_char, len: usize, packer: &mut PackerBuffer) {
+pub fn mpack_raw(data: impl crate::strings::IntoCCharPtr, len: usize, packer: &mut PackerBuffer) { let data = data.into_c_char_ptr();
     let mut pos = 0usize;
     while pos < len {
         let remaining = mpack_remaining(packer);

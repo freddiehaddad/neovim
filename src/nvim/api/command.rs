@@ -174,7 +174,7 @@ pub struct KeyDict_get_commands {
 }
 
 #[inline]
-fn cstr_to_arena_str(arena: &mut Arena, str_ptr: *const c_char) -> NvimString {
+fn cstr_to_arena_str(arena: &mut Arena, str_ptr: impl crate::strings::IntoCCharPtr) -> NvimString { let str_ptr = str_ptr.into_c_char_ptr();
      {
         if str_ptr.is_null() {
             NvimString {
@@ -211,7 +211,7 @@ pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
     cmdidx.check_user_cmd()
 }
 
-fn parse_map_cmd(arg_str: *const c_char, arena: &mut Arena) -> Array {
+fn parse_map_cmd(arg_str: impl crate::strings::IntoCCharPtr, arena: &mut Arena) -> Array { let arg_str = arg_str.into_c_char_ptr();
     unsafe {
         let mut args = arena_array(arena, 2);
 

@@ -521,7 +521,7 @@ fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
     }
 }
 
-pub(crate) fn c_gettext(msgid: *const c_char) -> *mut c_char {
+pub(crate) fn c_gettext(msgid: impl crate::strings::IntoCCharPtr) -> *mut c_char { let msgid = msgid.into_c_char_ptr();
     if msgid.is_null() || unsafe { *msgid == 0 } {
         return msgid.cast_mut();
     }
@@ -540,10 +540,10 @@ pub(crate) fn c_gettext(msgid: *const c_char) -> *mut c_char {
 }
 
 pub(crate) fn c_ngettext(
-    msgid1: *const c_char,
-    msgid2: *const c_char,
+    msgid1: impl crate::strings::IntoCCharPtr,
+    msgid2: impl crate::strings::IntoCCharPtr,
     n: u64,
-) -> *mut c_char {
+) -> *mut c_char { let msgid1 = msgid1.into_c_char_ptr(); let msgid2 = msgid2.into_c_char_ptr();
     let fallback = if n == 1 {
         msgid1.cast_mut()
     } else {
@@ -571,8 +571,8 @@ pub(crate) fn c_ngettext(
 #[inline]
 pub fn bind_textdomain_codeset(
     _domainname: *const c_char,
-    codeset: *const c_char,
-) -> *mut c_char {
+    codeset: impl crate::strings::IntoCCharPtr,
+) -> *mut c_char { let codeset = codeset.into_c_char_ptr();
     codeset.cast_mut()
 }
 

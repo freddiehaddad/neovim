@@ -914,10 +914,10 @@ fn vim_findfile_free_visited(search_ctx: Option<&mut ff_search_ctx_T>) {
 }
 
 fn ff_get_visited_list(
-    filename: *const c_char,
+    filename: impl crate::strings::IntoCCharPtr,
     filenamelen: usize,
     list_headp: &mut Vec<ff_visited_list_hdr_T>,
-) -> usize {
+) -> usize { let filename = filename.into_c_char_ptr();
      {
         if let Some(pos) = list_headp.iter().position(|item| {
             path_equal(
@@ -940,7 +940,7 @@ fn ff_get_visited_list(
 }
 
 /// Check if two wildcard paths are equal.
-fn ff_wc_equal(s1: *const c_char, s2: *const c_char) -> bool {
+fn ff_wc_equal(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> bool { let s1 = s1.into_c_char_ptr(); let s2 = s2.into_c_char_ptr();
     unsafe {
         if s1 == s2 {
             return true;
@@ -979,11 +979,11 @@ fn ff_wc_equal(s1: *const c_char, s2: *const c_char) -> bool {
 /// Maintain the list of already visited files and dirs.
 fn ff_check_visited(
     visited_list: &mut Vec<ff_visited_T>,
-    fname: *const c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     fnamelen: usize,
     wc_path: impl crate::strings::IntoCCharPtr,
     wc_pathlen: usize,
-) -> bool {
+) -> bool { let fname = fname.into_c_char_ptr();
     let wc_path = wc_path.into_c_char_ptr();
      {
         let mut url = false;
@@ -1047,13 +1047,13 @@ fn ff_check_visited(
 }
 
 fn ff_create_stack_element(
-    mut fix_part: *const c_char,
+    fix_part: impl crate::strings::IntoCCharPtr,
     mut fix_partlen: usize,
-    mut wc_part: *const c_char,
+    wc_part: impl crate::strings::IntoCCharPtr,
     mut wc_partlen: usize,
     level: c_int,
     star_star_empty: c_int,
-) -> ff_stack_T {
+) -> ff_stack_T { let mut fix_part = fix_part.into_c_char_ptr(); let mut wc_part = wc_part.into_c_char_ptr();
     if fix_part.is_null() {
             fix_part = EMPTY_C.as_ptr();
             fix_partlen = 0;
@@ -1097,10 +1097,10 @@ fn ff_clear(search_ctx: &mut ff_search_ctx_T) {
 }
 
 fn ff_path_in_stoplist(
-    path: *const c_char,
+    path: impl crate::strings::IntoCCharPtr,
     mut path_len: usize,
     stopdirs_v: &[std::ffi::CString],
-) -> bool {
+) -> bool { let path = path.into_c_char_ptr();
      {
         while path_len > 1 && vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(path, path_len - 1))) {
             path_len -= 1;
@@ -1531,7 +1531,7 @@ pub fn file_name_in_line(
     }
 }
 
-fn eval_includeexpr(ptr: *const c_char, len: usize) -> Option<std::ffi::CString> {
+fn eval_includeexpr(ptr: impl crate::strings::IntoCCharPtr, len: usize) -> Option<std::ffi::CString> { let ptr = ptr.into_c_char_ptr();
      {
         let save_sctx = g_st().current_sctx;
         set_vim_var_string(VV_FNAME, ptr, len as isize);

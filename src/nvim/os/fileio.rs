@@ -68,10 +68,10 @@ pub fn file_space(fp: &FileDescriptor) -> usize {
 /// `ret_fp` and `fname` must be valid pointers.
 pub fn file_open(
     ret_fp: &mut FileDescriptor,
-    fname: *const c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     mode: c_int,
-) -> c_int {
+) -> c_int { let fname = fname.into_c_char_ptr();
     let mut os_open_flags: c_int = 0;
     let mut wr: Option<bool> = None;
 
@@ -384,7 +384,7 @@ pub fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut c_ch
 ///
 /// # Safety
 /// `fp` must be a valid writable `FileDescriptor`, and `buf` must be valid for `size` bytes.
-pub fn file_write(fp: &mut FileDescriptor, buf: *const c_char, size: usize) -> isize {
+pub fn file_write(fp: &mut FileDescriptor, buf: impl crate::strings::IntoCCharPtr, size: usize) -> isize { let buf = buf.into_c_char_ptr();
     
     assert!(fp.wr);
     if size < file_space(fp) {

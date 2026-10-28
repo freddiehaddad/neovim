@@ -1782,7 +1782,7 @@ pub fn putdigraph(mut str: *mut c_char) {
     }
 }
 
-fn digraph_header(msg: *const c_char) {
+fn digraph_header(msg: impl crate::strings::IntoCCharPtr) { let msg = msg.into_c_char_ptr();
     if g_st().msg_col > 0 {
             msg_putchar(b'\n' as c_int);
         }

@@ -521,7 +521,7 @@ pub(crate) fn eval_msgpack_type_lists_mut() -> &'static mut [*const list_T; NUM_
 
 
 #[inline]
-fn c_memchr(s: *const c_char, c: u8, n: usize) -> *const c_char {
+fn c_memchr(s: impl crate::strings::IntoCCharPtr, c: u8, n: usize) -> *const c_char { let s = s.into_c_char_ptr();
     unsafe {
         let p = s.cast::<u8>();
         for i in 0..n {
@@ -733,7 +733,7 @@ pub fn garbage_collect_scriptvars(copyID: c_int) -> bool {
 }
 
 /// Set an internal variable to a string value.
-pub fn set_internal_string_var(name: &std::ffi::CStr, value: *const c_char) {
+pub fn set_internal_string_var(name: &std::ffi::CStr, value: impl crate::strings::IntoCCharPtr) { let value = value.into_c_char_ptr();
      {
         let mut tv = typval_T {
             v_type: VarType::VAR_STRING,
@@ -748,9 +748,9 @@ pub fn set_internal_string_var(name: &std::ffi::CStr, value: *const c_char) {
 pub fn eval_charconvert(
     enc_from: impl crate::strings::IntoCCharPtr,
     enc_to: impl crate::strings::IntoCCharPtr,
-    fname_from: *const c_char,
-    fname_to: *const c_char,
-) -> bool {
+    fname_from: impl crate::strings::IntoCCharPtr,
+    fname_to: impl crate::strings::IntoCCharPtr,
+) -> bool { let fname_from = fname_from.into_c_char_ptr(); let fname_to = fname_to.into_c_char_ptr();
     let enc_from = enc_from.into_c_char_ptr();
     let enc_to = enc_to.into_c_char_ptr();
     unsafe {
@@ -787,7 +787,7 @@ pub fn eval_charconvert(
     }
 }
 
-pub fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile: *const c_char) {
+pub fn eval_diff(origfile: impl crate::strings::IntoCCharPtr, newfile: impl crate::strings::IntoCCharPtr, outfile: impl crate::strings::IntoCCharPtr) { let origfile = origfile.into_c_char_ptr(); let newfile = newfile.into_c_char_ptr(); let outfile = outfile.into_c_char_ptr();
     unsafe {
         let saved_sctx = g_st().current_sctx;
         set_vim_var_string(VV_FNAME_IN, origfile, -1);
@@ -812,7 +812,7 @@ pub fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile: *cons
     }
 }
 
-pub fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfile: *const c_char) {
+pub fn eval_patch(origfile: impl crate::strings::IntoCCharPtr, difffile: impl crate::strings::IntoCCharPtr, outfile: impl crate::strings::IntoCCharPtr) { let origfile = origfile.into_c_char_ptr(); let difffile = difffile.into_c_char_ptr(); let outfile = outfile.into_c_char_ptr();
     unsafe {
         let saved_sctx = g_st().current_sctx;
         set_vim_var_string(VV_FNAME_IN, origfile, -1);
@@ -1411,9 +1411,9 @@ pub fn ex_let_vars(
 
 /// Skip over assignable variable "var" or list of variables "[var, var]".
 pub fn skip_var_list(
-    arg: *const c_char,var_count: &mut c_int,semicolon: &mut c_int,
+    arg: impl crate::strings::IntoCCharPtr,var_count: &mut c_int,semicolon: &mut c_int,
     silent: bool,
-) -> *const c_char {
+) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(arg) == b'[' {
             let mut p = arg;
@@ -1453,7 +1453,7 @@ pub fn skip_var_list(
 }
 
 /// Skip one (assignable) variable name, including @r, $VAR, &option, d.key, l[idx].
-fn skip_var_one(arg: *const c_char) -> *const c_char {
+fn skip_var_one(arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(arg) == b'@' && crate::memory::cstr_byte_at(arg, 1) != 0 {
             return arg.add(2);
@@ -1550,9 +1550,9 @@ fn list_tab_vars(first: &mut c_int) {
 /// List variables in "arg".
 fn list_arg_vars(
     eap: &mut exarg_T,
-    mut arg: *const c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     first: &mut c_int,
-) -> *const c_char {
+) -> *const c_char { let mut arg = arg.into_c_char_ptr();
     unsafe {
         let mut error = false;
         let mut tv: typval_T = typval_T::new();
@@ -1655,9 +1655,9 @@ fn list_arg_vars(
 fn ex_let_env(
     mut arg: *mut c_char,tv: &mut typval_T,
     is_const: bool,
-    endchars: *const c_char,
-    op: *const c_char,
-) -> *mut c_char {
+    endchars: impl crate::strings::IntoCCharPtr,
+    op: impl crate::strings::IntoCCharPtr,
+) -> *mut c_char { let endchars = endchars.into_c_char_ptr(); let op = op.into_c_char_ptr();
     unsafe {
         if is_const {
             emsg(gettext(
@@ -1711,9 +1711,9 @@ fn ex_let_env(
 fn ex_let_option(
     arg: *mut c_char,tv: &mut typval_T,
     is_const: bool,
-    endchars: *const c_char,
-    op: *const c_char,
-) -> *mut c_char {
+    endchars: impl crate::strings::IntoCCharPtr,
+    op: impl crate::strings::IntoCCharPtr,
+) -> *mut c_char { let endchars = endchars.into_c_char_ptr(); let op = op.into_c_char_ptr();
     unsafe {
         if is_const {
             emsg(gettext(c"E996: Cannot lock an option"));
@@ -1839,9 +1839,9 @@ fn ex_let_option(
 fn ex_let_register(
     mut arg: *mut c_char,tv: &mut typval_T,
     is_const: bool,
-    endchars: *const c_char,
-    op: *const c_char,
-) -> *mut c_char {
+    endchars: impl crate::strings::IntoCCharPtr,
+    op: impl crate::strings::IntoCCharPtr,
+) -> *mut c_char { let endchars = endchars.into_c_char_ptr(); let op = op.into_c_char_ptr();
     unsafe {
         if is_const {
             emsg(gettext(c"E996: Cannot lock a register"));
@@ -1894,8 +1894,8 @@ fn ex_let_one(
     copy: bool,
     is_const: bool,
     endchars: impl crate::strings::IntoCCharPtr,
-    op: *const c_char,
-) -> *mut c_char {
+    op: impl crate::strings::IntoCCharPtr,
+) -> *mut c_char { let op = op.into_c_char_ptr();
     let endchars = endchars.into_c_char_ptr();
     unsafe {
         let mut arg_end: *mut c_char = ptr::null_mut();
@@ -2306,7 +2306,7 @@ pub fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
 }
 
 /// Function to concatenate a prefix and a variable name.
-pub fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_char {
+pub fn cat_prefix_varname(prefix: c_int, name: impl crate::strings::IntoCCharPtr) -> *mut c_char { let name = name.into_c_char_ptr();
     unsafe {
         let name_len = crate::memory::cstr_len(name);
         vars_st().varnamebuf.clear();
@@ -2612,12 +2612,12 @@ pub fn set_vcount(count: i64, count1: i64, set_prevcount: bool) {
 
 /// Get the value of internal variable "name".
 pub fn eval_variable(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     len: c_int,rettv: Option<&mut typval_T>,
     dip: *mut *mut dictitem_T,
     verbose: bool,
     no_autoload: bool,
-) -> bool {
+) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut ret = true;
         let mut tv: *mut typval_T = ptr::null_mut();
@@ -2653,7 +2653,7 @@ pub fn eval_variable(
 }
 
 /// Check if variable "name[len]" is a local variable or an argument.
-pub fn check_vars(name: *const c_char, len: usize) {
+pub fn check_vars(name: impl crate::strings::IntoCCharPtr, len: usize) { let name = name.into_c_char_ptr();
     unsafe {
         if eval_st().eval_lavars_used.is_null() {
             return;
@@ -2672,11 +2672,11 @@ pub fn check_vars(name: *const c_char, len: usize) {
 
 /// Find variable "name" in the list of variables.
 pub fn find_var(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     name_len: usize,
     htp: *mut *mut hashtab_T,
     no_autoload: c_int,
-) -> *mut dictitem_T {
+) -> *mut dictitem_T { let name = name.into_c_char_ptr();
     unsafe {
         let mut varname: *const c_char = ptr::null();
         let ht = find_var_ht(name, name_len, &raw mut varname);
@@ -2747,11 +2747,11 @@ pub fn find_var_in_ht(
 
 /// Finds the dict (g:, l:, s:, …) and hashtable used for a variable.
 fn find_var_ht_dict(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     name_len: usize,
     varname: *mut *const c_char,
     d: *mut *mut dict_T,
-) -> *mut hashtab_T {
+) -> *mut hashtab_T { let name = name.into_c_char_ptr();
     unsafe {
         *d = ptr::null_mut();
 
@@ -2823,10 +2823,10 @@ fn find_var_ht_dict(
 
 /// Find the hashtable used for a variable.
 pub fn find_var_ht(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     name_len: usize,
     varname: *mut *const c_char,
-) -> *mut hashtab_T {
+) -> *mut hashtab_T { let name = name.into_c_char_ptr();
     let mut d: *mut dict_T = ptr::null_mut();
         find_var_ht_dict(name, name_len, varname, &raw mut d)
 }
@@ -2909,7 +2909,7 @@ fn delete_var(ht: &mut hashtab_T, hi: &mut hashitem_T) {
 }
 
 /// List the value of one internal variable.
-fn list_one_var(v: &mut dictitem_T, prefix: *const c_char,first: &mut c_int) {
+fn list_one_var(v: &mut dictitem_T, prefix: impl crate::strings::IntoCCharPtr,first: &mut c_int) { let prefix = prefix.into_c_char_ptr();
      {
         let s = encode_tv2echo(&mut v.di_tv, None);
         list_one_var_a(
@@ -2925,12 +2925,12 @@ fn list_one_var(v: &mut dictitem_T, prefix: *const c_char,first: &mut c_int) {
 
 fn list_one_var_a(
     prefix: impl crate::strings::IntoCCharPtr,
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     name_len: isize,
     v_type: VarType,
-    mut string: *const c_char,
+    string: impl crate::strings::IntoCCharPtr,
     first: &mut c_int,
-) {
+) { let name = name.into_c_char_ptr(); let mut string = string.into_c_char_ptr();
     let prefix = prefix.into_c_char_ptr();
     unsafe {
         if *first != 0 {
@@ -2979,12 +2979,12 @@ fn list_one_var_a(
 
 /// Additional handling for setting a v: variable.
 pub fn before_set_vvar(
-    varname: *const c_char,
+    varname: impl crate::strings::IntoCCharPtr,
     di: &mut dictitem_T,tv: &mut typval_T,
     copy: bool,
     watched: bool,
     type_error: &mut bool,
-) -> bool {
+) -> bool { let varname = varname.into_c_char_ptr();
      {
         if di.di_tv.v_type == VarType::VAR_STRING {
             let mut oldtv: typval_T = typval_T::new();
@@ -3052,11 +3052,11 @@ pub fn set_var(name: impl crate::strings::IntoCCharPtr, name_len: usize,tv: &mut
 
 /// Set variable to the given value, optionally locking as const.
 pub fn set_var_const(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     name_len: usize,tv: &mut typval_T,
     copy: bool,
     is_const: bool,
-) {
+) { let name = name.into_c_char_ptr();
     unsafe {
         let mut varname: *const c_char = ptr::null();
         let mut dict: *mut dict_T = ptr::null_mut();
@@ -3156,7 +3156,7 @@ pub fn set_var_const(
 }
 
 /// Check whether variable is read-only (DI_FLAGS_RO, DI_FLAGS_RO_SBX).
-pub fn var_check_ro(flags: c_int, mut name: *const c_char, mut name_len: usize) -> bool {
+pub fn var_check_ro(flags: c_int, name: impl crate::strings::IntoCCharPtr, mut name_len: usize) -> bool { let mut name = name.into_c_char_ptr();
      {
         let error_message = if (flags as u8 & DI_FLAGS_RO) != 0 {
             e_cannot_change_readonly_variable_str.as_ptr()
@@ -3182,7 +3182,7 @@ pub fn var_check_ro(flags: c_int, mut name: *const c_char, mut name_len: usize) 
 }
 
 /// Return true if di_flags "flags" indicates variable "name" is locked.
-pub fn var_check_lock(flags: c_int, mut name: *const c_char, mut name_len: usize) -> bool {
+pub fn var_check_lock(flags: c_int, name: impl crate::strings::IntoCCharPtr, mut name_len: usize) -> bool { let mut name = name.into_c_char_ptr();
      {
         if (flags as u8 & DI_FLAGS_LOCK) == 0 {
             return false;
@@ -3205,7 +3205,7 @@ pub fn var_check_lock(flags: c_int, mut name: *const c_char, mut name_len: usize
 }
 
 /// Check whether variable is fixed (DI_FLAGS_FIX).
-pub fn var_check_fixed(flags: c_int, mut name: *const c_char, mut name_len: usize) -> bool {
+pub fn var_check_fixed(flags: c_int, name: impl crate::strings::IntoCCharPtr, mut name_len: usize) -> bool { let mut name = name.into_c_char_ptr();
      {
         if (flags as u8 & DI_FLAGS_FIX) != 0 {
             if name_len == TV_TRANSLATE {
@@ -3226,7 +3226,7 @@ pub fn var_check_fixed(flags: c_int, mut name: *const c_char, mut name_len: usiz
 }
 
 /// Check if name is a valid name to assign funcref to.
-pub fn var_wrong_func_name(name: *const c_char, new_var: bool) -> bool {
+pub fn var_wrong_func_name(name: impl crate::strings::IntoCCharPtr, new_var: bool) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let first_after_scope = if !crate::memory::cstr_is_empty(name) && crate::memory::cstr_byte_at(name, 1) == b':' {
             *name.add(2)
@@ -3256,7 +3256,7 @@ pub fn var_wrong_func_name(name: *const c_char, new_var: bool) -> bool {
 }
 
 /// Check if a variable name is valid.
-pub fn valid_varname(varname: *const c_char) -> bool {
+pub fn valid_varname(varname: impl crate::strings::IntoCCharPtr) -> bool { let varname = varname.into_c_char_ptr();
     unsafe {
         let mut p = varname;
         while !crate::memory::cstr_is_empty(p) {
@@ -3275,12 +3275,12 @@ pub fn valid_varname(varname: *const c_char) -> bool {
 
 /// Implements the logic to retrieve local variable and option values.
 fn get_var_from(
-    mut varname: *const c_char,rettv: &mut typval_T,deftv: &mut typval_T,
+    varname: impl crate::strings::IntoCCharPtr,rettv: &mut typval_T,deftv: &mut typval_T,
     htname: c_int,
     tp: *mut tabpage_T,
     win: *mut win_T,
     buf: *mut buf_T,
-) {
+) { let mut varname = varname.into_c_char_ptr();
     unsafe {
         let mut done = false;
         let do_change_curbuf = !buf.is_null() && htname == b'b' as c_int;
@@ -3390,9 +3390,9 @@ fn getwinvar(argvars: &mut [typval_T],rettv: &mut typval_T, off: usize) {
 /// Converts a typval to a structured option value.
 fn opt_from_tv(tv: &mut typval_T,
     opt_idx: OptIndex,
-    option: *const c_char,
+    option: impl crate::strings::IntoCCharPtr,
     error: &mut bool,
-) -> Object {
+) -> Object { let option = option.into_c_char_ptr();
     unsafe {
         let mut value = nil_obj();
         let mut nbuf = [0 as c_char; NUMBUFLEN];
@@ -3520,7 +3520,7 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
 }
 
 /// Set option "varname" to the value of "varp" for the current buffer/window.
-fn set_option_from_tv(varname: *const c_char,varp: &mut typval_T) {
+fn set_option_from_tv(varname: impl crate::strings::IntoCCharPtr,varp: &mut typval_T) { let varname = varname.into_c_char_ptr();
     let opt_idx = find_option(varname);
         if opt_idx == kOptInvalid {
             semsg!(gettext(e_unknown_option2), varname);
@@ -3617,7 +3617,7 @@ pub fn assert_error(buf: &[u8]) {
     }
 }
 
-pub fn var_exists(mut var: *const c_char) -> bool {
+pub fn var_exists(var: impl crate::strings::IntoCCharPtr) -> bool { let mut var = var.into_c_char_ptr();
      {
         let mut tofree: Option<std::ffi::CString> = None;
         let mut n = false;

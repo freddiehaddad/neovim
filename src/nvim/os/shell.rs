@@ -583,9 +583,9 @@ pub fn os_expand_wildcards(
 /// Builds the argument vector for running the user-configured 'shell' (opt_vars().p_sh)
 /// with an optional command prefixed by 'shellcmdflag' (opt_vars().p_shcf).
 pub fn shell_build_argv(
-    cmd: *const c_char,
-    extra_args: *const c_char,
-) -> Vec<std::ffi::CString> {
+    cmd: impl crate::strings::IntoCCharPtr,
+    extra_args: impl crate::strings::IntoCCharPtr,
+) -> Vec<std::ffi::CString> { let cmd = cmd.into_c_char_ptr(); let extra_args = extra_args.into_c_char_ptr();
      {
         let mut rv: Vec<std::ffi::CString> = Vec::new();
         tokenize(opt_vars().p_sh, &mut rv);
@@ -809,21 +809,21 @@ pub fn get_cmd_output(
 /// os_system - synchronously execute a command in the shell
 pub fn os_system(
     argv: Vec<std::ffi::CString>,
-    input: *const c_char,
+    input: impl crate::strings::IntoCCharPtr,
     len: usize,
     output: Option<&mut Vec<c_char>>,
-) -> c_int {
+) -> c_int { let input = input.into_c_char_ptr();
     do_os_system(argv, input, len, output, true, false)
 }
 
 fn do_os_system(
     argv: Vec<std::ffi::CString>,
-    input: *const c_char,
+    input: impl crate::strings::IntoCCharPtr,
     len: usize,
     output: Option<&mut Vec<c_char>>,
     silent: bool,
     forward_output: bool,
-) -> c_int {
+) -> c_int { let input = input.into_c_char_ptr();
     unsafe {
         let mut exitcode: c_int = -1;
 
@@ -951,11 +951,11 @@ fn do_os_system(
 
 pub(crate) fn system_data_cb(
     _stream: &mut RStream,
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     count: usize,
     dbuf: &mut Vec<c_char>,
     _eof: bool,
-) -> usize {
+) -> usize { let buf = buf.into_c_char_ptr();
     unsafe {
         if !buf.is_null() && count > 0 {
             dbuf.extend_from_slice(std::slice::from_raw_parts(buf, count));
@@ -1019,7 +1019,7 @@ fn out_data_decide_throttle(size: usize) -> bool {
         true
 }
 
-fn out_data_ring(output: *const c_char, size: usize) {
+fn out_data_ring(output: impl crate::strings::IntoCCharPtr, size: usize) { let output = output.into_c_char_ptr();
     unsafe {
         debug_assert!(!output.is_null() || size == 0 || size == usize::MAX);
 
@@ -1070,11 +1070,11 @@ pub fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
 }
 
 fn out_data_append_to_screen(
-    output: *const c_char,
+    output: impl crate::strings::IntoCCharPtr,
     count: &mut usize,
     fd: c_int,
     eof: bool,
-) {
+) { let output = output.into_c_char_ptr();
     unsafe {
         let mut p = output;
         let end = output.add(*count);
@@ -1108,10 +1108,10 @@ fn out_data_append_to_screen(
 
 pub(crate) fn out_data_cb(
     stream: &mut RStream,
-    ptr_data: *const c_char,
+    ptr_data: impl crate::strings::IntoCCharPtr,
     mut count: usize,
     eof: bool,
-) -> usize {
+) -> usize { let ptr_data = ptr_data.into_c_char_ptr();
     if count > 0 && out_data_decide_throttle(count) {
             out_data_ring(ptr_data, count);
         } else if count > 0 {
@@ -1121,7 +1121,7 @@ pub(crate) fn out_data_cb(
         count
 }
 
-fn tokenize(str_in: *const c_char, argv: &mut Vec<std::ffi::CString>) {
+fn tokenize(str_in: impl crate::strings::IntoCCharPtr, argv: &mut Vec<std::ffi::CString>) { let str_in = str_in.into_c_char_ptr();
     unsafe {
         let mut p = str_in;
 
@@ -1238,7 +1238,7 @@ pub(crate) fn shell_write_cb(stream: &mut Stream, status: c_int) {
     }
 }
 
-fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
+fn shell_xescape_xquote(cmd: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let cmd = cmd.into_c_char_ptr();
      {
         if crate::memory::cstr_is_empty(opt_vars().p_sxq) {
             return crate::memory::cstr_to_cstring(cmd);

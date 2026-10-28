@@ -3956,7 +3956,7 @@ pub fn ex_version(eap: &mut exarg_T) {
     }
 }
 
-fn version_msg_wrap(s: *const c_char, wrap: bool) {
+fn version_msg_wrap(s: impl crate::strings::IntoCCharPtr, wrap: bool) { let s = s.into_c_char_ptr();
      {
         let len = vim_strsize(s) + if wrap { 2 } else { 0 };
         if !g_st().got_int && len < g_st().Columns && g_st().msg_col + len >= g_st().Columns && crate::memory::cstr_first_byte(s) != b'\n' {
@@ -4198,7 +4198,7 @@ pub fn intro_message(colon: bool) {
     }
 }
 
-fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
+fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: bool, is_logo: bool) { let mesg = mesg.into_c_char_ptr();
     unsafe {
         let mut col = (g_st().Columns - vim_strsize(mesg)) / 2;
         if col < 0 {

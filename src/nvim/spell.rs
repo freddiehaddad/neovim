@@ -856,7 +856,7 @@ pub fn match_checkcompoundpattern(
         false
     }
 }
-pub fn can_compound(slang: &mut slang_T, word: *const c_char, flags: *const u8) -> bool {
+pub fn can_compound(slang: &mut slang_T, word: impl crate::strings::IntoCCharPtr, flags: *const u8) -> bool { let word = word.into_c_char_ptr();
     unsafe {
         let mut uflags: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         if slang.sl_compprog.is_none() {
@@ -1594,7 +1594,7 @@ pub fn init_syl_tab(slang: &mut slang_T) -> c_int {
         OK
     }
 }
-fn count_syllables(slang: &mut slang_T, word: *const c_char) -> c_int {
+fn count_syllables(slang: &mut slang_T, word: impl crate::strings::IntoCCharPtr) -> c_int { let word = word.into_c_char_ptr();
     unsafe {
         let Some(ref sl_syllable) = slang.sl_syllable else {
             return 0;
@@ -1939,7 +1939,7 @@ fn use_midword(lp: &mut slang_T, wp: &mut win_T) {
         }
     }
 }
-fn find_region(rp: *const c_char, region: *const c_char) -> c_int {
+fn find_region(rp: impl crate::strings::IntoCCharPtr, region: impl crate::strings::IntoCCharPtr) -> c_int { let rp = rp.into_c_char_ptr(); let region = region.into_c_char_ptr();
     unsafe {
         let mut i: usize = 0;
         loop {
@@ -2079,7 +2079,7 @@ pub fn init_spell_chartab() {
             spell_priv_st().spelltab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
         }
 }
-pub fn spell_iswordp(p: *const c_char, wp: &win_T) -> bool {
+pub fn spell_iswordp(p: impl crate::strings::IntoCCharPtr, wp: &win_T) -> bool { let p = p.into_c_char_ptr();
     unsafe {
         let w_s = wp.w_s_ptr();
         let l = utfc_ptr2len(p);
@@ -2108,7 +2108,7 @@ pub fn spell_iswordp(p: *const c_char, wp: &win_T) -> bool {
         c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
     }
 }
-pub fn spell_iswordp_nmw(p: *const c_char, wp: &mut win_T) -> bool {
+pub fn spell_iswordp_nmw(p: impl crate::strings::IntoCCharPtr, wp: &mut win_T) -> bool { let p = p.into_c_char_ptr();
      {
         let c = utf_ptr2char(p);
         if c > 255 {
@@ -2149,11 +2149,11 @@ fn spell_iswordp_w(p: *const c_int, wp: &win_T) -> bool {
 }
 pub fn spell_casefold(
     wp: &win_T,
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     len: c_int,
     buf: *mut c_char,
     buflen: c_int,
-) -> bool {
+) -> bool { let str_ = str_.into_c_char_ptr();
     unsafe {
         if len >= buflen {
             *buf = NUL;
@@ -2313,7 +2313,7 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
         }
     }
 }
-pub fn onecap_copy(word: *const c_char, wcopy: *mut c_char, upper: bool) {
+pub fn onecap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut c_char, upper: bool) { let word = word.into_c_char_ptr();
     unsafe {
         let mut p = word;
         let mut c = mb_cptr2char_adv(&raw mut p);
@@ -2326,7 +2326,7 @@ pub fn onecap_copy(word: *const c_char, wcopy: *mut c_char, upper: bool) {
         xstrlcpy(wcopy.add(l), p, MAXWLEN - l);
     }
 }
-pub fn allcap_copy(word: *const c_char, wcopy: *mut c_char) {
+pub fn allcap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut c_char) { let word = word.into_c_char_ptr();
     unsafe {
         let mut d = wcopy;
         let mut s = word;
@@ -2378,7 +2378,7 @@ pub fn make_case_word(fword: *mut c_char, cword: *mut c_char, flags: c_int) {
         }
     }
 }
-pub fn eval_soundfold(word: *const c_char) -> std::ffi::CString {
+pub fn eval_soundfold(word: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let word = word.into_c_char_ptr();
     unsafe {
         let w_s = curwin_mut().w_s_ptr();
         if curwin_mut().w_onebuf_opt.wo_spell != 0 && !crate::memory::cstr_is_empty((*w_s).b_p_spl) {
@@ -2420,7 +2420,7 @@ pub fn spell_soundfold(
         }
     }
 }
-fn spell_soundfold_sofo(slang: &mut slang_T, inword: *const c_char, res: *mut c_char) {
+fn spell_soundfold_sofo(slang: &mut slang_T, inword: impl crate::strings::IntoCCharPtr, res: *mut c_char) { let inword = inword.into_c_char_ptr();
     unsafe {
         let mut ri: usize = 0;
         let mut prevc: c_int = 0;
@@ -2448,7 +2448,7 @@ fn spell_soundfold_sofo(slang: &mut slang_T, inword: *const c_char, res: *mut c_
         *res.add(ri) = NUL;
     }
 }
-fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: *mut c_char) {
+fn spell_soundfold_wsal(slang: &mut slang_T, inword: impl crate::strings::IntoCCharPtr, res: *mut c_char) { let inword = inword.into_c_char_ptr();
     unsafe {
         let mut word: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut did_white = false;
@@ -3223,10 +3223,10 @@ pub fn expand_spelling(
 ) {
     *matches = spell_suggest_list(pat, 100, spell_priv_st().spell_expand_need_cap, true);
 }
-pub fn valid_spelllang(val: *const c_char) -> bool {
+pub fn valid_spelllang(val: impl crate::strings::IntoCCharPtr) -> bool { let val = val.into_c_char_ptr();
     valid_name(val, c".-_,@")
 }
-pub fn valid_spellfile(val: *const c_char) -> bool {
+pub fn valid_spellfile(val: impl crate::strings::IntoCCharPtr) -> bool { let val = val.into_c_char_ptr();
     unsafe {
         let mut spf_name: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut spf = val.cast_mut();
@@ -3271,9 +3271,9 @@ pub fn did_set_spell_option() -> *const c_char {
     }
 }
 pub fn compile_cap_prog(
-    value: *const c_char,
+    value: impl crate::strings::IntoCCharPtr,
     prog: &mut Option<Box<regprog_T>>,
-) -> *const c_char {
+) -> *const c_char { let value = value.into_c_char_ptr();
      {
         let mut rp: Option<Box<regprog_T>> = None;
         if !crate::memory::cstr_is_empty(value) {

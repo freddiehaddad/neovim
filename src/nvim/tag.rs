@@ -913,8 +913,8 @@ fn select_tag_match(eap: Option<&exarg_T>,
     new_tag: bool,
     use_tagstack: bool,
     matches: &[Vec<c_char>],
-    name: *const c_char,
-) {
+    name: impl crate::strings::IntoCCharPtr,
+) { let name = name.into_c_char_ptr();
     unsafe {
         let tagstack: *mut taggy_T = (&raw mut (*curwin_ptr()).w_tagstack).cast::<taggy_T>();
         let tagstackidx = curwin_mut().w_tagstackidx;
@@ -2595,7 +2595,7 @@ fn test_for_static(tagp: &tagptrs_T) -> bool {
     }
 }
 
-fn matching_line_len(lbuf: *const c_char) -> usize {
+fn matching_line_len(lbuf: impl crate::strings::IntoCCharPtr) -> usize { let lbuf = lbuf.into_c_char_ptr();
     unsafe {
         let mut p = lbuf.add(1);
         p = p.add(crate::memory::cstr_len(p) + 1);
@@ -2689,7 +2689,7 @@ fn tag_full_fname(tagp: &mut tagptrs_T) -> std::ffi::CString {
     }
 }
 
-fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int {
+fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_help: bool) -> c_int { let lbuf_arg = lbuf_arg.into_c_char_ptr();
     unsafe {
         if g_st().postponed_split == 0 && !check_can_set_curbuf_forceit(forceit) {
             return FAIL;
@@ -3184,9 +3184,9 @@ pub fn expand_tags(
 fn add_tag_field(
     dict: Option<&mut dict_T>,
     field_name: impl crate::strings::IntoCCharPtr,
-    start: *const c_char,
-    mut end: *const c_char,
-) -> bool {
+    start: impl crate::strings::IntoCCharPtr,
+    end: impl crate::strings::IntoCCharPtr,
+) -> bool { let start = start.into_c_char_ptr(); let mut end = end.into_c_char_ptr();
     let field_name = field_name.into_c_char_ptr();
     unsafe {
         if !tv_dict_find(dict.as_deref(), field_name, -1).is_null() {

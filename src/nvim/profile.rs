@@ -430,7 +430,7 @@ pub fn get_profile_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
-pub fn set_context_in_profile_cmd(xp: &mut expand_T, arg: *const c_char) {
+pub fn set_context_in_profile_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
     xp.xp_context = EXPAND_PROFILE;
     prof_st().PEXPAND_WHAT = PEXP_SUBCMD;
     xp.xp_pattern = arg.cast_mut();
@@ -996,7 +996,7 @@ pub fn time_msg(mesg: impl crate::strings::IntoCCharPtr, start: Option<&proftime
 }
 
 /// Initializes the `time_fd` stream for `--startuptime` (`time_init`).
-pub fn time_init(fname: *const c_char, proc_name: *const c_char) {
+pub fn time_init(fname: impl crate::strings::IntoCCharPtr, proc_name: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr(); let proc_name = proc_name.into_c_char_ptr();
     unsafe {
         const BUFSIZE: usize = 8192;
         g_st().time_fd = crate::os::fs::CFile::from_raw(fopen(fname, c"a".as_ptr()));

@@ -286,12 +286,12 @@ pub fn log_should_log(log_level: c_int) -> bool {
 
 pub fn logmsg_str(
     log_level: c_int,
-    context: *const c_char,
+    context: impl crate::strings::IntoCCharPtr,
     func_name: impl crate::strings::IntoCCharPtr,
     line_num: c_int,
     eol: bool,
     msg: impl crate::strings::IntoCCharPtr,
-) -> bool {
+) -> bool { let context = context.into_c_char_ptr();
     let func_name = func_name.into_c_char_ptr();
     let msg = msg.into_c_char_ptr();
     unsafe {
@@ -402,12 +402,12 @@ pub fn open_log_file() -> *mut FILE {
 fn do_log_to_file_str(
     log_file: *mut FILE,
     log_level: c_int,
-    context: *const c_char,
+    context: impl crate::strings::IntoCCharPtr,
     func_name: impl crate::strings::IntoCCharPtr,
     line_num: c_int,
     eol: bool,
-    msg: *const c_char,
-) -> bool {
+    msg: impl crate::strings::IntoCCharPtr,
+) -> bool { let context = context.into_c_char_ptr(); let msg = msg.into_c_char_ptr();
     let func_name = func_name.into_c_char_ptr();
     unsafe {
         const LOG_LEVELS: [&CStr; 5] = [c"", c"DBG", c"INF", c"WRN", c"ERR"];

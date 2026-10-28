@@ -631,7 +631,7 @@ pub fn win_float_update_preview(wp: &mut win_T) {
 }
 
 /// Applies a 'previewpopup' value ("height:N,width:N,border:style") to `config` (`win_previewpopup_config`).
-pub fn win_previewpopup_config(value: *const c_char, config: &mut WinConfig) -> bool {
+pub fn win_previewpopup_config(value: impl crate::strings::IntoCCharPtr, config: &mut WinConfig) -> bool { let value = value.into_c_char_ptr();
     unsafe {
         let v = opt_keyset(value, kOptPreviewpopup, ptr::null_mut()).cast::<OptKeyDict_pvp>();
 

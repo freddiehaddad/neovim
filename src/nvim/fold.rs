@@ -1298,7 +1298,7 @@ fn foldCreateMarkers(wp: &mut win_T, start: pos_T, end: pos_T) {
     }
 }
 
-fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, markerlen: usize) {
+fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: impl crate::strings::IntoCCharPtr, markerlen: usize) { let marker = marker.into_c_char_ptr();
     unsafe {
         let cms = buf.b_p_cms;
         let p = crate::memory::cstr_as_bytes(cms).windows(2).position(|w| w == b"%s").map_or(ptr::null_mut(), |i| cms.add(i));
@@ -1368,7 +1368,7 @@ fn deleteFoldMarkers(wp: &mut win_T, fp: &mut fold_T, recursive: bool, lnum_off:
     }
 }
 
-fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerlen: usize) {
+fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: impl crate::strings::IntoCCharPtr, markerlen: usize) { let marker = marker.into_c_char_ptr();
     unsafe {
         if lnum > buf.b_ml.ml_line_count {
             return;

@@ -412,7 +412,7 @@ pub fn get_indent_buf(buf: &mut buf_T, lnum: linenr_T) -> c_int {
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
-pub fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
+pub fn indent_size_no_ts(ptr: impl crate::strings::IntoCCharPtr) -> c_int { let mut ptr = ptr.into_c_char_ptr();
     unsafe {
         let tab_size = opt_vars().dy_escape_width;
         let mut vcol: c_int = 0;
@@ -1866,7 +1866,7 @@ pub fn get_lisp_indent() -> c_int {
     }
 }
 
-fn lisp_match(p: *const c_char) -> bool {
+fn lisp_match(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_char_ptr();
     unsafe {
         let mut buf = [0 as c_char; 512];
         let mut word = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_lw) {

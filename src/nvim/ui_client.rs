@@ -86,10 +86,10 @@ fn tui_ptr() -> &'static mut TUIData {
 use crate::event::r#loop::uv_os_getpid;
 
 pub fn ui_client_start_server(
-    exepath: *const c_char,
+    exepath: impl crate::strings::IntoCCharPtr,
     argc: usize,
     argv: *mut *mut c_char,
-) -> u64 {
+) -> u64 { let exepath = exepath.into_c_char_ptr();
     unsafe {
         let mut args = Vec::with_capacity(1 + argc);
         args.push(crate::memory::cstr_to_cstring(*argv));
@@ -1058,7 +1058,7 @@ const EVENT_HANDLERS: [UIClientHandler; 28] = [
     },
 ];
 
-pub fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int {
+pub fn ui_client_handler_hash(str_in: impl crate::strings::IntoCCharPtr, len: usize) -> c_int { let str_in = str_in.into_c_char_ptr();
     if str_in.is_null() {
         return -1;
     }
@@ -1122,9 +1122,9 @@ pub fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int {
 }
 
 pub fn ui_client_get_redraw_handler(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     name_len: usize,
-) -> UIClientHandler {
+) -> UIClientHandler { let name = name.into_c_char_ptr();
     let hash = ui_client_handler_hash(name, name_len);
         if hash < 0 {
             return UIClientHandler {

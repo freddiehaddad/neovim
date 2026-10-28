@@ -529,10 +529,10 @@ pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
 fn stacktrace_push_item(
     l: &mut list_T,
     fp: Option<&mut ufunc_T>,
-    event: *const c_char,
+    event: impl crate::strings::IntoCCharPtr,
     lnum: linenr_T,
-    filepath: *const c_char,
-) {
+    filepath: impl crate::strings::IntoCCharPtr,
+) { let event = event.into_c_char_ptr(); let filepath = filepath.into_c_char_ptr();
     let d = tv_dict_alloc_lock(VAR_FIXED);
         let mut tv = typval_T {
             v_type: VarType::VAR_DICT,
@@ -643,7 +643,7 @@ pub fn ex_runtime(eap: &mut exarg_T) {
 }
 
 /// Set the completion context for the :runtime command.
-pub fn set_context_in_runtime_cmd(xp: &mut expand_T, mut arg: *const c_char) {
+pub fn set_context_in_runtime_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let mut arg = arg.into_c_char_ptr();
      {
         let mut p = skiptowhite(arg);
         let mut arg_mut = arg as *mut c_char;
@@ -725,12 +725,12 @@ fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut c_int) 
 
 /// Find the patterns in "name" in all directories in "path" and invoke `callback`.
 pub fn do_in_path(
-    path: *const c_char,
+    path: impl crate::strings::IntoCCharPtr,
     prefix: &std::ffi::CStr,
     name: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     callback: &mut RuntimeCallback<'_>,
-) -> bool {
+) -> bool { let path = path.into_c_char_ptr();
     let name = name.into_c_char_ptr().cast_mut();
     unsafe {
         let mut did_one = false;
@@ -1174,10 +1174,10 @@ fn expand_pack_entry(
     search_path: &mut RuntimeSearchPath,
     rtp_used: &mut std::collections::HashSet<Vec<u8>>,
     after_path: &mut Vec<std::ffi::CString>,
-    pack_entry: *const c_char,
+    pack_entry: impl crate::strings::IntoCCharPtr,
     pack_entry_len: usize,
     pos_in_rtp: usize,
-) {
+) { let pack_entry = pack_entry.into_c_char_ptr();
     unsafe {
         let buf = (&raw mut rt_st().pack_entry_buf).cast::<c_char>();
         let start_pats = [c"/pack/*/start/*", c"/start/*"];
@@ -1200,7 +1200,7 @@ fn expand_pack_entry(
     }
 }
 
-fn path_is_after(buf: *const c_char, buflen: usize) -> bool {
+fn path_is_after(buf: impl crate::strings::IntoCCharPtr, buflen: usize) -> bool { let buf = buf.into_c_char_ptr();
     unsafe {
         buflen >= 5
             && (buflen < 6 || vim_ispathsep(crate::memory::cstr_byte_at(buf, buflen - 6) as c_int))
@@ -2125,7 +2125,7 @@ pub fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> 
     }
 }
 
-fn strcpy_comma_escaped(dest: *mut c_char, src: *const c_char, len: usize) -> *mut c_char {
+fn strcpy_comma_escaped(dest: *mut c_char, src: impl crate::strings::IntoCCharPtr, len: usize) -> *mut c_char { let src = src.into_c_char_ptr();
     unsafe {
         let mut shift: usize = 0;
         for i in 0..len {
@@ -2140,10 +2140,10 @@ fn strcpy_comma_escaped(dest: *mut c_char, src: *const c_char, len: usize) -> *m
 }
 
 fn compute_double_env_sep_len(
-    val: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
     common_suf_len: usize,
     single_suf_len: usize,
-) -> usize {
+) -> usize { let val = val.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_is_empty(val) {
             return 0;
@@ -2172,13 +2172,13 @@ fn compute_double_env_sep_len(
 
 fn add_env_sep_dirs(
     mut dest: *mut c_char,
-    val: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
     suf1: impl crate::strings::IntoCCharPtr,
     len1: usize,
     suf2: impl crate::strings::IntoCCharPtr,
     len2: usize,
     forward: bool,
-) -> *mut c_char {
+) -> *mut c_char { let val = val.into_c_char_ptr();
     let suf1 = suf1.into_c_char_ptr();
     let suf2 = suf2.into_c_char_ptr();
     unsafe {
@@ -2229,14 +2229,14 @@ fn add_env_sep_dirs(
 
 fn add_dir(
     mut dest: *mut c_char,
-    dir: *const c_char,
+    dir: impl crate::strings::IntoCCharPtr,
     dir_len: usize,
     type_: XDGVarType,
     suf1: impl crate::strings::IntoCCharPtr,
     len1: usize,
     suf2: impl crate::strings::IntoCCharPtr,
     len2: usize,
-) -> *mut c_char {
+) -> *mut c_char { let dir = dir.into_c_char_ptr();
     let suf1 = suf1.into_c_char_ptr();
     let suf2 = suf2.into_c_char_ptr();
     unsafe {
@@ -2550,7 +2550,7 @@ pub fn source_level(sp: &mut source_cookie_T) -> c_int {
     sp.level
 }
 
-fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
+fn fopen_noinh_readbin(filename: impl crate::strings::IntoCCharPtr) -> *mut FILE { let filename = filename.into_c_char_ptr();
     unsafe {
         #[cfg(windows)]
         let fd_tmp = os_open(filename, O_RDONLY | O_BINARY | O_NOINHERIT, 0);
@@ -2567,7 +2567,7 @@ fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
     }
 }
 
-fn concat_continued_line(ga: &mut Vec<c_char>, p: *const c_char, mut len: usize) -> bool {
+fn concat_continued_line(ga: &mut Vec<c_char>, p: impl crate::strings::IntoCCharPtr, mut len: usize) -> bool { let p = p.into_c_char_ptr();
     unsafe {
         let line = skipwhite_len(p, len);
         len -= (line as usize) - (p as usize);
@@ -2669,7 +2669,7 @@ fn do_source_buffer_init(
     }
 }
 
-fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_char) {
+fn do_source_str_init(sp: &mut source_cookie_T, str_ptr: impl crate::strings::IntoCCharPtr) { let mut str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         sp.buflines.clear();
         while !crate::memory::cstr_is_empty(str_ptr) {
@@ -2699,7 +2699,7 @@ pub fn cmd_source_buffer(eap: Option<&exarg_T>, ex_lua: bool) {
 }
 
 /// Executes lines in `str` as Ex commands.
-pub fn do_source_str(str_ptr: *const c_char, traceback_name: impl crate::strings::IntoCCharPtr) -> bool {
+pub fn do_source_str(str_ptr: impl crate::strings::IntoCCharPtr, traceback_name: impl crate::strings::IntoCCharPtr) -> bool { let str_ptr = str_ptr.into_c_char_ptr();
     let mut traceback_name = traceback_name.into_c_char_ptr();
     let sname = sourcing_name();
         let slnum = sourcing_lnum();
@@ -2732,8 +2732,8 @@ fn do_source_ext(
     is_vimrc: c_int,
     ret_sid: *mut c_int,eap: Option<&exarg_T>,
     ex_lua: bool,
-    str_ptr: *const c_char,
-) -> bool {
+    str_ptr: impl crate::strings::IntoCCharPtr,
+) -> bool { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let mut cookie = source_cookie_T::new();
         let mut firstline: Option<std::ffi::CString> = None;
@@ -3594,7 +3594,7 @@ pub fn source_finished(fgetline: LineGetter) -> bool {
 }
 
 /// Return the autoload script name for a function or variable name.
-pub fn autoload_name(name: *const c_char, name_len: usize) -> std::ffi::CString {
+pub fn autoload_name(name: impl crate::strings::IntoCCharPtr, name_len: usize) -> std::ffi::CString { let name = name.into_c_char_ptr();
      {
         const PREFIX: &[u8] = b"autoload/";
         const SUFFIX: &[u8] = b".vim";
@@ -3618,7 +3618,7 @@ pub fn autoload_name(name: *const c_char, name_len: usize) -> std::ffi::CString 
 }
 
 /// If name has a package name try autoloading the script for it.
-pub fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool {
+pub fn script_autoload(name: impl crate::strings::IntoCCharPtr, name_len: usize, reload: bool) -> bool { let name = name.into_c_char_ptr();
      {
         let slice = crate::memory::cstr_slice(name, name_len);
         let Some(pos) = slice.iter().position(|&b| b == AUTOLOAD_CHAR) else {

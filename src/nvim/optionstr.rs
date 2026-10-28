@@ -1020,7 +1020,7 @@ pub fn check_string_option(pp: *mut *mut c_char) {
 }
 
 /// Return true if "val" is a valid 'filetype' name.
-fn valid_filetype(val: *const c_char) -> bool {
+fn valid_filetype(val: impl crate::strings::IntoCCharPtr) -> bool { let val = val.into_c_char_ptr();
     valid_name(val, c".-_")
 }
 
@@ -1293,10 +1293,10 @@ pub fn validate_str_generic(args: &mut optset_T) -> *const c_char {
 
 /// Validate a list of character flags against "flags".
 fn check_option_listflag(
-    val: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
     flags: impl crate::strings::IntoCCharPtr,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> *const c_char { let val = val.into_c_char_ptr();
     let flags = flags.into_c_char_ptr();
     unsafe {
         let mut s = val;
@@ -1704,11 +1704,11 @@ pub fn validate_chars_option(args: &mut optset_T) -> *const c_char {
 /// The global 'listchars' or 'fillchars' option is changed.
 fn did_set_global_chars_option(
     win: &mut win_T,
-    val: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
     what: CharsOption,
     opt_flags: c_int,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> *const c_char { let val = val.into_c_char_ptr();
     unsafe {
         let local_ptr = if what == CharsOption::kListchars {
             &raw mut win.w_onebuf_opt.wo_lcs
@@ -3306,10 +3306,10 @@ pub fn expand_set_winhighlight(
 fn opt_values_err(
     errbuf: Option<CharBuf>,
     fmt: &std::ffi::CStr,
-    item: *const c_char,
+    item: impl crate::strings::IntoCCharPtr,
     itemlen: usize,
     values: &[&CStr],
-) -> *const c_char {
+) -> *const c_char { let item = item.into_c_char_ptr();
     unsafe {
         let Some(errbuf) = errbuf else {
             return e_invarg.as_ptr();
@@ -3344,12 +3344,12 @@ fn opt_values_err(
 
 /// Handle an option that can be a range of string values.
 fn opt_strings_flags(
-    mut val: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
     values: &[&CStr],
     flagp: *mut c_uint,
     list: bool,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> *const c_char { let mut val = val.into_c_char_ptr();
     unsafe {
         let mut new_flags: c_uint = 0;
         let iter_one = (crate::memory::cstr_is_empty(val)) && !list;
@@ -3393,9 +3393,9 @@ fn opt_strings_flags(
 fn opt_schema_err(
     errbuf: Option<CharBuf>,
     fmt: &std::ffi::CStr,
-    key: *const c_char,
+    key: impl crate::strings::IntoCCharPtr,
     keylen: usize,
-) -> *const c_char {
+) -> *const c_char { let key = key.into_c_char_ptr();
      {
         if errbuf.is_none() {
             return e_invarg.as_ptr();
@@ -3408,10 +3408,10 @@ fn opt_schema_err(
 
 /// Validates a dict option against its schema (options.lua).
 pub fn opt_strings_check(
-    val: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
     schema: &[OptSchemaItem],
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> *const c_char { let val = val.into_c_char_ptr();
      {
         let mut key: *const c_char = ptr::null();
         let mut v: *const c_char = ptr::null();
@@ -3523,7 +3523,7 @@ pub fn opt_strings_check(
 }
 
 /// Parses a validated dict option into `out`.
-pub fn opt_fill(value: *const c_char, get_field: FieldHashfn, out: *mut OptKeySet) {
+pub fn opt_fill(value: impl crate::strings::IntoCCharPtr, get_field: FieldHashfn, out: *mut OptKeySet) { let value = value.into_c_char_ptr();
     unsafe {
         let Some(get_field_fn) = get_field else {
             return;
@@ -3565,10 +3565,10 @@ pub fn opt_fill(value: *const c_char, get_field: FieldHashfn, out: *mut OptKeySe
 
 /// Reify a dict-option value to a keyset (`OptKeyDict_…`).
 pub fn opt_keyset(
-    value: *const c_char,
+    value: impl crate::strings::IntoCCharPtr,
     opt_idx: OptIndex,
     mut keyset: *mut OptKeySet,
-) -> *mut OptKeySet {
+) -> *mut OptKeySet { let value = value.into_c_char_ptr();
     unsafe {
         if keyset.is_null() {
             keyset = (&raw mut optstr_st().OPT_KEYSET_SHARED).cast::<OptKeySet>();
@@ -3935,11 +3935,11 @@ const LCS_TAB: [CharsTabEntry; 12] = [
 /// Handle setting 'listchars' or 'fillchars'.
 pub fn set_chars_option(
     wp: &mut win_T,
-    mut value: *const c_char,
+    value: impl crate::strings::IntoCCharPtr,
     what: CharsOption,
     apply: bool,
     errbuf: Option<CharBuf>,
-) -> *const c_char {
+) -> *const c_char { let mut value = value.into_c_char_ptr();
     unsafe {
         let mut last_multispace: *const c_char = ptr::null();
         let mut last_lmultispace: *const c_char = ptr::null();

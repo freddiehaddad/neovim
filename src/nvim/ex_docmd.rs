@@ -5531,7 +5531,7 @@ pub fn get_loop_line(
 }
 
 /// Store a line in "gap" so that a ":while" loop can execute it again.
-fn store_loop_line(lines: &mut Vec<wcmd_T>, line: *const c_char) {
+fn store_loop_line(lines: &mut Vec<wcmd_T>, line: impl crate::strings::IntoCCharPtr) { let line = line.into_c_char_ptr();
     unsafe {
         lines.push(wcmd_T {
             line: crate::memory::cstr_to_cstring(line),
@@ -5625,7 +5625,7 @@ fn current_tab_nr(tab: *mut tabpage_T) -> c_int {
     }
 }
 
-fn get_wincmd_addr_type(arg: *const c_char, eap: &mut exarg_T) {
+fn get_wincmd_addr_type(arg: impl crate::strings::IntoCCharPtr, eap: &mut exarg_T) { let arg = arg.into_c_char_ptr();
     unsafe {
         let ch = *arg;
         match ch {
@@ -5710,7 +5710,7 @@ fn get_wincmd_addr_type(arg: *const c_char, eap: &mut exarg_T) {
     }
 }
 
-fn skip_colon_white(mut p: *const c_char, skipleadingwhite: bool) -> *mut c_char {
+fn skip_colon_white(p: impl crate::strings::IntoCCharPtr, skipleadingwhite: bool) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
         if skipleadingwhite {
             p = skipwhite(p);
@@ -7336,7 +7336,7 @@ pub fn checkforcmd(pp: *mut *mut c_char, cmd: &std::ffi::CStr, len: c_int) -> bo
     }
 }
 
-fn append_command(cmd: *const c_char) {
+fn append_command(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_char_ptr();
     unsafe {
         let iobuf_ptr: *mut c_char = g_st().IObuff.as_mut_ptr();
         let len = crate::memory::cstr_len(iobuf_ptr);
@@ -7366,7 +7366,7 @@ fn append_command(cmd: *const c_char) {
     }
 }
 
-fn one_letter_cmd(p: *const c_char, idx: &mut cmdidx_T) -> c_int {
+fn one_letter_cmd(p: impl crate::strings::IntoCCharPtr, idx: &mut cmdidx_T) -> c_int { let p = p.into_c_char_ptr();
      {
         if crate::memory::cstr_first_byte(p) == b'k'
             && (crate::memory::cstr_byte_at(p, 1) != b'e'
@@ -7534,7 +7534,7 @@ pub fn modifier_len(cmd: *mut c_char) -> c_int {
     }
 }
 
-pub fn cmd_exists(name: *const c_char) -> c_int {
+pub fn cmd_exists(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
     unsafe {
         for info in &CMDMODS {
             let mut j = 0usize;
@@ -7615,7 +7615,7 @@ pub fn f_fullcommand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     }
 }
 
-pub fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
+pub fn excmd_get_cmdidx(cmd: impl crate::strings::IntoCCharPtr, len: usize) -> cmdidx_T { let cmd = cmd.into_c_char_ptr();
     if len == 3 && (b"def" == crate::memory::cstr_prefix_bytes(cmd, 3)) {
             return cmdidx_T::CMD_SIZE;
         }
@@ -7638,7 +7638,7 @@ pub fn excmd_get_argt(idx: cmdidx_T) -> u32 {
     CMDNAMES[idx as usize].cmd_argt
 }
 
-pub fn skip_range(mut cmd: *const c_char, mut ctx: Option<&mut c_int>) -> *mut c_char {
+pub fn skip_range(cmd: impl crate::strings::IntoCCharPtr, mut ctx: Option<&mut c_int>) -> *mut c_char { let mut cmd = cmd.into_c_char_ptr();
     unsafe {
         while !vim_strchr(
             c" \t0123456789.$%'/?-+,;\\",
@@ -8497,7 +8497,7 @@ pub fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
     }
 }
 
-pub fn get_bad_opt(p: *const c_char, eap: &mut exarg_T) -> bool {
+pub fn get_bad_opt(p: impl crate::strings::IntoCCharPtr, eap: &mut exarg_T) -> bool { let p = p.into_c_char_ptr();
      {
         if crate::memory::cstr_as_bytes(p).eq_ignore_ascii_case(b"keep") {
             eap.bad_char = BAD_KEEP;
@@ -8858,7 +8858,7 @@ pub fn ends_excmd(c: c_int) -> c_int {
     )
 }
 
-pub fn find_nextcmd(mut p: *const c_char) -> *mut c_char {
+pub fn find_nextcmd(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
         while crate::memory::cstr_first_byte(p) != b'|' && crate::memory::cstr_first_byte(p) != b'\n' {
             if crate::memory::cstr_is_empty(p) {
@@ -11562,7 +11562,7 @@ fn close_redir() {
         }
 }
 
-pub fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> bool {
+pub fn vim_mkdir_emsg(name: impl crate::strings::IntoCCharPtr, prot: c_int) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let ret = os_mkdir(name, prot);
         if ret != 0 {
@@ -11983,7 +11983,7 @@ fn ex_tag(eap: &mut exarg_T) {
     ex_tag_cmd(eap, CMDNAMES[eap.cmdidx as usize].cmd_name.as_ptr());
 }
 
-fn ex_tag_cmd(eap: &mut exarg_T, name: *const c_char) {
+fn ex_tag_cmd(eap: &mut exarg_T, name: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr();
      {
         let mut cmd = match crate::memory::cstr_byte_at(name, 1) {
             b'j' => DT_JUMP,
@@ -12063,13 +12063,13 @@ pub fn find_cmdline_var(src: impl crate::strings::IntoCCharPtr, usedlen: &mut us
 
 pub fn eval_vars(
     src: *mut c_char,
-    srcstart: *const c_char,
+    srcstart: impl crate::strings::IntoCCharPtr,
     usedlen: &mut usize,
     lnump: Option<&mut linenr_T>,
     errormsg: *mut *const c_char,
     mut escaped: Option<&mut c_int>,
     empty_is_error: bool,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let srcstart = srcstart.into_c_char_ptr();
     unsafe {
         let mut result: *mut c_char = c"".as_ptr().cast_mut();
         let mut resultbuf: Option<Vec<c_char>> = None;
@@ -12524,7 +12524,7 @@ fn ex_filetype(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_errmsg(msg: &std::ffi::CStr, arg: *const c_char) -> *mut c_char {
+pub fn ex_errmsg(msg: &std::ffi::CStr, arg: impl crate::strings::IntoCCharPtr) -> *mut c_char { let arg = arg.into_c_char_ptr();
     let buf = (&raw mut docmd_st().EX_ERROR_BUF).cast::<c_char>();
         let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg.as_ptr()), arg);
         buf

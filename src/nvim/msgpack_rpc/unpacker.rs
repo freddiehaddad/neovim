@@ -296,11 +296,11 @@ fn parse_nop(_parser: &mut mpack_parser_t, _node: &mut mpack_node_t) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
 pub fn unpack(
-    mut data: *const c_char,
+    data: impl crate::strings::IntoCCharPtr,
     mut size: usize,
     arena: &mut Arena,
     err: &mut Error,
-) -> Object {
+) -> Object { let mut data = data.into_c_char_ptr();
     let mut unpacker = Unpacker::new();
     mpack_parser_init(&mut unpacker.parser, 0);
     unpacker.parser.data = crate::mpack::object::mpack_data_t::Unpacker(&mut unpacker);

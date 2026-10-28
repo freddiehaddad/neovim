@@ -556,7 +556,7 @@ fn schedule_termrequest(term: &mut Terminal) {
     }
 }
 
-fn parse_osc8(str_: *const c_char, attr: &mut c_int) -> c_int {
+fn parse_osc8(str_: impl crate::strings::IntoCCharPtr, attr: &mut c_int) -> c_int { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut i: usize = 0;
         while crate::memory::cstr_byte_at(str_, i) != 0 {
@@ -1844,7 +1844,7 @@ fn term_movecursor(
     }
 }
 
-fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) {
+fn buf_set_term_title(buf: *mut buf_T, title: impl crate::strings::IntoCCharPtr, len: usize) { let title = title.into_c_char_ptr();
     unsafe {
         if buf.is_null() {
             return;

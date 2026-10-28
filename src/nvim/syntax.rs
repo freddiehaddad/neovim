@@ -1009,7 +1009,7 @@ fn save_chartab(chartab: *mut c_char) {
     }
 }
 
-fn restore_chartab(chartab: *const c_char) {
+fn restore_chartab(chartab: impl crate::strings::IntoCCharPtr) { let chartab = chartab.into_c_char_ptr();
     unsafe {
         if (*win_s(&mut *syn_st().syn_win)).b_syn_isk.is_some() {
             ptr::copy(
@@ -4317,7 +4317,7 @@ fn syn_combine_list(clstr1: &mut SynIdList, clstr2: &mut SynIdList, list_op: c_i
     }
 }
 
-fn syn_scl_name2id(name: *const c_char) -> c_int {
+fn syn_scl_name2id(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
     unsafe {
         let name_u = crate::memory::cstr_from_bytes(
             &crate::memory::cstr_as_bytes(name).to_ascii_uppercase(),
@@ -4334,7 +4334,7 @@ fn syn_scl_name2id(name: *const c_char) -> c_int {
     }
 }
 
-fn syn_scl_namen2id(linep: *const c_char, len: c_int) -> c_int {
+fn syn_scl_namen2id(linep: impl crate::strings::IntoCCharPtr, len: c_int) -> c_int { let linep = linep.into_c_char_ptr();
      {
         let bytes = crate::memory::cstr_slice(linep, len as usize);
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
@@ -4343,7 +4343,7 @@ fn syn_scl_namen2id(linep: *const c_char, len: c_int) -> c_int {
     }
 }
 
-fn syn_check_cluster(pp: *const c_char, len: c_int) -> c_int {
+fn syn_check_cluster(pp: impl crate::strings::IntoCCharPtr, len: c_int) -> c_int { let pp = pp.into_c_char_ptr();
      {
         let bytes = crate::memory::cstr_slice(pp, len as usize);
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
@@ -5136,13 +5136,13 @@ pub fn reset_expand_highlight() {
         g_st().include_link = 0;
 }
 
-pub fn set_context_in_echohl_cmd(xp: &mut expand_T, arg: *const c_char) {
+pub fn set_context_in_echohl_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
     xp.xp_context = EXPAND_HIGHLIGHT;
         xp.xp_pattern = arg.cast_mut();
         g_st().include_none = 1;
 }
 
-pub fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: *const c_char) {
+pub fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
     unsafe {
         xp.xp_context = EXPAND_SYNTAX;
         syn_st().expand_what = EXP_SUBCMD;

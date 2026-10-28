@@ -178,8 +178,8 @@ pub fn socket_address_tcp_host_end(address: impl crate::strings::IntoCCharPtr) -
 pub fn socket_watcher_init(
     loop_: &mut Loop,
     watcher: &mut SocketWatcher,
-    endpoint: *const c_char,
-) -> c_int {
+    endpoint: impl crate::strings::IntoCCharPtr,
+) -> c_int { let endpoint = endpoint.into_c_char_ptr();
     unsafe {
         let addr = watcher.addr.as_mut_ptr();
         xstrlcpy(addr, endpoint, ADDRESS_MAX_SIZE);
@@ -258,7 +258,7 @@ pub fn socket_watcher_init(
 }
 
 /// Check if a socket is alive by attempting to connect to it.
-fn socket_alive(loop_: &mut Loop, addr: *const c_char) -> bool {
+fn socket_alive(loop_: &mut Loop, addr: impl crate::strings::IntoCCharPtr) -> bool { let addr = addr.into_c_char_ptr();
     unsafe {
         let mut stream = RStream::new();
         let mut error: *const c_char = std::ptr::null();
@@ -462,10 +462,10 @@ pub fn socket_connect(
     loop_: &mut Loop,
     stream: &mut RStream,
     is_tcp: bool,
-    address: *const c_char,
+    address: impl crate::strings::IntoCCharPtr,
     timeout: c_int,
     error: *mut *const c_char,
-) -> bool {
+) -> bool { let address = address.into_c_char_ptr();
     unsafe {
         let mut success = false;
         let mut closed = false;

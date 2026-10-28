@@ -431,10 +431,10 @@ pub fn stl_alloc_click_defs(
 pub fn stl_fill_click_defs(
     click_defs: *mut StlClickDefinition,
     click_recs: *mut StlClickRecord,
-    mut buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     width: c_int,
     tabline: bool,
-) {
+) { let mut buf = buf.into_c_char_ptr();
     unsafe {
         if click_defs.is_null() {
             return;

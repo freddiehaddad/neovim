@@ -884,7 +884,7 @@ fn call_umask(mask: c_uint) -> c_uint {
 }
 
 /// Shows a message about file `name`, e.g. `"foo.txt" [New]`.
-fn filemess(buf: *mut buf_T, name: *mut c_char, s: impl crate::strings::IntoCCharPtr, msg_id: *const c_char) {
+fn filemess(buf: *mut buf_T, name: *mut c_char, s: impl crate::strings::IntoCCharPtr, msg_id: impl crate::strings::IntoCCharPtr) { let msg_id = msg_id.into_c_char_ptr();
     let s = s.into_c_char_ptr();
     unsafe {
         let prev_msg_col = g_st().msg_col;
@@ -932,7 +932,7 @@ fn filemess(buf: *mut buf_T, name: *mut c_char, s: impl crate::strings::IntoCCha
 
 /// Shows file `name` before writing it, as a "bufwrite" message with `msg_id`, which buf_write()
 /// replaces when done (or with a progress-message, if slow).
-pub fn filemess_bufwrite(buf: *mut buf_T, name: *mut c_char, msg_id: *const c_char) {
+pub fn filemess_bufwrite(buf: *mut buf_T, name: *mut c_char, msg_id: impl crate::strings::IntoCCharPtr) { let msg_id = msg_id.into_c_char_ptr();
     filemess(buf, name, c"", msg_id);
 }
 
@@ -948,12 +948,12 @@ pub fn slow_io_ns() -> u64 {
 /// Shows the progress-message of a slow readfile(). Locks `curbuf` so Progress handlers cannot
 /// accidentally unload it while it is loading.
 fn readfile_progress(
-    s: *const c_char,
-    msg_id: *const c_char,
+    s: impl crate::strings::IntoCCharPtr,
+    msg_id: impl crate::strings::IntoCCharPtr,
     status: impl crate::strings::IntoCCharPtr,
     percent: c_int,
     hist: bool,
-) -> *mut c_char {
+) -> *mut c_char { let s = s.into_c_char_ptr(); let msg_id = msg_id.into_c_char_ptr();
     let status = status.into_c_char_ptr();
     unsafe {
         let buf = g_st().curbuf;
@@ -2815,7 +2815,7 @@ pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 /// Estimate the line number where we are now.
-fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char) -> linenr_T {
+fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: impl crate::strings::IntoCCharPtr) -> linenr_T { let endp = endp.into_c_char_ptr();
     unsafe {
         let mut lnum = curbuf_mut().b_ml.ml_line_count - linecnt + 1;
         let mut s: *const c_char = p;
@@ -3026,8 +3026,8 @@ pub fn add_quoted_fname(
     ret_buf: *mut c_char,
     bufsize: usize,
     buf: *const buf_T,
-    mut fname: *const c_char,
-) {
+    fname: impl crate::strings::IntoCCharPtr,
+) { let mut fname = fname.into_c_char_ptr();
     unsafe {
         if fname.is_null() {
             fname = c"-stdin-".as_ptr();
@@ -3046,8 +3046,8 @@ pub fn fname_msg_id(
     size: usize,
     prefix: &std::ffi::CStr,
     buf: *const buf_T,
-    fname: *const c_char,
-) {
+    fname: impl crate::strings::IntoCCharPtr,
+) { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut len = xstrlcpy(msg_id, prefix.as_ptr(), size);
         if len < size {
@@ -3145,7 +3145,7 @@ pub fn time_differs(file_info: &FileInfo, mtime: i64, mtime_ns: i64) -> bool {
 }
 
 /// Return true if file encoding "fenc" requires conversion from or to 'encoding'.
-pub fn need_conversion(fenc: *const c_char) -> bool {
+pub fn need_conversion(fenc: impl crate::strings::IntoCCharPtr) -> bool { let fenc = fenc.into_c_char_ptr();
     unsafe {
         let same_encoding: bool;
         let fenc_flags: c_int;
@@ -3168,7 +3168,7 @@ pub fn need_conversion(fenc: *const c_char) -> bool {
 
 /// Return the FIO_ flags needed for the internal conversion if 'name' was
 /// unicode or latin1, otherwise 0.
-pub fn get_fio_flags(mut name: *const c_char) -> c_int {
+pub fn get_fio_flags(name: impl crate::strings::IntoCCharPtr) -> c_int { let mut name = name.into_c_char_ptr();
      {
         if crate::memory::cstr_is_empty(name) {
             name = if opt_vars().p_enc.is_null() {
@@ -3208,11 +3208,11 @@ pub fn get_fio_flags(mut name: *const c_char) -> c_int {
 
 /// Check for a Unicode BOM (Byte Order Mark) at the start of p[size].
 fn check_for_bom(
-    p_in: *const c_char,
+    p_in: impl crate::strings::IntoCCharPtr,
     size: c_int,
     lenp: &mut c_int,
     flags: c_int,
-) -> *const c_char {
+) -> *const c_char { let p_in = p_in.into_c_char_ptr();
     unsafe {
         let p = p_in.cast::<u8>();
         let mut name: *const c_char = ptr::null();
@@ -3318,10 +3318,10 @@ pub fn shorten_fnames(force: c_int) {
 
 /// Get new filename ended by given extension.
 pub fn modname(
-    fname: *const c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     ext: impl crate::strings::IntoCCharPtr,
     mut prepend_dot: bool,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let fname = fname.into_c_char_ptr();
     let ext = ext.into_c_char_ptr();
     unsafe {
         let mut retval_vec: Vec<c_char>;
@@ -3549,7 +3549,7 @@ pub fn put_time(fd: *mut FILE, time_: time_t) -> bool {
     }
 }
 
-fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
+fn rename_with_tmp(from: impl crate::strings::IntoCCharPtr, to: impl crate::strings::IntoCCharPtr) -> c_int { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_len(from) >= MAXPATHL - 5 {
             return -1;
@@ -3589,7 +3589,7 @@ fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
 }
 
 /// Rename a file, falling back to copying across filesystems if needed.
-pub fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
+pub fn vim_rename(from: impl crate::strings::IntoCCharPtr, to: impl crate::strings::IntoCCharPtr) -> c_int { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
     unsafe {
         let mut use_tmp_file = false;
 
@@ -3638,7 +3638,7 @@ pub fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
 }
 
 /// Create the new file with same permissions as the original.
-pub fn vim_copyfile(from: *const c_char, to: *const c_char) -> bool {
+pub fn vim_copyfile(from: impl crate::strings::IntoCCharPtr, to: impl crate::strings::IntoCCharPtr) -> bool { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
     #[cfg(not(windows))]
     unsafe {
         let mut from_info: FileInfo = FileInfo::new();
@@ -4284,9 +4284,9 @@ fn vim_mktempdir() {
 /// Core part of "readdir()" function.
 pub fn readdir_core(
     entries: &mut Vec<std::ffi::CString>,
-    path: *const c_char,
+    path: impl crate::strings::IntoCCharPtr,
     mut context: Option<&mut crate::eval::typval::typval_T>,
-) -> bool {
+) -> bool { let path = path.into_c_char_ptr();
      {
         entries.clear();
 
@@ -4328,7 +4328,7 @@ pub fn readdir_core(
 }
 
 /// Delete "name" and everything in it, recursively.
-pub fn delete_recursive(name: *const c_char) -> c_int {
+pub fn delete_recursive(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
     unsafe {
         let mut result: c_int = 0;
 
@@ -4575,11 +4575,11 @@ pub fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_ch
 /// Convert the given pattern "pat" which has shell style wildcards in it, into
 /// a regular expression, and return the result in allocated memory.
 pub fn file_pat_to_reg_pat(
-    mut pat: *const c_char,
-    mut pat_end: *const c_char,
+    pat: impl crate::strings::IntoCCharPtr,
+    pat_end: impl crate::strings::IntoCCharPtr,
     allow_dirs: *mut c_char,
     no_bslash: c_int,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let mut pat = pat.into_c_char_ptr(); let mut pat_end = pat_end.into_c_char_ptr();
     unsafe {
         if !allow_dirs.is_null() {
             *allow_dirs = 0;
@@ -4818,9 +4818,9 @@ pub fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usize) -> isize {
 
 pub fn vim_fprintf_fmt(
     stream: *mut FILE,
-    fmt: *const c_char,
+    fmt: impl crate::strings::IntoCCharPtr,
     args: &[crate::strings::FmtVal],
-) -> c_int {
+) -> c_int { let fmt = fmt.into_c_char_ptr();
     unsafe {
         if args.is_empty() && !crate::memory::cstr_as_bytes(fmt).contains(&b'%') {
             let bytes = crate::memory::cstr_as_bytes(fmt);
@@ -4863,7 +4863,7 @@ pub fn vim_fprintf_fmt(
     }
 }
 
-pub fn vim_printf_fmt(fmt: *const c_char, args: &[crate::strings::FmtVal]) -> c_int {
+pub fn vim_printf_fmt(fmt: impl crate::strings::IntoCCharPtr, args: &[crate::strings::FmtVal]) -> c_int { let fmt = fmt.into_c_char_ptr();
     vim_fprintf_fmt(crate::log::log_get_stdout(), fmt, args)
 }
 

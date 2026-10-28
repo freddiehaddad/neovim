@@ -305,9 +305,9 @@ pub struct reg_extmatch_T {
 
 #[inline]
 pub(super) fn cstring_from_bytes(
-    ptr: *const c_char,
+    ptr: impl crate::strings::IntoCCharPtr,
     len: usize,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let ptr = ptr.into_c_char_ptr();
     let bytes =  { crate::memory::cstr_slice(ptr, len) };
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(len);
     std::ffi::CString::new(&bytes[..end]).ok()
@@ -2325,7 +2325,7 @@ fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
         }
 }
 
-pub(super) fn cstrncmp(s1: *const c_char, s2: *const c_char, n: &mut c_int) -> c_int {
+pub(super) fn cstrncmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr, n: &mut c_int) -> c_int { let s1 = s1.into_c_char_ptr(); let s2 = s2.into_c_char_ptr();
     unsafe {
         let mut result = if !re_st().rex.reg_ic {
             crate::memory::cstr_prefix_bytes(s1, *n as usize).cmp(crate::memory::cstr_prefix_bytes(s2, *n as usize)) as c_int
@@ -2386,7 +2386,7 @@ pub(super) fn cstrncmp(s1: *const c_char, s2: *const c_char, n: &mut c_int) -> c
 }
 
 #[inline]
-pub(super) fn cstrchr(s: *const c_char, c: c_int) -> *mut c_char {
+pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: c_int) -> *mut c_char { let s = s.into_c_char_ptr();
     unsafe {
         if !re_st().rex.reg_ic {
             return vim_strchr(s, c);
@@ -3320,7 +3320,7 @@ pub fn vim_regcomp_had_eol() -> c_int {
 }
 
 /// Compile a regular expression into internal code.
-pub fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
+pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> *mut regprog_T { let expr_arg = expr_arg.into_c_char_ptr();
     unsafe {
         let mut expr = expr_arg;
 
@@ -3399,7 +3399,7 @@ pub fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
 }
 
 #[inline]
-pub fn vim_regcomp_box(expr_arg: *const c_char, re_flags: c_int) -> Option<Box<regprog_T>> {
+pub fn vim_regcomp_box(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> Option<Box<regprog_T>> { let expr_arg = expr_arg.into_c_char_ptr();
     unsafe {
         let p = vim_regcomp(expr_arg, re_flags);
         if p.is_null() {
@@ -3435,7 +3435,7 @@ pub fn free_regexp_stuff() {
     }
 }
 
-fn report_re_switch(pat: *const c_char) {
+fn report_re_switch(pat: impl crate::strings::IntoCCharPtr) { let pat = pat.into_c_char_ptr();
     if opt_vars().p_verbose > 0 {
             verbose_enter();
             msg_puts(tr(
@@ -3447,10 +3447,10 @@ fn report_re_switch(pat: *const c_char) {
 
 fn vim_regexec_string(
     rmp: &mut regmatch_T,
-    line: *const c_char,
+    line: impl crate::strings::IntoCCharPtr,
     col: colnr_T,
     nl: bool,
-) -> bool {
+) -> bool { let line = line.into_c_char_ptr();
     unsafe {
         let mut rex_save = regexec_T::new();
         let rex_in_use_save = re_st().rex_in_use;
@@ -3512,9 +3512,9 @@ fn vim_regexec_string(
 pub fn vim_regexec_prog(
     prog: Option<&regprog_T>,
     ignore_case: bool,
-    line: *const c_char,
+    line: impl crate::strings::IntoCCharPtr,
     col: colnr_T,
-) -> bool {
+) -> bool { let line = line.into_c_char_ptr();
     let mut regmatch = regmatch_T {
             regprog: prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut()),
             startp: [ptr::null_mut(); NSUBEXP],
@@ -3525,11 +3525,11 @@ pub fn vim_regexec_prog(
         vim_regexec_string(&mut regmatch, line, col, false)
 }
 
-pub fn vim_regexec(rmp: &mut regmatch_T, line: *const c_char, col: colnr_T) -> bool {
+pub fn vim_regexec(rmp: &mut regmatch_T, line: impl crate::strings::IntoCCharPtr, col: colnr_T) -> bool { let line = line.into_c_char_ptr();
     vim_regexec_string(rmp, line, col, false)
 }
 
-pub fn vim_regexec_nl(rmp: &mut regmatch_T, line: *const c_char, col: colnr_T) -> bool {
+pub fn vim_regexec_nl(rmp: &mut regmatch_T, line: impl crate::strings::IntoCCharPtr, col: colnr_T) -> bool { let line = line.into_c_char_ptr();
     vim_regexec_string(rmp, line, col, true)
 }
 

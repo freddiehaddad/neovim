@@ -93,10 +93,10 @@ fn filter_map_one(
 fn filter_map_dict(
     mut d: Option<&mut dict_T>,
     filtermap: FilterMap,
-    arg_errmsg: *const c_char,
+    arg_errmsg: impl crate::strings::IntoCCharPtr,
     expr: &mut typval_T,
     rettv: &mut typval_T,
-) {
+) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VAR_DICT;
@@ -179,9 +179,9 @@ fn filter_map_blob(
     blob_arg: *mut blob_T,
     filtermap: FilterMap,
     expr: &mut typval_T,
-    arg_errmsg: *const c_char,
+    arg_errmsg: impl crate::strings::IntoCCharPtr,
     rettv: &mut typval_T,
-) {
+) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VAR_BLOB;
@@ -254,11 +254,11 @@ fn filter_map_blob(
 }
 
 fn filter_map_string(
-    str_ptr: *const c_char,
+    str_ptr: impl crate::strings::IntoCCharPtr,
     filtermap: FilterMap,
     expr: &mut typval_T,
     rettv: &mut typval_T,
-) {
+) { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(std::ptr::null_mut());
@@ -313,10 +313,10 @@ fn filter_map_string(
 fn filter_map_list(
     mut l: Option<&mut list_T>,
     filtermap: FilterMap,
-    arg_errmsg: *const c_char,
+    arg_errmsg: impl crate::strings::IntoCCharPtr,
     expr: &mut typval_T,
     rettv: &mut typval_T,
-) {
+) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VAR_LIST;
@@ -503,7 +503,7 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
     }
 }
 
-fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool) -> i64 {
+fn count_string(haystack: impl crate::strings::IntoCCharPtr, needle: impl crate::strings::IntoCCharPtr, ic: bool) -> i64 { let haystack = haystack.into_c_char_ptr(); let needle = needle.into_c_char_ptr();
     unsafe {
         if haystack.is_null() || needle.is_null() || *needle == 0 {
             return 0;
@@ -628,10 +628,10 @@ pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 }
 
 fn extend_dict(argvars: &mut [typval_T],
-    arg_errmsg: *const c_char,
+    arg_errmsg: impl crate::strings::IntoCCharPtr,
     is_new: bool,
     rettv: &mut typval_T,
-) {
+) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
         let mut d1 = argvars[0].vval.v_dict();
         if d1.is_null() {
@@ -688,10 +688,10 @@ fn extend_dict(argvars: &mut [typval_T],
 }
 
 fn extend_list(argvars: &mut [typval_T],
-    arg_errmsg: *const c_char,
+    arg_errmsg: impl crate::strings::IntoCCharPtr,
     is_new: bool,
     rettv: &mut typval_T,
-) {
+) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
      {
         let mut error = false;
         let mut l1 = argvars[0].vval.v_list();

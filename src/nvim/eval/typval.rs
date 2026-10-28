@@ -753,7 +753,7 @@ pub fn tv_set_string(tv: &mut typval_T, s: impl crate::strings::IntoCCharPtr) {
 }
 
 #[inline]
-pub fn tv_set_string_len(tv: &mut typval_T, s: *const c_char, len: usize) {
+pub fn tv_set_string_len(tv: &mut typval_T, s: impl crate::strings::IntoCCharPtr, len: usize) { let s = s.into_c_char_ptr();
      {
         tv.v_type = VarType::VAR_STRING;
         tv.vval = crate::eval::typval::TypvalVval::String(if s.is_null() {
@@ -1418,9 +1418,9 @@ pub fn tv_list_assign_range(
     idx1_arg: c_int,
     idx2: c_int,
     empty_idx2: bool,
-    op: *const c_char,
-    varname: *const c_char,
-) -> bool {
+    op: impl crate::strings::IntoCCharPtr,
+    varname: impl crate::strings::IntoCCharPtr,
+) -> bool { let op = op.into_c_char_ptr(); let varname = varname.into_c_char_ptr();
     unsafe {
         let mut idx1 = idx1_arg;
         let first_li = tv_list_find_index(Some(&mut *dest), &mut idx1);
@@ -1716,9 +1716,9 @@ pub fn tv_list_slice_or_index(
 fn list_join_inner(
     gap: &mut Vec<c_char>,
     l: &mut list_T,
-    sep: *const c_char,
+    sep: impl crate::strings::IntoCCharPtr,
     join_vec: &mut Vec<std::ffi::CString>,
-) -> bool {
+) -> bool { let sep = sep.into_c_char_ptr();
     unsafe {
         let mut sumlen: usize = 0;
         let mut first = true;
@@ -1837,8 +1837,8 @@ pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// "remove({list})" function.
 pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
-    arg_errmsg: *const c_char,
-) {
+    arg_errmsg: impl crate::strings::IntoCCharPtr,
+) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
         let l = argvars[0].vval.v_list();
         if value_check_lock(tv_list_locked_inline(l.as_ref()), arg_errmsg, TV_TRANSLATE) {
@@ -2497,10 +2497,10 @@ pub fn tv_list_idx_of_item(l: Option<&list_T>, item: *const listitem_T) -> c_int
 /// Add watcher to a dictionary.
 pub fn tv_dict_watcher_add(
     dict: Option<&mut dict_T>,
-    key_pattern: *const c_char,
+    key_pattern: impl crate::strings::IntoCCharPtr,
     key_pattern_len: usize,
     callback: Callback,
-) {
+) { let key_pattern = key_pattern.into_c_char_ptr();
     unsafe {
         if dict.is_none() {
             return;
@@ -2648,10 +2648,10 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
 /// Remove watcher from a dictionary.
 pub fn tv_dict_watcher_remove(
     mut dict: Option<&mut dict_T>,
-    key_pattern: *const c_char,
+    key_pattern: impl crate::strings::IntoCCharPtr,
     key_pattern_len: usize,
     callback: &Callback,
-) -> bool {
+) -> bool { let key_pattern = key_pattern.into_c_char_ptr();
      {
         if dict.is_none() {
             return false;
@@ -2690,7 +2690,7 @@ pub fn tv_dict_watcher_remove(
 }
 
 /// Test if `key` matches with `watcher->key_pattern`.
-fn tv_dict_watcher_matches(watcher: &DictWatcher, key: *const c_char) -> bool {
+fn tv_dict_watcher_matches(watcher: &DictWatcher, key: impl crate::strings::IntoCCharPtr) -> bool { let key = key.into_c_char_ptr();
      {
         let len = watcher.key_pattern_len;
         let pat_ptr = watcher.key_pattern.as_ptr();
@@ -2705,9 +2705,9 @@ fn tv_dict_watcher_matches(watcher: &DictWatcher, key: *const c_char) -> bool {
 /// Send a change notification to all dictionary watchers that match given key.
 pub fn tv_dict_watcher_notify(
     dict: &mut dict_T,
-    key: *const c_char,
+    key: impl crate::strings::IntoCCharPtr,
     newtv: Option<&typval_T>,oldtv: Option<&typval_T>,
-) {
+) { let key = key.into_c_char_ptr();
     unsafe {
         let mut argv: [typval_T; 3] = [tv_initial_value(); 3];
 
@@ -3089,8 +3089,8 @@ pub fn tv_dict_get_callback(
 pub fn tv_dict_wrong_func_name(
     d: &mut dict_T,
     tv: &mut typval_T,
-    name: *const c_char,
-) -> c_int {
+    name: impl crate::strings::IntoCCharPtr,
+) -> c_int { let name = name.into_c_char_ptr();
     c_int::from(
             (ptr::eq(d, get_globvar_dict())
                 || ptr::eq(&raw const d.dv_hashtab, get_funccal_local_ht()))
@@ -3694,8 +3694,8 @@ pub fn tv_blob_set_append(blob: &mut blob_T, idx: c_int, byte: u8) {
 /// "remove({blob})" function.
 pub fn tv_blob_remove(argvars: &mut [typval_T],
     rettv: &mut typval_T,
-    arg_errmsg: *const c_char,
-) {
+    arg_errmsg: impl crate::strings::IntoCCharPtr,
+) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
         let b = argvars[0].vval.v_blob();
         if !b.is_null() && value_check_lock((*b).bv_lock, arg_errmsg, TV_TRANSLATE) {
@@ -3914,8 +3914,8 @@ pub fn f_has_key(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 /// "remove({dict})" function.
 pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
-    arg_errmsg: *const c_char,
-) {
+    arg_errmsg: impl crate::strings::IntoCCharPtr,
+) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             semsg!(tr(e_toomanyarg), c"remove()");

@@ -276,7 +276,7 @@ pub fn check_isopt(var: *mut c_char) -> bool {
     parse_isopt(var, ptr::null_mut())
 }
 
-pub fn parse_isopt(var: *const c_char, chartab: *mut u64) -> bool {
+pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) -> bool { let var = var.into_c_char_ptr();
     unsafe {
         let mut p = var;
 
@@ -378,7 +378,7 @@ pub fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
     }
 }
 
-pub fn transstr_len(s: *const c_char, untab: bool) -> usize {
+pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize { let s = s.into_c_char_ptr();
     unsafe {
         let mut p = s;
         let mut len: usize = 0;
@@ -416,12 +416,12 @@ pub fn transstr_len(s: *const c_char, untab: bool) -> usize {
 }
 
 pub fn transstr_buf(
-    s: *const c_char,
+    s: impl crate::strings::IntoCCharPtr,
     slen: isize,
     buf: *mut c_char,
     buflen: usize,
     untab: bool,
-) -> usize {
+) -> usize { let s = s.into_c_char_ptr();
     unsafe {
         let mut p = s;
         let mut buf_p = buf;
@@ -474,7 +474,7 @@ pub fn transstr_buf(
     }
 }
 
-pub fn transstr(s: *const c_char, untab: bool) -> CString {
+pub fn transstr(s: impl crate::strings::IntoCCharPtr, untab: bool) -> CString { let s = s.into_c_char_ptr();
      {
         let len = transstr_len(s, untab) + 1;
         let mut buf = vec![0 as c_char; len];
@@ -483,7 +483,7 @@ pub fn transstr(s: *const c_char, untab: bool) -> CString {
     }
 }
 
-pub fn kv_transstr(str_: &mut Vec<u8>, s: *const c_char, untab: bool) -> usize {
+pub fn kv_transstr(str_: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize { let s = s.into_c_char_ptr();
     unsafe {
         if s.is_null() {
             return 0;
@@ -698,11 +698,11 @@ pub fn char2cells(c: c_int) -> c_int {
         ascii2cells(c)
 }
 
-pub fn vim_strsize(s: *const c_char) -> c_int {
+pub fn vim_strsize(s: impl crate::strings::IntoCCharPtr) -> c_int { let s = s.into_c_char_ptr();
     vim_strnsize(s, MAXCOL)
 }
 
-pub fn vim_strnsize(s: *const c_char, mut len: c_int) -> c_int {
+pub fn vim_strnsize(s: impl crate::strings::IntoCCharPtr, mut len: c_int) -> c_int { let s = s.into_c_char_ptr();
     unsafe {
         assert!(!s.is_null());
         let mut size: c_int = 0;
@@ -737,11 +737,11 @@ pub fn vim_iswordc_buf(c: c_int, buf: &mut buf_T) -> bool {
     vim_iswordc_tab(c, buf.b_chartab.as_ptr())
 }
 
-pub fn vim_iswordp(p: *const c_char) -> bool {
+pub fn vim_iswordp(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_char_ptr();
     vim_iswordp_buf(p, crate::globals::curbuf_mut())
 }
 
-pub fn vim_iswordp_buf(p: *const c_char, buf: &mut buf_T) -> bool {
+pub fn vim_iswordp_buf(p: impl crate::strings::IntoCCharPtr, buf: &mut buf_T) -> bool { let p = p.into_c_char_ptr();
      {
         let mut c = c_int::from(crate::memory::cstr_first_byte(p));
         if utf8len_tab[c as usize] > 1 {
@@ -775,7 +775,7 @@ pub fn vim_isprintc(c: c_int) -> bool {
         c > 0 && (c & 0x60) != 0 && c != 0x7f
 }
 
-pub fn skipwhite(mut p: *const c_char) -> *mut c_char {
+pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
         while ascii_iswhite(*p as c_int) {
             p = p.add(1);
@@ -784,7 +784,7 @@ pub fn skipwhite(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-pub fn skipwhite_len(mut p: *const c_char, mut len: usize) -> *mut c_char {
+pub fn skipwhite_len(p: impl crate::strings::IntoCCharPtr, mut len: usize) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
         while len > 0 && ascii_iswhite(*p as c_int) {
             p = p.add(1);
@@ -798,11 +798,11 @@ pub fn getwhitecols_curline() -> isize {
     getwhitecols(get_cursor_line_ptr())
 }
 
-pub fn getwhitecols(p: *const c_char) -> isize {
+pub fn getwhitecols(p: impl crate::strings::IntoCCharPtr) -> isize { let p = p.into_c_char_ptr();
     unsafe { skipwhite(p).offset_from(p) }
 }
 
-pub fn skipdigits(q: *const c_char) -> *mut c_char {
+pub fn skipdigits(q: impl crate::strings::IntoCCharPtr) -> *mut c_char { let q = q.into_c_char_ptr();
     unsafe {
         let mut p = q;
         while ascii_isdigit(*p as c_int) {
@@ -812,7 +812,7 @@ pub fn skipdigits(q: *const c_char) -> *mut c_char {
     }
 }
 
-pub fn skipbin(q: *const c_char) -> *const c_char {
+pub fn skipbin(q: impl crate::strings::IntoCCharPtr) -> *const c_char { let q = q.into_c_char_ptr();
     unsafe {
         let mut p = q;
         while ascii_isbdigit(*p as c_int) {
@@ -842,7 +842,7 @@ pub fn skiptodigit(q: *mut c_char) -> *mut c_char {
     }
 }
 
-pub fn skiptobin(q: *const c_char) -> *const c_char {
+pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> *const c_char { let q = q.into_c_char_ptr();
     unsafe {
         let mut p = q;
         while !crate::memory::cstr_is_empty(p) && !ascii_isbdigit(*p as c_int) {
@@ -862,7 +862,7 @@ pub fn skiptohex(q: *mut c_char) -> *mut c_char {
     }
 }
 
-pub fn skiptowhite(mut p: *const c_char) -> *mut c_char {
+pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
         while crate::memory::cstr_first_byte(p) != b' ' && crate::memory::cstr_first_byte(p) != b'\t' && !crate::memory::cstr_is_empty(p) {
             p = p.add(1);
@@ -871,7 +871,7 @@ pub fn skiptowhite(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-pub fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
+pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
         while crate::memory::cstr_first_byte(p) != b' ' && crate::memory::cstr_first_byte(p) != b'\t' && !crate::memory::cstr_is_empty(p) {
             if (crate::memory::cstr_first_byte(p) == b'\\' || *p == Ctrl_V) && crate::memory::cstr_byte_at(p, 1) != 0 {
@@ -883,7 +883,7 @@ pub fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-pub fn skip_to_newline(p: *const c_char) -> *mut c_char {
+pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let p = p.into_c_char_ptr();
     unsafe { { let _s = p; let _b = crate::memory::cstr_as_bytes(_s); let _off = _b.iter().position(|&_x| _x == (NL) as u8).unwrap_or(_b.len()); _s.add(_off).cast_mut() } }
 }
 
@@ -1026,7 +1026,7 @@ pub fn vim_isblankline(lbuf: *mut c_char) -> bool {
 }
 
 pub fn vim_str2nr(
-    start: *const c_char,
+    start: impl crate::strings::IntoCCharPtr,
     prep: Option<&mut c_int>,
     mut len: Option<&mut c_int>,
     what: c_int,
@@ -1035,7 +1035,7 @@ pub fn vim_str2nr(
     maxlen: c_int,
     strict: bool,
     mut overflow: Option<&mut bool>,
-) {
+) { let start = start.into_c_char_ptr();
     unsafe {
         let mut ptr = start;
         let string_ended = |p: *const c_char| -> bool {
@@ -1234,7 +1234,7 @@ pub const fn hex2nr(c: c_int) -> c_int {
     }
 }
 
-pub fn hexhex2nr(p: *const c_char) -> c_int {
+pub fn hexhex2nr(p: impl crate::strings::IntoCCharPtr) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         if !ascii_isxdigit(*p as c_int) || !ascii_isxdigit(*p.add(1) as c_int) {
             return -1;
@@ -1243,7 +1243,7 @@ pub fn hexhex2nr(p: *const c_char) -> c_int {
     }
 }
 
-pub fn rem_backslash(str_: *const c_char) -> bool {
+pub fn rem_backslash(str_: impl crate::strings::IntoCCharPtr) -> bool { let str_ = str_.into_c_char_ptr();
      {
         #[cfg(windows)]
         {
@@ -1287,7 +1287,7 @@ pub fn backslash_halve(mut p: *mut c_char) {
     }
 }
 
-pub fn backslash_halve_save(mut p: *const c_char) -> CString {
+pub fn backslash_halve_save(p: impl crate::strings::IntoCCharPtr) -> CString { let mut p = p.into_c_char_ptr();
     unsafe {
         let mut res = Vec::with_capacity(crate::memory::cstr_len(p));
         while !crate::memory::cstr_is_empty(p) {

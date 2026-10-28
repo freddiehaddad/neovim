@@ -113,11 +113,11 @@ pub fn vim_isbreak(c: c_int) -> bool {
 pub(crate) fn win_charsize(
     cstype: CSType,
     vcol: colnr_T,
-    ptr_val: *const c_char,
+    ptr_val: impl crate::strings::IntoCCharPtr,
     chr: i32,
     csarg: &mut CharsizeArg,
     mb_width: c_int,
-) -> CharSize {
+) -> CharSize { let ptr_val = ptr_val.into_c_char_ptr();
     if cstype == kCharsizeFast {
             charsize_fast(csarg, ptr_val, vcol, chr, mb_width)
         } else {
@@ -141,7 +141,7 @@ pub fn win_linetabsize(
         }
 }
 
-pub fn win_chartabsize(wp: &mut win_T, p: *const c_char, col: colnr_T) -> c_int {
+pub fn win_chartabsize(wp: &mut win_T, p: impl crate::strings::IntoCCharPtr, col: colnr_T) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         let buf = wp.w_buffer;
         if c_int::from(*p) == TAB
@@ -273,11 +273,11 @@ fn inline_virt_text_width(
 }
 
 pub fn charsize_regular(csarg: &mut CharsizeArg,
-    cur: *const c_char,
+    cur: impl crate::strings::IntoCCharPtr,
     vcol: colnr_T,
     cur_char: i32,
     mb_width: c_int,
-) -> CharSize {
+) -> CharSize { let cur = cur.into_c_char_ptr();
     unsafe {
         csarg.cur_text_width_left = 0;
         csarg.cur_text_width_right = 0;
@@ -564,11 +564,11 @@ fn charsize_fast_impl(
 
 pub fn charsize_fast(
     csarg: &mut CharsizeArg,
-    cur: *const c_char,
+    cur: impl crate::strings::IntoCCharPtr,
     vcol: colnr_T,
     cur_char: i32,
     mb_width: c_int,
-) -> CharSize {
+) -> CharSize { let cur = cur.into_c_char_ptr();
     {
         charsize_fast_impl(
             unsafe { &mut *csarg.win },

@@ -246,7 +246,7 @@ fn json_decoder_pop(
 }
 
 fn parse_json_string(
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     buf_len: usize,
     pp: &mut *const c_char,
     stack: &mut Vec<ValuesStackItem>,
@@ -254,7 +254,7 @@ fn parse_json_string(
     next_map_special: &mut bool,
     didcomma: &mut bool,
     didcolon: &mut bool,
-) -> bool {
+) -> bool { let buf = buf.into_c_char_ptr();
     let e = unsafe { buf.add(buf_len) };
     let mut p = unsafe { (*pp).add(1) };
     let s = p;
@@ -481,7 +481,7 @@ fn parse_json_string(
 }
 
 fn parse_json_number(
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     buf_len: usize,
     pp: &mut *const c_char,
     stack: &mut Vec<ValuesStackItem>,
@@ -489,7 +489,7 @@ fn parse_json_number(
     next_map_special: &mut bool,
     didcomma: &mut bool,
     didcolon: &mut bool,
-) -> bool {
+) -> bool { let buf = buf.into_c_char_ptr();
     let e = unsafe { buf.add(buf_len) };
     let mut p = *pp;
     let s = p;

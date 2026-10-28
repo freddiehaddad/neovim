@@ -1614,7 +1614,7 @@ pub unsafe extern "C-unwind" fn nlua_in_fast_event(lstate: *mut lua_State) -> c_
     }
 }
 
-fn viml_func_is_fast(name: *const c_char) -> bool {
+fn viml_func_is_fast(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let fdef: *const EvalFuncDef = find_internal_func(name);
         !fdef.is_null() && (*fdef).fast
@@ -1886,13 +1886,13 @@ pub fn api_new_luaref(original_ref: LuaRef) -> LuaRef {
 
 fn nlua_exec_typval_fmt(
     fmt: &std::ffi::CStr,
-    body: *const c_char,
+    body: impl crate::strings::IntoCCharPtr,
     bodylen: usize,
     name: &std::ffi::CStr,
     args: *mut typval_T,
     argcount: c_int,
     special: bool,ret_tv: &mut typval_T,
-) {
+) { let body = body.into_c_char_ptr();
     let mut lcmd_buf: [c_char; IOSIZE] = [0; IOSIZE];
         let buf_ptr = lcmd_buf.as_mut_ptr();
         let mut lcmd = buf_ptr;
@@ -1929,11 +1929,11 @@ pub fn nlua_call_luaeval(str_: NvimString,arg: &mut typval_T, ret_tv: &mut typva
 }
 
 pub fn nlua_call_vlua(
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     len: usize,
     args: *mut typval_T,
     argcount: c_int,ret_tv: &mut typval_T,
-) {
+) { let str_ = str_.into_c_char_ptr();
     nlua_exec_typval_fmt(
             c"return %.*s(...)",
             str_,
@@ -1965,13 +1965,13 @@ pub fn nlua_call_user_expand_func(xp: &mut expand_T, ret_tv: &mut typval_T) {
 }
 
 fn nlua_exec_typval(
-    lcmd: *const c_char,
+    lcmd: impl crate::strings::IntoCCharPtr,
     lcmd_len: usize,
     name: impl crate::strings::IntoCCharPtr,
     args: *mut typval_T,
     argcount: c_int,
     special: bool,mut ret_tv: Option<&mut typval_T>,
-) {
+) { let lcmd = lcmd.into_c_char_ptr();
     let name = name.into_c_char_ptr();
     unsafe {
         if check_secure() {
@@ -2044,12 +2044,12 @@ pub fn nlua_exec_typval_callable(
 
 pub fn nlua_exec(
     str_: NvimString,
-    chunkname: *const c_char,
+    chunkname: impl crate::strings::IntoCCharPtr,
     args: Array,
     mode: LuaRetMode,
     arena: Option<&mut Arena>,
     err: &mut Error,
-) -> Object {
+) -> Object { let chunkname = chunkname.into_c_char_ptr();
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         let top = lua_gettop(lstate);
@@ -2188,12 +2188,12 @@ const fn mode_ret(mode: LuaRetMode) -> c_int {
 pub fn nlua_call_ref_ctx(
     fast: bool,
     ref_: LuaRef,
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     args: Array,
     mode: LuaRetMode,
     arena: Option<&mut Arena>,
     err: Option<&mut Error>,
-) -> Object {
+) -> Object { let name = name.into_c_char_ptr();
     unsafe {
         let lstate = nlua_st().active_lstate;
         let top = lua_gettop(lstate);
@@ -2444,7 +2444,7 @@ pub fn ex_luafile(eap: &mut exarg_T) {
     let _ = nlua_exec_file(eap.arg);
 }
 
-pub fn nlua_exec_file(path: *const c_char) -> bool {
+pub fn nlua_exec_file(path: impl crate::strings::IntoCCharPtr) -> bool { let path = path.into_c_char_ptr();
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         if !(crate::memory::cstr_as_opt_bytes(path) == Some(b"-")) {
@@ -2852,7 +2852,7 @@ pub fn nlua_init_defaults() {
     }
 }
 
-pub fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
+pub fn nlua_func_exists(lua_funcname: impl crate::strings::IntoCCharPtr) -> bool { let lua_funcname = lua_funcname.into_c_char_ptr();
      {
         let fname_bytes = crate::memory::cstr_as_bytes(lua_funcname);
         let mut str_bytes = Vec::with_capacity(7 + fname_bytes.len());

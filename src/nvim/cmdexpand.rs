@@ -1762,7 +1762,7 @@ fn cmdline_fuzzy_completion_supported(xp: &expand_T) -> bool {
 
 /// Returns true if fuzzy completion for cmdline completion is enabled and
 /// "fuzzystr" is not empty.
-pub fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool {
+pub fn cmdline_fuzzy_complete(fuzzystr: impl crate::strings::IntoCCharPtr) -> bool { let fuzzystr = fuzzystr.into_c_char_ptr();
      (opt_vars().wop_flags & kOptWopFlagFuzzy) != 0 && !crate::memory::cstr_is_empty(fuzzystr)
 }
 
@@ -1781,7 +1781,7 @@ fn sort_func_compare(p1: &CString, p2: &CString) -> c_int {
 }
 
 /// Escape special characters in the cmdline completion matches.
-fn wildescape(xp: &mut expand_T, str_arg: *const c_char, files: &mut [CString]) {
+fn wildescape(xp: &mut expand_T, str_arg: impl crate::strings::IntoCCharPtr, files: &mut [CString]) { let str_arg = str_arg.into_c_char_ptr();
      {
         let vse_what = if xp.xp_context == EXPAND_BUFFERS {
             VSE_BUFFER
@@ -3125,11 +3125,11 @@ pub fn set_expand_context(xp: &mut expand_T) {
 
 /// Sets the index of a built-in or user defined command "cmd" in eap->cmdidx.
 fn set_cmd_index(
-    cmd: *const c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     eap: &mut exarg_T,
     xp: &mut expand_T,
     complp: &mut c_int,
-) -> *const c_char {
+) -> *const c_char { let cmd = cmd.into_c_char_ptr();
     unsafe {
         let mut p: *const c_char;
         let fuzzy = cmdline_fuzzy_complete(cmd);
@@ -3208,11 +3208,11 @@ fn set_cmd_index(
 /// Set the completion context for a command argument with wild card characters.
 fn set_context_for_wildcard_arg(
     eap: Option<&exarg_T>,
-    arg: *const c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     usefilter: bool,
     xp: &mut expand_T,
     complp: &mut c_int,
-) {
+) { let arg = arg.into_c_char_ptr();
     unsafe {
         let mut in_quote = false;
         let mut bow: *const c_char = ptr::null();
@@ -3305,7 +3305,7 @@ fn set_context_for_wildcard_arg(
 }
 
 /// Set the completion context for the "++opt=arg" argument. Always returns NULL.
-fn set_context_in_argopt(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
+fn set_context_in_argopt(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         let p = vim_strchr(arg, b'=' as c_int);
         if p.is_null() {
@@ -3320,7 +3320,7 @@ fn set_context_in_argopt(xp: &mut expand_T, arg: *const c_char) -> *const c_char
 }
 
 /// Set the completion context for the :filter command.
-fn set_context_in_filter_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
+fn set_context_in_filter_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut arg = arg.into_c_char_ptr();
      {
         if !crate::memory::cstr_is_empty(arg) {
             arg = skip_vimgrep_pat(arg.cast_mut(), ptr::null_mut(), None);
@@ -3334,7 +3334,7 @@ fn set_context_in_filter_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *cons
 }
 
 /// Set the completion context for the :match command.
-fn set_context_in_match_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
+fn set_context_in_match_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut arg = arg.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_is_empty(arg) || ends_excmd(*arg as c_int) == 0 {
             set_context_in_echohl_cmd(xp, arg);
@@ -3349,7 +3349,7 @@ fn set_context_in_match_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const
 }
 
 /// Returns a pointer to the next command after a :global or a :v command.
-fn find_cmd_after_global_cmd(mut arg: *const c_char) -> *const c_char {
+fn find_cmd_after_global_cmd(arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut arg = arg.into_c_char_ptr();
     unsafe {
         let delim = crate::memory::cstr_first_byte(arg) as c_int;
         if delim != 0 {
@@ -3371,7 +3371,7 @@ fn find_cmd_after_global_cmd(mut arg: *const c_char) -> *const c_char {
 }
 
 /// Returns a pointer to the next command after a :substitute or a :& command.
-fn find_cmd_after_substitute_cmd(mut arg: *const c_char) -> *const c_char {
+fn find_cmd_after_substitute_cmd(arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut arg = arg.into_c_char_ptr();
     unsafe {
         let delim = crate::memory::cstr_first_byte(arg) as c_int;
         if delim != 0 {
@@ -3403,7 +3403,7 @@ fn find_cmd_after_substitute_cmd(mut arg: *const c_char) -> *const c_char {
 }
 
 /// Returns a pointer to the next command after an :isearch/:dsearch/etc. command.
-fn find_cmd_after_isearch_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
+fn find_cmd_after_isearch_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut arg = arg.into_c_char_ptr();
     unsafe {
         arg = skipwhite(skipdigits(arg));
         if crate::memory::cstr_first_byte(arg) != b'/' {
@@ -3432,7 +3432,7 @@ fn find_cmd_after_isearch_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *con
 }
 
 /// Set the completion context for the :unlet command. Always returns NULL.
-fn set_context_in_unlet_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
+fn set_context_in_unlet_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut arg = arg.into_c_char_ptr();
     unsafe {
         while {
             xp.xp_pattern = c_strchr(arg, b' ' as c_char);
@@ -3454,7 +3454,7 @@ fn set_context_in_unlet_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const
 }
 
 /// Set the completion context for the :language command. Always returns NULL.
-fn set_context_in_lang_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
+fn set_context_in_lang_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         let p = skiptowhite(arg);
         if crate::memory::cstr_is_empty(p) {
@@ -3481,9 +3481,9 @@ fn set_context_in_lang_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_ch
 /// Set the completion context for the :breakadd command. Always returns NULL.
 fn set_context_in_breakadd_cmd(
     xp: &mut expand_T,
-    arg: *const c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     cmdidx: cmdidx_T,
-) -> *const c_char {
+) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         xp.xp_context = EXPAND_BREAKPOINT;
         xp.xp_pattern = arg.cast_mut();
@@ -3529,7 +3529,7 @@ fn set_context_in_breakadd_cmd(
     }
 }
 
-fn set_context_in_scriptnames_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
+fn set_context_in_scriptnames_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         xp.xp_context = EXPAND_NOTHING;
         xp.xp_pattern = ptr::null_mut();
@@ -3547,7 +3547,7 @@ fn set_context_in_scriptnames_cmd(xp: &mut expand_T, arg: *const c_char) -> *con
 }
 
 /// Set the completion context for the :filetype command. Always returns NULL.
-fn set_context_in_filetype_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
+fn set_context_in_filetype_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg = arg.into_c_char_ptr();
     unsafe {
         xp.xp_context = EXPAND_FILETYPECMD;
         xp.xp_pattern = arg.cast_mut();
@@ -3620,14 +3620,14 @@ fn set_context_with_pattern(xp: &mut expand_T) {
 
 /// Set the completion context in "xp" for command "cmd" with index "cmdidx".
 fn set_context_by_cmdname(
-    cmd: *const c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     cmdidx: cmdidx_T,
     xp: &mut expand_T,
-    mut arg: *const c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     argt: u32,
     context: c_int,
     forceit: bool,
-) -> *const c_char {
+) -> *const c_char { let cmd = cmd.into_c_char_ptr(); let mut arg = arg.into_c_char_ptr();
     unsafe {
         match cmdidx {
             cmdidx_T::CMD_find | cmdidx_T::CMD_sfind | cmdidx_T::CMD_tabfind => {
@@ -4038,7 +4038,7 @@ fn set_context_by_cmdname(
 }
 
 /// Parse one command from `buff` and set completion context in `xp`.
-fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char {
+fn set_one_cmd_context(xp: &mut expand_T, buff: impl crate::strings::IntoCCharPtr) -> *const c_char { let buff = buff.into_c_char_ptr();
     unsafe {
         let mut ea: exarg_T = exarg_T::new();
         let mut context: c_int = EXPAND_NOTHING;
@@ -4272,10 +4272,10 @@ pub fn set_cmd_context(
 /// Expand the command line "str" from context "xp".
 pub fn expand_cmdline(
     xp: &mut expand_T,
-    str_arg: *const c_char,
+    str_arg: impl crate::strings::IntoCCharPtr,
     col: c_int,
     matches: &mut Vec<CString>,
-) -> c_int {
+) -> c_int { let str_arg = str_arg.into_c_char_ptr();
     unsafe {
         let mut options = WILD_ADD_SLASH | WILD_SILENT;
 
@@ -5321,11 +5321,11 @@ fn call_user_expand_func<R>(
 
 /// Expand names with a function defined by the user (EXPAND_USER_DEFINED).
 fn ExpandUserDefined(
-    pat: *const c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     xp: &mut expand_T,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<CString>,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
     unsafe {
         let fuzzy = cmdline_fuzzy_complete(pat);
         matches.clear();
@@ -6083,7 +6083,7 @@ fn copy_substring_from_pos(
 }
 
 /// Returns true if the given string `str` matches the regex pattern `pat`.
-fn is_regex_match(pat: *const c_char, str_arg: *const c_char) -> bool {
+fn is_regex_match(pat: impl crate::strings::IntoCCharPtr, str_arg: impl crate::strings::IntoCCharPtr) -> bool { let pat = pat.into_c_char_ptr(); let str_arg = str_arg.into_c_char_ptr();
      {
         if crate::memory::cstr_as_bytes(pat) == crate::memory::cstr_as_bytes(str_arg) {
             return true;

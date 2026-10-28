@@ -1170,7 +1170,7 @@ pub fn find_internal_func(name: impl crate::strings::IntoCCharPtr) -> *const Eva
 }
 
 /// Gets the Lua name of a Lua-implemented "vimfn" function, or NULL if not found.
-pub fn find_internal_func_lua(name: *const c_char) -> *const c_char {
+pub fn find_internal_func_lua(name: impl crate::strings::IntoCCharPtr) -> *const c_char { let name = name.into_c_char_ptr();
     unsafe {
         let fdef = find_internal_func(name);
         if !fdef.is_null()
@@ -1202,10 +1202,10 @@ pub fn check_internal_func(fdef: &EvalFuncDef, argcount: c_int) -> c_int {
 }
 
 pub fn call_internal_func(
-    fname: *const c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     argcount: c_int,
     argvars: *mut typval_T,rettv: &mut typval_T,
-) -> c_int {
+) -> c_int { let fname = fname.into_c_char_ptr();
     unsafe {
         let fdef = find_internal_func(fname);
         if fdef.is_null() {
@@ -1226,11 +1226,11 @@ pub fn call_internal_func(
 
 /// Invoke a method for `base->method()`.
 pub fn call_internal_method(
-    fname: *const c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     argcount: c_int,
     argvars: *mut typval_T,rettv: &mut typval_T,
     basetv: *mut typval_T,
-) -> c_int {
+) -> c_int { let fname = fname.into_c_char_ptr();
     unsafe {
         let fdef = find_internal_func(fname);
         if fdef.is_null() {
@@ -4465,8 +4465,8 @@ pub fn create_environment(
     clear_env: bool,
     pty: bool,
     set_nvim_addr: bool,
-    pty_term_name: *const c_char,
-) -> *mut dict_T {
+    pty_term_name: impl crate::strings::IntoCCharPtr,
+) -> *mut dict_T { let pty_term_name = pty_term_name.into_c_char_ptr();
     unsafe {
         let env = tv_dict_alloc();
 
@@ -5463,13 +5463,13 @@ fn find_some_match(argvars: &mut [typval_T], rettv: &mut typval_T, type_: SomeMa
 }
 
 fn get_matches_in_str(
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     rmp: &mut regmatch_T,
     mlist: &mut list_T,
     idx: c_int,
     submatches: bool,
     matchbuf: bool,
-) {
+) { let str_ = str_.into_c_char_ptr();
     unsafe {
         let len = crate::memory::cstr_len(str_);
         let mut startidx: colnr_T = 0;
@@ -5792,7 +5792,7 @@ pub fn f_mode(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
     crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
 }
 
-fn may_add_state_char(buf: &mut [c_char], len: &mut usize, include: *const c_char, c: u8) {
+fn may_add_state_char(buf: &mut [c_char], len: &mut usize, include: impl crate::strings::IntoCCharPtr, c: u8) { let include = include.into_c_char_ptr();
     if include.is_null() || !vim_strchr(include, c_int::from(c)).is_null() {
             buf[*len] = c as c_char;
             *len += 1;

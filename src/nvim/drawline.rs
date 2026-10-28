@@ -554,12 +554,12 @@ fn draw_virt_text_item(
 
 fn draw_col_buf(wp: &mut win_T,
     wlv: &mut winlinevars_T,
-    text: *const c_char,
+    text: impl crate::strings::IntoCCharPtr,
     len: usize,
     attr: c_int,
     mut fold_vcol: *const colnr_T,
     inc_vcol: bool,
-) {
+) { let text = text.into_c_char_ptr();
     unsafe {
         let mut ci = utf_ptr2StrCharInfo(text);
         let end = text.add(len);

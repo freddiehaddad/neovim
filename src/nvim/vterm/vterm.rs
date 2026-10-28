@@ -1,6 +1,6 @@
 //! Core VTerm instance management and output buffering (`src/nvim/vterm/vterm.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_int;
 use std::ptr;
 
 use crate::terminal::Terminal;
@@ -68,7 +68,7 @@ pub fn vterm_output_set_callback(
     vt.outdata = user;
 }
 
-pub fn vterm_push_output_bytes(vt: &mut VTerm, bytes: *const c_char, len: usize) {
+pub fn vterm_push_output_bytes(vt: &mut VTerm, bytes: impl crate::strings::IntoCCharPtr, len: usize) { let bytes = bytes.into_c_char_ptr();
     if let Some(func) = vt.outfunc {
         let slice = if len == 0 || bytes.is_null() {
             &[][..]

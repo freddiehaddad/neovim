@@ -258,7 +258,7 @@ pub fn cstr_to_obj(s: impl crate::strings::IntoCCharPtr) -> Object {
 }
 
 #[inline]
-pub fn cstr_to_arena_obj(arena: &mut Arena, s: *const c_char) -> Object {
+pub fn cstr_to_arena_obj(arena: &mut Arena, s: impl crate::strings::IntoCCharPtr) -> Object { let s = s.into_c_char_ptr();
     string_obj(arena_string(arena, cstr_as_string(s)))
 }
 
@@ -340,7 +340,7 @@ pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
 }
 
 #[inline]
-pub fn cbuf_to_arena_str(arena: &mut Arena, buf: *const c_char, len: usize) -> NvimString {
+pub fn cbuf_to_arena_str(arena: &mut Arena, buf: impl crate::strings::IntoCCharPtr, len: usize) -> NvimString { let buf = buf.into_c_char_ptr();
     let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
     NvimString {
         data: arena_memdupz(arena, ptr, len),
@@ -351,9 +351,9 @@ pub fn cbuf_to_arena_str(arena: &mut Arena, buf: *const c_char, len: usize) -> N
 #[inline]
 pub fn cbuf_to_arena_str_opt(
     arena: Option<&mut Arena>,
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     len: usize,
-) -> NvimString {
+) -> NvimString { let buf = buf.into_c_char_ptr();
     let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
     NvimString {
         data: arena_memdupz_opt(arena, ptr, len),
@@ -736,14 +736,14 @@ pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
     }
 }
 
-pub fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
+pub fn cbuf_to_string(buf: impl crate::strings::IntoCCharPtr, size: usize) -> NvimString { let buf = buf.into_c_char_ptr();
     NvimString {
             data: alloc_cstring_len(buf, size),
             size,
         }
 }
 
-pub fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
+pub fn cstrn_as_string(str_: impl crate::strings::IntoCCharPtr, maxsize: usize) -> NvimString { let str_ = str_.into_c_char_ptr();
     if str_.is_null() {
             return NvimString {
                 data: ptr::null_mut(),

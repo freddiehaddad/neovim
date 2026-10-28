@@ -487,10 +487,10 @@ mod unix_impl {
 
     fn init_child(
         ptyproc: &mut PtyProc,
-        prog: *const c_char,
+        prog: impl crate::strings::IntoCCharPtr,
         argv_ptrs: *const *mut c_char,
         new_env: *mut *mut c_char,
-    ) -> ! {
+    ) -> ! { let prog = prog.into_c_char_ptr();
         unsafe {
             setsid();
 

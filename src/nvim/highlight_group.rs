@@ -1099,9 +1099,9 @@ pub fn set_hl_group(
 fn set_gui_color(
     idx: c_int,
     init: bool,
-    arg: *const c_char,color: &mut RgbValue,
+    arg: impl crate::strings::IntoCCharPtr,color: &mut RgbValue,
     color_idx: &mut c_int,
-) -> bool {
+) -> bool { let arg = arg.into_c_char_ptr();
     unsafe {
         if init && ((*hl_table().add(idx as usize)).sg_set & SG_GUI) != 0 {
             return false;
@@ -1121,7 +1121,7 @@ fn set_gui_color(
     }
 }
 
-pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
+pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init: bool) { let mut line = line.into_c_char_ptr();
     unsafe {
         if !init && ends_excmd(c_int::from(crate::memory::cstr_first_byte(line))) != 0 {
             msg_ext_set_kind(c"list_cmd");
@@ -1987,7 +1987,7 @@ pub fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int) -> *const c_char
     }
 }
 
-pub fn highlight_color(id: c_int, what: *const c_char, modec: c_int) -> *const c_char {
+pub fn highlight_color(id: c_int, what: impl crate::strings::IntoCCharPtr, modec: c_int) -> *const c_char { let what = what.into_c_char_ptr();
     unsafe {
         let mut fg = false;
         let mut sp = false;
@@ -2166,7 +2166,7 @@ pub fn syn_name2id(name: impl crate::strings::IntoCCharPtr) -> c_int {
     }
 }
 
-pub fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
+pub fn syn_name2id_len(name: impl crate::strings::IntoCCharPtr, len: usize) -> c_int { let name = name.into_c_char_ptr();
      {
         if len == 0 || len > MAX_SYN_NAME {
             return 0;
@@ -2185,7 +2185,7 @@ pub fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub fn syn_name2attr(name: *const c_char) -> c_int {
+pub fn syn_name2attr(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
     let id = syn_name2id(name);
         if id != 0 {
             return syn_id2attr(id);
@@ -2193,7 +2193,7 @@ pub fn syn_name2attr(name: *const c_char) -> c_int {
         0
 }
 
-pub fn highlight_exists(name: *const c_char) -> c_int {
+pub fn highlight_exists(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
     c_int::from(syn_name2id(name) > 0)
 }
 
@@ -2222,7 +2222,7 @@ pub fn syn_check_group<S: crate::strings::IntoCCharPtr>(name: S, len: usize) -> 
         id
 }
 
-fn syn_add_group(name: *const c_char, len: usize) -> c_int {
+fn syn_add_group(name: impl crate::strings::IntoCCharPtr, len: usize) -> c_int { let name = name.into_c_char_ptr();
     unsafe {
         for i in 0..len {
             let c = crate::memory::cstr_byte_at(name, i);
@@ -2496,7 +2496,7 @@ pub fn highlight_changed() {
     }
 }
 
-pub fn set_context_in_highlight_cmd(xp: &mut expand_T, mut arg: *const c_char) {
+pub fn set_context_in_highlight_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let mut arg = arg.into_c_char_ptr();
      {
         xp.xp_context = EXPAND_HIGHLIGHT;
         xp.xp_pattern = arg.cast_mut();
@@ -2598,7 +2598,7 @@ pub fn get_highlight_name_ext(
     }
 }
 
-pub fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
+pub fn name_to_color(name: impl crate::strings::IntoCCharPtr, idx: *mut c_int) -> RgbValue { let name = name.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(name) == b'#'
             && (crate::memory::cstr_byte_at(name, 1)).is_ascii_hexdigit()
@@ -2660,7 +2660,7 @@ pub fn coloridx_to_name(idx: c_int, val: c_int, hexbuf: *mut c_char) -> *const c
         }
 }
 
-pub fn name_to_ctermcolor(name: *const c_char) -> c_int {
+pub fn name_to_ctermcolor(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
     unsafe {
         let off = (crate::memory::cstr_first_byte(name)).to_ascii_uppercase() as c_char;
         let mut i = COLOR_NAMES.len() as isize - 1;

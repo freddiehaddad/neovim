@@ -991,7 +991,7 @@ fn close_file(cookie: &mut FileDescriptor) {
     }
 }
 
-fn shada_read_file(file: *const c_char, flags: c_int) -> bool {
+fn shada_read_file(file: impl crate::strings::IntoCCharPtr, flags: c_int) -> bool { let file = file.into_c_char_ptr();
     unsafe {
         let Some(fname_cstr) = shada_filename(file) else {
             return false;
@@ -1707,7 +1707,7 @@ fn shada_get_default_file() -> *const c_char {
     }
 }
 
-fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
+fn shada_filename(file: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> { let mut file = file.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_is_empty(file) {
             if !opt_vars().p_shadafile.is_null() && !crate::memory::cstr_is_empty(opt_vars().p_shadafile) {
@@ -3140,7 +3140,7 @@ fn shada_write(
 }
 
 /// Write ShaDa file to a given location (`shada_write_file`).
-pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> bool {
+pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bool) -> bool { let file = file.into_c_char_ptr();
     unsafe {
         let Some(fname_cstr) = shada_filename(file) else {
             return false;
@@ -3398,10 +3398,10 @@ pub fn shada_read_marks() -> bool {
 
 /// Read all information from ShaDa file (`shada_read_everything`).
 pub fn shada_read_everything(
-    fname: *const c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     forceit: bool,
     missing_ok: bool,
-) -> bool {
+) -> bool { let fname = fname.into_c_char_ptr();
     shada_read_file(
             fname,
             kShaDaWantInfo
@@ -4195,7 +4195,7 @@ fn shada_read_next_item(
     }
 }
 
-fn shada_removable(name: *const c_char) -> bool {
+fn shada_removable(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut part = [0 as c_char; MAXPATHL + 1];
         let mut retval = false;

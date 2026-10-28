@@ -18,11 +18,11 @@ pub struct UvLib {
 pub fn os_libcall(
     libname: impl crate::strings::IntoCCharPtr,
     funcname: impl crate::strings::IntoCCharPtr,
-    argv: *const c_char,
+    argv: impl crate::strings::IntoCCharPtr,
     argi: c_int,
     str_out: Option<&mut Option<CString>>,
     int_out: Option<&mut c_int>,
-) -> bool {
+) -> bool { let argv = argv.into_c_char_ptr();
     let funcname = funcname.into_c_char_ptr();
     let libname = libname.into_c_char_ptr();
     if libname.is_null() || funcname.is_null() {

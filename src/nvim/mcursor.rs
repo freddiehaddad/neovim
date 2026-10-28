@@ -866,7 +866,7 @@ fn mc_ins_preview_set(new_text: &NvimString) {
     }
 }
 
-fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
+fn mc_ins_keys_nonliteral(keys: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let keys = keys.into_c_char_ptr();
      {
         let mut i = 0;
         while i < len {
@@ -1468,12 +1468,12 @@ fn mc_zq_target(
 }
 
 fn mc_zq_first(
-    keys: *const c_char,
+    keys: impl crate::strings::IntoCCharPtr,
     search: bool,
     motion_type: c_int,
     bounds: *const pos_T,
     step: &mut pos_T,
-) -> bool {
+) -> bool { let keys = keys.into_c_char_ptr();
     unsafe {
         let start = *bounds;
         let end_bound = *bounds.add(1);
@@ -1530,12 +1530,12 @@ fn mc_zq_first(
 }
 
 fn mc_zq_run(
-    keys: *const c_char,
+    keys: impl crate::strings::IntoCCharPtr,
     search: bool,
     motion_type: c_int,
     end: pos_T,
     first: pos_T,
-) -> c_int {
+) -> c_int { let keys = keys.into_c_char_ptr();
      {
         let wrap = end.lnum == MAXLNUM;
         let mut wrapped = false;

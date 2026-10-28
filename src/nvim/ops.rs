@@ -676,11 +676,11 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
 
 fn block_insert(
     oap: &mut oparg_T,
-    s: *const c_char,
+    s: impl crate::strings::IntoCCharPtr,
     slen: usize,
     b_insert: bool,
     bdp: &mut block_def,
-) {
+) { let s = s.into_c_char_ptr();
     unsafe {
         let mut ts_val: c_int;
         let mut count: c_int = 0;
@@ -3031,12 +3031,12 @@ pub fn do_addsub(
 }
 
 fn line_count_info(
-    line: *const c_char,
+    line: impl crate::strings::IntoCCharPtr,
     wc: &mut varnumber_T,
     cc: &mut varnumber_T,
     limit: varnumber_T,
     eol_size: c_int,
-) -> varnumber_T {
+) -> varnumber_T { let line = line.into_c_char_ptr();
     unsafe {
         let mut i: varnumber_T = 0;
         let mut words: varnumber_T = 0;

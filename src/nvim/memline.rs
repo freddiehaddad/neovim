@@ -389,7 +389,7 @@ fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> *mut c_uint {
 
 
 #[inline]
-fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
+fn sb_push_cstr(sb: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) { let s = s.into_c_char_ptr();
     if !s.is_null() {
          {
             sb.extend_from_slice(crate::memory::cstr_as_bytes(s));
@@ -831,7 +831,7 @@ fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut buf_T) {
     }
 }
 
-fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: *const c_char) -> c_int {
+fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: impl crate::strings::IntoCCharPtr) -> c_int { let swap_fname = swap_fname.into_c_char_ptr();
     unsafe {
         let mut st = FileInfo::new();
         let mut uptime: f64 = 0.0;
@@ -1608,8 +1608,8 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut list_
 pub fn make_percent_swname(
     dir: *mut c_char,
     dir_end: *mut c_char,
-    name: *const c_char,
-) -> Option<std::ffi::CString> {
+    name: impl crate::strings::IntoCCharPtr,
+) -> Option<std::ffi::CString> { let name = name.into_c_char_ptr();
     unsafe {
         let fname = fix_fname(if !name.is_null() { name } else { c"".as_ptr() })?;
         let mut fname_vec: Vec<c_char> = fname
@@ -1655,7 +1655,7 @@ pub fn make_percent_swname(
 }
 
 /// For Vimscript `swapinfo()`.
-pub fn swapfile_dict(fname: *const c_char, d: &mut dict_T) {
+pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut dict_T) { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut b0 = ZeroBlock::new();
         let fd = os_open(fname, O_RDONLY, 0);
@@ -3313,7 +3313,7 @@ fn ml_lineadd(buf: &mut buf_T, count: c_int) {
 
 /// Resolve a symlink in the last component of a file name.
 #[cfg(unix)]
-pub fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> bool {
+pub fn resolve_symlink(fname: impl crate::strings::IntoCCharPtr, buf: *mut c_char) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut tmp = [0 as c_char; MAXPATHL];
         let mut depth: c_int = 0;
@@ -3833,7 +3833,7 @@ fn long_to_char(n: c_long, s_in: *mut c_char) {
 }
 
 #[inline]
-fn char_to_long(s_in: *const c_char) -> c_long {
+fn char_to_long(s_in: impl crate::strings::IntoCCharPtr) -> c_long { let s_in = s_in.into_c_char_ptr();
     unsafe {
         let s = s_in.cast::<u8>();
         let mut retval = c_long::from(*s.add(3));

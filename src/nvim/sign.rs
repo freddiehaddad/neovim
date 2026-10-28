@@ -122,7 +122,7 @@ const CMDS: [*const c_char; 7] = [
 ];
 
 #[inline]
-fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
+fn pmap_get_sign(name: impl crate::strings::IntoCCharPtr) -> *mut sign_T { let name = name.into_c_char_ptr();
     if name.is_null() {
         return ptr::null_mut();
     }
@@ -137,7 +137,7 @@ fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
 }
 
 #[inline]
-fn find_ns_by_name(group: *const c_char) -> c_int {
+fn find_ns_by_name(group: impl crate::strings::IntoCCharPtr) -> c_int { let group = group.into_c_char_ptr();
     if group.is_null() {
         return 0;
     }
@@ -150,7 +150,7 @@ fn find_ns_by_name(group: *const c_char) -> c_int {
     }
 }
 
-fn group_get_ns(group: *const c_char) -> i64 {
+fn group_get_ns(group: impl crate::strings::IntoCCharPtr) -> i64 { let group = group.into_c_char_ptr();
      {
         if group.is_null() {
             return 0;
@@ -615,7 +615,7 @@ fn sign_define_by_name(
     }
 }
 
-fn sign_undefine_by_name(name: *const c_char) -> bool {
+fn sign_undefine_by_name(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
      {
         let Some(pos) = sign_st().sign_map
             .iter()
@@ -883,10 +883,10 @@ fn sign_place_cmd(
 fn sign_unplace_cmd(
     mut buf: *mut buf_T,
     mut lnum: linenr_T,
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     id: c_int,
     group: *mut c_char,
-) {
+) { let name = name.into_c_char_ptr();
     unsafe {
         if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
             emsg(gettext(e_invarg));
@@ -907,10 +907,10 @@ fn sign_unplace_cmd(
 fn sign_jump_cmd(
     buf: Option<&mut buf_T>,
     lnum: linenr_T,
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     id: c_int,
     group: *mut c_char,
-) {
+) { let name = name.into_c_char_ptr();
      {
         if name.is_null() && group.is_null() && id == -1 {
             emsg(gettext(e_argreq));
@@ -1164,9 +1164,9 @@ fn sign_get_placed_in_buf(
     buf: &mut buf_T,
     lnum: linenr_T,
     sign_id: c_int,
-    group: *const c_char,
+    group: impl crate::strings::IntoCCharPtr,
     retlist: &mut list_T,
-) {
+) { let group = group.into_c_char_ptr();
     unsafe {
         let d = tv_dict_alloc();
         tv_list_append_dict( &mut *retlist, d);
@@ -1217,9 +1217,9 @@ fn sign_get_placed(
     buf: Option<&mut buf_T>,
     lnum: linenr_T,
     id: c_int,
-    group: *const c_char,
+    group: impl crate::strings::IntoCCharPtr,
     retlist: &mut list_T,
-) {
+) { let group = group.into_c_char_ptr();
     unsafe {
         if let Some(buf) = buf {
             sign_get_placed_in_buf( buf, lnum, id, group, retlist);

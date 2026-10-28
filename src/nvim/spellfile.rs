@@ -1399,7 +1399,7 @@ fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int {
     }
 }
 
-fn set_sofo(lp: &mut slang_T, from: *const c_char, to: *const c_char) -> c_int {
+fn set_sofo(lp: &mut slang_T, from: impl crate::strings::IntoCCharPtr, to: impl crate::strings::IntoCCharPtr) -> c_int { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
      {
         lp.sl_sal = Vec::new();
         lp.sl_sofo_sal = Vec::new();
@@ -2673,7 +2673,7 @@ fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
     }
 }
 
-fn spell_info_item(s: *const c_char) -> bool {
+fn spell_info_item(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_char_ptr();
      {
         crate::memory::cstr_as_bytes(s) == b"NAME"
             || crate::memory::cstr_as_bytes(s) == b"HOME"
@@ -2925,7 +2925,7 @@ fn add_fromto(
     }
 }
 
-fn sal_to_bool(s: *const c_char) -> bool {
+fn sal_to_bool(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_char_ptr();
      crate::memory::cstr_as_bytes(s) == b"1" || crate::memory::cstr_as_bytes(s) == b"true"
 }
 
@@ -3771,7 +3771,7 @@ fn wordtree_alloc(spin: &mut spellinfo_T) -> Option<usize> {
     Some(get_wordnode(spin))
 }
 
-fn valid_spell_word(word: *const c_char, end: *const c_char) -> bool {
+fn valid_spell_word(word: impl crate::strings::IntoCCharPtr, end: impl crate::strings::IntoCCharPtr) -> bool { let word = word.into_c_char_ptr(); let end = end.into_c_char_ptr();
     unsafe {
         if !utf_valid_string(word, end) {
             return false;
@@ -3792,9 +3792,9 @@ fn store_word(
     word: *mut c_char,
     flags: c_int,
     region: c_int,
-    pfxlist: *const c_char,
+    pfxlist: impl crate::strings::IntoCCharPtr,
     need_affix: bool,
-) -> bool {
+) -> bool { let pfxlist = pfxlist.into_c_char_ptr();
     unsafe {
         let len = crate::memory::cstr_len(word) as c_int;
         let ct = captype(word, word.offset(len as isize));
@@ -3851,12 +3851,12 @@ fn store_word(
 
 fn tree_add_word(
     spin: &mut spellinfo_T,
-    word: *const c_char,
+    word: impl crate::strings::IntoCCharPtr,
     root: Option<usize>,
     flags: c_int,
     region: c_int,
     affixID: c_int,
-) -> bool {
+) -> bool { let word = word.into_c_char_ptr();
      {
                 let mut node = root;
         let mut prev: Option<NodeSlot> = None;
@@ -5161,7 +5161,7 @@ fn mkspell(
     }
 }
 
-fn spell_message(spin: &spellinfo_T, str_: *const c_char) {
+fn spell_message(spin: &spellinfo_T, str_: impl crate::strings::IntoCCharPtr) { let str_ = str_.into_c_char_ptr();
      {
         if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
             if spin.si_verbose == 0 {
@@ -5469,7 +5469,7 @@ fn init_spellfile() {
     }
 }
 
-fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c_char) {
+fn set_spell_charflags(flags_in: impl crate::strings::IntoCCharPtr, cnt: c_int, fol: impl crate::strings::IntoCCharPtr) { let flags_in = flags_in.into_c_char_ptr(); let fol = fol.into_c_char_ptr();
     unsafe {
         let flags = flags_in.cast::<u8>();
         let mut new_st = spelltab_T::new();
@@ -5545,7 +5545,7 @@ fn write_spell_prefcond(
     }
 }
 
-fn set_map_str(lp: &mut slang_T, map: *const c_char) {
+fn set_map_str(lp: &mut slang_T, map: impl crate::strings::IntoCCharPtr) { let map = map.into_c_char_ptr();
      {
         let mut headc: c_int = 0;
 

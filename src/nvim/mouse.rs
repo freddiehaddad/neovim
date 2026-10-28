@@ -208,7 +208,7 @@ fn mouse_st() -> &'static mut MouseModuleState {
 /// 1: punctuation groups
 /// 2: normal word character
 /// >2: multi-byte word character.
-fn get_mouse_class(p: *const c_char) -> c_int {
+fn get_mouse_class(p: impl crate::strings::IntoCCharPtr) -> c_int { let p = p.into_c_char_ptr();
      {
         if utf8len_tab[crate::memory::cstr_first_byte(p) as usize] > 1 {
             return mb_get_class(p);

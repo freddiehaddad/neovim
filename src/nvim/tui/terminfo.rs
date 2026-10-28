@@ -2596,7 +2596,7 @@ fn get_env_str(name: &CStr) -> Option<String> {
     crate::os::env::os_getenv_cstr(name.as_ptr()).map(|c| c.to_string_lossy().into_owned())
 }
 
-fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
+fn unibi_from_term(termname: impl crate::strings::IntoCCharPtr) -> Option<UnibiTerm> { let termname = termname.into_c_char_ptr();
     if termname.is_null() {
         return None;
     }
@@ -2630,7 +2630,7 @@ fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
     unibi_from_dirs(UNIBI_TERMINFO_DIRS, term)
 }
 
-pub fn terminfo_is_term_family(term: *const c_char, family: &std::ffi::CStr) -> bool {
+pub fn terminfo_is_term_family(term: impl crate::strings::IntoCCharPtr, family: &std::ffi::CStr) -> bool { let term = term.into_c_char_ptr();
     if term.is_null() {
         return false;
     }
@@ -2645,7 +2645,7 @@ pub fn terminfo_is_term_family(term: *const c_char, family: &std::ffi::CStr) -> 
     }
 }
 
-pub fn terminfo_is_bsd_console(term: *const c_char) -> bool {
+pub fn terminfo_is_bsd_console(term: impl crate::strings::IntoCCharPtr) -> bool { let term = term.into_c_char_ptr();
     #[cfg(any(
         target_os = "freebsd",
         target_os = "netbsd",
@@ -2667,9 +2667,9 @@ pub fn terminfo_is_bsd_console(term: *const c_char) -> bool {
 }
 
 pub fn terminfo_from_builtin(
-    term: *const c_char,
+    term: impl crate::strings::IntoCCharPtr,
     termname: &mut Option<std::ffi::CString>,
-) -> TerminfoEntry {
+) -> TerminfoEntry { let term = term.into_c_char_ptr();
     if (crate::memory::cstr_as_opt_bytes(term) == Some(b"ghostty")) || (crate::memory::cstr_as_opt_bytes(term) == Some(b"xterm-ghostty")) {
             *termname = Some(c"ghostty".to_owned());
             GHOSTTY_TERMINFO.to_entry()
@@ -2727,7 +2727,7 @@ pub fn terminfo_from_builtin(
         }
 }
 
-pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: *const c_char) -> bool {
+pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: impl crate::strings::IntoCCharPtr) -> bool { let termname = termname.into_c_char_ptr();
      {
         let Some(ut) = unibi_from_term(termname) else {
             return false;
@@ -2910,7 +2910,7 @@ fn pop(num: *mut c_long, string: Option<&mut Option<[c_char; 8]>>, stack: &mut T
     }
 }
 
-fn ochar(buf: *mut *mut c_char, buf_end: *const c_char, mut c: c_int) -> bool {
+fn ochar(buf: *mut *mut c_char, buf_end: impl crate::strings::IntoCCharPtr, mut c: c_int) -> bool { let buf_end = buf_end.into_c_char_ptr();
     unsafe {
         if c == 0 {
             c = 0o200;
@@ -2926,11 +2926,11 @@ fn ochar(buf: *mut *mut c_char, buf_end: *const c_char, mut c: c_int) -> bool {
 
 fn onum(
     buf: *mut *mut c_char,
-    buf_end: *const c_char,
-    fmt: *const c_char,
+    buf_end: impl crate::strings::IntoCCharPtr,
+    fmt: impl crate::strings::IntoCCharPtr,
     num: c_int,
     mut len: usize,
-) -> bool {
+) -> bool { let buf_end = buf_end.into_c_char_ptr(); let fmt = fmt.into_c_char_ptr();
     const LONG_STR_MAX: usize = 21;
     len = len.max(LONG_STR_MAX);
 
@@ -2952,9 +2952,9 @@ fn onum(
 pub fn terminfo_fmt(
     buf_start: *mut c_char,
     buf_end: *mut c_char,
-    mut str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     params: *mut TPVAR,
-) -> usize {
+) -> usize { let mut str_ = str_.into_c_char_ptr();
     unsafe {
         let mut fmt = [0 as c_char; 64];
         let mut ostr: Option<[c_char; 8]> = None;

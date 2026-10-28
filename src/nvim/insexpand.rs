@@ -660,7 +660,7 @@ fn compl_pattern_len() -> usize {
 }
 
 #[inline]
-fn set_compl_pattern_bytes(ptr: *const c_char, len: usize) {
+fn set_compl_pattern_bytes(ptr: impl crate::strings::IntoCCharPtr, len: usize) { let ptr = ptr.into_c_char_ptr();
     unsafe {
         insexp().compl_pattern = Some(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
             ptr.cast::<u8>(),
@@ -677,7 +677,7 @@ fn decay_compl_timeout() {
 }
 
 /// Count the string of a new match in the duplicate-check hashtab.
-fn compl_strings_add(str_ptr: *const c_char, len: usize) {
+fn compl_strings_add(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let bytes = crate::memory::cstr_slice(str_ptr, len);
         let key_len = bytes.iter().position(|&b| b == 0).unwrap_or(len);
@@ -1002,12 +1002,12 @@ pub fn ins_compl_commit_char(c: c_int) -> bool {
 
 /// Get the completed text by inferring the case of the originally typed text.
 fn ins_compl_infercase_gettext(
-    str_ptr: *const c_char,
+    str_ptr: impl crate::strings::IntoCCharPtr,
     char_len: c_int,
     compl_char_len: c_int,
     min_len: c_int,
     tofree: &mut Vec<c_char>,
-) -> *mut c_char {
+) -> *mut c_char { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let mut has_lower = false;
 
@@ -1353,7 +1353,7 @@ fn ins_compl_add(
 }
 
 /// Check that "str[len]" matches with "match->cp_str", considering "match->cp_flags".
-fn ins_compl_equal(match_: &mut compl_T, str_ptr: *const c_char, len: usize) -> bool {
+fn ins_compl_equal(match_: &mut compl_T, str_ptr: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let str_ptr = str_ptr.into_c_char_ptr();
     if (match_.cp_flags & CP_EQUAL) != 0 {
             return true;
         }
@@ -1364,7 +1364,7 @@ fn ins_compl_equal(match_: &mut compl_T, str_ptr: *const c_char, len: usize) -> 
 }
 
 /// Like `ins_compl_equal()`, but ignore case in the `'longest'`-inserted part of the leader.
-fn ins_compl_equal_sc(match_: &mut compl_T, str_ptr: *const c_char, len: usize) -> bool {
+fn ins_compl_equal_sc(match_: &mut compl_T, str_ptr: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let typed = insexp().compl_length;
         let longest_end = if insexp().compl_get_longest && insexp().compl_longest_end_col > insexp().compl_col {
@@ -1398,7 +1398,7 @@ fn ins_compl_equal_sc(match_: &mut compl_T, str_ptr: *const c_char, len: usize) 
     }
 }
 
-fn ins_compl_insert_bytes(p: *const c_char, mut len: c_int) {
+fn ins_compl_insert_bytes(p: impl crate::strings::IntoCCharPtr, mut len: c_int) { let p = p.into_c_char_ptr();
      {
         if len == -1 {
             len = crate::memory::cstr_len(p) as c_int;
@@ -2204,8 +2204,8 @@ fn thesaurus_add_words_in_line(
     fname: *mut c_char,
     buf_arg: *mut *mut c_char,
     dir: c_int,
-    skip_word: *const c_char,
-) -> bool {
+    skip_word: impl crate::strings::IntoCCharPtr,
+) -> bool { let skip_word = skip_word.into_c_char_ptr();
     unsafe {
         let mut status = true;
         let mut ptr = *buf_arg;
@@ -2721,7 +2721,7 @@ fn ins_compl_restart() {
         insexp().compl_num_bests = 0;
 }
 
-fn ins_compl_set_original_text(str_ptr: *const c_char, len: usize) {
+fn ins_compl_set_original_text(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let Some(orig_idx) = find_original_text_match_idx() else {
             return;
@@ -3073,7 +3073,7 @@ pub fn ins_compl_prep(c: c_int) -> bool {
         retval
 }
 
-fn ins_compl_fixRedoBufForLeader(ptr_arg: *const c_char) {
+fn ins_compl_fixRedoBufForLeader(ptr_arg: impl crate::strings::IntoCCharPtr) { let ptr_arg = ptr_arg.into_c_char_ptr();
     unsafe {
         let mut len: usize = 0;
         let mut ptr = ptr_arg;
@@ -3383,7 +3383,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
 }
 
 #[inline]
-fn get_user_highlight_id(hlname: *const c_char) -> c_int {
+fn get_user_highlight_id(hlname: impl crate::strings::IntoCCharPtr) -> c_int { let hlname = hlname.into_c_char_ptr();
      {
         if !crate::memory::cstr_is_empty(hlname) {
             return syn_check_group(hlname, crate::memory::cstr_len(hlname));
@@ -3965,7 +3965,7 @@ fn thesaurus_func_complete(type_: c_int) -> bool {
     }
 }
 
-fn may_advance_cpt_index(cpt: *const c_char) -> bool {
+fn may_advance_cpt_index(cpt: impl crate::strings::IntoCCharPtr) -> bool { let cpt = cpt.into_c_char_ptr();
     unsafe {
         let mut p = cpt;
 
@@ -4238,7 +4238,7 @@ fn get_next_tag_completion() {
     }
 }
 
-fn ins_compl_longest_insert(prefix: *const c_char) {
+fn ins_compl_longest_insert(prefix: impl crate::strings::IntoCCharPtr) { let prefix = prefix.into_c_char_ptr();
     unsafe {
         ins_compl_delete(false);
         ins_compl_insert_bytes(prefix.add(get_compl_len() as usize), -1);
@@ -6678,7 +6678,7 @@ fn show_pum(prev_w_wrow: c_int, prev_w_leftcol: c_int) {
     }
 }
 
-fn quote_meta(mut dest: *mut c_char, mut src: *const c_char, mut len: c_int) -> c_uint {
+fn quote_meta(mut dest: *mut c_char, src: impl crate::strings::IntoCCharPtr, mut len: c_int) -> c_uint { let mut src = src.into_c_char_ptr();
     unsafe {
         let mut m = (len + 1) as c_uint;
 

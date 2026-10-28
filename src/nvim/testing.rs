@@ -116,7 +116,7 @@ fn ga_concat_esc(gap: &mut Vec<u8>, p: impl crate::strings::IntoCCharPtr, clen: 
     }
 }
 
-fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: *const c_char) {
+fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCCharPtr) { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         if str_ptr.is_null() {
             ga_concat_literal(gap, b"NULL");
@@ -149,10 +149,10 @@ fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: *const c_char) {
 
 fn fill_assert_error(
     gap: &mut Vec<u8>,opt_msg_tv: &mut typval_T,
-    exp_str: *const c_char,
+    exp_str: impl crate::strings::IntoCCharPtr,
     exp_tv_arg: *mut typval_T,got_tv_arg: &mut typval_T,
     atype: AssertType,
-) {
+) { let exp_str = exp_str.into_c_char_ptr();
     unsafe {
         let exp_tv = exp_tv_arg;
         let got_tv = got_tv_arg;
@@ -361,7 +361,7 @@ fn assert_bool(argvars: &mut [typval_T], is_true: bool) -> c_int {
     0
 }
 
-fn assert_append_cmd_or_arg(gap: &mut Vec<u8>,argvars: &mut [typval_T], cmd: *const c_char) {
+fn assert_append_cmd_or_arg(gap: &mut Vec<u8>,argvars: &mut [typval_T], cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_char_ptr();
      {
         if argvars[1].v_type != VarType::VAR_UNKNOWN
             && argvars[2].v_type != VarType::VAR_UNKNOWN

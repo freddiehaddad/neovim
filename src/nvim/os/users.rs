@@ -108,7 +108,7 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-fn add_user(users: &mut Vec<CString>, user: *const c_char) {
+fn add_user(users: &mut Vec<CString>, user: impl crate::strings::IntoCCharPtr) { let user = user.into_c_char_ptr();
     if user.is_null() || unsafe { *user == 0 } {
         return;
     }

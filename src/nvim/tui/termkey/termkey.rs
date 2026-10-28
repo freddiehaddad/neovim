@@ -798,7 +798,7 @@ pub fn termkey_getkey_force(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyRe
         ret
 }
 
-pub fn termkey_push_bytes(tk: &mut TermKey, bytes: *const c_char, mut len: usize) -> usize {
+pub fn termkey_push_bytes(tk: &mut TermKey, bytes: impl crate::strings::IntoCCharPtr, mut len: usize) -> usize { let bytes = bytes.into_c_char_ptr();
      {
         if tk.buffstart != 0 {
             let start = tk.buffstart;
@@ -858,10 +858,10 @@ pub fn termkey_get_keyname(tk: &TermKey, sym: TermKeySym) -> *const c_char {
 #[cfg(test)]
 fn termkey_lookup_keyname_format(
     tk: &TermKey,
-    str_in: *const c_char,
+    str_in: impl crate::strings::IntoCCharPtr,
     sym: &mut TermKeySym,
     format: TermKeyFormat,
-) -> *const c_char {
+) -> *const c_char { let str_in = str_in.into_c_char_ptr();
     unsafe {
         let keynames = &tk.keynames;
         *sym = 0;

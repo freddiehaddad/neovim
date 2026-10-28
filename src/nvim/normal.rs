@@ -2568,11 +2568,11 @@ pub fn restore_visual_mode() {
 }
 
 fn find_is_eval_item(
-    ptr: *const c_char,
+    ptr: impl crate::strings::IntoCCharPtr,
     colp: &mut c_int,
     bnp: &mut c_int,
     dir: c_int,
-) -> bool {
+) -> bool { let ptr = ptr.into_c_char_ptr();
     unsafe {
         if (crate::memory::cstr_first_byte(ptr) == b']' && dir == BACKWARD) || (crate::memory::cstr_first_byte(ptr) == b'[' && dir == FORWARD)
         {
@@ -3293,7 +3293,7 @@ fn nv_gd(oap: &mut oparg_T, nchar: c_int, thisblock: c_int) {
         }
 }
 
-fn is_ident(line: *const c_char, offset: c_int) -> bool {
+fn is_ident(line: impl crate::strings::IntoCCharPtr, offset: c_int) -> bool { let line = line.into_c_char_ptr();
      {
         let mut incomment = false;
         let mut instring: c_int = 0;

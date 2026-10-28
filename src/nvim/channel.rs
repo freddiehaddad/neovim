@@ -449,7 +449,7 @@ fn channel_destroy_early(chan: &mut Channel) {
 /// Starts a job and returns the associated channel.
 pub fn channel_job_start(
     argv: Vec<std::ffi::CString>,
-    exepath: *const c_char,
+    exepath: impl crate::strings::IntoCCharPtr,
     on_stdout: CallbackReader,
     on_stderr: CallbackReader,
     on_exit: Callback,
@@ -458,12 +458,12 @@ pub fn channel_job_start(
     overlapped: bool,
     detach: bool,
     stdin_mode: ChannelStdinMode,
-    cwd: *const c_char,
+    cwd: impl crate::strings::IntoCCharPtr,
     pty_width: u16,
     pty_height: u16,
     env: *mut dict_T,
     status_out: *mut varnumber_T,
-) -> *mut Channel {
+) -> *mut Channel { let exepath = exepath.into_c_char_ptr(); let cwd = cwd.into_c_char_ptr();
     unsafe {
         let chan = channel_alloc(kChannelStreamProc);
         (*chan).on_data = on_stdout;
@@ -607,12 +607,12 @@ pub fn channel_job_start(
 
 pub fn channel_connect(
     tcp: bool,
-    address: *const c_char,
+    address: impl crate::strings::IntoCCharPtr,
     rpc: bool,
     on_output: CallbackReader,
     timeout: c_int,
     error: *mut *const c_char,
-) -> u64 {
+) -> u64 { let address = address.into_c_char_ptr();
     unsafe {
         if !tcp && rpc && server_owns_pipe_address(address) {
             let channel = channel_alloc(kChannelStreamInternal);
@@ -785,7 +785,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
 }
 
 #[inline]
-fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
+fn buffer_to_tv_list(buf: impl crate::strings::IntoCCharPtr, len: usize) -> *mut list_T { let buf = buf.into_c_char_ptr();
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
         tv_list_append_string( &mut *l, c"", 0);
@@ -798,32 +798,32 @@ fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
 
 pub fn on_channel_data(
     stream: &mut RStream,
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     count: usize,
     chan: &mut Channel,
     eof: bool,
-) -> usize {
+) -> usize { let buf = buf.into_c_char_ptr();
     on_channel_output(stream, chan, buf, count, eof, false)
 }
 
 pub fn on_job_stderr(
     stream: &mut RStream,
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     count: usize,
     chan: &mut Channel,
     eof: bool,
-) -> usize {
+) -> usize { let buf = buf.into_c_char_ptr();
     on_channel_output(stream, chan, buf, count, eof, true)
 }
 
 fn on_channel_output(
     _stream: &mut RStream,
     chan: &mut Channel,
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     count: usize,
     eof: bool,
     is_stderr: bool,
-) -> usize {
+) -> usize { let buf = buf.into_c_char_ptr();
     unsafe {
         if !chan.term.is_null() {
             terminal_receive(&mut *chan.term, buf, count);
@@ -1053,7 +1053,7 @@ pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
     }
 }
 
-pub fn channel_term_write(buf: *const c_char, size: usize, chan: &mut Channel) {
+pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, chan: &mut Channel) { let buf = buf.into_c_char_ptr();
     unsafe {
         if chan.streamtype == kChannelStreamInternal {
             let internal = &raw mut chan.internal;

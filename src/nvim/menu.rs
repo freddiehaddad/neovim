@@ -200,7 +200,7 @@ fn menu_st() -> &'static mut MenuModuleState {
 use crate::eval::typval::tv_dict_len;
 
 /// Return true if `name` is a window toolbar menu name (`menu_is_winbar`).
-fn menu_is_winbar(name: *const c_char) -> bool {
+fn menu_is_winbar(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     crate::memory::cstr_prefix_bytes(name, 6) == &b"WinBar"[..6]
 }
 
@@ -418,11 +418,11 @@ pub fn ex_menu(eap: &mut exarg_T) {
 
 /// Add the menu with the given name to the menu hierarchy (`add_menu_path`).
 fn add_menu_path(
-    menu_path: *const c_char,
+    menu_path: impl crate::strings::IntoCCharPtr,
     menuarg: &mut vimmenu_T,
     pri_tab: *const c_int,
-    call_data: *const c_char,
-) -> bool {
+    call_data: impl crate::strings::IntoCCharPtr,
+) -> bool { let menu_path = menu_path.into_c_char_ptr(); let call_data = call_data.into_c_char_ptr();
     unsafe {
         let mut modes = menuarg.modes;
         let mut menu: *mut vimmenu_T = ptr::null_mut();
@@ -848,9 +848,9 @@ pub fn menu_get(path_name: *mut c_char, modes: c_int, list: &mut list_T) -> bool
 /// Find menu matching `path_name` and `modes` (`find_menu`).
 fn find_menu(
     mut menus: &mut [vimmenu_T],
-    path_name: *const c_char,
+    path_name: impl crate::strings::IntoCCharPtr,
     modes: c_int,
-) -> *mut vimmenu_T {
+) -> *mut vimmenu_T { let path_name = path_name.into_c_char_ptr();
     unsafe {
         debug_assert!(!crate::memory::cstr_is_empty(path_name));
         let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(path_name);
@@ -1249,7 +1249,7 @@ fn menu_name_skip(name: *mut c_char) -> *mut c_char {
 }
 
 /// Return true when `name` matches with menu `menu` (`menu_name_equal`).
-fn menu_name_equal(name: *const c_char, menu: &vimmenu_T) -> bool {
+fn menu_name_equal(name: impl crate::strings::IntoCCharPtr, menu: &vimmenu_T) -> bool { let name = name.into_c_char_ptr();
     if let Some(ref en_name) = menu.en_name
             && (menu_namecmp(name, en_name.as_ptr())
                 || menu
@@ -1262,7 +1262,7 @@ fn menu_name_equal(name: *const c_char, menu: &vimmenu_T) -> bool {
         menu_namecmp(name, menu.name.as_ptr()) || menu_namecmp(name, menu.dname.as_ptr())
 }
 
-fn menu_namecmp(name: *const c_char, mname: *const c_char) -> bool {
+fn menu_namecmp(name: impl crate::strings::IntoCCharPtr, mname: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr(); let mname = mname.into_c_char_ptr();
     unsafe {
         let mut i: usize = 0;
         while crate::memory::cstr_byte_at(name, i) != 0 && *name.add(i) != TAB {
@@ -1278,11 +1278,11 @@ fn menu_namecmp(name: *const c_char, mname: *const c_char) -> bool {
 
 /// Return the `MENU_MODES` specified by menu command `cmd` (`get_menu_cmd_modes`).
 pub fn get_menu_cmd_modes(
-    mut cmd: *const c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     forceit: bool,
     noremap: Option<&mut c_int>,
     unmenu: Option<&mut bool>,
-) -> c_int {
+) -> c_int { let mut cmd = cmd.into_c_char_ptr();
     unsafe {
         let first = *cmd;
         cmd = cmd.add(1);
@@ -1394,10 +1394,10 @@ fn popup_mode_name(name: *mut c_char, idx: usize) -> std::ffi::CString {
 
 /// Duplicate the menu item text and then process mnemonic key and accelerator text (`menu_text`).
 fn menu_text(
-    str: *const c_char,
+    str: impl crate::strings::IntoCCharPtr,
     mut mnemonic: Option<&mut c_int>,
     actext: Option<&mut Option<std::ffi::CString>>,
-) -> std::ffi::CString {
+) -> std::ffi::CString { let str = str.into_c_char_ptr();
     unsafe {
         let mut p = vim_strchr(str, c_int::from(TAB as u8));
         let mut text_vec: Vec<c_char> = if !p.is_null() {
@@ -1435,7 +1435,7 @@ fn menu_text(
 }
 
 /// Return true if `name` can be a menu in the MenuBar (`menu_is_menubar`).
-pub fn menu_is_menubar(name: *const c_char) -> bool {
+pub fn menu_is_menubar(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         !menu_is_popup(name)
             && !menu_is_toolbar(name)
@@ -1445,12 +1445,12 @@ pub fn menu_is_menubar(name: *const c_char) -> bool {
 }
 
 /// Return true if `name` is a popup menu name (`menu_is_popup`).
-pub fn menu_is_popup(name: *const c_char) -> bool {
+pub fn menu_is_popup(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     crate::memory::cstr_prefix_bytes(name, 5) == &b"PopUp"[..5]
 }
 
 /// Return true if `name` is a toolbar menu name (`menu_is_toolbar`).
-pub fn menu_is_toolbar(name: *const c_char) -> bool {
+pub fn menu_is_toolbar(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     crate::memory::cstr_prefix_bytes(name, 7) == &b"ToolBar"[..7]
 }
 
@@ -1708,7 +1708,7 @@ pub fn ex_emenu(eap: &mut exarg_T) {
 }
 
 /// Given a menu descriptor, e.g. `"File.New"`, find it in the menu hierarchy (`menu_find`).
-pub fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
+pub fn menu_find(path_name: impl crate::strings::IntoCCharPtr) -> *mut vimmenu_T { let path_name = path_name.into_c_char_ptr();
     unsafe {
         let mut menus = (&mut *get_root_menu(path_name)).as_mut_slice();
         let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(path_name);

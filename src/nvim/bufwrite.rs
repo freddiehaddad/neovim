@@ -587,7 +587,7 @@ fn buf_write_do_post_autocmds(
 }
 
 #[inline]
-fn set_err_num(num: &'static CStr, msg: *const c_char) -> Error_T {
+fn set_err_num(num: &'static CStr, msg: impl crate::strings::IntoCCharPtr) -> Error_T { let msg = msg.into_c_char_ptr();
      {
         Error_T {
             num: Some(num),
@@ -602,7 +602,7 @@ fn set_err_num(num: &'static CStr, msg: *const c_char) -> Error_T {
 }
 
 #[inline]
-fn set_err(msg: *const c_char) -> Error_T {
+fn set_err(msg: impl crate::strings::IntoCCharPtr) -> Error_T { let msg = msg.into_c_char_ptr();
      {
         Error_T {
             num: None,
@@ -632,7 +632,7 @@ fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: c_int) -> Error_T {
     }
 }
 
-fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
+fn emit_err(e: &mut Error_T, msg_id: impl crate::strings::IntoCCharPtr) { let msg_id = msg_id.into_c_char_ptr();
     unsafe {
         let mut errmsg = [0 as c_char; IOSIZE];
         let msg_ptr = e.msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());

@@ -18,7 +18,7 @@ use crate::message::msg_schedule_semsg_multiline;
 use crate::r#move::validate_botline_win;
 use crate::msgpack_rpc::packer::Integer;
 use crate::window::win_T;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_int;
 use std::ptr;
 
 pub(crate) const CB_MAX_ERROR: u8 = 3;
@@ -103,9 +103,9 @@ fn clear_ref(r: &mut LuaRef) {
 
 fn decor_provider_error(
     provider: &mut DecorProvider,
-    name: *const c_char,
-    msg: *const c_char,
-) {
+    name: impl crate::strings::IntoCCharPtr,
+    msg: impl crate::strings::IntoCCharPtr,
+) { let name = name.into_c_char_ptr(); let msg = msg.into_c_char_ptr();
     let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)");
         logmsg!(
             LOGLVL_ERR,

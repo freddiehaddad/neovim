@@ -272,7 +272,7 @@ macro_rules! smsg_keep {
 pub use smsg_keep;
 
 #[inline(never)]
-pub fn semsg_fmt(fmt: *const c_char, args: &[crate::strings::FmtVal]) -> bool {
+pub fn semsg_fmt(fmt: impl crate::strings::IntoCCharPtr, args: &[crate::strings::FmtVal]) -> bool { let fmt = fmt.into_c_char_ptr();
     if emsg_not_now() {
             return true;
         }
@@ -283,10 +283,10 @@ pub fn semsg_fmt(fmt: *const c_char, args: &[crate::strings::FmtVal]) -> bool {
 
 #[inline(never)]
 pub fn semsg_multiline_fmt(
-    kind: *const c_char,
-    fmt: *const c_char,
+    kind: impl crate::strings::IntoCCharPtr,
+    fmt: impl crate::strings::IntoCCharPtr,
     args: &[crate::strings::FmtVal],
-) -> bool {
+) -> bool { let kind = kind.into_c_char_ptr(); let fmt = fmt.into_c_char_ptr();
     if emsg_not_now() {
             return true;
         }
@@ -518,7 +518,7 @@ pub fn msg_grid_validate() {
 }
 
 /// Like msg() but keep it silent when 'verbosefile' is set.
-pub fn verb_msg(s: *const c_char) -> c_int {
+pub fn verb_msg(s: impl crate::strings::IntoCCharPtr) -> c_int { let s = s.into_c_char_ptr();
     verbose_enter();
         let n = c_int::from(msg_keep(s, 0, false, false));
         verbose_leave();
@@ -737,7 +737,7 @@ pub fn msg_multihl(
 }
 
 /// @param keep set keep_msg if it doesn't scroll
-pub fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline: bool) -> bool {
+pub fn msg_keep(s: impl crate::strings::IntoCCharPtr, hl_id: c_int, keep: bool, multiline: bool) -> bool { let mut s = s.into_c_char_ptr();
     unsafe {
         if keep && multiline {
             std::process::abort();
@@ -815,7 +815,7 @@ pub fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline: bool)
 /// Truncate a string such that it can be printed without causing a scroll.
 ///
 /// @param force  always truncate
-pub fn msg_strtrunc(s: *const c_char, force: c_int) -> Option<std::ffi::CString> {
+pub fn msg_strtrunc(s: impl crate::strings::IntoCCharPtr, force: c_int) -> Option<std::ffi::CString> { let s = s.into_c_char_ptr();
      {
         // May truncate message to avoid a hit-return prompt
         if (g_st().msg_scroll == 0
@@ -853,7 +853,7 @@ pub fn msg_strtrunc(s: *const c_char, force: c_int) -> Option<std::ffi::CString>
 
 /// Truncate a string "s" to "buf" with cell width "room".
 /// "s" and "buf" may be equal.
-pub fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: c_int) {
+pub fn trunc_string(s: impl crate::strings::IntoCCharPtr, buf: *mut c_char, room_in: c_int, buflen: c_int) { let s = s.into_c_char_ptr();
     unsafe {
         let mut room = room_in - 3; // "..." takes 3 chars
         let mut len: c_int = 0;
@@ -1048,11 +1048,11 @@ pub fn emsg_not_now() -> bool {
 }
 
 pub fn emsg_multiline(
-    s: *const c_char,
+    s: impl crate::strings::IntoCCharPtr,
     kind: impl crate::strings::IntoCCharPtr,
     hl_id: c_int,
     multiline: bool,
-) -> bool {
+) -> bool { let s = s.into_c_char_ptr();
     let kind = kind.into_c_char_ptr();
     unsafe {
         let mut ignore = false;
@@ -1240,7 +1240,7 @@ pub fn msg_semsg_event(s: std::ffi::CString) {
     emsg(s.as_ptr());
 }
 
-pub fn msg_schedule_semsg_cstr(s: *const c_char) {
+pub fn msg_schedule_semsg_cstr(s: impl crate::strings::IntoCCharPtr) { let s = s.into_c_char_ptr();
      {
         let dup = crate::memory::cstr_to_cstring(s);
         loop_schedule_deferred(&mut g_st().main_loop, Event::MsgSemsg(dup));
@@ -1251,7 +1251,7 @@ pub fn msg_semsg_multiline_event(s: std::ffi::CString) {
     emsg_multiline(s.as_ptr(), c"emsg", HLF_E, true);
 }
 
-pub fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
+pub fn msg_schedule_semsg_multiline_cstr(s: impl crate::strings::IntoCCharPtr) { let s = s.into_c_char_ptr();
      {
         let dup = crate::memory::cstr_to_cstring(s);
         loop_schedule_deferred(&mut g_st().main_loop, Event::MsgSemsgMultiline(dup));
@@ -1393,7 +1393,7 @@ pub fn msg_with_id(
 /// Add the message at the end of the history
 ///
 /// @param[in]  len  Length of s or -1.
-fn msg_hist_add(mut s: *const c_char, len: c_int, hl_id: c_int) {
+fn msg_hist_add(s: impl crate::strings::IntoCCharPtr, len: c_int, hl_id: c_int) { let mut s = s.into_c_char_ptr();
     unsafe {
         let mut size = if len < 0 {
             crate::memory::cstr_len(s)
@@ -1978,7 +1978,7 @@ fn hit_return_msg(newline_sb: bool) {
 }
 
 /// Set "keep_msg" to "s".  Free the old value and check for NULL pointer.
-pub fn set_keep_msg(s: *const c_char, hl_id: c_int) {
+pub fn set_keep_msg(s: impl crate::strings::IntoCCharPtr, hl_id: c_int) { let s = s.into_c_char_ptr();
      {
         if ui_has(kUIMessages) {
             return;
@@ -2166,11 +2166,11 @@ pub fn msg_outnum(n: c_int) {
         msg_puts(buf.as_ptr());
 }
 
-pub fn msg_home_replace(fname: *const c_char) {
+pub fn msg_home_replace(fname: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr();
     msg_home_replace_hl(fname, 0);
 }
 
-fn msg_home_replace_hl(fname: *const c_char, hl_id: c_int) {
+fn msg_home_replace_hl(fname: impl crate::strings::IntoCCharPtr, hl_id: c_int) { let fname = fname.into_c_char_ptr();
     let name = home_replace_save(None, fname);
         msg_outtrans(name.as_ptr(), hl_id, false);
 }
@@ -2192,11 +2192,11 @@ pub fn msg_outtrans(str_: impl crate::strings::IntoCCharPtr, hl_id: c_int, hist:
 }
 
 pub fn msg_outtrans_len(
-    msgstr: *const c_char,
+    msgstr: impl crate::strings::IntoCCharPtr,
     mut len: c_int,
     hl_id: c_int,
     hist: bool,
-) -> c_int {
+) -> c_int { let msgstr = msgstr.into_c_char_ptr();
     unsafe {
         let mut retval = 0;
         let mut str_ = msgstr;
@@ -2272,7 +2272,7 @@ pub fn msg_outtrans_len(
     }
 }
 
-pub fn msg_make(mut arg: *const c_char) {
+pub fn msg_make(arg: impl crate::strings::IntoCCharPtr) { let mut arg = arg.into_c_char_ptr();
     unsafe {
         const STR: &[u8; 6] = b"eeffoc";
         const RS: &[u8; 15] = b"Plon#dqg#vxjduB";
@@ -2297,7 +2297,7 @@ pub fn msg_make(mut arg: *const c_char) {
 
 /// Output the string 'str' up to a NUL character.
 /// Return the number of characters it takes on the screen.
-pub fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) -> c_int {
+pub fn msg_outtrans_special(strstart: impl crate::strings::IntoCCharPtr, from: bool, maxlen: c_int) -> c_int { let strstart = strstart.into_c_char_ptr();
     unsafe {
         if strstart.is_null() {
             return 0;
@@ -2338,10 +2338,10 @@ pub fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) 
 
 /// Convert string, replacing key codes with printables
 pub fn str2special_save(
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     replace_spaces: bool,
     replace_others: TriState,
-) -> std::ffi::CString {
+) -> std::ffi::CString { let str_ = str_.into_c_char_ptr();
      {
         let mut buf: Vec<u8> = Vec::with_capacity(40);
         let mut p = str_;
@@ -2357,11 +2357,11 @@ pub fn str2special_save(
 
 /// Convert string, replacing key codes with printables
 pub fn str2special_arena(
-    str_: *const c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     replace_spaces: bool,
     replace_others: TriState,
     arena: &mut Arena,
-) -> *mut c_char {
+) -> *mut c_char { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut p = str_;
         let mut len = 0usize;
@@ -2480,7 +2480,7 @@ pub fn str2special(
 }
 
 /// print line for :print or :list command
-pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
+pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) { let mut s = s.into_c_char_ptr();
     unsafe {
         let mut sc: schar_T;
         let mut col = 0;
@@ -2680,7 +2680,7 @@ pub fn msg_puts<S: crate::strings::IntoCCharPtr>(s: S) {
     msg_puts_hl(s.into_c_char_ptr(), 0, false);
 }
 
-pub fn msg_puts_title(mut s: *const c_char) {
+pub fn msg_puts_title(s: impl crate::strings::IntoCCharPtr) { let mut s = s.into_c_char_ptr();
     unsafe {
         if ui_has(kUIMessages) && *s == NL as c_char {
             s = s.add(1);
@@ -2692,7 +2692,7 @@ pub fn msg_puts_title(mut s: *const c_char) {
 /// Show a message in such a way that it always fits in the line.  Cut out a
 /// part in the middle and replace it with "..." when necessary.
 /// Does not handle multi-byte characters!
-pub fn msg_outtrans_long(longstr: *const c_char, hl_id: c_int) {
+pub fn msg_outtrans_long(longstr: impl crate::strings::IntoCCharPtr, hl_id: c_int) { let longstr = longstr.into_c_char_ptr();
     unsafe {
         let len = crate::memory::cstr_len(longstr) as c_int;
         let mut slen = len;
@@ -2993,7 +2993,7 @@ pub fn msg_cursor_goto(mut row: c_int, mut col: c_int) {
 
 /// @return  true when ":filter pattern" was used and "msg" does not match
 ///          "pattern".
-pub fn message_filtered(msg: *const c_char) -> bool {
+pub fn message_filtered(msg: impl crate::strings::IntoCCharPtr) -> bool { let msg = msg.into_c_char_ptr();
     if g_st().cmdmod.cmod_filter_regmatch.regprog.is_null() {
             return false;
         }
@@ -3173,11 +3173,11 @@ fn inc_msg_scrolled() {
 /// Store part of a printed message for displaying when scrolling back.
 fn store_sb_text(
     sb_str: *mut *const c_char,
-    s: *const c_char,
+    s: impl crate::strings::IntoCCharPtr,
     hl_id: c_int,
     sb_col: &mut c_int,
     finish: c_int,
-) {
+) { let s = s.into_c_char_ptr();
     unsafe {
         if msg_st().do_clear_sb_text == sb_clear_T::SB_CLEAR_ALL
             || msg_st().do_clear_sb_text == sb_clear_T::SB_CLEAR_CMDLINE_DONE
@@ -3339,7 +3339,7 @@ pub fn msg_use_printf() -> c_int {
 }
 
 /// Print a message when there is no valid screen.
-fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
+fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut s = str_;
         let mut buf = [0 as c_char; 7];
@@ -4017,7 +4017,7 @@ pub fn verbose_open() -> bool {
 
 /// Give a warning message (for searching).
 /// Use 'w' highlighting and may repeat the message after redrawing
-pub fn give_warning(message: *const c_char, hl: bool, hist: bool) {
+pub fn give_warning(message: impl crate::strings::IntoCCharPtr, hl: bool, hist: bool) { let message = message.into_c_char_ptr();
     if g_st().msg_silent != 0 {
             return;
         }

@@ -678,7 +678,7 @@ unsafe extern "C" {
 }
 
 #[inline]
-fn langs_has(lang_name: *const c_char) -> bool {
+fn langs_has(lang_name: impl crate::strings::IntoCCharPtr) -> bool { let lang_name = lang_name.into_c_char_ptr();
     if lang_name.is_null() {
         return false;
     }
@@ -688,7 +688,7 @@ fn langs_has(lang_name: *const c_char) -> bool {
 }
 
 #[inline]
-fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
+fn langs_get(lang_name: impl crate::strings::IntoCCharPtr) -> *mut TSLanguage { let lang_name = lang_name.into_c_char_ptr();
     if lang_name.is_null() {
         return ptr::null_mut();
     }
@@ -725,7 +725,7 @@ unsafe extern "C" {
 }
 
 #[cfg(target_os = "emscripten")]
-pub fn nvim_ts_get_parser(lang: *const c_char) -> *const TSLanguage {
+pub fn nvim_ts_get_parser(lang: impl crate::strings::IntoCCharPtr) -> *const TSLanguage { let lang = lang.into_c_char_ptr();
     if lang.is_null() {
         return ptr::null();
     }
@@ -746,10 +746,10 @@ pub fn nvim_ts_get_parser(lang: *const c_char) -> *const TSLanguage {
 
 fn load_language_from_object(
     L: *mut lua_State,
-    path: *const c_char,
-    lang_name: *const c_char,
-    symbol: *const c_char,
-) -> *const TSLanguage {
+    path: impl crate::strings::IntoCCharPtr,
+    lang_name: impl crate::strings::IntoCCharPtr,
+    symbol: impl crate::strings::IntoCCharPtr,
+) -> *const TSLanguage { let path = path.into_c_char_ptr(); let lang_name = lang_name.into_c_char_ptr(); let symbol = symbol.into_c_char_ptr();
     unsafe {
         #[cfg(target_os = "emscripten")]
         {
@@ -2247,12 +2247,12 @@ fn query_err_to_string(error_type: TSQueryError) -> *const c_char {
 }
 
 fn query_err_string(
-    src: *const c_char,
+    src: impl crate::strings::IntoCCharPtr,
     error_offset: c_int,
     error_type: TSQueryError,
     mut err_data: *mut c_char,
     mut err_size: usize,
-) {
+) { let src = src.into_c_char_ptr();
     unsafe {
         let mut line_start: c_int = 0;
         let mut row: c_int = 0;
@@ -2448,7 +2448,7 @@ unsafe extern "C-unwind" fn query_disable_pattern(L: *mut lua_State) -> c_int {
     }
 }
 
-fn build_meta(L: *mut lua_State, tname: *const c_char, meta: *const luaL_Reg) {
+fn build_meta(L: *mut lua_State, tname: impl crate::strings::IntoCCharPtr, meta: *const luaL_Reg) { let tname = tname.into_c_char_ptr();
     unsafe {
         if luaL_newmetatable(L, tname) != 0 {
             luaL_register(L, ptr::null(), meta);

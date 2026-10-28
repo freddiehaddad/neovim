@@ -213,10 +213,10 @@ pub fn os_ctime_r(
 /// # Safety
 /// `str_ptr`, `format`, and `tm` must be valid pointers.
 pub fn os_strptime(
-    str_ptr: *const c_char,
-    format: *const c_char,
+    str_ptr: impl crate::strings::IntoCCharPtr,
+    format: impl crate::strings::IntoCCharPtr,
     tm: *mut Tm,
-) -> *mut c_char {
+) -> *mut c_char { let str_ptr = str_ptr.into_c_char_ptr(); let format = format.into_c_char_ptr();
     #[cfg(unix)]
     unsafe {
         strptime(str_ptr, format, tm)

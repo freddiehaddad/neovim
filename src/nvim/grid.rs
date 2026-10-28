@@ -199,7 +199,7 @@ pub fn schar_from_str(str_: impl crate::strings::IntoCCharPtr) -> schar_T {
     }
 }
 
-pub fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
+pub fn schar_from_buf(buf: impl crate::strings::IntoCCharPtr, len: usize) -> schar_T { let buf = buf.into_c_char_ptr();
     unsafe {
         assert!(len < MAX_SCHAR_SIZE);
         if len <= 4 {
@@ -1480,10 +1480,10 @@ pub fn schar_invisible(sc: schar_T) -> bool {
 }
 
 pub fn schar_from_cluster_impl(
-    buf: *const c_char,
+    buf: impl crate::strings::IntoCCharPtr,
     mut len: usize,
     first_compose: bool,
-) -> schar_T {
+) -> schar_T { let buf = buf.into_c_char_ptr();
     unsafe {
         let maxlen = MAX_SCHAR_SIZE - 1 - usize::from(first_compose);
         if len > maxlen {

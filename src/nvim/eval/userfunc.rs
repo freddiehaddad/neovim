@@ -511,7 +511,7 @@ fn get_lambda_name() -> NvimString {
 }
 
 /// Allocate a `ufunc_T` for a function called `name`.
-fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
+fn alloc_ufunc(name: impl crate::strings::IntoCCharPtr, namelen: usize) -> *mut ufunc_T { let name = name.into_c_char_ptr();
     unsafe {
         let mut name_vec = Vec::with_capacity(namelen + 1);
         name_vec.extend_from_slice(std::slice::from_raw_parts(name, namelen));
@@ -672,12 +672,12 @@ pub fn get_lambda_tv(
 
 /// Return name of the function corresponding to `name`.
 pub fn deref_func_name(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     lenp: &mut c_int,
     partialp: *mut *mut partial_T,
     no_autoload: bool,
     found_var: Option<&mut bool>,
-) -> *mut c_char {
+) -> *mut c_char { let name = name.into_c_char_ptr();
     unsafe {
         if !partialp.is_null() {
             *partialp = ptr::null_mut();
@@ -783,11 +783,11 @@ fn get_func_arguments(
 
 /// Call a function and put the result in `rettv`.
 pub fn get_func_tv(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     len: c_int,rettv: &mut typval_T,
     arg: *mut *mut c_char,evalarg: Option<&mut evalarg_T>,
     funcexe: &mut funcexe_T,
-) -> bool {
+) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argcount: c_int = 0;
@@ -849,11 +849,11 @@ fn eval_fname_sid(name: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// In a script transform script-local names into actually used names.
 fn fname_trans_sid(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     fname_buf: *mut c_char,
     tofree: &mut Option<std::ffi::CString>,
     error: &mut c_int,
-) -> *mut c_char {
+) -> *mut c_char { let name = name.into_c_char_ptr();
     unsafe {
         let script_name = name.add(eval_fname_script(name) as usize);
         if script_name == name {
@@ -899,8 +899,8 @@ fn fname_trans_sid(
 }
 
 pub fn get_func_arity(
-    name: *const c_char,required: &mut c_int,optional: &mut c_int,varargs: &mut bool,
-) -> bool {
+    name: impl crate::strings::IntoCCharPtr,required: &mut c_int,optional: &mut c_int,varargs: &mut bool,
+) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let argcount: c_int;
         let min_argcount: c_int;
@@ -944,7 +944,7 @@ pub fn get_func_arity(
 }
 
 /// Find a function by name, return pointer to it in ufuncs.
-pub fn find_func(name: *const c_char) -> *mut ufunc_T {
+pub fn find_func(name: impl crate::strings::IntoCCharPtr) -> *mut ufunc_T { let name = name.into_c_char_ptr();
     if name.is_null() {
         return ptr::null_mut();
     }
@@ -1776,7 +1776,7 @@ pub fn callback_call_retnr(
         retval
 }
 
-fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
+fn user_func_error(error: c_int, name: impl crate::strings::IntoCCharPtr, found_var: bool) { let name = name.into_c_char_ptr();
     match error {
             FCERR_UNKNOWN => {
                 if found_var {
@@ -1833,12 +1833,12 @@ fn argv_add_base(
 
 /// Call a function with its resolved parameters.
 pub fn call_func(
-    mut funcname: *const c_char,
+    funcname: impl crate::strings::IntoCCharPtr,
     mut len: c_int,rettv: &mut typval_T,
     argcount_in: c_int,
     argvars_in: *mut typval_T,
     funcexe: &mut funcexe_T,
-) -> bool {
+) -> bool { let mut funcname = funcname.into_c_char_ptr();
     unsafe {
         let mut ret = false;
         let mut error = FCERR_NONE;
@@ -1997,10 +1997,10 @@ pub fn call_func(
 }
 
 pub fn call_simple_luafunc(
-    funcname: *const c_char,
+    funcname: impl crate::strings::IntoCCharPtr,
     len: usize,
     rettv: &mut typval_T,
-) -> c_int {
+) -> c_int { let funcname = funcname.into_c_char_ptr();
     rettv.v_type = VarType::VAR_NUMBER;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
@@ -2010,7 +2010,7 @@ pub fn call_simple_luafunc(
         OK
 }
 
-pub fn call_simple_func(funcname: *const c_char, len: usize, rettv: &mut typval_T) -> c_int {
+pub fn call_simple_func(funcname: impl crate::strings::IntoCCharPtr, len: usize, rettv: &mut typval_T) -> c_int { let funcname = funcname.into_c_char_ptr();
     unsafe {
         let mut ret = FAIL;
 
@@ -3239,7 +3239,7 @@ pub fn ex_function(eap: &mut exarg_T) {
 
 /// Return 5 if `p` starts with `<SID>` or `<SNR>` (ignoring case),
 /// 2 if `p` starts with `s:`, 0 otherwise.
-pub fn eval_fname_script(p: *const c_char) -> c_int {
+pub fn eval_fname_script(p: impl crate::strings::IntoCCharPtr) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(p) == b'<'
             && (mb_strnicmp(p.add(1), c"SID>", 4) == 0
@@ -3254,14 +3254,14 @@ pub fn eval_fname_script(p: *const c_char) -> c_int {
     }
 }
 
-pub fn translated_function_exists(name: *const c_char) -> bool {
+pub fn translated_function_exists(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     if builtin_function(name, -1) {
             return !find_internal_func(name).is_null();
         }
         !find_func(name).is_null()
 }
 
-pub fn function_exists(name: *const c_char, no_deref: bool) -> bool {
+pub fn function_exists(name: impl crate::strings::IntoCCharPtr, no_deref: bool) -> bool { let name = name.into_c_char_ptr();
      {
         let mut nm = name.cast_mut();
         let mut n = false;
@@ -4257,9 +4257,9 @@ pub fn get_current_funccal_dict(ht: *mut hashtab_T) -> *mut dict_T {
 }
 
 pub fn find_hi_in_scoped_ht(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     pht: *mut *mut hashtab_T,
-) -> *mut hashitem_T {
+) -> *mut hashitem_T { let name = name.into_c_char_ptr();
     unsafe {
         if uf_st().current_funccal.is_null() || (*(*uf_st().current_funccal).fc_func).uf_scoped.is_null() {
             return ptr::null_mut();
@@ -4292,10 +4292,10 @@ pub fn find_hi_in_scoped_ht(
 }
 
 pub fn find_var_in_scoped_ht(
-    name: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
     namelen: usize,
     no_autoload: c_int,
-) -> *mut dictitem_T {
+) -> *mut dictitem_T { let name = name.into_c_char_ptr();
     unsafe {
         if uf_st().current_funccal.is_null() || (*(*uf_st().current_funccal).fc_func).uf_scoped.is_null() {
             return ptr::null_mut();

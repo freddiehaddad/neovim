@@ -170,7 +170,7 @@ pub fn to_slash(p: *mut c_char) {
 }
 
 #[inline]
-pub fn to_slash_save(p: *const c_char) -> Option<std::ffi::CString> {
+pub fn to_slash_save(p: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> { let p = p.into_c_char_ptr();
     #[cfg(windows)]
     {
         path_to_slash_save(p)
@@ -187,7 +187,7 @@ pub fn to_slash_save(p: *const c_char) -> Option<std::ffi::CString> {
 
 #[cfg(windows)]
 #[inline]
-fn str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
+fn str_contains(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> bool { let haystack = haystack.into_c_char_ptr();
      {
         let bytes = crate::memory::cstr_as_bytes(haystack);
         bytes.windows(needle.len()).any(|w| w == needle)
@@ -323,7 +323,7 @@ pub fn path_next_component(fname: impl crate::strings::IntoCCharPtr) -> *const c
     }
 }
 
-pub fn path_skip_sep(mut path: *const c_char, colon: bool) -> *mut c_char {
+pub fn path_skip_sep(path: impl crate::strings::IntoCCharPtr, colon: bool) -> *mut c_char { let mut path = path.into_c_char_ptr();
     unsafe {
         while if colon {
             vim_ispathsep(*path as c_int)
@@ -347,7 +347,7 @@ pub fn path_head_length() -> c_int {
     }
 }
 
-pub fn is_path_head(path: *const c_char) -> bool {
+pub fn is_path_head(path: impl crate::strings::IntoCCharPtr) -> bool { let path = path.into_c_char_ptr();
     #[cfg(windows)]
      {
         (crate::memory::cstr_first_byte(path)).is_ascii_alphabetic() && crate::memory::cstr_byte_at(path, 1) == b':'
@@ -358,7 +358,7 @@ pub fn is_path_head(path: *const c_char) -> bool {
     }
 }
 
-pub fn get_past_head(path: *const c_char) -> *mut c_char {
+pub fn get_past_head(path: impl crate::strings::IntoCCharPtr) -> *mut c_char { let path = path.into_c_char_ptr();
     #[cfg(windows)]
     let mut retval = path;
     #[cfg(not(windows))]
@@ -468,11 +468,11 @@ pub fn dir_of_file_exists(fname: *mut c_char) -> bool {
 fn do_concat_fnames(
     fname1: *mut c_char,
     len1: usize,
-    fname2: *const c_char,
+    fname2: impl crate::strings::IntoCCharPtr,
     len2: usize,
     sep: bool,
     len: &mut usize,
-) -> *mut c_char {
+) -> *mut c_char { let fname2 = fname2.into_c_char_ptr();
     unsafe {
         if sep && !crate::memory::cstr_is_empty(fname1) && after_pathsep(fname1, fname1.add(len1)) == 0 {
             *fname1.add(len1) = PATHSEP;
@@ -515,10 +515,10 @@ pub fn concat_fnames(
 }
 
 pub fn concat_fnames_cstr(
-    fname1: *const c_char,
+    fname1: impl crate::strings::IntoCCharPtr,
     fname2: impl crate::strings::IntoCCharPtr,
     sep: bool,
-) -> std::ffi::CString {
+) -> std::ffi::CString { let fname1 = fname1.into_c_char_ptr();
     let fname2 = fname2.into_c_char_ptr();
     unsafe {
         let len1 = if fname1.is_null() {
@@ -574,7 +574,7 @@ pub fn add_pathsep(p: *mut c_char) -> bool {
     }
 }
 
-pub fn FullName_save(fname: *const c_char, force: bool) -> Option<std::ffi::CString> {
+pub fn FullName_save(fname: impl crate::strings::IntoCCharPtr, force: bool) -> Option<std::ffi::CString> { let fname = fname.into_c_char_ptr();
     if fname.is_null() {
         return None;
     }
@@ -586,14 +586,14 @@ pub fn FullName_save(fname: *const c_char, force: bool) -> Option<std::ffi::CStr
         Some(cstr_to_cstring(buf.as_ptr()))
 }
 
-pub fn save_abs_path(name: *const c_char) -> Option<std::ffi::CString> {
+pub fn save_abs_path(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> { let name = name.into_c_char_ptr();
     if !path_is_absolute(name) {
             return FullName_save(name, true);
         }
         to_slash_save(name)
 }
 
-pub fn path_has_wildcard(mut p: *const c_char, all: bool) -> bool {
+pub fn path_has_wildcard(p: impl crate::strings::IntoCCharPtr, all: bool) -> bool { let mut p = p.into_c_char_ptr();
     unsafe {
         let wildcards = if all {
             PATH_ALL_WILDCARDS
@@ -636,19 +636,19 @@ fn scandir_next_with_dots(dir: Option<&mut Directory>) -> *const c_char {
 
 fn path_expand(
     gap: &mut Vec<std::ffi::CString>,
-    path: *const c_char,
+    path: impl crate::strings::IntoCCharPtr,
     flags: c_int,
-) -> usize {
+) -> usize { let path = path.into_c_char_ptr();
     do_path_expand(gap, path, 0, flags, false)
 }
 
 fn do_path_expand(
     gap: &mut Vec<std::ffi::CString>,
-    path: *const c_char,
+    path: impl crate::strings::IntoCCharPtr,
     wildoff: usize,
     flags: c_int,
     didstar: bool,
-) -> usize {
+) -> usize { let path = path.into_c_char_ptr();
     unsafe {
         let start_len = gap.len();
         let mut starstar = false;
@@ -1129,7 +1129,7 @@ fn uniquefy_paths(
     }
 }
 
-pub fn gettail_dir(fname: *const c_char) -> *const c_char {
+pub fn gettail_dir(fname: impl crate::strings::IntoCCharPtr) -> *const c_char { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut dir_end = fname;
         let mut next_dir_end = fname;
@@ -1208,7 +1208,7 @@ fn expand_in_path(
     }
 }
 
-fn has_env_var(mut p: *const c_char) -> bool {
+fn has_env_var(p: impl crate::strings::IntoCCharPtr) -> bool { let mut p = p.into_c_char_ptr();
     unsafe {
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0 {
@@ -1225,7 +1225,7 @@ fn has_env_var(mut p: *const c_char) -> bool {
 }
 
 #[cfg(unix)]
-fn has_special_wildchar(mut p: *const c_char, flags: c_int) -> bool {
+fn has_special_wildchar(p: impl crate::strings::IntoCCharPtr, flags: c_int) -> bool { let mut p = p.into_c_char_ptr();
     unsafe {
         while !crate::memory::cstr_is_empty(p) {
             if crate::memory::cstr_first_byte(p) == b'\r' || crate::memory::cstr_first_byte(p) == b'\n' {
@@ -1417,7 +1417,7 @@ pub fn expand_wildcards_vec(
     }
 }
 
-fn vim_backtick(p: *const c_char) -> bool {
+fn vim_backtick(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_char_ptr();
      {
         if crate::memory::cstr_first_byte(p) != b'`' || crate::memory::cstr_byte_at(p, 1) == 0 {
             return false;
@@ -1529,7 +1529,7 @@ pub fn path_to_slash(p: *mut c_char) -> *mut c_char {
 }
 
 #[cfg(windows)]
-pub fn path_to_slash_save(p: *const c_char) -> Option<std::ffi::CString> {
+pub fn path_to_slash_save(p: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> { let p = p.into_c_char_ptr();
     if p.is_null() {
         None
     } else {
@@ -1729,7 +1729,7 @@ pub fn simplify_filename(filename: *mut c_char) -> usize {
     }
 }
 
-pub fn path_has_drive_letter(p: *const c_char, path_len: usize) -> bool {
+pub fn path_has_drive_letter(p: impl crate::strings::IntoCCharPtr, path_len: usize) -> bool { let p = p.into_c_char_ptr();
      {
         path_len >= 2
             && (crate::memory::cstr_first_byte(p)).is_ascii_alphabetic()
@@ -1741,7 +1741,7 @@ pub fn path_has_drive_letter(p: *const c_char, path_len: usize) -> bool {
     }
 }
 
-pub fn path_is_url(p: *const c_char) -> c_int {
+pub fn path_is_url(p: impl crate::strings::IntoCCharPtr) -> c_int { let p = p.into_c_char_ptr();
      {
         if crate::memory::cstr_first_byte(p) == b':' && crate::memory::cstr_byte_at(p, 1) == b'/' {
             URL_SLASH
@@ -1796,7 +1796,7 @@ pub fn path_with_extension(path: impl crate::strings::IntoCCharPtr, extension: &
     }
 }
 
-pub fn vim_isAbsName(name: *const c_char) -> bool {
+pub fn vim_isAbsName(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     path_with_url(name) != 0 || path_is_absolute(name)
 }
 
@@ -1833,7 +1833,7 @@ pub fn vim_FullName(
     }
 }
 
-pub fn fix_fname(fname: *const c_char) -> Option<std::ffi::CString> {
+pub fn fix_fname(fname: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> { let fname = fname.into_c_char_ptr();
     #[cfg(unix)]
     {
         FullName_save(fname, true)
@@ -1914,7 +1914,7 @@ pub fn path_fix_case(name: *mut c_char) {
     }
 }
 
-pub fn after_pathsep(b: *const c_char, p: *const c_char) -> c_int {
+pub fn after_pathsep(b: impl crate::strings::IntoCCharPtr, p: impl crate::strings::IntoCCharPtr) -> c_int { let b = b.into_c_char_ptr(); let p = p.into_c_char_ptr();
     unsafe {
         c_int::from(p > b && vim_ispathsep(*p.sub(1) as c_int) && utf_head_off(b, p.sub(1)) == 0)
     }
@@ -1936,7 +1936,7 @@ pub fn same_directory(f1: *mut c_char, f2: *mut c_char) -> bool {
     }
 }
 
-pub fn path_fold_char(ic: bool, p: *const c_char, len: &mut c_int) -> c_int {
+pub fn path_fold_char(ic: bool, p: impl crate::strings::IntoCCharPtr, len: &mut c_int) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         if vim_ispathsep_nocolon(*p as c_int) {
             *len = 1;
@@ -2222,11 +2222,11 @@ pub fn append_path(path: *mut c_char, to_append: impl crate::strings::IntoCCharP
 }
 
 fn path_to_absolute(
-    fname: *const c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     buf: *mut c_char,
     len: usize,
     force: c_int,
-) -> bool {
+) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         *buf = NUL;
         let mut rel_dir_vec = vec![0 as c_char; len];

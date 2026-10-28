@@ -25,9 +25,9 @@ pub(crate) const K_BOOL_VAR_TRUE: i64 = 1;
 fn cbuf_to_string_obj(
     arena: Option<&mut Arena>,
     reuse_strdata: bool,
-    data: *const c_char,
+    data: impl crate::strings::IntoCCharPtr,
     len: usize,
-) -> Object {
+) -> Object { let data = data.into_c_char_ptr();
     let ptr = if len == 0 || data.is_null() {
         c"".as_ptr()
     } else {

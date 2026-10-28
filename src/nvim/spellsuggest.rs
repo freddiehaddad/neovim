@@ -400,7 +400,7 @@ fn sug_max_count(su: &suginfo_T) -> c_int {
 }
 
 #[inline]
-fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
+fn mb_cptr_back(s: impl crate::strings::IntoCCharPtr, p: &mut *const c_char) { let s = s.into_c_char_ptr();
     unsafe {
         let off = utf_head_off(s, (*p).sub(1)) + 1;
         *p = (*p).sub(off as usize);
@@ -408,7 +408,7 @@ fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
 }
 
 #[inline]
-fn was_banned(su: &mut suginfo_T, word: *const c_char) -> bool {
+fn was_banned(su: &mut suginfo_T, word: impl crate::strings::IntoCCharPtr) -> bool { let word = word.into_c_char_ptr();
      {
         su
             .su_banned
@@ -450,9 +450,9 @@ fn can_be_compound(
 fn score_wordcount_adj(
     slang: &mut slang_T,
     score: c_int,
-    word: *const c_char,
+    word: impl crate::strings::IntoCCharPtr,
     split: bool,
-) -> c_int {
+) -> c_int { let word = word.into_c_char_ptr();
      {
         let Some(&wc_count) = slang
             .sl_wordcount
@@ -541,10 +541,10 @@ fn bytes2offset(pp: *mut *mut c_char) -> c_int {
 }
 /// Parse 'spellsuggest' without changing suggestion state.
 pub fn spell_check_sps(
-    value: *const c_char,
+    value: impl crate::strings::IntoCCharPtr,
     ret_flags: &mut c_int,
     ret_limit: &mut c_int,
-) -> bool {
+) -> bool { let value = value.into_c_char_ptr();
     unsafe {
         let mut flags: c_int = 0;
         let mut limit: c_int = 9999;
@@ -2737,14 +2737,14 @@ fn similar_chars(slang: &mut slang_T, c1: c_int, c2: c_int) -> bool {
 fn add_suggestion(
     su: &mut suginfo_T,
     use_sga: bool,
-    goodword: *const c_char,
+    goodword: impl crate::strings::IntoCCharPtr,
     badlenarg: c_int,
     score: c_int,
     altscore: c_int,
     had_bonus: bool,
     slang: *mut slang_T,
     maxsf: bool,
-) {
+) { let goodword = goodword.into_c_char_ptr();
     unsafe {
         let mut goodlen: c_int;
         let mut badlen: c_int;
@@ -2866,7 +2866,7 @@ fn check_suggestions(su: &mut suginfo_T, use_sga: bool) {
         }
     }
 }
-fn add_banned(su: &mut suginfo_T, word: *const c_char) {
+fn add_banned(su: &mut suginfo_T, word: impl crate::strings::IntoCCharPtr) { let word = word.into_c_char_ptr();
      {
         let word_bytes = crate::memory::cstr_as_bytes(word);
         if !su.su_banned.contains(word_bytes) {
@@ -3085,9 +3085,9 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
 }
 fn spell_edit_score(
     mut slang: Option<&mut slang_T>,
-    badword: *const c_char,
-    goodword: *const c_char,
-) -> c_int {
+    badword: impl crate::strings::IntoCCharPtr,
+    goodword: impl crate::strings::IntoCCharPtr,
+) -> c_int { let badword = badword.into_c_char_ptr(); let goodword = goodword.into_c_char_ptr();
      {
         let mut wbadword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut wgoodword: [c_int; MAXWLEN] = [0; MAXWLEN];
@@ -3161,10 +3161,10 @@ fn spell_edit_score_limit(
 }
 fn spell_edit_score_limit_w(
     mut slang: Option<&mut slang_T>,
-    badword: *const c_char,
-    goodword: *const c_char,
+    badword: impl crate::strings::IntoCCharPtr,
+    goodword: impl crate::strings::IntoCCharPtr,
     limit: c_int,
-) -> c_int {
+) -> c_int { let badword = badword.into_c_char_ptr(); let goodword = goodword.into_c_char_ptr();
      {
         let mut stack: [limitscore_T; 10] = [limitscore_T::default(); 10];
         let mut wbadword: [c_int; MAXWLEN] = [0; MAXWLEN];

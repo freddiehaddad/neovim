@@ -8,11 +8,11 @@ use crate::lua::converter::{
 };
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 use crate::message::{semsg, smsg};
-use std::ffi::{CString, c_char};
+use std::ffi::CString;
 
 use crate::ex_docmd::exarg_T;
 
-fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
+fn nlua_trust(action: impl crate::strings::IntoCCharPtr, path: impl crate::strings::IntoCCharPtr) -> bool { let action = action.into_c_char_ptr(); let path = path.into_c_char_ptr();
     unsafe {
         let lstate = get_global_lstate();
         let top = lua_gettop(lstate);

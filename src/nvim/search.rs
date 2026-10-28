@@ -333,7 +333,7 @@ const fn getfile_success(x: c_int) -> bool {
     x <= 0
 }
 
-fn find_substr(haystack: *const c_char, needle: &[u8]) -> bool {
+fn find_substr(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> bool { let haystack = haystack.into_c_char_ptr();
      {
         let bytes = crate::memory::cstr_as_bytes(haystack);
         bytes.windows(needle.len()).any(|w| w == needle)
@@ -640,7 +640,7 @@ pub fn reset_search_dir() {
         set_vv_searchforward();
 }
 
-pub fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, setlast: bool) {
+pub fn set_last_search_pat(s: impl crate::strings::IntoCCharPtr, idx: c_int, magic: c_int, setlast: bool) { let s = s.into_c_char_ptr();
      {
         let i = idx as usize;
         free_spat(&mut srch().spats[i]);

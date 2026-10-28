@@ -1369,7 +1369,7 @@ pub fn f_pathshorten(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 }
 
 /// Evaluate "expr" (= "context") for readdir().
-pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> varnumber_T {
+pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: impl crate::strings::IntoCCharPtr) -> varnumber_T { let name = name.into_c_char_ptr();
     let tv_init = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: VAR_UNLOCKED,
@@ -1960,7 +1960,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&list_T>, binary: bool) -> b
 }
 
 /// Write a blob to file with descriptor `fp`.
-fn write_data(fp: &mut FileDescriptor, data: *const c_char, len: usize) -> bool {
+fn write_data(fp: &mut FileDescriptor, data: impl crate::strings::IntoCCharPtr, len: usize) -> bool { let data = data.into_c_char_ptr();
     unsafe {
         if len > 0 {
             let written = file_write(fp, data, len);

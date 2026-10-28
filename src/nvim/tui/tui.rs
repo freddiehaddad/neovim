@@ -360,7 +360,7 @@ fn tui_startup_delay_timer(tui: &mut TUIData) -> *mut uv_timer_t {
 }
 
 #[inline]
-fn cstr_contains(haystack: *const c_char, needle: &[u8]) -> bool {
+fn cstr_contains(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> bool { let haystack = haystack.into_c_char_ptr();
     if haystack.is_null() {
         return false;
     }
@@ -1496,7 +1496,7 @@ fn final_column_wrap(tui: &mut TUIData) {
     }
 }
 
-fn print_cell(tui: &mut TUIData, buf: *const c_char, attr: sattr_T) {
+fn print_cell(tui: &mut TUIData, buf: impl crate::strings::IntoCCharPtr, attr: sattr_T) { let buf = buf.into_c_char_ptr();
      {
         if !tui.immediate_wrap_after_last_column {
             final_column_wrap(tui);
@@ -1768,7 +1768,7 @@ pub fn tui_grid_cursor_goto(tui: &mut TUIData, _grid: Integer, row: Integer, col
     tui.col = col as c_int;
 }
 
-fn tui_cursor_decode_shape(shape_str: *const c_char) -> CursorShape {
+fn tui_cursor_decode_shape(shape_str: impl crate::strings::IntoCCharPtr) -> CursorShape { let shape_str = shape_str.into_c_char_ptr();
     if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"block") {
             CursorShape::SHAPE_BLOCK
         } else if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"vertical") {
@@ -2009,7 +2009,7 @@ pub fn tui_grid_scroll(
         }
 }
 
-pub fn tui_add_url(_tui: &mut TUIData, url: *const c_char) -> i32 {
+pub fn tui_add_url(_tui: &mut TUIData, url: impl crate::strings::IntoCCharPtr) -> i32 { let url = url.into_c_char_ptr();
     unsafe {
         if url.is_null() {
             return -1;
@@ -2700,7 +2700,7 @@ fn terminfo_set_str(tui: &mut TUIData, str_: TerminfoDef, val: &'static CStr) {
     tui.ti.defs[str_] = Some(std::borrow::Cow::Borrowed(val));
 }
 
-fn term_has_truecolor(tui: &mut TUIData, colorterm: *const c_char) -> bool {
+fn term_has_truecolor(tui: &mut TUIData, colorterm: impl crate::strings::IntoCCharPtr) -> bool { let colorterm = colorterm.into_c_char_ptr();
     if (crate::memory::cstr_as_opt_bytes(colorterm) == Some(b"truecolor")) || (crate::memory::cstr_as_opt_bytes(colorterm) == Some(b"24bit")) {
             return true;
         }
@@ -2715,13 +2715,13 @@ fn term_has_truecolor(tui: &mut TUIData, colorterm: *const c_char) -> bool {
 
 fn patch_terminfo_bugs(
     tui: &mut TUIData,
-    term: *const c_char,
-    colorterm: *const c_char,
+    term: impl crate::strings::IntoCCharPtr,
+    colorterm: impl crate::strings::IntoCCharPtr,
     vte_version: c_int,
     konsolev: c_int,
     iterm_env: bool,
     nsterm: bool,
-) {
+) { let term = term.into_c_char_ptr(); let colorterm = colorterm.into_c_char_ptr();
     let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION");
         let xterm_version = xterm_version_cstr
             .as_ref()
@@ -2896,13 +2896,13 @@ fn patch_terminfo_bugs(
 
 fn augment_terminfo(
     tui: &mut TUIData,
-    term: *const c_char,
+    term: impl crate::strings::IntoCCharPtr,
     vte_version: c_int,
     konsolev: c_int,
-    weztermv: *const c_char,
+    weztermv: impl crate::strings::IntoCCharPtr,
     iterm_env: bool,
     nsterm: bool,
-) {
+) { let term = term.into_c_char_ptr(); let weztermv = weztermv.into_c_char_ptr();
      {
         let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION");
         let xterm_version = xterm_version_cstr
@@ -3189,10 +3189,10 @@ fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
 }
 
 pub(crate) fn tui_tk_ti_getstr(
-    name: *const c_char,
-    value: *const c_char,
+    name: impl crate::strings::IntoCCharPtr,
+    value: impl crate::strings::IntoCCharPtr,
     input: &mut TermInput,
-) -> *const c_char {
+) -> *const c_char { let name = name.into_c_char_ptr(); let value = value.into_c_char_ptr();
     unsafe {
         if tui_st().stty_erase_ptr.is_null() {
             tui_st().stty_erase_ptr = tui_get_stty_erase(input);

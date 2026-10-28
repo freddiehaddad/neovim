@@ -681,7 +681,7 @@ pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
 }
 
 /// Prepare for redo of a Visual-mode command.
-pub fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
+pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spec: CmdSpec) { let keys = keys.into_c_char_ptr();
     unsafe {
         let mut stored = spec.without_body();
         stored.regname = 0;
@@ -742,7 +742,7 @@ pub fn redo_append_str<S: crate::strings::IntoCCharPtr>(s: S, len: isize) {
 }
 
 /// Appends `str` to `buf` literally, escaping special characters with CTRL-V.
-pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int) {
+pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: impl crate::strings::IntoCCharPtr, len: c_int) { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut s = str_;
         while if len < 0 {
@@ -788,7 +788,7 @@ pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int) {
 }
 
 /// Append to redo literally; no-op if `inp_st().block_redo` is set.
-pub fn redo_append_lit(str_: *const c_char, len: c_int) {
+pub fn redo_append_lit(str_: impl crate::strings::IntoCCharPtr, len: c_int) { let str_ = str_.into_c_char_ptr();
      {
         if inp_st().block_redo {
             return;
@@ -798,7 +798,7 @@ pub fn redo_append_lit(str_: *const c_char, len: c_int) {
 }
 
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
-pub fn sb_add_spec(buf: &mut Vec<c_char>, mut s: *const c_char) {
+pub fn sb_add_spec(buf: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) { let mut s = s.into_c_char_ptr();
     unsafe {
         while !crate::memory::cstr_is_empty(s) {
             if crate::memory::cstr_first_byte(s) == K_SPECIAL && crate::memory::cstr_byte_at(s, 1) != 0 && crate::memory::cstr_byte_at(s, 2) != 0 {
@@ -813,7 +813,7 @@ pub fn sb_add_spec(buf: &mut Vec<c_char>, mut s: *const c_char) {
 }
 
 /// Append `s` to the redo buffer.
-pub fn redo_append_spec(s: *const c_char) {
+pub fn redo_append_spec(s: impl crate::strings::IntoCCharPtr) { let s = s.into_c_char_ptr();
      {
         if inp_st().block_redo {
             return;
@@ -853,7 +853,7 @@ pub fn stuffReadbuffLen(s: impl crate::strings::IntoCCharPtr, len: isize) {
 }
 
 /// Stuff `s` into the stuff buffer, leaving special key codes unmodified.
-pub fn stuffReadbuffSpecial(mut s: *const c_char) {
+pub fn stuffReadbuffSpecial(s: impl crate::strings::IntoCCharPtr) { let mut s = s.into_c_char_ptr();
     unsafe {
         while !crate::memory::cstr_is_empty(s) {
             if crate::memory::cstr_first_byte(s) == K_SPECIAL && crate::memory::cstr_byte_at(s, 1) != 0 && crate::memory::cstr_byte_at(s, 2) != 0 {
@@ -881,7 +881,7 @@ pub fn stuffnumReadbuff(n: c_int) {
 }
 
 /// Stuff a string into the typeahead buffer.
-pub fn stuffescaped(mut arg: *const c_char, literally: bool) {
+pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) { let mut arg = arg.into_c_char_ptr();
     unsafe {
         while !crate::memory::cstr_is_empty(arg) {
             let start = arg;

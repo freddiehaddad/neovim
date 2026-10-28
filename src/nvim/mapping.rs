@@ -473,14 +473,14 @@ fn showmap(mp: &mapblock_T, local: bool) {
 }
 
 fn set_maparg_lhs_rhs(
-    orig_lhs: *const c_char,
+    orig_lhs: impl crate::strings::IntoCCharPtr,
     orig_lhs_len: usize,
     orig_rhs: impl crate::strings::IntoCCharPtr,
     orig_rhs_len: usize,
     rhs_lua: LuaRef,
-    cpo_val: *const c_char,
+    cpo_val: impl crate::strings::IntoCCharPtr,
     mapargs: &mut MapArguments,
-) -> bool {
+) -> bool { let orig_lhs = orig_lhs.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
     let orig_rhs = orig_rhs.into_c_char_ptr();
     mapargs.rhs_lua = rhs_lua;
 
@@ -530,13 +530,13 @@ fn set_maparg_lhs_rhs(
 }
 
 fn set_maparg_rhs(
-    orig_rhs: *const c_char,
+    orig_rhs: impl crate::strings::IntoCCharPtr,
     orig_rhs_len: usize,
     rhs_lua: LuaRef,
     sid: scid_T,
-    cpo_val: *const c_char,
+    cpo_val: impl crate::strings::IntoCCharPtr,
     mapargs: &mut MapArguments,
-) {
+) { let orig_rhs = orig_rhs.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
      {
         mapargs.rhs_lua = rhs_lua;
 
@@ -585,10 +585,10 @@ fn set_maparg_rhs(
 }
 
 fn str_to_mapargs(
-    strargs: *const c_char,
+    strargs: impl crate::strings::IntoCCharPtr,
     is_unmap: bool,
     mapargs: &mut MapArguments,
-) -> c_int {
+) -> c_int { let strargs = strargs.into_c_char_ptr();
     unsafe {
         let mut to_parse = skipwhite(strargs);
         *mapargs = MapArguments::new();
@@ -676,7 +676,7 @@ fn str_to_mapargs(
 fn map_add(
     buf: &mut buf_T,
     local: bool,
-    keys: *const c_char,
+    keys: impl crate::strings::IntoCCharPtr,
     args: &MapArguments,
     noremap: c_int,
     mode: c_int,
@@ -685,7 +685,7 @@ fn map_add(
     lnum: linenr_T,
     simplified: bool,
     alt: Option<std::rc::Rc<MapAltLink>>,
-) {
+) { let keys = keys.into_c_char_ptr();
     unsafe {
         if *keys == Ctrl_C {
             if local {
@@ -1224,7 +1224,7 @@ pub fn map_clear_mode(buf: &mut buf_T, mode: c_int, local: bool, abbr: bool) {
 }
 
 /// Check if a map exists that has given string in the rhs.
-pub fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, abbr: bool) -> bool {
+pub fn map_to_exists(str_ptr: impl crate::strings::IntoCCharPtr, modechars: impl crate::strings::IntoCCharPtr, abbr: bool) -> bool { let str_ptr = str_ptr.into_c_char_ptr(); let modechars = modechars.into_c_char_ptr();
      {
         let mut mode: c_int = 0;
         let rhs = replace_termcodes(
@@ -1288,7 +1288,7 @@ pub fn map_to_exists_mode(rhs: impl crate::strings::IntoCCharPtr, mode: c_int, a
     }
 }
 
-fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> CString {
+fn translate_mapping(str_in: impl crate::strings::IntoCCharPtr, cpo_val: impl crate::strings::IntoCCharPtr) -> CString { let str_in = str_in.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
     unsafe {
         let mut str_ptr = str_in.cast::<u8>();
         let mut buf: Vec<u8> = Vec::with_capacity(40);
@@ -1927,7 +1927,7 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
 }
 
 /// Write escape string to file.
-pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> bool {
+pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, what: c_int) -> bool { let strstart = strstart.into_c_char_ptr();
     unsafe {
         let mut str_ptr = strstart.cast::<u8>();
 
@@ -2097,12 +2097,12 @@ pub fn f_hasmapto(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 fn mapblock_fill_dict(
     mp: &mapblock_T,
-    lhsrawalt: *const c_char,
+    lhsrawalt: impl crate::strings::IntoCCharPtr,
     buffer_value: c_int,
     abbr: bool,
     compatible: bool,
     arena: &mut Arena,
-) -> Dict {
+) -> Dict { let lhsrawalt = lhsrawalt.into_c_char_ptr();
     let mut dict = arena_dict(arena, 20);
         let lhs = str2special_arena(
             mp.m_keys.as_ptr(),
@@ -2322,7 +2322,7 @@ fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
     }
 }
 
-fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
+fn get_map_mode_string(mode_string: impl crate::strings::IntoCCharPtr, abbr: bool) -> c_int { let mode_string = mode_string.into_c_char_ptr();
     unsafe {
         let mut p = mode_string;
         const MASK_V: c_int = MODE_VISUAL | MODE_SELECT;

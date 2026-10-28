@@ -261,7 +261,7 @@ fn hl_st() -> &'static mut HighlightModuleState {
 }
 
 #[inline]
-fn is_none_str(s: *const c_char) -> bool {
+fn is_none_str(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_char_ptr();
     !s.is_null() &&  { crate::memory::cstr_as_bytes(s).eq_ignore_ascii_case(b"NONE") }
 }
 
@@ -824,7 +824,7 @@ pub fn hl_get_underline() -> c_int {
         })
 }
 
-pub fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
+pub fn hl_add_url(attr: c_int, url: impl crate::strings::IntoCCharPtr) -> c_int { let url = url.into_c_char_ptr();
     unsafe {
         let mut attrs = HLATTRS_INIT;
         let url_cstr = CStr::from_ptr(url);

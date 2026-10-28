@@ -2179,7 +2179,7 @@ fn diff_equal_entry(dp: &diff_T, idx1: usize, idx2: usize) -> bool {
         true
     }
 }
-fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: &mut c_int) -> bool {
+fn diff_equal_char(p1: impl crate::strings::IntoCCharPtr, p2: impl crate::strings::IntoCCharPtr, len: &mut c_int) -> bool { let p1 = p1.into_c_char_ptr(); let p2 = p2.into_c_char_ptr();
     unsafe {
         let l = utfc_ptr2len(p1);
         if l != utfc_ptr2len(p2) {
@@ -2205,7 +2205,7 @@ fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: &mut c_int) -> boo
         true
     }
 }
-fn diff_cmp(s1: *const c_char, s2: *const c_char) -> c_int {
+fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::IntoCCharPtr) -> c_int { let s1 = s1.into_c_char_ptr(); let s2 = s2.into_c_char_ptr();
     unsafe {
         if (diff_st().diff_flags & DIFF_IBLANK) != 0 && (*skipwhite(s1) == NUL || *skipwhite(s2) == NUL) {
             return 0;

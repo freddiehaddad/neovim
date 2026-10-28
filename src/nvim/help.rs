@@ -335,10 +335,10 @@ fn help_compare(str1: &[c_char], str2: &[c_char]) -> std::cmp::Ordering {
 
 /// Find all help tags matching `arg`, sort them and return in `matches` (`find_help_tags`).
 pub fn find_help_tags(
-    arg: *const c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     matches: &mut Vec<std::ffi::CString>,
     keep_lang: bool,
-) -> bool {
+) -> bool { let arg = arg.into_c_char_ptr();
      {
         let mut tv_args = [
             typval_T {

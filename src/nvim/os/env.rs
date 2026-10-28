@@ -197,7 +197,7 @@ unsafe extern "system" {
 }
 
 #[inline]
-fn env_name_valid(name: *const c_char) -> bool {
+fn env_name_valid(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
      {
         #[cfg(windows)]
         {
@@ -818,7 +818,7 @@ pub fn expand_env_esc(
     }
 }
 
-fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
+fn vim_runtime_dir(vimdir: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> { let vimdir = vimdir.into_c_char_ptr();
     if vimdir.is_null() {
         return None;
     }
@@ -861,11 +861,11 @@ fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: impl crate::string
 /// Iterates `$PATH`-like delimited list `val`.
 pub fn vim_env_iter(
     delim: c_char,
-    val: *const c_char,
-    iter: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
+    iter: impl crate::strings::IntoCCharPtr,
     dir: *mut *const c_char,
     len: &mut usize,
-) -> *const c_char {
+) -> *const c_char { let val = val.into_c_char_ptr(); let iter = iter.into_c_char_ptr();
     unsafe {
         let varval = if iter.is_null() { val } else { iter };
         *dir = varval;
@@ -883,11 +883,11 @@ pub fn vim_env_iter(
 /// Iterates `$PATH`-like delimited list `val` in reverse order.
 pub fn vim_env_iter_rev(
     delim: c_char,
-    val: *const c_char,
-    iter: *const c_char,
+    val: impl crate::strings::IntoCCharPtr,
+    iter: impl crate::strings::IntoCCharPtr,
     dir: *mut *const c_char,
     len: &mut usize,
-) -> *const c_char {
+) -> *const c_char { let val = val.into_c_char_ptr(); let iter = iter.into_c_char_ptr();
     unsafe {
         let varend = if iter.is_null() {
             val.add(crate::memory::cstr_len(val)).sub(1)
@@ -1174,7 +1174,7 @@ pub fn home_replace(
 }
 
 /// Like `home_replace`, store the replaced string in an owned `CString`.
-pub fn home_replace_save(buf: Option<&buf_T>, src: *const c_char) -> std::ffi::CString {
+pub fn home_replace_save(buf: Option<&buf_T>, src: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let src = src.into_c_char_ptr();
      {
         let mut len: usize = 3;
         if !src.is_null() {
@@ -1198,7 +1198,7 @@ pub fn get_env_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 /// Appends the head of `fname` to `$PATH` and sets it in the environment.
 #[cfg_attr(not(windows), cfg(test))]
-pub fn os_setenv_append_path(fname: *const c_char) -> bool {
+pub fn os_setenv_append_path(fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         if !path_is_absolute(fname) {
             internal_error(c"os_setenv_append_path()");
@@ -1264,7 +1264,7 @@ pub fn vim_unsetenv_ext(var: impl crate::strings::IntoCCharPtr) {
 }
 
 /// Set environment variable `name` and take care of side effects.
-pub fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
+pub fn vim_setenv_ext(name: impl crate::strings::IntoCCharPtr, val: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let val = val.into_c_char_ptr();
      {
         let _ = os_setenv(name, val, 1);
         if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"HOME") {

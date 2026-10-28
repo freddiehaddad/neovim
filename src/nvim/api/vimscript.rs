@@ -64,7 +64,7 @@ fn api_vims_st() -> &'static mut ApiVimscriptState {
 use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
-fn cbuf_to_arena_obj(arena: &mut Arena, s: *const c_char, len: usize) -> Object {
+fn cbuf_to_arena_obj(arena: &mut Arena, s: impl crate::strings::IntoCCharPtr, len: usize) -> Object { let s = s.into_c_char_ptr();
     string_obj(arena_string(
             arena,
             NvimString {
