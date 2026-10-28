@@ -3557,9 +3557,9 @@ pub fn vim_regexec_multi(
     buf: *mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
-    tm: Option<proftime_T>,
-    timed_out: *mut c_int,
+    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
+    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut rex_save = regexec_T::new();
         let rex_in_use_save = re_st().rex_in_use;
@@ -3576,8 +3576,8 @@ pub fn vim_regexec_multi(
         re_st().rex_in_use = true;
 
         let mut result = match (*rmp.regprog).engine {
-            RegProgEngine::Bt(_) => bt_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out),
-            RegProgEngine::Nfa(_) => nfa_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out),
+            RegProgEngine::Bt(_) => bt_regexec_multi(rmp, win, buf, lnum, col, tm, (!timed_out.is_null()).then(||  { &mut *timed_out })),
+            RegProgEngine::Nfa(_) => nfa_regexec_multi(rmp, win, buf, lnum, col, tm, (!timed_out.is_null()).then(||  { &mut *timed_out })),
         };
         (*rmp.regprog).re_in_use = false;
 
@@ -3600,10 +3600,10 @@ pub fn vim_regexec_multi(
                 (*rmp.regprog).re_in_use = true;
                 result = match (*rmp.regprog).engine {
                     RegProgEngine::Bt(_) => {
-                        bt_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out)
+                        bt_regexec_multi(rmp, win, buf, lnum, col, tm, (!timed_out.is_null()).then(||  { &mut *timed_out }))
                     }
                     RegProgEngine::Nfa(_) => {
-                        nfa_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out)
+                        nfa_regexec_multi(rmp, win, buf, lnum, col, tm, (!timed_out.is_null()).then(||  { &mut *timed_out }))
                     }
                 };
                 (*rmp.regprog).re_in_use = false;

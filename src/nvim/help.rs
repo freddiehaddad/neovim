@@ -212,7 +212,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                             0,
                             ptr::null_mut(),
                             ptr::null_mut(),
-                            ptr::null_mut(),
+                            None,
                             ECMD_LASTL,
                             ECMD_HIDE + ECMD_SET_HELP,
                             ptr::null_mut(),
@@ -232,7 +232,7 @@ pub fn ex_help(eap: &mut exarg_T) {
             g_st().KeyTyped = old_KeyTyped;
 
             do_tag(
-                ptr::null_mut(),
+                None,
                 tag.as_ptr().cast_mut(),
                 DT_HELP,
                 1,

@@ -371,8 +371,7 @@ fn buf_write_do_autocmds(
     sfnamep: *mut *mut c_char,
     ffnamep: *mut *mut c_char,
     start: linenr_T,
-    endp: &mut linenr_T,
-    eap: *mut exarg_T,
+    endp: &mut linenr_T,eap: Option<&exarg_T>,
     append: bool,
     filtering: bool,
     reset_changed: bool,
@@ -381,6 +380,7 @@ fn buf_write_do_autocmds(
     orig_start: pos_T,
     orig_end: pos_T,
 ) -> c_int {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let old_line_count = (*buf).b_ml.ml_line_count;
         let msg_save = g_st().msg_scroll;
@@ -405,7 +405,7 @@ fn buf_write_do_autocmds(
         set_bufref(&mut bufref, buf);
 
         if append {
-            did_cmd = apply_autocmds_exarg(EVENT_FILEAPPENDCMD, sfname, sfname, false, g_st().curbuf, eap);
+            did_cmd = apply_autocmds_exarg(EVENT_FILEAPPENDCMD, sfname, sfname, false, g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
             if !did_cmd {
                 if overwriting && bt_nofilename(g_st().curbuf) {
                     nofile_err = true;
@@ -416,7 +416,7 @@ fn buf_write_do_autocmds(
                         sfname,
                         false,
                         g_st().curbuf,
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     );
                 }
             }
@@ -427,11 +427,11 @@ fn buf_write_do_autocmds(
                 sfname,
                 false,
                 g_st().curbuf,
-                eap,
+                (!eap.is_null()).then(||  { &*eap }),
             );
         } else if reset_changed && whole {
             let was_changed = curbufIsChanged();
-            did_cmd = apply_autocmds_exarg(EVENT_BUFWRITECMD, sfname, sfname, false, g_st().curbuf, eap);
+            did_cmd = apply_autocmds_exarg(EVENT_BUFWRITECMD, sfname, sfname, false, g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
             if did_cmd {
                 if was_changed && !curbufIsChanged() {
                     u_unchanged(&mut *g_st().curbuf);
@@ -440,10 +440,10 @@ fn buf_write_do_autocmds(
             } else if overwriting && bt_nofilename(g_st().curbuf) {
                 nofile_err = true;
             } else {
-                let _ = apply_autocmds_exarg(EVENT_BUFWRITEPRE, sfname, sfname, false, g_st().curbuf, eap);
+                let _ = apply_autocmds_exarg(EVENT_BUFWRITEPRE, sfname, sfname, false, g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
             }
         } else {
-            did_cmd = apply_autocmds_exarg(EVENT_FILEWRITECMD, sfname, sfname, false, g_st().curbuf, eap);
+            did_cmd = apply_autocmds_exarg(EVENT_FILEWRITECMD, sfname, sfname, false, g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
             if !did_cmd {
                 if overwriting && bt_nofilename(g_st().curbuf) {
                     nofile_err = true;
@@ -454,7 +454,7 @@ fn buf_write_do_autocmds(
                         sfname,
                         false,
                         g_st().curbuf,
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     );
                 }
             }
@@ -553,13 +553,13 @@ fn buf_write_do_autocmds(
 
 fn buf_write_do_post_autocmds(
     buf: *mut buf_T,
-    fname: *mut c_char,
-    eap: *mut exarg_T,
+    fname: *mut c_char,eap: Option<&exarg_T>,
     append: bool,
     filtering: bool,
     reset_changed: bool,
     whole: bool,
 ) {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut aco: CtxSwitch = CtxSwitch::new();
         (*g_st().curbuf).b_no_eol_lnum = 0;
@@ -567,7 +567,7 @@ fn buf_write_do_post_autocmds(
         let _ = ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 
         if append {
-            let _ = apply_autocmds_exarg(EVENT_FILEAPPENDPOST, fname, fname, false, g_st().curbuf, eap);
+            let _ = apply_autocmds_exarg(EVENT_FILEAPPENDPOST, fname, fname, false, g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
         } else if filtering {
             let _ = apply_autocmds_exarg(
                 EVENT_FILTERWRITEPOST,
@@ -575,12 +575,12 @@ fn buf_write_do_post_autocmds(
                 fname,
                 false,
                 g_st().curbuf,
-                eap,
+                (!eap.is_null()).then(||  { &*eap }),
             );
         } else if reset_changed && whole {
-            let _ = apply_autocmds_exarg(EVENT_BUFWRITEPOST, fname, fname, false, g_st().curbuf, eap);
+            let _ = apply_autocmds_exarg(EVENT_BUFWRITEPOST, fname, fname, false, g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
         } else {
-            let _ = apply_autocmds_exarg(EVENT_FILEWRITEPOST, fname, fname, false, g_st().curbuf, eap);
+            let _ = apply_autocmds_exarg(EVENT_FILEWRITEPOST, fname, fname, false, g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
         }
 
         ctx_restore(&mut aco);
@@ -1114,13 +1114,13 @@ pub fn buf_write(
     mut fname: *mut c_char,
     mut sfname: *mut c_char,
     mut start: linenr_T,
-    mut end: linenr_T,
-    eap: *mut exarg_T,
+    mut end: linenr_T,eap: Option<&exarg_T>,
     append: bool,
     forceit: bool,
     reset_changed: bool,
     filtering: bool,
 ) -> c_int {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut retval = OK;
         let msg_save = g_st().msg_scroll;
@@ -1203,7 +1203,7 @@ pub fn buf_write(
             &raw mut ffname,
             start,
             &mut end,
-            eap,
+            (!eap.is_null()).then(||  { &*eap }),
             append,
             filtering,
             reset_changed,
@@ -1568,7 +1568,7 @@ pub fn buf_write(
 
                         write_info.bw_len = 0;
                         write_info.bw_flags = wb_flags;
-                        fileformat = get_fileformat_force(buf, eap);
+                        fileformat = get_fileformat_force(buf, (!eap.is_null()).then(||  { &*eap }));
                         let mut s = buffer;
                         lnum = start;
                         while lnum <= end {
@@ -2078,7 +2078,7 @@ pub fn buf_write(
         }
 
         if !should_abort(retval) {
-            buf_write_do_post_autocmds(buf, fname, eap, append, filtering, reset_changed, whole);
+            buf_write_do_post_autocmds(buf, fname, (!eap.is_null()).then(||  { &*eap }), append, filtering, reset_changed, whole);
             if aborting() {
                 retval = FAIL;
             }

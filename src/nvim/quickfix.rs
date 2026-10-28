@@ -3130,7 +3130,7 @@ fn qf_jump_edit_buffer(
                 fnum,
                 ptr::null_mut(),
                 ptr::null_mut(),
-                ptr::null_mut(),
+                None,
                 1,
                 ECMD_HIDE + ECMD_SET_HELP,
                 if prev_winid == (**curwin.as_ptr()).handle {
@@ -4069,7 +4069,7 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> c_int {
                 (*qf_buf).b_fnum,
                 ptr::null_mut(),
                 ptr::null_mut(),
-                ptr::null_mut(),
+                None,
                 ECMD_ONE,
                 ECMD_HIDE + ECMD_OLDBUF + ECMD_NOWINENTER,
                 oldwin,
@@ -4082,7 +4082,7 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> c_int {
                 0,
                 ptr::null_mut(),
                 ptr::null_mut(),
-                ptr::null_mut(),
+                None,
                 ECMD_ONE,
                 ECMD_HIDE + ECMD_NOWINENTER,
                 oldwin,
@@ -5543,7 +5543,7 @@ fn vgr_match_buflines(
                     lnum,
                     col,
                     None,
-                    ptr::null_mut(),
+                    None,
                 ) > 0
                 {
                     if qf_add_entry(
@@ -6011,7 +6011,7 @@ fn load_dummy_buffer(
                 0,
                 0,
                 MAXLNUM,
-                ptr::null_mut(),
+                None,
                 READ_NEW | READ_DUMMY,
                 false,
             );
@@ -7535,7 +7535,7 @@ pub fn ex_cexpr(eap: &mut exarg_T) {
             return;
         }
 
-        let Some(mut tv) = eval_expr(eap.arg, eap) else {
+        let Some(mut tv) = eval_expr(eap.arg, Some(&mut *eap)) else {
             return;
         };
 

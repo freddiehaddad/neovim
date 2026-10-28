@@ -1429,7 +1429,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                             0,
                             ptr::null_mut(),
                             ptr::null_mut(),
-                            ptr::null_mut(),
+                            None,
                             ECMD_ONE,
                             0,
                             ptr::null_mut(),

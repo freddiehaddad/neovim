@@ -1630,7 +1630,7 @@ fn do_filter(
                     ptr::null_mut(),
                     line1,
                     line2,
-                    &raw mut *eap,
+                    Some(&*eap),
                     false,
                     false,
                     false,
@@ -1687,7 +1687,7 @@ fn do_filter(
                             line2,
                             0,
                             MAXLNUM,
-                            &raw mut *eap,
+                            Some(&*eap),
                             READ_FILTER,
                             false,
                         ) != OK
@@ -2345,7 +2345,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
                     fname,
                     eap.line1,
                     eap.line2,
-                    eap,
+                    Some(&*eap),
                     eap.append != 0,
                     eap.forceit != 0,
                     true,
@@ -2682,7 +2682,7 @@ pub fn getfile(
                 fnum,
                 ffname,
                 sfname,
-                ptr::null_mut(),
+                None,
                 lnum,
                 (if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 })
                     + (if forceit { ECMD_FORCEIT } else { 0 }),
@@ -2727,12 +2727,12 @@ pub fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
 pub fn do_ecmd(
     fnum: c_int,
     mut ffname: *mut c_char,
-    mut sfname: *mut c_char,
-    eap: *mut exarg_T,
+    mut sfname: *mut c_char,eap: Option<&exarg_T>,
     mut newlnum: linenr_T,
     flags: c_int,
     mut oldwin: *mut win_T,
 ) -> c_int {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let other_file: bool;
         let oldbuf: bool;
@@ -2994,8 +2994,8 @@ pub fn do_ecmd(
                             (*g_st().curbuf).b_nwindows += 1;
 
                             if !oldbuf && !eap.is_null() {
-                                set_file_options(true, eap);
-                                set_forced_fenc(&mut *eap);
+                                set_file_options(true, (!eap.is_null()).then(||  { &*eap }));
+                                set_forced_fenc(&*eap);
                             }
                         }
 
@@ -3117,7 +3117,7 @@ pub fn do_ecmd(
                     if (flags & ECMD_NOWINENTER) != 0 {
                         readfile_flags |= READ_NOWINENTER;
                     }
-                    if should_abort(open_buffer(false, eap, readfile_flags)) {
+                    if should_abort(open_buffer(false, (!eap.is_null()).then(||  { &*eap }), readfile_flags)) {
                         retval = FAIL;
                     }
 
@@ -4126,7 +4126,7 @@ fn do_sub(
                 lnum,
                 0,
                 Some(tm),
-                &raw mut timed_out,
+                Some(&mut timed_out),
             );
             if nmatch != 0 {
                 let mut copycol: colnr_T = 0;
@@ -4589,7 +4589,7 @@ fn do_sub(
                                 sub_firstlnum,
                                 matchcol,
                                 Some(tm),
-                                &raw mut timed_out,
+                                Some(&mut timed_out),
                             );
                             nmatch == 0
                         }
@@ -4667,7 +4667,7 @@ fn do_sub(
                                 sub_firstlnum,
                                 matchcol,
                                 Some(tm),
-                                &raw mut timed_out,
+                                Some(&mut timed_out),
                             );
                         }
 
@@ -4963,7 +4963,7 @@ pub fn ex_global(eap: &mut exarg_T) {
                 lnum,
                 0,
                 None,
-                ptr::null_mut(),
+                None,
             );
             if (type_char == b'g' as c_int && matched != 0)
                 || (type_char == b'v' as c_int && matched == 0)
@@ -4981,7 +4981,7 @@ pub fn ex_global(eap: &mut exarg_T) {
                     lnum,
                     0,
                     None,
-                    ptr::null_mut(),
+                    None,
                 );
                 if regmatch.regprog.is_null() {
                     break;

@@ -211,8 +211,8 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
         let ok = eval0(
             expr.data,
             &mut rettv,
-            std::ptr::null_mut(),
-            std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
+            None,
+            &mut g_st().EVALARG_EVALUATE,
         );
         try_leave(&tstate, err);
 
@@ -367,8 +367,8 @@ pub fn nvim_call_dict_function(
                 let eval_ret = eval0(
                     dict.data.string().data,
                     &mut rettv,
-                    std::ptr::null_mut(),
-                    std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
+                    None,
+                    &mut g_st().EVALARG_EVALUATE,
                 );
                 try_leave(&tstate, err);
                 if error_set(err) {

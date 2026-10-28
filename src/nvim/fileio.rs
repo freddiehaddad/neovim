@@ -971,11 +971,11 @@ pub fn readfile(
     mut sfname: *mut c_char,
     from: linenr_T,
     lines_to_skip: linenr_T,
-    lines_to_read: linenr_T,
-    eap: *mut exarg_T,
+    lines_to_read: linenr_T,eap: Option<&exarg_T>,
     flags: c_int,
     silent: bool,
 ) -> c_int {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     #[cfg(unix)]
     let mut fname = fname;
     unsafe {
@@ -1077,7 +1077,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     ) {
                         retval = OK;
                         if aborting() {
@@ -1108,7 +1108,7 @@ pub fn readfile(
                     sfname,
                     false,
                     ptr::null_mut(),
-                    eap,
+                    (!eap.is_null()).then(||  { &*eap }),
                 ) {
                     retval = if aborting() { FAIL } else { OK };
                     break 'theend;
@@ -1199,7 +1199,7 @@ pub fn readfile(
                 break 'theend;
             }
 
-            set_file_options(set_options, eap);
+            set_file_options(set_options, (!eap.is_null()).then(||  { &*eap }));
 
             let check_readonly = newfile && ((*g_st().curbuf).b_flags & BF_CHECK_RO) != 0;
             if check_readonly && !g_st().readonlymode {
@@ -1266,9 +1266,9 @@ pub fn readfile(
                     }
                     check_marks_read();
                     if !eap.is_null() {
-                        set_forced_fenc(&mut *eap);
+                        set_forced_fenc(&*eap);
                     }
-                    apply_autocmds_exarg(EVENT_BUFNEWFILE, sfname, sfname, false, g_st().curbuf, eap);
+                    apply_autocmds_exarg(EVENT_BUFNEWFILE, sfname, sfname, false, g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
                     save_file_ff(&mut *g_st().curbuf);
 
                     if !aborting() {
@@ -1382,7 +1382,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     );
                 } else if read_stdin {
                     apply_autocmds_exarg(
@@ -1391,7 +1391,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     );
                 } else if newfile {
                     apply_autocmds_exarg(
@@ -1400,7 +1400,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     );
                 } else {
                     apply_autocmds_exarg(
@@ -1409,7 +1409,7 @@ pub fn readfile(
                         sfname,
                         false,
                         ptr::null_mut(),
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     );
                 }
 
@@ -1532,7 +1532,7 @@ pub fn readfile(
                 if keep_fileformat {
                     keep_fileformat = false;
                 } else if !eap.is_null() && (*eap).force_ff != 0 {
-                    fileformat = get_fileformat_force(g_st().curbuf, eap);
+                    fileformat = get_fileformat_force(g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
                     try_unix = 0;
                     try_dos = 0;
                     try_mac = 0;
@@ -2716,7 +2716,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     );
                 } else if newfile || (read_buffer && !sfname.is_null()) {
                     let did_bufrp = apply_autocmds_exarg(
@@ -2725,7 +2725,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     );
 
                     if !(*g_st().curbuf).b_au_did_filetype && *(*g_st().curbuf).b_p_ft != NUL {
@@ -2750,7 +2750,7 @@ pub fn readfile(
                             augroup_find(c"filetypedetect".as_ptr()),
                             g_st().curbuf,
                             *curwin.as_ptr(),
-                            ptr::null_mut(),
+                            None,
                             ptr::null_mut(),
                             false,
                         );
@@ -2762,7 +2762,7 @@ pub fn readfile(
                         sfname,
                         false,
                         ptr::null_mut(),
-                        eap,
+                        (!eap.is_null()).then(||  { &*eap }),
                     );
                 }
                 if g_st().msg_scrolled == n {
@@ -2843,11 +2843,12 @@ pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
 }
 
 /// Set default or forced 'fileformat' and 'binary'.
-pub fn set_file_options(set_options: bool, eap: *mut exarg_T) {
+pub fn set_file_options(set_options: bool,eap: Option<&exarg_T>) {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         if set_options {
             if !eap.is_null() && (*eap).force_ff != 0 {
-                set_fileformat(get_fileformat_force(g_st().curbuf, eap), OPT_LOCAL);
+                set_fileformat(get_fileformat_force(g_st().curbuf, (!eap.is_null()).then(||  { &*eap })), OPT_LOCAL);
             } else if *opt_vars().p_ffs != NUL {
                 set_fileformat(default_fileformat(), OPT_LOCAL);
             }
@@ -2862,7 +2863,7 @@ pub fn set_file_options(set_options: bool, eap: *mut exarg_T) {
 }
 
 /// Set forced 'fileencoding'.
-pub fn set_forced_fenc(eap: &mut exarg_T) {
+pub fn set_forced_fenc(eap: &exarg_T) {
     unsafe {
         if eap.force_enc == 0 {
             return;
@@ -4045,7 +4046,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
                 0,
                 0,
                 MAXLNUM,
-                &raw mut ea,
+                Some(&ea),
                 flags,
                 shortmess(kShmFileinfo),
             ) != OK

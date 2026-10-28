@@ -4632,7 +4632,7 @@ fn nv_tagpop(cap: &mut cmdarg_T) {
     unsafe {
         if !checkclearopq(&mut *cap.oap) {
             do_tag(
-                ptr::null_mut(),
+                None,
                 c"".as_ptr().cast_mut(),
                 DT_POP,
                 cap.count1,
@@ -4919,7 +4919,7 @@ fn nv_gotofile(cap: &mut cmdarg_T) {
                 0,
                 ptr,
                 ptr::null_mut(),
-                ptr::null_mut(),
+                None,
                 ECMD_LAST,
                 if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 },
                 *curwin.as_ptr(),

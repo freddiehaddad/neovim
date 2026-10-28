@@ -417,7 +417,7 @@ fn get_function_args(
                     p = skipwhite(p).add(1);
                     p = skipwhite(p);
                     let expr = p;
-                    if eval1(&raw mut p, &mut rettv, ptr::null_mut()) != FAIL {
+                    if eval1(&raw mut p, &mut rettv, None) != FAIL {
                         while p > expr && ascii_iswhite(*p.sub(1) as c_int) {
                             p = p.sub(1);
                         }
@@ -565,9 +565,9 @@ fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
 
 /// Parse a lambda expression and get a Funcref from `*arg`.
 pub fn get_lambda_tv(
-    arg: *mut *mut c_char,rettv: &mut typval_T,
-    evalarg: *mut evalarg_T,
+    arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
 ) -> c_int {
+    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
@@ -609,7 +609,7 @@ pub fn get_lambda_tv(
 
         *arg = skipwhite((*arg).add(1));
         let start = *arg;
-        ret = skip_expr(arg, evalarg);
+        ret = skip_expr(arg, (!evalarg.is_null()).then(|| &mut *evalarg));
         let end = *arg;
         if ret == FAIL {
             eval_st().eval_lavars_used = old_eval_lavars;
@@ -747,12 +747,12 @@ pub fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
 
 /// Get function arguments at `*arg` and advance it.
 fn get_func_arguments(
-    arg: *mut *mut c_char,
-    evalarg: *mut evalarg_T,
+    arg: *mut *mut c_char,evalarg: Option<&mut evalarg_T>,
     partial_argc: c_int,
     argvars: *mut typval_T,
     argcount: &mut c_int,
 ) -> c_int {
+    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut argp = *arg;
         let mut ret = OK;
@@ -763,7 +763,7 @@ fn get_func_arguments(
             if *argp == b')' as c_char || *argp == b',' as c_char || *argp == NUL {
                 break;
             }
-            if eval1(&raw mut argp, &mut *argvars.add(*argcount as usize), evalarg) == FAIL {
+            if eval1(&raw mut argp, &mut *argvars.add(*argcount as usize), (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
                 ret = FAIL;
                 break;
             }
@@ -788,10 +788,10 @@ fn get_func_arguments(
 pub fn get_func_tv(
     name: *const c_char,
     len: c_int,rettv: &mut typval_T,
-    arg: *mut *mut c_char,
-    evalarg: *mut evalarg_T,
+    arg: *mut *mut c_char,evalarg: Option<&mut evalarg_T>,
     funcexe: &mut funcexe_T,
 ) -> c_int {
+    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
@@ -806,7 +806,7 @@ pub fn get_func_tv(
         };
         let mut ret = get_func_arguments(
             &raw mut argp,
-            evalarg,
+            (!evalarg.is_null()).then(|| &mut *evalarg),
             partial_argc,
             argvars.as_mut_ptr(),
             &mut argcount,
@@ -1331,7 +1331,7 @@ pub fn call_user_func(
                     if eval1(
                         &raw mut default_expr,
                         &mut def_rettv,
-                        &raw mut g_st().EVALARG_EVALUATE,
+                        Some(&mut g_st().EVALARG_EVALUATE),
                     ) == FAIL
                     {
                         default_arg_err = true;
@@ -1468,7 +1468,7 @@ pub fn call_user_func(
                 .add(7)
                 .cast_mut();
             g_st().ex_nesting_level += 1;
-            eval1(&raw mut p, &mut *rettv, &raw mut g_st().EVALARG_EVALUATE);
+            eval1(&raw mut p, &mut *rettv, Some(&mut g_st().EVALARG_EVALUATE));
             g_st().ex_nesting_level -= 1;
         } else {
             do_cmdline(
@@ -3544,7 +3544,7 @@ pub fn ex_return(eap: &mut exarg_T) {
 
         eap.nextcmd = ptr::null_mut();
         if (*arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char)
-            && eval0(arg, &mut rettv, eap, &raw mut evalarg) != FAIL
+            && eval0(arg, &mut rettv, Some(&mut *eap), &mut evalarg) != FAIL
         {
             if eap.skip == 0 {
                 returning = do_return(eap, false, true, Some(rettv));
@@ -3598,7 +3598,7 @@ fn ex_call_inner(
             funcexe.fe_doesrange = false;
             let mut rettv: typval_T = typval_T::new();
             rettv.v_type = VarType::VAR_UNKNOWN;
-            if get_func_tv(name, -1, &mut rettv, arg, evalarg, &mut funcexe) == FAIL {
+            if get_func_tv(name, -1, &mut rettv, arg, Some(evalarg), &mut funcexe) == FAIL {
                 failed = true;
                 break;
             }
@@ -3606,7 +3606,7 @@ fn ex_call_inner(
             if handle_subscript(
                 arg.cast::<*const c_char>(),
                 &mut rettv,
-                &raw mut g_st().EVALARG_EVALUATE,
+                Some(&mut g_st().EVALARG_EVALUATE),
                 true,
             ) == FAIL
             {
@@ -3665,7 +3665,7 @@ fn ex_defer_inner(
         }
         let mut r = get_func_arguments(
             arg,
-            evalarg,
+            Some(evalarg),
             0,
             argvars.as_mut_ptr().add(partial_argc as usize),
             &mut argcount,
@@ -3809,7 +3809,7 @@ pub fn ex_call(eap: &mut exarg_T) {
         if eap.skip != 0 {
             let mut rettv: typval_T = typval_T::new();
             g_st().emsg_skip += 1;
-            if eval0(eap.arg, &mut rettv, eap, &raw mut evalarg) != FAIL {
+            if eval0(eap.arg, &mut rettv, Some(&mut *eap), &mut evalarg) != FAIL {
                 tv_clear(&raw mut rettv);
             }
             g_st().emsg_skip -= 1;

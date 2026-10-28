@@ -506,7 +506,7 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
             AUGROUP_ALL,
             buf,
             *curwin.as_ptr(),
-            ptr::null_mut(),
+            None,
             &mut data_obj,
             false,
         );
@@ -1021,7 +1021,7 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
                 AUGROUP_ALL,
                 buf,
                 *curwin.as_ptr(),
-                ptr::null_mut(),
+                None,
                 &mut data_obj,
                 false,
             );

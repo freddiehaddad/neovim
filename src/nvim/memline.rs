@@ -1136,7 +1136,7 @@ pub fn ml_recover(checkext: bool) {
                 0,
                 0,
                 MAXLNUM,
-                ptr::null_mut(),
+                None,
                 READ_NEW,
                 false,
             );
@@ -1232,7 +1232,7 @@ pub fn ml_recover(checkext: bool) {
                                         lnum,
                                         pe_old_lnum - 1,
                                         line_count,
-                                        ptr::null_mut(),
+                                        None,
                                         0,
                                         false,
                                     ) != OK
@@ -2621,7 +2621,7 @@ pub fn ml_append_flags(
     flags: c_int,
 ) -> c_int {
     unsafe {
-        if (*g_st().curbuf).b_ml.ml_mfp.is_none() && open_buffer(false, ptr::null_mut(), 0) == FAIL {
+        if (*g_st().curbuf).b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
             return FAIL;
         }
         ml_append_flush(g_st().curbuf, lnum, line, len, flags)
@@ -2720,7 +2720,7 @@ pub fn ml_replace_buf_len(
             return FAIL;
         }
 
-        if (*buf).b_ml.ml_mfp.is_none() && open_buffer(false, ptr::null_mut(), 0) == FAIL {
+        if (*buf).b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
             return FAIL;
         }
 

@@ -4652,9 +4652,9 @@ fn finish_nfa_regmatch(prog: &mut nfa_regprog_T,
 fn nfa_regtry(
     prog: &mut nfa_regprog_T,
     col: colnr_T,
-    tm: Option<proftime_T>,
-    timed_out: *mut c_int,
+    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
+    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut subs = regsubs_T::new();
         let mut m = regsubs_T::new();
@@ -4750,9 +4750,9 @@ fn nfa_regtry(
 fn nfa_regexec_both(
     mut line: *mut u8,
     startcol: colnr_T,
-    tm: Option<proftime_T>,
-    timed_out: *mut c_int,
+    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
+    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut retval: c_int = 0;
         let mut col = startcol;
@@ -4835,7 +4835,7 @@ fn nfa_regexec_both(
             st.lastlist[1] = 0;
         }
 
-        retval = nfa_regtry(&mut *prog, col, tm, timed_out);
+        retval = nfa_regtry(&mut *prog, col, tm, (!timed_out.is_null()).then(||  { &mut *timed_out }));
         finish_nfa_regexec(retval, col)
     }
 }
@@ -4947,7 +4947,7 @@ pub(super) fn nfa_regexec_nl(
         re_st().rex.reg_icombine = false;
         re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
         re_st().rex.reg_maxcol = 0;
-        nfa_regexec_both(line, col, None, ptr::null_mut())
+        nfa_regexec_both(line, col, None, None)
     }
 }
 
@@ -4957,9 +4957,9 @@ pub(super) fn nfa_regexec_multi(
     buf: *mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
-    tm: Option<proftime_T>,
-    timed_out: *mut c_int,
+    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
+    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     init_regexec_multi(rmp, win, buf, lnum);
-        nfa_regexec_both(ptr::null_mut(), col, tm, timed_out)
+        nfa_regexec_both(ptr::null_mut(), col, tm, (!timed_out.is_null()).then(|| unsafe { &mut *timed_out }))
 }

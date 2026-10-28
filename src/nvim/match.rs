@@ -510,7 +510,7 @@ fn next_search_hl(win: &mut win_T,
                     lnum,
                     matchcol,
                     Some(shl.tm),
-                    &raw mut timed_out,
+                    Some(&mut timed_out),
                 );
                 if regprog_is_copy {
                     (*cur).mit_match.regprog = (*cur).mit_hl.rm.regprog;

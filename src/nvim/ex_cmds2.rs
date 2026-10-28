@@ -464,7 +464,7 @@ pub fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
             buf.b_fname,
             1,
             buf.b_ml.ml_line_count,
-            ptr::null_mut(),
+            None,
             false,
             forceit,
             true,

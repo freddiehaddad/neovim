@@ -8295,7 +8295,7 @@ pub fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> c_
             || (crate::memory::cstr_prefix_bytes(optval, 9) == &b"function("[..9])
             || (crate::memory::cstr_prefix_bytes(optval, 8) == &b"funcref("[..8])
         {
-            let Some(evaluated) = eval_expr(optval, ptr::null_mut()) else {
+            let Some(evaluated) = eval_expr(optval, None) else {
                 return FAIL;
             };
             evaluated
@@ -8406,7 +8406,8 @@ pub fn get_fileformat(buf: &buf_T) -> c_int {
 }
 
 /// Like get_fileformat(), but override 'fileformat' with "p" for "++opt=val" argument.
-pub fn get_fileformat_force(buf: *const buf_T, eap: *const exarg_T) -> c_int {
+pub fn get_fileformat_force(buf: *const buf_T,eap: Option<&exarg_T>) -> c_int {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let c = if !eap.is_null() && (*eap).force_ff != 0 {
             (*eap).force_ff as u8

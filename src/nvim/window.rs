@@ -1150,7 +1150,7 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
                     0,
                     ptr,
                     ptr::null_mut(),
-                    ptr::null_mut(),
+                    None,
                     ECMD_LASTL,
                     ECMD_HIDE,
                     ptr::null_mut(),

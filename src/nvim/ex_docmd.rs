@@ -5605,7 +5605,8 @@ fn compute_buffer_local_count(
     }
 }
 
-fn current_win_nr(win: *const win_T, cmdarg: *mut exarg_T) -> c_int {
+fn current_win_nr(win: *const win_T,cmdarg: Option<&exarg_T>) -> c_int {
+    let cmdarg: *const exarg_T = cmdarg.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let nonnr = !cmdarg.is_null() && (*cmdarg).cmdidx != cmdidx_T::CMD_quit as c_int;
         let mut nr = 0;
@@ -5764,7 +5765,7 @@ pub fn get_cmd_default_range(eap: &mut exarg_T) -> linenr_T {
     unsafe {
         match eap.addr_type {
             ADDR_LINES | ADDR_OTHER => (**curwin.as_ptr()).w_cursor.lnum.min((*g_st().curbuf).b_ml.ml_line_count),
-            ADDR_WINDOWS => current_win_nr(*curwin.as_ptr(), ptr::null_mut()),
+            ADDR_WINDOWS => current_win_nr(*curwin.as_ptr(), None),
             ADDR_ARGUMENTS => ((**curwin.as_ptr()).w_arg_idx + 1).min(argcount()),
             ADDR_LOADED_BUFFERS | ADDR_BUFFERS => (*g_st().curbuf).b_fnum,
             ADDR_TABS => current_tab_nr(g_st().curtab),
@@ -5800,7 +5801,7 @@ pub fn set_cmd_dflall_range(eap: &mut exarg_T) {
                 eap.line2 = (*g_st().lastbuf).b_fnum;
             }
             ADDR_WINDOWS => {
-                eap.line2 = current_win_nr(ptr::null(), eap);
+                eap.line2 = current_win_nr(ptr::null(), Some(&*eap));
             }
             ADDR_TABS => {
                 eap.line2 = current_tab_nr(ptr::null_mut());
@@ -6066,7 +6067,7 @@ pub fn parse_cmdline(
                 while *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
                     let start = arg;
                     g_st().emsg_skip += 1;
-                    skip_expr(&raw mut arg, ptr::null_mut());
+                    skip_expr(&raw mut arg, None);
                     g_st().emsg_skip -= 1;
                     if arg == start {
                         arg = arg.add(1);
@@ -7248,7 +7249,7 @@ pub fn parse_cmd_address(
                                 if eap.cmdidx < 0 {
                                     eap.line1 = 1;
                                     eap.line2 = if eap.addr_type == ADDR_WINDOWS {
-                                        current_win_nr(ptr::null(), ptr::null_mut())
+                                        current_win_nr(ptr::null(), None)
                                     } else {
                                         current_tab_nr(ptr::null_mut())
                                     };
@@ -7733,7 +7734,7 @@ pub fn get_address(
                         cmd = cmd.add(1);
                         match addr_type {
                             ADDR_LINES | ADDR_OTHER => lnum = (**curwin.as_ptr()).w_cursor.lnum,
-                            ADDR_WINDOWS => lnum = current_win_nr(*curwin.as_ptr(), ptr::null_mut()),
+                            ADDR_WINDOWS => lnum = current_win_nr(*curwin.as_ptr(), None),
                             ADDR_ARGUMENTS => lnum = (**curwin.as_ptr()).w_arg_idx + 1,
                             ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = (*g_st().curbuf).b_fnum,
                             ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
@@ -7751,7 +7752,7 @@ pub fn get_address(
                         cmd = cmd.add(1);
                         match addr_type {
                             ADDR_LINES | ADDR_OTHER => lnum = (*g_st().curbuf).b_ml.ml_line_count,
-                            ADDR_WINDOWS => lnum = current_win_nr(ptr::null(), eap),
+                            ADDR_WINDOWS => lnum = current_win_nr(ptr::null(), Some(&*eap)),
                             ADDR_ARGUMENTS => lnum = argcount(),
                             ADDR_LOADED_BUFFERS => {
                                 let mut buf = g_st().lastbuf;
@@ -7944,7 +7945,7 @@ pub fn get_address(
                     if lnum == MAXLNUM {
                         match addr_type {
                             ADDR_LINES | ADDR_OTHER => lnum = (**curwin.as_ptr()).w_cursor.lnum,
-                            ADDR_WINDOWS => lnum = current_win_nr(*curwin.as_ptr(), ptr::null_mut()),
+                            ADDR_WINDOWS => lnum = current_win_nr(*curwin.as_ptr(), None),
                             ADDR_ARGUMENTS => lnum = (**curwin.as_ptr()).w_arg_idx + 1,
                             ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = (*g_st().curbuf).b_fnum,
                             ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
@@ -8097,7 +8098,7 @@ pub fn invalid_range(eap: &mut exarg_T) -> *mut c_char {
                     }
                 }
                 ADDR_WINDOWS => {
-                    if eap.line2 > current_win_nr(ptr::null(), &raw mut *eap) {
+                    if eap.line2 > current_win_nr(ptr::null(), Some(&*eap)) {
                         return gettext(e_invrange.as_ptr());
                     }
                 }
@@ -8225,7 +8226,7 @@ pub fn expand_filename(
         while *p != NUL {
             if *p == b'`' as c_char && *p.add(1) == b'=' as c_char {
                 p = p.add(2);
-                skip_expr(&raw mut p, ptr::null_mut());
+                skip_expr(&raw mut p, None);
                 if *p == b'`' as c_char {
                     p = p.add(1);
                 }
@@ -8443,7 +8444,7 @@ pub fn separate_nextcmd(eap: &mut exarg_T) {
                 && ((*eap).argt & EX_XFILE) != 0
             {
                 p = p.add(2);
-                skip_expr(&raw mut p, ptr::null_mut());
+                skip_expr(&raw mut p, None);
                 if *p == NUL {
                     break;
                 }
@@ -10562,7 +10563,7 @@ pub fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
                 0,
                 ptr::null_mut(),
                 ptr::null_mut(),
-                &raw mut *eap,
+                Some(&*eap),
                 ECMD_ONE,
                 ECMD_HIDE + if eap.forceit != 0 { ECMD_FORCEIT } else { 0 },
                 if old_curwin.is_null() {
@@ -10616,7 +10617,7 @@ pub fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
                     eap.arg
                 },
                 ptr::null_mut(),
-                &raw mut *eap,
+                Some(&*eap),
                 eap.do_ecmd_lnum,
                 ecmd_flags,
                 if old_curwin.is_null() {
@@ -10753,7 +10754,7 @@ fn ex_read(eap: &mut exarg_T) {
                 eap.line2,
                 0,
                 MAXLNUM,
-                eap,
+                Some(&*eap),
                 0,
                 false,
             )
@@ -10767,7 +10768,7 @@ fn ex_read(eap: &mut exarg_T) {
                 eap.line2,
                 0,
                 MAXLNUM,
-                eap,
+                Some(&*eap),
                 0,
                 false,
             )
@@ -12041,7 +12042,7 @@ fn ex_tag_cmd(eap: &mut exarg_T, name: *const c_char) {
         }
 
         do_tag(
-            &raw mut *eap,
+            Some(&*eap),
             eap.arg,
             cmd,
             if eap.addr_count > 0 {

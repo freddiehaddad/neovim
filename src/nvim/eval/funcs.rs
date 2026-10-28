@@ -2169,7 +2169,7 @@ pub fn f_eval(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             s = skipwhite(s);
         }
         let expr_start = s;
-        if s.is_null() || eval1(&raw mut s, &mut *rettv, &raw mut g_st().EVALARG_EVALUATE) == FAIL {
+        if s.is_null() || eval1(&raw mut s, &mut *rettv, Some(&mut g_st().EVALARG_EVALUATE)) == FAIL {
             if !expr_start.is_null() && !aborting() {
                 semsg!(gettext(e_invexpr2.as_ptr()), expr_start);
             }

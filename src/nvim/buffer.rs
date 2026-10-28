@@ -948,7 +948,8 @@ pub fn get_highest_fnum() -> c_int {
 }
 
 /// Read data from buffer for retrying.
-fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_int {
+fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> c_int {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let silent = shortmess(kShmFileinfo);
 
@@ -967,7 +968,7 @@ fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_int {
             line_count,
             0,
             MAXLNUM,
-            eap,
+            (!eap.is_null()).then(||  { &*eap }),
             flags | READ_BUFFER,
             silent,
         );
@@ -1014,14 +1015,15 @@ pub fn buf_ensure_loaded(buf: &mut buf_T) -> bool {
         set_bufref(&mut bufref, &raw mut *buf);
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
-        let status = open_buffer(false, ptr::null_mut(), 0);
+        let status = open_buffer(false, None, 0);
         ctx_restore(&mut aco);
         status != FAIL && bufref_valid(Some(&bufref)) && buf.b_ml.ml_mfp.is_some()
 }
 
 /// Open current buffer, that is: open the memfile and read the file into
 /// memory.
-pub fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int) -> c_int {
+pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> c_int {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut flags = flags_arg;
         let mut retval = OK;
@@ -1127,7 +1129,7 @@ pub fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int) -> c_i
                 0,
                 0,
                 MAXLNUM,
-                eap,
+                (!eap.is_null()).then(||  { &*eap }),
                 flags | READ_NEW | if read_fifo { READ_FIFO } else { 0 },
                 silent,
             );
@@ -1135,7 +1137,7 @@ pub fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int) -> c_i
             if read_fifo {
                 (*g_st().curbuf).b_p_bin = save_bin;
                 if retval == OK {
-                    retval = read_buffer(false, eap, flags);
+                    retval = read_buffer(false, (!eap.is_null()).then(|| &*eap), flags);
                 }
             }
 
@@ -1152,13 +1154,13 @@ pub fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int) -> c_i
                 0,
                 0,
                 MAXLNUM,
-                ptr::null_mut(),
+                None,
                 flags | (READ_NEW + READ_STDIN),
                 silent,
             );
             (*g_st().curbuf).b_p_bin = save_bin;
             if retval == OK {
-                retval = read_buffer(true, eap, flags);
+                retval = read_buffer(true, (!eap.is_null()).then(||  { &*eap }), flags);
             }
         }
 
@@ -2086,7 +2088,7 @@ fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> c_int {
             0,
             ptr::null_mut(),
             ptr::null_mut(),
-            ptr::null_mut(),
+            None,
             ECMD_ONE,
             if forceit != 0 { ECMD_FORCEIT } else { 0 },
             *curwin.as_ptr(),
@@ -2633,7 +2635,7 @@ fn enter_buffer(buf: *mut buf_T) {
             if *(*g_st().curbuf).b_p_ft == NUL {
                 (*g_st().curbuf).b_did_filetype = false;
             }
-            open_buffer(false, ptr::null_mut(), 0);
+            open_buffer(false, None, 0);
         } else {
             if g_st().msg_silent == 0 && !shortmess(kShmFileinfo) {
                 g_st().need_fileinfo = true;
@@ -5002,7 +5004,7 @@ pub fn buf_contents_changed(buf: &mut buf_T) -> bool {
                 0,
                 0,
                 MAXLNUM,
-                &raw mut ea,
+                Some(&ea),
                 READ_NEW | READ_DUMMY,
                 false,
             ) == OK

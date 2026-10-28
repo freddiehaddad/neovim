@@ -805,7 +805,7 @@ fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
                 (*buf).b_fnum,
                 ptr::null_mut(),
                 ptr::null_mut(),
-                ptr::null_mut(),
+                None,
                 lnum,
                 if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 },
                 *curwin.as_ptr(),

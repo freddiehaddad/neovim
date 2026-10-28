@@ -2634,7 +2634,8 @@ fn restore_subexpr(bp: &mut regbehind_T) {
     }
 }
 
-fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_int) -> bool {
+fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,timed_out: Option<&mut c_int>) -> bool {
+    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut status: c_int;
         let mut tm_count: c_int = 0;
@@ -3803,15 +3804,15 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_int) ->
 fn regtry(
     prog: &mut bt_regprog_T,
     col: colnr_T,
-    tm: Option<proftime_T>,
-    timed_out: *mut c_int,
+    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
+    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         re_st().rex.input = re_st().rex.line.add(col as usize);
         re_st().rex.need_clear_subexpr = 1;
         re_st().rex.need_clear_zsubexpr = c_int::from(prog.reghasz == REX_SET as u8);
 
-        if !regmatch(prog.program.as_mut_ptr().add(1), tm, timed_out) {
+        if !regmatch(prog.program.as_mut_ptr().add(1), tm, (!timed_out.is_null()).then(||  { &mut *timed_out })) {
             return 0;
         }
 
@@ -3869,9 +3870,9 @@ fn regtry(
 fn bt_regexec_both(
     mut line: *mut u8,
     startcol: colnr_T,
-    tm: Option<proftime_T>,
-    timed_out: *mut c_int,
+    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
+    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut col = startcol;
         let mut retval: c_int = 0;
@@ -3970,7 +3971,7 @@ fn bt_regexec_both(
                             && (*prog).regstart < 255
                             && mb_tolower((*prog).regstart) == mb_tolower(c))))
             {
-                retval = regtry(&mut *prog, col, tm, timed_out);
+                retval = regtry(&mut *prog, col, tm, (!timed_out.is_null()).then(||  { &mut *timed_out }));
             } else {
                 retval = 0;
             }
@@ -3991,7 +3992,7 @@ fn bt_regexec_both(
                     break;
                 }
 
-                retval = regtry(&mut *prog, col, tm, timed_out);
+                retval = regtry(&mut *prog, col, tm, (!timed_out.is_null()).then(||  { &mut *timed_out }));
                 if retval > 0 {
                     break;
                 }
@@ -4076,7 +4077,7 @@ pub(super) fn bt_regexec_nl(
         re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
         re_st().rex.reg_maxcol = 0;
 
-        bt_regexec_both(line, col, None, ptr::null_mut())
+        bt_regexec_both(line, col, None, None)
     }
 }
 
@@ -4086,11 +4087,11 @@ pub(super) fn bt_regexec_multi(
     buf: *mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
-    tm: Option<proftime_T>,
-    timed_out: *mut c_int,
+    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
 ) -> c_int {
+    let timed_out: *mut c_int = timed_out.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     init_regexec_multi(rmp, win, buf, lnum);
-        bt_regexec_both(ptr::null_mut(), col, tm, timed_out)
+        bt_regexec_both(ptr::null_mut(), col, tm, (!timed_out.is_null()).then(|| unsafe { &mut *timed_out }))
 }
 
 fn re_num_cmp(val: u32, scan: *const u8) -> bool {

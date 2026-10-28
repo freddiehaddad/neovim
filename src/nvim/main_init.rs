@@ -1989,7 +1989,7 @@ fn read_stdin() {
                 0,
                 0,
                 MAXLNUM,
-                ptr::null_mut(),
+                None,
                 READ_NEW + READ_STDIN,
                 true,
             );
@@ -2017,7 +2017,7 @@ fn read_stdin() {
             }
         } else {
             set_buflisted(1);
-            open_buffer(true, ptr::null_mut(), 0);
+            open_buffer(true, None, 0);
             if buf_is_empty(&mut *g_st().curbuf) && !(*g_st().curbuf).b_next.is_null() {
                 do_cmdline_cmd(c"silent! bnext".as_ptr());
                 do_cmdline_cmd(c"silent! bwipeout 1".as_ptr());
@@ -2098,7 +2098,7 @@ fn create_windows(parmp: &mut mparm_T) {
                     g_st().swap_exists_action = SEA_DIALOG;
                     set_buflisted(1);
 
-                    open_buffer(false, ptr::null_mut(), 0);
+                    open_buffer(false, None, 0);
 
                     if g_st().swap_exists_action == SEA_QUIT {
                         if g_st().got_int || only_one_window() {
@@ -2189,7 +2189,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
                     0,
                     fname,
                     ptr::null_mut(),
-                    ptr::null_mut(),
+                    None,
                     ECMD_LASTL,
                     ECMD_HIDE,
                     *curwin.as_ptr(),

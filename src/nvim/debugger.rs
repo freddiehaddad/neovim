@@ -479,7 +479,7 @@ pub fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
 
 fn eval_expr_no_emsg(name: *mut c_char) -> Option<typval_T> {
     g_st().emsg_off += 1;
-        let tv = eval_expr(name, std::ptr::null_mut());
+        let tv = eval_expr(name, None);
         g_st().emsg_off -= 1;
         tv
 }

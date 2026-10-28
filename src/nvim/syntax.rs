@@ -2671,7 +2671,7 @@ fn syn_regexec(
         }
 
         rmp.rmm_maxcol = (*syn_st().syn_buf).b_p_smc as colnr_T;
-        let r = vim_regexec_multi(rmp, syn_st().syn_win, syn_st().syn_buf, lnum, col, syn_st().syn_tm, &raw mut timed_out);
+        let r = vim_regexec_multi(rmp, syn_st().syn_win, syn_st().syn_buf, lnum, col, syn_st().syn_tm, Some(&mut timed_out));
 
         if l_syn_time_on {
             pt = profile_end(pt);

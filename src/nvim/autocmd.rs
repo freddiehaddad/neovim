@@ -2487,7 +2487,7 @@ pub fn do_doautocmd(
                 group,
                 g_st().curbuf,
                 *curwin.as_ptr(),
-                ptr::null_mut(),
+                None,
                 ptr::null_mut(),
                 false,
             ) {
@@ -2627,7 +2627,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
                 group,
                 buf,
                 win,
-                ptr::null_mut(),
+                None,
                 data,
                 false,
             );
@@ -2686,7 +2686,7 @@ pub fn apply_autocmds(
             AUGROUP_ALL,
             buf,
             *curwin.as_ptr(),
-            ptr::null_mut(),
+            None,
             ptr::null_mut(),
             false,
         )
@@ -2709,7 +2709,7 @@ pub fn apply_autocmds_win(
             AUGROUP_ALL,
             buf,
             win,
-            ptr::null_mut(),
+            None,
             ptr::null_mut(),
             false,
         )
@@ -2720,9 +2720,9 @@ pub fn apply_autocmds_exarg(
     fname: *mut c_char,
     fname_io: *mut c_char,
     force: bool,
-    buf: *mut buf_T,
-    eap: *mut exarg_T,
+    buf: *mut buf_T,eap: Option<&exarg_T>,
 ) -> bool {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         apply_autocmds_group(
             event,
@@ -2732,7 +2732,7 @@ pub fn apply_autocmds_exarg(
             AUGROUP_ALL,
             buf,
             *curwin.as_ptr(),
-            eap,
+            (!eap.is_null()).then(||  { &*eap }),
             ptr::null_mut(),
             false,
         )
@@ -2760,7 +2760,7 @@ pub fn apply_autocmds_retval(
             AUGROUP_ALL,
             buf,
             *curwin.as_ptr(),
-            ptr::null_mut(),
+            None,
             ptr::null_mut(),
             false,
         );
@@ -2808,11 +2808,11 @@ pub fn apply_autocmds_group(
     force: bool,
     group: c_int,
     buf: *mut buf_T,
-    win: *mut win_T,
-    eap: *mut exarg_T,
+    win: *mut win_T,eap: Option<&exarg_T>,
     data: *mut Object,
     with_buf: bool,
 ) -> bool {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut retval = false;
         let mut wait_time: proftime_T = 0;
@@ -3064,7 +3064,7 @@ pub fn apply_autocmds_group(
 
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
                 let save_cmdarg = if !eap.is_null() {
-                    let s = set_cmdarg(eap, None);
+                    let s = set_cmdarg((!eap.is_null()).then(||  { &*eap }), None);
                     set_vim_var_nr(VV_CMDBANG, varnumber_T::from((*eap).forceit));
                     s
                 } else {
@@ -3093,7 +3093,7 @@ pub fn apply_autocmds_group(
                 }
 
                 if !eap.is_null() {
-                    set_cmdarg(ptr::null_mut(), save_cmdarg);
+                    set_cmdarg(None, save_cmdarg);
                     set_vim_var_nr(VV_CMDBANG, save_cmdbang);
                 }
                 let apc_list = &raw mut au_st().active_apc_list;
@@ -3192,7 +3192,7 @@ pub fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
             AUGROUP_ALL,
             ptr::null_mut(),
             *curwin.as_ptr(),
-            ptr::null_mut(),
+            None,
             &raw mut data_obj,
             false,
         );

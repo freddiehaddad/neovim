@@ -1319,7 +1319,7 @@ pub fn nvim_exec_autocmds(
                     au_group,
                     b,
                     *curwin.as_ptr(),
-                    std::ptr::null_mut(),
+                    None,
                     data,
                     has_buf,
                 );

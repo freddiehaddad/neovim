@@ -615,7 +615,7 @@ pub fn expand_env_esc(
             if *src == b'`' as c_char && *src.add(1) == b'=' as c_char {
                 let var = src;
                 src = src.add(2);
-                let _ = skip_expr(&raw mut src, ptr::null_mut());
+                let _ = skip_expr(&raw mut src, None);
                 if *src == b'`' as c_char {
                     src = src.add(1);
                 }

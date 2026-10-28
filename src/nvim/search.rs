@@ -821,7 +821,7 @@ pub fn searchit(
                         0
                     };
                     nmatched =
-                        vim_regexec_multi(&mut regmatch, win, buf, lnum, col, tm, timed_out);
+                        vim_regexec_multi(&mut regmatch, win, buf, lnum, col, tm, Some(&mut *timed_out));
                     if regmatch.regprog.is_null() {
                         break;
                     }
@@ -879,7 +879,7 @@ pub fn searchit(
                                         lnum,
                                         matchcol,
                                         tm,
-                                        timed_out,
+                                        Some(&mut *timed_out),
                                     );
                                     nmatched == 0
                                 } {
@@ -955,7 +955,7 @@ pub fn searchit(
                                         lnum + matchpos.lnum,
                                         matchcol,
                                         tm,
-                                        timed_out,
+                                        Some(&mut *timed_out),
                                     );
                                     nmatched == 0
                                 } {
@@ -2750,7 +2750,7 @@ fn is_zero_width(
                     pos.lnum,
                     start_col,
                     None,
-                    ptr::null_mut(),
+                    None,
                 );
                 if nmatched != 0 {
                     break;

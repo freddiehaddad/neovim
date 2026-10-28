@@ -863,7 +863,7 @@ pub fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
 
         let mut r = may_call_simple_func(p, &mut rettv);
         if r == NOTDONE {
-            r = eval1(&raw mut p, &mut rettv, &raw mut g_st().EVALARG_EVALUATE);
+            r = eval1(&raw mut p, &mut rettv, Some(&mut g_st().EVALARG_EVALUATE));
         }
         if r == OK {
             if rettv.v_type != VarType::VAR_LIST {
@@ -972,7 +972,7 @@ pub fn eval_one_expr_in_str(
             semsg!(gettext(e_missing_close_curly_str.as_ptr()), p);
             return ptr::null_mut();
         }
-        if skip_expr(&raw mut block_end, ptr::null_mut()) == FAIL {
+        if skip_expr(&raw mut block_end, None) == FAIL {
             return ptr::null_mut();
         }
         block_end = skipwhite(block_end);
@@ -1299,7 +1299,7 @@ pub fn ex_let(eap: &mut exarg_T) {
         }
         let mut evalarg = evalarg_T::new();
         fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
-        let eval_res = eval0(expr, &mut rettv, eap, &raw mut evalarg);
+        let eval_res = eval0(expr, &mut rettv, Some(&mut *eap), &mut evalarg);
         if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         }
@@ -1600,7 +1600,7 @@ fn list_arg_vars(
                         if handle_subscript(
                             (&raw mut arg).cast(),
                             &mut tv,
-                            &raw mut g_st().EVALARG_EVALUATE,
+                            Some(&mut g_st().EVALARG_EVALUATE),
                             true,
                         ) == FAIL
                         {
@@ -2537,10 +2537,10 @@ pub fn v_exception(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CStrin
     }
 }
 
-pub fn set_cmdarg(
-    eap: *mut exarg_T,
+pub fn set_cmdarg(eap: Option<&exarg_T>,
     oldarg: Option<std::ffi::CString>,
 ) -> Option<std::ffi::CString> {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let tv = get_vim_var_tv(VV_CMDARG);
         let oldval = crate::eval::typval::tv_take_string((*tv).vval.v_string());
@@ -3652,7 +3652,7 @@ pub fn var_exists(mut var: *const c_char) -> bool {
             }
             n = eval_variable(name, len, Some(&mut tv), ptr::null_mut(), false, true) == OK;
             if n {
-                n = handle_subscript(&raw mut var, &mut tv, &raw mut g_st().EVALARG_EVALUATE, false)
+                n = handle_subscript(&raw mut var, &mut tv, Some(&mut g_st().EVALARG_EVALUATE), false)
                     == OK;
                 if n {
                     tv_clear(&raw mut tv);

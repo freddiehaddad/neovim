@@ -837,7 +837,7 @@ pub fn ex_eval(eap: &mut exarg_T) {
 
         fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
 
-        if eval0(eap.arg, &mut tv, eap, &mut evalarg) == OK {
+        if eval0(eap.arg, &mut tv, Some(&mut *eap), &mut evalarg) == OK {
             tv_clear(&mut tv);
         }
 }

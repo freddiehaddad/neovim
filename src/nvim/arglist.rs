@@ -684,7 +684,7 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
             0,
             alist_name(&*arglist().add((**curwin.as_ptr()).w_arg_idx as usize)),
             ptr::null_mut(),
-            &raw mut *eap,
+            Some(&*eap),
             ECMD_LAST,
             (if buf_hide(&*(**curwin.as_ptr()).w_buffer) {
                 ECMD_HIDE
@@ -1087,7 +1087,7 @@ fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
                     0,
                     alist_name(&*aarglist(&mut *aall.alist).add(i as usize)),
                     ptr::null_mut(),
-                    ptr::null_mut(),
+                    None,
                     ECMD_ONE,
                     (if buf_hide(&*(**curwin.as_ptr()).w_buffer) || bufIsChanged(&mut *(**curwin.as_ptr()).w_buffer) {
                         ECMD_HIDE

@@ -508,7 +508,7 @@ fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &cmdmod_T) {
     }
 }
 
-fn nlua_push_eap(lstate: *mut lua_State, eap: &mut exarg_T, cmod: &cmdmod_T) {
+fn nlua_push_eap(lstate: *mut lua_State, eap: &exarg_T, cmod: &cmdmod_T) {
     unsafe {
         if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < CMD_SIZE {
             lua_pushstring(lstate, get_command_name(&mut crate::os::env::expand_T::new(), eap.cmdidx));
@@ -2121,7 +2121,7 @@ pub fn nlua_call_typval(
 pub fn nlua_call_excmd(
     module: *const c_char,
     func: *const c_char,
-    eap: &mut exarg_T,
+    eap: &exarg_T,
     cmod: &cmdmod_T,
     extra: Option<&mut typval_T>,
 ) -> bool {
@@ -2735,7 +2735,7 @@ pub fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int
         );
 
         lua_newtable(lstate);
-        nlua_push_eap(lstate, &mut *eap, &g_st().cmdmod);
+        nlua_push_eap(lstate, &*eap, &g_st().cmdmod);
 
         lua_pushstring(lstate, cmd.uc_name.as_ptr());
         lua_setfield(lstate, -2, c"name".as_ptr());
