@@ -462,7 +462,7 @@ fn add_menu_path(
             } else {
                 ptr::null_mut()
             };
-            let dname = menu_text(name, ptr::null_mut(), None);
+            let dname = menu_text(name, None, None);
             if dname.as_bytes().is_empty() {
                 emsg(gettext(c"E792: Empty menu name".as_ptr()));
                 return cleanup_erret(&ancestor_stack);
@@ -519,10 +519,10 @@ fn add_menu_path(
                 new_menu.enabled = MENU_ALL_MODES;
                 new_menu.name = CStr::from_ptr(name).to_owned();
                 new_menu.dname =
-                    menu_text(name, &raw mut new_menu.mnemonic, Some(&mut new_menu.actext));
+                    menu_text(name, Some(&mut new_menu.mnemonic), Some(&mut new_menu.actext));
                 if !en_name.is_null() {
                     new_menu.en_name = Some(CStr::from_ptr(en_name).to_owned());
-                    new_menu.en_dname = Some(menu_text(en_name, ptr::null_mut(), None));
+                    new_menu.en_dname = Some(menu_text(en_name, None, None));
                 }
                 new_menu.priority = *pri_tab.add(pri_idx);
 
@@ -1410,7 +1410,7 @@ fn popup_mode_name(name: *mut c_char, idx: usize) -> std::ffi::CString {
 /// Duplicate the menu item text and then process mnemonic key and accelerator text (`menu_text`).
 fn menu_text(
     str: *const c_char,
-    mnemonic: *mut c_int,
+    mut mnemonic: Option<&mut c_int>,
     actext: Option<&mut Option<std::ffi::CString>>,
 ) -> std::ffi::CString {
     unsafe {
@@ -1440,8 +1440,10 @@ fn menu_text(
                 if *p.add(1) == NUL {
                     break;
                 }
-                if !mnemonic.is_null() && *p.add(1) != b'&' as c_char {
-                    *mnemonic = c_int::from(*p.add(1) as u8);
+                if *p.add(1) != b'&' as c_char
+                    && let Some(ref mut mnemonic) = mnemonic
+                {
+                    **mnemonic = c_int::from(*p.add(1) as u8);
                 }
                 ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
                 p = p.add(1);
@@ -1803,7 +1805,7 @@ pub fn ex_menutranslate(eap: &mut exarg_T) {
                     .map(|&b| b as c_char)
                     .collect();
                 let from = from_vec.as_mut_ptr();
-                let from_noamp_cstr = menu_text(from, ptr::null_mut(), None);
+                let from_noamp_cstr = menu_text(from, None, None);
                 let to_len = arg.offset_from(to_arg) as usize;
                 let mut to_vec: Vec<c_char> = Vec::with_capacity(to_len + 1);
                 to_vec.extend_from_slice(std::slice::from_raw_parts(to_arg, to_len));
@@ -1854,7 +1856,7 @@ fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
 
         let c = *name.add(u_len);
         *name.add(u_len) = NUL;
-        let dname = menu_text(name, ptr::null_mut(), None);
+        let dname = menu_text(name, None, None);
         *name.add(u_len) = c;
         for entry in menutrans {
             if std::ffi::CStr::from_ptr(dname.as_ptr()).to_bytes().eq_ignore_ascii_case(std::ffi::CStr::from_ptr(entry.from_noamp.as_ptr()).to_bytes()) {

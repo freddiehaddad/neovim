@@ -5925,7 +5925,7 @@ pub fn is_cmd_ni(cmdidx: cmdidx_T) -> bool {
 
 fn find_excmd_after_range(eap: &mut exarg_T) -> *mut c_char {
     let cmd = eap.cmd;
-        eap.cmd = skip_range(eap.cmd, ptr::null_mut());
+        eap.cmd = skip_range(eap.cmd, None);
         let p = find_ex_command(eap, ptr::null_mut());
         eap.cmd = cmd;
         p
@@ -6892,7 +6892,7 @@ pub fn parse_command_modifiers(
                 return FAIL;
             }
 
-            let mut p = skip_range(eap.cmd, ptr::null_mut());
+            let mut p = skip_range(eap.cmd, None);
             match *p as u8 {
                 b'a' => {
                     if !checkforcmd(&raw mut eap.cmd, c"aboveleft".as_ptr(), 3) {
@@ -7610,7 +7610,7 @@ pub fn f_fullcommand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         while *name == b':' as c_char {
             name = name.add(1);
         }
-        name = skip_range(name, ptr::null_mut());
+        name = skip_range(name, None);
 
         let mut ea: exarg_T = exarg_T::new();
         ea.cmd = if *name == b'2' as c_char || *name == b'3' as c_char {
@@ -7659,7 +7659,7 @@ pub fn excmd_get_argt(idx: cmdidx_T) -> u32 {
     CMDNAMES[idx as usize].cmd_argt
 }
 
-pub fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char {
+pub fn skip_range(mut cmd: *const c_char, mut ctx: Option<&mut c_int>) -> *mut c_char {
     unsafe {
         while !vim_strchr(
             c" \t0123456789.$%'/?-+,;\\".as_ptr(),
@@ -7676,13 +7676,17 @@ pub fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char {
                 }
             } else if *cmd == b'\'' as c_char {
                 cmd = cmd.add(1);
-                if *cmd == NUL && !ctx.is_null() {
-                    *ctx = EXPAND_NOTHING;
+                if *cmd == NUL
+                    && let Some(ref mut ctx) = ctx
+                {
+                    **ctx = EXPAND_NOTHING;
                 }
             } else if *cmd == b'/' as c_char || *cmd == b'?' as c_char {
                 cmd = skip_regexp(cmd.add(1).cast_mut(), c_int::from(*cmd as u8), opt_vars().p_magic);
-                if *cmd == NUL && !ctx.is_null() {
-                    *ctx = EXPAND_NOTHING;
+                if *cmd == NUL
+                    && let Some(ref mut ctx) = ctx
+                {
+                    **ctx = EXPAND_NOTHING;
                 }
             }
             if *cmd != NUL {
@@ -9167,7 +9171,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 c"ex_session_restart".as_ptr(),
                 eap,
                 &g_st().cmdmod,
-                &raw mut extra_tv,
+                Some(&mut extra_tv),
             );
             tv_clear(&raw mut extra_tv);
             return;
@@ -12693,7 +12697,7 @@ fn ex_checkhealth(eap: &mut exarg_T) {
             c"_check".as_ptr(),
             eap,
             &g_st().cmdmod,
-            ptr::null_mut(),
+            None,
         );
         g_st().emsg_off -= 1;
         if ok {
@@ -12730,7 +12734,7 @@ fn ex_terminal(eap: &mut exarg_T) {
                 c"ex_terminal".as_ptr(),
                 eap,
                 &g_st().cmdmod,
-                ptr::null_mut(),
+                None,
             );
         } else {
             if *opt_vars().p_sh == NUL {
@@ -12752,7 +12756,7 @@ fn ex_terminal(eap: &mut exarg_T) {
                 c"ex_terminal".as_ptr(),
                 eap,
                 &g_st().cmdmod,
-                &raw mut shell_tv,
+                Some(&mut shell_tv),
             );
             tv_clear(&raw mut shell_tv);
         }
@@ -12765,7 +12769,7 @@ fn ex_log(eap: &mut exarg_T) {
             c"ex_log".as_ptr(),
             eap,
             &g_st().cmdmod,
-            ptr::null_mut(),
+            None,
         );
 }
 
@@ -12775,7 +12779,7 @@ fn ex_lsp(eap: &mut exarg_T) {
             c"ex_lsp".as_ptr(),
             eap,
             &g_st().cmdmod,
-            ptr::null_mut(),
+            None,
         );
 }
 
@@ -12785,7 +12789,7 @@ fn ex_packdel(eap: &mut exarg_T) {
             c"ex_packdel".as_ptr(),
             eap,
             &g_st().cmdmod,
-            ptr::null_mut(),
+            None,
         );
 }
 
@@ -12795,7 +12799,7 @@ fn ex_packupdate(eap: &mut exarg_T) {
             c"ex_packupdate".as_ptr(),
             eap,
             &g_st().cmdmod,
-            ptr::null_mut(),
+            None,
         );
 }
 
@@ -12805,7 +12809,7 @@ fn ex_uptime(eap: &mut exarg_T) {
             c"ex_uptime".as_ptr(),
             eap,
             &g_st().cmdmod,
-            ptr::null_mut(),
+            None,
         );
 }
 

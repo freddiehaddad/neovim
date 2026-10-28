@@ -3724,7 +3724,7 @@ pub fn f_getregtype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
         let mut reglen: colnr_T = 0;
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
-        let reg_type = get_reg_type(regname, &raw mut reglen);
+        let reg_type = get_reg_type(regname, Some(&mut reglen));
         format_reg_type(reg_type, reglen, buf.as_mut_ptr(), buf.len());
 
         crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
@@ -5488,7 +5488,7 @@ fn find_some_match(argvars: *mut typval_T, rettv: &mut typval_T, type_: SomeMatc
                             break;
                         }
                         tofree_owned =
-                            Some(encode_tv2echo(&raw mut (*li).li_tv, ptr::null_mut()));
+                            Some(encode_tv2echo(&raw mut (*li).li_tv, None));
                         expr = tofree_owned
                             .as_ref()
                             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -6560,7 +6560,7 @@ pub fn f_getreginfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
         let mut reglen: colnr_T = 0;
-        let mut buflen = match get_reg_type(regname, &raw mut reglen) {
+        let mut buflen = match get_reg_type(regname, Some(&mut reglen)) {
             crate::register::MotionType::kMTLineWise => {
                 buf[0] = b'V' as c_char;
                 buf[1] = NUL;

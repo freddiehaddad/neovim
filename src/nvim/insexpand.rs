@@ -916,21 +916,23 @@ fn find_original_text_match_idx() -> Option<usize> {
         None
 }
 
-fn do_autocmd_completedone(c: c_int, mode: c_int, word: *mut NvimString) {
+fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
     unsafe {
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let v_event = get_v_event(&mut save_v_event);
 
-        if word.is_null() || (*word).data.is_null() {
-            tv_dict_add_str_len(v_event, c"complete_word".as_ptr(), 13, c"".as_ptr(), 0);
-        } else {
+        if let Some(word) = word
+            && !word.data.is_null()
+        {
             tv_dict_add_str_len(
                 v_event,
                 c"complete_word".as_ptr(),
                 13,
-                (*word).data,
-                (*word).size as c_int,
+                word.data,
+                word.size as c_int,
             );
+        } else {
+            tv_dict_add_str_len(v_event, c"complete_word".as_ptr(), 13, c"".as_ptr(), 0);
         }
 
         let idx = (mode & !CTRL_X_WANT_IDENT) as usize;
@@ -949,7 +951,7 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: *mut NvimString) {
             }
         }
 
-        let reason = if c == Ctrl_Y || (!word.is_null() && !(*word).data.is_null()) {
+        let reason = if c == Ctrl_Y || word.is_some_and(|w| !w.data.is_null()) {
             c"accept".as_ptr()
         } else if c == Ctrl_E {
             c"cancel".as_ptr()
@@ -2970,14 +2972,14 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
         if want_cindent && in_cinkeys(KEY_COMPLETE, b' ' as c_int, inindent(0)) {
             do_c_expr_indent();
         }
-        let mut word = match word_owned {
+        let word = match word_owned {
             Some(ref w) => NvimString {
                 data: w.as_ptr().cast_mut(),
                 size: w.as_bytes().len(),
             },
             None => empty_nvim_string(),
         };
-        do_autocmd_completedone(c, prev_mode, &raw mut word);
+        do_autocmd_completedone(c, prev_mode, Some(&word));
 
         retval
     }
@@ -3057,7 +3059,7 @@ pub fn ins_compl_prep(c: c_int) -> bool {
                 retval = ins_compl_stop(c, prev_mode, retval);
             }
         } else if insexp().ctrl_x_mode == CTRL_X_LOCAL_MSG {
-            do_autocmd_completedone(c, insexp().ctrl_x_mode, ptr::null_mut());
+            do_autocmd_completedone(c, insexp().ctrl_x_mode, None);
         }
 
         may_trigger_modechanged();

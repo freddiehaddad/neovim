@@ -405,7 +405,7 @@ fn conv_error(
                         let first_item = tv_list_first((*prev_li).li_tv.vval.v_list());
                         assert!(!first_item.is_null());
                         let mut key_tv = (*first_item).li_tv;
-                        let key = encode_tv2echo(&mut key_tv, std::ptr::null_mut());
+                        let key = encode_tv2echo(&mut key_tv, None);
                         vim_snprintf!(
                             iobuf.as_mut_ptr(),
                             iobuf.len(),
@@ -1759,7 +1759,7 @@ pub fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString
 }
 
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
-pub fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
+pub fn encode_tv2echo(tv: *mut typval_T, len: Option<&mut usize>) -> std::ffi::CString {
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let tv_ref = &*tv;
@@ -1771,7 +1771,7 @@ pub fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
             let eve_ret = encode_vim_to_echo(&mut ga, tv, c":echo argument".as_ptr());
             assert_eq!(eve_ret, OK);
         }
-        if !len.is_null() {
+        if let Some(len) = len {
             *len = ga.len();
         }
         cstr_from_bytes(&ga)

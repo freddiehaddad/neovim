@@ -2125,7 +2125,7 @@ pub fn nlua_call_excmd(
     func: *const c_char,
     eap: &mut exarg_T,
     cmod: &cmdmod_T,
-    extra: *mut typval_T,
+    extra: Option<&mut typval_T>,
 ) -> bool {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
@@ -2142,7 +2142,7 @@ pub fn nlua_call_excmd(
         nlua_push_eap(lstate, eap, cmod);
 
         let mut nargs: c_int = 1;
-        if !extra.is_null() {
+        if let Some(extra) = extra {
             nlua_push_typval(lstate, extra, 0);
             nargs = 2;
         }

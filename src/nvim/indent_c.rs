@@ -162,7 +162,7 @@ pub fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
         pos
     }
 }
-fn ind_find_start_CORS(is_raw: *mut linenr_T) -> *mut pos_T {
+fn ind_find_start_CORS(is_raw: Option<&mut linenr_T>) -> *mut pos_T {
     unsafe {
         let mut comment_pos = find_start_comment((*g_st().curbuf).b_ind_maxcomment);
         if !comment_pos.is_null() {
@@ -171,7 +171,9 @@ fn ind_find_start_CORS(is_raw: *mut linenr_T) -> *mut pos_T {
         }
         let rs_pos = find_start_rawstring((*g_st().curbuf).b_ind_maxcomment);
         if comment_pos.is_null() || (!rs_pos.is_null() && lt(*rs_pos, *comment_pos)) {
-            if !is_raw.is_null() && !rs_pos.is_null() {
+            if !rs_pos.is_null()
+                && let Some(is_raw) = is_raw
+            {
                 *is_raw = (*rs_pos).lnum;
             }
             return rs_pos;
@@ -413,14 +415,14 @@ fn cin_islabel() -> bool {
         if !cin_islabel_skip(&raw mut s) {
             return false;
         }
-        if !ind_find_start_CORS(ptr::null_mut()).is_null() {
+        if !ind_find_start_CORS(None).is_null() {
             return false;
         }
         let cursor_save = (**curwin.as_ptr()).w_cursor;
         while (**curwin.as_ptr()).w_cursor.lnum > 1 {
             (**curwin.as_ptr()).w_cursor.lnum -= 1;
             (**curwin.as_ptr()).w_cursor.col = 0;
-            let trypos = ind_find_start_CORS(ptr::null_mut());
+            let trypos = ind_find_start_CORS(None);
             if !trypos.is_null() {
                 (**curwin.as_ptr()).w_cursor = *trypos;
             }
@@ -1389,7 +1391,7 @@ fn find_start_brace() -> *mut pos_T {
             (**curwin.as_ptr()).w_cursor = *trypos;
             let mut pos: *mut pos_T = ptr::null_mut();
             if cin_skip2pos(&mut *trypos) as colnr_T == (*trypos).col && {
-                pos = ind_find_start_CORS(ptr::null_mut());
+                pos = ind_find_start_CORS(None);
                 pos.is_null()
             } {
                 break;
@@ -1430,7 +1432,7 @@ fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
                     indc_st().match_char_pos_copy = *trypos;
                     trypos = &raw mut indc_st().match_char_pos_copy;
                     (**curwin.as_ptr()).w_cursor = *trypos;
-                    let trypos_wk = ind_find_start_CORS(ptr::null_mut());
+                    let trypos_wk = ind_find_start_CORS(None);
                     if !trypos_wk.is_null() {
                         ind_maxp_wk = ind_maxparen - (cursor_save.lnum - (*trypos_wk).lnum);
                         if ind_maxp_wk > 0 {
@@ -1921,7 +1923,7 @@ pub fn get_c_indent() -> c_int {
                                     continue;
                                 }
                                 (**curwin.as_ptr()).w_cursor.lnum = lnum;
-                                trypos = ind_find_start_CORS(ptr::null_mut());
+                                trypos = ind_find_start_CORS(None);
                                 if !trypos.is_null() {
                                     lnum = (*trypos).lnum;
                                     continue;
@@ -2203,7 +2205,7 @@ pub fn get_c_indent() -> c_int {
                                             }
                                             break;
                                         }
-                                        trypos = ind_find_start_CORS(ptr::null_mut());
+                                        trypos = ind_find_start_CORS(None);
                                         if !trypos.is_null() {
                                             (**curwin.as_ptr()).w_cursor.lnum = (*trypos).lnum + 1;
                                             (**curwin.as_ptr()).w_cursor.col = 0;
@@ -2290,7 +2292,7 @@ pub fn get_c_indent() -> c_int {
                                             {
                                                 break;
                                             }
-                                            trypos = ind_find_start_CORS(ptr::null_mut());
+                                            trypos = ind_find_start_CORS(None);
                                             if !trypos.is_null() {
                                                 (**curwin.as_ptr()).w_cursor.lnum = (*trypos).lnum + 1;
                                                 (**curwin.as_ptr()).w_cursor.col = 0;
@@ -2320,7 +2322,7 @@ pub fn get_c_indent() -> c_int {
                                     }
                                     break;
                                 }
-                                trypos = ind_find_start_CORS(&raw mut raw_string_start);
+                                trypos = ind_find_start_CORS(Some(&mut raw_string_start));
                                 if !trypos.is_null() {
                                     (**curwin.as_ptr()).w_cursor.lnum = (*trypos).lnum + 1;
                                     (**curwin.as_ptr()).w_cursor.col = 0;
@@ -2785,7 +2787,7 @@ pub fn get_c_indent() -> c_int {
                     (**curwin.as_ptr()).w_cursor.lnum -= 1;
                     (**curwin.as_ptr()).w_cursor.col = 0;
                     l = get_cursor_line_ptr();
-                    trypos = ind_find_start_CORS(ptr::null_mut());
+                    trypos = ind_find_start_CORS(None);
                     if !trypos.is_null() {
                         (**curwin.as_ptr()).w_cursor.lnum = (*trypos).lnum + 1;
                         (**curwin.as_ptr()).w_cursor.col = 0;

@@ -2037,7 +2037,7 @@ fn reg_getline_common(
     lnum: linenr_T,
     flags: reg_getline_flags_T,
     line: *mut *mut c_char,
-    length: *mut colnr_T,
+    length: Option<&mut colnr_T>,
 ) {
     unsafe {
         let get_line = (flags & RGLF_LINE) != 0;
@@ -2052,7 +2052,7 @@ fn reg_getline_common(
             if get_line {
                 *line = ptr::null_mut();
             }
-            if get_length {
+            if get_length && let Some(length) = length {
                 *length = 0;
             }
             return;
@@ -2062,7 +2062,7 @@ fn reg_getline_common(
             if get_line {
                 *line = c"".as_ptr().cast_mut();
             }
-            if get_length {
+            if get_length && let Some(length) = length {
                 *length = 0;
             }
             return;
@@ -2071,7 +2071,7 @@ fn reg_getline_common(
         if get_line {
             *line = ml_get_buf(re_st().rex.reg_buf, firstlnum);
         }
-        if get_length {
+        if get_length && let Some(length) = length {
             *length = ml_get_buf_len(re_st().rex.reg_buf, firstlnum);
         }
     }
@@ -2079,13 +2079,13 @@ fn reg_getline_common(
 
 pub(super) fn reg_getline(lnum: linenr_T) -> *mut c_char {
     let mut line: *mut c_char = ptr::null_mut();
-        reg_getline_common(lnum, RGLF_LINE, &raw mut line, ptr::null_mut());
-        line
+    reg_getline_common(lnum, RGLF_LINE, &raw mut line, None);
+    line
 }
 
 pub(super) fn reg_getline_len(lnum: linenr_T) -> colnr_T {
     let mut length: colnr_T = 0;
-        reg_getline_common(lnum, RGLF_LENGTH, ptr::null_mut(), &raw mut length);
+        reg_getline_common(lnum, RGLF_LENGTH, ptr::null_mut(), Some(&mut length));
         length
 }
 
@@ -3018,7 +3018,7 @@ fn reg_getline_submatch(lnum: linenr_T) -> *mut c_char {
             lnum,
             RGLF_LINE | RGLF_SUBMATCH,
             &raw mut line,
-            ptr::null_mut(),
+            None,
         );
         line
 }
@@ -3029,7 +3029,7 @@ fn reg_getline_submatch_len(lnum: linenr_T) -> colnr_T {
             lnum,
             RGLF_LENGTH | RGLF_SUBMATCH,
             ptr::null_mut(),
-            &raw mut length,
+            Some(&mut length),
         );
         length
 }

@@ -672,7 +672,7 @@ pub fn tv_str(
                 s = tv_get_string_chk(tv);
                 *tofree = None;
             } else {
-                let encoded = encode_tv2echo(tv, ptr::null_mut());
+                let encoded = encode_tv2echo(tv, None);
                 s = encoded.as_ptr();
                 *tofree = Some(encoded);
             }

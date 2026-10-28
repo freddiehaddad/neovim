@@ -5338,6 +5338,6 @@ pub fn ex_oldfiles(eap: &mut exarg_T) {
             c"ex_oldfiles".as_ptr(),
             eap,
             &g_st().cmdmod,
-            ptr::null_mut(),
+            None,
         );
 }

@@ -1721,7 +1721,7 @@ fn list_join_inner(
                 break;
             }
             let mut size: usize = 0;
-            let s = encode_tv2echo(&raw mut (*item).li_tv, &raw mut size);
+            let s = encode_tv2echo(&raw mut (*item).li_tv, Some(&mut size));
 
             sumlen += size;
             join_vec.push(s);

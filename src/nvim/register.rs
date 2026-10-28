@@ -1441,7 +1441,7 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
 fn put_do_autocmd(
     regname: c_int,
     reg: *mut yankreg_T,
-    insert: *const NvimString,
+    insert: Option<&NvimString>,
     post: bool,
     dir: Direction,
 ) {
@@ -1450,7 +1450,7 @@ fn put_do_autocmd(
             return;
         }
 
-        if regname != c_int::from(b'.') && insert.is_null() && reg.is_null() {
+        if regname != c_int::from(b'.') && insert.is_none() && reg.is_null() {
             return;
         }
 
@@ -1468,8 +1468,8 @@ fn put_do_autocmd(
             if !(*last_ins).is_empty() {
                 tv_list_append_string(list, (*last_ins).as_ptr(), (*last_ins).len() as isize);
             }
-        } else if !insert.is_null() {
-            tv_list_append_string(list, (*insert).data, (*insert).size as isize);
+        } else if let Some(insert) = insert {
+            tv_list_append_string(list, insert.data, insert.size as isize);
         } else {
             for &item in &(&*reg).y_array {
                 tv_list_append_string(list, item.data, item.size as isize);
@@ -1623,10 +1623,10 @@ pub fn do_put(
             }
 
             if has_event(EVENT_TEXTPUTPRE) {
-                put_do_autocmd(c_int::from(b'.'), ptr::null_mut(), ptr::null(), false, dir);
+                put_do_autocmd(c_int::from(b'.'), ptr::null_mut(), None, false, dir);
             }
             if has_event(EVENT_TEXTPUTPOST) {
-                put_do_autocmd(c_int::from(b'.'), ptr::null_mut(), ptr::null(), true, dir);
+                put_do_autocmd(c_int::from(b'.'), ptr::null_mut(), None, true, dir);
             }
 
             if has_textput_events {
@@ -1732,7 +1732,7 @@ pub fn do_put(
                 put_do_autocmd(
                     regname,
                     ptr::null_mut(),
-                    &raw const insert_string,
+                    Some(&insert_string),
                     false,
                     dir,
                 );
@@ -1743,7 +1743,7 @@ pub fn do_put(
                 if reg.is_null() {
                     reg = get_yank_register(regname, YREG_PASTE);
                 }
-                put_do_autocmd(regname, reg, ptr::null(), false, dir);
+                put_do_autocmd(regname, reg, None, false, dir);
                 reg = save_reg;
             }
             if reg.is_null() {
@@ -2467,12 +2467,12 @@ pub fn do_put(
 
         if has_event(EVENT_TEXTPUTPOST) {
             if insert_string.data.is_null() {
-                put_do_autocmd(regname, reg, ptr::null(), true, dir);
+                put_do_autocmd(regname, reg, None, true, dir);
             } else {
                 put_do_autocmd(
                     regname,
                     ptr::null_mut(),
-                    &raw const insert_string,
+                    Some(&insert_string),
                     true,
                     dir,
                 );
@@ -2531,7 +2531,7 @@ pub fn ex_display(eap: &mut exarg_T) {
                 continue;
             }
 
-            let type_ch = match get_reg_type(name, ptr::null_mut()) {
+            let type_ch = match get_reg_type(name, None) {
                 MotionType::kMTLineWise => c_int::from(b'l'),
                 MotionType::kMTCharWise => c_int::from(b'c'),
                 _ => c_int::from(b'b'),
@@ -2666,7 +2666,7 @@ pub fn ex_display(eap: &mut exarg_T) {
     }
 }
 
-pub fn get_reg_type(regname: c_int, reg_width: *mut colnr_T) -> MotionType {
+pub fn get_reg_type(regname: c_int, reg_width: Option<&mut colnr_T>) -> MotionType {
     unsafe {
         if regname == c_int::from(b'%')
             || regname == c_int::from(b'#')
@@ -2689,7 +2689,9 @@ pub fn get_reg_type(regname: c_int, reg_width: *mut colnr_T) -> MotionType {
 
         let reg = &*get_yank_register(regname, YREG_PASTE);
         if reg.y_allocated {
-            if !reg_width.is_null() && reg.y_type == MotionType::kMTBlockWise {
+            if reg.y_type == MotionType::kMTBlockWise
+                && let Some(reg_width) = reg_width
+            {
                 *reg_width = reg.y_width;
             }
             return reg.y_type;

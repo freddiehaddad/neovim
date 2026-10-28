@@ -73,8 +73,8 @@ fn validate_option_value_args(
     scope: &mut OptScope,
     from: &mut OptTarget,
     filetype: *mut *mut c_char,
-    operation: *mut set_op_T,
-    dry_run: *mut bool,
+    operation: Option<&mut set_op_T>,
+    dry_run: Option<&mut bool>,
     err: &mut Error,
 ) -> c_int {
     unsafe {
@@ -179,7 +179,9 @@ fn validate_option_value_args(
             return FAIL;
         }
 
-        if !operation.is_null() && has_key(mask, KEYSET_OPTIDX_option__operation) {
+        if has_key(mask, KEYSET_OPTIDX_option__operation)
+            && let Some(operation) = operation
+        {
             if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"set") {
                 *operation = OP_NONE;
             } else if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"append") {
@@ -207,7 +209,9 @@ fn validate_option_value_args(
             }
         }
 
-        if !dry_run.is_null() && has_key(mask, KEYSET_OPTIDX_option__dry_run) {
+        if has_key(mask, KEYSET_OPTIDX_option__dry_run)
+            && let Some(dry_run) = dry_run
+        {
             *dry_run = opts.dry_run;
         }
 
@@ -404,8 +408,8 @@ pub fn nvim_get_option_value(
             &mut scope,
             &mut from,
             &mut filetype,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             err,
         ) == 0
         {
@@ -602,8 +606,8 @@ pub fn nvim_set_option_value(
             &mut scope,
             &mut to,
             ptr::null_mut(),
-            &mut operation,
-            &mut dry_run,
+            Some(&mut operation),
+            Some(&mut dry_run),
             err,
         ) == 0
         {
@@ -853,8 +857,8 @@ pub fn nvim_get_option_info2(
             &mut scope,
             &mut from,
             ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             err,
         ) == 0
         {

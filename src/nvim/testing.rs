@@ -166,7 +166,7 @@ fn fill_assert_error(
             && !(opt_msg.v_type == VarType::VAR_STRING
                 && (opt_msg.vval.v_string().is_null() || *opt_msg.vval.v_string() == 0))
         {
-            let tofree = encode_tv2echo(opt_msg_tv, std::ptr::null_mut());
+            let tofree = encode_tv2echo(opt_msg_tv, None);
             buf_concat_cstr(gap, tofree.as_ptr());
             ga_concat_literal(gap, b": ");
         }
@@ -368,7 +368,7 @@ fn assert_append_cmd_or_arg(gap: &mut Vec<u8>, argvars: *mut typval_T, cmd: *con
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
             && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
         {
-            let tofree = encode_tv2echo(argvars.add(2), std::ptr::null_mut());
+            let tofree = encode_tv2echo(argvars.add(2), None);
             buf_concat_cstr(gap, tofree.as_ptr());
         } else {
             buf_concat_cstr(gap, cmd);
@@ -511,7 +511,7 @@ fn assert_equalfile(argvars: *mut typval_T) -> c_int {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                let tofree = encode_tv2echo(argvars.add(2), std::ptr::null_mut());
+                let tofree = encode_tv2echo(argvars.add(2), None);
                 buf_concat_cstr(&mut ga, tofree.as_ptr());
                 ga_concat_literal(&mut ga, b": ");
             }

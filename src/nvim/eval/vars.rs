@@ -1621,7 +1621,7 @@ fn list_arg_vars(
                                     }
                                 }
                             } else {
-                                let s = encode_tv2echo(&raw mut tv, ptr::null_mut());
+                                let s = encode_tv2echo(&raw mut tv, None);
                                 let used_name = if arg == arg_subsc { name } else { name_start };
                                 debug_assert!(!used_name.is_null());
                                 let name_size = if tofree
@@ -2924,7 +2924,7 @@ fn delete_var(ht: &mut hashtab_T, hi: *mut hashitem_T) {
 /// List the value of one internal variable.
 fn list_one_var(v: &mut dictitem_T, prefix: *const c_char, first: *mut c_int) {
     unsafe {
-        let s = encode_tv2echo(&raw mut v.di_tv, ptr::null_mut());
+        let s = encode_tv2echo(&raw mut v.di_tv, None);
         list_one_var_a(
             prefix,
             v.di_key.as_ptr(),

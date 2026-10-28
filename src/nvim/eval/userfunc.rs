@@ -2476,7 +2476,7 @@ pub fn save_function_name(
     }
 }
 
-fn list_functions(regmatch: *mut regmatch_T) {
+fn list_functions(mut regmatch: Option<&mut regmatch_T>) {
     unsafe {
         let prev_ht_changed = uf_st().func_hashtab_changed;
         let ht = &raw const uf_st().func_hashtab;
@@ -2487,10 +2487,10 @@ fn list_functions(regmatch: *mut regmatch_T) {
             if g_st().got_int {
                 break;
             }
-            let matches = if regmatch.is_null() {
-                !message_filtered(uf2hikey(&*fp)) && !func_name_refcount(uf2hikey(&*fp))
+            let matches = if let Some(ref mut regmatch) = regmatch {
+                !(*uf2hikey(&*fp) as u8).is_ascii_digit() && vim_regexec(regmatch, uf2hikey(&*fp), 0)
             } else {
-                !(*uf2hikey(&*fp) as u8).is_ascii_digit() && vim_regexec(&mut *regmatch, uf2hikey(&*fp), 0)
+                !message_filtered(uf2hikey(&*fp)) && !func_name_refcount(uf2hikey(&*fp))
             };
             if matches {
                 if list_func_head(&mut *fp, false, false) == FAIL {
@@ -2516,7 +2516,7 @@ fn list_functions_matching_pat(eap: &mut exarg_T) -> *mut c_char {
             *p = c;
             if !regmatch.regprog.is_null() {
                 regmatch.rm_ic = opt_vars().p_ic != 0;
-                list_functions(&mut regmatch);
+                list_functions(Some(&mut regmatch));
                 vim_regfree(regmatch.regprog);
             }
         }
@@ -2771,7 +2771,7 @@ fn get_function_body(
                     }
                 }
 
-                p = skip_range(p, ptr::null_mut());
+                p = skip_range(p, None);
                 let tp = p;
                 if (checkforcmd(&raw mut p, c"append".as_ptr(), 1)
                     || checkforcmd(&raw mut p, c"change".as_ptr(), 1)
@@ -2920,7 +2920,7 @@ pub fn ex_function(eap: &mut exarg_T) {
 
         if ends_excmd(*eap.arg as c_int) != 0 {
             if eap.skip == 0 {
-                list_functions(ptr::null_mut());
+                list_functions(None);
             }
             eap.nextcmd = check_nextcmd(eap.arg);
             return;
@@ -3944,7 +3944,7 @@ pub fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
     unsafe {
         let mut tofree: Option<std::ffi::CString> = None;
         if let Some(mut tv) = rettv {
-            tofree = Some(encode_tv2echo(&raw mut tv, ptr::null_mut()));
+            tofree = Some(encode_tv2echo(&raw mut tv, None));
         }
         let (s, slen) = if let Some(ref tf) = tofree {
             (tf.as_ptr(), tf.as_bytes().len())

@@ -504,7 +504,7 @@ fn mc_cascade() {
             edits |= (*ga).as_slice()[i].r#type != kAMotion;
         }
         if edits {
-            mc_cleanup(true, ptr::null(), 0);
+            mc_cleanup(true, None, 0);
             if cursors().is_empty() {
                 (*ga).clear();
                 return;
@@ -544,7 +544,7 @@ fn mc_cascade() {
         let bufnr = sb.primary.buf;
         mc_sandbox_leave(&mut sb);
 
-        mc_cleanup(true, &(**curwin.as_ptr()).w_cursor, mcursor);
+        mc_cleanup(true, Some(&(**curwin.as_ptr()).w_cursor), mcursor);
         if handle_get_buffer(bufnr) == g_st().curbuf
             && !(*g_st().curbuf).b_u_synced
             && let Some(nh) = (*g_st().curbuf).b_u_newhead
@@ -581,7 +581,7 @@ pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     }
 }
 
-fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
+fn mc_cleanup(dedupe: bool, primary: Option<&pos_T>, keep_mark: u32) {
     unsafe {
         let had_cursors = !cursors().is_empty();
         let mut n = 0;
@@ -598,8 +598,7 @@ fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
                 && ctx.mark != 0
                 && ((!(*curwin.as_ptr()).is_null()
                     && buf == g_st().curbuf
-                    && !primary.is_null()
-                    && equalpos(ctx.pos, *primary)
+                    && primary.is_some_and(|p| equalpos(ctx.pos, *p))
                     && ctx.mark != keep_mark)
                     || mc_mark_at(buf, ctx.pos, 0) != ctx.mark);
             if dup {
@@ -1784,7 +1783,7 @@ pub fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
         let mark = mc_mark_at(buf, pos, 0);
         if mark != 0 && on != kTrue {
             extmark_del_id(&mut *buf, mc_ns(), mark);
-            mc_cleanup(false, ptr::null(), 0);
+            mc_cleanup(false, None, 0);
         } else if mark == 0 && on != kFalse {
             mc_add(buf, pos);
         }
@@ -1855,7 +1854,7 @@ pub fn mc_buf_free(buf: *mut buf_T) {
         if mc_replaying() {
             return;
         }
-        mc_cleanup(false, ptr::null(), 0);
+        mc_cleanup(false, None, 0);
         if mc_st().mc_vsel_buf == (*buf).b_fnum {
             mc_st().mc_vsel_buf = 0;
         }
@@ -1921,7 +1920,7 @@ pub fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
                 extmark_set_pos(buf, mc_last_ns(), &mut mark, ctx_pos, true, false, false);
             }
         }
-        mc_cleanup(false, ptr::null(), 0);
+        mc_cleanup(false, None, 0);
         if cursors().is_empty() {
             atom_st().g_atoms = Vec::new();
         }

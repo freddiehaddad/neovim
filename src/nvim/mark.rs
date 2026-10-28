@@ -1057,7 +1057,7 @@ pub fn ex_marks(eap: &mut exarg_T) {
             c"ex_marks".as_ptr(),
             eap,
             &g_st().cmdmod,
-            ptr::null_mut(),
+            None,
         );
 }
 

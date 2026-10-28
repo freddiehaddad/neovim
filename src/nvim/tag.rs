@@ -997,7 +997,7 @@ fn select_tag_match(
             c"select_tag".as_ptr(),
             &mut *eap,
             &g_st().cmdmod,
-            &raw mut extra_tv,
+            Some(&mut extra_tv),
         );
 
         tv_clear(&raw mut items_tv);

@@ -3206,7 +3206,7 @@ fn set_cmd_index(
 
 /// Set the completion context for a command argument with wild card characters.
 fn set_context_for_wildcard_arg(
-    eap: *mut exarg_T,
+    eap: Option<&exarg_T>,
     arg: *const c_char,
     usefilter: bool,
     xp: &mut expand_T,
@@ -3233,7 +3233,7 @@ fn set_context_for_wildcard_arg(
                 || c == b'\n' as c_int
                 || c == b'"' as c_int
                 || (ascii_iswhite(c)
-                    && (!(!eap.is_null() && ((*eap).argt & EX_NOSPC) != 0) || usefilter))
+                    && (!eap.is_some_and(|eap| (eap.argt & EX_NOSPC) != 0) || usefilter))
             {
                 len = 0;
                 while *p != NUL {
@@ -3260,9 +3260,10 @@ fn set_context_for_wildcard_arg(
         xp.xp_context = EXPAND_FILES;
 
         if usefilter
-            || (!eap.is_null()
-                && ((*eap).cmdidx == cmdidx_T::CMD_bang as c_int
-                    || (*eap).cmdidx == cmdidx_T::CMD_terminal as c_int))
+            || eap.is_some_and(|eap| {
+                eap.cmdidx == cmdidx_T::CMD_bang as c_int
+                    || eap.cmdidx == cmdidx_T::CMD_terminal as c_int
+            })
             || *complp == EXPAND_SHELLCMDLINE
         {
             #[cfg(not(windows))]
@@ -4063,7 +4064,7 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char 
             return ptr::null();
         }
 
-        cmd = skip_range(cmd, &mut xp.xp_context);
+        cmd = skip_range(cmd, Some(&mut xp.xp_context));
         xp.xp_pattern = cmd.cast_mut();
         if *cmd == NUL {
             return ptr::null();
@@ -4197,7 +4198,7 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char 
         }
 
         if (ea.argt & EX_XFILE) != 0 {
-            set_context_for_wildcard_arg(&raw mut ea, arg, usefilter, xp, &mut context);
+            set_context_for_wildcard_arg(Some(&ea), arg, usefilter, xp, &mut context);
         }
 
         set_context_by_cmdname(
@@ -4245,7 +4246,7 @@ pub fn set_cmd_context(
             if xp.xp_context == EXPAND_SHELLCMDLINE {
                 let mut context = xp.xp_context;
                 set_context_for_wildcard_arg(
-                    ptr::null_mut(),
+                    None,
                     xp.xp_pattern,
                     false,
                     xp,
@@ -5886,7 +5887,7 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                     let mut context = EXPAND_SHELLCMDLINE;
                     let pat_p = xpc.xp_pattern;
                     set_context_for_wildcard_arg(
-                        ptr::null_mut(),
+                        None,
                         pat_p,
                         false,
                         &mut xpc,

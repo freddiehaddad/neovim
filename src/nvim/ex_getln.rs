@@ -524,7 +524,7 @@ pub fn parse_pattern_and_range(
         parse_command_modifiers(&mut ea, &raw mut dummy, &mut dummy_cmdmod, true);
 
         // Skip over the range to find the command.
-        let cmd = skip_range(ea.cmd, ptr::null_mut());
+        let cmd = skip_range(ea.cmd, None);
         if vim_strchr(c"sgvlu".as_ptr(), (*cmd as u8) as c_int).is_null() {
             return false;
         }

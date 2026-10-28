@@ -6611,7 +6611,7 @@ pub fn ex_echo(eap: &mut exarg_T) {
                 } else if eap.cmdidx == cmdidx_T::CMD_echo as c_int {
                     msg_puts_hl(c" ".as_ptr(), eval_st().echo_hl_id, false);
                 }
-                let tofree = encode_tv2echo(&raw mut rettv, ptr::null_mut());
+                let tofree = encode_tv2echo(&raw mut rettv, None);
                 msg_multiline(
                     cstr_as_string(tofree.as_ptr()),
                     eval_st().echo_hl_id,
@@ -6680,7 +6680,7 @@ pub fn ex_execute(eap: &mut exarg_T) {
                     tv_get_string(&raw const rettv)
                 } else {
                     argstr_owned = Some(if rettv.v_type == VarType::VAR_STRING {
-                        encode_tv2echo(&raw mut rettv, ptr::null_mut())
+                        encode_tv2echo(&raw mut rettv, None)
                     } else {
                         encode_tv2string(&raw mut rettv, ptr::null_mut())
                     });

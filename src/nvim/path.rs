@@ -606,21 +606,21 @@ pub fn path_has_wildcard(mut p: *const c_char, all: bool) -> bool {
     }
 }
 
-fn scandir_next_with_dots(dir: *mut Directory) -> *const c_char {
-    if dir.is_null() {
-            path_st().SCANDIR_COUNT = 0;
-            return ptr::null();
-        }
+fn scandir_next_with_dots(dir: Option<&mut Directory>) -> *const c_char {
+    let Some(dir) = dir else {
+        path_st().SCANDIR_COUNT = 0;
+        return ptr::null();
+    };
 
-        path_st().SCANDIR_COUNT += 1;
-        if path_st().SCANDIR_COUNT == 1 || path_st().SCANDIR_COUNT == 2 {
-            return if path_st().SCANDIR_COUNT == 1 {
-                c".".as_ptr()
-            } else {
-                c"..".as_ptr()
-            };
-        }
-        os_scandir_next(dir)
+    path_st().SCANDIR_COUNT += 1;
+    if path_st().SCANDIR_COUNT == 1 || path_st().SCANDIR_COUNT == 2 {
+        return if path_st().SCANDIR_COUNT == 1 {
+            c".".as_ptr()
+        } else {
+            c"..".as_ptr()
+        };
+    }
+    os_scandir_next(dir)
 }
 
 fn path_expand(
@@ -756,9 +756,9 @@ fn do_path_expand(
         let mut dir = Directory::new();
         let dirpath = if *buf == NUL { c".".as_ptr() } else { buf };
         if os_file_is_readable(dirpath) && os_scandir(&mut dir, dirpath) {
-            scandir_next_with_dots(ptr::null_mut());
+            scandir_next_with_dots(None);
             while !g_st().got_int {
-                let name = scandir_next_with_dots(&mut dir);
+                let name = scandir_next_with_dots(Some(&mut dir));
                 if name.is_null() {
                     break;
                 }
