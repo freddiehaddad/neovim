@@ -497,7 +497,7 @@ pub fn f_chdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
             } else if s_bytes == b"buffer" {
                 scope = kCdScopeBuffer;
             } else {
-                semsg!(gettext(e_invargNval.as_ptr()), c"scope".as_ptr(), s);
+                semsg!(gettext(e_invargNval), c"scope", s);
                 return;
             }
         } else if (*g_st().curbuf).b_localdir.is_some() {
@@ -528,7 +528,7 @@ pub fn f_delete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
         let name = tv_get_string(&argvars[0]);
         if *name == NUL {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return;
         }
 
@@ -550,7 +550,7 @@ pub fn f_delete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             // delete a directory recursively
             rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(delete_recursive(name)));
         } else {
-            semsg!(gettext(e_invexpr2.as_ptr()), flags);
+            semsg!(gettext(e_invexpr2), flags);
         }
     }
 }
@@ -803,13 +803,13 @@ fn getcwd_scope_args(argvars: &mut [typval_T],
                 break;
             }
             if argvars[argc].v_type != VarType::VAR_NUMBER {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 return false;
             }
             argv[argc] = argvars[argc].vval.v_number() as c_int;
             // It is an error for the scope number to be less than `-1`.
             if argv[argc] < -1 {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 return false;
             }
             argc += 1;
@@ -821,7 +821,7 @@ fn getcwd_scope_args(argvars: &mut [typval_T],
             explicit_scope = explicit_scope || val >= 0;
             if explicit_scope && val < 0 {
                 emsg(gettext(
-                    c"E5001: Argument cannot be -1 if preceding argument is >= 0.".as_ptr(),
+                    c"E5001: Argument cannot be -1 if preceding argument is >= 0.",
                 ));
                 return false;
             }
@@ -859,7 +859,7 @@ fn getcwd_scope_args(argvars: &mut [typval_T],
         if *scope == kCdScopeBuffer {
             if argv[kWinArg] >= 0 || argv[kTabArg] >= 0 {
                 emsg(gettext(
-                    c"E5006: Window and tab scope must be -1 when using buffer scope".as_ptr(),
+                    c"E5006: Window and tab scope must be -1 when using buffer scope",
                 ));
                 return false;
             }
@@ -867,7 +867,7 @@ fn getcwd_scope_args(argvars: &mut [typval_T],
                 let mut err = Error::new();
                 *buf = find_buffer_by_handle(argv[kBufArg], &mut err);
                 if err.err_type != ErrorType::kErrorTypeNone {
-                    emsg(gettext(c"E5007: Cannot find buffer number.".as_ptr()));
+                    emsg(gettext(c"E5007: Cannot find buffer number."));
                     crate::api::private::helpers::api_clear_error(&mut err);
                     return false;
                 }
@@ -878,7 +878,7 @@ fn getcwd_scope_args(argvars: &mut [typval_T],
         if argv[kTabArg] > 0 {
             *tp = find_tabpage(argv[kTabArg]);
             if (*tp).is_null() {
-                emsg(gettext(c"E5000: Cannot find tab number.".as_ptr()));
+                emsg(gettext(c"E5000: Cannot find tab number."));
                 return false;
             }
         }
@@ -887,7 +887,7 @@ fn getcwd_scope_args(argvars: &mut [typval_T],
         if argv[kWinArg] > 0 {
             *win = find_win_by_nr(&argvars[0], *tp);
             if (*win).is_null() {
-                emsg(gettext(c"E5002: Cannot find window number.".as_ptr()));
+                emsg(gettext(c"E5002: Cannot find window number."));
                 return false;
             }
         }
@@ -1309,7 +1309,7 @@ pub fn f_mkdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 );
                 if ret != 0 {
                     semsg!(
-                        gettext(e_mkdir.as_ptr()),
+                        gettext(e_mkdir),
                         failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         uv_strerror(ret),
                     );
@@ -1525,22 +1525,22 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
         let fname = tv_get_string(&argvars[0]);
 
         if os_isdir(fname) {
-            semsg!(gettext(e_isadir2.as_ptr()), fname);
+            semsg!(gettext(e_isadir2), fname);
             return;
         }
         if *fname == NUL {
-            semsg!(gettext(e_notopen.as_ptr()), gettext(c"<empty>".as_ptr()));
+            semsg!(gettext(e_notopen), gettext(c"<empty>"));
             return;
         }
         let fd = os_fopen(fname, c"rb");
         if fd.is_null() {
-            semsg!(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen), fname);
             return;
         }
 
         if blob {
             if !read_blob(fd, rettv, offset, size) {
-                semsg!(gettext(e_cant_read_file_str.as_ptr()), fname);
+                semsg!(gettext(e_cant_read_file_str), fname);
             }
             fclose(fd);
             return;
@@ -1749,7 +1749,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                     let old_limit = limit;
                     limit -= 1;
                     if old_limit == 0 {
-                        emsg(gettext(c"E655: Too many symbolic links (cycle?)".as_ptr()));
+                        emsg(gettext(c"E655: Too many symbolic links (cycle?)"));
                         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                         return;
                     }
@@ -1955,7 +1955,7 @@ fn write_list(fp: &mut FileDescriptor, list: *const list_T, binary: bool) -> boo
             }
         }
         semsg!(
-            gettext(E_ERROR_WHILE_WRITING_STR.as_ptr()),
+            gettext(E_ERROR_WHILE_WRITING_STR),
             uv_strerror(error),
         );
         false
@@ -1970,7 +1970,7 @@ fn write_data(fp: &mut FileDescriptor, data: *const c_char, len: usize) -> bool 
             if written < len as isize {
                 let error = written as c_int;
                 semsg!(
-                    gettext(E_ERROR_WHILE_WRITING_STR.as_ptr()),
+                    gettext(E_ERROR_WHILE_WRITING_STR),
                     uv_strerror(error),
                 );
                 return false;
@@ -1979,7 +1979,7 @@ fn write_data(fp: &mut FileDescriptor, data: *const c_char, len: usize) -> bool 
         let error = file_flush(&raw mut *fp);
         if error != 0 {
             semsg!(
-                gettext(E_ERROR_WHILE_WRITING_STR.as_ptr()),
+                gettext(E_ERROR_WHILE_WRITING_STR),
                 uv_strerror(error),
             );
             return false;
@@ -2023,8 +2023,8 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                 && (script_is_lua(g_st().current_sctx.sc_sid) || g_st().current_sctx.sc_sid == SID_API_CLIENT))
         {
             semsg!(
-                gettext(e_invarg2.as_ptr()),
-                gettext(c"writefile() first argument must be a List or a Blob".as_ptr()),
+                gettext(e_invarg2),
+                gettext(c"writefile() first argument must be a List or a Blob"),
             );
             return;
         }
@@ -2049,7 +2049,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                     b'S' => do_fsync = false,
                     b'p' => mkdir_p = true,
                     _ => {
-                        semsg!(gettext(c"E5060: Unknown flag: %s".as_ptr()), p);
+                        semsg!(gettext(c"E5060: Unknown flag: %s"), p);
                         return;
                     }
                 }
@@ -2070,7 +2070,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         let mut fp = FileDescriptor::new();
         if *fname == NUL {
             emsg(gettext(
-                c"E482: Can't open file with an empty name".as_ptr(),
+                c"E482: Can't open file with an empty name",
             ));
         } else {
             let open_flags = (if append {
@@ -2085,7 +2085,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             let mut error = file_open(&mut fp, fname, open_flags, 0o666);
             if error != 0 {
                 semsg!(
-                    gettext(c"E482: Can't open file %s for writing: %s".as_ptr()),
+                    gettext(c"E482: Can't open file %s for writing: %s"),
                     fname,
                     uv_strerror(error),
                 );
@@ -2114,7 +2114,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                 error = file_close(&mut fp, do_fsync);
                 if error != 0 {
                     semsg!(
-                        gettext(c"E80: Error when closing file %s: %s".as_ptr()),
+                        gettext(c"E80: Error when closing file %s: %s"),
                         fname,
                         uv_strerror(error),
                     );

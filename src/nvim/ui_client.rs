@@ -299,10 +299,10 @@ pub fn ui_client_run() -> ! {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"ui_client_run".as_ptr(),
+                c"ui_client_run",
                 164,
                 true,
-                c"test log message".as_ptr(),
+                c"test log message",
             );
         }
 
@@ -354,7 +354,7 @@ pub fn handle_ui_client_redraw(
     api_set_error!(
             error,
             ErrorType::kErrorTypeValidation,
-            c"'redraw' cannot be sent as a request".as_ptr(),
+            c"'redraw' cannot be sent as a request",
         );
         OBJECT_NIL
 }
@@ -394,10 +394,10 @@ pub fn ui_client_event_grid_resize(args: Array) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"ui_client_event_grid_resize".as_ptr(),
+                c"ui_client_event_grid_resize",
                 242,
                 true,
-                c"Error handling ui event 'grid_resize'".as_ptr(),
+                c"Error handling ui event 'grid_resize'",
             );
             return;
         }
@@ -452,10 +452,10 @@ pub fn ui_client_event_connect(args: Array) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"ui_client_event_connect".as_ptr(),
+                c"ui_client_event_connect",
                 281,
                 true,
-                c"Error handling UI event 'connect'".as_ptr(),
+                c"Error handling UI event 'connect'",
             );
             return;
         }
@@ -487,10 +487,10 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"channel_connect_event".as_ptr(),
+                c"channel_connect_event",
                 302,
                 true,
-                c"Cannot connect to server %s: %s".as_ptr(),
+                c"Cannot connect to server %s: %s",
                 addr_ptr,
                 err,
             );
@@ -510,10 +510,10 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
         logmsg!(
             LOGLVL_INF,
             ptr::null(),
-            c"channel_connect_event".as_ptr(),
+            c"channel_connect_event",
             312,
             true,
-            c"Connected to server %s on channel %lld".as_ptr(),
+            c"Connected to server %s on channel %lld",
             addr_ptr,
             chan as i64,
         );
@@ -557,10 +557,10 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"ui_client_attach_to_restarted_server".as_ptr(),
+                c"ui_client_attach_to_restarted_server",
                 362,
                 true,
-                c"Error handling ui event 'restart'".as_ptr(),
+                c"Error handling ui event 'restart'",
             );
             cleanup();
             return;
@@ -572,10 +572,10 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"ui_client_attach_to_restarted_server".as_ptr(),
+                    c"ui_client_attach_to_restarted_server",
                     370,
                     true,
-                    c"Error handling ui event 'restart'".as_ptr(),
+                    c"Error handling ui event 'restart'",
                 );
                 cleanup();
                 return;
@@ -603,10 +603,10 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"ui_client_attach_to_restarted_server".as_ptr(),
+                    c"ui_client_attach_to_restarted_server",
                     391,
                     true,
-                    c"cannot connect to server %s: %s".as_ptr(),
+                    c"cannot connect to server %s: %s",
                     first_arg,
                     err,
                 );
@@ -636,10 +636,10 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         logmsg!(
             LOGLVL_INF,
             ptr::null(),
-            c"ui_client_attach_to_restarted_server".as_ptr(),
+            c"ui_client_attach_to_restarted_server",
             406,
             true,
-            c"restarted server address=%s id=%lld".as_ptr(),
+            c"restarted server address=%s id=%lld",
             first_arg,
             chan_id as i64,
         );
@@ -653,10 +653,10 @@ pub fn ui_client_event_error_exit(args: Array) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"ui_client_event_error_exit".as_ptr(),
+                c"ui_client_event_error_exit",
                 419,
                 true,
-                c"Error handling ui event 'error_exit'".as_ptr(),
+                c"Error handling ui event 'error_exit'",
             );
             return;
         }
@@ -687,7 +687,7 @@ fn log_ui_event_err(func_name: &std::ffi::CStr, ev_name: &std::ffi::CStr) {
             func_name.as_ptr(),
             0,
             true,
-            c"Error handling ui event '%s'".as_ptr(),
+            c"Error handling ui event '%s'",
             ev_name.as_ptr(),
         );
 }

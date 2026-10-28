@@ -2477,13 +2477,13 @@ fn ExpandOne_start(
             xp.xp_numfiles = 0;
             #[cfg(windows)]
             if (options & WILD_SILENT) == 0 && (options & WILD_LIST_NOTFOUND) != 0 {
-                semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
+                semsg!(gettext(e_nomatch2), str_arg);
             }
         } else {
             xp.xp_numfiles = xp.xp_files.len() as c_int;
             if xp.xp_numfiles == 0 {
                 if (options & WILD_SILENT) == 0 {
-                    semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
+                    semsg!(gettext(e_nomatch2), str_arg);
                 }
             } else {
                 let nfiles = xp.xp_numfiles as usize;
@@ -2514,7 +2514,7 @@ fn ExpandOne_start(
                     }
                     if non_suf_match != 1 {
                         if (options & WILD_SILENT) == 0 {
-                            emsg(gettext(e_toomany.as_ptr()));
+                            emsg(gettext(e_toomany));
                         } else if (options & WILD_NO_BEEP) == 0 {
                             beep_flush();
                         }
@@ -2865,10 +2865,10 @@ pub fn showmatches(
             };
 
             if xp.xp_context == EXPAND_TAGS_LISTFILES {
-                msg_puts_hl(gettext(c"tagname".as_ptr()), HLF_T, false);
+                msg_puts_hl(gettext(c"tagname"), HLF_T, false);
                 msg_clr_eos();
                 msg_advance(maxlen - 3);
-                msg_puts_hl(gettext(c" kind file\n".as_ptr()), HLF_T, false);
+                msg_puts_hl(gettext(c" kind file\n"), HLF_T, false);
             }
 
             for i in 0..lines {
@@ -4989,7 +4989,7 @@ fn ExpandFromContext(
         if xp.xp_context == EXPAND_USER_FUNC && (crate::memory::cstr_prefix_bytes(pat, 3) == &b"^s:"[..3]) {
             let len = crate::memory::cstr_len(pat) + 20;
             let mut buf = vec![0 as c_char; len];
-            vim_snprintf!(buf.as_mut_ptr(), len, c"^<SNR>\\d\\+_%s".as_ptr(), pat.add(3));
+            vim_snprintf!(buf.as_mut_ptr(), len, c"^<SNR>\\d\\+_%s", pat.add(3));
             pat = buf.as_mut_ptr();
             tofree = Some(buf);
         }
@@ -5823,7 +5823,7 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
         if argvars[0].v_type != VarType::VAR_STRING {
             if !tv_get_string_chk(&argvars[0]).is_null() {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
             }
             return;
         }
@@ -5850,19 +5850,19 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             xpc.xp_context = cmdcomplete_str_to_type(type_str);
             match xpc.xp_context {
                 EXPAND_NOTHING => {
-                    semsg!(gettext(e_invarg2.as_ptr()), type_str);
+                    semsg!(gettext(e_invarg2), type_str);
                     return;
                 }
                 EXPAND_USER_DEFINED => {
                     if !(crate::memory::cstr_prefix_bytes(type_str, 7) == &b"custom,"[..7]) {
-                        semsg!(gettext(e_invarg2.as_ptr()), type_str);
+                        semsg!(gettext(e_invarg2), type_str);
                         return;
                     }
                     xpc.xp_arg = type_str.add(7).cast_mut();
                 }
                 EXPAND_USER_LIST => {
                     if !(crate::memory::cstr_prefix_bytes(type_str, 11) == &b"customlist,"[..11]) {
-                        semsg!(gettext(e_invarg2.as_ptr()), type_str);
+                        semsg!(gettext(e_invarg2), type_str);
                         return;
                     }
                     xpc.xp_arg = type_str.add(11).cast_mut();

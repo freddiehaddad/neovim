@@ -481,10 +481,10 @@ pub fn spell_load_file(
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
             if !silent {
-                semsg!(gettext(e_notopen.as_ptr()), fname);
+                semsg!(gettext(e_notopen), fname);
             } else if opt_vars().p_verbose > 2 {
                 verbose_enter();
-                smsg!(0, e_notopen.as_ptr(), fname);
+                smsg!(0, e_notopen, fname);
                 verbose_leave();
             }
             if !lang.is_null() {
@@ -494,7 +494,7 @@ pub fn spell_load_file(
         }
         if opt_vars().p_verbose > 2 {
             verbose_enter();
-            smsg!(0, gettext(c"Reading spell file \"%s\"".as_ptr()), fname);
+            smsg!(0, gettext(c"Reading spell file \"%s\""), fname);
             verbose_leave();
         }
 
@@ -517,14 +517,14 @@ pub fn spell_load_file(
         match scms_ret {
             SP_FORMERROR | SP_TRUNCERROR => {
                 semsg!(
-                    c"%s".as_ptr(),
-                    gettext(c"E757: This does not look like a spell file".as_ptr()),
+                    c"%s",
+                    gettext(c"E757: This does not look like a spell file"),
                 );
                 fail = true;
             }
             SP_OTHERERROR => {
                 semsg!(
-                    gettext(c"E5042: Failed to read spell file %s: %s".as_ptr()),
+                    gettext(c"E5042: Failed to read spell file %s: %s"),
                     fname,
                     strerror(ferror(fd)),
                 );
@@ -537,12 +537,12 @@ pub fn spell_load_file(
             let c = fgetc(fd);
             if c < VIMSPELLVERSION {
                 emsg(gettext(
-                    c"E771: Old spell file, needs to be updated".as_ptr(),
+                    c"E771: Old spell file, needs to be updated",
                 ));
                 fail = true;
             } else if c > VIMSPELLVERSION {
                 emsg(gettext(
-                    c"E772: Spell file is for newer version of Vim".as_ptr(),
+                    c"E772: Spell file is for newer version of Vim",
                 ));
                 fail = true;
             }
@@ -649,7 +649,7 @@ pub fn spell_load_file(
                 }
                 _ => {
                     if (c & SNF_REQUIRED) != 0 {
-                        emsg(gettext(c"E770: Unsupported section in spell file".as_ptr()));
+                        emsg(gettext(c"E770: Unsupported section in spell file"));
                         fail = true;
                         break;
                     }
@@ -697,7 +697,7 @@ pub fn spell_load_file(
 
         if check_someerror {
             if res == SP_FORMERROR {
-                emsg(gettext(e_format.as_ptr()));
+                emsg(gettext(e_format));
                 fail = true;
             } else if res == SP_TRUNCERROR {
                 emsg(gettext(e_spell_trunc));
@@ -815,7 +815,7 @@ pub fn suggest_load_files() {
                         != &VIMSUGMAGIC[..VIMSUGMAGICL]
                     {
                         semsg!(
-                            gettext(c"E778: This does not look like a .sug file: %s".as_ptr()),
+                            gettext(c"E778: This does not look like a .sug file: %s"),
                             sug_ptr,
                         );
                         ok = false;
@@ -824,14 +824,14 @@ pub fn suggest_load_files() {
                         let c = fgetc(fd);
                         if c < VIMSUGVERSION {
                             semsg!(
-                                gettext(c"E779: Old .sug file, needs to be updated: %s".as_ptr()),
+                                gettext(c"E779: Old .sug file, needs to be updated: %s"),
                                 sug_ptr,
                             );
                             ok = false;
                         } else if c > VIMSUGVERSION {
                             semsg!(
                                 gettext(
-                                    c"E780: .sug file is for newer version of Vim: %s".as_ptr(),
+                                    c"E780: .sug file is for newer version of Vim: %s",
                                 ),
                                 sug_ptr,
                             );
@@ -843,7 +843,7 @@ pub fn suggest_load_files() {
                         let timestamp = get8ctime(fd);
                         if timestamp != (*slang).sl_sugtime {
                             semsg!(
-                                gettext(c"E781: .sug file doesn't match .spl file: %s".as_ptr()),
+                                gettext(c"E781: .sug file doesn't match .spl file: %s"),
                                 sug_ptr,
                             );
                             ok = false;
@@ -1737,14 +1737,14 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
 
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
-            semsg!(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen), fname);
             return None;
         }
 
         vim_snprintf!(
             (&raw mut g_st().IObuff).cast(),
             IOSIZE,
-            gettext(c"Reading affix file %s...".as_ptr()),
+            gettext(c"Reading affix file %s..."),
             fname,
         );
         spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
@@ -1790,7 +1790,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                 ) else {
                     smsg!(
                         0,
-                        gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
+                        gettext(c"Conversion failure for word in %s line %d: %s"),
                         fname,
                         lnum,
                         rline.as_ptr(),
@@ -1843,7 +1843,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     {
                         smsg!(
                             0,
-                            gettext(c"Conversion in %s not supported: from %s to %s".as_ptr()),
+                            gettext(c"Conversion in %s not supported: from %s to %s"),
                             fname,
                             af_enc_ptr,
                             opt_vars().p_enc,
@@ -1862,7 +1862,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     } else {
                         smsg!(
                             0,
-                            gettext(c"Invalid value for FLAG in %s line %d: %s".as_ptr()),
+                            gettext(c"Invalid value for FLAG in %s line %d: %s"),
                             fname,
                             lnum,
                             items[1],
@@ -1882,7 +1882,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     {
                         smsg!(
                             0,
-                            gettext(c"FLAG after using flags in %s line %d: %s".as_ptr()),
+                            gettext(c"FLAG after using flags in %s line %d: %s"),
                             fname,
                             lnum,
                             items[1],
@@ -1950,8 +1950,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                         smsg!(
                             0,
                             gettext(
-                                c"Defining COMPOUNDFORBIDFLAG after PFX item may give wrong results in %s line %d"
-                                    .as_ptr(),
+                                c"Defining COMPOUNDFORBIDFLAG after PFX item may give wrong results in %s line %d",
                             ),
                             fname,
                             lnum,
@@ -1965,8 +1964,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                         smsg!(
                             0,
                             gettext(
-                                c"Defining COMPOUNDPERMITFLAG after PFX item may give wrong results in %s line %d"
-                                    .as_ptr(),
+                                c"Defining COMPOUNDPERMITFLAG after PFX item may give wrong results in %s line %d",
                             ),
                             fname,
                             lnum,
@@ -1982,7 +1980,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(items[1])) as c_int == 0 {
                         smsg!(
                             0,
-                            gettext(c"Wrong COMPOUNDRULES value in %s line %d: %s".as_ptr()),
+                            gettext(c"Wrong COMPOUNDRULES value in %s line %d: %s"),
                             fname,
                             lnum,
                             items[1],
@@ -2006,7 +2004,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     if compmax == 0 {
                         smsg!(
                             0,
-                            gettext(c"Wrong COMPOUNDWORDMAX value in %s line %d: %s".as_ptr()),
+                            gettext(c"Wrong COMPOUNDWORDMAX value in %s line %d: %s"),
                             fname,
                             lnum,
                             items[1],
@@ -2019,7 +2017,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     if compminlen == 0 {
                         smsg!(
                             0,
-                            gettext(c"Wrong COMPOUNDMIN value in %s line %d: %s".as_ptr()),
+                            gettext(c"Wrong COMPOUNDMIN value in %s line %d: %s"),
                             fname,
                             lnum,
                             items[1],
@@ -2032,7 +2030,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     if compsylmax == 0 {
                         smsg!(
                             0,
-                            gettext(c"Wrong COMPOUNDSYLMAX value in %s line %d: %s".as_ptr()),
+                            gettext(c"Wrong COMPOUNDSYLMAX value in %s line %d: %s"),
                             fname,
                             lnum,
                             items[1],
@@ -2050,7 +2048,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(items[1])) as c_int == 0 {
                         smsg!(
                             0,
-                            gettext(c"Wrong CHECKCOMPOUNDPATTERN value in %s line %d: %s".as_ptr()),
+                            gettext(c"Wrong CHECKCOMPOUNDPATTERN value in %s line %d: %s"),
                             fname,
                             lnum,
                             items[1],
@@ -2109,8 +2107,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             smsg!(
                                 0,
                                 gettext(
-                                    c"Different combining flag in continued affix block in %s line %d: %s"
-                                        .as_ptr(),
+                                    c"Different combining flag in continued affix block in %s line %d: %s",
                                 ),
                                 fname,
                                 lnum,
@@ -2120,7 +2117,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                         if (*cur_aff).ah_follows == 0 {
                             smsg!(
                                 0,
-                                gettext(c"Duplicate affix in %s line %d: %s".as_ptr()),
+                                gettext(c"Duplicate affix in %s line %d: %s"),
                                 fname,
                                 lnum,
                                 items[1],
@@ -2143,8 +2140,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             smsg!(
                                 0,
                                 gettext(
-                                    c"Affix also used for BAD/RARE/KEEPCASE/NEEDAFFIX/NEEDCOMPOUND/NOSUGGEST in %s line %d: %s"
-                                        .as_ptr(),
+                                    c"Affix also used for BAD/RARE/KEEPCASE/NEEDAFFIX/NEEDCOMPOUND/NOSUGGEST in %s line %d: %s",
                                 ),
                                 fname,
                                 lnum,
@@ -2178,7 +2174,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     {
                         smsg!(
                             0,
-                            gettext(c"Expected Y or N in %s line %d: %s".as_ptr()),
+                            gettext(c"Expected Y or N in %s line %d: %s"),
                             fname,
                             lnum,
                             items[2],
@@ -2269,7 +2265,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             if (*aff_entry).ae_prog.is_none() {
                                 smsg!(
                                     0,
-                                    gettext(c"Broken condition in %s line %d: %s".as_ptr()),
+                                    gettext(c"Broken condition in %s line %d: %s"),
                                     fname,
                                     lnum,
                                     items[4],
@@ -2317,7 +2313,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                                             vim_snprintf!(
                                                 buf.as_mut_ptr(),
                                                 MAXLINELEN,
-                                                c"^%s".as_ptr(),
+                                                c"^%s",
                                                 cond_cstr.as_ptr(),
                                             );
                                             (*aff_entry).ae_cond = Some(cond_cstr);
@@ -2394,7 +2390,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     if !(*items[1] as u8).is_ascii_digit() {
                         smsg!(
                             0,
-                            gettext(c"Expected REP(SAL) count in %s line %d".as_ptr()),
+                            gettext(c"Expected REP(SAL) count in %s line %d"),
                             fname,
                             lnum,
                         );
@@ -2438,7 +2434,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                         if !(*items[1] as u8).is_ascii_digit() {
                             smsg!(
                                 0,
-                                gettext(c"Expected MAP count in %s line %d".as_ptr()),
+                                gettext(c"Expected MAP count in %s line %d"),
                                 fname,
                                 lnum,
                             );
@@ -2459,7 +2455,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             if in_map || !vim_strchr(p_m, c).is_null() {
                                 smsg!(
                                     0,
-                                    gettext(c"Duplicate character in MAP in %s line %d".as_ptr()),
+                                    gettext(c"Duplicate character in MAP in %s line %d"),
                                     fname,
                                     lnum,
                                 );
@@ -2504,7 +2500,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                 } else {
                     smsg!(
                         0,
-                        gettext(c"Unrecognized or duplicate item in %s line %d: %s".as_ptr()),
+                        gettext(c"Unrecognized or duplicate item in %s line %d: %s"),
                         fname,
                         lnum,
                         items[0],
@@ -2532,8 +2528,8 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
             if syllable.is_none() {
                 smsg!(
                     0,
-                    c"%s".as_ptr(),
-                    gettext(c"COMPOUNDSYLMAX used without SYLLABLE".as_ptr()),
+                    c"%s",
+                    gettext(c"COMPOUNDSYLMAX used without SYLLABLE"),
                 );
             }
             aff_check_number(
@@ -2559,12 +2555,12 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
 
         if spin.si_newcompID < spin.si_newprefID {
             if spin.si_newcompID == 127 || spin.si_newcompID == 255 {
-                msg(gettext(c"Too many postponed prefixes".as_ptr()), 0);
+                msg(gettext(c"Too many postponed prefixes"), 0);
             } else if spin.si_newprefID == 0 || spin.si_newprefID == 127 {
-                msg(gettext(c"Too many compound flags".as_ptr()), 0);
+                msg(gettext(c"Too many compound flags"), 0);
             } else {
                 msg(
-                    gettext(c"Too many postponed prefixes and/or compound flags".as_ptr()),
+                    gettext(c"Too many postponed prefixes and/or compound flags"),
                     0,
                 );
             }
@@ -2584,20 +2580,20 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
             (Some(_), None) => {
                 smsg!(
                     0,
-                    gettext(c"Missing SOFOTO line in %s".as_ptr()),
+                    gettext(c"Missing SOFOTO line in %s"),
                     fname,
                 );
             }
             (None, Some(_)) => {
                 smsg!(
                     0,
-                    gettext(c"Missing SOFOFROM line in %s".as_ptr()),
+                    gettext(c"Missing SOFOFROM line in %s"),
                     fname,
                 );
             }
             (Some(sf_from), Some(sf_to)) => {
                 if !spin.si_sal.is_empty() {
-                    smsg!(0, gettext(c"Both SAL and SOFO lines in %s".as_ptr()), fname);
+                    smsg!(0, gettext(c"Both SAL and SOFO lines in %s"), fname);
                 } else {
                     aff_check_string(
                         spin.si_sofofr.as_deref(),
@@ -2702,7 +2698,7 @@ fn affitem2flag(
             if flagtype == AFT_NUM {
                 smsg!(
                     0,
-                    gettext(c"Flag is not a number in %s line %d: %s".as_ptr()),
+                    gettext(c"Flag is not a number in %s line %d: %s"),
                     fname,
                     lnum,
                     item,
@@ -2710,7 +2706,7 @@ fn affitem2flag(
             } else {
                 smsg!(
                     0,
-                    gettext(c"Illegal flag in %s line %d: %s".as_ptr()),
+                    gettext(c"Illegal flag in %s line %d: %s"),
                     fname,
                     lnum,
                     item,
@@ -2824,7 +2820,7 @@ fn store_afflist_add(store_afflist: *mut c_char, cntp: &mut c_int, id: c_int) ->
     unsafe {
         if *cntp >= (MAXWLEN - 1) as c_int {
             emsg(gettext(
-                e_too_many_postponed_prefixes_spell.as_ptr(),
+                e_too_many_postponed_prefixes_spell,
             ));
             return false;
         }
@@ -2881,7 +2877,7 @@ fn aff_check_number(spinval: c_int, affval: c_int, name: &std::ffi::CStr) {
     if spinval != 0 && spinval != affval {
             smsg!(
                 0,
-                gettext(c"%s value differs from what is used in another .aff file".as_ptr()),
+                gettext(c"%s value differs from what is used in another .aff file"),
                 name.as_ptr(),
             );
         }
@@ -2897,7 +2893,7 @@ fn aff_check_string(
         {
             smsg!(
                 0,
-                gettext(c"%s value differs from what is used in another .aff file".as_ptr()),
+                gettext(c"%s value differs from what is used in another .aff file"),
                 name.as_ptr(),
             );
         }
@@ -2948,14 +2944,14 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
 
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
-            semsg!(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen), fname);
             return false;
         }
 
         vim_snprintf!(
             (&raw mut g_st().IObuff).cast(),
             IOSIZE,
-            gettext(c"Reading dictionary file %s...".as_ptr()),
+            gettext(c"Reading dictionary file %s..."),
             fname,
         );
         spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
@@ -2965,7 +2961,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
         if vim_fgets(line.as_mut_ptr(), MAXLINELEN as c_int, fd)
             || !ascii_isdigit(*skipwhite(line.as_ptr()) as c_int)
         {
-            semsg!(gettext(c"E760: No word count in %s".as_ptr()), fname);
+            semsg!(gettext(c"E760: No word count in %s"), fname);
         }
 
         while !vim_fgets(line.as_mut_ptr(), MAXLINELEN as c_int, fd) && !g_st().got_int {
@@ -2992,7 +2988,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 ) else {
                     smsg!(
                         0,
-                        gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
+                        gettext(c"Conversion failure for word in %s line %d: %s"),
                         fname,
                         lnum,
                         line.as_ptr(),
@@ -3032,7 +3028,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                     vim_snprintf!(
                         message.as_mut_ptr(),
                         message.len(),
-                        gettext(c"line %6d, word %6d - %s".as_ptr()),
+                        gettext(c"line %6d, word %6d - %s"),
                         lnum,
                         spin.si_foldwcount + spin.si_keepwcount,
                         w,
@@ -3051,7 +3047,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 if opt_vars().p_verbose > 0 {
                     smsg!(
                         0,
-                        gettext(c"Duplicate word in %s line %d: %s".as_ptr()),
+                        gettext(c"Duplicate word in %s line %d: %s"),
                         fname,
                         lnum,
                         w,
@@ -3059,7 +3055,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 } else if duplicate == 0 {
                     smsg!(
                         0,
-                        gettext(c"First duplicate word in %s line %d: %s".as_ptr()),
+                        gettext(c"First duplicate word in %s line %d: %s"),
                         fname,
                         lnum,
                         w,
@@ -3149,7 +3145,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
         if duplicate > 0 {
             smsg!(
                 0,
-                gettext(c"%d duplicate word(s) in %s".as_ptr()),
+                gettext(c"%d duplicate word(s) in %s"),
                 duplicate,
                 fname,
             );
@@ -3157,7 +3153,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
         if spin.si_ascii != 0 && non_ascii > 0 {
             smsg!(
                 0,
-                gettext(c"Ignored %d word(s) with non-ASCII characters in %s".as_ptr()),
+                gettext(c"Ignored %d word(s) with non-ASCII characters in %s"),
                 non_ascii,
                 fname,
             );
@@ -3568,14 +3564,14 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
 
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
-            semsg!(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen), fname);
             return false;
         }
 
         vim_snprintf!(
             (&raw mut g_st().IObuff).cast(),
             IOSIZE,
-            gettext(c"Reading word file %s...".as_ptr()),
+            gettext(c"Reading word file %s..."),
             fname,
         );
         spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
@@ -3605,7 +3601,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                 ) else {
                     smsg!(
                         0,
-                        gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
+                        gettext(c"Conversion failure for word in %s line %d: %s"),
                         fname,
                         lnum,
                         rline.as_ptr(),
@@ -3625,7 +3621,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                         smsg!(
                             0,
                             gettext(
-                                c"Duplicate /encoding= line ignored in %s line %d: %s".as_ptr(),
+                                c"Duplicate /encoding= line ignored in %s line %d: %s",
                             ),
                             fname,
                             lnum,
@@ -3635,7 +3631,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                         smsg!(
                             0,
                             gettext(
-                                c"/encoding= line after word ignored in %s line %d: %s".as_ptr(),
+                                c"/encoding= line after word ignored in %s line %d: %s",
                             ),
                             fname,
                             lnum,
@@ -3649,7 +3645,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                         {
                             smsg!(
                                 0,
-                                gettext(c"Conversion in %s not supported: from %s to %s".as_ptr()),
+                                gettext(c"Conversion in %s not supported: from %s to %s"),
                                 fname,
                                 line,
                                 opt_vars().p_enc,
@@ -3664,7 +3660,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                     if spin.si_region_count > 1 {
                         smsg!(
                             0,
-                            gettext(c"Duplicate /regions= line ignored in %s line %d: %s".as_ptr()),
+                            gettext(c"Duplicate /regions= line ignored in %s line %d: %s"),
                             fname,
                             lnum,
                             line,
@@ -3674,7 +3670,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                         if crate::memory::cstr_len(line) > MAXREGIONS * 2 {
                             smsg!(
                                 0,
-                                gettext(c"Too many regions in %s line %d: %s".as_ptr()),
+                                gettext(c"Too many regions in %s line %d: %s"),
                                 fname,
                                 lnum,
                                 line,
@@ -3690,7 +3686,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
 
                 smsg!(
                     0,
-                    gettext(c"/ line ignored in %s line %d: %s".as_ptr()),
+                    gettext(c"/ line ignored in %s line %d: %s"),
                     fname,
                     lnum,
                     line.sub(1),
@@ -3722,7 +3718,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                         if r == 0 || r > spin.si_region_count {
                             smsg!(
                                 0,
-                                gettext(c"Invalid region nr in %s line %d: %s".as_ptr()),
+                                gettext(c"Invalid region nr in %s line %d: %s"),
                                 fname,
                                 lnum,
                                 p,
@@ -3733,7 +3729,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                     } else {
                         smsg!(
                             0,
-                            gettext(c"Unrecognized flags in %s line %d: %s".as_ptr()),
+                            gettext(c"Unrecognized flags in %s line %d: %s"),
                             fname,
                             lnum,
                             p,
@@ -3762,7 +3758,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
             vim_snprintf!(
                 (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
-                gettext(c"Ignored %d words with non-ASCII characters".as_ptr()),
+                gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
             spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
@@ -4072,7 +4068,7 @@ fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: &std::ff
             vim_snprintf!(
                 (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
-                gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining".as_ptr()),
+                gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
                 name.as_ptr(),
                 n,
                 tot,
@@ -4187,7 +4183,7 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
 
         let fd = os_fopen(fname, c"w");
         if fd.is_null() {
-            semsg!(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen), fname);
             return false;
         }
 
@@ -4196,7 +4192,7 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
             if fclose(fd) == EOF {
                 // error
             }
-            emsg(gettext(e_write.as_ptr()));
+            emsg(gettext(e_write));
             return false;
         }
 
@@ -4488,7 +4484,7 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
             retval = false;
         }
         if !retval {
-            emsg(gettext(e_write.as_ptr()));
+            emsg(gettext(e_write));
         }
 
         retval
@@ -4589,7 +4585,7 @@ fn put_node(
                 }
 
                 if !fd.is_null() && fputc(n.wn_byte as c_int, fd) == EOF {
-                    emsg(gettext(e_write.as_ptr()));
+                    emsg(gettext(e_write));
                     return 0;
                 }
             }
@@ -4649,7 +4645,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
             .map_or(ptr::null_mut(), |s| &raw mut **s);
         let mut temp_slang: Option<Box<slang_T>> = None;
         if slang.is_null() {
-            spell_message(&raw mut *spin, gettext(c"Reading back spell file...".as_ptr()));
+            spell_message(&raw mut *spin, gettext(c"Reading back spell file..."));
             let mut new_lp = slang_alloc(ptr::null_mut());
             new_lp.sl_fname = Some(crate::memory::cstr_to_cstring(wfname));
             let add_b = crate::memory::cstr_as_bytes(SPL_FNAME_ADD);
@@ -4668,11 +4664,11 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
         spin.si_first_free = None;
         spin.si_foldwcount = 0;
 
-        spell_message(&raw mut *spin, gettext(c"Performing soundfolding...".as_ptr()));
+        spell_message(&raw mut *spin, gettext(c"Performing soundfolding..."));
         if sug_filltree(spin, &mut *slang) && sug_maketable(spin) {
             smsg!(
                 0,
-                gettext(c"Number of words after soundfolding: %lld".as_ptr()),
+                gettext(c"Number of words after soundfolding: %lld"),
                 spin.si_spellbuf.as_ref().unwrap().b_ml.ml_line_count as i64,
             );
 
@@ -4769,7 +4765,7 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> bool {
 
         smsg!(
             0,
-            gettext(c"Total number of words: %d".as_ptr()),
+            gettext(c"Total number of words: %d"),
             words_done,
         );
         true
@@ -4896,20 +4892,20 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
     unsafe {
         let fd = os_fopen(fname, c"w");
         if fd.is_null() {
-            semsg!(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen), fname);
             return;
         }
 
         vim_snprintf!(
             (&raw mut g_st().IObuff).cast(),
             IOSIZE,
-            gettext(c"Writing suggestion file %s...".as_ptr()),
+            gettext(c"Writing suggestion file %s..."),
             fname,
         );
         spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
 
         if fwrite(VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL, 1, fd) != 1 {
-            emsg(gettext(e_write.as_ptr()));
+            emsg(gettext(e_write));
             fclose(fd);
             return;
         }
@@ -4940,7 +4936,7 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
             let line = ml_get_buf(spellbuf, lnum);
             let len = ml_get_buf_len(spellbuf, lnum) + 1;
             if fwrite(line.cast(), len as usize, 1, fd) == 0 {
-                emsg(gettext(e_write.as_ptr()));
+                emsg(gettext(e_write));
                 write_err = true;
                 break;
             }
@@ -4949,13 +4945,13 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
 
         if !write_err {
             if fputc(0, fd) == EOF {
-                emsg(gettext(e_write.as_ptr()));
+                emsg(gettext(e_write));
             }
 
             vim_snprintf!(
                 (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
-                gettext(c"Estimated runtime memory use: %d bytes".as_ptr()),
+                gettext(c"Estimated runtime memory use: %d bytes"),
                 spin.si_memtot,
             );
             spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
@@ -4997,7 +4993,7 @@ fn mkspell(
             let len = f0_cstr.as_bytes().len();
             if fcount == 1 && len > 4 && (crate::memory::cstr_as_bytes(f0.add(len - 4)) == b".add") {
                 incount = 1;
-                vim_snprintf!(wfname, MAXPATHL, c"%s.spl".as_ptr(), f0);
+                vim_snprintf!(wfname, MAXPATHL, c"%s.spl", f0);
             } else if fcount == 1 {
                 incount = 1;
                 vim_snprintf!(
@@ -5038,20 +5034,20 @@ fn mkspell(
         }
 
         if incount <= 0 {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
         } else if !vim_strchr(path_tail(wfname), b'_' as c_int).is_null() {
             emsg(gettext(
-                c"E751: Output file name must not have region name".as_ptr(),
+                c"E751: Output file name must not have region name",
             ));
         } else if incount > MAXREGIONS as c_int {
             semsg!(
-                gettext(c"E754: Only up to %d regions supported".as_ptr()),
+                gettext(c"E754: Only up to %d regions supported"),
                 MAXREGIONS as c_int,
             );
         } else if !over_write && os_path_exists(wfname) {
-            emsg(gettext(e_exists.as_ptr()));
+            emsg(gettext(e_exists));
         } else if os_isdir(wfname) {
-            semsg!(gettext(e_isadir2.as_ptr()), wfname);
+            semsg!(gettext(e_isadir2), wfname);
         } else {
             let fname = fname_buf.as_mut_ptr();
 
@@ -5063,7 +5059,7 @@ fn mkspell(
                     let in_i = innames[i].as_ptr();
                     let len = innames[i].as_bytes().len();
                     if crate::memory::cstr_len(path_tail(in_i)) < 5 || *in_i.add(len - 3) != b'_' as c_char {
-                        semsg!(gettext(c"E755: Invalid region in %s".as_ptr()), in_i);
+                        semsg!(gettext(c"E755: Invalid region in %s"), in_i);
                         region_ok = false;
                         break;
                     }
@@ -5090,11 +5086,11 @@ fn mkspell(
                     spin.si_conv.vc_type = CONV_NONE;
                     spin.si_region = 1 << i;
 
-                    vim_snprintf!(fname, MAXPATHL, c"%s.aff".as_ptr(), in_i);
+                    vim_snprintf!(fname, MAXPATHL, c"%s.aff", in_i);
                     if os_path_exists(fname) {
                         afile[i] = spell_read_aff(&mut spin, fname);
                         if let Some(ref aff) = afile[i] {
-                            vim_snprintf!(fname, MAXPATHL, c"%s.dic".as_ptr(), in_i);
+                            vim_snprintf!(fname, MAXPATHL, c"%s.dic", in_i);
                             if !spell_read_dic(&mut spin, fname, aff) {
                                 error = true;
                             }
@@ -5111,7 +5107,7 @@ fn mkspell(
 
                 if spin.si_compflags.is_some() && spin.si_nobreak != 0 {
                     msg(
-                        gettext(c"Warning: both compounding and NOBREAK specified".as_ptr()),
+                        gettext(c"Warning: both compounding and NOBREAK specified"),
                         0,
                     );
                 }
@@ -5130,18 +5126,18 @@ fn mkspell(
                     vim_snprintf!(
                         (&raw mut g_st().IObuff).cast(),
                         IOSIZE,
-                        gettext(c"Writing spell file %s...".as_ptr()),
+                        gettext(c"Writing spell file %s..."),
                         wfname,
                     );
                     spell_message(&raw const spin, (&raw mut g_st().IObuff).cast());
 
                     error = !write_vim_spell(&mut spin, wfname);
 
-                    spell_message(&raw const spin, gettext(c"Done!".as_ptr()));
+                    spell_message(&raw const spin, gettext(c"Done!"));
                     vim_snprintf!(
                         (&raw mut g_st().IObuff).cast(),
                         IOSIZE,
-                        gettext(c"Estimated runtime memory use: %d bytes".as_ptr()),
+                        gettext(c"Estimated runtime memory use: %d bytes"),
                         spin.si_memtot,
                     );
                     spell_message(&raw const spin, (&raw mut g_st().IObuff).cast());
@@ -5250,7 +5246,7 @@ pub fn spell_add_word(
             }
 
             if *(*win_s(&mut **curwin.as_ptr())).b_p_spf == NUL {
-                semsg!(gettext(e_notset.as_ptr()), c"spellfile".as_ptr());
+                semsg!(gettext(e_notset), c"spellfile");
                 return;
             }
             let fnamebuf = fnamebuf_arr.as_mut_ptr();
@@ -5264,7 +5260,7 @@ pub fn spell_add_word(
                 }
                 if *spf == NUL {
                     semsg!(
-                        gettext(c"E765: 'spellfile' does not have %d entries".as_ptr()),
+                        gettext(c"E765: 'spellfile' does not have %d entries"),
                         idx,
                     );
                     return;
@@ -5277,7 +5273,7 @@ pub fn spell_add_word(
                 buf = ptr::null_mut();
             }
             if !buf.is_null() && bufIsChanged(&mut *buf) {
-                emsg(gettext(e_bufloaded.as_ptr()));
+                emsg(gettext(e_bufloaded));
                 return;
             }
 
@@ -5317,7 +5313,7 @@ pub fn spell_add_word(
                                 );
                                 smsg!(
                                     0,
-                                    gettext(c"Word '%.*s' removed from %s".as_ptr()),
+                                    gettext(c"Word '%.*s' removed from %s"),
                                     len,
                                     word,
                                     (&raw const g_st().NameBuff).cast::<c_char>(),
@@ -5327,8 +5323,8 @@ pub fn spell_add_word(
                         if fseek(fd, fpos_next, SEEK_SET) != 0 {
                             let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
                             semsg!(
-                                c"%s: %s".as_ptr(),
-                                gettext(c"Seek error in spellfile".as_ptr()),
+                                c"%s: %s",
+                                gettext(c"Seek error in spellfile"),
                                 strerror(err),
                             );
                             break;
@@ -5355,7 +5351,7 @@ pub fn spell_add_word(
             }
 
             if fd.is_null() {
-                semsg!(gettext(e_notopen.as_ptr()), fname);
+                semsg!(gettext(e_notopen), fname);
             } else {
                 let wlen = (0..(len as usize))
                     .take_while(|&i| *word.add(i) != NUL)
@@ -5379,7 +5375,7 @@ pub fn spell_add_word(
                 );
                 smsg!(
                     0,
-                    gettext(c"Word '%.*s' added to %s".as_ptr()),
+                    gettext(c"Word '%.*s' added to %s"),
                     len,
                     word,
                     (&raw const g_st().NameBuff).cast::<c_char>(),
@@ -5448,7 +5444,7 @@ fn init_spellfile() {
         vim_snprintf!(
             buf.add(cur_len),
             buf_len - cur_len,
-            c"/%.*s".as_ptr(),
+            c"/%.*s",
             lend.offset_from(lstart) as c_int,
             lstart,
         );
@@ -5467,7 +5463,7 @@ fn init_spellfile() {
         vim_snprintf!(
             buf.add(cur_len2),
             buf_len - cur_len2,
-            c".%s.add".as_ptr(),
+            c".%s.add",
             enc_suffix,
         );
 
@@ -5511,7 +5507,7 @@ fn set_spell_finish(new_st: &mut spelltab_T) -> bool {
                     || spell_priv_st().spelltab.st_upper[i] != new_st.st_upper[i]
                 {
                     emsg(gettext(
-                        c"E763: Word characters differ between spell files".as_ptr(),
+                        c"E763: Word characters differ between spell files",
                     ));
                     return false;
                 }

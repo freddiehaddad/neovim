@@ -788,8 +788,8 @@ pub fn nvim_buf_set_extmark(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"cannot use both 'end_row' and 'end_line'".as_ptr(),
+                        c"%s",
+                        c"cannot use both 'end_row' and 'end_line'",
                     );
                     break 'error;
                 }
@@ -897,8 +897,8 @@ pub fn nvim_buf_set_extmark(
                             api_set_error!(
                                 err,
                                 ErrorType::kErrorTypeValidation,
-                                c"%s".as_ptr(),
-                                c"conceal char must be printable".as_ptr(),
+                                c"%s",
+                                c"conceal char must be printable",
                             );
                             break 'error;
                         }
@@ -914,8 +914,8 @@ pub fn nvim_buf_set_extmark(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"conceal_lines has to be an empty string".as_ptr(),
+                        c"%s",
+                        c"conceal_lines has to be an empty string",
                     );
                     break 'error;
                 }
@@ -975,8 +975,8 @@ pub fn nvim_buf_set_extmark(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
-                            c"%s".as_ptr(),
-                            c"cannot use 'blend' hl_mode with inline virtual text".as_ptr(),
+                            c"%s",
+                            c"cannot use 'blend' hl_mode with inline virtual text",
                         );
                         break 'error;
                     }
@@ -1078,8 +1078,8 @@ pub fn nvim_buf_set_extmark(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
-                    c"cannot set end_right_gravity without end_row or end_col".as_ptr(),
+                    c"%s",
+                    c"cannot set end_right_gravity without end_row or end_col",
                 );
                 break 'error;
             }
@@ -1223,7 +1223,7 @@ pub fn nvim_buf_set_extmark(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"cannot set emphemeral mark outside of a decoration provider".as_ptr(),
+                        c"cannot set emphemeral mark outside of a decoration provider",
                     );
                     break 'error;
                 }
@@ -1616,8 +1616,8 @@ pub fn parse_virt_text(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"Invalid chunk: expected Array with 1 or 2 Strings".as_ptr(),
+                        c"%s",
+                        c"Invalid chunk: expected Array with 1 or 2 Strings",
                     );
                     break 'free_exit;
                 }

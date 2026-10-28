@@ -2141,9 +2141,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
                 }
             } else if *arg == b'*' as c_char || *arg == NUL || *arg == b'|' as c_char {
                 if *cmd != NUL {
-                    emsg(tr(CStr::from_ptr(
-                        e_cannot_define_autocommands_for_all_events.as_ptr(),
-                    )));
+                    emsg(tr(e_cannot_define_autocommands_for_all_events));
                 } else {
                     do_all_autocmd_events(pat, once, c_int::from(nested), cmd, forceit != 0, group);
                 }
@@ -2220,9 +2218,7 @@ pub fn do_autocmd_event(
                 let buflocal_nr = aupat_get_buflocal_nr(pat, patlen);
                 if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
                     semsg!(
-                        tr(CStr::from_ptr(
-                            e_buffer_nr_invalid_buffer_number.as_ptr(),
-                        )),
+                        tr(e_buffer_nr_invalid_buffer_number),
                         buflocal_nr,
                     );
                     return false;
@@ -2305,9 +2301,7 @@ pub fn autocmd_register(
             buflocal_nr = aupat_get_buflocal_nr(pat, patlen);
             if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
                 semsg!(
-                    tr(CStr::from_ptr(
-                        e_buffer_nr_invalid_buffer_number.as_ptr(),
-                    )),
+                    tr(e_buffer_nr_invalid_buffer_number),
                     buflocal_nr,
                 );
                 return false;

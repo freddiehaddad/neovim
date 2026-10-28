@@ -211,7 +211,7 @@ fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
 fn is_menus_locked() -> bool {
     if menu_st().MENUS_LOCKED > 0 {
-            emsg(gettext(e_cannot_change_menus_while_listing.as_ptr()));
+            emsg(gettext(e_cannot_change_menus_while_listing));
             return true;
         }
         false
@@ -314,7 +314,7 @@ pub fn ex_menu(eap: &mut exarg_T) {
 
         let mut menu_path = arg;
         if *menu_path == b'.' as c_char {
-            semsg!(gettext(e_invarg2.as_ptr()), menu_path);
+            semsg!(gettext(e_invarg2), menu_path);
             return;
         }
 
@@ -324,7 +324,7 @@ pub fn ex_menu(eap: &mut exarg_T) {
             show_menus(menu_path, modes);
             return;
         } else if *map_to != NUL && (unmenu || enable != kNone) {
-            semsg!(gettext(e_trailing_arg.as_ptr()), map_to);
+            semsg!(gettext(e_trailing_arg), map_to);
             return;
         }
 
@@ -463,7 +463,7 @@ fn add_menu_path(
             };
             let dname = menu_text(name, None, None);
             if dname.as_bytes().is_empty() {
-                emsg(gettext(c"E792: Empty menu name".as_ptr()));
+                emsg(gettext(c"E792: Empty menu name"));
                 return cleanup_erret(&ancestor_stack);
             }
 
@@ -475,14 +475,14 @@ fn add_menu_path(
                     if *next_name == NUL && !m.children.is_empty() {
                         if !g_st().sys_menu {
                             emsg(gettext(
-                                c"E330: Menu path must not lead to a sub-menu".as_ptr(),
+                                c"E330: Menu path must not lead to a sub-menu",
                             ));
                         }
                         return cleanup_erret(&ancestor_stack);
                     }
                     if *next_name != NUL && m.children.is_empty() {
                         if !g_st().sys_menu {
-                            emsg(gettext(E_NOTSUBMENU.as_ptr()));
+                            emsg(gettext(E_NOTSUBMENU));
                         }
                         return cleanup_erret(&ancestor_stack);
                     }
@@ -501,14 +501,14 @@ fn add_menu_path(
             if menu.is_null() {
                 if *next_name == NUL && ancestor_stack.is_empty() {
                     emsg(gettext(
-                        c"E331: Must not add menu items directly to menu bar".as_ptr(),
+                        c"E331: Must not add menu items directly to menu bar",
                     ));
                     return cleanup_erret(&ancestor_stack);
                 }
 
                 if menu_is_separator(dname.as_ptr().cast_mut()) && *next_name != NUL {
                     emsg(gettext(
-                        c"E332: Separator cannot be part of a menu path".as_ptr(),
+                        c"E332: Separator cannot be part of a menu path",
                     ));
                     return cleanup_erret(&ancestor_stack);
                 }
@@ -620,7 +620,7 @@ fn menu_enable_recurse(
                 matched = true;
                 if *p != NUL {
                     if menu.children.is_empty() {
-                        emsg(gettext(E_NOTSUBMENU.as_ptr()));
+                        emsg(gettext(E_NOTSUBMENU));
                         return false;
                     }
                     if !menu_enable_recurse(&mut menu.children, p, modes, enable) {
@@ -638,7 +638,7 @@ fn menu_enable_recurse(
             }
         }
         if *name != NUL && *name != b'*' as c_char && !matched {
-            semsg!(gettext(E_NOMENU.as_ptr()), name);
+            semsg!(gettext(E_NOMENU), name);
             return false;
         }
 
@@ -666,7 +666,7 @@ fn remove_menu(
             if *name == NUL || menu_name_equal(name, &*menu) {
                 if *p != NUL && (*menu).children.is_empty() {
                     if !silent {
-                        emsg(gettext(E_NOTSUBMENU.as_ptr()));
+                        emsg(gettext(E_NOTSUBMENU));
                     }
                     return false;
                 }
@@ -676,7 +676,7 @@ fn remove_menu(
                     }
                 } else if *name != NUL {
                     if !silent {
-                        emsg(gettext(e_menu_only_exists_in_another_mode.as_ptr()));
+                        emsg(gettext(e_menu_only_exists_in_another_mode));
                     }
                     return false;
                 }
@@ -702,7 +702,7 @@ fn remove_menu(
         if *name != NUL {
             if !found_menu {
                 if !silent {
-                    semsg!(gettext(E_NOMENU.as_ptr()), name);
+                    semsg!(gettext(E_NOMENU), name);
                 }
                 return false;
             }
@@ -871,10 +871,10 @@ fn find_menu(
             for menu in menus.iter_mut() {
                 if menu_name_equal(name, menu) {
                     if *p != NUL && menu.children.is_empty() {
-                        emsg(gettext(E_NOTSUBMENU.as_ptr()));
+                        emsg(gettext(E_NOTSUBMENU));
                         return ptr::null_mut();
                     } else if (menu.modes & modes) == 0 {
-                        emsg(gettext(e_menu_only_exists_in_another_mode.as_ptr()));
+                        emsg(gettext(e_menu_only_exists_in_another_mode));
                         return ptr::null_mut();
                     } else if *p == NUL {
                         return menu;
@@ -885,7 +885,7 @@ fn find_menu(
             }
 
             if found.is_null() {
-                semsg!(gettext(E_NOMENU.as_ptr()), name);
+                semsg!(gettext(E_NOMENU), name);
                 break;
             }
             name = p;
@@ -909,7 +909,7 @@ fn show_menus(path_name: *mut c_char, modes: c_int) -> bool {
         }
 
         menu_st().MENUS_LOCKED += 1;
-        msg_puts_title(gettext(c"\n--- Menus ---".as_ptr()));
+        msg_puts_title(gettext(c"\n--- Menus ---"));
         show_menus_recursive(menu, modes, 0);
         menu_st().MENUS_LOCKED -= 1;
         true
@@ -1634,7 +1634,7 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
                 _ => c"Normal",
             };
             semsg!(
-                gettext(c"E335: Menu not defined for %s mode".as_ptr()),
+                gettext(c"E335: Menu not defined for %s mode"),
                 mode.as_ptr(),
             );
         }
@@ -1662,11 +1662,11 @@ fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
                 if menu_name_equal(name, menu) {
                     if *p == NUL && !menu.children.is_empty() {
                         emsg(gettext(
-                            c"E333: Menu path must lead to a menu item".as_ptr(),
+                            c"E333: Menu path must lead to a menu item",
                         ));
                         gave_emsg = true;
                     } else if *p != NUL && menu.children.is_empty() {
-                        emsg(gettext(E_NOTSUBMENU.as_ptr()));
+                        emsg(gettext(E_NOTSUBMENU));
                     } else {
                         found = menu;
                     }
@@ -1682,7 +1682,7 @@ fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
         drop(saved_name_vec);
         if found.is_null() {
             if !gave_emsg {
-                semsg!(gettext(c"E334: Menu not found: %s".as_ptr()), name_arg);
+                semsg!(gettext(c"E334: Menu not found: %s"), name_arg);
             }
             return ptr::null_mut();
         }
@@ -1707,7 +1707,7 @@ pub fn ex_emenu(eap: &mut exarg_T) {
                 b'i' => mode_idx = MENU_INDEX_INSERT,
                 b'c' => mode_idx = MENU_INDEX_CMDLINE,
                 _ => {
-                    semsg!(gettext(e_invarg2.as_ptr()), arg);
+                    semsg!(gettext(e_invarg2), arg);
                     return;
                 }
             }
@@ -1742,9 +1742,9 @@ pub fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
                 if menu_name_equal(name, menu) {
                     if menu.children.is_empty() {
                         if *p == NUL {
-                            emsg(gettext(c"E336: Menu path must lead to a sub-menu".as_ptr()));
+                            emsg(gettext(c"E336: Menu path must lead to a sub-menu"));
                         } else {
-                            emsg(gettext(E_NOTSUBMENU.as_ptr()));
+                            emsg(gettext(E_NOTSUBMENU));
                         }
                         return ptr::null_mut();
                     }
@@ -1764,7 +1764,7 @@ pub fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
         }
 
         if found.is_null() {
-            emsg(gettext(c"E337: Menu not found - check menu names".as_ptr()));
+            emsg(gettext(c"E337: Menu not found - check menu names"));
         }
         found
     }
@@ -1789,7 +1789,7 @@ pub fn ex_menutranslate(eap: &mut exarg_T) {
             *arg = NUL;
             arg = menu_skip_part(to_arg);
             if arg == to_arg {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
             } else {
                 let mut from_vec: Vec<c_char> = CStr::from_ptr(from_arg)
                     .to_bytes_with_nul()

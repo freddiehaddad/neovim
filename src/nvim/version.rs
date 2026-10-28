@@ -4088,18 +4088,18 @@ pub fn list_version() {
             }
             version_msg(c"\n\n".as_ptr());
 
-            version_msg(gettext(c"   system vimrc file: \"".as_ptr()));
+            version_msg(gettext(c"   system vimrc file: \""));
             version_msg(c"$VIM/sysinit.vim".as_ptr());
             version_msg(c"\"\n".as_ptr());
 
             if *default_vim_dir() != NUL {
-                version_msg(gettext(c"  fall-back for $VIM: \"".as_ptr()));
+                version_msg(gettext(c"  fall-back for $VIM: \""));
                 version_msg(default_vim_dir());
                 version_msg(c"\"\n".as_ptr());
             }
 
             if *default_vimruntime_dir() != NUL {
-                version_msg(gettext(c" f-b for $VIMRUNTIME: \"".as_ptr()));
+                version_msg(gettext(c" f-b for $VIMRUNTIME: \""));
                 version_msg(default_vimruntime_dir());
                 version_msg(c"\"\n".as_ptr());
             }

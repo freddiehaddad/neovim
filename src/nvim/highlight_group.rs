@@ -1160,7 +1160,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         if !doclear && !dolink && ends_excmd(c_int::from(*linep as u8)) != 0 {
             let id = syn_name2id_len(line, word_len);
             if id == 0 {
-                semsg!(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR.as_ptr()), line);
+                semsg!(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR), line);
             } else {
                 msg_ext_set_kind(c"list_cmd".as_ptr());
                 highlight_list_one(id);
@@ -1178,7 +1178,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                 || ends_excmd(c_int::from(*to_start as u8)) != 0
             {
                 semsg!(
-                    gettext(c"E412: Not enough arguments: \":highlight link %s\"".as_ptr()),
+                    gettext(c"E412: Not enough arguments: \":highlight link %s\""),
                     from_start,
                 );
                 return;
@@ -1186,7 +1186,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
 
             if ends_excmd(c_int::from(*skipwhite(to_end) as u8)) == 0 {
                 semsg!(
-                    gettext(c"E413: Too many arguments: \":highlight link %s\"".as_ptr()),
+                    gettext(c"E413: Too many arguments: \":highlight link %s\""),
                     from_start,
                 );
                 return;
@@ -1214,7 +1214,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                 if to_id > 0 && !forceit && !init && hl_has_settings(from_id - 1, dodefault) {
                     if sourcing_name().is_null() && !dodefault {
                         emsg(gettext(
-                            E_GROUP_HAS_SETTINGS_HIGHLIGHT_LINK_IGNORED.as_ptr(),
+                            E_GROUP_HAS_SETTINGS_HIGHLIGHT_LINK_IGNORED,
                         ));
                     }
                 } else if (*hlgroup).sg_link != to_id
@@ -1287,7 +1287,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
             while ends_excmd(c_int::from(*linep as u8)) == 0 {
                 let key_start = linep;
                 if *linep == b'=' as c_char {
-                    semsg!(gettext(E_UNEXPECTED_EQUAL_SIGN_STR.as_ptr()), key_start);
+                    semsg!(gettext(E_UNEXPECTED_EQUAL_SIGN_STR), key_start);
                     error = true;
                     break;
                 }
@@ -1297,7 +1297,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                 }
                 let key_len = linep as usize - key_start as usize;
                 if key_len > key.len() - 1 {
-                    emsg(gettext(c"E423: Illegal argument".as_ptr()));
+                    emsg(gettext(c"E423: Illegal argument"));
                     error = true;
                     break;
                 }
@@ -1319,7 +1319,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                 }
 
                 if *linep != b'=' as c_char {
-                    semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2.as_ptr()), key_start);
+                    semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2), key_start);
                     error = true;
                     break;
                 }
@@ -1332,7 +1332,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                     arg_start = linep;
                     linep = crate::memory::cstr_as_bytes(linep).iter().position(|&b| b == b'\'').map_or(ptr::null(), |i| linep.add(i));
                     if linep.is_null() {
-                        semsg!(gettext(e_invarg2.as_ptr()), key_start);
+                        semsg!(gettext(e_invarg2), key_start);
                         error = true;
                         break;
                     }
@@ -1341,13 +1341,13 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                     linep = skiptowhite(linep);
                 }
                 if ptr::eq(linep, arg_start) {
-                    semsg!(gettext(E_MISSING_ARGUMENT_STR.as_ptr()), key_start);
+                    semsg!(gettext(E_MISSING_ARGUMENT_STR), key_start);
                     error = true;
                     break;
                 }
                 let arg_len = linep as usize - arg_start as usize;
                 if arg_len > arg.len() - 1 {
-                    emsg(gettext(c"E423: Illegal argument".as_ptr()));
+                    emsg(gettext(c"E423: Illegal argument"));
                     error = true;
                     break;
                 }
@@ -1377,7 +1377,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                             i -= 1;
                         }
                         if i < 0 {
-                            semsg!(gettext(c"E418: Illegal value: %s".as_ptr()), arg.as_ptr());
+                            semsg!(gettext(c"E418: Illegal value: %s"), arg.as_ptr());
                             error = true;
                             break;
                         }
@@ -1433,7 +1433,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                             if g_st().cterm_normal_fg_color != 0 {
                                 color = g_st().cterm_normal_fg_color - 1;
                             } else {
-                                emsg(gettext(c"E419: FG color unknown".as_ptr()));
+                                emsg(gettext(c"E419: FG color unknown"));
                                 error = true;
                                 break;
                             }
@@ -1441,7 +1441,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                             if g_st().cterm_normal_bg_color > 0 {
                                 color = g_st().cterm_normal_bg_color - 1;
                             } else {
-                                emsg(gettext(c"E420: BG color unknown".as_ptr()));
+                                emsg(gettext(c"E420: BG color unknown"));
                                 error = true;
                                 break;
                             }
@@ -1460,7 +1460,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                             if i < 0 {
                                 semsg!(
                                     gettext(
-                                        c"E421: Color name or number not recognized: %s".as_ptr(),
+                                        c"E421: Color name or number not recognized: %s",
                                     ),
                                     key_start,
                                 );
@@ -1562,7 +1562,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                         (*hl_table().add(idx as usize)).sg_blend = -1;
                     }
                 } else {
-                    semsg!(gettext(c"E423: Illegal argument: %s".as_ptr()), key_start);
+                    semsg!(gettext(c"E423: Illegal argument: %s"), key_start);
                     error = true;
                     break;
                 }
@@ -1863,8 +1863,8 @@ pub fn ns_get_hl_defs(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
-                    c"Highlight id out of bounds".as_ptr(),
+                    c"%s",
+                    c"Highlight id out of bounds",
                 );
                 return Dict::new();
             }
@@ -2214,7 +2214,7 @@ pub fn syn_id2name(id: c_int) -> *mut c_char {
 
 pub fn syn_check_group(name: *const c_char, len: usize) -> c_int {
     if len > MAX_SYN_NAME {
-            emsg(gettext(e_highlight_group_name_too_long.as_ptr()));
+            emsg(gettext(e_highlight_group_name_too_long));
             return 0;
         }
         let id = syn_name2id_len(name, len);
@@ -2230,13 +2230,13 @@ fn syn_add_group(name: *const c_char, len: usize) -> c_int {
             let c = *name.add(i) as u8;
             if !vim_isprintc(c_int::from(c)) {
                 emsg(gettext(
-                    c"E669: Unprintable character in group name".as_ptr(),
+                    c"E669: Unprintable character in group name",
                 ));
                 return 0;
             } else if !c.is_ascii_alphanumeric() && c != b'_' && c != b'.' && c != b'@' && c != b'-'
             {
                 msg_source(HLF_W);
-                emsg(gettext(e_highlight_group_name_invalid_char.as_ptr()));
+                emsg(gettext(e_highlight_group_name_invalid_char));
                 return 0;
             }
         }
@@ -2256,7 +2256,7 @@ fn syn_add_group(name: *const c_char, len: usize) -> c_int {
 
         if hl_len() >= MAX_HL_ID {
             emsg(gettext(
-                c"E849: Too many highlight and syntax groups".as_ptr(),
+                c"E849: Too many highlight and syntax groups",
             ));
             return 0;
         }

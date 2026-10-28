@@ -273,7 +273,7 @@ pub fn cause_errthrow(
             return false;
         }
 
-        if ptr::eq(mesg, gettext(e_interr.as_ptr()).cast_const()) {
+        if ptr::eq(mesg, gettext(e_interr).cast_const()) {
             *ignore = true;
             return true;
         }
@@ -451,7 +451,7 @@ fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> bool {
                     && (bytes.len() == 3 || bytes[3] == b':' || bytes[3] == b'(')
                 {
                     emsg(gettext(
-                        c"E608: Cannot :throw exceptions with 'Vim' prefix".as_ptr(),
+                        c"E608: Cannot :throw exceptions with 'Vim' prefix",
                     ));
                     g_st().current_exception = None;
                     return false;
@@ -500,7 +500,7 @@ fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> bool {
             }
             smsg!(
                 0,
-                gettext(c"Exception thrown: %s".as_ptr()),
+                gettext(c"Exception thrown: %s"),
                 excp.value.as_ptr(),
             );
             msg_puts(c"\n".as_ptr());
@@ -548,9 +548,9 @@ fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
                 g_st().msg_scroll = 1;
             }
             let fmt = if was_finished {
-                gettext(c"Exception finished: %s".as_ptr())
+                gettext(c"Exception finished: %s")
             } else {
-                gettext(c"Exception discarded: %s".as_ptr())
+                gettext(c"Exception discarded: %s")
             };
             smsg!(0, fmt, excp.value.as_ptr());
             msg_puts(c"\n".as_ptr());
@@ -595,7 +595,7 @@ fn catch_exception(excp: &std::rc::Rc<except_T>) {
                 vim_snprintf_safelen!(
                     ptr::addr_of_mut!(g_st().IObuff).cast(),
                     IOSIZE,
-                    gettext(c"%s, line %lld".as_ptr()),
+                    gettext(c"%s, line %lld"),
                     excp.throw_name.as_ptr(),
                     i64::from(excp.throw_lnum),
                 )
@@ -603,7 +603,7 @@ fn catch_exception(excp: &std::rc::Rc<except_T>) {
                 vim_snprintf_safelen!(
                     ptr::addr_of_mut!(g_st().IObuff).cast(),
                     IOSIZE,
-                    c"%s".as_ptr(),
+                    c"%s",
                     excp.throw_name.as_ptr(),
                 )
             };
@@ -630,7 +630,7 @@ fn catch_exception(excp: &std::rc::Rc<except_T>) {
             }
             smsg!(
                 0,
-                gettext(c"Exception caught: %s".as_ptr()),
+                gettext(c"Exception caught: %s"),
                 excp.value.as_ptr(),
             );
             msg_puts(c"\n".as_ptr());
@@ -666,7 +666,7 @@ fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
                     vim_snprintf_safelen!(
                         ptr::addr_of_mut!(g_st().IObuff).cast(),
                         IOSIZE,
-                        gettext(c"%s, line %lld".as_ptr()),
+                        gettext(c"%s, line %lld"),
                         top.throw_name.as_ptr(),
                         i64::from(top.throw_lnum),
                     )
@@ -674,7 +674,7 @@ fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
                     vim_snprintf_safelen!(
                         ptr::addr_of_mut!(g_st().IObuff).cast(),
                         IOSIZE,
-                        c"%s".as_ptr(),
+                        c"%s",
                         top.throw_name.as_ptr(),
                     )
                 };
@@ -729,9 +729,9 @@ pub fn exception_state_clear() {
 fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
     unsafe {
         let mut mesg = match action {
-            RP_MAKE => gettext(c"%s made pending".as_ptr()),
-            RP_RESUME => gettext(c"%s resumed".as_ptr()),
-            _ => gettext(c"%s discarded".as_ptr()),
+            RP_MAKE => gettext(c"%s made pending"),
+            RP_RESUME => gettext(c"%s resumed"),
+            _ => gettext(c"%s discarded"),
         };
 
         let s_owned: Option<CString>;
@@ -761,7 +761,7 @@ fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                         ptr::addr_of_mut!(g_st().IObuff).cast(),
                         IOSIZE,
                         mesg,
-                        gettext(c"Exception".as_ptr()),
+                        gettext(c"Exception"),
                     );
                     mesg_owned = Some(concat_str(std::ffi::CStr::from_ptr(ptr::addr_of!(g_st().IObuff).cast()), c": %s"));
                     mesg = mesg_owned
@@ -769,11 +769,11 @@ fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                         .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());
                     excp.value.as_ptr()
                 } else if (pending & CSTP_ERROR) != 0 && (pending & CSTP_INTERRUPT) != 0 {
-                    gettext(c"Error and interrupt".as_ptr())
+                    gettext(c"Error and interrupt")
                 } else if (pending & CSTP_ERROR) != 0 {
-                    gettext(c"Error".as_ptr())
+                    gettext(c"Error")
                 } else {
-                    gettext(c"Interrupt".as_ptr())
+                    gettext(c"Interrupt")
                 }
             }
         };
@@ -846,7 +846,7 @@ pub fn ex_if(eap: &mut exarg_T) {
         let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_idx == (CSTACK_LEN - 1) as c_int {
-            eap.errmsg = gettext(c"E579: :if nesting too deep".as_ptr());
+            eap.errmsg = gettext(c"E579: :if nesting too deep");
         } else {
             (*cstack).cs_idx += 1;
             let idx = (*cstack).cs_idx as usize;
@@ -875,7 +875,7 @@ pub fn ex_endif(eap: &mut exarg_T) {
             || ((*cstack).cs_flags[(*cstack).cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY))
                 != 0
         {
-            eap.errmsg = gettext(c"E580: :endif without :if".as_ptr());
+            eap.errmsg = gettext(c"E580: :endif without :if");
         } else {
             if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRUE) == 0
                 && dbg_check_skipped(eap)
@@ -897,17 +897,17 @@ pub fn ex_else(eap: &mut exarg_T) {
                 != 0
         {
             if eap.cmdidx == CMD_else {
-                eap.errmsg = gettext(c"E581: :else without :if".as_ptr());
+                eap.errmsg = gettext(c"E581: :else without :if");
                 return;
             }
-            eap.errmsg = gettext(c"E582: :elseif without :if".as_ptr());
+            eap.errmsg = gettext(c"E582: :elseif without :if");
             skip = true;
         } else if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_ELSE) != 0 {
             if eap.cmdidx == CMD_else {
-                eap.errmsg = gettext(E_MULTIPLE_ELSE.as_ptr());
+                eap.errmsg = gettext(E_MULTIPLE_ELSE);
                 return;
             }
-            eap.errmsg = gettext(c"E584: :elseif after :else".as_ptr());
+            eap.errmsg = gettext(c"E584: :elseif after :else");
             skip = true;
         }
 
@@ -933,7 +933,7 @@ pub fn ex_else(eap: &mut exarg_T) {
                 && *eap.arg != b'"' as c_char
                 && ends_excmd(c_int::from(*eap.arg as u8)) != 0
             {
-                semsg!(gettext(e_invexpr2.as_ptr()), eap.arg);
+                semsg!(gettext(e_invexpr2), eap.arg);
             } else {
                 result = eval_to_bool(eap.arg, &mut error, eap, skip, false);
             }
@@ -959,7 +959,7 @@ pub fn ex_while(eap: &mut exarg_T) {
         let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_idx == (CSTACK_LEN - 1) as c_int {
-            eap.errmsg = gettext(c"E585: :while/:for nesting too deep".as_ptr());
+            eap.errmsg = gettext(c"E585: :while/:for nesting too deep");
         } else {
             if ((*cstack).cs_lflags & CSL_HAD_LOOP) == 0 {
                 (*cstack).cs_idx += 1;
@@ -1020,7 +1020,7 @@ pub fn ex_continue(eap: &mut exarg_T) {
         let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
-            eap.errmsg = gettext(c"E586: :continue without :while or :for".as_ptr());
+            eap.errmsg = gettext(c"E586: :continue without :while or :for");
         } else {
             let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 0);
             assert!(idx >= 0);
@@ -1040,7 +1040,7 @@ pub fn ex_break(eap: &mut exarg_T) {
         let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
-            eap.errmsg = gettext(c"E587: :break without :while or :for".as_ptr());
+            eap.errmsg = gettext(c"E587: :break without :while or :for");
         } else {
             let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 1);
             if idx >= 0 && ((*cstack).cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) == 0 {
@@ -1066,16 +1066,16 @@ pub fn ex_endwhile(eap: &mut exarg_T) {
             let mut fl = (*cstack).cs_flags[(*cstack).cs_idx as usize];
             if (fl & csf) == 0 {
                 if (fl & CSF_WHILE) != 0 {
-                    eap.errmsg = gettext(c"E732: Using :endfor with :while".as_ptr());
+                    eap.errmsg = gettext(c"E732: Using :endfor with :while");
                 } else if (fl & CSF_FOR) != 0 {
-                    eap.errmsg = gettext(c"E733: Using :endwhile with :for".as_ptr());
+                    eap.errmsg = gettext(c"E733: Using :endwhile with :for");
                 }
             }
             if (fl & (CSF_WHILE | CSF_FOR)) == 0 {
                 if (fl & CSF_TRY) == 0 {
-                    eap.errmsg = gettext(e_endif.as_ptr());
+                    eap.errmsg = gettext(e_endif);
                 } else if (fl & CSF_FINALLY) != 0 {
-                    eap.errmsg = gettext(e_endtry.as_ptr());
+                    eap.errmsg = gettext(e_endtry);
                 }
                 let mut idx = (*cstack).cs_idx;
                 while idx > 0 {
@@ -1109,7 +1109,7 @@ pub fn ex_throw(eap: &mut exarg_T) {
         let value = if *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
             eval_to_string_skip(arg, eap, eap.skip != 0)
         } else {
-            emsg(gettext(e_argreq.as_ptr()));
+            emsg(gettext(e_argreq));
             None
         };
 
@@ -1148,7 +1148,7 @@ pub fn ex_try(eap: &mut exarg_T) {
         let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_idx == (CSTACK_LEN - 1) as c_int {
-            eap.errmsg = gettext(c"E601: :try nesting too deep".as_ptr());
+            eap.errmsg = gettext(c"E601: :try nesting too deep");
         } else {
             (*cstack).cs_idx += 1;
             (*cstack).cs_trylevel += 1;
@@ -1178,7 +1178,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
         let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_trylevel <= 0 || (*cstack).cs_idx < 0 {
-            eap.errmsg = gettext(c"E603: :catch without :try".as_ptr());
+            eap.errmsg = gettext(c"E603: :catch without :try");
             give_up = true;
         } else {
             if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRY) == 0 {
@@ -1193,7 +1193,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
                 idx -= 1;
             }
             if ((*cstack).cs_flags[idx as usize] & CSF_FINALLY) != 0 {
-                eap.errmsg = gettext(c"E604: :catch after :finally".as_ptr());
+                eap.errmsg = gettext(c"E604: :catch after :finally");
                 give_up = true;
             } else {
                 rewind_conditionals(
@@ -1233,7 +1233,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
                     && *end != NUL
                     && ends_excmd(c_int::from(*skipwhite(end.add(1)) as u8)) == 0
                 {
-                    semsg!(gettext(e_trailing_arg.as_ptr()), end);
+                    semsg!(gettext(e_trailing_arg), end);
                     return;
                 }
 
@@ -1255,7 +1255,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
                     }
                     opt_vars().p_cpo = save_cpo;
                     if regmatch.regprog.is_null() {
-                        semsg!(gettext(e_invarg2.as_ptr()), pat);
+                        semsg!(gettext(e_invarg2), pat);
                     } else {
                         let prev_got_int = g_st().got_int;
                         g_st().got_int = false;
@@ -1313,7 +1313,7 @@ pub fn ex_finally(eap: &mut exarg_T) {
             idx -= 1;
         }
         if (*cstack).cs_trylevel <= 0 || idx < 0 {
-            eap.errmsg = gettext(c"E606: :finally without :try".as_ptr());
+            eap.errmsg = gettext(c"E606: :finally without :try");
             return;
         }
 
@@ -1323,7 +1323,7 @@ pub fn ex_finally(eap: &mut exarg_T) {
         }
 
         if ((*cstack).cs_flags[idx as usize] & CSF_FINALLY) != 0 {
-            eap.errmsg = gettext(E_MULTIPLE_FINALLY.as_ptr());
+            eap.errmsg = gettext(E_MULTIPLE_FINALLY);
             return;
         }
         rewind_conditionals(
@@ -1395,7 +1395,7 @@ pub fn ex_endtry(eap: &mut exarg_T) {
             idx -= 1;
         }
         if (*cstack).cs_trylevel <= 0 || idx < 0 {
-            eap.errmsg = gettext(c"E602: :endtry without :try".as_ptr());
+            eap.errmsg = gettext(c"E602: :endtry without :try");
             return;
         }
 
@@ -1673,12 +1673,12 @@ pub fn cleanup_conditionals(
 fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {
     let fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & CSF_WHILE) != 0 {
-            return gettext(e_endwhile.as_ptr());
+            return gettext(e_endwhile);
         }
         if (fl & CSF_FOR) != 0 {
-            return gettext(e_endfor.as_ptr());
+            return gettext(e_endfor);
         }
-        gettext(e_endif.as_ptr())
+        gettext(e_endif)
 }
 
 pub fn rewind_conditionals(
@@ -1701,8 +1701,8 @@ pub fn rewind_conditionals(
 
 pub fn ex_endfunction(_eap: &mut exarg_T) {
     semsg!(
-            gettext(e_str_not_inside_function.as_ptr()),
-            c":endfunction".as_ptr(),
+            gettext(e_str_not_inside_function),
+            c":endfunction",
         );
 }
 

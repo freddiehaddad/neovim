@@ -845,7 +845,7 @@ pub fn profile_dump() {
 
         let fd = os_fopen(profile_fname.as_ptr(), c"w");
         if fd.is_null() {
-            semsg!(e_notopen.as_ptr(), profile_fname.as_ptr());
+            semsg!(e_notopen, profile_fname.as_ptr());
         } else {
             script_dump_profile(fd);
             func_dump_profile(fd);

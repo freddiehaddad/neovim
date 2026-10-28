@@ -737,7 +737,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
 
         if regname == c_int::from(b'@') {
             if reg_st().execreg_lastc == 0 {
-                emsg(gettext(c"E748: No previously used register".as_ptr()));
+                emsg(gettext(c"E748: No previously used register"));
                 return false;
             }
             regname = reg_st().execreg_lastc;
@@ -758,7 +758,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
         if regname == c_int::from(b':') {
             let last_cmd_ptr = &raw const g_st().last_cmdline;
             let Some(last_cmd) = (*last_cmd_ptr).as_ref() else {
-                emsg(gettext(e_nolastcmd.as_ptr()));
+                emsg(gettext(e_nolastcmd));
                 return false;
             };
             g_st().new_last_cmdline = None;
@@ -781,7 +781,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
             retval = put_in_typebuf(p.as_ptr().cast_mut(), true, colon != 0, silent);
         } else if regname == c_int::from(b'.') {
             let Some(p) = get_last_insert_save() else {
-                emsg(gettext(e_noinstext.as_ptr()));
+                emsg(gettext(e_noinstext));
                 return false;
             };
             retval = put_in_typebuf(p.as_ptr().cast_mut(), false, colon != 0, silent);
@@ -959,14 +959,14 @@ pub fn get_spec_reg(
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if last_cmd_ptr.is_null() && errmsg {
-                    emsg(gettext(e_nolastcmd.as_ptr()));
+                    emsg(gettext(e_nolastcmd));
                 }
                 *argp = last_cmd_ptr;
                 true
             }
             x if x == c_int::from(b'/') => {
                 if last_search_pat().is_null() && errmsg {
-                    emsg(gettext(e_noprevre.as_ptr()));
+                    emsg(gettext(e_noprevre));
                 }
                 *argp = last_search_pat();
                 true
@@ -974,7 +974,7 @@ pub fn get_spec_reg(
             x if x == c_int::from(b'.') => {
                 set_owned(argp, owned, get_last_insert_save());
                 if (*argp).is_null() && errmsg {
-                    emsg(gettext(e_noinstext.as_ptr()));
+                    emsg(gettext(e_noinstext));
                 }
                 true
             }
@@ -1249,7 +1249,7 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
                     vim_snprintf!(
                         namebuf.as_mut_ptr(),
                         namebuf.len(),
-                        gettext(c" into \"%c".as_ptr()),
+                        gettext(c" into \"%c"),
                         oap.regname,
                     );
                 }
@@ -1280,8 +1280,8 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
                     smsg!(
                         0,
                         ngettext(
-                            BLOCK_SINGLE.as_ptr(),
-                            BLOCK_PLURAL.as_ptr(),
+                            BLOCK_SINGLE,
+                            BLOCK_PLURAL,
                             yanklines as c_ulong,
                         ),
                         yanklines as i64,
@@ -1291,8 +1291,8 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
                     smsg!(
                         0,
                         ngettext(
-                            LINE_SINGLE.as_ptr(),
-                            LINE_PLURAL.as_ptr(),
+                            LINE_SINGLE,
+                            LINE_PLURAL,
                             yanklines as c_ulong,
                         ),
                         yanklines as i64,
@@ -1336,7 +1336,7 @@ pub fn format_reg_type(
                 1
             }
             MotionType::kMTBlockWise => {
-                vim_snprintf_safelen!(buf, bufsize, c"\x16%d".as_ptr(), reg_width + 1)
+                vim_snprintf_safelen!(buf, bufsize, c"\x16%d", reg_width + 1)
             }
             MotionType::kMTUnknown => {
                 *buf = NUL;
@@ -1803,7 +1803,7 @@ pub fn do_put(
 
             if y_size == 0 || !y_allocated {
                 semsg!(
-                    gettext(c"E353: Nothing in register %s".as_ptr()),
+                    gettext(c"E353: Nothing in register %s"),
                     if regname == 0 {
                         c"\"".as_ptr()
                     } else {
@@ -2020,7 +2020,7 @@ pub fn do_put(
                         && count
                             > ((c_int::MAX - (bd.startspaces + bd.endspaces)) / (yanklen + spaces))
                     {
-                        emsg(gettext(e_resulting_text_too_long.as_ptr()));
+                        emsg(gettext(e_resulting_text_too_long));
                         break;
                     }
 
@@ -2148,7 +2148,7 @@ pub fn do_put(
 
                     if count == 0 || yanklen == 0 {
                     } else if count > c_int::MAX / yanklen {
-                        emsg(gettext(e_resulting_text_too_long.as_ptr()));
+                        emsg(gettext(e_resulting_text_too_long));
                     } else {
                         totlen = (count as usize) * (yanklen as usize);
                         loop {
@@ -2513,7 +2513,7 @@ pub fn ex_display(eap: &mut exarg_T) {
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         g_st().msg_ext_skip_flush = true;
-        msg_puts_title(gettext(c"\nType Name Content".as_ptr()));
+        msg_puts_title(gettext(c"\nType Name Content"));
 
         let regs = (&raw mut reg_st().y_regs).cast::<yankreg_T>();
         let mut i: c_int = -1;
@@ -2976,7 +2976,7 @@ pub fn write_reg_contents_lst(
                 c"".as_ptr()
             } else if !(*strings.add(1)).is_null() {
                 semsg!(
-                    gettext(E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES.as_ptr()),
+                    gettext(E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES),
                     name,
                 );
                 return;
@@ -3030,7 +3030,7 @@ pub fn write_reg_contents_ex(
                 let num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str_)) as c_int;
                 let b = buflist_findnr(num);
                 if b.is_null() {
-                    semsg!(gettext(e_nobufnr.as_ptr()), i64::from(num));
+                    semsg!(gettext(e_nobufnr), i64::from(num));
                 }
                 b
             } else {

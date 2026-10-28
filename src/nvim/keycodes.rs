@@ -2722,7 +2722,7 @@ pub fn replace_termcodes(
                         vim_snprintf!(
                             result.add(dlen),
                             buf_len - dlen,
-                            c"%d".as_ptr(),
+                            c"%d",
                             sid as c_int,
                         );
                         dlen += crate::memory::cstr_len(result.add(dlen));

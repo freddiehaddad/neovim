@@ -574,7 +574,7 @@ fn set_maparg_rhs(
             mapargs.rhs_len = vim_snprintf!(
                 tmp_buf.as_mut_ptr(),
                 tmp_buf.len(),
-                c"%c%c%c%d\r".as_ptr(),
+                c"%c%c%c%d\r",
                 K_SPECIAL as c_int,
                 KS_EXTRA as c_int,
                 KE_LUA as c_int,
@@ -1069,9 +1069,9 @@ fn buf_do_map(
                 if !has_lhs || !has_rhs {
                     if !did_it && !did_local {
                         if is_abbrev {
-                            msg(gettext(c"No abbreviation found".as_ptr()), 0);
+                            msg(gettext(c"No abbreviation found"), 0);
                         } else {
-                            msg(gettext(c"No mapping found".as_ptr()), 0);
+                            msg(gettext(c"No mapping found"), 0);
                         }
                     }
                     break 'outer;
@@ -1175,7 +1175,7 @@ fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, abbr: c_
     unsafe {
         let local = crate::memory::cstr_as_bytes(arg) == b"<buffer>";
         if !local && *arg != NUL {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return;
         }
 
@@ -1718,7 +1718,7 @@ pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
             }
             api_free_object(ret);
             if err.err_type != ErrorType::kErrorTypeNone {
-                semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
+                semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
                 api_clear_error(&mut err);
             }
         } else {
@@ -1854,7 +1854,7 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
                         MODE_LANGMAP => c1 = b'l' as c_char,
                         MODE_TERMINAL => c1 = b't' as c_char,
                         _ => {
-                            iemsg(gettext(c"E228: makemap: Illegal mode".as_ptr()));
+                            iemsg(gettext(c"E228: makemap: Illegal mode"));
                             return false;
                         }
                     }
@@ -2387,7 +2387,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
             let which = tv_dict_get_string(d, c"mode");
             let is_abbr = tv_dict_get_bool(d, c"abbr", -1) as c_int;
             if which.is_null() || is_abbr < 0 {
-                emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT.as_ptr()));
+                emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
                 return;
             }
             (which as *const c_char, is_abbr, d)
@@ -2405,7 +2405,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
         };
         let mode = get_map_mode_string(which, is_abbr != 0);
         if mode == 0 {
-            semsg!(gettext(E_ILLEGAL_MAP_MODE_STRING_STR.as_ptr()), which);
+            semsg!(gettext(E_ILLEGAL_MAP_MODE_STRING_STR), which);
             return;
         }
 
@@ -2423,7 +2423,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
             }
         }
         if lhs.is_null() || lhsraw.is_null() || orig_rhs.is_null() {
-            emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT.as_ptr()));
+            emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
             api_free_luaref(rhs_lua);
             return;
         }
@@ -2698,7 +2698,7 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
                     if to > UCHAR_MAX {
                         swmsg!(
                             true,
-                            c"'langmap': Mapping from %.*s to %.*s will not work properly".as_ptr(),
+                            c"'langmap': Mapping from %.*s to %.*s will not work properly",
                             utf_ptr2len(from_ptr),
                             from_ptr,
                             utf_ptr2len(to_ptr),
@@ -2751,21 +2751,21 @@ fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
         match result {
             0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, &mut *g_st().curbuf) {
                 1 => {
-                    emsg(gettext(e_invarg.as_ptr()));
+                    emsg(gettext(e_invarg));
                 }
                 2 => {
                     emsg(if isabbrev {
-                        gettext(e_noabbr.as_ptr())
+                        gettext(e_noabbr)
                     } else {
-                        gettext(e_nomap.as_ptr())
+                        gettext(e_nomap)
                     });
                 }
                 5 => {
                     semsg!(
                         if isabbrev {
-                            gettext(E_ABBREVIATION_ALREADY_EXISTS_FOR_STR.as_ptr())
+                            gettext(E_ABBREVIATION_ALREADY_EXISTS_FOR_STR)
                         } else {
-                            gettext(E_MAPPING_ALREADY_EXISTS_FOR_STR.as_ptr())
+                            gettext(E_MAPPING_ALREADY_EXISTS_FOR_STR)
                         },
                         parsed_args.lhs.as_ptr(),
                     );
@@ -2773,9 +2773,9 @@ fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
                 6 => {
                     semsg!(
                         if isabbrev {
-                            gettext(E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR.as_ptr())
+                            gettext(E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR)
                         } else {
-                            gettext(E_GLOBAL_MAPPING_ALREADY_EXISTS_FOR_STR.as_ptr())
+                            gettext(E_GLOBAL_MAPPING_ALREADY_EXISTS_FOR_STR)
                         },
                         parsed_args.lhs.as_ptr(),
                     );
@@ -2783,7 +2783,7 @@ fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
                 _ => {}
             },
             1 => {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
             }
             _ => {
                 debug_assert!(false, "Unknown return code from str_to_mapargs!");
@@ -2871,7 +2871,7 @@ pub fn modify_keymap(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"\"replace_keycodes\" requires \"expr\"".as_ptr(),
+                    c"\"replace_keycodes\" requires \"expr\"",
                 );
                 break 'block;
             }
@@ -2888,7 +2888,7 @@ pub fn modify_keymap(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"LHS exceeds maximum map length: %s".as_ptr(),
+                    c"LHS exceeds maximum map length: %s",
                     lhs.data,
                 );
                 break 'block;
@@ -2898,7 +2898,7 @@ pub fn modify_keymap(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"LHS exceeds maximum map length: %s".as_ptr(),
+                    c"LHS exceeds maximum map length: %s",
                     lhs.data,
                 );
                 break 'block;
@@ -2923,7 +2923,7 @@ pub fn modify_keymap(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Invalid mode shortname: \"%s\"".as_ptr(),
+                    c"Invalid mode shortname: \"%s\"",
                     mode.data,
                 );
                 break 'block;
@@ -2933,7 +2933,7 @@ pub fn modify_keymap(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Invalid (empty) LHS".as_ptr(),
+                    c"Invalid (empty) LHS",
                 );
                 break 'block;
             }
@@ -2956,7 +2956,7 @@ pub fn modify_keymap(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Gave nonempty RHS in unmap command: %s".as_ptr(),
+                        c"Gave nonempty RHS in unmap command: %s",
                         parsed_args
                             .rhs
                             .as_ref()
@@ -2966,7 +2966,7 @@ pub fn modify_keymap(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Gave nonempty RHS for unmap".as_ptr(),
+                        c"Gave nonempty RHS for unmap",
                     );
                 }
                 break 'block;
@@ -2979,10 +2979,10 @@ pub fn modify_keymap(
             match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, &mut *target_buf) {
                 0 => {}
                 1 => {
-                    api_set_error!(err, ErrorType::kErrorTypeException, e_invarg.as_ptr(), 0);
+                    api_set_error!(err, ErrorType::kErrorTypeException, e_invarg, 0);
                 }
                 2 => {
-                    api_set_error!(err, ErrorType::kErrorTypeException, e_nomap.as_ptr(), 0);
+                    api_set_error!(err, ErrorType::kErrorTypeException, e_nomap, 0);
                 }
                 5 => {
                     api_set_error!(

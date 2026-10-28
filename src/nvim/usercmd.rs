@@ -613,7 +613,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
 
                 if !found {
                     msg_puts_title(gettext(
-                        c"\n    Name              Args Address Complete    Definition".as_ptr(),
+                        c"\n    Name              Args Address Complete    Definition",
                     ));
                 }
                 found = true;
@@ -812,7 +812,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
         }
 
         if !found {
-            msg(gettext(c"No user-defined commands found".as_ptr()), 0);
+            msg(gettext(c"No user-defined commands found"), 0);
         }
     }
 }
@@ -845,7 +845,7 @@ pub fn parse_addr_type_arg(
         }
         *err.add(i) = NUL;
         semsg!(
-            gettext(c"E180: Invalid address type value: %s".as_ptr()),
+            gettext(c"E180: Invalid address type value: %s"),
             err,
         );
         false
@@ -895,20 +895,20 @@ pub fn parse_compl_arg(
         }
 
         if !matched {
-            semsg!(gettext(c"E180: Invalid complete value: %s".as_ptr()), value);
+            semsg!(gettext(c"E180: Invalid complete value: %s"), value);
             return false;
         }
 
         if *complp != EXPAND_USER_DEFINED && *complp != EXPAND_USER_LIST && !arg.is_null() {
             emsg(gettext(
-                c"E468: Completion argument only allowed for custom completion".as_ptr(),
+                c"E468: Completion argument only allowed for custom completion",
             ));
             return false;
         }
 
         if (*complp == EXPAND_USER_DEFINED || *complp == EXPAND_USER_LIST) && arg.is_null() {
             emsg(gettext(
-                c"E467: Custom completion requires a function argument".as_ptr(),
+                c"E467: Custom completion requires a function argument",
             ));
             return false;
         }
@@ -935,7 +935,7 @@ fn uc_scan_attr(
 ) -> bool {
     unsafe {
         if len == 0 {
-            emsg(gettext(c"E175: No attribute specified".as_ptr()));
+            emsg(gettext(c"E175: No attribute specified"));
             return false;
         }
 
@@ -973,12 +973,12 @@ fn uc_scan_attr(
                         b'+' => *argt |= EX_EXTRA | EX_NEEDARG,
                         b'_' => *argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE,
                         _ => {
-                            emsg(gettext(c"E176: Invalid number of arguments".as_ptr()));
+                            emsg(gettext(c"E176: Invalid number of arguments"));
                             return false;
                         }
                     }
                 } else {
-                    emsg(gettext(c"E176: Invalid number of arguments".as_ptr()));
+                    emsg(gettext(c"E176: Invalid number of arguments"));
                     return false;
                 }
             } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"range".as_ptr(), attrlen)) {
@@ -988,7 +988,7 @@ fn uc_scan_attr(
                 } else if !val.is_null() {
                     let mut p = val;
                     if *def >= 0 {
-                        emsg(gettext(c"E177: Count cannot be specified twice".as_ptr()));
+                        emsg(gettext(c"E177: Count cannot be specified twice"));
                         return false;
                     }
 
@@ -996,7 +996,7 @@ fn uc_scan_attr(
                     *argt |= EX_ZEROR;
 
                     if p != val.add(vallen) || vallen == 0 {
-                        emsg(gettext(c"E178: Invalid default value for count".as_ptr()));
+                        emsg(gettext(c"E178: Invalid default value for count"));
                         return false;
                     }
                 }
@@ -1012,14 +1012,14 @@ fn uc_scan_attr(
                 if !val.is_null() {
                     let mut p = val;
                     if *def >= 0 {
-                        emsg(gettext(c"E177: Count cannot be specified twice".as_ptr()));
+                        emsg(gettext(c"E177: Count cannot be specified twice"));
                         return false;
                     }
 
                     *def = getdigits_int(&raw mut p, true, 0);
 
                     if p != val.add(vallen) {
-                        emsg(gettext(c"E178: Invalid default value for count".as_ptr()));
+                        emsg(gettext(c"E178: Invalid default value for count"));
                         return false;
                     }
                 }
@@ -1030,8 +1030,8 @@ fn uc_scan_attr(
             } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"complete".as_ptr(), attrlen)) {
                 if val.is_null() {
                     semsg!(
-                        gettext(E_ARGUMENT_REQUIRED_FOR_STR.as_ptr()),
-                        c"-complete".as_ptr(),
+                        gettext(E_ARGUMENT_REQUIRED_FOR_STR),
+                        c"-complete",
                     );
                     return false;
                 }
@@ -1043,8 +1043,8 @@ fn uc_scan_attr(
                 *argt |= EX_RANGE;
                 if val.is_null() {
                     semsg!(
-                        gettext(E_ARGUMENT_REQUIRED_FOR_STR.as_ptr()),
-                        c"-addr".as_ptr(),
+                        gettext(E_ARGUMENT_REQUIRED_FOR_STR),
+                        c"-addr",
                     );
                     return false;
                 }
@@ -1057,7 +1057,7 @@ fn uc_scan_attr(
             } else {
                 let ch = *attr.add(len);
                 *attr.add(len) = NUL;
-                semsg!(gettext(c"E181: Invalid attribute: %s".as_ptr()), attr);
+                semsg!(gettext(c"E181: Invalid attribute: %s"), attr);
                 *attr.add(len) = ch;
                 return false;
             }
@@ -1139,7 +1139,7 @@ pub fn uc_add_command(
                         || (*cmd).uc_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
                 {
                     semsg!(
-                        gettext(c"E174: Command already exists: add ! to replace it: %s".as_ptr()),
+                        gettext(c"E174: Command already exists: add ! to replace it: %s"),
                         name,
                     );
                     nlua_clear_ref(&mut luaref);
@@ -1228,7 +1228,7 @@ pub fn ex_command(eap: &mut exarg_T) {
         let name = p;
         let end = uc_validate_name(name);
         if end.is_null() {
-            emsg(gettext(c"E182: Invalid command name".as_ptr()));
+            emsg(gettext(c"E182: Invalid command name"));
             return;
         }
         let name_len = end.offset_from(name) as usize;
@@ -1238,14 +1238,14 @@ pub fn ex_command(eap: &mut exarg_T) {
             uc_list(name, name_len);
         } else if !ascii_isupper(*name) {
             emsg(gettext(
-                c"E183: User defined commands must start with an uppercase letter".as_ptr(),
+                c"E183: User defined commands must start with an uppercase letter",
             ));
         } else if name_len <= 4 && (crate::memory::cstr_prefix_bytes(name, name_len) == crate::memory::cstr_prefix_bytes(c"Next".as_ptr(), name_len)) {
             emsg(gettext(
-                c"E841: Reserved name, cannot be used for user defined command".as_ptr(),
+                c"E841: Reserved name, cannot be used for user defined command",
             ));
         } else if context > 0 && (argt & EX_EXTRA) == 0 {
-            emsg(gettext(E_COMPLETE_USED_WITHOUT_ALLOWING_ARGUMENTS.as_ptr()));
+            emsg(gettext(E_COMPLETE_USED_WITHOUT_ALLOWING_ARGUMENTS));
         } else {
             uc_add_command(
                 name,

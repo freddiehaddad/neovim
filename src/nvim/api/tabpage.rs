@@ -202,7 +202,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Window does not belong to tabpage %d".as_ptr(),
+                c"Window does not belong to tabpage %d",
                 (*tp).handle,
             );
             return;
@@ -289,7 +289,7 @@ pub fn nvim_open_tabpage(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Failed to create new tabpage".as_ptr(),
+                    c"Failed to create new tabpage",
                 );
             }
             return 0;
@@ -299,7 +299,7 @@ pub fn nvim_open_tabpage(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Tabpage was closed immediately".as_ptr(),
+                c"Tabpage was closed immediately",
             );
             return 0;
         }
@@ -320,7 +320,7 @@ pub fn nvim_open_tabpage(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Tabpage was closed immediately".as_ptr(),
+                    c"Tabpage was closed immediately",
                 );
                 return 0;
             }

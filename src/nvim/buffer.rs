@@ -1055,14 +1055,14 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
 
             if g_st().curbuf.is_null() {
                 emsg(gettext(
-                    c"E82: Cannot allocate any buffer, exiting...".as_ptr(),
+                    c"E82: Cannot allocate any buffer, exiting...",
                 ));
                 g_st().v_dying = 2;
                 getout(2);
             }
 
             emsg(gettext(
-                c"E83: Cannot allocate buffer, using other one...".as_ptr(),
+                c"E83: Cannot allocate buffer, using other one...",
             ));
             enter_buffer(g_st().curbuf);
             if old_tw != (*g_st().curbuf).b_p_tw {
@@ -1327,7 +1327,7 @@ fn can_unload_buffer(buf: &mut buf_T) -> bool {
                 buf.b_ffname
             };
             semsg!(
-                gettext(E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR.as_ptr()),
+                gettext(E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR),
                 if !fname.is_null() {
                     fname
                 } else {
@@ -1420,13 +1420,13 @@ pub fn close_buffer(
                 win,
             ) && !bufref_valid(Some(&bufref))
             {
-                emsg(gettext(e_auabort.as_ptr()));
+                emsg(gettext(e_auabort));
                 return false;
             }
             (*buf).b_locked -= 1;
             (*buf).b_locked_split -= 1;
             if abort_if_last && one_window(win, ptr::null_mut()) {
-                emsg(gettext(e_auabort.as_ptr()));
+                emsg(gettext(e_auabort));
                 return false;
             }
 
@@ -1436,13 +1436,13 @@ pub fn close_buffer(
                 if apply_autocmds(EVENT_BUFHIDDEN, (*buf).b_fname, (*buf).b_fname, false, buf)
                     && !bufref_valid(Some(&bufref))
                 {
-                    emsg(gettext(e_auabort.as_ptr()));
+                    emsg(gettext(e_auabort));
                     return false;
                 }
                 (*buf).b_locked -= 1;
                 (*buf).b_locked_split -= 1;
                 if abort_if_last && one_window(win, ptr::null_mut()) {
-                    emsg(gettext(e_auabort.as_ptr()));
+                    emsg(gettext(e_auabort));
                     return false;
                 }
             }
@@ -1995,19 +1995,19 @@ pub fn do_bufdel(
                 if command == DOBUF_UNLOAD {
                     xstrlcpy(
                         iobuff_ptr,
-                        gettext(c"E515: No buffers were unloaded".as_ptr()),
+                        gettext(c"E515: No buffers were unloaded"),
                         IOSIZE,
                     );
                 } else if command == DOBUF_DEL {
                     xstrlcpy(
                         iobuff_ptr,
-                        gettext(c"E516: No buffers were deleted".as_ptr()),
+                        gettext(c"E516: No buffers were deleted"),
                         IOSIZE,
                     );
                 } else {
                     xstrlcpy(
                         iobuff_ptr,
-                        gettext(c"E517: No buffers were wiped out".as_ptr()),
+                        gettext(c"E517: No buffers were wiped out"),
                         IOSIZE,
                     );
                 }
@@ -2017,8 +2017,8 @@ pub fn do_bufdel(
                     smsg!(
                         0,
                         ngettext(
-                            c"%d buffer unloaded".as_ptr(),
-                            c"%d buffers unloaded".as_ptr(),
+                            c"%d buffer unloaded",
+                            c"%d buffers unloaded",
                             deleted as usize,
                         ),
                         deleted,
@@ -2027,8 +2027,8 @@ pub fn do_bufdel(
                     smsg!(
                         0,
                         ngettext(
-                            c"%d buffer deleted".as_ptr(),
-                            c"%d buffers deleted".as_ptr(),
+                            c"%d buffer deleted",
+                            c"%d buffers deleted",
                             deleted as usize,
                         ),
                         deleted,
@@ -2037,8 +2037,8 @@ pub fn do_bufdel(
                     smsg!(
                         0,
                         ngettext(
-                            c"%d buffer wiped out".as_ptr(),
-                            c"%d buffers wiped out".as_ptr(),
+                            c"%d buffer wiped out",
+                            c"%d buffers wiped out",
                             deleted as usize,
                         ),
                         deleted,
@@ -2056,7 +2056,7 @@ fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> bool {
         let buf = g_st().curbuf;
 
         if action == DOBUF_UNLOAD {
-            emsg(gettext(c"E90: Cannot unload last buffer".as_ptr()));
+            emsg(gettext(c"E90: Cannot unload last buffer"));
             return false;
         }
 
@@ -2136,7 +2136,7 @@ fn do_buffer_ext(
                 }
             }
             if !buf_is_changed(&*buf) {
-                emsg(gettext(c"E84: No modified buffer found".as_ptr()));
+                emsg(gettext(c"E84: No modified buffer found"));
                 return false;
             }
         } else if start == DOBUF_FIRST && count != 0 {
@@ -2181,7 +2181,7 @@ fn do_buffer_ext(
                     bp = ptr::null_mut();
                 }
                 if bp == buf {
-                    emsg(gettext(c"E85: There is no listed buffer".as_ptr()));
+                    emsg(gettext(c"E85: There is no listed buffer"));
                     return false;
                 }
             }
@@ -2190,12 +2190,12 @@ fn do_buffer_ext(
         if buf.is_null() {
             if start == DOBUF_FIRST {
                 if !unload {
-                    semsg!(gettext(e_nobufnr.as_ptr()), i64::from(count));
+                    semsg!(gettext(e_nobufnr), i64::from(count));
                 }
             } else if dir == FORWARD {
-                emsg(gettext(c"E87: Cannot go beyond last buffer".as_ptr()));
+                emsg(gettext(c"E87: Cannot go beyond last buffer"));
             } else {
-                emsg(gettext(c"E88: Cannot go before first buffer".as_ptr()));
+                emsg(gettext(c"E88: Cannot go before first buffer"));
             }
             return false;
         }
@@ -2208,7 +2208,7 @@ fn do_buffer_ext(
         }
 
         if (action == DOBUF_GOTO || action == DOBUF_SPLIT) && ((*buf).b_flags & BF_DUMMY) != 0 {
-            semsg!(gettext(e_nobufnr.as_ptr()), count);
+            semsg!(gettext(e_nobufnr), count);
             return false;
         }
 
@@ -2235,8 +2235,7 @@ fn do_buffer_ext(
                 } else {
                     semsg!(
                         gettext(
-                            e_no_write_since_last_change_for_buffer_nr_add_bang_to_override
-                                .as_ptr(),
+                            e_no_write_since_last_change_for_buffer_nr_add_bang_to_override,
                         ),
                         (*buf).b_fnum,
                     );
@@ -2254,7 +2253,7 @@ fn do_buffer_ext(
                     }
                 } else {
                     semsg!(
-                        gettext(c"E89: %s will be killed (add ! to override)".as_ptr()),
+                        gettext(c"E89: %s will be killed (add ! to override)"),
                         (*buf).b_fname,
                     );
                     return false;
@@ -2457,7 +2456,7 @@ fn do_buffer_ext(
             return true;
         }
         if buf != g_st().curbuf && (*buf).b_locked_split != 0 {
-            emsg(gettext(e_cannot_switch_to_a_closing_buffer.as_ptr()));
+            emsg(gettext(e_cannot_switch_to_a_closing_buffer));
             return false;
         }
         if action == DOBUF_SPLIT && !win_split(0, 0) {
@@ -2705,11 +2704,11 @@ pub fn do_autochdir() {
 pub fn no_write_message_buf(buf: &mut buf_T) {
     if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel as u64) {
             emsg(gettext(
-                e_job_still_running_add_bang_to_end_the_job.as_ptr(),
+                e_job_still_running_add_bang_to_end_the_job,
             ));
         } else {
             semsg!(
-                gettext(e_no_write_since_last_change_for_buffer_nr_add_bang_to_override.as_ptr()),
+                gettext(e_no_write_since_last_change_for_buffer_nr_add_bang_to_override),
                 buf.b_fnum,
             );
         }
@@ -2719,11 +2718,11 @@ pub fn no_write_message() {
     unsafe {
         if !(*g_st().curbuf).terminal.is_null() && channel_job_running((*g_st().curbuf).b_p_channel as u64) {
             emsg(gettext(
-                e_job_still_running_add_bang_to_end_the_job.as_ptr(),
+                e_job_still_running_add_bang_to_end_the_job,
             ));
         } else {
             emsg(gettext(
-                e_no_write_since_last_change_add_bang_to_override.as_ptr(),
+                e_no_write_since_last_change_add_bang_to_override,
             ));
         }
     }
@@ -2731,9 +2730,9 @@ pub fn no_write_message() {
 
 pub fn no_write_message_nobang(buf: &buf_T) {
     if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel as u64) {
-            emsg(gettext(e_job_still_running.as_ptr()));
+            emsg(gettext(e_job_still_running));
         } else {
-            emsg(gettext(e_no_write_since_last_change.as_ptr()));
+            emsg(gettext(e_no_write_since_last_change));
         }
 }
 
@@ -2862,7 +2861,7 @@ pub fn buflist_new(
             (*map_ptr).insert((*buf).b_fnum, buf);
             if buf_st().top_file_num < 0 {
                 emsg(gettext(
-                    c"W14: Warning: List of file names overflow".as_ptr(),
+                    c"W14: Warning: List of file names overflow",
                 ));
                 if g_st().emsg_silent == 0 && !g_st().in_assert_fails {
                     msg_delay(3001, true);
@@ -3030,9 +3029,9 @@ pub fn buflist_getfile(
         let buf = buflist_findnr(n);
         if buf.is_null() {
             if (options & GETF_ALT) != 0 && n == 0 {
-                emsg(gettext(e_noalt.as_ptr()));
+                emsg(gettext(e_noalt));
             } else {
-                semsg!(gettext(e_buffer_nr_not_found.as_ptr()), n);
+                semsg!(gettext(e_buffer_nr_not_found), n);
             }
             return false;
         }
@@ -3267,11 +3266,11 @@ pub fn buflist_findpat(
 
         if match_fnum == -2 {
             semsg!(
-                gettext(c"E93: More than one match for %s".as_ptr()),
+                gettext(c"E93: More than one match for %s"),
                 pattern,
             );
         } else if match_fnum < 0 {
-            semsg!(gettext(c"E94: No matching buffer for %s".as_ptr()), pattern);
+            semsg!(gettext(c"E94: No matching buffer for %s"), pattern);
         }
         match_fnum
     }
@@ -3739,7 +3738,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
             let mut len = vim_snprintf_safelen!(
                 iobuff_ptr,
                 IOSIZE - 20,
-                c"%3d%c%c%c%c%c \"%s\"".as_ptr(),
+                c"%3d%c%c%c%c%c \"%s\"",
                 (*buf).b_fnum,
                 if (*buf).b_p_bl != 0 {
                     b' ' as c_int
@@ -3781,7 +3780,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
                 vim_snprintf!(
                     iobuff_ptr.add(len),
                     IOSIZE - len,
-                    gettext(c"line %lld".as_ptr()),
+                    gettext(c"line %lld"),
                     if buf == g_st().curbuf {
                         i64::from((**curwin.as_ptr()).w_cursor.lnum)
                     } else {
@@ -3859,7 +3858,7 @@ pub fn setfname(
                 if (*obuf).b_ml.ml_mfp.is_some() || in_use {
                     if message {
                         emsg(gettext(
-                            c"E95: Buffer with this name already exists".as_ptr(),
+                            c"E95: Buffer with this name already exists",
                         ));
                     }
                     return false;
@@ -3950,7 +3949,7 @@ pub fn getaltfname(errmsg: bool) -> *mut c_char {
 
         if !buflist_name_nr(0, &raw mut fname, &mut dummy) {
             if errmsg {
-                emsg(gettext(e_noalt.as_ptr()));
+                emsg(gettext(e_noalt));
             }
             return ptr::null_mut();
         }
@@ -4037,7 +4036,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
 
         if fullname > 1 {
             bufferlen =
-                vim_snprintf_safelen!(buffer, IOSIZE, c"buf %d: ".as_ptr(), (*g_st().curbuf).b_fnum);
+                vim_snprintf_safelen!(buffer, IOSIZE, c"buf %d: ", (*g_st().curbuf).b_fnum);
         }
 
         *buffer.add(bufferlen) = b'"' as c_char;
@@ -4048,7 +4047,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
             bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
-                c"%s".as_ptr(),
+                c"%s",
                 name,
             );
         } else {
@@ -4076,31 +4075,31 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
             if shortmess(kShmMod) {
                 c" [+]".as_ptr()
             } else {
-                gettext(c" [Modified]".as_ptr())
+                gettext(c" [Modified]")
             }
         } else {
             c" ".as_ptr()
         };
         let notedited_str = if ((*g_st().curbuf).b_flags & BF_NOTEDITED) != 0 && !dontwrite {
-            gettext(c"[Not edited]".as_ptr())
+            gettext(c"[Not edited]")
         } else {
             c"".as_ptr()
         };
         let new_str = if ((*g_st().curbuf).b_flags & BF_NEW) != 0 && !dontwrite {
-            gettext(c"[New]".as_ptr())
+            gettext(c"[New]")
         } else {
             c"".as_ptr()
         };
         let readerr_str = if ((*g_st().curbuf).b_flags & BF_READERR) != 0 {
-            gettext(c"[Read errors]".as_ptr())
+            gettext(c"[Read errors]")
         } else {
             c"".as_ptr()
         };
         let ro_str = if (*g_st().curbuf).b_p_ro != 0 {
             if shortmess(kShmRo) {
-                gettext(c"[RO]".as_ptr())
+                gettext(c"[RO]")
             } else {
-                gettext(c"[readonly]".as_ptr())
+                gettext(c"[readonly]")
             }
         } else {
             c"".as_ptr()
@@ -4115,7 +4114,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
         bufferlen += vim_snprintf_safelen!(
             buffer.add(bufferlen),
             IOSIZE - bufferlen,
-            c"\"%s%s%s%s%s%s".as_ptr(),
+            c"\"%s%s%s%s%s%s",
             mod_str,
             notedited_str,
             new_str,
@@ -4130,16 +4129,16 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
             bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
-                c"%s".as_ptr(),
-                gettext(no_lines_msg.as_ptr()),
+                c"%s",
+                gettext(no_lines_msg),
             );
         } else if opt_vars().p_ru != 0 {
             bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
                 ngettext(
-                    c"%lld line --%d%%--".as_ptr(),
-                    c"%lld lines --%d%%--".as_ptr(),
+                    c"%lld line --%d%%--",
+                    c"%lld lines --%d%%--",
                     line_count as usize,
                 ),
                 line_count,
@@ -4149,7 +4148,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
             bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
-                gettext(c"line %lld of %lld --%d%%-- col ".as_ptr()),
+                gettext(c"line %lld of %lld --%d%%-- col "),
                 cur_lnum,
                 line_count,
                 calc_percentage(cur_lnum, line_count),
@@ -4182,9 +4181,9 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
 
 pub fn col_print(buf: *mut c_char, buflen: usize, col: c_int, vcol: c_int) -> c_int {
     if col == vcol {
-            vim_snprintf_safelen!(buf, buflen, c"%d".as_ptr(), col) as c_int
+            vim_snprintf_safelen!(buf, buflen, c"%d", col) as c_int
         } else {
-            vim_snprintf_safelen!(buf, buflen, c"%d-%d".as_ptr(), col, vcol) as c_int
+            vim_snprintf_safelen!(buf, buflen, c"%d-%d", col, vcol) as c_int
         }
 }
 
@@ -4373,11 +4372,11 @@ pub fn get_rel_pos(wp: &mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
             return vim_snprintf_safelen!(
                 buf,
                 buflen as usize,
-                c"%s".as_ptr(),
+                c"%s",
                 if above == 0 {
-                    gettext(c"All".as_ptr())
+                    gettext(c"All")
                 } else {
-                    gettext(c"Bot".as_ptr())
+                    gettext(c"Bot")
                 },
             ) as c_int;
         }
@@ -4386,15 +4385,15 @@ pub fn get_rel_pos(wp: &mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
             return vim_snprintf_safelen!(
                 buf,
                 buflen as usize,
-                c"%s".as_ptr(),
-                gettext(c"Top".as_ptr()),
+                c"%s",
+                gettext(c"Top"),
             ) as c_int;
         }
 
         let perc = calc_percentage(i64::from(above), i64::from(above + below));
         let mut tmp = [0 as c_char; 8];
-        vim_snprintf!(tmp.as_mut_ptr(), tmp.len(), gettext(c"%d%%".as_ptr()), perc);
-        vim_snprintf_safelen!(buf, buflen as usize, gettext(c"%3s".as_ptr()), tmp.as_ptr()) as c_int
+        vim_snprintf!(tmp.as_mut_ptr(), tmp.len(), gettext(c"%d%%"), perc);
+        vim_snprintf_safelen!(buf, buflen as usize, gettext(c"%3s"), tmp.as_ptr()) as c_int
     }
 }
 
@@ -4406,9 +4405,9 @@ pub fn append_arg_number(wp: &mut win_T, buf: *mut c_char, buflen: usize) -> c_i
         }
 
         let msg = if wp.w_arg_idx_invalid {
-            gettext(c" ((%d) of %d)".as_ptr())
+            gettext(c" ((%d) of %d)")
         } else {
-            gettext(c" (%d of %d)".as_ptr())
+            gettext(c" (%d of %d)")
         };
 
         vim_snprintf_safelen!(buf, buflen, msg, wp.w_arg_idx + 1, argcount) as c_int
@@ -4888,7 +4887,7 @@ pub fn bt_dontwrite(buf: *const buf_T) -> bool {
 pub fn bt_dontwrite_msg(buf: *const buf_T) -> bool {
     if bt_dontwrite(buf) {
             emsg(gettext(
-                c"E382: Cannot write, 'buftype' option is set".as_ptr(),
+                c"E382: Cannot write, 'buftype' option is set",
             ));
             return true;
         }
@@ -4911,21 +4910,21 @@ pub fn buf_spname(buf: *mut buf_T) -> *mut c_char {
     unsafe {
         if bt_quickfix(buf) {
             if (*buf).b_fnum == qf_stack_get_bufnr() {
-                return gettext(msg_qflist.as_ptr());
+                return gettext(msg_qflist);
             }
-            return gettext(msg_loclist.as_ptr());
+            return gettext(msg_loclist);
         }
         if bt_nofilename(buf) {
             if !(*buf).b_fname.is_null() {
                 return (*buf).b_fname;
             }
             if bt_cmdwin(buf) {
-                return gettext(c"[Command Line]".as_ptr());
+                return gettext(c"[Command Line]");
             }
             if bt_prompt(buf) {
-                return gettext(c"[Prompt]".as_ptr());
+                return gettext(c"[Prompt]");
             }
-            return gettext(c"[Scratch]".as_ptr());
+            return gettext(c"[Scratch]");
         }
         if (*buf).b_fname.is_null() {
             return buf_get_fname(buf);
@@ -4938,7 +4937,7 @@ pub fn buf_spname(buf: *mut buf_T) -> *mut c_char {
 pub fn buf_get_fname(buf: *const buf_T) -> *mut c_char {
     unsafe {
         if (*buf).b_fname.is_null() {
-            gettext(c"[No Name]".as_ptr())
+            gettext(c"[No Name]")
         } else {
             (*buf).b_fname
         }

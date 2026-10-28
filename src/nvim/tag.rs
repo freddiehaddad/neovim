@@ -438,7 +438,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
         }
 
         if tag_st().tfu_in_use {
-            emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC.as_ptr()));
+            emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC));
             return;
         }
 
@@ -514,7 +514,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                     } else {
                         tagstacklen == 0
                     } {
-                        emsg(gettext(E_TAG_STACK_EMPTY.as_ptr()));
+                        emsg(gettext(E_TAG_STACK_EMPTY));
                         break 'end_do_tag;
                     }
 
@@ -522,14 +522,14 @@ pub fn do_tag(eap: Option<&exarg_T>,
                         let old_KeyTyped = g_st().KeyTyped;
                         tagstackidx -= count;
                         if tagstackidx < 0 {
-                            emsg(gettext(E_AT_BOTTOM_OF_TAG_STACK.as_ptr()));
+                            emsg(gettext(E_AT_BOTTOM_OF_TAG_STACK));
                             if tagstackidx + count == 0 {
                                 tagstackidx = 0;
                                 break 'end_do_tag;
                             }
                             tagstackidx = 0;
                         } else if tagstackidx >= tagstacklen {
-                            emsg(gettext(E_AT_TOP_OF_TAG_STACK.as_ptr()));
+                            emsg(gettext(E_AT_TOP_OF_TAG_STACK));
                             break 'end_do_tag;
                         }
 
@@ -574,10 +574,10 @@ pub fn do_tag(eap: Option<&exarg_T>,
                             tagstackidx += count - 1;
                             if tagstackidx >= tagstacklen {
                                 tagstackidx = tagstacklen - 1;
-                                emsg(gettext(E_AT_TOP_OF_TAG_STACK.as_ptr()));
+                                emsg(gettext(E_AT_TOP_OF_TAG_STACK));
                                 save_pos = false;
                             } else if tagstackidx < 0 {
-                                emsg(gettext(E_AT_BOTTOM_OF_TAG_STACK.as_ptr()));
+                                emsg(gettext(E_AT_BOTTOM_OF_TAG_STACK));
                                 tagstackidx = 0;
                                 break 'end_do_tag;
                             }
@@ -610,7 +610,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                             cur_match = MAXCOL - 1;
                         } else if cur_match < 0 {
                             emsg(gettext(
-                                c"E425: Cannot go before first matching tag".as_ptr(),
+                                c"E425: Cannot go before first matching tag",
                             ));
                             skip_msg = true;
                             cur_match = 0;
@@ -716,7 +716,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
 
                     if tagstack != (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>() {
                         emsg(gettext(
-                            E_WINDOW_UNEXPECTEDLY_CLOSE_WHILE_SEARCHING_FOR_TAGS.as_ptr(),
+                            E_WINDOW_UNEXPECTEDLY_CLOSE_WHILE_SEARCHING_FOR_TAGS,
                         ));
                         break;
                     }
@@ -745,7 +745,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                 let do_tag_num_matches = (*do_tag_matches).len() as c_int;
                 if do_tag_num_matches <= 0 {
                     if verbose {
-                        semsg!(gettext(E_TAG_NOT_FOUND_STR.as_ptr()), name);
+                        semsg!(gettext(E_TAG_NOT_FOUND_STR), name);
                     }
                     g_st().g_do_tagpreview = 0;
                 } else {
@@ -770,10 +770,10 @@ pub fn do_tag(eap: Option<&exarg_T>,
                             && tag_st().nofile_fname.is_none()
                         {
                             if do_tag_num_matches == 1 {
-                                emsg(gettext(c"E427: There is only one matching tag".as_ptr()));
+                                emsg(gettext(c"E427: There is only one matching tag"));
                             } else {
                                 emsg(gettext(
-                                    c"E428: Cannot go beyond last matching tag".as_ptr(),
+                                    c"E428: Cannot go beyond last matching tag",
                                 ));
                             }
                             skip_msg = true;
@@ -814,7 +814,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                     {
                         smsg!(
                             0,
-                            gettext(c"File \"%s\" does not exist".as_ptr()),
+                            gettext(c"File \"%s\" does not exist"),
                             nf.as_ptr(),
                         );
                     }
@@ -831,20 +831,20 @@ pub fn do_tag(eap: Option<&exarg_T>,
                     {
                         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
                         let more_str = if tag_st().DO_TAG_MAX_NUM_MATCHES != MAXCOL {
-                            gettext(c" or more".as_ptr()).cast_const()
+                            gettext(c" or more").cast_const()
                         } else {
                             c"".as_ptr()
                         };
                         vim_snprintf!(
                             iobuf_ptr,
                             IOSIZE,
-                            gettext(c"tag %d of %d%s".as_ptr()),
+                            gettext(c"tag %d of %d%s"),
                             cur_match + 1,
                             do_tag_num_matches,
                             more_str,
                         );
                         if ic {
-                            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"  Using tag with different case!".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"  Using tag with different case!"), _dsize - _dlen); };
                         }
                         if (do_tag_num_matches > prev_num_matches || new_tag)
                             && do_tag_num_matches > 1
@@ -861,7 +861,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
 
                     let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
                     let iobufflen =
-                        vim_snprintf_safelen!(iobuf_ptr, IOSIZE, c":ta %s\r".as_ptr(), name);
+                        vim_snprintf_safelen!(iobuf_ptr, IOSIZE, c":ta %s\r", name);
                     set_vim_var_string(VV_SWAPCOMMAND, iobuf_ptr, iobufflen as isize);
 
                     let i = jumpto_tag(cur_match_ptr, forceit, true);
@@ -887,7 +887,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                             continue;
                         }
                         semsg!(
-                            gettext(c"E429: File \"%s\" does not exist".as_ptr()),
+                            gettext(c"E429: File \"%s\" does not exist"),
                             (&raw const tag_st().nofile_fname)
                                 .as_ref()
                                 .unwrap()
@@ -1089,7 +1089,7 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
         }
 
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-        vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s".as_ptr(), tag);
+        vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s", tag);
         set_errorlist(*curwin.as_ptr(), list, b' ' as c_int, iobuf_ptr, ptr::null_mut());
 
         tv_list_free(list);
@@ -1111,7 +1111,7 @@ pub fn do_tags(_eap: &mut exarg_T) {
         let tagstacklen = (**curwin.as_ptr()).w_tagstacklen;
 
         msg_puts_title(gettext(
-            c"\n  # TO tag         FROM line  in file/text".as_ptr(),
+            c"\n  # TO tag         FROM line  in file/text",
         ));
         for i in 0..tagstacklen {
             let entry = tagstack.add(i as usize);
@@ -1125,7 +1125,7 @@ pub fn do_tags(_eap: &mut exarg_T) {
                 vim_snprintf!(
                     iobuf_ptr,
                     IOSIZE,
-                    c"%c%2d %2d %-15s %5d  ".as_ptr(),
+                    c"%c%2d %2d %-15s %5d  ",
                     if i == tagstackidx {
                         b'>' as c_int
                     } else {
@@ -1300,7 +1300,7 @@ fn find_tagfunc_tags(
         vim_snprintf!(
             flagString.as_mut_ptr(),
             flagString.len(),
-            c"%s%s%s".as_ptr(),
+            c"%s%s%s",
             if g_st().g_tag_at_cursor {
                 c"c".as_ptr()
             } else {
@@ -1342,7 +1342,7 @@ fn find_tagfunc_tags(
         }
         if rettv.v_type != VarType::VAR_LIST || rettv.vval.v_list().is_null() {
             tv_clear(&raw mut rettv);
-            emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC.as_ptr()));
+            emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
             return FAIL;
         }
         let taglist = rettv.vval.v_list();
@@ -1357,7 +1357,7 @@ fn find_tagfunc_tags(
             let name_only = (flags & TAG_NAMES) != 0;
 
             if (*li).li_tv.v_type != VarType::VAR_DICT {
-                emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC.as_ptr()));
+                emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
                 break;
             }
 
@@ -1400,13 +1400,13 @@ fn find_tagfunc_tags(
             }
 
             if res_name.is_null() || res_fname.is_null() || res_cmd.is_null() {
-                emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC.as_ptr()));
+                emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
                 break;
             }
 
             let cmdkind = tagfunc_cmd_kind(res_cmd);
             if cmdkind == tagcmd_T::TAGCMD_INVALID {
-                emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC.as_ptr()));
+                emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
                 break;
             }
             if cmdkind == tagcmd_T::TAGCMD_GENERIC {
@@ -2046,7 +2046,7 @@ fn findtags_add_match(
             vim_snprintf!(
                 p.add(len + 1 + ML_EXTRA),
                 mfp_size - (len + 1 + ML_EXTRA),
-                c"%06d".as_ptr(),
+                c"%06d",
                 heur,
             );
             mfp_vec = Some(v);
@@ -2176,11 +2176,11 @@ fn findtags_get_all_tags(
             }
             if retval == tagmatch_status_T::TAG_MATCH_FAIL {
                 semsg!(
-                    gettext(c"E431: Format error in tags file \"%s\"".as_ptr()),
+                    gettext(c"E431: Format error in tags file \"%s\""),
                     st.tag_fname.as_ptr(),
                 );
                 semsg!(
-                    gettext(c"Before byte %lld".as_ptr()),
+                    gettext(c"Before byte %lld"),
                     vim_ftell(st.fp_ptr()) as i64,
                 );
                 st.stop_searching = true;
@@ -2217,7 +2217,7 @@ fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname: *mut c
             verbose_enter();
             smsg!(
                 0,
-                gettext(c"Searching tags file %s".as_ptr()),
+                gettext(c"Searching tags file %s"),
                 tag_fname_ptr,
             );
             verbose_leave();
@@ -2234,7 +2234,7 @@ fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname: *mut c
 
         if margs.sort_error {
             semsg!(
-                gettext(c"E432: Tags file not sorted: %s".as_ptr()),
+                gettext(c"E432: Tags file not sorted: %s"),
                 st.tag_fname.as_ptr(),
             );
         }
@@ -2398,7 +2398,7 @@ pub fn find_tags(
 
                 if !st.stop_searching {
                     if !st.did_open && verbose {
-                        emsg(gettext(c"E433: No tags file".as_ptr()));
+                        emsg(gettext(c"E433: No tags file"));
                     }
                     retval = OK;
                 }
@@ -2886,7 +2886,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                             pbuflen = vim_snprintf!(
                                 pbuf,
                                 LSIZE as usize,
-                                c"^%s\\s\\*(".as_ptr(),
+                                c"^%s\\s\\*(",
                                 tagp.tagname,
                             ) as usize;
                             if do_search(
@@ -2904,7 +2904,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                                 pbuflen = vim_snprintf!(
                                     pbuf,
                                     LSIZE as usize,
-                                    c"^\\[#a-zA-Z_]\\.\\*\\<%s\\s\\*(".as_ptr(),
+                                    c"^\\[#a-zA-Z_]\\.\\*\\<%s\\s\\*(",
                                     tagp.tagname,
                                 ) as usize;
                                 if do_search(
@@ -2925,12 +2925,12 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                             *tagp.tagname_end = cc;
                         }
                         if found == 0 {
-                            emsg(gettext(c"E434: Can't find tag pattern".as_ptr()));
+                            emsg(gettext(c"E434: Can't find tag pattern"));
                             (**curwin.as_ptr()).w_cursor.lnum = save_lnum;
                         } else {
                             if found == 2 || save_p_ic == 0 {
                                 msg(
-                                    gettext(c"E435: Couldn't find tag, just guessing!".as_ptr()),
+                                    gettext(c"E435: Couldn't find tag, just guessing!"),
                                     0,
                                 );
                                 if g_st().msg_scrolled == 0 && g_st().msg_silent == 0 {
@@ -3199,7 +3199,7 @@ fn add_tag_field(
         if !tv_dict_find(dict, field_name, -1).is_null() {
             if opt_vars().p_verbose > 0 {
                 verbose_enter();
-                smsg!(0, gettext(c"Duplicate field name: %s".as_ptr()), field_name);
+                smsg!(0, gettext(c"Duplicate field name: %s"), field_name);
                 verbose_leave();
             }
             return false;
@@ -3503,7 +3503,7 @@ fn tagstack_set_curidx(wp: &mut win_T, curidx: c_int) {
 pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
     unsafe {
         if tag_st().tfu_in_use {
-            emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC.as_ptr()));
+            emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC));
             return false;
         }
 
@@ -3512,7 +3512,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
         let di_items = tv_dict_find(d, c"items".as_ptr(), -1);
         if !di_items.is_null() {
             if (*di_items).di_tv.v_type != VarType::VAR_LIST {
-                emsg(gettext(e_listreq.as_ptr()));
+                emsg(gettext(e_listreq));
                 return false;
             }
             l = (*di_items).di_tv.vval.v_list();

@@ -135,7 +135,7 @@ pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut buf_T {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Failed to load buffer".as_ptr(),
+                c"Failed to load buffer",
             );
             return ptr::null_mut();
         }
@@ -364,8 +364,8 @@ pub fn nvim_buf_get_lines(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"Index out of bounds".as_ptr(),
+                c"%s",
+                c"Index out of bounds",
             );
             return rv;
         }
@@ -443,8 +443,8 @@ pub fn nvim_buf_set_lines(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"Index out of bounds".as_ptr(),
+                c"%s",
+                c"Index out of bounds",
             );
             return;
         }
@@ -452,8 +452,8 @@ pub fn nvim_buf_set_lines(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"'start' is higher than 'end'".as_ptr(),
+                c"%s",
+                c"'start' is higher than 'end'",
             );
             return;
         }
@@ -490,7 +490,7 @@ pub fn nvim_buf_set_lines(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Buffer is not 'modifiable'".as_ptr(),
+                    c"Buffer is not 'modifiable'",
                 );
                 break 'end;
             }
@@ -499,7 +499,7 @@ pub fn nvim_buf_set_lines(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Failed to save undo information".as_ptr(),
+                    c"Failed to save undo information",
                 );
                 break 'end;
             }
@@ -512,7 +512,7 @@ pub fn nvim_buf_set_lines(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Failed to delete line".as_ptr(),
+                        c"Failed to delete line",
                     );
                     break 'end;
                 }
@@ -530,8 +530,8 @@ pub fn nvim_buf_set_lines(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"Index out of bounds".as_ptr(),
+                        c"%s",
+                        c"Index out of bounds",
                     );
                     break 'end;
                 }
@@ -541,7 +541,7 @@ pub fn nvim_buf_set_lines(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Failed to replace line".as_ptr(),
+                        c"Failed to replace line",
                     );
                     break 'end;
                 }
@@ -555,8 +555,8 @@ pub fn nvim_buf_set_lines(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"Index out of bounds".as_ptr(),
+                        c"%s",
+                        c"Index out of bounds",
                     );
                     break 'end;
                 }
@@ -566,7 +566,7 @@ pub fn nvim_buf_set_lines(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Failed to insert line".as_ptr(),
+                        c"Failed to insert line",
                     );
                     break 'end;
                 }
@@ -729,8 +729,8 @@ pub fn nvim_buf_set_text(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"'start' is higher than 'end'".as_ptr(),
+                c"%s",
+                c"'start' is higher than 'end'",
             );
             return;
         }
@@ -819,7 +819,7 @@ pub fn nvim_buf_set_text(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Buffer is not 'modifiable'".as_ptr(),
+                    c"Buffer is not 'modifiable'",
                 );
                 break 'end;
             }
@@ -828,7 +828,7 @@ pub fn nvim_buf_set_text(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Failed to save undo information".as_ptr(),
+                    c"Failed to save undo information",
                 );
                 break 'end;
             }
@@ -842,7 +842,7 @@ pub fn nvim_buf_set_text(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Failed to delete line".as_ptr(),
+                        c"Failed to delete line",
                     );
                     break 'end;
                 }
@@ -859,8 +859,8 @@ pub fn nvim_buf_set_text(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"Index out of bounds".as_ptr(),
+                        c"%s",
+                        c"Index out of bounds",
                     );
                     break 'end;
                 }
@@ -869,7 +869,7 @@ pub fn nvim_buf_set_text(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Failed to replace line".as_ptr(),
+                        c"Failed to replace line",
                     );
                     break 'end;
                 }
@@ -881,8 +881,8 @@ pub fn nvim_buf_set_text(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"Index out of bounds".as_ptr(),
+                        c"%s",
+                        c"Index out of bounds",
                     );
                     break 'end;
                 }
@@ -891,7 +891,7 @@ pub fn nvim_buf_set_text(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Failed to insert line".as_ptr(),
+                        c"Failed to insert line",
                     );
                     break 'end;
                 }
@@ -1046,8 +1046,8 @@ pub fn nvim_buf_get_text(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"Index out of bounds".as_ptr(),
+                c"%s",
+                c"Index out of bounds",
             );
             return rv;
         }
@@ -1056,8 +1056,8 @@ pub fn nvim_buf_get_text(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"'start' is higher than 'end'".as_ptr(),
+                c"%s",
+                c"'start' is higher than 'end'",
             );
             return rv;
         }
@@ -1162,8 +1162,8 @@ pub fn nvim_buf_get_offset(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"Index out of bounds".as_ptr(),
+                c"%s",
+                c"Index out of bounds",
             );
             return 0;
         }
@@ -1414,7 +1414,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Failed to rename buffer".as_ptr(),
+                c"Failed to rename buffer",
             );
         }
 }
@@ -1476,7 +1476,7 @@ pub fn nvim_buf_delete(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Failed to unload buffer.".as_ptr(),
+                c"Failed to unload buffer.",
             );
         }
     }

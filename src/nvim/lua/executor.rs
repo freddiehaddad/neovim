@@ -604,7 +604,7 @@ pub fn nlua_error(lstate: *mut lua_State, msg: *const c_char) {
     let mut len: usize = 0;
         let str_ = nlua_get_error(lstate, &mut len);
         msg_ext_no_fast();
-        semsg_multiline!(c"lua_error".as_ptr(), msg, len as c_int, str_);
+        semsg_multiline!(c"lua_error", msg, len as c_int, str_);
         lua_pop(lstate, 1);
 }
 
@@ -653,22 +653,22 @@ pub fn nlua_luv_error_event(error: Option<std::ffi::CString>, err_type: isize) {
             kCallback => {
                 msg_ext_no_fast();
                 semsg_multiline!(
-                    c"lua_error".as_ptr(),
-                    c"Lua callback:\n%s".as_ptr(),
+                    c"lua_error",
+                    c"Lua callback:\n%s",
                     error_ptr
                 );
             }
             kThread => {
                 semsg_multiline!(
-                    c"lua_error".as_ptr(),
-                    c"Luv thread:\n%s".as_ptr(),
+                    c"lua_error",
+                    c"Luv thread:\n%s",
                     error_ptr
                 );
             }
             kThreadCallback => {
                 semsg_multiline!(
-                    c"lua_error".as_ptr(),
-                    c"Luv callback, thread:\n%s".as_ptr(),
+                    c"lua_error",
+                    c"Luv callback, thread:\n%s",
                     error_ptr,
                 );
             }
@@ -876,7 +876,7 @@ pub fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
             g_st().textlock = 0;
         }
         if nlua_pcall(lstate, 0, 0) != 0 {
-            nlua_error(lstate, gettext(c"vim.schedule callback: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"vim.schedule callback: %.*s"));
             ui_remove_cb(ns_id, true);
         }
         g_st().expr_map_lock = save_expr_map_lock;
@@ -960,7 +960,7 @@ pub fn nlua_ex_getline(
         if nlua_pcall(lstate, 0, 1) != 0 {
             nlua_error(
                 lstate,
-                gettext(c"Error executing Ex-mode line getter: %.*s".as_ptr()),
+                gettext(c"Error executing Ex-mode line getter: %.*s"),
             );
             return None;
         }
@@ -1317,7 +1317,7 @@ pub fn nlua_init(argv: *mut *mut c_char, argc: c_int, lua_arg0: c_int) {
         if lstate.is_null() {
             fprintf!(
                 log_get_stderr(),
-                gettext(c"E970: Failed to initialize Lua interpreter\n".as_ptr()),
+                gettext(c"E970: Failed to initialize Lua interpreter\n"),
             );
             os_exit(1);
         }
@@ -1325,7 +1325,7 @@ pub fn nlua_init(argv: *mut *mut c_char, argc: c_int, lua_arg0: c_int) {
         if !nlua_state_init(lstate) {
             fprintf!(
                 log_get_stderr(),
-                gettext(c"E970: Failed to initialize builtin Lua modules\n".as_ptr()),
+                gettext(c"E970: Failed to initialize builtin Lua modules\n"),
             );
             if main_exitfree {
                 nlua_common_free_all_mem(lstate);
@@ -1441,7 +1441,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
                 let errmsg = nlua_get_error(lstate, &mut errmsg_len);
                 drop(msg_vec);
                 let mut buff = [0 as c_char; IOSIZE];
-                let fmt = gettext(c"E5114: Converting print argument #%i: %.*s".as_ptr());
+                let fmt = gettext(c"E5114: Converting print argument #%i: %.*s");
                 let len = vim_snprintf!(
                     buff.as_mut_ptr(),
                     IOSIZE,
@@ -1529,7 +1529,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
             vim_snprintf!(
                 (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
-                c"require('%s')".as_ptr(),
+                c"require('%s')",
                 name,
             );
             time_msg((&raw const g_st().IObuff).cast(), Some(&start_time));
@@ -1563,7 +1563,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
                 vim_snprintf!(
                     (&raw mut g_st().IObuff).cast(),
                     IOSIZE,
-                    c"lua_debug> %s".as_ptr(),
+                    c"lua_debug> %s",
                     input.vval.v_string(),
                 );
                 ui_ext_cmdline_block_append(0, (&raw const g_st().IObuff).cast());
@@ -1593,12 +1593,12 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
             {
                 nlua_error(
                     lstate,
-                    gettext(c"E5115: Loading Lua debug string: %.*s".as_ptr()),
+                    gettext(c"E5115: Loading Lua debug string: %.*s"),
                 );
             } else if nlua_pcall(lstate, 0, 0) != 0 {
                 nlua_error(
                     lstate,
-                    gettext(c"E5116: Calling Lua debug string: %.*s".as_ptr()),
+                    gettext(c"E5116: Calling Lua debug string: %.*s"),
                 );
             }
             tv_clear(&raw mut input);
@@ -1630,7 +1630,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             vim_snprintf!(
                 (&raw mut g_st().IObuff).cast(),
                 length,
-                c"Vimscript function \"%s\"".as_ptr(),
+                c"Vimscript function \"%s\"",
                 name,
             );
             return luaL_error(
@@ -1673,7 +1673,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
                 api_set_error!(
                     &mut err,
                     ErrorType::kErrorTypeException,
-                    c"error converting argument %d".as_ptr(),
+                    c"error converting argument %d",
                     (i + 1) as c_int,
                 );
                 conv_failed = true;
@@ -1782,7 +1782,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
                 api_set_error!(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
+                    c"%s",
                     mbuf.as_ptr().cast::<c_char>(),
                 );
             }
@@ -1955,7 +1955,7 @@ pub fn nlua_call_user_expand_func(xp: &mut expand_T, ret_tv: &mut typval_T) {
         lua_pushinteger(lstate, xp.xp_col as lua_Integer);
 
         if nlua_pcall(lstate, 3, 1) != 0 {
-            nlua_error(lstate, gettext(c"E5108: Lua function: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"E5108: Lua function: %.*s"));
             return;
         }
 
@@ -1982,14 +1982,14 @@ fn nlua_exec_typval(
 
         let lstate = nlua_st().GLOBAL_LSTATE;
         if luaL_loadbuffer(lstate, lcmd, lcmd_len, name) != 0 {
-            nlua_error(lstate, gettext(c"E5107: Lua: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"E5107: Lua: %.*s"));
             return;
         }
 
         push_all_typvals(lstate, args, argcount, special);
 
         if nlua_pcall(lstate, argcount, if ret_tv.is_some() { 1 } else { 0 }) != 0 {
-            nlua_error(lstate, gettext(c"E5108: Lua: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"E5108: Lua: %.*s"));
             return;
         }
 
@@ -2031,7 +2031,7 @@ pub fn nlua_exec_typval_callable(
         push_all_typvals(lstate, argvars, argcount, false);
 
         if nlua_pcall(lstate, argcount, 1) != 0 {
-            nlua_error(lstate, gettext(c"Lua callback: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"Lua callback: %.*s"));
             return FCERR_OTHER;
         }
 
@@ -2062,7 +2062,7 @@ pub fn nlua_exec(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Lua: %.*s".as_ptr(),
+                c"Lua: %.*s",
                 len as c_int,
                 errstr,
             );
@@ -2079,7 +2079,7 @@ pub fn nlua_exec(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Lua: %.*s".as_ptr(),
+                c"Lua: %.*s",
                 len as c_int,
                 errstr,
             );
@@ -2107,7 +2107,7 @@ pub fn nlua_call_typval(
         let len = vim_snprintf!(
             buf.as_mut_ptr(),
             buf.len(),
-            c"return require('%s').%s(...)".as_ptr(),
+            c"return require('%s').%s(...)",
             module.as_ptr(),
             func,
         ) as usize;
@@ -2209,7 +2209,7 @@ pub fn nlua_call_ref_ctx(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"fast context failure".as_ptr(),
+                        c"fast context failure",
                     );
                 }
                 return OBJECT_NIL;
@@ -2221,12 +2221,12 @@ pub fn nlua_call_ref_ctx(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Lua: %.*s".as_ptr(),
+                    c"Lua: %.*s",
                     len as c_int,
                     errstr,
                 );
             } else {
-                nlua_error(lstate, gettext(c"Lua callback: %.*s".as_ptr()));
+                nlua_error(lstate, gettext(c"Lua callback: %.*s"));
             }
             return OBJECT_NIL;
         }
@@ -2303,7 +2303,7 @@ pub fn ex_lua(eap: &mut exarg_T) {
             if eap.addr_count > 0 {
                 cmd_source_buffer(Some(eap), true);
             } else {
-                emsg(gettext(e_argreq.as_ptr()));
+                emsg(gettext(e_argreq));
             }
             return;
         }
@@ -2346,7 +2346,7 @@ pub fn ex_lua(eap: &mut exarg_T) {
 pub fn ex_luado(eap: &mut exarg_T) {
     unsafe {
         if !u_save(eap.line1 - 1, eap.line2 + 1) {
-            emsg(gettext(c"cannot save undo information".as_ptr()));
+            emsg(gettext(c"cannot save undo information"));
             return;
         }
         let cmd = eap.arg;
@@ -2378,12 +2378,12 @@ pub fn ex_luado(eap: &mut exarg_T) {
         );
 
         if luaL_loadbuffer(lstate, lcmd, lcmd_len, c":luado".as_ptr()) != 0 {
-            nlua_error(lstate, gettext(c"E5109: Lua: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"E5109: Lua: %.*s"));
             return;
         }
         drop(lcmd_vec);
         if nlua_pcall(lstate, 0, 1) != 0 {
-            nlua_error(lstate, gettext(c"E5110: Lua: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"E5110: Lua: %.*s"));
             return;
         }
 
@@ -2399,7 +2399,7 @@ pub fn ex_luado(eap: &mut exarg_T) {
             lua_pushstring(lstate, old_line);
             lua_pushnumber(lstate, f64::from(l));
             if nlua_pcall(lstate, 2, 1) != 0 {
-                nlua_error(lstate, gettext(c"E5111: Lua: %.*s".as_ptr()));
+                nlua_error(lstate, gettext(c"E5111: Lua: %.*s"));
                 break;
             }
 
@@ -2482,12 +2482,12 @@ pub fn nlua_exec_file(path: *const c_char) -> bool {
         }
 
         if nlua_pcall(lstate, 1, 2) != 0 {
-            nlua_error(lstate, gettext(c"E5111: Lua: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"E5111: Lua: %.*s"));
             return false;
         }
 
         if lua_isnil(lstate, -2) {
-            nlua_error(lstate, gettext(c"E5112: Lua chunk: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"E5112: Lua chunk: %.*s"));
             assert!(lua_isnil(lstate, -1));
             lua_pop(lstate, 1);
             return false;
@@ -2497,7 +2497,7 @@ pub fn nlua_exec_file(path: *const c_char) -> bool {
         lua_pop(lstate, 1);
 
         if nlua_pcall(lstate, 0, 0) != 0 {
-            nlua_error(lstate, gettext(c"E5113: Lua chunk: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"E5113: Lua chunk: %.*s"));
             return false;
         }
 
@@ -2521,7 +2521,7 @@ pub fn nlua_expand_pat(xp: &mut expand_T) {
         lua_pushlstring(lstate, pat, patlen as usize);
 
         if nlua_pcall(lstate, 1, 2) != 0 {
-            nlua_error(lstate, gettext(c"vim._expand_pat: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"vim._expand_pat: %.*s"));
             return;
         }
 
@@ -2659,7 +2659,7 @@ pub fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
         g_st().got_int = false;
         let mut discard = false;
         if lua_pcall(lstate, 2, 1, 0) != 0 {
-            nlua_error(lstate, gettext(c"vim.on_key() callbacks: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"vim.on_key() callbacks: %.*s"));
         } else {
             if lua_isboolean(lstate, -1) {
                 discard = lua_toboolean(lstate, -1) != 0;
@@ -2788,7 +2788,7 @@ pub fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int
             if preview { 1 } else { 0 },
         ) != 0
         {
-            nlua_error(lstate, gettext(c"Lua :command callback: %.*s".as_ptr()));
+            nlua_error(lstate, gettext(c"Lua :command callback: %.*s"));
             return 0;
         }
 

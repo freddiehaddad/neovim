@@ -186,7 +186,7 @@ pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) ->
     let hi = hash_lookup(ht, key, len, hash);
     if unsafe { !hashitem_empty(&*hi) } {
         siemsg!(
-                c"E685: Internal error: hash_add(): duplicate key \"%s\"".as_ptr(),
+                c"E685: Internal error: hash_add(): duplicate key \"%s\"",
                 key,
             );
         return false;

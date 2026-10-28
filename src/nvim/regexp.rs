@@ -1653,7 +1653,7 @@ pub fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut 
         let p = skip_regexp(startp, delim, magic);
         if *p as u8 as c_int != delim {
             semsg!(
-                tr(e_missing_delimiter_after_search_pattern_str.as_ptr()),
+                tr(e_missing_delimiter_after_search_pattern_str),
                 startp,
             );
             return ptr::null_mut();
@@ -2002,7 +2002,7 @@ pub(super) fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> bool {
         }
         if *re_st().regparse != b'}' as c_char {
             semsg!(
-                tr(c"E554: Syntax error in %s{...}".as_ptr()),
+                tr(c"E554: Syntax error in %s{...}"),
                 if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
@@ -2201,7 +2201,7 @@ pub(super) fn prog_magic_wrong() -> bool {
             return false;
         };
         if UCHARAT(bt_prog.program.as_ptr()) != REGMAGIC {
-            emsg(tr(e_re_corr.as_ptr()));
+            emsg(tr(e_re_corr));
             return true;
         }
         false
@@ -2308,7 +2308,7 @@ pub(super) fn match_with_backref(
 
 pub(super) fn re_mult_next(what: &std::ffi::CStr) -> bool {
     if re_multi_type(peekchr()) == MULTI_MULT {
-            semsg!(tr(c"E888: (NFA regexp) cannot repeat %s".as_ptr()), what.as_ptr());
+            semsg!(tr(c"E888: (NFA regexp) cannot repeat %s"), what.as_ptr());
             g_st().rc_did_emsg = true;
             return false;
         }
@@ -2464,7 +2464,7 @@ pub fn regtilde(
                     && let Some(prev_sub) = prev_sub_ref
                 {
                     if tmpsublen > MAXCOL as usize {
-                        emsg(tr(e_resulting_text_too_long.as_ptr()));
+                        emsg(tr(e_resulting_text_too_long));
                         error = true;
                         break;
                     }
@@ -2623,14 +2623,14 @@ fn vim_regsub_both(
         let copy = (flags & REGSUB_COPY) != 0;
 
         if (source.is_null() && expr.is_null()) || dest.is_null() {
-            emsg(tr(e_null.as_ptr()));
+            emsg(tr(e_null));
             return 0;
         }
         if prog_magic_wrong() {
             return 0;
         }
         if re_st().regsub_nesting == MAX_REGSUB_NESTING {
-            emsg(tr(e_substitute_nesting_too_deep.as_ptr()));
+            emsg(tr(e_substitute_nesting_too_deep));
             return 0;
         }
         let nested = re_st().regsub_nesting;
@@ -2947,7 +2947,7 @@ fn vim_regsub_both(
                                 }
                             } else if *s == NUL as c_char {
                                 if copy {
-                                    iemsg(tr(e_re_damg.as_ptr()));
+                                    iemsg(tr(e_re_damg));
                                 }
                                 return (dst.offset_from(dest) + 1) as c_int;
                             } else {
@@ -3285,7 +3285,7 @@ pub(super) fn seen_endbrace(refnum: c_int) -> bool {
                 p = p.add(1);
             }
             if *p == NUL {
-                emsg(tr(c"E65: Illegal back reference".as_ptr()));
+                emsg(tr(c"E65: Illegal back reference"));
                 g_st().rc_did_emsg = true;
                 return false;
             }
@@ -3339,8 +3339,7 @@ pub fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
                 expr = expr.add(5);
             } else {
                 emsg(tr(
-                    c"E864: \\%#= can only be followed by 0, 1, or 2. The automatic engine will be used "
-                        .as_ptr(),
+                    c"E864: \\%#= can only be followed by 0, 1, or 2. The automatic engine will be used ",
                 ));
                 re_st().regexp_engine = AUTOMATIC_ENGINE;
             }
@@ -3447,8 +3446,7 @@ fn report_re_switch(pat: *const c_char) {
     if opt_vars().p_verbose > 0 {
             verbose_enter();
             msg_puts(tr(
-                c"Switching to backtracking RE engine for pattern: ".as_ptr()
-            ));
+                c"Switching to backtracking RE engine for pattern: "));
             msg_puts(pat);
             verbose_leave();
         }
@@ -3465,7 +3463,7 @@ fn vim_regexec_string(
         let rex_in_use_save = re_st().rex_in_use;
 
         if (*rmp.regprog).re_in_use {
-            emsg(tr(e_recursive.as_ptr()));
+            emsg(tr(e_recursive));
             return false;
         }
         (*rmp.regprog).re_in_use = true;
@@ -3555,7 +3553,7 @@ pub fn vim_regexec_multi(
         let rex_in_use_save = re_st().rex_in_use;
 
         if (*rmp.regprog).re_in_use {
-            emsg(tr(e_recursive.as_ptr()));
+            emsg(tr(e_recursive));
             return 0;
         }
         (*rmp.regprog).re_in_use = true;

@@ -127,7 +127,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                 arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
             } else {
                 tv_clear(&raw mut rettv);
-                emsg(gettext(e_noident.as_ptr()));
+                emsg(gettext(e_noident));
                 return;
             }
         }
@@ -153,9 +153,9 @@ pub fn ex_help(eap: &mut exarg_T) {
         }
         if i >= matches.len() || !found_tags {
             if !lang.is_null() {
-                semsg!(gettext(c"E661: No '%s' help for %s".as_ptr()), lang, arg);
+                semsg!(gettext(c"E661: No '%s' help for %s"), lang, arg);
             } else {
-                semsg!(gettext(c"E149: No help for %s".as_ptr()), arg);
+                semsg!(gettext(c"E149: No help for %s"), arg);
             }
             return;
         }
@@ -188,7 +188,7 @@ pub fn ex_help(eap: &mut exarg_T) {
             } else {
                 let helpfd = os_fopen(opt_vars().p_hf, c"rb");
                 if helpfd.is_null() {
-                    smsg!(0, gettext(c"Help file \"%s\" not found".as_ptr()), opt_vars().p_hf);
+                    smsg!(0, gettext(c"Help file \"%s\" not found"), opt_vars().p_hf);
                     early_ret = true;
                 } else {
                     fclose(helpfd);

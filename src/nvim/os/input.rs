@@ -663,10 +663,10 @@ fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
                 logmsg!(
                     LOGLVL_WRN,
                     ptr::null(),
-                    c"inbuf_poll".as_ptr(),
+                    c"inbuf_poll",
                     line!() as c_int,
                     true,
-                    c"Interrupted prompt (mode=%s): user input is unlikely".as_ptr(),
+                    c"Interrupted prompt (mode=%s): user input is unlikely",
                     mode.as_ptr(),
                 );
             }

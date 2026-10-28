@@ -165,7 +165,7 @@ fn json_decoder_pop(
         if last_container.container.v_type == VarType::VAR_LIST {
             if tv_list_len(last_container.container.vval.v_list()) != 0 && !obj.didcomma {
                 semsg!(
-                    c"E474: Expected comma before list item: %s".as_ptr(),
+                    c"E474: Expected comma before list item: %s",
                     val_location,
                 );
                 let mut v = obj.val;
@@ -177,7 +177,7 @@ fn json_decoder_pop(
         } else if last_container.stack_index + 2 == stack.len() {
             if !obj.didcolon {
                 semsg!(
-                    c"E474: Expected colon before dictionary value: %s".as_ptr(),
+                    c"E474: Expected colon before dictionary value: %s",
                     val_location,
                 );
                 let mut v = obj.val;
@@ -202,7 +202,7 @@ fn json_decoder_pop(
             }
         } else {
             if !obj.is_special_string && obj.val.v_type != VarType::VAR_STRING {
-                semsg!(c"E474: Expected string key: %s".as_ptr(), *pp);
+                semsg!(c"E474: Expected string key: %s", *pp);
                 let mut v = obj.val;
                 tv_clear(&mut v);
                 return false;
@@ -210,7 +210,7 @@ fn json_decoder_pop(
                 let dict = last_container.container.vval.v_dict();
                 if (*dict).dv_hashtab.ht_used != 0 {
                     semsg!(
-                        c"E474: Expected comma before dictionary key: %s".as_ptr(),
+                        c"E474: Expected comma before dictionary key: %s",
                         val_location,
                     );
                     let mut v = obj.val;
@@ -265,7 +265,7 @@ fn parse_json_string(
                 p = p.add(1);
                 if p == e {
                     semsg!(
-                        c"E474: Unfinished escape sequence: %.*s".as_ptr(),
+                        c"E474: Unfinished escape sequence: %.*s",
                         buf_len as c_int,
                         buf,
                     );
@@ -276,7 +276,7 @@ fn parse_json_string(
                     b'u' => {
                         if p.add(4) >= e {
                             semsg!(
-                                c"E474: Unfinished unicode escape sequence: %.*s".as_ptr(),
+                                c"E474: Unfinished unicode escape sequence: %.*s",
                                 buf_len as c_int,
                                 buf,
                             );
@@ -290,7 +290,7 @@ fn parse_json_string(
                         {
                             let start = p.sub(1);
                             semsg!(
-                                c"E474: Expected four hex digits after \\u: %.*s".as_ptr(),
+                                c"E474: Expected four hex digits after \\u: %.*s",
                                 ((e as usize) - (start as usize)) as c_int,
                                 start,
                             );
@@ -307,7 +307,7 @@ fn parse_json_string(
                     _ => {
                         let start = p.sub(1);
                         semsg!(
-                            c"E474: Unknown escape sequence: %.*s".as_ptr(),
+                            c"E474: Unknown escape sequence: %.*s",
                             ((e as usize) - (start as usize)) as c_int,
                             start,
                         );
@@ -319,8 +319,7 @@ fn parse_json_string(
                 let p_byte = *p as u8;
                 if p_byte < 0x20 {
                     semsg!(
-                        c"E474: ASCII control characters cannot be present inside string: %.*s"
-                            .as_ptr(),
+                        c"E474: ASCII control characters cannot be present inside string: %.*s",
                         ((e as usize) - (p as usize)) as c_int,
                         p,
                     );
@@ -333,7 +332,7 @@ fn parse_json_string(
                     && !(ch == 0xC3 && p.add(1) < e && (*p.add(1) as u8) == 0x83)
                 {
                     semsg!(
-                        c"E474: Only UTF-8 strings allowed: %.*s".as_ptr(),
+                        c"E474: Only UTF-8 strings allowed: %.*s",
                         ((e as usize) - (p as usize)) as c_int,
                         p,
                     );
@@ -341,8 +340,7 @@ fn parse_json_string(
                     return false;
                 } else if ch > 0x10FFFF {
                     semsg!(
-                        c"E474: Only UTF-8 code points up to U+10FFFF are allowed to appear unescaped: %.*s"
-                            .as_ptr(),
+                        c"E474: Only UTF-8 code points up to U+10FFFF are allowed to appear unescaped: %.*s",
                         ((e as usize) - (p as usize)) as c_int,
                         p,
                     );
@@ -358,7 +356,7 @@ fn parse_json_string(
 
         if p == e || *p as u8 != b'"' {
             semsg!(
-                c"E474: Expected string end: %.*s".as_ptr(),
+                c"E474: Expected string end: %.*s",
                 buf_len as c_int,
                 buf,
             );
@@ -509,7 +507,7 @@ fn parse_json_number(
             }
             if p != ints.add(1) && *ints as u8 == b'0' {
                 semsg!(
-                    c"E474: Leading zeroes are not allowed: %.*s".as_ptr(),
+                    c"E474: Leading zeroes are not allowed: %.*s",
                     ((e as usize) - (s as usize)) as c_int,
                     s,
                 );
@@ -540,7 +538,7 @@ fn parse_json_number(
 
         if p == ints {
             semsg!(
-                c"E474: Missing number after minus sign: %.*s".as_ptr(),
+                c"E474: Missing number after minus sign: %.*s",
                 ((e as usize) - (s as usize)) as c_int,
                 s,
             );
@@ -548,7 +546,7 @@ fn parse_json_number(
             return false;
         } else if p == fracs || (!fracs.is_null() && exps_s == fracs.add(1)) {
             semsg!(
-                c"E474: Missing number after decimal dot: %.*s".as_ptr(),
+                c"E474: Missing number after decimal dot: %.*s",
                 ((e as usize) - (s as usize)) as c_int,
                 s,
             );
@@ -556,7 +554,7 @@ fn parse_json_number(
             return false;
         } else if p == exps {
             semsg!(
-                c"E474: Missing exponent: %.*s".as_ptr(),
+                c"E474: Missing exponent: %.*s",
                 ((e as usize) - (s as usize)) as c_int,
                 s,
             );
@@ -575,7 +573,7 @@ fn parse_json_number(
             let num_len = string2float(s, &mut flt);
             if exp_num_len != num_len {
                 semsg!(
-                    c"E685: internal error: while converting number \"%.*s\" to float string2float consumed %zu bytes in place of %zu".as_ptr(),
+                    c"E685: internal error: while converting number \"%.*s\" to float string2float consumed %zu bytes in place of %zu",
                     exp_num_len as c_int,
                     s,
                     num_len,
@@ -600,7 +598,7 @@ fn parse_json_number(
             );
             if (exp_num_len as c_int) != num_len {
                 semsg!(
-                    c"E685: internal error: while converting number \"%.*s\" to integer vim_str2nr consumed %i bytes in place of %zu".as_ptr(),
+                    c"E685: internal error: while converting number \"%.*s\" to integer vim_str2nr consumed %i bytes in place of %zu",
                     exp_num_len as c_int,
                     s,
                     num_len,
@@ -674,14 +672,14 @@ pub fn json_decode_string(
                 match *p as u8 {
                     b'}' | b']' => {
                         if container_stack.is_empty() {
-                            semsg!(c"E474: No container to close: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: No container to close: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
                         let last_container = *container_stack.last().unwrap();
                         if *p as u8 == b'}' && last_container.container.v_type != VarType::VAR_DICT
                         {
                             semsg!(
-                                c"E474: Closing list with curly bracket: %.*s".as_ptr(),
+                                c"E474: Closing list with curly bracket: %.*s",
                                 len_rem,
                                 p,
                             );
@@ -690,23 +688,23 @@ pub fn json_decode_string(
                             && last_container.container.v_type != VarType::VAR_LIST
                         {
                             semsg!(
-                                c"E474: Closing dictionary with square bracket: %.*s".as_ptr(),
+                                c"E474: Closing dictionary with square bracket: %.*s",
                                 len_rem,
                                 p,
                             );
                             return fail_cleanup(stack);
                         } else if didcomma {
-                            semsg!(c"E474: Trailing comma: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Trailing comma: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         } else if didcolon {
                             semsg!(
-                                c"E474: Expected value after colon: %.*s".as_ptr(),
+                                c"E474: Expected value after colon: %.*s",
                                 len_rem,
                                 p,
                             );
                             return fail_cleanup(stack);
                         } else if last_container.stack_index + 1 != stack.len() {
-                            semsg!(c"E474: Expected value: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Expected value: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
                         if stack.len() == 1 {
@@ -733,7 +731,7 @@ pub fn json_decode_string(
                     b',' => {
                         if container_stack.is_empty() {
                             semsg!(
-                                c"E474: Comma not inside container: %.*s".as_ptr(),
+                                c"E474: Comma not inside container: %.*s",
                                 len_rem,
                                 p,
                             );
@@ -751,22 +749,22 @@ pub fn json_decode_string(
                             tv_list_len(last_container.special_val) == 0
                         };
                         if didcomma {
-                            semsg!(c"E474: Duplicate comma: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Duplicate comma: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         } else if didcolon {
-                            semsg!(c"E474: Comma after colon: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Comma after colon: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         } else if last_container.container.v_type == VarType::VAR_DICT
                             && last_container.stack_index + 1 != stack.len()
                         {
                             semsg!(
-                                c"E474: Using comma in place of colon: %.*s".as_ptr(),
+                                c"E474: Using comma in place of colon: %.*s",
                                 len_rem,
                                 p,
                             );
                             return fail_cleanup(stack);
                         } else if is_empty_cont {
-                            semsg!(c"E474: Leading comma: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Leading comma: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
                         didcomma = true;
@@ -776,7 +774,7 @@ pub fn json_decode_string(
                     b':' => {
                         if container_stack.is_empty() {
                             semsg!(
-                                c"E474: Colon not inside container: %.*s".as_ptr(),
+                                c"E474: Colon not inside container: %.*s",
                                 len_rem,
                                 p,
                             );
@@ -785,19 +783,19 @@ pub fn json_decode_string(
                         let last_container = *container_stack.last().unwrap();
                         if last_container.container.v_type != VarType::VAR_DICT {
                             semsg!(
-                                c"E474: Using colon not in dictionary: %.*s".as_ptr(),
+                                c"E474: Using colon not in dictionary: %.*s",
                                 len_rem,
                                 p,
                             );
                             return fail_cleanup(stack);
                         } else if last_container.stack_index + 2 != stack.len() {
-                            semsg!(c"E474: Unexpected colon: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Unexpected colon: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         } else if didcomma {
-                            semsg!(c"E474: Colon after comma: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Colon after comma: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         } else if didcolon {
-                            semsg!(c"E474: Duplicate colon: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Duplicate colon: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
                         didcolon = true;
@@ -812,7 +810,7 @@ pub fn json_decode_string(
                         if p.add(3) >= e
                             || std::slice::from_raw_parts(p.add(1).cast::<u8>(), 3) != b"ull"
                         {
-                            semsg!(c"E474: Expected null: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Expected null: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
                         p = p.add(3);
@@ -846,7 +844,7 @@ pub fn json_decode_string(
                         if p.add(3) >= e
                             || std::slice::from_raw_parts(p.add(1).cast::<u8>(), 3) != b"rue"
                         {
-                            semsg!(c"E474: Expected true: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Expected true: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
                         p = p.add(3);
@@ -880,7 +878,7 @@ pub fn json_decode_string(
                         if p.add(4) >= e
                             || std::slice::from_raw_parts(p.add(1).cast::<u8>(), 4) != b"alse"
                         {
-                            semsg!(c"E474: Expected false: %.*s".as_ptr(), len_rem, p);
+                            semsg!(c"E474: Expected false: %.*s", len_rem, p);
                             return fail_cleanup(stack);
                         }
                         p = p.add(4);
@@ -1000,7 +998,7 @@ pub fn json_decode_string(
                         });
                     }
                     _ => {
-                        semsg!(c"E474: Unidentified byte: %.*s".as_ptr(), len_rem, p);
+                        semsg!(c"E474: Unidentified byte: %.*s", len_rem, p);
                         return fail_cleanup(stack);
                     }
                 }
@@ -1020,7 +1018,7 @@ pub fn json_decode_string(
                 b'\n' | b' ' | b'\t' | b'\r' => p = p.add(1),
                 _ => {
                     let len_rem = ((e as usize) - (p as usize)) as c_int;
-                    semsg!(c"E474: Trailing characters: %.*s".as_ptr(), len_rem, p);
+                    semsg!(c"E474: Trailing characters: %.*s", len_rem, p);
                     return fail_cleanup(stack);
                 }
             }
@@ -1031,7 +1029,7 @@ pub fn json_decode_string(
             return true;
         }
         semsg!(
-            c"E474: Unexpected end of input: %.*s".as_ptr(),
+            c"E474: Unexpected end of input: %.*s",
             buf_len as c_int,
             buf,
         );

@@ -780,7 +780,7 @@ fn load_language_from_object(
         vim_snprintf!(
             symbol_buf.as_mut_ptr(),
             symbol_buf.len(),
-            c"tree_sitter_%s".as_ptr(),
+            c"tree_sitter_%s",
             symbol,
         );
 
@@ -909,7 +909,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(L: *mut lua_State) -> c_int {
                 lua_pushboolean(L, c_int::from(named));
                 if !named {
                     let mut buf = [0 as c_char; 256];
-                    vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"\"%s\"".as_ptr(), name);
+                    vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"\"%s\"", name);
                     lua_setfield(L, -2, buf.as_ptr());
                 } else {
                     lua_setfield(L, -2, name);
@@ -1199,7 +1199,7 @@ unsafe extern "C-unwind" fn parser_parse(L: *mut lua_State) -> c_int {
                     vim_snprintf!(
                         ebuf.as_mut_ptr(),
                         IOSIZE,
-                        c"invalid buffer handle: %d".as_ptr(),
+                        c"invalid buffer handle: %d",
                         bufnr,
                     );
                     return luaL_argerror(L, 3, ebuf.as_ptr());
@@ -2285,7 +2285,7 @@ fn query_err_string(
         vim_snprintf!(
             err_data,
             err_size,
-            c"Query error at %d:%d. %s".as_ptr(),
+            c"Query error at %d:%d. %s",
             row + 1,
             column + 1,
             type_msg,
@@ -2324,7 +2324,7 @@ fn query_err_string(
             vim_snprintf!(
                 err_data,
                 err_size,
-                c"\"%.*s\":\n".as_ptr(),
+                c"\"%.*s\":\n",
                 suffix_len as c_int,
                 suffix,
             );
@@ -2334,18 +2334,18 @@ fn query_err_string(
         }
 
         if error_line.is_null() {
-            vim_snprintf!(err_data, err_size, c"Unexpected EOF\n".as_ptr());
+            vim_snprintf!(err_data, err_size, c"Unexpected EOF\n");
             return;
         }
 
         vim_snprintf!(
             err_data,
             err_size,
-            c"%.*s\n%*s^\n".as_ptr(),
+            c"%.*s\n%*s^\n",
             error_line_len,
             error_line,
             column,
-            c"".as_ptr(),
+            c"",
         );
     }
 }

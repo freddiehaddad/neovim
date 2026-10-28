@@ -915,7 +915,7 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
         let start_lnum = (**curwin.as_ptr()).w_cursor.lnum;
 
         if !modifiable(&*g_st().curbuf) {
-            emsg(gettext(e_modifiable.as_ptr()));
+            emsg(gettext(e_modifiable));
             return;
         }
 
@@ -933,7 +933,7 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
                     && (i % 50 == 0 || i == oap.line_count - 1)
                     && i64::from(oap.line_count) > opt_vars().p_report
                 {
-                    let fmt_ptr = gettext(c"%ld lines to indent... ".as_ptr());
+                    let fmt_ptr = gettext(c"%ld lines to indent... ");
                     let fmt_str = CStr::from_ptr(fmt_ptr).to_string_lossy();
                     let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
                     let bytes = msg_str.as_bytes();
@@ -1002,8 +1002,8 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
         if i64::from(oap.line_count) > opt_vars().p_report {
             i = oap.line_count - (i + 1);
             let fmt_ptr = ngettext(
-                c"%ld line indented ".as_ptr(),
-                c"%ld lines indented ".as_ptr(),
+                c"%ld line indented ",
+                c"%ld lines indented ",
                 i as c_ulong,
             );
             let fmt_str = CStr::from_ptr(fmt_ptr).to_string_lossy();
@@ -1389,7 +1389,7 @@ pub fn copy_indent(size: c_int, src: *mut c_char) -> bool {
 }
 
 fn emsg_text_too_long() {
-    emsg(gettext(e_resulting_text_too_long.as_ptr()));
+    emsg(gettext(e_resulting_text_too_long));
         if g_st().trylevel == 0 {
             g_st().got_int = true;
         }
@@ -1566,7 +1566,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
             lnum += 1;
         }
         if g_st().got_int {
-            emsg(gettext(e_interr.as_ptr()));
+            emsg(gettext(e_interr));
         }
 
         if first_line != 0 {

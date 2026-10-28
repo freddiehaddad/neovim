@@ -180,7 +180,7 @@ pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: *const c_char) -> bool
         || tv2.v_type == VarType::VAR_DICT
         || (matches!(tv2.v_type, VarType::VAR_BOOL | VarType::VAR_SPECIAL) && op_byte == b'.')
     {
-        semsg!(e_letwrong.as_ptr(), op);
+        semsg!(e_letwrong, op);
         return false;
     }
 
@@ -198,7 +198,7 @@ pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: *const c_char) -> bool
     };
 
     if !retval {
-        semsg!(e_letwrong.as_ptr(), op);
+        semsg!(e_letwrong, op);
     }
 
     retval

@@ -628,7 +628,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 let stderr = log_get_stderr();
                 fprintf!(
                     stderr,
-                    gettext(c"Cannot open for script output: \"".as_ptr()),
+                    gettext(c"Cannot open for script output: \""),
                 );
                 fprintf!(stderr, c"%s\"\n".as_ptr(), scriptout_name.as_ptr());
                 os_exit(2);
@@ -1036,10 +1036,10 @@ pub fn getout(mut exitval: c_int) -> ! {
                 logmsg!(
                     LOGLVL_WRN,
                     ptr::null(),
-                    c"getout".as_ptr(),
+                    c"getout",
                     line!() as c_int,
                     true,
-                    c"Exiting with error: \"%s\"".as_ptr(),
+                    c"Exiting with error: \"%s\"",
                     get_vim_var_str(VV_ERRMSG),
                 );
             }
@@ -1407,7 +1407,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                 os_write(STDOUT_FILENO, data.data, data.size, false);
                             if written_bytes < 0 {
                                 semsg!(
-                                    gettext(c"E5420: Failed to write to file: %s".as_ptr()),
+                                    gettext(c"E5420: Failed to write to file: %s"),
                                     uv_strerror(written_bytes as c_int),
                                 );
                             }
@@ -1691,7 +1691,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                     (&raw mut g_st().IObuff).cast(),
                                     IOSIZE,
                                     gettext(
-                                        c"Attempt to open script file again: \"%s %s\"\n".as_ptr(),
+                                        c"Attempt to open script file again: \"%s %s\"\n",
                                     ),
                                     prev_arg,
                                     cur_arg,
@@ -1729,8 +1729,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                         (&raw mut g_st().IObuff).cast(),
                                         IOSIZE,
                                         gettext(
-                                            c"Attempt to open script file again: \"%s %s\"\n"
-                                                .as_ptr(),
+                                            c"Attempt to open script file again: \"%s %s\"\n",
                                         ),
                                         prev_arg,
                                         cur_arg,
@@ -1814,7 +1813,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
 
         if g_st().embedded_mode && (g_st().silent_mode || parmp.luaf.is_some()) {
             mainerr(
-                gettext(c"--embed conflicts with -es/-Es/-l".as_ptr()),
+                gettext(c"--embed conflicts with -es/-Es/-l"),
                 ptr::null(),
                 ptr::null(),
             );
@@ -1931,7 +1930,7 @@ fn handle_quickfix(paramp: &mut mparm_T) {
             if let Some(ref use_ef) = paramp.use_ef {
                 set_option_direct(kOptErrorfile, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
             }
-            vim_snprintf!((&raw mut g_st().IObuff).cast(), IOSIZE, c"cfile %s".as_ptr(), opt_vars().p_ef);
+            vim_snprintf!((&raw mut g_st().IObuff).cast(), IOSIZE, c"cfile %s", opt_vars().p_ef);
             if qf_init(
                 ptr::null_mut(),
                 opt_vars().p_ef,
@@ -1954,7 +1953,7 @@ fn handle_tag(tagname: Option<&CStr>) {
             vim_snprintf!(
                 (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
-                c"ta %s".as_ptr(),
+                c"ta %s",
                 tagname.as_ptr(),
             );
             do_cmdline_cmd((&raw const g_st().IObuff).cast());
@@ -1976,7 +1975,7 @@ fn read_stdin() {
         if !(*g_st().curbuf).b_ffname.is_null() {
             let stdin_buf = buflist_new(ptr::null_mut(), ptr::null_mut(), 0, BLN_LISTED);
             if stdin_buf.is_null() {
-                semsg!(c"Failed to create buffer for stdin".as_ptr());
+                semsg!(c"Failed to create buffer for stdin");
                 return;
             }
 
@@ -2000,7 +1999,7 @@ fn read_stdin() {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
-                c"silent! buffer %d".as_ptr(),
+                c"silent! buffer %d",
                 initial_buf_handle,
             );
             do_cmdline_cmd(buf.as_ptr());
@@ -2009,7 +2008,7 @@ fn read_stdin() {
                 vim_snprintf!(
                     buf.as_mut_ptr(),
                     buf.len(),
-                    c"silent! bwipeout! %d".as_ptr(),
+                    c"silent! bwipeout! %d",
                     stdin_buf_handle,
                 );
                 do_cmdline_cmd(buf.as_ptr());
@@ -2164,7 +2163,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
                     if i == 1 {
                         let mut buf = [0 as c_char; 100];
                         p_shm_save = Some(crate::memory::cstr_to_cstring(opt_vars().p_shm));
-                        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"F%s".as_ptr(), opt_vars().p_shm);
+                        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"F%s", opt_vars().p_shm);
                         set_option_value_give_err(kOptShortmess, cstr_as_obj(buf.as_ptr()), 0);
                     }
                 } else {
@@ -2252,7 +2251,7 @@ fn exe_pre_commands(parmp: &mut mparm_T) {
         }
 
         (**curwin.as_ptr()).w_cursor.lnum = 0;
-        estack_push(ETYPE_ARGS, gettext(c"pre-vimrc command line".as_ptr()), 0);
+        estack_push(ETYPE_ARGS, gettext(c"pre-vimrc command line"), 0);
         g_st().current_sctx.sc_sid = SID_CMDARG;
         for cmd in &parmp.pre_commands {
             do_cmdline_cmd(cmd.as_ptr());
@@ -2357,7 +2356,7 @@ fn do_user_initialization() -> bool {
         {
             if os_path_exists(user_vimrc_ptr) {
                 semsg!(
-                    e_conflicting_configs.as_ptr(),
+                    e_conflicting_configs,
                     init_lua_ptr,
                     user_vimrc_ptr,
                 );
@@ -2423,7 +2422,7 @@ fn do_user_initialization() -> bool {
                 {
                     if os_path_exists(init_vim.as_ptr().cast()) {
                         semsg!(
-                            e_conflicting_configs.as_ptr(),
+                            e_conflicting_configs,
                             init_lua.as_ptr(),
                             init_vim.as_ptr(),
                         );
@@ -2493,7 +2492,7 @@ fn source_startup_scripts(parmp: &mparm_T) {
             )
             {
                 semsg!(
-                    gettext(e_cannot_read_from_str_2.as_ptr()),
+                    gettext(e_cannot_read_from_str_2),
                     use_vimrc.as_ptr(),
                 );
             }
@@ -2541,7 +2540,7 @@ fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) 
         if !msg3.is_null() {
             fprintf!(stderr, c": \"%s\"".as_ptr(), msg3);
         }
-        fprintf!(stderr, gettext(c"\nMore info with \"".as_ptr()));
+        fprintf!(stderr, gettext(c"\nMore info with \""));
         fprintf!(stderr, c"%s -h\"\n".as_ptr(), prgname);
 }
 
@@ -2556,90 +2555,89 @@ fn version() {
 fn usage() {
     signal_stop();
 
-        printf!(gettext(c"Usage:\n".as_ptr()));
-        printf!(gettext(c"  nvim [options] [file ...]\n".as_ptr()));
-        printf!(gettext(c"\nOptions:\n".as_ptr()));
+        printf!(gettext(c"Usage:\n"));
+        printf!(gettext(c"  nvim [options] [file ...]\n"));
+        printf!(gettext(c"\nOptions:\n"));
         printf!(gettext(
-            c"  --cmd <cmd>           Execute <cmd> before any config\n".as_ptr(),
+            c"  --cmd <cmd>           Execute <cmd> before any config\n",
         ));
         printf!(gettext(
-            c"  +<cmd>, -c <cmd>      Execute <cmd> after config and first file\n".as_ptr(),
+            c"  +<cmd>, -c <cmd>      Execute <cmd> after config and first file\n",
         ));
         printf!(gettext(
-            c"  -l <script> [args...] Execute Lua <script> (with optional args)\n".as_ptr(),
+            c"  -l <script> [args...] Execute Lua <script> (with optional args)\n",
         ));
         printf!(gettext(
-            c"  -S <session>          Source <session> after loading the first file\n".as_ptr(),
+            c"  -S <session>          Source <session> after loading the first file\n",
         ));
         printf!(gettext(
-            c"  -s <scriptin>         Read Normal mode commands from <scriptin>\n".as_ptr(),
+            c"  -s <scriptin>         Read Normal mode commands from <scriptin>\n",
         ));
         printf!(gettext(
-            c"  -u <config>           Use this config file\n".as_ptr(),
-        ));
-        printf!(c"\n".as_ptr());
-        printf!(gettext(c"  -d                    Diff mode\n".as_ptr()));
-        printf!(gettext(
-            c"  -es, -Es              Silent (batch) mode\n".as_ptr(),
-        ));
-        printf!(gettext(
-            c"  -h, --help            Print this help message\n".as_ptr(),
-        ));
-        printf!(gettext(
-            c"  -i <shada>            Use this shada file\n".as_ptr(),
-        ));
-        printf!(gettext(
-            c"  -n                    No swap file, use memory only\n".as_ptr(),
-        ));
-        printf!(gettext(
-            c"  -o[N]                 Open N windows (default: one per file)\n".as_ptr(),
-        ));
-        printf!(gettext(
-            c"  -O[N]                 Open N vertical windows (default: one per file)\n".as_ptr(),
-        ));
-        printf!(gettext(
-            c"  -p[N]                 Open N tab pages (default: one per file)\n".as_ptr(),
-        ));
-        printf!(gettext(
-            c"  -R                    Read-only (view) mode\n".as_ptr(),
-        ));
-        printf!(gettext(
-            c"  -v, --version         Print version information\n".as_ptr(),
-        ));
-        printf!(gettext(
-            c"  -V[N][file]           Verbose [level][file]\n".as_ptr(),
+            c"  -u <config>           Use this config file\n",
         ));
         printf!(c"\n".as_ptr());
+        printf!(gettext(c"  -d                    Diff mode\n"));
         printf!(gettext(
-            c"  --                    Only file names after this\n".as_ptr(),
+            c"  -es, -Es              Silent (batch) mode\n",
         ));
         printf!(gettext(
-            c"  --api-info            Write msgpack-encoded API metadata to stdout\n".as_ptr(),
+            c"  -h, --help            Print this help message\n",
         ));
         printf!(gettext(
-            c"  --clean               \"Factory defaults\" (skip user config and plugins, shada)\n"
-                .as_ptr(),
+            c"  -i <shada>            Use this shada file\n",
         ));
         printf!(gettext(
-            c"  --embed               Use stdin/stdout as a msgpack-rpc channel\n".as_ptr(),
+            c"  -n                    No swap file, use memory only\n",
         ));
         printf!(gettext(
-            c"  --headless            Don't start a user interface\n".as_ptr(),
+            c"  -o[N]                 Open N windows (default: one per file)\n",
         ));
         printf!(gettext(
-            c"  --listen <address>    Serve RPC API from this address\n".as_ptr(),
+            c"  -O[N]                 Open N vertical windows (default: one per file)\n",
         ));
         printf!(gettext(
-            c"  --remote[-subcommand] Execute commands remotely on a server\n".as_ptr(),
+            c"  -p[N]                 Open N tab pages (default: one per file)\n",
         ));
         printf!(gettext(
-            c"  --server <address>    Connect to this Nvim server\n".as_ptr(),
+            c"  -R                    Read-only (view) mode\n",
         ));
         printf!(gettext(
-            c"  --startuptime <file>  Write startup timing messages to <file>\n".as_ptr(),
+            c"  -v, --version         Print version information\n",
         ));
         printf!(gettext(
-            c"\nSee \":help startup-options\" for all options.\n".as_ptr(),
+            c"  -V[N][file]           Verbose [level][file]\n",
+        ));
+        printf!(c"\n".as_ptr());
+        printf!(gettext(
+            c"  --                    Only file names after this\n",
+        ));
+        printf!(gettext(
+            c"  --api-info            Write msgpack-encoded API metadata to stdout\n",
+        ));
+        printf!(gettext(
+            c"  --clean               \"Factory defaults\" (skip user config and plugins, shada)\n",
+        ));
+        printf!(gettext(
+            c"  --embed               Use stdin/stdout as a msgpack-rpc channel\n",
+        ));
+        printf!(gettext(
+            c"  --headless            Don't start a user interface\n",
+        ));
+        printf!(gettext(
+            c"  --listen <address>    Serve RPC API from this address\n",
+        ));
+        printf!(gettext(
+            c"  --remote[-subcommand] Execute commands remotely on a server\n",
+        ));
+        printf!(gettext(
+            c"  --server <address>    Connect to this Nvim server\n",
+        ));
+        printf!(gettext(
+            c"  --startuptime <file>  Write startup timing messages to <file>\n",
+        ));
+        printf!(gettext(
+            c"\nSee \":help startup-options\" for all options.\n",
         ));
 }
 

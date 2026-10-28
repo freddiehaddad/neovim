@@ -80,10 +80,10 @@ pub fn server_init(mut listen_addr: *const c_char) -> bool {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"server_init".as_ptr(),
+                c"server_init",
                 58,
                 true,
-                c"test log message".as_ptr(),
+                c"test log message",
             );
         }
 
@@ -155,7 +155,7 @@ pub fn server_address_new(name: *const c_char) -> std::ffi::CString {
             vim_snprintf!(
                 fmt.as_mut_ptr(),
                 fmt.len(),
-                c"//./pipe/%s.%llu.%u".as_ptr(),
+                c"//./pipe/%s.%llu.%u",
                 app,
                 os_get_pid() as u64,
                 cur_count,
@@ -174,7 +174,7 @@ pub fn server_address_new(name: *const c_char) -> std::ffi::CString {
             vim_snprintf!(
                 fmt.as_mut_ptr(),
                 fmt.len(),
-                c"%s/%s.%llu.%u".as_ptr(),
+                c"%s/%s.%llu.%u",
                 dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                 app,
                 os_get_pid() as u64,
@@ -186,10 +186,10 @@ pub fn server_address_new(name: *const c_char) -> std::ffi::CString {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"server_address_new".as_ptr(),
+                c"server_address_new",
                 133,
                 true,
-                c"truncated server address: %.40s...".as_ptr(),
+                c"truncated server address: %.40s...",
                 fmt.as_ptr(),
             );
         }
@@ -216,10 +216,10 @@ pub fn server_start(addr: *const c_char) -> c_int {
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
-                c"server_start".as_ptr(),
+                c"server_start",
                 167,
                 true,
-                c"Empty or NULL address".as_ptr(),
+                c"Empty or NULL address",
             );
             return 1;
         }
@@ -248,10 +248,10 @@ pub fn server_start(addr: *const c_char) -> c_int {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"server_start".as_ptr(),
+                    c"server_start",
                     184,
                     true,
-                    c"Already listening on %s".as_ptr(),
+                    c"Already listening on %s",
                     (*watcher).addr.as_ptr(),
                 );
                 if uv_handle_get_type((*watcher).stream_ptr().cast()) == UV_TCP {
@@ -267,10 +267,10 @@ pub fn server_start(addr: *const c_char) -> c_int {
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
-                c"server_start".as_ptr(),
+                c"server_start",
                 195,
                 true,
-                c"Failed to start server: %s: %s".as_ptr(),
+                c"Failed to start server: %s: %s",
                 uv_strerror(result),
                 (*watcher).addr.as_ptr(),
             );
@@ -303,10 +303,10 @@ pub fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bool {
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
-                c"server_stop".as_ptr(),
+                c"server_stop",
                 238,
                 true,
-                c"Not listening on %s".as_ptr(),
+                c"Not listening on %s",
                 addr.as_ptr(),
             );
             return false;
@@ -338,10 +338,10 @@ pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"connection_cb".as_ptr(),
+                c"connection_cb",
                 276,
                 true,
-                c"Failed to accept connection: %s".as_ptr(),
+                c"Failed to accept connection: %s",
                 uv_strerror(result),
             );
             return;

@@ -1742,13 +1742,13 @@ pub fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
             let len = utf_char2bytes(char1, msg.as_mut_ptr()) as usize;
             msg[len] = NUL;
             semsg!(
-                gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR.as_ptr()),
+                gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR),
                 msg.as_ptr(),
             );
             return false;
         }
         if char1 == ESC || char2 == ESC {
-            emsg(gettext(c"E104: Escape not allowed in digraph".as_ptr()));
+            emsg(gettext(c"E104: Escape not allowed in digraph"));
             return false;
         }
         true
@@ -1774,7 +1774,7 @@ pub fn putdigraph(mut str: *mut c_char) {
             str = skipwhite(str);
 
             if !ascii_isdigit(*str) {
-                emsg(gettext(e_number_exp.as_ptr()));
+                emsg(gettext(e_number_exp));
                 return;
             }
             let n = getdigits_int(&raw mut str, true, 0);
@@ -1828,7 +1828,7 @@ pub fn listdigraphs(use_headers: bool) {
                 break;
             }
             if previous >= 0 && use_headers {
-                digraph_header(gettext(c"Custom".as_ptr()));
+                digraph_header(gettext(c"Custom"));
             }
             previous = -1;
             printdigraph(dp, ptr::null_mut());
@@ -1939,7 +1939,7 @@ fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
             p = p.add(1);
         }
         let used = p.offset_from(buf.as_ptr()) as usize;
-        vim_snprintf!(p, buf.len() - used, c" %3d".as_ptr(), (*dp).result);
+        vim_snprintf!(p, buf.len() - used, c" %3d", (*dp).result);
         msg_outtrans(buf.as_ptr(), 0, false);
     }
 }
@@ -1964,7 +1964,7 @@ fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> bo
             }
         }
         semsg!(
-            gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR.as_ptr()),
+            gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR),
             chars,
         );
         false
@@ -1988,7 +1988,7 @@ fn digraph_set_common(argchars: &typval_T,argdigraph: &typval_T) -> bool {
         let n = mb_cptr2char_adv(&raw mut p);
         if *p != NUL {
             semsg!(
-                gettext(E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR.as_ptr()),
+                gettext(E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR),
                 digraph,
             );
             return false;
@@ -2012,7 +2012,7 @@ pub fn f_digraph_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         }
         if crate::memory::cstr_len(digraphs) != 2 {
             semsg!(
-                gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR.as_ptr()),
+                gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR),
                 digraphs,
             );
             return;
@@ -2065,7 +2065,7 @@ pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 
         if argvars[0].v_type != VarType::VAR_LIST {
             emsg(gettext(
-                E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS.as_ptr(),
+                E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
             ));
             return;
         }
@@ -2081,7 +2081,7 @@ pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
             let tv = &raw const (*pli).li_tv;
             if (*tv).v_type != VarType::VAR_LIST {
                 emsg(gettext(
-                    E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS.as_ptr(),
+                    E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
                 ));
                 return;
             }
@@ -2089,7 +2089,7 @@ pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
             let l = (*tv).vval.v_list();
             if l.is_null() || tv_list_len(l) != 2 {
                 emsg(gettext(
-                    E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS.as_ptr(),
+                    E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
                 ));
                 return;
             }
@@ -2147,7 +2147,7 @@ pub fn ex_loadkeymap(eap: &mut exarg_T) {
 
         if !fgetline.is_source() {
             emsg(gettext(
-                c"E105: Using :loadkeymap not in a sourced file".as_ptr(),
+                c"E105: Using :loadkeymap not in a sourced file",
             ));
             return;
         }
@@ -2178,7 +2178,7 @@ pub fn ex_loadkeymap(eap: &mut exarg_T) {
 
                 if from_len + to_len >= KMAP_LLEN || from_len == 0 || to_len == 0 {
                     if to_len == 0 {
-                        emsg(gettext(c"E791: Empty keymap entry".as_ptr()));
+                        emsg(gettext(c"E791: Empty keymap entry"));
                     }
                 } else if let (Ok(from), Ok(to)) = (
                     std::ffi::CString::new(from_slice),
@@ -2193,7 +2193,7 @@ pub fn ex_loadkeymap(eap: &mut exarg_T) {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
-                c"<buffer> %s %s".as_ptr(),
+                c"<buffer> %s %s",
                 kp.from.as_ptr(),
                 kp.to.as_ptr(),
             );
@@ -2223,7 +2223,7 @@ fn keymap_unload() {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
-                c"<buffer> %s".as_ptr(),
+                c"<buffer> %s",
                 entry.from.as_ptr(),
             );
             do_map(MAPTYPE_UNMAP, buf.as_mut_ptr(), MODE_LANGMAP, false);

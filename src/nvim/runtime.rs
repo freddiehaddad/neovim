@@ -514,7 +514,7 @@ pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
                     let n = vim_snprintf_safelen!(
                         lnum_buf.as_mut_ptr(),
                         lnum_buf.len(),
-                        c"[%d]".as_ptr(),
+                        c"[%d]",
                         lnum,
                     );
                     buf.extend_from_slice(&lnum_buf[..n]);
@@ -752,7 +752,7 @@ pub fn do_in_path(
                 if *prefix.as_ptr() != NUL {
                     smsg!(
                         0,
-                        gettext(c"Searching for \"%s\" under \"%s\" in \"%s\"".as_ptr()),
+                        gettext(c"Searching for \"%s\" under \"%s\" in \"%s\""),
                         name,
                         prefix.as_ptr(),
                         path,
@@ -760,7 +760,7 @@ pub fn do_in_path(
                 } else {
                     smsg!(
                         0,
-                        gettext(c"Searching for \"%s\" in \"%s\"".as_ptr()),
+                        gettext(c"Searching for \"%s\" in \"%s\""),
                         name,
                         path,
                     );
@@ -803,7 +803,7 @@ pub fn do_in_path(
 
                             if opt_vars().p_verbose > 10 {
                                 verbose_enter();
-                                smsg!(0, gettext(c"Searching for \"%s\"".as_ptr()), buf);
+                                smsg!(0, gettext(c"Searching for \"%s\""), buf);
                                 verbose_leave();
                             }
 
@@ -835,12 +835,12 @@ pub fn do_in_path(
             };
 
             if (flags & DIP_ERR) != 0 {
-                semsg!(gettext(e_dirnotf.as_ptr()), basepath, name);
+                semsg!(gettext(e_dirnotf), basepath, name);
             } else if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 smsg!(
                     0,
-                    gettext(c"not found in '%s': \"%s\"".as_ptr()),
+                    gettext(c"not found in '%s': \"%s\""),
                     basepath,
                     name,
                 );
@@ -889,7 +889,7 @@ fn do_in_cached_path(
             verbose_enter();
             smsg!(
                 0,
-                gettext(c"Searching for \"%s\" in runtime path".as_ptr()),
+                gettext(c"Searching for \"%s\" in runtime path"),
                 name,
             );
             verbose_leave();
@@ -927,7 +927,7 @@ fn do_in_cached_path(
 
                     if opt_vars().p_verbose > 10 {
                         verbose_enter();
-                        smsg!(0, gettext(c"Searching for \"%s\"".as_ptr()), buf.as_ptr());
+                        smsg!(0, gettext(c"Searching for \"%s\""), buf.as_ptr());
                         verbose_leave();
                     }
 
@@ -955,12 +955,12 @@ fn do_in_cached_path(
 
         if !did_one && !name.is_null() {
             if (flags & DIP_ERR) != 0 {
-                semsg!(gettext(e_dirnotf.as_ptr()), c"runtime path".as_ptr(), name);
+                semsg!(gettext(e_dirnotf), c"runtime path", name);
             } else if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 smsg!(
                     0,
-                    gettext(c"not found in runtime path: \"%s\"".as_ptr()),
+                    gettext(c"not found in runtime path: \"%s\""),
                     name,
                 );
                 verbose_leave();
@@ -1052,7 +1052,7 @@ fn runtime_get_named_common(
     for item in path.iter_mut() {
         if lua {
             if item.has_lua == kNone {
-                let size = vim_snprintf!(buf, buf_len, c"%s/lua/".as_ptr(), item.path.as_ptr())
+                let size = vim_snprintf!(buf, buf_len, c"%s/lua/", item.path.as_ptr())
                     as usize;
                 item.has_lua = TriState::from(size < buf_len && os_isdir(buf));
             }
@@ -1067,7 +1067,7 @@ fn runtime_get_named_common(
                 let size = vim_snprintf!(
                     buf,
                     buf_len,
-                    c"%s/%s".as_ptr(),
+                    c"%s/%s",
                     item.path.as_ptr(),
                     pat_item.data.string().data,
                 ) as usize;
@@ -1665,14 +1665,14 @@ fn load_pack_plugin(opt: bool, fname: *mut c_char) -> bool {
         let mut pat_vec = vec![0 as c_char; len + 1];
         let mut pat = pat_vec.as_mut_ptr();
 
-        vim_snprintf!(pat, len, c"%s/plugin/**/*".as_ptr(), ffname);
+        vim_snprintf!(pat, len, c"%s/plugin/**/*", ffname);
         gen_expand_wildcards_and_cb(1, &mut pat, EW_FILE, true, &mut RuntimeCallback::SourceVimLua);
 
         let mut cmd = *b"g:did_load_filetypes\0";
 
         if opt && eval_to_number(cmd.as_mut_ptr().cast(), false) > 0 {
             do_cmdline_cmd(c"augroup filetypedetect".as_ptr());
-            vim_snprintf!(pat, len, c"%s/ftdetect/*".as_ptr(), ffname);
+            vim_snprintf!(pat, len, c"%s/ftdetect/*", ffname);
             gen_expand_wildcards_and_cb(
                 1,
                 &mut pat,
@@ -1862,8 +1862,8 @@ pub fn ex_packadd(eap: &mut exarg_T) {
             vim_snprintf!(
                 pat,
                 len,
-                c"pack/*/%s/%s".as_ptr(),
-                c"start".as_ptr(),
+                c"pack/*/%s/%s",
+                c"start",
                 eap.arg,
             );
             res = do_in_path(
@@ -1878,8 +1878,8 @@ pub fn ex_packadd(eap: &mut exarg_T) {
         vim_snprintf!(
             pat,
             len,
-            c"pack/*/%s/%s".as_ptr(),
-            c"opt".as_ptr(),
+            c"pack/*/%s/%s",
+            c"opt",
             eap.arg,
         );
         do_in_path(
@@ -1920,11 +1920,11 @@ fn ExpandRTDir_int(
             vim_snprintf!(
                 buf,
                 buf_len,
-                c"%s%s%s%s".as_ptr(),
+                c"%s%s%s%s",
                 dir_str,
                 slash_str,
                 pat,
-                c"*.{vim,lua}".as_ptr(),
+                c"*.{vim,lua}",
             );
 
             loop {
@@ -1942,7 +1942,7 @@ fn ExpandRTDir_int(
                     vim_snprintf!(
                         buf,
                         buf_len,
-                        c"pack/*/start/*/%s%s%s%s".as_ptr(),
+                        c"pack/*/start/*/%s%s%s%s",
                         dir_str,
                         slash_str,
                         pat,
@@ -1953,7 +1953,7 @@ fn ExpandRTDir_int(
                     vim_snprintf!(
                         buf,
                         buf_len,
-                        c"start/*/%s%s%s%s".as_ptr(),
+                        c"start/*/%s%s%s%s",
                         dir_str,
                         slash_str,
                         pat,
@@ -1966,7 +1966,7 @@ fn ExpandRTDir_int(
                     vim_snprintf!(
                         buf,
                         buf_len,
-                        c"pack/*/opt/*/%s%s%s%s".as_ptr(),
+                        c"pack/*/opt/*/%s%s%s%s",
                         dir_str,
                         slash_str,
                         pat,
@@ -1977,7 +1977,7 @@ fn ExpandRTDir_int(
                     vim_snprintf!(
                         buf,
                         buf_len,
-                        c"opt/*/%s%s%s%s".as_ptr(),
+                        c"opt/*/%s%s%s%s",
                         dir_str,
                         slash_str,
                         pat,
@@ -1987,7 +1987,7 @@ fn ExpandRTDir_int(
                 }
 
                 if *dir == NUL && !expand_dirs {
-                    vim_snprintf!(buf, buf_len, c"%s*".as_ptr(), pat);
+                    vim_snprintf!(buf, buf_len, c"%s*", pat);
                     glob_flags = WILD_ADD_SLASH;
                     expand_dirs = true;
                     continue;
@@ -2119,9 +2119,9 @@ pub fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> 
         let buflen = pat_len + 26;
         let mut s_vec = vec![0 as c_char; buflen];
         let s = s_vec.as_mut_ptr();
-        vim_snprintf!(s, buflen, c"pack/*/opt/%s*".as_ptr(), pat);
+        vim_snprintf!(s, buflen, c"pack/*/opt/%s*", pat);
         globpath(opt_vars().p_pp, s, file, 0, true);
-        vim_snprintf!(s, buflen, c"opt/%s*".as_ptr(), pat);
+        vim_snprintf!(s, buflen, c"opt/%s*", pat);
         globpath(opt_vars().p_pp, s, file, 0, true);
         drop(s_vec);
 
@@ -2504,13 +2504,13 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
 fn cmd_source(fname: *mut c_char,mut eap: Option<&mut exarg_T>) {
     unsafe {
         if *fname != NUL && eap.is_some() && eap.as_deref_mut().unwrap().addr_count > 0 {
-            emsg(gettext(e_norange.as_ptr()));
+            emsg(gettext(e_norange));
             return;
         }
 
         if eap.is_some() && *fname == NUL {
             if eap.as_deref_mut().unwrap().forceit != 0 {
-                emsg(gettext(e_argreq.as_ptr()));
+                emsg(gettext(e_argreq));
             } else {
                 cmd_source_buffer(eap.as_deref(), false);
             }
@@ -2523,7 +2523,7 @@ fn cmd_source(fname: *mut c_char,mut eap: Option<&mut exarg_T>) {
                     || (*eap.unwrap().cstack.cast::<cstack_T>()).cs_idx >= 0,
             );
         } else if !do_source(fname, false, DOSO_NONE, ptr::null_mut()) {
-            semsg!(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen), fname);
         }
     }
 }
@@ -2651,14 +2651,14 @@ fn do_source_buffer_init(
                 vim_snprintf!(
                     iobuff,
                     IOSIZE,
-                    c":{range}lua buffer=%d".as_ptr(),
+                    c":{range}lua buffer=%d",
                     (*g_st().curbuf).b_fnum,
                 );
             } else {
                 vim_snprintf!(
                     iobuff,
                     IOSIZE,
-                    c":source buffer=%d".as_ptr(),
+                    c":source buffer=%d",
                     (*g_st().curbuf).b_fnum,
                 );
             }
@@ -2719,7 +2719,7 @@ pub fn do_source_str(str_ptr: *const c_char, mut traceback_name: *const c_char) 
             vim_snprintf!(
                 sname_buf.as_mut_ptr(),
                 sname_buf.len(),
-                c"%s called at %s:%d".as_ptr(),
+                c"%s called at %s:%d",
                 traceback_name,
                 sname,
                 slnum,
@@ -2771,7 +2771,7 @@ fn do_source_ext(
             if os_isdir(fe.as_ptr()) {
                 smsg!(
                     0,
-                    gettext(c"Cannot source a directory: \"%s\"".as_ptr()),
+                    gettext(c"Cannot source a directory: \"%s\""),
                     fname,
                 );
                 return retval;
@@ -2833,11 +2833,11 @@ fn do_source_ext(
                 if opt_vars().p_verbose > 1 {
                     verbose_enter();
                     if sourcing_name().is_null() {
-                        smsg!(0, gettext(c"could not source \"%s\"".as_ptr()), fname);
+                        smsg!(0, gettext(c"could not source \"%s\""), fname);
                     } else {
                         smsg!(
                             0,
-                            gettext(c"line %lld: could not source \"%s\"".as_ptr()),
+                            gettext(c"line %lld: could not source \"%s\""),
                             i64::from(sourcing_lnum()),
                             fname,
                         );
@@ -2850,11 +2850,11 @@ fn do_source_ext(
             if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 if sourcing_name().is_null() {
-                    smsg!(0, gettext(c"sourcing \"%s\"".as_ptr()), fname);
+                    smsg!(0, gettext(c"sourcing \"%s\""), fname);
                 } else {
                     smsg!(
                         0,
-                        gettext(c"line %lld: sourcing \"%s\"".as_ptr()),
+                        gettext(c"line %lld: sourcing \"%s\""),
                         i64::from(sourcing_lnum()),
                         fname,
                     );
@@ -3025,22 +3025,22 @@ fn do_source_ext(
             }
 
             if g_st().got_int {
-                emsg(gettext(e_interr.as_ptr()));
+                emsg(gettext(e_interr));
             }
             estack_pop();
             if opt_vars().p_verbose > 1 {
                 verbose_enter();
-                smsg!(0, gettext(c"finished sourcing %s".as_ptr()), fname);
+                smsg!(0, gettext(c"finished sourcing %s"), fname);
                 let sname = sourcing_name();
                 if !sname.is_null() {
-                    smsg!(0, gettext(c"continuing in %s".as_ptr()), sname);
+                    smsg!(0, gettext(c"continuing in %s"), sname);
                 }
                 verbose_leave();
             }
 
             if l_has_time_fd {
                 let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
-                vim_snprintf!(iobuff, IOSIZE, c"sourcing %s".as_ptr(), fname);
+                vim_snprintf!(iobuff, IOSIZE, c"sourcing %s", fname);
                 time_msg(iobuff, Some(&start_time));
                 time_pop(rel_time);
             }
@@ -3125,7 +3125,7 @@ pub fn ex_scriptnames(eap: &mut exarg_T) {
         let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
         if eap.addr_count > 0 || *eap.arg != NUL {
             if eap.addr_count > 0 && !script_id_valid(eap.line2) {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
             } else {
                 if eap.addr_count > 0 {
                     eap.arg = (*script_item(eap.line2)).name_ptr();
@@ -3145,7 +3145,7 @@ pub fn ex_scriptnames(eap: &mut exarg_T) {
             let si = script_item(i);
             if let Some(ref sn) = (*si).sn_name {
                 home_replace(ptr::null_mut(), sn.as_ptr(), namebuff, MAXPATHL, true);
-                vim_snprintf!(iobuff, IOSIZE, c"%3d: %s".as_ptr(), i, namebuff);
+                vim_snprintf!(iobuff, IOSIZE, c"%3d: %s", i, namebuff);
                 if !message_filtered(iobuff) {
                     if g_st().msg_col > 0 {
                         msg_putchar(b'\n' as c_int);
@@ -3168,30 +3168,30 @@ pub fn get_scriptname(
     unsafe {
         let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
         let ptr = match script_ctx.sc_sid {
-            SID_MODELINE => gettext(c"modeline".as_ptr()),
-            SID_CMDARG => gettext(c"--cmd argument".as_ptr()),
-            SID_CARG => gettext(c"-c argument".as_ptr()),
-            SID_ENV => gettext(c"environment variable".as_ptr()),
-            SID_ERROR => gettext(c"error handler".as_ptr()),
-            SID_WINLAYOUT => gettext(c"changed window size".as_ptr()),
-            SID_LUA => gettext(c"Lua".as_ptr()),
+            SID_MODELINE => gettext(c"modeline"),
+            SID_CMDARG => gettext(c"--cmd argument"),
+            SID_CARG => gettext(c"-c argument"),
+            SID_ENV => gettext(c"environment variable"),
+            SID_ERROR => gettext(c"error handler"),
+            SID_WINLAYOUT => gettext(c"changed window size"),
+            SID_LUA => gettext(c"Lua"),
             SID_API_CLIENT => {
                 vim_snprintf!(
                     iobuff,
                     IOSIZE,
-                    gettext(c"API client (channel id %llu)".as_ptr()),
+                    gettext(c"API client (channel id %llu)"),
                     script_ctx.sc_chan,
                 );
                 iobuff
             }
-            SID_STR => gettext(c"anonymous :source".as_ptr()),
+            SID_STR => gettext(c"anonymous :source"),
             _ => {
                 let sname = (*script_item(script_ctx.sc_sid)).name_ptr();
                 if sname.is_null() {
                     vim_snprintf!(
                         iobuff,
                         IOSIZE,
-                        gettext(c"anonymous :source (script id %d)".as_ptr()),
+                        gettext(c"anonymous :source (script id %d)"),
                         script_ctx.sc_sid,
                     );
                     iobuff
@@ -3277,8 +3277,8 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 }
                 if sid <= 0 {
                     semsg!(
-                        gettext(e_invargNval.as_ptr()),
-                        c"sid".as_ptr(),
+                        gettext(e_invargNval),
+                        c"sid",
                         tv_get_string(&(*sid_di).di_tv),
                     );
                     return;
@@ -3507,8 +3507,7 @@ fn get_one_sourceline(sp: &mut source_cookie_T) -> Option<Vec<c_char>> {
                             if !sp.error {
                                 msg_source(crate::highlight::hl_attr(HLF_W as c_int));
                                 emsg(gettext(
-                                    c"W15: Warning: Wrong line separator, ^M may be missing"
-                                        .as_ptr(),
+                                    c"W15: Warning: Wrong line separator, ^M may be missing",
                                 ));
                             }
                             sp.error = true;
@@ -3554,7 +3553,7 @@ pub fn ex_scriptencoding(eap: &mut exarg_T) {
     unsafe {
         let Some(sp) = eap.ea_getline.as_source() else {
             emsg(gettext(
-                c"E167: :scriptencoding used outside of a sourced file".as_ptr(),
+                c"E167: :scriptencoding used outside of a sourced file",
             ));
             return;
         };
@@ -3577,7 +3576,7 @@ pub fn ex_finish(eap: &mut exarg_T) {
             do_finish(eap, false);
         } else {
             emsg(gettext(
-                c"E168: :finish used outside of a sourced file".as_ptr(),
+                c"E168: :finish used outside of a sourced file",
             ));
         }
 }

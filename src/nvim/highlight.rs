@@ -351,7 +351,7 @@ fn get_attr_entry(mut entry: HlEntry) -> c_int {
             if (*entries_ptr).len() as u32 >= MAX_TYPENR {
                 if hl_st().get_attr_entry_recursive || retried {
                     emsg(gettext(
-                        c"E424: Too many different highlighting attributes in use".as_ptr(),
+                        c"E424: Too many different highlighting attributes in use",
                     ));
                     return 0;
                 }
@@ -1266,7 +1266,7 @@ pub fn hl_get_attr_by_id(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Invalid attribute id: %lld".as_ptr(),
+                c"Invalid attribute id: %lld",
                 attr_id,
             );
             return dic;
@@ -1687,7 +1687,7 @@ pub fn dict2hlattrs(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Invalid Key: '%s'".as_ptr(),
+                    c"Invalid Key: '%s'",
                     if has_key(is_set, KEYSET_OPTIDX_highlight__link_global) {
                         c"link_global".as_ptr()
                     } else {

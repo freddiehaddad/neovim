@@ -275,10 +275,10 @@ pub fn os_attach_parent_console() {
             logmsg!(
                 LOGLVL_INF,
                 std::ptr::null(),
-                c"os_attach_parent_console".as_ptr(),
+                c"os_attach_parent_console",
                 104,
                 true,
-                c"parent console attach failed: %lu; allocating hidden console".as_ptr(),
+                c"parent console attach failed: %lu; allocating hidden console",
                 GetLastError(),
             );
             AllocConsole();
@@ -323,17 +323,17 @@ pub fn os_icon_init() {
             vim_snprintf!(
                 namebuff,
                 MAXPATHL,
-                c"%s/neovim.ico".as_ptr(),
+                c"%s/neovim.ico",
                 vimruntime.as_ptr()
             );
             if !os_path_exists(namebuff) {
                 logmsg!(
                     LOGLVL_WRN,
                     std::ptr::null(),
-                    c"os_icon_init".as_ptr(),
+                    c"os_icon_init",
                     148,
                     true,
-                    c"neovim.ico not found: %s".as_ptr(),
+                    c"neovim.ico not found: %s",
                     namebuff,
                 );
             } else {

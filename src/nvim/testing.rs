@@ -437,7 +437,7 @@ fn assert_equalfile(argvars: &mut [typval_T]) -> c_int {
             iobuflen = vim_snprintf_safelen!(
                 iobuf.as_mut_ptr(),
                 IOSIZE,
-                e_cant_read_file_str.as_ptr(),
+                e_cant_read_file_str,
                 fname1,
             );
         } else {
@@ -447,7 +447,7 @@ fn assert_equalfile(argvars: &mut [typval_T]) -> c_int {
                 iobuflen = vim_snprintf_safelen!(
                     iobuf.as_mut_ptr(),
                     IOSIZE,
-                    e_cant_read_file_str.as_ptr(),
+                    e_cant_read_file_str,
                     fname2,
                 );
             } else {
@@ -810,7 +810,7 @@ fn assert_inrange(argvars: &mut [typval_T]) -> c_int {
             vim_snprintf!(
                 expected_str.as_mut_ptr(),
                 expected_str.len(),
-                c"range %g - %g,".as_ptr(),
+                c"range %g - %g,",
                 flower,
                 fupper,
             );

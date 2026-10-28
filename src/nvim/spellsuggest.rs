@@ -706,7 +706,7 @@ pub fn spell_suggest(count: c_int) {
         'skip: {
             let w_s = (**curwin.as_ptr()).w_s_ptr();
             if *(*w_s).b_p_spl == NUL {
-                emsg(gettext(e_no_spell.as_ptr()));
+                emsg(gettext(e_no_spell));
                 break 'skip;
             }
             if g_st().Visual.active {
@@ -765,13 +765,13 @@ pub fn spell_suggest(count: c_int) {
             let sug_len = sug.su_ga.len() as c_int;
             if sug_len <= 0 {
                 msg_ext_set_kind(c"wmsg".as_ptr());
-                msg(gettext(c"No suggestions".as_ptr()), 0);
+                msg(gettext(c"No suggestions"), 0);
             } else if count > 0 {
                 if count > sug_len {
                     msg_ext_set_kind(c"wmsg".as_ptr());
                     smsg!(
                         0,
-                        gettext(c"Only %lld suggestions".as_ptr()),
+                        gettext(c"Only %lld suggestions"),
                         sug_len as i64,
                     );
                 }
@@ -795,7 +795,7 @@ pub fn spell_suggest(count: c_int) {
                     vim_snprintf!(
                         (&raw mut g_st().IObuff).cast(),
                         IOSIZE,
-                        c"%s%.*s".as_ptr(),
+                        c"%s%.*s",
                         stp.st_word.as_ptr(),
                         sug.su_badlen - stp.st_orglen,
                         sug.su_badptr.add(stp.st_orglen as usize),
@@ -1027,7 +1027,7 @@ fn spell_suggest_file(su: &mut suginfo_T, fname: *mut c_char) {
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
-            semsg!(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen), fname);
             return;
         }
         while !vim_fgets((&raw mut line).cast(), (MAXWLEN * 2) as c_int, fd) && !g_st().got_int {

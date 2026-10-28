@@ -2692,9 +2692,9 @@ pub fn find_ident_at_pos(
 
         if *ptr.add(col as usize) == NUL || (i == 0 && this_class != 2) {
             if (find_type & FIND_STRING) != 0 {
-                emsg(tr(c"E348: No string under cursor".as_ptr()));
+                emsg(tr(c"E348: No string under cursor"));
             } else {
-                emsg(tr(e_noident.as_ptr()));
+                emsg(tr(e_noident));
             }
             return 0;
         }
@@ -2832,7 +2832,7 @@ pub fn clear_showcmd() {
                 vim_snprintf!(
                     sc_buf,
                     SHOWCMD_BUFLEN,
-                    c"%lldx%lld".as_ptr(),
+                    c"%lldx%lld",
                     lines as c_longlong,
                     (i64::from(rightcol) - i64::from(leftcol) + 1) as c_longlong,
                 );
@@ -2840,7 +2840,7 @@ pub fn clear_showcmd() {
                 vim_snprintf!(
                     sc_buf,
                     SHOWCMD_BUFLEN,
-                    c"%lld".as_ptr(),
+                    c"%lld",
                     lines as c_longlong,
                 );
             } else {
@@ -2872,9 +2872,9 @@ pub fn clear_showcmd() {
                     s = s.add(l as usize);
                 }
                 if bytes == chars {
-                    vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%d".as_ptr(), chars);
+                    vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%d", chars);
                 } else {
-                    vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%d-%d".as_ptr(), chars, bytes);
+                    vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%d-%d", chars, bytes);
                 }
             }
             let limit = if ui_has(kUIMessages) {
@@ -3946,8 +3946,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                     deleteFold(&mut **curwin.as_ptr(), 1, (*g_st().curbuf).b_ml.ml_line_count, 1, false);
                 } else {
                     emsg(tr(
-                        c"E352: Cannot erase folds with current 'foldmethod'".as_ptr()
-                    ));
+                        c"E352: Cannot erase folds with current 'foldmethod'"));
                 }
             }
             c if c == b'n' as c_int => {
@@ -4310,12 +4309,12 @@ fn nv_K_getcmd(
         }
 
         if kp_ex {
-            *buflen = vim_snprintf!(buf, bufsize, c"%s ".as_ptr(), kp) as usize;
+            *buflen = vim_snprintf!(buf, bufsize, c"%s ", kp) as usize;
             if cap.count0 != 0 {
                 *buflen += vim_snprintf!(
                     buf.add(*buflen),
                     bufsize - *buflen,
-                    c"%lld ".as_ptr(),
+                    c"%lld ",
                     cap.count0 as c_longlong,
                 ) as usize;
             }
@@ -4329,7 +4328,7 @@ fn nv_K_getcmd(
             n -= 1;
         }
         if n == 0 {
-            emsg(tr(e_noident.as_ptr()));
+            emsg(tr(e_noident));
             *ptr_arg = ptr;
             return 0;
         }
@@ -4340,26 +4339,26 @@ fn nv_K_getcmd(
             *buflen = vim_snprintf!(
                 buf,
                 bufsize,
-                c".,.+%lld".as_ptr(),
+                c".,.+%lld",
                 (cap.count0 - 1) as c_longlong,
             ) as usize;
         }
 
         do_cmdline_cmd(c"tabnew".as_ptr());
         *buflen +=
-            vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"terminal ".as_ptr()) as usize;
+            vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"terminal ") as usize;
         if cap.count0 == 0 && isman_s {
             *buflen +=
-                vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"man ".as_ptr()) as usize;
+                vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"man ") as usize;
         } else {
             *buflen +=
-                vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"%s ".as_ptr(), kp) as usize;
+                vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"%s ", kp) as usize;
         }
         if cap.count0 != 0 && (isman || isman_s) {
             *buflen += vim_snprintf!(
                 buf.add(*buflen),
                 bufsize - *buflen,
-                c"%lld ".as_ptr(),
+                c"%lld ",
                 cap.count0 as c_longlong,
             ) as usize;
         }
@@ -4428,7 +4427,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
             || (crate::memory::cstr_as_opt_bytes(kp) == Some(b":he"))
             || (crate::memory::cstr_as_opt_bytes(kp) == Some(b":help"));
         if kp_help && !kp_helpbang && *skipwhite(ptr) == NUL {
-            emsg(tr(e_noident.as_ptr()));
+            emsg(tr(e_noident));
             return;
         }
         let kp_ex = *kp == b':' as c_char;
@@ -4483,7 +4482,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
                     buflen = vim_snprintf!(
                         buf_vec.as_mut_ptr(),
                         bufsize,
-                        c":%lldtag ".as_ptr(),
+                        c":%lldtag ",
                         cap.count0 as c_longlong,
                     ) as usize;
                 }
@@ -5862,7 +5861,7 @@ fn nv_Replace(cap: &mut cmdarg_T) {
         }
 
         if !modifiable(&*g_st().curbuf) {
-            emsg(tr(e_modifiable.as_ptr()));
+            emsg(tr(e_modifiable));
         } else {
             if virtual_active(*curwin.as_ptr()) {
                 coladvance(&mut **curwin.as_ptr(), getviscol());
@@ -5895,7 +5894,7 @@ fn nv_vreplace(cap: &mut cmdarg_T) {
         }
 
         if !modifiable(&*g_st().curbuf) {
-            emsg(tr(e_modifiable.as_ptr()));
+            emsg(tr(e_modifiable));
         } else {
             if cap.extra_char == Ctrl_V || cap.extra_char == Ctrl_Q {
                 cap.extra_char = get_literal(false);
@@ -6136,11 +6135,11 @@ fn nv_pcmark(cap: &mut cmdarg_T) {
             move_res = nv_mark_move_to(cap, flags, &mut *fm);
         } else if cap.cmdchar == b'g' as c_int {
             if (*g_st().curbuf).b_changelistlen == 0 {
-                emsg(tr(e_changelist_is_empty.as_ptr()));
+                emsg(tr(e_changelist_is_empty));
             } else if cap.count1 < 0 {
-                emsg(tr(c"E662: At start of changelist".as_ptr()));
+                emsg(tr(c"E662: At start of changelist"));
             } else {
-                emsg(tr(c"E663: At end of changelist".as_ptr()));
+                emsg(tr(c"E663: At end of changelist"));
             }
         } else {
             clearopbeep(&mut *cap.oap);
@@ -7195,13 +7194,12 @@ fn nv_esc(cap: &mut cmdarg_T) {
                 if anyBufIsChanged() {
                     msg(
                         tr(
-                            c"Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"
-                                .as_ptr(),
+                            c"Type  :qa!  and press <Enter> to abandon all changes and exit Nvim",
                         ),
                         0,
                     );
                 } else {
-                    msg(tr(c"Type  :qa  and press <Enter> to exit Nvim".as_ptr()), 0);
+                    msg(tr(c"Type  :qa  and press <Enter> to exit Nvim"), 0);
                 }
             }
 
@@ -7251,7 +7249,7 @@ fn nv_edit(cap: &mut cmdarg_T) {
         {
             nv_object(cap);
         } else if (*g_st().curbuf).b_p_ma == 0 && (*g_st().curbuf).terminal.is_null() {
-            emsg(tr(e_modifiable.as_ptr()));
+            emsg(tr(e_modifiable));
             clearop(&mut *cap.oap);
         } else if !checkclearopq(&mut *cap.oap) {
             match cap.cmdchar {
@@ -7412,7 +7410,7 @@ fn nv_q(cap: &mut cmdarg_T) {
             || cap.nchar == b'?' as c_int
         {
             if !g_st().cmdwin_buf.is_null() {
-                emsg(tr(e_cmdline_window_already_open.as_ptr()));
+                emsg(tr(e_cmdline_window_already_open));
                 return;
             }
             if cap.nchar == b':' as c_int && cap.count0 > 0 {

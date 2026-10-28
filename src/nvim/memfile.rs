@@ -83,7 +83,7 @@ pub struct memfile_T {
 fn perror_msg(msg: &std::ffi::CStr) {
     unsafe {
         let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-        let _ = semsg!(c"%s: %s".as_ptr(), gettext(msg.as_ptr()), strerror(err));
+        let _ = semsg!(c"%s: %s", gettext(msg.as_ptr()), strerror(err));
     }
 }
 
@@ -165,7 +165,7 @@ pub fn mf_close(mfp: Option<Box<memfile_T>>, del_file: bool) {
     };
     unsafe {
         if mfp.mf_fd >= 0 && close(mfp.mf_fd) < 0 {
-            emsg(gettext(e_swapclose.as_ptr()));
+            emsg(gettext(e_swapclose));
         }
         if del_file && let Some(ref fname) = mfp.mf_fname {
             os_remove(fname.as_ptr());
@@ -190,7 +190,7 @@ pub fn mf_close_file(buf: &mut buf_T, getlines: bool) {
         }
 
         if close((*mfp).mf_fd) < 0 {
-            emsg(gettext(e_swapclose.as_ptr()));
+            emsg(gettext(e_swapclose));
         }
         (*mfp).mf_fd = -1;
 
@@ -272,7 +272,7 @@ pub fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
         let mut flags = (*hp).bh_flags;
 
         if (flags & BH_LOCKED) == 0 {
-            iemsg(gettext(c"E293: Block was not locked".as_ptr()));
+            iemsg(gettext(c"E293: Block was not locked"));
         }
         flags &= !BH_LOCKED;
         if dirty {
@@ -520,7 +520,7 @@ fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
                 if attempt == 2 || mfp.mf_fd < 0 {
                     {
                         if !g_st().did_swapwrite_msg {
-                            emsg(gettext(c"E297: Write error in swap file".as_ptr()));
+                            emsg(gettext(c"E297: Write error in swap file"));
                         }
                         g_st().did_swapwrite_msg = true;
                     }
@@ -632,7 +632,7 @@ fn mf_do_open(mfp: &mut memfile_T, fname: std::ffi::CString, mut flags: c_int) -
             if (flags & O_CREAT) != 0 && os_fileinfo_link(fname_ptr, &mut file_info) {
                 mfp.mf_fd = -1;
                 emsg(gettext(
-                    c"E300: Swap file already exists (symlink attack?)".as_ptr(),
+                    c"E300: Swap file already exists (symlink attack?)",
                 ));
             } else {
                 flags |= O_NOFOLLOW;

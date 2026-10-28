@@ -174,7 +174,7 @@ pub fn gargcount() -> c_int {
 fn check_arglist_locked() -> bool {
     if arglist_st().arglist_locked {
             emsg(gettext(
-                e_cannot_change_arglist_recursively.as_ptr(),
+                e_cannot_change_arglist_recursively,
             ));
             return false;
         }
@@ -419,7 +419,7 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
 
             vim_regfree(regmatch.regprog);
             if !didone {
-                semsg!(gettext(e_nomatch2.as_ptr()), orig_p);
+                semsg!(gettext(e_nomatch2), orig_p);
             }
         }
     }
@@ -456,7 +456,7 @@ fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool)
             );
             drop(new_ga);
             if !i || exp_files.is_empty() {
-                emsg(gettext(e_nomatch.as_ptr()));
+                emsg(gettext(e_nomatch));
                 return false;
             }
 
@@ -629,11 +629,11 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
 
         if argn < 0 || argn >= count {
             if count <= 1 {
-                emsg(gettext(c"E163: There is only one file to edit".as_ptr()));
+                emsg(gettext(c"E163: There is only one file to edit"));
             } else if argn < 0 {
-                emsg(gettext(c"E164: Cannot go before first file".as_ptr()));
+                emsg(gettext(c"E164: Cannot go before first file"));
             } else {
-                emsg(gettext(c"E165: Cannot go beyond last file".as_ptr()));
+                emsg(gettext(c"E165: Cannot go beyond last file"));
             }
             return;
         }
@@ -816,7 +816,7 @@ pub fn ex_argdelete(eap: &mut exarg_T) {
         if eap.addr_count > 0 || *eap.arg == NUL {
             if eap.addr_count == 0 {
                 if (**curwin.as_ptr()).w_arg_idx >= argcount() {
-                    emsg(gettext(c"E610: No argument to delete".as_ptr()));
+                    emsg(gettext(c"E610: No argument to delete"));
                     return;
                 }
                 eap.line1 = (**curwin.as_ptr()).w_arg_idx + 1;
@@ -826,12 +826,12 @@ pub fn ex_argdelete(eap: &mut exarg_T) {
             }
             let n = eap.line2 - eap.line1 + 1;
             if *eap.arg != NUL {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 return;
             }
             if n <= 0 {
                 if eap.line1 != 1 || eap.line2 != 0 {
-                    emsg(gettext(e_invrange.as_ptr()));
+                    emsg(gettext(e_invrange));
                 }
                 return;
             }
@@ -1050,7 +1050,7 @@ fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
                             } else if (*wp).w_floating {
                                 break;
                             } else if (*(*wp).w_frame).fr_parent != (*(**curwin.as_ptr()).w_frame).fr_parent {
-                                emsg(gettext(E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY.as_ptr()));
+                                emsg(gettext(E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY));
                                 i = count;
                                 break;
                             } else {

@@ -963,34 +963,34 @@ pub fn showmode() -> c_int {
                     }
                 } else {
                     if (g_st().State & MODE_TERMINAL) != 0 {
-                        msg_puts_hl(gettext(c" TERMINAL".as_ptr()), hl_id, false);
+                        msg_puts_hl(gettext(c" TERMINAL"), hl_id, false);
                     } else if (g_st().State & VREPLACE_FLAG) != 0 {
-                        msg_puts_hl(gettext(c" VREPLACE".as_ptr()), hl_id, false);
+                        msg_puts_hl(gettext(c" VREPLACE"), hl_id, false);
                     } else if (g_st().State & REPLACE_FLAG) != 0 {
-                        msg_puts_hl(gettext(c" REPLACE".as_ptr()), hl_id, false);
+                        msg_puts_hl(gettext(c" REPLACE"), hl_id, false);
                     } else if (g_st().State & MODE_INSERT) != 0 {
                         if opt_vars().p_ri != 0 {
-                            msg_puts_hl(gettext(c" REVERSE".as_ptr()), hl_id, false);
+                            msg_puts_hl(gettext(c" REVERSE"), hl_id, false);
                         }
-                        msg_puts_hl(gettext(c" INSERT".as_ptr()), hl_id, false);
+                        msg_puts_hl(gettext(c" INSERT"), hl_id, false);
                     } else if g_st().restart_edit == c_int::from(b'I')
                         || g_st().restart_edit == c_int::from(b'i')
                         || g_st().restart_edit == c_int::from(b'a')
                         || g_st().restart_edit == c_int::from(b'A')
                     {
                         if !(*g_st().curbuf).terminal.is_null() {
-                            msg_puts_hl(gettext(c" (terminal)".as_ptr()), hl_id, false);
+                            msg_puts_hl(gettext(c" (terminal)"), hl_id, false);
                         } else {
-                            msg_puts_hl(gettext(c" (insert)".as_ptr()), hl_id, false);
+                            msg_puts_hl(gettext(c" (insert)"), hl_id, false);
                         }
                     } else if g_st().restart_edit == c_int::from(b'R') {
-                        msg_puts_hl(gettext(c" (replace)".as_ptr()), hl_id, false);
+                        msg_puts_hl(gettext(c" (replace)"), hl_id, false);
                     } else if g_st().restart_edit == c_int::from(b'V') {
-                        msg_puts_hl(gettext(c" (vreplace)".as_ptr()), hl_id, false);
+                        msg_puts_hl(gettext(c" (vreplace)"), hl_id, false);
                     }
                     if (g_st().State & MODE_LANGMAP) != 0 {
                         if (**curwin.as_ptr()).w_onebuf_opt.wo_arab != 0 {
-                            msg_puts_hl(gettext(c" Arabic".as_ptr()), hl_id, false);
+                            msg_puts_hl(gettext(c" Arabic"), hl_id, false);
                         } else if get_keymap_str(
                             *curwin.as_ptr(),
                             c" (%s)",
@@ -1002,7 +1002,7 @@ pub fn showmode() -> c_int {
                         }
                     }
                     if (g_st().State & MODE_INSERT) != 0 && opt_vars().p_paste != 0 {
-                        msg_puts_hl(gettext(c" (paste)".as_ptr()), hl_id, false);
+                        msg_puts_hl(gettext(c" (paste)"), hl_id, false);
                     }
 
                     if g_st().Visual.active {
@@ -1099,7 +1099,7 @@ fn recording_mode(hl_id: c_int) {
             return;
         }
 
-        msg_puts_hl(gettext(c"recording".as_ptr()), hl_id, false);
+        msg_puts_hl(gettext(c"recording"), hl_id, false);
         let s: [c_char; 4] = [
             b' ' as c_char,
             b'@' as c_char,

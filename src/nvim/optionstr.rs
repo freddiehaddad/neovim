@@ -2250,7 +2250,7 @@ fn get_eventignore_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
         vim_snprintf!(
             io_buff,
             IOSIZE,
-            c"%s%s".as_ptr(),
+            c"%s%s",
             if subtract {
                 c"-".as_ptr()
             } else {
@@ -3344,7 +3344,7 @@ fn opt_values_err(
             n += vim_snprintf!(
                 errbuf.data.add(n as usize),
                 errbuf.size - (n as usize),
-                c"%s%s".as_ptr(),
+                c"%s%s",
                 if j == 0 {
                     c" ".as_ptr()
                 } else {

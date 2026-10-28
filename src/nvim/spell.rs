@@ -510,7 +510,7 @@ fn find_word(mip: &mut matchinf_T, mode: c_int) {
             arridx += 1;
             if *byts.add(arridx as usize) == 0 {
                 if endidxcnt == MAXWLEN {
-                    emsg(gettext(e_format.as_ptr()));
+                    emsg(gettext(e_format));
                     return;
                 }
                 endlen[endidxcnt] = wlen;
@@ -1073,7 +1073,7 @@ pub fn no_spell_checking(wp: &mut win_T) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         if wp.w_onebuf_opt.wo_spell == 0 || *(*w_s).b_p_spl == NUL || (*w_s).b_langp.is_empty() {
-            emsg(gettext(e_no_spell.as_ptr()));
+            emsg(gettext(e_no_spell));
             return true;
         }
         false
@@ -1248,7 +1248,7 @@ pub fn spell_move_to(
                         lnum = (*wp.w_buffer).b_ml.ml_line_count;
                         wrapped = true;
                         if !shortmess(kShmSearch) {
-                            give_warning(gettext(top_bot_msg.as_ptr()), true, false);
+                            give_warning(gettext(top_bot_msg), true, false);
                         }
                     }
                     capcol = -1;
@@ -1261,7 +1261,7 @@ pub fn spell_move_to(
                         lnum = 1;
                         wrapped = true;
                         if !shortmess(kShmSearch) {
-                            give_warning(gettext(bot_top_msg.as_ptr()), true, false);
+                            give_warning(gettext(bot_top_msg), true, false);
                         }
                     }
                     if lnum == wp.w_cursor.lnum && !found_one {
@@ -1315,7 +1315,7 @@ fn spell_load_lang(lang: *mut c_char) {
             vim_snprintf!(
                 (&raw mut fname_enc).cast(),
                 fname_enc.len() - 5,
-                c"spell/%s.%s.spl".as_ptr(),
+                c"spell/%s.%s.spl",
                 lang,
                 spell_enc(),
             );
@@ -1329,7 +1329,7 @@ fn spell_load_lang(lang: *mut c_char) {
                 vim_snprintf!(
                     (&raw mut fname_enc).cast(),
                     fname_enc.len() - 5,
-                    c"spell/%s.ascii.spl".as_ptr(),
+                    c"spell/%s.ascii.spl",
                     lang,
                 );
                 let ok2 = do_in_runtimepath(
@@ -1361,8 +1361,7 @@ fn spell_load_lang(lang: *mut c_char) {
                 vim_snprintf!(
                     (&raw mut autocmd_buf).cast(),
                     autocmd_buf.len(),
-                    c"autocmd VimEnter * call v:lua.require'nvim.spellfile'.get('%s')|set spell"
-                        .as_ptr(),
+                    c"autocmd VimEnter * call v:lua.require'nvim.spellfile'.get('%s')|set spell",
                     lang,
                 );
                 do_cmdline_cmd((&raw const autocmd_buf).cast());
@@ -1370,8 +1369,7 @@ fn spell_load_lang(lang: *mut c_char) {
                 smsg!(
                     0,
                     gettext(
-                        c"Warning: Cannot find word list \"%s.%s.spl\" or \"%s.ascii.spl\""
-                            .as_ptr(),
+                        c"Warning: Cannot find word list \"%s.%s.spl\" or \"%s.ascii.spl\"",
                     ),
                     lang,
                     spell_enc(),
@@ -1399,7 +1397,7 @@ fn int_wordlist_spl(fname: *mut c_char) {
         vim_snprintf!(
             fname,
             MAXPATHL,
-            c"%s.%s.spl".as_ptr(),
+            c"%s.%s.spl",
             (&raw const spell_priv_st().int_wordlist)
                 .as_ref()
                 .unwrap()
@@ -1773,7 +1771,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                                 } else {
                                     smsg!(
                                         0,
-                                        gettext(c"Warning: region %s not supported".as_ptr()),
+                                        gettext(c"Warning: region %s not supported"),
                                         region,
                                     );
                                 }
@@ -2044,10 +2042,10 @@ pub fn open_spellbuf() -> Box<buf_T> {
             let _ = logmsg!(
                 3,
                 std::ptr::null(),
-                c"open_spellbuf".as_ptr(),
+                c"open_spellbuf",
                 1878,
                 true,
-                c"Error opening a new memline".as_ptr(),
+                c"Error opening a new memline",
             );
         }
         ml_open_file(&mut buf);
@@ -2257,7 +2255,7 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
             spell_priv_st().repl_from.as_ref(),
             spell_priv_st().repl_to.as_ref(),
         ) else {
-            emsg(gettext(c"E752: No previous spell replacement".as_ptr()));
+            emsg(gettext(c"E752: No previous spell replacement"));
             return;
         };
         let repl_from_ptr = repl_from_cstr.as_ptr();
@@ -2269,7 +2267,7 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
         let mut frompat_vec: Vec<c_char> = vec![0; frompatsize];
         let frompat = frompat_vec.as_mut_ptr();
         let frompatlen =
-            vim_snprintf!(frompat, frompatsize, c"\\V\\<%s\\>".as_ptr(), repl_from_ptr,) as usize;
+            vim_snprintf!(frompat, frompatsize, c"\\V\\<%s\\>", repl_from_ptr,) as usize;
         opt_vars().p_ws = 0;
         g_st().sub_nsubs = 0;
         g_st().sub_nlines = 0;
@@ -2318,7 +2316,7 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
         opt_vars().p_ws = save_ws;
         (**curwin.as_ptr()).w_cursor = pos;
         if g_st().sub_nsubs == 0 {
-            semsg!(gettext(c"E753: Not found: %s".as_ptr()), repl_from_ptr);
+            semsg!(gettext(c"E753: Not found: %s"), repl_from_ptr);
         } else {
             do_sub_msg(false);
         }
@@ -2861,7 +2859,7 @@ pub fn spell_dump_compl(
             vim_snprintf!(
                 (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
-                c"/regions=%s".as_ptr(),
+                c"/regions=%s",
                 region_names,
             );
             let _ = ml_append(lnum, (&raw mut g_st().IObuff).cast(), 0, false);
@@ -2878,7 +2876,7 @@ pub fn spell_dump_compl(
                 vim_snprintf!(
                     (&raw mut g_st().IObuff).cast(),
                     IOSIZE,
-                    c"# file: %s".as_ptr(),
+                    c"# file: %s",
                     slang
                         .sl_fname
                         .as_ref()
@@ -3033,7 +3031,7 @@ fn dump_word(
                             vim_snprintf!(
                                 bw_ptr.add(badword_len),
                                 badword.len() - badword_len,
-                                c"%d".as_ptr(),
+                                c"%d",
                                 i + 1,
                             );
                         }
@@ -3047,7 +3045,7 @@ fn dump_word(
                     vim_snprintf!(
                         (&raw mut g_st().IObuff).cast(),
                         IOSIZE,
-                        c"%s\t%d".as_ptr(),
+                        c"%s\t%d",
                         tw,
                         wc_count as c_int,
                     );

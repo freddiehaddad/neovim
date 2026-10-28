@@ -1034,15 +1034,15 @@ pub fn window_layout_locked_err(cmd: cmdidx_T, err: &mut Error) -> bool {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"%s".as_ptr(),
-                    E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER.as_ptr(),
+                    c"%s",
+                    E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER,
                 );
             } else {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"%s".as_ptr(),
-                    e_not_allowed_to_change_window_layout_in_this_autocmd.as_ptr(),
+                    c"%s",
+                    e_not_allowed_to_change_window_layout_in_this_autocmd,
                 );
             }
             return true;
@@ -1055,7 +1055,7 @@ pub fn window_layout_locked_err(cmd: cmdidx_T, err: &mut Error) -> bool {
 pub fn check_can_set_curbuf_disabled() -> bool {
     unsafe {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
-            emsg(gettext(e_winfixbuf_cannot_go_to_buffer.as_ptr()));
+            emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
             return false;
         }
         true
@@ -1066,7 +1066,7 @@ pub fn check_can_set_curbuf_disabled() -> bool {
 pub fn check_can_set_curbuf_forceit(forceit: c_int) -> bool {
     unsafe {
         if forceit == 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
-            emsg(gettext(e_winfixbuf_cannot_go_to_buffer.as_ptr()));
+            emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
             return false;
         }
         true
@@ -1112,7 +1112,7 @@ fn do_window_newwindow(nchar: c_int, Prenum: c_int, cbuf: &mut [c_char; 40]) {
             vim_snprintf!(
                 cbuf.as_mut_ptr(),
                 cbuf.len() - 5,
-                c"%lld".as_ptr(),
+                c"%lld",
                 i64::from(Prenum),
             );
         } else {
@@ -1212,9 +1212,9 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 .is_null()
                 {
                     if Prenum == 0 {
-                        emsg(gettext(e_noalt.as_ptr()));
+                        emsg(gettext(e_noalt));
                     } else {
-                        semsg!(gettext(e_buffer_nr_not_found.as_ptr()), i64::from(Prenum));
+                        semsg!(gettext(e_buffer_nr_not_found), i64::from(Prenum));
                     }
                     return;
                 }
@@ -1271,7 +1271,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     wp2 = (*wp2).w_next;
                 }
                 if wp.is_null() {
-                    emsg(gettext(c"E441: There is no preview window".as_ptr()));
+                    emsg(gettext(c"E441: There is no preview window"));
                 } else {
                     win_goto(wp);
                 }
@@ -1357,7 +1357,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             }
             c if c == b'T' as c_int => {
                 if one_window(*curwin.as_ptr(), ptr::null_mut()) {
-                    msg(gettext(M_ONLYONE.as_ptr()), 0);
+                    msg(gettext(M_ONLYONE), 0);
                 } else {
                     let oldtab = g_st().curtab;
                     let wp = *curwin.as_ptr();
@@ -1595,7 +1595,7 @@ fn cmd_with_count(cmd: &std::ffi::CStr, bufp: *mut c_char, bufsize: usize, Prenu
     unsafe {
         let len = xstrlcpy(bufp, cmd.as_ptr(), bufsize);
         if Prenum > 0 && len < bufsize {
-            vim_snprintf!(bufp.add(len), bufsize - len, c"%lld".as_ptr(), Prenum);
+            vim_snprintf!(bufp.add(len), bufsize - len, c"%lld", Prenum);
         }
     }
 }
@@ -1636,7 +1636,7 @@ pub fn win_set_buf(win: &mut win_T, buf: &mut buf_T, err: &mut Error) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Failed to switch to window %d".as_ptr(),
+                c"Failed to switch to window %d",
                 win_handle,
             );
         }
@@ -1939,7 +1939,7 @@ pub fn check_split_disallowed_err(wp: *const win_T, err: &mut Error) -> bool {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"E242: Can't split a window while closing another".as_ptr(),
+                c"E242: Can't split a window while closing another",
             );
             return false;
         }
@@ -1947,8 +1947,8 @@ pub fn check_split_disallowed_err(wp: *const win_T, err: &mut Error) -> bool {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"%s".as_ptr(),
-                E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER.as_ptr(),
+                c"%s",
+                E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER,
             );
             return false;
         }
@@ -1969,7 +1969,7 @@ pub fn win_split(size: c_int, mut flags: c_int) -> bool {
         flags |= g_st().cmdmod.cmod_split;
         if (flags & WSP_TOP) != 0 && (flags & WSP_BOT) != 0 {
             emsg(gettext(
-                c"E442: Can't split topleft and botright at the same time".as_ptr(),
+                c"E442: Can't split topleft and botright at the same time",
             ));
             return false;
         }
@@ -2023,7 +2023,7 @@ pub fn win_split_ins(
 
         if one_window(g_st().firstwin, ptr::null_mut()) && opt_vars().p_ls == 1 && (*oldwin).w_status_height == 0 {
             if OptInt::from((*oldwin).w_height) <= opt_vars().p_wmh {
-                emsg(gettext(e_noroom.as_ptr()));
+                emsg(gettext(e_noroom));
                 return ptr::null_mut();
             }
             need_status = STATUS_HEIGHT;
@@ -2072,7 +2072,7 @@ pub fn win_split_ins(
                 needed += minwidth;
             }
             if available < needed {
-                emsg(gettext(e_noroom.as_ptr()));
+                emsg(gettext(e_noroom));
                 return ptr::null_mut();
             }
             if new_size == 0 {
@@ -2147,7 +2147,7 @@ pub fn win_split_ins(
                 needed += minheight;
             }
             if available < needed {
-                emsg(gettext(e_noroom.as_ptr()));
+                emsg(gettext(e_noroom));
                 return ptr::null_mut();
             }
             oldwin_height = (*oldwin).w_height;
@@ -2783,7 +2783,7 @@ fn win_rotate(upwards: bool, mut count: c_int) {
         while !frp.is_null() {
             if (*frp).fr_win.is_null() {
                 emsg(gettext(
-                    c"E443: Cannot rotate when another window is split".as_ptr(),
+                    c"E443: Cannot rotate when another window is split",
                 ));
                 return;
             }
@@ -3547,7 +3547,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
         let had_diffmode = (*win).w_onebuf_opt.wo_diff != 0;
 
         if last_window(win) {
-            emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW.as_ptr()));
+            emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW));
             return false;
         }
         if !(*win).w_floating && window_layout_locked(cmdidx_T::CMD_close) {
@@ -3558,13 +3558,13 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
             return false;
         }
         if is_ctx_win(win) {
-            emsg(gettext(e_autocmd_close.as_ptr()));
+            emsg(gettext(e_autocmd_close));
             return false;
         }
         if (*g_st().lastwin).w_floating && one_window(win, ptr::null_mut()) {
             if is_ctx_win(g_st().lastwin) {
                 emsg(gettext(
-                    c"E814: Cannot close window, only autocmd window would remain".as_ptr(),
+                    c"E814: Cannot close window, only autocmd window would remain",
                 ));
                 return false;
             }
@@ -3578,7 +3578,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
                     return false;
                 }
                 if last_window(win) {
-                    emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW.as_ptr()));
+                    emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW));
                     return false;
                 }
             } else {
@@ -3881,7 +3881,7 @@ fn do_autocmd_winclosed(win: *mut win_T) {
         vim_snprintf!(
             winid.as_mut_ptr(),
             winid.len(),
-            c"%d".as_ptr(),
+            c"%d",
             (*win).handle,
         );
         apply_autocmds_win(
@@ -3940,7 +3940,7 @@ pub fn win_close_othertab(
             return false;
         }
         if is_ctx_win(win) {
-            emsg(gettext(e_autocmd_close.as_ptr()));
+            emsg(gettext(e_autocmd_close));
             return false;
         }
 
@@ -4065,7 +4065,7 @@ pub fn win_close_othertab(
                 vim_snprintf!(
                     prev_idx.as_mut_ptr(),
                     NUMBUFLEN,
-                    c"%i".as_ptr(),
+                    c"%i",
                     free_tp_idx,
                 );
                 apply_autocmds(
@@ -4916,7 +4916,7 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
 
         if one_window(g_st().firstwin, ptr::null_mut()) && !(*g_st().lastwin).w_floating {
             if message != 0 && !g_st().autocmd_busy {
-                msg(gettext(M_ONLYONE.as_ptr()), 0);
+                msg(gettext(M_ONLYONE), 0);
             }
             return;
         }
@@ -4983,7 +4983,7 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
                 wp2 = (*wp2).w_next;
             }
             if has_non_pinned {
-                emsg(gettext(c"E445: Other window contains changes".as_ptr()));
+                emsg(gettext(c"E445: Other window contains changes"));
             }
         }
     }
@@ -5713,7 +5713,7 @@ pub fn tabpage_move(nr: c_int) {
 
         if has_event(EVENT_TABMOVED) {
             let mut prev_idx = [0 as c_char; NUMBUFLEN];
-            vim_snprintf!(prev_idx.as_mut_ptr(), NUMBUFLEN, c"%i".as_ptr(), old_nr);
+            vim_snprintf!(prev_idx.as_mut_ptr(), NUMBUFLEN, c"%i", old_nr);
             let mut data_items = [
                 KeyValuePair {
                     key: cstr_as_string(c"tabnr_old".as_ptr()),
@@ -6654,7 +6654,7 @@ fn check_window_scroll_resize(
                 let key_len = vim_snprintf!(
                     winid.as_mut_ptr(),
                     winid.len(),
-                    c"%d".as_ptr(),
+                    c"%d",
                     (*wp).handle,
                 );
                 let _ = key_len;
@@ -6760,7 +6760,7 @@ pub fn may_trigger_win_scrolled_resized() {
             vim_snprintf!(
                 resize_winid.as_mut_ptr(),
                 resize_winid.len(),
-                c"%d".as_ptr(),
+                c"%d",
                 (*resize_win).handle,
             );
             set_bufref(&mut resize_bufref, (*resize_win).w_buffer);
@@ -6774,7 +6774,7 @@ pub fn may_trigger_win_scrolled_resized() {
             vim_snprintf!(
                 scroll_winid.as_mut_ptr(),
                 scroll_winid.len(),
-                c"%d".as_ptr(),
+                c"%d",
                 (*scroll_win).handle,
             );
             set_bufref(&mut scroll_bufref, (*scroll_win).w_buffer);
@@ -7231,7 +7231,7 @@ pub fn did_set_winminheight(_args: &mut optset_T) -> *const c_char {
             }
             opt_vars().p_wmh -= 1;
             if first {
-                emsg(gettext(e_noroom.as_ptr()));
+                emsg(gettext(e_noroom));
                 first = false;
             }
         }
@@ -7249,7 +7249,7 @@ pub fn did_set_winminwidth(_args: &mut optset_T) -> *const c_char {
             }
             opt_vars().p_wmw -= 1;
             if first {
-                emsg(gettext(e_noroom.as_ptr()));
+                emsg(gettext(e_noroom));
                 first = false;
             }
         }
@@ -7754,7 +7754,7 @@ pub fn command_height() {
 
         while opt_vars().p_ch > OptInt::from(old_p_ch) && win_st().command_frame_height {
             if frp.is_null() {
-                emsg(gettext(e_noroom.as_ptr()));
+                emsg(gettext(e_noroom));
                 opt_vars().p_ch = OptInt::from(old_p_ch);
                 break;
             }
@@ -7855,13 +7855,13 @@ fn resize_frame_for_status(fr: &mut frame_T) -> bool {
         let fp = find_horizontally_resizable_frame(fr);
 
         if fp.is_null() {
-            emsg(gettext(e_noroom.as_ptr()));
+            emsg(gettext(e_noroom));
             false
         } else if !ptr::eq(fp, fr) {
             let old_height = fr.fr_height;
             frame_setheight(fr, old_height + 1, false);
             if fr.fr_height == old_height {
-                emsg(gettext(e_noroom.as_ptr()));
+                emsg(gettext(e_noroom));
                 return false;
             }
             win_comp_pos();
@@ -7877,7 +7877,7 @@ fn resize_frame_for_winbar(fr: &mut frame_T) -> bool {
     let old_height = fr.fr_height;
         frame_setheight(fr, old_height + 1, false);
         if fr.fr_height == old_height {
-            emsg(gettext(e_noroom.as_ptr()));
+            emsg(gettext(e_noroom));
             return false;
         }
         win_comp_pos();
@@ -7931,7 +7931,7 @@ pub fn set_winbar_win(wp: *mut win_T, make_room: bool, valid_cursor: bool) -> c_
         if (*wp).w_winbar_height != winbar_height {
             if winbar_height == 1 && (*wp).w_view_height <= 1 {
                 if (*wp).w_floating {
-                    emsg(gettext(e_noroom.as_ptr()));
+                    emsg(gettext(e_noroom));
                     return NOTDONE;
                 } else if !make_room || !resize_frame_for_winbar(&mut *(*wp).w_frame) {
                     return FAIL;

@@ -139,10 +139,10 @@ unsafe extern "C" fn read_cb(uvstream: *mut uv_stream_t, cnt: isize, _buf: *cons
                     logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
-                        c"read_cb".as_ptr(),
+                        c"read_cb",
                         115,
                         true,
-                        c"closing Stream (%p): %s (%s)".as_ptr(),
+                        c"closing Stream (%p): %s (%s)",
                         stream,
                         uv_err_name(err_code),
                         uv_strerror(err_code),

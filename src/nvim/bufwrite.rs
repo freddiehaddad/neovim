@@ -333,10 +333,10 @@ fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> bool {
             g_st().msg_scroll = 1;
             g_st().msg_silent = 0;
             msg(
-                gettext(c"WARNING: The file has been changed since reading it!!!".as_ptr()),
+                gettext(c"WARNING: The file has been changed since reading it!!!"),
                 HLF_E,
             );
-            if ask_yesno(gettext(c"Do you really want to write to it".as_ptr())) == b'n' as c_int {
+            if ask_yesno(gettext(c"Do you really want to write to it")) == b'n' as c_int {
                 return false;
             }
             g_st().msg_scroll = 0;
@@ -479,7 +479,7 @@ fn buf_write_do_autocmds(
             g_st().msg_scroll = msg_save;
             if nofile_err {
                 let _ = semsg!(
-                    gettext(c"E676: No matching autocommands for buftype=%s buffer".as_ptr()),
+                    gettext(c"E676: No matching autocommands for buftype=%s buffer"),
                     (*g_st().curbuf).b_p_bt,
                 );
             }
@@ -510,7 +510,7 @@ fn buf_write_do_autocmds(
             }
             if !aborting() {
                 emsg(gettext(
-                    c"E203: Autocommands deleted or unloaded buffer to be written".as_ptr(),
+                    c"E203: Autocommands deleted or unloaded buffer to be written",
                 ));
             }
             return FAIL;
@@ -527,7 +527,7 @@ fn buf_write_do_autocmds(
                     g_st().no_wait_return -= 1;
                     g_st().msg_scroll = msg_save;
                     emsg(gettext(
-                        c"E204: Autocommand changed number of lines in unexpected way".as_ptr(),
+                        c"E204: Autocommand changed number of lines in unexpected way",
                     ));
                     return FAIL;
                 }
@@ -639,7 +639,7 @@ fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
                 let _ = vim_snprintf!(
                     errmsg.as_mut_ptr(),
                     IOSIZE,
-                    c"%s: %s%s: %s".as_ptr(),
+                    c"%s: %s%s: %s",
                     num.as_ptr(),
                     (&raw const g_st().IObuff).cast::<c_char>(),
                     msg_ptr,
@@ -649,7 +649,7 @@ fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
                 let _ = vim_snprintf!(
                     errmsg.as_mut_ptr(),
                     IOSIZE,
-                    c"%s: %s%s".as_ptr(),
+                    c"%s: %s%s",
                     num.as_ptr(),
                     (&raw const g_st().IObuff).cast::<c_char>(),
                     msg_ptr,
@@ -698,7 +698,7 @@ fn get_fileinfo_os(
             if !s_isreg(file_info_old.stat.st_mode) {
                 if s_isdir(file_info_old.stat.st_mode) {
                     {
-                        *err = set_err_num(c"E502", gettext(c"is a directory".as_ptr()));
+                        *err = set_err_num(c"E502", gettext(c"is a directory"));
                     }
                     return false;
                 }
@@ -706,7 +706,7 @@ fn get_fileinfo_os(
                     {
                         *err = set_err_num(
                             c"E503",
-                            gettext(c"is not a file or writable device".as_ptr()),
+                            gettext(c"is not a file or writable device"),
                         );
                     }
                     return false;
@@ -740,7 +740,7 @@ fn get_fileinfo_os(
             {
                 *err = set_err_num(
                     c"E503",
-                    gettext(c"is not a file or writable device".as_ptr()),
+                    gettext(c"is not a file or writable device"),
                 );
             }
             return false;
@@ -755,7 +755,7 @@ fn get_fileinfo_os(
                 *newfile = true;
             } else if os_isdir(fname) {
                 {
-                    *err = set_err_num(c"E502", gettext(c"is a directory".as_ptr()));
+                    *err = set_err_num(c"E502", gettext(c"is a directory"));
                 }
                 return false;
             }
@@ -802,12 +802,12 @@ fn get_fileinfo(
                 if !vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null() {
                     *err = set_err_num(
                         c"E504",
-                        gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')".as_ptr()),
+                        gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
                     );
                 } else {
                     *err = set_err_num(
                         c"E505",
-                        gettext(c"is read-only (add ! to override)".as_ptr()),
+                        gettext(c"is read-only (add ! to override)"),
                     );
                 }
                 return false;
@@ -838,7 +838,7 @@ pub fn buf_get_backup_name(
             if ret != 0 {
                 let _ = semsg!(
                     gettext(
-                        c"E303: Unable to create directory \"%s\" for backup file: %s".as_ptr(),
+                        c"E303: Unable to create directory \"%s\" for backup file: %s",
                     ),
                     failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                     uv_strerror(ret),
@@ -1007,7 +1007,7 @@ fn buf_write_make_backup(
                         let _ = os_remove(bk_ptr);
                         if os_copy(fname, bk_ptr, UV_FS_COPYFILE_FICLONE) != 0 {
                             *err = set_err(gettext(
-                                c"E509: Cannot create backup file (add ! to override)".as_ptr(),
+                                c"E509: Cannot create backup file (add ! to override)",
                             ));
                             continue;
                         }
@@ -1043,7 +1043,7 @@ fn buf_write_make_backup(
 
             if backupp.is_none() && err.msg.is_none() {
                 *err = set_err(gettext(
-                    c"E509: Cannot create backup file (add ! to override)".as_ptr(),
+                    c"E509: Cannot create backup file (add ! to override)",
                 ));
             }
             if (some_error || err.msg.is_some()) && !forceit {
@@ -1054,7 +1054,7 @@ fn buf_write_make_backup(
             if file_readonly && !vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null() {
                 *err = set_err_num(
                     c"E504",
-                    gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')".as_ptr()),
+                    gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
                 );
                 return false;
             }
@@ -1097,7 +1097,7 @@ fn buf_write_make_backup(
             }
             if backupp.is_none() && !forceit {
                 *err = set_err(gettext(
-                    c"E510: Can't make backup file (add ! to override)".as_ptr(),
+                    c"E510: Can't make backup file (add ! to override)",
                 ));
                 return false;
             }
@@ -1131,14 +1131,14 @@ pub fn buf_write(
             return FAIL;
         }
         if (*buf).b_ml.ml_mfp.is_none() {
-            emsg(gettext(e_empty_buffer.as_ptr()));
+            emsg(gettext(e_empty_buffer));
             return FAIL;
         }
         if check_secure() {
             return FAIL;
         }
         if crate::memory::cstr_len(fname) >= MAXPATHL {
-            emsg(gettext(e_longname.as_ptr()));
+            emsg(gettext(e_longname));
             return FAIL;
         }
 
@@ -1365,7 +1365,7 @@ pub fn buf_write(
                         };
                         ml_preserve(&mut *buf, false, fsync_opt);
                         if g_st().got_int {
-                            err = set_err(gettext(e_interr.as_ptr()));
+                            err = set_err(gettext(e_interr));
                             break 'restore_backup;
                         }
                     }
@@ -1409,7 +1409,7 @@ pub fn buf_write(
                                 Some(ref wf) => wfname = wf.as_ptr().cast_mut(),
                                 None => {
                                     err = set_err(gettext(
-                                        c"E214: Can't find temp file for writing".as_ptr(),
+                                        c"E214: Can't find temp file for writing",
                                     ));
                                     break 'restore_backup;
                                 }
@@ -1422,8 +1422,7 @@ pub fn buf_write(
                     {
                         if !forceit {
                             err = set_err(gettext(
-                                c"E213: Cannot convert (add ! to write without conversion)"
-                                    .as_ptr(),
+                                c"E213: Cannot convert (add ! to write without conversion)",
                             ));
                             break 'restore_backup;
                         }
@@ -1476,14 +1475,12 @@ pub fn buf_write(
                                                 ))
                                         {
                                             err = set_err(gettext(
-                                                c"E166: Can't open linked file for writing"
-                                                    .as_ptr(),
+                                                c"E166: Can't open linked file for writing",
                                             ));
                                         } else {
                                             err = set_err_arg(
                                                 gettext(
-                                                    c"E212: Can't open file for writing: %s"
-                                                        .as_ptr(),
+                                                    c"E212: Can't open file for writing: %s",
                                                 ),
                                                 fd,
                                             );
@@ -1512,7 +1509,7 @@ pub fn buf_write(
                                     {
                                         err = set_err_arg(
                                             gettext(
-                                                c"E212: Can't open file for writing: %s".as_ptr(),
+                                                c"E212: Can't open file for writing: %s",
                                             ),
                                             fd,
                                         );
@@ -1677,7 +1674,7 @@ pub fn buf_write(
                                     );
                                     if buf_get_changedtick(&*buf) != write_tick {
                                         err = set_err(gettext(
-                                            e_buffer_changed_unexpectedly.as_ptr(),
+                                            e_buffer_changed_unexpectedly,
                                         ));
                                         end = 0;
                                         break;
@@ -1756,7 +1753,7 @@ pub fn buf_write(
                         let close_err = os_close(fd);
                         if close_err != 0 {
                             err =
-                                set_err_arg(gettext(c"E512: Close failed: %s".as_ptr()), close_err);
+                                set_err_arg(gettext(c"E512: Close failed: %s"), close_err);
                             end = 0;
                         }
 
@@ -1788,8 +1785,7 @@ pub fn buf_write(
                             if write_info.bw_conv_error != 0 {
                                 if write_info.bw_conv_error_lnum == 0 {
                                     err = set_err(gettext(
-                                        c"E513: Write error, conversion failed (make 'fenc' empty to override)"
-                                            .as_ptr(),
+                                        c"E513: Write error, conversion failed (make 'fenc' empty to override)",
                                     ));
                                 } else {
                                     let mut alloc_msg: Vec<c_char> = vec![0; 300];
@@ -1797,8 +1793,7 @@ pub fn buf_write(
                                         alloc_msg.as_mut_ptr(),
                                         300,
                                         gettext(
-                                            c"E513: Write error, conversion failed in line %d (make 'fenc' empty to override)"
-                                                .as_ptr(),
+                                            c"E513: Write error, conversion failed in line %d (make 'fenc' empty to override)",
                                         ),
                                         write_info.bw_conv_error_lnum,
                                     );
@@ -1809,10 +1804,10 @@ pub fn buf_write(
                                     };
                                 }
                             } else if g_st().got_int {
-                                err = set_err(gettext(e_interr.as_ptr()));
+                                err = set_err(gettext(e_interr));
                             } else {
                                 err = set_err(gettext(
-                                    c"E514: Write error (file system full?)".as_ptr(),
+                                    c"E514: Write error (file system full?)",
                                 ));
                             }
                         }
@@ -1820,7 +1815,7 @@ pub fn buf_write(
                         if let Some(ref bk) = backup {
                             if backup_copy {
                                 if g_st().got_int {
-                                    msg(gettext(e_interr.as_ptr()), 0);
+                                    msg(gettext(e_interr), 0);
                                     ui_flush();
                                 }
                                 if os_copy(bk.as_ptr(), fname, UV_FS_COPYFILE_FICLONE) == 0 {
@@ -1845,32 +1840,32 @@ pub fn buf_write(
                         add_quoted_fname(iobuf, IOSIZE, buf, fname);
                         let mut insert_space = false;
                         if write_info.bw_conv_error != 0 {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" CONVERSION ERROR".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" CONVERSION ERROR"), _dsize - _dlen); };
                             insert_space = true;
                             if write_info.bw_conv_error_lnum != 0 {
                                 let _ = vim_snprintf_add!(
                                     iobuf,
                                     IOSIZE,
-                                    gettext(c" in line %lld;".as_ptr()),
+                                    gettext(c" in line %lld;"),
                                     i64::from(write_info.bw_conv_error_lnum),
                                 );
                             }
                         } else if notconverted {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[NOT converted]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[NOT converted]"), _dsize - _dlen); };
                             insert_space = true;
                         } else if converted {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[converted]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[converted]"), _dsize - _dlen); };
                             insert_space = true;
                         }
                         if device {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[Device]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[Device]"), _dsize - _dlen); };
                             insert_space = true;
                         } else if newfile {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[New]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[New]"), _dsize - _dlen); };
                             insert_space = true;
                         }
                         if no_eol {
-                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[noeol]".as_ptr()), _dsize - _dlen); };
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[noeol]"), _dsize - _dlen); };
                             insert_space = true;
                         }
                         if msg_add_fileformat(fileformat) {
@@ -1880,15 +1875,15 @@ pub fn buf_write(
                         if !shortmess(kShmWrite) {
                             if append {
                                 { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
-                                        gettext(c" [a]".as_ptr())
+                                        gettext(c" [a]")
                                     } else {
-                                        gettext(c" appended".as_ptr())
+                                        gettext(c" appended")
                                     }, _dsize - _dlen); };
                             } else {
                                 { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
-                                        gettext(c" [w]".as_ptr())
+                                        gettext(c" [w]")
                                     } else {
-                                        gettext(c" written".as_ptr())
+                                        gettext(c" written")
                                     }, _dsize - _dlen); };
                             }
                         }
@@ -1951,7 +1946,7 @@ pub fn buf_write(
                             match org {
                                 None => {
                                     emsg(gettext(
-                                        c"E205: Patchmode: can't save original file".as_ptr(),
+                                        c"E205: Patchmode: can't save original file",
                                     ));
                                 }
                                 Some(ref org) if !os_path_exists(org.as_ptr()) => {
@@ -1979,7 +1974,7 @@ pub fn buf_write(
                             };
                             if empty_fd < 0 {
                                 emsg(gettext(
-                                    c"E206: Patchmode: can't touch empty original file".as_ptr(),
+                                    c"E206: Patchmode: can't touch empty original file",
                                 ));
                             } else {
                                 let _ = close(empty_fd);
@@ -1995,7 +1990,7 @@ pub fn buf_write(
                         && write_info.bw_conv_error == 0
                         && os_remove(bk.as_ptr()) != 0
                     {
-                        emsg(gettext(c"E207: Can't delete backup file".as_ptr()));
+                        emsg(gettext(c"E207: Can't delete backup file"));
                     }
 
                     break 'nofail;
@@ -2049,13 +2044,13 @@ pub fn buf_write(
             retval = FAIL;
             if end == 0 {
                 msg_puts_hl(
-                    gettext(c"\nWARNING: Original file may be lost or damaged\n".as_ptr()),
+                    gettext(c"\nWARNING: Original file may be lost or damaged\n"),
                     HLF_E,
                     true,
                 );
                 msg_puts_hl(
                     gettext(
-                        c"don't quit the editor until the file is successfully written!".as_ptr(),
+                        c"don't quit the editor until the file is successfully written!",
                     ),
                     HLF_E,
                     true,

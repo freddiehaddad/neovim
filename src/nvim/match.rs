@@ -144,7 +144,7 @@ fn match_add(
         }
         if id < -1 || id == 0 {
             semsg!(
-                gettext(c"E799: Invalid ID: %lld (must be greater than or equal to 1)".as_ptr()),
+                gettext(c"E799: Invalid ID: %lld (must be greater than or equal to 1)"),
                 i64::from(id),
             );
             return -1;
@@ -155,7 +155,7 @@ fn match_add(
         } else {
             if wp.w_match_head.iter().any(|cur| cur.mit_id == id) {
                 semsg!(
-                    gettext(c"E801: ID already taken: %lld".as_ptr()),
+                    gettext(c"E801: ID already taken: %lld"),
                     i64::from(id),
                 );
                 return -1;
@@ -174,7 +174,7 @@ fn match_add(
         if !pat.is_null() {
             regprog = vim_regcomp(pat, RE_MAGIC);
             if regprog.is_null() {
-                semsg!(gettext(e_invarg2.as_ptr()), pat);
+                semsg!(gettext(e_invarg2), pat);
                 return -1;
             }
         }
@@ -227,7 +227,7 @@ fn match_add(
                     let mut subli = tv_list_first(subl);
                     if subli.is_null() {
                         semsg!(
-                            gettext(c"E5030: Empty list at position %d".as_ptr()),
+                            gettext(c"E5030: Empty list at position %d"),
                             tv_list_idx_of_item(pos_list, li),
                         );
                         failed = true;
@@ -281,7 +281,7 @@ fn match_add(
                     m.mit_pos[i].len = 0;
                 } else {
                     semsg!(
-                        gettext(c"E5031: List or number required at position %d".as_ptr()),
+                        gettext(c"E5031: List or number required at position %d"),
                         tv_list_idx_of_item(pos_list, li),
                     );
                     failed = true;
@@ -329,7 +329,7 @@ fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
             if perr {
                 semsg!(
                     gettext(
-                        c"E802: Invalid ID: %lld (must be greater than or equal to 1)".as_ptr(),
+                        c"E802: Invalid ID: %lld (must be greater than or equal to 1)",
                     ),
                     i64::from(id),
                 );
@@ -338,7 +338,7 @@ fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
         }
         let Some(idx) = wp.w_match_head.iter().position(|cur| cur.mit_id == id) else {
             if perr {
-                semsg!(gettext(c"E803: ID not found: %lld".as_ptr()), i64::from(id));
+                semsg!(gettext(c"E803: ID not found: %lld"), i64::from(id));
             }
             return -1;
         };
@@ -927,7 +927,7 @@ fn matchadd_dict_arg(
 ) -> bool {
     unsafe {
         if tv.v_type != VarType::VAR_DICT {
-            emsg(gettext(e_dictreq.as_ptr()));
+            emsg(gettext(e_dictreq));
             return false;
         }
 
@@ -943,7 +943,7 @@ fn matchadd_dict_arg(
 
         *win = find_win_by_nr_or_id(&(*di).di_tv);
         if (*win).is_null() {
-            emsg(gettext(e_invalwindow.as_ptr()));
+            emsg(gettext(e_invalwindow));
             return false;
         }
 
@@ -986,7 +986,7 @@ pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                     }
                     let mut buf = [0 as c_char; 30];
                     let len =
-                        vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), (i + 1) as c_int);
+                        vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", (i + 1) as c_int);
                     let _ = len;
                     tv_dict_add_list(dict, std::ffi::CStr::from_ptr(buf.as_ptr()), l);
                 }
@@ -1026,7 +1026,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         if argvars[0].v_type != VarType::VAR_LIST {
-            emsg(gettext(e_listreq.as_ptr()));
+            emsg(gettext(e_listreq));
             return;
         }
         if win.is_null() {
@@ -1040,7 +1040,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             if (*li).li_tv.v_type != VarType::VAR_DICT || (*li).li_tv.vval.v_dict().is_null() {
                 semsg!(
                     gettext(
-                        c"E474: List item %d is either not a dictionary or an empty one".as_ptr(),
+                        c"E474: List item %d is either not a dictionary or an empty one",
                     ),
                     li_idx,
                 );
@@ -1054,7 +1054,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 || tv_dict_find(d, c"id".as_ptr(), 2).is_null()
             {
                 semsg!(
-                    gettext(c"E474: List item %d is missing one of the required keys".as_ptr()),
+                    gettext(c"E474: List item %d is missing one of the required keys"),
                     li_idx,
                 );
                 return;
@@ -1079,7 +1079,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 i = 1;
                 while i < 9 {
                     let mut buf = [0 as c_char; 30];
-                    vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), i);
+                    vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", i);
                     let pos_di = tv_dict_find(d, buf.as_ptr(), -1);
                     if !pos_di.is_null() {
                         if (*pos_di).di_tv.v_type != VarType::VAR_LIST {
@@ -1159,7 +1159,7 @@ pub fn f_matchadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         }
         if (1..=3).contains(&id) {
             semsg!(
-                gettext(c"E798: ID is reserved for \":match\": %d".as_ptr()),
+                gettext(c"E798: ID is reserved for \":match\": %d"),
                 id,
             );
             return;
@@ -1183,8 +1183,8 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
         if argvars[1].v_type != VarType::VAR_LIST {
             semsg!(
-                gettext(e_listarg.as_ptr()),
-                c"matchaddpos()".as_ptr(),
+                gettext(e_listarg),
+                c"matchaddpos()",
             );
             return;
         }
@@ -1217,7 +1217,7 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
         if id == 1 || id == 2 {
             semsg!(
-                gettext(c"E798: ID is reserved for \"match\": %d".as_ptr()),
+                gettext(c"E798: ID is reserved for \"match\": %d"),
                 id,
             );
             return;
@@ -1307,7 +1307,7 @@ pub fn ex_match(eap: &mut exarg_T) {
                 }
                 p = skipwhite(p);
                 if *p == NUL {
-                    semsg!(gettext(e_invarg2.as_ptr()), arg);
+                    semsg!(gettext(e_invarg2), arg);
                     return;
                 }
                 end = skip_regexp(p.add(1), c_int::from(*p as u8), 1);
@@ -1317,7 +1317,7 @@ pub fn ex_match(eap: &mut exarg_T) {
                         return;
                     }
                     if *end != *p {
-                        semsg!(gettext(e_invarg2.as_ptr()), p);
+                        semsg!(gettext(e_invarg2), p);
                         return;
                     }
 

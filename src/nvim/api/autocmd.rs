@@ -336,7 +336,7 @@ fn clear_autocmd(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Failed to clear autocmd".as_ptr(),
+                c"Failed to clear autocmd",
             );
             return false;
         }
@@ -512,7 +512,7 @@ pub fn nvim_get_autocmds(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
-                            c"Too many patterns (maximum of %d)".as_ptr(),
+                            c"Too many patterns (maximum of %d)",
                             AUCMD_MAX_PATTERNS as c_int,
                         );
                         break 'body;
@@ -557,7 +557,7 @@ pub fn nvim_get_autocmds(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Too many buffers (maximum of %d)".as_ptr(),
+                        c"Too many buffers (maximum of %d)",
                         AUCMD_MAX_PATTERNS as c_int,
                     );
                     break 'body;
@@ -921,8 +921,8 @@ pub fn nvim_create_autocmd(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
-                    c"No non-empty patterns specified".as_ptr(),
+                    c"%s",
+                    c"No non-empty patterns specified",
                 );
                 break 'body;
             }
@@ -970,7 +970,7 @@ pub fn nvim_create_autocmd(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"Failed to set autocmd".as_ptr(),
+                            c"Failed to set autocmd",
                         );
                         break 'body;
                     }
@@ -999,7 +999,7 @@ pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Failed to delete autocmd".as_ptr(),
+                c"Failed to delete autocmd",
             );
         }
 }
@@ -1138,7 +1138,7 @@ pub fn nvim_create_augroup(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Failed to set augroup".as_ptr(),
+                c"Failed to set augroup",
             );
             g_st().current_sctx = save_current_sctx;
             return -1;

@@ -320,25 +320,25 @@ pub fn unpack(
         api_set_error!(
             err,
             ErrorType::kErrorTypeException,
-            c"object was too deep to unpack".as_ptr(),
+            c"object was too deep to unpack",
         );
     } else if result == MPACK_EOF {
         api_set_error!(
             err,
             ErrorType::kErrorTypeException,
-            c"incomplete msgpack string".as_ptr(),
+            c"incomplete msgpack string",
         );
     } else if result == MPACK_ERROR {
         api_set_error!(
             err,
             ErrorType::kErrorTypeException,
-            c"invalid msgpack string".as_ptr(),
+            c"invalid msgpack string",
         );
     } else if result == MPACK_OK && size != 0 {
         api_set_error!(
             err,
             ErrorType::kErrorTypeException,
-            c"trailing data in msgpack string".as_ptr(),
+            c"trailing data in msgpack string",
         );
     }
 
@@ -443,7 +443,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
                     api_set_error!(
                         &mut p.unpack_error,
                         ErrorType::kErrorTypeValidation,
-                        c"failed to decode msgpack".as_ptr(),
+                        c"failed to decode msgpack",
                     );
                     p.state = -1;
                     return false;
@@ -510,7 +510,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
             api_set_error!(
                 &mut p.unpack_error,
                 ErrorType::kErrorTypeValidation,
-                c"failed to decode msgpack".as_ptr(),
+                c"failed to decode msgpack",
             );
             p.state = -1;
         }
@@ -551,7 +551,7 @@ pub fn unpacker_advance(p: &mut Unpacker) -> bool {
                 api_set_error!(
                     &mut p.unpack_error,
                     ErrorType::kErrorTypeValidation,
-                    c"failed to parse redraw event".as_ptr(),
+                    c"failed to parse redraw event",
                 );
             }
             return false;
@@ -582,7 +582,7 @@ pub fn unpacker_advance(p: &mut Unpacker) -> bool {
                 api_set_error!(
                     &mut p.unpack_error,
                     ErrorType::kErrorTypeValidation,
-                    c"failed to parse msgpack".as_ptr(),
+                    c"failed to parse msgpack",
                 );
                 p.state = -1;
                 return false;

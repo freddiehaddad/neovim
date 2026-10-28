@@ -229,7 +229,7 @@ pub fn os_expand_wildcards(
         }
 
         let Some(tempname_cstr) = vim_tempname() else {
-            emsg(gettext(e_notmp.as_ptr()));
+            emsg(gettext(e_notmp));
             return false;
         };
         let tempname = tempname_cstr.as_ptr();
@@ -402,7 +402,7 @@ pub fn os_expand_wildcards(
             if (flags & EW_SILENT) == 0 {
                 msg_putchar(b'\n' as c_int);
                 g_st().cmdline_row = g_st().Rows - 1;
-                msg(gettext(e_wildexpand.as_ptr()), 0);
+                msg(gettext(e_wildexpand), 0);
                 msg_start();
             }
 
@@ -419,7 +419,7 @@ pub fn os_expand_wildcards(
         let fd = fopen(tempname, c"rb".as_ptr());
         if fd.is_null() {
             if (flags & EW_SILENT) == 0 {
-                msg(gettext(e_wildexpand.as_ptr()), 0);
+                msg(gettext(e_wildexpand), 0);
                 msg_start();
             }
             if (flags & EW_NOTFOUND) != 0 {
@@ -446,7 +446,7 @@ pub fn os_expand_wildcards(
         fclose(fd);
         os_remove(tempname);
         if readlen != len {
-            semsg!(gettext(e_cant_read_file_str.as_ptr()), tempname);
+            semsg!(gettext(e_cant_read_file_str), tempname);
             return false;
         }
         drop(tempname_cstr);
@@ -691,7 +691,7 @@ pub fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> 
             if !ui_has(kUIMessages) {
                 msg_putchar(b'\n' as c_int);
             }
-            msg_puts(gettext(c"shell returned ".as_ptr()));
+            msg_puts(gettext(c"shell returned "));
             msg_outnum(exitcode);
         }
 
@@ -710,7 +710,7 @@ pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -
             verbose_enter();
             smsg!(
                 0,
-                gettext(c"Executing command: \"%s\"".as_ptr()),
+                gettext(c"Executing command: \"%s\""),
                 if cmd.is_null() { opt_vars().p_sh } else { cmd },
             );
             if !ui_has(kUIMessages) {
@@ -724,7 +724,7 @@ pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -
         }
 
         let retval = if *opt_vars().p_sh == NUL {
-            emsg(gettext(e_shellempty.as_ptr()));
+            emsg(gettext(e_shellempty));
             -1
         } else {
             tag_freematch();
@@ -752,7 +752,7 @@ pub fn get_cmd_output(
         }
 
         let Some(tempname_cstr) = vim_tempname() else {
-            emsg(gettext(e_notmp.as_ptr()));
+            emsg(gettext(e_notmp));
             return None;
         };
         let tempname = tempname_cstr.as_ptr().cast_mut();
@@ -774,7 +774,7 @@ pub fn get_cmd_output(
 
         'done: {
             if fd.is_null() || fseek(fd, 0, SEEK_END) == -1 {
-                semsg!(gettext(e_cannot_read_from_str_2.as_ptr()), tempname);
+                semsg!(gettext(e_cannot_read_from_str_2), tempname);
                 if !fd.is_null() {
                     fclose(fd);
                 }
@@ -782,7 +782,7 @@ pub fn get_cmd_output(
             }
             let len_l = ftell(fd);
             if len_l == -1 || fseek(fd, 0, SEEK_SET) == -1 {
-                semsg!(gettext(e_cannot_read_from_str_2.as_ptr()), tempname);
+                semsg!(gettext(e_cannot_read_from_str_2), tempname);
                 fclose(fd);
                 break 'done;
             }
@@ -792,7 +792,7 @@ pub fn get_cmd_output(
             let i = fread(buffer.as_mut_ptr().cast(), 1, len, fd);
             fclose(fd);
             if i != len {
-                semsg!(gettext(e_cant_read_file_str.as_ptr()), tempname);
+                semsg!(gettext(e_cant_read_file_str), tempname);
             } else {
                 for b in &mut buffer {
                     if *b == 0 {
@@ -880,7 +880,7 @@ fn do_os_system(
             if status != 0 {
                 loop_poll_events(&mut *mloop, 0);
                 if !silent {
-                    msg_puts(gettext(c"\nshell failed to start: ".as_ptr()));
+                    msg_puts(gettext(c"\nshell failed to start: "));
                     msg_outtrans(uv_strerror(status), 0, false);
                     msg_puts(c": ".as_ptr());
                     msg_outtrans(prog.as_ptr(), 0, false);
@@ -1232,7 +1232,7 @@ pub(crate) fn shell_write_cb(stream: &mut Stream, status: c_int) {
     unsafe {
         if status != 0 {
             msg_schedule_semsg!(
-                gettext(c"E5677: Error writing input to shell-command: %s".as_ptr()),
+                gettext(c"E5677: Error writing input to shell-command: %s"),
                 uv_err_name(status),
             );
         }

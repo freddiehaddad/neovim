@@ -247,10 +247,10 @@ pub fn os_dyn_conpty_init() -> TriState {
             logmsg!(
                 LOGLVL_INF,
                 std::ptr::null(),
-                c"os_dyn_conpty_init".as_ptr(),
+                c"os_dyn_conpty_init",
                 31,
                 true,
-                c"Loaded new ConPTY from conpty.dll".as_ptr(),
+                c"Loaded new ConPTY from conpty.dll",
             );
         } else {
             uv_dlclose(&mut conpty_lib);
@@ -261,10 +261,10 @@ pub fn os_dyn_conpty_init() -> TriState {
             logmsg!(
                 LOGLVL_INF,
                 std::ptr::null(),
-                c"os_dyn_conpty_init".as_ptr(),
+                c"os_dyn_conpty_init",
                 40,
                 true,
-                c"Loaded system ConPTY from kernel32.dll".as_ptr(),
+                c"Loaded system ConPTY from kernel32.dll",
             );
         }
 
@@ -416,10 +416,10 @@ pub fn os_conpty_init(
         logmsg!(
             LOGLVL_ERR,
             std::ptr::null(),
-            c"os_conpty_init".as_ptr(),
+            c"os_conpty_init",
             139,
             true,
-            c"os_conpty_init:%s : error code: %d".as_ptr(),
+            c"os_conpty_init:%s : error code: %d",
             emsg,
             uv_translate_sys_error(GetLastError() as c_int),
         );
@@ -483,10 +483,10 @@ pub fn os_conpty_set_size(conpty_object: &conpty_t, width: u16, height: u16) {
             logmsg!(
                 LOGLVL_ERR,
                 std::ptr::null(),
-                c"os_conpty_set_size".as_ptr(),
+                c"os_conpty_set_size",
                 177,
                 true,
-                c"ResizePseudoConsole failed: error code: %d".as_ptr(),
+                c"ResizePseudoConsole failed: error code: %d",
                 uv_translate_sys_error(GetLastError() as c_int),
             );
         }

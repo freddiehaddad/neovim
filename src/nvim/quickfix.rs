@@ -837,7 +837,7 @@ fn efmpat_to_regpat(
     unsafe {
         if efminfo.addr[idx] != 0 {
             semsg!(
-                gettext(c"E372: Too many %%%c in format string".as_ptr()),
+                gettext(c"E372: Too many %%%c in format string"),
                 c_int::from(*efmpat),
             );
             return ptr::null_mut();
@@ -849,7 +849,7 @@ fn efmpat_to_regpat(
                 && vim_strchr(c"OPQ".as_ptr(), c_int::from(efminfo.prefix as u8)).is_null())
         {
             semsg!(
-                gettext(c"E373: Unexpected %%%c in format string".as_ptr()),
+                gettext(c"E373: Unexpected %%%c in format string"),
                 c_int::from(*efmpat),
             );
             return ptr::null_mut();
@@ -924,7 +924,7 @@ fn scanf_fmt_to_regpat(
                         c != b']' as c_char
                     } {}
                     if efmp == end {
-                        emsg(gettext(c"E374: Missing ] in format string".as_ptr()));
+                        emsg(gettext(c"E374: Missing ] in format string"));
                         return ptr::null_mut();
                     }
                 }
@@ -939,7 +939,7 @@ fn scanf_fmt_to_regpat(
             regpat = regpat.add(1);
         } else {
             semsg!(
-                gettext(c"E375: Unsupported %%%c in format string".as_ptr()),
+                gettext(c"E375: Unsupported %%%c in format string"),
                 c_int::from(*efmp),
             );
             return ptr::null_mut();
@@ -960,7 +960,7 @@ fn efm_analyze_prefix(mut efmp: *const c_char, efminfo: &mut efm_T) -> *const c_
             efminfo.prefix = *efmp;
         } else {
             semsg!(
-                gettext(c"E376: Invalid %%%c in format string prefix".as_ptr()),
+                gettext(c"E376: Invalid %%%c in format string prefix"),
                 c_int::from(*efmp),
             );
             return ptr::null();
@@ -1019,7 +1019,7 @@ fn efm_to_regpat(
                     }
                 } else {
                     semsg!(
-                        gettext(c"E377: Invalid %%%c in format string".as_ptr()),
+                        gettext(c"E377: Invalid %%%c in format string"),
                         c_int::from(*efmp),
                     );
                     return false;
@@ -1113,7 +1113,7 @@ fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
             fmt_list.clear();
             qf_st().fmt_start_idx = None;
         } else if fmt_list.is_empty() {
-            emsg(gettext(c"E378: 'errorformat' contains no pattern".as_ptr()));
+            emsg(gettext(c"E378: 'errorformat' contains no pattern"));
         }
 
         fmt_list
@@ -1493,7 +1493,7 @@ fn qf_setup_state(
                 os_fopen(efile, c"r").cast::<FILE>()
             };
             let Some(fd) = crate::os::fs::CFile::from_raw(raw_fd) else {
-                semsg!(gettext(e_openerrf.as_ptr()), efile);
+                semsg!(gettext(e_openerrf), efile);
                 return false;
             };
             pstate.source = QfInputSource::File(fd);
@@ -1615,7 +1615,7 @@ fn qf_init_ext(
                 }
                 retval = qfl.count();
             } else {
-                emsg(gettext(e_readerrf.as_ptr()));
+                emsg(gettext(e_readerrf));
                 ok = false;
             }
         }
@@ -1648,7 +1648,7 @@ fn qf_store_title(qfl: &mut qf_list_T, title: *const c_char) {
 
 fn qf_cmdtitle(cmd: *const c_char) -> *mut c_char {
     let buf = (&raw mut qf_st().qftitle_str).cast::<c_char>();
-        vim_snprintf!(buf, IOSIZE, c":%s".as_ptr(), cmd);
+        vim_snprintf!(buf, IOSIZE, c":%s", cmd);
         buf
 }
 
@@ -2018,7 +2018,7 @@ fn qf_parse_dir_pfx(idx: c_int, fields: &mut qffields_T, qfl: &mut qf_list_T) ->
     unsafe {
         if idx == c_int::from(b'D') {
             if *fields.namebuf.as_ptr() == NUL {
-                emsg(gettext(c"E379: Missing or empty directory name".as_ptr()));
+                emsg(gettext(c"E379: Missing or empty directory name"));
                 return QF_FAIL;
             }
             qf_push_dir(
@@ -2230,7 +2230,7 @@ fn decr_quickfix_busy() {
 pub fn check_quickfix_busy() {
     if qf_st().quickfix_busy != 0 {
             semsg!(
-                c"quickfix_busy not zero on exit: %lld".as_ptr(),
+                c"quickfix_busy not zero on exit: %lld",
                 c_longlong::from(qf_st().quickfix_busy),
             );
         }
@@ -2447,7 +2447,7 @@ fn qf_cmd_get_stack(eap: &mut exarg_T, print_emsg: bool) -> *mut qf_info_T {
             qi = get_loc_list(*curwin.as_ptr());
             if qi.is_null() {
                 if print_emsg {
-                    emsg(gettext(e_loclist.as_ptr()));
+                    emsg(gettext(e_loclist));
                 }
                 return ptr::null_mut();
             }
@@ -3145,7 +3145,7 @@ fn qf_jump_edit_buffer(
         } else {
             if forceit == 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 && (*g_st().curbuf).b_fnum != fnum {
                 if qi.qfl_type == QFLT_LOCATION {
-                    emsg(gettext(e_winfixbuf_cannot_go_to_buffer.as_ptr()));
+                    emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
                     return FAIL;
                 }
 
@@ -3160,7 +3160,7 @@ fn qf_jump_edit_buffer(
                         *opened_window = true;
                     }
                     if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
-                        emsg(gettext(e_winfixbuf_cannot_go_to_buffer.as_ptr()));
+                        emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
                         retval = FAIL;
                     }
                 }
@@ -3178,14 +3178,14 @@ fn qf_jump_edit_buffer(
         if qfl_type == QFLT_LOCATION {
             let wp = win_id2wp(prev_winid);
             if wp.is_null() && (**curwin.as_ptr()).w_llist != qi {
-                emsg(gettext(c"E924: Current window was closed".as_ptr()));
+                emsg(gettext(c"E924: Current window was closed"));
                 *opened_window = false;
                 return QF_ABORT;
             }
         }
 
         if qfl_type == QFLT_QUICKFIX && !qflist_valid(ptr::null_mut(), save_qfid) {
-            emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED.as_ptr()));
+            emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
             return QF_ABORT;
         }
 
@@ -3194,9 +3194,9 @@ fn qf_jump_edit_buffer(
             || !is_qf_entry_present(qfl, qf_index)
         {
             if qfl_type == QFLT_QUICKFIX {
-                emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED.as_ptr()));
+                emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
             } else {
-                emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED.as_ptr()));
+                emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
             }
             return QF_ABORT;
         }
@@ -3290,14 +3290,14 @@ fn qf_jump_print_msg(
         }
         let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         let deleted_str = if qf_ptr.qf_cleared != 0 {
-            gettext(c" (line deleted)".as_ptr()).cast_const()
+            gettext(c" (line deleted)").cast_const()
         } else {
             c"".as_ptr()
         };
         let iobufflen = vim_snprintf_safelen!(
             iobuff_ptr,
             IOSIZE,
-            gettext(c"(%d of %d)%s%s: ".as_ptr()),
+            gettext(c"(%d of %d)%s%s: "),
             qf_index,
             qf_get_curlist(qi).count(),
             deleted_str,
@@ -3346,9 +3346,9 @@ fn qf_jump_open_window(
             || !is_qf_entry_present(qfl, qf_index)
         {
             if qfl_type == QFLT_QUICKFIX {
-                emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED.as_ptr()));
+                emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
             } else {
-                emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED.as_ptr()));
+                emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
             }
             return QF_ABORT;
         }
@@ -3368,9 +3368,9 @@ fn qf_jump_open_window(
             || !is_qf_entry_present(qfl, qf_index)
         {
             if qfl_type == QFLT_QUICKFIX {
-                emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED.as_ptr()));
+                emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
             } else {
-                emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED.as_ptr()));
+                emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
             }
             return QF_ABORT;
         }
@@ -3448,7 +3448,7 @@ fn qf_jump_newwin(
         }
 
         if qf_stack_empty(qi) || qf_list_empty(qf_get_curlist(&mut *qi)) {
-            emsg(gettext(e_no_errors.as_ptr()));
+            emsg(gettext(e_no_errors));
             return;
         }
 
@@ -3517,7 +3517,7 @@ fn qf_list_entry(qfp: &mut qfline_T, qf_idx: c_int, cursel: bool) {
             vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
-                c"%2d %s".as_ptr(),
+                c"%2d %s",
                 qf_idx,
                 module.as_ptr(),
             );
@@ -3535,9 +3535,9 @@ fn qf_list_entry(qfp: &mut qfline_T, qf_idx: c_int, cursel: bool) {
                 }
             }
             if fname.is_null() {
-                vim_snprintf!(iobuff_ptr, IOSIZE, c"%2d".as_ptr(), qf_idx);
+                vim_snprintf!(iobuff_ptr, IOSIZE, c"%2d", qf_idx);
             } else {
-                vim_snprintf!(iobuff_ptr, IOSIZE, c"%2d %s".as_ptr(), qf_idx, fname);
+                vim_snprintf!(iobuff_ptr, IOSIZE, c"%2d %s", qf_idx, fname);
             }
         }
 
@@ -3613,7 +3613,7 @@ pub fn qf_list(eap: &mut exarg_T) {
         }
 
         if qf_stack_empty(qi) || qf_list_empty(qf_get_curlist(&mut *qi)) {
-            emsg(gettext(e_no_errors.as_ptr()));
+            emsg(gettext(e_no_errors));
             return;
         }
 
@@ -3625,7 +3625,7 @@ pub fn qf_list(eap: &mut exarg_T) {
         let mut idx1: c_int = 1;
         let mut idx2: c_int = -1;
         if !get_list_range(&raw mut arg, &mut idx1, &mut idx2) || *arg != NUL {
-            semsg!(gettext(e_trailing_arg.as_ptr()), arg);
+            semsg!(gettext(e_trailing_arg), arg);
             return;
         }
         let qfl = qf_get_curlist(&mut *qi);
@@ -3702,13 +3702,13 @@ fn qf_fmt_text(gap: &mut Vec<c_char>, text: *const c_char) {
 fn qf_range_text(gap: &mut Vec<c_char>, qfp: &qfline_T) {
     unsafe {
         let buf_data = (&raw mut g_st().IObuff).cast::<c_char>();
-        let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d".as_ptr(), qfp.qf_lnum);
+        let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d", qfp.qf_lnum);
 
         if qfp.qf_end_lnum > 0 && qfp.qf_lnum != qfp.qf_end_lnum {
             buf_size += vim_snprintf_safelen!(
                 buf_data.add(buf_size),
                 IOSIZE - buf_size,
-                c"-%d".as_ptr(),
+                c"-%d",
                 qfp.qf_end_lnum,
             );
         }
@@ -3716,14 +3716,14 @@ fn qf_range_text(gap: &mut Vec<c_char>, qfp: &qfline_T) {
             buf_size += vim_snprintf_safelen!(
                 buf_data.add(buf_size),
                 IOSIZE - buf_size,
-                c" col %d".as_ptr(),
+                c" col %d",
                 qfp.qf_col,
             );
             if qfp.qf_end_col > 0 && qfp.qf_col != qfp.qf_end_col {
                 buf_size += vim_snprintf_safelen!(
                     buf_data.add(buf_size),
                     IOSIZE - buf_size,
-                    c"-%d".as_ptr(),
+                    c"-%d",
                     qfp.qf_end_col,
                 );
             }
@@ -3743,7 +3743,7 @@ fn qf_msg(qi: &mut qf_info_T, which: c_int, lead: *const c_char) {
         vim_snprintf!(
             buf.as_mut_ptr(),
             IOSIZE,
-            gettext(c"%serror list %d of %d; %d errors ".as_ptr()),
+            gettext(c"%serror list %d of %d; %d errors "),
             lead,
             which + 1,
             qi.qf_listcount,
@@ -3779,13 +3779,13 @@ pub fn qf_age(eap: &mut exarg_T) {
             count -= 1;
             if eap.cmdidx == CMD_colder || eap.cmdidx == CMD_lolder {
                 if (*qi).qf_curlist == 0 {
-                    emsg(gettext(c"E380: At bottom of quickfix stack".as_ptr()));
+                    emsg(gettext(c"E380: At bottom of quickfix stack"));
                     break;
                 }
                 (*qi).qf_curlist -= 1;
             } else {
                 if (*qi).qf_curlist >= (*qi).qf_listcount - 1 {
-                    emsg(gettext(c"E381: At top of quickfix stack".as_ptr()));
+                    emsg(gettext(c"E381: At top of quickfix stack"));
                     break;
                 }
                 (*qi).qf_curlist += 1;
@@ -3802,7 +3802,7 @@ pub fn qf_history(eap: &mut exarg_T) {
 
         if eap.addr_count > 0 {
             if qi.is_null() {
-                emsg(gettext(e_loclist.as_ptr()));
+                emsg(gettext(e_loclist));
                 return;
             }
 
@@ -3811,13 +3811,13 @@ pub fn qf_history(eap: &mut exarg_T) {
                 qf_msg(&mut *qi, (*qi).qf_curlist, c"".as_ptr());
                 qf_update_buffer(&mut *qi, 0);
             } else {
-                emsg(gettext(e_invrange.as_ptr()));
+                emsg(gettext(e_invrange));
             }
             return;
         }
 
         if qf_stack_empty(qi) {
-            msg(gettext(c"No entries".as_ptr()), 0);
+            msg(gettext(c"No entries"), 0);
         } else {
             for i in 0..(*qi).qf_listcount {
                 let lead = if i == (*qi).qf_curlist {
@@ -3936,7 +3936,7 @@ fn qf_types(c: c_int, nr: c_int) -> *const c_char {
         }
 
         let buf = (&raw mut qf_st().qf_types_buf).cast::<c_char>();
-        vim_snprintf!(buf, 20, c"%s %3d".as_ptr(), p, nr);
+        vim_snprintf!(buf, 20, c"%s %3d", p, nr);
         buf
     }
 }
@@ -3951,7 +3951,7 @@ pub fn qf_view_result(split: bool) {
         }
 
         if qf_list_empty(qf_get_curlist(&mut *qi)) {
-            emsg(gettext(e_no_errors.as_ptr()));
+            emsg(gettext(e_no_errors));
             return;
         }
 
@@ -4720,7 +4720,7 @@ fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std::ffi::C
         }
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
-        vim_snprintf!(cmd, len, c"%s%s%s".as_ptr(), opt_vars().p_shq, makecmd, opt_vars().p_shq);
+        vim_snprintf!(cmd, len, c"%s%s%s", opt_vars().p_shq, makecmd, opt_vars().p_shq);
 
         if *opt_vars().p_sp != NUL {
             append_redir(cmd, len, opt_vars().p_sp, fname);
@@ -4837,7 +4837,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         if *opt_vars().p_mef == NUL {
             let name = vim_tempname();
             if name.is_none() {
-                emsg(gettext(e_notmp.as_ptr()));
+                emsg(gettext(e_notmp));
             }
             return name;
         }
@@ -4868,7 +4868,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
             vim_snprintf!(
                 name.add(off_idx),
                 mef_len + 30 - off_idx,
-                c"%d%d".as_ptr(),
+                c"%d%d",
                 qf_st().mef_start,
                 qf_st().mef_off,
             );
@@ -5286,7 +5286,7 @@ fn qf_find_nth_adj_entry(
 pub fn ex_cbelow(eap: &mut exarg_T) {
     unsafe {
         if eap.addr_count > 0 && eap.line2 <= 0 {
-            emsg(gettext(e_invrange.as_ptr()));
+            emsg(gettext(e_invrange));
             return;
         }
 
@@ -5301,7 +5301,7 @@ pub fn ex_cbelow(eap: &mut exarg_T) {
         };
 
         if ((*g_st().curbuf).b_has_qf_entry & buf_has_flag) == 0 {
-            emsg(gettext(e_no_errors.as_ptr()));
+            emsg(gettext(e_no_errors));
             return;
         }
 
@@ -5312,7 +5312,7 @@ pub fn ex_cbelow(eap: &mut exarg_T) {
 
         let qfl = qf_get_curlist(&mut *qi);
         if !qf_list_has_valid_entries(qfl) {
-            emsg(gettext(e_no_errors.as_ptr()));
+            emsg(gettext(e_no_errors));
             return;
         }
 
@@ -5347,7 +5347,7 @@ pub fn ex_cbelow(eap: &mut exarg_T) {
         if errornr > 0 {
             qf_jump(qi, 0, errornr, 0);
         } else {
-            emsg(gettext(E_NO_MORE_ITEMS.as_ptr()));
+            emsg(gettext(E_NO_MORE_ITEMS));
         }
     }
 }
@@ -5458,7 +5458,7 @@ fn vgr_init_regmatch(regmatch: &mut regmmatch_T, s: *mut c_char) {
 
         if s.is_null() || *s == NUL {
             if last_search_pat().is_null() {
-                emsg(gettext(e_noprevre.as_ptr()));
+                emsg(gettext(e_noprevre));
                 return;
             }
             regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
@@ -5510,7 +5510,7 @@ fn vgr_qflist_valid(
 ) -> bool {
     if !qflist_valid(wp, qfid) {
             if !wp.is_null() {
-                emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED.as_ptr()));
+                emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
                 return false;
             }
             qf_new_list(qi, title);
@@ -5705,7 +5705,7 @@ fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> bool {
         let mut spat: *mut c_char = ptr::null_mut();
         let mut p = skip_vimgrep_pat(eap.arg, &raw mut spat, Some(&mut args.flags));
         if p.is_null() {
-            emsg(gettext(e_invalpat.as_ptr()));
+            emsg(gettext(e_invalpat));
             return false;
         }
         args.spat = (!spat.is_null()).then(|| crate::memory::cstr_to_cstring(spat));
@@ -5719,13 +5719,13 @@ fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> bool {
         p = skipwhite(p);
         if *p == NUL {
             emsg(gettext(
-                c"E683: File name missing or invalid pattern".as_ptr(),
+                c"E683: File name missing or invalid pattern",
             ));
             return false;
         }
 
         if !get_arglist_exp(p, &mut args.fnames, true) || args.fnames.is_empty() {
-            emsg(gettext(e_nomatch.as_ptr()));
+            emsg(gettext(e_nomatch));
             return false;
         }
 
@@ -5792,7 +5792,7 @@ fn vgr_process_files(
 
             if buf.is_null() {
                 if !g_st().got_int {
-                    smsg!(0, gettext(c"Cannot open file \"%s\"".as_ptr()), fname);
+                    smsg!(0, gettext(c"Cannot open file \"%s\""), fname);
                 }
             } else {
                 let found_match = vgr_match_buflines(
@@ -5944,7 +5944,7 @@ pub fn ex_vimgrep(eap: &mut exarg_T) {
                             );
                         }
                     } else {
-                        semsg!(gettext(e_nomatch2.as_ptr()), args.spat_ptr());
+                        semsg!(gettext(e_nomatch2), args.spat_ptr());
                     }
 
                     decr_quickfix_busy();
@@ -6651,7 +6651,7 @@ fn qf_add_entry_from_dict(
         if bufnum != 0 && buflist_findnr(bufnum).is_null() {
             if !qf_st().did_bufnr_emsg {
                 qf_st().did_bufnr_emsg = true;
-                semsg!(gettext(e_buffer_nr_not_found.as_ptr()), bufnum);
+                semsg!(gettext(e_buffer_nr_not_found), bufnum);
             }
             valid = false;
             bufnum = 0;
@@ -7180,8 +7180,8 @@ pub fn set_errorlist(
 
         if !list.is_null() && tv_list_len(list) != 0 && !what.is_null() {
             semsg!(
-                gettext(e_invarg2.as_ptr()),
-                gettext(c"cannot have both a list and a \"what\" argument".as_ptr()),
+                gettext(e_invarg2),
+                gettext(c"cannot have both a list and a \"what\" argument"),
             );
             return false;
         }
@@ -7319,12 +7319,12 @@ fn cbuffer_process_args(
         }
 
         if buf.is_null() {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return false;
         }
 
         if (*buf).b_ml.ml_mfp.is_none() {
-            emsg(gettext(e_buffer_is_not_loaded.as_ptr()));
+            emsg(gettext(e_buffer_is_not_loaded));
             return false;
         }
 
@@ -7338,7 +7338,7 @@ fn cbuffer_process_args(
             || eap.line2 < 1
             || eap.line2 > (*buf).b_ml.ml_line_count
         {
-            emsg(gettext(e_invrange.as_ptr()));
+            emsg(gettext(e_invrange));
             return false;
         }
 
@@ -7382,7 +7382,7 @@ pub fn ex_cbuffer(eap: &mut exarg_T) {
             vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
-                c"%s (%s)".as_ptr(),
+                c"%s (%s)",
                 qf_title,
                 (*buf).b_sfname,
             );
@@ -7516,7 +7516,7 @@ pub fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> bool {
             decr_quickfix_busy();
             return true;
         } else {
-            emsg(gettext(c"E777: String or List expected".as_ptr()));
+            emsg(gettext(c"E777: String or List expected"));
         }
         false
     }
@@ -7733,7 +7733,7 @@ pub fn ex_helpgrep(eap: &mut exarg_T) {
         if !qf_list_empty(qf_get_curlist(&mut *qi)) {
             qf_jump(qi, 0, 0, 0);
         } else {
-            semsg!(gettext(e_nomatch2.as_ptr()), eap.arg);
+            semsg!(gettext(e_nomatch2), eap.arg);
         }
 
         decr_quickfix_busy();
@@ -7791,7 +7791,7 @@ fn get_qf_loc_list(
                         }
                     }
                 } else {
-                    emsg(gettext(e_dictreq.as_ptr()));
+                    emsg(gettext(e_dictreq));
                 }
             }
         }
@@ -7816,17 +7816,17 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
 
         let list_arg = args;
         if (*list_arg).v_type != VarType::VAR_LIST {
-            emsg(gettext(e_listreq.as_ptr()));
+            emsg(gettext(e_listreq));
             return;
         } else if qf_st().set_qf_ll_recursive != 0 {
-            emsg(gettext(e_au_recursive.as_ptr()));
+            emsg(gettext(e_au_recursive));
             return;
         }
 
         let action_arg = args.add(1);
         if (*action_arg).v_type != VarType::VAR_UNKNOWN {
             if (*action_arg).v_type != VarType::VAR_STRING {
-                emsg(gettext(e_string_required.as_ptr()));
+                emsg(gettext(e_string_required));
                 return;
             }
             let act = tv_get_string_chk(&*action_arg);
@@ -7839,7 +7839,7 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
             {
                 action = *act;
             } else {
-                semsg!(gettext(E_INVACT.as_ptr()), act);
+                semsg!(gettext(E_INVACT), act);
                 return;
             }
 
@@ -7855,7 +7855,7 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
                 {
                     what = (*what_arg).vval.v_dict();
                 } else {
-                    emsg(gettext(e_dictreq.as_ptr()));
+                    emsg(gettext(e_dictreq));
                     return;
                 }
             }

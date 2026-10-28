@@ -499,8 +499,8 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"%s".as_ptr(),
-                c"E474: Failed to convert list to msgpack string buffer".as_ptr(),
+                c"%s",
+                c"E474: Failed to convert list to msgpack string buffer",
             );
         }
 

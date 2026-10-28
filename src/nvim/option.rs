@@ -733,7 +733,7 @@ fn set_init_default_shell() {
             if !vim_strchr(shell_ptr, b' ' as c_int).is_null() {
                 let len = shell.as_bytes().len() + 3;
                 let mut cmd = vec![0 as c_char; len];
-                vim_snprintf!(cmd.as_mut_ptr(), len, c"\"%s\"".as_ptr(), shell_ptr);
+                vim_snprintf!(cmd.as_mut_ptr(), len, c"\"%s\"", shell_ptr);
                 set_string_default(kOptShell, cmd.as_ptr());
             } else {
                 set_string_default(kOptShell, shell_ptr);
@@ -798,7 +798,7 @@ fn set_init_default_backupskip() {
                 let itemlen = vim_snprintf!(
                     item.as_mut_ptr(),
                     itemsize,
-                    c"%s%s*".as_ptr(),
+                    c"%s%s*",
                     p,
                     if has_trailing_path_sep {
                         c"".as_ptr()
@@ -1153,10 +1153,10 @@ pub fn set_init_2(_headless: bool) {
         logmsg!(
             1,
             ptr::null(),
-            c"set_init_2".as_ptr(),
+            c"set_init_2",
             592,
             true,
-            c"startup runtimepath/packpath value: %s".as_ptr(),
+            c"startup runtimepath/packpath value: %s",
             opt_vars().p_rtp,
         );
 
@@ -2171,7 +2171,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
 
                     if !errmsg.is_null() {
                         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-                        let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s".as_ptr(), tr(errmsg)) + 2)
+                        let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s", tr(errmsg)) + 2)
                             as isize;
                         let arg_len = arg.offset_from(startarg);
                         if (i + arg_len) < IOSIZE as isize {
@@ -2648,7 +2648,7 @@ pub fn apply_optionset_autocmd_now(
         let typelen = vim_snprintf_safelen!(
             buf_type.as_mut_ptr(),
             buf_type.len(),
-            c"%s".as_ptr(),
+            c"%s",
             if (opt_flags & OPT_LOCAL) != 0 {
                 c"local".as_ptr()
             } else {
@@ -3574,7 +3574,7 @@ fn do_spelllang_source(win: &mut win_T) {
             vim_snprintf!(
                 fname.as_mut_ptr(),
                 fname.len(),
-                c"spell/%.*s.*".as_ptr(),
+                c"spell/%.*s.*",
                 p.offset_from(q) as c_int,
                 q,
             );
@@ -3846,7 +3846,7 @@ pub fn get_tty_option(name: *const c_char) -> Object {
                 cstr_to_obj(c"".as_ptr())
             } else {
                 let mut value = [0 as c_char; NUMBUFLEN];
-                vim_snprintf!(value.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), g_st().t_colors);
+                vim_snprintf!(value.as_mut_ptr(), NUMBUFLEN, c"%d", g_st().t_colors);
                 cstr_to_obj(value.as_ptr())
             }
         } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"term") {
@@ -5742,7 +5742,7 @@ pub fn validate_and_prepare_option_value(args: &mut optset_T) -> *const c_char {
 
         if newval.obj_type == ObjectType::kObjectTypeNil {
             if opt_flags == OPT_GLOBAL {
-                errmsg = tr(c"Cannot unset global option value".as_ptr());
+                errmsg = tr(c"Cannot unset global option value");
             } else {
                 let varp = get_varp_scope_from(opt, OPT_GLOBAL, buf, win);
                 *newval = if option_is_global_local(opt_idx) {
@@ -5760,7 +5760,7 @@ pub fn validate_and_prepare_option_value(args: &mut optset_T) -> *const c_char {
                 vim_snprintf!(
                     errbuf.data,
                     errbuf.size,
-                    gettext(c"Invalid value for option '%s': expected %s, got %s %s".as_ptr()),
+                    gettext(c"Invalid value for option '%s': expected %s, got %s %s"),
                     (*opt).fullname.as_ptr(),
                     type_str,
                     optval_type_name(optval_type(*newval)),
@@ -6063,7 +6063,7 @@ pub fn set_option_value(
 
         let flags = (*get_option(opt_idx)).flags;
         if g_st().sandbox > 0 && (flags & kOptFlagSecure) != 0 {
-            return tr(e_sandbox.as_ptr());
+            return tr(e_sandbox);
         }
 
         set_option(
@@ -6142,7 +6142,7 @@ fn switch_option_context(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"Problem while switching windows".as_ptr(),
+                            c"Problem while switching windows",
                         );
                     }
                     return false;
@@ -6238,7 +6238,7 @@ pub fn set_option_value_for(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"'cmdheight' requires a Number".as_ptr(),
+                    c"'cmdheight' requires a Number",
                 );
                 return;
             }
@@ -6260,7 +6260,7 @@ pub fn set_option_value_for(
         };
         let errmsg = set_option_value(opt_idx, value, opt_flags, value_replaced, Some(errbuf));
         if !errmsg.is_null() {
-            api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
+            api_set_error!(err, ErrorType::kErrorTypeException, c"%s", errmsg);
         }
 
         if switched {
@@ -6278,11 +6278,11 @@ fn showoptions(all: bool, opt_flags: c_int) {
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         if (opt_flags & OPT_GLOBAL) != 0 {
-            msg_puts_title(tr(c"\n--- Global option values ---".as_ptr()));
+            msg_puts_title(tr(c"\n--- Global option values ---"));
         } else if (opt_flags & OPT_LOCAL) != 0 {
-            msg_puts_title(tr(c"\n--- Local option values ---".as_ptr()));
+            msg_puts_title(tr(c"\n--- Local option values ---"));
         } else {
-            msg_puts_title(tr(c"\n--- Options ---".as_ptr()));
+            msg_puts_title(tr(c"\n--- Options ---"));
         }
 
         let mut run = 1;
@@ -7144,7 +7144,7 @@ pub fn get_varp_from(p: *mut vimoption_T, buf: *mut buf_T, win: *mut win_T) -> *
             kOptWinblend => (&raw mut (*win).w_onebuf_opt.wo_winbl).cast(),
             kOptStatuscolumn => (&raw mut (*win).w_onebuf_opt.wo_stc).cast(),
             _ => {
-                iemsg(tr(c"E356: get_varp ERROR".as_ptr()));
+                iemsg(tr(c"E356: get_varp ERROR"));
                 (&raw mut (*buf).b_p_wm).cast()
             }
         }
@@ -8646,7 +8646,7 @@ pub fn get_option_info(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Invalid option (not found): '%s'".as_ptr(),
+                c"Invalid option (not found): '%s'",
                 name.data,
             );
             return Dict::new();

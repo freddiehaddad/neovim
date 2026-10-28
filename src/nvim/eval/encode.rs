@@ -373,7 +373,7 @@ fn conv_error(
                     vim_snprintf!(
                         iobuf.as_mut_ptr(),
                         iobuf.len(),
-                        c"key %s".as_ptr(),
+                        c"key %s",
                         key.as_ptr(),
                     );
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
@@ -398,7 +398,7 @@ fn conv_error(
                         || ((*prev_li).li_tv.v_type != VarType::VAR_LIST
                             && tv_list_len((*prev_li).li_tv.vval.v_list()) <= 0)
                     {
-                        vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"index %i".as_ptr(), idx);
+                        vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"index %i", idx);
                         buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                     } else {
                         let first_item = tv_list_first((*prev_li).li_tv.vval.v_list());
@@ -408,7 +408,7 @@ fn conv_error(
                         vim_snprintf!(
                             iobuf.as_mut_ptr(),
                             iobuf.len(),
-                            c"key %s at index %i from special map".as_ptr(),
+                            c"key %s at index %i from special map",
                             key.as_ptr(),
                             idx,
                         );
@@ -429,7 +429,7 @@ fn conv_error(
                     vim_snprintf!(
                         iobuf.as_mut_ptr(),
                         iobuf.len(),
-                        c"argument %i".as_ptr(),
+                        c"argument %i",
                         idx,
                     );
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
@@ -496,8 +496,7 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> 
                     if ch > 0x7F && shift == 1 {
                         let start = i - shift;
                         semsg!(
-                            c"E474: String \"%.*s\" contains byte that does not start any UTF-8 character"
-                                .as_ptr(),
+                            c"E474: String \"%.*s\" contains byte that does not start any UTF-8 character",
                             (len - start) as c_int,
                             buf.add(start),
                         );
@@ -507,8 +506,7 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> 
                     {
                         let start = i - shift;
                         semsg!(
-                            c"E474: UTF-8 string contains code point which belongs to a surrogate pair: %.*s"
-                                .as_ptr(),
+                            c"E474: UTF-8 string contains code point which belongs to a surrogate pair: %.*s",
                             (len - start) as c_int,
                             buf.add(start),
                         );
@@ -739,7 +737,7 @@ impl EncodeBackend<'_> {
                         let len = vim_snprintf_safelen!(
                             numbuf.as_mut_ptr(),
                             numbuf.len(),
-                            c"%g".as_ptr(),
+                            c"%g",
                             flt,
                         );
                         buf_concat_len(gap, numbuf.as_ptr(), len);
@@ -761,7 +759,7 @@ impl EncodeBackend<'_> {
                         let len = vim_snprintf_safelen!(
                             numbuf.as_mut_ptr(),
                             numbuf.len(),
-                            c"%g".as_ptr(),
+                            c"%g",
                             flt,
                         );
                         buf_concat_len(gap, numbuf.as_ptr(), len);
@@ -865,7 +863,7 @@ impl EncodeBackend<'_> {
                             let nlen = vim_snprintf_safelen!(
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
-                                c"%02X".as_ptr(),
+                                c"%02X",
                                 tv_blob_get(blob, i) as c_int,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);
@@ -888,7 +886,7 @@ impl EncodeBackend<'_> {
                             let nlen = vim_snprintf_safelen!(
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
-                                c"%d".as_ptr(),
+                                c"%d",
                                 tv_blob_get(blob, i) as c_int,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);

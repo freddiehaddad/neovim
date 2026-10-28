@@ -2784,7 +2784,7 @@ fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> bool {
 
         if (*buf).b_ml.ml_line_count == 1 {
             if (flags & ML_DEL_MESSAGE) != 0 {
-                set_keep_msg(gettext(no_lines_msg.as_ptr()), 0);
+                set_keep_msg(gettext(no_lines_msg), 0);
             }
             let i = ml_replace_buf(buf, 1, c"".as_ptr().cast_mut(), true, false);
             (*buf).b_ml.ml_flags |= ML_EMPTY;

@@ -300,7 +300,7 @@ pub fn nvim_buf_set_virtual_text(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Line number outside range".as_ptr(),
+                c"Line number outside range",
             );
             return 0;
         }

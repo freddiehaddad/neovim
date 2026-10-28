@@ -284,7 +284,7 @@ pub fn vim_findfile_init(
             expand_size = 0;
             while *wc_part != NUL {
                 if expand_size + 5 >= MAXPATHL {
-                    emsg(tr(E_PATH_TOO_LONG_FOR_COMPLETION.as_ptr()));
+                    emsg(tr(E_PATH_TOO_LONG_FOR_COMPLETION));
                     break;
                 }
                 if *wc_part == b'*' as c_char && *wc_part.add(1) == b'*' as c_char {
@@ -309,9 +309,8 @@ pub fn vim_findfile_init(
                     wc_part = errpt;
                     if *wc_part != NUL && !vim_ispathsep(c_int::from(*wc_part as u8)) {
                         semsg!(
-                            tr(c"E343: Invalid path: '**[number]' must be at the end of the path or be followed by '%s'."
-                                .as_ptr()),
-                            PATHSEPSTR_C.as_ptr(),
+                            tr(c"E343: Invalid path: '**[number]' must be at the end of the path or be followed by '%s'."),
+                            PATHSEPSTR_C,
                         );
                         return None;
                     }
@@ -340,7 +339,7 @@ pub fn vim_findfile_init(
         }
 
         if search_ctx.ffsc_start_dir.size + search_ctx.ffsc_fix_path.size + 3 >= MAXPATHL {
-            emsg(tr(E_PATH_TOO_LONG_FOR_COMPLETION.as_ptr()));
+            emsg(tr(E_PATH_TOO_LONG_FOR_COMPLETION));
             return None;
         }
 
@@ -354,7 +353,7 @@ pub fn vim_findfile_init(
         expand_size = vim_snprintf!(
             expand_ptr,
             MAXPATHL,
-            c"%s%s".as_ptr(),
+            c"%s%s",
             search_ctx.ffsc_start_dir.data,
             if add_sep {
                 PATHSEPSTR_C.as_ptr()
@@ -371,7 +370,7 @@ pub fn vim_findfile_init(
             vim_snprintf!(
                 buf,
                 bufsize,
-                c"%s%s".as_ptr(),
+                c"%s%s",
                 expand_ptr,
                 search_ctx.ffsc_fix_path.data,
             );
@@ -387,7 +386,7 @@ pub fn vim_findfile_init(
                     expand_size += vim_snprintf!(
                         expand_ptr.add(expand_size),
                         MAXPATHL - expand_size,
-                        c"%s%s".as_ptr(),
+                        c"%s%s",
                         search_ctx.ffsc_fix_path.data,
                         if add_sep {
                             PATHSEPSTR_C.as_ptr()
@@ -420,7 +419,7 @@ pub fn vim_findfile_init(
                     expand_size += vim_snprintf!(
                         expand_ptr.add(expand_size),
                         MAXPATHL - expand_size,
-                        c"%.*s%s".as_ptr(),
+                        c"%.*s%s",
                         len,
                         search_ctx.ffsc_fix_path.data,
                         if add_sep {
@@ -439,7 +438,7 @@ pub fn vim_findfile_init(
                     let temp_len = vim_snprintf!(
                         temp_vec.as_mut_ptr(),
                         tempsize,
-                        c"%s%s".as_ptr(),
+                        c"%s%s",
                         search_ctx.ffsc_fix_path.data.add(len as usize),
                         search_ctx.ffsc_wc_path.data,
                     ) as usize;
@@ -578,7 +577,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                         file_path.size = vim_snprintf!(
                             file_path.data,
                             MAXPATHL,
-                            c"%s%s".as_ptr(),
+                            c"%s%s",
                             search_ctx.ffsc_start_dir.data,
                             if add_sep {
                                 PATHSEPSTR_C.as_ptr()
@@ -601,7 +600,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                     file_path.size += vim_snprintf!(
                         file_path.data.add(file_path.size),
                         MAXPATHL - file_path.size,
-                        c"%s%s".as_ptr(),
+                        c"%s%s",
                         (*stackp).ffs_fix_path.data,
                         if add_sep {
                             PATHSEPSTR_C.as_ptr()
@@ -702,7 +701,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                             file_path.size = vim_snprintf!(
                                 file_path.data,
                                 MAXPATHL,
-                                c"%s%s%s".as_ptr(),
+                                c"%s%s%s",
                                 entry,
                                 if add_sep {
                                     PATHSEPSTR_C.as_ptr()
@@ -873,7 +872,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                 file_path.size = vim_snprintf!(
                     file_path.data,
                     MAXPATHL,
-                    c"%s%s%s".as_ptr(),
+                    c"%s%s%s",
                     search_ctx.ffsc_start_dir.data,
                     if add_sep {
                         PATHSEPSTR_C.as_ptr()
@@ -1283,7 +1282,7 @@ pub fn find_file_in_path_option(
                         l = vim_snprintf!(
                             name_buff,
                             MAXPATHL,
-                            c"%.*s%s".as_ptr(),
+                            c"%.*s%s",
                             path_tail(rel_fname).offset_from(rel_fname) as c_int,
                             rel_fname,
                             ftf,
@@ -1367,14 +1366,14 @@ pub fn find_file_in_path_option(
         if file_name.is_none() && (options & FNAME_MESS) != 0 {
             if first == c_int::from(true) {
                 if find_what == FINDFILE_DIR {
-                    semsg!(tr(e_cant_find_directory_str_in_cdpath.as_ptr()), ftf);
+                    semsg!(tr(e_cant_find_directory_str_in_cdpath), ftf);
                 } else {
-                    semsg!(tr(e_cant_find_file_str_in_path.as_ptr()), ftf);
+                    semsg!(tr(e_cant_find_file_str_in_path), ftf);
                 }
             } else if find_what == FINDFILE_DIR {
-                semsg!(tr(e_no_more_directory_str_found_in_cdpath.as_ptr()), ftf);
+                semsg!(tr(e_no_more_directory_str_found_in_cdpath), ftf);
             } else {
-                semsg!(tr(e_no_more_file_str_found_in_path.as_ptr()), ftf);
+                semsg!(tr(e_no_more_file_str_found_in_path), ftf);
             }
         }
 
@@ -1448,7 +1447,7 @@ pub fn file_name_in_line(
         }
         if *ptr == NUL {
             if (options & FNAME_MESS) != 0 {
-                emsg(tr(c"E446: No file name under cursor".as_ptr()));
+                emsg(tr(c"E446: No file name under cursor"));
             }
             return None;
         }
@@ -1508,7 +1507,7 @@ pub fn file_name_in_line(
             if p_bytes.starts_with(english) {
                 p = p.add(english.len());
             } else {
-                let loc_msg = crate::memory::cstr_as_bytes(tr(line_msg.as_ptr()));
+                let loc_msg = crate::memory::cstr_as_bytes(tr(line_msg));
                 if p_bytes.starts_with(loc_msg) {
                     p = p.add(loc_msg.len());
                 } else {
@@ -1625,7 +1624,7 @@ pub fn find_file_name_in_path(
             if file_name.is_none() && (options & FNAME_MESS) != 0 {
                 let c = *ptr.add(len);
                 *ptr.add(len) = NUL;
-                semsg!(tr(c"E447: Can't find file \"%s\" in path".as_ptr()), ptr);
+                semsg!(tr(c"E447: Can't find file \"%s\" in path"), ptr);
                 *ptr.add(len) = c;
             }
 

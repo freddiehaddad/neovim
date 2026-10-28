@@ -144,10 +144,10 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                     logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
-                        c"state_enter".as_ptr(),
+                        c"state_enter",
                         97,
                         true,
-                        c"input: %s".as_ptr(),
+                        c"input: %s",
                         keyname,
                     );
                 }
@@ -338,7 +338,7 @@ pub fn may_trigger_modechanged() {
         vim_snprintf!(
             pattern_buf.as_mut_ptr(),
             pattern_buf.len(),
-            c"%s:%s".as_ptr(),
+            c"%s:%s",
             ptr::addr_of!(g_st().last_mode).cast::<c_char>(),
             curr_mode.as_ptr(),
         );
@@ -377,10 +377,10 @@ pub fn may_trigger_safestate(safe: bool) {
             logmsg!(
                 LOGLVL_DBG,
                 ptr::null(),
-                c"may_trigger_safestate".as_ptr(),
+                c"may_trigger_safestate",
                 307,
                 true,
-                c"%s".as_ptr(),
+                c"%s",
                 msg.as_ptr(),
             );
         }
@@ -401,10 +401,10 @@ pub fn state_no_longer_safe(reason: *const c_char) {
             logmsg!(
                 LOGLVL_DBG,
                 ptr::null(),
-                c"state_no_longer_safe".as_ptr(),
+                c"state_no_longer_safe",
                 320,
                 true,
-                c"SafeState reset: %s".as_ptr(),
+                c"SafeState reset: %s",
                 reason,
             );
         }

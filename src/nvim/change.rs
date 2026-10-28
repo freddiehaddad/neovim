@@ -158,8 +158,8 @@ pub fn change_warning(buf: *mut buf_T, col: c_int) {
             }
             msg_source(HLF_W);
             msg_ext_set_kind(c"wmsg".as_ptr());
-            msg_puts_hl(tr(W_READONLY.as_ptr()), HLF_W, true);
-            set_vim_var_string(VV_WARNINGMSG, tr(W_READONLY.as_ptr()), -1);
+            msg_puts_hl(tr(W_READONLY), HLF_W, true);
+            set_vim_var_string(VV_WARNINGMSG, tr(W_READONLY), -1);
             msg_clr_eos();
             msg_end();
             if g_st().msg_silent == 0 && !g_st().silent_mode && ui_active() != 0 {
@@ -891,7 +891,7 @@ pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> 
         }
         if count < 1 {
             siemsg!(
-                c"E292: Invalid count for del_bytes(): %ld".as_ptr(),
+                c"E292: Invalid count for del_bytes(): %ld",
                 i64::from(count),
             );
             return false;

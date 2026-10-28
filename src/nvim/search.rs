@@ -362,9 +362,9 @@ pub fn search_regcomp(
             };
             if srch().spats[i as usize].pat.is_none() {
                 if pat_use == RE_SUBST {
-                    emsg(tr(e_nopresub.as_ptr()));
+                    emsg(tr(e_nopresub));
                 } else {
-                    emsg(tr(e_noprevre.as_ptr()));
+                    emsg(tr(e_noprevre));
                 }
                 g_st().rc_did_emsg = true;
                 return false;
@@ -742,7 +742,7 @@ pub fn searchit(
         {
             if (options & SEARCH_MSG) != 0 && !g_st().rc_did_emsg {
                 semsg!(
-                    tr(c"E383: Invalid search string: %s".as_ptr()),
+                    tr(c"E383: Invalid search string: %s"),
                     get_search_pat()
                 );
             }
@@ -1102,18 +1102,18 @@ pub fn searchit(
 
         if found == 0 {
             if g_st().got_int {
-                emsg(tr(e_interr.as_ptr()));
+                emsg(tr(e_interr));
             } else if (options & SEARCH_MSG) == SEARCH_MSG {
                 if opt_vars().p_ws != 0 {
-                    semsg!(tr(e_patnotf2.as_ptr()), get_search_pat());
+                    semsg!(tr(e_patnotf2), get_search_pat());
                 } else if lnum == 0 {
                     semsg!(
-                        tr(E_SEARCH_HIT_TOP_WITHOUT_MATCH_FOR_STR.as_ptr()),
+                        tr(E_SEARCH_HIT_TOP_WITHOUT_MATCH_FOR_STR),
                         get_search_pat(),
                     );
                 } else {
                     semsg!(
-                        tr(E_SEARCH_HIT_BOTTOM_WITHOUT_MATCH_FOR_STR.as_ptr()),
+                        tr(E_SEARCH_HIT_BOTTOM_WITHOUT_MATCH_FOR_STR),
                         get_search_pat(),
                     );
                 }
@@ -1309,7 +1309,7 @@ pub fn do_search(
             if pat.is_null() || *pat == NUL || c_int::from(*pat as u8) == search_delim {
                 if srch().spats[RE_SEARCH as usize].pat.is_none() {
                     if srch().spats[RE_SUBST as usize].pat.is_none() {
-                        emsg(tr(e_noprevre.as_ptr()));
+                        emsg(tr(e_noprevre));
                         retval = 0;
                         success = false;
                         break;
@@ -1370,7 +1370,7 @@ pub fn do_search(
                         let n = vim_snprintf!(
                             off_buf_ptr.add(off_len),
                             off_buf.len() - off_len,
-                            c"%+lld".as_ptr(),
+                            c"%+lld",
                             srch().spats[0].off.off as std::ffi::c_longlong,
                         );
                         if n > 0 {
@@ -1625,7 +1625,7 @@ pub fn do_search(
             search_delim = dirc;
             if dirc != b'?' as c_int && dirc != b'/' as c_int {
                 retval = 0;
-                emsg(tr(c"E386: Expected '?' or '/'  after ';'".as_ptr()));
+                emsg(tr(c"E386: Expected '?' or '/'  after ';'"));
                 success = false;
                 break;
             }
@@ -1668,7 +1668,7 @@ pub fn search_for_exact_line(
                 if opt_vars().p_ws != 0 {
                     pos.lnum = buf.b_ml.ml_line_count;
                     if !shortmess(kShmSearch) {
-                        give_warning(tr(top_bot_msg.as_ptr()), true, false);
+                        give_warning(tr(top_bot_msg), true, false);
                     }
                 } else {
                     pos.lnum = 1;
@@ -1678,7 +1678,7 @@ pub fn search_for_exact_line(
                 if opt_vars().p_ws != 0 {
                     pos.lnum = 1;
                     if !shortmess(kShmSearch) {
-                        give_warning(tr(bot_top_msg.as_ptr()), true, false);
+                        give_warning(tr(bot_top_msg), true, false);
                     }
                 } else {
                     pos.lnum = 1;
@@ -2824,12 +2824,12 @@ fn cmdline_search_stat(
 
         if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 && *(**curwin.as_ptr()).w_onebuf_opt.wo_rlc == b's' as c_char {
             if stat.incomplete == 1 {
-                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]".as_ptr()) as usize;
+                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
             } else if stat.cnt > maxcount && stat.cur > maxcount {
                 len = vim_snprintf!(
                     t_ptr,
                     SEARCH_STAT_BUF_LEN,
-                    c"[>%d/>%d]".as_ptr(),
+                    c"[>%d/>%d]",
                     maxcount,
                     maxcount,
                 ) as usize;
@@ -2837,7 +2837,7 @@ fn cmdline_search_stat(
                 len = vim_snprintf!(
                     t_ptr,
                     SEARCH_STAT_BUF_LEN,
-                    c"[>%d/%d]".as_ptr(),
+                    c"[>%d/%d]",
                     maxcount,
                     stat.cur,
                 ) as usize;
@@ -2845,18 +2845,18 @@ fn cmdline_search_stat(
                 len = vim_snprintf!(
                     t_ptr,
                     SEARCH_STAT_BUF_LEN,
-                    c"[%d/%d]".as_ptr(),
+                    c"[%d/%d]",
                     stat.cnt,
                     stat.cur,
                 ) as usize;
             }
         } else if stat.incomplete == 1 {
-            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]".as_ptr()) as usize;
+            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
         } else if stat.cnt > maxcount && stat.cur > maxcount {
             len = vim_snprintf!(
                 t_ptr,
                 SEARCH_STAT_BUF_LEN,
-                c"[>%d/>%d]".as_ptr(),
+                c"[>%d/>%d]",
                 maxcount,
                 maxcount,
             ) as usize;
@@ -2864,7 +2864,7 @@ fn cmdline_search_stat(
             len = vim_snprintf!(
                 t_ptr,
                 SEARCH_STAT_BUF_LEN,
-                c"[%d/>%d]".as_ptr(),
+                c"[%d/>%d]",
                 stat.cur,
                 maxcount,
             ) as usize;
@@ -2872,7 +2872,7 @@ fn cmdline_search_stat(
             len = vim_snprintf!(
                 t_ptr,
                 SEARCH_STAT_BUF_LEN,
-                c"[%d/%d]".as_ptr(),
+                c"[%d/%d]",
                 stat.cur,
                 stat.cnt,
             ) as usize;
@@ -3074,13 +3074,13 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             di = tv_dict_find(dict, c"pos".as_ptr(), -1);
             if !di.is_null() {
                 if (*di).di_tv.v_type != VarType::VAR_LIST {
-                    semsg!(tr(e_invarg2.as_ptr()), c"pos".as_ptr());
+                    semsg!(tr(e_invarg2), c"pos");
                     return;
                 }
                 if tv_list_len((*di).di_tv.vval.v_list()) != 3 {
                     semsg!(
-                        tr(e_invarg2.as_ptr()),
-                        c"List format should be [lnum, col, off]".as_ptr(),
+                        tr(e_invarg2),
+                        c"List format should be [lnum, col, off]",
                     );
                     return;
                 }
@@ -3331,7 +3331,7 @@ pub fn find_pattern_in_path(
                                 msg_putchar(b'\n' as c_int);
                                 if !g_st().got_int {
                                     msg_home_replace(nf_ptr);
-                                    msg_puts(tr(c" (includes previously listed match)".as_ptr()));
+                                    msg_puts(tr(c" (includes previously listed match)"));
                                     prev_fname = ptr::null_mut();
                                 }
                             }
@@ -3351,11 +3351,11 @@ pub fn find_pattern_in_path(
                         msg_putchar(b'\n' as c_int);
                     } else {
                         gotocmdline(true);
-                        msg_puts_title(tr(c"--- Included files ".as_ptr()));
+                        msg_puts_title(tr(c"--- Included files "));
                         if action != ACTION_SHOW_ALL {
-                            msg_puts_title(tr(c"not found ".as_ptr()));
+                            msg_puts_title(tr(c"not found "));
                         }
-                        msg_puts_title(tr(c"in path ---\n".as_ptr()));
+                        msg_puts_title(tr(c"in path ---\n"));
                     }
                     did_show = true;
                     while depth_displayed < depth && !g_st().got_int {
@@ -3410,9 +3410,9 @@ pub fn find_pattern_in_path(
 
                         if new_fname_cstr.is_none() && action == ACTION_SHOW_ALL {
                             if already_searched {
-                                msg_puts(tr(c"  (Already listed)".as_ptr()));
+                                msg_puts(tr(c"  (Already listed)"));
                             } else {
-                                msg_puts(tr(c"  NOT FOUND".as_ptr()));
+                                msg_puts(tr(c"  NOT FOUND"));
                             }
                         }
                     }
@@ -3455,13 +3455,13 @@ pub fn find_pattern_in_path(
                             vim_snprintf!(
                                 iobuff_ptr,
                                 IOSIZE,
-                                tr(c"Scanning included file: %s".as_ptr()),
+                                tr(c"Scanning included file: %s"),
                                 curr_fname,
                             );
                             msg_trunc(iobuff_ptr, true, HLF_R);
                         } else if opt_vars().p_verbose >= 5 {
                             verbose_enter();
-                            smsg!(0, tr(c"Searching included file %s".as_ptr()), curr_fname);
+                            smsg!(0, tr(c"Searching included file %s"), curr_fname);
                             verbose_leave();
                         }
                     }
@@ -3705,7 +3705,7 @@ pub fn find_pattern_in_path(
                                 && lnum == (**curwin.as_ptr()).w_cursor.lnum
                                 && l_g_do_tagpreview == 0
                             {
-                                emsg(tr(c"E387: Match is on current line".as_ptr()));
+                                emsg(tr(c"E387: Match is on current line"));
                             } else if action == ACTION_SHOW {
                                 show_pat_in_path(
                                     line,
@@ -3866,18 +3866,18 @@ pub fn find_pattern_in_path(
         if type_ == CHECK_PATH {
             if !did_show {
                 if action != ACTION_SHOW_ALL {
-                    msg(tr(c"All included files were found".as_ptr()), 0);
+                    msg(tr(c"All included files were found"), 0);
                 } else {
-                    msg(tr(c"No included files".as_ptr()), 0);
+                    msg(tr(c"No included files"), 0);
                 }
             }
         } else if !found && action != ACTION_EXPAND && !silent {
             if g_st().got_int || ins_compl_interrupted() {
-                emsg(tr(e_interr.as_ptr()));
+                emsg(tr(e_interr));
             } else if type_ == FIND_DEFINE {
-                emsg(tr(c"E388: Couldn't find definition".as_ptr()));
+                emsg(tr(c"E388: Couldn't find definition"));
             } else {
-                emsg(tr(c"E389: Couldn't find pattern".as_ptr()));
+                emsg(tr(c"E389: Couldn't find pattern"));
             }
         }
         if action == ACTION_SHOW || action == ACTION_SHOW_ALL {
@@ -3926,9 +3926,9 @@ fn show_pat_in_path(
             }
             if action == ACTION_SHOW_ALL {
                 let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-                vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ".as_ptr(), count);
+                vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ", count);
                 msg_puts(iobuff_ptr);
-                vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d".as_ptr(), *lnum);
+                vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d", *lnum);
                 msg_puts_hl(iobuff_ptr, HLF_N, false);
                 msg_puts(c" ".as_ptr());
             }

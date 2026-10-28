@@ -381,7 +381,7 @@ pub fn opFoldRange(
             lnum = lnum_next + 1;
         }
         if done == DONE_NOTHING {
-            emsg(gettext(E_NOFOLD.as_ptr()));
+            emsg(gettext(E_NOFOLD));
         }
         if had_visual {
             redraw_curbuf_later(UPD_INVERTED);
@@ -484,11 +484,11 @@ pub fn foldManualAllowed(create: bool) -> c_int {
         }
         if create {
             emsg(gettext(
-                c"E350: Cannot create fold with current 'foldmethod'".as_ptr(),
+                c"E350: Cannot create fold with current 'foldmethod'",
             ));
         } else {
             emsg(gettext(
-                c"E351: Cannot delete fold with current 'foldmethod'".as_ptr(),
+                c"E351: Cannot delete fold with current 'foldmethod'",
             ));
         }
         0
@@ -649,7 +649,7 @@ pub fn deleteFold(
             }
         }
         if !did_one {
-            emsg(gettext(E_NOFOLD.as_ptr()));
+            emsg(gettext(E_NOFOLD));
             if had_visual {
                 redraw_buf_later(wp.w_buffer, UPD_INVERTED);
             }
@@ -953,7 +953,7 @@ fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
             setManualFold(pos, do_open, false, Some(&mut done));
             if (done & DONE_ACTION) == 0 {
                 if n == 0 && (done & DONE_FOLD) == 0 {
-                    emsg(gettext(E_NOFOLD.as_ptr()));
+                    emsg(gettext(E_NOFOLD));
                 }
                 break;
             }
@@ -1058,7 +1058,7 @@ fn setManualFoldWin(
             }
             done |= DONE_FOLD;
         } else if donep.is_none() && ptr::eq(wp, *curwin.as_ptr()) {
-            emsg(gettext(E_NOFOLD.as_ptr()));
+            emsg(gettext(E_NOFOLD));
         }
 
         if let Some(ref mut p) = donep {
@@ -1287,7 +1287,7 @@ fn foldCreateMarkers(wp: &mut win_T, start: pos_T, end: pos_T) {
     unsafe {
         let buf = wp.w_buffer;
         if (*buf).b_p_ma == 0 {
-            emsg(gettext(e_modifiable.as_ptr()));
+            emsg(gettext(e_modifiable));
             return;
         }
         parseMarker(&mut *wp);
@@ -1542,8 +1542,8 @@ pub fn get_foldtext(
                 buf.as_mut_ptr(),
                 FOLD_TEXT_LEN,
                 ngettext(
-                    c"+--%3d line folded".as_ptr(),
-                    c"+--%3d lines folded ".as_ptr(),
+                    c"+--%3d line folded",
+                    c"+--%3d lines folded ",
                     count as c_ulong,
                 ),
                 count,
@@ -2606,7 +2606,7 @@ fn put_folds_recurse(fd: *mut FILE, gap: &[fold_T], off: linenr_T) -> bool {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
-                c"sil! %lld,%lldfold".as_ptr(),
+                c"sil! %lld,%lldfold",
                 i64::from(fp.fd_top + off),
                 i64::from(fp.fd_top + off + fp.fd_len - 1),
             );
@@ -2632,7 +2632,7 @@ fn put_foldopen_recurse(
                     vim_snprintf!(
                         buf.as_mut_ptr(),
                         buf.len(),
-                        c"%lld".as_ptr(),
+                        c"%lld",
                         i64::from(fp.fd_top + off),
                     );
                     if fputs(buf.as_ptr(), fd) < 0
@@ -2669,7 +2669,7 @@ fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> bool {
         vim_snprintf!(
             buf.as_mut_ptr(),
             buf.len(),
-            c"%d".as_ptr(),
+            c"%d",
             fp.fd_top + off,
         );
         if fputs(buf.as_ptr(), fd) < 0 || !put_eol(fd) {
@@ -2754,8 +2754,8 @@ pub fn f_foldtext(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             }
             let count = foldend - foldstart + 1;
             let txt = ngettext(
-                c"+-%s%3d line: ".as_ptr(),
-                c"+-%s%3d lines: ".as_ptr(),
+                c"+-%s%3d line: ",
+                c"+-%s%3d lines: ",
                 count as c_ulong,
             );
             let s_len = crate::memory::cstr_len(s);

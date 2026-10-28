@@ -3750,7 +3750,7 @@ pub fn handle_nvim_get_autocmds(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
             return ret;
@@ -3786,7 +3786,7 @@ pub fn handle_nvim_create_autocmd(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -3823,7 +3823,7 @@ pub fn handle_nvim_del_autocmd(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -3862,7 +3862,7 @@ pub fn handle_nvim_clear_autocmds(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
             return ret;
@@ -3898,7 +3898,7 @@ pub fn handle_nvim_create_augroup(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -3942,7 +3942,7 @@ pub fn handle_nvim_del_augroup_by_id(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -3981,7 +3981,7 @@ pub fn handle_nvim_del_augroup_by_name(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -4020,7 +4020,7 @@ pub fn handle_nvim_exec_autocmds(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -4056,7 +4056,7 @@ pub fn handle_nvim_buf_line_count(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -4099,7 +4099,7 @@ pub fn handle_nvim_buf_attach(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
             return ret;
@@ -4152,7 +4152,7 @@ pub fn handle_nvim_buf_detach(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -4196,7 +4196,7 @@ pub fn handle_nvim_buf_get_lines(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
             return ret;
@@ -4274,7 +4274,7 @@ pub fn handle_nvim_buf_set_lines(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 5 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 5 but got %zu",
                 args.size
             );
             return ret;
@@ -4355,7 +4355,7 @@ pub fn handle_nvim_buf_set_text(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 6 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 6 but got %zu",
                 args.size
             );
             return ret;
@@ -4446,7 +4446,7 @@ pub fn handle_nvim_buf_get_text(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 5 to 6 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 5 to 6 but got %zu",
                 args.size
             );
             return ret;
@@ -4535,7 +4535,7 @@ pub fn handle_nvim_buf_get_offset(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -4585,7 +4585,7 @@ pub fn handle_nvim_buf_get_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -4634,7 +4634,7 @@ pub fn handle_nvim_buf_get_changedtick(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -4676,7 +4676,7 @@ pub fn handle_nvim_buf_get_keymap(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -4729,7 +4729,7 @@ pub fn handle_nvim_buf_set_keymap(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
             return ret;
@@ -4808,7 +4808,7 @@ pub fn handle_nvim_buf_del_keymap(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
             return ret;
@@ -4869,7 +4869,7 @@ pub fn handle_nvim_buf_set_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -4919,7 +4919,7 @@ pub fn handle_nvim_buf_del_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -4967,7 +4967,7 @@ pub fn handle_nvim_buf_get_name(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -5009,7 +5009,7 @@ pub fn handle_nvim_buf_set_name(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5057,7 +5057,7 @@ pub fn handle_nvim_buf_is_loaded(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -5096,7 +5096,7 @@ pub fn handle_nvim_buf_delete(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5144,7 +5144,7 @@ pub fn handle_nvim_buf_is_valid(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -5183,7 +5183,7 @@ pub fn handle_nvim_buf_del_mark(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5236,7 +5236,7 @@ pub fn handle_nvim_buf_set_mark(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
             return ret;
@@ -5306,7 +5306,7 @@ pub fn handle_nvim_buf_get_mark(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5355,7 +5355,7 @@ pub fn handle_nvim__buf_stats(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -5397,7 +5397,7 @@ pub fn handle_nvim_parse_cmd(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5454,7 +5454,7 @@ pub fn handle_nvim_cmd(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5507,7 +5507,7 @@ pub fn handle_nvim_create_user_command(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
             return ret;
@@ -5551,7 +5551,7 @@ pub fn handle_nvim_del_user_command(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -5592,7 +5592,7 @@ pub fn handle_nvim_buf_create_user_command(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
             return ret;
@@ -5635,7 +5635,7 @@ pub fn handle_nvim_buf_del_user_command(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5683,7 +5683,7 @@ pub fn handle_nvim_get_commands(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
             return ret;
@@ -5720,7 +5720,7 @@ pub fn handle_nvim_buf_get_commands(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5766,7 +5766,7 @@ pub fn handle_nvim_exec(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5814,7 +5814,7 @@ pub fn handle_nvim_command_output(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -5855,7 +5855,7 @@ pub fn handle_nvim_execute_lua(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -5903,7 +5903,7 @@ pub fn handle_nvim_buf_get_number(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -5947,7 +5947,7 @@ pub fn handle_nvim_buf_clear_highlight(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
             return ret;
@@ -6016,7 +6016,7 @@ pub fn handle_nvim_buf_add_highlight(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 6 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 6 but got %zu",
                 args.size
             );
             return ret;
@@ -6101,7 +6101,7 @@ pub fn handle_nvim_buf_set_virtual_text(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
             return ret;
@@ -6171,7 +6171,7 @@ pub fn handle_nvim_get_hl_by_id(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -6220,7 +6220,7 @@ pub fn handle_nvim_get_hl_by_name(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -6270,7 +6270,7 @@ pub fn handle_buffer_insert(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -6327,7 +6327,7 @@ pub fn handle_buffer_get_line(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -6378,7 +6378,7 @@ pub fn handle_buffer_set_line(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -6435,7 +6435,7 @@ pub fn handle_buffer_del_line(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -6487,7 +6487,7 @@ pub fn handle_buffer_get_line_slice(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 5 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 5 but got %zu",
                 args.size
             );
             return ret;
@@ -6565,7 +6565,7 @@ pub fn handle_buffer_set_line_slice(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 6 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 6 but got %zu",
                 args.size
             );
             return ret;
@@ -6641,7 +6641,7 @@ pub fn handle_buffer_set_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -6692,7 +6692,7 @@ pub fn handle_buffer_del_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -6742,7 +6742,7 @@ pub fn handle_window_set_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -6793,7 +6793,7 @@ pub fn handle_window_del_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -6843,7 +6843,7 @@ pub fn handle_tabpage_set_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -6894,7 +6894,7 @@ pub fn handle_tabpage_del_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -6943,7 +6943,7 @@ pub fn handle_vim_set_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -6984,7 +6984,7 @@ pub fn handle_vim_del_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7024,7 +7024,7 @@ pub fn handle_nvim_get_option_info(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7064,7 +7064,7 @@ pub fn handle_nvim_set_option(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -7104,7 +7104,7 @@ pub fn handle_nvim_get_option(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7145,7 +7145,7 @@ pub fn handle_nvim_buf_get_option(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -7195,7 +7195,7 @@ pub fn handle_nvim_buf_set_option(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -7245,7 +7245,7 @@ pub fn handle_nvim_win_get_option(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -7295,7 +7295,7 @@ pub fn handle_nvim_win_set_option(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -7344,7 +7344,7 @@ pub fn handle_nvim_call_atomic(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7384,7 +7384,7 @@ pub fn handle_nvim_subscribe(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7420,7 +7420,7 @@ pub fn handle_nvim_unsubscribe(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7456,7 +7456,7 @@ pub fn handle_nvim_out_write(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7492,7 +7492,7 @@ pub fn handle_nvim_err_write(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7528,7 +7528,7 @@ pub fn handle_nvim_err_writeln(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7566,7 +7566,7 @@ pub fn handle_nvim_notify(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -7623,7 +7623,7 @@ pub fn handle_nvim_win_set_height(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -7672,7 +7672,7 @@ pub fn handle_nvim_win_set_width(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -7721,7 +7721,7 @@ pub fn handle_nvim_error_event(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -7765,7 +7765,7 @@ pub fn handle_nvim_ui_term_event(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -7805,7 +7805,7 @@ pub fn handle_nvim_create_namespace(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -7841,7 +7841,7 @@ pub fn handle_nvim_get_namespaces(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -7873,7 +7873,7 @@ pub fn handle_nvim_buf_get_extmark_by_id(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
             return ret;
@@ -7936,7 +7936,7 @@ pub fn handle_nvim_buf_get_extmarks(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
             return ret;
@@ -7995,7 +7995,7 @@ pub fn handle_nvim_buf_set_extmark(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu",
                 args.size
             );
             return ret;
@@ -8066,7 +8066,7 @@ pub fn handle_nvim_buf_del_extmark(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -8126,7 +8126,7 @@ pub fn handle_nvim_buf_clear_namespace(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
             return ret;
@@ -8192,7 +8192,7 @@ pub fn handle_nvim__buf_debug_extmarks(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -8250,7 +8250,7 @@ pub fn handle_nvim__ns_set(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -8300,7 +8300,7 @@ pub fn handle_nvim__ns_get(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -8346,7 +8346,7 @@ pub fn handle_nvim_get_option_value(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -8391,7 +8391,7 @@ pub fn handle_nvim_set_option_value(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
             return ret;
@@ -8435,7 +8435,7 @@ pub fn handle_nvim_get_all_options_info(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -8468,7 +8468,7 @@ pub fn handle_nvim_get_option_info2(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -8512,7 +8512,7 @@ pub fn handle_nvim_tabpage_list_wins(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -8554,7 +8554,7 @@ pub fn handle_nvim_tabpage_get_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -8604,7 +8604,7 @@ pub fn handle_nvim_tabpage_set_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -8654,7 +8654,7 @@ pub fn handle_nvim_tabpage_del_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -8702,7 +8702,7 @@ pub fn handle_nvim_tabpage_get_win(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -8744,7 +8744,7 @@ pub fn handle_nvim_tabpage_set_win(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -8793,7 +8793,7 @@ pub fn handle_nvim_tabpage_get_number(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -8834,7 +8834,7 @@ pub fn handle_nvim_tabpage_is_valid(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -8874,7 +8874,7 @@ pub fn handle_nvim_open_tabpage(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -8932,7 +8932,7 @@ pub fn handle_nvim_ui_attach(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -8989,7 +8989,7 @@ pub fn handle_ui_attach(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -9044,7 +9044,7 @@ pub fn handle_nvim_ui_set_focus(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -9082,7 +9082,7 @@ pub fn handle_nvim_ui_detach(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -9114,7 +9114,7 @@ pub fn handle_nvim_ui_try_resize(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -9161,7 +9161,7 @@ pub fn handle_nvim_ui_set_option(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -9203,7 +9203,7 @@ pub fn handle_nvim_ui_try_resize_grid(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -9258,7 +9258,7 @@ pub fn handle_nvim_ui_pum_set_height(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -9300,7 +9300,7 @@ pub fn handle_nvim_ui_pum_set_bounds(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
             return ret;
@@ -9363,7 +9363,7 @@ pub fn handle_nvim_ui_send(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -9402,7 +9402,7 @@ pub fn handle_nvim_get_hl_id_by_name(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -9443,7 +9443,7 @@ pub fn handle_nvim_get_hl(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -9489,7 +9489,7 @@ pub fn handle_nvim_set_hl(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -9545,7 +9545,7 @@ pub fn handle_nvim_get_hl_ns(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
             return ret;
@@ -9588,7 +9588,7 @@ pub fn handle_nvim_set_hl_ns(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -9627,7 +9627,7 @@ pub fn handle_nvim_set_hl_ns_fast(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -9668,7 +9668,7 @@ pub fn handle_nvim_feedkeys(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -9720,7 +9720,7 @@ pub fn handle_nvim_input(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -9762,7 +9762,7 @@ pub fn handle_nvim_input_mouse(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 6 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 6 but got %zu",
                 args.size
             );
             return ret;
@@ -9844,7 +9844,7 @@ pub fn handle_nvim_replace_termcodes(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
             return ret;
@@ -9906,7 +9906,7 @@ pub fn handle_nvim_exec_lua(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -9955,7 +9955,7 @@ pub fn handle_nvim__exec_lua_fast(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -10003,7 +10003,7 @@ pub fn handle_nvim_strwidth(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -10042,7 +10042,7 @@ pub fn handle_nvim_list_runtime_paths(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -10073,7 +10073,7 @@ pub fn handle_nvim__runtime_inspect(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -10103,7 +10103,7 @@ pub fn handle_nvim_get_runtime_file(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -10150,7 +10150,7 @@ pub fn handle_nvim__get_lib_dir(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -10181,7 +10181,7 @@ pub fn handle_nvim__get_runtime(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
             return ret;
@@ -10233,7 +10233,7 @@ pub fn handle_nvim_set_current_dir(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -10271,7 +10271,7 @@ pub fn handle_nvim_get_current_line(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -10303,7 +10303,7 @@ pub fn handle_nvim_set_current_line(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -10345,7 +10345,7 @@ pub fn handle_nvim_del_current_line(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -10380,7 +10380,7 @@ pub fn handle_nvim_get_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -10420,7 +10420,7 @@ pub fn handle_nvim_set_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -10460,7 +10460,7 @@ pub fn handle_nvim_del_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -10499,7 +10499,7 @@ pub fn handle_nvim_get_vvar(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -10539,7 +10539,7 @@ pub fn handle_nvim_set_vvar(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -10581,7 +10581,7 @@ pub fn handle_nvim_echo(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
             return ret;
@@ -10634,7 +10634,7 @@ pub fn handle_nvim_list_bufs(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -10662,7 +10662,7 @@ pub fn handle_nvim_get_current_buf(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -10691,7 +10691,7 @@ pub fn handle_nvim_set_current_buf(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -10734,7 +10734,7 @@ pub fn handle_nvim_list_wins(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -10762,7 +10762,7 @@ pub fn handle_nvim_get_current_win(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -10791,7 +10791,7 @@ pub fn handle_nvim_set_current_win(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -10836,7 +10836,7 @@ pub fn handle_nvim_create_buf(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -10885,7 +10885,7 @@ pub fn handle_nvim_open_term(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -10935,7 +10935,7 @@ pub fn handle_nvim_chan_send(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -10981,7 +10981,7 @@ pub fn handle_nvim_list_tabpages(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -11009,7 +11009,7 @@ pub fn handle_nvim_get_current_tabpage(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -11038,7 +11038,7 @@ pub fn handle_nvim_set_current_tabpage(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11084,7 +11084,7 @@ pub fn handle_nvim_paste(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -11147,7 +11147,7 @@ pub fn handle_nvim_put(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 4 but got %zu",
                 args.size
             );
             return ret;
@@ -11214,7 +11214,7 @@ pub fn handle_nvim_get_color_by_name(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11250,7 +11250,7 @@ pub fn handle_nvim_get_color_map(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -11279,7 +11279,7 @@ pub fn handle_nvim_get_context(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11315,7 +11315,7 @@ pub fn handle_nvim_load_context(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11354,7 +11354,7 @@ pub fn handle_nvim_get_mode(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -11383,7 +11383,7 @@ pub fn handle_nvim_get_keymap(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11423,7 +11423,7 @@ pub fn handle_nvim_set_keymap(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
             return ret;
@@ -11491,7 +11491,7 @@ pub fn handle_nvim_del_keymap(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu",
                 args.size
             );
             return ret;
@@ -11541,7 +11541,7 @@ pub fn handle_nvim_get_api_info(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -11574,7 +11574,7 @@ pub fn handle_nvim_set_client_info(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 5 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 5 but got %zu",
                 args.size
             );
             return ret;
@@ -11646,7 +11646,7 @@ pub fn handle_nvim_chan_set(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -11695,7 +11695,7 @@ pub fn handle_nvim__cmdwin_set(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -11743,7 +11743,7 @@ pub fn handle_nvim_get_chan_info(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11782,7 +11782,7 @@ pub fn handle_nvim_list_chans(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -11810,7 +11810,7 @@ pub fn handle_nvim__id(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11840,7 +11840,7 @@ pub fn handle_nvim__id_array(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11877,7 +11877,7 @@ pub fn handle_nvim__id_dict(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11914,7 +11914,7 @@ pub fn handle_nvim__id_float(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -11950,7 +11950,7 @@ pub fn handle_nvim__stats(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -11978,7 +11978,7 @@ pub fn handle_nvim_list_uis(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -12007,7 +12007,7 @@ pub fn handle_nvim_get_proc_children(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -12047,7 +12047,7 @@ pub fn handle_nvim_get_proc(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -12090,7 +12090,7 @@ pub fn handle_nvim_select_popupmenu_item(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
             return ret;
@@ -12151,7 +12151,7 @@ pub fn handle_nvim__inspect_cell(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -12207,7 +12207,7 @@ pub fn handle_nvim__screenshot(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -12242,7 +12242,7 @@ pub fn handle_nvim__invalidate_glyph_cache(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 0 but got %zu",
                 args.size
             );
             return ret;
@@ -12270,7 +12270,7 @@ pub fn handle_nvim__unpack(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -12310,7 +12310,7 @@ pub fn handle_nvim_del_mark(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -12351,7 +12351,7 @@ pub fn handle_nvim_get_mark(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -12403,7 +12403,7 @@ pub fn handle_nvim_eval_statusline(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -12448,7 +12448,7 @@ pub fn handle_nvim__complete_set(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -12492,7 +12492,7 @@ pub fn handle_nvim__redraw(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting at most 1 but got %zu",
                 args.size
             );
             return ret;
@@ -12535,7 +12535,7 @@ pub fn handle_nvim__set_restart_on_crash(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -12580,7 +12580,7 @@ pub fn handle_nvim_exec2(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -12631,7 +12631,7 @@ pub fn handle_nvim_command(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -12670,7 +12670,7 @@ pub fn handle_nvim_eval(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -12711,7 +12711,7 @@ pub fn handle_nvim_call_function(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -12760,7 +12760,7 @@ pub fn handle_nvim_call_dict_function(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -12811,7 +12811,7 @@ pub fn handle_nvim_parse_expression(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -12869,7 +12869,7 @@ pub fn handle_nvim_open_win(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -12932,7 +12932,7 @@ pub fn handle_nvim_win_set_config(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -12975,7 +12975,7 @@ pub fn handle_nvim_win_get_config(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13021,7 +13021,7 @@ pub fn handle_nvim_win_get_buf(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13063,7 +13063,7 @@ pub fn handle_nvim_win_set_buf(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -13116,7 +13116,7 @@ pub fn handle_nvim_win_get_cursor(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13158,7 +13158,7 @@ pub fn handle_nvim_win_set_cursor(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -13201,7 +13201,7 @@ pub fn handle_nvim_win_get_height(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13242,7 +13242,7 @@ pub fn handle_nvim_win_get_width(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13284,7 +13284,7 @@ pub fn handle_nvim_win_get_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -13334,7 +13334,7 @@ pub fn handle_nvim_win_set_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 but got %zu",
                 args.size
             );
             return ret;
@@ -13384,7 +13384,7 @@ pub fn handle_nvim_win_del_var(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -13432,7 +13432,7 @@ pub fn handle_nvim_win_get_position(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13473,7 +13473,7 @@ pub fn handle_nvim_win_get_tabpage(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13514,7 +13514,7 @@ pub fn handle_nvim_win_get_number(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13555,7 +13555,7 @@ pub fn handle_nvim_win_is_valid(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13593,7 +13593,7 @@ pub fn handle_nvim_win_hide(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 but got %zu",
                 args.size
             );
             return ret;
@@ -13638,7 +13638,7 @@ pub fn handle_nvim_win_close(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -13691,7 +13691,7 @@ pub fn handle_nvim_win_set_hl_ns(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 2 but got %zu",
                 args.size
             );
             return ret;
@@ -13740,7 +13740,7 @@ pub fn handle_nvim_win_text_height(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu",
                 args.size
             );
             return ret;
@@ -13788,7 +13788,7 @@ pub fn handle_nvim_win_resize(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu",
                 args.size
             );
             return ret;
@@ -15841,7 +15841,7 @@ pub fn msgpack_rpc_get_handler_for(
             api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
-                c"Invalid method: %.*s".as_ptr(),
+                c"Invalid method: %.*s",
                 if name_len > 0 {
                     name_len as c_int
                 } else {
@@ -15905,7 +15905,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected at most 1 argument".as_ptr(),
+                        c"Expected at most 1 argument",
                     );
                     break 'exit_0;
                 }
@@ -15957,7 +15957,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -16012,7 +16012,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) ->
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -16049,7 +16049,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected at most 1 argument".as_ptr(),
+                        c"Expected at most 1 argument",
                     );
                     break 'exit_0;
                 }
@@ -16100,7 +16100,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -16155,7 +16155,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_Sta
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -16191,7 +16191,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_S
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -16229,7 +16229,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) 
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -16284,7 +16284,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State)
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -16325,7 +16325,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 2 to 3 arguments".as_ptr(),
+                            c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -16393,7 +16393,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) 
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 4 arguments".as_ptr(),
+                                c"Expected 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -16470,7 +16470,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) 
                                 api_set_error_str(
                                     &mut err,
                                     ErrorType::kErrorTypeValidation,
-                                    c"Expected 5 arguments".as_ptr(),
+                                    c"Expected 5 arguments",
                                 );
                                 break 'exit_0;
                             }
@@ -16557,7 +16557,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -
                                     api_set_error_str(
                                         &mut err,
                                         ErrorType::kErrorTypeValidation,
-                                        c"Expected 6 arguments".as_ptr(),
+                                        c"Expected 6 arguments",
                                     );
                                     break 'exit_0;
                                 }
@@ -16651,7 +16651,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
                                     api_set_error_str(
                                         &mut err,
                                         ErrorType::kErrorTypeValidation,
-                                        c"Expected 5 to 6 arguments".as_ptr(),
+                                        c"Expected 5 to 6 arguments",
                                     );
                                     break 'exit_0;
                                 }
@@ -16748,7 +16748,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -16793,7 +16793,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) ->
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -16836,7 +16836,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_S
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -16875,7 +16875,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -16926,7 +16926,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State)
                                 api_set_error_str(
                                     &mut err,
                                     ErrorType::kErrorTypeValidation,
-                                    c"Expected 4 to 5 arguments".as_ptr(),
+                                    c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
                             }
@@ -17012,7 +17012,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State)
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 3 to 4 arguments".as_ptr(),
+                                c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -17089,7 +17089,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) ->
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -17140,7 +17140,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) ->
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -17182,7 +17182,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -17221,7 +17221,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -17263,7 +17263,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -17302,7 +17302,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> 
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -17364,7 +17364,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -17403,7 +17403,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -17454,7 +17454,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
                                 api_set_error_str(
                                     &mut err,
                                     ErrorType::kErrorTypeValidation,
-                                    c"Expected 4 to 5 arguments".as_ptr(),
+                                    c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
                             }
@@ -17536,7 +17536,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -17581,7 +17581,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> c_
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -17625,7 +17625,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_stats(lstate: *mut lua_State) -> 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -17664,7 +17664,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> c
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -17719,7 +17719,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 1 to 2 arguments".as_ptr(),
+                            c"Expected 1 to 2 arguments",
                         );
                         break 'exit_0;
                     }
@@ -17795,7 +17795,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_S
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 2 to 3 arguments".as_ptr(),
+                            c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -17862,7 +17862,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_Stat
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -17904,7 +17904,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut l
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 3 to 4 arguments".as_ptr(),
+                                c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -17980,7 +17980,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -18023,7 +18023,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected at most 1 argument".as_ptr(),
+                        c"Expected at most 1 argument",
                     );
                     break 'exit_0;
                 }
@@ -18075,7 +18075,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_Stat
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -18132,7 +18132,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> c_int 
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -18172,7 +18172,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State)
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -18210,7 +18210,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State)
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -18253,7 +18253,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_S
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 4 arguments".as_ptr(),
+                                c"Expected 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -18317,7 +18317,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_Sta
                                     api_set_error_str(
                                         &mut err,
                                         ErrorType::kErrorTypeValidation,
-                                        c"Expected 6 arguments".as_ptr(),
+                                        c"Expected 6 arguments",
                                     );
                                     break 'exit_0;
                                 }
@@ -18404,7 +18404,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
                                 api_set_error_str(
                                     &mut err,
                                     ErrorType::kErrorTypeValidation,
-                                    c"Expected 4 to 5 arguments".as_ptr(),
+                                    c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
                             }
@@ -18486,7 +18486,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -18531,7 +18531,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -18574,7 +18574,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -18613,7 +18613,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> 
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -18656,7 +18656,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -18696,7 +18696,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -18744,7 +18744,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State)
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -18795,7 +18795,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -18843,7 +18843,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State)
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -18892,7 +18892,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> c
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -18928,7 +18928,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> c
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -18964,7 +18964,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) ->
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -19004,7 +19004,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> c_in
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -19055,7 +19055,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -19099,7 +19099,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) 
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -19141,7 +19141,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_Stat
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -19177,7 +19177,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State)
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -19215,7 +19215,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 3 to 4 arguments".as_ptr(),
+                                c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -19297,7 +19297,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
                                 api_set_error_str(
                                     &mut err,
                                     ErrorType::kErrorTypeValidation,
-                                    c"Expected 4 to 5 arguments".as_ptr(),
+                                    c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
                             }
@@ -19388,7 +19388,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
                                 api_set_error_str(
                                     &mut err,
                                     ErrorType::kErrorTypeValidation,
-                                    c"Expected 4 to 5 arguments".as_ptr(),
+                                    c"Expected 4 to 5 arguments",
                                 );
                                 break 'exit_0;
                             }
@@ -19472,7 +19472,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -19527,7 +19527,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_S
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 4 arguments".as_ptr(),
+                                c"Expected 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -19583,7 +19583,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut l
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -19641,7 +19641,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_debug_extmarks(lstate: *mut lua_S
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -19693,7 +19693,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_set(lstate: *mut lua_State) -> c_i
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -19747,7 +19747,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_get(lstate: *mut lua_State) -> c_i
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -19790,7 +19790,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__option_to_object(lstate: *mut lua_Sta
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -19836,7 +19836,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_Stat
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -19896,7 +19896,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_Stat
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 2 to 3 arguments".as_ptr(),
+                            c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -19964,7 +19964,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -19998,7 +19998,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -20053,7 +20053,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_Sta
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -20092,7 +20092,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -20139,7 +20139,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -20190,7 +20190,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -20232,7 +20232,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -20271,7 +20271,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -20313,7 +20313,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_St
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -20350,7 +20350,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_Stat
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -20391,7 +20391,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -20458,7 +20458,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> c_i
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -20494,7 +20494,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_Sta
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -20533,7 +20533,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -20592,7 +20592,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> c_in
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -20651,7 +20651,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> c
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected at most 1 argument".as_ptr(),
+                        c"Expected at most 1 argument",
                     );
                     break 'exit_0;
                 }
@@ -20701,7 +20701,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> c
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -20737,7 +20737,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State)
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -20770,7 +20770,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> c_
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -20818,7 +20818,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> c_int
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -20858,7 +20858,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) ->
                                     api_set_error_str(
                                         &mut err,
                                         ErrorType::kErrorTypeValidation,
-                                        c"Expected 6 arguments".as_ptr(),
+                                        c"Expected 6 arguments",
                                     );
                                     break 'exit_0;
                                 }
@@ -20923,7 +20923,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_Sta
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 4 arguments".as_ptr(),
+                                c"Expected 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -20972,7 +20972,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> c_
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -21008,7 +21008,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_St
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -21039,7 +21039,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__runtime_inspect(lstate: *mut lua_Stat
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -21073,7 +21073,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_Stat
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -21108,7 +21108,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_lib_dir(lstate: *mut lua_State) -
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -21145,7 +21145,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_runtime(lstate: *mut lua_State) -
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 2 to 3 arguments".as_ptr(),
+                            c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -21200,7 +21200,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -21235,7 +21235,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_Stat
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -21267,7 +21267,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_Stat
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -21310,7 +21310,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_Stat
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -21349,7 +21349,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> c_i
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -21388,7 +21388,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> c_i
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -21431,7 +21431,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> c_i
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -21467,7 +21467,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> c_
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -21506,7 +21506,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> c_
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -21553,7 +21553,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int 
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 2 to 3 arguments".as_ptr(),
+                            c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -21613,7 +21613,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> c
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -21644,7 +21644,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -21676,7 +21676,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -21719,7 +21719,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> c
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -21750,7 +21750,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -21782,7 +21782,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -21828,7 +21828,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> 
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -21873,7 +21873,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -21938,7 +21938,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> c
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -21979,7 +21979,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -22010,7 +22010,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_S
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -22042,7 +22042,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_S
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22090,7 +22090,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> c_int
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -22160,7 +22160,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> c_int {
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 4 arguments".as_ptr(),
+                                c"Expected 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -22222,7 +22222,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_Sta
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22258,7 +22258,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -22291,7 +22291,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) ->
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected at most 1 argument".as_ptr(),
+                        c"Expected at most 1 argument",
                     );
                     break 'exit_0;
                 }
@@ -22341,7 +22341,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22377,7 +22377,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> c_
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -22402,7 +22402,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22445,7 +22445,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> 
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 3 to 4 arguments".as_ptr(),
+                                c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -22522,7 +22522,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> 
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 2 to 3 arguments".as_ptr(),
+                            c"Expected 2 to 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -22584,7 +22584,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> c_
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -22631,7 +22631,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__cmdwin_set(lstate: *mut lua_State) ->
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -22673,7 +22673,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22709,7 +22709,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -22741,7 +22741,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id(lstate: *mut lua_State) -> c_int {
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22775,7 +22775,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_array(lstate: *mut lua_State) -> c
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22812,7 +22812,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_dict(lstate: *mut lua_State) -> c_
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22849,7 +22849,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_float(lstate: *mut lua_State) -> c
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22885,7 +22885,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__stats(lstate: *mut lua_State) -> c_in
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -22916,7 +22916,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> c_
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -22948,7 +22948,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_Sta
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -22985,7 +22985,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> c_
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -23028,7 +23028,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 3 to 4 arguments".as_ptr(),
+                                c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
                         }
@@ -23098,7 +23098,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__inspect_cell(lstate: *mut lua_State) 
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -23147,7 +23147,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__screenshot(lstate: *mut lua_State) ->
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -23175,7 +23175,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__invalidate_glyph_cache(lstate: *mut l
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 0 arguments".as_ptr(),
+                    c"Expected 0 arguments",
                 );
                 break 'exit_0;
             }
@@ -23206,7 +23206,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__unpack(lstate: *mut lua_State) -> c_i
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -23236,7 +23236,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> c_
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -23275,7 +23275,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -23332,7 +23332,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -23382,7 +23382,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__complete_set(lstate: *mut lua_State) 
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -23438,7 +23438,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__redraw(lstate: *mut lua_State) -> c_i
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected at most 1 argument".as_ptr(),
+                        c"Expected at most 1 argument",
                     );
                     break 'exit_0;
                 }
@@ -23489,7 +23489,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__set_restart_on_crash(lstate: *mut lua
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -23533,7 +23533,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -23589,7 +23589,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> c_i
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -23625,7 +23625,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> c_int 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -23660,7 +23660,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) 
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -23708,7 +23708,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_St
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -23769,7 +23769,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_Stat
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -23815,7 +23815,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -23884,7 +23884,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -23936,7 +23936,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State)
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -23977,7 +23977,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) ->
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -24016,7 +24016,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) ->
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -24066,7 +24066,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State)
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -24105,7 +24105,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State)
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -24147,7 +24147,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State)
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -24184,7 +24184,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) 
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -24223,7 +24223,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) ->
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -24270,7 +24270,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) ->
                         api_set_error_str(
                             &mut err,
                             ErrorType::kErrorTypeValidation,
-                            c"Expected 3 arguments".as_ptr(),
+                            c"Expected 3 arguments",
                         );
                         break 'exit_0;
                     }
@@ -24321,7 +24321,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) ->
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -24363,7 +24363,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_Stat
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -24400,7 +24400,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -24437,7 +24437,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State)
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -24474,7 +24474,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -24511,7 +24511,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> c_
                 api_set_error_str(
                     &mut err,
                     ErrorType::kErrorTypeValidation,
-                    c"Expected 1 argument".as_ptr(),
+                    c"Expected 1 argument",
                 );
                 break 'exit_0;
             }
@@ -24557,7 +24557,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> c
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -24609,7 +24609,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> c_
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -24655,7 +24655,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) 
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 2 arguments".as_ptr(),
+                        c"Expected 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -24699,7 +24699,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State
                     api_set_error_str(
                         &mut err,
                         ErrorType::kErrorTypeValidation,
-                        c"Expected 1 to 2 arguments".as_ptr(),
+                        c"Expected 1 to 2 arguments",
                     );
                     break 'exit_0;
                 }
@@ -24760,7 +24760,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> 
                             api_set_error_str(
                                 &mut err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Expected 3 to 4 arguments".as_ptr(),
+                                c"Expected 3 to 4 arguments",
                             );
                             break 'exit_0;
                         }

@@ -261,7 +261,7 @@ pub(crate) fn call_on_hunk_cb(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"on_hunk: %s".as_ptr(),
+                c"on_hunk: %s",
                 msg_ptr,
             );
             return -1;
@@ -332,7 +332,7 @@ fn process_xdl_diff_opts(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"not a valid result_type".as_ptr(),
+                        c"not a valid result_type",
                     );
                     break 'validate;
                 }
@@ -351,7 +351,7 @@ fn process_xdl_diff_opts(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"not a valid algorithm".as_ptr(),
+                        c"not a valid algorithm",
                     );
                     break 'validate;
                 }
@@ -377,7 +377,7 @@ fn process_xdl_diff_opts(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"linematch must be a boolean or integer".as_ptr(),
+                        c"linematch must be a boolean or integer",
                     );
                     break 'validate;
                 }
@@ -409,7 +409,7 @@ fn process_xdl_diff_opts(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"on_hunk is not a function".as_ptr(),
+                        c"on_hunk is not a function",
                     );
                 }
             } else if had_result_type_indices {
@@ -473,7 +473,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
                 api_set_error!(
                     &mut priv_state.err,
                     ErrorType::kErrorTypeException,
-                    c"diff operation failed".as_ptr(),
+                    c"diff operation failed",
                 );
             }
         }

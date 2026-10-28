@@ -491,7 +491,7 @@ pub fn os_chdir(path: *const c_char) -> c_int {
     unsafe {
         if opt_vars().p_verbose >= 5 {
             verbose_enter();
-            let _ = smsg!(0, c"chdir(%s)".as_ptr(), path);
+            let _ = smsg!(0, c"chdir(%s)", path);
             verbose_leave();
         }
         let err = uv_chdir(path);
@@ -846,10 +846,10 @@ pub fn os_set_cloexec(fd: c_int) -> c_int {
             let _ = logmsg!(
                 4,
                 ptr::null(),
-                c"os_set_cloexec".as_ptr(),
+                c"os_set_cloexec",
                 line!() as c_int,
                 true,
-                c"Failed to get flags on descriptor %d: %s".as_ptr(),
+                c"Failed to get flags on descriptor %d: %s",
                 fd,
                 strerror(e),
             );
@@ -861,10 +861,10 @@ pub fn os_set_cloexec(fd: c_int) -> c_int {
             let _ = logmsg!(
                 4,
                 ptr::null(),
-                c"os_set_cloexec".as_ptr(),
+                c"os_set_cloexec",
                 line!() as c_int,
                 true,
-                c"Failed to set CLOEXEC on descriptor %d: %s".as_ptr(),
+                c"Failed to set CLOEXEC on descriptor %d: %s",
                 fd,
                 strerror(e),
             );
@@ -1435,7 +1435,7 @@ pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
             let tail = path_tail_with_sep(fname);
             let last_char = tail.add(crate::memory::cstr_len(tail)).sub(1);
             if vim_ispathsep(c_int::from(*last_char as u8)) {
-                emsg(gettext(e_noname.as_ptr()));
+                emsg(gettext(e_noname));
                 return -1;
             }
             let c = *tail;
@@ -1444,7 +1444,7 @@ pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
             let r = os_mkdir_recurse(fname, mode, &mut failed_dir, None);
             if r < 0 {
                 let _ = semsg!(
-                    gettext(e_mkdir.as_ptr()),
+                    gettext(e_mkdir),
                     failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                     uv_strerror(r),
                 );
@@ -1755,7 +1755,7 @@ pub fn os_resolve_shortcut(fname: *const c_char) -> Option<std::ffi::CString> {
             let mut p: Vec<u16> = Vec::new();
             let r = utf8_to_utf16(fname, -1, &mut p);
             if r != 0 {
-                semsg!(c"utf8_to_utf16 failed: %d".as_ptr(), r);
+                semsg!(c"utf8_to_utf16 failed: %d", r);
             } else if !p.is_empty() {
                 let hr2 = ((*(*pslw).lp_vtbl).query_interface)(
                     pslw,
@@ -1778,7 +1778,7 @@ pub fn os_resolve_shortcut(fname: *const c_char) -> Option<std::ffi::CString> {
                             let mut rfname_cstr: Option<std::ffi::CString> = None;
                             let r2 = utf16_to_utf8(wsz.as_ptr(), -1, &mut rfname_cstr);
                             if r2 != 0 {
-                                semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), r2);
+                                semsg!(c"utf16_to_utf8 failed: %d", r2);
                             } else if let Some(cstr) = rfname_cstr {
                                 let mut v = cstr.into_bytes_with_nul();
                                 to_slash(v.as_mut_ptr().cast::<c_char>());
@@ -1814,7 +1814,7 @@ pub fn os_is_reparse_point_include(path: *const c_char) -> bool {
         let mut utf16_vec: Vec<u16> = Vec::new();
         let r = utf8_to_utf16(path, -1, &mut utf16_vec);
         if r != 0 {
-            semsg!(c"utf8_to_utf16 failed: %d".as_ptr(), r);
+            semsg!(c"utf8_to_utf16 failed: %d", r);
             return false;
         }
         let utf16_path = utf16_vec.as_ptr();

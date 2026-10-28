@@ -2133,7 +2133,7 @@ fn ins_compl_dictionaries(
             let len = pat_esc.as_bytes().len() + 10;
             let mut ptr_vec = vec![0 as c_char; len];
             let ptr = ptr_vec.as_mut_ptr();
-            vim_snprintf!(ptr, len, c"^\\s*\\zs\\V%s".as_ptr(), pat_esc.as_ptr());
+            vim_snprintf!(ptr, len, c"^\\s*\\zs\\V%s", pat_esc.as_ptr());
             regmatch.regprog = vim_regcomp(ptr, RE_MAGIC);
         } else {
             regmatch.regprog = vim_regcomp(pat, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
@@ -2277,7 +2277,7 @@ fn ins_compl_files(
                 vim_snprintf!(
                     iobuff_ptr,
                     IOSIZE,
-                    gettext(c"Scanning dictionary: %s".as_ptr()),
+                    gettext(c"Scanning dictionary: %s"),
                     file,
                 );
                 msg_progress(
@@ -2776,9 +2776,9 @@ fn set_ctrl_x_mode(c: c_int) -> bool {
             Ctrl_E | Ctrl_Y => {
                 insexp().ctrl_x_mode = CTRL_X_SCROLL;
                 if (g_st().State & REPLACE_FLAG) == 0 {
-                    g_st().edit_submode = gettext(c" (insert) Scroll (^E/^Y)".as_ptr());
+                    g_st().edit_submode = gettext(c" (insert) Scroll (^E/^Y)");
                 } else {
-                    g_st().edit_submode = gettext(c" (replace) Scroll (^E/^Y)".as_ptr());
+                    g_st().edit_submode = gettext(c" (replace) Scroll (^E/^Y)");
                 }
                 g_st().edit_submode_pre = ptr::null();
                 g_st().redraw_mode = true;
@@ -3364,7 +3364,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         check_cursor(*curwin.as_ptr());
         validate_cursor(*curwin.as_ptr());
         if !equalpos((**curwin.as_ptr()).w_cursor, pos) {
-            emsg(gettext(E_COMPLDEL.as_ptr()));
+            emsg(gettext(E_COMPLDEL));
         } else if !matchlist.is_null() {
             ins_compl_add_list(matchlist);
         } else if !matchdict.is_null() {
@@ -3611,7 +3611,7 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
      {
         if (g_st().State & MODE_INSERT) == 0 {
             emsg(gettext(
-                c"E785: complete() can only be used in Insert mode".as_ptr(),
+                c"E785: complete() can only be used in Insert mode",
             ));
             return;
         }
@@ -3621,7 +3621,7 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
         }
 
         if argvars[1].v_type != VAR_LIST {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
         } else {
             let startcol = tv_get_number_chk(&argvars[0], None) as colnr_T;
             if startcol > 0 {
@@ -3951,7 +3951,7 @@ pub fn f_complete_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
         if argvars[0].v_type != VAR_UNKNOWN {
             if argvars[0].v_type != VAR_LIST {
-                emsg(gettext(e_listreq.as_ptr()));
+                emsg(gettext(e_listreq));
                 return;
             }
             what_list = argvars[0].vval.v_list();
@@ -4051,7 +4051,7 @@ fn process_next_cpt_value(
                 } else {
                     (*st.ins_buf).b_sfname
                 };
-                vim_snprintf!(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s".as_ptr()), name);
+                vim_snprintf!(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s"), name);
                 msg_progress(
                     iobuff_ptr,
                     c"nvim.completion".as_ptr().cast_mut(),
@@ -4105,8 +4105,8 @@ fn process_next_cpt_value(
                         vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
-                            c"%s".as_ptr(),
-                            gettext(c"Scanning tags.".as_ptr()),
+                            c"%s",
+                            gettext(c"Scanning tags."),
                         );
                         msg_progress(
                             iobuff_ptr,
@@ -4351,7 +4351,7 @@ fn get_next_filename_completion() {
                 vim_snprintf!(
                     path_with_wildcard.as_mut_ptr(),
                     path_len + 2,
-                    c"%*.*s*".as_ptr(),
+                    c"%*.*s*",
                     path_len as c_int,
                     path_len as c_int,
                     leader,
@@ -5073,7 +5073,7 @@ fn advance_cpt_sources_index_safe() -> bool {
             return true;
         }
         semsg!(
-            gettext(e_list_index_out_of_range_nr.as_ptr()),
+            gettext(e_list_index_out_of_range_nr),
             i64::from(insexp().cpt_sources_index),
         );
         false
@@ -5567,7 +5567,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
 
 fn ins_compl_show_filename() {
     unsafe {
-        let lead = gettext(c"match in file".as_ptr());
+        let lead = gettext(c"match in file");
 
         let mut space =
             (if ui_has(kUIMessages) { g_st().Columns } else { g_st().sc_col }) - vim_strsize(lead) - 2;
@@ -5596,7 +5596,7 @@ fn ins_compl_show_filename() {
             vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
-                c"%s %s%s".as_ptr(),
+                c"%s %s%s",
                 lead,
                 if s > fname_ptr {
                     c"<".as_ptr()
@@ -6185,7 +6185,7 @@ fn get_userdefined_compl_info(
             cb = get_insert_callback(insexp().ctrl_x_mode);
             if (*cb).cb_type() == kCallbackNone {
                 semsg!(
-                    gettext(e_notset.as_ptr()),
+                    gettext(e_notset),
                     if ctrl_x_mode_function() {
                         c"completefunc".as_ptr()
                     } else {
@@ -6219,7 +6219,7 @@ fn get_userdefined_compl_info(
         check_cursor(*curwin.as_ptr());
         validate_cursor(*curwin.as_ptr());
         if !equalpos((**curwin.as_ptr()).w_cursor, pos) {
-            emsg(gettext(E_COMPLDEL.as_ptr()));
+            emsg(gettext(E_COMPLDEL));
             return false;
         }
 
@@ -6402,7 +6402,7 @@ fn ins_compl_start() -> bool {
 
         if compl_status_adding() {
             if !shortmess(kShmCompletionmenu) {
-                g_st().edit_submode_pre = gettext(c" Adding".as_ptr());
+                g_st().edit_submode_pre = gettext(c" Adding");
             }
             if ctrl_x_mode_line_or_eval() {
                 let old = (*g_st().curbuf).b_p_com;
@@ -6463,7 +6463,7 @@ fn ins_compl_start() -> bool {
         }
 
         if !shortmess(kShmCompletionmenu) && !insexp().compl_autocomplete {
-            g_st().edit_submode_extra = gettext(c"-- Searching...".as_ptr());
+            g_st().edit_submode_extra = gettext(c"-- Searching...");
             g_st().edit_submode_highl = HLF_COUNT;
             showmode();
             g_st().edit_submode_extra = ptr::null_mut();
@@ -6479,9 +6479,9 @@ fn ins_compl_show_statusmsg() {
     unsafe {
         if compl_next_idx(0) == Some(0) {
             g_st().edit_submode_extra = if compl_status_adding() && insexp().compl_length > 1 {
-                gettext(c"Hit end of paragraph".as_ptr())
+                gettext(c"Hit end of paragraph")
             } else {
-                gettext(c"Pattern not found".as_ptr())
+                gettext(c"Pattern not found")
             };
             g_st().edit_submode_highl = HLF_E;
         }
@@ -6490,13 +6490,13 @@ fn ins_compl_show_statusmsg() {
             let curr_idx = insexp().compl_curr_idx.unwrap();
             let curr = compl_at(curr_idx);
             if match_at_original_text(&*curr) {
-                g_st().edit_submode_extra = gettext(c"Back at original".as_ptr());
+                g_st().edit_submode_extra = gettext(c"Back at original");
                 g_st().edit_submode_highl = HLF_W;
             } else if (insexp().compl_cont_status & CONT_S_IPOS) != 0 {
-                g_st().edit_submode_extra = gettext(c"Word from other line".as_ptr());
+                g_st().edit_submode_extra = gettext(c"Word from other line");
                 g_st().edit_submode_highl = HLF_COUNT;
             } else if compl_next_idx(curr_idx) == compl_prev_idx(curr_idx) {
-                g_st().edit_submode_extra = gettext(c"The only match".as_ptr());
+                g_st().edit_submode_extra = gettext(c"The only match");
                 g_st().edit_submode_highl = HLF_COUNT;
                 (*curr).cp_number = 1;
             } else {
@@ -6511,7 +6511,7 @@ fn ins_compl_show_statusmsg() {
                         vim_snprintf!(
                             match_ref_ptr,
                             81,
-                            gettext(c"match %d of %d".as_ptr()),
+                            gettext(c"match %d of %d"),
                             (*curr).cp_number,
                             insexp().compl_matches,
                         );
@@ -6519,7 +6519,7 @@ fn ins_compl_show_statusmsg() {
                         vim_snprintf!(
                             match_ref_ptr,
                             81,
-                            gettext(c"match %d".as_ptr()),
+                            gettext(c"match %d"),
                             (*curr).cp_number,
                         );
                     }

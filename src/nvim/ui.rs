@@ -421,7 +421,7 @@ pub fn vim_beep(val: c_uint) {
 
         if !vim_strchr(opt_vars().p_debug, b'e' as c_int).is_null() {
             msg_source(HLF_W);
-            msg(gettext(c"Beep!".as_ptr()), HLF_W);
+            msg(gettext(c"Beep!"), HLF_W);
         }
 }
 
@@ -845,7 +845,7 @@ pub fn ui_grid_resize(grid_handle: handle_T, width: c_int, height: c_int, err: &
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Invalid window handle: %lld".as_ptr(),
+                c"Invalid window handle: %lld",
                 i64::from(grid_handle),
             );
             return;
@@ -870,16 +870,16 @@ fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
         logmsg!(
             LOGLVL_ERR,
             ptr::null(),
-            c"ui_attach_error".as_ptr(),
+            c"ui_attach_error",
             785,
             true,
-            c"Error in \"%s\" UI event handler (ns=%s):\n%s".as_ptr(),
+            c"Error in \"%s\" UI event handler (ns=%s):\n%s",
             name,
             ns,
             msg,
         );
         msg_schedule_semsg_multiline!(
-            c"Error in \"%s\" UI event handler (ns=%s):\n%s".as_ptr(),
+            c"Error in \"%s\" UI event handler (ns=%s):\n%s",
             name,
             ns,
             msg,
@@ -990,7 +990,7 @@ pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
             if checkerr {
                 let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)");
                 msg_schedule_semsg!(
-                    c"Excessive errors in vim.ui_attach() callback (ns=%s)".as_ptr(),
+                    c"Excessive errors in vim.ui_attach() callback (ns=%s)",
                     ns,
                 );
             }
@@ -1014,22 +1014,22 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
             if ui_state().uilog_seen > 0 {
                 logmsg!(
                     LOGLVL_DBG,
-                    c"UI: ".as_ptr(),
+                    c"UI: ",
                     ptr::null(),
                     -1,
                     true,
-                    c"%s (+%zu times...)".as_ptr(),
+                    c"%s (+%zu times...)",
                     ui_state().uilog_last_event.map_or(ptr::null(), |s| s.as_ptr()),
                     ui_state().uilog_seen,
                 );
             }
             logmsg!(
                 LOGLVL_DBG,
-                c"UI: ".as_ptr(),
+                c"UI: ",
                 ptr::null(),
                 -1,
                 true,
-                c"%s".as_ptr(),
+                c"%s",
                 funname.as_ptr(),
             );
             ui_state().uilog_seen = 0;

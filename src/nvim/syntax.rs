@@ -2684,7 +2684,7 @@ fn syn_regexec(
         if timed_out != 0 && !(*win_s(&mut *syn_st().syn_win)).b_syn_slow {
             (*win_s(&mut *syn_st().syn_win)).b_syn_slow = true;
             msg(
-                gettext(c"'redrawtime' exceeded, syntax highlighting disabled".as_ptr()),
+                gettext(c"'redrawtime' exceeded, syntax highlighting disabled"),
                 0,
             );
         }
@@ -2908,14 +2908,14 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
                 msg_puts(c"syntax iskeyword ".as_ptr());
                 msg_outtrans(isk.as_ptr(), 0, false);
             } else {
-                msg_outtrans(gettext(c"syntax iskeyword not set".as_ptr()), 0, false);
+                msg_outtrans(gettext(c"syntax iskeyword not set"), 0, false);
             }
         } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"clear".as_ptr(), 5)) {
             (*win_s(&mut **curwin.as_ptr())).b_syn_chartab = (*g_st().curbuf).b_chartab;
             (*win_s(&mut **curwin.as_ptr())).b_syn_isk = None;
         } else {
             if !check_isopt(arg) {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 return;
             }
             let isk = crate::memory::cstr_to_cstring(arg);
@@ -3038,7 +3038,7 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
                 if *arg == b'@' as c_char {
                     let id = syn_scl_namen2id(arg.add(1), arg_end.offset_from(arg) as c_int - 1);
                     if id == 0 {
-                        semsg!(gettext(c"E391: No such syntax cluster: %s".as_ptr()), arg);
+                        semsg!(gettext(c"E391: No such syntax cluster: %s"), arg);
                         break;
                     }
                     let scl_id = id - SYNID_CLUSTER as c_int;
@@ -3047,7 +3047,7 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
                     if id == 0 {
-                        semsg!(gettext(e_nogroup.as_ptr()), arg);
+                        semsg!(gettext(e_nogroup), arg);
                         break;
                     }
                     syn_clear_one(id, syncing != 0);
@@ -3135,16 +3135,16 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
 
         if syncing != 0 {
             if ((*win_s(&mut **curwin.as_ptr())).b_syn_sync_flags & SF_CCOMMENT) != 0 {
-                msg_puts(gettext(c"syncing on C-style comments".as_ptr()));
+                msg_puts(gettext(c"syncing on C-style comments"));
                 syn_lines_msg();
                 syn_match_msg();
             } else if ((*win_s(&mut **curwin.as_ptr())).b_syn_sync_flags & SF_MATCH) != 0 {
-                msg_puts_title(gettext(c"\n--- Syntax sync items ---".as_ptr()));
+                msg_puts_title(gettext(c"\n--- Syntax sync items ---"));
                 if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines > 0
                     || (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines > 0
                     || (*win_s(&mut **curwin.as_ptr())).b_syn_sync_linebreaks > 0
                 {
-                    msg_puts(gettext(c"\nsyncing on items".as_ptr()));
+                    msg_puts(gettext(c"\nsyncing on items"));
                     syn_lines_msg();
                     syn_match_msg();
                 }
@@ -3154,21 +3154,21 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
                     id += 1;
                 }
             } else if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines == 0 {
-                msg_puts(gettext(c"no syncing".as_ptr()));
+                msg_puts(gettext(c"no syncing"));
             } else {
                 if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines == MAXLNUM {
-                    msg_puts(gettext(c"syncing starts at the first line".as_ptr()));
+                    msg_puts(gettext(c"syncing starts at the first line"));
                 } else {
-                    msg_puts(gettext(c"syncing starts ".as_ptr()));
+                    msg_puts(gettext(c"syncing starts "));
                     msg_outnum((*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines as c_int);
-                    msg_puts(gettext(c" lines before top line".as_ptr()));
+                    msg_puts(gettext(c" lines before top line"));
                 }
                 syn_match_msg();
             }
             return;
         }
 
-        msg_puts_title(gettext(c"\n--- Syntax items ---".as_ptr()));
+        msg_puts_title(gettext(c"\n--- Syntax items ---"));
         if ends_excmd(*arg as c_int) != 0 {
             let mut id: c_int = 1;
             while id <= highlight_num_groups() && !g_st().got_int {
@@ -3186,14 +3186,14 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
                 if *arg == b'@' as c_char {
                     let id = syn_scl_namen2id(arg.add(1), arg_end.offset_from(arg) as c_int - 1);
                     if id == 0 {
-                        semsg!(gettext(c"E392: No such syntax cluster: %s".as_ptr()), arg);
+                        semsg!(gettext(c"E392: No such syntax cluster: %s"), arg);
                     } else {
                         syn_list_cluster(id - SYNID_CLUSTER as c_int);
                     }
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
                     if id == 0 {
-                        semsg!(gettext(e_nogroup.as_ptr()), arg);
+                        semsg!(gettext(e_nogroup), arg);
                     } else {
                         syn_list_one(id, false, true);
                     }
@@ -3210,20 +3210,20 @@ fn syn_lines_msg() {
         if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines > 0 || (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines > 0 {
             msg_puts(c"; ".as_ptr());
             if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines == MAXLNUM {
-                msg_puts(gettext(c"from the first line".as_ptr()));
+                msg_puts(gettext(c"from the first line"));
             } else {
                 if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines > 0 {
-                    msg_puts(gettext(c"minimal ".as_ptr()));
+                    msg_puts(gettext(c"minimal "));
                     msg_outnum((*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines as c_int);
                     if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines != 0 {
                         msg_puts(c", ".as_ptr());
                     }
                 }
                 if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines > 0 {
-                    msg_puts(gettext(c"maximal ".as_ptr()));
+                    msg_puts(gettext(c"maximal "));
                     msg_outnum((*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines as c_int);
                 }
-                msg_puts(gettext(c" lines before top line".as_ptr()));
+                msg_puts(gettext(c" lines before top line"));
             }
         }
     }
@@ -3232,9 +3232,9 @@ fn syn_lines_msg() {
 fn syn_match_msg() {
     unsafe {
         if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_linebreaks > 0 {
-            msg_puts(gettext(c"; match ".as_ptr()));
+            msg_puts(gettext(c"; match "));
             msg_outnum((*win_s(&mut **curwin.as_ptr())).b_syn_sync_linebreaks as c_int);
-            msg_puts(gettext(c" line breaks".as_ptr()));
+            msg_puts(gettext(c" line breaks"));
         }
     }
 }
@@ -3767,7 +3767,7 @@ fn get_syn_options(
 
                 if flags == HL_SYNC_HERE || flags == HL_SYNC_THERE {
                     if opt.sync_idx.is_none() {
-                        emsg(gettext(c"E393: group[t]here not accepted here".as_ptr()));
+                        emsg(gettext(c"E393: group[t]here not accepted here"));
                         return ptr::null_mut();
                     }
                     let gname_start = arg;
@@ -3796,7 +3796,7 @@ fn get_syn_options(
                         }
                         if i < 0 {
                             semsg!(
-                                gettext(c"E394: Didn't find region item for %s".as_ptr()),
+                                gettext(c"E394: Didn't find region item for %s"),
                                 gname.as_ptr(),
                             );
                             return ptr::null_mut();
@@ -3846,7 +3846,7 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
             arg = arg.add(1);
             let rest = get_group_name(arg, &raw mut group_name_end);
             if rest.is_null() {
-                emsg(gettext(c"E397: Filename required".as_ptr()));
+                emsg(gettext(c"E397: Filename required"));
                 return;
             }
             sgl_id = syn_check_cluster(arg, group_name_end.offset_from(arg) as c_int);
@@ -3875,7 +3875,7 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
         }
 
         if syn_st().running_syn_inc_tag >= MAX_SYN_INC_TAG {
-            emsg(gettext(c"E847: Too many syntax includes".as_ptr()));
+            emsg(gettext(c"E847: Too many syntax includes"));
             return;
         }
         let prev_syn_inc_tag = syn_st().current_syn_inc_tag;
@@ -3889,7 +3889,7 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
             source_runtime(eap.arg, DIP_ALL)
         };
         if !res {
-            semsg!(gettext(e_notopen.as_ptr()), eap.arg);
+            semsg!(gettext(e_notopen), eap.arg);
         }
         (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp = prev_toplvl_grp;
         syn_st().current_syn_inc_tag = prev_syn_inc_tag;
@@ -3977,7 +3977,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
                                 break;
                             }
                             if *p.add(1) == NUL {
-                                semsg!(gettext(c"E789: Missing ']': %s".as_ptr()), kw);
+                                semsg!(gettext(c"E789: Missing ']': %s"), kw);
                                 break 'kw_loop;
                             }
                             if *p.add(1) == b']' as c_char {
@@ -4006,7 +4006,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
         if !rest.is_null() {
             eap.nextcmd = check_nextcmd(rest);
         } else {
-            semsg!(gettext(e_invarg2.as_ptr()), arg);
+            semsg!(gettext(e_invarg2), arg);
         }
 
         redraw_curbuf_later(UPD_SOME_VALID);
@@ -4090,7 +4090,7 @@ fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
         }
 
         if rest.is_null() {
-            semsg!(gettext(e_invarg2.as_ptr()), arg);
+            semsg!(gettext(e_invarg2), arg);
         }
     }
 }
@@ -4158,7 +4158,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
             rest = skipwhite(key_end);
             if *rest != b'=' as c_char {
                 rest = ptr::null_mut();
-                semsg!(gettext(c"E398: Missing '=': %s".as_ptr()), arg);
+                semsg!(gettext(c"E398: Missing '=': %s"), arg);
                 break;
             }
             rest = skipwhite(rest.add(1));
@@ -4273,11 +4273,11 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
         if !success {
             if not_enough {
                 semsg!(
-                    gettext(c"E399: Not enough arguments: syntax region %s".as_ptr()),
+                    gettext(c"E399: Not enough arguments: syntax region %s"),
                     arg,
                 );
             } else if illegal || rest.is_null() {
-                semsg!(gettext(e_invarg2.as_ptr()), arg);
+                semsg!(gettext(e_invarg2), arg);
             }
         }
     }
@@ -4374,7 +4374,7 @@ fn syn_add_cluster(name: std::ffi::CString) -> c_int {
     unsafe {
         let len = (*win_s(&mut **curwin.as_ptr())).b_syn_clusters.len() as c_int;
         if len >= MAX_CLUSTER_ID {
-            emsg(gettext(c"E848: Too many syntax clusters".as_ptr()));
+            emsg(gettext(c"E848: Too many syntax clusters"));
             return 0;
         }
 
@@ -4448,7 +4448,7 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
                     eap.skip != 0,
                 )
                 {
-                    semsg!(gettext(e_invarg2.as_ptr()), rest);
+                    semsg!(gettext(e_invarg2), rest);
                     break;
                 }
                 if scl_id >= 0 {
@@ -4465,10 +4465,10 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
         }
 
         if !got_clstr {
-            emsg(gettext(c"E400: No cluster specified".as_ptr()));
+            emsg(gettext(c"E400: No cluster specified"));
         }
         if rest.is_null() || ends_excmd(*rest as c_int) == 0 {
-            semsg!(gettext(e_invarg2.as_ptr()), arg);
+            semsg!(gettext(e_invarg2), arg);
         }
     }
 }
@@ -4482,7 +4482,7 @@ fn get_syn_pattern(arg: *mut c_char, ci: &mut synpat_T) -> *mut c_char {
         let mut end = skip_regexp(arg.add(1), *arg as c_int, 1);
         if *end != *arg {
             semsg!(
-                gettext(c"E401: Pattern delimiter not found: %s".as_ptr()),
+                gettext(c"E401: Pattern delimiter not found: %s"),
                 arg,
             );
             return ptr::null_mut();
@@ -4554,7 +4554,7 @@ fn get_syn_pattern(arg: *mut c_char, ci: &mut synpat_T) -> *mut c_char {
         }
 
         if ends_excmd(*end as c_int) == 0 && !ascii_iswhite(*end) {
-            semsg!(gettext(c"E402: Garbage after pattern: %s".as_ptr()), arg);
+            semsg!(gettext(c"E402: Garbage after pattern: %s"), arg);
             return ptr::null_mut();
         }
         skipwhite(end)
@@ -4638,7 +4638,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                 }
                 if (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_pat.is_some() {
                     emsg(gettext(
-                        c"E403: syntax sync: line continuations pattern specified twice".as_ptr(),
+                        c"E403: syntax sync: line continuations pattern specified twice",
                     ));
                     finished = true;
                     break;
@@ -4689,7 +4689,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
             arg_start = next_arg;
         }
         if illegal {
-            semsg!(gettext(c"E404: Illegal arguments: %s".as_ptr()), arg_start);
+            semsg!(gettext(c"E404: Illegal arguments: %s"), arg_start);
         } else if !finished {
             eap.nextcmd = check_nextcmd(arg_start);
             redraw_curbuf_later(UPD_SOME_VALID);
@@ -4715,12 +4715,12 @@ fn get_id_list(
         while round <= 2 {
             p = skipwhite((*arg).offset(keylen as isize));
             if *p != b'=' as c_char {
-                semsg!(gettext(c"E405: Missing equal sign: %s".as_ptr()), *arg);
+                semsg!(gettext(c"E405: Missing equal sign: %s"), *arg);
                 break;
             }
             p = skipwhite(p.add(1));
             if ends_excmd(*p as c_int) != 0 {
-                semsg!(gettext(c"E406: Empty argument: %s".as_ptr()), *arg);
+                semsg!(gettext(c"E406: Empty argument: %s"), *arg);
                 break;
             }
 
@@ -4740,13 +4740,13 @@ fn get_id_list(
                     || (crate::memory::cstr_as_bytes(name.add(1)) == b"CONTAINED")
                 {
                     if !(**arg as u8).eq_ignore_ascii_case(&b'C') {
-                        semsg!(gettext(c"E407: %s not allowed here".as_ptr()), name.add(1));
+                        semsg!(gettext(c"E407: %s not allowed here"), name.add(1));
                         failed = true;
                         break;
                     }
                     if count != 0 {
                         semsg!(
-                            gettext(c"E408: %s must be first in contains list".as_ptr()),
+                            gettext(c"E408: %s must be first in contains list"),
                             name.add(1),
                         );
                         failed = true;
@@ -4798,7 +4798,7 @@ fn get_id_list(
                     vim_regfree(regmatch.regprog);
                 }
                 if id == 0 {
-                    semsg!(gettext(c"E409: Unknown group name: %s".as_ptr()), p);
+                    semsg!(gettext(c"E409: Unknown group name: %s"), p);
                     failed = true;
                     break;
                 }
@@ -5089,7 +5089,7 @@ pub fn ex_syntax(eap: &mut exarg_T) {
 
         if !found {
             semsg!(
-                gettext(c"E410: Invalid :syntax subcommand: %s".as_ptr()),
+                gettext(c"E410: Invalid :syntax subcommand: %s"),
                 subcmd_name.as_ptr(),
             );
         }
@@ -5267,7 +5267,7 @@ pub fn get_syntax_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
                     vim_snprintf!(
                         xp_buf,
                         EXPAND_BUF_LEN,
-                        c"@%s".as_ptr(),
+                        c"@%s",
                         (*syn_clstr(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize))
                             .scl_name
                             .as_ptr(),
@@ -5392,7 +5392,7 @@ pub fn ex_syntime(eap: &mut exarg_T) {
         } else if crate::memory::cstr_as_bytes(eap.arg) == b"report" {
             syntime_report();
         } else {
-            semsg!(gettext(e_invarg2.as_ptr()), eap.arg);
+            semsg!(gettext(e_invarg2), eap.arg);
         }
     }
 }
@@ -5462,8 +5462,7 @@ fn syntime_report() {
         }
 
         msg_puts_title(gettext(
-            c"  TOTAL      COUNT  MATCH   SLOWEST     AVERAGE   NAME               PATTERN"
-                .as_ptr(),
+            c"  TOTAL      COUNT  MATCH   SLOWEST     AVERAGE   NAME               PATTERN",
         ));
         msg_puts(c"\n".as_ptr());
         for p in &ga {

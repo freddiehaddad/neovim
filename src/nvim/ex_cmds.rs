@@ -356,7 +356,7 @@ pub fn do_ascii(_eap: &mut exarg_T) {
             if vim_isprintc(c) && (c < b' ' as c_int || c > b'~' as c_int) {
                 let mut buf3: [c_char; 7] = [0; 7];
                 transchar_nonprint(g_st().curbuf, buf3.as_mut_ptr(), c);
-                vim_snprintf!(buf1.as_mut_ptr(), 20, c"  <%s>".as_ptr(), buf3.as_ptr());
+                vim_snprintf!(buf1.as_mut_ptr(), 20, c"  <%s>", buf3.as_ptr());
             } else {
                 buf1[0] = NUL;
             }
@@ -367,7 +367,7 @@ pub fn do_ascii(_eap: &mut exarg_T) {
                 vim_snprintf!(
                     iobuff_ptr,
                     IOSIZE,
-                    gettext(c"<%s>%s%s  %d,  Hex %02x,  Oct %03o, Digr %s".as_ptr()),
+                    gettext(c"<%s>%s%s  %d,  Hex %02x,  Oct %03o, Digr %s"),
                     transchar(c),
                     buf1.as_ptr(),
                     buf2.as_ptr(),
@@ -380,7 +380,7 @@ pub fn do_ascii(_eap: &mut exarg_T) {
                 vim_snprintf!(
                     iobuff_ptr,
                     IOSIZE,
-                    gettext(c"<%s>%s%s  %d,  Hex %02x,  Octal %03o".as_ptr()),
+                    gettext(c"<%s>%s%s  %d,  Hex %02x,  Octal %03o"),
                     transchar(c),
                     buf1.as_ptr(),
                     buf2.as_ptr(),
@@ -420,9 +420,9 @@ pub fn do_ascii(_eap: &mut exarg_T) {
             let dig = get_digraph_for_char(c);
             if !dig.is_null() {
                 let fmt = if c < 0x10000 {
-                    gettext(c"> %d, Hex %04x, Oct %o, Digr %s".as_ptr())
+                    gettext(c"> %d, Hex %04x, Oct %o, Digr %s")
                 } else {
-                    gettext(c"> %d, Hex %08x, Oct %o, Digr %s".as_ptr())
+                    gettext(c"> %d, Hex %08x, Oct %o, Digr %s")
                 };
                 vim_snprintf!(
                     iobuff_ptr.add(iobuff_len),
@@ -435,9 +435,9 @@ pub fn do_ascii(_eap: &mut exarg_T) {
                 );
             } else {
                 let fmt = if c < 0x10000 {
-                    gettext(c"> %d, Hex %04x, Octal %o".as_ptr())
+                    gettext(c"> %d, Hex %04x, Octal %o")
                 } else {
-                    gettext(c"> %d, Hex %08x, Octal %o".as_ptr())
+                    gettext(c"> %d, Hex %08x, Octal %o")
                 };
                 vim_snprintf!(
                     iobuff_ptr.add(iobuff_len),
@@ -741,7 +741,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
                     *s = NUL;
                     if s == p.add(1) {
                         if last_search_pat().is_null() {
-                            emsg(gettext(e_noprevre.as_ptr()));
+                            emsg(gettext(e_noprevre));
                             break 'sortend;
                         }
                         regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
@@ -754,14 +754,14 @@ pub fn ex_sort(eap: &mut exarg_T) {
                     p = s;
                     regmatch.rm_ic = opt_vars().p_ic != 0;
                 } else {
-                    semsg!(gettext(e_invarg2.as_ptr()), p);
+                    semsg!(gettext(e_invarg2), p);
                     break 'sortend;
                 }
                 p = p.add(1);
             }
 
             if format_found > 1 {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 break 'sortend;
             }
 
@@ -945,7 +945,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
         // sortend:
         vim_regfree(regmatch.regprog);
         if g_st().got_int {
-            emsg(gettext(e_interr.as_ptr()));
+            emsg(gettext(e_interr));
         }
     }
 }
@@ -1005,7 +1005,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
                     *s = NUL;
                     if s == p.add(1) {
                         if last_search_pat().is_null() {
-                            emsg(gettext(e_noprevre.as_ptr()));
+                            emsg(gettext(e_noprevre));
                             break 'uniqend;
                         }
                         regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
@@ -1018,7 +1018,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
                     p = s;
                     regmatch.rm_ic = opt_vars().p_ic != 0;
                 } else {
-                    semsg!(gettext(e_invarg2.as_ptr()), p);
+                    semsg!(gettext(e_invarg2), p);
                     break 'uniqend;
                 }
                 p = p.add(1);
@@ -1156,7 +1156,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
         // uniqend:
         vim_regfree(regmatch.regprog);
         if g_st().got_int {
-            emsg(gettext(e_interr.as_ptr()));
+            emsg(gettext(e_interr));
         }
     }
 }
@@ -1166,7 +1166,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
     unsafe {
         if dest >= line1 && dest < line2 {
             emsg(gettext(
-                c"E134: Cannot move a range of lines into itself".as_ptr(),
+                c"E134: Cannot move a range of lines into itself",
             ));
             return false;
         }
@@ -1300,8 +1300,8 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
             smsg!(
                 0,
                 ngettext(
-                    c"%lld line moved".as_ptr(),
-                    c"%lld lines moved".as_ptr(),
+                    c"%lld line moved",
+                    c"%lld lines moved",
                     num_lines as c_ulong,
                 ),
                 num_lines as i64,
@@ -1395,7 +1395,7 @@ pub fn free_prev_shellcmd() {
 /// Check that `excmds_st().prevcmd` is not NULL.
 fn prevcmd_is_set() -> bool {
     if excmds_st().prevcmd.is_none() {
-            emsg(gettext(e_noprev.as_ptr()));
+            emsg(gettext(e_noprev));
             return false;
         }
         true
@@ -1602,14 +1602,14 @@ fn do_filter(
                 if do_in {
                     itmp_owned = vim_tempname();
                     if itmp_owned.is_none() {
-                        emsg(gettext(e_notmp.as_ptr()));
+                        emsg(gettext(e_notmp));
                         break 'filterend;
                     }
                 }
                 if do_out {
                     otmp_owned = vim_tempname();
                     if otmp_owned.is_none() {
-                        emsg(gettext(e_notmp.as_ptr()));
+                        emsg(gettext(e_notmp));
                         break 'filterend;
                     }
                 }
@@ -1642,7 +1642,7 @@ fn do_filter(
                 }
                 g_st().no_wait_return -= 1;
                 if !aborting() {
-                    semsg!(gettext(c"E482: Can't create file %s".as_ptr()), itmp);
+                    semsg!(gettext(c"E482: Can't create file %s"), itmp);
                 }
                 break 'filterend;
             }
@@ -1694,7 +1694,7 @@ fn do_filter(
                         {
                             if !aborting() {
                                 msg_putchar(b'\n' as c_int);
-                                semsg!(gettext(e_cant_read_file_str.as_ptr()), otmp);
+                                semsg!(gettext(e_cant_read_file_str), otmp);
                             }
                             break 'error;
                         }
@@ -1763,7 +1763,7 @@ fn do_filter(
                             vim_snprintf!(
                                 msg_buf_ptr,
                                 MSG_BUF_LEN,
-                                gettext(c"%lld lines filtered".as_ptr()),
+                                gettext(c"%lld lines filtered"),
                                 linecount as i64,
                             );
                             if msg(msg_buf_ptr, 0) && g_st().msg_scroll == 0 {
@@ -1790,7 +1790,7 @@ fn do_filter(
         if g_st().curbuf != old_curbuf {
             g_st().no_wait_return -= 1;
             emsg(gettext(
-                c"E135: *Filter* Autocommands must not change current buffer".as_ptr(),
+                c"E135: *Filter* Autocommands must not change current buffer",
             ));
         } else if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
             (*g_st().curbuf).b_op_start = orig_start;
@@ -1821,7 +1821,7 @@ pub fn do_shell(cmd: *mut c_char, flags: c_int) {
             let mut buf = g_st().firstbuf;
             while !buf.is_null() {
                 if bufIsChanged(&mut *buf) {
-                    msg_puts(gettext(c"[No write since last change]\n".as_ptr()));
+                    msg_puts(gettext(c"[No write since last change]\n"));
                     break;
                 }
                 buf = (*buf).b_next;
@@ -2013,7 +2013,7 @@ pub fn append_redir(
             vim_snprintf!(
                 end,
                 (buflen as isize - end.offset_from(buf)) as usize,
-                c" %s %s".as_ptr(),
+                c" %s %s",
                 opt,
                 fname,
             );
@@ -2029,7 +2029,7 @@ pub fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
             vim_snprintf!(
                 numbuf.as_mut_ptr(),
                 30,
-                c"%*d ".as_ptr(),
+                c"%*d ",
                 number_width(*curwin.as_ptr()),
                 lnum,
             );
@@ -2116,7 +2116,7 @@ pub fn ex_file(eap: &mut exarg_T) {
         if eap.addr_count > 0
             && (*eap.arg != NUL || eap.line2 > 0 || eap.addr_count > 1)
         {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return;
         }
 
@@ -2166,7 +2166,7 @@ pub fn ex_write(eap: &mut exarg_T) {
 fn check_writable(fname: *const c_char) -> bool {
     if os_nodetype(fname) == NODE_OTHER {
         semsg!(
-            gettext(c"E503: \"%s\" is not a file or writable device".as_ptr()),
+            gettext(c"E503: \"%s\" is not a file or writable device"),
             fname,
         );
         return false;
@@ -2199,7 +2199,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
         'theend: {
             if *ffname == NUL {
                 if eap.cmdidx == cmdidx_T::CMD_saveas as c_int {
-                    emsg(gettext(e_argreq.as_ptr()));
+                    emsg(gettext(e_argreq));
                     break 'theend;
                 }
                 other = false;
@@ -2221,7 +2221,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
                     alt_buf = buflist_findname(ffname);
                 }
                 if !alt_buf.is_null() && (*alt_buf).b_ml.ml_mfp.is_some() {
-                    emsg(gettext(e_bufloaded.as_ptr()));
+                    emsg(gettext(e_bufloaded));
                     break 'theend;
                 }
             }
@@ -2251,7 +2251,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
                         if vim_dialog_yesno(
                             VIM_QUESTION,
                             ptr::null_mut(),
-                            gettext(c"Write partial file?".as_ptr()),
+                            gettext(c"Write partial file?"),
                             2,
                         ) != VIM_YES
                         {
@@ -2259,7 +2259,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
                         }
                         eap.forceit = 1;
                     } else {
-                        emsg(gettext(c"E140: Use ! to write partial buffer".as_ptr()));
+                        emsg(gettext(c"E140: Use ! to write partial buffer"));
                         break 'theend;
                     }
                 }
@@ -2388,7 +2388,7 @@ pub fn check_overwrite(
         {
             if eap.forceit == 0 && eap.append == 0 {
                 if os_isdir(ffname) {
-                    semsg!(gettext(e_isadir2.as_ptr()), ffname);
+                    semsg!(gettext(e_isadir2), ffname);
                     return false;
                 }
                 if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
@@ -2396,7 +2396,7 @@ pub fn check_overwrite(
                     vim_snprintf!(
                         buff.as_mut_ptr(),
                         DIALOG_MSG_SIZE,
-                        gettext(c"Overwrite existing file \"%s\"?".as_ptr()),
+                        gettext(c"Overwrite existing file \"%s\"?"),
                         fname,
                     );
                     if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 2)
@@ -2406,7 +2406,7 @@ pub fn check_overwrite(
                     }
                     eap.forceit = 1;
                 } else {
-                    emsg(gettext(e_exists.as_ptr()));
+                    emsg(gettext(e_exists));
                     return false;
                 }
             }
@@ -2428,7 +2428,7 @@ pub fn check_overwrite(
                         vim_snprintf!(
                             buff.as_mut_ptr(),
                             DIALOG_MSG_SIZE,
-                            gettext(c"Swap file \"%s\" exists, overwrite anyway?".as_ptr()),
+                            gettext(c"Swap file \"%s\" exists, overwrite anyway?"),
                             swapname.as_ptr(),
                         );
                         if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 2)
@@ -2439,7 +2439,7 @@ pub fn check_overwrite(
                         eap.forceit = 1;
                     } else {
                         semsg!(
-                            gettext(c"E768: Swap file exists: %s (:silent! overrides)".as_ptr()),
+                            gettext(c"E768: Swap file exists: %s (:silent! overrides)"),
                             swapname.as_ptr(),
                         );
                         return false;
@@ -2505,7 +2505,7 @@ pub fn do_wqall(eap: &mut exarg_T) {
             }
             if (*buf).b_ffname.is_null() {
                 semsg!(
-                    gettext(c"E141: No file name for buffer %lld".as_ptr()),
+                    gettext(c"E141: No file name for buffer %lld"),
                     (*buf).b_fnum as i64,
                 );
                 error += 1;
@@ -2548,7 +2548,7 @@ fn not_writing() -> bool {
             return false;
         }
         emsg(gettext(
-            c"E142: File not written: Writing is disabled by 'write' option".as_ptr(),
+            c"E142: File not written: Writing is disabled by 'write' option",
         ));
         true
 }
@@ -2566,15 +2566,14 @@ fn check_readonly(forceit: &mut c_int, buf: &mut buf_T) -> bool {
                 let fname = if !buf.b_fname.is_null() {
                     buf.b_fname
                 } else {
-                    gettext(c"Untitled".as_ptr())
+                    gettext(c"Untitled")
                 };
                 if buf.b_p_ro != 0 {
                     vim_snprintf!(
                         buff.as_mut_ptr(),
                         DIALOG_MSG_SIZE,
                         gettext(
-                            c"'readonly' option is set for \"%s\".\nDo you wish to write anyway?"
-                                .as_ptr(),
+                            c"'readonly' option is set for \"%s\".\nDo you wish to write anyway?",
                         ),
                         fname,
                     );
@@ -2583,8 +2582,7 @@ fn check_readonly(forceit: &mut c_int, buf: &mut buf_T) -> bool {
                         buff.as_mut_ptr(),
                         DIALOG_MSG_SIZE,
                         gettext(
-                            c"File permissions of \"%s\" are read-only.\nIt may still be possible to write it.\nDo you wish to try?"
-                                .as_ptr(),
+                            c"File permissions of \"%s\" are read-only.\nIt may still be possible to write it.\nDo you wish to try?",
                         ),
                         fname,
                     );
@@ -2597,10 +2595,10 @@ fn check_readonly(forceit: &mut c_int, buf: &mut buf_T) -> bool {
                 }
                 return true;
             } else if buf.b_p_ro != 0 {
-                emsg(gettext(e_readonly.as_ptr()));
+                emsg(gettext(e_readonly));
             } else {
                 semsg!(
-                    gettext(c"E505: \"%s\" is read-only (add ! to override)".as_ptr()),
+                    gettext(c"E505: \"%s\" is read-only (add ! to override)"),
                     buf.b_fname,
                 );
             }
@@ -2714,9 +2712,9 @@ pub fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
         let mut data_vec = vec![0 as c_char; valsize];
         let data = data_vec.as_mut_ptr();
         let size = if !command.is_null() {
-            vim_snprintf_safelen!(data, valsize, c":%s\r".as_ptr(), command)
+            vim_snprintf_safelen!(data, valsize, c":%s\r", command)
         } else {
-            vim_snprintf_safelen!(data, valsize, c"%lldG".as_ptr(), newlnum as i64)
+            vim_snprintf_safelen!(data, valsize, c"%lldG", newlnum as i64)
         };
         set_vim_var_string(VV_SWAPCOMMAND, data, size as isize);
         true
@@ -2885,7 +2883,7 @@ pub fn do_ecmd(
                     break 'theend;
                 }
                 if (*buf).b_locked_split > 0 {
-                    emsg(gettext(e_cannot_switch_to_a_closing_buffer.as_ptr()));
+                    emsg(gettext(e_cannot_switch_to_a_closing_buffer));
                     break 'theend;
                 }
                 if (**curwin.as_ptr()).w_alt_fnum == (*buf).b_fnum && prev_alt_fnum != 0 {
@@ -3282,7 +3280,7 @@ pub fn do_ecmd(
 
 fn delbuf_msg(name: Option<std::ffi::CString>) {
     semsg!(
-            gettext(c"E143: Autocommands unexpectedly deleted new buffer %s".as_ptr()),
+            gettext(c"E143: Autocommands unexpectedly deleted new buffer %s"),
             name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
         );
         g_st().au_new_curbuf.br_buf = ptr::null_mut();
@@ -3541,7 +3539,7 @@ pub fn ex_z(eap: &mut exarg_T) {
 
         if *x != 0 {
             if !ascii_isdigit(*x as c_int) {
-                emsg(gettext(E_NON_NUMERIC_ARGUMENT_TO_Z.as_ptr()));
+                emsg(gettext(E_NON_NUMERIC_ARGUMENT_TO_Z));
                 return;
             }
             bigness = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(x));
@@ -3639,12 +3637,12 @@ pub fn ex_z(eap: &mut exarg_T) {
 pub fn check_secure() -> bool {
     if g_st().secure != 0 {
             g_st().secure = 2;
-            emsg(gettext(e_curdir.as_ptr()));
+            emsg(gettext(e_curdir));
             return true;
         }
 
         if g_st().sandbox != 0 {
-            emsg(gettext(e_sandbox.as_ptr()));
+            emsg(gettext(e_sandbox));
             return true;
         }
         false
@@ -3871,7 +3869,7 @@ fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
 fn check_regexp_delim(c: c_int) -> bool {
     if ascii_isalpha(c) {
             emsg(gettext(
-                c"E146: Regular expressions can't be delimited by letters".as_ptr(),
+                c"E146: Regular expressions can't be delimited by letters",
             ));
             return false;
         }
@@ -3958,7 +3956,7 @@ fn do_sub(
             if *cmd == b'\\' as c_char {
                 cmd = cmd.add(1);
                 if vim_strchr(c"/?&".as_ptr(), (*cmd as u8) as c_int).is_null() {
-                    emsg(gettext(e_backslash.as_ptr()));
+                    emsg(gettext(e_backslash));
                     return 0;
                 }
                 if *cmd != b'&' as c_char {
@@ -4008,7 +4006,7 @@ fn do_sub(
             }
         } else if eap.skip == 0 {
             let Some(ref old_sub_cstr) = excmds_st().old_sub.sub else {
-                emsg(gettext(e_nopresub.as_ptr()));
+                emsg(gettext(e_nopresub));
                 return 0;
             };
             pat = NvimString {
@@ -4036,11 +4034,11 @@ fn do_sub(
             let count_arg = cmd;
             i = getdigits_int(&raw mut cmd, false, c_int::MAX);
             if i <= 0 && eap.skip == 0 && excmds_st().subflags.do_error {
-                emsg(gettext(e_zerocount.as_ptr()));
+                emsg(gettext(e_zerocount));
                 return 0;
             } else if i == c_int::MAX {
                 semsg!(
-                    gettext(e_val_too_large_len.as_ptr()),
+                    gettext(e_val_too_large_len),
                     cmd.offset_from(count_arg) as c_int,
                     count_arg,
                 );
@@ -4055,7 +4053,7 @@ fn do_sub(
         if *cmd != NUL && *cmd != b'"' as c_char {
             eap.nextcmd = check_nextcmd(cmd);
             if eap.nextcmd.is_null() {
-                semsg!(gettext(e_trailing_arg.as_ptr()), cmd);
+                semsg!(gettext(e_trailing_arg), cmd);
                 return 0;
             }
         }
@@ -4065,7 +4063,7 @@ fn do_sub(
         }
 
         if !excmds_st().subflags.do_count && !modifiable(&*g_st().curbuf) {
-            emsg(gettext(e_modifiable.as_ptr()));
+            emsg(gettext(e_modifiable));
             return 0;
         }
 
@@ -4088,7 +4086,7 @@ fn do_sub(
         )
         {
             if excmds_st().subflags.do_error {
-                emsg(gettext(e_invcmd.as_ptr()));
+                emsg(gettext(e_invcmd));
             }
             return 0;
         }
@@ -4279,8 +4277,7 @@ fn do_sub(
 
                                 let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
                                 let p_fmt = gettext(
-                                    c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
-                                        .as_ptr(),
+                                    c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)",
                                 );
                                 vim_snprintf!(iobuff_ptr, IOSIZE, p_fmt, sub);
                                 let p = cstr_to_cstring(iobuff_ptr);
@@ -4755,13 +4752,13 @@ fn do_sub(
             }
         } else if g_st().global_busy == 0 {
             if g_st().got_int {
-                emsg(gettext(e_interr.as_ptr()));
+                emsg(gettext(e_interr));
             } else if got_match {
                 if opt_vars().p_ch > 0 && !ui_has(kUIMessages) {
                     msg(c"".as_ptr(), 0);
                 }
             } else if excmds_st().subflags.do_error {
-                semsg!(gettext(e_patnotf2.as_ptr()), get_search_pat());
+                semsg!(gettext(e_patnotf2), get_search_pat());
             }
         }
 
@@ -4808,34 +4805,34 @@ pub fn do_sub_msg(count_only: bool) -> bool {
         {
             let msg_buf_ptr = (&raw mut g_st().msg_buf).cast::<c_char>();
             if g_st().got_int {
-                crate::memory::cstr_cpy(msg_buf_ptr, gettext(c"(Interrupted) ".as_ptr()));
+                crate::memory::cstr_cpy(msg_buf_ptr, gettext(c"(Interrupted) "));
             } else {
                 *msg_buf_ptr = NUL;
             }
 
             let msg_single = if count_only {
                 ngettext(
-                    c"%lld match on %lld line".as_ptr(),
-                    c"%lld matches on %lld line".as_ptr(),
+                    c"%lld match on %lld line",
+                    c"%lld matches on %lld line",
                     g_st().sub_nsubs as c_ulong,
                 )
             } else {
                 ngettext(
-                    c"%lld substitution on %lld line".as_ptr(),
-                    c"%lld substitutions on %lld line".as_ptr(),
+                    c"%lld substitution on %lld line",
+                    c"%lld substitutions on %lld line",
                     g_st().sub_nsubs as c_ulong,
                 )
             };
             let msg_plural = if count_only {
                 ngettext(
-                    c"%lld match on %lld lines".as_ptr(),
-                    c"%lld matches on %lld lines".as_ptr(),
+                    c"%lld match on %lld lines",
+                    c"%lld matches on %lld lines",
                     g_st().sub_nsubs as c_ulong,
                 )
             } else {
                 ngettext(
-                    c"%lld substitution on %lld lines".as_ptr(),
-                    c"%lld substitutions on %lld lines".as_ptr(),
+                    c"%lld substitution on %lld lines",
+                    c"%lld substitutions on %lld lines",
                     g_st().sub_nsubs as c_ulong,
                 )
             };
@@ -4852,7 +4849,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
             return true;
         }
         if g_st().got_int {
-            emsg(gettext(e_interr.as_ptr()));
+            emsg(gettext(e_interr));
             return true;
         }
         false
@@ -4887,7 +4884,7 @@ pub fn ex_global(eap: &mut exarg_T) {
 
         if g_st().global_busy != 0 && (eap.line1 != 1 || eap.line2 != (*g_st().curbuf).b_ml.ml_line_count) {
             emsg(gettext(
-                c"E147: Cannot do :global recursive with a range".as_ptr(),
+                c"E147: Cannot do :global recursive with a range",
             ));
             return;
         }
@@ -4903,7 +4900,7 @@ pub fn ex_global(eap: &mut exarg_T) {
         if *cmd == b'\\' as c_char {
             cmd = cmd.add(1);
             if vim_strchr(c"/?&".as_ptr(), (*cmd as u8) as c_int).is_null() {
-                emsg(gettext(e_backslash.as_ptr()));
+                emsg(gettext(e_backslash));
                 return;
             }
             if *cmd == b'&' as c_char {
@@ -4916,7 +4913,7 @@ pub fn ex_global(eap: &mut exarg_T) {
             patlen = 0;
         } else if *cmd == NUL {
             emsg(gettext(
-                c"E148: Regular expression missing from global".as_ptr(),
+                c"E148: Regular expression missing from global",
             ));
             return;
         } else if !check_regexp_delim((*cmd as u8) as c_int) {
@@ -4953,7 +4950,7 @@ pub fn ex_global(eap: &mut exarg_T) {
             &mut regmatch,
         )
         {
-            emsg(gettext(e_invcmd.as_ptr()));
+            emsg(gettext(e_invcmd));
             return;
         }
 
@@ -5000,16 +4997,16 @@ pub fn ex_global(eap: &mut exarg_T) {
             }
 
             if g_st().got_int {
-                msg(gettext(e_interr.as_ptr()), 0);
+                msg(gettext(e_interr), 0);
             } else if ndone == 0 {
                 if type_char == b'v' as c_int {
                     smsg!(
                         0,
-                        gettext(c"Pattern found in every line: %s".as_ptr()),
+                        gettext(c"Pattern found in every line: %s"),
                         used_pat,
                     );
                 } else {
-                    smsg!(0, gettext(c"Pattern not found: %s".as_ptr()), used_pat);
+                    smsg!(0, gettext(c"Pattern not found: %s"), used_pat);
                 }
             } else {
                 global_exe(cmd);
@@ -5225,7 +5222,7 @@ fn show_sub(
                     vim_snprintf!(
                         str,
                         line_size as usize,
-                        c"|%*d| %s".as_ptr(),
+                        c"|%*d| %s",
                         col_width - 3,
                         next_linenr,
                         line,

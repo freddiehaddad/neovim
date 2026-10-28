@@ -600,7 +600,7 @@ fn on_osc(command: c_int, frag: VTermStringFragment, term: *mut Terminal) -> c_i
             let n = vim_snprintf!(
                 prefix.as_mut_ptr(),
                 prefix.len(),
-                c"\x1b]%d;".as_ptr(),
+                c"\x1b]%d;",
                 command,
             );
             if n > 0 {
@@ -906,7 +906,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut buf_T) {
             vim_snprintf!(
                 var.as_mut_ptr(),
                 var.len(),
-                c"terminal_color_%d".as_ptr(),
+                c"terminal_color_%d",
                 i as c_int,
             );
             let name = get_config_string(buf, var.as_mut_ptr());

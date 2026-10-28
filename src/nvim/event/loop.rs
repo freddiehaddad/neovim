@@ -684,10 +684,10 @@ pub fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"loop_close".as_ptr(),
+                    c"loop_close",
                     line!() as c_int,
                     true,
-                    c"uv_loop_close() hang?".as_ptr(),
+                    c"uv_loop_close() hang?",
                 );
                 log_uv_handles((&raw mut loop_.uv).cast());
                 break;

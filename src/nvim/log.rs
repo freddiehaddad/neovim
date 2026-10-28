@@ -104,14 +104,26 @@ pub fn log_is_std_stream(fp: *mut FILE) -> bool {
 #[macro_export]
 macro_rules! logmsg {
     ($log_level:expr, $context:expr, $func_name:expr, $line_num:expr, $eol:expr, $fmt:expr $(,)?) => {{
-        $crate::log::logmsg_str($log_level, $context, $func_name, $line_num, $eol, $fmt)
+        $crate::log::logmsg_str(
+            $log_level,
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($context),
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($func_name),
+            $line_num,
+            $eol,
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
+        )
     }};
     ($log_level:expr, $context:expr, $func_name:expr, $line_num:expr, $eol:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
         let lvl = $log_level;
         if !$crate::log::log_should_log(lvl) {
             false
         } else {
-            let fmt_ptr: *const std::ffi::c_char = $fmt;
+            let fmt_ptr: *const std::ffi::c_char =
+                $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
+            let ctx_ptr: *const std::ffi::c_char =
+                $crate::strings::IntoCCharPtr::into_c_char_ptr($context);
+            let fn_ptr: *const std::ffi::c_char =
+                $crate::strings::IntoCCharPtr::into_c_char_ptr($func_name);
             let mut stack_buf = [0 as std::ffi::c_char; 1024];
             let len = $crate::strings::vim_snprintf!(
                 (&raw mut stack_buf).cast::<std::ffi::c_char>(),
@@ -125,8 +137,8 @@ macro_rules! logmsg {
                 $crate::strings::vim_snprintf!(heap_buf.as_mut_ptr(), cap, fmt_ptr, $($arg),+);
                 $crate::log::logmsg_str(
                     lvl,
-                    $context,
-                    $func_name,
+                    ctx_ptr,
+                    fn_ptr,
                     $line_num,
                     $eol,
                     heap_buf.as_ptr(),
@@ -134,8 +146,8 @@ macro_rules! logmsg {
             } else {
                 $crate::log::logmsg_str(
                     lvl,
-                    $context,
-                    $func_name,
+                    ctx_ptr,
+                    fn_ptr,
                     $line_num,
                     $eol,
                     stack_buf.as_ptr(),
@@ -309,7 +321,7 @@ pub fn logmsg_str(
             if !log_st().DID_MSG {
                 log_st().DID_MSG = true;
                 msg_schedule_semsg!(
-                    c"E5430: %s:%d: recursive log!".as_ptr(),
+                    c"E5430: %s:%d: recursive log!",
                     if !func_name.is_null() {
                         func_name
                     } else {

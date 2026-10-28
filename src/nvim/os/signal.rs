@@ -110,10 +110,10 @@ pub fn signal_init() {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"signal_init".as_ptr(),
+                    c"signal_init",
                     line!() as c_int,
                     true,
-                    c"Could not unblock signals, nvim might behave strangely.".as_ptr(),
+                    c"Could not unblock signals, nvim might behave strangely.",
                 );
             }
         }
@@ -237,7 +237,7 @@ fn deadly_signal(signum: c_int) -> ! {
         vim_snprintf!(
             io_buf,
             IOSIZE,
-            c"Nvim: Caught deadly signal '%s'\n".as_ptr(),
+            c"Nvim: Caught deadly signal '%s'\n",
             signal_name(signum).as_ptr(),
         );
 
@@ -305,10 +305,10 @@ pub(crate) fn on_signal(signum: c_int) {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"on_signal".as_ptr(),
+                    c"on_signal",
                     line!() as c_int,
                     true,
-                    c"invalid signal: %d".as_ptr(),
+                    c"invalid signal: %d",
                     signum,
                 );
             }

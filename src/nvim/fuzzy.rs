@@ -575,7 +575,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
 
         if arg0.v_type != VarType::VAR_LIST || arg0.vval.v_list().is_null() {
             semsg!(
-                e_listarg.as_ptr(),
+                e_listarg,
                 if retmatchpos {
                     c"matchfuzzypos()".as_ptr()
                 } else {
@@ -585,7 +585,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
             return;
         }
         if arg1.v_type != VarType::VAR_STRING || arg1.vval.v_string().is_null() {
-            semsg!(e_invarg2.as_ptr(), tv_get_string(arg1));
+            semsg!(e_invarg2, tv_get_string(arg1));
             return;
         }
 
@@ -607,15 +607,15 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
                     || *(*di_key).di_tv.vval.v_string() == 0
                 {
                     semsg!(
-                        e_invargNval.as_ptr(),
-                        c"key".as_ptr(),
+                        e_invargNval,
+                        c"key",
                         tv_get_string(&(*di_key).di_tv),
                     );
                     return;
                 }
                 key = tv_get_string(&(*di_key).di_tv);
             } else if !tv_dict_get_callback(d, c"text_cb", -1, &mut cb) {
-                semsg!(e_invargval.as_ptr(), c"text_cb".as_ptr());
+                semsg!(e_invargval, c"text_cb");
                 return;
             }
 
@@ -623,7 +623,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
             if !di_limit.is_null() {
                 if (*di_limit).di_tv.v_type != VarType::VAR_NUMBER {
                     callback_free(&mut cb);
-                    semsg!(e_invargval.as_ptr(), c"limit".as_ptr());
+                    semsg!(e_invargval, c"limit");
                     return;
                 }
                 max_matches = tv_get_number_chk(&(*di_limit).di_tv, None) as c_int;

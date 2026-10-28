@@ -196,10 +196,10 @@ pub fn socket_watcher_init(
                 logmsg!(
                     LOGLVL_ERR,
                     std::ptr::null(),
-                    c"socket_watcher_init".as_ptr(),
+                    c"socket_watcher_init",
                     line!() as c_int,
                     true,
-                    c"Invalid port: %s".as_ptr(),
+                    c"Invalid port: %s",
                     port,
                 );
                 return UV_EINVAL;
@@ -233,10 +233,10 @@ pub fn socket_watcher_init(
                 logmsg!(
                     LOGLVL_ERR,
                     std::ptr::null(),
-                    c"socket_watcher_init".as_ptr(),
+                    c"socket_watcher_init",
                     line!() as c_int,
                     true,
-                    c"Host lookup failed: %s".as_ptr(),
+                    c"Host lookup failed: %s",
                     endpoint,
                 );
                 return retval;
@@ -310,7 +310,7 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
                     vim_snprintf!(
                         addr.add(len),
                         ADDRESS_MAX_SIZE - len,
-                        c":%u".as_ptr(),
+                        c":%u",
                         c_uint::from(port),
                     );
                     break;
@@ -333,10 +333,10 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
                         logmsg!(
                             LOGLVL_WRN,
                             std::ptr::null(),
-                            c"socket_watcher_start".as_ptr(),
+                            c"socket_watcher_start",
                             line!() as c_int,
                             true,
-                            c"Failed to remove stale socket %s: %s".as_ptr(),
+                            c"Failed to remove stale socket %s: %s",
                             addr,
                             uv_strerror(rm_result),
                         );
@@ -360,10 +360,10 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
                     logmsg!(
                         LOGLVL_ERR,
                         std::ptr::null(),
-                        c"socket_watcher_start".as_ptr(),
+                        c"socket_watcher_start",
                         line!() as c_int,
                         true,
-                        c"Socket already in use by another Nvim instance: %s".as_ptr(),
+                        c"Socket already in use by another Nvim instance: %s",
                         addr,
                     );
                 }
@@ -493,7 +493,7 @@ pub fn socket_connect(
                 let addr = addr_buf.as_mut_ptr();
                 let host_end = crate::memory::cstr_as_bytes(addr).iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| addr.add(i));
                 if host_end.is_null() {
-                    *error = gettext(c"tcp address must be host:port".as_ptr());
+                    *error = gettext(c"tcp address must be host:port");
                     break 'cleanup;
                 }
                 *host_end = NUL;
@@ -517,7 +517,7 @@ pub fn socket_connect(
                     &raw const hints,
                 );
                 if retval != 0 {
-                    *error = gettext(c"failed to lookup host or port".as_ptr());
+                    *error = gettext(c"failed to lookup host or port");
                     break 'cleanup;
                 }
                 cur_addrinfo = *getaddrinfo_req_addrinfo_ptr(addr_req_ptr);
@@ -550,7 +550,7 @@ pub fn socket_connect(
                         cur_addrinfo = (*cur_addrinfo).ai_next;
                         continue;
                     } else {
-                        *error = gettext(c"connection refused".as_ptr());
+                        *error = gettext(c"connection refused");
                         break;
                     }
                 }

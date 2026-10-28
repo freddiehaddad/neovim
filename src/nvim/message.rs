@@ -229,7 +229,8 @@ fn msg_st() -> &'static mut MessageState {
 macro_rules! smsg {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
-        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        let fmt_ptr: *const std::ffi::c_char =
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
@@ -250,7 +251,8 @@ pub use smsg;
 macro_rules! smsg_keep {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
-        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        let fmt_ptr: *const std::ffi::c_char =
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
@@ -297,7 +299,7 @@ pub fn semsg_multiline_fmt(
 macro_rules! semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         $crate::message::semsg_fmt(
-            $fmt,
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     }};
@@ -308,8 +310,8 @@ pub use semsg;
 macro_rules! semsg_multiline {
     ($kind:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         $crate::message::semsg_multiline_fmt(
-            $kind,
-            $fmt,
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($kind),
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     }};
@@ -327,7 +329,8 @@ pub use siemsg;
 #[macro_export]
 macro_rules! msg_schedule_semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
-        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        let fmt_ptr: *const std::ffi::c_char =
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
@@ -346,7 +349,8 @@ pub use msg_schedule_semsg;
 #[macro_export]
 macro_rules! msg_schedule_semsg_multiline {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
-        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        let fmt_ptr: *const std::ffi::c_char =
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
@@ -366,7 +370,8 @@ pub use msg_schedule_semsg_multiline;
 macro_rules! swmsg {
     ($hl:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl_val: bool = $hl;
-        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        let fmt_ptr: *const std::ffi::c_char =
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
@@ -615,7 +620,7 @@ fn format_progress_message(
             vim_snprintf!(
                 percent_buf.as_mut_ptr(),
                 percent_buf.len(),
-                c"%3ld%% ".as_ptr(),
+                c"%3ld%% ",
                 msg_data.unwrap().percent as c_long,
             );
             let percent = cstr_to_string(percent_buf.as_ptr());
@@ -968,7 +973,7 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
                 sname = tf.as_ptr().cast_mut();
             }
 
-            let p = gettext(c"Error in %s:".as_ptr());
+            let p = gettext(c"Error in %s:");
             let buf_len =
                 crate::memory::cstr_len(sname) + crate::memory::cstr_len(p) + 1;
             let mut buf_vec: Vec<c_char> = vec![0; buf_len];
@@ -986,7 +991,7 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
         let slnum = sourcing_lnum();
         if !sname.is_null() && (other_sourcing_name() || slnum != msg_st().last_sourcing_lnum) && slnum != 0
         {
-            let p = gettext(c"line %4d:".as_ptr());
+            let p = gettext(c"line %4d:");
             let buf_len = 20 + crate::memory::cstr_len(p);
             let mut buf_vec: Vec<c_char> = vec![0; buf_len];
             vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, slnum);
@@ -1117,10 +1122,10 @@ pub fn emsg_multiline(
                     logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
-                        c"emsg_multiline".as_ptr(),
+                        c"emsg_multiline",
                         line!() as c_int,
                         true,
-                        c"(:silent) %s (%s (line %d))".as_ptr(),
+                        c"(:silent) %s (%s (line %d))",
                         s,
                         sname,
                         slnum,
@@ -1129,10 +1134,10 @@ pub fn emsg_multiline(
                     logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
-                        c"emsg_multiline".as_ptr(),
+                        c"emsg_multiline",
                         line!() as c_int,
                         true,
-                        c"(:silent) %s".as_ptr(),
+                        c"(:silent) %s",
                         s,
                     );
                 }
@@ -1145,10 +1150,10 @@ pub fn emsg_multiline(
                 logmsg!(
                     LOGLVL_INF,
                     ptr::null(),
-                    c"emsg_multiline".as_ptr(),
+                    c"emsg_multiline",
                     line!() as c_int,
                     true,
-                    c"%s (%s (line %d))".as_ptr(),
+                    c"%s (%s (line %d))",
                     s,
                     sname,
                     slnum,
@@ -1157,10 +1162,10 @@ pub fn emsg_multiline(
                 logmsg!(
                     LOGLVL_INF,
                     ptr::null(),
-                    c"emsg_multiline".as_ptr(),
+                    c"emsg_multiline",
                     line!() as c_int,
                     true,
-                    c"%s".as_ptr(),
+                    c"%s",
                     s,
                 );
             }
@@ -1211,7 +1216,7 @@ pub fn emsg(s: *const c_char) -> bool {
 
 pub fn emsg_invreg(name: c_int) {
     semsg!(
-            gettext(c"E354: Invalid register name: '%s'".as_ptr()),
+            gettext(c"E354: Invalid register name: '%s'"),
             transchar_buf(ptr::null(), name),
         );
 }
@@ -1228,7 +1233,7 @@ pub fn iemsg(s: *const c_char) {
 
 /// Give an "Internal error" message.
 pub fn internal_error(where_: &std::ffi::CStr) {
-    siemsg!(gettext(e_intern2.as_ptr()), where_.as_ptr());
+    siemsg!(gettext(e_intern2), where_.as_ptr());
 }
 
 pub fn msg_semsg_event(s: std::ffi::CString) {
@@ -1648,7 +1653,7 @@ pub fn ex_messages(eap: &mut exarg_T) {
         }
 
         if *eap.arg != NUL {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return;
         }
 
@@ -1960,11 +1965,11 @@ fn hit_return_msg(newline_sb: bool) {
         }
         opt_vars().p_more = 0;
         if g_st().got_int {
-            msg_puts(gettext(c"Interrupt: ".as_ptr()));
+            msg_puts(gettext(c"Interrupt: "));
         }
 
         msg_puts_hl(
-            gettext(c"Press ENTER or type command to continue".as_ptr()),
+            gettext(c"Press ENTER or type command to continue"),
             HLF_R,
             false,
         );
@@ -2015,8 +2020,8 @@ pub fn msgmore(n: c_int) {
                     msg_ptr,
                     MSG_BUF_LEN,
                     ngettext(
-                        c"%d more line".as_ptr(),
-                        c"%d more lines".as_ptr(),
+                        c"%d more line",
+                        c"%d more lines",
                         pn as c_ulong,
                     ),
                     pn,
@@ -2026,15 +2031,15 @@ pub fn msgmore(n: c_int) {
                     msg_ptr,
                     MSG_BUF_LEN,
                     ngettext(
-                        c"%d line less".as_ptr(),
-                        c"%d fewer lines".as_ptr(),
+                        c"%d line less",
+                        c"%d fewer lines",
                         pn as c_ulong,
                     ),
                     pn,
                 );
             }
             if g_st().got_int {
-                { let _dst: *mut c_char = msg_ptr; let _dsize: usize = MSG_BUF_LEN; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" (Interrupted)".as_ptr()), _dsize - _dlen); };
+                { let _dst: *mut c_char = msg_ptr; let _dsize: usize = MSG_BUF_LEN; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" (Interrupted)"), _dsize - _dlen); };
             }
             if msg(msg_ptr, 0) {
                 set_keep_msg(msg_ptr, 0);
@@ -2158,7 +2163,7 @@ pub fn msg_putchar_hl(c: c_int, hl_id: c_int) {
 
 pub fn msg_outnum(n: c_int) {
     let mut buf = [0 as c_char; 20];
-        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%d".as_ptr(), n);
+        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%d", n);
         msg_puts(buf.as_ptr());
 }
 
@@ -3145,7 +3150,7 @@ fn inc_msg_scrolled() {
             let mut tofree_vec: Vec<c_char>;
 
             let p = if sname.is_null() {
-                cstr_as_string(gettext(c"Unknown".as_ptr()))
+                cstr_as_string(gettext(c"Unknown"))
             } else {
                 let tofreesize = crate::memory::cstr_len(sname) + 40;
                 tofree_vec = vec![0; tofreesize];
@@ -3153,7 +3158,7 @@ fn inc_msg_scrolled() {
                 let size = vim_snprintf_safelen!(
                     tofree,
                     tofreesize,
-                    gettext(c"%s line %lld".as_ptr()),
+                    gettext(c"%s line %lld"),
                     sname,
                     i64::from(sourcing_lnum()),
                 );
@@ -3642,11 +3647,11 @@ fn do_more_prompt(typed_char: c_int) -> bool {
 fn msg_moremsg(full: bool) {
     let attr = hl_combine_attr(hl_attr(HLF_MSG), hl_attr(HLF_M));
         grid_line_start(&raw mut g_st().msg_grid_adj, g_st().Rows - 1);
-        let mut len = grid_line_puts(0, gettext(c"-- More --".as_ptr()), -1, attr);
+        let mut len = grid_line_puts(0, gettext(c"-- More --"), -1, attr);
         if full {
             len += grid_line_puts(
                 len,
-                gettext(c" SPACE/d/j: screen/page/line down, b/u/k: up, q: quit ".as_ptr()),
+                gettext(c" SPACE/d/j: screen/page/line down, b/u/k: up, q: quit "),
                 -1,
                 attr,
             );
@@ -4013,7 +4018,7 @@ pub fn verbose_open() -> bool {
 
             msg_st().verbose_fd = crate::os::fs::CFile::from_raw(os_fopen(opt_vars().p_vfile, c"a"));
             if msg_st().verbose_fd.is_none() {
-                semsg!(gettext(e_notopen.as_ptr()), opt_vars().p_vfile);
+                semsg!(gettext(e_notopen), opt_vars().p_vfile);
                 return false;
             }
         }
@@ -4090,10 +4095,10 @@ pub fn msg_delay(mut ms: u64, ignoreinput: bool) {
         logmsg!(
             LOGLVL_DBG,
             ptr::null(),
-            c"msg_delay".as_ptr(),
+            c"msg_delay",
             line!() as c_int,
             true,
-            c"%llu ms%s".as_ptr(),
+            c"%llu ms%s",
             ms,
             if g_st().nvim_testing {
                 c" (skipped by NVIM_TEST)".as_ptr()

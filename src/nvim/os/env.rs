@@ -381,7 +381,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
             if i == index {
                 let slice = std::slice::from_raw_parts(p, l);
                 let Ok(utf8_str) = String::from_utf16(slice) else {
-                    semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), 1);
+                    semsg!(c"utf16_to_utf8 failed: %d", 1);
                     break;
                 };
                 let bytes = utf8_str.as_bytes();
@@ -442,7 +442,7 @@ pub fn os_get_hostname(hostname: *mut c_char, size: usize) {
         if GetComputerNameW(host_utf16.as_mut_ptr(), &mut host_wsize) == 0 {
             *hostname = NUL;
             let err = GetLastError();
-            semsg!(c"GetComputerNameW failed: %d".as_ptr(), err);
+            semsg!(c"GetComputerNameW failed: %d", err);
             return;
         }
         host_utf16[host_wsize as usize] = 0;
@@ -450,7 +450,7 @@ pub fn os_get_hostname(hostname: *mut c_char, size: usize) {
         let mut host_utf8: Option<std::ffi::CString> = None;
         let conversion_result = utf16_to_utf8(host_utf16.as_ptr(), -1, &mut host_utf8);
         if conversion_result != 0 {
-            semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), conversion_result);
+            semsg!(c"utf16_to_utf8 failed: %d", conversion_result);
             return;
         }
         if let Some(host_cstr) = host_utf8 {

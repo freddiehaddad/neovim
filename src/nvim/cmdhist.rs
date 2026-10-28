@@ -644,7 +644,7 @@ pub fn ex_history(eap: &mut exarg_T) {
                     histype1 = 0;
                     histype2 = (HIST_COUNT as c_int) - 1;
                 } else {
-                    semsg!(e_trailing_arg.as_ptr(), arg);
+                    semsg!(e_trailing_arg, arg);
                     return;
                 }
             } else {
@@ -654,9 +654,9 @@ pub fn ex_history(eap: &mut exarg_T) {
 
         if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || *end != 0 {
             if *end != 0 {
-                semsg!(e_trailing_arg.as_ptr(), end);
+                semsg!(e_trailing_arg, end);
             } else {
-                semsg!(e_val_too_large.as_ptr(), arg);
+                semsg!(e_val_too_large, arg);
             }
             return;
         }

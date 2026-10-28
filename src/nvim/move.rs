@@ -1232,7 +1232,7 @@ pub fn f_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             coladd: 0,
         };
         if pos.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
-            semsg!(tr(e_invalid_line_number_nr.as_ptr()), pos.lnum);
+            semsg!(tr(e_invalid_line_number_nr), pos.lnum);
             return;
         }
         let mut row: c_int = 0;

@@ -316,14 +316,14 @@ pub fn nvim_parse_cmd(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Parsing command-line: %s".as_ptr(),
+                    c"Parsing command-line: %s",
                     errormsg,
                 );
             } else {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Parsing command-line".as_ptr(),
+                    c"Parsing command-line",
                 );
             }
             return result;
@@ -692,7 +692,7 @@ pub fn nvim_cmd(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Command not found: %s".as_ptr(),
+                    c"Command not found: %s",
                     cmdname,
                 );
                 break 'end;
@@ -702,7 +702,7 @@ pub fn nvim_cmd(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Command not implemented: %s".as_ptr(),
+                    c"Command not implemented: %s",
                     cmdname,
                 );
                 break 'end;
@@ -720,7 +720,7 @@ pub fn nvim_cmd(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Invalid command: \"%s\"".as_ptr(),
+                        c"Invalid command: \"%s\"",
                         cmdname,
                     );
                     break 'end;
@@ -820,8 +820,8 @@ pub fn nvim_cmd(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
-                            c"%s".as_ptr(),
-                            c"Wrong number of arguments".as_ptr(),
+                            c"%s",
+                            c"Wrong number of arguments",
                         );
                         break 'end;
                     }
@@ -833,8 +833,8 @@ pub fn nvim_cmd(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Command cannot accept %s: %s".as_ptr(),
-                        c"range".as_ptr(),
+                        c"Command cannot accept %s: %s",
+                        c"range",
                         cmd.cmd.data,
                     );
                     break 'end;
@@ -883,7 +883,7 @@ pub fn nvim_cmd(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"%s".as_ptr(),
+                    c"%s",
                     if !errormsg.is_null() {
                         errormsg
                     } else {
@@ -925,8 +925,8 @@ pub fn nvim_cmd(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"Cannot specify both 'count' and numeric argument".as_ptr(),
+                        c"%s",
+                        c"Cannot specify both 'count' and numeric argument",
                     );
                     break 'end;
                 }
@@ -934,8 +934,8 @@ pub fn nvim_cmd(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Command cannot accept %s: %s".as_ptr(),
-                        c"count".as_ptr(),
+                        c"Command cannot accept %s: %s",
+                        c"count",
                         cmd.cmd.data,
                     );
                     break 'end;
@@ -957,8 +957,8 @@ pub fn nvim_cmd(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Command cannot accept %s: %s".as_ptr(),
-                        c"register".as_ptr(),
+                        c"Command cannot accept %s: %s",
+                        c"register",
                         cmd.cmd.data,
                     );
                     break 'end;
@@ -977,8 +977,8 @@ pub fn nvim_cmd(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"Cannot use register \"=".as_ptr(),
+                        c"%s",
+                        c"Cannot use register \"=",
                     );
                     break 'end;
                 }
@@ -989,7 +989,7 @@ pub fn nvim_cmd(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Invalid register: \"%c".as_ptr(),
+                        c"Invalid register: \"%c",
                         c_int::from(regname),
                     );
                     break 'end;
@@ -1002,8 +1002,8 @@ pub fn nvim_cmd(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Command cannot accept %s: %s".as_ptr(),
-                    c"bang".as_ptr(),
+                    c"Command cannot accept %s: %s",
+                    c"bang",
                     cmd.cmd.data,
                 );
                 break 'end;
@@ -1169,8 +1169,8 @@ pub fn nvim_cmd(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"%s".as_ptr(),
-                        c"Command cannot be run in sandbox".as_ptr(),
+                        c"%s",
+                        c"Command cannot be run in sandbox",
                     );
                     break 'end;
                 }
@@ -1429,7 +1429,7 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
         api_set_error!(
             err,
             ErrorType::kErrorTypeException,
-            c"Invalid command (not found): %s".as_ptr(),
+            c"Invalid command (not found): %s",
             name.data,
         );
     }
@@ -1478,8 +1478,8 @@ pub fn create_user_command(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
-                    c"Cannot use both 'range' and 'count'".as_ptr(),
+                    c"%s",
+                    c"Cannot use both 'range' and 'count'",
                 );
                 break 'err;
             }
@@ -1531,8 +1531,8 @@ pub fn create_user_command(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
-                    c"'complete' used without 'nargs'".as_ptr(),
+                    c"%s",
+                    c"'complete' used without 'nargs'",
                 );
                 break 'err;
             }
@@ -1731,7 +1731,7 @@ pub fn create_user_command(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Failed to create user command".as_ptr(),
+                        c"Failed to create user command",
                     );
                 }
             });
@@ -1800,7 +1800,7 @@ pub fn nvim_buf_get_commands(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"builtin=true not implemented".as_ptr(),
+                    c"builtin=true not implemented",
                 );
                 return Dict::new();
             }

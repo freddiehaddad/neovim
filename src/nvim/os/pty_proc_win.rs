@@ -362,10 +362,10 @@ mod win_impl {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"pty_proc_spawn".as_ptr(),
+                    c"pty_proc_spawn",
                     line!() as c_int,
                     true,
-                    c"pty_proc_spawn(%s): %s: error code: %d".as_ptr(),
+                    c"pty_proc_spawn(%s): %s: error code: %d",
                     (*hdr).argv.as_slice()[0].as_ptr(),
                     emsg,
                     status,

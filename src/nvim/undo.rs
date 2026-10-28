@@ -328,17 +328,17 @@ pub fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> bool {
 pub fn undo_allowed(buf: *mut buf_T) -> bool {
     unsafe {
         if (*buf).b_p_ma == 0 {
-            emsg(gettext(e_modifiable.as_ptr()));
+            emsg(gettext(e_modifiable));
             return false;
         }
 
         if g_st().sandbox != 0 {
-            emsg(gettext(e_sandbox.as_ptr()));
+            emsg(gettext(e_sandbox));
             return false;
         }
 
         if g_st().textlock != 0 || expr_map_locked() {
-            emsg(gettext(e_textlock.as_ptr()));
+            emsg(gettext(e_textlock));
             return false;
         }
 
@@ -384,7 +384,7 @@ pub fn u_savecommon(
             }
 
             if bot > (*buf).b_ml.ml_line_count + 1 {
-                emsg(gettext(c"E881: Line count changed unexpectedly".as_ptr()));
+                emsg(gettext(c"E881: Line count changed unexpectedly"));
                 return false;
             }
         }
@@ -664,8 +664,7 @@ pub fn u_get_undo_file_name(
                     if ret != 0 {
                         semsg!(
                             gettext(
-                                c"E5003: Unable to create directory \"%s\" for undo file: %s"
-                                    .as_ptr(),
+                                c"E5003: Unable to create directory \"%s\" for undo file: %s",
                             ),
                             failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             uv_strerror(ret),
@@ -712,7 +711,7 @@ pub fn u_get_undo_file_name(
 
 fn corruption_error(mesg: &std::ffi::CStr, file_name: *const c_char) {
     semsg!(
-            gettext(c"E825: Corrupted undo file (%s): %s".as_ptr()),
+            gettext(c"E825: Corrupted undo file (%s): %s"),
             mesg.as_ptr(),
             file_name,
         );
@@ -1061,8 +1060,8 @@ pub fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *
                     verbose_enter();
                     smsg!(
                         0,
-                        c"%s".as_ptr(),
-                        gettext(c"Cannot write undo file in any directory in 'undodir'".as_ptr()),
+                        c"%s",
+                        gettext(c"Cannot write undo file in any directory in 'undodir'"),
                     );
                     verbose_leave();
                 }
@@ -1094,7 +1093,7 @@ pub fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *
                             smsg!(
                                 0,
                                 gettext(
-                                    c"Will not overwrite with undo file, cannot read: %s".as_ptr(),
+                                    c"Will not overwrite with undo file, cannot read: %s",
                                 ),
                                 file_name,
                             );
@@ -1117,8 +1116,7 @@ pub fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *
                                 smsg!(
                                     0,
                                     gettext(
-                                        c"Will not overwrite, this is not an undo file: %s"
-                                            .as_ptr(),
+                                        c"Will not overwrite, this is not an undo file: %s",
                                     ),
                                     file_name,
                                 );
@@ -1136,7 +1134,7 @@ pub fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *
             if (*buf).b_u_numhead == 0 && (*buf).b_u_line_ptr.is_none() {
                 if opt_vars().p_verbose > 0 {
                     verb_msg(gettext(
-                        c"Skipping undo file write, nothing to undo".as_ptr(),
+                        c"Skipping undo file write, nothing to undo",
                     ));
                 }
                 break 'theend;
@@ -1144,13 +1142,13 @@ pub fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *
 
             let fd = os_open(file_name, O_CREAT | O_WRONLY | O_EXCL | O_NOFOLLOW, perm);
             if fd < 0 {
-                semsg!(gettext(E_NOT_OPEN.as_ptr()), file_name);
+                semsg!(gettext(E_NOT_OPEN), file_name);
                 break 'theend;
             }
             os_setperm(file_name, perm);
             if opt_vars().p_verbose > 0 {
                 verbose_enter();
-                smsg!(0, gettext(c"Writing undo file: %s".as_ptr()), file_name);
+                smsg!(0, gettext(c"Writing undo file: %s"), file_name);
                 verbose_leave();
             }
 
@@ -1173,7 +1171,7 @@ pub fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *
             }
 
             let Some(bi_fp) = crate::os::fs::CFile::from_raw(fdopen(fd, c"w".as_ptr())) else {
-                semsg!(gettext(E_NOT_OPEN.as_ptr()), file_name);
+                semsg!(gettext(E_NOT_OPEN), file_name);
                 os_close(fd);
                 os_remove(file_name);
                 break 'theend;
@@ -1244,7 +1242,7 @@ pub fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *
 
             drop(bi);
             if !write_ok {
-                semsg!(gettext(E_WRITE_ERROR_IN_UNDO_FILE_STR.as_ptr()), file_name);
+                semsg!(gettext(E_WRITE_ERROR_IN_UNDO_FILE_STR), file_name);
             }
 
             if !(*buf).b_ffname.is_null() {
@@ -1304,7 +1302,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                         verbose_enter();
                         smsg!(
                             0,
-                            gettext(c"Not reading undo file, owner differs: %s".as_ptr()),
+                            gettext(c"Not reading undo file, owner differs: %s"),
                             f,
                         );
                         verbose_leave();
@@ -1319,7 +1317,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
 
         if opt_vars().p_verbose > 0 {
             verbose_enter();
-            smsg!(0, gettext(c"Reading undo file: %s".as_ptr()), file_name);
+            smsg!(0, gettext(c"Reading undo file: %s"), file_name);
             verbose_leave();
         }
 
@@ -1329,7 +1327,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                 let Some(bi_fp) = fp_opt else {
                     if !name.is_null() || opt_vars().p_verbose > 0 {
                         semsg!(
-                            gettext(c"E822: Cannot open undo file for reading: %s".as_ptr()),
+                            gettext(c"E822: Cannot open undo file for reading: %s"),
                             file_name,
                         );
                     }
@@ -1353,13 +1351,13 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                 if fread(magic_buf.as_mut_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) != 1
                     || magic_buf != UF_START_MAGIC[..UF_START_MAGIC_LEN]
                 {
-                    semsg!(gettext(c"E823: Not an undo file: %s".as_ptr()), file_name);
+                    semsg!(gettext(c"E823: Not an undo file: %s"), file_name);
                     break 'error;
                 }
                 let version = get2c(fp);
                 if version != UF_VERSION {
                     semsg!(
-                        gettext(c"E824: Incompatible undo file: %s".as_ptr()),
+                        gettext(c"E824: Incompatible undo file: %s"),
                         file_name,
                     );
                     break 'error;
@@ -1379,7 +1377,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                             verbose_enter();
                         }
                         give_warning(
-                            gettext(c"File contents changed, cannot use undo info".as_ptr()),
+                            gettext(c"File contents changed, cannot use undo info"),
                             true,
                             true,
                         );
@@ -1539,7 +1537,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                 if !name.is_null() {
                     smsg!(
                         0,
-                        gettext(c"Finished reading undo file %s".as_ptr()),
+                        gettext(c"Finished reading undo file %s"),
                         file_name,
                     );
                 }
@@ -1722,7 +1720,7 @@ fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
                     beep_flush();
                     if count == startcount - 1 {
                         if !shortmess(kShmUndo) {
-                            msg(gettext(c"Already at oldest change".as_ptr()), 0);
+                            msg(gettext(c"Already at oldest change"), 0);
                         }
                         return;
                     }
@@ -1735,7 +1733,7 @@ fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
                     beep_flush();
                     if count == startcount - 1 {
                         if !shortmess(kShmUndo) {
-                            msg(gettext(c"Already at newest change".as_ptr()), 0);
+                            msg(gettext(c"Already at newest change"), 0);
                         }
                         return;
                     }
@@ -1927,7 +1925,7 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
 
                 if absolute {
                     semsg!(
-                        gettext(c"E830: Undo number %lld not found".as_ptr()),
+                        gettext(c"E830: Undo number %lld not found"),
                         step as i64,
                     );
                     return;
@@ -1936,9 +1934,9 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                 if closest == closest_start {
                     if !shortmess(kShmUndo) {
                         if step < 0 {
-                            msg(gettext(c"Already at oldest change".as_ptr()), 0);
+                            msg(gettext(c"Already at oldest change"), 0);
                         } else {
-                            msg(gettext(c"Already at newest change".as_ptr()), 0);
+                            msg(gettext(c"Already at newest change"), 0);
                         }
                     }
                     return;
@@ -2100,7 +2098,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
                 || bot > (*g_st().curbuf).b_ml.ml_line_count + 1
             {
                 unblock_autocmds();
-                iemsg(gettext(c"E438: u_undo: line numbers wrong".as_ptr()));
+                iemsg(gettext(c"E438: u_undo: line numbers wrong"));
                 changed(g_st().curbuf);
                 return;
             }
@@ -2381,7 +2379,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
 
         smsg_keep!(
             0,
-            gettext(c"%lld %s; %s #%lld  %s".as_ptr()),
+            gettext(c"%lld %s; %s #%lld  %s"),
             if undo_st().u_oldcount < 0 {
                 -(undo_st().u_oldcount as i64)
             } else {
@@ -2389,9 +2387,9 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
             },
             gettext(msgstr),
             if did_undo {
-                gettext(c"before".as_ptr())
+                gettext(c"before")
             } else {
-                gettext(c"after".as_ptr())
+                gettext(c"after")
             },
             uhp.map_or(0i64, |uh| uhp_ref(&*g_st().curbuf, uh).uh_seq as i64),
             msgbuf.as_ptr(),
@@ -2425,8 +2423,8 @@ pub fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
                 buf,
                 buflen,
                 ngettext(
-                    c"%lld second ago".as_ptr(),
-                    c"%lld seconds ago".as_ptr(),
+                    c"%lld second ago",
+                    c"%lld seconds ago",
                     seconds as u32 as c_ulong,
                 ),
                 seconds,
@@ -2474,7 +2472,7 @@ pub fn ex_undolist(_eap: &mut exarg_T) {
                 vim_snprintf!(
                     iobuf_ptr,
                     IOSIZE,
-                    c"%6d %7d  ".as_ptr(),
+                    c"%6d %7d  ",
                     uh_seq,
                     changes,
                 );
@@ -2484,7 +2482,7 @@ pub fn ex_undolist(_eap: &mut exarg_T) {
                     while crate::memory::cstr_len(iobuf_ptr) < 33 {
                         { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" ".as_ptr(), _dsize - _dlen); };
                     }
-                    vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d".as_ptr(), uh_save_nr);
+                    vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d", uh_save_nr);
                 }
                 lines.push(crate::memory::cstr_to_cstring(iobuf_ptr));
             }
@@ -2525,13 +2523,13 @@ pub fn ex_undolist(_eap: &mut exarg_T) {
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         if lines.is_empty() {
-            msg(gettext(c"Nothing to undo".as_ptr()), 0);
+            msg(gettext(c"Nothing to undo"), 0);
         } else {
             lines.sort_unstable();
 
             msg_start();
             msg_puts_hl(
-                gettext(c"number changes  when               saved".as_ptr()),
+                gettext(c"number changes  when               saved"),
                 HLF_T,
                 false,
             );
@@ -2558,7 +2556,7 @@ pub fn ex_undojoin(_eap: &mut exarg_T) {
         }
         if (*g_st().curbuf).b_u_curhead.is_some() {
             emsg(gettext(
-                c"E790: undojoin is not allowed after undo".as_ptr(),
+                c"E790: undojoin is not allowed after undo",
             ));
             return;
         }
@@ -2645,11 +2643,11 @@ fn u_unch_branch(buf: &mut buf_T, uhp: Option<usize>) {
 
 fn u_get_headentry(buf: &mut buf_T) -> *mut u_entry_T {
     let Some(newhead) = buf.b_u_newhead else {
-            iemsg(gettext(E_UNDO_LIST_CORRUPT.as_ptr()));
+            iemsg(gettext(E_UNDO_LIST_CORRUPT));
             return ptr::null_mut();
         };
         if uhp_ref(buf, newhead).uh_entries.is_empty() {
-            iemsg(gettext(E_UNDO_LIST_CORRUPT.as_ptr()));
+            iemsg(gettext(E_UNDO_LIST_CORRUPT));
             return ptr::null_mut();
         }
         &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[0]
@@ -2667,7 +2665,7 @@ fn u_getbot(buf: *mut buf_T) {
             let extra = (*buf).b_ml.ml_line_count - (*uep).ue_lcount;
             (*uep).ue_bot = (*uep).ue_top + (*uep).ue_size() + 1 + extra;
             if (*uep).ue_bot < 1 || (*uep).ue_bot > (*buf).b_ml.ml_line_count {
-                iemsg(gettext(E_UNDO_LINE_MISSING.as_ptr()));
+                iemsg(gettext(E_UNDO_LINE_MISSING));
                 (*uep).ue_bot = (*uep).ue_top + 1;
             }
 

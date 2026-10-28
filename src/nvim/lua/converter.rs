@@ -462,7 +462,7 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
 
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
             semsg!(
-                c"E1502: Lua failed to grow stack to %i".as_ptr(),
+                c"E1502: Lua failed to grow stack to %i",
                 lua_gettop(lstate) + 2,
             );
             ret.table_type = ObjectType::kObjectTypeNil;
@@ -598,7 +598,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
         while ret && !stack.is_empty() {
             if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
                 semsg!(
-                    c"E1502: Lua failed to grow stack to %i".as_ptr(),
+                    c"E1502: Lua failed to grow stack to %i",
                     lua_gettop(lstate) + 3,
                 );
                 ret = false;
@@ -878,7 +878,7 @@ fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> bool {
     unsafe {
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
             semsg!(
-                c"E5102: Lua failed to grow stack to %i".as_ptr(),
+                c"E5102: Lua failed to grow stack to %i",
                 lua_gettop(lstate) + 3,
             );
             return false;
@@ -894,7 +894,7 @@ fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> bool {
     unsafe {
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
             semsg!(
-                c"E5102: Lua failed to grow stack to %i".as_ptr(),
+                c"E5102: Lua failed to grow stack to %i",
                 lua_gettop(lstate) + 3,
             );
             return false;
@@ -1380,7 +1380,7 @@ pub unsafe extern "C-unwind" fn nlua_push_typval(
 
         if lua_checkstack(lstate, initial_size + 2) == 0 {
             semsg!(
-                c"E1502: Lua failed to grow stack to %i".as_ptr(),
+                c"E1502: Lua failed to grow stack to %i",
                 initial_size + 4,
             );
             return false;
@@ -1545,7 +1545,7 @@ pub fn nlua_pop_String_opt(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected Lua string".as_ptr(),
+                c"Expected Lua string",
             );
             return NvimString {
                 data: std::ptr::null_mut(),
@@ -1573,7 +1573,7 @@ pub fn nlua_pop_Integer(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected Lua number".as_ptr(),
+                c"Expected Lua number",
             );
             return 0;
         }
@@ -1586,7 +1586,7 @@ pub fn nlua_pop_Integer(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Number is not integral".as_ptr(),
+                c"Number is not integral",
             );
             return 0;
         }
@@ -1628,7 +1628,7 @@ pub fn nlua_pop_Boolean_strict(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"not a boolean".as_ptr(),
+                    c"not a boolean",
                 );
             }
         }
@@ -1652,7 +1652,7 @@ fn nlua_check_type(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected Lua %s".as_ptr(),
+                c"Expected Lua %s",
                 name,
             );
             return LuaTableProps {
@@ -1678,7 +1678,7 @@ fn nlua_check_type(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected %s-like Lua table".as_ptr(),
+                c"Expected %s-like Lua table",
                 api_typename(expected_type),
             );
         }
@@ -1877,7 +1877,7 @@ pub fn nlua_pop_Object_opt(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Lua failed to grow stack".as_ptr(),
+                        c"Lua failed to grow stack",
                     );
                     break;
                 }
@@ -2005,7 +2005,7 @@ pub fn nlua_pop_Object_opt(
                             api_set_error!(
                                 err,
                                 ErrorType::kErrorTypeValidation,
-                                c"Cannot convert given Lua table".as_ptr(),
+                                c"Cannot convert given Lua table",
                             );
                         }
                         _ => std::process::abort(),
@@ -2021,7 +2021,7 @@ pub fn nlua_pop_Object_opt(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
-                            c"Cannot convert given Lua type".as_ptr(),
+                            c"Cannot convert given Lua type",
                         );
                     }
                 }
@@ -2035,7 +2035,7 @@ pub fn nlua_pop_Object_opt(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
-                            c"Cannot convert userdata".as_ptr(),
+                            c"Cannot convert userdata",
                         );
                     }
                 }
@@ -2043,7 +2043,7 @@ pub fn nlua_pop_Object_opt(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Cannot convert given Lua type".as_ptr(),
+                        c"Cannot convert given Lua type",
                     );
                 }
             }
@@ -2086,7 +2086,7 @@ pub fn nlua_pop_handle(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected Lua number".as_ptr(),
+                c"Expected Lua number",
             );
             -1
         } else {
@@ -2173,7 +2173,7 @@ pub fn nlua_pop_keydict_opt(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected Lua table".as_ptr(),
+                c"Expected Lua table",
             );
             lua_pop(L, 1);
             return;
@@ -2190,7 +2190,7 @@ pub fn nlua_pop_keydict_opt(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"invalid key: %.*s".as_ptr(),
+                    c"invalid key: %.*s",
                     len as c_int,
                     s,
                 );

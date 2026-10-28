@@ -696,7 +696,7 @@ fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                     vim_snprintf!(
                         errmsg.as_mut_ptr(),
                         50,
-                        c"can't serialize object of type %d".as_ptr(),
+                        c"can't serialize object of type %d",
                         r#type,
                     );
                     luaL_error(l, errmsg.as_ptr());

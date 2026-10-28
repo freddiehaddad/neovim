@@ -395,7 +395,7 @@ fn redo_prefix(spec: *const CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
             let n = vim_snprintf!(
                 numbuf.as_mut_ptr(),
                 numbuf.len(),
-                c"%d".as_ptr(),
+                c"%d",
                 (*spec).count as c_int,
             );
             if n > 0 {
@@ -479,7 +479,7 @@ fn add_buff(buf: &mut StuffBuf, s: *const c_char, mut slen: isize) {
 
 fn add_num_buff(buf: &mut StuffBuf, n: c_int) {
     let mut number = [0 as c_char; 32];
-        let numberlen = vim_snprintf!(number.as_mut_ptr(), number.len(), c"%d".as_ptr(), n);
+        let numberlen = vim_snprintf!(number.as_mut_ptr(), number.len(), c"%d", n);
         add_buff(&mut *buf, number.as_ptr(), numberlen as isize);
 }
 
@@ -1052,7 +1052,7 @@ pub fn ins_typebuf(
             let newoff = (MAXMAPLEN + 4) as c_int;
             let extra = addlen + newoff + (4 * (MAXMAPLEN + 4)) as c_int;
             if g_st().typebuf.tb_len > c_int::MAX - extra {
-                emsg(gettext(e_command_too_complex.as_ptr()));
+                emsg(gettext(e_command_too_complex));
                 setcursor();
                 return false;
             }
@@ -1430,7 +1430,7 @@ pub fn restore_typeahead(tp: &mut tasave_T) {
 pub fn openscript(name: *mut c_char, directly: bool) {
     unsafe {
         if inp_st().curscript + 1 == NSCRIPT as c_int {
-            emsg(gettext(e_nesting.as_ptr()));
+            emsg(gettext(e_nesting));
             return;
         }
 
@@ -1451,7 +1451,7 @@ pub fn openscript(name: *mut c_char, directly: bool) {
         let error = file_open(&mut *scriptin_ptr, namebuff_ptr, K_FILE_READ_ONLY, 0);
         if error != 0 {
             semsg!(
-                gettext(e_notopen_2.as_ptr()),
+                gettext(e_notopen_2),
                 name,
                 uv_strerror(error),
             );
@@ -1534,7 +1534,7 @@ pub fn open_scriptin(scriptin_name: *mut c_char) -> bool {
             let n = vim_snprintf!(
                 errbuf.as_mut_ptr(),
                 errbuf.len(),
-                gettext(c"Cannot open for reading: \"%s\": %s\n".as_ptr()),
+                gettext(c"Cannot open for reading: \"%s\": %s\n"),
                 scriptin_name,
                 uv_strerror(error),
             );
@@ -1903,7 +1903,7 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
             if allow_number {
                 allow_number = tv_dict_get_bool(d, c"number", 1) != 0;
             } else if tv_dict_has_key(d, c"number") {
-                semsg!(gettext(e_invarg2.as_ptr()), c"number".as_ptr());
+                semsg!(gettext(e_invarg2), c"number");
             }
 
             simplify = tv_dict_get_bool(d, c"simplify", 1) != 0;
@@ -1915,8 +1915,8 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
                     && crate::memory::cstr_as_bytes(cursor_str) != b"msg"
                 {
                     semsg!(
-                        gettext(e_invargNval.as_ptr()),
-                        c"cursor".as_ptr(),
+                        gettext(e_invargNval),
+                        c"cursor",
                         cursor_str,
                     );
                 } else {
@@ -2432,7 +2432,7 @@ fn handle_mapping(
 
             *mapdepth += 1;
             if (*mapdepth as OptInt) >= opt_vars().p_mmd {
-                emsg(gettext(E_RECURSIVE_MAPPING.as_ptr()));
+                emsg(gettext(E_RECURSIVE_MAPPING));
                 if (g_st().State & MODE_CMDLINE) != 0 {
                     redrawcmdline();
                 } else {
@@ -3141,7 +3141,7 @@ pub fn getcmdkeycmd(
         g_st().got_int = false;
         while c1 != NUL && !aborted {
             if vgetorpeek(false) == NUL {
-                emsg(gettext(E_CMD_MAPPING_MUST_END_WITH_CR.as_ptr()));
+                emsg(gettext(E_CMD_MAPPING_MUST_END_WITH_CR));
                 aborted = true;
                 break;
             }
@@ -3166,7 +3166,7 @@ pub fn getcmdkeycmd(
                 aborted = true;
             } else if c1 == K_COMMAND {
                 emsg(gettext(
-                    E_CMD_MAPPING_MUST_END_WITH_CR_BEFORE_SECOND_CMD.as_ptr(),
+                    E_CMD_MAPPING_MUST_END_WITH_CR_BEFORE_SECOND_CMD,
                 ));
                 aborted = true;
             } else if c1 == K_SNR {
@@ -3230,7 +3230,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
         drop(line);
         let ref_ = map_luaid_get(id);
         if ref_ == LUA_NOREF {
-            emsg(gettext(E_LUA_MAPPING_GONE.as_ptr()));
+            emsg(gettext(E_LUA_MAPPING_GONE));
             return false;
         }
         if may_repeat {
@@ -3252,7 +3252,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
             Some(&mut err),
         );
         if err.err_type != ErrorType::kErrorTypeNone {
-            semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
+            semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
             api_clear_error(&mut err);
         }
 

@@ -1324,7 +1324,7 @@ fn command_line_enter(
             setmouse();
             sb_text_end_cmdline();
         } else {
-            emsg(gettext(e_command_too_recursive.as_ptr()));
+            emsg(gettext(e_command_too_recursive));
         }
 
         // theend:
@@ -3482,7 +3482,7 @@ pub fn text_or_buf_locked() -> bool {
 pub fn curbuf_locked() -> bool {
     unsafe {
         if (*g_st().curbuf).b_ro_locked > 0 {
-            emsg(gettext(e_cannot_edit_other_buf.as_ptr()));
+            emsg(gettext(e_cannot_edit_other_buf));
             return true;
         }
         allbuf_locked()
@@ -3492,7 +3492,7 @@ pub fn curbuf_locked() -> bool {
 pub fn allbuf_locked() -> bool {
     if g_st().allbuf_lock > 0 {
             emsg(gettext(
-                c"E811: Not allowed to change buffer information now".as_ptr(),
+                c"E811: Not allowed to change buffer information now",
             ));
             return true;
         }
@@ -3809,8 +3809,8 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     msg_putchar(b'\n' as c_int);
                     smsg!(
                         HLF_E,
-                        c"%s".as_ptr(),
-                        gettext(c"E5400: Callback should return list".as_ptr()),
+                        c"%s",
+                        gettext(c"E5400: Callback should return list"),
                     );
                     printed_errmsg = true;
                     break 'color_cmdline_error;
@@ -3829,7 +3829,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         msg_putchar(b'\n' as c_int);
                         smsg!(
                             HLF_E,
-                            gettext(c"E5401: List item %i is not a List".as_ptr()),
+                            gettext(c"E5401: List item %i is not a List"),
                             i,
                         );
                         printed_errmsg = true;
@@ -3841,7 +3841,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         msg_putchar(b'\n' as c_int);
                         smsg!(
                             HLF_E,
-                            gettext(c"E5402: List item %i has incorrect length: %d /= 3".as_ptr()),
+                            gettext(c"E5402: List item %i has incorrect length: %d /= 3"),
                             i,
                             tv_list_len(l),
                         );
@@ -3860,7 +3860,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         msg_putchar(b'\n' as c_int);
                         smsg!(
                             HLF_E,
-                            gettext(c"E5403: Chunk %i start %lld not in range [%lld, %i)".as_ptr()),
+                            gettext(c"E5403: Chunk %i start %lld not in range [%lld, %i)"),
                             i,
                             start,
                             prev_end,
@@ -3877,7 +3877,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         smsg!(
                             HLF_E,
                             gettext(
-                                c"E5405: Chunk %i start %lld splits multibyte character".as_ptr(),
+                                c"E5405: Chunk %i start %lld splits multibyte character",
                             ),
                             i,
                             start,
@@ -3901,7 +3901,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         msg_putchar(b'\n' as c_int);
                         smsg!(
                             HLF_E,
-                            gettext(c"E5404: Chunk %i end %lld not in range (%lld, %i]".as_ptr()),
+                            gettext(c"E5404: Chunk %i end %lld not in range (%lld, %i]"),
                             i,
                             end,
                             start,
@@ -3919,7 +3919,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         smsg!(
                             HLF_E,
                             gettext(
-                                c"E5406: Chunk %i end %lld splits multibyte character".as_ptr(),
+                                c"E5406: Chunk %i end %lld splits multibyte character",
                             ),
                             i,
                             end,
@@ -4951,7 +4951,7 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 return;
             }
             if pos < 0 {
-                emsg(gettext(e_positive.as_ptr()));
+                emsg(gettext(e_positive));
                 return;
             }
         }
@@ -5245,7 +5245,7 @@ pub fn get_user_input(argvars: &[typval_T],
         let def: [c_char; 1] = [0];
         if argvars[0].v_type == VarType::VAR_DICT {
             if argvars[1].v_type != VarType::VAR_UNKNOWN {
-                emsg(gettext(c"E5050: {opts} must be the only argument".as_ptr()));
+                emsg(gettext(c"E5050: {opts} must be the only argument"));
                 return;
             }
             let dict = argvars[0].vval.v_dict();

@@ -40,7 +40,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
 
         let w_s = (**curwin.as_ptr()).w_s_ptr();
         if *(*w_s).b_p_spl == NUL {
-            emsg(gettext(e_no_spell.as_ptr()));
+            emsg(gettext(e_no_spell));
             (**curwin.as_ptr()).w_onebuf_opt.wo_spell = wo_spell_save;
             return 0;
         }

@@ -33,14 +33,14 @@ pub fn os_libcall(
         };
 
         if uv_dlopen(libname, &mut lib) != 0 {
-            semsg!(c"dlerror = \"%s\"".as_ptr(), uv_dlerror(&lib));
+            semsg!(c"dlerror = \"%s\"", uv_dlerror(&lib));
             uv_dlclose(&mut lib);
             return false;
         }
 
         let mut fn_ptr: *mut c_void = std::ptr::null_mut();
         if uv_dlsym(&mut lib, funcname, &mut fn_ptr) != 0 {
-            semsg!(c"dlerror = \"%s\"".as_ptr(), uv_dlerror(&lib));
+            semsg!(c"dlerror = \"%s\"", uv_dlerror(&lib));
             uv_dlclose(&mut lib);
             return false;
         }

@@ -1357,7 +1357,7 @@ pub fn tv_list_check_range_index_one(
         }
 
         if !quiet {
-            semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(*n1));
+            semsg!(tr(e_list_index_out_of_range_nr), i64::from(*n1));
         }
         ptr::null_mut()
     }
@@ -1374,7 +1374,7 @@ pub fn tv_list_check_range_index_two(
             let ni = tv_list_find(l, *n2);
             if ni.is_null() {
                 if !quiet {
-                    semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(*n2));
+                    semsg!(tr(e_list_index_out_of_range_nr), i64::from(*n2));
                 }
                 return false;
             }
@@ -1386,7 +1386,7 @@ pub fn tv_list_check_range_index_two(
         }
         if *n2 < *n1 {
             if !quiet {
-                semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(*n2));
+                semsg!(tr(e_list_index_out_of_range_nr), i64::from(*n2));
             }
             return false;
         }
@@ -1448,7 +1448,7 @@ pub fn tv_list_assign_range(
             idx += 1;
         }
         if !src_li.is_null() {
-            emsg(tr(c"E710: List value has more items than target".as_ptr()));
+            emsg(tr(c"E710: List value has more items than target"));
             return false;
         }
         if if empty_idx2 {
@@ -1456,7 +1456,7 @@ pub fn tv_list_assign_range(
         } else {
             idx != idx2
         } {
-            emsg(tr(c"E711: List value has not enough items".as_ptr()));
+            emsg(tr(c"E711: List value has not enough items"));
             return false;
         }
         true
@@ -1668,7 +1668,7 @@ pub fn tv_list_slice_or_index(
         if n1 < 0 || n1 >= len {
             if !range {
                 if verbose {
-                    semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), n1_arg);
+                    semsg!(tr(e_list_index_out_of_range_nr), n1_arg);
                 }
                 return false;
             }
@@ -1772,7 +1772,7 @@ pub fn f_join(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 
      {
         if argvars[0].v_type != VarType::VAR_LIST {
-            emsg(tr(e_listreq.as_ptr()));
+            emsg(tr(e_listreq));
             return;
         }
         let sep = if argvars[1].v_type == VarType::VAR_UNKNOWN {
@@ -1800,7 +1800,7 @@ pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if argvars[0].v_type != VarType::VAR_LIST {
-            emsg(tr(e_invarg.as_ptr()));
+            emsg(tr(e_invarg));
             return;
         }
 
@@ -1843,7 +1843,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
         }
         let item = tv_list_find(l, idx as c_int);
         if item.is_null() {
-            semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), idx);
+            semsg!(tr(e_list_index_out_of_range_nr), idx);
         } else if argvars[2].v_type == VarType::VAR_UNKNOWN {
             tv_list_drop_items(l, item, item);
             *rettv = std::mem::replace(&mut (*item).li_tv, tv_initial_value());
@@ -1855,7 +1855,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
             }
             let item2 = tv_list_find(l, end as c_int);
             if item2.is_null() {
-                semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), end);
+                semsg!(tr(e_list_index_out_of_range_nr), end);
             } else {
                 let mut cnt: c_int = 0;
                 let mut li = item;
@@ -1867,7 +1867,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
                     li = (*li).li_next;
                 }
                 if li.is_null() {
-                    emsg(tr(e_invrange.as_ptr()));
+                    emsg(tr(e_invrange));
                 } else {
                     let tgt = tv_list_alloc_ret(rettv, cnt as isize);
                     tv_list_move_items(&mut *l, item, &mut *item2, &mut *tgt, cnt);
@@ -2162,7 +2162,7 @@ fn do_sort(l: *mut list_T, info: &mut sortinfo_T) {
             }
         }
         if info.item_compare_func_err {
-            emsg(tr(c"E702: Sort compare function failed".as_ptr()));
+            emsg(tr(c"E702: Sort compare function failed"));
         }
     }
 }
@@ -2202,7 +2202,7 @@ fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
                 li = (*li).li_next;
             }
             if info.item_compare_func_err {
-                emsg(tr(c"E882: Uniq compare function failed".as_ptr()));
+                emsg(tr(c"E882: Uniq compare function failed"));
                 break;
             }
         }
@@ -2246,7 +2246,7 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> bool
                     info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
                 }
             } else if nr != 0 {
-                emsg(tr(e_invarg.as_ptr()));
+                emsg(tr(e_invarg));
                 return false;
             }
             if let Some(ref func_cstr) = info.item_compare_func {
@@ -2292,7 +2292,7 @@ fn do_sort_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, sort: bool) {
      {
         if argvars[0].v_type != VarType::VAR_LIST {
             semsg!(
-                tr(e_listarg.as_ptr()),
+                tr(e_listarg),
                 if sort {
                     c"sort()".as_ptr()
                 } else {
@@ -2451,7 +2451,7 @@ pub fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_char {
     unsafe {
         let li = tv_list_find(l, n);
         if li.is_null() {
-            semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(n));
+            semsg!(tr(e_list_index_out_of_range_nr), i64::from(n));
             return ptr::null();
         }
         tv_get_string(&(*li).li_tv)
@@ -2819,7 +2819,7 @@ pub fn tv_dict_item_remove(dict: &mut dict_T, item: *mut dictitem_T) {
         let key_ptr = (*item).di_key.as_ptr();
         let hi = hash_find(&dict.dv_hashtab, key_ptr);
         if hashitem_empty(&*hi) {
-            semsg!(tr(e_intern2.as_ptr()), c"tv_dict_item_remove()".as_ptr());
+            semsg!(tr(e_intern2), c"tv_dict_item_remove()");
         } else {
             hash_remove(&mut dict.dv_hashtab, hi);
         }
@@ -3061,8 +3061,7 @@ pub fn tv_dict_get_callback(
 
         if !tv_is_func_inline(&(*di).di_tv) && (*di).di_tv.v_type != VarType::VAR_STRING {
             emsg(tr(
-                c"E6000: Argument is not a function or function name".as_ptr()
-            ));
+                c"E6000: Argument is not a function or function name"));
             return false;
         }
 
@@ -3292,7 +3291,7 @@ pub fn tv_dict_clear(d: &mut dict_T) {
 pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
     unsafe {
         let watched = tv_dict_is_watched_inline(&raw mut *d1);
-        let arg_errmsg = tr(c"extend() argument".as_ptr());
+        let arg_errmsg = tr(c"extend() argument");
         let arg_errmsg_len = crate::memory::cstr_len(arg_errmsg);
 
         if *action == b'm' as c_char {
@@ -3336,7 +3335,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
                         }
                     }
                 } else if *action == b'e' as c_char {
-                    semsg!(tr(c"E737: Key already exists: %s".as_ptr()), key2);
+                    semsg!(tr(c"E737: Key already exists: %s"), key2);
                     break;
                 } else if *action == b'f' as c_char && di2 != di1 {
                     if value_check_lock((*di1).di_tv.v_lock, arg_errmsg, arg_errmsg_len)
@@ -3598,7 +3597,7 @@ fn tv_blob_index(
             rettv.v_type = VarType::VAR_NUMBER;
             rettv.vval = crate::eval::typval::TypvalVval::Number(v);
         } else {
-            semsg!(tr(e_blobidx.as_ptr()), idx);
+            semsg!(tr(e_blobidx), idx);
             return false;
         }
 
@@ -3625,7 +3624,7 @@ pub fn tv_blob_slice_or_index(
 pub fn tv_blob_check_index(bloblen: c_int, n1: varnumber_T, quiet: bool) -> bool {
     if n1 < 0 || n1 > i64::from(bloblen) {
             if !quiet {
-                semsg!(tr(e_blobidx.as_ptr()), n1);
+                semsg!(tr(e_blobidx), n1);
             }
             return false;
         }
@@ -3641,7 +3640,7 @@ pub fn tv_blob_check_range(
 ) -> bool {
     if n2 < 0 || n2 >= i64::from(bloblen) || n2 < n1 {
             if !quiet {
-                semsg!(tr(e_blobidx.as_ptr()), n2);
+                semsg!(tr(e_blobidx), n2);
             }
             return false;
         }
@@ -3657,7 +3656,7 @@ pub fn tv_blob_set_range(
     unsafe {
         if n2 - n1 + 1 != i64::from(tv_blob_len_inline(src.vval.v_blob())) {
             emsg(tr(
-                c"E972: Blob value does not have the right number of bytes".as_ptr(),
+                c"E972: Blob value does not have the right number of bytes",
             ));
             return false;
         }
@@ -3700,7 +3699,7 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
                 idx += len;
             }
             if idx < 0 || idx >= len {
-                semsg!(tr(e_blobidx.as_ptr()), idx);
+                semsg!(tr(e_blobidx), idx);
                 return;
             }
             if argvars[2].v_type == VarType::VAR_UNKNOWN {
@@ -3716,7 +3715,7 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
                     end += len;
                 }
                 if end >= len || idx > end {
-                    semsg!(tr(e_blobidx.as_ptr()), end);
+                    semsg!(tr(e_blobidx), end);
                     return;
                 }
                 let blob = tv_blob_alloc();
@@ -3774,7 +3773,7 @@ pub fn f_list2blob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             let n = tv_get_number_chk(&(*li).li_tv, Some(&mut error));
             if error || !(0..=255).contains(&n) {
                 if !error {
-                    semsg!(tr(e_invalid_value_for_blob_nr.as_ptr()), n as c_int);
+                    semsg!(tr(e_invalid_value_for_blob_nr), n as c_int);
                 }
                 bv.clear();
                 return;
@@ -3866,7 +3865,7 @@ pub fn f_items(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
             VarType::VAR_DICT => tv_dict2items(argvars, rettv),
             _ => {
                 semsg!(
-                    tr(E_LIST_DICT_BLOB_OR_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+                    tr(E_LIST_DICT_BLOB_OR_STRING_REQUIRED_FOR_ARGUMENT_NR),
                     1,
                 );
             }
@@ -3908,7 +3907,7 @@ pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
 ) {
     unsafe {
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
-            semsg!(tr(e_toomanyarg.as_ptr()), c"remove()".as_ptr());
+            semsg!(tr(e_toomanyarg), c"remove()");
         } else {
             let d = argvars[0].vval.v_dict();
             if !d.is_null() && !value_check_lock((*d).dv_lock, arg_errmsg, TV_TRANSLATE) {
@@ -3916,7 +3915,7 @@ pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
                 if !key.is_null() {
                     let di = tv_dict_find(d, key, -1);
                     if di.is_null() {
-                        semsg!(tr(e_dictkey.as_ptr()), key);
+                        semsg!(tr(e_dictkey), key);
                     } else if !var_check_fixed(
                         c_int::from((*di).di_flags),
                         arg_errmsg,
@@ -4381,7 +4380,7 @@ pub fn tv_copy(from: &typval_T, to: &mut typval_T) {
                 }
             }
             VarType::VAR_UNKNOWN => {
-                semsg!(tr(e_intern2.as_ptr()), c"tv_copy(UNKNOWN)".as_ptr());
+                semsg!(tr(e_intern2), c"tv_copy(UNKNOWN)");
             }
         }
     }
@@ -4404,7 +4403,7 @@ pub fn tv_item_lock(tv: &mut typval_T, deep: c_int, lock: bool, check_refcount: 
         static RECURSE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
         if RECURSE.load(std::sync::atomic::Ordering::Relaxed) >= DICT_MAXNEST {
-            emsg(tr(E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK.as_ptr()));
+            emsg(tr(E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK));
             return;
         }
         if deep == 0 {
@@ -4617,48 +4616,42 @@ pub fn tv_check_str_or_nr(tv: &typval_T) -> bool {
         VarType::VAR_NUMBER | VarType::VAR_STRING => true,
         VarType::VAR_FLOAT => {
             emsg(tr(
-                c"E805: Expected a Number or a String, Float found".as_ptr()
-            ));
+                c"E805: Expected a Number or a String, Float found"));
             false
         }
         VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
             emsg(tr(
-                c"E703: Expected a Number or a String, Funcref found".as_ptr()
-            ));
+                c"E703: Expected a Number or a String, Funcref found"));
             false
         }
         VarType::VAR_LIST => {
             emsg(tr(
-                c"E745: Expected a Number or a String, List found".as_ptr()
-            ));
+                c"E745: Expected a Number or a String, List found"));
             false
         }
         VarType::VAR_DICT => {
             emsg(tr(
-                c"E728: Expected a Number or a String, Dictionary found".as_ptr()
-            ));
+                c"E728: Expected a Number or a String, Dictionary found"));
             false
         }
         VarType::VAR_BLOB => {
             emsg(tr(
-                c"E974: Expected a Number or a String, Blob found".as_ptr()
-            ));
+                c"E974: Expected a Number or a String, Blob found"));
             false
         }
         VarType::VAR_BOOL => {
             emsg(tr(
-                c"E5299: Expected a Number or a String, Boolean found".as_ptr()
-            ));
+                c"E5299: Expected a Number or a String, Boolean found"));
             false
         }
         VarType::VAR_SPECIAL => {
-            emsg(tr(c"E5300: Expected a Number or a String".as_ptr()));
+            emsg(tr(c"E5300: Expected a Number or a String"));
             false
         }
         VarType::VAR_UNKNOWN => {
             semsg!(
-                tr(e_intern2.as_ptr()),
-                c"tv_check_str_or_nr(&*UNKNOWN)".as_ptr(),
+                tr(e_intern2),
+                c"tv_check_str_or_nr(&*UNKNOWN)",
             );
             false
         }
@@ -4769,7 +4762,7 @@ pub fn tv_get_number_chk(tv: &typval_T,mut ret_error: Option<&mut bool>) -> varn
             VarType::VAR_BOOL => return i64::from(tv.vval.v_bool() == kBoolVarTrue),
             VarType::VAR_SPECIAL => return 0,
             VarType::VAR_UNKNOWN => {
-                semsg!(tr(e_intern2.as_ptr()), c"tv_get_number(&*UNKNOWN)".as_ptr());
+                semsg!(tr(e_intern2), c"tv_get_number(&*UNKNOWN)");
             }
         }
         if let Some(ref mut p) = ret_error {
@@ -4825,35 +4818,35 @@ pub fn tv_get_float(tv: &typval_T) -> float_T {
         VarType::VAR_NUMBER => tv.vval.v_number() as float_T,
         VarType::VAR_FLOAT => tv.vval.v_float(),
         VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
-            emsg(tr(c"E891: Using a Funcref as a Float".as_ptr()));
+            emsg(tr(c"E891: Using a Funcref as a Float"));
             0.0
         }
         VarType::VAR_STRING => {
-            emsg(tr(c"E892: Using a String as a Float".as_ptr()));
+            emsg(tr(c"E892: Using a String as a Float"));
             0.0
         }
         VarType::VAR_LIST => {
-            emsg(tr(c"E893: Using a List as a Float".as_ptr()));
+            emsg(tr(c"E893: Using a List as a Float"));
             0.0
         }
         VarType::VAR_DICT => {
-            emsg(tr(c"E894: Using a Dictionary as a Float".as_ptr()));
+            emsg(tr(c"E894: Using a Dictionary as a Float"));
             0.0
         }
         VarType::VAR_BOOL => {
-            emsg(tr(c"E362: Using a boolean value as a Float".as_ptr()));
+            emsg(tr(c"E362: Using a boolean value as a Float"));
             0.0
         }
         VarType::VAR_SPECIAL => {
-            emsg(tr(c"E907: Using a special value as a Float".as_ptr()));
+            emsg(tr(c"E907: Using a special value as a Float"));
             0.0
         }
         VarType::VAR_BLOB => {
-            emsg(tr(c"E975: Using a Blob as a Float".as_ptr()));
+            emsg(tr(c"E975: Using a Blob as a Float"));
             0.0
         }
         VarType::VAR_UNKNOWN => {
-            semsg!(tr(e_intern2.as_ptr()), c"tv_get_float(&*UNKNOWN)".as_ptr());
+            semsg!(tr(e_intern2), c"tv_get_float(&*UNKNOWN)");
             0.0
         }
     }
@@ -4862,7 +4855,7 @@ pub fn tv_get_float(tv: &typval_T) -> float_T {
 /// Give an error and return FAIL unless "args[idx]" is a string.
 pub fn tv_check_for_string_arg(args: &[typval_T], idx: c_int) -> bool {
     if args[idx as usize].v_type != VarType::VAR_STRING {
-        semsg!(tr(E_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        semsg!(tr(E_STRING_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
     true
@@ -4876,7 +4869,7 @@ pub fn tv_check_for_nonempty_string_arg(args: &[typval_T], idx: c_int) -> bool {
     let s = args[idx as usize].vval.v_string();
     if s.is_null() || unsafe { *s == NUL } {
         semsg!(
-            tr(E_NON_EMPTY_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            tr(E_NON_EMPTY_STRING_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
         );
         return false;
@@ -4893,7 +4886,7 @@ pub fn tv_check_for_opt_string_arg(args: &[typval_T], idx: c_int) -> bool {
 /// Give an error and return FAIL unless "args[idx]" is a number.
 pub fn tv_check_for_number_arg(args: &[typval_T], idx: c_int) -> bool {
     if args[idx as usize].v_type != VarType::VAR_NUMBER {
-        semsg!(tr(E_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        semsg!(tr(E_NUMBER_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
     true
@@ -4910,7 +4903,7 @@ pub fn tv_check_for_float_or_nr_arg(args: &[typval_T], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
     if vt != VarType::VAR_FLOAT && vt != VarType::VAR_NUMBER {
         semsg!(
-            tr(E_FLOAT_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            tr(E_FLOAT_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
         );
         return false;
@@ -4925,7 +4918,7 @@ pub fn tv_check_for_bool_arg(args: &[typval_T], idx: c_int) -> bool {
         && !(arg.v_type == VarType::VAR_NUMBER
             && (arg.vval.v_number() == 0 || arg.vval.v_number() == 1))
     {
-        semsg!(tr(E_BOOL_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        semsg!(tr(E_BOOL_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
     true
@@ -4942,7 +4935,7 @@ pub fn tv_check_for_opt_bool_arg(args: &[typval_T], idx: c_int) -> bool {
 /// Give an error and return FAIL unless "args[idx]" is a blob.
 pub fn tv_check_for_blob_arg(args: &[typval_T], idx: c_int) -> bool {
     if args[idx as usize].v_type != VarType::VAR_BLOB {
-        semsg!(tr(E_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        semsg!(tr(E_BLOB_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
     true
@@ -4951,7 +4944,7 @@ pub fn tv_check_for_blob_arg(args: &[typval_T], idx: c_int) -> bool {
 /// Give an error and return FAIL unless "args[idx]" is a list.
 pub fn tv_check_for_list_arg(args: &[typval_T], idx: c_int) -> bool {
     if args[idx as usize].v_type != VarType::VAR_LIST {
-        semsg!(tr(E_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        semsg!(tr(E_LIST_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
     true
@@ -4960,7 +4953,7 @@ pub fn tv_check_for_list_arg(args: &[typval_T], idx: c_int) -> bool {
 /// Give an error and return FAIL unless "args[idx]" is a dict.
 pub fn tv_check_for_dict_arg(args: &[typval_T], idx: c_int) -> bool {
     if args[idx as usize].v_type != VarType::VAR_DICT {
-        semsg!(tr(E_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        semsg!(tr(E_DICT_REQUIRED_FOR_ARGUMENT_NR), idx + 1);
         return false;
     }
     true
@@ -4973,7 +4966,7 @@ pub fn tv_check_for_nonnull_dict_arg(args: &[typval_T], idx: c_int) -> bool {
     }
     if args[idx as usize].vval.v_dict().is_null() {
         semsg!(
-            tr(E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            tr(E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
         );
         return false;
@@ -4992,7 +4985,7 @@ pub fn tv_check_for_string_or_number_arg(args: &[typval_T], idx: c_int) -> bool 
     let vt = args[idx as usize].v_type;
     if vt != VarType::VAR_STRING && vt != VarType::VAR_NUMBER {
         semsg!(
-            tr(E_STRING_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            tr(E_STRING_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
         );
         return false;
@@ -5015,7 +5008,7 @@ pub fn tv_check_for_string_or_list_arg(args: &[typval_T], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
     if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST {
         semsg!(
-            tr(E_STRING_OR_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            tr(E_STRING_OR_LIST_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
         );
         return false;
@@ -5028,7 +5021,7 @@ pub fn tv_check_for_string_or_list_or_blob_arg(args: &[typval_T], idx: c_int) ->
     let vt = args[idx as usize].v_type;
     if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
         semsg!(
-            tr(E_STRING_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            tr(E_STRING_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
         );
         return false;
@@ -5047,7 +5040,7 @@ pub fn tv_check_for_string_or_func_arg(args: &[typval_T], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
     if vt != VarType::VAR_PARTIAL && vt != VarType::VAR_FUNC && vt != VarType::VAR_STRING {
         semsg!(
-            tr(E_STRING_OR_FUNCTION_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            tr(E_STRING_OR_FUNCTION_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
         );
         return false;
@@ -5060,7 +5053,7 @@ pub fn tv_check_for_list_or_blob_arg(args: &[typval_T], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
     if vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
         semsg!(
-            tr(E_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            tr(E_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,
         );
         return false;
@@ -5079,7 +5072,7 @@ pub fn tv_get_string_buf_chk(tv: &typval_T, buf: *mut c_char) -> *const c_char {
                 buf
             }
             VarType::VAR_FLOAT => {
-                vim_snprintf!(buf, NUMBUFLEN, c"%g".as_ptr(), tv.vval.v_float());
+                vim_snprintf!(buf, NUMBUFLEN, c"%g", tv.vval.v_float());
                 buf
             }
             VarType::VAR_STRING => {
@@ -5165,8 +5158,8 @@ pub fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> bool {
         }
 
         let mut buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%lld".as_ptr(), n);
-        semsg!(tr(e_val_too_large.as_ptr()), buf.as_ptr());
+        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%lld", n);
+        semsg!(tr(e_val_too_large), buf.as_ptr());
         false
 }
 

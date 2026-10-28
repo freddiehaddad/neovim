@@ -331,7 +331,7 @@ pub fn diff_buf_add(buf: *mut buf_T) {
             }
         }
         semsg!(
-            gettext(c"E96: Cannot diff more than %d buffers".as_ptr()),
+            gettext(c"E96: Cannot diff more than %d buffers"),
             DB_COUNT as c_int,
         );
     }
@@ -899,7 +899,7 @@ fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
                     )
                     {
                         emsg(gettext(
-                            e_failed_to_find_all_diff_anchors.as_ptr(),
+                            e_failed_to_find_all_diff_anchors,
                         ));
                         num_anchors = 0;
                         anchors = [[0; MAX_DIFF_ANCHORS]; DB_COUNT];
@@ -1121,9 +1121,9 @@ fn check_external_diff(diffio: &mut diffio_T) -> bool {
         }
         if ok == 0 {
             if io_error {
-                emsg(gettext(c"E810: Cannot read or write temp files".as_ptr()));
+                emsg(gettext(c"E810: Cannot read or write temp files"));
             }
-            emsg(gettext(c"E97: Cannot create diffs".as_ptr()));
+            emsg(gettext(c"E97: Cannot create diffs"));
             diff_st().diff_a_works = kNone;
             return false;
         }
@@ -1156,7 +1156,7 @@ fn diff_file_internal(diffio: &mut diffio_T) -> bool {
             || diffio.dio_new.din_mmfile.size > MAX_XDIFF_SIZE
         {
             emsg(gettext(
-                e_problem_creating_internal_diff.as_ptr(),
+                e_problem_creating_internal_diff,
             ));
             return false;
         }
@@ -1169,7 +1169,7 @@ fn diff_file_internal(diffio: &mut diffio_T) -> bool {
         ) < 0
         {
             emsg(gettext(
-                e_problem_creating_internal_diff.as_ptr(),
+                e_problem_creating_internal_diff,
             ));
             return false;
         }
@@ -1208,13 +1208,13 @@ fn diff_file(dio: &mut diffio_T) -> bool {
         vim_snprintf!(
             cmd,
             len,
-            c"diff %s%s%s%s%s%s%s%s %s".as_ptr(),
+            c"diff %s%s%s%s%s%s%s%s %s",
             if diff_st().diff_a_works == kFalse {
                 c"".as_ptr()
             } else {
                 c"-a ".as_ptr()
             },
-            c"".as_ptr(),
+            c"",
             if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
                 c"-b ".as_ptr()
             } else {
@@ -1339,7 +1339,7 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
                 vim_snprintf!(
                     buf,
                     buflen,
-                    c"patch -o %s %s < %s".as_ptr(),
+                    c"patch -o %s %s < %s",
                     tmp_new,
                     tmp_orig,
                     esc_ptr,
@@ -1351,7 +1351,7 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
             #[cfg(unix)]
             if dirbuf[0] != NUL {
                 if crate::os::fs::os_chdir((&raw const dirbuf).cast()) != 0 {
-                    emsg(gettext(e_prev_dir.as_ptr()));
+                    emsg(gettext(e_prev_dir));
                 }
                 shorten_fnames(1);
             }
@@ -1365,7 +1365,7 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
             let info_ok = os_fileinfo(tmp_new, &mut file_info);
             let filesize = os_fileinfo_size(&file_info);
             if !info_ok || filesize == 0 {
-                emsg(gettext(c"E816: Cannot read patch output".as_ptr()));
+                emsg(gettext(c"E816: Cannot read patch output"));
             } else {
                 let mut newname: *mut c_char = ptr::null_mut();
                 if !(*g_st().curbuf).b_fname.is_null() {
@@ -1767,7 +1767,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut diffio_T) {
         if dio.dio_internal == 0 {
             fd = os_fopen((*dout).dout_fname.as_ref().unwrap().as_ptr(), c"r");
             if fd.is_null() {
-                emsg(gettext(c"E98: Cannot read diff output".as_ptr()));
+                emsg(gettext(c"E98: Cannot read diff output"));
                 return;
             }
         }
@@ -2339,7 +2339,7 @@ fn parse_diffanchors(
             }
             if bw.is_null() && *dia != NUL {
                 emsg(gettext(
-                    e_diff_anchors_with_hidden_windows.as_ptr(),
+                    e_diff_anchors_with_hidden_windows,
                 ));
                 return false;
             }
@@ -2376,7 +2376,7 @@ fn parse_diffanchors(
             }
             if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > (*buf).b_ml.ml_line_count + 1)
             {
-                emsg(gettext(e_invrange.as_ptr()));
+                emsg(gettext(e_invrange));
                 return false;
             }
             if !anchors.is_null() {
@@ -2389,7 +2389,7 @@ fn parse_diffanchors(
         }
         if i == MAX_DIFF_ANCHORS && *dia != NUL {
             semsg!(
-                gettext(e_cannot_have_more_than_nr_diff_anchors.as_ptr()),
+                gettext(e_cannot_have_more_than_nr_diff_anchors),
                 MAX_DIFF_ANCHORS as c_int,
             );
             return false;
@@ -3220,7 +3220,7 @@ pub fn nv_diffgetput(put: bool, count: usize) {
         if count == 0 {
             ea.arg = c"".as_ptr().cast_mut();
         } else {
-            vim_snprintf!((&raw mut buf).cast(), buf.len(), c"%zu".as_ptr(), count);
+            vim_snprintf!((&raw mut buf).cast(), buf.len(), c"%zu", count);
             ea.arg = (&raw mut buf).cast();
         }
         ea.cmdidx = if put { CMD_diffput } else { CMD_diffget };
@@ -3241,7 +3241,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         let idx_other: usize;
         let idx_cur_i = diff_buf_idx(g_st().curbuf, &mut *g_st().curtab);
         if idx_cur_i == DB_COUNT as c_int {
-            emsg(gettext(c"E99: Current buffer is not in diff mode".as_ptr()));
+            emsg(gettext(c"E99: Current buffer is not in diff mode"));
             return;
         }
         let idx_cur = idx_cur_i as usize;
@@ -3261,10 +3261,10 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
             if idx_other == DB_COUNT {
                 if found_not_ma {
                     emsg(gettext(
-                        c"E793: No other buffer in diff mode is modifiable".as_ptr(),
+                        c"E793: No other buffer in diff mode is modifiable",
                     ));
                 } else {
-                    emsg(gettext(c"E100: No other buffer in diff mode".as_ptr()));
+                    emsg(gettext(c"E100: No other buffer in diff mode"));
                 }
                 return;
             }
@@ -3274,8 +3274,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
                     && (eap.cmdidx != CMD_diffput || modifiable(&*(*g_st().curtab).tp_diffbuf[i]))
                 {
                     emsg(gettext(
-                        c"E101: More than two buffers in diff mode, don't know which one to use"
-                            .as_ptr(),
+                        c"E101: More than two buffers in diff mode, don't know which one to use",
                     ));
                     return;
                 }
@@ -3301,7 +3300,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
             let buf = buflist_findnr(bufnr);
             if buf.is_null() {
                 semsg!(
-                    gettext(c"E102: Can't find buffer \"%s\"".as_ptr()),
+                    gettext(c"E102: Can't find buffer \"%s\""),
                     eap.arg,
                 );
                 return;
@@ -3312,7 +3311,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
             let idx_o = diff_buf_idx(buf, &mut *g_st().curtab);
             if idx_o == DB_COUNT as c_int {
                 semsg!(
-                    gettext(c"E103: Buffer \"%s\" is not in diff mode".as_ptr()),
+                    gettext(c"E103: Buffer \"%s\" is not in diff mode"),
                     eap.arg,
                 );
                 return;
@@ -3359,7 +3358,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
             if (*g_st().curbuf).b_changed == 0 {
                 change_warning(g_st().curbuf, 0);
                 if diff_buf_idx(g_st().curbuf, &mut *g_st().curtab) != idx_to as c_int {
-                    emsg(gettext(e_buffer_changed_unexpectedly.as_ptr()));
+                    emsg(gettext(e_buffer_changed_unexpectedly));
                     ctx_restore(&mut aco);
                     break 'theend;
                 }

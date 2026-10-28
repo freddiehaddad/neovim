@@ -380,7 +380,7 @@ fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
             }
 
             if invalid_arg {
-                semsg!(gettext(e_invexpr2.as_ptr()), arg);
+                semsg!(gettext(e_invexpr2), arg);
                 nr = 0;
             }
         } else if !win_has_winnr(&mut *twin, &raw mut *tp) {
@@ -619,7 +619,7 @@ pub fn f_tabpagenr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                         0
                     };
                 } else {
-                    semsg!(gettext(e_invexpr2.as_ptr()), arg);
+                    semsg!(gettext(e_invexpr2), arg);
                 }
             }
         } else {
@@ -734,7 +734,7 @@ pub fn f_win_move_separator(argvars: &mut [typval_T], rettv: &mut typval_T,
             return;
         }
         if !win_valid(wp) {
-            emsg(gettext(E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE.as_ptr()));
+            emsg(gettext(E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE));
             return;
         }
 
@@ -756,7 +756,7 @@ pub fn f_win_move_statusline(argvars: &mut [typval_T], rettv: &mut typval_T,
             return;
         }
         if !win_valid(wp) {
-            emsg(gettext(E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE.as_ptr()));
+            emsg(gettext(E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE));
             return;
         }
 
@@ -808,7 +808,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             || !win_valid(targetwin)
             || (*targetwin).w_floating
         {
-            emsg(gettext(e_invalwindow.as_ptr()));
+            emsg(gettext(e_invalwindow));
             return;
         }
 
@@ -848,7 +848,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
             }
         } else {
-            emsg(gettext(e_auabort.as_ptr()));
+            emsg(gettext(e_auabort));
         }
 
         if oldwin != *curwin.as_ptr() && win_valid(oldwin) {

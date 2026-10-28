@@ -400,7 +400,7 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
         let tabpage = win_find_tabpage(w);
         try_wrap(err, || {
             if is_ctx_win(w) {
-                emsg(gettext(e_autocmd_close.as_ptr()));
+                emsg(gettext(e_autocmd_close));
             } else if tabpage == g_st().curtab {
                 win_close(w, false, false);
             } else {
@@ -600,8 +600,8 @@ pub fn nvim_win_text_height(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"Line index out of bounds".as_ptr(),
+                c"%s",
+                c"Line index out of bounds",
             );
             return rv;
         }
@@ -609,8 +609,8 @@ pub fn nvim_win_text_height(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"'start_row' is higher than 'end_row'".as_ptr(),
+                c"%s",
+                c"'start_row' is higher than 'end_row'",
             );
             return rv;
         }
@@ -620,8 +620,8 @@ pub fn nvim_win_text_height(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
-                    c"'start_vcol' specified without 'start_row'".as_ptr(),
+                    c"%s",
+                    c"'start_vcol' specified without 'start_row'",
                 );
                 return rv;
             }
@@ -637,8 +637,8 @@ pub fn nvim_win_text_height(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
-                    c"'end_vcol' specified without 'end_row'".as_ptr(),
+                    c"%s",
+                    c"'end_vcol' specified without 'end_row'",
                 );
                 return rv;
             }
@@ -662,8 +662,8 @@ pub fn nvim_win_text_height(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
-                c"'start_vcol' is higher than 'end_vcol'".as_ptr(),
+                c"%s",
+                c"'start_vcol' is higher than 'end_vcol'",
             );
             return rv;
         }

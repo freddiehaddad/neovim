@@ -480,8 +480,8 @@ pub fn channel_job_start(
             if detach {
                 {
                     semsg!(
-                        gettext(e_invarg2.as_ptr()),
-                        c"terminal/pty job cannot be detached".as_ptr(),
+                        gettext(e_invarg2),
+                        c"terminal/pty job cannot be detached",
                     );
                     if !env.is_null() {
                         tv_dict_free(env);
@@ -567,7 +567,7 @@ pub fn channel_job_start(
         if status != 0 {
             {
                 semsg!(
-                    gettext(e_jobspawn.as_ptr()),
+                    gettext(e_jobspawn),
                     uv_strerror(status),
                     cmd.as_ptr(),
                 );
@@ -686,13 +686,13 @@ pub fn channel_from_stdio(
 ) -> u64 {
     unsafe {
         if !g_st().headless_mode && !g_st().embedded_mode {
-            *error = gettext(c"can only be opened in headless mode".as_ptr());
+            *error = gettext(c"can only be opened in headless mode");
             return 0;
         }
 
         if chan_st().DID_STDIO {
             {
-                *error = gettext(c"channel was already open".as_ptr());
+                *error = gettext(c"channel was already open");
             }
             return 0;
         }
@@ -742,13 +742,13 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
         let len = data.len();
 
         if chan.is_null() {
-            *error = gettext(e_invchan.as_ptr());
+            *error = gettext(e_invchan);
             return 0;
         }
 
         if (*chan).streamtype == kChannelStreamStderr {
             if (*chan).err_closed {
-                *error = gettext(c"Can't send data to closed stream".as_ptr());
+                *error = gettext(c"Can't send data to closed stream");
                 return 0;
             }
             let wres = os_write(STDERR_FILENO, data.as_ptr(), len, false);
@@ -757,12 +757,12 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
 
         if (*chan).streamtype == kChannelStreamInternal {
             if (*chan).is_rpc {
-                *error = gettext(c"Can't send raw data to rpc channel".as_ptr());
+                *error = gettext(c"Can't send raw data to rpc channel");
                 return 0;
             }
             let internal = &raw mut (*chan).internal;
             if (*chan).term.is_null() || (*internal).closed {
-                *error = gettext(c"Can't send data to closed stream".as_ptr());
+                *error = gettext(c"Can't send data to closed stream");
                 return 0;
             }
             terminal_receive(&mut *(*chan).term, data.as_ptr(), len);
@@ -771,12 +771,12 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
 
         let in_stream = channel_instream(&mut *chan);
         if (*in_stream).closed {
-            *error = gettext(c"Can't send data to closed stream".as_ptr());
+            *error = gettext(c"Can't send data to closed stream");
             return 0;
         }
 
         if (*chan).is_rpc {
-            *error = gettext(c"Can't send raw data to rpc channel".as_ptr());
+            *error = gettext(c"Can't send raw data to rpc channel");
             return 0;
         }
 
@@ -916,7 +916,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
                     );
                 } else {
                     semsg!(
-                        gettext(e_streamkey.as_ptr()),
+                        gettext(e_streamkey),
                         reader_type.as_ptr(),
                         chan.id,
                     );

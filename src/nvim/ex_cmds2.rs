@@ -217,12 +217,12 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
         let fname = if !buf.b_fname.is_null() {
             buf.b_fname.cast_const()
         } else {
-            gettext(c"Untitled".as_ptr())
+            gettext(c"Untitled")
         };
         vim_snprintf!(
             buff.as_mut_ptr(),
             DIALOG_MSG_SIZE,
-            gettext(c"Save changes to \"%s\"?".as_ptr()),
+            gettext(c"Save changes to \"%s\"?"),
             fname,
         );
         let ret = if checkall {
@@ -295,7 +295,7 @@ pub fn dialog_close_terminal(buf: &mut buf_T) -> bool {
         vim_snprintf!(
             buff.as_mut_ptr(),
             DIALOG_MSG_SIZE,
-            gettext(c"Close \"%s\"?".as_ptr()),
+            gettext(c"Close \"%s\"?"),
             fname,
         );
         vim_dialog_yesnocancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 1) == VIM_YES
@@ -392,13 +392,13 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     && channel_job_running((*buf).b_p_channel as u64)
                 {
                     semsg!(
-                        gettext(c"E947: Job still running in buffer \"%s\"".as_ptr()),
+                        gettext(c"E947: Job still running in buffer \"%s\""),
                         (*buf).b_fname,
                     )
                 } else {
                     let sp = buf_spname(buf);
                     semsg!(
-                        gettext(c"E162: No write since last change for buffer \"%s\"".as_ptr()),
+                        gettext(c"E162: No write since last change for buffer \"%s\""),
                         if !sp.is_null() { sp } else { (*buf).b_fname },
                     )
                 };
@@ -448,7 +448,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 pub fn check_fname() -> bool {
     unsafe {
         if (*g_st().curbuf).b_ffname.is_null() {
-            emsg(gettext(e_noname.as_ptr()));
+            emsg(gettext(e_noname));
             return false;
         }
         true
@@ -474,7 +474,7 @@ pub fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
             msg_source(HLF_W);
             msg(
                 gettext(
-                    c"Warning: Entered other buffer unexpectedly (check autocommands)".as_ptr(),
+                    c"Warning: Entered other buffer unexpectedly (check autocommands)",
                 ),
                 0,
             );
@@ -490,7 +490,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
             && eap.cmdidx != CMD_tabdo
         {
             if (eap.cmdidx == CMD_ldo || eap.cmdidx == CMD_lfdo) && eap.forceit == 0 {
-                emsg(gettext(e_winfixbuf_cannot_go_to_buffer.as_ptr()));
+                emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
                 return;
             }
 
@@ -500,7 +500,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
             if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
                 win_split(0, 0);
                 if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
-                    emsg(gettext(e_winfixbuf_cannot_go_to_buffer.as_ptr()));
+                    emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
                     return;
                 }
             }
@@ -764,11 +764,11 @@ pub fn ex_compiler(eap: &mut exarg_T) {
         vim_snprintf!(
             buf.as_mut_ptr(),
             bufsize,
-            c"compiler/%s.*".as_ptr(),
+            c"compiler/%s.*",
             eap.arg,
         );
         if !source_runtime_vim_lua(buf.as_mut_ptr(), DIP_ALL) {
-            semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR.as_ptr()), eap.arg);
+            semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR), eap.arg);
         }
         drop(buf);
 

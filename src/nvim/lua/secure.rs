@@ -47,14 +47,14 @@ fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
             if success {
                 let action_bytes = crate::memory::cstr_as_bytes(action);
                 if action_bytes == b"allow" {
-                    smsg!(0, c"Allowed in trust database: \"%s\"".as_ptr(), msg);
+                    smsg!(0, c"Allowed in trust database: \"%s\"", msg);
                 } else if action_bytes == b"deny" {
-                    smsg!(0, c"Denied in trust database: \"%s\"".as_ptr(), msg);
+                    smsg!(0, c"Denied in trust database: \"%s\"", msg);
                 } else if action_bytes == b"remove" {
-                    smsg!(0, c"Removed from trust database: \"%s\"".as_ptr(), msg);
+                    smsg!(0, c"Removed from trust database: \"%s\"", msg);
                 }
             } else {
-                semsg!(e_trustfile.as_ptr(), msg);
+                semsg!(e_trustfile, msg);
             }
         }
 
@@ -79,7 +79,7 @@ pub fn ex_trust(eap: &mut exarg_T) {
         } else if arg1_bytes == b"++remove" {
             action = c"remove".as_ptr();
         } else if !arg1_bytes.is_empty() {
-            semsg!(e_invarg2.as_ptr(), arg1.as_ptr());
+            semsg!(e_invarg2, arg1.as_ptr());
             return;
         }
 

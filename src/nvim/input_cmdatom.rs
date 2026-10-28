@@ -563,7 +563,7 @@ fn atom_from_cmdline(
             let n = vim_snprintf!(
                 num_buf.as_mut_ptr(),
                 num_buf.len(),
-                c"%d".as_ptr(),
+                c"%d",
                 ca.count0,
             );
             if n > 0 {
@@ -607,7 +607,7 @@ fn atom_from_frame(ca: &mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
             vim_snprintf!(
                 lua_id.as_mut_ptr(),
                 lua_id.len(),
-                c"%d".as_ptr(),
+                c"%d",
                 g_st().repeat_luamap,
             );
             atom = atom_from_cmdline(kANormal, ca, lua_id.as_ptr(), (*frame).visual.active);
@@ -1604,7 +1604,7 @@ pub fn atom_capture_op(oap: &mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
                 let n = vim_snprintf!(
                     lua_id.as_mut_ptr(),
                     lua_id.len(),
-                    c"%d".as_ptr(),
+                    c"%d",
                     g_st().repeat_luamap,
                 );
                 redo_append_str(lua_id.as_ptr(), n as isize);

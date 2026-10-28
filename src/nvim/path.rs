@@ -747,7 +747,7 @@ fn do_path_expand(
             && e.offset_from(s) == 2
             && *path_end == b'/' as c_char
         {
-            vim_snprintf!(s, buflen - len, c"%s".as_ptr(), path_end.add(1));
+            vim_snprintf!(s, buflen - len, c"%s", path_end.add(1));
             path_st().STARDEPTH += 1;
             do_path_expand(gap, buf, len, flags, true);
             path_st().STARDEPTH -= 1;
@@ -774,19 +774,19 @@ fn do_path_expand(
                         && path_cmp(opt_vars().p_fic != 0, path.add(len), name, e.offset_from(s) as usize)
                             == 0);
                 if dot_ok && reg_ok {
-                    len += vim_snprintf!(s, buflen - len, c"%s".as_ptr(), name) as usize;
+                    len += vim_snprintf!(s, buflen - len, c"%s", name) as usize;
                     if len + 1 >= buflen {
                         continue;
                     }
 
                     if starstar && path_st().STARDEPTH < 100 {
-                        vim_snprintf!(buf.add(len), buflen - len, c"/**%s".as_ptr(), path_end);
+                        vim_snprintf!(buf.add(len), buflen - len, c"/**%s", path_end);
                         path_st().STARDEPTH += 1;
                         do_path_expand(gap, buf, len + 1, flags, true);
                         path_st().STARDEPTH -= 1;
                     }
 
-                    vim_snprintf!(buf.add(len), buflen - len, c"%s".as_ptr(), path_end);
+                    vim_snprintf!(buf.add(len), buflen - len, c"%s", path_end);
                     if path_has_wildcard(path_end, false) {
                         if path_st().STARDEPTH < 100 {
                             path_st().STARDEPTH += 1;
@@ -1067,7 +1067,7 @@ fn uniquefy_paths(
                     vim_snprintf!(
                         rel_vec.as_mut_ptr(),
                         rel_pathsize,
-                        c".%s%s".as_ptr(),
+                        c".%s%s",
                         PATHSEPSTR.as_ptr().cast::<c_char>(),
                         short_name,
                     );
@@ -1101,7 +1101,7 @@ fn uniquefy_paths(
             vim_snprintf!(
                 rel_vec.as_mut_ptr(),
                 rel_pathsize,
-                c".%s%s".as_ptr(),
+                c".%s%s",
                 PATHSEPSTR.as_ptr().cast::<c_char>(),
                 short_name,
             );

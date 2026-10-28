@@ -1799,7 +1799,7 @@ pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
         }
 
         if pum().size <= 0 {
-            emsg(gettext(e_menu_only_exists_in_another_mode.as_ptr()));
+            emsg(gettext(e_menu_only_exists_in_another_mode));
             return;
         }
 

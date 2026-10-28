@@ -315,13 +315,13 @@ pub fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
             };
 
             let msg_line_single = ngettext(
-                c"%lld line %sed %d time".as_ptr(),
-                c"%lld line %sed %d times".as_ptr(),
+                c"%lld line %sed %d time",
+                c"%lld line %sed %d times",
                 amount as c_ulong,
             );
             let msg_line_plural = ngettext(
-                c"%lld lines %sed %d time".as_ptr(),
-                c"%lld lines %sed %d times".as_ptr(),
+                c"%lld lines %sed %d time",
+                c"%lld lines %sed %d times",
                 amount as c_ulong,
             );
             let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
@@ -827,7 +827,7 @@ pub fn op_delete(oap: &mut oparg_T) -> bool {
         }
 
         if !modifiable(&*g_st().curbuf) {
-            emsg(tr(e_modifiable.as_ptr()));
+            emsg(tr(e_modifiable));
             return false;
         }
 
@@ -1482,8 +1482,8 @@ pub fn op_tilde(oap: &mut oparg_T) {
             smsg!(
                 0,
                 ngettext(
-                    c"%lld line changed".as_ptr(),
-                    c"%lld lines changed".as_ptr(),
+                    c"%lld line changed",
+                    c"%lld lines changed",
                     oap.line_count as c_ulong,
                 ),
                 i64::from(oap.line_count) as std::ffi::c_longlong,
@@ -2605,8 +2605,8 @@ pub fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
                 smsg!(
                     0,
                     ngettext(
-                        c"%lld lines changed".as_ptr(),
-                        c"%lld lines changed".as_ptr(),
+                        c"%lld lines changed",
+                        c"%lld lines changed",
                         change_cnt as c_ulong,
                     ),
                     change_cnt as std::ffi::c_longlong,
@@ -2961,28 +2961,28 @@ pub fn do_addsub(
                 buf2len = vim_snprintf!(
                     buf2_ptr,
                     NUMBUFLEN,
-                    c"%llu".as_ptr(),
+                    c"%llu",
                     n as std::ffi::c_ulonglong,
                 );
             } else if pre == b'0' as c_int {
                 buf2len = vim_snprintf!(
                     buf2_ptr,
                     NUMBUFLEN,
-                    c"%llo".as_ptr(),
+                    c"%llo",
                     n as std::ffi::c_ulonglong,
                 );
             } else if ops_st().addsub_hexupper {
                 buf2len = vim_snprintf!(
                     buf2_ptr,
                     NUMBUFLEN,
-                    c"%llX".as_ptr(),
+                    c"%llX",
                     n as std::ffi::c_ulonglong,
                 );
             } else {
                 buf2len = vim_snprintf!(
                     buf2_ptr,
                     NUMBUFLEN,
-                    c"%llx".as_ptr(),
+                    c"%llx",
                     n as std::ffi::c_ulonglong,
                 );
             }
@@ -3101,7 +3101,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
 
         if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
             if dict.is_null() {
-                msg(tr(no_lines_msg.as_ptr()), 0);
+                msg(tr(no_lines_msg), 0);
                 return;
             }
         } else {
@@ -3248,7 +3248,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                         vim_snprintf!(
                             buf1_ptr,
                             buf1.len(),
-                            tr(c"%lld Cols; ".as_ptr()),
+                            tr(c"%lld Cols; "),
                             cols as std::ffi::c_longlong,
                         );
                     } else {
@@ -3260,8 +3260,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                             iobuff_ptr,
                             IOSIZE,
                             tr(
-                                c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Bytes"
-                                    .as_ptr(),
+                                c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Bytes",
                             ),
                             buf1_ptr,
                             i64::from(line_count_selected) as std::ffi::c_longlong,
@@ -3276,8 +3275,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                             iobuff_ptr,
                             IOSIZE,
                             tr(
-                                c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Chars; %lld of %lld Bytes"
-                                    .as_ptr(),
+                                c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Chars; %lld of %lld Bytes",
                             ),
                             buf1_ptr,
                             i64::from(line_count_selected) as std::ffi::c_longlong,
@@ -3311,8 +3309,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                             iobuff_ptr,
                             IOSIZE,
                             tr(
-                                c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Byte %lld of %lld"
-                                    .as_ptr(),
+                                c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Byte %lld of %lld",
                             ),
                             buf1_ptr,
                             buf2_ptr,
@@ -3328,8 +3325,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                             iobuff_ptr,
                             IOSIZE,
                             tr(
-                                c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Char %lld of %lld; Byte %lld of %lld"
-                                    .as_ptr(),
+                                c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Char %lld of %lld; Byte %lld of %lld",
                             ),
                             buf1_ptr,
                             buf2_ptr,
@@ -3352,7 +3348,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                 vim_snprintf!(
                     iobuff_ptr.add(len),
                     IOSIZE - len,
-                    tr(c"(+%lld for BOM)".as_ptr()),
+                    tr(c"(+%lld for BOM)"),
                     bom_count as std::ffi::c_longlong,
                 );
             }
@@ -3476,7 +3472,7 @@ fn op_function(oap: &oparg_T) {
         let orig_end = (*g_st().curbuf).b_op_end;
 
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_opfunc) == kCallbackNone {
-            emsg(tr(c"E774: 'operatorfunc' is empty".as_ptr()));
+            emsg(tr(c"E774: 'operatorfunc' is empty"));
         } else {
             (*g_st().curbuf).b_op_start = oap.start;
             (*g_st().curbuf).b_op_end = oap.end;

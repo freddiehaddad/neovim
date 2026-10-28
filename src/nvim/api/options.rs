@@ -172,7 +172,7 @@ fn validate_option_value_args(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Unknown option '%s'".as_ptr(),
+                c"Unknown option '%s'",
                 name,
             );
             return false;
@@ -243,7 +243,7 @@ fn validate_option_value_args(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"'%s' cannot be passed for %s%soption '%s'".as_ptr(),
+                c"'%s' cannot be passed for %s%soption '%s'",
                 tgt,
                 global,
                 req,
@@ -267,7 +267,7 @@ fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Could not create internal buffer".as_ptr(),
+                c"Could not create internal buffer",
             );
             return ptr::null_mut();
         }
@@ -276,7 +276,7 @@ fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Could not load internal buffer".as_ptr(),
+                c"Could not load internal buffer",
             );
             return ftbuf;
         }
@@ -324,7 +324,7 @@ fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Internal buffer was deleted".as_ptr(),
+                    c"Internal buffer was deleted",
                 );
             }
             return ptr::null_mut();
@@ -334,7 +334,7 @@ fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Could not execute FileType autocommands".as_ptr(),
+                c"Could not execute FileType autocommands",
             );
         }
         ftbuf
@@ -462,7 +462,7 @@ pub fn nvim__option_to_object(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Unknown option '%s'".as_ptr(),
+                c"Unknown option '%s'",
                 name.data,
             );
             return OBJECT_NIL;
@@ -731,7 +731,7 @@ pub fn nvim_set_option_value(
                 );
                 optval_free(oldval);
                 if !errmsg.is_null() {
-                    api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), errmsg);
+                    api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s", errmsg);
                     optval_free(merged_val);
                     return OBJECT_NIL;
                 }
@@ -761,7 +761,7 @@ pub fn nvim_set_option_value(
             errmsg = validate_and_prepare_option_value(&mut args);
             merged_val = args.os_newval;
             if !errmsg.is_null() {
-                api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
+                api_set_error!(err, ErrorType::kErrorTypeException, c"%s", errmsg);
                 optval_free(merged_val);
                 return OBJECT_NIL;
             }

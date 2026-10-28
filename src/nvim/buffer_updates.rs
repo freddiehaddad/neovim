@@ -259,10 +259,10 @@ pub fn buf_updates_send_changes(
             logmsg!(
                 LOG_ERROR,
                 ptr::null(),
-                c"buf_updates_send_changes".as_ptr(),
+                c"buf_updates_send_changes",
                 268,
                 true,
-                c"Disabling buffer updates for dead channel %llu".as_ptr(),
+                c"Disabling buffer updates for dead channel %llu",
                 badchannelid,
             );
             buf_updates_unregister(&mut *buf, badchannelid);

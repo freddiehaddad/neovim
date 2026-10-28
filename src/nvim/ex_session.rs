@@ -1032,7 +1032,7 @@ pub fn ex_loadview(eap: &mut exarg_T) {
         };
 
         if !do_source(fname.as_ptr().cast_mut(), false, DOSO_NONE, ptr::null_mut()) {
-            semsg!(gettext(e_notopen.as_ptr()), fname.as_ptr());
+            semsg!(gettext(e_notopen), fname.as_ptr());
         }
     }
 }
@@ -1149,7 +1149,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
                                 && g_st().globaldir.is_some()))
                     {
                         if os_chdir(dirnow) != 0 {
-                            emsg(gettext(e_prev_dir.as_ptr()));
+                            emsg(gettext(e_prev_dir));
                         }
                         shorten_fnames(1);
                     }
@@ -1178,7 +1178,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
             failed |= fclose(fd) != 0;
 
             if failed {
-                emsg(gettext(e_write.as_ptr()));
+                emsg(gettext(e_write));
             } else if eap.cmdidx == CMD_mksession {
                 let mut tbuf: Vec<c_char> = vec![0; MAXPATHL];
                 if vim_FullName(fname, tbuf.as_mut_ptr(), MAXPATHL, false) {
@@ -1204,7 +1204,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
 fn get_view_file(c: c_char) -> Option<CString> {
     unsafe {
         if (*g_st().curbuf).b_ffname.is_null() {
-            emsg(gettext(e_noname.as_ptr()));
+            emsg(gettext(e_noname));
             return None;
         }
         let sname_cstr = home_replace_save(ptr::null_mut(), (*g_st().curbuf).b_ffname);

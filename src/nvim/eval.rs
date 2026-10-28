@@ -503,7 +503,7 @@ fn eval1_emsg(arg: *mut *mut c_char,rettv: &mut typval_T,eap: Option<&mut exarg_
             && g_st().did_emsg == did_emsg_before
             && g_st().called_emsg == called_emsg_before
         {
-            semsg!(gettext(e_invexpr2.as_ptr()), start);
+            semsg!(gettext(e_invexpr2), start);
         }
         ret
     }
@@ -605,7 +605,7 @@ fn eval_expr_string(expr: &typval_T,rettv: &mut typval_T) -> bool {
 
         if *skipwhite(s) != NUL {
             tv_clear(rettv);
-            semsg!(gettext(e_invexpr2.as_ptr()), s);
+            semsg!(gettext(e_invexpr2), s);
             return false;
         }
 
@@ -1126,7 +1126,7 @@ fn get_lval_dict_item(
             && len == -1
             && rettv.is_none()
         {
-            semsg!(e_illvar.as_ptr(), c"v:['lua']".as_ptr());
+            semsg!(e_illvar, c"v:['lua']");
             return GLV_FAIL;
         }
 
@@ -1134,13 +1134,13 @@ fn get_lval_dict_item(
             if lp.ll_dict == get_vimvar_dict()
                 || ptr::eq(&raw mut (*lp.ll_dict).dv_hashtab, get_funccal_args_ht())
             {
-                semsg!(gettext(e_illvar.as_ptr()), name);
+                semsg!(gettext(e_illvar), name);
                 return GLV_FAIL;
             }
 
             if *p == b'[' as c_char || *p == b'.' as c_char || unlet {
                 if !quiet {
-                    semsg!(gettext(e_dictkey.as_ptr()), key);
+                    semsg!(gettext(e_dictkey), key);
                 }
                 return GLV_FAIL;
             }
@@ -1271,7 +1271,7 @@ fn get_lval_subscript(lp: &mut lval_T,
             if *p == b'.' as c_char && (*lp.ll_tv).v_type != VarType::VAR_DICT {
                 if !quiet {
                     semsg!(
-                        gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR.as_ptr()),
+                        gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR),
                         name,
                     );
                 }
@@ -1283,7 +1283,7 @@ fn get_lval_subscript(lp: &mut lval_T,
             {
                 if !quiet {
                     emsg(gettext(
-                        c"E689: Can only index a List, Dictionary or Blob".as_ptr(),
+                        c"E689: Can only index a List, Dictionary or Blob",
                     ));
                 }
                 return ptr::null_mut();
@@ -1299,7 +1299,7 @@ fn get_lval_subscript(lp: &mut lval_T,
 
             if lp.ll_range {
                 if !quiet {
-                    emsg(gettext(c"E708: [:] must come last".as_ptr()));
+                    emsg(gettext(c"E708: [:] must come last"));
                 }
                 tv_clear(&raw mut var1);
                 tv_clear(&raw mut var2);
@@ -1318,7 +1318,7 @@ fn get_lval_subscript(lp: &mut lval_T,
                 }
                 if len == 0 {
                     if !quiet {
-                        emsg(gettext(c"E713: Cannot use empty key after .".as_ptr()));
+                        emsg(gettext(c"E713: Cannot use empty key after ."));
                     }
                     return ptr::null_mut();
                 }
@@ -1346,7 +1346,7 @@ fn get_lval_subscript(lp: &mut lval_T,
                 if *p == b':' as c_char {
                     if (*lp.ll_tv).v_type == VarType::VAR_DICT {
                         if !quiet {
-                            emsg(gettext(E_CANNOT_SLICE_DICTIONARY.as_ptr()));
+                            emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
                         }
                         tv_clear(&raw mut var1);
                         tv_clear(&raw mut var2);
@@ -1359,7 +1359,7 @@ fn get_lval_subscript(lp: &mut lval_T,
                             && !rettv.as_deref_mut().unwrap().vval.v_blob().is_null())
                     {
                         if !quiet {
-                            emsg(gettext(c"E709: [:] requires a List or Blob value".as_ptr()));
+                            emsg(gettext(c"E709: [:] requires a List or Blob value"));
                         }
                         tv_clear(&raw mut var1);
                         tv_clear(&raw mut var2);
@@ -1386,7 +1386,7 @@ fn get_lval_subscript(lp: &mut lval_T,
 
                 if *p != b']' as c_char {
                     if !quiet {
-                        emsg(gettext(E_MISSBRAC.as_ptr()));
+                        emsg(gettext(E_MISSBRAC));
                     }
                     tv_clear(&raw mut var1);
                     tv_clear(&raw mut var2);
@@ -1478,7 +1478,7 @@ pub fn get_lval(
                 && *p != b'[' as c_char
                 && *p != b'.' as c_char
             {
-                semsg!(gettext(e_trailing_arg.as_ptr()), p);
+                semsg!(gettext(e_trailing_arg), p);
                 return ptr::null_mut();
             }
 
@@ -1494,7 +1494,7 @@ pub fn get_lval(
                 if !aborting() && !quiet {
                     {
                         g_st().emsg_severe = true;
-                        semsg!(gettext(e_invarg2.as_ptr()), name);
+                        semsg!(gettext(e_invarg2), name);
                     }
                     return ptr::null_mut();
                 }
@@ -1523,7 +1523,7 @@ pub fn get_lval(
         );
         if v.is_null() && !quiet {
             semsg!(
-                gettext(c"E121: Undefined variable: %.*s".as_ptr()),
+                gettext(c"E121: Undefined variable: %.*s"),
                 lp.ll_name_len as c_int,
                 lp.ll_name,
             );
@@ -1562,7 +1562,7 @@ pub fn set_var_lval(
             *endp = NUL;
             if !lp.ll_blob.is_null() {
                 if !op.is_null() && *op != b'=' as c_char {
-                    semsg!(gettext(e_letwrong.as_ptr()), op);
+                    semsg!(gettext(e_letwrong), op);
                     *endp = cc;
                     return;
                 }
@@ -1592,7 +1592,7 @@ pub fn set_var_lval(
                     if !error {
                         if !(0..=255).contains(&val) {
                             semsg!(
-                                gettext(e_invalid_value_for_blob_nr.as_ptr()),
+                                gettext(e_invalid_value_for_blob_nr),
                                 val,
                             );
                         } else {
@@ -1604,7 +1604,7 @@ pub fn set_var_lval(
                 let mut tv = tv_initial_value();
 
                 if is_const {
-                    emsg(gettext(e_cannot_mod.as_ptr()));
+                    emsg(gettext(e_cannot_mod));
                     *endp = cc;
                     return;
                 }
@@ -1644,7 +1644,7 @@ pub fn set_var_lval(
             // Skip
         } else if lp.ll_range {
             if is_const {
-                emsg(gettext(c"E996: Cannot lock a range".as_ptr()));
+                emsg(gettext(c"E996: Cannot lock a range"));
                 return;
             }
 
@@ -1663,7 +1663,7 @@ pub fn set_var_lval(
             let watched = tv_dict_is_watched(dict);
 
             if is_const {
-                emsg(gettext(c"E996: Cannot lock a list or dict".as_ptr()));
+                emsg(gettext(c"E996: Cannot lock a list or dict"));
                 return;
             }
 
@@ -1671,7 +1671,7 @@ pub fn set_var_lval(
             if let Some(ref newkey) = lp.ll_newkey {
                 let newkey_ptr = newkey.as_ptr();
                 if !op.is_null() && *op != b'=' as c_char {
-                    semsg!(gettext(e_dictkey.as_ptr()), newkey_ptr);
+                    semsg!(gettext(e_dictkey), newkey_ptr);
                     return;
                 }
                 if tv_dict_wrong_func_name(&mut *(*lp.ll_tv).vval.v_dict(), rettv, newkey_ptr) != 0 {
@@ -1755,7 +1755,7 @@ pub fn eval_for_line(
             || *expr.add(1) != b'n' as c_char
             || !(*expr.add(2) == NUL || ascii_iswhite(*expr.add(2)))
         {
-            emsg(gettext(c"E690: Missing \"in\" after :for".as_ptr()));
+            emsg(gettext(c"E690: Missing \"in\" after :for"));
             return fi;
         }
 
@@ -1794,7 +1794,7 @@ pub fn eval_for_line(
                     fi.fi_source = ForSource::Str { text, byte_idx: 0 };
                     tv_clear(&raw mut tv);
                 } else {
-                    emsg(gettext(E_STRING_LIST_OR_BLOB_REQUIRED.as_ptr()));
+                    emsg(gettext(E_STRING_LIST_OR_BLOB_REQUIRED));
                     tv_clear(&raw mut tv);
                 }
             }
@@ -2118,9 +2118,9 @@ pub fn eval0(
             }
             if !aborting() && g_st().did_emsg == did_emsg_before && g_st().called_emsg == called_emsg_before {
                 if end_error {
-                    semsg!(gettext(e_trailing_arg.as_ptr()), p);
+                    semsg!(gettext(e_trailing_arg), p);
                 } else {
-                    semsg!(gettext(e_invexpr2.as_ptr()), arg);
+                    semsg!(gettext(e_invexpr2), arg);
                 }
             }
 
@@ -2241,7 +2241,7 @@ pub fn eval1(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut
             if !op_falsy {
                 p = *arg;
                 if *p != b':' as c_char {
-                    emsg(gettext(c"E109: Missing ':' after '?'".as_ptr()));
+                    emsg(gettext(c"E109: Missing ':' after '?'"));
                     if evaluate && result {
                         tv_clear(rettv);
                     }
@@ -2750,7 +2750,7 @@ fn eval_multdiv_number(tv1: &mut typval_T, tv2: &mut typval_T, op: c_int) -> boo
                     f1 / f2
                 };
             } else {
-                emsg(gettext(c"E804: Cannot use '%' with Float".as_ptr()));
+                emsg(gettext(c"E804: Cannot use '%' with Float"));
                 return false;
             }
             tv1.v_type = VarType::VAR_FLOAT;
@@ -2823,7 +2823,7 @@ fn eval7(
         let mut end_leader: *const c_char = *arg;
 
         if eval_st().EVAL7_RECURSE == MAX_EVAL7_RECURSE {
-            semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR.as_ptr()), *arg);
+            semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), *arg);
             return false;
         }
         eval_st().EVAL7_RECURSE += 1;
@@ -2888,7 +2888,7 @@ fn eval7(
                 if **arg == b')' as c_char {
                     *arg = (*arg).add(1);
                 } else if ok {
-                    emsg(gettext(c"E110: Missing ')'".as_ptr()));
+                    emsg(gettext(c"E110: Missing ')'"));
                     tv_clear(rettv);
                     ok = false;
                 }
@@ -3045,7 +3045,7 @@ fn call_func_rettv(
             } else {
                 funcname = functv.vval.v_string();
                 if funcname.is_null() || *funcname == NUL {
-                    emsg(gettext(E_EMPTY_FUNCTION_NAME.as_ptr()));
+                    emsg(gettext(E_EMPTY_FUNCTION_NAME));
                     tv_clear(&raw mut functv);
                     return false;
                 }
@@ -3104,11 +3104,11 @@ fn eval_lambda(
         } else if **arg != b'(' as c_char {
             if verbose {
                 if *skipwhite(*arg) == b'(' as c_char {
-                    emsg(gettext(E_NOWHITESPACE.as_ptr()));
+                    emsg(gettext(E_NOWHITESPACE));
                 } else {
                     semsg!(
-                        gettext(e_missingparen.as_ptr()),
-                        c"lambda".as_ptr(),
+                        gettext(e_missingparen),
+                        c"lambda",
                     );
                 }
             }
@@ -3170,9 +3170,9 @@ fn eval_method(
         if len <= 0 {
             if verbose {
                 if lua_funcname.is_null() {
-                    emsg(gettext(c"E260: Missing name after ->".as_ptr()));
+                    emsg(gettext(c"E260: Missing name after ->"));
                 } else {
-                    semsg!(gettext(e_invexpr2.as_ptr()), name);
+                    semsg!(gettext(e_invexpr2), name);
                 }
             }
             ret = false;
@@ -3192,7 +3192,7 @@ fn eval_method(
                     ret = false;
                 } else if *skipwhite(*arg) != NUL {
                     if verbose {
-                        semsg!(gettext(e_trailing_arg.as_ptr()), *arg);
+                        semsg!(gettext(e_trailing_arg), *arg);
                     }
                     ret = false;
                 } else if ref_tv.v_type == VarType::VAR_FUNC && !ref_tv.vval.v_string().is_null() {
@@ -3207,7 +3207,7 @@ fn eval_method(
                     let ref_pt = tv_partial(&ref_tv);
                     if !(*ref_pt).pt_argv.is_empty() || !(*ref_pt).pt_dict.is_null() {
                         if verbose {
-                            emsg(gettext(E_CANNOT_USE_PARTIAL_HERE.as_ptr()));
+                            emsg(gettext(E_CANNOT_USE_PARTIAL_HERE));
                         }
                         ret = false;
                     } else {
@@ -3218,7 +3218,7 @@ fn eval_method(
                     }
                 } else {
                     if verbose {
-                        semsg!(gettext(e_not_callable_type_str.as_ptr()), name);
+                        semsg!(gettext(e_not_callable_type_str), name);
                     }
                     ret = false;
                 }
@@ -3229,12 +3229,12 @@ fn eval_method(
             if ret {
                 if **arg != b'(' as c_char {
                     if verbose {
-                        semsg!(gettext(e_missingparen.as_ptr()), name);
+                        semsg!(gettext(e_missingparen), name);
                     }
                     ret = false;
                 } else if ascii_iswhite(*(*arg).sub(1)) {
                     if verbose {
-                        emsg(gettext(E_NOWHITESPACE.as_ptr()));
+                        emsg(gettext(E_NOWHITESPACE));
                     }
                     ret = false;
                 } else if !lua_funcname.is_null() {
@@ -3338,7 +3338,7 @@ fn eval_index(
 
             if **arg != b']' as c_char {
                 if verbose {
-                    emsg(gettext(E_MISSBRAC.as_ptr()));
+                    emsg(gettext(E_MISSBRAC));
                 }
                 tv_clear(&raw mut var1);
                 if range {
@@ -3386,25 +3386,25 @@ fn check_can_index(rettv: &mut typval_T, evaluate: bool, verbose: bool) -> bool 
         match rettv.v_type {
             VarType::VAR_FUNC | VarType::VAR_PARTIAL => {
                 if verbose {
-                    emsg(gettext(E_CANNOT_INDEX_A_FUNCREF.as_ptr()));
+                    emsg(gettext(E_CANNOT_INDEX_A_FUNCREF));
                 }
                 return false;
             }
             VarType::VAR_FLOAT => {
                 if verbose {
-                    emsg(gettext(e_using_float_as_string.as_ptr()));
+                    emsg(gettext(e_using_float_as_string));
                 }
                 return false;
             }
             VarType::VAR_BOOL | VarType::VAR_SPECIAL => {
                 if verbose {
-                    emsg(gettext(E_CANNOT_INDEX_SPECIAL_VARIABLE.as_ptr()));
+                    emsg(gettext(E_CANNOT_INDEX_SPECIAL_VARIABLE));
                 }
                 return false;
             }
             VarType::VAR_UNKNOWN => {
                 if evaluate {
-                    emsg(gettext(E_CANNOT_INDEX_SPECIAL_VARIABLE.as_ptr()));
+                    emsg(gettext(E_CANNOT_INDEX_SPECIAL_VARIABLE));
                     return false;
                 }
             }
@@ -3464,7 +3464,7 @@ fn eval_index_inner(rettv: &mut typval_T,
         if is_range {
             if rettv.v_type == VarType::VAR_DICT {
                 if verbose {
-                    emsg(gettext(E_CANNOT_SLICE_DICTIONARY.as_ptr()));
+                    emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
                 }
                 return false;
             }
@@ -3561,9 +3561,9 @@ fn eval_index_inner(rettv: &mut typval_T,
 
                 if item.is_null() && verbose {
                     if keylen > 0 {
-                        semsg!(gettext(e_dictkey_len.as_ptr()), keylen, key);
+                        semsg!(gettext(e_dictkey_len), keylen, key);
                     } else {
-                        semsg!(gettext(e_dictkey.as_ptr()), key);
+                        semsg!(gettext(e_dictkey), key);
                     }
                 }
                 if item.is_null() || tv_is_luafunc(&mut (*item).di_tv) {
@@ -3591,7 +3591,7 @@ pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut typval_T>, evaluat
 
         if option_end.is_null() {
             if rettv.is_some() {
-                semsg!(gettext(c"E112: Option name missing: %s".as_ptr()), *arg);
+                semsg!(gettext(c"E112: Option name missing: %s"), *arg);
             }
             return false;
         }
@@ -3610,7 +3610,7 @@ pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut typval_T>, evaluat
 
             if opt_idx == kOptInvalid && !is_tty_opt {
                 if rettv.is_some() {
-                    semsg!(gettext(c"E113: Unknown option: %s".as_ptr()), *arg);
+                    semsg!(gettext(c"E113: Unknown option: %s"), *arg);
                 }
 
                 ret = false;
@@ -3680,8 +3680,7 @@ fn eval_number(
                 if !ascii_isxdigit(*bp.add(1)) {
                     if evaluate {
                         emsg(gettext(
-                            c"E973: Blob literal should have an even number of hex characters"
-                                .as_ptr(),
+                            c"E973: Blob literal should have an even number of hex characters",
                         ));
                     }
                     return false;
@@ -3719,7 +3718,7 @@ fn eval_number(
             );
             if len == 0 {
                 if evaluate {
-                    semsg!(gettext(e_invexpr2.as_ptr()), *arg);
+                    semsg!(gettext(e_invexpr2), *arg);
                 }
                 return false;
             }
@@ -3777,7 +3776,7 @@ fn eval_string(
                 }
                 p = p.add(1);
                 if *p.sub(1) == b'}' as c_char && *p != b'}' as c_char {
-                    semsg!(gettext(e_stray_closing_curly_str.as_ptr()), *arg);
+                    semsg!(gettext(e_stray_closing_curly_str), *arg);
                     return false;
                 }
                 extra -= 1;
@@ -3786,7 +3785,7 @@ fn eval_string(
         }
 
         if *p != b'"' as c_char && !(interpolate && *p == b'{' as c_char) {
-            semsg!(gettext(c"E114: Missing quote: %s".as_ptr()), *arg);
+            semsg!(gettext(c"E114: Missing quote: %s"), *arg);
             return false;
         }
 
@@ -3957,7 +3956,7 @@ fn eval_lit_string(
                 } else if *p == b'}' as c_char {
                     p = p.add(1);
                     if *p != b'}' as c_char {
-                        semsg!(gettext(e_stray_closing_curly_str.as_ptr()), *arg);
+                        semsg!(gettext(e_stray_closing_curly_str), *arg);
                         return false;
                     }
                     reduce += 1;
@@ -3967,7 +3966,7 @@ fn eval_lit_string(
         }
 
         if *p != b'\'' as c_char && !(interpolate && *p == b'{' as c_char) {
-            semsg!(gettext(c"E115: Missing quote: %s".as_ptr()), *arg);
+            semsg!(gettext(c"E115: Missing quote: %s"), *arg);
             return false;
         }
 
@@ -4129,7 +4128,7 @@ fn eval_list(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut
             }
 
             if !had_comma {
-                semsg!(gettext(c"E696: Missing comma in List: %s".as_ptr()), *arg);
+                semsg!(gettext(c"E696: Missing comma in List: %s"), *arg);
                 if evaluate {
                     tv_list_free(l);
                 }
@@ -4138,7 +4137,7 @@ fn eval_list(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut
         }
 
         if **arg != b']' as c_char {
-            semsg!(gettext(E_LIST_END.as_ptr()), *arg);
+            semsg!(gettext(E_LIST_END), *arg);
             if evaluate {
                 tv_list_free(l);
             }
@@ -4427,7 +4426,7 @@ pub fn garbage_collect(testing: bool) -> bool {
         } else {
             if opt_vars().p_verbose > 0 {
                 verb_msg(gettext(
-                    c"Not enough memory to set references, garbage collection aborted!".as_ptr(),
+                    c"Not enough memory to set references, garbage collection aborted!",
                 ));
             }
         }
@@ -4732,7 +4731,7 @@ fn eval_dict(
             }
             if **arg != b':' as c_char {
                 semsg!(
-                    gettext(c"E720: Missing colon in Dictionary: %s".as_ptr()),
+                    gettext(c"E720: Missing colon in Dictionary: %s"),
                     *arg,
                 );
                 tv_clear(&raw mut tvkey);
@@ -4764,7 +4763,7 @@ fn eval_dict(
                 let mut item = tv_dict_find(d, key, -1);
                 if !item.is_null() {
                     semsg!(
-                        gettext(c"E721: Duplicate key in Dictionary: \"%s\"".as_ptr()),
+                        gettext(c"E721: Duplicate key in Dictionary: \"%s\""),
                         key,
                     );
                     tv_clear(&raw mut tvkey);
@@ -4793,7 +4792,7 @@ fn eval_dict(
             }
             if !had_comma {
                 semsg!(
-                    gettext(c"E722: Missing comma in Dictionary: %s".as_ptr()),
+                    gettext(c"E722: Missing comma in Dictionary: %s"),
                     *arg,
                 );
                 if !d.is_null() {
@@ -4805,7 +4804,7 @@ fn eval_dict(
 
         if **arg != b'}' as c_char {
             semsg!(
-                gettext(c"E723: Missing end of Dictionary '}': %s".as_ptr()),
+                gettext(c"E723: Missing end of Dictionary '}': %s"),
                 *arg,
             );
             if !d.is_null() {
@@ -4922,8 +4921,8 @@ pub fn tv_to_argv(
 
         if cmd_tv.v_type != VarType::VAR_LIST {
             semsg!(
-                gettext(e_invarg2.as_ptr()),
-                c"expected String or List".as_ptr(),
+                gettext(e_invarg2),
+                c"expected String or List",
             );
             return Vec::new();
         }
@@ -4931,7 +4930,7 @@ pub fn tv_to_argv(
         let argl = cmd_tv.vval.v_list();
         let argc = tv_list_len(argl);
         if argc == 0 {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return Vec::new();
         }
 
@@ -4945,12 +4944,12 @@ pub fn tv_to_argv(
                 vim_snprintf!(
                     buf.as_mut_ptr(),
                     buf.len(),
-                    c"'%s' is not executable".as_ptr(),
+                    c"'%s' is not executable",
                     arg0,
                 );
                 semsg!(
-                    gettext(e_invargNval.as_ptr()),
-                    c"cmd".as_ptr(),
+                    gettext(e_invargNval),
+                    c"cmd",
                     buf.as_ptr(),
                 );
                 *executable = false;
@@ -5028,7 +5027,7 @@ fn get_system_output_as_rettv(argvars: &mut [typval_T], rettv: &mut typval_T, re
             verbose_enter_scroll();
             smsg!(
                 0,
-                gettext(c"Executing command: \"%s\"".as_ptr()),
+                gettext(c"Executing command: \"%s\""),
                 cmdstr.as_ptr()
             );
             msg_puts(c"\n\n".as_ptr());
@@ -5162,7 +5161,7 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> bool {
         }
 
         if r == FAIL {
-            emsg(gettext(c"E921: Invalid callback argument".as_ptr()));
+            emsg(gettext(c"E921: Invalid callback argument"));
             return false;
         }
         true
@@ -5181,7 +5180,7 @@ pub fn callback_call(
 ) -> bool {
     unsafe {
         if i64::from(eval_st().callback_depth) > opt_vars().p_mfd {
-            emsg(gettext(e_command_too_recursive.as_ptr()));
+            emsg(gettext(e_command_too_recursive));
             return false;
         }
 
@@ -5231,7 +5230,7 @@ pub fn callback_call(
                 eval_st().callback_depth -= 1;
                 let ok = err.err_type == ErrorType::kErrorTypeNone;
                 if !ok {
-                    semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
+                    semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
                     api_clear_error(&mut err);
                 } else {
                     object_to_vim(result, rettv, &mut crate::api::private::validate::Error::new());
@@ -5535,7 +5534,7 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
                     total_len += 1;
                 }
             } else {
-                semsg!(gettext(e_nobufnr.as_ptr()), tv.vval.v_number());
+                semsg!(gettext(e_nobufnr), tv.vval.v_number());
                 return None;
             }
 
@@ -5975,7 +5974,7 @@ pub fn get_name_len(
 
         len += get_id_len(arg);
         if len == 0 && verbose && **arg != NUL {
-            semsg!(gettext(e_invexpr2.as_ptr()), *arg);
+            semsg!(gettext(e_invexpr2), *arg);
         }
 
         len
@@ -6101,7 +6100,7 @@ fn make_expanded_name(
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 retvalsize,
-                c"%s%s%s".as_ptr(),
+                c"%s%s%s",
                 in_start,
                 temp_result.as_ptr(),
                 expr_end.add(1),
@@ -6417,7 +6416,7 @@ pub fn var_item_copy(
         let mut ret = true;
 
         if eval_st().VAR_ITEM_COPY_RECURSE >= DICT_MAXNEST {
-            emsg(gettext(E_VARIABLE_NESTED_TOO_DEEP_FOR_MAKING_COPY.as_ptr()));
+            emsg(gettext(E_VARIABLE_NESTED_TOO_DEEP_FOR_MAKING_COPY));
             return false;
         }
         eval_st().VAR_ITEM_COPY_RECURSE += 1;
@@ -6519,7 +6518,7 @@ pub fn ex_echo(eap: &mut exarg_T) {
                         && g_st().did_emsg == did_emsg_before
                         && g_st().called_emsg == called_emsg_before
                     {
-                        semsg!(gettext(e_invexpr2.as_ptr()), p);
+                        semsg!(gettext(e_invexpr2), p);
                     }
                     g_st().need_clr_eos = false;
                     break;
@@ -6722,13 +6721,13 @@ pub fn last_set_msg(script_ctx: sctx_T) {
         g_st().msg_ext_skip_verbose = true;
 
         verbose_enter();
-        msg_puts(gettext(c"\n\tLast set from ".as_ptr()));
+        msg_puts(gettext(c"\n\tLast set from "));
         msg_puts(p.as_ptr());
         if script_ctx.sc_lnum > 0 {
-            msg_puts(gettext(line_msg.as_ptr()));
+            msg_puts(gettext(line_msg));
             msg_outnum(script_ctx.sc_lnum);
         } else if script_is_lua(script_ctx.sc_sid) {
-            msg_puts(gettext(c" (run Nvim with -V1 for more details)".as_ptr()));
+            msg_puts(gettext(c" (run Nvim with -V1 for more details)"));
         }
         verbose_leave();
 }
@@ -6882,9 +6881,9 @@ pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
         if data.is_null() || (*data).streamtype != kChannelStreamProc || is_stopped {
             if show_error {
                 if !data.is_null() && (*data).streamtype != kChannelStreamProc {
-                    emsg(gettext(e_invchanjob.as_ptr()));
+                    emsg(gettext(e_invchanjob));
                 } else {
-                    emsg(gettext(e_invchan.as_ptr()));
+                    emsg(gettext(e_invchan));
                 }
             }
             return ptr::null_mut();
@@ -6900,7 +6899,7 @@ pub fn script_host_eval(name: &std::ffi::CStr,argvars: &mut [typval_T],rettv: &m
         }
 
         if argvars[0].v_type != VarType::VAR_STRING {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return;
         }
 
@@ -6919,7 +6918,7 @@ pub fn eval_call_provider(
     unsafe {
         if !eval_has_provider(provider, false) {
             semsg!(
-                c"E319: No \"%s\" provider found. Run \":checkhealth vim.provider\"".as_ptr(),
+                c"E319: No \"%s\" provider found. Run \":checkhealth vim.provider\"",
                 provider,
             );
             return typval_T {
@@ -6933,7 +6932,7 @@ pub fn eval_call_provider(
         let name_len = vim_snprintf!(
             func.as_mut_ptr(),
             func.len(),
-            c"provider#%s#Call".as_ptr(),
+            c"provider#%s#Call",
             provider,
         );
 
@@ -7023,14 +7022,14 @@ pub fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
 
         if throw_if_fast && !nlua_is_deferred_safe() {
             semsg!(
-                e_fast_api_disabled.as_ptr(),
-                c"Vimscript function".as_ptr(),
+                e_fast_api_disabled,
+                c"Vimscript function",
             );
             return false;
         }
 
         let mut name = [0 as c_char; 32];
-        vim_snprintf!(name.as_mut_ptr(), name.len(), c"%s".as_ptr(), feat);
+        vim_snprintf!(name.as_mut_ptr(), name.len(), c"%s", feat);
         { let _p = name.as_mut_ptr(); let _len = crate::memory::cstr_len(_p); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (b'_' as c_char) as u8 { *_b = (NUL) as u8; } } };
 
         let mut buf = [0 as c_char; 256];
@@ -7038,14 +7037,14 @@ pub fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
         let mut len = vim_snprintf!(
             buf.as_mut_ptr(),
             buf.len(),
-            c"g:loaded_%s_provider".as_ptr(),
+            c"g:loaded_%s_provider",
             name.as_ptr(),
         );
         if !eval_variable(buf.as_ptr(), len, Some(&mut tv), ptr::null_mut(), false, true) {
             len = vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
-                c"provider#%s#bogus".as_ptr(),
+                c"provider#%s#bogus",
                 name.as_ptr(),
             );
             script_autoload(buf.as_ptr(), len as usize, false);
@@ -7053,19 +7052,19 @@ pub fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
             len = vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
-                c"g:loaded_%s_provider".as_ptr(),
+                c"g:loaded_%s_provider",
                 name.as_ptr(),
             );
             if !eval_variable(buf.as_ptr(), len, Some(&mut tv), ptr::null_mut(), false, true) {
                 vim_snprintf!(
                     buf.as_mut_ptr(),
                     buf.len(),
-                    c"provider#%s#Call".as_ptr(),
+                    c"provider#%s#Call",
                     name.as_ptr(),
                 );
                 if !find_func(buf.as_ptr()).is_null() && opt_vars().p_lpl != 0 {
                     semsg!(
-                        c"provider: %s: missing required variable g:loaded_%s_provider".as_ptr(),
+                        c"provider: %s: missing required variable g:loaded_%s_provider",
                         name.as_ptr(),
                         name.as_ptr(),
                     );
@@ -7080,12 +7079,12 @@ pub fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
-                c"provider#%s#Call".as_ptr(),
+                c"provider#%s#Call",
                 name.as_ptr(),
             );
             if find_func(buf.as_ptr()).is_null() {
                 semsg!(
-                    c"provider: %s: g:loaded_%s_provider=2 but %s is not defined".as_ptr(),
+                    c"provider: %s: g:loaded_%s_provider=2 but %s is not defined",
                     name.as_ptr(),
                     name.as_ptr(),
                     buf.as_ptr(),
@@ -7144,9 +7143,9 @@ pub fn typval_compare(typ1: &mut typval_T,typ2: &mut typval_T,
                 || (expr_type != EXPR_EQUAL && expr_type != EXPR_NEQUAL)
             {
                 if typ1.v_type != typ2.v_type {
-                    emsg(gettext(c"E977: Can only compare Blob with Blob".as_ptr()));
+                    emsg(gettext(c"E977: Can only compare Blob with Blob"));
                 } else {
-                    emsg(gettext(e_invalblob.as_ptr()));
+                    emsg(gettext(e_invalblob));
                 }
                 tv_clear(typ1);
                 return false;
@@ -7169,9 +7168,9 @@ pub fn typval_compare(typ1: &mut typval_T,typ2: &mut typval_T,
                 || (expr_type != EXPR_EQUAL && expr_type != EXPR_NEQUAL)
             {
                 if typ1.v_type != typ2.v_type {
-                    emsg(gettext(c"E691: Can only compare List with List".as_ptr()));
+                    emsg(gettext(c"E691: Can only compare List with List"));
                 } else {
-                    emsg(gettext(c"E692: Invalid operation for List".as_ptr()));
+                    emsg(gettext(c"E692: Invalid operation for List"));
                 }
                 tv_clear(typ1);
                 return false;
@@ -7195,10 +7194,10 @@ pub fn typval_compare(typ1: &mut typval_T,typ2: &mut typval_T,
             {
                 if typ1.v_type != typ2.v_type {
                     emsg(gettext(
-                        c"E735: Can only compare Dictionary with Dictionary".as_ptr(),
+                        c"E735: Can only compare Dictionary with Dictionary",
                     ));
                 } else {
-                    emsg(gettext(c"E736: Invalid operation for Dictionary".as_ptr()));
+                    emsg(gettext(c"E736: Invalid operation for Dictionary"));
                 }
                 tv_clear(typ1);
                 return false;
@@ -7215,7 +7214,7 @@ pub fn typval_compare(typ1: &mut typval_T,typ2: &mut typval_T,
                 && expr_type != EXPR_IS
                 && expr_type != EXPR_ISNOT
             {
-                emsg(gettext(c"E694: Invalid operation for Funcrefs".as_ptr()));
+                emsg(gettext(c"E694: Invalid operation for Funcrefs"));
                 tv_clear(typ1);
                 return false;
             }

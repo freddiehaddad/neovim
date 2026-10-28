@@ -1136,7 +1136,7 @@ pub fn readfile(
                     filemess(
                         g_st().curbuf,
                         fname,
-                        tr(c"Illegal file name".as_ptr()),
+                        tr(c"Illegal file name"),
                         ptr::null(),
                     );
                     msg_end();
@@ -1146,7 +1146,7 @@ pub fn readfile(
 
                 if after_pathsep(fname, fname.add(fnamelen)) != 0 {
                     if !silent {
-                        filemess(g_st().curbuf, fname, tr(MSG_IS_A_DIRECTORY.as_ptr()), ptr::null());
+                        filemess(g_st().curbuf, fname, tr(MSG_IS_A_DIRECTORY), ptr::null());
                     }
                     msg_end();
                     g_st().msg_scroll = msg_save;
@@ -1187,11 +1187,11 @@ pub fn readfile(
             {
                 if s_isdir(perm as u64) {
                     if !silent {
-                        filemess(g_st().curbuf, fname, tr(MSG_IS_A_DIRECTORY.as_ptr()), ptr::null());
+                        filemess(g_st().curbuf, fname, tr(MSG_IS_A_DIRECTORY), ptr::null());
                     }
                     retval = NOTDONE;
                 } else {
-                    filemess(g_st().curbuf, fname, tr(c"is not a file".as_ptr()), ptr::null());
+                    filemess(g_st().curbuf, fname, tr(c"is not a file"), ptr::null());
                 }
                 msg_end();
                 g_st().msg_scroll = msg_save;
@@ -1252,15 +1252,15 @@ pub fn readfile(
                             || (using_b_ffname && old_b_ffname != (*g_st().curbuf).b_ffname)
                             || (using_b_fname && old_b_fname != (*g_st().curbuf).b_fname)
                         {
-                            emsg(tr(E_AUCHANGEDBUF.as_ptr()));
+                            emsg(tr(E_AUCHANGEDBUF));
                             break 'theend;
                         }
                     }
                     if !silent {
                         if dir_of_file_exists(fname) {
-                            filemess(g_st().curbuf, sfname, tr(c"[New]".as_ptr()), ptr::null());
+                            filemess(g_st().curbuf, sfname, tr(c"[New]"), ptr::null());
                         } else {
-                            filemess(g_st().curbuf, sfname, tr(c"[New DIRECTORY]".as_ptr()), ptr::null());
+                            filemess(g_st().curbuf, sfname, tr(c"[New DIRECTORY]"), ptr::null());
                         }
                     }
                     check_marks_read();
@@ -1283,9 +1283,9 @@ pub fn readfile(
                     g_st().curbuf,
                     sfname,
                     if is_too_big {
-                        tr(c"[File too big]".as_ptr())
+                        tr(c"[File too big]")
                     } else {
-                        tr(c"[Permission Denied]".as_ptr())
+                        tr(c"[Permission Denied]")
                     },
                     ptr::null(),
                 );
@@ -1316,7 +1316,7 @@ pub fn readfile(
                         || (using_b_ffname && old_b_ffname != (*g_st().curbuf).b_ffname)
                         || (using_b_fname && old_b_fname != (*g_st().curbuf).b_fname))
                 {
-                    emsg(tr(E_AUCHANGEDBUF.as_ptr()));
+                    emsg(tr(E_AUCHANGEDBUF));
                     if !read_buffer {
                         close(fd);
                     }
@@ -1441,11 +1441,10 @@ pub fn readfile(
                     g_st().msg_scroll = msg_save;
                     if fd < 0 {
                         emsg(tr(
-                            c"E200: *ReadPre autocommands made the file unreadable".as_ptr()
-                        ));
+                            c"E200: *ReadPre autocommands made the file unreadable"));
                     } else {
                         emsg(tr(
-                            c"E201: *ReadPre autocommands must not change current buffer".as_ptr(),
+                            c"E201: *ReadPre autocommands must not change current buffer",
                         ));
                     }
                     (*g_st().curbuf).b_p_ro = 1;
@@ -1600,7 +1599,7 @@ pub fn readfile(
                             if tmpname.is_none() {
                                 advance_fenc = true;
                                 if fd < 0 {
-                                    emsg(tr(c"E202: Conversion made file unreadable!".as_ptr()));
+                                    emsg(tr(c"E202: Conversion made file unreadable!"));
                                     error = true;
                                     break 'retry;
                                 }
@@ -2476,7 +2475,7 @@ pub fn readfile(
                         );
                     }
                     if (flags & READ_DUMMY) == 0 {
-                        filemess(g_st().curbuf, sfname, tr(e_interr.as_ptr()), ptr::null());
+                        filemess(g_st().curbuf, sfname, tr(e_interr), ptr::null());
                         if newfile {
                             (*g_st().curbuf).b_p_ro = 1;
                         }
@@ -2499,8 +2498,8 @@ pub fn readfile(
                             buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
                                 (IOSIZE as c_int - buflen) as usize,
-                                c"%s".as_ptr(),
-                                tr(c"[fifo]".as_ptr()),
+                                c"%s",
+                                tr(c"[fifo]"),
                             );
                             c = true;
                         }
@@ -2508,8 +2507,8 @@ pub fn readfile(
                             buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
                                 (IOSIZE as c_int - buflen) as usize,
-                                c"%s".as_ptr(),
-                                tr(c"[socket]".as_ptr()),
+                                c"%s",
+                                tr(c"[socket]"),
                             );
                             c = true;
                         }
@@ -2524,8 +2523,8 @@ pub fn readfile(
                             buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
                                 (IOSIZE as c_int - buflen) as usize,
-                                c"%s".as_ptr(),
-                                tr(c"[character special]".as_ptr()),
+                                c"%s",
+                                tr(c"[character special]"),
                             );
                             c = true;
                         }
@@ -2534,11 +2533,11 @@ pub fn readfile(
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
-                            c"%s".as_ptr(),
+                            c"%s",
                             if shortmess(kShmRo) {
-                                tr(c"[RO]".as_ptr())
+                                tr(c"[RO]")
                             } else {
-                                tr(c"[readonly]".as_ptr())
+                                tr(c"[readonly]")
                             },
                         );
                         c = true;
@@ -2547,8 +2546,8 @@ pub fn readfile(
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
-                            c"%s".as_ptr(),
-                            tr(c"[noeol]".as_ptr()),
+                            c"%s",
+                            tr(c"[noeol]"),
                         );
                         c = true;
                     }
@@ -2556,8 +2555,8 @@ pub fn readfile(
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
-                            c"%s".as_ptr(),
-                            tr(c"[CR missing]".as_ptr()),
+                            c"%s",
+                            tr(c"[CR missing]"),
                         );
                         c = true;
                     }
@@ -2565,8 +2564,8 @@ pub fn readfile(
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
-                            c"%s".as_ptr(),
-                            tr(c"[long lines split]".as_ptr()),
+                            c"%s",
+                            tr(c"[long lines split]"),
                         );
                         c = true;
                     }
@@ -2574,16 +2573,16 @@ pub fn readfile(
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
-                            c"%s".as_ptr(),
-                            tr(c"[NOT converted]".as_ptr()),
+                            c"%s",
+                            tr(c"[NOT converted]"),
                         );
                         c = true;
                     } else if converted {
                         buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
-                            c"%s".as_ptr(),
-                            tr(c"[converted]".as_ptr()),
+                            c"%s",
+                            tr(c"[converted]"),
                         );
                         c = true;
                     }
@@ -2591,7 +2590,7 @@ pub fn readfile(
                         vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
-                            tr(c"[CONVERSION ERROR in line %lld]".as_ptr()),
+                            tr(c"[CONVERSION ERROR in line %lld]"),
                             i64::from(conv_error),
                         );
                         c = true;
@@ -2599,7 +2598,7 @@ pub fn readfile(
                         vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
-                            tr(c"[ILLEGAL BYTE in line %lld]".as_ptr()),
+                            tr(c"[ILLEGAL BYTE in line %lld]"),
                             i64::from(illegal_byte),
                         );
                         c = true;
@@ -2607,8 +2606,8 @@ pub fn readfile(
                         vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
-                            c"%s".as_ptr(),
-                            tr(c"[READ ERRORS]".as_ptr()),
+                            c"%s",
+                            tr(c"[READ ERRORS]"),
                         );
                         c = true;
                     }
@@ -2912,18 +2911,18 @@ fn readfile_charconvert(
         let mut tmpname = vim_tempname();
         match tmpname {
             None => {
-                errmsg = tr(c"Can't find temp file for conversion".as_ptr());
+                errmsg = tr(c"Can't find temp file for conversion");
             }
             Some(ref tn) => {
                 close(*fdp);
                 *fdp = -1;
                 if !eval_charconvert(fenc, c"utf-8".as_ptr(), fname, tn.as_ptr()) {
-                    errmsg = tr(c"Conversion with 'charconvert' failed".as_ptr());
+                    errmsg = tr(c"Conversion with 'charconvert' failed");
                 }
                 if errmsg.is_null() {
                     *fdp = os_open(tn.as_ptr(), O_RDONLY, 0);
                     if *fdp < 0 {
-                        errmsg = tr(c"can't read output of 'charconvert'".as_ptr());
+                        errmsg = tr(c"can't read output of 'charconvert'");
                     }
                 }
             }
@@ -2970,7 +2969,7 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> bool {
             return false;
         }
         if g_st().curbuf != buf {
-            emsg(tr(E_AUCHANGEDBUF.as_ptr()));
+            emsg(tr(E_AUCHANGEDBUF));
             return false;
         }
 
@@ -3061,16 +3060,16 @@ pub fn msg_add_fileformat(eol_type: c_int) -> bool {
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         #[cfg(not(windows))]
         if eol_type == EOL_DOS {
-            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]".as_ptr()), _dsize - _dlen); };
+            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]"), _dsize - _dlen); };
             return true;
         }
         if eol_type == EOL_MAC {
-            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[mac]".as_ptr()), _dsize - _dlen); };
+            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[mac]"), _dsize - _dlen); };
             return true;
         }
         #[cfg(windows)]
         if eol_type == EOL_UNIX {
-            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[unix]".as_ptr()), _dsize - _dlen); };
+            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[unix]"), _dsize - _dlen); };
             return true;
         }
         false
@@ -3092,7 +3091,7 @@ pub fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
             vim_snprintf!(
                 iobuf_ptr.add(len),
                 IOSIZE - len,
-                tr(c"%s%lldL, %lldB".as_ptr()),
+                tr(c"%s%lldL, %lldB"),
                 space,
                 i64::from(lnum),
                 nchars,
@@ -3102,8 +3101,8 @@ pub fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
                 iobuf_ptr.add(len),
                 IOSIZE - len,
                 ngettext(
-                    c"%s%lld line, ".as_ptr(),
-                    c"%s%lld lines, ".as_ptr(),
+                    c"%s%lld line, ",
+                    c"%s%lld lines, ",
                     lnum as usize,
                 ),
                 space,
@@ -3113,8 +3112,8 @@ pub fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
                 iobuf_ptr.add(len),
                 IOSIZE - len,
                 ngettext(
-                    c"%lld byte".as_ptr(),
-                    c"%lld bytes".as_ptr(),
+                    c"%lld byte",
+                    c"%lld bytes",
                     nchars as usize,
                 ),
                 nchars,
@@ -3553,7 +3552,7 @@ fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
         for n in 123..99999 {
             let tail = path_tail(tempname.as_ptr());
             let rem = (MAXPATHL + 1) - tail.offset_from(tempname.as_ptr()) as usize;
-            vim_snprintf!(tail, rem, c"%d".as_ptr(), n);
+            vim_snprintf!(tail, rem, c"%d", n);
 
             if !os_path_exists(tempname.as_ptr()) {
                 if os_rename(from, tempname.as_ptr()) {
@@ -3564,10 +3563,10 @@ fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
                         logmsg!(
                             LOG_ERR,
                             ptr::null(),
-                            c"rename_with_tmp".as_ptr(),
+                            c"rename_with_tmp",
                             0,
                             true,
-                            c"failed to restore %s, file is at: %s".as_ptr(),
+                            c"failed to restore %s, file is at: %s",
                             from,
                             tempname.as_ptr(),
                         );
@@ -3837,8 +3836,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                 if n {
                     if !bufref_valid(Some(&bufref)) {
                         emsg(tr(
-                            c"E246: FileChangedShell autocommand deleted buffer".as_ptr()
-                        ));
+                            c"E246: FileChangedShell autocommand deleted buffer"));
                     }
                     let s = CStr::from_ptr(get_vim_var_str(VV_FCS_CHOICE));
                     if s == c"reload" && *reason != b'd' as c_char {
@@ -3854,7 +3852,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                 if !n {
                     if *reason == b'd' as c_char {
                         if prev_b_mtime != -1 {
-                            mesg = tr(c"E211: File \"%s\" no longer available".as_ptr());
+                            mesg = tr(c"E211: File \"%s\" no longer available");
                         }
                     } else {
                         helpmesg = true;
@@ -3862,22 +3860,19 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
 
                         if *reason.add(2) == b'n' as c_char {
                             mesg = tr(
-                                c"W12: Warning: File \"%s\" has changed and the buffer was changed in Vim as well"
-                                    .as_ptr(),
+                                c"W12: Warning: File \"%s\" has changed and the buffer was changed in Vim as well",
                             );
-                            mesg2 = tr(c"See \":help W12\" for more info.".as_ptr());
+                            mesg2 = tr(c"See \":help W12\" for more info.");
                         } else if *reason.add(1) == b'h' as c_char {
                             mesg = tr(
-                                c"W11: Warning: File \"%s\" has changed since editing started"
-                                    .as_ptr(),
+                                c"W11: Warning: File \"%s\" has changed since editing started",
                             );
-                            mesg2 = tr(c"See \":help W11\" for more info.".as_ptr());
+                            mesg2 = tr(c"See \":help W11\" for more info.");
                         } else if *reason == b'm' as c_char {
                             mesg = tr(
-                                c"W16: Warning: Mode of file \"%s\" has changed since editing started"
-                                    .as_ptr(),
+                                c"W16: Warning: Mode of file \"%s\" has changed since editing started",
                             );
-                            mesg2 = tr(c"See \":help W16\" for more info.".as_ptr());
+                            mesg2 = tr(c"See \":help W16\" for more info.");
                         } else {
                             buf.b_mtime_read = buf.b_mtime;
                             buf.b_mtime_read_ns = buf.b_mtime_ns;
@@ -3890,7 +3885,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
             && os_path_exists(buf.b_ffname)
         {
             retval = 1;
-            mesg = tr(c"W13: Warning: File \"%s\" has been created after editing started".as_ptr());
+            mesg = tr(c"W13: Warning: File \"%s\" has been created after editing started");
             buf.b_flags |= BF_NEW_W;
             can_reload = true;
         }
@@ -3910,15 +3905,15 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                     vim_snprintf!(
                         tbuf.offset(tbuflen as isize),
                         tbufsize - (tbuflen as usize),
-                        c"\n%s".as_ptr(),
+                        c"\n%s",
                         mesg2,
                     );
                 }
                 match do_dialog(
                     VIM_WARNING,
-                    tr(c"Warning".as_ptr()),
+                    tr(c"Warning"),
                     tbuf,
-                    tr(c"&OK\n&Load File\nLoad File &and Options".as_ptr()),
+                    tr(c"&OK\n&Load File\nLoad File &and Options"),
                     1,
                     ptr::null_mut(),
                     1,
@@ -3932,7 +3927,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                     vim_snprintf!(
                         tbuf.offset(tbuflen as isize),
                         tbufsize - (tbuflen as usize),
-                        c"; %s".as_ptr(),
+                        c"; %s",
                         mesg2,
                     );
                 }
@@ -4029,7 +4024,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
                 || !move_lines(buf, savebuf)
             {
                 semsg!(
-                    tr(c"E462: Could not prepare for reloading \"%s\"".as_ptr()),
+                    tr(c"E462: Could not prepare for reloading \"%s\""),
                     (*buf).b_fname,
                 );
                 saved = FAIL;
@@ -4052,7 +4047,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
             {
                 if !aborting() {
                     semsg!(
-                        tr(c"E321: Could not reload \"%s\"".as_ptr()),
+                        tr(c"E321: Could not reload \"%s\""),
                         (*buf).b_fname,
                     );
                 }
@@ -4160,19 +4155,19 @@ fn vim_mktempdir() {
                         logmsg!(
                             LOG_DEBUG,
                             ptr::null(),
-                            c"vim_mktempdir".as_ptr(),
+                            c"vim_mktempdir",
                             0,
                             true,
-                            c"$TMPDIR is unset".as_ptr(),
+                            c"$TMPDIR is unset",
                         );
                     } else {
                         logmsg!(
                             LOG_WARN,
                             ptr::null(),
-                            c"vim_mktempdir".as_ptr(),
+                            c"vim_mktempdir",
                             0,
                             true,
-                            c"$TMPDIR tempdir not a directory (or does not exist): \"%s\"".as_ptr(),
+                            c"$TMPDIR tempdir not a directory (or does not exist): \"%s\"",
                             tmp.as_ptr(),
                         );
                     }
@@ -4184,15 +4179,15 @@ fn vim_mktempdir() {
                 tmplen += vim_snprintf!(
                     tmp.as_mut_ptr().add(tmplen),
                     tmp.len() - tmplen,
-                    c"%s".as_ptr(),
-                    PATHSEPSTR.as_ptr(),
+                    c"%s",
+                    PATHSEPSTR,
                 ) as usize;
                 debug_assert!(tmplen < tmp.len());
             }
             tmplen += vim_snprintf!(
                 tmp.as_mut_ptr().add(tmplen),
                 tmp.len() - tmplen,
-                c"nvim.%s".as_ptr(),
+                c"nvim.%s",
                 user.as_ptr(),
             ) as usize;
             debug_assert!(tmplen < tmp.len());
@@ -4210,8 +4205,8 @@ fn vim_mktempdir() {
                     tmplen += vim_snprintf!(
                         tmp.as_mut_ptr().add(tmplen),
                         tmp.len() - tmplen,
-                        c"%s".as_ptr(),
-                        PATHSEPSTR.as_ptr(),
+                        c"%s",
+                        PATHSEPSTR,
                     ) as usize;
                     debug_assert!(tmplen < tmp.len());
                 }
@@ -4220,10 +4215,10 @@ fn vim_mktempdir() {
                     logmsg!(
                         LOG_ERR,
                         ptr::null(),
-                        c"vim_mktempdir".as_ptr(),
+                        c"vim_mktempdir",
                         0,
                         true,
-                        c"tempdir root not owned by current user (%s): %s".as_ptr(),
+                        c"tempdir root not owned by current user (%s): %s",
                         user.as_ptr(),
                         tmp.as_ptr(),
                     );
@@ -4231,10 +4226,10 @@ fn vim_mktempdir() {
                     logmsg!(
                         LOG_ERR,
                         ptr::null(),
-                        c"vim_mktempdir".as_ptr(),
+                        c"vim_mktempdir",
                         0,
                         true,
-                        c"tempdir root not a directory: %s".as_ptr(),
+                        c"tempdir root not a directory: %s",
                         tmp.as_ptr(),
                     );
                 }
@@ -4243,10 +4238,10 @@ fn vim_mktempdir() {
                     logmsg!(
                         LOG_ERR,
                         ptr::null(),
-                        c"vim_mktempdir".as_ptr(),
+                        c"vim_mktempdir",
                         0,
                         true,
-                        c"tempdir root has invalid permissions (%o): %s".as_ptr(),
+                        c"tempdir root has invalid permissions (%o): %s",
                         perm,
                         tmp.as_ptr(),
                     );
@@ -4258,7 +4253,7 @@ fn vim_mktempdir() {
             tmplen += vim_snprintf!(
                 tmp.as_mut_ptr().add(tmplen),
                 tmp.len() - tmplen,
-                c"XXXXXX".as_ptr(),
+                c"XXXXXX",
             ) as usize;
             debug_assert!(tmplen < tmp.len());
             let _ = tmplen;
@@ -4267,10 +4262,10 @@ fn vim_mktempdir() {
                 logmsg!(
                     LOG_WARN,
                     ptr::null(),
-                    c"vim_mktempdir".as_ptr(),
+                    c"vim_mktempdir",
                     0,
                     true,
-                    c"tempdir create failed: %s: %s".as_ptr(),
+                    c"tempdir create failed: %s: %s",
                     uv_strerror(r),
                     tmp.as_ptr(),
                 );
@@ -4297,7 +4292,7 @@ pub fn readdir_core(
 
         let mut dir = Directory::new();
         if !os_scandir(&mut dir, path) {
-            smsg!(0, tr(e_notopen.as_ptr()), path);
+            smsg!(0, tr(e_notopen), path);
             return false;
         }
 
@@ -4342,13 +4337,13 @@ pub fn delete_recursive(name: *const c_char) -> c_int {
             let mut entries: Vec<std::ffi::CString> = Vec::new();
             if readdir_core(&mut entries, exp.as_ptr(), ptr::null_mut()) {
                 let namebuff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
-                let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/".as_ptr(), exp.as_ptr());
+                let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/", exp.as_ptr());
 
                 for entry in &entries {
                     vim_snprintf!(
                         namebuff_ptr.offset(len as isize),
                         MAXPATHL - (len as usize),
-                        c"%s".as_ptr(),
+                        c"%s",
                         entry.as_ptr(),
                     );
                     if delete_recursive(namebuff_ptr) != 0 {
@@ -4437,16 +4432,16 @@ pub fn vim_gettempdir() -> *mut c_char {
                     logmsg!(
                         LOG_ERR,
                         ptr::null(),
-                        c"vim_gettempdir".as_ptr(),
+                        c"vim_gettempdir",
                         0,
                         true,
-                        c"tempdir disappeared (antivirus or broken cleanup job?): %s".as_ptr(),
+                        c"tempdir disappeared (antivirus or broken cleanup job?): %s",
                         current_td,
                     );
                 }
                 if fio_st().NOTFOUND > 1 {
                     msg_schedule_semsg!(
-                        c"E5431: tempdir disappeared (%d times)".as_ptr(),
+                        c"E5431: tempdir disappeared (%d times)",
                         fio_st().NOTFOUND
                     );
                 }
@@ -4504,7 +4499,7 @@ pub fn vim_tempname() -> Option<std::ffi::CString> {
         let _ = vim_snprintf!(
             templ.as_mut_ptr(),
             TEMP_FILE_PATH_MAXLEN,
-            c"%s%llu".as_ptr(),
+            c"%s%llu",
             tempdir,
             count,
         );
@@ -4773,9 +4768,9 @@ pub fn file_pat_to_reg_pat(
         *reg_pat.add(i) = NUL;
         if nested != 0 {
             if nested < 0 {
-                emsg(tr(c"E219: Missing {.".as_ptr()));
+                emsg(tr(c"E219: Missing {."));
             } else {
-                emsg(tr(c"E220: Missing }.".as_ptr()));
+                emsg(tr(c"E220: Missing }."));
             }
             return None;
         }

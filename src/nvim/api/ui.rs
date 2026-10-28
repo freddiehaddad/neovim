@@ -106,7 +106,7 @@ fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI>
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"UI not attached to channel: %lld".as_ptr(),
+                c"UI not attached to channel: %lld",
                 chan_id as i64,
             );
         }
@@ -177,7 +177,7 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"%s".as_ptr(),
+                c"%s",
                 (&raw const e_invchan).cast::<c_char>(),
             );
             return;
@@ -281,7 +281,7 @@ pub fn nvim_ui_attach(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"UI already attached to channel: %lld".as_ptr(),
+                c"UI already attached to channel: %lld",
                 channel_id as i64,
             );
             return;
@@ -290,7 +290,7 @@ pub fn nvim_ui_attach(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Maximum UI count reached".as_ptr(),
+                c"Maximum UI count reached",
             );
             return;
         }
@@ -298,7 +298,7 @@ pub fn nvim_ui_attach(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected width > 0 and height > 0".as_ptr(),
+                c"Expected width > 0 and height > 0",
             );
             return;
         }
@@ -497,7 +497,7 @@ pub fn nvim_ui_try_resize(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected width > 0 and height > 0".as_ptr(),
+                c"Expected width > 0 and height > 0",
             );
             return;
         }
@@ -610,7 +610,7 @@ fn ui_set_option(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Invalid stdin_fd: %lld".as_ptr(),
+                    c"Invalid stdin_fd: %lld",
                     value.data.integer(),
                 );
                 return;
@@ -619,8 +619,8 @@ fn ui_set_option(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
-                    c"stdin_fd can only be used with first attached UI".as_ptr(),
+                    c"%s",
+                    c"stdin_fd can only be used with first attached UI",
                 );
                 return;
             }
@@ -679,7 +679,7 @@ fn ui_set_option(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"ext_linegrid option cannot be changed".as_ptr(),
+                        c"ext_linegrid option cannot be changed",
                     );
                 }
                 ui.ui_ext[i] = boolval;
@@ -693,7 +693,7 @@ fn ui_set_option(
         api_set_error!(
             err,
             ErrorType::kErrorTypeValidation,
-            c"Invalid UI option: '%s'".as_ptr(),
+            c"Invalid UI option: '%s'",
             name.data,
         );
     }
@@ -747,7 +747,7 @@ pub fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error)
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected pum height > 0".as_ptr(),
+                c"Expected pum height > 0",
             );
             return;
         }
@@ -755,7 +755,7 @@ pub fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error)
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"UI must support the ext_popupmenu option".as_ptr(),
+                c"UI must support the ext_popupmenu option",
             );
             return;
         }
@@ -796,7 +796,7 @@ pub fn nvim_ui_pum_set_bounds(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"UI must support the ext_popupmenu option".as_ptr(),
+                c"UI must support the ext_popupmenu option",
             );
             return;
         }
@@ -804,14 +804,14 @@ pub fn nvim_ui_pum_set_bounds(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected width > 0".as_ptr(),
+                c"Expected width > 0",
             );
             return;
         } else if height <= 0.0 {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Expected height > 0".as_ptr(),
+                c"Expected height > 0",
             );
             return;
         }

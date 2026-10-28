@@ -366,7 +366,7 @@ fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
         let mut buf = if !rbuf.is_null() { rbuf } else { g_st().firstbuf };
         let ns = group_get_ns(group);
 
-        msg_puts_title(gettext(c"\n--- Signs ---".as_ptr()));
+        msg_puts_title(gettext(c"\n--- Signs ---"));
 
         while !buf.is_null() && !g_st().got_int {
             if buf_has_signs(buf) {
@@ -374,12 +374,12 @@ fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                 let fname = if !(*buf).b_fname.is_null() {
                     (*buf).b_fname.cast_const()
                 } else {
-                    gettext(c"Untitled".as_ptr()).cast_const()
+                    gettext(c"Untitled").cast_const()
                 };
                 vim_snprintf!(
                     lbuf.as_mut_ptr(),
                     MSG_BUF_LEN,
-                    gettext(c"Signs for %s:".as_ptr()),
+                    gettext(c"Signs for %s:"),
                     fname,
                 );
                 msg_puts_hl(lbuf.as_ptr(), HLF_D, false);
@@ -415,7 +415,7 @@ fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                             vim_snprintf!(
                                 namebuf.as_mut_ptr(),
                                 MSG_BUF_LEN,
-                                gettext(c"  name=%s".as_ptr()),
+                                gettext(c"  name=%s"),
                                 sign_get_name(sh),
                             );
                         }
@@ -423,14 +423,14 @@ fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                             vim_snprintf!(
                                 groupbuf.as_mut_ptr(),
                                 MSG_BUF_LEN,
-                                gettext(c"  group=%s".as_ptr()),
+                                gettext(c"  group=%s"),
                                 describe_ns(mark.ns as c_int, c""),
                             );
                         }
                         vim_snprintf!(
                             lbuf.as_mut_ptr(),
                             MSG_BUF_LEN,
-                            gettext(c"    line=%d  id=%u%s%s  priority=%d".as_ptr()),
+                            gettext(c"    line=%d  id=%u%s%s  priority=%d"),
                             mark.pos.row + 1,
                             mark.id,
                             groupbuf.as_ptr(),
@@ -504,7 +504,7 @@ pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_cha
             let cli = utf_ClusterInfo(ci);
             if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {
                 if !sp.is_null() {
-                    semsg!(gettext(c"E239: Invalid sign text: %s".as_ptr()), text);
+                    semsg!(gettext(c"E239: Invalid sign text: %s"), text);
                 }
                 return false;
             }
@@ -629,7 +629,7 @@ fn sign_undefine_by_name(name: *const c_char) -> bool {
             .iter()
             .position(|sp| crate::memory::cstr_as_bytes(sp.sn_name.as_ptr()) == crate::memory::cstr_as_bytes(name))
         else {
-            semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
+            semsg!(gettext(c"E155: Unknown sign: %s"), name);
             return false;
         };
         (*sm_ptr).swap_remove(pos);
@@ -638,11 +638,11 @@ fn sign_undefine_by_name(name: *const c_char) -> bool {
 }
 
 fn sign_list_defined(sp: &mut sign_T) {
-    smsg!(0, c"sign %s".as_ptr(), sp.sn_name.as_ptr());
+    smsg!(0, c"sign %s", sp.sn_name.as_ptr());
         if let Some(ref icon) = sp.sn_icon {
             msg_puts(c" icon=".as_ptr());
             msg_outtrans(icon.as_ptr(), 0, false);
-            msg_puts(gettext(c" (not supported)".as_ptr()));
+            msg_puts(gettext(c" (not supported)"));
         }
         if sp.sn_text[0] != 0 {
             msg_puts(c" text=".as_ptr());
@@ -655,7 +655,7 @@ fn sign_list_defined(sp: &mut sign_T) {
             vim_snprintf!(
                 lbuf.as_mut_ptr(),
                 MSG_BUF_LEN,
-                c" priority=%d".as_ptr(),
+                c" priority=%d",
                 sp.sn_priority,
             );
             msg_puts(lbuf.as_ptr());
@@ -687,7 +687,7 @@ fn sign_list_by_name(name: *mut c_char) {
         if !sp.is_null() {
             sign_list_defined(&mut *sp);
         } else {
-            semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
+            semsg!(gettext(c"E155: Unknown sign: %s"), name);
         }
     }
 }
@@ -707,7 +707,7 @@ fn sign_place(
 
         let sp = pmap_get_sign(name);
         if sp.is_null() {
-            semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
+            semsg!(gettext(c"E155: Unknown sign: %s"), name);
             return false;
         }
 
@@ -726,7 +726,7 @@ fn sign_place(
         }
         if lnum <= 0 {
             semsg!(
-                gettext(c"E885: Not possible to change sign %s".as_ptr()),
+                gettext(c"E885: Not possible to change sign %s"),
                 name,
             );
             return false;
@@ -784,7 +784,7 @@ fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
     unsafe {
         let lnum = buf_findsign(buf, id, group);
         if lnum <= 0 {
-            semsg!(gettext(c"E157: Invalid sign ID: %d".as_ptr()), id);
+            semsg!(gettext(c"E157: Invalid sign ID: %d"), id);
             return -1;
         }
 
@@ -795,7 +795,7 @@ fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
         } else {
             if (*buf).b_fname.is_null() {
                 emsg(gettext(
-                    c"E934: Cannot jump to a buffer that does not have a name".as_ptr(),
+                    c"E934: Cannot jump to a buffer that does not have a name",
                 ));
                 return -1;
             }
@@ -850,7 +850,7 @@ fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
             } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
                 prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg.add(9))) as c_int;
             } else {
-                semsg!(gettext(e_invarg2.as_ptr()), arg);
+                semsg!(gettext(e_invarg2), arg);
                 return;
             }
             if *cmdline == NUL {
@@ -875,13 +875,13 @@ fn sign_place_cmd(
     unsafe {
         if id <= 0 {
             if lnum >= 0 || !name.is_null() || (!group.is_null() && *group == NUL) {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
             } else {
                 sign_list_placed(buf, group);
             }
         } else {
             if name.is_null() || buf.is_null() || (!group.is_null() && *group == NUL) {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 return;
             }
             let mut uid = id as u32;
@@ -899,7 +899,7 @@ fn sign_unplace_cmd(
 ) {
     unsafe {
         if lnum >= 0 || !name.is_null() || (!group.is_null() && *group == NUL) {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return;
         }
 
@@ -909,7 +909,7 @@ fn sign_unplace_cmd(
         }
 
         if !sign_unplace(buf, id.max(0), group, lnum) && lnum > 0 {
-            emsg(gettext(c"E159: Missing sign number".as_ptr()));
+            emsg(gettext(c"E159: Missing sign number"));
         }
     }
 }
@@ -923,12 +923,12 @@ fn sign_jump_cmd(
 ) {
     unsafe {
         if name.is_null() && group.is_null() && id == -1 {
-            emsg(gettext(e_argreq.as_ptr()));
+            emsg(gettext(e_argreq));
             return;
         }
 
         if buf.is_null() || (!group.is_null() && *group == NUL) || lnum >= 0 || !name.is_null() {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return;
         }
 
@@ -969,7 +969,7 @@ fn parse_sign_cmd_args(
                 lnum_arg = true;
             } else if (crate::memory::cstr_prefix_bytes(arg, 1) == &b"*"[..1]) && cmd == SIGNCMD_UNPLACE {
                 if *id != -1 {
-                    emsg(gettext(e_invarg.as_ptr()));
+                    emsg(gettext(e_invarg));
                     return false;
                 }
                 *id = -2;
@@ -1008,18 +1008,18 @@ fn parse_sign_cmd_args(
                 filename = arg;
                 *buf = buflist_findnr(getdigits_int(&raw mut arg, true, 0));
                 if *skipwhite(arg) != NUL {
-                    semsg!(gettext(e_trailing_arg.as_ptr()), arg);
+                    semsg!(gettext(e_trailing_arg), arg);
                 }
                 break;
             } else {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 return false;
             }
             arg = skipwhite(arg);
         }
 
         if !filename.is_null() && (*buf).is_null() {
-            semsg!(gettext(e_invalid_buffer_name_str.as_ptr()), filename);
+            semsg!(gettext(e_invalid_buffer_name_str), filename);
             return false;
         }
 
@@ -1037,7 +1037,7 @@ pub fn ex_sign(eap: &mut exarg_T) {
         let mut p = skiptowhite(arg);
         let idx = sign_cmd_idx(arg, p);
         if idx == SIGNCMD_LAST {
-            semsg!(gettext(c"E160: Unknown sign command: %s".as_ptr()), arg);
+            semsg!(gettext(c"E160: Unknown sign command: %s"), arg);
             return;
         }
         arg = skipwhite(p);
@@ -1049,7 +1049,7 @@ pub fn ex_sign(eap: &mut exarg_T) {
                     sign_list_defined(sp);
                 }
             } else if *arg == NUL {
-                emsg(gettext(c"E156: Missing sign name".as_ptr()));
+                emsg(gettext(c"E156: Missing sign name"));
             } else {
                 p = skiptowhite(arg);
                 if *p != NUL {
@@ -1446,7 +1446,7 @@ fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
                     (*li).li_tv.vval.v_dict().cast::<dict_T>(),
                 );
             } else {
-                emsg(gettext(e_dictreq.as_ptr()));
+                emsg(gettext(e_dictreq));
             }
             tv_list_append_number(retlist, i64::from(retval));
             li = (*li).li_next;
@@ -1569,7 +1569,7 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             return;
         }
         if id <= 0 {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return;
         }
 
@@ -1612,7 +1612,7 @@ fn sign_place_from_dict(
                 return -1;
             }
             if id < 0 {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 return -1;
             }
         }
@@ -1667,7 +1667,7 @@ fn sign_place_from_dict(
         if !di_lnum.is_null() {
             lnum = tv_get_lnum(&(*di_lnum).di_tv);
             if lnum <= 0 {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 return -1;
             }
         }
@@ -1719,7 +1719,7 @@ pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
         if argvars[0].v_type != VarType::VAR_LIST {
-            emsg(gettext(e_listreq.as_ptr()));
+            emsg(gettext(e_listreq));
             return;
         }
 
@@ -1737,7 +1737,7 @@ pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
                         (*li).li_tv.vval.v_dict().cast::<dict_T>(),
                     );
                 } else {
-                    emsg(gettext(e_dictreq.as_ptr()));
+                    emsg(gettext(e_dictreq));
                 }
                 tv_list_append_number(rettv.vval.v_list(), i64::from(sign_id));
                 li = (*li).li_next;
@@ -1816,7 +1816,7 @@ fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: *mut dict_T) -> c_i
             if !tv_dict_find(dict, c"id".as_ptr(), -1).is_null() {
                 id = tv_dict_get_number(dict, c"id") as c_int;
                 if id <= 0 {
-                    emsg(gettext(e_invarg.as_ptr()));
+                    emsg(gettext(e_invarg));
                     return -1;
                 }
             }
@@ -1854,7 +1854,7 @@ pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
         if argvars[0].v_type != VarType::VAR_LIST {
-            emsg(gettext(e_listreq.as_ptr()));
+            emsg(gettext(e_listreq));
             return;
         }
 
@@ -1869,7 +1869,7 @@ pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
                         (*li).li_tv.vval.v_dict().cast::<dict_T>(),
                     );
                 } else {
-                    emsg(gettext(e_dictreq.as_ptr()));
+                    emsg(gettext(e_dictreq));
                 }
                 tv_list_append_number(rettv.vval.v_list(), i64::from(retval));
                 li = (*li).li_next;

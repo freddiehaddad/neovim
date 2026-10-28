@@ -220,7 +220,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Failed to evaluate expression: '%.*s'".as_ptr(),
+                    c"Failed to evaluate expression: '%.*s'",
                     256 as c_int,
                     expr.data,
                 );
@@ -251,7 +251,7 @@ fn call_function_impl(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Function called with too many arguments".as_ptr(),
+                c"Function called with too many arguments",
             );
             return rv;
         }
@@ -398,7 +398,7 @@ pub fn nvim_call_dict_function(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"dict not found".as_ptr(),
+                    c"dict not found",
                 );
                 break 'body;
             }
@@ -412,7 +412,7 @@ pub fn nvim_call_dict_function(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Not found: %s".as_ptr(),
+                        c"Not found: %s",
                         fn_name.data,
                     );
                     break 'body;
@@ -421,7 +421,7 @@ pub fn nvim_call_dict_function(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"partial function not supported".as_ptr(),
+                        c"partial function not supported",
                     );
                     break 'body;
                 }
@@ -429,7 +429,7 @@ pub fn nvim_call_dict_function(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Not a function: %s".as_ptr(),
+                        c"Not a function: %s",
                         fn_name.data,
                     );
                     break 'body;
@@ -445,8 +445,8 @@ pub fn nvim_call_dict_function(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Invalid function name: %s".as_ptr(),
-                    c"(empty)".as_ptr(),
+                    c"Invalid function name: %s",
+                    c"(empty)",
                 );
                 break 'body;
             }
@@ -557,7 +557,7 @@ pub fn nvim_parse_expression(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Invalid flag: '\\0' (%u)".as_ptr(),
+                        c"Invalid flag: '\\0' (%u)",
                         c_uint::from(b),
                     );
                     return Dict::new();
@@ -566,7 +566,7 @@ pub fn nvim_parse_expression(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Invalid flag: '%c' (%u)".as_ptr(),
+                        c"Invalid flag: '%c' (%u)",
                         c_int::from(b as c_char),
                         c_uint::from(b),
                     );

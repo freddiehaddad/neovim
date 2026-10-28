@@ -96,7 +96,8 @@ pub fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
 }
 
 #[inline]
-pub fn gettext(msgid: *const c_char) -> *mut c_char {
+pub fn gettext<S: IntoCCharPtr>(msgid: S) -> *mut c_char {
+    let msgid = msgid.into_c_char_ptr();
     if crate::os::lang::HAVE_LIBINTL {
         crate::os::lang::c_gettext(msgid)
     } else {
@@ -151,11 +152,13 @@ impl IntoNgettextCount for isize {
 }
 
 #[inline]
-pub fn ngettext<N: IntoNgettextCount>(
-    msgid1: *const c_char,
-    msgid2: *const c_char,
+pub fn ngettext<S1: IntoCCharPtr, S2: IntoCCharPtr, N: IntoNgettextCount>(
+    msgid1: S1,
+    msgid2: S2,
     n: N,
 ) -> *mut c_char {
+    let msgid1 = msgid1.into_c_char_ptr();
+    let msgid2 = msgid2.into_c_char_ptr();
     let count = n.into_ngettext_count();
     if crate::os::lang::HAVE_LIBINTL {
         crate::os::lang::c_ngettext(msgid1, msgid2, count)
@@ -642,7 +645,7 @@ pub fn tv_nr(tvs: *mut typval_T, idxp: &mut c_int) -> varnumber_T {
         let idx = (*idxp - 1) as usize;
         let mut n: varnumber_T = 0;
         if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
-            emsg(gettext(E_PRINTF.as_ptr()));
+            emsg(gettext(E_PRINTF));
         } else {
             *idxp += 1;
             let mut err = false;
@@ -664,7 +667,7 @@ pub fn tv_str(
         let idx = (*idxp - 1) as usize;
         let mut s: *const c_char = ptr::null();
         if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
-            emsg(gettext(E_PRINTF.as_ptr()));
+            emsg(gettext(E_PRINTF));
         } else {
             *idxp += 1;
             let tv = tvs.add(idx);
@@ -685,7 +688,7 @@ pub fn tv_ptr(tvs: *const typval_T, idxp: &mut c_int) -> *const c_void {
     unsafe {
         let idx = (*idxp - 1) as usize;
         if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
-            emsg(gettext(E_PRINTF.as_ptr()));
+            emsg(gettext(E_PRINTF));
             return ptr::null();
         }
         *idxp += 1;
@@ -698,7 +701,7 @@ pub fn tv_float(tvs: *mut typval_T, idxp: &mut c_int) -> float_T {
         let idx = (*idxp - 1) as usize;
         let mut f: float_T = 0.0;
         if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
-            emsg(gettext(E_PRINTF.as_ptr()));
+            emsg(gettext(E_PRINTF));
         } else {
             *idxp += 1;
             let tv = tvs.add(idx);
@@ -708,7 +711,7 @@ pub fn tv_float(tvs: *mut typval_T, idxp: &mut c_int) -> float_T {
                 f = (*tv).vval.v_number() as float_T;
             } else {
                 emsg(gettext(
-                    c"E807: Expected Float argument for printf()".as_ptr(),
+                    c"E807: Expected Float argument for printf()",
                 ));
             }
         }
@@ -806,12 +809,12 @@ fn format_typename(type_: *const c_char) -> *const c_char {
             TYPE_UNSIGNEDLONGINT => c"unsigned long int".as_ptr(),
             TYPE_UNSIGNEDLONGLONGINT => c"unsigned long long int".as_ptr(),
             TYPE_SIZET => c"size_t".as_ptr(),
-            TYPE_POINTER => gettext(c"pointer".as_ptr()),
-            TYPE_PERCENT => gettext(c"percent".as_ptr()),
+            TYPE_POINTER => gettext(c"pointer"),
+            TYPE_PERCENT => gettext(c"percent"),
             TYPE_CHAR => c"char".as_ptr(),
-            TYPE_STRING => gettext(c"string".as_ptr()),
+            TYPE_STRING => gettext(c"string"),
             TYPE_FLOAT => c"float".as_ptr(),
-            _ => gettext(c"unknown".as_ptr()),
+            _ => gettext(c"unknown"),
         }
 }
 
@@ -822,7 +825,7 @@ fn adjust_types(
 ) -> bool {
     unsafe {
         if arg <= 0 {
-            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), type_);
+            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), type_);
             return false;
         }
 
@@ -839,7 +842,7 @@ fn adjust_types(
                 }
                 if *pt != b'*' as c_char && !matches!(*pt as u8, b'd' | b'i') {
                     semsg!(
-                        gettext(E_POSITIONAL_FIELD_SPEC_REUSED.as_ptr()),
+                        gettext(E_POSITIONAL_FIELD_SPEC_REUSED),
                         arg,
                         format_typename(prev),
                         format_typename(type_),
@@ -848,7 +851,7 @@ fn adjust_types(
                 }
             } else if format_typeof(type_) != format_typeof(prev) {
                 semsg!(
-                    gettext(E_POSITIONAL_TYPE_INCONSISTENT.as_ptr()),
+                    gettext(E_POSITIONAL_TYPE_INCONSISTENT),
                     arg,
                     format_typename(type_),
                     format_typename(prev),
@@ -869,7 +872,7 @@ pub fn format_overflow_error(pstart: *const c_char) {
             p = p.add(1);
         }
         semsg!(
-            gettext(e_val_too_large_len.as_ptr()),
+            gettext(e_val_too_large_len),
             p.offset_from(pstart) as c_int,
             pstart,
         );
@@ -920,7 +923,7 @@ pub fn parse_fmt_types(
         macro_rules! check_pos_arg {
             () => {
                 if any_pos && any_arg {
-                    semsg!(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
+                    semsg!(gettext(E_CANNOT_MIX_POSITIONAL), fmt);
                     *num_posarg = 0;
                     return false;
                 }
@@ -952,7 +955,7 @@ pub fn parse_fmt_types(
 
                 if *ptype == b'$' as c_char {
                     if *p == b'0' as c_char {
-                        semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                        semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                         fail!();
                     }
                     let mut uj: c_uint = 0;
@@ -979,7 +982,7 @@ pub fn parse_fmt_types(
                             fail!();
                         }
                         if *p != b'$' as c_char {
-                            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                             fail!();
                         }
                         p = p.add(1);
@@ -999,7 +1002,7 @@ pub fn parse_fmt_types(
                         fail!();
                     }
                     if *p == b'$' as c_char {
-                        semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                        semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                         fail!();
                     }
                 }
@@ -1023,7 +1026,7 @@ pub fn parse_fmt_types(
                                     fail!();
                                 }
                             } else {
-                                semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                                semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                                 fail!();
                             }
                         } else {
@@ -1038,7 +1041,7 @@ pub fn parse_fmt_types(
                             fail!();
                         }
                         if *p == b'$' as c_char {
-                            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                             fail!();
                         }
                     }
@@ -1073,7 +1076,7 @@ pub fn parse_fmt_types(
                     }
                     _ => {
                         if pos_arg != -1 {
-                            semsg!(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
+                            semsg!(gettext(E_CANNOT_MIX_POSITIONAL), fmt);
                             fail!();
                         }
                     }
@@ -1089,7 +1092,7 @@ pub fn parse_fmt_types(
         for (arg_idx, &ap_type) in ap_types.iter().enumerate() {
             if ap_type.is_null() {
                 semsg!(
-                    gettext(E_FMT_ARG_NR_UNUSED.as_ptr()),
+                    gettext(E_FMT_ARG_NR_UNUSED),
                     (arg_idx + 1) as c_int,
                     fmt,
                 );
@@ -1097,7 +1100,7 @@ pub fn parse_fmt_types(
             }
             if !tvs.is_null() && (*tvs.add(arg_idx)).v_type == VarType::VAR_UNKNOWN {
                 semsg!(
-                    gettext(E_POSITIONAL_OUT_OF_BOUNDS.as_ptr()),
+                    gettext(E_POSITIONAL_OUT_OF_BOUNDS),
                     (arg_idx + 1) as c_int,
                     fmt,
                 );
@@ -2098,7 +2101,7 @@ fn vim_vsnprintf_typval_inner(
                     (arg_idx - 1) as usize
                 };
                 if (*tvs.add(check_idx)).v_type != VarType::VAR_UNKNOWN {
-                    emsg(gettext(E_TOO_MANY_ARGS.as_ptr()));
+                    emsg(gettext(E_TOO_MANY_ARGS));
                 }
             }
         }
@@ -2155,7 +2158,7 @@ macro_rules! vim_snprintf {
         $crate::strings::vim_snprintf_fmt(
             $str_out,
             $str_m,
-            $fmt,
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
@@ -2168,7 +2171,7 @@ macro_rules! vim_snprintf_add {
         $crate::strings::vim_snprintf_add_fmt(
             $str_out,
             $str_m,
-            $fmt,
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
@@ -2181,7 +2184,7 @@ macro_rules! vim_snprintf_safelen {
         $crate::strings::vim_snprintf_safelen_fmt(
             $str_out,
             $str_m,
-            $fmt,
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
@@ -2288,7 +2291,7 @@ fn byteidx_common(argvars: &mut [typval_T], rettv: &mut typval_T, comp: bool) {
             }
             if !(0..=1).contains(&utf16idx) {
                 semsg!(
-                    gettext(e_using_number_as_bool_nr.as_ptr()),
+                    gettext(e_using_number_as_bool_nr),
                     utf16idx,
                 );
                 return;
@@ -2430,7 +2433,7 @@ pub fn f_str2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
             base = tv_get_number(&argvars[1]) as c_int;
             if !matches!(base, 2 | 8 | 10 | 16) {
-                emsg(gettext(e_invarg.as_ptr()));
+                emsg(gettext(e_invarg));
                 return;
             }
             if argvars[2].v_type != VarType::VAR_UNKNOWN && tv_get_bool(&argvars[2]) != 0
@@ -2580,7 +2583,7 @@ pub fn f_strchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             }
             if !(0..=1).contains(&skipcc) {
                 semsg!(
-                    gettext(e_using_number_as_bool_nr.as_ptr()),
+                    gettext(e_using_number_as_bool_nr),
                     skipcc,
                 );
                 return;
@@ -2662,7 +2665,7 @@ pub fn f_strcharpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 }
                 if !(0..=1).contains(&skipcc) {
                     semsg!(
-                        gettext(e_using_number_as_bool_nr.as_ptr()),
+                        gettext(e_using_number_as_bool_nr),
                         skipcc,
                     );
                     return;
@@ -2958,7 +2961,7 @@ pub fn f_tr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData)
                         tp = tp.add(tolen);
                     }
                     if *tp == NUL {
-                        semsg!(gettext(e_invarg2.as_ptr()), fromstr);
+                        semsg!(gettext(e_invarg2), fromstr);
                         return;
                     }
                     break;
@@ -2976,7 +2979,7 @@ pub fn f_tr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData)
                     tp = tp.add(tolen);
                 }
                 if idx != 0 {
-                    semsg!(gettext(e_invarg2.as_ptr()), fromstr);
+                    semsg!(gettext(e_invarg2), fromstr);
                     return;
                 }
             }
@@ -3023,7 +3026,7 @@ pub fn f_trim(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                 }
                 if !(0..=2).contains(&dir) {
                     semsg!(
-                        gettext(e_invarg2.as_ptr()),
+                        gettext(e_invarg2),
                         tv_get_string(&argvars[2]),
                     );
                     return;
@@ -3119,7 +3122,7 @@ mod tests {
             let n = vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
-                c"%s %d %x %06b".as_ptr(),
+                c"%s %d %x %06b",
                 c"val",
                 -42,
                 0xdeadbeef_u32,
@@ -3134,7 +3137,7 @@ mod tests {
             let added = vim_snprintf_add!(
                 buf.as_mut_ptr(),
                 buf.len(),
-                c" %2$s %1$d".as_ptr(),
+                c" %2$s %1$d",
                 7,
                 c"ok"
             );
@@ -3146,7 +3149,7 @@ mod tests {
 
             let mut small = [0 as c_char; 5];
             let safelen =
-                vim_snprintf_safelen!(small.as_mut_ptr(), small.len(), c"hello world".as_ptr(),);
+                vim_snprintf_safelen!(small.as_mut_ptr(), small.len(), c"hello world",);
             assert_eq!(safelen, 4);
             assert_eq!(CStr::from_ptr(small.as_ptr()).to_str().unwrap(), "hell");
         }

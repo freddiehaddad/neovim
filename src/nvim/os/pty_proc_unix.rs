@@ -331,10 +331,10 @@ mod unix_impl {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"pty_proc_spawn".as_ptr(),
+                    c"pty_proc_spawn",
                     line!() as c_int,
                     true,
-                    c"forkpty failed: %s".as_ptr(),
+                    c"forkpty failed: %s",
                     strerror(err),
                 );
                 return status;
@@ -354,10 +354,10 @@ mod unix_impl {
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
-                        c"pty_proc_spawn".as_ptr(),
+                        c"pty_proc_spawn",
                         line!() as c_int,
                         true,
-                        c"Failed to get master descriptor status flags: %s".as_ptr(),
+                        c"Failed to get master descriptor status flags: %s",
                         strerror(err),
                     );
                     break 'error;
@@ -368,10 +368,10 @@ mod unix_impl {
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
-                        c"pty_proc_spawn".as_ptr(),
+                        c"pty_proc_spawn",
                         line!() as c_int,
                         true,
-                        c"Failed to make master descriptor non-blocking: %s".as_ptr(),
+                        c"Failed to make master descriptor non-blocking: %s",
                         strerror(err),
                     );
                     break 'error;
@@ -382,10 +382,10 @@ mod unix_impl {
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
-                        c"pty_proc_spawn".as_ptr(),
+                        c"pty_proc_spawn",
                         line!() as c_int,
                         true,
-                        c"Failed to set CLOEXEC on ptmx file descriptor".as_ptr(),
+                        c"Failed to set CLOEXEC on ptmx file descriptor",
                     );
                     break 'error;
                 }
@@ -509,10 +509,10 @@ mod unix_impl {
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
-                        c"init_child".as_ptr(),
+                        c"init_child",
                         line!() as c_int,
                         true,
-                        c"chdir(%s) failed: %s".as_ptr(),
+                        c"chdir(%s) failed: %s",
                         cwd.as_ptr(),
                         uv_strerror(err),
                     );
@@ -526,10 +526,10 @@ mod unix_impl {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"init_child".as_ptr(),
+                c"init_child",
                 line!() as c_int,
                 true,
-                c"execvp(%s) failed: %s".as_ptr(),
+                c"execvp(%s) failed: %s",
                 prog,
                 strerror(err),
             );
@@ -573,10 +573,10 @@ mod unix_impl {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"set_duplicating_descriptor".as_ptr(),
+                    c"set_duplicating_descriptor",
                     line!() as c_int,
                     true,
-                    c"Failed to dup descriptor %d: %s".as_ptr(),
+                    c"Failed to dup descriptor %d: %s",
                     fd,
                     strerror(err),
                 );
@@ -590,10 +590,10 @@ mod unix_impl {
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
-                        c"set_duplicating_descriptor".as_ptr(),
+                        c"set_duplicating_descriptor",
                         line!() as c_int,
                         true,
-                        c"Failed to set CLOEXEC on duplicate fd".as_ptr(),
+                        c"Failed to set CLOEXEC on duplicate fd",
                     );
                     break 'error;
                 }
@@ -603,10 +603,10 @@ mod unix_impl {
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
-                        c"set_duplicating_descriptor".as_ptr(),
+                        c"set_duplicating_descriptor",
                         line!() as c_int,
                         true,
-                        c"Failed to set pipe to descriptor %d: %s".as_ptr(),
+                        c"Failed to set pipe to descriptor %d: %s",
                         fd_dup,
                         uv_strerror(status),
                     );

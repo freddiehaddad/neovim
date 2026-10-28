@@ -1037,7 +1037,7 @@ pub fn draw_tabline() {
 
                 if modified || wincount > 1 {
                     if wincount > 1 {
-                        let len = vim_snprintf!(name_buff, MAXPATHL, c"%d".as_ptr(), wincount);
+                        let len = vim_snprintf!(name_buff, MAXPATHL, c"%d", wincount);
                         if col + len >= g_st().Columns - 3 {
                             break;
                         }
@@ -1898,14 +1898,14 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         vim_snprintf!(
                             buf_tmp.as_mut_ptr(),
                             buf_tmp.len(),
-                            c"%d".as_ptr(),
+                            c"%d",
                             (*g_st().curbuf).b_fnum,
                         );
                         set_internal_string_var(c"g:actual_curbuf", buf_tmp.as_mut_ptr());
                         vim_snprintf!(
                             buf_tmp.as_mut_ptr(),
                             buf_tmp.len(),
-                            c"%d".as_ptr(),
+                            c"%d",
                             (**curwin.as_ptr()).handle,
                         );
                         set_internal_string_var(c"g:actual_curwin", buf_tmp.as_mut_ptr());
@@ -2102,7 +2102,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         str = if opt == STL_ROFLAG_ALT {
                             c",RO".as_ptr().cast_mut()
                         } else {
-                            tr(c"[RO]".as_ptr())
+                            tr(c"[RO]")
                         };
                     }
                 }
@@ -2112,7 +2112,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         str = if opt == STL_HELPFLAG_ALT {
                             c",HLP".as_ptr().cast_mut()
                         } else {
-                            tr(c"[Help]".as_ptr())
+                            tr(c"[Help]")
                         };
                     }
                 }
@@ -2122,7 +2122,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_FILETYPE => {
                     let ft = (*(*wp).w_buffer).b_p_ft;
                     if *ft != NUL && crate::memory::cstr_len(ft) < TMPLEN - 3 {
-                        vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c"[%s]".as_ptr(), ft);
+                        vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c"[%s]", ft);
                         str = buf_tmp.as_mut_ptr();
                     }
                 }
@@ -2130,7 +2130,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     itemisflag = true;
                     let ft = (*(*wp).w_buffer).b_p_ft;
                     if *ft != NUL && crate::memory::cstr_len(ft) < TMPLEN - 2 {
-                        vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s".as_ptr(), ft);
+                        vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s", ft);
                         let mut t = buf_tmp.as_mut_ptr();
                         while *t != NUL {
                             *t = (*t as u8).to_ascii_uppercase() as c_char;
@@ -2145,16 +2145,16 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         str = if opt == STL_PREVIEWFLAG_ALT {
                             c",PRV".as_ptr().cast_mut()
                         } else {
-                            tr(c"[Preview]".as_ptr())
+                            tr(c"[Preview]")
                         };
                     }
                 }
                 STL_QUICKFIX => {
                     if bt_quickfix((*wp).w_buffer) {
                         str = if !(*wp).w_llist_ref.is_null() {
-                            tr(msg_loclist.as_ptr())
+                            tr(msg_loclist)
                         } else {
-                            tr(msg_qflist.as_ptr())
+                            tr(msg_qflist)
                         };
                     }
                 }

@@ -958,11 +958,11 @@ fn fmarks_check_one(fm: &mut xfmark_T, name: *mut c_char, buf: &mut buf_T) {
 pub fn mark_check(fm: *mut fmark_T, errormsg: *mut *const c_char) -> bool {
     unsafe {
         if fm.is_null() {
-            *errormsg = gettext(e_umark.as_ptr());
+            *errormsg = gettext(e_umark);
             return false;
         } else if (*fm).mark.lnum <= 0 {
             if (*fm).mark.lnum == 0 {
-                *errormsg = gettext(e_marknotset.as_ptr());
+                *errormsg = gettext(e_marknotset);
             }
             return false;
         }
@@ -981,7 +981,7 @@ pub fn mark_check_line_bounds(
 ) -> bool {
     unsafe {
         if !buf.is_null() && (*fm).mark.lnum > (*buf).b_ml.ml_line_count {
-            *errormsg = gettext(e_markinval.as_ptr());
+            *errormsg = gettext(e_markinval);
             return false;
         }
         true
@@ -1085,9 +1085,9 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
             }
             clrallmarks(&mut *g_st().curbuf, os_time());
         } else if eap.forceit != 0 {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
         } else if *eap.arg == NUL {
-            emsg(gettext(e_argreq.as_ptr()));
+            emsg(gettext(e_argreq));
         } else {
             let timestamp = os_time();
             let mut p = eap.arg;
@@ -1109,7 +1109,7 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
                             ascii_isupper(to)
                         };
                         if !valid_to || to < from {
-                            semsg!(gettext(e_invarg2.as_ptr()), p);
+                            semsg!(gettext(e_invarg2), p);
                             return;
                         }
                         p = p.add(2);
@@ -1192,7 +1192,7 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
                         }
                         b' ' => {}
                         _ => {
-                            semsg!(gettext(e_invarg2.as_ptr()), p);
+                            semsg!(gettext(e_invarg2), p);
                             return;
                         }
                     }
@@ -1208,7 +1208,7 @@ pub fn ex_jumps(_eap: &mut exarg_T) {
     unsafe {
         cleanup_jumplist(&mut **curwin.as_ptr(), true);
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        msg_puts_title(gettext(c"\n jump line  col file/text".as_ptr()));
+        msg_puts_title(gettext(c"\n jump line  col file/text"));
         let mut i: c_int = 0;
         while i < (**curwin.as_ptr()).w_jumplistlen && !g_st().got_int {
             let idx = i as usize;
@@ -1281,7 +1281,7 @@ pub fn ex_clearjumps(_eap: &mut exarg_T) {
 pub fn ex_changes(_eap: &mut exarg_T) {
     unsafe {
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        msg_puts_title(gettext(c"\nchange line  col text".as_ptr()));
+        msg_puts_title(gettext(c"\nchange line  col text"));
 
         let mut i: c_int = 0;
         while i < (*g_st().curbuf).b_changelistlen && !g_st().got_int {

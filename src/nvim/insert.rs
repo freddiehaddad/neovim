@@ -1375,12 +1375,12 @@ pub fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
         }
 
         if g_st().sandbox != 0 {
-            emsg(gettext(e_sandbox.as_ptr()));
+            emsg(gettext(e_sandbox));
             return false;
         }
 
         if g_st().textlock != 0 || ins_compl_active() || ins_st().compl_busy || pum_visible() || expr_map_locked() {
-            emsg(gettext(e_textlock.as_ptr()));
+            emsg(gettext(e_textlock));
             return false;
         }
 
@@ -2027,7 +2027,7 @@ fn redo_literal(c: c_int) {
             vim_snprintf!(
                 (&raw mut buf).cast(),
                 size_of_val(&buf),
-                c"%03d".as_ptr(),
+                c"%03d",
                 c,
             );
             redo_append_str((&raw const buf).cast(), -1);
@@ -2463,7 +2463,7 @@ pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> bool {
         let mut last: c_char = NUL;
         let mut insert = get_last_insert();
         if insert.data.is_null() {
-            emsg(gettext(e_noinstext.as_ptr()));
+            emsg(gettext(e_noinstext));
             return false;
         }
 

@@ -98,7 +98,7 @@ pub fn win_new_float(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Cannot change last window into float".as_ptr(),
+                    c"Cannot change last window into float",
                 );
                 return ptr::null_mut();
             }
@@ -495,7 +495,7 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_
         let mut err = error_init();
         let preview = kind == kWinPreview;
         if preview && !win_previewpopup_config(opt_vars().p_pvp, &mut config) {
-            emsg(gettext(e_invarg.as_ptr()));
+            emsg(gettext(e_invarg));
             return ptr::null_mut();
         }
 

@@ -272,7 +272,7 @@ pub fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
         } else {
             c"".as_ptr()
         };
-        vim_snprintf!(buf, size, c"%s%zu\xc3\x97 ".as_ptr(), prefix, count) as usize
+        vim_snprintf!(buf, size, c"%s%zu\xc3\x97 ", prefix, count) as usize
     }
 }
 
@@ -831,10 +831,10 @@ fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: &NvimString) {
                 logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
-                    c"mc_ins_preview_replace".as_ptr(),
+                    c"mc_ins_preview_replace",
                     747,
                     true,
-                    c"preview replace failed: %s".as_ptr(),
+                    c"preview replace failed: %s",
                     err.msg_ptr(),
                 );
             }

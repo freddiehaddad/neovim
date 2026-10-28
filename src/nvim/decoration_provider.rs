@@ -110,16 +110,16 @@ fn decor_provider_error(
         logmsg!(
             LOGLVL_ERR,
             ptr::null(),
-            c"decor_provider_error".as_ptr(),
+            c"decor_provider_error",
             31,
             true,
-            c"Error in decoration provider \"%s\" (ns=%s):\n%s".as_ptr(),
+            c"Error in decoration provider \"%s\" (ns=%s):\n%s",
             name,
             ns,
             msg,
         );
         msg_schedule_semsg_multiline!(
-            c"Decoration provider \"%s\" (ns=%s):\n%s".as_ptr(),
+            c"Decoration provider \"%s\" (ns=%s):\n%s",
             name,
             ns,
             msg,

@@ -726,7 +726,7 @@ pub fn ex_language(eap: &mut exarg_T) {
             }
             let _ = smsg!(
                 0,
-                gettext(c"Current %slanguage: \"%s\"".as_ptr()),
+                gettext(c"Current %slanguage: \"%s\""),
                 whatstr,
                 p_val,
             );
@@ -748,7 +748,7 @@ pub fn ex_language(eap: &mut exarg_T) {
 
             if loc.is_null() {
                 let _ = semsg!(
-                    gettext(c"E197: Cannot set language to \"%s\"".as_ptr()),
+                    gettext(c"E197: Cannot set language to \"%s\""),
                     name,
                 );
             } else {

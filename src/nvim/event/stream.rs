@@ -259,10 +259,10 @@ pub fn stream_may_close(stream: &mut Stream) {
         logmsg!(
             LOGLVL_DBG,
             ptr::null(),
-            c"stream_may_close".as_ptr(),
+            c"stream_may_close",
             94,
             true,
-            c"closing Stream: %p".as_ptr(),
+            c"closing Stream: %p",
             &raw const *stream,
         );
     }
@@ -288,10 +288,10 @@ pub fn stream_close_handle(stream: &mut Stream) {
                 logmsg!(
                     LOGLVL_WRN,
                     ptr::null(),
-                    c"stream_close_handle".as_ptr(),
+                    c"stream_close_handle",
                     116,
                     true,
-                    c"closed Stream (%p) with %zu unwritten bytes".as_ptr(),
+                    c"closed Stream (%p) with %zu unwritten bytes",
                     &raw const *stream,
                     queued,
                 );

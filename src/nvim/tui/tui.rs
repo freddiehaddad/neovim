@@ -419,10 +419,10 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
                     logmsg!(
                         LOGLVL_WRN,
                         ptr::null(),
-                        c"tui_handle_term_mode".as_ptr(),
+                        c"tui_handle_term_mode",
                         236,
                         true,
-                        c"TUI: terminal mode %d unavailable, state %d".as_ptr(),
+                        c"TUI: terminal mode %d unavailable, state %d",
                         mode,
                         state,
                     );
@@ -436,10 +436,10 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
                     logmsg!(
                         LOGLVL_WRN,
                         ptr::null(),
-                        c"tui_handle_term_mode".as_ptr(),
+                        c"tui_handle_term_mode",
                         249,
                         true,
-                        c"TUI: terminal mode %d detected, state %d".as_ptr(),
+                        c"TUI: terminal mode %d detected, state %d",
                         mode,
                         state,
                     );
@@ -991,10 +991,10 @@ fn terminfo_start(tui: &mut TUIData) {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"terminfo_start".as_ptr(),
+                    c"terminfo_start",
                     628,
                     true,
-                    c"uv_tty_init failed: %s".as_ptr(),
+                    c"uv_tty_init failed: %s",
                     uv_strerror(ret),
                 );
             }
@@ -1014,10 +1014,10 @@ fn terminfo_start(tui: &mut TUIData) {
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
-                        c"terminfo_start".as_ptr(),
+                        c"terminfo_start",
                         638,
                         true,
-                        c"uv_tty_set_mode failed: %s".as_ptr(),
+                        c"uv_tty_set_mode failed: %s",
                         uv_strerror(ret),
                     );
                 }
@@ -1028,10 +1028,10 @@ fn terminfo_start(tui: &mut TUIData) {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"terminfo_start".as_ptr(),
+                    c"terminfo_start",
                     644,
                     true,
-                    c"uv_pipe_init failed: %s".as_ptr(),
+                    c"uv_pipe_init failed: %s",
                     uv_strerror(ret),
                 );
             }
@@ -1040,10 +1040,10 @@ fn terminfo_start(tui: &mut TUIData) {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"terminfo_start".as_ptr(),
+                    c"terminfo_start",
                     648,
                     true,
-                    c"uv_pipe_open failed: %s".as_ptr(),
+                    c"uv_pipe_open failed: %s",
                     uv_strerror(ret),
                 );
             }
@@ -1146,10 +1146,10 @@ pub fn tui_stop(tui: &mut TUIData) {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"tui_stop".as_ptr(),
+                    c"tui_stop",
                     760,
                     true,
-                    c"TUI already stopped (race?)".as_ptr(),
+                    c"TUI already stopped (race?)",
                 );
             }
             tui.stopped = true;
@@ -1191,10 +1191,10 @@ pub fn tui_stop(tui: &mut TUIData) {
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
-                c"tui_stop".as_ptr(),
+                c"tui_stop",
                 773,
                 true,
-                c"TUI: timed out waiting for DA1 response".as_ptr(),
+                c"TUI: timed out waiting for DA1 response",
             );
         }
         tui.stopped = true;
@@ -1782,10 +1782,10 @@ fn tui_cursor_decode_shape(shape_str: *const c_char) -> CursorShape {
                 logmsg!(
                     LOGLVL_WRN,
                     ptr::null(),
-                    c"tui_cursor_decode_shape".as_ptr(),
+                    c"tui_cursor_decode_shape",
                     1268,
                     true,
-                    c"Unknown shape value '%s'".as_ptr(),
+                    c"Unknown shape value '%s'",
                     shape_str,
                 );
             }
@@ -1918,10 +1918,10 @@ pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) 
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"tui_mode_change".as_ptr(),
+                    c"tui_mode_change",
                     1413,
                     true,
-                    c"uv_tty_set_mode failed: %s".as_ptr(),
+                    c"uv_tty_set_mode failed: %s",
                     uv_strerror(ret),
                 );
             }
@@ -1930,10 +1930,10 @@ pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) 
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
-                    c"tui_mode_change".as_ptr(),
+                    c"tui_mode_change",
                     1417,
                     true,
-                    c"uv_tty_set_mode failed: %s".as_ptr(),
+                    c"uv_tty_set_mode failed: %s",
                     uv_strerror(ret),
                 );
             }
@@ -2109,10 +2109,10 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"tui_ui_send".as_ptr(),
+                c"tui_ui_send",
                 1569,
                 true,
-                c"uv_write failed: %s".as_ptr(),
+                c"uv_write failed: %s",
                 uv_strerror(ret),
             );
         }
@@ -2128,10 +2128,10 @@ pub fn tui_flush(tui: &mut TUIData) {
                 logmsg!(
                     LOGLVL_WRN,
                     ptr::null(),
-                    c"tui_flush".as_ptr(),
+                    c"tui_flush",
                     1583,
                     true,
-                    c"TUI event-queue flooded (thread_events=%zu); purging".as_ptr(),
+                    c"TUI event-queue flooded (thread_events=%zu); purging",
                     nrevents,
                 );
             }
@@ -2290,10 +2290,10 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"tui_set_title".as_ptr(),
+                c"tui_set_title",
                 1682,
                 true,
-                c"set_title: title string too long!".as_ptr(),
+                c"set_title: title string too long!",
             );
         }
         if title.size > 0 && !too_long {
@@ -2396,10 +2396,10 @@ pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"tui_chdir".as_ptr(),
+                c"tui_chdir",
                 1777,
                 true,
-                c"Failed to chdir to %s: %s".as_ptr(),
+                c"Failed to chdir to %s: %s",
                 path.data,
                 uv_strerror(err),
             );
@@ -3134,10 +3134,10 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: *mut c
                     logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
-                        c"flush_buf".as_ptr(),
+                        c"flush_buf",
                         2660,
                         true,
-                        c"uv_write failed: %s".as_ptr(),
+                        c"uv_write failed: %s",
                         uv_strerror(ret),
                     );
                 }
@@ -3160,10 +3160,10 @@ fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
                     logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
-                        c"tui_get_stty_erase".as_ptr(),
+                        c"tui_get_stty_erase",
                         2684,
                         true,
-                        c"stty/termios:erase=%s".as_ptr(),
+                        c"stty/termios:erase=%s",
                         (&raw const tui_st().stty_erase_buf).cast::<c_char>(),
                     );
                 }
@@ -3205,10 +3205,10 @@ pub(crate) fn tui_tk_ti_getstr(
                 logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
-                    c"tui_tk_ti_getstr".as_ptr(),
+                    c"tui_tk_ti_getstr",
                     2709,
                     true,
-                    c"libtermkey:kbs=%s".as_ptr(),
+                    c"libtermkey:kbs=%s",
                     value,
                 );
             }
@@ -3220,10 +3220,10 @@ pub(crate) fn tui_tk_ti_getstr(
                 logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
-                    c"tui_tk_ti_getstr".as_ptr(),
+                    c"tui_tk_ti_getstr",
                     2714,
                     true,
-                    c"libtermkey:kdch1=%s".as_ptr(),
+                    c"libtermkey:kdch1=%s",
                     value,
                 );
             }
@@ -3242,10 +3242,10 @@ pub(crate) fn tui_tk_ti_getstr(
                 logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
-                    c"tui_tk_ti_getstr".as_ptr(),
+                    c"tui_tk_ti_getstr",
                     2720,
                     true,
-                    c"libtermkey:kmous=%s".as_ptr(),
+                    c"libtermkey:kmous=%s",
                     value,
                 );
             }

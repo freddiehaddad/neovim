@@ -306,7 +306,7 @@ pub fn rpc_send_call(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Invalid channel: %llu".as_ptr(),
+                c"Invalid channel: %llu",
                 id,
             );
             return OBJECT_NIL;
@@ -342,7 +342,7 @@ pub fn rpc_send_call(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Invalid channel: %llu".as_ptr(),
+                    c"Invalid channel: %llu",
                     id,
                 );
                 channel_decref(channel);
@@ -356,7 +356,7 @@ pub fn rpc_send_call(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"%s".as_ptr(),
+                    c"%s",
                     res.data.string().data,
                 );
             } else if res.obj_type == ObjectType::kObjectTypeArray {
@@ -373,23 +373,23 @@ pub fn rpc_send_call(
                     api_set_error!(
                         err,
                         et,
-                        c"%s".as_ptr(),
+                        c"%s",
                         array[1].data.string().data,
                     );
                 } else {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"%s".as_ptr(),
-                        c"unknown error".as_ptr(),
+                        c"%s",
+                        c"unknown error",
                     );
                 }
             } else {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"%s".as_ptr(),
-                    c"unknown error".as_ptr(),
+                    c"%s",
+                    c"unknown error",
                 );
             }
 
@@ -710,7 +710,7 @@ fn send_error(
         api_set_error!(
             &mut e,
             ErrorType::kErrorTypeException,
-            c"%s".as_ptr(),
+            c"%s",
             err,
         );
         let mut nil_obj = OBJECT_NIL;
@@ -804,11 +804,11 @@ fn chan_close_on_err(channel: &mut Channel, msg: *const c_char, loglevel: c_int)
     unsafe {
         logmsg!(
             loglevel,
-            c"RPC: ".as_ptr(),
+            c"RPC: ",
             ptr::null(),
             -1,
             true,
-            c"%s".as_ptr(),
+            c"%s",
             msg,
         );
         let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
@@ -832,10 +832,10 @@ fn chan_close_on_err(channel: &mut Channel, msg: *const c_char, loglevel: c_int)
             logmsg!(
                 loglevel,
                 ptr::null(),
-                c"chan_close_on_err".as_ptr(),
+                c"chan_close_on_err",
                 492,
                 true,
-                c"RPC: %s".as_ptr(),
+                c"RPC: %s",
                 msg,
             );
         }
@@ -882,7 +882,7 @@ pub fn serialize_response(
 
             if is_paste {
                 {
-                    semsg!(c"paste: %s".as_ptr(), err.msg_ptr());
+                    semsg!(c"paste: %s", err.msg_ptr());
                     api_clear_error(err);
                 }
             } else {

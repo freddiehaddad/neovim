@@ -371,7 +371,7 @@ pub fn nvim_open_win(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Cannot split a floating window".as_ptr(),
+                        c"Cannot split a floating window",
                     );
                     break 'cleanup;
                 }
@@ -439,7 +439,7 @@ pub fn nvim_open_win(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"E1159: Cannot open a float when closing the buffer".as_ptr(),
+                        c"E1159: Cannot open a float when closing the buffer",
                     );
                     break 'cleanup;
                 }
@@ -450,7 +450,7 @@ pub fn nvim_open_win(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Failed to create window".as_ptr(),
+                        c"Failed to create window",
                     );
                 }
                 break 'cleanup;
@@ -506,7 +506,7 @@ pub fn nvim_open_win(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Window was closed immediately".as_ptr(),
+                    c"Window was closed immediately",
                 );
                 break 'cleanup;
             }
@@ -568,7 +568,7 @@ fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -> bool 
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Cannot move last non-floating window".as_ptr(),
+                c"Cannot move last non-floating window",
             );
             return false;
         }
@@ -576,7 +576,7 @@ fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -> bool 
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Cannot move window to another tabpage whilst in use".as_ptr(),
+                c"Cannot move window to another tabpage whilst in use",
             );
             return false;
         }
@@ -587,8 +587,8 @@ fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -> bool 
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"%s".as_ptr(),
-                e_textlock.as_ptr(),
+                c"%s",
+                e_textlock,
             );
             return false;
         }
@@ -596,7 +596,7 @@ fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -> bool 
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Cannot move autocmd window to another tabpage".as_ptr(),
+                c"Cannot move autocmd window to another tabpage",
             );
             return false;
         }
@@ -672,7 +672,7 @@ fn win_config_split(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"Cannot split a floating window".as_ptr(),
+                        c"Cannot split a floating window",
                     );
                     return false;
                 }
@@ -698,7 +698,7 @@ fn win_config_split(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"Failed to switch away from window %d".as_ptr(),
+                            c"Failed to switch away from window %d",
                             (*win).handle,
                         );
                         return false;
@@ -708,7 +708,7 @@ fn win_config_split(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"Windows to split were closed".as_ptr(),
+                            c"Windows to split were closed",
                         );
                         break 'restore_curwin;
                     }
@@ -716,7 +716,7 @@ fn win_config_split(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"Floating state of windows to split changed".as_ptr(),
+                            c"Floating state of windows to split changed",
                         );
                         break 'restore_curwin;
                     }
@@ -731,7 +731,7 @@ fn win_config_split(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"Cannot move last non-floating window".as_ptr(),
+                            c"Cannot move last non-floating window",
                         );
                         break 'restore_curwin;
                     } else if !parent.is_null() && (*parent).handle == (*win).handle {
@@ -781,7 +781,7 @@ fn win_config_split(
                             api_set_error!(
                                 err,
                                 ErrorType::kErrorTypeException,
-                                c"Cannot split window into itself".as_ptr(),
+                                c"Cannot split window into itself",
                             );
                             break 'restore_curwin;
                         }
@@ -866,7 +866,7 @@ fn win_config_split(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"Failed to move window %d into split".as_ptr(),
+                            c"Failed to move window %d into split",
                             (*win).handle,
                         );
                     }
@@ -937,7 +937,7 @@ fn win_config_float_tp(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"Failed to switch away from window %d".as_ptr(),
+                            c"Failed to switch away from window %d",
                             (*win).handle,
                         );
                         return false;
@@ -949,7 +949,7 @@ fn win_config_float_tp(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"Target windows were closed".as_ptr(),
+                            c"Target windows were closed",
                         );
                         break 'restore_curwin;
                     }
@@ -1587,7 +1587,7 @@ fn generate_api_error(wp: *mut win_T, attribute: &std::ffi::CStr, err: &mut Erro
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Required: 'relative' when reconfiguring floating window %d".as_ptr(),
+                c"Required: 'relative' when reconfiguring floating window %d",
                 (*wp).handle,
             );
         } else {
@@ -1798,7 +1798,7 @@ fn parse_win_config(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"UI doesn't support external windows".as_ptr(),
+                        c"UI doesn't support external windows",
                     );
                     break 'fail;
                 }
@@ -1824,7 +1824,7 @@ fn parse_win_config(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"floating window cannot be relative to itself".as_ptr(),
+                        c"floating window cannot be relative to itself",
                     );
                     break 'fail;
                 }
@@ -1945,7 +1945,7 @@ fn parse_win_config(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"'noautocmd' cannot be changed on existing window".as_ptr(),
+                        c"'noautocmd' cannot be changed on existing window",
                     );
                     break 'fail;
                 }

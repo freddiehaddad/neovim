@@ -209,12 +209,14 @@ impl Drop for HlMessageChunk {
 
 use crate::api::vim::HlMessage;
 
-pub fn api_set_error_str(err: &mut Error, err_type: ErrorType, msg: *const c_char) {
-     {
-        debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
-        err.msg = Some(crate::memory::cstr_to_cstring(msg));
-        err.err_type = err_type;
-    }
+pub fn api_set_error_str<S: crate::strings::IntoCCharPtr>(
+    err: &mut Error,
+    err_type: ErrorType,
+    msg: S,
+) {
+    debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
+    err.msg = Some(crate::memory::cstr_to_cstring(msg.into_c_char_ptr()));
+    err.err_type = err_type;
 }
 
 #[macro_export]
@@ -225,7 +227,8 @@ macro_rules! api_set_error {
     ($err:expr, $err_type:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
         let err_ptr: *mut $crate::api::private::validate::Error = $err;
         let et: $crate::api::private::validate::ErrorType = $err_type;
-        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        let fmt_ptr: *const std::ffi::c_char =
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             let len = $crate::strings::vim_snprintf!(std::ptr::null_mut(), 0, fmt_ptr, $($arg),+);
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
@@ -406,7 +409,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Keyboard interrupt".as_ptr(),
+                c"Keyboard interrupt",
             );
             g_st().got_int = false;
         } else if let Some(ref msgs) = *ml
@@ -417,7 +420,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"%s".as_ptr(),
+                c"%s",
                 msg.as_ptr()
             );
             free_global_msglist();
@@ -428,7 +431,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"%s, line %d: %s".as_ptr(),
+                            c"%s, line %d: %s",
                             excp.throw_name.as_ptr(),
                             excp.throw_lnum,
                             excp.value.as_ptr(),
@@ -437,7 +440,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
-                            c"%s: %s".as_ptr(),
+                            c"%s: %s",
                             excp.throw_name.as_ptr(),
                             excp.value.as_ptr(),
                         );
@@ -446,7 +449,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"%s".as_ptr(),
+                        c"%s",
                         excp.value.as_ptr(),
                     );
                 }
@@ -476,7 +479,7 @@ pub fn dict_get_value(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Key not found: %s".as_ptr(),
+                c"Key not found: %s",
                 key.data,
             );
             return OBJECT_NIL;
@@ -498,21 +501,21 @@ pub fn dict_check_writable(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Key is read-only: %s".as_ptr(),
+                    c"Key is read-only: %s",
                     key.data,
                 );
             } else if ((*di).di_flags & DI_FLAGS_LOCK) != 0 {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Key is locked: %s".as_ptr(),
+                    c"Key is locked: %s",
                     key.data,
                 );
             } else if del && ((*di).di_flags & DI_FLAGS_FIX) != 0 {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Key is fixed: %s".as_ptr(),
+                    c"Key is fixed: %s",
                     key.data,
                 );
             }
@@ -520,19 +523,19 @@ pub fn dict_check_writable(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
-                c"Dict is locked".as_ptr(),
+                c"Dict is locked",
             );
         } else if key.size == 0 {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Key name is empty".as_ptr(),
+                c"Key name is empty",
             );
         } else if key.size > c_int::MAX as usize {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Key name is too long".as_ptr(),
+                c"Key name is too long",
             );
         }
         di
@@ -562,7 +565,7 @@ pub fn dict_set_var(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Key not found: %s".as_ptr(),
+                    c"Key not found: %s",
                     key.data,
                 );
             } else {
@@ -602,7 +605,7 @@ pub fn dict_set_var(
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
-                            c"Setting v:%s to value with wrong type".as_ptr(),
+                            c"Setting v:%s to value with wrong type",
                             key.data,
                         );
                     }
@@ -637,7 +640,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut buf_T {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Invalid buffer id: %lld".as_ptr(),
+                c"Invalid buffer id: %lld",
                 i64::from(buffer),
             );
             return ptr::null_mut();
@@ -657,7 +660,7 @@ pub fn find_window_by_handle(window: Window, err: &mut Error) -> *mut win_T {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Invalid window id: %lld".as_ptr(),
+                c"Invalid window id: %lld",
                 i64::from(window),
             );
             return ptr::null_mut();
@@ -677,7 +680,7 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"Invalid tabpage id: %lld".as_ptr(),
+                c"Invalid tabpage id: %lld",
                 i64::from(tabpage),
             );
             return ptr::null_mut();
@@ -837,7 +840,7 @@ pub fn buf_get_text(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"'line index' value out of range".as_ptr(),
+                c"'line index' value out of range",
             );
             return rv;
         }
@@ -859,7 +862,7 @@ pub fn buf_get_text(
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
-                c"start_col must be less than or equal to end_col".as_ptr(),
+                c"start_col must be less than or equal to end_col",
             );
             return rv;
         }
@@ -1106,7 +1109,7 @@ pub fn object_to_hl_id(obj: Object, what: *const c_char, err: &mut Error) -> c_i
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Invalid 'hl_group': '%s'".as_ptr(),
+                    c"Invalid 'hl_group': '%s'",
                     what,
                 );
                 0
@@ -1154,8 +1157,8 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"%s".as_ptr(),
-                    c"Invalid chunk: expected Array with 1 or 2 Strings".as_ptr(),
+                    c"%s",
+                    c"Invalid chunk: expected Array with 1 or 2 Strings",
                 );
                 return HlMessage::new();
             }
@@ -1191,7 +1194,7 @@ pub fn api_dict_to_keydict(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"Invalid key: '%.*s'".as_ptr(),
+                    c"Invalid key: '%.*s'",
                     k.size as c_int,
                     k.data,
                 );
@@ -1324,7 +1327,7 @@ pub fn api_dict_to_keydict(
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
-                        c"Invalid key: '%.*s' is only allowed from Lua".as_ptr(),
+                        c"Invalid key: '%.*s' is only allowed from Lua",
                         k.size as c_int,
                         k.data,
                     );
@@ -1467,7 +1470,7 @@ pub fn set_mark(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"'column' value out of range".as_ptr(),
+                    c"'column' value out of range",
                 );
                 return false;
             }
@@ -1475,7 +1478,7 @@ pub fn set_mark(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
-                    c"'line' value out of range".as_ptr(),
+                    c"'line' value out of range",
                 );
                 return false;
             }
@@ -1496,14 +1499,14 @@ pub fn set_mark(
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Failed to delete named mark: %c".as_ptr(),
+                    c"Failed to delete named mark: %c",
                     *name.data as c_int,
                 );
             } else {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
-                    c"Failed to set named mark: %c".as_ptr(),
+                    c"Failed to set named mark: %c",
                     *name.data as c_int,
                 );
             }

@@ -449,10 +449,10 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> c_int {
     logmsg!(
             LOGLVL_WRN,
             std::ptr::null(),
-            c"cursor_mode_str2int".as_ptr(),
+            c"cursor_mode_str2int",
             284,
             true,
-            c"Unknown mode %s".as_ptr(),
+            c"Unknown mode %s",
             mode.as_ptr(),
         );
     -1

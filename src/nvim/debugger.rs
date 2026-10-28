@@ -141,7 +141,7 @@ fn do_checkbacktracelevel() {
                 get_maxbacktrace_level(sname.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()));
             if g_st().debug_backtrace_level > max {
                 g_st().debug_backtrace_level = max;
-                smsg!(0, c"frame at highest level: %d".as_ptr(), max);
+                smsg!(0, c"frame at highest level: %d", max);
             }
         }
 }
@@ -178,9 +178,9 @@ fn do_showbacktrace(cmd: *const c_char) {
                     *cur.add(off) = 0;
                 }
                 if i == max - g_st().debug_backtrace_level {
-                    smsg!(0, c"->%d %s".as_ptr(), max - i, cur);
+                    smsg!(0, c"->%d %s", max - i, cur);
                 } else {
-                    smsg!(0, c"  %d %s".as_ptr(), max - i, cur);
+                    smsg!(0, c"  %d %s", max - i, cur);
                 }
                 i += 1;
                 if let Some(off) = next_off {
@@ -197,7 +197,7 @@ fn do_showbacktrace(cmd: *const c_char) {
             let line_msg = format!("line {slnum}: %s\0");
             smsg!(0, line_msg.as_ptr().cast::<c_char>(), cmd);
         } else {
-            smsg!(0, c"cmd: %s".as_ptr(), cmd);
+            smsg!(0, c"cmd: %s", cmd);
         }
     }
 }
@@ -235,10 +235,10 @@ pub fn do_debug(cmd: *mut c_char) {
             );
         }
         if let Some(oldval) = dbg_st().DEBUG_OLDVAL.take() {
-            smsg!(0, c"Oldval = \"%s\"".as_ptr(), oldval.as_ptr());
+            smsg!(0, c"Oldval = \"%s\"", oldval.as_ptr());
         }
         if let Some(newval) = dbg_st().DEBUG_NEWVAL.take() {
-            smsg!(0, c"Newval = \"%s\"".as_ptr(), newval.as_ptr());
+            smsg!(0, c"Newval = \"%s\"", newval.as_ptr());
         }
         if let Some(sname) = estack_sfile(ESTACK_NONE) {
             msg(sname.as_ptr(), 0);
@@ -248,7 +248,7 @@ pub fn do_debug(cmd: *mut c_char) {
             let line_msg = format!("line {slnum}: %s\0");
             smsg!(0, line_msg.as_ptr().cast::<c_char>(), cmd);
         } else {
-            smsg!(0, c"cmd: %s".as_ptr(), cmd);
+            smsg!(0, c"cmd: %s", cmd);
         }
 
         loop {
@@ -513,7 +513,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
         } else if !is_prof && p_bytes.starts_with(b"expr") {
             bp.dbg_type = DBG_EXPR;
         } else {
-            semsg!(e_invarg2.as_ptr(), p);
+            semsg!(e_invarg2, p);
             return None;
         }
         p = skipwhite(p.add(4));
@@ -532,7 +532,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             || (here && !rem_bytes.is_empty())
             || (bp.dbg_type == DBG_FUNC && rem_bytes.windows(2).any(|w| w == b"()"))
         {
-            semsg!(e_invarg2.as_ptr(), arg);
+            semsg!(e_invarg2, arg);
             return None;
         }
 
@@ -655,7 +655,7 @@ pub fn ex_breakdel(eap: &mut exarg_T) {
         }
 
         if todel < 0 || (todel as usize) >= gap.len() {
-            semsg!(c"E161: Breakpoint not found: %s".as_ptr(), eap.arg);
+            semsg!(c"E161: Breakpoint not found: %s", eap.arg);
             return;
         }
 
@@ -710,7 +710,7 @@ pub fn ex_breaklist(_eap: &mut exarg_T) {
                 let fmt_str = format!("%3d  %s %s  line {lnum}\0");
                 smsg!(0, fmt_str.as_ptr().cast::<c_char>(), bp.dbg_nr, kind, name);
             } else {
-                smsg!(0, c"%3d  expr %s".as_ptr(), bp.dbg_nr, bp.dbg_name.as_ptr());
+                smsg!(0, c"%3d  expr %s", bp.dbg_nr, bp.dbg_name.as_ptr());
             }
         }
 }

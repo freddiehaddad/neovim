@@ -61,7 +61,7 @@ pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             while !li.is_null() {
                 if (*li).li_tv.v_type != VarType::VAR_STRING {
                     semsg!(
-                        c"E5010: List item %d of the second argument is not a string".as_ptr(),
+                        c"E5010: List item %d of the second argument is not a string",
                         i,
                     );
                     return;
@@ -169,7 +169,7 @@ pub fn f_termopen(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFunc
         }
 
         if arg1.v_type != VarType::VAR_DICT {
-            semsg!(e_invarg2.as_ptr(), c"expected dictionary".as_ptr());
+            semsg!(e_invarg2, c"expected dictionary");
             return;
         }
 
