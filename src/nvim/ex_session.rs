@@ -220,12 +220,10 @@ fn ses_do_frame(fr: &frame_T) -> bool {
         if fr.fr_layout == FR_LEAF {
             return ses_do_win(&mut *fr.fr_win) != 0;
         }
-        let mut frc: *const frame_T = fr.fr_child;
-        while !frc.is_null() {
-            if ses_do_frame(&*frc) {
+        for frc in frame_iter_mut(fr.fr_child) {
+            if ses_do_frame(frc) {
                 return true;
             }
-            frc = (*frc).fr_next;
         }
         false
     }

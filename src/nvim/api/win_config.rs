@@ -736,10 +736,8 @@ fn win_config_split(
                         break 'restore_curwin;
                     } else if !parent.is_null() && (*parent).handle == (*win).handle {
                         let mut n_frames = 0;
-                        let mut fr = (*(*(*win).w_frame).fr_parent).fr_child;
-                        while !fr.is_null() {
+                        for _fr in frame_iter_mut((*(*(*win).w_frame).fr_parent).fr_child) {
                             n_frames += 1;
-                            fr = (*fr).fr_next;
                         }
 
                         let mut neighbor: *mut win_T = ptr::null_mut();

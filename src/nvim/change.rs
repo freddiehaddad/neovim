@@ -116,17 +116,10 @@ pub const fn replace_normal(s: c_int) -> bool {
 
 #[inline]
 fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
-    unsafe {
+     {
         for tp in for_all_tabpages_ptr() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                let next_wp = (*wp).w_next;
+            for wp in for_all_windows_in_tab_ptr(tp) {
                 f(wp);
-                wp = next_wp;
             }
         }
     }

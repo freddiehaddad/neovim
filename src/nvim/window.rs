@@ -2051,12 +2051,10 @@ pub fn win_split_ins(
                 let mut frp = (*(*oldwin).w_frame).fr_parent;
                 while !frp.is_null() {
                     if (*frp).fr_layout == FR_ROW {
-                        let mut frp2 = (*frp).fr_child;
-                        while !frp2.is_null() {
+                        for frp2 in frame_iter_ptr((*frp).fr_child) {
                             if !ptr::eq(frp2, prevfrp) {
                                 minwidth += frame_minwidth(&mut *frp2, nowin());
                             }
-                            frp2 = (*frp2).fr_next;
                         }
                     }
                     prevfrp = frp;
@@ -2092,17 +2090,15 @@ pub fn win_split_ins(
                 && *opt_vars().p_ead != b'v' as c_char
                 && !(*(*oldwin).w_frame).fr_parent.is_null()
             {
-                let mut frp = (*(*(*oldwin).w_frame).fr_parent).fr_child;
-                while !frp.is_null() {
-                    if !ptr::eq((*frp).fr_win, oldwin)
-                        && !(*frp).fr_win.is_null()
-                        && ((*(*frp).fr_win).w_width > new_size
-                            || (*(*frp).fr_win).w_width > ((*oldwin).w_width - new_size - 1))
+                for frp in frame_iter_mut((*(*(*oldwin).w_frame).fr_parent).fr_child) {
+                    if !ptr::eq(frp.fr_win, oldwin)
+                        && !frp.fr_win.is_null()
+                        && ((*frp.fr_win).w_width > new_size
+                            || (*frp.fr_win).w_width > ((*oldwin).w_width - new_size - 1))
                     {
                         do_equal = true;
                         break;
                     }
-                    frp = (*frp).fr_next;
                 }
             }
         } else {
@@ -2126,12 +2122,10 @@ pub fn win_split_ins(
                 let mut frp = (*(*oldwin).w_frame).fr_parent;
                 while !frp.is_null() {
                     if (*frp).fr_layout == FR_COL {
-                        let mut frp2 = (*frp).fr_child;
-                        while !frp2.is_null() {
+                        for frp2 in frame_iter_ptr((*frp).fr_child) {
                             if !ptr::eq(frp2, prevfrp) {
                                 minheight += frame_minheight(&mut *frp2, nowin());
                             }
-                            frp2 = (*frp2).fr_next;
                         }
                     }
                     prevfrp = frp;
@@ -2179,17 +2173,15 @@ pub fn win_split_ins(
                 && *opt_vars().p_ead != b'h' as c_char
                 && !(*(*oldwin).w_frame).fr_parent.is_null()
             {
-                let mut frp = (*(*(*oldwin).w_frame).fr_parent).fr_child;
-                while !frp.is_null() {
-                    if !ptr::eq((*frp).fr_win, oldwin)
-                        && !(*frp).fr_win.is_null()
-                        && ((*(*frp).fr_win).w_height > new_size
-                            || (*(*frp).fr_win).w_height > oldwin_height - new_size - STATUS_HEIGHT)
+                for frp in frame_iter_mut((*(*(*oldwin).w_frame).fr_parent).fr_child) {
+                    if !ptr::eq(frp.fr_win, oldwin)
+                        && !frp.fr_win.is_null()
+                        && ((*frp.fr_win).w_height > new_size
+                            || (*frp.fr_win).w_height > oldwin_height - new_size - STATUS_HEIGHT)
                     {
                         do_equal = true;
                         break;
                     }
-                    frp = (*frp).fr_next;
                 }
             }
         }
@@ -2568,24 +2560,16 @@ pub fn win_valid(win: *const win_T) -> bool {
 }
 
 pub fn tabpage_win_valid(tp: *const tabpage_T, win: *const win_T) -> bool {
-    unsafe {
-        if win.is_null() {
-            return false;
-        }
-
-        let mut wp: *const win_T = if ptr::eq(tp, g_st().curtab) {
-            g_st().firstwin
-        } else {
-            (*tp).tp_firstwin
-        };
-        while !wp.is_null() {
-            if ptr::eq(wp, win) {
-                return true;
-            }
-            wp = (*wp).w_next;
-        }
-        false
+    if win.is_null() {
+        return false;
     }
+
+    for wp in for_all_windows_in_tab_ptr(tp) {
+        if ptr::eq(wp, win) {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn win_find_by_handle(handle: handle_T) -> *mut win_T {
@@ -2941,8 +2925,7 @@ fn get_maximum_wincount(fr: &mut frame_T, mut height: c_int) -> c_int {
         }
 
         let mut total_wincount: c_int = 0;
-        let mut frp = fr.fr_child;
-        while !frp.is_null() {
+        for frp in frame_iter_ptr(fr.fr_child) {
             let wp = frame2win(frp);
             if OptInt::from(height) < (opt_vars().p_wmh + OptInt::from(STATUS_HEIGHT + (*wp).w_winbar_height))
             {
@@ -2950,7 +2933,6 @@ fn get_maximum_wincount(fr: &mut frame_T, mut height: c_int) -> c_int {
             }
             height -= opt_vars().p_wmh as c_int + STATUS_HEIGHT + (*wp).w_winbar_height;
             total_wincount += 1;
-            frp = (*frp).fr_next;
         }
 
         total_wincount += height / (opt_vars().p_wmh as c_int + STATUS_HEIGHT);
@@ -4454,16 +4436,14 @@ pub fn frame2win(mut frp: *mut frame_T) -> *mut win_T {
 }
 
 fn frame_has_win(frp: &frame_T, wp: *const win_T) -> bool {
-    unsafe {
+     {
         if frp.fr_layout == FR_LEAF {
             return ptr::eq(frp.fr_win, wp);
         }
-        let mut p: *const frame_T = frp.fr_child;
-        while !p.is_null() {
-            if frame_has_win(&*p, wp) {
+        for p in frame_iter_mut(frp.fr_child) {
+            if frame_has_win(p, wp) {
                 return true;
             }
-            p = (*p).fr_next;
         }
         false
     }
@@ -4835,20 +4815,16 @@ fn frame_minheight(topfrp: &mut frame_T, next_curwin: *mut win_T) -> c_int {
             }
         } else if topfrp.fr_layout == FR_ROW {
             m = 0;
-            let mut frp = topfrp.fr_child;
-            while !frp.is_null() {
-                let n = frame_minheight(&mut *frp, next_curwin);
+            for frp in frame_iter_mut(topfrp.fr_child) {
+                let n = frame_minheight(frp, next_curwin);
                 if n > m {
                     m = n;
                 }
-                frp = (*frp).fr_next;
             }
         } else {
             m = 0;
-            let mut frp = topfrp.fr_child;
-            while !frp.is_null() {
-                m += frame_minheight(&mut *frp, next_curwin);
-                frp = (*frp).fr_next;
+            for frp in frame_iter_mut(topfrp.fr_child) {
+                m += frame_minheight(frp, next_curwin);
             }
         }
         m
@@ -4869,18 +4845,14 @@ fn frame_minwidth(topfrp: &mut frame_T, next_curwin: *mut win_T) -> c_int {
             }
         } else if topfrp.fr_layout == FR_COL {
             m = 0;
-            let mut frp = topfrp.fr_child;
-            while !frp.is_null() {
-                let n = frame_minwidth(&mut *frp, next_curwin);
+            for frp in frame_iter_mut(topfrp.fr_child) {
+                let n = frame_minwidth(frp, next_curwin);
                 m = m.max(n);
-                frp = (*frp).fr_next;
             }
         } else {
             m = 0;
-            let mut frp = topfrp.fr_child;
-            while !frp.is_null() {
-                m += frame_minwidth(&mut *frp, next_curwin);
-                frp = (*frp).fr_next;
+            for frp in frame_iter_mut(topfrp.fr_child) {
+                m += frame_minwidth(frp, next_curwin);
             }
         }
         m
@@ -5514,9 +5486,7 @@ fn enter_tabpage(
 
 fn tabpage_check_windows(old_curtab: &mut tabpage_T) {
     unsafe {
-        let mut wp = old_curtab.tp_firstwin;
-        while !wp.is_null() {
-            let next_wp = (*wp).w_next;
+        for wp in win_iter_ptr(old_curtab.tp_firstwin) {
             if (*wp).w_floating {
                 if (*wp).w_config.external {
                     win_remove(wp, &raw mut *old_curtab);
@@ -5526,7 +5496,6 @@ fn tabpage_check_windows(old_curtab: &mut tabpage_T) {
                 }
             }
             (*wp).w_pos_changed = true;
-            wp = next_wp;
         }
 
         for wp2 in for_all_windows_mut() {
@@ -6873,15 +6842,13 @@ fn frame_comp_pos(topfrp: &mut frame_T, row: &mut c_int, col: &mut c_int) {
         } else {
             let startrow = *row;
             let startcol = *col;
-            let mut frp = topfrp.fr_child;
-            while !frp.is_null() {
+            for frp in frame_iter_mut(topfrp.fr_child) {
                 if topfrp.fr_layout == FR_ROW {
                     *row = startrow;
                 } else {
                     *col = startcol;
                 }
-                frame_comp_pos(&mut *frp, row, col);
-                frp = (*frp).fr_next;
+                frame_comp_pos(frp, row, col);
             }
         }
     }
@@ -6944,8 +6911,7 @@ fn frame_setheight(curfrp: &mut frame_T, mut height: c_int, from_top: bool) {
             for run in 1..=2 {
                 room = 0;
                 room_reserved = 0;
-                let mut frp = (*curfrp.fr_parent).fr_child;
-                while !frp.is_null() {
+                for frp in frame_iter_ptr((*curfrp.fr_parent).fr_child) {
                     if !ptr::eq(frp, curfrp)
                         && !(*frp).fr_win.is_null()
                         && (*(*frp).fr_win).w_onebuf_opt.wo_wfh != 0
@@ -6956,7 +6922,6 @@ fn frame_setheight(curfrp: &mut frame_T, mut height: c_int, from_top: bool) {
                     if !ptr::eq(frp, curfrp) {
                         room -= frame_minheight(&mut *frp, ptr::null_mut());
                     }
-                    frp = (*frp).fr_next;
                 }
                 if !from_top || curfrp.fr_width != g_st().Columns {
                     room_cmdline = 0;
@@ -7091,8 +7056,7 @@ fn frame_setwidth(curfrp: &mut frame_T, mut width: c_int, from_left: bool) {
             for run in 1..=2 {
                 room = 0;
                 room_reserved = 0;
-                let mut frp = (*curfrp.fr_parent).fr_child;
-                while !frp.is_null() {
+                for frp in frame_iter_ptr((*curfrp.fr_parent).fr_child) {
                     if !ptr::eq(frp, curfrp)
                         && !(*frp).fr_win.is_null()
                         && (*(*frp).fr_win).w_onebuf_opt.wo_wfw != 0
@@ -7103,7 +7067,6 @@ fn frame_setwidth(curfrp: &mut frame_T, mut width: c_int, from_left: bool) {
                     if !ptr::eq(frp, curfrp) {
                         room -= frame_minwidth(&mut *frp, ptr::null_mut());
                     }
-                    frp = (*frp).fr_next;
                 }
 
                 if width <= room {
@@ -7861,10 +7824,8 @@ fn last_status_rec(fr: &mut frame_T, statusline: bool, is_stl_global: bool) {
                 comp_col();
             }
         } else {
-            let mut fp = fr.fr_child;
-            while !fp.is_null() {
-                last_status_rec(&mut *fp, statusline, is_stl_global);
-                fp = (*fp).fr_next;
+            for fp in frame_iter_mut(fr.fr_child) {
+                last_status_rec(fp, statusline, is_stl_global);
             }
         }
     }
@@ -8218,17 +8179,15 @@ fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut frame_T) -> *mut win_T {
 }
 
 fn frame_check_height(topfrp: &frame_T, height: c_int) -> bool {
-    unsafe {
+     {
         if topfrp.fr_height != height {
             return false;
         }
         if topfrp.fr_layout == FR_ROW {
-            let mut frp: *const frame_T = topfrp.fr_child;
-            while !frp.is_null() {
-                if (*frp).fr_height != height {
+            for frp in frame_iter_mut(topfrp.fr_child) {
+                if frp.fr_height != height {
                     return false;
                 }
-                frp = (*frp).fr_next;
             }
         }
         true
@@ -8236,17 +8195,15 @@ fn frame_check_height(topfrp: &frame_T, height: c_int) -> bool {
 }
 
 fn frame_check_width(topfrp: &frame_T, width: c_int) -> bool {
-    unsafe {
+     {
         if topfrp.fr_width != width {
             return false;
         }
         if topfrp.fr_layout == FR_COL {
-            let mut frp: *const frame_T = topfrp.fr_child;
-            while !frp.is_null() {
-                if (*frp).fr_width != width {
+            for frp in frame_iter_mut(topfrp.fr_child) {
+                if frp.fr_width != width {
                     return false;
                 }
-                frp = (*frp).fr_next;
             }
         }
         true

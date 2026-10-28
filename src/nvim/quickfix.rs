@@ -6039,15 +6039,13 @@ fn wipe_dummy_buffer(buf: &mut buf_T, dirname_start: *mut c_char) {
             let mut did_one = false;
 
             if !firstwin_mut().w_next.is_null() {
-                let mut wp = g_st().firstwin;
-                while !wp.is_null() {
+                for wp in for_all_windows_ptr() {
                     if (*wp).w_buffer == buf {
                         if win_close(wp, false, false) {
                             did_one = true;
                         }
                         break;
                     }
-                    wp = (*wp).w_next;
                 }
             }
             if !did_one {

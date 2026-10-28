@@ -1025,8 +1025,8 @@ pub fn win_iter_mut(start: *mut win_T) -> WinMutIter {
 }
 
 #[inline]
-pub fn for_all_windows_in_tab_mut(tp: *mut tabpage_T) -> WinMutIter {
-    WinMutIter(if tp == g_st().curtab {
+pub fn for_all_windows_in_tab_mut(tp: *const tabpage_T) -> WinMutIter {
+    WinMutIter(if ptr::eq(tp, g_st().curtab) {
         g_st().firstwin
     } else {
         unsafe { (*tp).tp_firstwin }
@@ -1044,8 +1044,8 @@ pub fn win_iter_ptr(start: *mut win_T) -> WinPtrIter {
 }
 
 #[inline]
-pub fn for_all_windows_in_tab_ptr(tp: *mut tabpage_T) -> WinPtrIter {
-    WinPtrIter(if tp == g_st().curtab {
+pub fn for_all_windows_in_tab_ptr(tp: *const tabpage_T) -> WinPtrIter {
+    WinPtrIter(if ptr::eq(tp, g_st().curtab) {
         g_st().firstwin
     } else {
         unsafe { (*tp).tp_firstwin }
@@ -1098,6 +1098,54 @@ pub fn for_all_tabpages_mut() -> TabMutIter {
 #[inline]
 pub fn for_all_tabpages_ptr() -> TabPtrIter {
     TabPtrIter(g_st().first_tabpage)
+}
+
+pub struct FrameMutIter(*mut frame_T);
+
+impl Iterator for FrameMutIter {
+    type Item = &'static mut frame_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).fr_next;
+                Some(&mut *cur)
+            }
+        }
+    }
+}
+
+pub struct FramePtrIter(*mut frame_T);
+
+impl Iterator for FramePtrIter {
+    type Item = *mut frame_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).fr_next;
+                Some(cur)
+            }
+        }
+    }
+}
+
+#[inline]
+pub fn frame_iter_mut(start: *mut frame_T) -> FrameMutIter {
+    FrameMutIter(start)
+}
+
+#[inline]
+pub fn frame_iter_ptr(start: *mut frame_T) -> FramePtrIter {
+    FramePtrIter(start)
 }
 
 #[unsafe(no_mangle)]

@@ -297,10 +297,8 @@ fn get_framelayout(fr: *const frame_T, l: *mut list_T, outer: bool) {
 
             let win_list = tv_list_alloc(kListLenUnknown);
             tv_list_append_list(fr_list, win_list);
-            let mut child: *const frame_T = (*fr).fr_child;
-            while !child.is_null() {
+            for child in frame_iter_ptr((*fr).fr_child) {
                 get_framelayout(child, win_list, false);
-                child = (*child).fr_next;
             }
         }
     }

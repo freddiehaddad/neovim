@@ -259,13 +259,11 @@ pub fn ex_help(eap: &mut exarg_T) {
 /// `:helpclose`: Close one help window (`ex_helpclose`).
 pub fn ex_helpclose(eap: &mut exarg_T) {
     unsafe {
-        let mut win = g_st().firstwin;
-        while !win.is_null() {
+        for win in for_all_windows_ptr() {
             if bt_help((*win).w_buffer) {
                 win_close(win, false, eap.forceit != 0);
                 return;
             }
-            win = (*win).w_next;
         }
     }
 }

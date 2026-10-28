@@ -259,9 +259,8 @@ pub fn encode_read_from_list(
 /// Convert `readfile()`-style list to a `Vec<c_char>` buffer (`encode_vim_list_to_buf`).
 pub fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>> {
     let mut len = 0usize;
-    let mut li = tv_list_first(list);
-    while !li.is_null() {
-        let tv = unsafe { &(*li).li_tv };
+    for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
+        let tv =  { &li.li_tv };
         if tv.v_type != VarType::VAR_STRING {
             return None;
         }
@@ -270,7 +269,6 @@ pub fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>> {
         if !s.is_null() {
             len +=  crate::memory::cstr_len(s);
         }
-        li = unsafe { (*li).li_next };
     }
     len = len.saturating_sub(1);
     if len == 0 {

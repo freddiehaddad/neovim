@@ -852,8 +852,8 @@ pub fn list_iter_mut(start: *mut listitem_T) -> ListMutIter {
 }
 
 #[inline]
-pub fn list_iter_ptr(start: *mut listitem_T) -> ListPtrIter {
-    ListPtrIter(start)
+pub fn list_iter_ptr(start: *const listitem_T) -> ListPtrIter {
+    ListPtrIter(start.cast_mut())
 }
 
 #[inline]
@@ -2521,14 +2521,10 @@ pub fn tv_list_idx_of_item(l: *const list_T, item: *const listitem_T) -> c_int {
         if l.is_null() {
             return -1;
         }
-        let mut idx: c_int = 0;
-        let mut li: *const listitem_T = (*l).lv_first;
-        while !li.is_null() {
+        for (idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr((*l).lv_first)) {
             if ptr::eq(li, item) {
                 return idx;
             }
-            idx += 1;
-            li = (*li).li_next;
         }
         -1
     }
