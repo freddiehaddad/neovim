@@ -43,7 +43,7 @@ pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         if arg0.v_type != VarType::VAR_STRING
             || (arg1.v_type != VarType::VAR_LIST && arg1.v_type != VarType::VAR_UNKNOWN)
         {
-            emsg(e_invarg.as_ptr());
+            emsg(e_invarg);
             return;
         }
 
@@ -73,7 +73,7 @@ pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
         let prog = arg0.vval.v_string();
         if prog.is_null() || *prog == 0 {
-            emsg(e_api_spawn_failed.as_ptr());
+            emsg(e_api_spawn_failed);
             return;
         }
 
@@ -122,7 +122,7 @@ pub fn f_rpcstop(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncD
 
         let arg0 = &argvars[0];
         if arg0.v_type != VarType::VAR_NUMBER {
-            emsg(e_invarg.as_ptr());
+            emsg(e_invarg);
             return;
         }
 

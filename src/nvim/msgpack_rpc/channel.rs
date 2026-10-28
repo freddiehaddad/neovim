@@ -275,7 +275,8 @@ fn find_rpc_channel(id: u64) -> *mut Channel {
     }
 }
 
-pub fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool {
+pub fn rpc_send_event<S: crate::strings::IntoCCharPtr>(id: u64, name: S, args: Array) -> bool {
+    let name = name.into_c_char_ptr();
     let mut channel: *mut Channel = ptr::null_mut();
         if id != 0 {
             channel = find_rpc_channel(id);

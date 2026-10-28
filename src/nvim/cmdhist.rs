@@ -622,10 +622,10 @@ pub fn ex_history(eap: &mut exarg_T) {
         let mut hisidx2: c_int = -1;
         let arg = eap.arg;
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         let hislen = hist_st().HISLEN;
         if hislen == 0 {
-            msg(c"'history' option is zero".as_ptr(), 0);
+            msg(c"'history' option is zero", 0);
             return;
         }
 
@@ -640,7 +640,7 @@ pub fn ex_history(eap: &mut exarg_T) {
             let name_len = (end as usize) - (arg as usize);
             histype1 = get_histtype(arg, name_len, false);
             if histype1 == HIST_INVALID {
-                if crate::memory::cstr_prefix_bytes(arg, name_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all".as_ptr(), name_len)) {
+                if crate::memory::cstr_prefix_bytes(arg, name_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all", name_len)) {
                     histype1 = 0;
                     histype2 = (HIST_COUNT as c_int) - 1;
                 } else {

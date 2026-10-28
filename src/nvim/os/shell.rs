@@ -272,7 +272,7 @@ pub fn os_expand_wildcards(
             let p_i = *pat.add(i);
             let mut j = 0;
             while *p_i.add(j) != NUL {
-                if !vim_strchr(SHELL_SPECIAL.as_ptr(), *p_i.add(j) as u8 as c_int).is_null() {
+                if !vim_strchr(SHELL_SPECIAL, *p_i.add(j) as u8 as c_int).is_null() {
                     len += 1;
                 }
                 len += 1;
@@ -291,14 +291,14 @@ pub fn os_expand_wildcards(
             if is_fish_shell {
                 { let s = c"begin; ".as_ptr(); std::ptr::copy_nonoverlapping(s, command, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             } else {
-                crate::memory::cstr_cpy(command, c"(".as_ptr());
+                crate::memory::cstr_cpy(command, c"(");
             }
             crate::memory::cstr_cat(command, (*pat).add(1));
             let mut p = command.add(crate::memory::cstr_len(command) - 1);
             if is_fish_shell {
                 *p = b';' as c_char;
                 p = p.sub(1);
-                crate::memory::cstr_cat(command, c" end".as_ptr());
+                crate::memory::cstr_cat(command, c" end");
             } else {
                 *p = b')' as c_char;
                 p = p.sub(1);
@@ -310,7 +310,7 @@ pub fn os_expand_wildcards(
                 ampersand = true;
                 *p = b' ' as c_char;
             }
-            crate::memory::cstr_cat(command, c">".as_ptr());
+            crate::memory::cstr_cat(command, c">");
         } else {
             *command = NUL;
             if shell_style == STYLE_GLOB {
@@ -321,16 +321,16 @@ pub fn os_expand_wildcards(
                 }
             }
             if shell_style == STYLE_GLOB {
-                crate::memory::cstr_cat(command, c"glob >".as_ptr());
+                crate::memory::cstr_cat(command, c"glob >");
             } else if shell_style == STYLE_PRINT {
-                crate::memory::cstr_cat(command, c"print -N >".as_ptr());
+                crate::memory::cstr_cat(command, c"print -N >");
             } else if shell_style == STYLE_VIMGLOB {
-                crate::memory::cstr_cat(command, SH_VIMGLOB_FUNC.as_ptr());
+                crate::memory::cstr_cat(command, SH_VIMGLOB_FUNC);
             } else if shell_style == STYLE_GLOBSTAR {
-                crate::memory::cstr_cat(command, SH_GLOBSTAR_OPT.as_ptr());
-                crate::memory::cstr_cat(command, SH_VIMGLOB_FUNC.as_ptr());
+                crate::memory::cstr_cat(command, SH_GLOBSTAR_OPT);
+                crate::memory::cstr_cat(command, SH_VIMGLOB_FUNC);
             } else {
-                crate::memory::cstr_cat(command, c"echo >".as_ptr());
+                crate::memory::cstr_cat(command, c"echo >");
             }
         }
 
@@ -352,7 +352,7 @@ pub fn os_expand_wildcards(
                     } else if ch == b'\\' as c_char && *p_i.add(j + 1) != NUL {
                         let next_ch = *p_i.add(j + 1);
                         if intick
-                            || !vim_strchr(SHELL_SPECIAL.as_ptr(), next_ch as u8 as c_int).is_null()
+                            || !vim_strchr(SHELL_SPECIAL, next_ch as u8 as c_int).is_null()
                             || next_ch == b'`' as c_char
                         {
                             *p = b'\\' as c_char;
@@ -361,7 +361,7 @@ pub fn os_expand_wildcards(
                         j += 1;
                     } else if !intick
                         && ((flags & EW_KEEPDOLLAR) == 0 || ch != b'$' as c_char)
-                        && !vim_strchr(SHELL_SPECIAL.as_ptr(), ch as u8 as c_int).is_null()
+                        && !vim_strchr(SHELL_SPECIAL, ch as u8 as c_int).is_null()
                     {
                         *p = b'\\' as c_char;
                         p = p.add(1);
@@ -380,7 +380,7 @@ pub fn os_expand_wildcards(
         }
 
         if ampersand {
-            crate::memory::cstr_cat(command, c"&".as_ptr());
+            crate::memory::cstr_cat(command, c"&");
         }
 
         if shell_style == STYLE_PRINT {
@@ -620,9 +620,9 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
             return rv;
         }
         for arg in argv {
-            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"'".as_ptr(), _dsize - _dlen); };
+            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"'", _dsize - _dlen); };
             { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), arg.as_ptr(), _dsize - _dlen); };
-            n = { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"' ".as_ptr(), _dsize - _dlen) + _dlen };
+            n = { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"' ", _dsize - _dlen) + _dlen };
             if n >= maxsize {
                 break;
             }
@@ -686,7 +686,7 @@ pub fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> 
         }
 
         if g_st().emsg_silent == 0 && exitcode != 0 && (opts & kShellOptSilent) == 0 {
-            msg_ext_set_kind(c"shell_ret".as_ptr());
+            msg_ext_set_kind(c"shell_ret");
             msg_ext_no_fast();
             if !ui_has(kUIMessages) {
                 msg_putchar(b'\n' as c_int);
@@ -832,10 +832,10 @@ fn do_os_system(
 
         #[cfg(windows)]
         let (oldval, old_output_cp, old_input_cp) = {
-            let ov = os_getenv_cstr(c"NoDefaultCurrentDirectoryInExePath".as_ptr());
+            let ov = os_getenv_cstr(c"NoDefaultCurrentDirectoryInExePath");
             os_setenv(
-                c"NoDefaultCurrentDirectoryInExePath".as_ptr(),
-                c"1".as_ptr(),
+                c"NoDefaultCurrentDirectoryInExePath",
+                c"1",
                 1,
             );
             let oocp = GetConsoleOutputCP();
@@ -882,7 +882,7 @@ fn do_os_system(
                 if !silent {
                     msg_puts(gettext(c"\nshell failed to start: "));
                     msg_outtrans(uv_strerror(status), 0, false);
-                    msg_puts(c": ".as_ptr());
+                    msg_puts(c": ");
                     msg_outtrans(prog.as_ptr(), 0, false);
                     msg_putchar(b'\n' as c_int);
                 }
@@ -1013,7 +1013,7 @@ fn out_data_decide_throttle(size: usize) -> bool {
             b' ' as c_char
         };
         if sh_st().throttle_visit == 1 {
-            msg_puts(c"...\n".as_ptr());
+            msg_puts(c"...\n");
         }
         msg_putchar(b'\r' as c_int);
         msg_puts((&raw const sh_st().throttle_pulse_msg).cast());

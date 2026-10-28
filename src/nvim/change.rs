@@ -157,7 +157,7 @@ pub fn change_warning(buf: *mut buf_T, col: c_int) {
                 g_st().msg_col = col;
             }
             msg_source(HLF_W);
-            msg_ext_set_kind(c"wmsg".as_ptr());
+            msg_ext_set_kind(c"wmsg");
             msg_puts_hl(tr(W_READONLY), HLF_W, true);
             set_vim_var_string(VV_WARNINGMSG, tr(W_READONLY), -1);
             msg_clr_eos();
@@ -1581,7 +1581,7 @@ pub fn open_line(
                 let padding = second_line_indent
                     - (newindent + crate::memory::cstr_len(leader) as c_int);
                 for _ in 0..padding {
-                    crate::memory::cstr_cat(leader, c" ".as_ptr());
+                    crate::memory::cstr_cat(leader, c" ");
                     less_cols -= 1;
                     newcol += 1;
                 }

@@ -134,7 +134,7 @@ fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
 fn do_checkbacktracelevel() {
     if g_st().debug_backtrace_level < 0 {
             g_st().debug_backtrace_level = 0;
-            msg(c"frame is zero".as_ptr(), 0);
+            msg(c"frame is zero", 0);
         } else {
             let sname = estack_sfile(ESTACK_NONE);
             let max =
@@ -230,7 +230,7 @@ pub fn do_debug(cmd: *mut c_char) {
 
         if !g_st().debug_did_msg {
             msg(
-                c"Entering Debug mode.  Type \"cont\" to continue.".as_ptr(),
+                c"Entering Debug mode.  Type \"cont\" to continue.",
                 0,
             );
         }
@@ -505,7 +505,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             bp.dbg_type = DBG_FILE;
         } else if !is_prof && p_bytes.starts_with(b"here") {
             if (*g_st().curbuf).b_ffname.is_null() {
-                emsg(e_noname.as_ptr());
+                emsg(e_noname);
                 return None;
             }
             bp.dbg_type = DBG_FILE;
@@ -680,7 +680,7 @@ pub fn ex_breakdel(eap: &mut exarg_T) {
 pub fn ex_breaklist(_eap: &mut exarg_T) {
     let gap = dbg_vec_mut(false);
         if gap.is_empty() {
-            msg(c"No breakpoints defined".as_ptr(), 0);
+            msg(c"No breakpoints defined", 0);
             return;
         }
 

@@ -1919,7 +1919,7 @@ pub fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool
             && !wild_navigate
             && !(ui_has(kUICmdline) || ui_has(kUIWildmenu))
         {
-            msg_puts(c"...".as_ptr());
+            msg_puts(c"...");
             ui_flush();
         }
 
@@ -2269,7 +2269,7 @@ fn redraw_wildmenu(
             *buf = NUL;
             len = 0;
         } else {
-            crate::memory::cstr_cpy(buf, c"< ".as_ptr());
+            crate::memory::cstr_cpy(buf, c"< ");
             len = 2;
         }
         clen = len as c_int;
@@ -2827,7 +2827,7 @@ pub fn showmatches(
             ui_flush();
             g_st().cmdline_row = g_st().msg_row;
             g_st().msg_didany = false;
-            msg_ext_set_kind(c"wildlist".as_ptr());
+            msg_ext_set_kind(c"wildlist");
             msg_start();
         }
 
@@ -2946,7 +2946,7 @@ fn expand_showtail(xp: &mut expand_T) -> bool {
         while (s as usize) < (end as usize) {
             if rem_backslash(s) {
                 s = s.add(1);
-            } else if !vim_strchr(c"*?[".as_ptr(), *s as u8 as c_int).is_null() {
+            } else if !vim_strchr(c"*?[", *s as u8 as c_int).is_null() {
                 return false;
             }
             s = s.add(1);
@@ -3156,7 +3156,7 @@ fn set_cmd_index(
                     p = p.add(1);
                 }
             }
-            if p == cmd && !vim_strchr(c"@*!=><&~#".as_ptr(), *p as u8 as c_int).is_null() {
+            if p == cmd && !vim_strchr(c"@*!=><&~#", *p as u8 as c_int).is_null() {
                 p = p.add(1);
             }
             let len = p.offset_from(cmd) as usize;
@@ -3183,7 +3183,7 @@ fn set_cmd_index(
 
         if eap.cmdidx == cmdidx_T::CMD_SIZE as c_int as c_int {
             if *cmd == b's' as c_char
-                && !vim_strchr(c"cgriI".as_ptr(), *cmd.add(1) as u8 as c_int).is_null()
+                && !vim_strchr(c"cgriI", *cmd.add(1) as u8 as c_int).is_null()
             {
                 eap.cmdidx = cmdidx_T::CMD_substitute as c_int;
                 p = cmd.add(1);
@@ -3461,10 +3461,10 @@ fn set_context_in_lang_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_ch
             xp.xp_pattern = arg.cast_mut();
         } else {
             let n = p.offset_from(arg) as usize;
-            if (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"messages".as_ptr(), n))
-                || (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"ctype".as_ptr(), n))
-                || (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"time".as_ptr(), n))
-                || (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"collate".as_ptr(), n))
+            if (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"messages", n))
+                || (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"ctype", n))
+                || (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"time", n))
+                || (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"collate", n))
             {
                 xp.xp_context = EXPAND_LOCALES;
                 xp.xp_pattern = skipwhite(p);
@@ -3501,7 +3501,7 @@ fn set_context_in_breakadd_cmd(
         }
         let subcmd_start = p;
 
-        if (crate::memory::cstr_prefix_bytes(c"file ".as_ptr(), 5) == crate::memory::cstr_prefix_bytes(p, 5)) || (crate::memory::cstr_prefix_bytes(c"func ".as_ptr(), 5) == crate::memory::cstr_prefix_bytes(p, 5)) {
+        if (b"file " == crate::memory::cstr_prefix_bytes(p, 5)) || (b"func " == crate::memory::cstr_prefix_bytes(p, 5)) {
             p = p.add(4);
             p = skipwhite(p);
 
@@ -3513,13 +3513,13 @@ fn set_context_in_breakadd_cmd(
                 }
                 p = skipwhite(p);
             }
-            if crate::memory::cstr_prefix_bytes(c"file".as_ptr(), 4) == crate::memory::cstr_prefix_bytes(subcmd_start, 4) {
+            if b"file" == crate::memory::cstr_prefix_bytes(subcmd_start, 4) {
                 xp.xp_context = EXPAND_FILES;
             } else {
                 xp.xp_context = EXPAND_USER_FUNC;
             }
             xp.xp_pattern = p.cast_mut();
-        } else if crate::memory::cstr_prefix_bytes(c"expr ".as_ptr(), 5) == crate::memory::cstr_prefix_bytes(p, 5) {
+        } else if b"expr " == crate::memory::cstr_prefix_bytes(p, 5) {
             xp.xp_context = EXPAND_EXPRESSION;
             xp.xp_pattern = skipwhite(p.add(5));
         }
@@ -4051,7 +4051,7 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char 
         ea.argt = 0;
 
         let mut cmd = buff;
-        while !vim_strchr(c" \t:|".as_ptr(), *cmd as u8 as c_int).is_null() {
+        while !vim_strchr(c" \t:|", *cmd as u8 as c_int).is_null() {
             cmd = cmd.add(1);
         }
         xp.xp_pattern = cmd.cast_mut();
@@ -5238,7 +5238,7 @@ fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flagsarg: c
                 }
 
                 pathlen = e.offset_from(s) as usize;
-                if crate::memory::cstr_prefix_bytes(s, pathlen) == crate::memory::cstr_prefix_bytes(c".".as_ptr(), pathlen) {
+                if crate::memory::cstr_prefix_bytes(s, pathlen) == crate::memory::cstr_prefix_bytes(c".", pathlen) {
                     did_curdir = true;
                     flags |= EW_DIR;
                 } else {
@@ -5698,7 +5698,7 @@ fn wildmenu_process_key_filenames(
                 #[cfg(windows)]
                 let is_sep = vim_ispathsep(*cclp.cmdbuff.add(j as usize) as c_int)
                     && vim_strchr(
-                        c" *?[{`$%#".as_ptr(),
+                        c" *?[{`$%#",
                         *cclp.cmdbuff.add((j + 1) as usize) as u8 as c_int,
                     )
                     .is_null();

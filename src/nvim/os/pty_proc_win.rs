@@ -47,7 +47,7 @@ pub(crate) fn quote_cmd_arg(
         let mut cur = dest;
 
         if src_len == 0 {
-            xstrlcpy(dest, c"\"\"".as_ptr(), dest_remaining);
+            xstrlcpy(dest, c"\"\"", dest_remaining);
             return;
         }
 
@@ -60,9 +60,9 @@ pub(crate) fn quote_cmd_arg(
         }
 
         if !src_bytes.iter().any(|&b| b == b'"' || b == b'\\') {
-            xstrlcpy(dest, c"\"".as_ptr(), dest_remaining);
+            xstrlcpy(dest, c"\"", dest_remaining);
             { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), src, _dsize - _dlen); };
-            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"\"".as_ptr(), _dsize - _dlen); };
+            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"\"", _dsize - _dlen); };
             return;
         }
 

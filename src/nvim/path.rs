@@ -194,7 +194,13 @@ fn str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
     }
 }
 
-pub fn path_equal(s1: *const c_char, s2: *const c_char, flags: PathCmpFlags) -> bool {
+pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
+    s1: S1,
+    s2: S2,
+    flags: PathCmpFlags,
+) -> bool {
+    let s1 = s1.into_c_char_ptr();
+    let s2 = s2.into_c_char_ptr();
      {
         let mut expanded_s1 = [0 as c_char; MAXPATHL];
         let mut full1 = [0 as c_char; MAXPATHL];
@@ -1205,7 +1211,7 @@ fn has_env_var(mut p: *const c_char) -> bool {
                 p = p.add(2);
                 continue;
             }
-            if !vim_strchr(c"$".as_ptr(), *p as u8 as c_int).is_null() {
+            if !vim_strchr(c"$", *p as u8 as c_int).is_null() {
                 return true;
             }
             p = p.add(1);
@@ -1938,12 +1944,14 @@ pub fn path_fold_char(ic: bool, p: *const c_char, len: &mut c_int) -> c_int {
     }
 }
 
-pub fn path_cmp(
+pub fn path_cmp<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
     ic: bool,
-    mut p: *const c_char,
-    mut q: *const c_char,
+    p: S1,
+    q: S2,
     maxlen: usize,
 ) -> c_int {
+    let mut p = p.into_c_char_ptr();
+    let mut q = q.into_c_char_ptr();
     unsafe {
         let mut c1: c_int = NUL as c_int;
         let mut c2: c_int = NUL as c_int;
@@ -2296,7 +2304,7 @@ pub fn path_is_absolute(fname: *const c_char) -> bool {
 
 pub fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize: usize) {
     unsafe {
-        let path_cstr = os_getenv_cstr(c"PATH".as_ptr());
+        let path_cstr = os_getenv_cstr(c"PATH");
         let argv0_bytes = crate::memory::cstr_as_bytes(argv0);
 
         if path_is_absolute(argv0) {
@@ -2449,29 +2457,29 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
             assert_eq!(
-                path_cmp(false, c"foo/bar".as_ptr(), c"foo/bar".as_ptr(), 7),
+                path_cmp(false, c"foo/bar", c"foo/bar", 7),
                 0
             );
             assert_eq!(
-                path_cmp(false, c"foobar".as_ptr(), c"foo/bar".as_ptr(), 7),
+                path_cmp(false, c"foobar", c"foo/bar", 7),
                 1
             );
             assert_eq!(
-                path_cmp(false, c"foo/bar".as_ptr(), c"foobar".as_ptr(), 7),
+                path_cmp(false, c"foo/bar", c"foobar", 7),
                 -1
             );
             assert_ne!(
-                path_cmp(false, c"foo/bar".as_ptr(), c"foo/baz".as_ptr(), 7),
+                path_cmp(false, c"foo/bar", c"foo/baz", 7),
                 0
             );
             assert_eq!(
-                path_cmp(false, c"foo/bar".as_ptr(), c"foo/baz".as_ptr(), 6),
+                path_cmp(false, c"foo/bar", c"foo/baz", 6),
                 0
             );
-            assert_eq!(path_cmp(false, c"foo".as_ptr(), c"foo/".as_ptr(), 4), 0);
-            assert_ne!(path_cmp(false, c"/".as_ptr(), c"//".as_ptr(), 2), 0);
-            assert_ne!(path_cmp(false, c"foo".as_ptr(), c"foo//".as_ptr(), 5), 0);
-            assert_ne!(path_cmp(false, c"foo/".as_ptr(), c"foo//".as_ptr(), 5), 0);
+            assert_eq!(path_cmp(false, c"foo", c"foo/", 4), 0);
+            assert_ne!(path_cmp(false, c"/", c"//", 2), 0);
+            assert_ne!(path_cmp(false, c"foo", c"foo//", 5), 0);
+            assert_ne!(path_cmp(false, c"foo/", c"foo//", 5), 0);
 
             let mut dir = *b"some/very/long\0";
             assert!(path_shorten_fname(ptr::null_mut(), dir.as_mut_ptr().cast()).is_null());
@@ -2509,16 +2517,16 @@ mod tests {
             );
 
             let mut buf = [0 as c_char; 100];
-            xstrlcpy(buf.as_mut_ptr(), c"path1".as_ptr(), buf.len());
+            xstrlcpy(buf.as_mut_ptr(), c"path1", buf.len());
             assert!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100));
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1/path2");
 
-            xstrlcpy(buf.as_mut_ptr(), c"path1/".as_ptr(), buf.len());
+            xstrlcpy(buf.as_mut_ptr(), c"path1/", buf.len());
             assert!(append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 100));
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1/path2");
             assert!(!append_path(buf.as_mut_ptr(), c"path2".as_ptr(), 11));
 
-            xstrlcpy(buf.as_mut_ptr(), c"path1".as_ptr(), buf.len());
+            xstrlcpy(buf.as_mut_ptr(), c"path1", buf.len());
             assert!(append_path(buf.as_mut_ptr(), c"".as_ptr(), 6));
             assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"path1");
             assert!(append_path(buf.as_mut_ptr(), c".".as_ptr(), 6));
@@ -2613,31 +2621,31 @@ mod tests {
             assert!(!path_equal(f1_c.as_ptr(), f2_c.as_ptr(), kPathCmpExpand));
             assert!(!path_equal(
                 f1_c.as_ptr(),
-                c"nonexistent_ut_file.txt".as_ptr(),
+                c"nonexistent_ut_file.txt",
                 kPathCmpExpand
             ));
             assert!(!path_equal(
-                c"nonexistent_ut_file.txt".as_ptr(),
-                c"nonexistent_ut_file.txt".as_ptr(),
+                c"nonexistent_ut_file.txt",
+                c"nonexistent_ut_file.txt",
                 kPathCmpExpand
             ));
             assert!(path_equal(
-                c"nonexistent_ut_file.txt".as_ptr(),
-                c"nonexistent_ut_file.txt".as_ptr(),
+                c"nonexistent_ut_file.txt",
+                c"nonexistent_ut_file.txt",
                 kPathCmpExpand | kPathCmpFull
             ));
 
             let saved_fic = opt_vars().p_fic;
             opt_vars().p_fic = 0;
             assert!(!path_equal(
-                c"Foo".as_ptr(),
-                c"foo".as_ptr(),
+                c"Foo",
+                c"foo",
                 kPathCmpLiteral
             ));
             opt_vars().p_fic = 1;
             assert!(path_equal(
-                c"Foo".as_ptr(),
-                c"foo".as_ptr(),
+                c"Foo",
+                c"foo",
                 kPathCmpLiteral
             ));
             opt_vars().p_fic = saved_fic;

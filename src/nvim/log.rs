@@ -190,7 +190,7 @@ fn log_path_init() {
 
         if !user_set || *path_ptr == NUL || os_isdir(path_ptr) || !log_try_create(path_ptr) {
             if user_set {
-                os_setenv(c"__NVIM_LOG_FILE_WANT".as_ptr(), path_ptr, 1);
+                os_setenv(c"__NVIM_LOG_FILE_WANT", path_ptr, 1);
             }
             let state_home = get_xdg_home(crate::os::stdpaths::XDGVarType::kXDGStateHome)
                 .unwrap_or_default();
@@ -217,15 +217,15 @@ fn log_path_init() {
 
             if len >= size || !log_try_create(path_ptr) {
                 if !user_set {
-                    os_setenv(c"__NVIM_LOG_FILE_WANT".as_ptr(), path_ptr, 1);
+                    os_setenv(c"__NVIM_LOG_FILE_WANT", path_ptr, 1);
                 }
-                len = xstrlcpy(path_ptr, c"nvim.log".as_ptr(), size);
+                len = xstrlcpy(path_ptr, c"nvim.log", size);
             }
             if len >= size || !log_try_create(path_ptr) {
                 *path_ptr = NUL;
                 return;
             }
-            os_setenv(c"NVIM_LOG_FILE".as_ptr(), path_ptr, 1);
+            os_setenv(c"NVIM_LOG_FILE", path_ptr, 1);
             if log_dir_failure != 0 {
                 let err_str = uv_strerror(log_dir_failure);
                 let failed_s = match failed_dir {
@@ -304,14 +304,14 @@ pub fn logmsg_str(
             let stderr = log_get_stderr();
             fprintf!(
                 stderr,
-                c"FATAL: error in free_all_mem\n %s %s %d: ".as_ptr(),
+                c"FATAL: error in free_all_mem\n %s %s %d: ",
                 context,
                 func_name,
                 line_num,
             );
-            fprintf!(stderr, c"%s".as_ptr(), msg);
+            fprintf!(stderr, c"%s", msg);
             if eol {
-                fprintf!(stderr, c"\n".as_ptr());
+                fprintf!(stderr, c"\n");
             }
             std::process::abort();
         }
@@ -441,7 +441,7 @@ fn do_log_to_file_str(
         if regen {
             let mut parent_buf = [0 as c_char; MAXPATHL];
             let parent = path_tail(os_getenv_buf(
-                c"NVIM".as_ptr(),
+                c"NVIM",
                 parent_buf.as_mut_ptr(),
                 parent_buf.len(),
             ));
@@ -472,7 +472,7 @@ fn do_log_to_file_str(
         let rv = if line_num == -1 || func_name.is_null() {
             fprintf!(
                 log_file,
-                c"%s %s.%03d %-10s %s".as_ptr(),
+                c"%s %s.%03d %-10s %s",
                 level_ptr,
                 date_time.as_ptr(),
                 millis,
@@ -486,7 +486,7 @@ fn do_log_to_file_str(
         } else {
             fprintf!(
                 log_file,
-                c"%s %s.%03d %-10s %s%s:%d: ".as_ptr(),
+                c"%s %s.%03d %-10s %s%s:%d: ",
                 level_ptr,
                 date_time.as_ptr(),
                 millis,
@@ -504,7 +504,7 @@ fn do_log_to_file_str(
         if rv < 0 {
             return false;
         }
-        if fprintf!(log_file, c"%s".as_ptr(), msg) < 0 {
+        if fprintf!(log_file, c"%s", msg) < 0 {
             return false;
         }
         if eol {

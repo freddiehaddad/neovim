@@ -503,7 +503,7 @@ fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> bool {
                 gettext(c"Exception thrown: %s"),
                 excp.value.as_ptr(),
             );
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
 
             if g_st().debug_break_level > 0 || *opt_vars().p_vfile == NUL {
                 g_st().cmdline_row = g_st().msg_row;
@@ -553,7 +553,7 @@ fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
                 gettext(c"Exception discarded: %s")
             };
             smsg!(0, fmt, excp.value.as_ptr());
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
             if g_st().debug_break_level > 0 || *opt_vars().p_vfile == NUL {
                 g_st().cmdline_row = g_st().msg_row;
             }
@@ -633,7 +633,7 @@ fn catch_exception(excp: &std::rc::Rc<except_T>) {
                 gettext(c"Exception caught: %s"),
                 excp.value.as_ptr(),
             );
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
 
             if g_st().debug_break_level > 0 || *opt_vars().p_vfile == NUL {
                 g_st().cmdline_row = g_st().msg_row;
@@ -785,7 +785,7 @@ fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
         g_st().no_wait_return += 1;
         g_st().msg_scroll = 1;
         smsg!(0, mesg, s);
-        msg_puts(c"\n".as_ptr());
+        msg_puts(c"\n");
         g_st().cmdline_row = g_st().msg_row;
         g_st().no_wait_return -= 1;
         if g_st().debug_break_level > 0 {

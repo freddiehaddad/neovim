@@ -196,7 +196,7 @@ pub fn ui_client_attach(
             capacity: 3,
         };
 
-        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_attach".as_ptr(), args);
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_attach", args);
         g_st().ui_client_attached = true;
 
         if has_time_fd() {
@@ -222,15 +222,15 @@ pub fn ui_client_attach(
 
         let mut info_items: [KeyValuePair; 3] = [
             KeyValuePair {
-                key: cstr_as_string(c"website".as_ptr()),
-                value: cstr_as_obj(c"https://neovim.io".as_ptr()),
+                key: cstr_as_string(c"website"),
+                value: cstr_as_obj(c"https://neovim.io"),
             },
             KeyValuePair {
-                key: cstr_as_string(c"license".as_ptr()),
-                value: cstr_as_obj(c"Apache 2".as_ptr()),
+                key: cstr_as_string(c"license"),
+                value: cstr_as_obj(c"Apache 2"),
             },
             KeyValuePair {
-                key: cstr_as_string(c"pid".as_ptr()),
+                key: cstr_as_string(c"pid"),
                 value: integer_obj(Integer::from(uv_os_getpid())),
             },
         ];
@@ -241,12 +241,12 @@ pub fn ui_client_attach(
         };
 
         let mut args2_items: [Object; 5] = [
-            cstr_as_obj(c"nvim-tui".as_ptr()),
+            cstr_as_obj(c"nvim-tui"),
             Object {
                 obj_type: ObjectType::kObjectTypeDict,
                 data: ObjectData::Dict(version),
             },
-            cstr_as_obj(c"ui".as_ptr()),
+            cstr_as_obj(c"ui"),
             Object {
                 obj_type: ObjectType::kObjectTypeArray,
                 data: ObjectData::Array(ARRAY_INIT),
@@ -263,7 +263,7 @@ pub fn ui_client_attach(
         };
         rpc_send_event(
             g_st().ui_client_channel_id,
-            c"nvim_set_client_info".as_ptr(),
+            c"nvim_set_client_info",
             args2,
         );
 
@@ -275,7 +275,7 @@ pub fn ui_client_attach(
 
 #[cfg(unix)]
 pub fn ui_client_detach() {
-    rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_detach".as_ptr(), ARRAY_INIT);
+    rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_detach", ARRAY_INIT);
     g_st().ui_client_attached = false;
 }
 
@@ -295,7 +295,7 @@ pub fn ui_client_run() -> ! {
             uic_st().tui_rgb,
         );
 
-        if os_env_exists(c"NVIM_LOG_FILE".as_ptr(), true) {
+        if os_env_exists(c"NVIM_LOG_FILE", true) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -339,7 +339,7 @@ pub fn ui_client_set_size(width: c_int, height: c_int) {
                 size: 2,
                 capacity: 2,
             };
-            rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_try_resize".as_ptr(), args);
+            rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_try_resize", args);
         }
         uic_st().tui_width = width;
         uic_st().tui_height = height;
@@ -620,7 +620,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
                     size: 2,
                     capacity: 2,
                 };
-                rpc_send_event(id, c"nvim_chan_set".as_ptr(), chan_args);
+                rpc_send_event(id, c"nvim_chan_set", chan_args);
             }
             id
         };

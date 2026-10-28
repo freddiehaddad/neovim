@@ -2659,7 +2659,7 @@ pub fn terminfo_is_bsd_console(term: *const c_char) -> bool {
         #[cfg(target_os = "freebsd")]
         {
             return (crate::memory::cstr_as_opt_bytes(term) == Some(b"xterm"))
-                && os_env_exists(c"XTERM_VERSION".as_ptr(), true);
+                && os_env_exists(c"XTERM_VERSION", true);
         }
     }
     let _ = term;

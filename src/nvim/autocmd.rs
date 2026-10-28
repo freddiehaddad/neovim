@@ -1607,7 +1607,7 @@ fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char) {
                         } else {
                             msg_puts_hl(last_group_name, HLF_T, false);
                         }
-                        msg_puts(c"  ".as_ptr());
+                        msg_puts(c"  ");
                     }
                     msg_puts_hl(event_nr2name(event), HLF_T, false);
                 }
@@ -1904,7 +1904,7 @@ pub fn do_augroup(arg: *mut c_char, del_group: bool) {
             au_st().current_augroup = augroup_add(arg);
         } else {
             msg_start();
-            msg_ext_set_kind(c"list_cmd".as_ptr());
+            msg_ext_set_kind(c"list_cmd");
 
             let vec_ptr = &raw const au_st().map_augroup_name_to_id;
             for (name, value) in &*vec_ptr {
@@ -1913,7 +1913,7 @@ pub fn do_augroup(arg: *mut c_char, del_group: bool) {
                 } else {
                     msg_puts(augroup_name(*value));
                 }
-                msg_puts(c"  ".as_ptr());
+                msg_puts(c"  ");
             }
 
             msg_clr_eos();
@@ -1986,7 +1986,7 @@ pub fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
             if unignore {
                 ei = ei.add(1);
             }
-            if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all".as_ptr(), 3))
+            if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(b"all")
                 && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
             {
                 ignored = ptr::eq(ei.cast_const(), opt_vars().p_ei.cast_const())
@@ -2006,7 +2006,7 @@ pub fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
 pub fn check_ei(mut ei: *mut c_char, win: bool) -> bool {
     unsafe {
         while *ei != NUL {
-            if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all".as_ptr(), 3))
+            if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(b"all")
                 && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
             {
                 ei = ei.add(3 + usize::from(*ei.add(3) == b',' as c_char));
@@ -2129,7 +2129,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
             let is_showing = forceit == 0 && *cmd == NUL;
 
             if is_showing {
-                msg_ext_set_kind(c"list_cmd".as_ptr());
+                msg_ext_set_kind(c"list_cmd");
                 msg_puts_title(tr(c"\n--- Autocommands ---"));
 
                 if *arg == b'*' as c_char || *arg == b'|' as c_char || *arg == NUL {
@@ -3431,7 +3431,7 @@ pub fn getnextac(
             verbose_enter_scroll();
             let handler_str = aucmd_handler_to_string(ac);
             smsg!(0, tr(c"autocommand %s"), handler_str.as_ptr());
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
             verbose_leave_scroll();
         }
 
@@ -3731,7 +3731,7 @@ pub fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int {
         }
 
         if patlen > 9 && *pat.add(7) == b'=' as c_char {
-            if patlen == 13 && crate::memory::cstr_prefix_bytes(pat, 13).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"<buffer=abuf>".as_ptr(), 13)) {
+            if patlen == 13 && crate::memory::cstr_prefix_bytes(pat, 13).eq_ignore_ascii_case(b"<buffer=abuf>") {
                 return g_st().autocmd_bufnr;
             }
 

@@ -1217,7 +1217,7 @@ pub fn nvim_win_get_config(
                 }
             } else {
                 rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__border;
-                rv.border = string_obj(cstr_as_string(c"none".as_ptr()));
+                rv.border = string_obj(cstr_as_string(c"none"));
             }
         } else if !config.external {
             rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__width;
@@ -1331,8 +1331,8 @@ pub fn parse_bordertext(
         {
             api_err_exp(
                 err,
-                c"title/footer".as_ptr(),
-                c"String or Array".as_ptr(),
+                c"title/footer",
+                c"String or Array",
                 api_typename(bordertext.obj_type),
             );
             return;
@@ -1341,8 +1341,8 @@ pub fn parse_bordertext(
         if bordertext.obj_type == ObjectType::kObjectTypeArray && bordertext.data.array().size == 0 {
             api_err_exp(
                 err,
-                c"title/footer".as_ptr(),
-                c"non-empty Array".as_ptr(),
+                c"title/footer",
+                c"non-empty Array",
                 ptr::null(),
             );
             return;
@@ -1455,8 +1455,8 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
             if size == 0 || size > 8 || (size & (size - 1)) != 0 {
                 api_err_exp(
                     err,
-                    c"border".as_ptr(),
-                    c"1, 2, 4, or 8 chars".as_ptr(),
+                    c"border",
+                    c"1, 2, 4, or 8 chars",
                     ptr::null(),
                 );
                 return;
@@ -1470,8 +1470,8 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                     if iarr.size == 0 || iarr.size > 2 {
                         api_err_exp(
                             err,
-                            c"border".as_ptr(),
-                            c"1 or 2-item Array".as_ptr(),
+                            c"border",
+                            c"1 or 2-item Array",
                             ptr::null(),
                         );
                         return;
@@ -1480,8 +1480,8 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                     if first.obj_type != ObjectType::kObjectTypeString {
                         api_err_exp(
                             err,
-                            c"border".as_ptr(),
-                            c"Array of Strings".as_ptr(),
+                            c"border",
+                            c"Array of Strings",
                             ptr::null(),
                         );
                         return;
@@ -1502,8 +1502,8 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                 } else {
                     api_err_exp(
                         err,
-                        c"border".as_ptr(),
-                        c"String or Array".as_ptr(),
+                        c"border",
+                        c"String or Array",
                         api_typename(iytem.obj_type),
                     );
                     return;
@@ -1511,8 +1511,8 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                 if string.size != 0 && mb_string2cells_len(string.data, string.size) > 1 {
                     api_err_exp(
                         err,
-                        c"border".as_ptr(),
-                        c"only one-cell chars".as_ptr(),
+                        c"border",
+                        c"only one-cell chars",
                         ptr::null(),
                     );
                     return;
@@ -1538,8 +1538,8 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
             {
                 api_err_exp(
                     err,
-                    c"border".as_ptr(),
-                    c"corner char between edge chars".as_ptr(),
+                    c"border",
+                    c"corner char between edge chars",
                     ptr::null(),
                 );
             }
@@ -1565,8 +1565,8 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                     }
                     *hl_ids = [0; 8];
                     if DEFAULTS_SHADOW[i] {
-                        let hl_blend = syn_check_group(c"FloatShadow".as_ptr(), 11);
-                        let hl_through = syn_check_group(c"FloatShadowThrough".as_ptr(), 18);
+                        let hl_blend = syn_check_group(c"FloatShadow", 11);
+                        let hl_through = syn_check_group(c"FloatShadowThrough", 18);
                         hl_ids[2] = hl_through;
                         hl_ids[3] = hl_blend;
                         hl_ids[4] = hl_blend;
@@ -1576,7 +1576,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                     return;
                 }
             }
-            api_err_invalid(err, c"border".as_ptr(), str_val.data, 0, true);
+            api_err_invalid(err, c"border", str_val.data, 0, true);
         }
     }
 }
@@ -1591,7 +1591,7 @@ fn generate_api_error(wp: *mut win_T, attribute: &std::ffi::CStr, err: &mut Erro
                 (*wp).handle,
             );
         } else {
-            api_err_conflict(err, attribute.as_ptr(), c"non-float window".as_ptr());
+            api_err_conflict(err, attribute.as_ptr(), c"non-float window");
         }
     }
 }
@@ -1651,7 +1651,7 @@ fn parse_win_config(
         'fail: {
             if config.relative.size > 0 {
                 if !parse_float_relative(config.relative, &mut fconfig.relative) {
-                    api_err_invalid(err, c"relative".as_ptr(), config.relative.data, 0, true);
+                    api_err_invalid(err, c"relative", config.relative.data, 0, true);
                     break 'fail;
                 }
 
@@ -1685,22 +1685,22 @@ fn parse_win_config(
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__vertical) && !is_split {
-                api_err_conflict(err, c"vertical".as_ptr(), c"floating windows".as_ptr());
+                api_err_conflict(err, c"vertical", c"floating windows");
                 break 'fail;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__split) && !is_split {
-                api_err_conflict(err, c"split".as_ptr(), c"floating windows".as_ptr());
+                api_err_conflict(err, c"split", c"floating windows");
                 break 'fail;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__split) {
                 if !is_split {
-                    api_err_conflict(err, c"split".as_ptr(), c"floating windows".as_ptr());
+                    api_err_conflict(err, c"split", c"floating windows");
                     break 'fail;
                 }
                 if !parse_config_split(config.split, &mut fconfig.split) {
-                    api_err_invalid(err, c"split".as_ptr(), config.split.data, 0, true);
+                    api_err_invalid(err, c"split", config.split.data, 0, true);
                     break 'fail;
                 }
             }
@@ -1708,7 +1708,7 @@ fn parse_win_config(
             if has_key(mask, KEYSET_OPTIDX_win_config__anchor)
                 && !parse_float_anchor(config.anchor, &mut fconfig.anchor)
             {
-                api_err_invalid(err, c"anchor".as_ptr(), config.anchor.data, 0, true);
+                api_err_invalid(err, c"anchor", config.anchor.data, 0, true);
                 break 'fail;
             }
 
@@ -1736,8 +1736,8 @@ fn parse_win_config(
                     if !parse_float_bufpos(config.bufpos, &mut fconfig.bufpos) {
                         api_err_exp(
                             err,
-                            c"bufpos".as_ptr(),
-                            c"[row, col] array".as_ptr(),
+                            c"bufpos",
+                            c"[row, col] array",
                             ptr::null(),
                         );
                         break 'fail;
@@ -1760,8 +1760,8 @@ fn parse_win_config(
                 if config.width <= 0 {
                     api_err_exp(
                         err,
-                        c"width".as_ptr(),
-                        c"positive Integer".as_ptr(),
+                        c"width",
+                        c"positive Integer",
                         ptr::null(),
                     );
                     break 'fail;
@@ -1776,8 +1776,8 @@ fn parse_win_config(
                 if config.height <= 0 {
                     api_err_exp(
                         err,
-                        c"height".as_ptr(),
-                        c"positive Integer".as_ptr(),
+                        c"height",
+                        c"positive Integer",
                         ptr::null(),
                     );
                     break 'fail;
@@ -1791,7 +1791,7 @@ fn parse_win_config(
             if has_key(mask, KEYSET_OPTIDX_win_config__external) {
                 fconfig.external = config.external;
                 if has_relative && fconfig.external {
-                    api_err_conflict(err, c"relative".as_ptr(), c"external".as_ptr());
+                    api_err_conflict(err, c"relative", c"external");
                     break 'fail;
                 }
                 if fconfig.external && !ui_has(kUIMultigrid) {
@@ -1805,7 +1805,7 @@ fn parse_win_config(
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__win) && fconfig.external {
-                api_err_conflict(err, c"win".as_ptr(), c"external window".as_ptr());
+                api_err_conflict(err, c"win", c"external window");
                 break 'fail;
             }
 
@@ -1856,14 +1856,14 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__zindex) {
                 if !will_float {
-                    api_err_conflict(err, c"zindex".as_ptr(), c"non-float window".as_ptr());
+                    api_err_conflict(err, c"zindex", c"non-float window");
                     break 'fail;
                 }
                 if config.zindex <= 0 {
                     api_err_exp(
                         err,
-                        c"zindex".as_ptr(),
-                        c"positive Integer".as_ptr(),
+                        c"zindex",
+                        c"positive Integer",
                         ptr::null(),
                     );
                     break 'fail;
@@ -1873,7 +1873,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__title) {
                 if !will_float {
-                    api_err_conflict(err, c"title".as_ptr(), c"non-float window".as_ptr());
+                    api_err_conflict(err, c"title", c"non-float window");
                     break 'fail;
                 }
 
@@ -1892,7 +1892,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__footer) {
                 if !will_float {
-                    api_err_conflict(err, c"footer".as_ptr(), c"non-float window".as_ptr());
+                    api_err_conflict(err, c"footer", c"non-float window");
                     break 'fail;
                 }
 
@@ -1912,7 +1912,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__border) {
                 if !will_float {
-                    api_err_conflict(err, c"border".as_ptr(), c"non-float window".as_ptr());
+                    api_err_conflict(err, c"border", c"non-float window");
                     break 'fail;
                 }
                 let border_style = config.border;
@@ -1935,7 +1935,7 @@ fn parse_win_config(
                 } else if crate::memory::cstr_as_opt_bytes(config.style.data).is_some_and(|b| b.eq_ignore_ascii_case(b"minimal")) {
                     fconfig.style = kWinStyleMinimal;
                 } else {
-                    api_err_invalid(err, c"style".as_ptr(), config.style.data, 0, true);
+                    api_err_invalid(err, c"style", config.style.data, 0, true);
                     break 'fail;
                 }
             }
@@ -1958,7 +1958,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__hide) {
                 if !will_float && config.hide {
-                    api_err_conflict(err, c"hide".as_ptr(), c"non-float window".as_ptr());
+                    api_err_conflict(err, c"hide", c"non-float window");
                     break 'fail;
                 }
                 if fconfig.hide && !config.hide {

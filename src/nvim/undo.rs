@@ -1699,7 +1699,7 @@ fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
             undo_st().u_oldcount = -1;
         }
 
-        msg_ext_set_kind(c"undo".as_ptr());
+        msg_ext_set_kind(c"undo");
         let mut count = startcount;
         while {
             let prev = count;
@@ -2480,7 +2480,7 @@ pub fn ex_undolist(_eap: &mut exarg_T) {
                 undo_fmt_time(iobuf_ptr.add(cur_len), IOSIZE - cur_len, uh_time);
                 if uh_save_nr > 0 {
                     while crate::memory::cstr_len(iobuf_ptr) < 33 {
-                        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" ".as_ptr(), _dsize - _dlen); };
+                        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" ", _dsize - _dlen); };
                     }
                     vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d", uh_save_nr);
                 }
@@ -2521,7 +2521,7 @@ pub fn ex_undolist(_eap: &mut exarg_T) {
             }
         }
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         if lines.is_empty() {
             msg(gettext(c"Nothing to undo"), 0);
         } else {

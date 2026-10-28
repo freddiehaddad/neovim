@@ -311,7 +311,7 @@ fn tinput_flush(input: &mut TermInput) {
                 size: 3,
                 capacity: 3,
             };
-            rpc_send_event(g_st().ui_client_channel_id, c"nvim_paste".as_ptr(), args);
+            rpc_send_event(g_st().ui_client_channel_id, c"nvim_paste", args);
             if input.paste == 1 {
                 input.paste = 2;
             }
@@ -322,7 +322,7 @@ fn tinput_flush(input: &mut TermInput) {
                 size: 1,
                 capacity: 1,
             };
-            rpc_send_event(g_st().ui_client_channel_id, c"nvim_input".as_ptr(), args);
+            rpc_send_event(g_st().ui_client_channel_id, c"nvim_input", args);
         }
         input.key_buffer_len = 0;
 }
@@ -639,7 +639,7 @@ fn handle_focus_event(_input: &mut TermInput, ptr: *const c_char, size: usize) -
                     size: 1,
                     capacity: 1,
                 };
-                rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_focus".as_ptr(), args);
+                rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_focus", args);
                 return 3;
             }
         }
@@ -698,7 +698,7 @@ fn send_termresponse(response: &[u8]) {
         size: 2,
         capacity: 2,
     };
-    rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_term_event".as_ptr(), args);
+    rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_term_event", args);
 }
 
 fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {

@@ -649,8 +649,8 @@ pub fn nvim_cmd(
             {
                 api_err_exp(
                     err,
-                    c"cmd".as_ptr(),
-                    c"non-empty String".as_ptr(),
+                    c"cmd",
+                    c"non-empty String",
                     ptr::null(),
                 );
                 break 'end;
@@ -788,8 +788,8 @@ pub fn nvim_cmd(
                                 if string_iswhite(elem.data.string()) {
                                     api_err_exp(
                                         err,
-                                        c"command arg".as_ptr(),
-                                        c"non-whitespace".as_ptr(),
+                                        c"command arg",
+                                        c"non-whitespace",
                                         ptr::null(),
                                     );
                                     break 'end;
@@ -799,8 +799,8 @@ pub fn nvim_cmd(
                             _ => {
                                 api_err_exp(
                                     err,
-                                    c"command arg".as_ptr(),
-                                    c"valid type".as_ptr(),
+                                    c"command arg",
+                                    c"valid type",
                                     api_typename(elem.obj_type),
                                 );
                                 break 'end;
@@ -842,8 +842,8 @@ pub fn nvim_cmd(
                 if cmd.range.size > 2 {
                     api_err_exp(
                         err,
-                        c"range".as_ptr(),
-                        c"<=2 elements".as_ptr(),
+                        c"range",
+                        c"<=2 elements",
                         ptr::null(),
                     );
                     break 'end;
@@ -857,8 +857,8 @@ pub fn nvim_cmd(
                     if elem.obj_type != ObjectType::kObjectTypeInteger || elem.data.integer() < 0 {
                         api_err_exp(
                             err,
-                            c"range element".as_ptr(),
-                            c"non-negative Integer".as_ptr(),
+                            c"range element",
+                            c"non-negative Integer",
                             ptr::null(),
                         );
                         break 'end;
@@ -900,7 +900,7 @@ pub fn nvim_cmd(
             if has_key(mask, KEYSET_OPTIDX_cmd__range)
                 && !invalid_range(&mut ea).is_null()
             {
-                api_err_invalid(err, c"range".as_ptr(), c"".as_ptr(), 0, true);
+                api_err_invalid(err, c"range", c"", 0, true);
                 break 'end;
             }
 
@@ -943,8 +943,8 @@ pub fn nvim_cmd(
                 if cmd.count < 0 {
                     api_err_exp(
                         err,
-                        c"count".as_ptr(),
-                        c"non-negative Integer".as_ptr(),
+                        c"count",
+                        c"non-negative Integer",
                         ptr::null(),
                     );
                     break 'end;
@@ -966,8 +966,8 @@ pub fn nvim_cmd(
                 if cmd.reg.size != 1 {
                     api_err_exp(
                         err,
-                        c"reg".as_ptr(),
-                        c"single character".as_ptr(),
+                        c"reg",
+                        c"single character",
                         cmd.reg.data,
                     );
                     break 'end;
@@ -1113,7 +1113,7 @@ pub fn nvim_cmd(
                     } else if crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"botright") {
                         cmod.cmod_split |= WSP_BOT;
                     } else {
-                        api_err_invalid(err, c"mods.split".as_ptr(), c"".as_ptr(), 0, true);
+                        api_err_invalid(err, c"mods.split", c"", 0, true);
                         break 'end;
                     }
                 }
@@ -1190,7 +1190,7 @@ pub fn nvim_cmd(
                     let result = getargopt(&mut ea);
                     if !result && !is_cmd_ni(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
                     {
-                        api_err_invalid(err, c"argument ".as_ptr(), orig_arg, 0, true);
+                        api_err_invalid(err, c"argument ", orig_arg, 0, true);
                         break 'end;
                     }
                 }
@@ -1458,13 +1458,13 @@ pub fn create_user_command(
 
         'err: {
             if uc_validate_name(name.data).is_null() {
-                api_err_invalid(err, c"command name".as_ptr(), name.data, 0, true);
+                api_err_invalid(err, c"command name", name.data, 0, true);
                 break 'err;
             }
             if mb_islower(c_int::from(*name.data.cast::<u8>())) {
                 api_err_invalid(
                     err,
-                    c"command name (must start with uppercase)".as_ptr(),
+                    c"command name (must start with uppercase)",
                     name.data,
                     0,
                     true,
@@ -1491,7 +1491,7 @@ pub fn create_user_command(
                         argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG;
                     }
                     n => {
-                        api_err_invalid(err, c"nargs".as_ptr(), ptr::null(), n, false);
+                        api_err_invalid(err, c"nargs", ptr::null(), n, false);
                         break 'err;
                     }
                 }
@@ -1499,7 +1499,7 @@ pub fn create_user_command(
                 if opts.nargs.data.string().size > 1 {
                     api_err_invalid(
                         err,
-                        c"nargs".as_ptr(),
+                        c"nargs",
                         opts.nargs.data.string().data,
                         0,
                         true,
@@ -1514,7 +1514,7 @@ pub fn create_user_command(
                     _ => {
                         api_err_invalid(
                             err,
-                            c"nargs".as_ptr(),
+                            c"nargs",
                             opts.nargs.data.string().data,
                             0,
                             true,
@@ -1523,7 +1523,7 @@ pub fn create_user_command(
                     }
                 }
             } else if has_key(mask, KEYSET_OPTIDX_user_command__nargs) {
-                api_err_invalid(err, c"nargs".as_ptr(), c"".as_ptr(), 0, true);
+                api_err_invalid(err, c"nargs", c"", 0, true);
                 break 'err;
             }
 
@@ -1546,7 +1546,7 @@ pub fn create_user_command(
                 if !(*opts.range.data.string().data == b'%' as c_char
                     && opts.range.data.string().size == 1)
                 {
-                    api_err_invalid(err, c"range".as_ptr(), c"".as_ptr(), 0, true);
+                    api_err_invalid(err, c"range", c"", 0, true);
                     break 'err;
                 }
                 argt |= EX_RANGE | EX_DFLALL;
@@ -1556,7 +1556,7 @@ pub fn create_user_command(
                 def = opts.range.data.integer();
                 addr_type_arg = ADDR_LINES;
             } else if has_key(mask, KEYSET_OPTIDX_user_command__range) {
-                api_err_invalid(err, c"range".as_ptr(), c"".as_ptr(), 0, true);
+                api_err_invalid(err, c"range", c"", 0, true);
                 break 'err;
             }
 
@@ -1571,7 +1571,7 @@ pub fn create_user_command(
                 addr_type_arg = ADDR_OTHER;
                 def = opts.count.data.integer();
             } else if has_key(mask, KEYSET_OPTIDX_user_command__count) {
-                api_err_invalid(err, c"count".as_ptr(), c"".as_ptr(), 0, true);
+                api_err_invalid(err, c"count", c"", 0, true);
                 break 'err;
             }
 
@@ -1579,7 +1579,7 @@ pub fn create_user_command(
                 if opts.addr.obj_type != ObjectType::kObjectTypeString {
                     api_err_exp(
                         err,
-                        c"addr".as_ptr(),
+                        c"addr",
                         api_typename(ObjectType::kObjectTypeString),
                         api_typename(opts.addr.obj_type),
                     );
@@ -1593,7 +1593,7 @@ pub fn create_user_command(
                 {
                     api_err_invalid(
                         err,
-                        c"addr".as_ptr(),
+                        c"addr",
                         opts.addr.data.string().data,
                         0,
                         true,
@@ -1644,7 +1644,7 @@ pub fn create_user_command(
                 {
                     api_err_invalid(
                         err,
-                        c"complete".as_ptr(),
+                        c"complete",
                         opts.complete.data.string().data,
                         0,
                         true,
@@ -1654,8 +1654,8 @@ pub fn create_user_command(
             } else if has_key(mask, KEYSET_OPTIDX_user_command__complete) {
                 api_err_exp(
                     err,
-                    c"complete".as_ptr(),
-                    c"Function or String".as_ptr(),
+                    c"complete",
+                    c"Function or String",
                     ptr::null(),
                 );
                 break 'err;
@@ -1665,7 +1665,7 @@ pub fn create_user_command(
                 if opts.preview.obj_type != ObjectType::kObjectTypeLuaRef {
                     api_err_exp(
                         err,
-                        c"preview".as_ptr(),
+                        c"preview",
                         api_typename(ObjectType::kObjectTypeLuaRef),
                         api_typename(opts.preview.obj_type),
                     );
@@ -1682,7 +1682,7 @@ pub fn create_user_command(
                 if opts.desc.obj_type != ObjectType::kObjectTypeString {
                     api_err_exp(
                         err,
-                        c"desc".as_ptr(),
+                        c"desc",
                         api_typename(ObjectType::kObjectTypeString),
                         api_typename(opts.desc.obj_type),
                     );
@@ -1702,8 +1702,8 @@ pub fn create_user_command(
                 _ => {
                     api_err_exp(
                         err,
-                        c"command".as_ptr(),
-                        c"Function or String".as_ptr(),
+                        c"command",
+                        c"Function or String",
                         ptr::null(),
                     );
                     break 'err;

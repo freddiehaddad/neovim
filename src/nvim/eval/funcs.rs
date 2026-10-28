@@ -459,7 +459,7 @@ pub fn get_function_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
             if !name.is_null() {
                 if *name != NUL
                     && *name != b'<' as c_char
-                    && (crate::memory::cstr_prefix_bytes(c"g:".as_ptr(), 2) == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2))
+                    && (b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2))
                 {
                     return cat_prefix_varname(b'g' as c_int, name);
                 }
@@ -1575,7 +1575,7 @@ pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                 ptr::null_mut(),
             );
             let Some(ref tf) = tofree else {
-                emsg_funcname(e_unknown_function_str.as_ptr(), func);
+                emsg_funcname(e_unknown_function_str, func);
                 return;
             };
             func = tf.as_ptr().cast_mut();
@@ -2071,7 +2071,7 @@ pub fn f_dictwatcherdel(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: 
             crate::memory::cstr_len(key_pattern),
             &callback,
         ) {
-            emsg(c"Couldn't find a watcher matching key and callback".as_ptr());
+            emsg(c"Couldn't find a watcher matching key and callback");
         }
 
         callback_free(&mut callback);
@@ -2709,7 +2709,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
                         if tv_list_len(list) == 0 {
                             arg_idx = 0;
                         } else if (tv_list_len(list) as usize) > MAX_FUNC_ARGS {
-                            emsg_funcname(e_toomanyarg.as_ptr(), s);
+                            emsg_funcname(e_toomanyarg, s);
                             break 'theend;
                         }
                     }
@@ -3768,7 +3768,7 @@ pub fn f_has(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
         let mut n = false;
         let name = tv_get_string(&argvars[0]);
 
-        if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"patch".as_ptr(), 5)) {
+        if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(b"patch") {
             x = true;
             if *name.add(5) == b'-' as c_char
                 && crate::memory::cstr_len(name) >= 11
@@ -3789,7 +3789,7 @@ pub fn f_has(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
             } else if ascii_isdigit(*name.add(5)) {
                 n = has_vim_patch(crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(name.add(5))) as c_int, 0);
             }
-        } else if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nvim-".as_ptr(), 5)) {
+        } else if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(b"nvim-") {
             x = true;
             n = has_nvim_version(crate::memory::cstr_as_bytes(name.add(5)));
         } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"vim_starting") {
@@ -4259,7 +4259,7 @@ pub fn f_inputlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             return;
         }
 
-        msg_ext_set_kind(c"confirm".as_ptr());
+        msg_ext_set_kind(c"confirm");
         msg_start();
         g_st().msg_row = g_st().Rows - 1;
         g_st().lines_left = g_st().Rows;
@@ -4523,7 +4523,7 @@ pub fn create_environment(
         }
 
         if pty {
-            let dv = tv_dict_find(env, c"TERM".as_ptr(), 4);
+            let dv = tv_dict_find(env, c"TERM", 4);
             if !dv.is_null() {
                 tv_dict_item_remove(&mut *env, dv);
             }
@@ -4533,7 +4533,7 @@ pub fn create_environment(
         if set_nvim_addr {
             let nvim_addr = get_vim_var_str(VV_SEND_SERVER);
             if *nvim_addr != NUL {
-                let dv = tv_dict_find(env, c"NVIM".as_ptr(), 4);
+                let dv = tv_dict_find(env, c"NVIM", 4);
                 if !dv.is_null() {
                     tv_dict_item_remove(&mut *env, dv);
                 }
@@ -4648,16 +4648,16 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
             let s = tv_dict_get_string(job_opts, c"stdin");
             if !s.is_null() {
-                if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"null".as_ptr(), NUMBUFLEN) {
+                if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"null", NUMBUFLEN) {
                     stdin_mode = kChannelStdinNull;
-                } else if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"pipe".as_ptr(), NUMBUFLEN) {
+                } else if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"pipe", NUMBUFLEN) {
                     // default
                 } else {
                     semsg!(gettext(e_invargNval), c"stdin", s);
                 }
             }
 
-            let job_term = tv_dict_find(job_opts, c"term".as_ptr(), 4);
+            let job_term = tv_dict_find(job_opts, c"term", 4);
             if !job_term.is_null() && (*job_term).di_tv.v_type != VarType::VAR_BOOL {
                 semsg!(
                     gettext(e_invarg2),
@@ -4695,7 +4695,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 }
             }
 
-            job_env = tv_dict_find(job_opts, c"env".as_ptr(), 3);
+            job_env = tv_dict_find(job_opts, c"env", 3);
             if !job_env.is_null() && (*job_env).di_tv.v_type != VarType::VAR_DICT {
                 semsg!(gettext(e_invarg2), c"env");
                 return;
@@ -4857,7 +4857,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 let cp = chan;
                 dict_set_var(
                     &mut *(*buf).b_vars(),
-                    cstr_as_string(c"terminal_job_id".as_ptr()),
+                    cstr_as_string(c"terminal_job_id"),
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
                         data: ObjectData::Integer((*cp).id as Integer),
@@ -4870,7 +4870,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 api_clear_error(&mut err);
                 dict_set_var(
                     &mut *(*buf).b_vars(),
-                    cstr_as_string(c"terminal_job_pid".as_ptr()),
+                    cstr_as_string(c"terminal_job_pid"),
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
                         data: ObjectData::Integer(Integer::from(pid)),
@@ -5284,7 +5284,7 @@ fn find_some_match(argvars: &mut [typval_T], rettv: &mut typval_T, type_: SomeMa
             }
             SomeMatchType::kSomeMatchStrPos => {
                 tv_list_alloc_ret(&mut *rettv, 4);
-                tv_list_append_string(rettv.vval.v_list(), c"".as_ptr(), 0);
+                tv_list_append_string(rettv.vval.v_list(), c"", 0);
                 tv_list_append_number(rettv.vval.v_list(), -1);
                 tv_list_append_number(rettv.vval.v_list(), -1);
                 tv_list_append_number(rettv.vval.v_list(), -1);
@@ -5522,7 +5522,7 @@ fn get_matches_in_str(
                 tv_dict_add_list(d, c"submatches", sml);
                 for i in 1..NSUBEXP {
                     if rmp.endp[i].is_null() {
-                        tv_list_append_string(sml, c"".as_ptr(), 0);
+                        tv_list_append_string(sml, c"", 0);
                     } else {
                         tv_list_append_string(
                             sml,
@@ -5603,7 +5603,7 @@ pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         if argvars[4].v_type != VarType::VAR_UNKNOWN {
             let d = argvars[4].vval.v_dict().cast::<dict_T>();
             if !d.is_null() {
-                let di = tv_dict_find(d, c"submatches".as_ptr(), 10);
+                let di = tv_dict_find(d, c"submatches", 10);
                 if !di.is_null() {
                     if (*di).di_tv.v_type != VarType::VAR_BOOL {
                         semsg!(gettext(e_invargval), c"submatches");
@@ -5694,7 +5694,7 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 if argvars[2].v_type != VarType::VAR_UNKNOWN {
                     let d = argvars[2].vval.v_dict().cast::<dict_T>();
                     if !d.is_null() {
-                        let di = tv_dict_find(d, c"submatches".as_ptr(), 10);
+                        let di = tv_dict_find(d, c"submatches", 10);
                         if !di.is_null() {
                             if (*di).di_tv.v_type != VarType::VAR_BOOL {
                                 semsg!(gettext(e_invargval), c"submatches");
@@ -7684,7 +7684,7 @@ pub fn f_serverlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         let mut lua_args = [opts, addrs_tv, tv_initial_value()];
         nlua_call_typval(
             c"vim._core.server",
-            c"serverlist".as_ptr(),
+            c"serverlist",
             lua_args.as_mut_ptr(),
             Some(&mut *rettv),
         );
@@ -7835,7 +7835,7 @@ pub fn f_setcharsearch(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
             set_last_csearch(c, csearch, utfc_ptr2len(csearch));
         }
 
-        let mut di = tv_dict_find(d, c"forward".as_ptr(), 7);
+        let mut di = tv_dict_find(d, c"forward", 7);
         if !di.is_null() {
             set_csearch_direction(if tv_get_number(&(*di).di_tv) != 0 {
                 FORWARD
@@ -7844,7 +7844,7 @@ pub fn f_setcharsearch(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
             });
         }
 
-        di = tv_dict_find(d, c"until".as_ptr(), 5);
+        di = tv_dict_find(d, c"until", 5);
         if !di.is_null() {
             set_csearch_until(c_int::from(tv_get_number(&(*di).di_tv) != 0));
         }
@@ -7978,7 +7978,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 return;
             }
 
-            let di = tv_dict_find(d, c"regcontents".as_ptr(), -1);
+            let di = tv_dict_find(d, c"regcontents", -1);
             if !di.is_null() {
                 regcontents = &raw const (*di).di_tv;
             }
@@ -8359,10 +8359,10 @@ pub fn f_spellbadword(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         tv_list_alloc_ret(rettv, 2);
         tv_list_append_string(rettv.vval.v_list(), word, len as isize);
         match attr {
-            HLF_SPB => tv_list_append_string(rettv.vval.v_list(), c"bad".as_ptr(), 3),
-            HLF_SPR => tv_list_append_string(rettv.vval.v_list(), c"rare".as_ptr(), 4),
-            HLF_SPL => tv_list_append_string(rettv.vval.v_list(), c"local".as_ptr(), 5),
-            HLF_SPC => tv_list_append_string(rettv.vval.v_list(), c"caps".as_ptr(), 4),
+            HLF_SPB => tv_list_append_string(rettv.vval.v_list(), c"bad", 3),
+            HLF_SPR => tv_list_append_string(rettv.vval.v_list(), c"rare", 4),
+            HLF_SPL => tv_list_append_string(rettv.vval.v_list(), c"local", 5),
+            HLF_SPC => tv_list_append_string(rettv.vval.v_list(), c"caps", 4),
             _ => tv_list_append_string(rettv.vval.v_list(), ptr::null(), -1),
         }
     }
@@ -9103,7 +9103,7 @@ pub fn f_timer_start(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 return;
             }
             let dict = argvars[2].vval.v_dict().cast::<dict_T>();
-            let di = tv_dict_find(dict, c"repeat".as_ptr(), 6);
+            let di = tv_dict_find(dict, c"repeat", 6);
             if !di.is_null() {
                 repeat = tv_get_number(&(*di).di_tv) as c_int;
                 if repeat == 0 {

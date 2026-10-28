@@ -929,11 +929,11 @@ fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
                 return;
             }
             for _ in 0..depth {
-                msg_puts(c"  ".as_ptr());
+                msg_puts(c"  ");
             }
             if (*menu).priority != 0 {
                 msg_outnum((*menu).priority);
-                msg_puts(c" ".as_ptr());
+                msg_puts(c" ");
             }
             msg_outtrans((*menu).name.as_ptr(), HLF_D, false);
         }
@@ -946,7 +946,7 @@ fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
                         return;
                     }
                     for _ in 0..(depth + 2) {
-                        msg_puts(c"  ".as_ptr());
+                        msg_puts(c"  ");
                     }
                     msg_puts(mode_cstr.as_ptr());
                     if (*menu).noremap[bit] == REMAP_NONE {
@@ -966,12 +966,12 @@ fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
                     } else {
                         msg_putchar(b' ' as c_int);
                     }
-                    msg_puts(c" ".as_ptr());
+                    msg_puts(c" ");
                     let s_bytes = (*menu).strings[bit]
                         .as_ref()
                         .map_or(&[][..], |s| s.as_bytes());
                     if s_bytes.is_empty() {
-                        msg_puts_hl(c"<Nop>".as_ptr(), HLF_8, false);
+                        msg_puts_hl(c"<Nop>", HLF_8, false);
                     } else {
                         msg_outtrans_special(
                             (*menu).strings[bit].as_ref().unwrap().as_ptr(),
@@ -1208,7 +1208,7 @@ pub fn get_menu_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
                         menu_st().GET_MENU_NAMES_ADVANCE = true;
                     }
                 }
-                crate::memory::cstr_cat(&raw mut menu_st().GET_MENU_NAMES_TBUFFER[0], c"\x01".as_ptr());
+                crate::memory::cstr_cat(&raw mut menu_st().GET_MENU_NAMES_TBUFFER[0], c"\x01");
                 &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0]
             } else if menu_st().GET_MENU_NAMES_ADVANCE {
                 menu.en_dname
@@ -1531,7 +1531,7 @@ pub fn show_popupmenu() {
         let mut menu: *mut vimmenu_T = ptr::null_mut();
         let root_ptr = &raw mut g_st().root_menu;
         for m in &mut *root_ptr {
-            if (crate::memory::cstr_prefix_bytes(c"PopUp".as_ptr(), 5) == crate::memory::cstr_prefix_bytes(m.name.as_ptr(), 5))
+            if (b"PopUp" == crate::memory::cstr_prefix_bytes(m.name.as_ptr(), 5))
                 && (crate::memory::cstr_prefix_bytes(m.name.as_ptr().add(5), mode_len) == crate::memory::cstr_prefix_bytes(mode, mode_len))
             {
                 menu = m;
@@ -1881,7 +1881,7 @@ fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
         while *arg != NUL && !ascii_iswhite(*arg) {
             if (*arg == b'\\' as c_char || *arg == Ctrl_V) && *arg.add(1) != NUL {
                 arg = arg.add(1);
-            } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"<TAB>".as_ptr(), 5)) {
+            } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"<TAB>") {
                 *arg = TAB;
                 ptr::copy(arg.add(5), arg.add(1), std::ffi::CStr::from_ptr(arg.add(5)).to_bytes_with_nul().len());
             }

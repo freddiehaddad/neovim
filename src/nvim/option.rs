@@ -728,7 +728,7 @@ pub fn set_init_tablocal() {
 
 /// Initialize the 'shell' option to a default value.
 fn set_init_default_shell() {
-    if let Some(shell) = os_getenv_cstr(c"SHELL".as_ptr()) {
+    if let Some(shell) = os_getenv_cstr(c"SHELL") {
             let shell_ptr = shell.as_ptr();
             if !vim_strchr(shell_ptr, b' ' as c_int).is_null() {
                 let len = shell.as_bytes().len() + 3;
@@ -953,13 +953,13 @@ pub fn set_init_1(clean_arg: bool) {
 
         set_init_expand_env();
 
-        if os_env_exists(c"NVIM_NOTTYFAST".as_ptr(), false) {
+        if os_env_exists(c"NVIM_NOTTYFAST", false) {
             set_option_value_give_err(kOptTtyfast, boolean_obj(false), 0);
         }
 
         save_file_ff(&mut *g_st().curbuf);
 
-        if os_env_exists(c"MLTERM".as_ptr(), false) {
+        if os_env_exists(c"MLTERM", false) {
             set_option_value_give_err(kOptTermbidi, boolean_obj(true), 0);
         }
 
@@ -2029,7 +2029,7 @@ fn do_one_set_option(
             return errmsg;
         }
 
-        if !vim_strchr(c"?=:!&<".as_ptr(), nextchar).is_null() {
+        if !vim_strchr(c"?=:!&<", nextchar).is_null() {
             *argp = p;
 
             if nextchar == b'&' as c_int
@@ -2042,7 +2042,7 @@ fn do_one_set_option(
                     *argp = (*argp).add(2);
                 }
             }
-            if !vim_strchr(c"?!&<".as_ptr(), nextchar).is_null()
+            if !vim_strchr(c"?!&<", nextchar).is_null()
                 && *(*argp).add(1) != NUL
                 && !ascii_iswhite(*(*argp).add(1))
             {
@@ -2052,13 +2052,13 @@ fn do_one_set_option(
 
         if nextchar == b'?' as c_int
             || (prefix == PREFIX_NONE
-                && vim_strchr(c"=:&<".as_ptr(), nextchar).is_null()
+                && vim_strchr(c"=:&<", nextchar).is_null()
                 && !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean))
         {
             if *did_show {
                 msg_putchar(b'\n' as c_int);
             } else {
-                msg_ext_set_kind(c"list_cmd".as_ptr());
+                msg_ext_set_kind(c"list_cmd");
                 gotocmdline(true);
                 *did_show = true;
             }
@@ -2086,17 +2086,17 @@ fn do_one_set_option(
         }
 
         if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
-            if !vim_strchr(c"=:".as_ptr(), nextchar).is_null() {
+            if !vim_strchr(c"=:", nextchar).is_null() {
                 return e_invarg.as_ptr();
             }
 
-            if vim_strchr(c"!&<".as_ptr(), nextchar).is_null()
+            if vim_strchr(c"!&<", nextchar).is_null()
                 && nextchar != NUL as c_int
                 && !ascii_iswhite(afterchar)
             {
                 return e_trailing.as_ptr();
             }
-        } else if vim_strchr(c"=:&<".as_ptr(), nextchar).is_null() {
+        } else if vim_strchr(c"=:&<", nextchar).is_null() {
             return e_invarg.as_ptr();
         }
 
@@ -2177,7 +2177,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
                         if (i + arg_len) < IOSIZE as isize {
                             xstrlcpy(
                                 iobuf_ptr.offset(i - 2),
-                                c": ".as_ptr(),
+                                c": ",
                                 (IOSIZE as isize - i + 2) as usize,
                             );
                             assert!(arg >= startarg);
@@ -6276,7 +6276,7 @@ fn showoptions(all: bool, opt_flags: c_int) {
 
         let mut items: Vec<*mut vimoption_T> = Vec::with_capacity(kOptCount as usize);
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         if (opt_flags & OPT_GLOBAL) != 0 {
             msg_puts_title(tr(c"\n--- Global option values ---"));
         } else if (opt_flags & OPT_LOCAL) != 0 {
@@ -6404,14 +6404,14 @@ fn showoneopt(opt: &mut vimoption_T, opt_flags: c_int) {
                 *(varp.cast::<c_int>())
             };
             if val_int == 0 {
-                msg_puts(c"no".as_ptr());
+                msg_puts(c"no");
             } else if val_int < 0 {
-                msg_puts(c"--".as_ptr());
+                msg_puts(c"--");
             } else {
-                msg_puts(c"  ".as_ptr());
+                msg_puts(c"  ");
             }
         } else {
-            msg_puts(c"  ".as_ptr());
+            msg_puts(c"  ");
         }
         msg_puts(opt.fullname.as_ptr());
         if !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
@@ -6488,7 +6488,7 @@ pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> bool {
                         if opt_idx == kOptSyntax || opt_idx == kOptFiletype {
                             if fprintf!(
                                 fd,
-                                c"if &%s != '%s'".as_ptr(),
+                                c"if &%s != '%s'",
                                 (*opt).fullname.as_ptr(),
                                 *(varp.cast::<*mut c_char>()),
                             ) < 0
@@ -6595,7 +6595,7 @@ fn put_set_value(
                 let value_bool = value.data.boolean();
                 if fprintf!(
                     fd,
-                    c"%s %s%s".as_ptr(),
+                    c"%s %s%s",
                     cmd,
                     if value_bool {
                         c"".as_ptr()
@@ -6609,7 +6609,7 @@ fn put_set_value(
                 }
             }
             ObjectType::kObjectTypeInteger => {
-                if fprintf!(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
+                if fprintf!(fd, c"%s %s=", cmd, name) < 0 {
                     return false;
                 }
                 let value_num = value.data.integer();
@@ -6626,7 +6626,7 @@ fn put_set_value(
                 }
             }
             ObjectType::kObjectTypeString => {
-                if fprintf!(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
+                if fprintf!(fd, c"%s %s=", cmd, name) < 0 {
                     return false;
                 }
                 let value_str = value.data.string().data;
@@ -6648,7 +6648,7 @@ fn put_set_value(
                             }
                             let mut p = buf;
                             while *p != NUL {
-                                if fprintf!(fd, c"%s %s+=".as_ptr(), cmd, name) < 0 {
+                                if fprintf!(fd, c"%s %s+=", cmd, name) < 0 {
                                     return false;
                                 }
                                 copy_option_part(&raw mut p, part, size, c",");
@@ -8682,12 +8682,12 @@ fn option_info_dict(
 
         put_c(
             &mut dict,
-            c"name".as_ptr(),
+            c"name",
             cstr_as_obj(opt.fullname.as_ptr()),
         );
         put_c(
             &mut dict,
-            c"shortname".as_ptr(),
+            c"shortname",
             cstr_as_obj(opt.shortname.map_or(ptr::null(), |s| s.as_ptr())),
         );
 
@@ -8701,27 +8701,27 @@ fn option_info_dict(
             c"global".as_ptr()
         };
 
-        put_c(&mut dict, c"scope".as_ptr(), cstr_as_obj(scope));
+        put_c(&mut dict, c"scope", cstr_as_obj(scope));
 
         put_c(
             &mut dict,
-            c"global_local".as_ptr(),
+            c"global_local",
             boolean_obj(option_is_global_local(opt_idx)),
         );
         put_c(
             &mut dict,
-            c"commalist".as_ptr(),
+            c"commalist",
             boolean_obj((opt.flags & kOptFlagComma) != 0),
         );
         put_c(
             &mut dict,
-            c"flaglist".as_ptr(),
+            c"flaglist",
             boolean_obj((opt.flags & kOptFlagFlagList) != 0),
         );
 
         put_c(
             &mut dict,
-            c"was_set".as_ptr(),
+            c"was_set",
             boolean_obj((opt.flags & kOptFlagWasSet) != 0),
         );
 
@@ -8749,29 +8749,29 @@ fn option_info_dict(
 
         put_c(
             &mut dict,
-            c"last_set_sid".as_ptr(),
+            c"last_set_sid",
             integer_obj(i64::from(script_ctx.sc_sid)),
         );
         put_c(
             &mut dict,
-            c"last_set_linenr".as_ptr(),
+            c"last_set_linenr",
             integer_obj(i64::from(script_ctx.sc_lnum)),
         );
         put_c(
             &mut dict,
-            c"last_set_chan".as_ptr(),
+            c"last_set_chan",
             integer_obj(script_ctx.sc_chan as i64),
         );
 
         put_c(
             &mut dict,
-            c"type".as_ptr(),
+            c"type",
             cstr_as_obj(optval_type_name((*get_option(get_opt_idx(&raw mut *opt))).opt_type)),
         );
-        put_c(&mut dict, c"default".as_ptr(), opt.def_val);
+        put_c(&mut dict, c"default", opt.def_val);
         put_c(
             &mut dict,
-            c"allows_duplicates".as_ptr(),
+            c"allows_duplicates",
             boolean_obj((opt.flags & kOptFlagNoDup) == 0),
         );
 

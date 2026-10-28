@@ -232,7 +232,7 @@ fn filter_map_blob(
             if filtermap != FilterMap::ForEach {
                 if newtv.v_type != VarType::VAR_NUMBER && newtv.v_type != VarType::VAR_BOOL {
                     tv_clear(&mut newtv);
-                    emsg(e_invalblob.as_ptr());
+                    emsg(e_invalblob);
                     break;
                 }
                 if filtermap != FilterMap::Filter {
@@ -291,7 +291,7 @@ fn filter_map_string(
                 if newtv.v_type != VarType::VAR_STRING {
                     tv_clear(&mut newtv);
                     tv_clear(&mut tv);
-                    emsg(e_string_required.as_ptr());
+                    emsg(e_string_required);
                     break;
                 } else if !newtv.vval.v_string().is_null() {
                     out.extend_from_slice(crate::memory::cstr_as_bytes(newtv.vval.v_string()));
@@ -498,7 +498,7 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 }
             }
         } else {
-            emsg(e_listblobreq.as_ptr());
+            emsg(e_listblobreq);
         }
     }
 }
@@ -613,7 +613,7 @@ pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
         let d = arg0.vval.v_dict();
         if !d.is_null() {
             if arg2.v_type != VarType::VAR_UNKNOWN && arg3.v_type != VarType::VAR_UNKNOWN {
-                emsg(e_invarg.as_ptr());
+                emsg(e_invarg);
             } else {
                 n = count_dict(d, arg1, ic);
             }

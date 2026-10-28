@@ -402,7 +402,7 @@ pub fn ui_attach(
 ) {
     {
         let mut opts_items: [KeyValuePair; 1] = [KeyValuePair {
-            key: cstr_as_string(c"rgb".as_ptr()),
+            key: cstr_as_string(c"rgb"),
             value: boolean_obj(enable_rgb),
         }];
         let opts = Dict {
@@ -463,7 +463,7 @@ pub fn remote_ui_restart(listen_addr: NvimString) {
             let chan = find_channel(ui.channel_id);
             let detach_val = !chan.is_null() && (*chan).detach;
             let mut cfg_items: [KeyValuePair; 1] = [KeyValuePair {
-                key: cstr_as_string(c"detach".as_ptr()),
+                key: cstr_as_string(c"detach"),
                 value: boolean_obj(detach_val),
             }];
             let chan_config = Dict {
@@ -532,7 +532,7 @@ fn ui_set_option(
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
-                    c"override".as_ptr(),
+                    c"override",
                     api_typename(ObjectType::kObjectTypeBoolean),
                     api_typename(value.obj_type),
                 );
@@ -546,7 +546,7 @@ fn ui_set_option(
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
-                    c"rgb".as_ptr(),
+                    c"rgb",
                     api_typename(ObjectType::kObjectTypeBoolean),
                     api_typename(value.obj_type),
                 );
@@ -563,7 +563,7 @@ fn ui_set_option(
             if value.obj_type != ObjectType::kObjectTypeString {
                 api_err_exp(
                     err,
-                    c"term_name".as_ptr(),
+                    c"term_name",
                     api_typename(ObjectType::kObjectTypeString),
                     api_typename(value.obj_type),
                 );
@@ -585,7 +585,7 @@ fn ui_set_option(
             if value.obj_type != ObjectType::kObjectTypeInteger {
                 api_err_exp(
                     err,
-                    c"term_colors".as_ptr(),
+                    c"term_colors",
                     api_typename(ObjectType::kObjectTypeInteger),
                     api_typename(value.obj_type),
                 );
@@ -600,7 +600,7 @@ fn ui_set_option(
             if value.obj_type != ObjectType::kObjectTypeInteger {
                 api_err_exp(
                     err,
-                    c"stdin_fd".as_ptr(),
+                    c"stdin_fd",
                     api_typename(ObjectType::kObjectTypeInteger),
                     api_typename(value.obj_type),
                 );
@@ -632,7 +632,7 @@ fn ui_set_option(
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
-                    c"stdin_tty".as_ptr(),
+                    c"stdin_tty",
                     api_typename(ObjectType::kObjectTypeBoolean),
                     api_typename(value.obj_type),
                 );
@@ -649,7 +649,7 @@ fn ui_set_option(
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
-                    c"stdout_tty".as_ptr(),
+                    c"stdout_tty",
                     api_typename(ObjectType::kObjectTypeBoolean),
                     api_typename(value.obj_type),
                 );
@@ -669,7 +669,7 @@ fn ui_set_option(
                     api_err_exp(
                         err,
                         name.data,
-                        c"Boolean".as_ptr(),
+                        c"Boolean",
                         api_typename(value.obj_type),
                     );
                     return;
@@ -1124,7 +1124,7 @@ pub fn remote_ui_hl_attr_define(
         if rgb_attrs.url >= 0 {
             let url = hl_get_url(rgb_attrs.url as u32);
             *rgb.items.add(rgb.size) = KeyValuePair {
-                key: cstr_as_string(c"url".as_ptr()),
+                key: cstr_as_string(c"url"),
                 value: string_obj(cstr_as_string(url)),
             };
             rgb.size += 1;

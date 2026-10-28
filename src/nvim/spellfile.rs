@@ -797,7 +797,7 @@ pub fn suggest_load_files() {
                     lpi += 1;
                     continue;
                 };
-                if !path_equal(fname_cstr.as_ptr().add(prefix_len), c".spl".as_ptr(), kPathCmpLiteral) {
+                if !path_equal(fname_cstr.as_ptr().add(prefix_len), c".spl", kPathCmpLiteral) {
                     lpi += 1;
                     continue;
                 }
@@ -1107,7 +1107,7 @@ fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
             let mut i: c_int = 0;
             while i < ccnt {
                 c = fgetc(fd);
-                if !vim_strchr(c"0123456789(-<^$".as_ptr(), c).is_null() {
+                if !vim_strchr(c"0123456789(-<^$", c).is_null() {
                     break;
                 }
                 *p = c as u8 as c_char;
@@ -1335,7 +1335,7 @@ fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int {
                 return SP_TRUNCERROR;
             }
 
-            if vim_strchr(c"?*+[]/".as_ptr(), c).is_null() && !ap_vec.contains(&(c as u8)) {
+            if vim_strchr(c"?*+[]/", c).is_null() && !ap_vec.contains(&(c as u8)) {
                 ap_vec.push(c as u8);
             }
 
@@ -2766,7 +2766,7 @@ fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compflags: *mu
 
         let mut cur = compflags;
         while *cur != NUL {
-            if !vim_strchr(c"/?*+[]".as_ptr(), *cur as u8 as c_int).is_null() {
+            if !vim_strchr(c"/?*+[]", *cur as u8 as c_int).is_null() {
                 bytes.push(*cur as u8);
                 cur = cur.add(1);
             } else {
@@ -2789,7 +2789,7 @@ fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compflags: *mu
                             check_renumber(spin);
                             new_id = spin.si_newcompID;
                             spin.si_newcompID -= 1;
-                            if vim_strchr(c"/?*+[]\\-^".as_ptr(), new_id).is_null() {
+                            if vim_strchr(c"/?*+[]\\-^", new_id).is_null() {
                                 break;
                             }
                         }
@@ -5410,7 +5410,7 @@ fn init_spellfile() {
         }
 
         let mut lend = (*win_s(&mut **curwin.as_ptr())).b_p_spl;
-        while *lend != NUL && vim_strchr(c",._".as_ptr(), *lend as u8 as c_int).is_null() {
+        while *lend != NUL && vim_strchr(c",._", *lend as u8 as c_int).is_null() {
             if vim_ispathsep(*lend as c_int) {
                 aspath = true;
                 lstart = lend.add(1);
@@ -5426,7 +5426,7 @@ fn init_spellfile() {
             let xdg_path = get_xdg_home(XDGVarType::kXDGDataHome).unwrap_or_default();
             xstrlcpy(buf, xdg_path.as_ptr(), buf_len);
 
-            { let _dst: *mut c_char = buf; let _dsize: usize = buf_len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"/site/spell".as_ptr(), _dsize - _dlen); };
+            { let _dst: *mut c_char = buf; let _dsize: usize = buf_len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"/site/spell", _dsize - _dlen); };
 
             let mut failed_dir: Option<std::ffi::CString> = None;
             if os_mkdir_recurse(buf, 0o755, &mut failed_dir, None) != 0 {

@@ -711,7 +711,7 @@ pub fn ui_mouse_has(mode: c_int) -> bool {
         let mut p = opt_vars().p_mouse;
         while *p != NUL {
             if *p == b'a' as c_char {
-                if !vim_strchr(MOUSE_A.as_ptr(), mode).is_null() {
+                if !vim_strchr(MOUSE_A, mode).is_null() {
                     return true;
                 }
             } else if *p == kMouseHelp {

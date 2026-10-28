@@ -318,7 +318,7 @@ pub fn os_icon_init() {
             return;
         }
 
-        if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME".as_ptr()) {
+        if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
             let namebuff = std::ptr::addr_of_mut!(g_st().NameBuff).cast::<c_char>();
             vim_snprintf!(
                 namebuff,
@@ -375,7 +375,7 @@ pub fn os_tty_guess_term(term: *mut *const c_char, out_fd: c_int) {
     unsafe {
         let mut conemu_buf = [0 as c_char; 16];
         let conemu_env = os_getenv_buf(
-            c"ConEmuANSI".as_ptr(),
+            c"ConEmuANSI",
             conemu_buf.as_mut_ptr(),
             conemu_buf.len(),
         );

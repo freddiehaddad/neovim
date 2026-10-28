@@ -1796,7 +1796,7 @@ pub fn listdigraphs(use_headers: bool) {
     unsafe {
         let mut previous: result_T = 0;
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         msg_putchar(b'\n' as c_int);
 
         for dp in DIGRAPHDEFAULT {
@@ -2121,7 +2121,7 @@ pub fn keymap_init() -> *mut c_char {
 
         if *(*g_st().curbuf).b_p_keymap == NUL {
             keymap_unload();
-            do_cmdline_cmd(c"unlet! b:keymap_name".as_ptr());
+            do_cmdline_cmd(c"unlet! b:keymap_name");
         } else {
             let kmap = CStr::from_ptr((*g_st().curbuf).b_p_keymap).to_string_lossy();
             let enc = CStr::from_ptr(opt_vars().p_enc).to_string_lossy();

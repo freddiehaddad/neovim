@@ -152,8 +152,8 @@ pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
 }
 
 #[inline]
-pub fn cstr_as_obj(s: *const c_char) -> Object {
-    string_obj(cstr_as_string(s))
+pub fn cstr_as_obj<S: crate::strings::IntoCCharPtr>(s: S) -> Object {
+    string_obj(cstr_as_string(s.into_c_char_ptr()))
 }
 
 #[inline]
@@ -736,7 +736,8 @@ pub fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
         }
 }
 
-pub fn cstr_as_string(str_: *const c_char) -> NvimString {
+pub fn cstr_as_string<S: crate::strings::IntoCCharPtr>(str_: S) -> NvimString {
+    let str_ = str_.into_c_char_ptr();
      {
         if str_.is_null() {
             return NvimString {
@@ -1080,7 +1081,7 @@ pub fn api_object_to_bool(
             ObjectType::kObjectTypeInteger => obj.data.integer() != 0,
             ObjectType::kObjectTypeNil => nil_value,
             _ => {
-                api_err_exp(err, what, c"boolean".as_ptr(), ptr::null());
+                api_err_exp(err, what, c"boolean", ptr::null());
                 false
             }
         }
@@ -1143,7 +1144,7 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
             if item.obj_type != ObjectType::kObjectTypeArray {
                 api_err_exp(
                     err,
-                    c"chunk".as_ptr(),
+                    c"chunk",
                     api_typename(ObjectType::kObjectTypeArray),
                     api_typename(item.obj_type),
                 );

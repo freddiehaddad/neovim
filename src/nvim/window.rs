@@ -1119,9 +1119,9 @@ fn do_window_newwindow(nchar: c_int, Prenum: c_int, cbuf: &mut [c_char; 40]) {
             cbuf[0] = NUL;
         }
         if nchar == b'v' as c_int || nchar == Ctrl_V {
-            { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"v".as_ptr(), _dsize - _dlen); };
+            { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"v", _dsize - _dlen); };
         }
-        { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"new".as_ptr(), _dsize - _dlen); };
+        { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"new", _dsize - _dlen); };
         do_cmdline_cmd(cbuf.as_ptr());
     }
 }
@@ -1258,7 +1258,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             }
             c if c == Ctrl_Z || c == b'z' as c_int => {
                 reset_VIsual_and_resel();
-                do_cmdline_cmd(c"pclose".as_ptr());
+                do_cmdline_cmd(c"pclose");
             }
             c if c == b'P' as c_int => {
                 let mut wp: *mut win_T = ptr::null_mut();
@@ -2694,7 +2694,7 @@ pub fn make_windows(mut count: c_int, vertical: bool) -> c_int {
 fn win_exchange(mut Prenum: c_int) {
     unsafe {
         if (**curwin.as_ptr()).w_floating {
-            emsg(e_floatexchange.as_ptr());
+            emsg(e_floatexchange);
             return;
         }
 
@@ -2770,7 +2770,7 @@ fn win_exchange(mut Prenum: c_int) {
 fn win_rotate(upwards: bool, mut count: c_int) {
     unsafe {
         if (**curwin.as_ptr()).w_floating {
-            emsg(e_floatexchange.as_ptr());
+            emsg(e_floatexchange);
             return;
         }
 
@@ -2898,7 +2898,7 @@ pub fn win_move_after(win1: &mut win_T, win2: &mut win_T) {
 
         if !ptr::eq(win2.w_next, win1) {
             if !ptr::eq((*win1.w_frame).fr_parent, (*win2.w_frame).fr_parent) {
-                iemsg(c"INTERNAL: trying to move a window into another frame".as_ptr());
+                iemsg(c"INTERNAL: trying to move a window into another frame");
                 return;
             }
 
@@ -3582,7 +3582,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
                     return false;
                 }
             } else {
-                emsg(e_floatonly.as_ptr());
+                emsg(e_floatonly);
                 return false;
             }
         }
@@ -3688,7 +3688,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
             && ((*g_st().first_tabpage).tp_next.is_null() || (*g_st().lastwin).w_floating)
         {
             if !(*g_st().first_tabpage).tp_next.is_null() {
-                emsg(e_floatonly.as_ptr());
+                emsg(e_floatonly);
             }
             win_unclose_buffer(win, &mut bufref);
             return false;
@@ -3847,7 +3847,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
                 dwin = (*dwin).w_next;
             }
             if diffcount == 1 {
-                do_cmdline_cmd(c"diffoff!".as_ptr());
+                do_cmdline_cmd(c"diffoff!");
             }
         }
 
@@ -3963,7 +3963,7 @@ pub fn win_close_othertab(
                     return false;
                 }
             } else {
-                emsg(e_floatonly.as_ptr());
+                emsg(e_floatonly);
                 return false;
             }
         }
@@ -4003,7 +4003,7 @@ pub fn win_close_othertab(
             return false;
         }
         if (*(*tp).tp_lastwin).w_floating && one_window(win, tp) {
-            emsg(e_floatonly.as_ptr());
+            emsg(e_floatonly);
             if win_valid_any_tab(win) {
                 win_unclose_buffer(win, &mut bufref);
             }
@@ -4909,7 +4909,7 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
 
         if (**curwin.as_ptr()).w_floating {
             if message != 0 && !g_st().autocmd_busy {
-                emsg(e_floatonly.as_ptr());
+                emsg(e_floatonly);
             }
             return;
         }
@@ -5716,11 +5716,11 @@ pub fn tabpage_move(nr: c_int) {
             vim_snprintf!(prev_idx.as_mut_ptr(), NUMBUFLEN, c"%i", old_nr);
             let mut data_items = [
                 KeyValuePair {
-                    key: cstr_as_string(c"tabnr_old".as_ptr()),
+                    key: cstr_as_string(c"tabnr_old"),
                     value: integer_obj(Integer::from(old_nr)),
                 },
                 KeyValuePair {
-                    key: cstr_as_string(c"tabnr_new".as_ptr()),
+                    key: cstr_as_string(c"tabnr_new"),
                     value: integer_obj(Integer::from(tabpage_index(g_st().curtab))),
                 },
             ];

@@ -794,7 +794,7 @@ pub fn update_ns_hl(ns_id: c_int) {
             alloc[hlf].set(hl_get_ui_attr(ns_id, hlf as c_int, id, optional));
         }
 
-        let normality = syn_check_group(c"Normal".as_ptr(), 6);
+        let normality = syn_check_group(c"Normal", 6);
         alloc[HLF_NONE].set(hl_get_ui_attr(ns_id, -1, normality, true));
 
         p = get_decor_provider(ns_id, true);
@@ -1674,7 +1674,7 @@ pub fn dict2hlattrs(
         if has_key(is_set, KEYSET_OPTIDX_highlight__blend) {
             let blend0 = dict.blend;
             if !(0..=100).contains(&blend0) {
-                api_err_invalid(err, c"blend".as_ptr(), c"out of range".as_ptr(), 0, false);
+                api_err_invalid(err, c"blend", c"out of range", 0, false);
                 return hlattrs;
             }
             blend = blend0 as i32;
@@ -1808,12 +1808,12 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
                 name_to_ctermcolor(str_.data)
             };
             if color < 0 {
-                api_err_invalid(err, c"highlight color".as_ptr(), str_.data, 0, true);
+                api_err_invalid(err, c"highlight color", str_.data, 0, true);
                 return color;
             }
             color
         } else {
-            api_err_exp(err, key.as_ptr().cast_mut(), c"String or Integer".as_ptr(), ptr::null());
+            api_err_exp(err, key.as_ptr().cast_mut(), c"String or Integer", ptr::null());
             0
         }
 }
@@ -1858,12 +1858,12 @@ fn hl_inspect_impl(arr: &mut Array, attr: c_int, arena: &mut Arena) {
         match e.kind {
             kHlSyntax => {
                 item = arena_dict(arena, 3);
-                put_c(&mut item, c"kind", cstr_as_obj(c"syntax".as_ptr()));
+                put_c(&mut item, c"kind", cstr_as_obj(c"syntax"));
                 put_c(&mut item, c"hi_name", cstr_as_obj(syn_id2name(e.id1)));
             }
             kHlUI => {
                 item = arena_dict(arena, 4);
-                put_c(&mut item, c"kind", cstr_as_obj(c"ui".as_ptr()));
+                put_c(&mut item, c"kind", cstr_as_obj(c"ui"));
                 let ui_name = if e.id1 == -1 {
                     c"Normal".as_ptr()
                 } else {
@@ -1874,7 +1874,7 @@ fn hl_inspect_impl(arr: &mut Array, attr: c_int, arena: &mut Arena) {
             }
             kHlTerminal => {
                 item = arena_dict(arena, 2);
-                put_c(&mut item, c"kind", cstr_as_obj(c"term".as_ptr()));
+                put_c(&mut item, c"kind", cstr_as_obj(c"term"));
             }
             kHlCombine | kHlBlend | kHlBlendThrough => {
                 hl_inspect_impl(arr, e.id1, arena);

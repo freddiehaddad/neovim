@@ -520,7 +520,7 @@ pub fn parse_pattern_and_range(
 
         // Skip over the range to find the command.
         let cmd = skip_range(ea.cmd, None);
-        if vim_strchr(c"sgvlu".as_ptr(), (*cmd as u8) as c_int).is_null() {
+        if vim_strchr(c"sgvlu", (*cmd as u8) as c_int).is_null() {
             return false;
         }
 
@@ -534,18 +534,18 @@ pub fn parse_pattern_and_range(
         }
 
         let cmd_len = p.offset_from(cmd) as usize;
-        if (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"substitute".as_ptr(), cmd_len))
-            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"smagic".as_ptr(), cmd_len))
-            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"snomagic".as_ptr(), cmd_len.max(3)))
-            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"vglobal".as_ptr(), cmd_len))
+        if (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"substitute", cmd_len))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"smagic", cmd_len))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"snomagic", cmd_len.max(3)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"vglobal", cmd_len))
         {
             if *cmd == b's' as c_char && *cmd.add(1) == b'm' as c_char {
                 *is_magic = true;
             } else if *cmd == b's' as c_char && *cmd.add(1) == b'n' as c_char {
                 *is_magic = false;
             }
-        } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"sort".as_ptr(), cmd_len.max(3)))
-            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"uniq".as_ptr(), cmd_len.max(3)))
+        } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"sort", cmd_len.max(3)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"uniq", cmd_len.max(3)))
         {
             // skip over ! and flags
             if *p == b'!' as c_char {
@@ -561,11 +561,11 @@ pub fn parse_pattern_and_range(
             if *p == NUL {
                 return false;
             }
-        } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"vimgrep".as_ptr(), cmd_len.max(3)))
-            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(8)) == crate::memory::cstr_prefix_bytes(c"vimgrepadd".as_ptr(), cmd_len.max(8)))
-            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(2)) == crate::memory::cstr_prefix_bytes(c"lvimgrep".as_ptr(), cmd_len.max(2)))
-            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(9)) == crate::memory::cstr_prefix_bytes(c"lvimgrepadd".as_ptr(), cmd_len.max(9)))
-            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"global".as_ptr(), cmd_len))
+        } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"vimgrep", cmd_len.max(3)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(8)) == crate::memory::cstr_prefix_bytes(c"vimgrepadd", cmd_len.max(8)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(2)) == crate::memory::cstr_prefix_bytes(c"lvimgrep", cmd_len.max(2)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(9)) == crate::memory::cstr_prefix_bytes(c"lvimgrepadd", cmd_len.max(9)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"global", cmd_len))
         {
             // skip optional "!"
             if *p == b'!' as c_char {
@@ -2894,7 +2894,7 @@ fn empty_pattern_magic(p: *mut c_char, mut len: usize, magic_val: magic_T) -> bo
     unsafe {
         while len >= 2
             && *p.add(len - 2) == b'\\' as c_char
-            && !vim_strchr(c"mMvVcCZ".as_ptr(), (*p.add(len - 1) as u8) as c_int).is_null()
+            && !vim_strchr(c"mMvVcCZ", (*p.add(len - 1) as u8) as c_int).is_null()
         {
             len -= 2;
         }
@@ -3171,7 +3171,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
             if cmdpreview_buf.is_null() {
                 set_option_direct(
                     kOptInccommand,
-                    cstr_as_obj(c"nosplit".as_ptr()),
+                    cstr_as_obj(c"nosplit"),
                     0,
                     SID_NONE,
                 );
@@ -3316,7 +3316,7 @@ fn abandon_cmdline() {
             compute_cmdrow();
         }
         if !getln_st().ccline.one_key {
-            msg(c"".as_ptr(), 0);
+            msg(c"", 0);
             g_st().redraw_cmdline = true;
         }
 }
@@ -5269,7 +5269,7 @@ pub fn get_user_input(argvars: &[typval_T],
             if defstr.is_null() {
                 return;
             }
-            let cancelreturn_di = tv_dict_find(dict, c"cancelreturn".as_ptr(), 12);
+            let cancelreturn_di = tv_dict_find(dict, c"cancelreturn", 12);
             if !cancelreturn_di.is_null() {
                 cancelreturn = &raw mut (*cancelreturn_di).di_tv;
             }

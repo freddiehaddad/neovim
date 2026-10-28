@@ -90,6 +90,13 @@ impl IntoCCharPtr for &CStr {
     }
 }
 
+impl IntoCCharPtr for &c_char {
+    #[inline]
+    fn into_c_char_ptr(self) -> *const c_char {
+        self
+    }
+}
+
 #[inline]
 pub fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
     gettext(s.into_c_char_ptr())
@@ -598,7 +605,8 @@ pub fn del_trailing_spaces(ptr: *mut c_char) {
     }
 }
 
-pub fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
+pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: c_int) -> *mut c_char {
+    let string = string.into_c_char_ptr();
     unsafe {
         if string.is_null() || c <= 0 {
             ptr::null_mut()

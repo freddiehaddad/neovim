@@ -1613,9 +1613,9 @@ pub(super) fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
                     mb_ptr_adv(&raw mut p);
                 }
             } else if *p == b'\\' as c_char
-                && (!vim_strchr(REGEXP_INRANGE.as_ptr(), *p.add(1) as u8 as c_int).is_null()
+                && (!vim_strchr(REGEXP_INRANGE, *p.add(1) as u8 as c_int).is_null()
                     || (re_st().reg_cpo_lit == 0
-                        && !vim_strchr(REGEXP_ABBR.as_ptr(), *p.add(1) as u8 as c_int).is_null()))
+                        && !vim_strchr(REGEXP_ABBR, *p.add(1) as u8 as c_int).is_null()))
             {
                 p = p.add(2);
             } else if *p == b'[' as c_char {
@@ -1847,7 +1847,7 @@ pub(super) fn peekchr() -> c_int {
                     re_st().regparse = re_st().regparse.sub(1);
                     re_st().peekchr_after_slash -= 1;
                     re_st().curchr = toggle_Magic(re_st().curchr);
-                } else if !vim_strchr(REGEXP_ABBR.as_ptr(), c).is_null() {
+                } else if !vim_strchr(REGEXP_ABBR, c).is_null() {
                     re_st().curchr = backslash_trans(c);
                 } else if re_st().reg_magic == MAGIC_NONE && (c == b'$' as c_int || c == b'^' as c_int) {
                     re_st().curchr = toggle_Magic(c);
@@ -2771,7 +2771,7 @@ fn vim_regsub_both(
                     } else if (*src as u8).is_ascii_digit() {
                         no = (*src as u8 - b'0') as c_int;
                         src = src.add(1);
-                    } else if !vim_strchr(c"uUlLeE".as_ptr(), *src as u8 as c_int).is_null() {
+                    } else if !vim_strchr(c"uUlLeE", *src as u8 as c_int).is_null() {
                         let ch = *src as u8;
                         src = src.add(1);
                         match ch {
@@ -2807,7 +2807,7 @@ fn vim_regsub_both(
                     {
                         if copy {
                             if dst.add(3) > dest.add(destlen as usize) {
-                                iemsg(c"vim_regsub_both(): not enough space".as_ptr());
+                                iemsg(c"vim_regsub_both(): not enough space");
                                 return 0;
                             }
                             *dst = c as c_char;
@@ -2847,7 +2847,7 @@ fn vim_regsub_both(
                                 if (flags & REGSUB_BACKSLASH) != 0 {
                                     if copy {
                                         if dst.add(1) > dest.add(destlen as usize) {
-                                            iemsg(c"vim_regsub_both(): not enough space".as_ptr());
+                                            iemsg(c"vim_regsub_both(): not enough space");
                                             return 0;
                                         }
                                         *dst = b'\\' as c_char;
@@ -2875,7 +2875,7 @@ fn vim_regsub_both(
 
                     if copy {
                         if dst.add(charlen) > dest.add(destlen as usize) {
-                            iemsg(c"vim_regsub_both(): not enough space".as_ptr());
+                            iemsg(c"vim_regsub_both(): not enough space");
                             return 0;
                         }
                         utf_char2bytes(cc, dst);
@@ -2886,7 +2886,7 @@ fn vim_regsub_both(
                     if clen < totlen {
                         if copy {
                             if dst.add(totlen - clen) > dest.add(destlen as usize) {
-                                iemsg(c"vim_regsub_both(): not enough space".as_ptr());
+                                iemsg(c"vim_regsub_both(): not enough space");
                                 return 0;
                             }
                             ptr::copy(src.sub(1).add(clen), dst.add(1), totlen - clen);
@@ -2929,7 +2929,7 @@ fn vim_regsub_both(
                                     }
                                     if copy {
                                         if dst.add(1) > dest.add(destlen as usize) {
-                                            iemsg(c"vim_regsub_both(): not enough space".as_ptr());
+                                            iemsg(c"vim_regsub_both(): not enough space");
                                             return 0;
                                         }
                                         *dst = CAR as c_char;
@@ -2956,7 +2956,7 @@ fn vim_regsub_both(
                                 {
                                     if copy {
                                         if dst.add(2) > dest.add(destlen as usize) {
-                                            iemsg(c"vim_regsub_both(): not enough space".as_ptr());
+                                            iemsg(c"vim_regsub_both(): not enough space");
                                             return 0;
                                         }
                                         *dst = b'\\' as c_char;
@@ -2979,7 +2979,7 @@ fn vim_regsub_both(
                                     let charlen = utf_char2len(cc) as usize;
                                     if copy {
                                         if dst.add(charlen) > dest.add(destlen as usize) {
-                                            iemsg(c"vim_regsub_both(): not enough space".as_ptr());
+                                            iemsg(c"vim_regsub_both(): not enough space");
                                             return 0;
                                         }
                                         utf_char2bytes(cc, dst);

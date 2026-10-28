@@ -191,7 +191,7 @@ fn unpack_string_or_array(
                 api_err_exp(
                     err,
                     k.as_ptr(),
-                    c"Array or String".as_ptr(),
+                    c"Array or String",
                     api_typename(v.obj_type),
                 );
             }
@@ -230,8 +230,8 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
             _ => {
                 api_err_exp(
                     err,
-                    c"group".as_ptr(),
-                    c"String or Integer".as_ptr(),
+                    c"group",
+                    c"String or Integer",
                     api_typename(group.obj_type),
                 );
                 AUGROUP_ERROR
@@ -298,8 +298,8 @@ fn get_patterns_from_pattern_or_buf(
             } else {
                 api_err_exp(
                     err,
-                    c"pattern".as_ptr(),
-                    c"String or Table".as_ptr(),
+                    c"pattern",
+                    c"String or Table",
                     api_typename(pattern.obj_type),
                 );
                 return Array {
@@ -428,8 +428,8 @@ pub fn nvim_get_autocmds(
                 _ => {
                     api_err_exp(
                         err,
-                        c"group".as_ptr(),
-                        c"String or Integer".as_ptr(),
+                        c"group",
+                        c"String or Integer",
                         api_typename(opts.group.obj_type),
                     );
                     break 'body;
@@ -459,7 +459,7 @@ pub fn nvim_get_autocmds(
                         if event_v.obj_type != ObjectType::kObjectTypeString {
                             api_err_exp(
                                 err,
-                                c"event item".as_ptr(),
+                                c"event item",
                                 api_typename(ObjectType::kObjectTypeString),
                                 api_typename(event_v.obj_type),
                             );
@@ -475,8 +475,8 @@ pub fn nvim_get_autocmds(
                 } else {
                     api_err_exp(
                         err,
-                        c"event".as_ptr(),
-                        c"String or Array".as_ptr(),
+                        c"event",
+                        c"String or Array",
                         std::ptr::null(),
                     );
                     break 'body;
@@ -522,7 +522,7 @@ pub fn nvim_get_autocmds(
                         if item.obj_type != ObjectType::kObjectTypeString {
                             api_err_exp(
                                 err,
-                                c"pattern".as_ptr(),
+                                c"pattern",
                                 api_typename(ObjectType::kObjectTypeString),
                                 api_typename(item.obj_type),
                             );
@@ -534,8 +534,8 @@ pub fn nvim_get_autocmds(
                 } else {
                     api_err_exp(
                         err,
-                        c"pattern".as_ptr(),
-                        c"String or Array".as_ptr(),
+                        c"pattern",
+                        c"String or Array",
                         api_typename(v.obj_type),
                     );
                     break 'body;
@@ -570,8 +570,8 @@ pub fn nvim_get_autocmds(
                     {
                         api_err_exp(
                             err,
-                            c"buffer".as_ptr(),
-                            c"Integer".as_ptr(),
+                            c"buffer",
+                            c"Integer",
                             api_typename(bufnr.obj_type),
                         );
                         break 'body;
@@ -588,8 +588,8 @@ pub fn nvim_get_autocmds(
             } else if has_buf {
                 api_err_exp(
                     err,
-                    c"buffer".as_ptr(),
-                    c"Integer or Array".as_ptr(),
+                    c"buffer",
+                    c"Integer or Array",
                     api_typename(buf.obj_type),
                 );
                 break 'body;
@@ -869,8 +869,8 @@ pub fn nvim_create_autocmd(
                     _ => {
                         api_err_exp(
                             err,
-                            c"callback".as_ptr(),
-                            c"Lua function or Vim function name".as_ptr(),
+                            c"callback",
+                            c"Lua function or Vim function name",
                             api_typename(callback.obj_type),
                         );
                         break 'body;
@@ -1239,8 +1239,8 @@ pub fn nvim_exec_autocmds(
             _ => {
                 api_err_exp(
                     err,
-                    c"group".as_ptr(),
-                    c"String or Integer".as_ptr(),
+                    c"group",
+                    c"String or Integer",
                     api_typename(opts.group.obj_type),
                 );
                 return;

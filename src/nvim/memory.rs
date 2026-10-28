@@ -288,7 +288,8 @@ pub fn xstrnlen(s: *const c_char, n: usize) -> usize {
 
 /// View up to `n` bytes of a NUL-terminated C string as a byte slice.
 #[inline]
-pub fn cstr_prefix_bytes<'a>(s: *const c_char, n: usize) -> &'a [u8] {
+pub fn cstr_prefix_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S, n: usize) -> &'a [u8] {
+    let s = s.into_c_char_ptr();
     let len = xstrnlen(s, n);
     unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
 }
@@ -305,7 +306,8 @@ pub fn cstr_len(s: *const c_char) -> usize {
 
 /// Copy NUL-terminated C string `src` (including trailing NUL) to `dst`.
 #[inline]
-pub fn cstr_cpy(dst: *mut c_char, src: *const c_char) {
+pub fn cstr_cpy<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S) {
+    let src = src.into_c_char_ptr();
     unsafe {
         let len = CStr::from_ptr(src).to_bytes_with_nul().len();
         std::ptr::copy_nonoverlapping(src, dst, len);
@@ -314,7 +316,8 @@ pub fn cstr_cpy(dst: *mut c_char, src: *const c_char) {
 
 /// Copy `len` bytes from `src` to `dst` and append a trailing NUL byte at `dst[len]`.
 #[inline]
-pub fn cstr_ncpy(dst: *mut c_char, src: *const c_char, len: usize) {
+pub fn cstr_ncpy<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S, len: usize) {
+    let src = src.into_c_char_ptr();
     unsafe {
         if len > 0 {
             std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), len);
@@ -325,7 +328,8 @@ pub fn cstr_ncpy(dst: *mut c_char, src: *const c_char, len: usize) {
 
 /// Append NUL-terminated C string `src` (including trailing NUL) to the end of `dst`.
 #[inline]
-pub fn cstr_cat(dst: *mut c_char, src: *const c_char) {
+pub fn cstr_cat<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S) {
+    let src = src.into_c_char_ptr();
     unsafe {
         let dlen = cstr_len(dst);
         let slen = CStr::from_ptr(src).to_bytes_with_nul().len();
@@ -350,7 +354,8 @@ pub fn cstr_as_opt_bytes<'a>(s: *const c_char) -> Option<&'a [u8]> {
 }
 
 /// Copy `src` into sized buffer `dst[..dsize]` (`xstrlcpy`).
-pub fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize {
+pub fn xstrlcpy<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S, dsize: usize) -> usize {
+    let src = src.into_c_char_ptr();
     let slen = unsafe { CStr::from_ptr(src).to_bytes().len() };
     if dsize != 0 {
         let len = slen.min(dsize - 1);
@@ -615,22 +620,22 @@ pub fn free_all_mem() {
 
         opt_vars().p_ea = 0;
         if !g_st().first_tabpage.is_null() && !(*g_st().first_tabpage).tp_next.is_null() {
-            do_cmdline_cmd(c"tabonly!".as_ptr());
+            do_cmdline_cmd(c"tabonly!");
         }
 
         spell_free_all();
         ex_comclear(&mut exarg_T::new());
 
         if !g_st().curbuf.is_null() {
-            do_cmdline_cmd(c"aunmenu *".as_ptr());
-            do_cmdline_cmd(c"tlunmenu *".as_ptr());
-            do_cmdline_cmd(c"menutranslate clear".as_ptr());
+            do_cmdline_cmd(c"aunmenu *");
+            do_cmdline_cmd(c"tlunmenu *");
+            do_cmdline_cmd(c"menutranslate clear");
 
             map_clear_mode(g_st().curbuf, MAP_ALL_MODES, false, false);
             map_clear_mode(g_st().curbuf, MAP_ALL_MODES, false, true);
-            do_cmdline_cmd(c"breakdel *".as_ptr());
-            do_cmdline_cmd(c"profdel *".as_ptr());
-            do_cmdline_cmd(c"set keymap=".as_ptr());
+            do_cmdline_cmd(c"breakdel *");
+            do_cmdline_cmd(c"profdel *");
+            do_cmdline_cmd(c"set keymap=");
         }
 
         free_titles();

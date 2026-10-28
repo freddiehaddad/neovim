@@ -74,7 +74,7 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 pub fn get_appname(namelike: bool) -> *const c_char {
     unsafe {
         let name_buff = (&raw mut g_st().NameBuff).cast::<u8>();
-        let env_val = os_getenv_buf(c"NVIM_APPNAME".as_ptr(), name_buff.cast(), MAXPATHL);
+        let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff.cast(), MAXPATHL);
         if env_val.is_null() {
             name_buff.copy_from_nonoverlapping(c"nvim".as_ptr().cast::<u8>(), 5);
         }

@@ -3964,11 +3964,11 @@ fn version_msg_wrap(s: *const c_char, wrap: bool) {
         }
         if !g_st().got_int {
             if wrap {
-                msg_puts(c"[".as_ptr());
+                msg_puts(c"[");
             }
             msg_puts(s);
             if wrap {
-                msg_puts(c"]".as_ptr());
+                msg_puts(c"]");
             }
         }
     }
@@ -4064,7 +4064,7 @@ pub fn list_lua_version() {
 
 pub fn list_version() {
     unsafe {
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         msg_puts(longVersion());
         msg_putchar(b'\n' as c_int);
         msg_puts(version_buildtype());
@@ -4073,11 +4073,11 @@ pub fn list_version() {
 
         if opt_vars().p_verbose > 0 {
             msg_putchar(b'\n' as c_int);
-            msg_puts(c"Vim versions: ".as_ptr());
+            msg_puts(c"Vim versions: ");
 
             for (i, ver) in Versions.iter().enumerate() {
                 if i > 0 {
-                    msg_puts(c", ".as_ptr());
+                    msg_puts(c", ");
                 }
                 msg_puts(ver.as_ptr());
             }

@@ -1586,7 +1586,7 @@ pub fn atom_capture_op(oap: &mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
                 if vim_strchr(opt_vars().p_cpo, kCpoRedo).is_null() {
                     redo_append_lit(cap.searchbuf_ptr(), -1);
                 }
-                redo_append_str(c"\n".as_ptr(), 1);
+                redo_append_str(c"\n", 1);
             } else if excmd {
                 let rc = g_st().repeat_cmdline.take();
                 if let Some(ref rc) = rc {
@@ -1595,7 +1595,7 @@ pub fn atom_capture_op(oap: &mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
                     } else {
                         redo_append_spec(rc.as_ptr());
                     }
-                    redo_append_str(c"\n".as_ptr(), 1);
+                    redo_append_str(c"\n", 1);
                 } else {
                     redo_new(CmdSpec::default());
                 }
@@ -1608,7 +1608,7 @@ pub fn atom_capture_op(oap: &mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
                     g_st().repeat_luamap,
                 );
                 redo_append_str(lua_id.as_ptr(), n as isize);
-                redo_append_str(c"\n".as_ptr(), 1);
+                redo_append_str(c"\n", 1);
             }
         } else if g_st().Visual.active && redoable && oap.motion_force == NUL {
             if op_self_select(cap) {

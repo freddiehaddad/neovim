@@ -793,7 +793,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
 fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
-        tv_list_append_string(l, c"".as_ptr(), 0);
+        tv_list_append_string(l, c"", 0);
         if len > 0 {
             encode_list_write(l, buf, len);
         }

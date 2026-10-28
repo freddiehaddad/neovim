@@ -338,15 +338,15 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                     p = colonp.add(1);
                     while *p != 0 && *p as u8 != b',' {
                         let first_byte = *p as u8;
-                        let len = if crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"ver".as_ptr(), 3))
-                            || crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"hor".as_ptr(), 3))
+                        let len = if crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"ver")
+                            || crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"hor")
                         {
                             3usize
-                        } else if crate::memory::cstr_prefix_bytes(p, 9).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"blinkwait".as_ptr(), 9)) {
+                        } else if crate::memory::cstr_prefix_bytes(p, 9).eq_ignore_ascii_case(b"blinkwait") {
                             9usize
-                        } else if crate::memory::cstr_prefix_bytes(p, 7).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"blinkon".as_ptr(), 7)) {
+                        } else if crate::memory::cstr_prefix_bytes(p, 7).eq_ignore_ascii_case(b"blinkon") {
                             7usize
-                        } else if crate::memory::cstr_prefix_bytes(p, 8).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"blinkoff".as_ptr(), 8)) {
+                        } else if crate::memory::cstr_prefix_bytes(p, 8).eq_ignore_ascii_case(b"blinkoff") {
                             8usize
                         } else {
                             0usize
@@ -379,7 +379,7 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
                                     tbl[idx].blinkoff = n;
                                 }
                             }
-                        } else if crate::memory::cstr_prefix_bytes(p, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"block".as_ptr(), 5)) {
+                        } else if crate::memory::cstr_prefix_bytes(p, 5).eq_ignore_ascii_case(b"block") {
                             if round == 2 {
                                 tbl[idx].shape = CursorShape::SHAPE_BLOCK;
                             }

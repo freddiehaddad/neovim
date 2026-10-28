@@ -211,7 +211,7 @@ fn env_name_valid(name: *const c_char) -> bool {
 }
 
 pub fn env_init() {
-    g_st().nvim_testing = os_env_exists(c"NVIM_TEST".as_ptr(), false);
+    g_st().nvim_testing = os_env_exists(c"NVIM_TEST", false);
 }
 
 /// Gets the length (bytes) of the env var name at `p`.
@@ -241,7 +241,8 @@ pub fn env_name_len(p: *const c_char) -> usize {
 }
 
 /// Like `getenv()`, but returns `None` if the variable is empty, without C heap allocations.
-pub fn os_getenv_cstr(name: *const c_char) -> Option<std::ffi::CString> {
+pub fn os_getenv_cstr<S: crate::strings::IntoCCharPtr>(name: S) -> Option<std::ffi::CString> {
+    let name = name.into_c_char_ptr();
     unsafe {
         if !env_name_valid(name) {
             return None;
@@ -270,7 +271,12 @@ pub fn os_getenv_cstr(name: *const c_char) -> Option<std::ffi::CString> {
 }
 
 /// Like `getenv()`, but stores the value in `buf` instead of allocating.
-pub fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *mut c_char {
+pub fn os_getenv_buf<S: crate::strings::IntoCCharPtr>(
+    name: S,
+    buf: *mut c_char,
+    bufsize: usize,
+) -> *mut c_char {
+    let name = name.into_c_char_ptr();
     unsafe {
         if !env_name_valid(name) {
             return ptr::null_mut();
@@ -296,7 +302,8 @@ pub fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *
 }
 
 /// Returns true if environment variable `name` is defined (even if empty).
-pub fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
+pub fn os_env_exists<S: crate::strings::IntoCCharPtr>(name: S, nonempty: bool) -> bool {
+    let name = name.into_c_char_ptr();
     unsafe {
         if !env_name_valid(name) {
             return false;
@@ -312,7 +319,13 @@ pub fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
 }
 
 /// Sets an environment variable.
-pub fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_int) -> c_int {
+pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
+    name: S1,
+    value: S2,
+    overwrite: c_int,
+) -> c_int {
+    let name = name.into_c_char_ptr();
+    let value = value.into_c_char_ptr();
     unsafe {
         if !env_name_valid(name) {
             return -1;
@@ -463,7 +476,7 @@ pub fn os_get_hostname(hostname: *mut c_char, size: usize) {
 #[cfg(windows)]
 pub fn os_homedir() -> *const c_char {
     let Some(ref hd) = env_st().HOMEDIR else {
-            emsg(c"os_homedir failed: homedir not initialized".as_ptr());
+            emsg(c"os_homedir failed: homedir not initialized");
             return ptr::null();
         };
         hd.as_ptr()
@@ -488,7 +501,7 @@ pub fn init_homedir() {
     unsafe {
         env_st().HOMEDIR = None;
 
-        let home_cstr = os_getenv_cstr(c"HOME".as_ptr());
+        let home_cstr = os_getenv_cstr(c"HOME");
         let mut var: *mut c_char = home_cstr
             .as_ref()
             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
@@ -496,8 +509,8 @@ pub fn init_homedir() {
         #[cfg(windows)]
         {
             if var.is_null() {
-                let homedrive = os_getenv_cstr(c"HOMEDRIVE".as_ptr());
-                let homepath = os_getenv_cstr(c"HOMEPATH".as_ptr());
+                let homedrive = os_getenv_cstr(c"HOMEDRIVE");
+                let homepath = os_getenv_cstr(c"HOMEPATH");
                 let homepath_ptr = homepath
                     .as_ref()
                     .map_or(PATHSEPSTR.as_ptr(), |c| c.as_ptr());
@@ -696,7 +709,7 @@ pub fn expand_env_esc(
                     }
                 } else if *src.add(1) == NUL
                     || vim_ispathsep(c_int::from(*src.add(1) as u8))
-                    || !vim_strchr(c" ,\t\n".as_ptr(), c_int::from(*src.add(1) as u8)).is_null()
+                    || !vim_strchr(c" ,\t\n", c_int::from(*src.add(1) as u8)).is_null()
                 {
                     var = (&raw const env_st().HOMEDIR)
                         .as_ref()
@@ -937,7 +950,7 @@ pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
             let mut vim_path_cstr: Option<std::ffi::CString> = None;
             if vimruntime
                 && *default_vimruntime_dir() == NUL
-                && let Some(kos_cstr) = os_getenv_cstr(c"VIM".as_ptr())
+                && let Some(kos_cstr) = os_getenv_cstr(c"VIM")
             {
                 vim_path_cstr = vim_runtime_dir(kos_cstr.as_ptr()).or(Some(kos_cstr));
             }
@@ -1002,10 +1015,10 @@ pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
 
             if let Some(vim_path_cstr) = vim_path_cstr {
                 if vimruntime {
-                    let _ = os_setenv(c"VIMRUNTIME".as_ptr(), vim_path_cstr.as_ptr(), 1);
+                    let _ = os_setenv(c"VIMRUNTIME", vim_path_cstr.as_ptr(), 1);
                     g_st().didset_vimruntime = true;
                 } else {
-                    let _ = os_setenv(c"VIM".as_ptr(), vim_path_cstr.as_ptr(), 1);
+                    let _ = os_setenv(c"VIM", vim_path_cstr.as_ptr(), 1);
                     g_st().didset_vim = true;
                 }
                 Some(vim_path_cstr)
@@ -1047,12 +1060,12 @@ pub fn home_replace(
         };
 
         #[cfg(windows)]
-        let mut homedir_env_cstr = os_getenv_cstr(c"HOME".as_ptr());
+        let mut homedir_env_cstr = os_getenv_cstr(c"HOME");
         #[cfg(not(windows))]
-        let homedir_env_cstr = os_getenv_cstr(c"HOME".as_ptr());
+        let homedir_env_cstr = os_getenv_cstr(c"HOME");
         #[cfg(windows)]
         if homedir_env_cstr.is_none() {
-            homedir_env_cstr = os_getenv_cstr(c"USERPROFILE".as_ptr());
+            homedir_env_cstr = os_getenv_cstr(c"USERPROFILE");
         }
         if let Some(ref c) = homedir_env_cstr {
             to_slash(c.as_ptr().cast_mut());
@@ -1192,7 +1205,7 @@ pub fn os_setenv_append_path(fname: *const c_char) -> bool {
         let buf = (&raw mut g_st().os_buf).cast::<c_char>();
         assert!((tail as usize) >= (fname as usize) && dirlen + 1 < MAXPATHL);
         crate::memory::cstr_ncpy(buf, fname, dirlen);
-        let path_cstr = os_getenv_cstr(c"PATH".as_ptr());
+        let path_cstr = os_getenv_cstr(c"PATH");
         let pathlen = path_cstr.as_ref().map_or(0, |c| c.as_bytes().len());
         let newlen = pathlen + dirlen + 2;
         let mut retval = false;
@@ -1202,11 +1215,11 @@ pub fn os_setenv_append_path(fname: *const c_char) -> bool {
             if let Some(ref path) = path_cstr {
                 xstrlcpy(temp, path.as_ptr(), newlen);
                 if path.as_bytes().last().copied() != Some(ENV_SEPCHAR) {
-                    { let _dst: *mut c_char = temp; let _dsize: usize = newlen; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), ENV_SEPSTR.as_ptr(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = temp; let _dsize: usize = newlen; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), ENV_SEPSTR, _dsize - _dlen); };
                 }
             }
             { let _dst: *mut c_char = temp; let _dsize: usize = newlen; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), buf, _dsize - _dlen); };
-            let _ = os_setenv(c"PATH".as_ptr(), temp, 1);
+            let _ = os_setenv(c"PATH", temp, 1);
             retval = true;
         }
         retval
@@ -1222,7 +1235,7 @@ pub fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
         }
         if crate::memory::cstr_as_bytes(sh).eq_ignore_ascii_case(b"$COMSPEC") {
             let mut buf = [0 as c_char; MAXPATHL];
-            let comspec = os_getenv_buf(c"COMSPEC".as_ptr(), buf.as_mut_ptr(), buf.len());
+            let comspec = os_getenv_buf(c"COMSPEC", buf.as_mut_ptr(), buf.len());
             return !comspec.is_null() && crate::memory::cstr_as_bytes(path_tail(comspec)).eq_ignore_ascii_case(b"cmd.exe");
         }
         if crate::memory::cstr_as_bytes(sh).eq_ignore_ascii_case(b"cmd.exe") || crate::memory::cstr_as_bytes(sh).eq_ignore_ascii_case(b"cmd") {
@@ -1322,12 +1335,12 @@ mod tests {
                 crate::eval::vars::set_vim_var_string(VV_PROGPATH, c"nvim".as_ptr(), -1);
             }
 
-            assert!(!os_env_exists(c"".as_ptr(), false));
-            assert!(!os_env_exists(c"   ".as_ptr(), true));
+            assert!(!os_env_exists(c"", false));
+            assert!(!os_env_exists(c"   ", true));
             let k = c"NVIM_RUST_ENV_TEST_KEY";
             let _ = os_unsetenv(k.as_ptr());
             assert!(!os_env_exists(k.as_ptr(), false));
-            assert_eq!(os_setenv(k.as_ptr(), c"val1".as_ptr(), 1), 0);
+            assert_eq!(os_setenv(k.as_ptr(), c"val1", 1), 0);
             assert!(os_env_exists(k.as_ptr(), false));
             assert!(os_env_exists(k.as_ptr(), true));
 
@@ -1335,14 +1348,14 @@ mod tests {
             assert_eq!(got.to_str().unwrap(), "val1");
 
             let mut buf = [0 as c_char; 64];
-            assert_eq!(os_setenv(k.as_ptr(), c"val2".as_ptr(), 0), 0);
+            assert_eq!(os_setenv(k.as_ptr(), c"val2", 0), 0);
             assert_eq!(
                 CStr::from_ptr(os_getenv_buf(k.as_ptr(), buf.as_mut_ptr(), buf.len()))
                     .to_str()
                     .unwrap(),
                 "val1"
             );
-            assert_eq!(os_setenv(k.as_ptr(), c"val2".as_ptr(), 1), 0);
+            assert_eq!(os_setenv(k.as_ptr(), c"val2", 1), 0);
             assert_eq!(
                 CStr::from_ptr(os_getenv_buf(k.as_ptr(), buf.as_mut_ptr(), buf.len()))
                     .to_str()

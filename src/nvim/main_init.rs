@@ -434,7 +434,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         if !appname_is_valid() {
             fprintf!(
                 log_get_stderr(),
-                c"$NVIM_APPNAME must be a name or relative path.\n".as_ptr(),
+                c"$NVIM_APPNAME must be a name or relative path.\n",
             );
             std::process::exit(1);
         }
@@ -521,7 +521,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 params.argv,
             );
             if rv == 0 {
-                fprintf!(log_get_stderr(), c"Failed to start Nvim server!\n".as_ptr());
+                fprintf!(log_get_stderr(), c"Failed to start Nvim server!\n");
                 os_exit(1);
             }
             g_st().ui_client_channel_id = rv;
@@ -590,7 +590,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             if !stdio_rpc {
                 fprintf!(
                     log_get_stderr(),
-                    c"Nvim server (pid: %lld) waiting for UI, listening on: \"%s\"\n".as_ptr(),
+                    c"Nvim server (pid: %lld) waiting for UI, listening on: \"%s\"\n",
                     os_get_pid() as std::ffi::c_longlong,
                     get_vim_var_str(VV_SEND_SERVER),
                 );
@@ -630,7 +630,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                     stderr,
                     gettext(c"Cannot open for script output: \""),
                 );
-                fprintf!(stderr, c"%s\"\n".as_ptr(), scriptout_name.as_ptr());
+                fprintf!(stderr, c"%s\"\n", scriptout_name.as_ptr());
                 os_exit(2);
             }
         }
@@ -670,7 +670,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             let mut lua_args = [items_tv, crate::eval::typval::typval_T::new()];
             nlua_call_typval(
                 c"vim._core.swapfile",
-                c"list_swaps".as_ptr(),
+                c"list_swaps",
                 lua_args.as_mut_ptr(),
                 None,
             );
@@ -835,7 +835,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 let mut args = [crate::eval::typval::typval_T::new(); 1];
                 nlua_call_typval(
                     c"vim._core.exmode",
-                    c"run".as_ptr(),
+                    c"run",
                     args.as_mut_ptr(),
                     None,
                 );
@@ -848,7 +848,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         if params.exmode {
-            do_cmdline_cmd(c"exmode".as_ptr());
+            do_cmdline_cmd(c"exmode");
         }
 
         time_msg_if_enabled(c"before starting main loop");
@@ -1102,7 +1102,7 @@ pub fn preserve_exit(errmsg: *const c_char) -> ! {
             let mfp = (*buf).b_ml.mfp_ptr();
             if !mfp.is_null() && (*mfp).mf_fname.is_some() {
                 if !errmsg.is_null() {
-                    fprintf!(stderr, c"Nvim: preserving files...\n".as_ptr());
+                    fprintf!(stderr, c"Nvim: preserving files...\n");
                 }
                 ml_sync_all(0, 0, true);
                 break;
@@ -1113,7 +1113,7 @@ pub fn preserve_exit(errmsg: *const c_char) -> ! {
         ml_close_all(false);
 
         if !errmsg.is_null() {
-            fprintf!(stderr, c"Nvim: Finished.\n".as_ptr());
+            fprintf!(stderr, c"Nvim: Finished.\n");
         }
 
         getout(1);
@@ -1189,27 +1189,27 @@ fn remote_request(
                 }
                 fprintf!(
                     stderr,
-                    c"Remote ui failed to start: %s\n".as_ptr(),
+                    c"Remote ui failed to start: %s\n",
                     connect_error,
                 );
                 os_exit(1);
             } else {
                 let mut nvim_env_buf = [0 as c_char; MAXPATHL];
                 let nvim_env = os_getenv_buf(
-                    c"NVIM".as_ptr(),
+                    c"NVIM",
                     nvim_env_buf.as_mut_ptr(),
                     nvim_env_buf.len(),
                 );
                 if crate::memory::cstr_as_opt_bytes(server_addr) == crate::memory::cstr_as_opt_bytes(nvim_env) {
                     fprintf!(
                         stderr,
-                        c"%s".as_ptr(),
-                        c"Cannot attach UI of :terminal child to its parent. ".as_ptr(),
+                        c"%s",
+                        c"Cannot attach UI of :terminal child to its parent. ",
                     );
                     fprintf!(
                         stderr,
-                        c"%s\n".as_ptr(),
-                        c"(Unset $NVIM to skip this check)".as_ptr(),
+                        c"%s\n",
+                        c"(Unset $NVIM to skip this check)",
                     );
                     os_exit(1);
                 }
@@ -1254,14 +1254,14 @@ fn remote_request(
         let o = nlua_exec(s, ptr::null(), a, kRetObject, None, &mut err);
         drop(args_vec);
         if err.err_type != ErrorType::kErrorTypeNone {
-            fprintf!(stderr, c"%s\n".as_ptr(), err.msg_ptr());
+            fprintf!(stderr, c"%s\n", err.msg_ptr());
             os_exit(2);
         }
 
         if o.obj_type != ObjectType::kObjectTypeDict {
             fprintf!(
                 stderr,
-                c"vim._cs_remote returned unexpected value\n".as_ptr(),
+                c"vim._cs_remote returned unexpected value\n",
             );
             os_exit(2);
         }
@@ -1276,26 +1276,26 @@ fn remote_request(
                 if item.value.obj_type != ObjectType::kObjectTypeString {
                     fprintf!(
                         stderr,
-                        c"vim._cs_remote returned an unexpected type for 'errmsg'\n".as_ptr(),
+                        c"vim._cs_remote returned an unexpected type for 'errmsg'\n",
                     );
                     os_exit(2);
                 }
-                fprintf!(stderr, c"%s\n".as_ptr(), item.value.data.string().data);
+                fprintf!(stderr, c"%s\n", item.value.data.string().data);
                 os_exit(2);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"result") {
                 if item.value.obj_type != ObjectType::kObjectTypeString {
                     fprintf!(
                         stderr,
-                        c"vim._cs_remote returned an unexpected type for 'result'\n".as_ptr(),
+                        c"vim._cs_remote returned an unexpected type for 'result'\n",
                     );
                     os_exit(2);
                 }
-                printf!(c"%s".as_ptr(), item.value.data.string().data);
+                printf!(c"%s", item.value.data.string().data);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"tabbed") {
                 if item.value.obj_type != ObjectType::kObjectTypeBoolean {
                     fprintf!(
                         stderr,
-                        c"vim._cs_remote returned an unexpected type for 'tabbed'\n".as_ptr(),
+                        c"vim._cs_remote returned an unexpected type for 'tabbed'\n",
                     );
                     os_exit(2);
                 }
@@ -1308,7 +1308,7 @@ fn remote_request(
                 if item.value.obj_type != ObjectType::kObjectTypeBoolean {
                     fprintf!(
                         stderr,
-                        c"vim._cs_remote returned an unexpected type for 'should_exit'\n".as_ptr(),
+                        c"vim._cs_remote returned an unexpected type for 'should_exit'\n",
                     );
                     os_exit(2);
                 }
@@ -1322,8 +1322,7 @@ fn remote_request(
         if should_exit == kNone || tabbed == kNone {
             fprintf!(
                 stderr,
-                c"vim._cs_remote didn't return a value for should_exit or tabbed, bailing\n"
-                    .as_ptr(),
+                c"vim._cs_remote didn't return a value for should_exit or tabbed, bailing\n",
             );
             os_exit(2);
         }
@@ -1439,7 +1438,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             parmp.clean = true;
                             set_option_value_give_err(
                                 kOptShadafile,
-                                cstr_as_obj(c"NONE".as_ptr()),
+                                cstr_as_obj(c"NONE"),
                                 0,
                             );
                         } else if strnicmp_ascii(sub, b"luamod-dev") {
@@ -1480,7 +1479,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         os_exit(0);
                     }
                     b'H' => {
-                        set_option_value_give_err(kOptKeymap, cstr_as_obj(c"hebrew".as_ptr()), 0);
+                        set_option_value_give_err(kOptKeymap, cstr_as_obj(c"hebrew"), 0);
                         set_option_value_give_err(kOptRightleft, boolean_obj(true), 0);
                     }
                     b'M' => {
@@ -1534,7 +1533,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             if opt_vars().p_shadafile.is_null() || *opt_vars().p_shadafile == NUL {
                                 set_option_value_give_err(
                                     kOptShadafile,
-                                    cstr_as_obj(c"NONE".as_ptr()),
+                                    cstr_as_obj(c"NONE"),
                                     0,
                                 );
                             }
@@ -1674,7 +1673,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             if opt_vars().p_shadafile.is_null() || *opt_vars().p_shadafile == NUL {
                                 set_option_value_give_err(
                                     kOptShadafile,
-                                    cstr_as_obj(c"NONE".as_ptr()),
+                                    cstr_as_obj(c"NONE"),
                                     0,
                                 );
                             }
@@ -1698,7 +1697,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                 );
                                 fprintf!(
                                     log_get_stderr(),
-                                    c"%s".as_ptr(),
+                                    c"%s",
                                     (&raw const g_st().IObuff).cast::<c_char>(),
                                 );
                                 os_exit(2);
@@ -1736,7 +1735,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                                     );
                                     fprintf!(
                                         log_get_stderr(),
-                                        c"%s".as_ptr(),
+                                        c"%s",
                                         (&raw const g_st().IObuff).cast::<c_char>(),
                                     );
                                     os_exit(2);
@@ -2017,8 +2016,8 @@ fn read_stdin() {
             set_buflisted(1);
             open_buffer(true, None, 0);
             if buf_is_empty(&mut *g_st().curbuf) && !(*g_st().curbuf).b_next.is_null() {
-                do_cmdline_cmd(c"silent! bnext".as_ptr());
-                do_cmdline_cmd(c"silent! bwipeout 1".as_ptr());
+                do_cmdline_cmd(c"silent! bnext");
+                do_cmdline_cmd(c"silent! bwipeout 1");
             }
         }
 
@@ -2369,7 +2368,7 @@ fn do_user_initialization() -> bool {
         if do_source(user_vimrc_ptr, true, DOSO_VIMRC, ptr::null_mut()) {
             do_exrc = opt_vars().p_exrc != 0;
             if do_exrc {
-                do_exrc = !path_equal(c".nvimrc".as_ptr(), user_vimrc_ptr, kPathCmpExpand);
+                do_exrc = !path_equal(c".nvimrc", user_vimrc_ptr, kPathCmpExpand);
             }
             return do_exrc;
         }
@@ -2441,7 +2440,7 @@ fn do_user_initialization() -> bool {
                     do_exrc = opt_vars().p_exrc != 0;
                     if do_exrc {
                         do_exrc = !path_equal(
-                            c".nvimrc".as_ptr(),
+                            c".nvimrc",
                             init_vim.as_ptr().cast(),
                             kPathCmpExpand,
                         );
@@ -2473,7 +2472,7 @@ fn do_exrc_initialization() {
         if nlua_pcall(L, 1, 0) != 0 {
             fprintf!(
                 log_get_stderr(),
-                c"%s\n".as_ptr(),
+                c"%s\n",
                 lua_tolstring(L, -1, ptr::null_mut()),
             );
         }
@@ -2533,15 +2532,15 @@ fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) 
         signal_stop();
 
         let stderr = log_get_stderr();
-        fprintf!(stderr, c"%s: %s".as_ptr(), prgname, gettext(msg1));
+        fprintf!(stderr, c"%s: %s", prgname, gettext(msg1));
         if !msg2.is_null() {
-            fprintf!(stderr, c": \"%s\"".as_ptr(), msg2);
+            fprintf!(stderr, c": \"%s\"", msg2);
         }
         if !msg3.is_null() {
-            fprintf!(stderr, c": \"%s\"".as_ptr(), msg3);
+            fprintf!(stderr, c": \"%s\"", msg3);
         }
         fprintf!(stderr, gettext(c"\nMore info with \""));
-        fprintf!(stderr, c"%s -h\"\n".as_ptr(), prgname);
+        fprintf!(stderr, c"%s -h\"\n", prgname);
 }
 
 fn version() {
@@ -2576,7 +2575,7 @@ fn usage() {
         printf!(gettext(
             c"  -u <config>           Use this config file\n",
         ));
-        printf!(c"\n".as_ptr());
+        printf!(c"\n");
         printf!(gettext(c"  -d                    Diff mode\n"));
         printf!(gettext(
             c"  -es, -Es              Silent (batch) mode\n",
@@ -2608,7 +2607,7 @@ fn usage() {
         printf!(gettext(
             c"  -V[N][file]           Verbose [level][file]\n",
         ));
-        printf!(c"\n".as_ptr());
+        printf!(c"\n");
         printf!(gettext(
             c"  --                    Only file names after this\n",
         ));

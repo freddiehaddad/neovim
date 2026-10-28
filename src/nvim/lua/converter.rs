@@ -772,7 +772,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                         );
                                         let val_di = tv_dict_find(
                                             (*cur.tv).vval.v_dict(),
-                                            c"_VAL".as_ptr(),
+                                            c"_VAL",
                                             4,
                                         );
                                         assert!(!val_di.is_null());
@@ -798,8 +798,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             }
                             ObjectType::kObjectTypeNil => {
                                 emsg(
-                                    c"E5100: Cannot convert given Lua table: table should contain either only integer keys or only string keys"
-                                        .as_ptr(),
+                                    c"E5100: Cannot convert given Lua table: table should contain either only integer keys or only string keys",
                                 );
                                 ret = false;
                             }
@@ -821,12 +820,12 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         (*cur.tv).v_type = VarType::VAR_SPECIAL;
                         (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                     } else {
-                        emsg(c"E5101: Cannot convert given Lua type".as_ptr());
+                        emsg(c"E5101: Cannot convert given Lua type");
                         ret = false;
                     }
                 }
                 _ => {
-                    emsg(c"E5101: Cannot convert given Lua type".as_ptr());
+                    emsg(c"E5101: Cannot convert given Lua type");
                     ret = false;
                 }
             }
@@ -1049,9 +1048,9 @@ fn lua_convert_one_value(
                 }
                 let mut handled_special = false;
                 if (*dict).dv_hashtab.ht_used == 2 {
-                    let type_di = tv_dict_find(dict, c"_TYPE".as_ptr(), 5);
+                    let type_di = tv_dict_find(dict, c"_TYPE", 5);
                     if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VAR_LIST {
-                        let val_di = tv_dict_find(dict, c"_VAL".as_ptr(), 4);
+                        let val_di = tv_dict_find(dict, c"_VAL", 4);
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in { *eval_msgpack_type_lists_mut() }.into_iter().enumerate() {

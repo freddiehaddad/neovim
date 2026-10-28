@@ -380,7 +380,7 @@ pub fn nvim_get_hl_by_id(
 ) -> Dict {
     let dic = Dict::new();
         if syn_get_final_id(hl_id as c_int) == 0 {
-            api_err_invalid(err, c"highlight id".as_ptr(), ptr::null(), hl_id, false);
+            api_err_invalid(err, c"highlight id", ptr::null(), hl_id, false);
             return dic;
         }
         let attrcode = syn_id2attr(hl_id as c_int);
@@ -409,7 +409,7 @@ pub fn nvim_get_hl_by_name(
         let result = Dict::new();
         let id = syn_name2id(name.data);
         if id == 0 {
-            api_err_invalid(err, c"highlight name".as_ptr(), name.data, 0, true);
+            api_err_invalid(err, c"highlight name", name.data, 0, true);
             return result;
         }
         nvim_get_hl_by_id(i64::from(id), rgb, arena, err)
@@ -961,18 +961,18 @@ fn get_option_from(
     err: &mut Error,
 ) -> Object {
     if name.size == 0 {
-            api_err_invalid(err, c"option name".as_ptr(), c"<empty>".as_ptr(), 0, true);
+            api_err_invalid(err, c"option name", c"<empty>", 0, true);
             return OBJECT_NIL;
         }
 
         let opt_idx = find_option(name.data);
         if opt_idx == kOptInvalid {
-            api_err_invalid(err, c"option name".as_ptr(), name.data, 0, true);
+            api_err_invalid(err, c"option name", name.data, 0, true);
             return OBJECT_NIL;
         }
 
         if !option_has_scope(opt_idx, scope) {
-            api_err_invalid(err, c"option name".as_ptr(), name.data, 0, true);
+            api_err_invalid(err, c"option name", name.data, 0, true);
             return OBJECT_NIL;
         }
 
@@ -1003,13 +1003,13 @@ fn set_option_to(
     err: &mut Error,
 ) {
     if name.size == 0 {
-            api_err_invalid(err, c"option name".as_ptr(), c"<empty>".as_ptr(), 0, true);
+            api_err_invalid(err, c"option name", c"<empty>", 0, true);
             return;
         }
 
         let opt_idx = find_option(name.data);
         if opt_idx == kOptInvalid {
-            api_err_invalid(err, c"option name".as_ptr(), name.data, 0, true);
+            api_err_invalid(err, c"option name", name.data, 0, true);
             return;
         }
 
@@ -1023,8 +1023,8 @@ fn set_option_to(
         if !valid {
             api_err_exp(
                 err,
-                c"value".as_ptr(),
-                c"valid option type".as_ptr(),
+                c"value",
+                c"valid option type",
                 api_typename(value.obj_type),
             );
             return;
@@ -1073,7 +1073,7 @@ pub fn nvim_call_atomic(
             if item.obj_type != ObjectType::kObjectTypeArray {
                 api_err_exp(
                     err,
-                    c"'calls' item".as_ptr(),
+                    c"'calls' item",
                     api_typename(ObjectType::kObjectTypeArray),
                     api_typename(item.obj_type),
                 );
@@ -1083,8 +1083,8 @@ pub fn nvim_call_atomic(
                 if call.size != 2 {
                     api_err_exp(
                         err,
-                        c"'calls' item".as_ptr(),
-                        c"2-item Array".as_ptr(),
+                        c"'calls' item",
+                        c"2-item Array",
                         ptr::null(),
                     );
                     break 'theend;
@@ -1093,7 +1093,7 @@ pub fn nvim_call_atomic(
                 if first.obj_type != ObjectType::kObjectTypeString {
                     api_err_exp(
                         err,
-                        c"name".as_ptr(),
+                        c"name",
                         api_typename(ObjectType::kObjectTypeString),
                         api_typename(first.obj_type),
                     );
@@ -1104,7 +1104,7 @@ pub fn nvim_call_atomic(
                 if second.obj_type != ObjectType::kObjectTypeArray {
                     api_err_exp(
                         err,
-                        c"call args".as_ptr(),
+                        c"call args",
                         api_typename(ObjectType::kObjectTypeArray),
                         api_typename(second.obj_type),
                     );

@@ -320,7 +320,7 @@ fn validate_r(cond: bool, name: &std::ffi::CStr, err: &mut Error) -> bool {
 #[inline]
 fn validate_range(cond: bool, name: &std::ffi::CStr, err: &mut Error) -> bool {
     if !cond {
-        api_err_invalid(err, name.as_ptr(), c"out of range".as_ptr(), 0, false);
+        api_err_invalid(err, name.as_ptr(), c"out of range", 0, false);
         false
     } else {
         true
@@ -1297,8 +1297,8 @@ pub fn nvim_echo(
             {
                 api_err_exp(
                     err,
-                    c"status".as_ptr(),
-                    c"success|failed|running|cancel".as_ptr(),
+                    c"status",
+                    c"success|failed|running|cancel",
                     opts.status.data,
                 );
                 break 'validate false;
@@ -2100,8 +2100,8 @@ pub fn nvim_get_mode(arena: &mut Arena) -> Dict {
         get_mode(modestr);
         let blocked = input_blocking();
 
-        put_c(&mut rv, c"mode".as_ptr(), cstr_as_obj(modestr));
-        put_c(&mut rv, c"blocking".as_ptr(), boolean_obj(blocked));
+        put_c(&mut rv, c"mode", cstr_as_obj(modestr));
+        put_c(&mut rv, c"blocking", boolean_obj(blocked));
         rv
 }
 
@@ -2272,7 +2272,7 @@ pub fn nvim_set_client_info(
             size: 0,
             capacity: 5,
         };
-        put_c(&mut info, c"name".as_ptr(), string_obj(name));
+        put_c(&mut info, c"name", string_obj(name));
 
         let mut has_major = false;
         for i in 0..version.size {
@@ -2287,13 +2287,13 @@ pub fn nvim_set_client_info(
                 ptr::copy_nonoverlapping(version.items, v.items, version.size);
                 v.size = version.size;
             }
-            put_c(&mut v, c"major".as_ptr(), integer_obj(0));
+            put_c(&mut v, c"major", integer_obj(0));
             version = v;
         }
-        put_c(&mut info, c"version".as_ptr(), dict_obj(version));
-        put_c(&mut info, c"type".as_ptr(), string_obj(client_type));
-        put_c(&mut info, c"methods".as_ptr(), dict_obj(methods));
-        put_c(&mut info, c"attributes".as_ptr(), dict_obj(attributes));
+        put_c(&mut info, c"version", dict_obj(version));
+        put_c(&mut info, c"type", string_obj(client_type));
+        put_c(&mut info, c"methods", dict_obj(methods));
+        put_c(&mut info, c"attributes", dict_obj(attributes));
 
         rpc_set_client_info(channel_id, copy_dict(info, None));
     }
@@ -2464,26 +2464,26 @@ pub extern "C" fn nvim__id_float(flt: Float) -> Float {
 // DLLEXPORT Dict nvim__stats(Arena *arena);
 pub fn nvim__stats(arena: &mut Arena) -> Dict {
     let mut rv = arena_dict(arena, 6);
-        put_c(&mut rv, c"fsync".as_ptr(), integer_obj(g_st().g_stats.fsync));
+        put_c(&mut rv, c"fsync", integer_obj(g_st().g_stats.fsync));
         put_c(
             &mut rv,
-            c"log_skip".as_ptr(),
+            c"log_skip",
             integer_obj(Integer::from(g_st().g_stats.log_skip)),
         );
         put_c(
             &mut rv,
-            c"lua_refcount".as_ptr(),
+            c"lua_refcount",
             integer_obj(Integer::from(nlua_get_global_ref_count())),
         );
-        put_c(&mut rv, c"redraw".as_ptr(), integer_obj(g_st().g_stats.redraw));
+        put_c(&mut rv, c"redraw", integer_obj(g_st().g_stats.redraw));
         put_c(
             &mut rv,
-            c"arena_alloc_count".as_ptr(),
+            c"arena_alloc_count",
             integer_obj(g_st().arena_alloc_count as Integer),
         );
         put_c(
             &mut rv,
-            c"ts_query_parse_count".as_ptr(),
+            c"ts_query_parse_count",
             integer_obj(g_st().tslua_query_parse_count as Integer),
         );
         rv
@@ -2910,8 +2910,8 @@ pub fn nvim_eval_statusline(
             if *ci.ptr == 0 || *cli.next.ptr != NUL || cli.cells != 1 {
                 api_err_exp(
                     err,
-                    c"fillchar".as_ptr(),
-                    c"one single-width character".as_ptr(),
+                    c"fillchar",
+                    c"one single-width character",
                     ptr::null(),
                 );
                 return result;
@@ -3056,7 +3056,7 @@ pub fn nvim_eval_statusline(
 
         put_c(
             &mut result,
-            c"width".as_ptr(),
+            c"width",
             integer_obj(Integer::from(width)),
         );
 
@@ -3075,11 +3075,11 @@ pub fn nvim_eval_statusline(
             );
             if (*hltab).start.is_null() || (*hltab).start.offset_from(buf_data) != 0 {
                 let mut hl_info = arena_dict(arena, 3);
-                put_c(&mut hl_info, c"start".as_ptr(), integer_obj(0));
-                put_c(&mut hl_info, c"group".as_ptr(), cstr_as_obj(dfltname));
+                put_c(&mut hl_info, c"start", integer_obj(0));
+                put_c(&mut hl_info, c"group", cstr_as_obj(dfltname));
                 let mut groups = arena_array(arena, 1);
                 add_c(&mut groups, cstr_as_obj(dfltname));
-                put_c(&mut hl_info, c"groups".as_ptr(), array_obj(groups));
+                put_c(&mut hl_info, c"groups", array_obj(groups));
                 add_c(&mut hl_values, dict_obj(hl_info));
             }
 
@@ -3113,24 +3113,24 @@ pub fn nvim_eval_statusline(
                 let mut hl_info = arena_dict(arena, 3);
                 put_c(
                     &mut hl_info,
-                    c"start".as_ptr(),
+                    c"start",
                     integer_obj((*sp).start.offset_from(buf_data) as Integer),
                 );
-                put_c(&mut hl_info, c"group".as_ptr(), cstr_as_obj(grpname));
+                put_c(&mut hl_info, c"group", cstr_as_obj(grpname));
                 let diff_group = combine != grpname;
                 let mut groups = arena_array(arena, 1 + usize::from(diff_group));
                 if diff_group {
                     add_c(&mut groups, cstr_as_obj(combine));
                 }
                 add_c(&mut groups, cstr_as_obj(grpname));
-                put_c(&mut hl_info, c"groups".as_ptr(), array_obj(groups));
+                put_c(&mut hl_info, c"groups", array_obj(groups));
                 add_c(&mut hl_values, dict_obj(hl_info));
 
                 sp = sp.add(1);
             }
-            put_c(&mut result, c"highlights".as_ptr(), array_obj(hl_values));
+            put_c(&mut result, c"highlights", array_obj(hl_values));
         }
-        put_c(&mut result, c"str".as_ptr(), cstr_as_obj(buf_data));
+        put_c(&mut result, c"str", cstr_as_obj(buf_data));
 
         result
     }
@@ -3166,10 +3166,10 @@ pub fn nvim__complete_set(
         if (opts.is_set__complete_set_ & (1u64 << KEYSET_OPTIDX_complete_set__info)) != 0 {
             let wp = pum_set_info(index as c_int, opts.info.data);
             if !wp.is_null() {
-                put_c(&mut rv, c"winid".as_ptr(), window_obj((*wp).handle));
+                put_c(&mut rv, c"winid", window_obj((*wp).handle));
                 put_c(
                     &mut rv,
-                    c"bufnr".as_ptr(),
+                    c"bufnr",
                     buffer_obj((*(*wp).w_buffer).b_fnum),
                 );
             }

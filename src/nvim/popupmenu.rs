@@ -820,8 +820,8 @@ pub fn pum_redraw() {
 
             if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[3].as_ptr()) {
                 fconfig.shadow = true;
-                let blend = syn_check_group(c"PmenuShadow".as_ptr(), 11);
-                let through = syn_check_group(c"PmenuShadowThrough".as_ptr(), 18);
+                let blend = syn_check_group(c"PmenuShadow", 11);
+                let through = syn_check_group(c"PmenuShadowThrough", 18);
                 fconfig.border_hl_ids[2] = through;
                 fconfig.border_hl_ids[3] = blend;
                 fconfig.border_hl_ids[4] = blend;
@@ -1442,12 +1442,12 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                             set_option_value_give_err(kOptBuflisted, boolean_obj(false), OPT_LOCAL);
                             set_option_value_give_err(
                                 kOptBuftype,
-                                cstr_as_obj(c"nofile".as_ptr()),
+                                cstr_as_obj(c"nofile"),
                                 OPT_LOCAL,
                             );
                             set_option_value_give_err(
                                 kOptBufhidden,
-                                cstr_as_obj(c"wipe".as_ptr()),
+                                cstr_as_obj(c"wipe"),
                                 OPT_LOCAL,
                             );
                             set_option_value_give_err(kOptDiff, boolean_obj(false), OPT_LOCAL);

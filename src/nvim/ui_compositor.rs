@@ -106,10 +106,10 @@ pub fn ui_comp_free_all_mem() {
 }
 
 pub fn ui_comp_syn_init() {
-    comp().dbghl_normal = syn_check_group(c"RedrawDebugNormal".as_ptr(), 17);
-        comp().dbghl_clear = syn_check_group(c"RedrawDebugClear".as_ptr(), 16);
-        comp().dbghl_composed = syn_check_group(c"RedrawDebugComposed".as_ptr(), 19);
-        comp().dbghl_recompose = syn_check_group(c"RedrawDebugRecompose".as_ptr(), 20);
+    comp().dbghl_normal = syn_check_group(c"RedrawDebugNormal", 17);
+        comp().dbghl_clear = syn_check_group(c"RedrawDebugClear", 16);
+        comp().dbghl_composed = syn_check_group(c"RedrawDebugComposed", 19);
+        comp().dbghl_recompose = syn_check_group(c"RedrawDebugRecompose", 20);
 }
 
 pub fn ui_comp_attach(ui: &mut RemoteUI) {

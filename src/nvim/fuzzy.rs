@@ -600,7 +600,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
             }
 
             let d = arg2.vval.v_dict();
-            let di_key = tv_dict_find(d, c"key".as_ptr(), -1);
+            let di_key = tv_dict_find(d, c"key", -1);
             if !di_key.is_null() {
                 if (*di_key).di_tv.v_type != VarType::VAR_STRING
                     || (*di_key).di_tv.vval.v_string().is_null()
@@ -619,7 +619,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
                 return;
             }
 
-            let di_limit = tv_dict_find(d, c"limit".as_ptr(), -1);
+            let di_limit = tv_dict_find(d, c"limit", -1);
             if !di_limit.is_null() {
                 if (*di_limit).di_tv.v_type != VarType::VAR_NUMBER {
                     callback_free(&mut cb);

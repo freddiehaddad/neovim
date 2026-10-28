@@ -1202,7 +1202,7 @@ fn diff_file(dio: &mut diffio_T) -> bool {
         let len = crate::memory::cstr_len(tmp_orig) + crate::memory::cstr_len(tmp_new) + crate::memory::cstr_len(tmp_diff) + crate::memory::cstr_len(opt_vars().p_srr) + 27;
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
-        if os_env_exists(c"DIFF_OPTIONS".as_ptr(), true) {
+        if os_env_exists(c"DIFF_OPTIONS", true) {
             let _ = os_unsetenv(c"DIFF_OPTIONS".as_ptr());
         }
         vim_snprintf!(
@@ -1356,10 +1356,10 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
                 shorten_fnames(1);
             }
             crate::memory::cstr_cpy(buf, tmp_new);
-            crate::memory::cstr_cat(buf, c".orig".as_ptr());
+            crate::memory::cstr_cat(buf, c".orig");
             let _ = os_remove(buf);
             crate::memory::cstr_cpy(buf, tmp_new);
-            crate::memory::cstr_cat(buf, c".rej".as_ptr());
+            crate::memory::cstr_cat(buf, c".rej");
             let _ = os_remove(buf);
             let mut file_info = FileInfo::new();
             let info_ok = os_fileinfo(tmp_new, &mut file_info);
@@ -1372,7 +1372,7 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
                     let fname_len = crate::memory::cstr_len((*g_st().curbuf).b_fname);
                     newname_vec = vec![0; fname_len + 5];
                     crate::memory::cstr_cpy(newname_vec.as_mut_ptr(), (*g_st().curbuf).b_fname);
-                    crate::memory::cstr_cat(newname_vec.as_mut_ptr(), c".new".as_ptr());
+                    crate::memory::cstr_cat(newname_vec.as_mut_ptr(), c".new");
                     newname = newname_vec.as_mut_ptr();
                 }
                 g_st().cmdmod.cmod_tab = 0;
@@ -1395,7 +1395,7 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
                             eap.arg = newname;
                             ex_file(eap);
                             if crate::autocmd::augroup_exists(c"filetypedetect".as_ptr()) {
-                                do_cmdline_cmd(c":doau filetypedetect BufRead".as_ptr());
+                                do_cmdline_cmd(c":doau filetypedetect BufRead");
                             }
                         }
                     }
@@ -1520,7 +1520,7 @@ pub fn diff_win_options(wp: *mut win_T, addbuf: bool) {
         foldUpdateAll(&mut *wp);
         changed_window_setting(&mut *wp);
         if vim_strchr(opt_vars().p_sbo, b'h' as c_int).is_null() {
-            do_cmdline_cmd(c"set sbo+=hor".as_ptr());
+            do_cmdline_cmd(c"set sbo+=hor");
         }
         (*wp).w_onebuf_opt.wo_diff_saved = 1;
         set_diff_option(wp, true);
@@ -1599,7 +1599,7 @@ pub fn ex_diffoff(eap: &mut exarg_T) {
             diff_clear(&mut *g_st().curtab);
         }
         if !diffwin && !vim_strchr(opt_vars().p_sbo, b'h' as c_int).is_null() {
-            do_cmdline_cmd(c"set sbo-=hor".as_ptr());
+            do_cmdline_cmd(c"set sbo-=hor");
         }
     }
 }

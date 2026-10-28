@@ -134,7 +134,7 @@ fn collect_usernames() -> Vec<CString> {
         endpwent();
 
         let mut user_buf = [0 as c_char; 256];
-        let user_env = os_getenv_buf(c"USER".as_ptr(), user_buf.as_mut_ptr(), user_buf.len());
+        let user_env = os_getenv_buf(c"USER", user_buf.as_mut_ptr(), user_buf.len());
 
         if !user_env.is_null() && *user_env != 0 {
             let env_bytes = crate::memory::cstr_as_bytes(user_env);

@@ -115,7 +115,7 @@ pub fn ex_help(eap: &mut exarg_T) {
             };
             nlua_call_typval(
                 c"vim._core.help",
-                c"resolve_tag".as_ptr(),
+                c"resolve_tag",
                 no_args.as_mut_ptr(),
                 Some(&mut rettv),
             );
@@ -362,7 +362,7 @@ pub fn find_help_tags(
         };
         nlua_call_typval(
             c"vim._core.help",
-            c"escape_subject".as_ptr(),
+            c"escape_subject",
             tv_args.as_mut_ptr(),
             Some(&mut rettv),
         );
@@ -453,7 +453,7 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 pub fn prepare_help_buffer() {
     unsafe {
         (*g_st().curbuf).b_help = true;
-        set_option_direct(kOptBuftype, cstr_as_obj(c"help".as_ptr()), OPT_LOCAL, 0);
+        set_option_direct(kOptBuftype, cstr_as_obj(c"help"), OPT_LOCAL, 0);
 
         let p = c"!-~,^*,^|,^\",192-255";
         if CStr::from_ptr((*g_st().curbuf).b_p_isk) != p {
@@ -464,7 +464,7 @@ pub fn prepare_help_buffer() {
 
         set_option_direct(
             kOptFoldmethod,
-            cstr_as_obj(c"manual".as_ptr()),
+            cstr_as_obj(c"manual"),
             OPT_LOCAL,
             0,
         );
@@ -497,7 +497,7 @@ pub fn get_local_additions() {
         }];
         nlua_call_typval(
             c"vim._core.help",
-            c"local_additions".as_ptr(),
+            c"local_additions",
             no_args.as_mut_ptr(),
             None,
         );
@@ -505,12 +505,12 @@ pub fn get_local_additions() {
 
 /// `:exusage` (`ex_exusage`).
 pub fn ex_exusage(_eap: &mut exarg_T) {
-    do_cmdline_cmd(c"help ex-cmd-index".as_ptr());
+    do_cmdline_cmd(c"help ex-cmd-index");
 }
 
 /// `:viusage` (`ex_viusage`).
 pub fn ex_viusage(_eap: &mut exarg_T) {
-    do_cmdline_cmd(c"help normal-index".as_ptr());
+    do_cmdline_cmd(c"help normal-index");
 }
 
 /// `:helptags` (`ex_helptags`).
@@ -555,7 +555,7 @@ pub fn ex_helptags(eap: &mut exarg_T) {
         ];
         nlua_call_typval(
             c"vim._core.help",
-            c"gen_tags".as_ptr(),
+            c"gen_tags",
             tv_args.as_mut_ptr(),
             None,
         );

@@ -1476,7 +1476,7 @@ pub fn file_name_in_line(
         while vim_isfilec(c_int::from(*ptr.add(len) as u8))
             || (*ptr.add(len) == b'\\' as c_char && *ptr.add(len + 1) == b' ' as c_char)
             || ((options & FNAME_HYP) != 0 && path_is_url(ptr.add(len)) != 0)
-            || (is_url && !vim_strchr(c":?&=".as_ptr(), c_int::from(*ptr.add(len) as u8)).is_null())
+            || (is_url && !vim_strchr(c":?&=", c_int::from(*ptr.add(len) as u8)).is_null())
         {
             let b = *ptr.add(len) as u8;
             if b.is_ascii_alphabetic() {
@@ -1494,7 +1494,7 @@ pub fn file_name_in_line(
         }
 
         if len > 2
-            && !vim_strchr(c".,:;!".as_ptr(), c_int::from(*ptr.add(len - 1) as u8)).is_null()
+            && !vim_strchr(c".,:;!", c_int::from(*ptr.add(len - 1) as u8)).is_null()
             && *ptr.add(len - 2) != b'.' as c_char
         {
             len -= 1;
@@ -1704,7 +1704,7 @@ pub fn do_autocmd_dirchanged(
         match cause {
             kCdCauseManual | kCdCauseWindow | kCdCauseBuffer => {}
             kCdCauseAuto => {
-                xstrlcpy(buf.as_mut_ptr(), c"auto".as_ptr(), buf.len());
+                xstrlcpy(buf.as_mut_ptr(), c"auto", buf.len());
             }
             _ => std::process::abort(),
         }

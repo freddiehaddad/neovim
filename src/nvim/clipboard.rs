@@ -67,7 +67,7 @@ pub fn adjust_clipboard_name(
                 && (!clip_st().CLIPBOARD_DIDWARN || (explicit_cb_reg && redirecting() == 0))
             {
                 clip_st().CLIPBOARD_DIDWARN = true;
-                msg(MSG_NO_CLIP.as_ptr(), 0);
+                msg(MSG_NO_CLIP, 0);
             }
             return std::ptr::null_mut();
         }
@@ -144,7 +144,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
             |reg: &mut yankreg_T, errmsg: bool, target: *mut *mut yankreg_T| -> bool {
                 *reg = EMPTY_YANKREG;
                 if errmsg {
-                    emsg(c"clipboard: provider returned invalid data".as_ptr());
+                    emsg(c"clipboard: provider returned invalid data");
                 }
                 *target = reg as *mut yankreg_T;
                 false

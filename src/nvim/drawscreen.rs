@@ -931,7 +931,7 @@ pub fn showmode() -> c_int {
             g_st().lines_left = 0;
 
             if do_mode {
-                msg_puts_hl(c"--".as_ptr(), hl_id, false);
+                msg_puts_hl(c"--", hl_id, false);
                 if !g_st().edit_submode.is_null() && !shortmess(kShmCompletionmenu) {
                     length = if ui_has(kUIMessages) {
                         c_int::MAX
@@ -952,7 +952,7 @@ pub fn showmode() -> c_int {
                             msg_puts_hl(g_st().edit_submode, hl_id, false);
                         }
                         if !g_st().edit_submode_extra.is_null() {
-                            msg_puts_hl(c" ".as_ptr(), hl_id, false);
+                            msg_puts_hl(c" ", hl_id, false);
                             let sub_id = if g_st().edit_submode_highl < HLF_COUNT {
                                 g_st().edit_submode_highl
                             } else {
@@ -1023,7 +1023,7 @@ pub fn showmode() -> c_int {
                         };
                         msg_puts_hl(gettext(p.as_ptr()), hl_id, false);
                     }
-                    msg_puts_hl(c" --".as_ptr(), hl_id, false);
+                    msg_puts_hl(c" --", hl_id, false);
                 }
 
                 need_clear = true;

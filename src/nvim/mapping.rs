@@ -441,9 +441,9 @@ fn showmap(mp: &mapblock_T, local: bool) {
         }
 
         if mp.m_noremap == REMAP_NONE {
-            msg_puts_hl(c"*".as_ptr(), HLF_8, false);
+            msg_puts_hl(c"*", HLF_8, false);
         } else if mp.m_noremap == REMAP_SCRIPT {
-            msg_puts_hl(c"&".as_ptr(), HLF_8, false);
+            msg_puts_hl(c"&", HLF_8, false);
         } else {
             msg_putchar(b' ' as c_int);
         }
@@ -458,13 +458,13 @@ fn showmap(mp: &mapblock_T, local: bool) {
             let str_cstr = nlua_funcref_str(mp.m_luaref, true);
             msg_puts_hl(str_cstr.as_ptr(), HLF_8, false);
         } else if mp.m_str.as_bytes().is_empty() {
-            msg_puts_hl(c"<Nop>".as_ptr(), HLF_8, false);
+            msg_puts_hl(c"<Nop>", HLF_8, false);
         } else {
             msg_outtrans_special(mp.m_str.as_ptr(), false, 0);
         }
 
         if let Some(ref desc) = mp.m_desc {
-            msg_puts(c"\n                 ".as_ptr());
+            msg_puts(c"\n                 ");
             msg_puts(desc.as_ptr());
         }
         if opt_vars().p_verbose > 0 {
@@ -786,7 +786,7 @@ fn buf_do_map(
             || args.rhs_is_noop;
         let do_print = !has_lhs || (maptype != MAPTYPE_UNMAP && !has_rhs);
         if do_print {
-            msg_ext_set_kind(c"list_cmd".as_ptr());
+            msg_ext_set_kind(c"list_cmd");
         }
 
         if maptype == MAPTYPE_UNMAP && !has_lhs {
@@ -2414,7 +2414,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
         let lhsrawalt = tv_dict_get_string(d, c"lhsrawalt");
         let mut orig_rhs = tv_dict_get_string(d, c"rhs") as *const c_char;
         let mut rhs_lua: LuaRef = LUA_NOREF;
-        let callback_di = tv_dict_find(d, c"callback".as_ptr(), 8);
+        let callback_di = tv_dict_find(d, c"callback", 8);
         if !callback_di.is_null() && (*callback_di).di_tv.v_type == VarType::VAR_FUNC {
             let fp = find_func((*callback_di).di_tv.vval.v_string());
             if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {

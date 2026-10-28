@@ -1524,7 +1524,7 @@ pub fn nvim_buf_del_mark(
         if name.size != 1 {
             api_err_invalid(
                 err,
-                c"mark name (must be a single char)".as_ptr(),
+                c"mark name (must be a single char)",
                 name.data,
                 0,
                 true,
@@ -1540,7 +1540,7 @@ pub fn nvim_buf_del_mark(
             c_int::from(*name.data.cast::<u8>()),
         );
         if fm.is_null() {
-            api_err_invalid(err, c"mark name".as_ptr(), name.data, 0, true);
+            api_err_invalid(err, c"mark name", name.data, 0, true);
             return res;
         }
 
@@ -1586,7 +1586,7 @@ pub fn nvim_buf_set_mark(
         if name.size != 1 {
             api_err_invalid(
                 err,
-                c"mark name (must be a single char)".as_ptr(),
+                c"mark name (must be a single char)",
                 name.data,
                 0,
                 true,
@@ -1628,7 +1628,7 @@ pub fn nvim_buf_get_mark(
         if name.size != 1 {
             api_err_invalid(
                 err,
-                c"mark name (must be a single char)".as_ptr(),
+                c"mark name (must be a single char)",
                 name.data,
                 0,
                 true,
@@ -1639,7 +1639,7 @@ pub fn nvim_buf_get_mark(
         let mark = c_int::from(*name.data.cast::<u8>());
         let fm = mark_get(&mut *b, *curwin.as_ptr(), None, kMarkAllNoResolve, mark);
         if fm.is_null() {
-            api_err_invalid(err, c"mark name".as_ptr(), name.data, 0, true);
+            api_err_invalid(err, c"mark name", name.data, 0, true);
             return rv;
         }
 

@@ -1671,7 +1671,7 @@ fn load_pack_plugin(opt: bool, fname: *mut c_char) -> bool {
         let mut cmd = *b"g:did_load_filetypes\0";
 
         if opt && eval_to_number(cmd.as_mut_ptr().cast(), false) > 0 {
-            do_cmdline_cmd(c"augroup filetypedetect".as_ptr());
+            do_cmdline_cmd(c"augroup filetypedetect");
             vim_snprintf!(pat, len, c"%s/ftdetect/*", ffname);
             gen_expand_wildcards_and_cb(
                 1,
@@ -1680,7 +1680,7 @@ fn load_pack_plugin(opt: bool, fname: *mut c_char) -> bool {
                 true,
                 &mut RuntimeCallback::SourceVimLua,
             );
-            do_cmdline_cmd(c"augroup END".as_ptr());
+            do_cmdline_cmd(c"augroup END");
         }
 
         true
@@ -2270,7 +2270,7 @@ fn add_dir(
             crate::memory::cstr_ncpy(iobuff, appname, appname_len);
             #[cfg(windows)]
             if matches!(type_, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
-                { let _dst: *mut c_char = iobuff; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"-data".as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = iobuff; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"-data", _dsize - _dlen); };
                 appname_len += 5;
             }
             crate::memory::cstr_ncpy(dest, iobuff, appname_len);
@@ -2540,7 +2540,7 @@ pub fn ex_options(_eap: &mut exarg_T) {
 
         add_win_cmd_modifiers(buf.as_mut_ptr(), &g_st().cmdmod, &mut multi_mods);
 
-        os_setenv(c"OPTWIN_CMD".as_ptr(), buf.as_ptr(), 1);
+        os_setenv(c"OPTWIN_CMD", buf.as_ptr(), 1);
         cmd_source(
             c"$VIMRUNTIME/scripts/optwin.lua".as_ptr() as *mut c_char,
             None,
@@ -3139,7 +3139,7 @@ pub fn ex_scriptnames(eap: &mut exarg_T) {
             return;
         }
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         let mut i = 1;
         while i <= script_items_len() && !g_st().got_int {
             let si = script_item(i);
@@ -3268,7 +3268,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut pat_owned: Option<std::ffi::CString> = None;
         if argvars[0].v_type == VarType::VAR_DICT {
             let arg_dict = argvars[0].vval.v_dict();
-            let sid_di = tv_dict_find(arg_dict, c"sid".as_ptr(), 3);
+            let sid_di = tv_dict_find(arg_dict, c"sid", 3);
             if !sid_di.is_null() {
                 let mut error = false;
                 sid = tv_get_number_chk(&(*sid_di).di_tv, Some(&mut error));

@@ -674,7 +674,7 @@ pub fn evalvars_init() {
 
         let mut startreason_buf = [0 as c_char; 32];
         let startreason = os_getenv_buf(
-            ENV_STARTREASON.as_ptr(),
+            ENV_STARTREASON,
             startreason_buf.as_mut_ptr(),
             startreason_buf.len(),
         );
@@ -682,7 +682,7 @@ pub fn evalvars_init() {
         {
             set_vim_var_string(VV_STARTREASON, startreason, -1);
         }
-        if os_env_exists(ENV_STARTREASON.as_ptr(), false) {
+        if os_env_exists(ENV_STARTREASON, false) {
             os_unsetenv(ENV_STARTREASON.as_ptr());
         }
     }
@@ -1229,7 +1229,7 @@ pub fn ex_let(eap: &mut exarg_T) {
         let mut expr = skipwhite(argend);
         let concat = crate::memory::cstr_prefix_bytes(expr, 3) == &b"..="[..3];
         let has_assign = *expr == b'=' as c_char
-            || (!vim_strchr(c"+-*/%.".as_ptr(), *expr as u8 as c_int).is_null()
+            || (!vim_strchr(c"+-*/%.", *expr as u8 as c_int).is_null()
                 && *expr.add(1) == b'=' as c_char);
         if !has_assign && !concat {
             if *arg == b'[' as c_char {
@@ -1279,7 +1279,7 @@ pub fn ex_let(eap: &mut exarg_T) {
         op[0] = b'=' as c_char;
         op[1] = NUL;
         if *expr != b'=' as c_char {
-            if !vim_strchr(c"+-*/%.".as_ptr(), *expr as u8 as c_int).is_null() {
+            if !vim_strchr(c"+-*/%.", *expr as u8 as c_int).is_null() {
                 op[0] = *expr;
                 if *expr == b'.' as c_char && *expr.add(1) == b'.' as c_char {
                     expr = expr.add(1);
@@ -1676,7 +1676,7 @@ fn ex_let_env(
         arg = arg_const.cast_mut();
         if len == 0 {
             semsg!(gettext(e_invarg2), name.sub(1));
-        } else if !op.is_null() && !vim_strchr(c"+-*/%".as_ptr(), *op as u8 as c_int).is_null() {
+        } else if !op.is_null() && !vim_strchr(c"+-*/%", *op as u8 as c_int).is_null() {
             semsg!(gettext(e_letwrong), op);
         } else if !endchars.is_null()
             && vim_strchr(endchars, *skipwhite(arg) as u8 as c_int).is_null()
@@ -1852,7 +1852,7 @@ fn ex_let_register(
 
         let mut arg_end: *mut c_char = ptr::null_mut();
         arg = arg.add(1);
-        if !op.is_null() && !vim_strchr(c"+-*/%".as_ptr(), *op as u8 as c_int).is_null() {
+        if !op.is_null() && !vim_strchr(c"+-*/%", *op as u8 as c_int).is_null() {
             semsg!(gettext(e_letwrong), op);
         } else if !endchars.is_null()
             && vim_strchr(endchars, *skipwhite(arg.add(1)) as u8 as c_int).is_null()
@@ -2347,7 +2347,7 @@ pub fn get_user_var_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
                 vars_st().HI = vars_st().HI.add(1);
             }
             let hi_key = (&*vars_st().HI).key_ptr();
-            if crate::memory::cstr_prefix_bytes(c"g:".as_ptr(), 2) == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2) {
+            if b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2) {
                 return cat_prefix_varname(b'g' as c_int, hi_key);
             }
             return hi_key;
@@ -2937,7 +2937,7 @@ fn list_one_var_a(
 ) {
     unsafe {
         if *first != 0 {
-            msg_ext_set_kind(c"list_cmd".as_ptr());
+            msg_ext_set_kind(c"list_cmd");
             msg_start();
         } else {
             msg_putchar(b'\n' as c_int);
@@ -2971,7 +2971,7 @@ fn list_one_var_a(
         msg_outtrans(string, 0, false);
 
         if v_type == VarType::VAR_FUNC || v_type == VarType::VAR_PARTIAL {
-            msg_puts(c"()".as_ptr());
+            msg_puts(c"()");
         }
         if *first != 0 {
             msg_clr_eos();
@@ -3235,7 +3235,7 @@ pub fn var_wrong_func_name(name: *const c_char, new_var: bool) -> bool {
         } else {
             *name
         };
-        if !(!vim_strchr(c"wbst".as_ptr(), *name as u8 as c_int).is_null()
+        if !(!vim_strchr(c"wbst", *name as u8 as c_int).is_null()
             && *name.add(1) == b':' as c_char)
             && !ascii_isupper(first_after_scope)
             && vim_strchr(name, b'#' as c_int).is_null()

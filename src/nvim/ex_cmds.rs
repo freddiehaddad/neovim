@@ -331,7 +331,7 @@ pub fn do_ascii(_eap: &mut exarg_T) {
         let len = utfc_ptr2len(data) as usize;
 
         if len == 0 {
-            msg(c"NUL".as_ptr(), 0);
+            msg(c"NUL", 0);
             return;
         }
 
@@ -1509,7 +1509,7 @@ pub fn do_bang(
                     .as_ptr();
                 let cmd = vim_strsave_escaped(std::ffi::CStr::from_ptr(prev_ptr.cast_mut()), c"%#");
                 redo_append_lit(cmd.as_ptr().cast_mut(), -1);
-                redo_append_str(c"\n".as_ptr(), 1);
+                redo_append_str(c"\n", 1);
                 g_st().bangredo = false;
             }
             if *opt_vars().p_shq != NUL {
@@ -1527,7 +1527,7 @@ pub fn do_bang(
             if addr_count == 0 {
                 msg_start();
                 msg_ext_no_fast();
-                msg_ext_set_kind(c"shell_cmd".as_ptr());
+                msg_ext_set_kind(c"shell_cmd");
                 msg_putchar(b':' as c_int);
                 msg_putchar(b'!' as c_int);
                 msg_outtrans(newcmd.as_ptr(), 0, false);
@@ -1920,13 +1920,13 @@ pub fn make_filter_cmd(
 
         if is_pwsh {
             if !itmp.is_null() {
-                xstrlcpy(buf, c"& { Get-Content ".as_ptr(), len - 1);
+                xstrlcpy(buf, c"& { Get-Content ", len - 1);
                 { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
-                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" | & ".as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" | & ", _dsize - _dlen); };
                 { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), cmd, _dsize - _dlen); };
-                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" }".as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" }", _dsize - _dlen); };
             } else if do_in {
-                xstrlcpy(buf, c" $input | ".as_ptr(), len - 1);
+                xstrlcpy(buf, c" $input | ", len - 1);
                 { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), cmd, _dsize - _dlen); };
             } else {
                 xstrlcpy(buf, cmd, len);
@@ -1946,7 +1946,7 @@ pub fn make_filter_cmd(
                 }
 
                 if !itmp.is_null() {
-                    { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ".as_ptr(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ", _dsize - _dlen); };
                     { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
                 }
             }
@@ -1960,12 +1960,12 @@ pub fn make_filter_cmd(
                             *p = NUL;
                         }
                     }
-                    { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ".as_ptr(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ", _dsize - _dlen); };
                     { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
                     if *opt_vars().p_shq == NUL {
                         let p = find_pipe(cmd);
                         if !p.is_null() {
-                            { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" ".as_ptr(), _dsize - _dlen); };
+                            { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" ", _dsize - _dlen); };
                             { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), p, _dsize - _dlen); };
                         }
                     }
@@ -2051,7 +2051,7 @@ pub fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
         g_st().info_message = true;
         if (g_st().global_busy == 0 || excmds_st().global_need_msg_kind) && first {
             msg_start();
-            msg_ext_set_kind(c"list_cmd".as_ptr());
+            msg_ext_set_kind(c"list_cmd");
             excmds_st().global_need_msg_kind = false;
         } else if !save_silent {
             msg_putchar(b'\n' as c_int);
@@ -3947,7 +3947,7 @@ fn do_sub(
         if *eap.cmd == b's' as c_char
             && *cmd != NUL
             && !ascii_iswhite(*cmd as c_int)
-            && vim_strchr(c"0123456789cegriIp|\"".as_ptr(), (*cmd as u8) as c_int).is_null()
+            && vim_strchr(c"0123456789cegriIp|\"", (*cmd as u8) as c_int).is_null()
         {
             if !check_regexp_delim((*cmd as u8) as c_int) {
                 return 0;
@@ -3955,7 +3955,7 @@ fn do_sub(
 
             if *cmd == b'\\' as c_char {
                 cmd = cmd.add(1);
-                if vim_strchr(c"/?&".as_ptr(), (*cmd as u8) as c_int).is_null() {
+                if vim_strchr(c"/?&", (*cmd as u8) as c_int).is_null() {
                     emsg(gettext(e_backslash));
                     return 0;
                 }
@@ -4737,7 +4737,7 @@ fn do_sub(
                     && excmds_st().subflags.do_ask
                     && opt_vars().p_ch > 0
                 {
-                    msg(c"".as_ptr(), 0);
+                    msg(c"", 0);
                 }
             } else {
                 excmds_st().global_need_beginline = true;
@@ -4755,7 +4755,7 @@ fn do_sub(
                 emsg(gettext(e_interr));
             } else if got_match {
                 if opt_vars().p_ch > 0 && !ui_has(kUIMessages) {
-                    msg(c"".as_ptr(), 0);
+                    msg(c"", 0);
                 }
             } else if excmds_st().subflags.do_error {
                 semsg!(gettext(e_patnotf2), get_search_pat());
@@ -4776,10 +4776,10 @@ fn do_sub(
 
         if cmdpreview_ns > 0 && !aborting() {
             if got_quit || profile_passed_limit(tm) {
-                set_option_direct(kOptInccommand, cstr_as_obj(c"".as_ptr()), 0, SID_NONE);
+                set_option_direct(kOptInccommand, cstr_as_obj(c""), 0, SID_NONE);
             } else if *opt_vars().p_icm != NUL && !pat.data.is_null() {
                 if excmds_st().pre_hl_id == 0 {
-                    excmds_st().pre_hl_id = syn_check_group(c"Substitute".as_ptr(), 10);
+                    excmds_st().pre_hl_id = syn_check_group(c"Substitute", 10);
                 }
                 retv = show_sub(
                     eap,
@@ -4899,7 +4899,7 @@ pub fn ex_global(eap: &mut exarg_T) {
 
         if *cmd == b'\\' as c_char {
             cmd = cmd.add(1);
-            if vim_strchr(c"/?&".as_ptr(), (*cmd as u8) as c_int).is_null() {
+            if vim_strchr(c"/?&", (*cmd as u8) as c_int).is_null() {
                 emsg(gettext(e_backslash));
                 return;
             }
@@ -5123,7 +5123,7 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
         (**curwin.as_ptr()).w_onebuf_opt.wo_crb = 0;
         (**curwin.as_ptr()).w_onebuf_opt.wo_diff = 0;
 
-        set_option_direct(kOptFoldcolumn, cstr_as_obj(c"0".as_ptr()), 0, SID_NONE);
+        set_option_direct(kOptFoldcolumn, cstr_as_obj(c"0"), 0, SID_NONE);
         true
     }
 }
@@ -5143,7 +5143,7 @@ fn show_sub(
         let orig_buf = g_st().curbuf;
         let mut cmdpreview_buf: *mut buf_T = ptr::null_mut();
 
-        set_option_direct(kOptShortmess, cstr_as_obj(c"F".as_ptr()), 0, SID_NONE);
+        set_option_direct(kOptShortmess, cstr_as_obj(c"F"), 0, SID_NONE);
 
         for curres in subresults {
             if curres.start.lnum >= old_cusr.lnum {

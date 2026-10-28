@@ -300,14 +300,14 @@ pub fn encode_check_json_key(tv: &typval_T) -> bool {
         if spdict.is_null() || (*spdict).dv_hashtab.ht_used != 2 {
             return false;
         }
-        let type_di = tv_dict_find(spdict, c"_TYPE".as_ptr(), 5);
+        let type_di = tv_dict_find(spdict, c"_TYPE", 5);
         if type_di.is_null()
             || (*type_di).di_tv.v_type != VarType::VAR_LIST
             || (*type_di).di_tv.vval.v_list().cast_const() != (*eval_msgpack_type_lists_mut())[K_MP_STRING]
         {
             return false;
         }
-        let val_di = tv_dict_find(spdict, c"_VAL".as_ptr(), 4);
+        let val_di = tv_dict_find(spdict, c"_VAL", 4);
         if val_di.is_null() || (*val_di).di_tv.v_type != VarType::VAR_LIST {
             return false;
         }
@@ -749,10 +749,10 @@ impl EncodeBackend<'_> {
                     mode: TextEncodeMode::Json,
                 } => {
                     if flt.is_nan() {
-                        emsg(c"E474: Unable to represent NaN value in JSON".as_ptr());
+                        emsg(c"E474: Unable to represent NaN value in JSON");
                         return false;
                     } else if flt.is_infinite() {
-                        emsg(c"E474: Unable to represent infinity in JSON".as_ptr());
+                        emsg(c"E474: Unable to represent infinity in JSON");
                         return false;
                     } else {
                         let mut numbuf = [0 as c_char; NUMBUFLEN];
@@ -830,7 +830,7 @@ impl EncodeBackend<'_> {
                     mode: TextEncodeMode::Json,
                     ..
                 } => {
-                    emsg(c"E474: Unable to convert EXT string to JSON".as_ptr());
+                    emsg(c"E474: Unable to convert EXT string to JSON");
                     false
                 }
                 Self::Text { .. } => true,
@@ -1074,7 +1074,7 @@ impl EncodeBackend<'_> {
             }
         ) && !encode_check_json_key(key)
         {
-            emsg(c"E474: Invalid key in special dictionary".as_ptr());
+            emsg(c"E474: Invalid key in special dictionary");
             return false;
         }
         true
@@ -1119,8 +1119,7 @@ impl EncodeBackend<'_> {
                     if !encode_st().DID_ECHO_STRING_EMSG {
                         encode_st().DID_ECHO_STRING_EMSG = true;
                         emsg(
-                            c"E724: unable to correctly dump variable with self-referencing container"
-                                .as_ptr(),
+                            c"E724: unable to correctly dump variable with self-referencing container",
                         );
                     }
                     let backref = find_backref();
@@ -1148,8 +1147,7 @@ impl EncodeBackend<'_> {
                     if !encode_st().DID_ECHO_STRING_EMSG {
                         encode_st().DID_ECHO_STRING_EMSG = true;
                         emsg(
-                            c"E724: unable to correctly dump variable with self-referencing container"
-                                .as_ptr(),
+                            c"E724: unable to correctly dump variable with self-referencing container",
                         );
                     }
                     OK
@@ -1276,9 +1274,9 @@ fn convert_one_value(
                 }
                 let mut handled_special = false;
                 if backend.allow_specials() && (*dict).dv_hashtab.ht_used == 2 {
-                    let type_di = tv_dict_find(dict, c"_TYPE".as_ptr(), 5);
+                    let type_di = tv_dict_find(dict, c"_TYPE", 5);
                     if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VAR_LIST {
-                        let val_di = tv_dict_find(dict, c"_VAL".as_ptr(), 4);
+                        let val_di = tv_dict_find(dict, c"_VAL", 4);
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in { *eval_msgpack_type_lists_mut() }.into_iter().enumerate() {

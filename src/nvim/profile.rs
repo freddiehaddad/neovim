@@ -394,7 +394,7 @@ pub fn ex_profile(eap: &mut exarg_T) {
             profile_set_wait(profile_zero());
             set_vim_var_nr(VV_PROFILING, 1);
         } else if g_st().do_profiling == PROF_NONE {
-            emsg(c"E750: First use \":profile start {fname}\"".as_ptr());
+            emsg(c"E750: First use \":profile start {fname}\"");
         } else if arg_bytes == b"stop" {
             profile_dump();
             g_st().do_profiling = PROF_NONE;
@@ -484,19 +484,19 @@ fn prof_func_line(
     prefer_self: bool,
 ) {
     if count > 0 {
-            fprintf!(fd, c"%5d ".as_ptr(), count);
+            fprintf!(fd, c"%5d ", count);
             if prefer_self && profile_equal(*total, *self_time) {
-                fprintf!(fd, c"           ".as_ptr());
+                fprintf!(fd, c"           ");
             } else {
-                fprintf!(fd, c"%s ".as_ptr(), profile_msg(*total));
+                fprintf!(fd, c"%s ", profile_msg(*total));
             }
             if !prefer_self && profile_equal(*total, *self_time) {
-                fprintf!(fd, c"           ".as_ptr());
+                fprintf!(fd, c"           ");
             } else {
-                fprintf!(fd, c"%s ".as_ptr(), profile_msg(*self_time));
+                fprintf!(fd, c"%s ", profile_msg(*self_time));
             }
         } else {
-            fprintf!(fd, c"                            ".as_ptr());
+            fprintf!(fd, c"                            ");
         }
 }
 
@@ -508,8 +508,8 @@ fn prof_sort_list(
     prefer_self: bool,
 ) {
     unsafe {
-        fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n".as_ptr(), title.as_ptr());
-        fprintf!(fd, c"count  total (s)   self (s)  function\n".as_ptr());
+        fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n", title.as_ptr());
+        fprintf!(fd, c"count  total (s)   self (s)  function\n");
         let limit = st_len.min(20);
         for i in 0..limit {
             let fp = &**sorttab.add(i as usize);
@@ -522,12 +522,12 @@ fn prof_sort_list(
             );
             let name_ptr = fp.uf_name.as_ptr();
             if (*name_ptr as u8) == K_SPECIAL {
-                fprintf!(fd, c" <SNR>%s()\n".as_ptr(), name_ptr.add(3));
+                fprintf!(fd, c" <SNR>%s()\n", name_ptr.add(3));
             } else {
-                fprintf!(fd, c" %s()\n".as_ptr(), name_ptr);
+                fprintf!(fd, c" %s()\n", name_ptr);
             }
         }
-        fprintf!(fd, c"\n".as_ptr());
+        fprintf!(fd, c"\n");
     }
 }
 
@@ -656,36 +656,36 @@ fn func_dump_profile(fd: *mut FILE) {
 
                 let name_ptr = (*fp).uf_name.as_ptr();
                 if (*name_ptr as u8) == K_SPECIAL {
-                    fprintf!(fd, c"FUNCTION  <SNR>%s()\n".as_ptr(), name_ptr.add(3));
+                    fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.add(3));
                 } else {
-                    fprintf!(fd, c"FUNCTION  %s()\n".as_ptr(), name_ptr);
+                    fprintf!(fd, c"FUNCTION  %s()\n", name_ptr);
                 }
                 if (*fp).uf_script_ctx.sc_sid != 0 {
                     let p = get_scriptname((*fp).uf_script_ctx, true);
                     fprintf!(
                         fd,
-                        c"    Defined: %s:%d\n".as_ptr(),
+                        c"    Defined: %s:%d\n",
                         p.as_ptr(),
                         (*fp).uf_script_ctx.sc_lnum,
                     );
                 }
                 if (*fp).uf_tm_count == 1 {
-                    fprintf!(fd, c"Called 1 time\n".as_ptr());
+                    fprintf!(fd, c"Called 1 time\n");
                 } else {
-                    fprintf!(fd, c"Called %d times\n".as_ptr(), (*fp).uf_tm_count);
+                    fprintf!(fd, c"Called %d times\n", (*fp).uf_tm_count);
                 }
                 fprintf!(
                     fd,
-                    c"Total time: %s\n".as_ptr(),
+                    c"Total time: %s\n",
                     profile_msg((*fp).uf_tm_total),
                 );
                 fprintf!(
                     fd,
-                    c" Self time: %s\n".as_ptr(),
+                    c" Self time: %s\n",
                     profile_msg((*fp).uf_tm_self),
                 );
-                fprintf!(fd, c"\n".as_ptr());
-                fprintf!(fd, c"count  total (s)   self (s)\n".as_ptr());
+                fprintf!(fd, c"\n");
+                fprintf!(fd, c"count  total (s)   self (s)\n");
 
                 for i in 0..(*fp).uf_lines.len() as c_int {
                     let Some(ref line) = (&(*fp).uf_lines)[i as usize] else {
@@ -699,9 +699,9 @@ fn func_dump_profile(fd: *mut FILE) {
                         &(*fp).uf_tml_self.as_slice()[idx],
                         true,
                     );
-                    fprintf!(fd, c"%s\n".as_ptr(), line.as_ptr());
+                    fprintf!(fd, c"%s\n", line.as_ptr());
                 }
-                fprintf!(fd, c"\n".as_ptr());
+                fprintf!(fd, c"\n");
             }
         }
 
@@ -773,28 +773,28 @@ fn script_dump_profile(fd: *mut FILE) {
         for id in 1..=crate::runtime::script_items_len() {
             let si = script_item(id);
             if (*si).sn_prof_on {
-                fprintf!(fd, c"SCRIPT  %s\n".as_ptr(), (*si).name_ptr());
+                fprintf!(fd, c"SCRIPT  %s\n", (*si).name_ptr());
                 if (*si).sn_pr_count == 1 {
-                    fprintf!(fd, c"Sourced 1 time\n".as_ptr());
+                    fprintf!(fd, c"Sourced 1 time\n");
                 } else {
-                    fprintf!(fd, c"Sourced %d times\n".as_ptr(), (*si).sn_pr_count);
+                    fprintf!(fd, c"Sourced %d times\n", (*si).sn_pr_count);
                 }
                 fprintf!(
                     fd,
-                    c"Total time: %s\n".as_ptr(),
+                    c"Total time: %s\n",
                     profile_msg((*si).sn_pr_total),
                 );
                 fprintf!(
                     fd,
-                    c" Self time: %s\n".as_ptr(),
+                    c" Self time: %s\n",
                     profile_msg((*si).sn_pr_self),
                 );
-                fprintf!(fd, c"\n".as_ptr());
-                fprintf!(fd, c"count  total (s)   self (s)\n".as_ptr());
+                fprintf!(fd, c"\n");
+                fprintf!(fd, c"count  total (s)   self (s)\n");
 
                 let sfd = os_fopen((*si).name_ptr(), c"r");
                 if sfd.is_null() {
-                    fprintf!(fd, c"Cannot open file!\n".as_ptr());
+                    fprintf!(fd, c"Cannot open file!\n");
                 } else {
                     let mut i: c_int = 0;
                     loop {
@@ -812,25 +812,25 @@ fn script_dump_profile(fd: *mut FILE) {
                         if (i as usize) < (*si).sn_prl_ga.len() {
                             let pp = &(&(*si).sn_prl_ga)[i as usize];
                             if pp.snp_count > 0 {
-                                fprintf!(fd, c"%5d ".as_ptr(), pp.snp_count);
+                                fprintf!(fd, c"%5d ", pp.snp_count);
                                 if profile_equal(pp.sn_prl_total, pp.sn_prl_self) {
-                                    fprintf!(fd, c"           ".as_ptr());
+                                    fprintf!(fd, c"           ");
                                 } else {
-                                    fprintf!(fd, c"%s ".as_ptr(), profile_msg(pp.sn_prl_total));
+                                    fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_total));
                                 }
-                                fprintf!(fd, c"%s ".as_ptr(), profile_msg(pp.sn_prl_self));
+                                fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_self));
                             } else {
-                                fprintf!(fd, c"                            ".as_ptr());
+                                fprintf!(fd, c"                            ");
                             }
                         } else {
-                            fprintf!(fd, c"                            ".as_ptr());
+                            fprintf!(fd, c"                            ");
                         }
-                        fprintf!(fd, c"%s".as_ptr(), iobuf.as_ptr());
+                        fprintf!(fd, c"%s", iobuf.as_ptr());
                         i += 1;
                     }
                     fclose(sfd);
                 }
-                fprintf!(fd, c"\n".as_ptr());
+                fprintf!(fd, c"\n");
             }
         }
     }
@@ -941,7 +941,7 @@ fn time_diff(then: proftime_T, now: proftime_T) {
     let diff = profile_sub(now, then);
     let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
     if let Some(ref tf) = g_st().time_fd {
-            fprintf!(tf.as_ptr(), c"%s".as_ptr(), s.as_ptr().cast::<c_char>());
+            fprintf!(tf.as_ptr(), c"%s", s.as_ptr().cast::<c_char>());
         }
 }
 
@@ -956,14 +956,14 @@ pub fn time_start(message: &std::ffi::CStr) {
         prof_st().G_START_TIME = now;
         prof_st().G_PREV_TIME = now;
 
-        fprintf!(fp, c"\ntimes in msec\n".as_ptr());
+        fprintf!(fp, c"\ntimes in msec\n");
         fprintf!(
             fp,
-            c" clock   self+sourced   self:  sourced script\n".as_ptr(),
+            c" clock   self+sourced   self:  sourced script\n",
         );
         fprintf!(
             fp,
-            c" clock   elapsed:              other lines\n\n".as_ptr(),
+            c" clock   elapsed:              other lines\n\n",
         );
 
         time_msg(message.as_ptr(), None);
@@ -981,16 +981,16 @@ pub fn time_msg(mesg: *const c_char, start: Option<&proftime_T>) {
         time_diff(prof_st().G_START_TIME, now);
 
         if let Some(start) = start {
-            fprintf!(fp, c"  ".as_ptr());
+            fprintf!(fp, c"  ");
             time_diff(*start, now);
         }
 
-        fprintf!(fp, c"  ".as_ptr());
+        fprintf!(fp, c"  ");
         let prev = prof_st().G_PREV_TIME;
         prof_st().G_PREV_TIME = now;
         time_diff(prev, now);
 
-        fprintf!(fp, c": %s\n".as_ptr(), mesg);
+        fprintf!(fp, c": %s\n", mesg);
     }
 }
 
@@ -1021,7 +1021,7 @@ pub fn time_init(fname: *const c_char, proc_name: *const c_char) {
         }
         fprintf!(
             fp,
-            c"--- Startup times for process: %s ---\n".as_ptr(),
+            c"--- Startup times for process: %s ---\n",
             proc_name,
         );
     }

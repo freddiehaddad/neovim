@@ -866,7 +866,7 @@ fn ui_ext_tabline_update() {
             let mut tab_info = arena_dict(&mut arena, 2);
             put_c(
                 &mut tab_info,
-                c"tab".as_ptr(),
+                c"tab",
                 Object {
                     obj_type: ObjectType::kObjectTypeTabpage,
                     data: ObjectData::Integer(i64::from((*tp).handle)),
@@ -881,7 +881,7 @@ fn ui_ext_tabline_update() {
             get_trans_bufname((*cwp).w_buffer);
             put_c(
                 &mut tab_info,
-                c"name".as_ptr(),
+                c"name",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData::String(arena_string(&mut arena, cstr_as_string(name_buff))),
@@ -914,7 +914,7 @@ fn ui_ext_tabline_update() {
                 let mut buffer_info = arena_dict(&mut arena, 2);
                 put_c(
                     &mut buffer_info,
-                    c"buffer".as_ptr(),
+                    c"buffer",
                     Object {
                         obj_type: ObjectType::kObjectTypeBuffer,
                         data: ObjectData::Integer(i64::from((*buf).b_fnum)),
@@ -924,7 +924,7 @@ fn ui_ext_tabline_update() {
                 get_trans_bufname(buf);
                 put_c(
                     &mut buffer_info,
-                    c"name".as_ptr(),
+                    c"name",
                     Object {
                         obj_type: ObjectType::kObjectTypeString,
                         data: ObjectData::String(arena_string(&mut arena, cstr_as_string(name_buff))),
@@ -1827,7 +1827,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
             }
 
-            if vim_strchr(STL_ALL.as_ptr(), c_int::from(*fmt_p as u8)).is_null() {
+            if vim_strchr(STL_ALL, c_int::from(*fmt_p as u8)).is_null() {
                 if *fmt_p == NUL {
                     break;
                 }

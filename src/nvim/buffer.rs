@@ -927,7 +927,7 @@ fn trigger_undo_ftplugin(buf: &mut buf_T, win: &mut win_T) {
     window_layout_lock();
         buf.b_locked += 1;
         win.w_locked += 1;
-        do_cmdline_cmd(c"if exists('b:undo_ftplugin') | exe b:undo_ftplugin | endif".as_ptr());
+        do_cmdline_cmd(c"if exists('b:undo_ftplugin') | exe b:undo_ftplugin | endif");
         buf.b_locked -= 1;
         win.w_locked -= 1;
         window_layout_unlock();
@@ -1916,7 +1916,7 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut bufref_T>) {
 
             g_st().msg_scroll = 1;
             ml_recover(false);
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
             g_st().cmdline_row = g_st().msg_row;
             do_modelines(0);
 
@@ -3642,7 +3642,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
         let mut use_buflist = false;
         let mut buflist_idx = 0usize;
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         if !vim_strchr(eap.arg, b't' as c_int).is_null() {
             use_buflist = true;
             while !buf.is_null() {
@@ -5054,7 +5054,7 @@ pub fn buf_set_changedtick(buf: &mut buf_T, changedtick: varnumber_T) {
     unsafe {
         let old_val = buf.changedtick_di.di_tv;
 
-        let changedtick_di = tv_dict_find(buf.b_vars(), c"changedtick".as_ptr(), 11);
+        let changedtick_di = tv_dict_find(buf.b_vars(), c"changedtick", 11);
         debug_assert!(!changedtick_di.is_null());
         debug_assert!((*changedtick_di).di_tv.v_type == VarType::VAR_NUMBER);
         debug_assert!((*changedtick_di).di_tv.v_lock == VAR_FIXED);

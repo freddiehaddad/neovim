@@ -683,7 +683,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
         ];
         nlua_call_typval(
             c"vim._core.spell",
-            c"select_suggest".as_ptr(),
+            c"select_suggest",
             (&raw mut lua_args).cast(),
             None,
         );
@@ -764,11 +764,11 @@ pub fn spell_suggest(count: c_int) {
             let selected = count;
             let sug_len = sug.su_ga.len() as c_int;
             if sug_len <= 0 {
-                msg_ext_set_kind(c"wmsg".as_ptr());
+                msg_ext_set_kind(c"wmsg");
                 msg(gettext(c"No suggestions"), 0);
             } else if count > 0 {
                 if count > sug_len {
-                    msg_ext_set_kind(c"wmsg".as_ptr());
+                    msg_ext_set_kind(c"wmsg");
                     smsg!(
                         0,
                         gettext(c"Only %lld suggestions"),
@@ -1662,7 +1662,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                 depth += 1;
                                 udepth = depth as usize;
                                 if !try_compound && !fword_ends {
-                                    crate::memory::cstr_cat((&raw mut preword).cast::<c_char>(), c" ".as_ptr());
+                                    crate::memory::cstr_cat((&raw mut preword).cast::<c_char>(), c" ");
                                 }
                                 stack[udepth].ts_prewordlen =
                                     crate::memory::cstr_len((&raw const preword).cast()) as u8;
@@ -2560,7 +2560,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp
                     }
                     while *byts.add((n + i) as usize) == 0 {
                         if i > *byts.add(n as usize) as c_int {
-                            crate::memory::cstr_cpy((&raw mut theword).cast::<c_char>().add(wlen), c"BAD".as_ptr());
+                            crate::memory::cstr_cpy((&raw mut theword).cast::<c_char>().add(wlen), c"BAD");
                             wlen += 3;
                             break 'badword;
                         }

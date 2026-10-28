@@ -55,7 +55,7 @@ pub fn nvim_ui_term_event(
             if value.obj_type != ObjectType::kObjectTypeString {
                 api_err_exp(
                     err,
-                    c"termresponse".as_ptr(),
+                    c"termresponse",
                     api_typename(ObjectType::kObjectTypeString),
                     api_typename(value.obj_type),
                 );

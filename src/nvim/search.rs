@@ -507,8 +507,7 @@ pub fn restore_last_search_pattern() {
         }
         if srch().did_save_last_search_spat != 0 {
             iemsg(
-                c"restore_last_search_pattern() called more often than save_last_search_pattern()"
-                    .as_ptr(),
+                c"restore_last_search_pattern() called more often than save_last_search_pattern()",
             );
             return;
         }
@@ -1353,7 +1352,7 @@ pub fn do_search(
                 let mut off_len: usize = 0;
 
                 msg_start();
-                msg_ext_set_kind(c"search_cmd".as_ptr());
+                msg_ext_set_kind(c"search_cmd");
 
                 if !g_st().cmd_silent && (srch().spats[0].off.line || srch().spats[0].off.end || srch().spats[0].off.off != 0) {
                     off_buf[off_len] = dirc as c_char;
@@ -2101,7 +2100,7 @@ pub fn findmatchlimit(
             }
         }
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 && !vim_strchr(c"()[]{}<>".as_ptr(), initc).is_null() {
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 && !vim_strchr(c"()[]{}<>", initc).is_null() {
             backwards = !backwards;
         }
 
@@ -2409,7 +2408,7 @@ pub fn findmatchlimit(
 
                 if !skipped_single_quote {
                     if (*g_st().curbuf).b_p_lisp != 0
-                        && !vim_strchr(c"(){}[]".as_ptr(), c).is_null()
+                        && !vim_strchr(c"(){}[]", c).is_null()
                         && srch().findmatch_pos.col > 1
                         && check_prevcol(linep, srch().findmatch_pos.col, b'\\' as c_int, None)
                         && check_prevcol(
@@ -2891,7 +2890,7 @@ fn cmdline_search_stat(
         ptr::copy(t_ptr, msgbuf.add(msgbuflen - len), len);
 
         g_st().msg_ext_overwrite = true;
-        msg_ext_set_kind(c"search_count".as_ptr());
+        msg_ext_set_kind(c"search_count");
         give_warning(msgbuf, false, false);
     }
 }
@@ -3049,14 +3048,14 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 return;
             }
             let dict: *mut dict_T = argvars[0].vval.v_dict();
-            let mut di: *mut dictitem_T = tv_dict_find(dict, c"timeout".as_ptr(), -1);
+            let mut di: *mut dictitem_T = tv_dict_find(dict, c"timeout", -1);
             if !di.is_null() {
                 timeout = tv_get_number_chk(&(*di).di_tv, Some(&mut error)) as c_int;
                 if error {
                     return;
                 }
             }
-            di = tv_dict_find(dict, c"maxcount".as_ptr(), -1);
+            di = tv_dict_find(dict, c"maxcount", -1);
             if !di.is_null() {
                 maxcount = tv_get_number_chk(&(*di).di_tv, Some(&mut error)) as c_int;
                 if error {
@@ -3064,14 +3063,14 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 }
             }
             recompute = tv_dict_get_bool(dict, c"recompute", c_int::from(recompute)) != 0;
-            di = tv_dict_find(dict, c"pattern".as_ptr(), -1);
+            di = tv_dict_find(dict, c"pattern", -1);
             if !di.is_null() {
                 pattern = tv_get_string_chk(&(*di).di_tv).cast_mut();
                 if pattern.is_null() {
                     return;
                 }
             }
-            di = tv_dict_find(dict, c"pos".as_ptr(), -1);
+            di = tv_dict_find(dict, c"pos", -1);
             if !di.is_null() {
                 if (*di).di_tv.v_type != VarType::VAR_LIST {
                     semsg!(tr(e_invarg2), c"pos");
@@ -3361,14 +3360,14 @@ pub fn find_pattern_in_path(
                     while depth_displayed < depth && !g_st().got_int {
                         depth_displayed += 1;
                         for _ in 0..depth_displayed {
-                            msg_puts(c"  ".as_ptr());
+                            msg_puts(c"  ");
                         }
                         msg_home_replace(files[depth_displayed as usize].name_ptr());
-                        msg_puts(c" -->\n".as_ptr());
+                        msg_puts(c" -->\n");
                     }
                     if !g_st().got_int {
                         for _ in 0..=depth_displayed {
-                            msg_puts(c"  ".as_ptr());
+                            msg_puts(c"  ");
                         }
                         if let Some(ref nf) = new_fname_cstr {
                             msg_outtrans(nf.as_ptr(), HLF_D, false);
@@ -3930,7 +3929,7 @@ fn show_pat_in_path(
                 msg_puts(iobuff_ptr);
                 vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d", *lnum);
                 msg_puts_hl(iobuff_ptr, HLF_N, false);
-                msg_puts(c" ".as_ptr());
+                msg_puts(c" ");
             }
             msg_prt_line(line, false);
 

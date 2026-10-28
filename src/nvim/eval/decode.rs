@@ -647,7 +647,7 @@ pub fn json_decode_string(
             p = p.add(1);
         }
         if p == e {
-            emsg(c"E474: Attempt to decode a blank string".as_ptr());
+            emsg(c"E474: Attempt to decode a blank string");
             return false;
         }
 

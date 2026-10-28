@@ -2484,7 +2484,7 @@ pub fn find_special_key(
                 let end_minus_bp = end as usize - bp as usize;
                 if end_minus_bp > 3 && *bp == b't' as c_char && *bp.add(1) == b'_' as c_char {
                     bp = bp.add(3); // skip t_xx, xx may be '-' or '>'
-                } else if end_minus_bp > 4 && crate::memory::cstr_prefix_bytes(bp, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"char-".as_ptr(), 5)) {
+                } else if end_minus_bp > 4 && crate::memory::cstr_prefix_bytes(bp, 5).eq_ignore_ascii_case(b"char-") {
                     let mut l: c_int = 0;
                     vim_str2nr(
                         bp.add(5),
@@ -2498,7 +2498,7 @@ pub fn find_special_key(
                         None,
                     );
                     if l == 0 {
-                        emsg(e_invarg.as_ptr());
+                        emsg(e_invarg);
                         return 0;
                     }
                     bp = bp.add(l as usize + 5);
@@ -2529,7 +2529,7 @@ pub fn find_special_key(
             // Legal modifier name.
             if (bp as usize) >= (last_dash as usize) {
                 let mut key: c_int;
-                if crate::memory::cstr_prefix_bytes(last_dash.add(1), 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"char-".as_ptr(), 5))
+                if crate::memory::cstr_prefix_bytes(last_dash.add(1), 5).eq_ignore_ascii_case(b"char-")
                     && ascii_isdigit(*last_dash.add(6))
                 {
                     // <Char-123> or <Char-033> or <Char-0x33>
@@ -2547,7 +2547,7 @@ pub fn find_special_key(
                         None,
                     );
                     if l == 0 {
-                        emsg(e_invarg.as_ptr());
+                        emsg(e_invarg);
                         return 0;
                     }
                     key = n as c_int;
@@ -2703,9 +2703,9 @@ pub fn replace_termcodes(
             {
                 // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
                 // for script-local user functions.
-                if rem >= 5 && crate::memory::cstr_prefix_bytes(src, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"<SID>".as_ptr(), 5)) {
+                if rem >= 5 && crate::memory::cstr_prefix_bytes(src, 5).eq_ignore_ascii_case(b"<SID>") {
                     if sid_arg < 0 || (sid_arg == 0 && g_st().current_sctx.sc_sid <= 0) {
-                        emsg(e_usingsid.as_ptr());
+                        emsg(e_usingsid);
                     } else {
                         let sid: scid_T = if sid_arg != 0 {
                             sid_arg
@@ -2757,10 +2757,10 @@ pub fn replace_termcodes(
                 // Replace <LocalLeader> by the value of "maplocalleader".
                 // If "mapleader" or "maplocalleader" isn't set use a backslash.
                 let (len, p): (usize, *mut c_char) = if rem >= 8
-                    && crate::memory::cstr_prefix_bytes(src, 8).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"<Leader>".as_ptr(), 8))
+                    && crate::memory::cstr_prefix_bytes(src, 8).eq_ignore_ascii_case(b"<Leader>")
                 {
                     (8, get_var_value(c"g:mapleader"))
-                } else if rem >= 13 && crate::memory::cstr_prefix_bytes(src, 13).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"<LocalLeader>".as_ptr(), 13)) {
+                } else if rem >= 13 && crate::memory::cstr_prefix_bytes(src, 13).eq_ignore_ascii_case(b"<LocalLeader>") {
                     (13, get_var_value(c"g:maplocalleader"))
                 } else {
                     (0, std::ptr::null_mut())

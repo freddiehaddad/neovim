@@ -453,13 +453,15 @@ fn cstr_lossy<'a>(ptr: *const c_char) -> std::borrow::Cow<'a, str> {
 ///
 /// # Safety
 /// `err` and `name` must be valid pointers, and `val_s` must be null or a valid C string.
-pub fn api_err_invalid(
+pub fn api_err_invalid<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
     err: &mut Error,
-    name: *const c_char,
-    val_s: *const c_char,
+    name: S1,
+    val_s: S2,
     val_n: i64,
     quote_val: bool,
 ) {
+    let name = name.into_c_char_ptr();
+    let val_s = val_s.into_c_char_ptr();
     let name_str = cstr_lossy(name);
     let has_space = name_str.as_bytes().contains(&b' ');
 
@@ -492,12 +494,19 @@ pub fn api_err_invalid(
 ///
 /// # Safety
 /// `err`, `name`, and `expected` must be valid pointers; `actual` must be null or a valid C string.
-pub fn api_err_exp(
+pub fn api_err_exp<
+    S1: crate::strings::IntoCCharPtr,
+    S2: crate::strings::IntoCCharPtr,
+    S3: crate::strings::IntoCCharPtr,
+>(
     err: &mut Error,
-    name: *const c_char,
-    expected: *const c_char,
-    actual: *const c_char,
+    name: S1,
+    expected: S2,
+    actual: S3,
 ) {
+    let name = name.into_c_char_ptr();
+    let expected = expected.into_c_char_ptr();
+    let actual = actual.into_c_char_ptr();
     let name_str = cstr_lossy(name);
     let exp_str = cstr_lossy(expected);
     let has_space = name_str.as_bytes().contains(&b' ');
@@ -539,7 +548,13 @@ pub fn api_err_required(err: &mut Error, name: &std::ffi::CStr) {
 ///
 /// # Safety
 /// `err`, `name`, and `name2` must be valid pointers.
-pub fn api_err_conflict(err: &mut Error, name: *const c_char, name2: *const c_char) {
+pub fn api_err_conflict<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
+    err: &mut Error,
+    name: S1,
+    name2: S2,
+) {
+    let name = name.into_c_char_ptr();
+    let name2 = name2.into_c_char_ptr();
     let name_str = cstr_lossy(name);
     let name2_str = cstr_lossy(name2);
     let has_space2 = name2_str.as_bytes().contains(&b' ');
@@ -587,7 +602,7 @@ pub fn check_string_array(
 
 #[inline]
 pub fn api_err_range(err: &mut Error, name: &std::ffi::CStr) {
-    api_err_invalid(err, name.as_ptr(), c"out of range".as_ptr(), 0, false);
+    api_err_invalid(err, name.as_ptr(), c"out of range", 0, false);
 }
 
 #[cfg(test)]
@@ -599,16 +614,16 @@ mod tests {
     fn formats_validation_error_messages() {
         let mut err = Error::new();
 
-        api_err_invalid(&mut err, c"col".as_ptr(), std::ptr::null(), -1, false);
+        api_err_invalid(&mut err, c"col", std::ptr::null(), -1, false);
             assert_eq!(err.err_type, ErrorType::kErrorTypeValidation);
             assert_eq!(err.msg.as_ref().unwrap().to_str().unwrap(), "Invalid 'col': -1");
             api_clear_error(&mut err);
 
             api_err_exp(
                 &mut err,
-                c"buffer id".as_ptr(),
-                c"Integer".as_ptr(),
-                c"String".as_ptr(),
+                c"buffer id",
+                c"Integer",
+                c"String",
             );
             assert_eq!(
                 err.msg.as_ref().unwrap().to_str().unwrap(),
@@ -623,7 +638,7 @@ mod tests {
             );
             api_clear_error(&mut err);
 
-            api_err_conflict(&mut err, c"row".as_ptr(), c"win".as_ptr());
+            api_err_conflict(&mut err, c"row", c"win");
             assert_eq!(
                 err.msg.as_ref().unwrap().to_str().unwrap(),
                 "Conflict: 'row' not allowed with 'win'"

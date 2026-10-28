@@ -683,7 +683,7 @@ fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Vec<Object>, msg: &str) 
 
 fn apply_termdefs(tui: &mut TUIData) {
      {
-        if !os_env_exists(c"NVIM_TERMDEFS".as_ptr(), false) {
+        if !os_env_exists(c"NVIM_TERMDEFS", false) {
             return;
         }
 
@@ -823,7 +823,7 @@ fn apply_termdefs(tui: &mut TUIData) {
                 size: 3,
                 capacity: 3,
             };
-            rpc_send_event(g_st().ui_client_channel_id, c"nvim_echo".as_ptr(), args);
+            rpc_send_event(g_st().ui_client_channel_id, c"nvim_echo", args);
         }
 
         arena_mem_free(arena_finish(&mut err_arena));
@@ -857,23 +857,23 @@ fn terminfo_start(tui: &mut TUIData) {
         assert!(tui.term.is_none());
 
         #[cfg(windows)]
-        let mut term_cstr = os_getenv_cstr(c"TERM".as_ptr());
+        let mut term_cstr = os_getenv_cstr(c"TERM");
         #[cfg(not(windows))]
-        let term_cstr = os_getenv_cstr(c"TERM".as_ptr());
+        let term_cstr = os_getenv_cstr(c"TERM");
         #[cfg(windows)]
         {
             let mut guessed_term: *const c_char = ptr::null();
             os_tty_guess_term(&raw mut guessed_term, tui.out_fd);
             if term_cstr.is_none() && !guessed_term.is_null() {
                 term_cstr = Some(crate::memory::cstr_to_cstring(guessed_term));
-                os_setenv(c"TERM".as_ptr(), guessed_term, 1);
+                os_setenv(c"TERM", guessed_term, 1);
             }
         }
         let term = term_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
 
         tui.terminfo_found_in_db = false;
         if !term.is_null()
-            && !os_env_exists(c"NVIM_TERMDEFS".as_ptr(), false)
+            && !os_env_exists(c"NVIM_TERMDEFS", false)
             && terminfo_from_database(&mut tui.ti, term)
         {
             tui.term = term_cstr.clone();
@@ -884,11 +884,11 @@ fn terminfo_start(tui: &mut TUIData) {
             tui.ti = terminfo_from_builtin(term, &mut tui.term);
         }
 
-        let colorterm_cstr = os_getenv_cstr(c"COLORTERM".as_ptr());
-        let termprg_cstr = os_getenv_cstr(c"TERM_PROGRAM".as_ptr());
-        let vte_version_cstr = os_getenv_cstr(c"VTE_VERSION".as_ptr());
-        let konsolev_cstr = os_getenv_cstr(c"KONSOLE_VERSION".as_ptr());
-        let term_program_version_cstr = os_getenv_cstr(c"TERM_PROGRAM_VERSION".as_ptr());
+        let colorterm_cstr = os_getenv_cstr(c"COLORTERM");
+        let termprg_cstr = os_getenv_cstr(c"TERM_PROGRAM");
+        let vte_version_cstr = os_getenv_cstr(c"VTE_VERSION");
+        let konsolev_cstr = os_getenv_cstr(c"KONSOLE_VERSION");
+        let term_program_version_cstr = os_getenv_cstr(c"TERM_PROGRAM_VERSION");
 
         let colorterm = colorterm_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
         let termprg = termprg_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
@@ -910,8 +910,8 @@ fn terminfo_start(tui: &mut TUIData) {
         let nsterm = cstr_contains(termprg, b"Apple_Terminal")
             || terminfo_is_term_family(term, c"nsterm");
         let konsole = terminfo_is_term_family(term, c"konsole")
-            || os_env_exists(c"KONSOLE_PROFILE_NAME".as_ptr(), true)
-            || os_env_exists(c"KONSOLE_DBUS_SESSION".as_ptr(), true);
+            || os_env_exists(c"KONSOLE_PROFILE_NAME", true)
+            || os_env_exists(c"KONSOLE_DBUS_SESSION", true);
         let mut konsolev_end = konsolev_env.cast_mut();
         let konsolev = if !konsolev_env.is_null() {
             getdigits_int(&raw mut konsolev_end, false, 0)
@@ -928,7 +928,7 @@ fn terminfo_start(tui: &mut TUIData) {
         };
         let screen = terminfo_is_term_family(term, c"screen");
         let tmux = terminfo_is_term_family(term, c"tmux")
-            || os_env_exists(c"TMUX".as_ptr(), true);
+            || os_env_exists(c"TMUX", true);
         tui.screen_or_tmux = screen || tmux;
 
         tui.rgb = term_has_truecolor(tui, colorterm);
@@ -2183,8 +2183,8 @@ pub fn tui_flush(tui: &mut TUIData) {
 
 fn show_verbose_terminfo(tui: &mut TUIData) {
     let mut title_items = [
-            cstr_as_obj(c"\n\n--- Terminal info --- {{{\n".as_ptr()),
-            cstr_as_obj(c"Title".as_ptr()),
+            cstr_as_obj(c"\n\n--- Terminal info --- {{{\n"),
+            cstr_as_obj(c"Title"),
         ];
         let title = Array {
             items: title_items.as_mut_ptr(),
@@ -2207,8 +2207,8 @@ fn show_verbose_terminfo(tui: &mut TUIData) {
             capacity: 1,
         };
         let mut end_fold_items = [
-            cstr_as_obj(c"}}}\n".as_ptr()),
-            cstr_as_obj(c"Title".as_ptr()),
+            cstr_as_obj(c"}}}\n"),
+            cstr_as_obj(c"Title"),
         ];
         let end_fold = Array {
             items: end_fold_items.as_mut_ptr(),
@@ -2236,7 +2236,7 @@ fn show_verbose_terminfo(tui: &mut TUIData) {
             size: 3,
             capacity: 3,
         };
-        rpc_send_event(g_st().ui_client_channel_id, c"nvim_echo".as_ptr(), args);
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_echo", args);
         drop(str_bytes);
 }
 
@@ -2368,7 +2368,7 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
 
             if g_st().ui_client_channel_id != 0 {
                 let mut args_items = [
-                    cstr_as_obj(c"rgb".as_ptr()),
+                    cstr_as_obj(c"rgb"),
                     boolean_obj(value.data.boolean()),
                 ];
                 let args = Array {
@@ -2376,7 +2376,7 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
                     size: 2,
                     capacity: 2,
                 };
-                rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_option".as_ptr(), args);
+                rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_option", args);
             }
         } else if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"ttimeout") {
             tui.input.ttimeout = value.data.boolean();
@@ -2561,8 +2561,8 @@ pub fn tui_guess_size(tui: &mut TUIData) {
         if !got_size {
             let mut lines_buf = [0 as c_char; 32];
             let mut cols_buf = [0 as c_char; 32];
-            let lines = os_getenv_buf(c"LINES".as_ptr(), lines_buf.as_mut_ptr(), lines_buf.len());
-            let columns = os_getenv_buf(c"COLUMNS".as_ptr(), cols_buf.as_mut_ptr(), cols_buf.len());
+            let lines = os_getenv_buf(c"LINES", lines_buf.as_mut_ptr(), lines_buf.len());
+            let columns = os_getenv_buf(c"COLUMNS", cols_buf.as_mut_ptr(), cols_buf.len());
             if parse_sscanf_int(lines, &mut height) && parse_sscanf_int(columns, &mut width) {
                 got_size = true;
             }
@@ -2724,7 +2724,7 @@ fn patch_terminfo_bugs(
     iterm_env: bool,
     nsterm: bool,
 ) {
-    let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION".as_ptr());
+    let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION");
         let xterm_version = xterm_version_cstr
             .as_ref()
             .map_or(ptr::null(), |c| c.as_ptr());
@@ -2738,7 +2738,7 @@ fn patch_terminfo_bugs(
         let putty = terminfo_is_term_family(term, c"putty");
         let screen = terminfo_is_term_family(term, c"screen");
         let tmux = terminfo_is_term_family(term, c"tmux")
-            || os_env_exists(c"TMUX".as_ptr(), true);
+            || os_env_exists(c"TMUX", true);
         let st = terminfo_is_term_family(term, c"st");
         let gnome = terminfo_is_term_family(term, c"gnome")
             || terminfo_is_term_family(term, c"vte");
@@ -2906,7 +2906,7 @@ fn augment_terminfo(
     nsterm: bool,
 ) {
      {
-        let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION".as_ptr());
+        let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION");
         let xterm_version = xterm_version_cstr
             .as_ref()
             .map_or(ptr::null(), |c| c.as_ptr());
@@ -2919,7 +2919,7 @@ fn augment_terminfo(
         let putty = terminfo_is_term_family(term, c"putty");
         let screen = terminfo_is_term_family(term, c"screen");
         let tmux = terminfo_is_term_family(term, c"tmux")
-            || os_env_exists(c"TMUX".as_ptr(), true);
+            || os_env_exists(c"TMUX", true);
         let st = terminfo_is_term_family(term, c"st");
         let iterm = terminfo_is_term_family(term, c"iterm")
             || terminfo_is_term_family(term, c"iterm2")

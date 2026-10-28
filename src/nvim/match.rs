@@ -931,12 +931,12 @@ fn matchadd_dict_arg(
             return false;
         }
 
-        let di = tv_dict_find(tv.vval.v_dict(), c"conceal".as_ptr(), 7);
+        let di = tv_dict_find(tv.vval.v_dict(), c"conceal", 7);
         if !di.is_null() {
             *conceal_char = tv_get_string(&(*di).di_tv);
         }
 
-        let di = tv_dict_find(tv.vval.v_dict(), c"window".as_ptr(), 6);
+        let di = tv_dict_find(tv.vval.v_dict(), c"window", 6);
         if di.is_null() {
             return true;
         }
@@ -1047,11 +1047,11 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 return;
             }
             let d = (*li).li_tv.vval.v_dict();
-            if tv_dict_find(d, c"group".as_ptr(), 5).is_null()
-                || (tv_dict_find(d, c"pattern".as_ptr(), 7).is_null()
-                    && tv_dict_find(d, c"pos1".as_ptr(), 4).is_null())
-                || tv_dict_find(d, c"priority".as_ptr(), 8).is_null()
-                || tv_dict_find(d, c"id".as_ptr(), 2).is_null()
+            if tv_dict_find(d, c"group", 5).is_null()
+                || (tv_dict_find(d, c"pattern", 7).is_null()
+                    && tv_dict_find(d, c"pos1", 4).is_null())
+                || tv_dict_find(d, c"priority", 8).is_null()
+                || tv_dict_find(d, c"id", 2).is_null()
             {
                 semsg!(
                     gettext(c"E474: List item %d is missing one of the required keys"),
@@ -1069,7 +1069,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         while !li.is_null() {
             let mut i: c_int = 0;
             let d = (*li).li_tv.vval.v_dict();
-            let di = tv_dict_find(d, c"pattern".as_ptr(), 7);
+            let di = tv_dict_find(d, c"pattern", 7);
             if di.is_null() {
                 if s.is_null() {
                     s = tv_list_alloc(9);
@@ -1098,7 +1098,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             let group = tv_dict_get_string_buf(d, c"group", group_buf.as_mut_ptr());
             let priority = tv_dict_get_number(d, c"priority") as c_int;
             let id = tv_dict_get_number(d, c"id") as c_int;
-            let conceal_di = tv_dict_find(d, c"conceal".as_ptr(), 7);
+            let conceal_di = tv_dict_find(d, c"conceal", 7);
             let conceal = if !conceal_di.is_null() {
                 tv_get_string(&(*conceal_di).di_tv)
             } else {
@@ -1276,7 +1276,7 @@ pub fn ex_match(eap: &mut exarg_T) {
         let id: c_int = if eap.line2 <= 3 {
             eap.line2 as c_int
         } else {
-            emsg(e_invcmd.as_ptr());
+            emsg(e_invcmd);
             return;
         };
 

@@ -3027,7 +3027,7 @@ pub fn add_quoted_fname(
         *ret_buf.add(len) = b'"' as c_char;
         len += 1;
         len += home_replace(buf.cast_mut(), fname, ret_buf.add(len), bufsize - 4, true);
-        xstrlcpy(ret_buf.add(len), c"\" ".as_ptr(), bufsize - len);
+        xstrlcpy(ret_buf.add(len), c"\" ", bufsize - len);
     }
 }
 
@@ -3042,7 +3042,7 @@ pub fn fname_msg_id(
     unsafe {
         let mut len = xstrlcpy(msg_id, prefix.as_ptr(), size);
         if len < size {
-            len += xstrlcpy(msg_id.add(len), c" ".as_ptr(), size - len);
+            len += xstrlcpy(msg_id.add(len), c" ", size - len);
         }
         if len < size {
             add_quoted_fname(msg_id.add(len), size - len, buf, fname);
@@ -3702,7 +3702,7 @@ pub fn check_timestamps(focus: c_int) -> c_int {
             g_st().no_wait_return -= 1;
             g_st().need_check_timestamps = false;
             if g_st().need_wait_return && didit == 2 {
-                msg_puts(c"\n".as_ptr());
+                msg_puts(c"\n");
                 ui_flush();
             }
         }
@@ -4151,7 +4151,7 @@ fn vim_mktempdir() {
             );
             if !os_isdir(tmp.as_ptr()) {
                 if crate::memory::cstr_as_opt_bytes(temp_dir.as_ptr()) == Some(b"$TMPDIR") {
-                    if !os_env_exists(c"TMPDIR".as_ptr(), true) {
+                    if !os_env_exists(c"TMPDIR", true) {
                         logmsg!(
                             LOG_DEBUG,
                             ptr::null(),
@@ -4872,7 +4872,7 @@ macro_rules! fprintf {
     ($stream:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::fileio::vim_fprintf_fmt(
             $stream,
-            $fmt,
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
@@ -4883,7 +4883,7 @@ pub use fprintf;
 macro_rules! printf {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::fileio::vim_printf_fmt(
-            $fmt,
+            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };

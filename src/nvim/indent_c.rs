@@ -793,7 +793,7 @@ fn cin_get_equal_amount(lnum: linenr_T) -> c_int {
         }
         let line: *const c_char = ml_get(lnum);
         let mut s = line;
-        while *s != NUL && vim_strchr(c"=;{}\"'".as_ptr(), *s as u8 as c_int).is_null() {
+        while *s != NUL && vim_strchr(c"=;{}\"'", *s as u8 as c_int).is_null() {
             if cin_iscomment(s) {
                 s = cin_skipcomment(s);
             } else {
@@ -3062,7 +3062,7 @@ pub fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
                 look = look.add(1);
             } else if *look == b'<' as c_char {
                 if try_match {
-                    if !vim_strchr(c"<>!*oOe0:".as_ptr(), *look.add(1) as u8 as c_int).is_null()
+                    if !vim_strchr(c"<>!*oOe0:", *look.add(1) as u8 as c_int).is_null()
                         && keytyped == *look.add(1) as c_int
                     {
                         return true;

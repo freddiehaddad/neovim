@@ -844,9 +844,9 @@ fn efmpat_to_regpat(
         }
         if (idx != 0
             && idx < FMT_PATTERN_R
-            && !vim_strchr(c"DXOPQ".as_ptr(), c_int::from(efminfo.prefix as u8)).is_null())
+            && !vim_strchr(c"DXOPQ", c_int::from(efminfo.prefix as u8)).is_null())
             || (idx == FMT_PATTERN_R
-                && vim_strchr(c"OPQ".as_ptr(), c_int::from(efminfo.prefix as u8)).is_null())
+                && vim_strchr(c"OPQ", c_int::from(efminfo.prefix as u8)).is_null())
         {
             semsg!(
                 gettext(c"E373: Unexpected %%%c in format string"),
@@ -862,15 +862,15 @@ fn efmpat_to_regpat(
         regpat = regpat.add(1);
         #[cfg(windows)]
         if *efmpat == b'f' as c_char {
-            crate::memory::cstr_cpy(regpat, c"\\%(\\a:\\)\\=".as_ptr());
+            crate::memory::cstr_cpy(regpat, c"\\%(\\a:\\)\\=");
             regpat = regpat.add(10);
         }
         if *efmpat == b'f' as c_char && *efmpat.add(1) != NUL {
             if *efmpat.add(1) != b'\\' as c_char && *efmpat.add(1) != b'%' as c_char {
-                crate::memory::cstr_cpy(regpat, c".\\{-1,}".as_ptr());
+                crate::memory::cstr_cpy(regpat, c".\\{-1,}");
                 regpat = regpat.add(7);
             } else {
-                crate::memory::cstr_cpy(regpat, c"\\f\\+".as_ptr());
+                crate::memory::cstr_cpy(regpat, c"\\f\\+");
                 regpat = regpat.add(4);
             }
         } else {
@@ -952,11 +952,11 @@ fn scanf_fmt_to_regpat(
 
 fn efm_analyze_prefix(mut efmp: *const c_char, efminfo: &mut efm_T) -> *const c_char {
     unsafe {
-        if !vim_strchr(c"+-".as_ptr(), c_int::from(*efmp as u8)).is_null() {
+        if !vim_strchr(c"+-", c_int::from(*efmp as u8)).is_null() {
             efminfo.flags = *efmp;
             efmp = efmp.add(1);
         }
-        if !vim_strchr(c"DXAEWINCZGOPQ".as_ptr(), c_int::from(*efmp as u8)).is_null() {
+        if !vim_strchr(c"DXAEWINCZGOPQ", c_int::from(*efmp as u8)).is_null() {
             efminfo.prefix = *efmp;
         } else {
             semsg!(
@@ -1004,7 +1004,7 @@ fn efm_to_regpat(
                     if ptr.is_null() {
                         return false;
                     }
-                } else if !vim_strchr(c"%\\.^$~[".as_ptr(), c_int::from(*efmp as u8)).is_null() {
+                } else if !vim_strchr(c"%\\.^$~[", c_int::from(*efmp as u8)).is_null() {
                     *ptr = *efmp;
                     ptr = ptr.add(1);
                 } else if *efmp == b'#' as c_char {
@@ -1027,7 +1027,7 @@ fn efm_to_regpat(
             } else {
                 if *efmp == b'\\' as c_char && efmp.add(1) < end {
                     efmp = efmp.add(1);
-                } else if !vim_strchr(c".*^$~[".as_ptr(), c_int::from(*efmp as u8)).is_null() {
+                } else if !vim_strchr(c".*^$~[", c_int::from(*efmp as u8)).is_null() {
                     *ptr = b'\\' as c_char;
                     ptr = ptr.add(1);
                 }
@@ -1438,15 +1438,15 @@ fn qf_parse_line(
                     qf_st().fmt_start_idx = Some(fmt_idx);
                 }
 
-                if !vim_strchr(c"AEWIN".as_ptr(), idx).is_null() {
+                if !vim_strchr(c"AEWIN", idx).is_null() {
                     qfl.qf_multiline = true;
                     qfl.qf_multiignore = false;
-                } else if !vim_strchr(c"CZ".as_ptr(), idx).is_null() {
+                } else if !vim_strchr(c"CZ", idx).is_null() {
                     status = qf_parse_multiline_pfx(idx, qfl, fields);
                     if status != QF_OK {
                         return status;
                     }
-                } else if !vim_strchr(c"OPQ".as_ptr(), idx).is_null() {
+                } else if !vim_strchr(c"OPQ", idx).is_null() {
                     status = qf_parse_file_pfx(idx, fields, qfl, tail);
                     if status == QF_MULTISCAN {
                         let s = skipwhite(tail);
@@ -1717,7 +1717,7 @@ fn qf_parse_fmt_f(
         );
         *rmp.endp[midx] = c;
 
-        if !vim_strchr(c"OPQ".as_ptr(), prefix).is_null()
+        if !vim_strchr(c"OPQ", prefix).is_null()
             && !os_path_exists(fields.namebuf.as_ptr())
         {
             return QF_FAIL;
@@ -1877,7 +1877,7 @@ fn qf_parse_fmt_s(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
         let mut len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
         len = len.min(CMDBUFFSIZE - 5);
         let pat_ptr = fields.pattern.as_mut_ptr();
-        crate::memory::cstr_cpy(pat_ptr, c"^\\V".as_ptr());
+        crate::memory::cstr_cpy(pat_ptr, c"^\\V");
         { let _dst: *mut c_char = pat_ptr; let _dsize: usize = len + 4; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), rmp.startp[midx], _dsize - _dlen); };
         *pat_ptr.add(len + 3) = b'\\' as c_char;
         *pat_ptr.add(len + 4) = b'$' as c_char;
@@ -1914,7 +1914,7 @@ fn qf_parse_match(
         if (idx == b'C' as c_char || idx == b'Z' as c_char) && qf_multiline == 0 {
             return QF_FAIL;
         }
-        if !vim_strchr(c"EWIN".as_ptr(), c_int::from(idx as u8)).is_null() {
+        if !vim_strchr(c"EWIN", c_int::from(idx as u8)).is_null() {
             fields.type_ = idx;
         } else {
             fields.type_ = 0;
@@ -1971,7 +1971,7 @@ fn qf_parse_get_fields(
 ) -> c_int {
     unsafe {
         if qf_multiscan != 0
-            && vim_strchr(c"OPQ".as_ptr(), c_int::from(fmt_ptr.prefix as u8)).is_null()
+            && vim_strchr(c"OPQ", c_int::from(fmt_ptr.prefix as u8)).is_null()
         {
             return QF_FAIL;
         }
@@ -3314,7 +3314,7 @@ fn qf_jump_print_msg(
         {
             g_st().msg_scroll = 0;
         }
-        msg_ext_set_kind(c"quickfix".as_ptr());
+        msg_ext_set_kind(c"quickfix");
         msg_keep(gap.as_ptr(), 0, true, false);
         g_st().msg_scroll = i;
 
@@ -3570,7 +3570,7 @@ fn qf_list_entry(qfp: &mut qfline_T, qf_idx: c_int, cursel: bool) {
         );
 
         if qfp.qf_lnum != 0 {
-            msg_puts_hl(c":".as_ptr(), qf_st().qfSep_hl_id, false);
+            msg_puts_hl(c":", qf_st().qfSep_hl_id, false);
         }
         let mut gap = qfga_get();
         if qfp.qf_lnum != 0 {
@@ -3581,15 +3581,15 @@ fn qf_list_entry(qfp: &mut qfline_T, qf_idx: c_int, cursel: bool) {
         if *gap.as_ptr() != NUL {
             msg_puts_hl(gap.as_ptr(), qf_st().qfLine_hl_id, false);
         }
-        msg_puts_hl(c":".as_ptr(), qf_st().qfSep_hl_id, false);
+        msg_puts_hl(c":", qf_st().qfSep_hl_id, false);
         if let Some(ref pat) = qfp.qf_pattern {
             gap = qfga_get();
             qf_fmt_text(gap, pat.as_ptr());
             gap.push(NUL);
             msg_puts(gap.as_ptr());
-            msg_puts_hl(c":".as_ptr(), qf_st().qfSep_hl_id, false);
+            msg_puts_hl(c":", qf_st().qfSep_hl_id, false);
         }
-        msg_puts(c" ".as_ptr());
+        msg_puts(c" ");
 
         gap = qfga_get();
         let text = if !fname.is_null() || qfp.qf_lnum != 0 {
@@ -3661,7 +3661,7 @@ pub fn qf_list(eap: &mut exarg_T) {
         if qfl.qf_nonevalid {
             all = true;
         }
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         for (idx, qfp) in qfl.qf_items.iter_mut().enumerate() {
             if g_st().got_int {
                 break;
@@ -3957,7 +3957,7 @@ pub fn qf_view_result(split: bool) {
 
         if split {
             qf_jump_newwin(qi, 0, (**curwin.as_ptr()).w_cursor.lnum as c_int, 0, true);
-            do_cmdline_cmd(c"clearjumps".as_ptr());
+            do_cmdline_cmd(c"clearjumps");
             return;
         }
 
@@ -4032,11 +4032,11 @@ fn qf_goto_cwindow(qi: &qf_info_T, resize: bool, sz: c_int, vertsplit: bool) -> 
 fn qf_set_cwindow_options() {
     unsafe {
         set_option_value_give_err(kOptSwapfile, boolean_obj(false), OPT_LOCAL);
-        set_option_value_give_err(kOptBuftype, cstr_as_obj(c"quickfix".as_ptr()), OPT_LOCAL);
-        set_option_value_give_err(kOptBufhidden, cstr_as_obj(c"hide".as_ptr()), OPT_LOCAL);
+        set_option_value_give_err(kOptBuftype, cstr_as_obj(c"quickfix"), OPT_LOCAL);
+        set_option_value_give_err(kOptBufhidden, cstr_as_obj(c"hide"), OPT_LOCAL);
         reset_binding(&mut **curwin.as_ptr());
         (**curwin.as_ptr()).w_onebuf_opt.wo_diff = 0;
-        set_option_value_give_err(kOptFoldmethod, cstr_as_obj(c"manual".as_ptr()), OPT_LOCAL);
+        set_option_value_give_err(kOptFoldmethod, cstr_as_obj(c"manual"), OPT_LOCAL);
     }
 }
 
@@ -4614,7 +4614,7 @@ fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize, qf_win
 
         if old_count == 0 {
             (*g_st().curbuf).b_ro_locked += 1;
-            set_option_value_give_err(kOptFiletype, cstr_as_obj(c"qf".as_ptr()), OPT_LOCAL);
+            set_option_value_give_err(kOptFiletype, cstr_as_obj(c"qf"), OPT_LOCAL);
             (*g_st().curbuf).b_p_ma = 0;
 
             (*g_st().curbuf).b_keep_filetype = true;
@@ -4730,7 +4730,7 @@ fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std::ffi::C
             g_st().msg_didout = false;
         }
         msg_start();
-        msg_puts(c":!".as_ptr());
+        msg_puts(c":!");
         msg_outtrans(cmd, 0, false);
 
         crate::memory::cstr_to_cstring(cmd)
@@ -6227,7 +6227,7 @@ fn qf_get_list_from_lines(
         }
 
         let mut errorformat = opt_vars().p_efm;
-        let efm_di = tv_dict_find(what, c"efm".as_ptr(), 3);
+        let efm_di = tv_dict_find(what, c"efm", 3);
         if !efm_di.is_null() {
             if (*efm_di).di_tv.v_type != VarType::VAR_STRING
                 || (*efm_di).di_tv.vval.v_string().is_null()
@@ -6296,46 +6296,46 @@ fn qf_getprop_qfbufnr(qi: *const qf_info_T, retdict: &mut dict_T) -> bool {
 fn qf_getprop_keys2flags(what: &dict_T, loclist: bool) -> c_int {
     let mut flags = QF_GETLIST_NONE;
 
-        if !tv_dict_find(what, c"all".as_ptr(), 3).is_null() {
+        if !tv_dict_find(what, c"all", 3).is_null() {
             flags |= QF_GETLIST_ALL;
             if !loclist {
                 flags &= !QF_GETLIST_FILEWINID;
             }
         }
-        if !tv_dict_find(what, c"title".as_ptr(), 5).is_null() {
+        if !tv_dict_find(what, c"title", 5).is_null() {
             flags |= QF_GETLIST_TITLE;
         }
-        if !tv_dict_find(what, c"nr".as_ptr(), 2).is_null() {
+        if !tv_dict_find(what, c"nr", 2).is_null() {
             flags |= QF_GETLIST_NR;
         }
-        if !tv_dict_find(what, c"winid".as_ptr(), 5).is_null() {
+        if !tv_dict_find(what, c"winid", 5).is_null() {
             flags |= QF_GETLIST_WINID;
         }
-        if !tv_dict_find(what, c"context".as_ptr(), 7).is_null() {
+        if !tv_dict_find(what, c"context", 7).is_null() {
             flags |= QF_GETLIST_CONTEXT;
         }
-        if !tv_dict_find(what, c"id".as_ptr(), 2).is_null() {
+        if !tv_dict_find(what, c"id", 2).is_null() {
             flags |= QF_GETLIST_ID;
         }
-        if !tv_dict_find(what, c"items".as_ptr(), 5).is_null() {
+        if !tv_dict_find(what, c"items", 5).is_null() {
             flags |= QF_GETLIST_ITEMS;
         }
-        if !tv_dict_find(what, c"idx".as_ptr(), 3).is_null() {
+        if !tv_dict_find(what, c"idx", 3).is_null() {
             flags |= QF_GETLIST_IDX;
         }
-        if !tv_dict_find(what, c"size".as_ptr(), 4).is_null() {
+        if !tv_dict_find(what, c"size", 4).is_null() {
             flags |= QF_GETLIST_SIZE;
         }
-        if !tv_dict_find(what, c"changedtick".as_ptr(), 11).is_null() {
+        if !tv_dict_find(what, c"changedtick", 11).is_null() {
             flags |= QF_GETLIST_TICK;
         }
-        if loclist && !tv_dict_find(what, c"filewinid".as_ptr(), 9).is_null() {
+        if loclist && !tv_dict_find(what, c"filewinid", 9).is_null() {
             flags |= QF_GETLIST_FILEWINID;
         }
-        if !tv_dict_find(what, c"qfbufnr".as_ptr(), 7).is_null() {
+        if !tv_dict_find(what, c"qfbufnr", 7).is_null() {
             flags |= QF_GETLIST_QFBUFNR;
         }
-        if !tv_dict_find(what, c"quickfixtextfunc".as_ptr(), 16).is_null() {
+        if !tv_dict_find(what, c"quickfixtextfunc", 16).is_null() {
             flags |= QF_GETLIST_QFTF;
         }
 
@@ -6345,7 +6345,7 @@ fn qf_getprop_keys2flags(what: &dict_T, loclist: bool) -> c_int {
 fn qf_getprop_qfidx(qi: &mut qf_info_T, what: &mut dict_T) -> c_int {
     unsafe {
         let mut qf_idx = qi.qf_curlist;
-        let mut di = tv_dict_find(what, c"nr".as_ptr(), 2);
+        let mut di = tv_dict_find(what, c"nr", 2);
         if !di.is_null() {
             if (*di).di_tv.v_type == VarType::VAR_NUMBER {
                 if (*di).di_tv.vval.v_number() != 0 {
@@ -6363,7 +6363,7 @@ fn qf_getprop_qfidx(qi: &mut qf_info_T, what: &mut dict_T) -> c_int {
             }
         }
 
-        di = tv_dict_find(what, c"id".as_ptr(), 2);
+        di = tv_dict_find(what, c"id", 2);
         if !di.is_null() {
             if (*di).di_tv.v_type == VarType::VAR_NUMBER {
                 if (*di).di_tv.vval.v_number() != 0 {
@@ -6520,7 +6520,7 @@ fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) ->
         let mut status = true;
         let mut qf_idx = INVALID_QFIDX;
 
-        let di = tv_dict_find(what, c"lines".as_ptr(), 5);
+        let di = tv_dict_find(what, c"lines", 5);
         if !di.is_null() {
             return qf_get_list_from_lines(what, di, retdict);
         }
@@ -6542,7 +6542,7 @@ fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) ->
         let qfl = qf_get_list(&mut *qi, qf_idx);
         let mut eidx: c_int = 0;
 
-        let di = tv_dict_find(what, c"idx".as_ptr(), 3);
+        let di = tv_dict_find(what, c"idx", 3);
         if !di.is_null() {
             if (*di).di_tv.v_type != VarType::VAR_NUMBER {
                 return false;
@@ -6657,7 +6657,7 @@ fn qf_add_entry_from_dict(
             bufnum = 0;
         }
 
-        if !tv_dict_find(d, c"valid".as_ptr(), -1).is_null() {
+        if !tv_dict_find(d, c"valid", -1).is_null() {
             valid = tv_dict_get_bool(d, c"valid", 0) != 0;
         }
 
@@ -6869,7 +6869,7 @@ fn qf_setprop_get_qfidx(
     unsafe {
         let mut qf_idx = qi.qf_curlist;
 
-        let di = tv_dict_find(what, c"nr".as_ptr(), 2);
+        let di = tv_dict_find(what, c"nr", 2);
         if !di.is_null() {
             if (*di).di_tv.v_type == VarType::VAR_NUMBER {
                 if (*di).di_tv.vval.v_number() != 0 {
@@ -6906,7 +6906,7 @@ fn qf_setprop_get_qfidx(
         }
 
         if !*newlist {
-            let di = tv_dict_find(what, c"id".as_ptr(), 2);
+            let di = tv_dict_find(what, c"id", 2);
             if !di.is_null() {
                 if (*di).di_tv.v_type != VarType::VAR_NUMBER {
                     return INVALID_QFIDX;
@@ -6977,7 +6977,7 @@ fn qf_setprop_items_from_lines(
         let mut errorformat = opt_vars().p_efm;
         let mut retval = false;
 
-        let efm_di = tv_dict_find(what, c"efm".as_ptr(), 3);
+        let efm_di = tv_dict_find(what, c"efm", 3);
         if !efm_di.is_null() {
             if (*efm_di).di_tv.v_type != VarType::VAR_STRING
                 || (*efm_di).di_tv.vval.v_string().is_null()
@@ -7086,27 +7086,27 @@ fn qf_set_properties(
 
         let qfl = qf_get_list(&mut *qi, qf_idx);
         let mut retval = false;
-        let mut di = tv_dict_find(what, c"title".as_ptr(), 5);
+        let mut di = tv_dict_find(what, c"title", 5);
         if !di.is_null() {
             retval = qf_setprop_title(qi, qf_idx, what, di);
         }
-        di = tv_dict_find(what, c"items".as_ptr(), 5);
+        di = tv_dict_find(what, c"items", 5);
         if !di.is_null() {
             retval = qf_setprop_items(qi, qf_idx, &mut *di, action);
         }
-        di = tv_dict_find(what, c"lines".as_ptr(), 5);
+        di = tv_dict_find(what, c"lines", 5);
         if !di.is_null() {
             retval = qf_setprop_items_from_lines(qi, qf_idx, what, di, action);
         }
-        di = tv_dict_find(what, c"context".as_ptr(), 7);
+        di = tv_dict_find(what, c"context", 7);
         if !di.is_null() {
             retval = qf_setprop_context(qfl, &mut *di);
         }
-        di = tv_dict_find(what, c"idx".as_ptr(), 3);
+        di = tv_dict_find(what, c"idx", 3);
         if !di.is_null() {
             retval = qf_setprop_curidx(qi, qfl, &*di);
         }
-        di = tv_dict_find(what, c"quickfixtextfunc".as_ptr(), 16);
+        di = tv_dict_find(what, c"quickfixtextfunc", 16);
         if !di.is_null() {
             retval = qf_setprop_qftf(qfl, &mut *di);
         }
@@ -7629,8 +7629,8 @@ fn hgr_search_files_in_dir(
                 if !lang.is_null()
                     && flen >= 3
                     && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(f.add(flen - 3), 2)))
-                    && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"en".as_ptr(), 2))
-                        && crate::memory::cstr_prefix_bytes(c"txt".as_ptr(), 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(f.add(flen - 3), 3)))
+                    && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(b"en")
+                        && b"txt".eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(f.add(flen - 3), 3)))
                 {
                     continue;
                 }

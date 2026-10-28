@@ -63,9 +63,9 @@ pub fn server_init(mut listen_addr: *const c_char) -> bool {
         srv_st().watchers = Vec::new();
 
         if listen_addr.is_null() || *listen_addr == 0 {
-            if os_env_exists(ENV_LISTEN.as_ptr(), true) {
+            if os_env_exists(ENV_LISTEN, true) {
                 user_arg = kFalse;
-                let raw = os_getenv_cstr(ENV_LISTEN.as_ptr());
+                let raw = os_getenv_cstr(ENV_LISTEN);
                 owned_addr = to_slash_save(raw.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
             } else {
                 user_arg = kNone;
@@ -76,7 +76,7 @@ pub fn server_init(mut listen_addr: *const c_char) -> bool {
 
         let rv = server_start(listen_addr);
 
-        if os_env_exists(ENV_TEST_LOG.as_ptr(), false) {
+        if os_env_exists(ENV_TEST_LOG, false) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -110,7 +110,7 @@ pub fn server_init(mut listen_addr: *const c_char) -> bool {
             ok = false;
         }
 
-        if os_env_exists(ENV_LISTEN.as_ptr(), false) {
+        if os_env_exists(ENV_LISTEN, false) {
             os_unsetenv(ENV_LISTEN.as_ptr());
         }
 

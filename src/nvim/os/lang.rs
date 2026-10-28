@@ -618,15 +618,15 @@ fn get_mess_env(
     }
     #[cfg(windows)]
     unsafe {
-        let mut p = os_getenv_buf(c"LC_ALL".as_ptr(), buf.as_mut_ptr(), buf.len());
+        let mut p = os_getenv_buf(c"LC_ALL", buf.as_mut_ptr(), buf.len());
             if !p.is_null() {
                 return p;
             }
-            p = os_getenv_buf(c"LC_MESSAGES".as_ptr(), buf.as_mut_ptr(), buf.len());
+            p = os_getenv_buf(c"LC_MESSAGES", buf.as_mut_ptr(), buf.len());
             if !p.is_null() {
                 return p;
             }
-            p = os_getenv_buf(c"LANG".as_ptr(), buf.as_mut_ptr(), buf.len());
+            p = os_getenv_buf(c"LANG", buf.as_mut_ptr(), buf.len());
             if !p.is_null() && (*p as u8).is_ascii_digit() {
                 p = ptr::null_mut();
             }
@@ -669,7 +669,7 @@ pub fn init_locale() {
         *tail = NUL;
         tail = path_tail(localepath.as_ptr());
         let offset = (tail as usize) - (localepath.as_ptr() as usize);
-        xstrlcpy(tail, c"share/locale".as_ptr(), MAXPATHL - offset);
+        xstrlcpy(tail, c"share/locale", MAXPATHL - offset);
 
         if HAVE_LIBINTL {
             let bytes = crate::memory::cstr_as_bytes(localepath.as_ptr());
@@ -753,15 +753,15 @@ pub fn ex_language(eap: &mut exarg_T) {
                 );
             } else {
                 lang_st().CATALOG_VALID = false;
-                let _ = os_setenv(c"LC_ALL".as_ptr(), c"".as_ptr(), 1);
+                let _ = os_setenv(c"LC_ALL", c"", 1);
 
                 if what != LC_TIME && what != LC_COLLATE {
                     if what == LC_ALL {
-                        let _ = os_setenv(c"LANG".as_ptr(), name, 1);
-                        let _ = os_setenv(c"LANGUAGE".as_ptr(), c"".as_ptr(), 1);
+                        let _ = os_setenv(c"LANG", name, 1);
+                        let _ = os_setenv(c"LANGUAGE", c"", 1);
                     }
                     if what != LC_CTYPE {
-                        let _ = os_setenv(c"LC_MESSAGES".as_ptr(), name, 1);
+                        let _ = os_setenv(c"LC_MESSAGES", name, 1);
                         set_helplang_default(name);
                     }
                 }
@@ -838,8 +838,8 @@ pub fn get_locales(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 pub fn lang_init() {
     #[cfg(target_os = "macos")]
     unsafe {
-        if !os_env_exists(c"LANG".as_ptr(), true) {
-            let _ = os_setenv(c"LANG".as_ptr(), c"C.UTF-8".as_ptr(), 1);
+        if !os_env_exists(c"LANG", true) {
+            let _ = os_setenv(c"LANG", c"C.UTF-8", 1);
             let _ = setlocale(LC_ALL, c"C.UTF-8".as_ptr());
             let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
         }

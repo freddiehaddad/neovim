@@ -1255,7 +1255,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
         *s = b'=' as c_char;
         *s.add(1) = c;
         s = s.add(2);
-        crate::memory::cstr_ncpy(s, c".vim".as_ptr(), 4);
+        crate::memory::cstr_ncpy(s, c".vim", 4);
 
         Some(crate::memory::cstr_to_cstring(retval))
     }

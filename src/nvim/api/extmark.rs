@@ -400,7 +400,7 @@ pub fn nvim_buf_get_extmark_by_id(
         }
 
         if !ns_initialized(ns_id as u32) {
-            api_err_invalid(err, c"ns_id".as_ptr(), ptr::null(), ns_id, false);
+            api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
             return rv;
         }
 
@@ -501,7 +501,7 @@ pub fn nvim_buf_get_extmarks(
         }
 
         if ns_id != -1 && !ns_initialized(ns_id as u32) {
-            api_err_invalid(err, c"ns_id".as_ptr(), ptr::null(), ns_id, false);
+            api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
             return rv;
         }
 
@@ -526,8 +526,8 @@ pub fn nvim_buf_get_extmarks(
             } else {
                 api_err_exp(
                     err,
-                    c"type".as_ptr(),
-                    c"sign, virt_text, virt_lines or highlight".as_ptr(),
+                    c"type",
+                    c"sign, virt_text, virt_lines or highlight",
                     opts.type_.data,
                 );
                 return rv;
@@ -761,7 +761,7 @@ pub fn nvim_buf_set_extmark(
             }
 
             if !ns_initialized(ns_id as u32) {
-                api_err_invalid(err, c"ns_id".as_ptr(), ptr::null(), ns_id, false);
+                api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
                 break 'error;
             }
 
@@ -771,8 +771,8 @@ pub fn nvim_buf_set_extmark(
                 if opts.id <= 0 {
                     api_err_exp(
                         err,
-                        c"id".as_ptr(),
-                        c"positive Integer".as_ptr(),
+                        c"id",
+                        c"positive Integer",
                         ptr::null(),
                     );
                     break 'error;
@@ -873,8 +873,8 @@ pub fn nvim_buf_set_extmark(
                 {
                     api_err_exp(
                         err,
-                        c"conceal".as_ptr(),
-                        c"String or Boolean".as_ptr(),
+                        c"conceal",
+                        c"String or Boolean",
                         api_typename(opts.conceal.obj_type),
                     );
                     break 'error;
@@ -946,7 +946,7 @@ pub fn nvim_buf_set_extmark(
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"inline") {
                     virt_text.pos = kVPosInline;
                 } else {
-                    api_err_invalid(err, c"virt_text_pos".as_ptr(), str_val.data, 0, true);
+                    api_err_invalid(err, c"virt_text_pos", str_val.data, 0, true);
                     break 'error;
                 }
             }
@@ -982,7 +982,7 @@ pub fn nvim_buf_set_extmark(
                     }
                     virt_text.hl_mode = kHlModeBlend;
                 } else {
-                    api_err_invalid(err, c"hl_mode".as_ptr(), str_val.data, 0, true);
+                    api_err_invalid(err, c"hl_mode", str_val.data, 0, true);
                     break 'error;
                 }
             }
@@ -1002,7 +1002,7 @@ pub fn nvim_buf_set_extmark(
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"auto") {
                     virt_lines_overflow = kVLOverflowAuto;
                 } else if !(crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"trunc")) {
-                    api_err_invalid(err, c"virt_lines_overflow".as_ptr(), str_val.data, 0, true);
+                    api_err_invalid(err, c"virt_lines_overflow", str_val.data, 0, true);
                     break 'error;
                 }
             }
@@ -1014,7 +1014,7 @@ pub fn nvim_buf_set_extmark(
                     if item.obj_type != ObjectType::kObjectTypeArray {
                         api_err_exp(
                             err,
-                            c"virt_text_line".as_ptr(),
+                            c"virt_text_line",
                             api_typename(ObjectType::kObjectTypeArray),
                             api_typename(item.obj_type),
                         );
@@ -1059,7 +1059,7 @@ pub fn nvim_buf_set_extmark(
                     opts.sign_text.data,
                 )
                 {
-                    api_err_invalid(err, c"sign_text".as_ptr(), c"".as_ptr(), 0, true);
+                    api_err_invalid(err, c"sign_text", c"", 0, true);
                     break 'error;
                 }
                 sign.flags |= kSHIsSign;
@@ -1358,7 +1358,7 @@ pub fn nvim_buf_del_extmark(
             return false;
         }
         if !ns_initialized(ns_id as u32) {
-            api_err_invalid(err, c"ns_id".as_ptr(), ptr::null(), ns_id, false);
+            api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
             return false;
         }
         extmark_del_id(&mut *b, ns_id as u32, id as u32)
@@ -1541,13 +1541,13 @@ fn extmark_get_index_from_obj(
                 *col = MAXCOL as colnr_T;
                 return true;
             } else if id < 0 {
-                api_err_invalid(err, c"mark id".as_ptr(), ptr::null(), id, false);
+                api_err_invalid(err, c"mark id", ptr::null(), id, false);
                 return false;
             }
 
             let extmark = extmark_from_id(&mut *buf, ns_id as u32, id as u32);
             if extmark.start.pos.row < 0 {
-                api_err_invalid(err, c"mark id (not found)".as_ptr(), ptr::null(), id, false);
+                api_err_invalid(err, c"mark id (not found)", ptr::null(), id, false);
                 return false;
             }
             *row = extmark.start.pos.row;
@@ -1561,8 +1561,8 @@ fn extmark_get_index_from_obj(
             {
                 api_err_exp(
                     err,
-                    c"mark position".as_ptr(),
-                    c"2 Integer items".as_ptr(),
+                    c"mark position",
+                    c"2 Integer items",
                     ptr::null(),
                 );
                 return false;
@@ -1576,8 +1576,8 @@ fn extmark_get_index_from_obj(
         } else {
             api_err_exp(
                 err,
-                c"mark position".as_ptr(),
-                c"mark id Integer or 2-item Array".as_ptr(),
+                c"mark position",
+                c"mark id Integer or 2-item Array",
                 ptr::null(),
             );
             false
@@ -1602,7 +1602,7 @@ pub fn parse_virt_text(
                 if item.obj_type != ObjectType::kObjectTypeArray {
                     api_err_exp(
                         err,
-                        c"chunk".as_ptr(),
+                        c"chunk",
                         api_typename(ObjectType::kObjectTypeArray),
                         api_typename(item.obj_type),
                     );
@@ -1707,7 +1707,7 @@ pub fn nvim__buf_debug_extmarks(
 pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) {
     unsafe {
         if !ns_initialized(ns_id as u32) {
-            api_err_invalid(err, c"ns_id".as_ptr(), ptr::null(), ns_id, false);
+            api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
             return;
         }
 
@@ -1796,7 +1796,7 @@ pub fn nvim__ns_get(
         };
 
         if !ns_initialized(ns_id as u32) {
-            api_err_invalid(err, c"ns_id".as_ptr(), ptr::null(), ns_id, false);
+            api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
             return opts;
         }
 

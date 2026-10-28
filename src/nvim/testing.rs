@@ -460,7 +460,7 @@ fn assert_equalfile(argvars: &mut [typval_T]) -> c_int {
                         if c2 != EOF_VAL {
                             iobuflen = xstrlcpy(
                                 iobuf.as_mut_ptr(),
-                                c"first file is shorter".as_ptr(),
+                                c"first file is shorter",
                                 IOSIZE,
                             );
                         }
@@ -468,7 +468,7 @@ fn assert_equalfile(argvars: &mut [typval_T]) -> c_int {
                     } else if c2 == EOF_VAL {
                         iobuflen = xstrlcpy(
                             iobuf.as_mut_ptr(),
-                            c"second file is shorter".as_ptr(),
+                            c"second file is shorter",
                             IOSIZE,
                         );
                         break;
@@ -895,7 +895,7 @@ pub fn f_assert_true(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 pub fn f_test_garbagecollect_now(_argvars: &mut [typval_T], _rettv: &mut typval_T,
     _fptr: EvalFuncData,){
     if get_vim_var_nr(VV_TESTING) == 0 {
-            emsg(c"E1142: Calling test_garbagecollect_now() while v:testing is not set".as_ptr());
+            emsg(c"E1142: Calling test_garbagecollect_now() while v:testing is not set");
         } else {
             garbage_collect(true);
         }

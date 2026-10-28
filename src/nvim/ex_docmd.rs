@@ -4939,7 +4939,7 @@ fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
             let _ = smsg!(0, gettext(c"line %d: %s"), lnum as c_int, cmd);
         }
         if g_st().msg_silent == 0 {
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
         }
 
         verbose_leave_scroll();
@@ -4965,7 +4965,8 @@ fn do_cmdline_end() {
 }
 
 /// Execute a simple command line.  Used for translated commands like "*".
-pub fn do_cmdline_cmd(cmd: *const c_char) -> bool {
+pub fn do_cmdline_cmd<S: crate::strings::IntoCCharPtr>(cmd: S) -> bool {
+    let cmd = cmd.into_c_char_ptr();
     do_cmdline(
             cmd.cast_mut(),
             LineGetter::None,
@@ -7146,7 +7147,7 @@ pub fn apply_cmdmod(cmod: &mut cmdmod_T) {
 
         if (cmod.cmod_flags & CMOD_NOAUTOCMD) != 0 && cmod.cmod_save_ei.is_none() {
             cmod.cmod_save_ei = Some(cstr_to_cstring(opt_vars().p_ei));
-            set_option_direct(kOptEventignore, cstr_as_obj(c"all".as_ptr()), 0, SID_NONE);
+            set_option_direct(kOptEventignore, cstr_as_obj(c"all"), 0, SID_NONE);
         }
 }
 
@@ -7364,14 +7365,14 @@ fn append_command(cmd: *const c_char) {
         if len > IOSIZE - 100 {
             d = iobuf_ptr.add(IOSIZE - 100);
             d = d.sub(utf_head_off(iobuf_ptr, d) as usize);
-            crate::memory::cstr_cpy(d, c"...".as_ptr());
+            crate::memory::cstr_cpy(d, c"...");
         }
-        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c": ".as_ptr(), _dsize - _dlen); };
+        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c": ", _dsize - _dlen); };
         d = iobuf_ptr.add(crate::memory::cstr_len(iobuf_ptr));
         while *s != NUL && ((d as usize) - (iobuf_ptr as usize) + 5 < IOSIZE) {
             if (*s as u8) == 0xc2 && (*s.add(1) as u8) == 0xa0 {
                 s = s.add(2);
-                crate::memory::cstr_cpy(d, c"<a0>".as_ptr());
+                crate::memory::cstr_cpy(d, c"<a0>");
                 d = d.add(4);
             } else if (d as usize) - (iobuf_ptr as usize) + (utfc_ptr2len(s) as usize) + 1 >= IOSIZE
             {
@@ -7435,7 +7436,7 @@ pub fn find_ex_command(eap: &mut exarg_T,mut full: Option<&mut c_int>) -> *mut c
                 }
             }
 
-            if p == eap.cmd && !vim_strchr(c"@!=><&~#".as_ptr(), c_int::from(*p as u8)).is_null()
+            if p == eap.cmd && !vim_strchr(c"@!=><&~#", c_int::from(*p as u8)).is_null()
             {
                 p = p.add(1);
             }
@@ -7488,7 +7489,7 @@ pub fn find_ex_command(eap: &mut exarg_T,mut full: Option<&mut c_int>) -> *mut c
                 eap.cmdidx = cmdidx_T::CMD_bang as c_int;
             }
 
-            if len == 3 && (crate::memory::cstr_prefix_bytes(c"def".as_ptr(), 3) == crate::memory::cstr_prefix_bytes(eap.cmd, 3)) {
+            if len == 3 && (b"def" == crate::memory::cstr_prefix_bytes(eap.cmd, 3)) {
                 eap.cmdidx = CMD_SIZE_I32;
             }
 
@@ -7634,7 +7635,7 @@ pub fn f_fullcommand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 }
 
 pub fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
-    if len == 3 && (crate::memory::cstr_prefix_bytes(c"def".as_ptr(), 3) == crate::memory::cstr_prefix_bytes(cmd, 3)) {
+    if len == 3 && (b"def" == crate::memory::cstr_prefix_bytes(cmd, 3)) {
             return cmdidx_T::CMD_SIZE;
         }
 
@@ -7659,7 +7660,7 @@ pub fn excmd_get_argt(idx: cmdidx_T) -> u32 {
 pub fn skip_range(mut cmd: *const c_char, mut ctx: Option<&mut c_int>) -> *mut c_char {
     unsafe {
         while !vim_strchr(
-            c" \t0123456789.$%'/?-+,;\\".as_ptr(),
+            c" \t0123456789.$%'/?-+,;\\",
             c_int::from(*cmd as u8),
         )
         .is_null()
@@ -8014,7 +8015,7 @@ pub fn get_address(
 
 fn get_flags(eap: &mut exarg_T) {
     unsafe {
-        while !vim_strchr(c"lp#".as_ptr(), c_int::from(*eap.arg as u8)).is_null() {
+        while !vim_strchr(c"lp#", c_int::from(*eap.arg as u8)).is_null() {
             if *eap.arg == b'l' as c_char {
                 eap.flags |= EXFLAG_LIST;
             } else if *eap.arg == b'p' as c_char {
@@ -8228,7 +8229,7 @@ pub fn expand_filename(
                 }
                 continue;
             }
-            if vim_strchr(c"%#<".as_ptr(), c_int::from(*p as u8)).is_null() {
+            if vim_strchr(c"%#<", c_int::from(*p as u8)).is_null() {
                 p = p.add(1);
                 continue;
             }
@@ -8666,7 +8667,7 @@ pub fn expand_argopt(
         }
 
         if xp.xp_pattern_len == 2
-            && (crate::memory::cstr_prefix_bytes(xp.xp_pattern, xp.xp_pattern_len) == crate::memory::cstr_prefix_bytes(c"ff".as_ptr(), xp.xp_pattern_len))
+            && (crate::memory::cstr_prefix_bytes(xp.xp_pattern, xp.xp_pattern_len) == crate::memory::cstr_prefix_bytes(c"ff", xp.xp_pattern_len))
         {
             *matches = vec![c"fileformat=".to_owned()];
             return true;
@@ -8957,11 +8958,11 @@ fn ex_colorscheme(eap: &mut exarg_T) {
             let p = eval_to_string(expr.as_mut_ptr().cast(), false, false);
             g_st().emsg_off -= 1;
 
-            msg_ext_set_kind(c"list_cmd".as_ptr());
+            msg_ext_set_kind(c"list_cmd");
             if let Some(ref p) = p {
                 let _ = msg(p.as_ptr(), 0);
             } else {
-                let _ = msg(c"default".as_ptr(), 0);
+                let _ = msg(c"default", 0);
             }
         } else if !load_colors(eap.arg) {
             let _ = semsg!(
@@ -9138,7 +9139,7 @@ fn ex_exmode(_eap: &mut exarg_T) {
         }];
         nlua_call_typval(
             c"vim._core.exmode",
-            c"open".as_ptr(),
+            c"open",
             args.as_mut_ptr(),
             None,
         );
@@ -9275,7 +9276,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 let mut lua_err = error_init();
                 let rv = nlua_exec(
                     cstr_as_string(
-                        c"return require('vim._core.server').restart_canonical_addr".as_ptr(),
+                        c"return require('vim._core.server').restart_canonical_addr",
                     ),
                     ptr::null(),
                     Array {
@@ -9347,7 +9348,7 @@ fn ex_restart(eap: &mut exarg_T) {
             &raw mut exit_status,
         );
         if channel.is_null() {
-            let _ = emsg(c"cannot create a channel job".as_ptr());
+            let _ = emsg(c"cannot create a channel job");
             let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
             if server_stopped && server_start(la_ptr) != 0 {
                 let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
@@ -9360,7 +9361,7 @@ fn ex_restart(eap: &mut exarg_T) {
 
         'fail_2: {
             let mut detach_kv = [KeyValuePair {
-                key: cstr_as_string(c"detach".as_ptr()),
+                key: cstr_as_string(c"detach"),
                 value: boolean_obj(true),
             }];
             let detach_opts = Dict {
@@ -9396,15 +9397,15 @@ fn ex_restart(eap: &mut exarg_T) {
             if *after_cmd != NUL {
                 let mut autocmd_kv = [
                     KeyValuePair {
-                        key: cstr_as_string(c"once".as_ptr()),
+                        key: cstr_as_string(c"once"),
                         value: boolean_obj(true),
                     },
                     KeyValuePair {
-                        key: cstr_as_string(c"nested".as_ptr()),
+                        key: cstr_as_string(c"nested"),
                         value: boolean_obj(true),
                     },
                     KeyValuePair {
-                        key: cstr_as_string(c"command".as_ptr()),
+                        key: cstr_as_string(c"command"),
                         value: cstr_as_obj(after_cmd),
                     },
                 ];
@@ -9414,7 +9415,7 @@ fn ex_restart(eap: &mut exarg_T) {
                     capacity: 3,
                 };
                 let mut autocmd_items = [
-                    cstr_as_obj(c"UIEnter".as_ptr()),
+                    cstr_as_obj(c"UIEnter"),
                     Object {
                         obj_type: ObjectType::kObjectTypeDict,
                         data: ObjectData::Dict(autocmd_opts),
@@ -9439,7 +9440,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 result_mem = ptr::null_mut();
             }
 
-            let mut servername_items = [cstr_as_obj(c"servername".as_ptr())];
+            let mut servername_items = [cstr_as_obj(c"servername")];
             let servername_args = Array {
                 items: servername_items.as_mut_ptr(),
                 size: 1,
@@ -9457,7 +9458,7 @@ fn ex_restart(eap: &mut exarg_T) {
             }
             if result.obj_type != ObjectType::kObjectTypeString || result.data.string().size == 0 {
                 let _ =
-                    emsg(c"restart failed: could not get listen address from new server".as_ptr());
+                    emsg(c"restart failed: could not get listen address from new server");
                 break 'fail_2;
             }
             let listen_addr = cstr_from_bytes(std::slice::from_raw_parts(
@@ -9478,7 +9479,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 };
                 let mut lua_items = [
                     cstr_as_obj(
-                        c"return require('vim._core.server').rebind_after_restart(...)".as_ptr(),
+                        c"return require('vim._core.server').rebind_after_restart(...)",
                     ),
                     Object {
                         obj_type: ObjectType::kObjectTypeArray,
@@ -9539,7 +9540,7 @@ fn ex_restart(eap: &mut exarg_T) {
         #[cfg(not(windows))]
         {
             result_mem = ptr::null_mut();
-            let mut chanclose_items = [cstr_as_obj(c"chanclose(v:stderr)".as_ptr())];
+            let mut chanclose_items = [cstr_as_obj(c"chanclose(v:stderr)")];
             let chanclose_args = Array {
                 items: chanclose_items.as_mut_ptr(),
                 size: 1,
@@ -9559,7 +9560,7 @@ fn ex_restart(eap: &mut exarg_T) {
         let proc_ptr = &raw mut (*channel).uv.proc_;
         proc_stop(&mut *proc_ptr);
         if proc_wait(proc_ptr, -1, ptr::null_mut()) < 0 {
-            let _ = emsg(c"killing new nvim server failed".as_ptr());
+            let _ = emsg(c"killing new nvim server failed");
         }
 
         let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
@@ -10241,7 +10242,7 @@ fn ex_tabs(_eap: &mut exarg_T) {
     unsafe {
         let mut tabcount: c_int = 1;
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         msg_start();
         g_st().msg_scroll = c_int::from(true);
 
@@ -10534,7 +10535,7 @@ fn ex_edit(eap: &mut exarg_T) {
         }
 
         if bt_prompt(g_st().curbuf) && eap.cmdidx == cmdidx_T::CMD_edit as c_int && *eap.arg == NUL {
-            let _ = emsg(c"cannot :edit a prompt buffer".as_ptr());
+            let _ = emsg(c"cannot :edit a prompt buffer");
             return;
         }
 
@@ -11710,7 +11711,7 @@ pub fn expr_map_locked() -> bool {
 fn ex_normal(eap: &mut exarg_T) {
     unsafe {
         if !(*g_st().curbuf).terminal.is_null() && (g_st().State & MODE_TERMINAL) != 0 {
-            let _ = emsg(c"Can't re-enter normal mode from terminal mode".as_ptr());
+            let _ = emsg(c"Can't re-enter normal mode from terminal mode");
             return;
         }
 
@@ -12696,7 +12697,7 @@ fn ex_checkhealth(eap: &mut exarg_T) {
             return;
         }
 
-        let Some(vimruntime_env) = os_getenv_cstr(c"VIMRUNTIME".as_ptr()) else {
+        let Some(vimruntime_env) = os_getenv_cstr(c"VIMRUNTIME") else {
             let _ = emsg(gettext(c"E5009: $VIMRUNTIME is empty or unset"));
             return;
         };

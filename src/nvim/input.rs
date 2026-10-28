@@ -743,7 +743,8 @@ pub fn restore_redobuff(save_redo: &mut RedoState) {
 }
 
 /// Append `len` bytes of `s` (-1: up to the NUL) to the redo buffer.
-pub fn redo_append_str(s: *const c_char, len: isize) {
+pub fn redo_append_str<S: crate::strings::IntoCCharPtr>(s: S, len: isize) {
+    let s = s.into_c_char_ptr();
     unsafe {
         if !inp_st().block_redo {
             let slen = if len < 0 { crate::memory::cstr_len(s) } else { len as usize };
@@ -973,7 +974,7 @@ pub fn start_redo_ins() -> bool {
                 p = p.add(3);
                 continue;
             }
-            if !vim_strchr(c"AaIiRrOo".as_ptr(), *p as u8 as c_int).is_null() {
+            if !vim_strchr(c"AaIiRrOo", *p as u8 as c_int).is_null() {
                 if *p == b'O' as c_char || *p == b'o' as c_char {
                     add_buff(&mut inp_st().readbuf2, NL_STR.as_ptr(), -1);
                 }

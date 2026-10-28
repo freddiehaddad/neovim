@@ -100,7 +100,7 @@ pub fn buf_updates_register(
                 items: items.as_mut_ptr(),
             };
 
-            rpc_send_event(channel_id, c"nvim_buf_lines_event".as_ptr(), args);
+            rpc_send_event(channel_id, c"nvim_buf_lines_event", args);
             arena_mem_free(arena_finish(&mut arena));
         } else {
             buf_updates_changedtick_single(buf, channel_id);
@@ -120,7 +120,7 @@ pub fn buf_updates_send_end(buf: &mut buf_T, channelid: u64) {
             capacity: 1,
             items: items.as_mut_ptr(),
         };
-        rpc_send_event(channelid, c"nvim_buf_detach_event".as_ptr(), args);
+        rpc_send_event(channelid, c"nvim_buf_detach_event", args);
 }
 
 pub fn buf_updates_unregister(buf: &mut buf_T, channelid: u64) {
@@ -250,7 +250,7 @@ pub fn buf_updates_send_changes(
                 capacity: 6,
                 items: items.as_mut_ptr(),
             };
-            if !rpc_send_event(channelid, c"nvim_buf_lines_event".as_ptr(), args) {
+            if !rpc_send_event(channelid, c"nvim_buf_lines_event", args) {
                 badchannelid = channelid;
             }
         }
@@ -443,7 +443,7 @@ pub fn buf_updates_changedtick_single(buf: &mut buf_T, channel_id: u64) {
             capacity: 2,
             items: items.as_mut_ptr(),
         };
-        rpc_send_event(channel_id, c"nvim_buf_changedtick_event".as_ptr(), args);
+        rpc_send_event(channel_id, c"nvim_buf_changedtick_event", args);
 }
 
 #[cfg(test)]

@@ -1823,25 +1823,25 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
         if sh_hl.hl_id != 0 {
             put_c(
                 dict,
-                c"hl_group".as_ptr(),
+                c"hl_group",
                 hl_group_name(sh_hl.hl_id, hl_name),
             );
             put_c(
                 dict,
-                c"hl_eol".as_ptr(),
+                c"hl_eol",
                 boolean_obj((sh_hl.flags & kSHHlEol) != 0),
             );
             priority = i32::from(sh_hl.priority);
         }
 
         if (sh_hl.flags & kSHConcealOff) != 0 {
-            put_c(dict, c"conceal".as_ptr(), boolean_obj(false));
+            put_c(dict, c"conceal", boolean_obj(false));
         } else if (sh_hl.flags & kSHConceal) != 0 {
             let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
             schar_get(buf.as_mut_ptr(), sh_hl.text[0]);
             put_c(
                 dict,
-                c"conceal".as_ptr(),
+                c"conceal",
                 cstr_to_arena_obj(arena, buf.as_ptr()),
             );
         }
@@ -1849,52 +1849,52 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
         if (sh_hl.flags & kSHConcealLines) != 0 {
             put_c(
                 dict,
-                c"conceal_lines".as_ptr(),
-                cstr_as_obj(c"".as_ptr()),
+                c"conceal_lines",
+                cstr_as_obj(c""),
             );
         }
 
         if (sh_hl.flags & kSHSpellOn) != 0 {
-            put_c(dict, c"spell".as_ptr(), boolean_obj(true));
+            put_c(dict, c"spell", boolean_obj(true));
         } else if (sh_hl.flags & kSHSpellOff) != 0 {
-            put_c(dict, c"spell".as_ptr(), boolean_obj(false));
+            put_c(dict, c"spell", boolean_obj(false));
         }
 
         if (sh_hl.flags & kSHUIWatched) != 0 {
-            put_c(dict, c"ui_watched".as_ptr(), boolean_obj(true));
+            put_c(dict, c"ui_watched", boolean_obj(true));
         }
 
         if let Some(ref url) = sh_hl.url {
-            put_c(dict, c"url".as_ptr(), cstr_as_obj(url.as_ptr()));
+            put_c(dict, c"url", cstr_as_obj(url.as_ptr()));
         }
 
         if !virt_text.is_null() {
             if (*virt_text).hl_mode != 0 {
                 let mode_str = hl_mode_str[(*virt_text).hl_mode as usize].as_ptr();
-                put_c(dict, c"hl_mode".as_ptr(), cstr_as_obj(mode_str));
+                put_c(dict, c"hl_mode", cstr_as_obj(mode_str));
             }
 
             let chunks = virt_text_to_array((*virt_text).data.virt_text(), hl_name, arena);
-            put_c(dict, c"virt_text".as_ptr(), array_obj(chunks));
+            put_c(dict, c"virt_text", array_obj(chunks));
             put_c(
                 dict,
-                c"virt_text_hide".as_ptr(),
+                c"virt_text_hide",
                 boolean_obj(((*virt_text).flags & kVTHide) != 0),
             );
             put_c(
                 dict,
-                c"virt_text_repeat_linebreak".as_ptr(),
+                c"virt_text_repeat_linebreak",
                 boolean_obj(((*virt_text).flags & kVTRepeatLinebreak) != 0),
             );
             if (*virt_text).pos == kVPosWinCol {
                 put_c(
                     dict,
-                    c"virt_text_win_col".as_ptr(),
+                    c"virt_text_win_col",
                     integer_obj(Integer::from((*virt_text).col)),
                 );
             }
             let pos_str = virt_text_pos_str[(*virt_text).pos as usize].as_ptr();
-            put_c(dict, c"virt_text_pos".as_ptr(), cstr_as_obj(pos_str));
+            put_c(dict, c"virt_text_pos", cstr_as_obj(pos_str));
             priority = i32::from((*virt_text).priority);
         }
 
@@ -1909,15 +1909,15 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
                 let chunks = virt_text_to_array(&vl.line, hl_name, arena);
                 all_chunks.push(array_obj(chunks));
             }
-            put_c(dict, c"virt_lines".as_ptr(), array_obj(all_chunks));
+            put_c(dict, c"virt_lines", array_obj(all_chunks));
             put_c(
                 dict,
-                c"virt_lines_above".as_ptr(),
+                c"virt_lines_above",
                 boolean_obj(((*virt_lines).flags & kVTLinesAbove) != 0),
             );
             put_c(
                 dict,
-                c"virt_lines_leftcol".as_ptr(),
+                c"virt_lines_leftcol",
                 boolean_obj((virt_lines_flags & kVLLeftcol) != 0),
             );
 
@@ -1929,7 +1929,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             };
             put_c(
                 dict,
-                c"virt_lines_overflow".as_ptr(),
+                c"virt_lines_overflow",
                 cstr_as_obj(overflow),
             );
             priority = i32::from((*virt_lines).priority);
@@ -1941,7 +1941,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
                 describe_sign_text(buf.as_mut_ptr(), sh_sign.text.as_ptr().cast_mut());
                 put_c(
                     dict,
-                    c"sign_text".as_ptr(),
+                    c"sign_text",
                     cstr_to_arena_obj(arena, buf.as_ptr()),
                 );
             }
@@ -1949,7 +1949,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             if let Some(ref sign_name) = sh_sign.sign_name {
                 put_c(
                     dict,
-                    c"sign_name".as_ptr(),
+                    c"sign_name",
                     cstr_as_obj(sign_name.as_ptr()),
                 );
             }
@@ -1971,7 +1971,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
         if priority != -1 {
             put_c(
                 dict,
-                c"priority".as_ptr(),
+                c"priority",
                 integer_obj(Integer::from(priority)),
             );
         }

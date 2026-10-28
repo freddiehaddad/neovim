@@ -1287,7 +1287,7 @@ pub fn spell_move_to(
 pub fn spell_cat_line(buf: *mut c_char, line: *mut c_char, maxlen: c_int) {
     unsafe {
         let mut p = skipwhite(line);
-        while !vim_strchr(c"*#/\"\t".as_ptr(), *p as u8 as c_int).is_null() {
+        while !vim_strchr(c"*#/\"\t", *p as u8 as c_int).is_null() {
             p = skipwhite(p.add(1));
         }
         if *p == NUL {
@@ -1378,7 +1378,7 @@ fn spell_load_lang(lang: *mut c_char) {
             }
         } else if sl.sl_loaded {
             let fn_ptr = (&raw mut fname_enc).cast::<c_char>();
-            crate::memory::cstr_cpy(fn_ptr.add(crate::memory::cstr_len(fn_ptr) - 3), c"add.spl".as_ptr());
+            crate::memory::cstr_cpy(fn_ptr.add(crate::memory::cstr_len(fn_ptr) - 3), c"add.spl");
             do_in_runtimepath(fn_ptr, DIP_ALL, &mut RuntimeCallback::SpellLoad(&mut sl));
         }
         (*g_st().curbuf).b_locked -= 1;
@@ -1678,7 +1678,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 let (filename, slang) = if len > 4
                     && path_equal(
                         lang_ptr.add((len - 4) as usize),
-                        c".spl".as_ptr(),
+                        c".spl",
                         kPathCmpLiteral as PathCmpFlags,
                     ) {
                     let p = vim_strchr(path_tail(lang_ptr), b'_' as c_int);
@@ -1808,7 +1808,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     int_wordlist_spl(spf_ptr);
                 } else {
                     let len = copy_option_part(&raw mut spf, spf_ptr, MAXPATHL - 4, c",");
-                    crate::memory::cstr_cpy(spf_ptr.add(len), c".spl".as_ptr());
+                    crate::memory::cstr_cpy(spf_ptr.add(len), c".spl");
                     let mut c = 0;
                     while c < ga.len() {
                         if (*ga[c].lp_slang).sl_fname.as_ref().is_some_and(|p| {
@@ -1835,7 +1835,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 if slang.is_null() {
                     let lang_ptr = (&raw mut lang).cast::<c_char>();
                     if cur_round == 0 {
-                        crate::memory::cstr_cpy(lang_ptr, c"internal wordlist".as_ptr());
+                        crate::memory::cstr_cpy(lang_ptr, c"internal wordlist");
                     } else {
                         xstrlcpy(lang_ptr, path_tail(spf_ptr), MAXWLEN + 1);
                         let p = vim_strchr(lang_ptr, b'.' as c_int);
@@ -2757,14 +2757,14 @@ pub fn ex_spellinfo(_eap: &mut exarg_T) {
         if no_spell_checking(&mut **curwin.as_ptr()) {
             return;
         }
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         msg_start();
         let w_s = (**curwin.as_ptr()).w_s_ptr();
         let len = (*w_s).b_langp.len();
         let mut lpi: usize = 0;
         while lpi < len && !g_st().got_int {
             let lp = &(&(*w_s).b_langp)[lpi];
-            msg_puts(c"file: ".as_ptr());
+            msg_puts(c"file: ");
             msg_puts(
                 (*lp.lp_slang)
                     .sl_fname
@@ -2795,7 +2795,7 @@ pub fn ex_spelldump(eap: &mut exarg_T) {
             return;
         }
         let spl = get_option_value(kOptSpelllang, OPT_LOCAL);
-        do_cmdline_cmd(c"new".as_ptr());
+        do_cmdline_cmd(c"new");
         set_option_value_give_err(kOptSpell, boolean_obj(true), OPT_LOCAL);
         set_option_value_give_err(kOptSpelllang, spl, OPT_LOCAL);
         optval_free(spl);
@@ -3015,14 +3015,14 @@ fn dump_word(
             if (flags & (WF_BANNED | WF_RARE | WF_REGION)) != 0 || keepcap {
                 let bw_ptr = (&raw mut badword).cast::<c_char>();
                 crate::memory::cstr_cpy(bw_ptr, p);
-                crate::memory::cstr_cat(bw_ptr, c"/".as_ptr());
+                crate::memory::cstr_cat(bw_ptr, c"/");
                 if keepcap {
-                    crate::memory::cstr_cat(bw_ptr, c"=".as_ptr());
+                    crate::memory::cstr_cat(bw_ptr, c"=");
                 }
                 if (flags & WF_BANNED) != 0 {
-                    crate::memory::cstr_cat(bw_ptr, c"!".as_ptr());
+                    crate::memory::cstr_cat(bw_ptr, c"!");
                 } else if (flags & WF_RARE) != 0 {
-                    crate::memory::cstr_cat(bw_ptr, c"?".as_ptr());
+                    crate::memory::cstr_cat(bw_ptr, c"?");
                 }
                 if (flags & WF_REGION) != 0 {
                     for i in 0..7 {

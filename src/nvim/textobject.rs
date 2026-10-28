@@ -96,7 +96,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
                 let mut found_dot = false;
                 while {
                     c = gchar_pos(&mut pos);
-                    ascii_iswhite(c) || !vim_strchr(c".!?)]\"'".as_ptr(), c).is_null()
+                    ascii_iswhite(c) || !vim_strchr(c".!?)]\"'", c).is_null()
                 } {
                     let mut tpos = pos;
                     if decl(&mut tpos) == -1 || (lineempty(tpos.lnum) && dir == FORWARD) {
@@ -105,11 +105,11 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
                     if found_dot {
                         break;
                     }
-                    if !vim_strchr(c".!?".as_ptr(), c).is_null() {
+                    if !vim_strchr(c".!?", c).is_null() {
                         found_dot = true;
                     }
-                    if !vim_strchr(c")]\"'".as_ptr(), c).is_null()
-                        && vim_strchr(c".!?)]\"'".as_ptr(), gchar_pos(&mut tpos)).is_null()
+                    if !vim_strchr(c")]\"'", c).is_null()
+                        && vim_strchr(c".!?)]\"'", gchar_pos(&mut tpos)).is_null()
                     {
                         break;
                     }
@@ -138,7 +138,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
                                 break;
                             }
                             c = gchar_pos(&mut tpos);
-                            if vim_strchr(c")]\"'".as_ptr(), c).is_null() {
+                            if vim_strchr(c")]\"'", c).is_null() {
                                 break;
                             }
                         }

@@ -517,7 +517,7 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_
             (*buf).b_p_bl = 0; // unlist
             set_option_direct_for(
                 kOptBufhidden,
-                cstr_as_obj(c"wipe".as_ptr()),
+                cstr_as_obj(c"wipe"),
                 OPT_LOCAL,
                 0,
                 OptTarget::Buf(buf),

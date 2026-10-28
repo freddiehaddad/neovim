@@ -1126,7 +1126,7 @@ fn set_gui_color(
 pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
     unsafe {
         if !init && ends_excmd(c_int::from(*line as u8)) != 0 {
-            msg_ext_set_kind(c"list_cmd".as_ptr());
+            msg_ext_set_kind(c"list_cmd");
             let mut i = 1;
             while i <= hl_len() && !g_st().got_int {
                 highlight_list_one(i);
@@ -1140,7 +1140,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         let mut name_end: *const c_char = skiptowhite(line);
         let mut linep: *const c_char = skipwhite(name_end);
 
-        if crate::memory::cstr_prefix_bytes(line, name_end as usize - line as usize) == crate::memory::cstr_prefix_bytes(c"default".as_ptr(), name_end as usize - line as usize) {
+        if crate::memory::cstr_prefix_bytes(line, name_end as usize - line as usize) == crate::memory::cstr_prefix_bytes(c"default", name_end as usize - line as usize) {
             dodefault = true;
             line = linep;
             name_end = skiptowhite(line);
@@ -1151,9 +1151,9 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         let mut dolink = false;
 
         let word_len = name_end as usize - line as usize;
-        if crate::memory::cstr_prefix_bytes(line, word_len) == crate::memory::cstr_prefix_bytes(c"clear".as_ptr(), word_len) {
+        if crate::memory::cstr_prefix_bytes(line, word_len) == crate::memory::cstr_prefix_bytes(c"clear", word_len) {
             doclear = true;
-        } else if crate::memory::cstr_prefix_bytes(line, word_len) == crate::memory::cstr_prefix_bytes(c"link".as_ptr(), word_len) {
+        } else if crate::memory::cstr_prefix_bytes(line, word_len) == crate::memory::cstr_prefix_bytes(c"link", word_len) {
             dolink = true;
         }
 
@@ -1162,7 +1162,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
             if id == 0 {
                 semsg!(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR), line);
             } else {
-                msg_ext_set_kind(c"list_cmd".as_ptr());
+                msg_ext_set_kind(c"list_cmd");
                 highlight_list_one(id);
             }
             return;
@@ -1752,7 +1752,7 @@ fn highlight_list_one(id: c_int) {
         if sgp.sg_link != 0 && !g_st().got_int {
             syn_list_header(didh, 0, id, true);
             didh = true;
-            msg_puts_hl(c"links to".as_ptr(), HLF_D, false);
+            msg_puts_hl(c"links to", HLF_D, false);
             msg_putchar(c_int::from(b' '));
             let link_id = (*hl_table().add((id - 1) as usize)).sg_link;
             msg_outtrans(
@@ -1795,13 +1795,13 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bo
         let attr = syn_attr2entry(attr_id);
         *hl = arena_dict(arena, HLATTRS_DICT_SIZE + 1);
         if (attr.rgb_ae_attr & HL_DEFAULT) != 0 {
-            put_c(hl, c"default".as_ptr(), boolean_obj(true));
+            put_c(hl, c"default", boolean_obj(true));
         }
         if link > 0 {
             assert!(1 <= link && link <= hl_len());
             put_c(
                 hl,
-                c"link".as_ptr(),
+                c"link",
                 cstr_as_obj((*hl_table().add((link - 1) as usize)).sg_name.as_ptr()),
             );
         }
@@ -1809,7 +1809,7 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bo
         hlattrs2dict(hl, None, attr, true, true);
         hlattrs2dict(hl, Some(&mut hl_cterm), attr, false, true);
         if hl_cterm.size > 0 {
-            put_c(hl, c"cterm".as_ptr(), dict_obj(hl_cterm));
+            put_c(hl, c"cterm", dict_obj(hl_cterm));
         }
         true
     }
@@ -1934,7 +1934,7 @@ fn highlight_list_arg(
                     || ((flag & HL_UNDERLINE_MASK) == 0 && (iarg & flag) != 0)
                 {
                     if buf[0] != NUL {
-                        { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = 100; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c",".as_ptr(), _dsize - _dlen); };
+                        { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = 100; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c",", _dsize - _dlen); };
                     }
                     { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = 100; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), HL_NAME_TABLE[i].as_ptr(), _dsize - _dlen); };
                     if (flag & HL_UNDERLINE_MASK) == 0 {
@@ -1955,7 +1955,7 @@ fn highlight_list_arg(
         if !g_st().got_int {
             if *name.as_ptr() != NUL {
                 msg_puts_hl(name.as_ptr(), HLF_D, false);
-                msg_puts_hl(c"=".as_ptr(), HLF_D, false);
+                msg_puts_hl(c"=", HLF_D, false);
             }
             msg_outtrans(ts, 0, false);
         }
@@ -2114,7 +2114,7 @@ pub fn syn_list_header(
             if endcol == g_st().Columns - 1 && endcol <= name_col {
                 msg_putchar(c_int::from(b' '));
             }
-            msg_puts_hl(c"xxx".as_ptr(), id, false);
+            msg_puts_hl(c"xxx", id, false);
             msg_putchar(c_int::from(b' '));
         }
 
@@ -2212,7 +2212,8 @@ pub fn syn_id2name(id: c_int) -> *mut c_char {
     }
 }
 
-pub fn syn_check_group(name: *const c_char, len: usize) -> c_int {
+pub fn syn_check_group<S: crate::strings::IntoCCharPtr>(name: S, len: usize) -> c_int {
+    let name = name.into_c_char_ptr();
     if len > MAX_SYN_NAME {
             emsg(gettext(e_highlight_group_name_too_long));
             return 0;
@@ -2518,7 +2519,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut expand_T, mut arg: *const c_char) {
         }
 
         g_st().include_default = 0;
-        if crate::memory::cstr_prefix_bytes(c"default".as_ptr(), p as usize - arg as usize) == crate::memory::cstr_prefix_bytes(arg, p as usize - arg as usize) {
+        if crate::memory::cstr_prefix_bytes(c"default", p as usize - arg as usize) == crate::memory::cstr_prefix_bytes(arg, p as usize - arg as usize) {
             arg = skipwhite(p);
             xp.xp_pattern = arg.cast_mut();
             p = skiptowhite(arg);
@@ -2532,7 +2533,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut expand_T, mut arg: *const c_char) {
             highlight_list();
         }
         let len = p as usize - arg as usize;
-        if (crate::memory::cstr_prefix_bytes(c"link".as_ptr(), len) == crate::memory::cstr_prefix_bytes(arg, len)) || (crate::memory::cstr_prefix_bytes(c"clear".as_ptr(), len) == crate::memory::cstr_prefix_bytes(arg, len)) {
+        if (crate::memory::cstr_prefix_bytes(c"link", len) == crate::memory::cstr_prefix_bytes(arg, len)) || (crate::memory::cstr_prefix_bytes(c"clear", len) == crate::memory::cstr_prefix_bytes(arg, len)) {
             xp.xp_pattern = skipwhite(p);
             p = skiptowhite(xp.xp_pattern);
             if *p != NUL {

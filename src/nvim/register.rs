@@ -343,7 +343,7 @@ pub fn get_expr_line_src() -> Option<std::ffi::CString> {
 
 pub fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
     (regname > 0 && regname <= 0x7f && (regname as u8).is_ascii_alphanumeric())
-            || (!writing && !vim_strchr(c"/#.%:=".as_ptr(), regname).is_null())
+            || (!writing && !vim_strchr(c"/#.%:=", regname).is_null())
             || regname == c_int::from(b'"')
             || regname == c_int::from(b'-')
             || regname == c_int::from(b'_')
@@ -619,7 +619,7 @@ pub fn do_record(c: c_int) -> bool {
             if opt_vars().p_ch == 0 || ui_has(kUIMessages) {
                 showmode();
             } else {
-                msg(c"".as_ptr(), 0);
+                msg(c"", 0);
             }
             let old_y_previous = reg_st().y_previous;
             retval = stuff_yank(reg_st().do_record_regname, p);
@@ -2511,7 +2511,7 @@ pub fn ex_display(eap: &mut exarg_T) {
         }
         let hl_id = HLF_8;
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         g_st().msg_ext_skip_flush = true;
         msg_puts_title(gettext(c"\nType Name Content"));
 
@@ -2561,18 +2561,18 @@ pub fn ex_display(eap: &mut exarg_T) {
 
                 if do_show || yb_ref.y_array.is_empty() {
                     msg_putchar(c_int::from(b'\n'));
-                    msg_puts(c"  ".as_ptr());
+                    msg_puts(c"  ");
                     msg_putchar(type_ch);
-                    msg_puts(c"  ".as_ptr());
+                    msg_puts(c"  ");
                     msg_putchar(c_int::from(b'"'));
                     msg_putchar(name);
-                    msg_puts(c"   ".as_ptr());
+                    msg_puts(c"   ");
 
                     let mut n = g_st().Columns - 11;
                     let mut j: usize = 0;
                     while j < yb_ref.y_array.len() && n > 1 {
                         if j != 0 {
-                            msg_puts_hl(c"^J".as_ptr(), hl_id, false);
+                            msg_puts_hl(c"^J", hl_id, false);
                             n -= 2;
                         }
                         let mut p: *const c_char = yb_ref.y_array[j].data;
@@ -2588,7 +2588,7 @@ pub fn ex_display(eap: &mut exarg_T) {
                         j += 1;
                     }
                     if n > 1 && yb_ref.y_type == MotionType::kMTLineWise {
-                        msg_puts_hl(c"^J".as_ptr(), hl_id, false);
+                        msg_puts_hl(c"^J", hl_id, false);
                     }
                 }
                 os_breakcheck();
@@ -2604,7 +2604,7 @@ pub fn ex_display(eap: &mut exarg_T) {
             && !g_st().got_int
             && !message_filtered(p)
         {
-            msg_puts(c"\n  c  \".   ".as_ptr());
+            msg_puts(c"\n  c  \".   ");
             dis_msg(p, true);
         }
 
@@ -2614,7 +2614,7 @@ pub fn ex_display(eap: &mut exarg_T) {
             && !g_st().got_int
             && !message_filtered(last_cmd.as_ptr())
         {
-            msg_puts(c"\n  c  \":   ".as_ptr());
+            msg_puts(c"\n  c  \":   ");
             dis_msg(last_cmd.as_ptr(), false);
         }
 
@@ -2623,7 +2623,7 @@ pub fn ex_display(eap: &mut exarg_T) {
             && !g_st().got_int
             && !message_filtered((*g_st().curbuf).b_fname)
         {
-            msg_puts(c"\n  c  \"%   ".as_ptr());
+            msg_puts(c"\n  c  \"%   ");
             dis_msg((*g_st().curbuf).b_fname, false);
         }
 
@@ -2633,7 +2633,7 @@ pub fn ex_display(eap: &mut exarg_T) {
             if buflist_name_nr(0, &raw mut fname, &mut dummy)
                 && !message_filtered(fname)
             {
-                msg_puts(c"\n  c  \"#   ".as_ptr());
+                msg_puts(c"\n  c  \"#   ");
                 dis_msg(fname, false);
             }
         }
@@ -2643,7 +2643,7 @@ pub fn ex_display(eap: &mut exarg_T) {
             && !g_st().got_int
             && !message_filtered(last_search_pat())
         {
-            msg_puts(c"\n  c  \"/   ".as_ptr());
+            msg_puts(c"\n  c  \"/   ");
             dis_msg(last_search_pat(), false);
         }
 
@@ -2652,7 +2652,7 @@ pub fn ex_display(eap: &mut exarg_T) {
             && !g_st().got_int
             && !message_filtered(el.as_ptr())
         {
-            msg_puts(c"\n  c  \"=   ".as_ptr());
+            msg_puts(c"\n  c  \"=   ");
             dis_msg(el.as_ptr(), false);
         }
         g_st().msg_ext_skip_flush = false;

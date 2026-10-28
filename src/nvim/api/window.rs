@@ -153,8 +153,8 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
         {
             api_err_exp(
                 err,
-                c"pos".as_ptr(),
-                c"[row, col] array".as_ptr(),
+                c"pos",
+                c"[row, col] array",
                 ptr::null(),
             );
             return;
@@ -512,7 +512,7 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
         }
 
         if ns_id < -1 {
-            api_err_invalid(err, c"namespace".as_ptr(), c"".as_ptr(), 0, true);
+            api_err_invalid(err, c"namespace", c"", 0, true);
             return;
         }
 
@@ -727,8 +727,8 @@ pub fn nvim_win_resize(
         if !(height >= 0 || height == -1) {
             api_err_exp(
                 err,
-                c"height".as_ptr(),
-                c"non-negative number or -1".as_ptr(),
+                c"height",
+                c"non-negative number or -1",
                 ptr::null(),
             );
             return;
@@ -736,8 +736,8 @@ pub fn nvim_win_resize(
         if !(width >= 0 || width == -1) {
             api_err_exp(
                 err,
-                c"width".as_ptr(),
-                c"non-negative number or -1".as_ptr(),
+                c"width",
+                c"non-negative number or -1",
                 ptr::null(),
             );
             return;
@@ -763,8 +763,8 @@ pub fn nvim_win_resize(
             if !(is_height || is_width) {
                 api_err_exp(
                     err,
-                    c"anchor".as_ptr(),
-                    c"\"top\", \"bottom\", \"left\" or \"right\"".as_ptr(),
+                    c"anchor",
+                    c"\"top\", \"bottom\", \"left\" or \"right\"",
                     anchor,
                 );
                 return;

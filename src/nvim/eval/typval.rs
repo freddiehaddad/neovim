@@ -1265,7 +1265,12 @@ pub fn tv_list_append_dict(l: *mut list_T, dict: *mut dict_T) {
 }
 
 /// Make a copy of "str" and append it as an item to list "l".
-pub fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: isize) {
+pub fn tv_list_append_string<S: crate::strings::IntoCCharPtr>(
+    l: *mut list_T,
+    str_: S,
+    len: isize,
+) {
+    let str_ = str_.into_c_char_ptr();
     unsafe {
         let v_string = if str_.is_null() {
             ptr::null_mut()
@@ -2896,7 +2901,12 @@ pub fn tv_dict_unref(d: *mut dict_T) {
 }
 
 /// Find item in dictionary.
-pub fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T {
+pub fn tv_dict_find<S: crate::strings::IntoCCharPtr>(
+    d: *const dict_T,
+    key: S,
+    len: isize,
+) -> *mut dictitem_T {
+    let key = key.into_c_char_ptr();
     unsafe {
         if d.is_null() {
             return ptr::null_mut();
@@ -5226,8 +5236,8 @@ mod tests {
             // insert, insert_tv, append_string, append_allocated_string, append_tv, append_owned_tv
             let l2 = tv_list_alloc(0);
             (*l2).lv_refcount = 1;
-            tv_list_append_string(l2, c"hello".as_ptr(), 5);
-            tv_list_append_string(l2, c"world".as_ptr(), -1);
+            tv_list_append_string(l2, c"hello", 5);
+            tv_list_append_string(l2, c"world", -1);
             let mut tv_ins = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
@@ -5329,7 +5339,7 @@ mod tests {
             assert!(!tv_dict_equal(d, d_copy, false));
 
             tv_dict_set_keys_readonly(&mut *d2);
-            let di_extra = tv_dict_find(d2, c"extra".as_ptr(), -1);
+            let di_extra = tv_dict_find(d2, c"extra", -1);
             assert_ne!((*di_extra).di_flags & (DI_FLAGS_RO | DI_FLAGS_FIX), 0);
 
             tv_dict_clear(&mut *d_copy);

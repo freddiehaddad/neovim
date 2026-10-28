@@ -761,7 +761,7 @@ fn nlua_luv_thread_common_cfpcall(
             if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
                 fprintf!(
                     log_get_stderr(),
-                    c"%s\n".as_ptr(),
+                    c"%s\n",
                     (&raw const e_outofmem).cast::<c_char>(),
                 );
                 lua_close(lstate);
@@ -1151,7 +1151,7 @@ fn nlua_init_packages(lstate: *mut lua_State) -> bool {
         lua_getglobal(lstate, c"require");
         lua_pushstring(lstate, c"vim._init_packages".as_ptr());
         if nlua_pcall(lstate, 1, 0) != 0 {
-            fprintf!(log_get_stderr(), c"%s\n".as_ptr(), lua_tostring(lstate, -1));
+            fprintf!(log_get_stderr(), c"%s\n", lua_tostring(lstate, -1));
             return false;
         }
 
@@ -2090,11 +2090,12 @@ pub fn nlua_exec(
     }
 }
 
-pub fn nlua_call_typval(
+pub fn nlua_call_typval<S: crate::strings::IntoCCharPtr>(
     module: &std::ffi::CStr,
-    func: *const c_char,
+    func: S,
     argvars: *mut typval_T,rettv: Option<&mut typval_T>,
 ) {
+    let func = func.into_c_char_ptr();
     unsafe {
         let mut argcount: c_int = 0;
         let mut tv = argvars;
@@ -2847,7 +2848,7 @@ pub fn nlua_init_defaults() {
         lua_getglobal(L, c"require");
         lua_pushstring(L, c"vim._core.defaults".as_ptr());
         if nlua_pcall(L, 1, 0) != 0 {
-            fprintf!(log_get_stderr(), c"%s\n".as_ptr(), lua_tostring(L, -1));
+            fprintf!(log_get_stderr(), c"%s\n", lua_tostring(L, -1));
         }
     }
 }

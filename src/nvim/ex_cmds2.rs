@@ -740,8 +740,8 @@ pub fn ex_compiler(eap: &mut exarg_T) {
         let mut old_cur_comp: Option<std::ffi::CString> = None;
 
         if *eap.arg == NUL {
-            do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.vim')".as_ptr());
-            do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.lua')".as_ptr());
+            do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.vim')");
+            do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.lua')");
             return;
         }
 
@@ -750,13 +750,13 @@ pub fn ex_compiler(eap: &mut exarg_T) {
         let mut buf = vec![0 as c_char; bufsize];
 
         if eap.forceit != 0 {
-            do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>".as_ptr());
+            do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>");
         } else {
             let p = get_var_value(c"g:current_compiler");
             if !p.is_null() {
                 old_cur_comp = Some(crate::memory::cstr_to_cstring(p));
             }
-            do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>".as_ptr());
+            do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>");
         }
         do_unlet(c"g:current_compiler".as_ptr(), 18, true);
         do_unlet(c"b:current_compiler".as_ptr(), 18, true);
@@ -772,7 +772,7 @@ pub fn ex_compiler(eap: &mut exarg_T) {
         }
         drop(buf);
 
-        do_cmdline_cmd(c":delcommand CompilerSet".as_ptr());
+        do_cmdline_cmd(c":delcommand CompilerSet");
 
         let p = get_var_value(c"g:current_compiler");
         if !p.is_null() {

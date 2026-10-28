@@ -133,7 +133,7 @@ pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
     #[cfg(unix)]
     unsafe {
         let mut tz_buf = [0 as c_char; 64];
-        let tz_ptr = os_getenv_buf(c"TZ".as_ptr(), tz_buf.as_mut_ptr(), tz_buf.len());
+        let tz_ptr = os_getenv_buf(c"TZ", tz_buf.as_mut_ptr(), tz_buf.len());
         let tz_bytes = if tz_ptr.is_null() {
             &[][..]
         } else {
@@ -193,7 +193,7 @@ pub fn os_ctime_r(
                 ptr,
             ) == 0
         {
-            xstrlcpy(result, c"(Invalid)".as_ptr(), result_len);
+            xstrlcpy(result, c"(Invalid)", result_len);
         }
     }
 

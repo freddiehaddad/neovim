@@ -874,9 +874,9 @@ pub fn ml_recover(checkext: bool) {
         let len = crate::memory::cstr_len(fname);
         if checkext
             && len >= 4
-            && crate::memory::cstr_prefix_bytes(fname.add(len - 4), 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c".s".as_ptr(), 2))
+            && crate::memory::cstr_prefix_bytes(fname.add(len - 4), 2).eq_ignore_ascii_case(b".s")
             && !vim_strchr(
-                c"abcdefghijklmnopqrstuvw".as_ptr(),
+                c"abcdefghijklmnopqrstuvw",
                 ((*fname.add(len - 2) as u8).to_ascii_lowercase()) as c_int,
             )
             .is_null()
@@ -901,7 +901,7 @@ pub fn ml_recover(checkext: bool) {
                 let mut lua_args = [items_tv, typval_T::new()];
                 nlua_call_typval(
                     c"vim._core.swapfile",
-                    c"select_swap".as_ptr(),
+                    c"select_swap",
                     (&raw mut lua_args).cast(),
                     None,
                 );
@@ -935,7 +935,7 @@ pub fn ml_recover(checkext: bool) {
         (*mfp).mf_page_size = MIN_SWAP_PAGE_SIZE;
 
         let hl_id = HLF_E;
-        msg_ext_set_kind(c"emsg".as_ptr());
+        msg_ext_set_kind(c"emsg");
         hp = mf_get(&mut *mfp, 0, 1);
         if hp.is_null() {
             msg_start();
@@ -1065,7 +1065,7 @@ pub fn ml_recover(checkext: bool) {
             }
         }
 
-        msg_ext_set_kind(c"wmsg".as_ptr());
+        msg_ext_set_kind(c"wmsg");
         g_st().msg_ext_skip_flush = true;
         let mf_fname_ptr = (*mfp)
             .mf_fname
@@ -1422,17 +1422,17 @@ pub fn ml_recover(checkext: bool) {
             emsg(tr(c"E311: Recovery Interrupted"));
         } else if error != 0 {
             g_st().no_wait_return += 1;
-            msg_ext_set_kind(c"emsg".as_ptr());
-            msg(c">>>>>>>>>>>>>\n".as_ptr(), 0);
+            msg_ext_set_kind(c"emsg");
+            msg(c">>>>>>>>>>>>>\n", 0);
             emsg(tr(
                 c"E312: Errors detected while recovering; look for lines starting with ???",
             ));
             g_st().no_wait_return -= 1;
             msg_putchar(b'\n' as c_int);
             msg(tr(c"See \":help E312\" for more information."), 0);
-            msg(c"\n>>>>>>>>>>>>>".as_ptr(), 0);
+            msg(c"\n>>>>>>>>>>>>>", 0);
         } else {
-            msg_ext_set_kind(c"wmsg".as_ptr());
+            msg_ext_set_kind(c"wmsg");
             if (*g_st().curbuf).b_changed != 0 {
                 msg(
                     tr(c"Recovery completed. You should check if everything is OK."),
@@ -1456,7 +1456,7 @@ pub fn ml_recover(checkext: bool) {
                 msg_outnum(char_to_long((&raw const (*b0p).b0_pid).cast()) as c_int);
             }
             if !ui_has(kUIMessages) {
-                msg_puts(c"\n\n".as_ptr());
+                msg_puts(c"\n\n");
             }
             g_st().cmdline_row = g_st().msg_row;
         }
@@ -3700,7 +3700,7 @@ fn findswapname(
                             msg_reset_scroll();
                         } else {
                             let mut need_clear = false;
-                            msg_ext_set_kind(c"wmsg".as_ptr());
+                            msg_ext_set_kind(c"wmsg");
                             let msg_len = msg_sb.len();
                             msg_sb.push(0);
                             msg_multiline(
@@ -3736,7 +3736,7 @@ fn findswapname(
                             g_st().got_int = true;
                         }
                         SEA_CHOICE_NONE => {
-                            msg_puts(c"\n".as_ptr());
+                            msg_puts(c"\n");
                             if g_st().msg_silent == 0 {
                                 g_st().need_wait_return = true;
                             }

@@ -1175,7 +1175,7 @@ fn mc_vsel_mark(
 ) {
     unsafe {
         let mut decor = DECOR_INLINE_INIT;
-        decor.data.hl_mut().hl_id = syn_check_group(c"MCursorVisual".as_ptr(), 13);
+        decor.data.hl_mut().hl_id = syn_check_group(c"MCursorVisual", 13);
         let mut mark: u32 = 0;
         extmark_set(
             &mut *g_st().curbuf,
@@ -1227,7 +1227,7 @@ pub fn mc_vsel_refresh() {
             check_cursor(*curwin.as_ptr());
             g_st().Visual.active = false;
             g_st().Visual.select = false;
-            nvim_feedkeys(span, cstr_as_string(c"nix".as_ptr()), false);
+            nvim_feedkeys(span, cstr_as_string(c"nix"), false);
             if !g_st().Visual.active {
                 continue;
             }
@@ -1376,7 +1376,7 @@ fn mc_lua_enable(enable: bool) {
         ];
         nlua_call_typval(
             c"vim._core.mcursor",
-            c"enable".as_ptr(),
+            c"enable",
             tv_args.as_mut_ptr(),
             None,
         );
@@ -1749,7 +1749,7 @@ pub fn mc_counter(count1: c_long) {
         ];
         nlua_call_typval(
             c"vim._core.mcursor",
-            c"number".as_ptr(),
+            c"number",
             tv_args.as_mut_ptr(),
             None,
         );

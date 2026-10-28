@@ -222,7 +222,7 @@ fn get_mouse_class(p: *const c_char) -> c_int {
             return 2;
         }
 
-        if c != 0 && !vim_strchr(c"-+*/%<>&|^!=".as_ptr(), c).is_null() {
+        if c != 0 && !vim_strchr(c"-+*/%<>&|^!=", c).is_null() {
             return 1;
         }
         c
@@ -1061,9 +1061,9 @@ pub fn do_mouse(
             && bt_quickfix(g_st().curbuf)
         {
             if (**curwin.as_ptr()).w_llist_ref.is_null() {
-                do_cmdline_cmd(c".cc".as_ptr());
+                do_cmdline_cmd(c".cc");
             } else {
-                do_cmdline_cmd(c".ll".as_ptr());
+                do_cmdline_cmd(c".ll");
             }
             mouse_st().got_click = false;
         } else if (*g_st().curbuf).b_help && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {

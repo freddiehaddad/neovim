@@ -384,8 +384,8 @@ pub fn nvim_call_dict_function(
             _ => {
                 api_err_exp(
                     err,
-                    c"dict argument".as_ptr(),
-                    c"String or Dict".as_ptr(),
+                    c"dict argument",
+                    c"String or Dict",
                     std::ptr::null(),
                 );
                 return rv;
@@ -794,7 +794,7 @@ mod tests {
             assert!(empty.data.is_null());
             assert_eq!(empty.size, 0);
 
-            let s = cstr_as_string(c"echo 1".as_ptr());
+            let s = cstr_as_string(c"echo 1");
             assert_eq!(s.size, 6);
     }
 }

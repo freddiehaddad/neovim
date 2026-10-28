@@ -1051,12 +1051,12 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
                 *cmd = NUL;
 
                 if *cmd_start == b'^' as c_char {
-                    crate::memory::cstr_cpy(cmd, c"^".as_ptr());
+                    crate::memory::cstr_cpy(cmd, c"^");
                     cmd_start = cmd_start.add(1);
                     len += 1;
                 }
 
-                crate::memory::cstr_cpy(cmd.add(len as usize), c"\\V".as_ptr());
+                crate::memory::cstr_cpy(cmd.add(len as usize), c"\\V");
                 len += 2;
 
                 let cmd_len = ((cmd_end.offset_from(cmd_start) as c_int) + 1)
@@ -1149,7 +1149,7 @@ pub fn do_tags(_eap: &mut exarg_T) {
             }
         }
         if tagstackidx == tagstacklen {
-            msg_puts(c"\n>".as_ptr());
+            msg_puts(c"\n>");
         }
     }
 }
@@ -1479,7 +1479,7 @@ fn find_tagfunc_tags(
                                     p = p.add(1);
                                     crate::memory::cstr_cpy(p, dict_key);
                                     p = p.add(crate::memory::cstr_len(p));
-                                    crate::memory::cstr_cpy(p, c":".as_ptr());
+                                    crate::memory::cstr_cpy(p, c":");
                                     p = p.add(crate::memory::cstr_len(p));
                                     crate::memory::cstr_cpy(p, (*tv).vval.v_string());
                                     p = p.add(crate::memory::cstr_len(p));
@@ -1565,13 +1565,13 @@ fn findtags_in_help_init(st: &mut findtags_state_T) -> bool {
     unsafe {
         let tag_fname = st.tag_fname.as_ptr();
         if st.is_txt {
-            crate::memory::cstr_cpy(st.help_lang.as_mut_ptr(), c"en".as_ptr());
+            crate::memory::cstr_cpy(st.help_lang.as_mut_ptr(), c"en");
         } else {
             let i = crate::memory::cstr_len(tag_fname) as c_int;
             if i > 3 && *tag_fname.add((i - 3) as usize) == b'-' as c_char {
                 crate::memory::cstr_ncpy(st.help_lang.as_mut_ptr(), tag_fname.add((i - 2) as usize), 2);
             } else {
-                crate::memory::cstr_cpy(st.help_lang.as_mut_ptr(), c"en".as_ptr());
+                crate::memory::cstr_cpy(st.help_lang.as_mut_ptr(), c"en");
             }
         }
 
@@ -1755,7 +1755,7 @@ fn findtags_start_state_handler(
         let noic = (st.flags & TAG_NOIC) != 0;
         let lbuf = st.lbuf.as_ptr();
 
-        if (crate::memory::cstr_prefix_bytes(lbuf, 6) <= crate::memory::cstr_prefix_bytes(c"!_TAG_".as_ptr(), 6))
+        if (crate::memory::cstr_prefix_bytes(lbuf, 6) <= b"!_TAG_")
             || (*lbuf == b'!' as c_char && ascii_islower(*lbuf.add(1)))
         {
             return findtags_hdr_parse(st);
@@ -2476,7 +2476,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
                 }
                 tnp.tn_hf_idx += 1;
                 xstrlcpy(buf, opt_vars().p_hf, MAXPATHL - 4);
-                crate::memory::cstr_cpy(path_tail(buf), c"tags".as_ptr());
+                crate::memory::cstr_cpy(path_tail(buf), c"tags");
                 simplify_filename(buf);
 
                 let buf_bytes = crate::memory::cstr_as_bytes(buf);
@@ -3455,7 +3455,7 @@ fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
         while !li.is_null() {
             if (*li).li_tv.v_type == VarType::VAR_DICT && !(*li).li_tv.vval.v_dict().is_null() {
                 let itemdict = (*li).li_tv.vval.v_dict();
-                let di = tv_dict_find(itemdict, c"from".as_ptr(), -1);
+                let di = tv_dict_find(itemdict, c"from", -1);
                 if !di.is_null() {
                     let mut mark = pos_T {
                         lnum: 0,
@@ -3509,7 +3509,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
 
         let mut l: *mut list_T = ptr::null_mut();
 
-        let di_items = tv_dict_find(d, c"items".as_ptr(), -1);
+        let di_items = tv_dict_find(d, c"items", -1);
         if !di_items.is_null() {
             if (*di_items).di_tv.v_type != VarType::VAR_LIST {
                 emsg(gettext(e_listreq));
@@ -3518,7 +3518,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
             l = (*di_items).di_tv.vval.v_list();
         }
 
-        let di_curidx = tv_dict_find(d, c"curidx".as_ptr(), -1);
+        let di_curidx = tv_dict_find(d, c"curidx", -1);
         if !di_curidx.is_null() {
             tagstack_set_curidx(
                 wp,

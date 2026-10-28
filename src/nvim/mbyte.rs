@@ -2292,7 +2292,7 @@ pub fn show_utf8() {
         let line = get_cursor_pos_ptr();
         let len = utfc_ptr2len(line);
         if len == 0 {
-            msg(c"NUL".as_ptr(), 0);
+            msg(c"NUL", 0);
             return;
         }
 
@@ -2968,11 +2968,11 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
         if s.is_null() || *s == NUL {
             s = setlocale(LC_CTYPE, ptr::null());
             if s.is_null() || *s == NUL {
-                s = os_getenv_buf(c"LC_ALL".as_ptr(), env_buf.as_mut_ptr(), env_buf.len());
+                s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr(), env_buf.len());
                 if s.is_null() {
-                    s = os_getenv_buf(c"LC_CTYPE".as_ptr(), env_buf.as_mut_ptr(), env_buf.len());
+                    s = os_getenv_buf(c"LC_CTYPE", env_buf.as_mut_ptr(), env_buf.len());
                     if s.is_null() {
-                        s = os_getenv_buf(c"LANG".as_ptr(), env_buf.as_mut_ptr(), env_buf.len());
+                        s = os_getenv_buf(c"LANG", env_buf.as_mut_ptr(), env_buf.len());
                     }
                 }
             }
@@ -2986,7 +2986,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
         let p = vim_strchr(s, b'.' as c_int);
         if !p.is_null() {
             if p.cast_const() > s.add(2)
-                && crate::memory::cstr_prefix_bytes(p.add(1), 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"EUC".as_ptr(), 3))
+                && crate::memory::cstr_prefix_bytes(p.add(1), 3).eq_ignore_ascii_case(b"EUC")
                 && !(*p.add(4) as u8).is_ascii_alphanumeric()
                 && *p.add(4) != b'-' as c_char
                 && *p.sub(3) == b'_' as c_char
@@ -3417,7 +3417,7 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
                     if i == 0 {
                         n1 = lili_tv.vval.v_number();
                         if n1 < 0x80 {
-                            emsg(E_ONLY_VALUES_OF_0X80_AND_HIGHER_SUPPORTED.as_ptr());
+                            emsg(E_ONLY_VALUES_OF_0X80_AND_HIGHER_SUPPORTED);
                             return;
                         }
                     } else if i == 1 && lili_tv.vval.v_number() < n1 {

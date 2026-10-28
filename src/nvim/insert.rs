@@ -1174,9 +1174,9 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 }
                 if bt_quickfix(g_st().curbuf) && s.c == CAR {
                     if (**curwin.as_ptr()).w_llist_ref.is_null() {
-                        do_cmdline_cmd(c".cc".as_ptr());
+                        do_cmdline_cmd(c".cc");
                     } else {
-                        do_cmdline_cmd(c".ll".as_ptr());
+                        do_cmdline_cmd(c".ll");
                     }
                 } else if s.c == CAR && bt_cmdwin(g_st().curbuf) {
                     cmdwin_do_action(c"confirm");
@@ -1488,7 +1488,7 @@ fn ins_ctrl_v() {
             edit_putchar(b'^' as c_int, true);
             did_putchar = true;
         }
-        redo_append_str(c"\x16".as_ptr(), 1);
+        redo_append_str(c"\x16", 1);
 
         add_to_showcmd_c(Ctrl_V);
 
@@ -2043,7 +2043,7 @@ pub fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key: c_int
         }
         if g_st().Ins.moved != kInsJump {
             if move_key == NUL as c_int {
-                redo_append_str(c"\x1b".as_ptr(), 1);
+                redo_append_str(c"\x1b", 1);
                 g_st().Ins.moved = kInsJump;
             } else {
                 if !IS_SPECIAL(move_key) {
@@ -2826,7 +2826,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
         }
         if g_st().Ins.moved == kInsNone {
             if cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
-                redo_append_str(c"\x1b".as_ptr(), 1);
+                redo_append_str(c"\x1b", 1);
             }
 
             if *count > 0 {
@@ -2853,7 +2853,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
             stop_insert(&raw mut (**curwin.as_ptr()).w_cursor, 1, c_int::from(nomove));
             undisplay_dollar();
         } else if g_st().Ins.moved == kInsArrow && cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
-            redo_append_str(c"\x1b".as_ptr(), 1);
+            redo_append_str(c"\x1b", 1);
         }
 
         if cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
@@ -3640,7 +3640,7 @@ fn ins_tab() -> bool {
         g_st().Ins.did_si = false;
         g_st().Ins.can_si = false;
         g_st().Ins.can_si_back = false;
-        redo_append_str(c"\t".as_ptr(), 1);
+        redo_append_str(c"\t", 1);
 
         let mut temp: c_int = if opt_vars().p_sta != 0 && ind {
             let sw = get_sw_value(g_st().curbuf);
@@ -3849,7 +3849,7 @@ pub fn ins_eol(c: c_int) -> bool {
             (**curwin.as_ptr()).w_cursor.col += get_cursor_pos_len();
         }
 
-        redo_append_str(c"\n".as_ptr(), 1);
+        redo_append_str(c"\n", 1);
         let i = open_line(
             FORWARD,
             if has_format_option(kFoRetComs) {
@@ -3912,7 +3912,7 @@ fn ins_digraph() -> c_int {
                 edit_unputchar();
             }
             if cc != ESC {
-                redo_append_str(c"\x16".as_ptr(), 1);
+                redo_append_str(c"\x16", 1);
                 c = digraph_get(c, cc, true);
                 clear_showcmd();
                 return c;
@@ -3981,7 +3981,7 @@ fn ins_ctrl_ey(tc: c_int) -> c_int {
             c = ins_copychar((**curwin.as_ptr()).w_cursor.lnum + if c == Ctrl_Y { -1 } else { 1 });
             if c != NUL as c_int {
                 if c < 256 && !(c as u8).is_ascii_alphanumeric() {
-                    redo_append_str(c"\x16".as_ptr(), 1);
+                    redo_append_str(c"\x16", 1);
                 }
                 let tw_save = (*g_st().curbuf).b_p_tw;
                 (*g_st().curbuf).b_p_tw = -1;

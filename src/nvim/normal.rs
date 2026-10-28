@@ -2945,7 +2945,7 @@ pub fn add_to_showcmd(c: c_int) -> bool {
         let p: *mut c_char = if c <= 0x7f || !vim_isprintc(c) {
             let tc = transchar(c);
             if *tc == b' ' as c_char {
-                crate::memory::cstr_cpy(tc, c"<20>".as_ptr());
+                crate::memory::cstr_cpy(tc, c"<20>");
             }
             tc
         } else {
@@ -3683,7 +3683,7 @@ fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> bool {
             g_st().allow_keys -= 1;
             add_to_showcmd(nchar);
 
-            if vim_strchr(c"gGwW".as_ptr(), nchar).is_null() {
+            if vim_strchr(c"gGwW", nchar).is_null() {
                 clearopbeep(&mut *cap.oap);
                 return true;
             }
@@ -3752,7 +3752,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
 
         if cap.nchar != b'f' as c_int
             && cap.nchar != b'F' as c_int
-            && !(g_st().Visual.active && !vim_strchr(c"dcCoO".as_ptr(), cap.nchar).is_null())
+            && !(g_st().Visual.active && !vim_strchr(c"dcCoO", cap.nchar).is_null())
             && cap.nchar != b'j' as c_int
             && cap.nchar != b'k' as c_int
             && checkclearop(&mut *cap.oap)
@@ -3760,7 +3760,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
             return;
         }
 
-        if !vim_strchr(c"+\r\nt.z^-b".as_ptr(), nchar).is_null()
+        if !vim_strchr(c"+\r\nt.z^-b", nchar).is_null()
             && cap.count0 != 0
             && cap.count0 != (**curwin.as_ptr()).w_cursor.lnum
         {
@@ -4117,7 +4117,7 @@ fn nv_Q(cap: &mut cmdarg_T) {
             vim_beep(0);
         } else if !checkclearop(&mut *cap.oap) {
             if g_st().Visual.active {
-                do_cmdline_cmd(c"normal! zqj".as_ptr());
+                do_cmdline_cmd(c"normal! zqj");
                 mc_follow_set(kTrue);
             } else {
                 mc_toggle(
@@ -4259,18 +4259,18 @@ fn nv_Zet(cap: &mut cmdarg_T) {
 
         match cap.nchar {
             c if c == b'Z' as c_int => {
-                do_cmdline_cmd(c"x".as_ptr());
+                do_cmdline_cmd(c"x");
             }
             c if c == b'Q' as c_int => {
-                do_cmdline_cmd(c"q!".as_ptr());
+                do_cmdline_cmd(c"q!");
             }
             c if c == b'R' as c_int => {
                 if cap.count0 >= 1 && cap.count0 <= 8 {
-                    do_cmdline_cmd(c"restart!".as_ptr());
+                    do_cmdline_cmd(c"restart!");
                 } else if cap.count0 == 9 {
-                    do_cmdline_cmd(c"restart! +qall!".as_ptr());
+                    do_cmdline_cmd(c"restart! +qall!");
                 } else {
-                    do_cmdline_cmd(c"restart".as_ptr());
+                    do_cmdline_cmd(c"restart");
                 }
             }
             _ => {
@@ -4303,7 +4303,7 @@ fn nv_K_getcmd(
 ) -> usize {
     unsafe {
         if kp_help {
-            crate::memory::cstr_cpy(buf, c"help! ".as_ptr());
+            crate::memory::cstr_cpy(buf, c"help! ");
             *buflen = 6;
             return n;
         }
@@ -4344,7 +4344,7 @@ fn nv_K_getcmd(
             ) as usize;
         }
 
-        do_cmdline_cmd(c"tabnew".as_ptr());
+        do_cmdline_cmd(c"tabnew");
         *buflen +=
             vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"terminal ") as usize;
         if cap.count0 == 0 && isman_s {
@@ -4441,7 +4441,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
                 (**curwin.as_ptr()).w_cursor.col = ptr.offset_from(get_cursor_line_ptr()) as colnr_T;
 
                 if !g_cmd && vim_iswordp(ptr) {
-                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"\\<".as_ptr());
+                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"\\<");
                     buflen = 2;
                 }
                 g_st().Search.no_smartcase = true;
@@ -4464,19 +4464,19 @@ fn nv_ident(cap: &mut cmdarg_T) {
             }
             c if c == b']' as c_int => {
                 tag_cmd = true;
-                crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"tselect ".as_ptr());
+                crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"tselect ");
                 buflen = 8;
             }
             _ => {
                 tag_cmd = true;
                 if (*g_st().curbuf).b_help {
-                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"help! ".as_ptr());
+                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"help! ");
                     buflen = 6;
                 } else if g_cmd {
-                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"tjump ".as_ptr());
+                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"tjump ");
                     buflen = 6;
                 } else if cap.count0 == 0 {
-                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"tag ".as_ptr());
+                    crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"tag ");
                     buflen = 4;
                 } else {
                     buflen = vim_snprintf!(
@@ -4490,7 +4490,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
         }
 
         if cmdchar == b'K' as c_int && kp_helpbang && !visual_sel {
-            crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"help!".as_ptr());
+            crate::memory::cstr_cpy(buf_vec.as_mut_ptr(), c"help!");
             buflen = 5;
         } else if cmdchar == b'K' as c_int && !kp_help {
             let ptr_cstr = std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), n))
@@ -4555,7 +4555,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
         let buf = buf_vec.as_mut_ptr();
         if cmdchar == b'*' as c_int || cmdchar == b'#' as c_int {
             if !g_cmd && vim_iswordp(mb_prevptr(get_cursor_line_ptr(), ptr)) {
-                crate::memory::cstr_cpy(buf.add(buflen), c"\\>".as_ptr());
+                crate::memory::cstr_cpy(buf.add(buflen), c"\\>");
                 buflen += 2;
             }
 
@@ -5282,7 +5282,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
 
         if cap.nchar == b'f' as c_int {
             nv_gotofile(cap);
-        } else if !vim_strchr(c"iI\t\x04dD".as_ptr(), cap.nchar).is_null() {
+        } else if !vim_strchr(c"iI\t\x04dD", cap.nchar).is_null() {
             let mut ptr: *mut c_char = ptr::null_mut();
             let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, None);
             if len == 0 {
@@ -5324,9 +5324,9 @@ fn nv_brackets(cap: &mut cmdarg_T) {
                 (**curwin.as_ptr()).w_set_curswant = true;
             }
         } else if (cap.cmdchar == b'[' as c_int
-            && !vim_strchr(c"{(*/#mM".as_ptr(), cap.nchar).is_null())
+            && !vim_strchr(c"{(*/#mM", cap.nchar).is_null())
             || (cap.cmdchar == b']' as c_int
-                && !vim_strchr(c"})*/#mM".as_ptr(), cap.nchar).is_null())
+                && !vim_strchr(c"})*/#mM", cap.nchar).is_null())
         {
             nv_bracket_block(cap, &old_pos);
         } else if cap.nchar == b'[' as c_int || cap.nchar == b']' as c_int {
@@ -5455,7 +5455,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
                 };
                 nlua_call_typval(
                     c"vim._core.mcursor",
-                    c"jump".as_ptr(),
+                    c"jump",
                     tv_args.as_mut_ptr(),
                     Some(&mut rettv),
                 );
@@ -6322,7 +6322,7 @@ fn nv_suspend(cap: &mut cmdarg_T) {
         if g_st().Visual.active {
             end_visual_mode();
         }
-        do_cmdline_cmd(c"stop".as_ptr());
+        do_cmdline_cmd(c"stop");
     }
 }
 
@@ -6564,7 +6564,7 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
                 nv_vreplace(cap);
             }
             c if c == b'&' as c_int => {
-                do_cmdline_cmd(c"%s//~/&".as_ptr());
+                do_cmdline_cmd(c"%s//~/&");
             }
             c if c == b'v' as c_int => {
                 nv_gv_cmd(cap);
@@ -6583,7 +6583,7 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
                     }];
                     nlua_call_typval(
                         c"vim._core.mcursor",
-                        c"restore".as_ptr(),
+                        c"restore",
                         tv_args.as_mut_ptr(),
                         None,
                     );
@@ -7414,7 +7414,7 @@ fn nv_q(cap: &mut cmdarg_T) {
                 return;
             }
             if cap.nchar == b':' as c_int && cap.count0 > 0 {
-                do_cmdline_cmd(c"exmode".as_ptr());
+                do_cmdline_cmd(c"exmode");
                 return;
             }
             let insert_range = g_st().Visual.active && cap.nchar == b':' as c_int;
@@ -7447,7 +7447,7 @@ fn nv_q(cap: &mut cmdarg_T) {
             ];
             nlua_call_typval(
                 c"vim._core.cmdwin",
-                c"open".as_ptr(),
+                c"open",
                 tv_args.as_mut_ptr(),
                 None,
             );

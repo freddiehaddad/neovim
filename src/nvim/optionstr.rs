@@ -1179,7 +1179,7 @@ fn check_stl_str_adv_scope(
                     return err;
                 }
             }
-            if vim_strchr(STL_ALL.as_ptr(), **s as u8 as c_int).is_null() {
+            if vim_strchr(STL_ALL, **s as u8 as c_int).is_null() {
                 return illegal_char(errbuf, **s as u8 as c_int);
             }
             if **s == b'{' as c_char {
@@ -1846,7 +1846,7 @@ pub fn validate_comments(args: &mut optset_T) -> *const c_char {
         let mut s = args.os_newval.data.string().data;
         while *s != NUL {
             while *s != NUL && *s != b':' as c_char {
-                if vim_strchr(COM_ALL.as_ptr(), *s as u8 as c_int).is_null()
+                if vim_strchr(COM_ALL, *s as u8 as c_int).is_null()
                     && !ascii_isdigit(*s as c_int)
                     && *s != b'-' as c_char
                 {
@@ -1914,11 +1914,11 @@ pub fn validate_complete(args: &mut optset_T) -> *const c_char {
             }
             buffer[buf_idx] = NUL;
 
-            if vim_strchr(c".wbuksid]tUfFo".as_ptr(), buffer[0] as u8 as c_int).is_null() {
+            if vim_strchr(c".wbuksid]tUfFo", buffer[0] as u8 as c_int).is_null() {
                 return illegal_char(args.os_errbuf, buffer[0] as u8 as c_int);
             }
 
-            if vim_strchr(c"ksF".as_ptr(), buffer[0] as u8 as c_int).is_null()
+            if vim_strchr(c"ksF", buffer[0] as u8 as c_int).is_null()
                 && buffer[1] != NUL
                 && buffer[1] != b'^' as c_char
             {
@@ -2703,7 +2703,7 @@ pub fn validate_shada(args: &mut optset_T) -> *const c_char {
             if *s == b'\'' as c_char && marks.is_null() {
                 marks = s.add(1);
             }
-            if vim_strchr(c"!\"%'/:<@cfhnrs".as_ptr(), *s as u8 as c_int).is_null() {
+            if vim_strchr(c"!\"%'/:<@cfhnrs", *s as u8 as c_int).is_null() {
                 return illegal_char(errbuf, *s as u8 as c_int);
             }
             if *s == b'n' as c_char {

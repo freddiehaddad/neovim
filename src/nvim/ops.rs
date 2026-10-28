@@ -3957,7 +3957,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                 OP_FILTER | OP_INDENT | OP_COLON => {
                     if oap.op_type == OP_FILTER {
                         if !vim_strchr(opt_vars().p_cpo, kCpoFilter).is_null() {
-                            redo_append_str(c"!\r".as_ptr(), 2);
+                            redo_append_str(c"!\r", 2);
                         } else {
                             g_st().bangredo = true;
                         }

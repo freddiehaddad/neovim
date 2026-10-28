@@ -2784,13 +2784,13 @@ fn syn_cmd_conceal(eap: &mut exarg_T, _syncing: c_int) {
         let next = skiptowhite(arg);
         if *arg == NUL {
             if (*win_s(&mut **curwin.as_ptr())).b_syn_conceal != 0 {
-                msg(c"syntax conceal on".as_ptr(), 0);
+                msg(c"syntax conceal on", 0);
             } else {
-                msg(c"syntax conceal off".as_ptr(), 0);
+                msg(c"syntax conceal off", 0);
             }
-        } else if crate::memory::cstr_prefix_bytes(arg, 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"on".as_ptr(), 2)) && next.offset_from(arg) == 2 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 2).eq_ignore_ascii_case(b"on") && next.offset_from(arg) == 2 {
             (*win_s(&mut **curwin.as_ptr())).b_syn_conceal = 1;
-        } else if crate::memory::cstr_prefix_bytes(arg, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"off".as_ptr(), 3)) && next.offset_from(arg) == 3 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 3).eq_ignore_ascii_case(b"off") && next.offset_from(arg) == 3 {
             (*win_s(&mut **curwin.as_ptr())).b_syn_conceal = 0;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2809,13 +2809,13 @@ fn syn_cmd_case(eap: &mut exarg_T, _syncing: c_int) {
         let next = skiptowhite(arg);
         if *arg == NUL {
             if (*win_s(&mut **curwin.as_ptr())).b_syn_ic != 0 {
-                msg(c"syntax case ignore".as_ptr(), 0);
+                msg(c"syntax case ignore", 0);
             } else {
-                msg(c"syntax case match".as_ptr(), 0);
+                msg(c"syntax case match", 0);
             }
-        } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"match".as_ptr(), 5)) && next.offset_from(arg) == 5 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"match") && next.offset_from(arg) == 5 {
             (*win_s(&mut **curwin.as_ptr())).b_syn_ic = 0;
-        } else if crate::memory::cstr_prefix_bytes(arg, 6).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"ignore".as_ptr(), 6)) && next.offset_from(arg) == 6 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 6).eq_ignore_ascii_case(b"ignore") && next.offset_from(arg) == 6 {
             (*win_s(&mut **curwin.as_ptr())).b_syn_ic = 1;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2834,10 +2834,10 @@ fn syn_cmd_foldlevel(eap: &mut exarg_T, _syncing: c_int) {
         if *arg == NUL {
             match (*win_s(&mut **curwin.as_ptr())).b_syn_foldlevel {
                 SYNFLD_START => {
-                    msg(c"syntax foldlevel start".as_ptr(), 0);
+                    msg(c"syntax foldlevel start", 0);
                 }
                 SYNFLD_MINIMUM => {
-                    msg(c"syntax foldlevel minimum".as_ptr(), 0);
+                    msg(c"syntax foldlevel minimum", 0);
                 }
                 _ => {}
             }
@@ -2845,9 +2845,9 @@ fn syn_cmd_foldlevel(eap: &mut exarg_T, _syncing: c_int) {
         }
 
         let arg_end = skiptowhite(arg);
-        if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"start".as_ptr(), 5)) && arg_end.offset_from(arg) == 5 {
+        if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"start") && arg_end.offset_from(arg) == 5 {
             (*win_s(&mut **curwin.as_ptr())).b_syn_foldlevel = SYNFLD_START;
-        } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"minimum".as_ptr(), 7)) && arg_end.offset_from(arg) == 7 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(b"minimum") && arg_end.offset_from(arg) == 7 {
             (*win_s(&mut **curwin.as_ptr())).b_syn_foldlevel = SYNFLD_MINIMUM;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2872,18 +2872,18 @@ fn syn_cmd_spell(eap: &mut exarg_T, _syncing: c_int) {
         let next = skiptowhite(arg);
         if *arg == NUL {
             if (*win_s(&mut **curwin.as_ptr())).b_syn_spell == SYNSPL_TOP {
-                msg(c"syntax spell toplevel".as_ptr(), 0);
+                msg(c"syntax spell toplevel", 0);
             } else if (*win_s(&mut **curwin.as_ptr())).b_syn_spell == SYNSPL_NOTOP {
-                msg(c"syntax spell notoplevel".as_ptr(), 0);
+                msg(c"syntax spell notoplevel", 0);
             } else {
-                msg(c"syntax spell default".as_ptr(), 0);
+                msg(c"syntax spell default", 0);
             }
-        } else if crate::memory::cstr_prefix_bytes(arg, 8).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"toplevel".as_ptr(), 8)) && next.offset_from(arg) == 8 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 8).eq_ignore_ascii_case(b"toplevel") && next.offset_from(arg) == 8 {
             (*win_s(&mut **curwin.as_ptr())).b_syn_spell = SYNSPL_TOP;
-        } else if crate::memory::cstr_prefix_bytes(arg, 10).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"notoplevel".as_ptr(), 10)) && next.offset_from(arg) == 10
+        } else if crate::memory::cstr_prefix_bytes(arg, 10).eq_ignore_ascii_case(b"notoplevel") && next.offset_from(arg) == 10
         {
             (*win_s(&mut **curwin.as_ptr())).b_syn_spell = SYNSPL_NOTOP;
-        } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"default".as_ptr(), 7)) && next.offset_from(arg) == 7 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(b"default") && next.offset_from(arg) == 7 {
             (*win_s(&mut **curwin.as_ptr())).b_syn_spell = SYNSPL_DEFAULT;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2903,14 +2903,14 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
 
         arg = skipwhite(arg);
         if *arg == NUL {
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
             if let Some(ref isk) = (*win_s(&mut **curwin.as_ptr())).b_syn_isk {
-                msg_puts(c"syntax iskeyword ".as_ptr());
+                msg_puts(c"syntax iskeyword ");
                 msg_outtrans(isk.as_ptr(), 0, false);
             } else {
                 msg_outtrans(gettext(c"syntax iskeyword not set"), 0, false);
             }
-        } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"clear".as_ptr(), 5)) {
+        } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"clear") {
             (*win_s(&mut **curwin.as_ptr())).b_syn_chartab = (*g_st().curbuf).b_chartab;
             (*win_s(&mut **curwin.as_ptr())).b_syn_isk = None;
         } else {
@@ -3127,7 +3127,7 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
             return;
         }
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         if !syntax_present(*curwin.as_ptr()) {
             msg(gettext(msg_no_items), 0);
             return;
@@ -3208,7 +3208,7 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
 fn syn_lines_msg() {
     unsafe {
         if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines > 0 || (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines > 0 {
-            msg_puts(c"; ".as_ptr());
+            msg_puts(c"; ");
             if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines == MAXLNUM {
                 msg_puts(gettext(c"from the first line"));
             } else {
@@ -3216,7 +3216,7 @@ fn syn_lines_msg() {
                     msg_puts(gettext(c"minimal "));
                     msg_outnum((*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines as c_int);
                     if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines != 0 {
-                        msg_puts(c", ".as_ptr());
+                        msg_puts(c", ");
                     }
                 }
                 if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines > 0 {
@@ -3330,9 +3330,9 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
             }
             if ((*spp).sp_flags & (HL_SYNC_HERE | HL_SYNC_THERE)) != 0 {
                 if ((*spp).sp_flags & HL_SYNC_HERE) != 0 {
-                    msg_puts_hl(c"grouphere".as_ptr(), hl_id, false);
+                    msg_puts_hl(c"grouphere", hl_id, false);
                 } else {
-                    msg_puts_hl(c"groupthere".as_ptr(), hl_id, false);
+                    msg_puts_hl(c"groupthere", hl_id, false);
                 }
                 msg_putchar(b' ' as c_int);
                 if (*spp).sp_sync_idx >= 0 {
@@ -3341,7 +3341,7 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
                         .id as c_int;
                     msg_outtrans(highlight_group_name(sync_id - 1), 0, false);
                 } else {
-                    msg_puts(c"NONE".as_ptr());
+                    msg_puts(c"NONE");
                 }
                 msg_putchar(b' ' as c_int);
             }
@@ -3350,7 +3350,7 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
 
         if highlight_link_id(id - 1) != 0 && (did_header || link_only) && !g_st().got_int {
             syn_list_header(did_header, 0, id, true);
-            msg_puts_hl(c"links to".as_ptr(), hl_id, false);
+            msg_puts_hl(c"links to", hl_id, false);
             msg_putchar(b' ' as c_int);
             msg_outtrans(
                 highlight_group_name(highlight_link_id(id - 1) - 1),
@@ -3389,8 +3389,8 @@ fn syn_list_cluster(id: c_int) {
         if let Some(ref list) = (*clp).scl_list {
             put_id_list(c"cluster", list.as_ptr(), HLF_D);
         } else {
-            msg_puts_hl(c"cluster".as_ptr(), HLF_D, false);
-            msg_puts(c"=NONE".as_ptr());
+            msg_puts_hl(c"cluster", HLF_D, false);
+            msg_puts(c"=NONE");
         }
     }
 }
@@ -3403,14 +3403,14 @@ fn put_id_list(name: &std::ffi::CStr, list: *const i16, hl_id: c_int) {
         while *p != 0 {
             if *p >= SYNID_ALLBUT && *p < SYNID_TOP {
                 if *p.add(1) != 0 {
-                    msg_puts(c"ALLBUT".as_ptr());
+                    msg_puts(c"ALLBUT");
                 } else {
-                    msg_puts(c"ALL".as_ptr());
+                    msg_puts(c"ALL");
                 }
             } else if *p >= SYNID_TOP && *p < SYNID_CONTAINED {
-                msg_puts(c"TOP".as_ptr());
+                msg_puts(c"TOP");
             } else if *p >= SYNID_CONTAINED && *p < SYNID_CLUSTER {
-                msg_puts(c"CONTAINED".as_ptr());
+                msg_puts(c"CONTAINED");
             } else if *p >= SYNID_CLUSTER {
                 let scl_id = (*p - SYNID_CLUSTER) as isize;
                 msg_putchar(b'@' as c_int);
@@ -3436,7 +3436,7 @@ fn put_pattern(s: &std::ffi::CStr, c: c_int, spp: &synpat_T, hl_id: c_int) {
 
         if syn_st().last_matchgroup != spp.sp_syn_match_id as c_int {
             syn_st().last_matchgroup = spp.sp_syn_match_id as c_int;
-            msg_puts_hl(c"matchgroup".as_ptr(), hl_id, false);
+            msg_puts_hl(c"matchgroup", hl_id, false);
             msg_putchar(b'=' as c_int);
             if syn_st().last_matchgroup == 0 {
                 msg_outtrans(c"NONE".as_ptr(), 0, false);
@@ -3540,7 +3540,7 @@ fn syn_list_keywords(
                     }
                     did_header = true;
                     if prev_contained != (kp.flags & HL_CONTAINED) {
-                        msg_puts_hl(c"contained".as_ptr(), hl_id, false);
+                        msg_puts_hl(c"contained", hl_id, false);
                         msg_putchar(b' ' as c_int);
                         prev_contained = kp.flags & HL_CONTAINED;
                     }
@@ -3558,17 +3558,17 @@ fn syn_list_keywords(
                         }
                         prev_next_list = kp.next_list.clone();
                         if (kp.flags & HL_SKIPNL) != 0 {
-                            msg_puts_hl(c"skipnl".as_ptr(), hl_id, false);
+                            msg_puts_hl(c"skipnl", hl_id, false);
                             msg_putchar(b' ' as c_int);
                             prev_skipnl = kp.flags & HL_SKIPNL;
                         }
                         if (kp.flags & HL_SKIPWHITE) != 0 {
-                            msg_puts_hl(c"skipwhite".as_ptr(), hl_id, false);
+                            msg_puts_hl(c"skipwhite", hl_id, false);
                             msg_putchar(b' ' as c_int);
                             prev_skipwhite = kp.flags & HL_SKIPWHITE;
                         }
                         if (kp.flags & HL_SKIPEMPTY) != 0 {
-                            msg_puts_hl(c"skipempty".as_ptr(), hl_id, false);
+                            msg_puts_hl(c"skipempty", hl_id, false);
                             msg_putchar(b' ' as c_int);
                             prev_skipempty = kp.flags & HL_SKIPEMPTY;
                         }
@@ -4424,15 +4424,15 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
             scl_id -= SYNID_CLUSTER as c_int;
 
             loop {
-                let (opt_len, list_op) = if crate::memory::cstr_prefix_bytes(rest, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"add".as_ptr(), 3))
+                let (opt_len, list_op) = if crate::memory::cstr_prefix_bytes(rest, 3).eq_ignore_ascii_case(b"add")
                     && (ascii_iswhite(*rest.add(3)) || *rest.add(3) == b'=' as c_char)
                 {
                     (3, CLUSTER_ADD)
-                } else if crate::memory::cstr_prefix_bytes(rest, 6).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"remove".as_ptr(), 6))
+                } else if crate::memory::cstr_prefix_bytes(rest, 6).eq_ignore_ascii_case(b"remove")
                     && (ascii_iswhite(*rest.add(6)) || *rest.add(6) == b'=' as c_char)
                 {
                     (6, CLUSTER_SUBTRACT)
-                } else if crate::memory::cstr_prefix_bytes(rest, 8).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"contains".as_ptr(), 8))
+                } else if crate::memory::cstr_prefix_bytes(rest, 8).eq_ignore_ascii_case(b"contains")
                     && (ascii_iswhite(*rest.add(8)) || *rest.add(8) == b'=' as c_char)
                 {
                     (8, CLUSTER_REPLACE)
@@ -4770,7 +4770,7 @@ fn get_id_list(
                     id = syn_check_group(name.add(1), end.offset_from(p) as usize);
                 } else {
                     *name = b'^' as c_char;
-                    crate::memory::cstr_cat(name.add(1), c"$".as_ptr());
+                    crate::memory::cstr_cat(name.add(1), c"$");
                     regmatch.regprog = vim_regcomp(name, RE_MAGIC);
                     if regmatch.regprog.is_null() {
                         failed = true;
@@ -5180,22 +5180,22 @@ pub fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: *const c_char) {
             xp.xp_context = EXPAND_NOTHING;
         } else {
             let n = p.offset_from(arg) as usize;
-            if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"case".as_ptr(), n)) {
+            if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"case", n)) {
                 syn_st().expand_what = EXP_CASE;
-            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"spell".as_ptr(), n)) {
+            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"spell", n)) {
                 syn_st().expand_what = EXP_SPELL;
-            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"sync".as_ptr(), n)) {
+            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"sync", n)) {
                 syn_st().expand_what = EXP_SYNC;
-            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"list".as_ptr(), n)) {
+            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"list", n)) {
                 let p2 = skipwhite(p);
                 if *p2 == b'@' as c_char {
                     syn_st().expand_what = EXP_CLUSTER;
                 } else {
                     xp.xp_context = EXPAND_HIGHLIGHT;
                 }
-            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"keyword".as_ptr(), n))
-                || crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"region".as_ptr(), n))
-                || crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"match".as_ptr(), n))
+            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"keyword", n))
+                || crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"region", n))
+                || crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"match", n))
             {
                 xp.xp_context = EXPAND_HIGHLIGHT;
             } else {
@@ -5464,29 +5464,29 @@ fn syntime_report() {
         msg_puts_title(gettext(
             c"  TOTAL      COUNT  MATCH   SLOWEST     AVERAGE   NAME               PATTERN",
         ));
-        msg_puts(c"\n".as_ptr());
+        msg_puts(c"\n");
         for p in &ga {
             if g_st().got_int {
                 break;
             }
 
             msg_puts(profile_msg(p.total));
-            msg_puts(c" ".as_ptr());
+            msg_puts(c" ");
             msg_advance(13);
             msg_outnum(p.count);
-            msg_puts(c" ".as_ptr());
+            msg_puts(c" ");
             msg_advance(20);
             msg_outnum(p.match_);
-            msg_puts(c" ".as_ptr());
+            msg_puts(c" ");
             msg_advance(26);
             msg_puts(profile_msg(p.slowest));
-            msg_puts(c" ".as_ptr());
+            msg_puts(c" ");
             msg_advance(38);
             msg_puts(profile_msg(p.average));
-            msg_puts(c" ".as_ptr());
+            msg_puts(c" ");
             msg_advance(50);
             msg_outtrans(highlight_group_name(p.id - 1), 0, false);
-            msg_puts(c" ".as_ptr());
+            msg_puts(c" ");
 
             msg_advance(69);
             let mut len = if g_st().Columns < 80 { 20 } else { g_st().Columns - 70 };
@@ -5496,14 +5496,14 @@ fn syntime_report() {
                 len = patlen;
             }
             msg_outtrans_len(pat_ptr, len, 0, false);
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
         }
         if !g_st().got_int {
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
             msg_puts(profile_msg(total_total));
             msg_advance(13);
             msg_outnum(total_count);
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
         }
     }
 }

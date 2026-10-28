@@ -353,15 +353,15 @@ pub fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) -> *con
                 }
 
                 let attr_len = p.offset_from(arg) as usize;
-                if crate::memory::cstr_prefix_bytes(arg, attr_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"complete".as_ptr(), attr_len)) {
+                if crate::memory::cstr_prefix_bytes(arg, attr_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"complete", attr_len)) {
                     xp.xp_context = EXPAND_USER_COMPLETE;
                     xp.xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
-                } else if crate::memory::cstr_prefix_bytes(arg, attr_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nargs".as_ptr(), attr_len)) {
+                } else if crate::memory::cstr_prefix_bytes(arg, attr_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nargs", attr_len)) {
                     xp.xp_context = EXPAND_USER_NARGS;
                     xp.xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
-                } else if crate::memory::cstr_prefix_bytes(arg, attr_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"addr".as_ptr(), attr_len)) {
+                } else if crate::memory::cstr_prefix_bytes(arg, attr_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"addr", attr_len)) {
                     xp.xp_context = EXPAND_USER_ADDR_TYPE;
                     xp.xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
@@ -595,7 +595,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
     unsafe {
         let mut found = false;
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         let mut is_global = false;
         let mut gap: &[ucmd_T] = &(*(*prevwin_curwin()).w_buffer).b_ucmds;
         loop {
@@ -785,7 +785,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
                     let fn_str = nlua_funcref_str(cmd.uc_luaref, true);
                     msg_puts_hl(fn_str.as_ptr(), HLF_8, false);
                     if !cmd.uc_rep.as_bytes().is_empty() {
-                        msg_puts(c"\n                                               ".as_ptr());
+                        msg_puts(c"\n                                               ");
                     }
                 }
 
@@ -939,15 +939,15 @@ fn uc_scan_attr(
             return false;
         }
 
-        if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bang".as_ptr(), len)) {
+        if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bang", len)) {
             *argt |= EX_BANG;
-        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"buffer".as_ptr(), len)) {
+        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"buffer", len)) {
             *flags |= UC_BUFFER;
-        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"register".as_ptr(), len)) {
+        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"register", len)) {
             *argt |= EX_REGSTR;
-        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"keepscript".as_ptr(), len)) {
+        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"keepscript", len)) {
             *argt |= EX_KEEPSCRIPT;
-        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bar".as_ptr(), len)) {
+        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bar", len)) {
             *argt |= EX_TRLBAR;
         } else {
             let mut val: *mut c_char = ptr::null_mut();
@@ -963,7 +963,7 @@ fn uc_scan_attr(
                 }
             }
 
-            if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nargs".as_ptr(), attrlen)) {
+            if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nargs", attrlen)) {
                 if vallen == 1 {
                     match *val as u8 {
                         b'0' => {}
@@ -981,7 +981,7 @@ fn uc_scan_attr(
                     emsg(gettext(c"E176: Invalid number of arguments"));
                     return false;
                 }
-            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"range".as_ptr(), attrlen)) {
+            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"range", attrlen)) {
                 *argt |= EX_RANGE;
                 if vallen == 1 && *val == b'%' as c_char {
                     *argt |= EX_DFLALL;
@@ -1003,7 +1003,7 @@ fn uc_scan_attr(
                 if *addr_type_arg == ADDR_NONE {
                     *addr_type_arg = ADDR_LINES;
                 }
-            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"count".as_ptr(), attrlen)) {
+            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"count", attrlen)) {
                 *argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                 if *addr_type_arg == ADDR_NONE {
                     *addr_type_arg = ADDR_OTHER;
@@ -1027,7 +1027,7 @@ fn uc_scan_attr(
                 if *def < 0 {
                     *def = 0;
                 }
-            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"complete".as_ptr(), attrlen)) {
+            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"complete", attrlen)) {
                 if val.is_null() {
                     semsg!(
                         gettext(E_ARGUMENT_REQUIRED_FOR_STR),
@@ -1039,7 +1039,7 @@ fn uc_scan_attr(
                 if !parse_compl_arg(val, vallen as c_int, complp, argt, compl_arg) {
                     return false;
                 }
-            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"addr".as_ptr(), attrlen)) {
+            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"addr", attrlen)) {
                 *argt |= EX_RANGE;
                 if val.is_null() {
                     semsg!(
@@ -1240,7 +1240,7 @@ pub fn ex_command(eap: &mut exarg_T) {
             emsg(gettext(
                 c"E183: User defined commands must start with an uppercase letter",
             ));
-        } else if name_len <= 4 && (crate::memory::cstr_prefix_bytes(name, name_len) == crate::memory::cstr_prefix_bytes(c"Next".as_ptr(), name_len)) {
+        } else if name_len <= 4 && (crate::memory::cstr_prefix_bytes(name, name_len) == crate::memory::cstr_prefix_bytes(c"Next", name_len)) {
             emsg(gettext(
                 c"E841: Reserved name, cannot be used for user defined command",
             ));
@@ -1526,7 +1526,7 @@ fn add_cmd_modifier(
 
         if !buf.is_null() {
             if *multi_mods {
-                crate::memory::cstr_cat(buf, c" ".as_ptr());
+                crate::memory::cstr_cat(buf, c" ");
             }
             crate::memory::cstr_cat(buf, mod_str);
         }
@@ -1671,7 +1671,7 @@ fn uc_check_code(
         let mut quote: c_int = 0;
         let mut type_ = CodeType::None;
 
-        if !vim_strchr(c"qQfF".as_ptr(), c_int::from(*p as u8)).is_null()
+        if !vim_strchr(c"qQfF", c_int::from(*p as u8)).is_null()
             && *p.add(1) == b'-' as c_char
         {
             quote = if *p == b'q' as c_char || *p == b'Q' as c_char {
@@ -1686,25 +1686,25 @@ fn uc_check_code(
         l += 1;
         if l <= 1 {
             // type_ = CodeType::None
-        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"args>".as_ptr(), l)) {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"args>", l)) {
             type_ = CodeType::Args;
-        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bang>".as_ptr(), l)) {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bang>", l)) {
             type_ = CodeType::Bang;
-        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"count>".as_ptr(), l)) {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"count>", l)) {
             type_ = CodeType::Count;
-        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"line1>".as_ptr(), l)) {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"line1>", l)) {
             type_ = CodeType::Line1;
-        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"line2>".as_ptr(), l)) {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"line2>", l)) {
             type_ = CodeType::Line2;
-        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"range>".as_ptr(), l)) {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"range>", l)) {
             type_ = CodeType::Range;
-        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"lt>".as_ptr(), l)) {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"lt>", l)) {
             type_ = CodeType::Lt;
-        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"reg>".as_ptr(), l))
-            || crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"register>".as_ptr(), l))
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"reg>", l))
+            || crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"register>", l))
         {
             type_ = CodeType::Register;
-        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"mods>".as_ptr(), l)) {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"mods>", l)) {
             type_ = CodeType::Mods;
         }
 
@@ -1714,7 +1714,7 @@ fn uc_check_code(
                     if quote == 1 {
                         result = 2;
                         if !buf.is_null() {
-                            crate::memory::cstr_cpy(buf, c"''".as_ptr());
+                            crate::memory::cstr_cpy(buf, c"''");
                         }
                     } else {
                         result = 0;
@@ -2010,47 +2010,47 @@ pub fn commands_array(buf: *mut buf_T, arena: &mut Arena) -> Dict {
             let mut arg_ch: u8 = 0;
             let mut d = arena_dict(arena, 16);
 
-            put_c(&mut d, c"name".as_ptr(), cstr_as_obj(cmd.uc_name.as_ptr()));
+            put_c(&mut d, c"name", cstr_as_obj(cmd.uc_name.as_ptr()));
             put_c(
                 &mut d,
-                c"definition".as_ptr(),
+                c"definition",
                 cstr_as_obj(cmd.uc_rep.as_ptr()),
             );
             put_c(
                 &mut d,
-                c"desc".as_ptr(),
+                c"desc",
                 cstr_as_obj(cmd.uc_desc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
             );
             put_c(
                 &mut d,
-                c"script_id".as_ptr(),
+                c"script_id",
                 integer_obj(i64::from(cmd.uc_script_ctx.sc_sid)),
             );
             put_c(
                 &mut d,
-                c"bang".as_ptr(),
+                c"bang",
                 boolean_obj((cmd.uc_argt & EX_BANG) != 0),
             );
             put_c(
                 &mut d,
-                c"bar".as_ptr(),
+                c"bar",
                 boolean_obj((cmd.uc_argt & EX_TRLBAR) != 0),
             );
             put_c(
                 &mut d,
-                c"register".as_ptr(),
+                c"register",
                 boolean_obj((cmd.uc_argt & EX_REGSTR) != 0),
             );
             put_c(
                 &mut d,
-                c"keepscript".as_ptr(),
+                c"keepscript",
                 boolean_obj((cmd.uc_argt & EX_KEEPSCRIPT) != 0),
             );
 
             if cmd.uc_preview_luaref != LUA_NOREF {
                 put_c(
                     &mut d,
-                    c"preview".as_ptr(),
+                    c"preview",
                     luaref_obj(api_new_luaref(cmd.uc_preview_luaref)),
                 );
             }
@@ -2058,7 +2058,7 @@ pub fn commands_array(buf: *mut buf_T, arena: &mut Arena) -> Dict {
             if cmd.uc_luaref != LUA_NOREF {
                 put_c(
                     &mut d,
-                    c"callback".as_ptr(),
+                    c"callback",
                     luaref_obj(api_new_luaref(cmd.uc_luaref)),
                 );
             }
@@ -2077,19 +2077,19 @@ pub fn commands_array(buf: *mut buf_T, arena: &mut Arena) -> Dict {
             } else {
                 std::slice::from_ref(&arg_ch)
             };
-            put_c(&mut d, c"nargs".as_ptr(), arena_str_obj(arena, arg_slice));
+            put_c(&mut d, c"nargs", arena_str_obj(arena, arg_slice));
 
             if cmd.uc_compl_luaref != LUA_NOREF {
                 put_c(
                     &mut d,
-                    c"complete".as_ptr(),
+                    c"complete",
                     luaref_obj(api_new_luaref(cmd.uc_compl_luaref)),
                 );
             } else {
                 let cmd_compl = get_command_complete(cmd.uc_compl);
                 put_c(
                     &mut d,
-                    c"complete".as_ptr(),
+                    c"complete",
                     if cmd_compl.is_null() {
                         nil_obj()
                     } else {
@@ -2099,7 +2099,7 @@ pub fn commands_array(buf: *mut buf_T, arena: &mut Arena) -> Dict {
             }
             put_c(
                 &mut d,
-                c"complete_arg".as_ptr(),
+                c"complete_arg",
                 match &cmd.uc_compl_arg {
                     Some(arg) => cstr_as_obj(arg.as_ptr()),
                     None => nil_obj(),
@@ -2112,23 +2112,23 @@ pub fn commands_array(buf: *mut buf_T, arena: &mut Arena) -> Dict {
                     let s = format!("{}", cmd.uc_def);
                     obj = arena_str_obj(arena, s.as_bytes());
                 } else {
-                    obj = cstr_as_obj(c"0".as_ptr());
+                    obj = cstr_as_obj(c"0");
                 }
             }
-            put_c(&mut d, c"count".as_ptr(), obj);
+            put_c(&mut d, c"count", obj);
 
             obj = nil_obj();
             if (cmd.uc_argt & EX_RANGE) != 0 {
                 if (cmd.uc_argt & EX_DFLALL) != 0 {
-                    obj = cstr_as_obj(c"%".as_ptr());
+                    obj = cstr_as_obj(c"%");
                 } else if cmd.uc_def >= 0 {
                     let s = format!("{}", cmd.uc_def);
                     obj = arena_str_obj(arena, s.as_bytes());
                 } else {
-                    obj = cstr_as_obj(c".".as_ptr());
+                    obj = cstr_as_obj(c".");
                 }
             }
-            put_c(&mut d, c"range".as_ptr(), obj);
+            put_c(&mut d, c"range", obj);
 
             obj = nil_obj();
             for entry in &ADDR_TYPE_COMPLETE {
@@ -2142,7 +2142,7 @@ pub fn commands_array(buf: *mut buf_T, arena: &mut Arena) -> Dict {
                     break;
                 }
             }
-            put_c(&mut d, c"addr".as_ptr(), obj);
+            put_c(&mut d, c"addr", obj);
 
             put_c(&mut rv, cmd.uc_name.as_ptr(), dict_obj(d));
         }

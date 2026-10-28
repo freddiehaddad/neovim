@@ -301,14 +301,14 @@ fn get_framelayout(fr: *const frame_T, l: *mut list_T, outer: bool) {
 
         if (*fr).fr_layout == FR_LEAF {
             if !(*fr).fr_win.is_null() {
-                tv_list_append_string(fr_list, c"leaf".as_ptr(), 4);
+                tv_list_append_string(fr_list, c"leaf", 4);
                 tv_list_append_number(fr_list, (*(*fr).fr_win).handle as varnumber_T);
             }
         } else {
             if (*fr).fr_layout == FR_ROW {
-                tv_list_append_string(fr_list, c"row".as_ptr(), 3);
+                tv_list_append_string(fr_list, c"row", 3);
             } else {
-                tv_list_append_string(fr_list, c"col".as_ptr(), 3);
+                tv_list_append_string(fr_list, c"col", 3);
             }
 
             let win_list = tv_list_alloc(kListLenUnknown);
@@ -824,7 +824,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             if tv_dict_get_bool(d, c"vertical", 0) != 0 {
                 flags |= WSP_VERT;
             }
-            let di = tv_dict_find(d, c"rightbelow".as_ptr(), -1);
+            let di = tv_dict_find(d, c"rightbelow", -1);
             if !di.is_null() {
                 flags |= if tv_get_bool(&(*di).di_tv) != 0 {
                     WSP_BELOW
@@ -1004,38 +1004,38 @@ pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
         }
 
         let dict = argvars[0].vval.v_dict();
-        let di = tv_dict_find(dict, c"lnum".as_ptr(), 4);
+        let di = tv_dict_find(dict, c"lnum", 4);
         if !di.is_null() {
             (**curwin.as_ptr()).w_cursor.lnum = tv_get_number(&(*di).di_tv) as linenr_T;
         }
-        let di = tv_dict_find(dict, c"col".as_ptr(), 3);
+        let di = tv_dict_find(dict, c"col", 3);
         if !di.is_null() {
             (**curwin.as_ptr()).w_cursor.col = tv_get_number(&(*di).di_tv) as colnr_T;
         }
-        let di = tv_dict_find(dict, c"coladd".as_ptr(), 6);
+        let di = tv_dict_find(dict, c"coladd", 6);
         if !di.is_null() {
             (**curwin.as_ptr()).w_cursor.coladd = tv_get_number(&(*di).di_tv) as colnr_T;
         }
-        let di = tv_dict_find(dict, c"topline".as_ptr(), 7);
+        let di = tv_dict_find(dict, c"topline", 7);
         if !di.is_null() {
             set_topline(&mut **curwin.as_ptr(), tv_get_number(&(*di).di_tv) as linenr_T);
         }
         let mut vs = viewstate_T::default();
         save_viewstate(&mut **curwin.as_ptr(), &mut vs);
-        let di = tv_dict_find(dict, c"curswant".as_ptr(), 8);
+        let di = tv_dict_find(dict, c"curswant", 8);
         if !di.is_null() {
             vs.vs_curswant = tv_get_number(&(*di).di_tv) as colnr_T;
             vs.vs_set_curswant = false;
         }
-        let di = tv_dict_find(dict, c"topfill".as_ptr(), 7);
+        let di = tv_dict_find(dict, c"topfill", 7);
         if !di.is_null() {
             vs.vs_topfill = tv_get_number(&(*di).di_tv) as c_int;
         }
-        let di = tv_dict_find(dict, c"leftcol".as_ptr(), 7);
+        let di = tv_dict_find(dict, c"leftcol", 7);
         if !di.is_null() {
             vs.vs_leftcol = tv_get_number(&(*di).di_tv) as colnr_T;
         }
-        let di = tv_dict_find(dict, c"skipcol".as_ptr(), 7);
+        let di = tv_dict_find(dict, c"skipcol", 7);
         if !di.is_null() {
             vs.vs_skipcol = tv_get_number(&(*di).di_tv) as colnr_T;
         }

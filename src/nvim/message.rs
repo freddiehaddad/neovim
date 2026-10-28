@@ -530,8 +530,8 @@ pub fn verb_msg(s: *const c_char) -> c_int {
 /// When terminal not initialized (yet) printf("%s", ..) is used.
 ///
 /// @return  true if wait_return() not called
-pub fn msg(s: *const c_char, hl_id: c_int) -> bool {
-    msg_keep(s, hl_id, false, false)
+pub fn msg<S: crate::strings::IntoCCharPtr>(s: S, hl_id: c_int) -> bool {
+    msg_keep(s.into_c_char_ptr(), hl_id, false, false)
 }
 
 /// Similar to msg_outtrans_len, but support newlines and tabs.
@@ -598,13 +598,13 @@ fn format_progress_message(
             if msg_data.as_deref_mut().unwrap().status.data.is_null() {
                 hl_id = 0;
             } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data) == Some(b"success") {
-                hl_id = syn_check_group(c"OkMsg".as_ptr(), 5);
+                hl_id = syn_check_group(c"OkMsg", 5);
             } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data) == Some(b"failed") {
-                hl_id = syn_check_group(c"ErrorMsg".as_ptr(), 8);
+                hl_id = syn_check_group(c"ErrorMsg", 8);
             } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data) == Some(b"running") {
-                hl_id = syn_check_group(c"MoreMsg".as_ptr(), 7);
+                hl_id = syn_check_group(c"MoreMsg", 7);
             } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data) == Some(b"cancel") {
-                hl_id = syn_check_group(c"WarningMsg".as_ptr(), 10);
+                hl_id = syn_check_group(c"WarningMsg", 10);
             }
             updated_msg.push(HlMessageChunk {
                 text: copy_string(msg_data.as_deref_mut().unwrap().title, None),
@@ -624,7 +624,7 @@ fn format_progress_message(
                 msg_data.unwrap().percent as c_long,
             );
             let percent = cstr_to_string(percent_buf.as_ptr());
-            let hl_id = syn_check_group(c"WarningMsg".as_ptr(), 10);
+            let hl_id = syn_check_group(c"WarningMsg", 10);
             updated_msg.push(HlMessageChunk {
                 text: percent,
                 hl_id,
@@ -694,7 +694,7 @@ pub fn msg_multihl(
             assert!(active_msg.len() == 1);
             let chunk = &active_msg[0];
             printf!(
-                c"%.*s\n".as_ptr(),
+                c"%.*s\n",
                 chunk.text.size as c_int,
                 chunk.text.data,
             );
@@ -1210,8 +1210,8 @@ pub fn emsg_multiline(
 }
 
 /// emsg() - display an error message
-pub fn emsg(s: *const c_char) -> bool {
-    emsg_multiline(s, c"emsg".as_ptr(), HLF_E, false)
+pub fn emsg<S: crate::strings::IntoCCharPtr>(s: S) -> bool {
+    emsg_multiline(s.into_c_char_ptr(), c"emsg".as_ptr(), HLF_E, false)
 }
 
 pub fn emsg_invreg(name: c_int) {
@@ -1224,7 +1224,7 @@ pub fn emsg_invreg(name: c_int) {
 /// Same as emsg(...), but abort on error when ABORT_ON_INTERNAL_ERROR is
 /// defined. It is used for internal errors only, so that they can be
 /// detected when fuzzing vim.
-pub fn iemsg(s: *const c_char) {
+pub fn iemsg<S: crate::strings::IntoCCharPtr>(s: S) {
     if emsg_not_now() {
             return;
         }
@@ -1324,7 +1324,7 @@ pub fn msg_progress(
     err: bool,
 ) -> *mut c_char {
     let mut data = MessageData {
-            source: cstr_as_string(c"nvim".as_ptr()),
+            source: cstr_as_string(c"nvim"),
             percent: Integer::from(percent),
             title: NvimString {
                 data: ptr::null_mut(),
@@ -1910,7 +1910,7 @@ pub fn wait_return(redraw: c_int) {
                 {
                     jump_to_mouse(MOUSE_SETPOS, ptr::null_mut(), 0);
                 } else if !g_st().KeyTyped
-                    || (vim_strchr(c"\r\n ".as_ptr(), c).is_null()
+                    || (vim_strchr(c"\r\n ", c).is_null()
                         && c != Ctrl_C
                         && c != b'q' as c_int)
                 {
@@ -2049,7 +2049,8 @@ pub fn msgmore(n: c_int) {
     }
 }
 
-pub fn msg_ext_set_kind(msg_kind: *const c_char) {
+pub fn msg_ext_set_kind<S: crate::strings::IntoCCharPtr>(msg_kind: S) {
+    let msg_kind = msg_kind.into_c_char_ptr();
     unsafe {
         msg_ext_ui_flush();
         msg_st().msg_ext_kind = msg_kind;
@@ -2544,7 +2545,7 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                     col += utf_ptr2cells(s);
                     let mut buf = [0 as c_char; MB_MAXBYTES + 1];
                     if l as usize >= MB_MAXBYTES {
-                        xstrlcpy(buf.as_mut_ptr(), c"?".as_ptr(), buf.len());
+                        xstrlcpy(buf.as_mut_ptr(), c"?", buf.len());
                     } else if (**curwin.as_ptr()).w_p_lcs_chars.nbsp != 0
                         && list
                         && (utf_ptr2char(s) == 160 || utf_ptr2char(s) == 0x202f)
@@ -2676,8 +2677,8 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
 
 /// Output a string to the screen at position msg_row, msg_col.
 /// Update msg_row and msg_col for the next message.
-pub fn msg_puts(s: *const c_char) {
-    msg_puts_hl(s, 0, false);
+pub fn msg_puts<S: crate::strings::IntoCCharPtr>(s: S) {
+    msg_puts_hl(s.into_c_char_ptr(), 0, false);
 }
 
 pub fn msg_puts_title(mut s: *const c_char) {
@@ -2700,15 +2701,15 @@ pub fn msg_outtrans_long(longstr: *const c_char, hl_id: c_int) {
         if !ui_has(kUIMessages) && len > room && room >= 20 {
             slen = (room - 3) / 2;
             msg_outtrans_len(longstr, slen, hl_id, false);
-            msg_puts_hl(c"...".as_ptr(), HLF_8, false);
+            msg_puts_hl(c"...", HLF_8, false);
         }
         msg_outtrans_len(longstr.add((len - slen) as usize), slen, hl_id, false);
     }
 }
 
 /// Basic function for writing a message with highlight id.
-pub fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool) {
-    msg_puts_len(s, -1, hl_id, hist);
+pub fn msg_puts_hl<S: crate::strings::IntoCCharPtr>(s: S, hl_id: c_int, hist: bool) {
+    msg_puts_len(s.into_c_char_ptr(), -1, hl_id, hist);
 }
 
 /// Write a message with highlight id.
@@ -2725,7 +2726,7 @@ pub fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: bool) {
             if *str_ == NUL && ui_has(kUIMessages) {
                 msg_ext_no_fast();
                 ui_call_msg_show(
-                    cstr_as_string(c"empty".as_ptr()),
+                    cstr_as_string(c"empty"),
                     Array::new(),
                     false,
                     false,
@@ -3379,9 +3380,9 @@ fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
                 ptr::copy_nonoverlapping(s, p, len);
                 *p.add(len) = NUL;
                 if g_st().info_message {
-                    printf!(c"%s".as_ptr(), buf.as_ptr());
+                    printf!(c"%s", buf.as_ptr());
                 } else {
-                    fprintf!(log_get_stderr(), c"%s".as_ptr(), buf.as_ptr());
+                    fprintf!(log_get_stderr(), c"%s", buf.as_ptr());
                 }
             }
 
@@ -3960,7 +3961,7 @@ pub fn verbose_enter() {
             if msg_st().msg_ext_kind != VERBOSE_KIND.as_ptr() {
                 msg_st().pre_verbose_kind = msg_st().msg_ext_kind;
             }
-            msg_ext_set_kind(VERBOSE_KIND.as_ptr());
+            msg_ext_set_kind(VERBOSE_KIND);
         }
         g_st().msg_ext_skip_verbose = false;
     }
@@ -4046,7 +4047,7 @@ pub fn give_warning(message: *const c_char, hl: bool, hist: bool) {
         }
 
         if msg_st().msg_ext_kind.is_null() {
-            msg_ext_set_kind(c"wmsg".as_ptr());
+            msg_ext_set_kind(c"wmsg");
         }
 
         if msg(message, g_st().keep_msg_hl_id) && g_st().msg_scrolled == 0 {
@@ -4076,7 +4077,7 @@ pub fn msg_advance(mut col: c_int) {
 pub fn display_confirm_msg() {
     msg_st().confirm_msg_used += 1;
         if let Some(ref msg) = dlg_st().confirm_msg {
-            msg_ext_set_kind(c"confirm".as_ptr());
+            msg_ext_set_kind(c"confirm");
             msg_puts_hl(msg.as_ptr(), HLF_M, false);
         }
         msg_st().confirm_msg_used -= 1;

@@ -1420,11 +1420,11 @@ fn nfa_regatom_collection(
 
                 if *re_st().regparse == b'\\' as c_char
                     && (re_st().regparse.add(1).cast::<u8>() as *const u8) <= endp
-                    && (!vim_strchr(REGEXP_INRANGE.as_ptr(), *re_st().regparse.add(1) as u8 as c_int)
+                    && (!vim_strchr(REGEXP_INRANGE, *re_st().regparse.add(1) as u8 as c_int)
                         .is_null()
                         || (re_st().reg_cpo_lit == 0
                             && !vim_strchr(
-                                REGEXP_ABBR.as_ptr(),
+                                REGEXP_ABBR,
                                 *re_st().regparse.add(1) as u8 as c_int,
                             )
                             .is_null()))

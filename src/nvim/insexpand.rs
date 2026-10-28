@@ -3483,7 +3483,7 @@ fn ins_compl_add_list(list: *mut list_T) {
 fn ins_compl_add_dict(dict: &mut dict_T) {
     unsafe {
         insexp().compl_opt_refresh_always = false;
-        let di_refresh = tv_dict_find(dict, c"refresh".as_ptr(), 7);
+        let di_refresh = tv_dict_find(dict, c"refresh", 7);
         if !di_refresh.is_null() && (*di_refresh).di_tv.v_type == VAR_STRING {
             let v = (*di_refresh).di_tv.vval.v_string();
             if !v.is_null() && crate::memory::cstr_as_bytes(v) == b"always" {
@@ -3491,7 +3491,7 @@ fn ins_compl_add_dict(dict: &mut dict_T) {
             }
         }
 
-        let di_words = tv_dict_find(dict, c"words".as_ptr(), 5);
+        let di_words = tv_dict_find(dict, c"words", 5);
         if !di_words.is_null() && (*di_words).di_tv.v_type == VAR_LIST {
             ins_compl_add_list((*di_words).di_tv.vval.v_list());
         }
@@ -4018,7 +4018,7 @@ fn process_next_cpt_value(
             st.set_match_pos = true;
         } else if !skip_source
             && !insexp().compl_time_slice_expired
-            && !vim_strchr(c"buwU".as_ptr(), c_int::from(st.e_cpt_char() as u8)).is_null()
+            && !vim_strchr(c"buwU", c_int::from(st.e_cpt_char() as u8)).is_null()
             && {
                 st.ins_buf =
                     ins_compl_next_buf(st.ins_buf, c_int::from(st.e_cpt_char()));
@@ -6020,16 +6020,16 @@ fn get_normal_compl_info(
                 insexp().compl_length = curs_col - startcol;
                 if insexp().compl_length == 1 {
                     let mut pat_vec = [0 as c_char; 7];
-                    crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
+                    crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), c"\\<");
                     quote_meta(pat_vec.as_mut_ptr().add(2), line.add(insexp().compl_col as usize), 1);
-                    crate::memory::cstr_cat(pat_vec.as_mut_ptr(), c"\\k".as_ptr());
+                    crate::memory::cstr_cat(pat_vec.as_mut_ptr(), c"\\k");
                     set_compl_pattern_bytes(pat_vec.as_ptr(), crate::memory::cstr_len(pat_vec.as_ptr()));
                 } else {
                     let n = quote_meta(ptr::null_mut(), line.add(insexp().compl_col as usize), insexp().compl_length)
                         as usize
                         + 2;
                     let mut pat_vec: Vec<c_char> = vec![0; n];
-                    crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
+                    crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), c"\\<");
                     quote_meta(
                         pat_vec.as_mut_ptr().add(2),
                         line.add(insexp().compl_col as usize),
@@ -6537,7 +6537,7 @@ fn ins_compl_show_statusmsg() {
             if !g_st().edit_submode_extra.is_null() {
                 if opt_vars().p_smd == 0 {
                     g_st().msg_hist_off = true;
-                    msg_ext_set_kind(c"completion".as_ptr());
+                    msg_ext_set_kind(c"completion");
                     msg(
                         g_st().edit_submode_extra,
                         if g_st().edit_submode_highl < HLF_COUNT {

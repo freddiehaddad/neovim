@@ -653,7 +653,7 @@ fn is_executable_ext(
         let buf_end = buf.add(crate::memory::cstr_len(buf));
         let mut pathext_buf = [0 as c_char; MAXPATHL];
         let mut pathext: *const c_char = os_getenv_buf(
-            c"PATHEXT".as_ptr(),
+            c"PATHEXT",
             pathext_buf.as_mut_ptr(),
             pathext_buf.len(),
         );
@@ -705,7 +705,7 @@ fn is_executable_in_path(
     mut abspath: Option<&mut Option<std::ffi::CString>>,
 ) -> bool {
     unsafe {
-        let Some(path_env) = os_getenv_cstr(c"PATH".as_ptr()) else {
+        let Some(path_env) = os_getenv_cstr(c"PATH") else {
             return false;
         };
 
@@ -713,7 +713,7 @@ fn is_executable_in_path(
         let path_vec: Vec<c_char> = {
             let sh_tail = crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh));
             let env_bytes = path_env.as_bytes_with_nul();
-            if !os_env_exists(c"NoDefaultCurrentDirectoryInExePath".as_ptr(), false)
+            if !os_env_exists(c"NoDefaultCurrentDirectoryInExePath", false)
                 && sh_tail.windows(7).any(|w| w == b"cmd.exe")
             {
                 let mut v = Vec::with_capacity(env_bytes.len() + 2);

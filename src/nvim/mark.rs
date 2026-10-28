@@ -1207,7 +1207,7 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
 pub fn ex_jumps(_eap: &mut exarg_T) {
     unsafe {
         cleanup_jumplist(&mut **curwin.as_ptr(), true);
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         msg_puts_title(gettext(c"\n jump line  col file/text"));
         let mut i: c_int = 0;
         while i < (**curwin.as_ptr()).w_jumplistlen && !g_st().got_int {
@@ -1264,7 +1264,7 @@ pub fn ex_jumps(_eap: &mut exarg_T) {
             i += 1;
         }
         if (**curwin.as_ptr()).w_jumplistidx == (**curwin.as_ptr()).w_jumplistlen {
-            msg_puts(c"\n>".as_ptr());
+            msg_puts(c"\n>");
         }
     }
 }
@@ -1280,7 +1280,7 @@ pub fn ex_clearjumps(_eap: &mut exarg_T) {
 /// Print the changelist (`ex_changes`).
 pub fn ex_changes(_eap: &mut exarg_T) {
     unsafe {
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         msg_puts_title(gettext(c"\nchange line  col text"));
 
         let mut i: c_int = 0;
@@ -1317,7 +1317,7 @@ pub fn ex_changes(_eap: &mut exarg_T) {
             i += 1;
         }
         if (**curwin.as_ptr()).w_changelistidx == (*g_st().curbuf).b_changelistlen {
-            msg_puts(c"\n>".as_ptr());
+            msg_puts(c"\n>");
         }
     }
 }

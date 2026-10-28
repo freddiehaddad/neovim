@@ -86,14 +86,14 @@ fn validate_option_value_args(
         {
             api_err_conflict(
                 err,
-                c"filetype".as_ptr(),
-                c"'scope', 'buf', 'win' or 'tab'".as_ptr(),
+                c"filetype",
+                c"'scope', 'buf', 'win' or 'tab'",
             );
             return false;
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__tab) && !allow_tab {
-            api_err_conflict(err, c"tab".as_ptr(), c"this function".as_ptr());
+            api_err_conflict(err, c"tab", c"this function");
             return false;
         }
 
@@ -105,14 +105,14 @@ fn validate_option_value_args(
         {
             api_err_conflict(
                 err,
-                c"tab".as_ptr(),
-                c"'win', 'buf', 'filetype' or 'scope'".as_ptr(),
+                c"tab",
+                c"'win', 'buf', 'filetype' or 'scope'",
             );
             return false;
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__win) && has_key(mask, KEYSET_OPTIDX_option__buf) {
-            api_err_conflict(err, c"buf".as_ptr(), c"win".as_ptr());
+            api_err_conflict(err, c"buf", c"win");
             return false;
         }
 
@@ -124,8 +124,8 @@ fn validate_option_value_args(
             } else {
                 api_err_exp(
                     err,
-                    c"scope".as_ptr(),
-                    c"'local' or 'global'".as_ptr(),
+                    c"scope",
+                    c"'local' or 'global'",
                     std::ptr::null(),
                 );
                 return false;
@@ -148,7 +148,7 @@ fn validate_option_value_args(
 
         if has_key(mask, KEYSET_OPTIDX_option__buf) {
             if has_key(mask, KEYSET_OPTIDX_option__scope) && *opt_flags == OPT_GLOBAL {
-                api_err_conflict(err, c"buf".as_ptr(), c"global scope".as_ptr());
+                api_err_conflict(err, c"buf", c"global scope");
                 return false;
             }
             *opt_flags = OPT_LOCAL;
@@ -192,8 +192,8 @@ fn validate_option_value_args(
             } else {
                 api_err_exp(
                     err,
-                    c"operation".as_ptr(),
-                    c"'set', 'append', 'prepend', or 'remove'".as_ptr(),
+                    c"operation",
+                    c"'set', 'append', 'prepend', or 'remove'",
                     std::ptr::null(),
                 );
                 return false;
@@ -203,7 +203,7 @@ fn validate_option_value_args(
                 || option_has_type(*opt_idxp, ObjectType::kObjectTypeString)
                 || option_has_type(*opt_idxp, ObjectType::kObjectTypeInteger))
             {
-                api_err_conflict(err, opts.operation.data, c"boolean options".as_ptr());
+                api_err_conflict(err, opts.operation.data, c"boolean options");
                 return false;
             }
         }
@@ -215,7 +215,7 @@ fn validate_option_value_args(
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__tab) && !option_has_scope(*opt_idxp, kOptScopeTab) {
-            api_err_conflict(err, c"tab".as_ptr(), name);
+            api_err_conflict(err, c"tab", name);
             return false;
         }
 
@@ -674,7 +674,7 @@ pub fn nvim_set_option_value(
                 api_err_exp(
                     err,
                     name.data,
-                    c"a valid type".as_ptr(),
+                    c"a valid type",
                     api_typename(value.obj_type),
                 );
                 optval_free(merged_val);

@@ -1063,7 +1063,7 @@ fn to_name_end(arg: *const c_char, use_namespace: bool) -> *const c_char {
             if *p == b':' as c_char
                 && (p != arg.add(1)
                     || !use_namespace
-                    || vim_strchr(c"bgstvw".as_ptr(), c_int::from(*arg as u8)).is_null())
+                    || vim_strchr(c"bgstvw", c_int::from(*arg as u8)).is_null())
             {
                 break;
             }
@@ -3891,7 +3891,7 @@ fn eval_string(
                         if spec_len != 0 {
                             end = end.add(spec_len as usize);
                             if (end as usize) >= (buf_ptr as usize + len) {
-                                iemsg(c"eval_string() used more space than allocated".as_ptr());
+                                iemsg(c"eval_string() used more space than allocated");
                             }
                         } else {
                             let mut p_c: *const c_char = p;
@@ -5030,7 +5030,7 @@ fn get_system_output_as_rettv(argvars: &mut [typval_T], rettv: &mut typval_T, re
                 gettext(c"Executing command: \"%s\""),
                 cmdstr.as_ptr()
             );
-            msg_puts(c"\n\n".as_ptr());
+            msg_puts(c"\n\n");
             verbose_leave_scroll();
         }
 
@@ -5903,7 +5903,7 @@ pub fn get_id_len(arg: *mut *const c_char) -> c_int {
                 let len = ((p as usize).wrapping_sub(*arg as usize)) as c_int;
                 if len > 1
                     || (len == 1
-                        && vim_strchr(NAMESPACE_CHAR.as_ptr(), c_int::from(**arg as u8)).is_null())
+                        && vim_strchr(NAMESPACE_CHAR, c_int::from(**arg as u8)).is_null())
                 {
                     break;
                 }
@@ -6037,7 +6037,7 @@ pub fn find_name_end(
                 let len = ((p as usize).wrapping_sub(arg as usize)) as c_int;
                 if (len > 1 && *p.sub(1) != b'}' as c_char)
                     || (len == 1
-                        && vim_strchr(NAMESPACE_CHAR.as_ptr(), c_int::from(*arg as u8)).is_null())
+                        && vim_strchr(NAMESPACE_CHAR, c_int::from(*arg as u8)).is_null())
                 {
                     break;
                 }
@@ -6531,7 +6531,7 @@ pub fn ex_echo(eap: &mut exarg_T) {
                     atstart = false;
                     msg_ext_set_append(eap.cmdidx == cmdidx_T::CMD_echon as c_int);
                     msg_ext_no_fast();
-                    msg_ext_set_kind(c"echo".as_ptr());
+                    msg_ext_set_kind(c"echo");
                     if eap.cmdidx == cmdidx_T::CMD_echo as c_int {
                         if !g_st().msg_didout {
                             msg_sb_eol();
@@ -6539,7 +6539,7 @@ pub fn ex_echo(eap: &mut exarg_T) {
                         msg_start();
                     }
                 } else if eap.cmdidx == cmdidx_T::CMD_echo as c_int {
-                    msg_puts_hl(c" ".as_ptr(), eval_st().echo_hl_id, false);
+                    msg_puts_hl(c" ", eval_st().echo_hl_id, false);
                 }
                 let tofree = encode_tv2echo(&mut rettv, None);
                 msg_multiline(
@@ -6634,7 +6634,7 @@ pub fn ex_execute(eap: &mut exarg_T) {
             buf.push(NUL);
             if eap.cmdidx == cmdidx_T::CMD_echomsg as c_int {
                 msg_ext_no_fast();
-                msg_ext_set_kind(c"echomsg".as_ptr());
+                msg_ext_set_kind(c"echomsg");
                 msg(buf.as_ptr(), eval_st().echo_hl_id);
             } else if eap.cmdidx == cmdidx_T::CMD_echoerr as c_int {
                 let save_did_emsg = g_st().did_emsg;

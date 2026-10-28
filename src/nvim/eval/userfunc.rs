@@ -724,7 +724,12 @@ pub fn deref_func_name(
 }
 
 /// Give an error message with a function name. Handle `<SNR>` things.
-pub fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
+pub fn emsg_funcname<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
+    errmsg: S1,
+    name: S2,
+) {
+    let errmsg = errmsg.into_c_char_ptr();
+    let name = name.into_c_char_ptr();
     unsafe {
         let mut p_owned: Option<std::ffi::CString> = None;
         let mut p = name;
@@ -825,9 +830,9 @@ pub fn get_func_tv(
             }
         } else if !aborting() && evaluate {
             if argcount == MAX_FUNC_ARGS as c_int {
-                emsg_funcname(c"E740: Too many arguments for function %s".as_ptr(), name);
+                emsg_funcname(c"E740: Too many arguments for function %s", name);
             } else {
-                emsg_funcname(c"E116: Invalid arguments for function %s".as_ptr(), name);
+                emsg_funcname(c"E116: Invalid arguments for function %s", name);
             }
         }
 
@@ -1384,10 +1389,10 @@ pub fn call_user_func(
 
             smsg!(0, gettext(c"calling %s"), sourcing_name());
             if opt_vars().p_verbose >= 14 {
-                msg_puts(c"(".as_ptr());
+                msg_puts(c"(");
                 for i in 0..argcount {
                     if i > 0 {
-                        msg_puts(c", ".as_ptr());
+                        msg_puts(c", ");
                     }
                     let arg_tv = argvars.add(i as usize);
                     if (*arg_tv).v_type == VarType::VAR_NUMBER {
@@ -1410,9 +1415,9 @@ pub fn call_user_func(
                         msg_puts(s);
                     }
                 }
-                msg_puts(c")".as_ptr());
+                msg_puts(c")");
             }
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
 
             verbose_leave_scroll();
             g_st().no_wait_return -= 1;
@@ -1520,7 +1525,7 @@ pub fn call_user_func(
                 }
                 smsg!(0, gettext(c"%s returning %s"), sourcing_name(), s);
             }
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
 
             verbose_leave_scroll();
             g_st().no_wait_return -= 1;
@@ -1541,7 +1546,7 @@ pub fn call_user_func(
             verbose_enter_scroll();
 
             smsg!(0, gettext(c"continuing in %s"), sourcing_name());
-            msg_puts(c"\n".as_ptr());
+            msg_puts(c"\n");
 
             verbose_leave_scroll();
             g_st().no_wait_return -= 1;
@@ -1639,7 +1644,7 @@ pub fn restore_funccal() {
         if let Some(top) = (*stack).pop() {
             uf_st().current_funccal = top;
         } else {
-            iemsg(c"INTERNAL: restore_funccal()".as_ptr());
+            iemsg(c"INTERNAL: restore_funccal()");
         }
     }
 }
@@ -1798,14 +1803,14 @@ fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
                 if found_var {
                     semsg!(gettext(e_not_callable_type_str), name);
                 } else {
-                    emsg_funcname(e_unknown_function_str.as_ptr(), name);
+                    emsg_funcname(e_unknown_function_str, name);
                 }
             }
             FCERR_NOTMETHOD => {
-                emsg_funcname(c"E276: Cannot use function as a method: %s".as_ptr(), name);
+                emsg_funcname(c"E276: Cannot use function as a method: %s", name);
             }
             FCERR_DELETED => {
-                emsg_funcname(c"E933: Function was deleted: %s".as_ptr(), name);
+                emsg_funcname(c"E933: Function was deleted: %s", name);
             }
             FCERR_TOOMANY => {
                 emsg_funcname(gettext(e_toomanyarg), name);
@@ -1815,13 +1820,13 @@ fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
             }
             FCERR_SCRIPT => {
                 emsg_funcname(
-                    c"E120: Using <SID> not in a script context: %s".as_ptr(),
+                    c"E120: Using <SID> not in a script context: %s",
                     name,
                 );
             }
             FCERR_DICT => {
                 emsg_funcname(
-                    c"E725: Calling dict function without Dictionary: %s".as_ptr(),
+                    c"E725: Calling dict function without Dictionary: %s",
                     name,
                 );
             }
@@ -2105,7 +2110,7 @@ fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> bool {
         }
 
         if indent {
-            msg_puts(c"   ".as_ptr());
+            msg_puts(c"   ");
         }
         msg_puts(if force {
             c"function! ".as_ptr()
@@ -2123,11 +2128,11 @@ fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> bool {
         let mut j = 0;
         while j < uf_args_len {
             if j != 0 {
-                msg_puts(c", ".as_ptr());
+                msg_puts(c", ");
             }
             msg_puts(funcarg(fp, j));
             if j >= uf_args_len - uf_def_args_len {
-                msg_puts(c" = ".as_ptr());
+                msg_puts(c" = ");
                 msg_puts(
                     (&fp.uf_def_args)[(j - uf_args_len + uf_def_args_len) as usize].as_ptr(),
                 );
@@ -2136,22 +2141,22 @@ fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> bool {
         }
         if fp.uf_varargs != 0 {
             if j != 0 {
-                msg_puts(c", ".as_ptr());
+                msg_puts(c", ");
             }
-            msg_puts(c"...".as_ptr());
+            msg_puts(c"...");
         }
         msg_putchar(b')' as c_int);
         if (fp.uf_flags & FC_ABORT) != 0 {
-            msg_puts(c" abort".as_ptr());
+            msg_puts(c" abort");
         }
         if (fp.uf_flags & FC_RANGE) != 0 {
-            msg_puts(c" range".as_ptr());
+            msg_puts(c" range");
         }
         if (fp.uf_flags & FC_DICT) != 0 {
-            msg_puts(c" dict".as_ptr());
+            msg_puts(c" dict");
         }
         if (fp.uf_flags & FC_CLOSURE) != 0 {
-            msg_puts(c" closure".as_ptr());
+            msg_puts(c" closure");
         }
         msg_clr_eos();
         if opt_vars().p_verbose > 0 {
@@ -2466,7 +2471,7 @@ fn list_functions(mut regmatch: Option<&mut regmatch_T>) {
         let ht = &raw const uf_st().func_hashtab;
         let funcs: Vec<*mut ufunc_T> = (*ht).values().copied().collect();
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         for fp in funcs {
             if g_st().got_int {
                 break;
@@ -2531,13 +2536,13 @@ fn list_one_function(eap: &mut exarg_T, name: *mut c_char, p: *mut c_char) -> *m
 
         let fp = find_func(name);
         if fp.is_null() {
-            emsg_funcname(c"E123: Undefined function: %s".as_ptr(), name);
+            emsg_funcname(c"E123: Undefined function: %s", name);
             return ptr::null_mut();
         }
 
         let prev_ht_changed = uf_st().func_hashtab_changed;
 
-        msg_ext_set_kind(c"list_cmd".as_ptr());
+        msg_ext_set_kind(c"list_cmd");
         if !list_func_head(&mut *fp, eap.forceit == 0, eap.forceit != 0) {
             return fp;
         }
@@ -3020,7 +3025,7 @@ pub fn ex_function(eap: &mut exarg_T) {
                         i += 1;
                     }
                     if *name_base.add(i) != NUL {
-                        emsg_funcname(e_invarg2.as_ptr(), arg);
+                        emsg_funcname(e_invarg2, arg);
                         ret_free!();
                     }
                 }
@@ -3064,7 +3069,7 @@ pub fn ex_function(eap: &mut exarg_T) {
                 p = p.add(7);
                 if uf_st().current_funccal.is_null() {
                     emsg_funcname(
-                        c"E932: Closure function should not be at top level: %s".as_ptr(),
+                        c"E932: Closure function should not be at top level: %s",
                         if name.is_null() { c"".as_ptr() } else { name },
                     );
                     erret!();
@@ -3085,7 +3090,7 @@ pub fn ex_function(eap: &mut exarg_T) {
                 if !fudi.fd_dict.is_null() && fudi.fd_newkey.is_none() {
                     emsg(gettext(E_FUNCDICT));
                 } else if !name.is_null() && !find_func(name).is_null() {
-                    emsg_funcname(E_FUNCEXTS.as_ptr(), name);
+                    emsg_funcname(E_FUNCEXTS, name);
                 }
             }
 
@@ -3112,7 +3117,7 @@ pub fn ex_function(eap: &mut exarg_T) {
             let v = find_var(name, crate::memory::cstr_len(name), &raw mut ht, 0);
             if !v.is_null() && (*v).di_tv.v_type == VarType::VAR_FUNC {
                 emsg_funcname(
-                    c"E707: Function name conflicts with variable: %s".as_ptr(),
+                    c"E707: Function name conflicts with variable: %s",
                     name,
                 );
                 erret!();
@@ -3124,12 +3129,12 @@ pub fn ex_function(eap: &mut exarg_T) {
                     && ((*fp).uf_script_ctx.sc_sid != g_st().current_sctx.sc_sid
                         || (*fp).uf_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
                 {
-                    emsg_funcname(E_FUNCEXTS.as_ptr(), name);
+                    emsg_funcname(E_FUNCEXTS, name);
                     errret_keep!();
                 }
                 if (*fp).uf_calls > 0 {
                     emsg_funcname(
-                        c"E127: Cannot redefine function %s: It is in use".as_ptr(),
+                        c"E127: Cannot redefine function %s: It is in use",
                         name,
                     );
                     errret_keep!();
@@ -3337,14 +3342,14 @@ pub fn get_user_func_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
             if xp.xp_context != EXPAND_USER_FUNC {
                 xstrlcpy(
                     iobuff_ptr.add(len as usize),
-                    c"(".as_ptr(),
+                    c"(",
                     IOSIZE - len as usize,
                 );
                 if (*fp).uf_varargs == 0 && (*fp).uf_args.is_empty() {
                     len += 1;
                     xstrlcpy(
                         iobuff_ptr.add(len as usize),
-                        c")".as_ptr(),
+                        c")",
                         IOSIZE - len as usize,
                     );
                 }
@@ -3660,7 +3665,7 @@ fn ex_defer_inner(
             if builtin_function(name, -1) {
                 let fdef = find_internal_func(name);
                 if fdef.is_null() {
-                    emsg_funcname(e_unknown_function_str.as_ptr(), name);
+                    emsg_funcname(e_unknown_function_str, name);
                     r = false;
                 } else if check_internal_func(&*fdef, argcount) == -1 {
                     r = false;
@@ -3934,11 +3939,11 @@ pub fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
         };
 
         let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-        xstrlcpy(iobuff_ptr, c":return ".as_ptr(), IOSIZE);
+        xstrlcpy(iobuff_ptr, c":return ", IOSIZE);
         xstrlcpy(iobuff_ptr.add(8), s, IOSIZE - 8);
         let mut iobuff_len = 8 + slen;
         if iobuff_len >= IOSIZE {
-            crate::memory::cstr_cpy(iobuff_ptr.add(IOSIZE - 4), c"...".as_ptr());
+            crate::memory::cstr_cpy(iobuff_ptr.add(IOSIZE - 4), c"...");
             iobuff_len = IOSIZE - 1;
         }
         drop(tofree);
