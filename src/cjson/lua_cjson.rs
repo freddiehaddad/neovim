@@ -75,21 +75,21 @@ enum JsonTokenType {
 use JsonTokenType::*;
 
 const JSON_TOKEN_TYPE_NAME: [&CStr; 15] = [
-    c"TObjBegin",
-    c"TObjEnd",
-    c"TArrBegin",
-    c"TArrEnd",
-    c"TString",
-    c"TNumber",
-    c"TInteger",
-    c"TBoolean",
-    c"TNull",
-    c"TColon",
-    c"TComma",
-    c"TEnd",
-    c"TWhitespace",
-    c"TError",
-    c"TUnknown",
+    c"T_OBJ_BEGIN",
+    c"T_OBJ_END",
+    c"T_ARR_BEGIN",
+    c"T_ARR_END",
+    c"T_STRING",
+    c"T_NUMBER",
+    c"T_INTEGER",
+    c"T_BOOLEAN",
+    c"T_NULL",
+    c"T_COLON",
+    c"T_COMMA",
+    c"T_END",
+    c"T_WHITESPACE",
+    c"T_ERROR",
+    c"T_UNKNOWN",
 ];
 
 #[derive(Copy, Clone)]

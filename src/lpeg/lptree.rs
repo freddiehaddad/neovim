@@ -1251,7 +1251,7 @@ const PATTREG: [luaL_Reg; 24] = [
         func: Some(lp_backref),
     },
     luaL_Reg {
-        name: c"CARG".as_ptr(),
+        name: c"Carg".as_ptr(),
         func: Some(lp_argcapture),
     },
     luaL_Reg {
