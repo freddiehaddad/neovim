@@ -421,14 +421,14 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
             return 0;
         }
 
-        let watched = tv_dict_is_watched(dict);
+        let watched = tv_dict_is_watched(dict.as_ref());
 
         if del {
             if di.is_null() {
                 return 0;
             }
             if watched {
-                tv_dict_watcher_notify(&mut *dict, key.data, ptr::null_mut(), Some(&(*di).di_tv));
+                tv_dict_watcher_notify(&mut *dict, key.data, None, Some(&(*di).di_tv));
             }
             tv_dict_item_remove(&mut *dict,  &mut *di);
         } else {
@@ -475,7 +475,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
             tv_copy(&tv, &mut (*di).di_tv);
 
             if watched {
-                tv_dict_watcher_notify(&mut *dict, key.data, &raw mut tv, Some(&oldtv));
+                tv_dict_watcher_notify(&mut *dict, key.data, Some(&tv), Some(&oldtv));
                 tv_clear(&mut oldtv);
             }
 

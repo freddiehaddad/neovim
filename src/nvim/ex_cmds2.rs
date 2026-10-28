@@ -125,7 +125,7 @@ pub fn ex_perldo(eap: &mut exarg_T) {
 pub fn autowrite(buf: &mut buf_T, forceit: bool) -> bool {
     if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0)
             || opt_vars().p_write == 0
-            || bt_dontwrite(&raw mut *buf)
+            || bt_dontwrite(Some(&*buf))
             || (!forceit && buf.b_p_ro != 0)
             || buf.b_ffname.is_null()
         {
@@ -150,7 +150,7 @@ pub fn autowrite_all() {
 
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
-            if bufIsChanged(&mut *buf) && (*buf).b_p_ro == 0 && !bt_dontwrite(buf) {
+            if bufIsChanged(&mut *buf) && (*buf).b_p_ro == 0 && !bt_dontwrite(buf.as_ref()) {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&mut bufref, buf);
                 buf_write_all(&mut *buf, false);

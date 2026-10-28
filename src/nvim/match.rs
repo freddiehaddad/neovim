@@ -227,7 +227,7 @@ fn match_add(
                     if subli.is_null() {
                         semsg!(
                             gettext(c"E5030: Empty list at position %d"),
-                            tv_list_idx_of_item(pos_list, li),
+                            tv_list_idx_of_item(pos_list.as_ref(), li),
                         );
                         failed = true;
                         break;
@@ -277,7 +277,7 @@ fn match_add(
                 } else {
                     semsg!(
                         gettext(c"E5031: List or number required at position %d"),
-                        tv_list_idx_of_item(pos_list, li),
+                        tv_list_idx_of_item(pos_list.as_ref(), li),
                     );
                     failed = true;
                     break;

@@ -810,7 +810,7 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
             let children_list = tv_list_alloc(kListLenMayKnow);
             for child in &(*menu).children {
                 let d = menu_get_recursive(child, modes);
-                if tv_dict_len(d) > 0 {
+                if tv_dict_len(d.as_ref()) > 0 {
                     tv_list_append_dict( &mut *children_list, d);
                 }
             }
@@ -830,14 +830,14 @@ pub fn menu_get(path_name: *mut c_char, modes: c_int, list: &mut list_T) -> bool
                 return false;
             }
             let d = menu_get_recursive(menu, modes);
-            if !d.is_null() && tv_dict_len(d) > 0 {
+            if !d.is_null() && tv_dict_len(d.as_ref()) > 0 {
                 tv_list_append_dict(list, d);
             }
             return true;
         }
         for menu in &*root {
             let d = menu_get_recursive(menu, modes);
-            if !d.is_null() && tv_dict_len(d) > 0 {
+            if !d.is_null() && tv_dict_len(d.as_ref()) > 0 {
                 tv_list_append_dict(list, d);
             }
         }

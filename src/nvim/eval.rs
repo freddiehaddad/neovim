@@ -530,7 +530,7 @@ fn eval_expr_partial(expr: &typval_T,
             return false;
         }
 
-        let s = partial_name(partial);
+        let s = partial_name(partial.as_ref());
         if s.is_null() || *s == NUL {
             return false;
         }
@@ -1181,7 +1181,7 @@ fn get_lval_blob(
     quiet: bool,
 ) -> bool {
     unsafe {
-        let bloblen = tv_blob_len((*lp.ll_tv).vval.v_blob());
+        let bloblen = tv_blob_len(((*lp.ll_tv).vval.v_blob()).as_ref());
 
         if empty1 {
             lp.ll_n1 = 0;
@@ -1575,7 +1575,7 @@ pub fn set_var_lval(
 
                 if lp.ll_range && rettv.v_type == VarType::VAR_BLOB {
                     if lp.ll_empty2 {
-                        lp.ll_n2 = tv_blob_len(lp.ll_blob) - 1;
+                        lp.ll_n2 = tv_blob_len(lp.ll_blob.as_ref()) - 1;
                     }
 
                     if !tv_blob_set_range(
@@ -1662,7 +1662,7 @@ pub fn set_var_lval(
         } else {
             let mut oldtv = tv_initial_value();
             let dict = lp.ll_dict;
-            let watched = tv_dict_is_watched(dict);
+            let watched = tv_dict_is_watched(dict.as_ref());
 
             if is_const {
                 emsg(gettext(c"E996: Cannot lock a list or dict"));
@@ -1712,11 +1712,11 @@ pub fn set_var_lval(
             if watched {
                 if oldtv.v_type == VarType::VAR_UNKNOWN {
                     let newkey_ptr = lp.ll_newkey.as_ref().unwrap().as_ptr();
-                    tv_dict_watcher_notify(&mut *dict, newkey_ptr, lp.ll_tv, None);
+                    tv_dict_watcher_notify(&mut *dict, newkey_ptr, lp.ll_tv.as_ref(), None);
                 } else {
                     let di_ = lp.ll_di;
                     let key_ptr = (*di_).di_key.as_ptr();
-                    tv_dict_watcher_notify(&mut *dict, key_ptr, lp.ll_tv, Some(&oldtv));
+                    tv_dict_watcher_notify(&mut *dict, key_ptr, lp.ll_tv.as_ref(), Some(&oldtv));
                     tv_clear(&mut oldtv);
                 }
             }
@@ -2499,8 +2499,8 @@ fn eval_addblob(tv1: &mut typval_T, tv2: &mut typval_T) {
         let b2 = tv2.vval.v_blob();
         let b = tv_blob_alloc();
 
-        let len1 = i64::from(tv_blob_len(b1));
-        let len2 = i64::from(tv_blob_len(b2));
+        let len1 = i64::from(tv_blob_len(b1.as_ref()));
+        let len2 = i64::from(tv_blob_len(b2.as_ref()));
         let totallen = len1 + len2;
 
         if totallen >= 0 && totallen <= i64::from(c_int::MAX) {
@@ -3042,7 +3042,7 @@ fn call_func_rettv(
                 funcname = if is_lua {
                     lua_funcname
                 } else {
-                    partial_name(pt)
+                    partial_name(pt.as_ref())
                 };
             } else {
                 funcname = functv.vval.v_string();
@@ -3213,7 +3213,7 @@ fn eval_method(
                         }
                         ret = false;
                     } else {
-                        let tf = cstr_to_cstring(partial_name(ref_pt));
+                        let tf = cstr_to_cstring(partial_name(ref_pt.as_ref()));
                         len = tf.as_bytes().len() as c_int;
                         name = tf.as_ptr().cast_mut();
                         tofree = Some(tf);
@@ -4066,14 +4066,14 @@ pub fn eval_interp_string(
 }
 
 /// @return  the function name of the partial.
-pub fn partial_name(pt: *mut partial_T) -> *mut c_char {
+pub fn partial_name(pt: Option<&partial_T>) -> *mut c_char {
     unsafe {
-        if !pt.is_null() {
-            if let Some(ref name) = (*pt).pt_name {
+        if let Some(pt) = pt {
+            if let Some(ref name) = pt.pt_name {
                 return name.as_ptr().cast_mut();
             }
-            if !(*pt).pt_func.is_null() {
-                let uf = (*pt).pt_func.cast::<ufunc_T>();
+            if !pt.pt_func.is_null() {
+                let uf = pt.pt_func.cast::<ufunc_T>();
                 return (*uf).uf_name.as_mut_ptr();
             }
         }
@@ -4160,7 +4160,7 @@ pub fn func_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
         let mut s1 = if tv1.v_type == VarType::VAR_FUNC {
             tv1.vval.v_string()
         } else {
-            partial_name(tv_partial(tv1))
+            partial_name(tv_partial(tv1).as_ref())
         };
         if !s1.is_null() && *s1 == NUL {
             s1 = ptr::null_mut();
@@ -4168,7 +4168,7 @@ pub fn func_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
         let mut s2 = if tv2.v_type == VarType::VAR_FUNC {
             tv2.vval.v_string()
         } else {
-            partial_name(tv_partial(tv2))
+            partial_name(tv_partial(tv2).as_ref())
         };
         if !s2.is_null() && *s2 == NUL {
             s2 = ptr::null_mut();
@@ -5189,7 +5189,7 @@ pub fn callback_call(
             }
             kCallbackPartial => {
                 partial = callback.data.as_partial();
-                name = partial_name(partial);
+                name = partial_name(partial.as_ref());
             }
             kCallbackLua => {
                 let mut arena = Arena {
@@ -7091,7 +7091,7 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
 /// Gets the current user-input in prompt buffer `buf`, or `None` if buffer is not a prompt buffer.
 pub fn prompt_get_input(buf: &mut buf_T) -> Option<std::ffi::CString> {
     unsafe {
-        if !bt_prompt(&raw mut *buf) {
+        if !bt_prompt(Some(&*buf)) {
             return None;
         }
         let lnum_start = buf.b_prompt_start.mark.lnum;

@@ -133,7 +133,7 @@ fn convert_one_value(
             let fun = if pt.is_null() {
                 std::ptr::null()
             } else {
-                partial_name(pt)
+                partial_name(unsafe { pt.as_ref() })
             };
             let obj = unsafe {
                 if !fun.is_null() {

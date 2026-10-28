@@ -166,13 +166,13 @@ pub fn ex_help(eap: &mut exarg_T) {
 
         // Re-use an existing help window or open a new one.
         let mut early_ret = false;
-        if !bt_help(curwin_mut().w_buffer) || g_st().cmdmod.cmod_tab != 0 {
+        if !bt_help(curwin_mut().w_buffer.as_ref()) || g_st().cmdmod.cmod_tab != 0 {
             if g_st().cmdmod.cmod_tab != 0 {
                 wp = ptr::null_mut();
             } else {
                 wp = ptr::null_mut();
                 for wp2 in for_all_windows_ptr() {
-                    if bt_help((*wp2).w_buffer)
+                    if bt_help(((*wp2).w_buffer).as_ref())
                         && !(*wp2).w_config.hide
                         && (*wp2).w_config.focusable
                     {
@@ -260,7 +260,7 @@ pub fn ex_help(eap: &mut exarg_T) {
 pub fn ex_helpclose(eap: &mut exarg_T) {
     unsafe {
         for win in for_all_windows_ptr() {
-            if bt_help((*win).w_buffer) {
+            if bt_help(((*win).w_buffer).as_ref()) {
                 win_close(win, false, eap.forceit != 0);
                 return;
             }

@@ -2697,7 +2697,7 @@ fn vim_regsub_both(
                         );
                     } else if (*expr).v_type == VarType::VAR_PARTIAL {
                         let partial = (*expr).vval.v_partial();
-                        let s = partial_name(partial);
+                        let s = partial_name(partial.as_ref());
                         funcexe.fe_partial = partial;
                         call_func(
                             s,

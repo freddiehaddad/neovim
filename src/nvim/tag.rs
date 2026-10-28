@@ -2808,7 +2808,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
 
             if keep_help {
                 if l_g_do_tagpreview != 0 {
-                    g_st().keep_help_flag = bt_help((*curwin_save).w_buffer);
+                    g_st().keep_help_flag = bt_help(((*curwin_save).w_buffer).as_ref());
                 } else {
                     g_st().keep_help_flag = curbuf_mut().b_help;
                 }
@@ -2853,7 +2853,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                     };
 
                     if do_search(
-                        ptr::null_mut(),
+                        None,
                         *pbuf as c_int,
                         *pbuf as c_int,
                         pbuf.add(1),
@@ -2869,7 +2869,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                         let mut found = 1;
                         opt_vars().p_ic = 1;
                         if do_search(
-                            ptr::null_mut(),
+                            None,
                             *pbuf as c_int,
                             *pbuf as c_int,
                             pbuf.add(1),
@@ -2891,7 +2891,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                                 tagp.tagname,
                             ) as usize;
                             if do_search(
-                                ptr::null_mut(),
+                                None,
                                 b'/' as c_int,
                                 b'/' as c_int,
                                 pbuf,
@@ -2909,7 +2909,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                                     tagp.tagname,
                                 ) as usize;
                                 if do_search(
-                                    ptr::null_mut(),
+                                    None,
                                     b'/' as c_int,
                                     b'/' as c_int,
                                     pbuf,

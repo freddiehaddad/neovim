@@ -382,7 +382,7 @@ fn conv_error(
                     } else if li.is_null() {
                         tv_list_len(list) - 1
                     } else {
-                        tv_list_idx_of_item(list, (*li).li_prev)
+                        tv_list_idx_of_item(list.as_ref(), (*li).li_prev)
                     };
                     let prev_li: *const listitem_T = if li.is_null() {
                         tv_list_last(list)
@@ -1189,7 +1189,7 @@ fn convert_one_value(
             }
             VarType::VAR_BLOB => {
                 let blob = tv_ref.vval.v_blob();
-                backend.conv_blob(blob, tv_blob_len(blob));
+                backend.conv_blob(blob, tv_blob_len(blob.as_ref()));
             }
             VarType::VAR_FUNC => {
                 if backend.conv_func_start(tv_ref.vval.v_string(), b"", mpstack, objname) == FAIL {
@@ -1204,7 +1204,7 @@ fn convert_one_value(
                 let fun = if pt.is_null() {
                     std::ptr::null_mut()
                 } else {
-                    partial_name(pt)
+                    partial_name(pt.as_ref())
                 };
                 let prefix: &[u8] = if !fun.is_null()
                     && !pt.is_null()

@@ -1071,7 +1071,7 @@ fn lua_convert_one_value(
             }
             VarType::VAR_BLOB => {
                 let blob = tv_ref.vval.v_blob();
-                let len = tv_blob_len(blob) as usize;
+                let len = tv_blob_len(blob.as_ref()) as usize;
                 let data = if !blob.is_null() && !(*blob).bv_ga.is_empty() {
                     (*blob).bv_ga.as_ptr().cast::<c_char>()
                 } else {
@@ -1097,7 +1097,7 @@ fn lua_convert_one_value(
                 let fun = if pt.is_null() {
                     std::ptr::null_mut()
                 } else {
-                    partial_name(pt)
+                    partial_name(pt.as_ref())
                 };
                 if !fun.is_null() {
                     let fp = find_func(fun);

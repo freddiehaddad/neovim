@@ -765,7 +765,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
             *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = NUL;
             g_st().emsg_off += 1; // So it doesn't beep if bad expr
             found = do_search(
-                ptr::null_mut(),
+                None,
                 if firstc == b':' as c_int {
                     b'/' as c_int
                 } else {

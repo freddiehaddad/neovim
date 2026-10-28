@@ -1813,7 +1813,7 @@ pub fn did_set_cinoptions(args: &mut optset_T) -> *const c_char {
 }
 
 pub fn validate_colorcolumn(args: &mut optset_T) -> *const c_char {
-    check_colorcolumn(args.os_newval.data.string().data, ptr::null_mut())
+    check_colorcolumn(args.os_newval.data.string().data, None)
 }
 
 /// The 'colorcolumn' option is changed.
@@ -1823,11 +1823,11 @@ pub fn did_set_colorcolumn(args: &mut optset_T) -> *const c_char {
         let varp = args.os_varp.cast::<*mut c_char>();
         check_colorcolumn(
             *varp,
-            if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_cc) {
+            (if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_cc) {
                 win
             } else {
                 ptr::null_mut()
-            },
+            }).as_mut(),
         )
     }
 }

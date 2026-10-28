@@ -3155,7 +3155,7 @@ pub fn ex_scriptnames(eap: &mut exarg_T) {
         while i <= script_items_len() && !g_st().got_int {
             let si = script_item(i);
             if let Some(ref sn) = (*si).sn_name {
-                home_replace(ptr::null_mut(), sn.as_ptr(), namebuff, MAXPATHL, true);
+                home_replace(None, sn.as_ptr(), namebuff, MAXPATHL, true);
                 vim_snprintf!(iobuff, IOSIZE, c"%3d: %s", i, namebuff);
                 if !message_filtered(iobuff) {
                     if g_st().msg_col > 0 {

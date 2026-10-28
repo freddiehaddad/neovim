@@ -985,7 +985,7 @@ pub fn current_block(
                 count -= 1;
                 old > 0
             } {
-                pos = findmatchlimit(ptr::null_mut(), what, FM_FORWARD, 0);
+                pos = findmatchlimit(None, what, FM_FORWARD, 0);
                 if pos.is_null() {
                     break;
                 }

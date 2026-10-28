@@ -854,7 +854,7 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             (*g_st().prevwin).handle
         };
         cs.cs_same_win = wp == curwin_ptr();
-        if bt_prompt(g_st().curbuf) {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) {
             cs.cs_prompt_insert = curbuf_mut().b_prompt_insert;
         }
         if !cs.cs_same_win {
@@ -944,7 +944,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             let cwp = ctx_win_rest(cs);
             ctx_restore_curwin(cs, g_st().firstwin);
             entering_window(curwin_mut());
-            if bt_prompt(g_st().curbuf) {
+            if bt_prompt(Some(crate::globals::curbuf_mut())) {
                 curbuf_mut().b_prompt_insert = cs.cs_prompt_insert;
             }
 

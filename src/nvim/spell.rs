@@ -2270,7 +2270,7 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
         curwin_mut().w_cursor.lnum = 0;
         while !g_st().got_int {
             if do_search(
-                ptr::null_mut(),
+                None,
                 b'/' as c_int,
                 b'/' as c_int,
                 frompat,

@@ -5306,7 +5306,7 @@ pub fn spell_add_word(
                             fputc(b'#' as c_int, fd);
                             if undo {
                                 home_replace(
-                                    ptr::null_mut(),
+                                    None,
                                     fname,
                                     (&raw mut g_st().NameBuff).cast(),
                                     MAXPATHL,
@@ -5368,7 +5368,7 @@ pub fn spell_add_word(
                 fclose(fd);
 
                 home_replace(
-                    ptr::null_mut(),
+                    None,
                     fname,
                     (&raw mut g_st().NameBuff).cast(),
                     MAXPATHL,

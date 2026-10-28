@@ -1037,7 +1037,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
 
 /// Replace home directory by `"~"` in each space or comma separated file name in `src`.
 pub fn home_replace(
-    buf: *const buf_T,
+    buf: Option<&buf_T>,
     mut src: *const c_char,
     dst: *mut c_char,
     mut dstlen: usize,
@@ -1049,7 +1049,7 @@ pub fn home_replace(
             return 0;
         }
 
-        if !buf.is_null() && (*buf).b_help {
+        if buf.is_some() && buf.unwrap().b_help {
             let dlen = xstrlcpy(dst, path_tail(src), dstlen);
             return dlen.min(dstlen - 1);
         }
@@ -1183,7 +1183,7 @@ pub fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi::CStri
             len += crate::memory::cstr_len(src);
         }
         let mut dst = vec![0 as c_char; len];
-        let _ = home_replace(buf, src, dst.as_mut_ptr(), len, true);
+        let _ = home_replace(unsafe { buf.as_ref() }, src, dst.as_mut_ptr(), len, true);
         cstr_to_cstring(dst.as_ptr())
     }
 }

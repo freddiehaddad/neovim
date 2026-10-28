@@ -614,9 +614,9 @@ pub fn hl_check_ns() -> bool {
     }
 }
 
-pub fn win_check_ns_hl(wp: *mut win_T) -> bool {
-    unsafe {
-        g_st().ns_hl_win = if !wp.is_null() { (*wp).w_ns_hl } else { -1 };
+pub fn win_check_ns_hl(wp: Option<&win_T>) -> bool {
+     {
+        g_st().ns_hl_win = wp.map_or(-1, |wp| wp.w_ns_hl);
         hl_check_ns()
     }
 }

@@ -1554,7 +1554,7 @@ pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             func = argvars[0].vval.v_string();
         } else if argvars[0].v_type == VarType::VAR_PARTIAL {
             partial = argvars[0].vval.v_partial();
-            func = partial_name(partial);
+            func = partial_name(partial.as_ref());
         } else if nlua_is_table_from_lua(&argvars[0]) {
             func = nlua_register_table_as_callable(&argvars[0]);
             owned = true;
@@ -1684,7 +1684,7 @@ pub fn f_chansend(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
         let input = if argvars[1].v_type == VarType::VAR_BLOB {
             let b = argvars[1].vval.v_blob().cast::<blob_T>();
-            let input_len = tv_blob_len(b) as usize;
+            let input_len = tv_blob_len(b.as_ref()) as usize;
             if input_len == 0 {
                 return;
             }
@@ -2108,7 +2108,7 @@ pub fn f_empty(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 n = tv_list_len(argvars[0].vval.v_list()) == 0;
             }
             VarType::VAR_DICT => {
-                n = tv_dict_len(argvars[0].vval.v_dict()) == 0;
+                n = tv_dict_len(argvars[0].vval.v_dict().as_ref()) == 0;
             }
             VarType::VAR_BOOL => {
                 n = argvars[0].vval.v_bool() as c_int != kBoolVarTrue;
@@ -2117,7 +2117,7 @@ pub fn f_empty(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 n = argvars[0].vval.v_special() as c_int == kSpecialVarNull;
             }
             VarType::VAR_BLOB => {
-                n = tv_blob_len(argvars[0].vval.v_blob().cast()) == 0;
+                n = tv_blob_len(argvars[0].vval.v_blob().as_ref()) == 0;
             }
             VarType::VAR_UNKNOWN => {
                 internal_error(c"f_empty(UNKNOWN)");
@@ -2523,7 +2523,7 @@ fn flatten_common(argvars: &mut [typval_T], rettv: &mut typval_T, make_copy: boo
             }
         } else {
             if value_check_lock(
-                tv_list_locked(list),
+                tv_list_locked(unsafe { list.as_ref() }),
                 c"flatten() argument",
                 TV_TRANSLATE,
             ) {
@@ -2623,7 +2623,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
         } else if argvars[0].v_type == VarType::VAR_PARTIAL && !argvars[0].vval.v_partial().is_null()
         {
             arg_pt = argvars[0].vval.v_partial();
-            s = partial_name(arg_pt);
+            s = partial_name(arg_pt.as_ref());
         } else {
             s = tv_get_string(&argvars[0]).cast_mut();
             use_string = true;
@@ -2810,9 +2810,9 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 let blob = argvars[0].vval.v_blob().cast::<blob_T>();
                 rettv.v_type = VarType::VAR_NUMBER;
                 if idx < 0 {
-                    idx += tv_blob_len(blob);
+                    idx += tv_blob_len(blob.as_ref());
                 }
-                if idx < 0 || idx >= tv_blob_len(blob) {
+                if idx < 0 || idx >= tv_blob_len(blob.as_ref()) {
                     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
                 } else {
                     rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_blob_get( &*blob, idx)));
@@ -2851,7 +2851,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
             if !pt.is_null() {
                 let what = tv_get_string(&argvars[1]);
                 if crate::memory::cstr_as_bytes(what) == b"func" || crate::memory::cstr_as_bytes(what) == b"name" {
-                    let mut name = partial_name(pt);
+                    let mut name = partial_name(pt.as_ref());
                     debug_assert!(!name.is_null());
                     if *what == b'f' as c_char {
                         func_ref(name);
@@ -2883,7 +2883,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                     let mut required: c_int = 0;
                     let mut optional: c_int = 0;
                     let mut varargs = false;
-                    let name = partial_name(pt);
+                    let name = partial_name(pt.as_ref());
                     get_func_arity(name, &mut required, &mut optional, &mut varargs);
 
                     rettv.v_type = VarType::VAR_DICT;
@@ -4027,13 +4027,13 @@ pub fn f_index(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 return;
             }
             if start < 0 {
-                start += tv_blob_len(b);
+                start += tv_blob_len(b.as_ref());
                 if start < 0 {
                     start = 0;
                 }
             }
             idx = start;
-            while idx < tv_blob_len(b) {
+            while idx < tv_blob_len(b.as_ref()) {
                 let tv = typval_T {
                     v_type: VarType::VAR_NUMBER,
                     v_lock: VAR_UNLOCKED,
@@ -4115,7 +4115,7 @@ fn indexof_blob(
             return -1;
         }
         if startidx < 0 {
-            startidx += varnumber_T::from(tv_blob_len(b));
+            startidx += varnumber_T::from(tv_blob_len(unsafe { b.as_ref() }));
             if startidx < 0 {
                 startidx = 0;
             }
@@ -4126,7 +4126,7 @@ fn indexof_blob(
 
         let called_emsg_start = g_st().called_emsg;
         let mut idx = startidx;
-        while idx < varnumber_T::from(tv_blob_len(b)) {
+        while idx < varnumber_T::from(tv_blob_len(unsafe { b.as_ref() })) {
             set_vim_var_nr(VV_KEY, idx);
             set_vim_var_nr(VV_VAL, varnumber_T::from(tv_blob_get(unsafe { &*b }, idx as c_int)));
 
@@ -4223,7 +4223,7 @@ pub fn f_indexof(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         g_st().did_emsg = 0;
 
         if argvars[0].v_type == VarType::VAR_BLOB {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_blob(argvars[0].vval.v_blob().cast(), startidx, &mut argvars[1]));
+            rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_blob(argvars[0].vval.v_blob(), startidx, &mut argvars[1]));
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_list(argvars[0].vval.v_list(), startidx, &mut argvars[1]));
         }
@@ -4810,7 +4810,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
                 let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
                 vim_FullName(cwd, namebuff, MAXPATHL, false);
-                let len = home_replace(ptr::null_mut(), namebuff, iobuff, IOSIZE, true);
+                let len = home_replace(None, namebuff, iobuff, IOSIZE, true);
                 if len != 1
                     && (*iobuff.add(len - 1) == b'\\' as c_char
                         || *iobuff.add(len - 1) == b'/' as c_char)
@@ -5101,13 +5101,13 @@ pub fn f_len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::cstr_len(tv_get_string(&argvars[0])) as varnumber_T);
             }
             VarType::VAR_BLOB => {
-                rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_blob_len(argvars[0].vval.v_blob().cast())));
+                rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_blob_len(unsafe { argvars[0].vval.v_blob().as_ref() })));
             }
             VarType::VAR_LIST => {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_list_len(argvars[0].vval.v_list())));
             }
             VarType::VAR_DICT => {
-                rettv.vval = crate::eval::typval::TypvalVval::Number(tv_dict_len(argvars[0].vval.v_dict()) as varnumber_T);
+                rettv.vval = crate::eval::typval::TypvalVval::Number(tv_dict_len(unsafe { argvars[0].vval.v_dict().as_ref() }) as varnumber_T);
             }
             VarType::VAR_UNKNOWN
             | VarType::VAR_BOOL
@@ -5565,7 +5565,7 @@ pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let pat = tv_get_string_buf(&argvars[1], patbuf.as_mut_ptr());
 
         let did_emsg_before = g_st().did_emsg;
-        let mut slnum = tv_get_lnum_buf(&argvars[2], buf);
+        let mut slnum = tv_get_lnum_buf(&argvars[2], buf.as_ref());
         if g_st().did_emsg > did_emsg_before {
             return;
         }
@@ -5574,7 +5574,7 @@ pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
             return;
         }
 
-        let mut elnum = tv_get_lnum_buf(&argvars[3], buf);
+        let mut elnum = tv_get_lnum_buf(&argvars[3], buf.as_ref());
         if g_st().did_emsg > did_emsg_before {
             return;
         }
@@ -5741,7 +5741,7 @@ fn max_min(tv: &typval_T, rettv: &mut typval_T, domax: bool) {
             }
         } else if tv.v_type == VarType::VAR_DICT {
             let d = tv.vval.v_dict();
-            if tv_dict_len(d) == 0 {
+            if tv_dict_len(d.as_ref()) == 0 {
                 return;
             }
             let ht = &raw const (*d).dv_hashtab;
@@ -5983,7 +5983,7 @@ fn msgpackparse_unpack_list(list: *const list_T, ret_list: &mut list_T) {
 
 fn msgpackparse_unpack_blob(blob: *const blob_T, ret_list: &mut list_T) {
     unsafe {
-        let len = tv_blob_len(blob);
+        let len = tv_blob_len(blob.as_ref());
         if len == 0 {
             return;
         }
@@ -6014,7 +6014,7 @@ pub fn f_msgpackparse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         if argvars[0].v_type == VarType::VAR_LIST {
             msgpackparse_unpack_list(argvars[0].vval.v_list(), &mut *ret_list);
         } else {
-            msgpackparse_unpack_blob(argvars[0].vval.v_blob().cast(), &mut *ret_list);
+            msgpackparse_unpack_blob(argvars[0].vval.v_blob(), &mut *ret_list);
         }
     }
 }
@@ -6619,7 +6619,7 @@ fn reduce_list(argvars: &mut [typval_T], rettv: &mut typval_T) {
             return;
         }
 
-        let prev_locked = tv_list_locked(l);
+        let prev_locked = tv_list_locked(l.as_ref());
         tv_list_set_lock(l, VAR_FIXED);
         while !li.is_null() {
             let mut argv = [tv_initial_value(); 3];
@@ -6694,7 +6694,7 @@ fn reduce_blob(argvars: &mut [typval_T], rettv: &mut typval_T) {
         let initial: typval_T;
         let mut i: c_int;
         if argvars[2].v_type == VarType::VAR_UNKNOWN {
-            if tv_blob_len(b) == 0 {
+            if tv_blob_len(b.as_ref()) == 0 {
                 semsg!(
                     gettext(e_reduce_of_an_empty_str_with_no_initial_value),
                     c"Blob",
@@ -6715,7 +6715,7 @@ fn reduce_blob(argvars: &mut [typval_T], rettv: &mut typval_T) {
         }
 
         tv_copy(&initial, &mut *rettv);
-        while i < tv_blob_len(b) {
+        while i < tv_blob_len(b.as_ref()) {
             let mut argv = [tv_initial_value(); 3];
             argv[0] = *rettv;
             argv[1] = typval_T {
@@ -6748,7 +6748,7 @@ pub fn f_reduce(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         let func_name = if argvars[1].v_type == VarType::VAR_FUNC {
             argvars[1].vval.v_string().cast_const()
         } else if argvars[1].v_type == VarType::VAR_PARTIAL {
-            partial_name(argvars[1].vval.v_partial())
+            partial_name(argvars[1].vval.v_partial().as_ref())
         } else {
             tv_get_string(&argvars[1])
         };
@@ -7945,7 +7945,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         let mut pointreg: c_char = 0;
         if argvars[1].v_type == VarType::VAR_DICT {
             let d = argvars[1].vval.v_dict();
-            if tv_dict_len(d) == 0 {
+            if tv_dict_len(d.as_ref()) == 0 {
                 let mut lstval: [*mut c_char; 2] = [ptr::null_mut(), ptr::null_mut()];
                 write_reg_contents_lst(
                     c_int::from(regname as u8),

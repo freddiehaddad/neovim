@@ -1726,9 +1726,9 @@ fn prepend_startcol_text(dest: &mut NvimString, src: &NvimString, startcol: c_in
     }
 }
 
-fn get_leader_for_startcol(match_: *mut compl_T, cached: bool) -> *mut NvimString {
+fn get_leader_for_startcol(match_: Option<&compl_T>, cached: bool) -> *mut NvimString {
     unsafe {
-        if match_.is_null() {
+        if match_.is_none() {
             api_clear_string(&mut insexp().adjusted_leader);
             return ptr::null_mut();
         }
@@ -1738,7 +1738,7 @@ fn get_leader_for_startcol(match_: *mut compl_T, cached: bool) -> *mut NvimStrin
             return &raw mut insexp().compl_leader;
         }
 
-        let cpt_idx = (*match_).cp_cpt_source_idx;
+        let cpt_idx = match_.unwrap().cp_cpt_source_idx;
         if cpt_idx < 0 {
             return &raw mut insexp().compl_leader;
         }
@@ -1789,7 +1789,7 @@ fn set_fuzzy_score() {
             }
             pattern = insexp().compl_orig_text.data;
         } else {
-            let _ = get_leader_for_startcol(ptr::null_mut(), true);
+            let _ = get_leader_for_startcol(None, true);
             pattern = ptr::null_mut();
         }
 
@@ -1801,7 +1801,7 @@ fn set_fuzzy_score() {
             next = next.max(comp.cp_order + 1);
 
             if use_leader {
-                pattern = (*get_leader_for_startcol(comp, true)).data;
+                pattern = (*get_leader_for_startcol(Some(&*comp), true)).data;
             }
 
             comp.cp_score = fuzzy_match_str(comp.cp_str.data, pattern);
@@ -1901,13 +1901,13 @@ fn ins_compl_build_pum() -> c_int {
             Vec::new()
         };
 
-        let _ = get_leader_for_startcol(ptr::null_mut(), true);
+        let _ = get_leader_for_startcol(None, true);
 
         let mut items: Vec<pumitem_T> = Vec::new();
         for (comp_idx, comp) in (*list).iter_mut().enumerate() {
             comp.cp_in_match_array = false;
 
-            let leader = get_leader_for_startcol(comp, true);
+            let leader = get_leader_for_startcol(Some(&*comp), true);
 
             if ctrl_x_mode_normal()
                 && opt_vars().p_inf == 0
@@ -5264,11 +5264,11 @@ fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
 
 fn ins_compl_update_shown_match() {
     unsafe {
-        let _ = get_leader_for_startcol(ptr::null_mut(), true);
+        let _ = get_leader_for_startcol(None, true);
         let Some(mut shown_idx) = insexp().compl_shown_idx else {
             return;
         };
-        let mut leader = get_leader_for_startcol(compl_at(shown_idx), true);
+        let mut leader = get_leader_for_startcol(compl_at(shown_idx).as_ref(), true);
 
         while !ins_compl_equal(&mut *compl_at(shown_idx), (*leader).data, (*leader).size)
             && let Some(next_i) = compl_next_idx(shown_idx)
@@ -5276,7 +5276,7 @@ fn ins_compl_update_shown_match() {
         {
             shown_idx = next_i;
             insexp().compl_shown_idx = Some(shown_idx);
-            leader = get_leader_for_startcol(compl_at(shown_idx), true);
+            leader = get_leader_for_startcol(compl_at(shown_idx).as_ref(), true);
         }
 
         if compl_shows_dir_backward()
@@ -5289,7 +5289,7 @@ fn ins_compl_update_shown_match() {
             {
                 shown_idx = prev_i;
                 insexp().compl_shown_idx = Some(shown_idx);
-                leader = get_leader_for_startcol(compl_at(shown_idx), true);
+                leader = get_leader_for_startcol(compl_at(shown_idx).as_ref(), true);
             }
         }
     }
@@ -5398,13 +5398,13 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
 
         let mut match_count = vec![0 as c_int; (*cpt_sources).len()];
 
-        let _ = get_leader_for_startcol(ptr::null_mut(), true);
+        let _ = get_leader_for_startcol(None, true);
 
         let list = &raw mut insexp().compl_list;
         let mut first: *mut c_char = ptr::null_mut();
         let mut len: c_int = -1;
         for compl in &mut *list {
-            let leader = get_leader_for_startcol(compl, true);
+            let leader = get_leader_for_startcol(Some(&*compl), true);
 
             if ctrl_x_mode_normal()
                 && opt_vars().p_inf == 0
@@ -5702,7 +5702,7 @@ fn find_next_completion_match(
             }
 
             let shown = compl_opt(insexp().compl_shown_idx);
-            let leader = get_leader_for_startcol(shown, false);
+            let leader = get_leader_for_startcol(shown.as_ref(), false);
 
             if !match_at_original_text(&*shown)
                 && !(*leader).data.is_null()

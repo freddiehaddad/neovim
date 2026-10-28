@@ -726,7 +726,7 @@ pub fn do_mouse(
             let mut pos = ZERO_POS;
             let mut wp: *mut win_T = ptr::null_mut();
             if get_fpos_of_mouse(&mut pos, &raw mut wp) == IN_BUFFER
-                && !bt_quickfix((*wp).w_buffer)
+                && !bt_quickfix(((*wp).w_buffer).as_ref())
             {
                 mouse_st().got_click = false;
                 if (g_st().State & MODE_INSERT) == 0 {
@@ -1058,7 +1058,7 @@ pub fn do_mouse(
             );
         } else if ((g_st().mod_mask & MOD_MASK_CTRL) != 0
             || (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
-            && bt_quickfix(g_st().curbuf)
+            && bt_quickfix(Some(crate::globals::curbuf_mut()))
         {
             if curwin_mut().w_llist_ref.is_null() {
                 do_cmdline_cmd(c".cc");
@@ -1198,7 +1198,7 @@ pub fn ins_mouse(c: c_int) {
             if curwin_ptr() != old_curwin && win_valid(old_curwin) {
                 set_curwin(old_curwin);
                 g_st().curbuf = curwin_mut().w_buffer;
-                if bt_prompt(g_st().curbuf) {
+                if bt_prompt(Some(crate::globals::curbuf_mut())) {
                     curbuf_mut().b_prompt_insert = b'A' as c_int;
                 }
             }

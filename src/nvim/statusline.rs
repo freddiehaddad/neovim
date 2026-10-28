@@ -386,7 +386,7 @@ pub fn get_trans_bufname(buf: &mut buf_T) {
         if !sp.is_null() {
             xstrlcpy(name_buff, sp, MAXPATHL);
         } else {
-            home_replace((&raw mut *buf), buf.b_fname, name_buff, MAXPATHL, true);
+            home_replace(Some(&*buf), buf.b_fname, name_buff, MAXPATHL, true);
         }
         trans_characters(name_buff, MAXPATHL as c_int);
     }
@@ -1858,7 +1858,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         } else {
                             (*wp).buf_mut().b_fname
                         };
-                        home_replace((*wp).w_buffer, t, name_buff, MAXPATHL, true);
+                        home_replace(((*wp).w_buffer).as_ref(), t, name_buff, MAXPATHL, true);
                     }
                     trans_characters(name_buff, MAXPATHL as c_int);
                     if opt != STL_FILENAME {
@@ -2150,7 +2150,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     }
                 }
                 STL_QUICKFIX => {
-                    if bt_quickfix((*wp).w_buffer) {
+                    if bt_quickfix(((*wp).w_buffer).as_ref()) {
                         str = if !(*wp).w_llist_ref.is_null() {
                             tr(msg_loclist)
                         } else {

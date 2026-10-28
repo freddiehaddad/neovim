@@ -714,7 +714,7 @@ pub fn deref_func_name(
             if !partialp.is_null() {
                 *partialp = pt;
             }
-            let s = partial_name(pt);
+            let s = partial_name(pt.as_ref());
             *lenp = crate::memory::cstr_len(s) as c_int;
             return s;
         }
@@ -2252,7 +2252,7 @@ pub fn trans_function_name(
                     )));
                     *pp = end.cast_mut().add(1 + len as usize);
                 } else {
-                    res = Some(cstr_to_cstring(partial_name(pt)));
+                    res = Some(cstr_to_cstring(partial_name(pt.as_ref())));
                     *pp = end.cast_mut();
                 }
                 if !partial.is_null() {

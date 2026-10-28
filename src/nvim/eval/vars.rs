@@ -541,12 +541,8 @@ pub fn tv_init(tv: Option<&mut typval_T>) {
 }
 
 #[inline]
-pub fn tv_list_locked(l: *const list_T) -> VarLockStatus {
-    if l.is_null() {
-        VAR_FIXED
-    } else {
-        unsafe { (*l).lv_lock }
-    }
+pub fn tv_list_locked(l: Option<&list_T>) -> VarLockStatus {
+    l.map_or(VAR_FIXED, |l| l.lv_lock)
 }
 
 #[inline]
@@ -2051,7 +2047,7 @@ fn do_unlet_var(
             *name_end = cc;
         } else if (!lp.ll_list.is_null()
             && value_check_lock(
-                tv_list_locked(lp.ll_list),
+                tv_list_locked(lp.ll_list.as_ref()),
                 lp.ll_name,
                 lp.ll_name_len,
             ))
@@ -2073,7 +2069,7 @@ fn do_unlet_var(
             let d = lp.ll_dict;
             debug_assert!(!d.is_null());
             let di = lp.ll_di;
-            let watched = tv_dict_is_watched(d);
+            let watched = tv_dict_is_watched(d.as_ref());
             let mut key: Option<std::ffi::CString> = None;
             let mut oldtv: typval_T = typval_T::new();
 
@@ -2085,7 +2081,7 @@ fn do_unlet_var(
             tv_dict_item_remove(&mut *d,  &mut *di);
 
             if let Some(ref k) = key {
-                tv_dict_watcher_notify(&mut *d, k.as_ptr(), ptr::null_mut(), Some(&oldtv));
+                tv_dict_watcher_notify(&mut *d, k.as_ptr(), None, Some(&oldtv));
                 tv_clear(&mut oldtv);
             }
         }
@@ -2161,7 +2157,7 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
                 }
 
                 let mut oldtv: typval_T = typval_T::new();
-                let watched = tv_dict_is_watched(dict);
+                let watched = tv_dict_is_watched(dict.as_ref());
 
                 if watched {
                     tv_copy(&(*di).di_tv, &mut oldtv);
@@ -2170,7 +2166,7 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
                 delete_var(&mut *ht,  &mut *hi);
 
                 if watched {
-                    tv_dict_watcher_notify(&mut *dict, varname, ptr::null_mut(), Some(&oldtv));
+                    tv_dict_watcher_notify(&mut *dict, varname, None, Some(&oldtv));
                     tv_clear(&mut oldtv);
                 }
                 return true;
@@ -3010,7 +3006,7 @@ pub fn before_set_vvar(
                 tv_dict_watcher_notify(
                     &mut vars_st().vimvardict,
                     varname,
-                    &raw mut di.di_tv,
+                    Some(&di.di_tv),
                     Some(&oldtv),
                 );
                 tv_clear(&mut oldtv);
@@ -3036,7 +3032,7 @@ pub fn before_set_vvar(
                 tv_dict_watcher_notify(
                     &mut vars_st().vimvardict,
                     varname,
-                    &raw mut di.di_tv,
+                    Some(&di.di_tv),
                     Some(&oldtv),
                 );
                 tv_clear(&mut oldtv);
@@ -3067,7 +3063,7 @@ pub fn set_var_const(
         let mut varname: *const c_char = ptr::null();
         let mut dict: *mut dict_T = ptr::null_mut();
         let ht = find_var_ht_dict(name, name_len, &raw mut varname, &raw mut dict);
-        let watched = tv_dict_is_watched(dict);
+        let watched = tv_dict_is_watched(dict.as_ref());
 
         if ht.is_null() || *varname == NUL {
             semsg!(gettext(e_illvar), name);
@@ -3149,7 +3145,7 @@ pub fn set_var_const(
             tv_dict_watcher_notify(
                 &mut *dict,
                 (*di).di_key.as_ptr(),
-                &raw mut (*di).di_tv,
+                Some(&(*di).di_tv),
                 Some(&oldtv),
             );
             tv_clear(&mut oldtv);

@@ -1192,7 +1192,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
         match nchar {
             c if c == b'S' as c_int || c == Ctrl_S || c == b's' as c_int => {
                 reset_VIsual_and_resel();
-                if bt_quickfix(g_st().curbuf) {
+                if bt_quickfix(Some(crate::globals::curbuf_mut())) {
                     do_window_newwindow(nchar, Prenum, &mut cbuf);
                 } else {
                     win_split(Prenum, 0);
@@ -1200,7 +1200,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             }
             c if c == Ctrl_V || c == b'v' as c_int => {
                 reset_VIsual_and_resel();
-                if bt_quickfix(g_st().curbuf) {
+                if bt_quickfix(Some(crate::globals::curbuf_mut())) {
                     do_window_newwindow(nchar, Prenum, &mut cbuf);
                 } else {
                     win_split(Prenum, WSP_VERT);
@@ -1517,7 +1517,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 curwin_mut().w_set_curswant = true;
             }
             c if c == K_KENTER || c == CAR => {
-                if bt_quickfix(g_st().curbuf) {
+                if bt_quickfix(Some(crate::globals::curbuf_mut())) {
                     qf_view_result(true);
                 }
             }
@@ -3241,7 +3241,7 @@ fn win_equal_rec(
 
 pub fn leaving_window(win: &mut win_T) {
      {
-        if !bt_prompt(win.w_buffer) || is_ctx_win(&raw mut *win) {
+        if !bt_prompt(unsafe { win.w_buffer.as_ref() }) || is_ctx_win(&raw mut *win) {
             return;
         }
 
@@ -3262,7 +3262,7 @@ pub fn leaving_window(win: &mut win_T) {
 
 pub fn entering_window(win: &mut win_T) {
      {
-        if !bt_prompt(win.w_buffer) || is_ctx_win(&raw mut *win) {
+        if !bt_prompt(unsafe { win.w_buffer.as_ref() }) || is_ctx_win(&raw mut *win) {
             return;
         }
 
@@ -3459,7 +3459,7 @@ fn win_close_buffer(win: &mut win_T, action: c_int, abort_if_last: bool) -> bool
         }
 
         if !win.w_buffer.is_null()
-            && bt_quickfix(win.w_buffer)
+            && bt_quickfix(unsafe { win.w_buffer.as_ref() })
             && win.buf_mut().b_nwindows == 1
         {
             win.buf_mut().b_p_bl = 0;
@@ -3555,13 +3555,13 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
         let mut help_window = false;
         let mut quickfix_window = false;
 
-        if bt_help((*win).w_buffer) {
+        if bt_help(((*win).w_buffer).as_ref()) {
             help_window = true;
         } else {
             clear_snapshot(curtab_mut(), SNAP_HELP_IDX as c_int);
         }
 
-        if bt_quickfix((*win).w_buffer) {
+        if bt_quickfix(((*win).w_buffer).as_ref()) {
             quickfix_window = true;
         } else {
             clear_snapshot(curtab_mut(), SNAP_QUICKFIX_IDX as c_int);
@@ -3702,7 +3702,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
 
         if ptr::eq(win, curwin_ptr()) {
             set_curwin(wp);
-            if (*wp).w_onebuf_opt.wo_pvw != 0 || bt_quickfix((*wp).w_buffer) {
+            if (*wp).w_onebuf_opt.wo_pvw != 0 || bt_quickfix(((*wp).w_buffer).as_ref()) {
                 loop {
                     if (*wp).w_next.is_null() {
                         wp = g_st().firstwin;
@@ -3713,7 +3713,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
                         break;
                     }
                     if (*wp).w_onebuf_opt.wo_pvw == 0
-                        && !bt_quickfix((*wp).w_buffer)
+                        && !bt_quickfix(((*wp).w_buffer).as_ref())
                         && !((*wp).w_floating && ((*wp).w_config.hide || !(*wp).w_config.focusable))
                     {
                         set_curwin(wp);
@@ -6235,7 +6235,7 @@ pub fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
 
         clear_matches(&mut *wp);
         free_jumplist(&mut *wp);
-        qf_free_all(wp);
+        qf_free_all(wp.as_mut());
 
         (*wp).w_p_cc_cols.clear();
 
@@ -7960,7 +7960,7 @@ pub fn only_one_window() -> bool {
         let mut count: c_int = 0;
         for wp in for_all_windows_ptr() {
             if !(*wp).w_buffer.is_null()
-                && (!((bt_help((*wp).w_buffer) && !bt_help(g_st().curbuf))
+                && (!((bt_help(((*wp).w_buffer).as_ref()) && !bt_help(Some(crate::globals::curbuf_mut())))
                     || (*wp).w_floating
                     || (*wp).w_onebuf_opt.wo_pvw != 0)
                     || ptr::eq(wp, curwin_ptr()))
@@ -8189,21 +8189,21 @@ fn frame_check_width(topfrp: &frame_T, width: c_int) -> bool {
     }
 }
 
-pub fn check_colorcolumn(cc: *mut c_char, wp: *mut win_T) -> *const c_char {
+pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut win_T>) -> *const c_char {
     unsafe {
-        if !wp.is_null() && (*wp).w_buffer.is_null() {
+        if wp.is_some() && wp.as_deref_mut().unwrap().w_buffer.is_null() {
             return ptr::null();
         }
 
         let mut s: *mut c_char = empty_string_option.as_ptr().cast::<c_char>();
         if !cc.is_null() {
             s = cc;
-        } else if !wp.is_null() {
-            s = (*wp).w_onebuf_opt.wo_cc;
+        } else if wp.is_some() {
+            s = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_cc;
         }
 
-        let tw: OptInt = if !wp.is_null() {
-            (*wp).buf_mut().b_p_tw
+        let tw: OptInt = if wp.is_some() {
+            wp.as_deref_mut().unwrap().buf_mut().b_p_tw
         } else {
             0
         };
@@ -8249,16 +8249,16 @@ pub fn check_colorcolumn(cc: *mut c_char, wp: *mut win_T) -> *const c_char {
             }
         }
 
-        if wp.is_null() {
+        if wp.is_none() {
             return ptr::null();
         }
 
-        (*wp).w_p_cc_cols.clear();
+        wp.as_deref_mut().unwrap().w_p_cc_cols.clear();
         if count > 0 {
             color_cols[..count].sort_unstable();
-            (*wp).w_p_cc_cols.extend_from_slice(&color_cols[..count]);
-            (*wp).w_p_cc_cols.dedup();
-            (*wp).w_p_cc_cols.push(-1);
+            wp.as_deref_mut().unwrap().w_p_cc_cols.extend_from_slice(&color_cols[..count]);
+            wp.as_deref_mut().unwrap().w_p_cc_cols.dedup();
+            wp.unwrap().w_p_cc_cols.push(-1);
         }
 
         ptr::null()

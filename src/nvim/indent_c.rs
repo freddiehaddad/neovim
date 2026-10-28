@@ -146,7 +146,7 @@ pub fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
         let mut pos: *mut pos_T;
         let mut cur_maxcomment = ind_maxcomment as i64;
         loop {
-            pos = findmatchlimit(ptr::null_mut(), b'*' as c_int, FM_BACKWARD, cur_maxcomment);
+            pos = findmatchlimit(None, b'*' as c_int, FM_BACKWARD, cur_maxcomment);
             if pos.is_null() {
                 break;
             }
@@ -187,7 +187,7 @@ fn find_start_rawstring(ind_maxcomment: c_int) -> *mut pos_T {
         let mut cur_maxcomment = ind_maxcomment;
         loop {
             pos = findmatchlimit(
-                ptr::null_mut(),
+                None,
                 b'R' as c_int,
                 FM_BACKWARD,
                 cur_maxcomment as i64,
@@ -1040,7 +1040,7 @@ fn cin_iswhileofdo(mut p: *const c_char, lnum: linenr_T) -> bool {
                 curwin_mut().w_cursor.col += 1;
             }
             let trypos = findmatchlimit(
-                ptr::null_mut(),
+                None,
                 0,
                 FM_SKIPCOMM,
                 curbuf_mut().b_ind_maxparen as i64,
@@ -1378,7 +1378,7 @@ fn find_start_brace() -> *mut pos_T {
         let mut trypos: *mut pos_T;
         loop {
             trypos = findmatchlimit(
-                ptr::null_mut(),
+                None,
                 b'{' as c_int,
                 FM_BLOCKSTOP | FM_SKIPCOMM,
                 0,
@@ -1414,7 +1414,7 @@ fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
         let mut trypos: *mut pos_T;
         loop {
             trypos = findmatchlimit(
-                ptr::null_mut(),
+                None,
                 c as u8 as c_int,
                 FM_SKIPCOMM,
                 ind_maxp_wk as i64,
@@ -1974,7 +1974,7 @@ pub fn get_c_indent() -> c_int {
                                 let look_col = look.offset_from(line) as colnr_T;
                                 curwin_mut().w_cursor.col = look_col + 1;
                                 trypos = findmatchlimit(
-                                    ptr::null_mut(),
+                                    None,
                                     b')' as c_int,
                                     FM_SKIPCOMM,
                                     curbuf_mut().b_ind_maxparen as i64,

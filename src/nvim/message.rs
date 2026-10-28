@@ -1527,7 +1527,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,mut msg_data: Option<&
             true,
             AUGROUP_ALL,
             ptr::null_mut(),
-            curwin_ptr(),
+            Some(crate::globals::curwin_mut()),
             None,
             &raw mut dict_obj,
             false,

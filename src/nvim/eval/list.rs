@@ -324,7 +324,7 @@ fn filter_map_list(
         }
         if l.is_null()
             || (filtermap == FilterMap::Filter
-                && value_check_lock(tv_list_locked(l), arg_errmsg, TV_TRANSLATE))
+                && value_check_lock(tv_list_locked(l.as_ref()), arg_errmsg, TV_TRANSLATE))
         {
             return;
         }
@@ -336,7 +336,7 @@ fn filter_map_list(
         }
         set_vim_var_type(VV_KEY, VarType::VAR_NUMBER);
 
-        let prev_lock = tv_list_locked(l);
+        let prev_lock = tv_list_locked(l.as_ref());
         if prev_lock == VAR_UNLOCKED {
             tv_list_set_lock(l, VAR_LOCKED);
         }
@@ -480,7 +480,7 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
         let arg0 = &argvars[0];
         if arg0.v_type == VarType::VAR_LIST {
             let l = arg0.vval.v_list();
-            if !value_check_lock(tv_list_locked(l), c"add() argument", TV_TRANSLATE) {
+            if !value_check_lock(tv_list_locked(l.as_ref()), c"add() argument", TV_TRANSLATE) {
                 tv_list_append_tv( &mut *l, &mut argvars[1]);
                 tv_copy(&argvars[0], rettv);
             }
@@ -696,7 +696,7 @@ fn extend_list(argvars: &mut [typval_T],
         let mut error = false;
         let mut l1 = argvars[0].vval.v_list();
 
-        if !is_new && value_check_lock(tv_list_locked(l1), arg_errmsg, TV_TRANSLATE) {
+        if !is_new && value_check_lock(tv_list_locked(unsafe { l1.as_ref() }), arg_errmsg, TV_TRANSLATE) {
             return;
         }
 
@@ -797,7 +797,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             }
 
             let mut before: c_int = 0;
-            let len = tv_blob_len(b);
+            let len = tv_blob_len(b.as_ref());
 
             if arg2.v_type != VarType::VAR_UNKNOWN {
                 before = tv_get_number_chk(arg2, Some(&mut error)) as c_int;
@@ -828,7 +828,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         } else {
             let mut l = arg0.vval.v_list();
             if value_check_lock(
-                tv_list_locked(l),
+                tv_list_locked(l.as_ref()),
                 c"insert() argument",
                 TV_TRANSLATE,
             ) {
@@ -886,7 +886,7 @@ pub fn f_reverse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let arg0 = &argvars[0];
         if arg0.v_type == VarType::VAR_BLOB {
             let b = arg0.vval.v_blob();
-            let len = tv_blob_len(b);
+            let len = tv_blob_len(b.as_ref());
             for i in 0..(len / 2) {
                 let tmp = tv_blob_get( &*b, i);
                 tv_blob_set(&mut *b, i, tv_blob_get( &*b, len - i - 1));
@@ -906,7 +906,7 @@ pub fn f_reverse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         } else if arg0.v_type == VarType::VAR_LIST {
             let l = arg0.vval.v_list();
             if !value_check_lock(
-                tv_list_locked(l),
+                tv_list_locked(l.as_ref()),
                 c"reverse() argument",
                 TV_TRANSLATE,
             ) {
@@ -923,9 +923,9 @@ mod tests {
 
     #[test]
     fn list_lock_and_len_helpers_handle_null() {
-        assert_eq!(tv_list_locked(std::ptr::null()), VAR_FIXED);
+        assert_eq!(tv_list_locked(None), VAR_FIXED);
             assert_eq!(tv_list_len(std::ptr::null()), 0);
             assert!(tv_list_first(std::ptr::null()).is_null());
-            assert_eq!(tv_blob_len(std::ptr::null()), 0);
+            assert_eq!(tv_blob_len(None), 0);
     }
 }

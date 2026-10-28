@@ -622,7 +622,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
             foldCheckClose();
         }
 
-        if bt_prompt(g_st().curbuf) {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) {
             init_prompt(s.cmdchar_todo);
             s.cmdchar_todo = NUL as c_int;
         }
@@ -896,8 +896,8 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     cmdwin_do_action(c"cancel");
                     return 0;
                 }
-                if bt_prompt(g_st().curbuf) && invoke_prompt_interrupt() {
-                    if !bt_prompt(g_st().curbuf) {
+                if bt_prompt(Some(crate::globals::curbuf_mut())) && invoke_prompt_interrupt() {
+                    if !bt_prompt(Some(crate::globals::curbuf_mut())) {
                         return 0;
                     }
                 } else {
@@ -993,7 +993,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 }
             }
             Ctrl_W => {
-                if bt_prompt(g_st().curbuf) && (g_st().mod_mask & MOD_MASK_SHIFT) == 0 {
+                if bt_prompt(Some(crate::globals::curbuf_mut())) && (g_st().mod_mask & MOD_MASK_SHIFT) == 0 {
                     stuffcharReadbuff(Ctrl_W);
                     g_st().restart_edit = b'A' as c_int;
                     s.nomove = true;
@@ -1172,7 +1172,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 if s.c == K_KENTER {
                     s.c = CAR;
                 }
-                if bt_quickfix(g_st().curbuf) && s.c == CAR {
+                if bt_quickfix(Some(crate::globals::curbuf_mut())) && s.c == CAR {
                     if curwin_mut().w_llist_ref.is_null() {
                         do_cmdline_cmd(c".cc");
                     } else {
@@ -1181,9 +1181,9 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 } else if s.c == CAR && bt_cmdwin(g_st().curbuf) {
                     cmdwin_do_action(c"confirm");
                     return 0;
-                } else if (g_st().mod_mask & MOD_MASK_SHIFT) == 0 && bt_prompt(g_st().curbuf) {
+                } else if (g_st().mod_mask & MOD_MASK_SHIFT) == 0 && bt_prompt(Some(crate::globals::curbuf_mut())) {
                     prompt_invoke_callback();
-                    if !bt_prompt(g_st().curbuf) {
+                    if !bt_prompt(Some(crate::globals::curbuf_mut())) {
                         return 0;
                     }
                 } else {
@@ -3081,7 +3081,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
             || (!g_st().Ins.revins_on
                 && ((curwin_mut().w_cursor.lnum == 1 && curwin_mut().w_cursor.col == 0)
                     || (!can_bs(BS_START)
-                        && ((g_st().Ins.moved != kInsNone && !bt_prompt(g_st().curbuf))
+                        && ((g_st().Ins.moved != kInsNone && !bt_prompt(Some(crate::globals::curbuf_mut())))
                             || (curwin_mut().w_cursor.lnum == g_st().Ins.start_orig.lnum
                                 && curwin_mut().w_cursor.col <= g_st().Ins.start_orig.col)))
                     || (!can_bs(BS_INDENT)

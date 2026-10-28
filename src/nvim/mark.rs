@@ -417,7 +417,7 @@ pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmark
             return true;
         }
 
-        if c == b':' as c_int && bt_prompt(buf) {
+        if c == b':' as c_int && bt_prompt(buf.as_ref()) {
             reset_fmark(&mut (*buf).b_prompt_start, *pos, (*buf).b_fnum, view);
             return true;
         }
@@ -673,7 +673,7 @@ pub fn mark_get_local(buf: &mut buf_T, win: &mut win_T, name: c_int) -> *mut fma
             &raw mut buf.b_last_insert
         } else if name == b'.' as c_int {
             &raw mut buf.b_last_change
-        } else if name == b':' as c_int && bt_prompt(&raw mut *buf) {
+        } else if name == b':' as c_int && bt_prompt(Some(&*buf)) {
             &raw mut buf.b_prompt_start
         } else {
             mark_get_motion(&mut *buf,  win, name)
@@ -1506,7 +1506,7 @@ pub fn mark_adjust_buf(
                 );
             }
 
-            if bt_prompt(buf) {
+            if bt_prompt(Some(&*buf)) {
                 one_adjust_nodel(
                     &mut buf.b_prompt_start.mark.lnum,
                     line1,
@@ -1786,7 +1786,7 @@ pub fn mark_col_adjust(
             spaces_removed,
         );
 
-        if bt_prompt(g_st().curbuf) {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) {
             col_adjust(
                 &mut curbuf_mut().b_prompt_start.mark,
                 lnum,
@@ -2260,7 +2260,7 @@ pub fn get_buf_local_marks(buf: &buf_T, l: &mut list_T) {
             buf.b_fnum,
             ptr::null(),
         );
-        if bt_prompt(buf) {
+        if bt_prompt(Some(buf)) {
             add_mark(
                 l,
                 c"':",

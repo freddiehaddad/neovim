@@ -3194,7 +3194,7 @@ pub fn diff_infold(wp: &mut win_T, lnum: linenr_T) -> bool {
 }
 pub fn nv_diffgetput(put: bool, count: usize) {
      {
-        if bt_prompt(g_st().curbuf) {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) {
             vim_beep(kOptBoFlagOperator);
             return;
         }

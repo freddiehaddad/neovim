@@ -232,7 +232,7 @@ pub fn modify_fname(
                         if has_homerelative {
                             let s_cstr = cstr_to_cstring(dirname.as_ptr());
                             dirnamelen = home_replace(
-                                ptr::null(),
+                                None,
                                 s_cstr.as_ptr(),
                                 dirname.as_mut_ptr(),
                                 MAXPATHL,
@@ -260,7 +260,7 @@ pub fn modify_fname(
                         }
                     } else {
                         dirnamelen =
-                            home_replace(ptr::null(), p, dirname.as_mut_ptr(), MAXPATHL, true);
+                            home_replace(None, p, dirname.as_mut_ptr(), MAXPATHL, true);
                         // Only replace it when it starts with '~'
                         if dirname[0] == b'~' as c_char {
                             let mut v = vec![0 as c_char; dirnamelen + 1];
@@ -1993,7 +1993,7 @@ fn write_blob(fp: &mut FileDescriptor, blob: &blob_T) -> bool {
     write_data(
             fp,
             blob.bv_ga.as_ptr().cast(),
-            tv_blob_len(&raw const *blob) as usize,
+            tv_blob_len(Some(blob)) as usize,
         )
 }
 

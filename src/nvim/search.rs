@@ -1241,7 +1241,7 @@ pub fn parse_search_pattern_offset(
 }
 
 pub fn do_search(
-    oap: *mut oparg_T,
+    mut oap: Option<&mut oparg_T>,
     mut dirc: c_int,
     mut search_delim: c_int,
     mut pat: *mut c_char,
@@ -1541,8 +1541,8 @@ pub fn do_search(
                 success = false;
                 break;
             }
-            if srch().spats[0].off.end && !oap.is_null() {
-                (*oap).inclusive = true;
+            if srch().spats[0].off.end && oap.is_some() {
+                oap.as_deref_mut().unwrap().inclusive = true;
             }
             retval = 1;
 
@@ -1800,7 +1800,7 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> bool {
 }
 
 pub fn findmatch(oap: *mut oparg_T, initc: c_int) -> *mut pos_T {
-    findmatchlimit(oap, initc, 0, 0)
+    findmatchlimit(unsafe { oap.as_mut() }, initc, 0, 0)
 }
 
 fn check_prevcol(
@@ -1911,7 +1911,7 @@ fn find_mps_values(
 }
 
 pub fn findmatchlimit(
-    oap: *mut oparg_T,
+    oap: Option<&mut oparg_T>,
     mut initc: c_int,
     flags: c_int,
     maxtravel: i64,
@@ -2039,8 +2039,8 @@ pub fn findmatchlimit(
                 }
             }
             if hash_dir != 0 {
-                if !oap.is_null() {
-                    (*oap).motion_type = kMTLineWise;
+                if let Some(oap) = oap {
+                    oap.motion_type = kMTLineWise;
                 }
                 if initc != b'#' as c_int {
                     ptr_line = skipwhite(skipwhite(linep).add(1));

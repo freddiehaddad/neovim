@@ -2749,7 +2749,7 @@ fn showmatches_oneline(
                     p = show_match(matches, j as usize, showtail);
                 } else {
                     let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
-                    home_replace(ptr::null(), match_j, name_buff, MAXPATHL, true);
+                    home_replace(None, match_j, name_buff, MAXPATHL, true);
                     p = name_buff;
                 }
             } else {
@@ -2846,7 +2846,7 @@ pub fn showmatches(
                         || xp.xp_context == EXPAND_BUFFERS)
                 {
                     let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
-                    home_replace(ptr::null(), match_i.as_ptr(), name_buff, MAXPATHL, true);
+                    home_replace(None, match_i.as_ptr(), name_buff, MAXPATHL, true);
                     vim_strsize(name_buff)
                 } else {
                     vim_strsize(show_match(matches, i, showtail))
@@ -4452,7 +4452,7 @@ fn get_scriptnames_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
         let si = script_item(idx + 1);
         let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
-        home_replace(ptr::null(), (*si).name_ptr(), name_buff, MAXPATHL, true);
+        home_replace(None, (*si).name_ptr(), name_buff, MAXPATHL, true);
         name_buff
     }
 }

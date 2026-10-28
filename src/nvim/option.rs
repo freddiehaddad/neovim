@@ -1039,10 +1039,10 @@ fn set_option_default(opt_idx: OptIndex, opt_flags: c_int) {
             win_comp_scroll(curwin_mut());
         }
 
-        let mut flagsp = insecure_flag(curwin_ptr(), opt_idx, opt_flags);
+        let mut flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags);
         *flagsp &= !kOptFlagInsecure;
         if both {
-            flagsp = insecure_flag(curwin_ptr(), opt_idx, OPT_LOCAL);
+            flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, OPT_LOCAL);
             *flagsp &= !kOptFlagInsecure;
         }
     }
@@ -2433,33 +2433,33 @@ pub fn check_options() {
 pub fn was_set_insecurely(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int {
     unsafe {
         assert!(opt_idx != kOptInvalid);
-        let flagp = insecure_flag(wp, opt_idx, opt_flags);
+        let flagp = insecure_flag(wp.as_mut(), opt_idx, opt_flags);
         c_int::from((*flagp & kOptFlagInsecure) != 0)
     }
 }
 
 /// Get a pointer to the flags used for the kOptFlagInsecure flag of option "opt_idx".
-pub fn insecure_flag(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> *mut u32 {
+pub fn insecure_flag(mut wp: Option<&mut win_T>, opt_idx: OptIndex, opt_flags: c_int) -> *mut u32 {
     unsafe {
         if (opt_flags & OPT_LOCAL) != 0 {
-            assert!(!wp.is_null());
+            assert!(wp.is_some());
             match opt_idx {
-                kOptWrap => return &raw mut (*wp).w_onebuf_opt.wo_wrap_flags,
-                kOptStatusline => return &raw mut (*wp).w_onebuf_opt.wo_stl_flags,
-                kOptWinbar => return &raw mut (*wp).w_onebuf_opt.wo_wbr_flags,
-                kOptFoldexpr => return &raw mut (*wp).w_onebuf_opt.wo_fde_flags,
-                kOptFoldtext => return &raw mut (*wp).w_onebuf_opt.wo_fdt_flags,
-                kOptIndentexpr => return &raw mut (*(*wp).w_buffer).b_p_inde_flags,
-                kOptFormatexpr => return &raw mut (*(*wp).w_buffer).b_p_fex_flags,
-                kOptIncludeexpr => return &raw mut (*(*wp).w_buffer).b_p_inex_flags,
-                kOptComplete => return &raw mut (*(*wp).w_buffer).b_p_cpt_flags,
+                kOptWrap => return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_wrap_flags,
+                kOptStatusline => return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_stl_flags,
+                kOptWinbar => return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_wbr_flags,
+                kOptFoldexpr => return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_fde_flags,
+                kOptFoldtext => return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_fdt_flags,
+                kOptIndentexpr => return &raw mut (*wp.as_deref_mut().unwrap().w_buffer).b_p_inde_flags,
+                kOptFormatexpr => return &raw mut (*wp.as_deref_mut().unwrap().w_buffer).b_p_fex_flags,
+                kOptIncludeexpr => return &raw mut (*wp.as_deref_mut().unwrap().w_buffer).b_p_inex_flags,
+                kOptComplete => return &raw mut (*wp.as_deref_mut().unwrap().w_buffer).b_p_cpt_flags,
                 _ => {}
             }
         } else {
             match opt_idx {
-                kOptWrap => return &raw mut (*wp).w_allbuf_opt.wo_wrap_flags,
-                kOptFoldexpr => return &raw mut (*wp).w_allbuf_opt.wo_fde_flags,
-                kOptFoldtext => return &raw mut (*wp).w_allbuf_opt.wo_fdt_flags,
+                kOptWrap => return &raw mut wp.as_deref_mut().unwrap().w_allbuf_opt.wo_wrap_flags,
+                kOptFoldexpr => return &raw mut wp.as_deref_mut().unwrap().w_allbuf_opt.wo_fde_flags,
+                kOptFoldtext => return &raw mut wp.unwrap().w_allbuf_opt.wo_fdt_flags,
                 _ => {}
             }
         }
@@ -3320,7 +3320,7 @@ pub fn did_set_textwidth(_args: &mut optset_T) -> *const c_char {
      {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(unsafe { &*tp }) {
-                check_colorcolumn(ptr::null_mut(), wp);
+                check_colorcolumn(ptr::null_mut(), unsafe { wp.as_mut() });
             }
         }
         ptr::null()
@@ -5674,9 +5674,9 @@ fn did_set_option(
         if errmsg.is_null() {
             (*opt).flags |= kOptFlagWasSet;
 
-            let flagsp = insecure_flag(curwin_ptr(), opt_idx, opt_flags);
+            let flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags);
             let flagsp_local = if scope_both {
-                insecure_flag(curwin_ptr(), opt_idx, OPT_LOCAL)
+                insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, OPT_LOCAL)
             } else {
                 ptr::null_mut()
             };
@@ -6608,7 +6608,7 @@ fn put_set_value(
                         let size = crate::memory::cstr_len(value_str) + 1;
                         let mut buf_vec = vec![0 as c_char; size];
                         let buf = buf_vec.as_mut_ptr();
-                        home_replace(ptr::null_mut(), value_str, buf, size, false);
+                        home_replace(None, value_str, buf, size, false);
 
                         if size >= MAXPATHL
                             && (flags & kOptFlagComma) != 0
@@ -7315,7 +7315,7 @@ pub fn didset_window_options(wp: &mut win_T, valid_cursor: bool) {
         } else {
             wp.w_skipcol = 0;
         }
-        check_colorcolumn(ptr::null_mut(), (&raw mut *wp));
+        check_colorcolumn(ptr::null_mut(), Some(&mut *wp));
         briopt_check(&raw mut *wp);
         let mut culopt_flags: c_uint = 0;
         if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt, &mut culopt_flags) {
@@ -8148,7 +8148,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
             && option_has_type(opt_idx, ObjectType::kObjectTypeString)
         {
             home_replace(
-                ptr::null_mut(),
+                None,
                 *(varp.cast::<*mut c_char>()),
                 namebuf_ptr,
                 MAXPATHL,
@@ -8292,7 +8292,7 @@ fn didset_options_sctx(opt_flags: c_int, opts: &[c_int]) {
 /// Check if backspacing over something is allowed.
 pub fn can_bs(what: c_int) -> bool {
      {
-        if what == BS_START && bt_prompt(g_st().curbuf) {
+        if what == BS_START && bt_prompt(Some(crate::globals::curbuf_mut())) {
             return false;
         }
 

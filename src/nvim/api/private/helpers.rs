@@ -298,8 +298,8 @@ pub fn api_clear_string(s: &mut NvimString) {
 }
 
 #[inline]
-pub fn tv_dict_is_watched(d: *const dict_T) -> bool {
-    unsafe { !d.is_null() && !(*d).watchers.is_empty() }
+pub fn tv_dict_is_watched(d: Option<&dict_T>) -> bool {
+     d.is_some() && !d.unwrap().watchers.is_empty()
 }
 
 pub trait IntoDictKey {
@@ -560,7 +560,7 @@ pub fn dict_set_var(
             return rv;
         }
 
-        let watched = tv_dict_is_watched(&raw mut *dict);
+        let watched = tv_dict_is_watched(Some(&*dict));
         if del {
             if di.is_null() {
                 api_set_error!(
@@ -571,7 +571,7 @@ pub fn dict_set_var(
                 );
             } else {
                 if watched {
-                    tv_dict_watcher_notify(dict, key.data, ptr::null_mut(), Some(&(*di).di_tv));
+                    tv_dict_watcher_notify(dict, key.data, None, Some(&(*di).di_tv));
                 }
                 if retval {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
@@ -620,7 +620,7 @@ pub fn dict_set_var(
 
             tv_copy(&tv, &mut (*di).di_tv);
             if watched {
-                tv_dict_watcher_notify(dict, key.data, &raw mut tv, Some(&oldtv));
+                tv_dict_watcher_notify(dict, key.data, Some(&tv), Some(&oldtv));
                 tv_clear(&mut oldtv);
             }
             tv_clear(&mut tv);

@@ -2120,7 +2120,7 @@ pub fn ex_file(eap: &mut exarg_T) {
 pub fn ex_update(eap: &mut exarg_T) {
      {
         if curbufIsChanged()
-            || (!bt_nofilename(g_st().curbuf)
+            || (!bt_nofilename(Some(crate::globals::curbuf_mut()))
                 && !curbuf_mut().b_ffname.is_null()
                 && !os_path_exists(curbuf_mut().b_ffname))
         {
@@ -2361,7 +2361,7 @@ pub fn check_overwrite(
 ) -> bool {
      {
         if (other
-            || (!bt_nofilename(&raw mut *buf)
+            || (!bt_nofilename(Some(&*buf))
                 && ((buf.b_flags & BF_NOTEDITED) != 0
                     || ((buf.b_flags & BF_NEW) != 0
                         && vim_strchr(opt_vars().p_cpo, kCpoOvernew).is_null())
@@ -2477,7 +2477,7 @@ pub fn do_wqall(eap: &mut exarg_T) {
                 error += 1;
                 buf = (*buf).b_next;
                 continue;
-            } else if !bufIsChanged(&mut *buf) || bt_dontwrite(buf) {
+            } else if !bufIsChanged(&mut *buf) || bt_dontwrite(buf.as_ref()) {
                 buf = (*buf).b_next;
                 continue;
             }

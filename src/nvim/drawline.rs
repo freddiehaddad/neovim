@@ -1139,7 +1139,7 @@ fn apply_cursorline_highlight(wp: &mut win_T, wlv: &mut winlinevars_T) {
         if ae.rgb_fg_color == -1 && ae.cterm_fg_color == 0 {
             wlv.line_attr_lowprio = wlv.cul_attr;
         } else if (g_st().State & MODE_INSERT) == 0
-            && bt_quickfix(wp.w_buffer)
+            && bt_quickfix(unsafe { wp.w_buffer.as_ref() })
             && qf_current_entry(wp) == wlv.lnum
         {
             wlv.line_attr = hl_combine_attr(wlv.cul_attr, wlv.line_attr);
@@ -1726,7 +1726,7 @@ pub fn win_line(
             wlv.line_attr = syn_id2attr(sign_line_attr);
         }
 
-        if bt_quickfix(wp.w_buffer) && qf_current_entry(wp) == lnum {
+        if bt_quickfix(wp.w_buffer.as_ref()) && qf_current_entry(wp) == lnum {
             wlv.line_attr = win_hl_attr(&mut *wp, HLF_QFL);
         }
 

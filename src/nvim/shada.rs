@@ -2401,8 +2401,8 @@ fn ignore_buf(
         buf.is_null()
             || (*buf).b_ffname.is_null()
             || ((*buf).b_p_bl == 0 && (*buf).b_p_initialized)
-            || bt_quickfix(buf)
-            || bt_terminal(buf)
+            || bt_quickfix(buf.as_ref())
+            || bt_terminal(buf.as_ref())
             || removable_bufs.contains(&buf.cast_mut())
     }
 }
@@ -4206,7 +4206,7 @@ fn shada_removable(name: *const c_char) -> bool {
             if part[0] == (b'r' as c_char) {
                 let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
                 let n = home_replace(
-                    ptr::null_mut(),
+                    None,
                     part.as_ptr().add(1),
                     name_buff_ptr,
                     MAXPATHL,

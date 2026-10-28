@@ -1254,7 +1254,7 @@ pub fn readfile(
                 if perm == UV_ENOENT {
                     curbuf_mut().b_flags |= BF_NEW;
 
-                    if !bt_dontwrite(g_st().curbuf) {
+                    if !bt_dontwrite(Some(crate::globals::curbuf_mut())) {
                         check_need_swap(newfile);
                         if g_st().curbuf != old_curbuf
                             || (using_b_ffname && old_b_ffname != curbuf_mut().b_ffname)
@@ -1317,7 +1317,7 @@ pub fn readfile(
                 curbuf_mut().b_start_bomb = 0;
             }
 
-            if !bt_dontwrite(g_st().curbuf) {
+            if !bt_dontwrite(Some(crate::globals::curbuf_mut())) {
                 check_need_swap(newfile);
                 if !read_stdin
                     && (g_st().curbuf != old_curbuf
@@ -2759,7 +2759,7 @@ pub fn readfile(
                             true,
                             augroup_find(c"filetypedetect"),
                             g_st().curbuf,
-                            curwin_ptr(),
+                            Some(crate::globals::curwin_mut()),
                             None,
                             ptr::null_mut(),
                             false,
@@ -3035,7 +3035,7 @@ pub fn add_quoted_fname(
         let mut len: usize = 0;
         *ret_buf.add(len) = b'"' as c_char;
         len += 1;
-        len += home_replace(buf.cast_mut(), fname, ret_buf.add(len), bufsize - 4, true);
+        len += home_replace(buf.cast_mut().as_ref(), fname, ret_buf.add(len), bufsize - 4, true);
         xstrlcpy(ret_buf.add(len), c"\" ", bufsize - len);
     }
 }
@@ -3268,7 +3268,7 @@ fn check_for_bom(
 pub fn shorten_buf_fname(buf: &mut buf_T, dirname: *mut c_char, force: c_int) -> bool {
     unsafe {
         if buf.b_fname.is_null()
-            || bt_nofilename(&raw mut *buf)
+            || bt_nofilename(Some(&*buf))
             || path_with_url(buf.b_fname) != 0
             || !(force != 0 || buf.b_sfname.is_null() || path_is_absolute(buf.b_sfname))
         {
@@ -3774,7 +3774,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
         if !buf.terminal.is_null()
             || buf.b_ffname.is_null()
             || buf.b_ml.ml_mfp.is_none()
-            || !bt_normal(&raw mut *buf)
+            || !bt_normal(Some(&*buf))
             || buf.b_saving
             || BUSY.load(std::sync::atomic::Ordering::Relaxed)
         {

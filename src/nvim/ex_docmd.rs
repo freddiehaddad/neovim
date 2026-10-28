@@ -5746,7 +5746,7 @@ pub fn set_cmd_addr_type(eap: &mut exarg_T, p: *mut c_char) {
         }
         if (eap.cmdidx == cmdidx_T::CMD_cc as c_int
             || eap.cmdidx == cmdidx_T::CMD_ll as c_int)
-            && bt_quickfix(g_st().curbuf)
+            && bt_quickfix(Some(crate::globals::curbuf_mut()))
         {
             eap.addr_type = ADDR_OTHER;
         }
@@ -7845,7 +7845,7 @@ pub fn get_address(
                                 SEARCH_HIS | SEARCH_MSG
                             };
                             if do_search(
-                                ptr::null_mut(),
+                                None,
                                 c,
                                 c,
                                 cmd,
@@ -10072,7 +10072,7 @@ pub fn ex_splitview(eap: &mut exarg_T) {
             || eap.cmdidx == cmdidx_T::CMD_tabfind as c_int
             || eap.cmdidx == cmdidx_T::CMD_tabnew as c_int;
 
-        if bt_quickfix(g_st().curbuf) && g_st().cmdmod.cmod_tab == 0 {
+        if bt_quickfix(Some(crate::globals::curbuf_mut())) && g_st().cmdmod.cmod_tab == 0 {
             if eap.cmdidx == cmdidx_T::CMD_split as c_int {
                 eap.cmdidx = cmdidx_T::CMD_new as c_int;
             }
@@ -10291,7 +10291,7 @@ fn ex_tabs(_eap: &mut exarg_T) {
                     xstrlcpy((&raw mut g_st().IObuff).cast(), spname, IOSIZE);
                 } else {
                     home_replace(
-                        (*wp).w_buffer,
+                        ((*wp).w_buffer).as_ref(),
                         (*wp).buf_mut().b_fname,
                         (&raw mut g_st().IObuff).cast(),
                         IOSIZE,
@@ -10519,7 +10519,7 @@ fn ex_edit(eap: &mut exarg_T) {
             return;
         }
 
-        if bt_prompt(g_st().curbuf) && eap.cmdidx == cmdidx_T::CMD_edit as c_int && *eap.arg == NUL {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) && eap.cmdidx == cmdidx_T::CMD_edit as c_int && *eap.arg == NUL {
             let _ = emsg(c"cannot :edit a prompt buffer");
             return;
         }

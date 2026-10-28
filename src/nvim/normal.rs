@@ -3232,7 +3232,7 @@ fn nv_help(cap: &mut cmdarg_T) {
 
 fn nv_addsub(cap: &mut cmdarg_T) {
      {
-        if bt_prompt(g_st().curbuf) && !prompt_curpos_editable() {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
             clearopbeep(cap.oap_mut());
         } else if !g_st().Visual.active && cap.oap_mut().op_type == OP_NOP {
             prep_redo_cmd(cap);
@@ -3402,7 +3402,7 @@ pub fn find_decl(
 
             if thisblock && t {
                 let maxtravel = i64::from(old_pos.lnum - curwin_mut().w_cursor.lnum + 1);
-                let pos = findmatchlimit(ptr::null_mut(), b'}' as c_int, FM_FORWARD, maxtravel);
+                let pos = findmatchlimit(None, b'}' as c_int, FM_FORWARD, maxtravel);
 
                 if !pos.is_null() && (*pos).lnum < old_pos.lnum {
                     curwin_mut().w_cursor = *pos;
@@ -4871,9 +4871,9 @@ fn nv_down(cap: &mut cmdarg_T) {
             nv_page(cap);
         } else if bt_cmdwin(g_st().curbuf) && cap.cmdchar == CAR {
             cmdwin_do_action(c"confirm");
-        } else if bt_quickfix(g_st().curbuf) && cap.cmdchar == CAR {
+        } else if bt_quickfix(Some(crate::globals::curbuf_mut())) && cap.cmdchar == CAR {
             qf_view_result(false);
-        } else if bt_prompt(g_st().curbuf)
+        } else if bt_prompt(Some(crate::globals::curbuf_mut()))
             && cap.cmdchar == CAR
             && curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count
         {
@@ -5049,7 +5049,7 @@ fn normal_search(
         curwin_mut().w_set_curswant = true;
 
         let i = do_search(
-            cap.oap,
+            Some(cap.oap_mut()),
             dir,
             dir,
             pat,
@@ -5169,7 +5169,7 @@ fn nv_bracket_block(cap: &mut cmdarg_T, old_pos: &pos_T) {
         }
         while n > 0 {
             pos = findmatchlimit(
-                cap.oap,
+                Some(cap.oap_mut()),
                 findc,
                 if cap.cmdchar == b'[' as c_int {
                     FM_BACKWARD
@@ -5233,7 +5233,7 @@ fn nv_bracket_block(cap: &mut cmdarg_T, old_pos: &pos_T) {
                             pos = &raw mut new_pos;
                         } else {
                             pos = findmatchlimit(
-                                cap.oap,
+                                Some(cap.oap_mut()),
                                 findc,
                                 if cap.cmdchar == b'[' as c_int {
                                     FM_BACKWARD
@@ -5557,7 +5557,7 @@ fn nv_percent(cap: &mut cmdarg_T) {
 
             cap.oap_mut().motion_type = kMTCharWise;
             cap.oap_mut().use_reg_one = true;
-            let pos = findmatchlimit(cap.oap, NUL as c_int, flags, 0);
+            let pos = findmatchlimit(Some(cap.oap_mut()), NUL as c_int, flags, 0);
             if pos.is_null() {
                 clearopbeep(cap.oap_mut());
             } else {
@@ -5664,7 +5664,7 @@ fn nv_replace(cap: &mut cmdarg_T) {
         if checkclearop(cap.oap_mut()) {
             return;
         }
-        if bt_prompt(g_st().curbuf) && !prompt_curpos_editable() {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
             clearopbeep(cap.oap_mut());
             return;
         }
@@ -6010,7 +6010,7 @@ fn v_visop(cap: &mut cmdarg_T) {
 
 fn nv_subst(cap: &mut cmdarg_T) {
      {
-        if bt_prompt(g_st().curbuf) && !prompt_curpos_editable() {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
             clearopbeep(cap.oap_mut());
             return;
         }
@@ -6896,7 +6896,7 @@ fn nv_Undo(cap: &mut cmdarg_T) {
 fn nv_tilde(cap: &mut cmdarg_T) {
      {
         if opt_vars().p_to == 0 && !g_st().Visual.active && cap.oap_mut().op_type != OP_TILDE {
-            if bt_prompt(g_st().curbuf) && !prompt_curpos_editable() {
+            if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
                 clearopbeep(cap.oap_mut());
                 return;
             }
@@ -6911,7 +6911,7 @@ fn nv_operator(cap: &mut cmdarg_T) {
      {
         let op_type = get_op_type(cap.cmdchar, cap.nchar);
 
-        if bt_prompt(g_st().curbuf) && op_is_change(op_type) != 0 && !prompt_curpos_editable() {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) && op_is_change(op_type) != 0 && !prompt_curpos_editable() {
             clearopbeep(cap.oap_mut());
             return;
         }
@@ -7549,7 +7549,7 @@ fn nv_put_opt(cap: &mut cmdarg_T, fix_indent: bool) {
             return;
         }
 
-        if bt_prompt(g_st().curbuf) && !prompt_curpos_editable() {
+        if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
             if curwin_mut().w_cursor.lnum == curbuf_mut().b_prompt_start.mark.lnum {
                 curwin_mut().w_cursor.col = curbuf_mut().b_prompt_start.mark.col;
                 cap.cmdchar = b'P' as c_int;
@@ -7692,7 +7692,7 @@ fn nv_open(cap: &mut cmdarg_T) {
             nv_diffgetput(false, cap.opcount as usize);
         } else if g_st().Visual.active {
             v_swap_corners(cap.cmdchar);
-        } else if bt_prompt(g_st().curbuf) && curwin_mut().w_cursor.lnum < curbuf_mut().b_prompt_start.mark.lnum
+        } else if bt_prompt(Some(crate::globals::curbuf_mut())) && curwin_mut().w_cursor.lnum < curbuf_mut().b_prompt_start.mark.lnum
         {
             clearopbeep(cap.oap_mut());
         } else {

@@ -84,7 +84,7 @@ pub fn find_buffer(avar: &mut typval_T) -> *mut buf_T {
                 let target = crate::memory::cstr_as_bytes(avar.vval.v_string());
                 for bp in for_all_buffers_ptr() {
                     if !(*bp).b_fname.is_null()
-                        && (path_with_url((*bp).b_fname) != 0 || bt_nofilename(bp))
+                        && (path_with_url((*bp).b_fname) != 0 || bt_nofilename(bp.as_ref()))
                         && crate::memory::cstr_as_bytes((*bp).b_fname) == target
                     {
                         buf = bp;
@@ -276,7 +276,7 @@ fn buf_set_append_line(argvars: &mut [typval_T], rettv: &mut typval_T, append: b
     if buf.is_null() {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
     } else {
-        let lnum = tv_get_lnum_buf(&argvars[1], buf);
+        let lnum = tv_get_lnum_buf(&argvars[1], unsafe { buf.as_ref() });
         if g_st().did_emsg == did_emsg_before {
             set_buffer_lines(buf, lnum, append, &mut argvars[2], rettv);
         }
@@ -428,7 +428,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 
         let buf = tv_get_buf_from_arg(&mut argvars[0]);
-        if buf.is_null() || !bt_prompt(buf) {
+        if buf.is_null() || !bt_prompt(buf.as_ref()) {
             return;
         }
 
@@ -646,12 +646,12 @@ pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             return;
         }
 
-        let first = tv_get_lnum_buf(&argvars[1], buf);
+        let first = tv_get_lnum_buf(&argvars[1], buf.as_ref());
         if g_st().did_emsg > did_emsg_before {
             return;
         }
         let mut last = if argvars[2].v_type != VarType::VAR_UNKNOWN {
-            tv_get_lnum_buf(&argvars[2], buf)
+            tv_get_lnum_buf(&argvars[2], buf.as_ref())
         } else {
             first
         };
@@ -887,14 +887,14 @@ fn getbufline(argvars: &mut [typval_T],rettv: &mut typval_T, retlist: bool) {
         let did_emsg_before = g_st().did_emsg;
         let buf = tv_get_buf_from_arg(&mut argvars[0]);
         if !buf.is_null() {
-            lnum = tv_get_lnum_buf(&argvars[1], buf);
+            lnum = tv_get_lnum_buf(&argvars[1], unsafe { buf.as_ref() });
             if g_st().did_emsg > did_emsg_before {
                 return;
             }
             end = if argvars[2].v_type == VarType::VAR_UNKNOWN {
                 lnum
             } else {
-                tv_get_lnum_buf(&argvars[2], buf)
+                tv_get_lnum_buf(&argvars[2], unsafe { buf.as_ref() })
             };
         }
 
@@ -997,7 +997,7 @@ pub fn f_prompt_getprompt(argvars: &mut [typval_T], rettv: &mut typval_T,
         tv_set_string(rettv, ptr::null());
 
         let buf = tv_get_buf_from_arg(&mut argvars[0]);
-        if buf.is_null() || !bt_prompt(buf) {
+        if buf.is_null() || !bt_prompt(buf.as_ref()) {
             return;
         }
 
@@ -1012,7 +1012,7 @@ pub fn f_prompt_getinput(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
         tv_set_string(rettv, ptr::null());
 
         let buf = tv_get_buf_from_arg(&mut argvars[0]);
-        if buf.is_null() || !bt_prompt(buf) {
+        if buf.is_null() || !bt_prompt(buf.as_ref()) {
             return;
         }
 
@@ -1041,7 +1041,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
         let new_prompt = tv_get_string(&argvars[1]);
         let new_prompt_len = crate::memory::cstr_len(new_prompt) as c_int;
 
-        if bt_prompt(buf) && (*buf).b_ml.ml_mfp.is_some() {
+        if bt_prompt(buf.as_ref()) && (*buf).b_ml.ml_mfp.is_some() {
             if (*buf).b_prompt_start.mark.lnum < 1
                 || (*buf).b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count
             {

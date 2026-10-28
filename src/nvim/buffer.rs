@@ -889,7 +889,7 @@ const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
 
 #[inline]
 fn buf_is_changed(buf: &mut buf_T) -> bool {
-    !bt_dontwrite(&raw const *buf) && (buf.b_changed != 0 || file_ff_differs(buf, true))
+    !bt_dontwrite(Some(&*buf)) && (buf.b_changed != 0 || file_ff_differs(buf, true))
 }
 
 #[inline]
@@ -1064,7 +1064,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             ));
             enter_buffer(g_st().curbuf);
             if old_tw != curbuf_mut().b_p_tw {
-                check_colorcolumn(ptr::null_mut(), curwin_ptr());
+                check_colorcolumn(ptr::null_mut(), Some(crate::globals::curwin_mut()));
             }
             return FAIL;
         }
@@ -1137,7 +1137,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
                 }
             }
 
-            if bt_help(g_st().curbuf) {
+            if bt_help(Some(crate::globals::curbuf_mut())) {
                 get_local_additions();
             }
         } else if read_stdin {
@@ -1450,7 +1450,7 @@ pub fn close_buffer(
             unblock_autocmds();
         }
 
-        if bt_quickfix(buf) && win_valid && (*win).w_buffer == buf {
+        if bt_quickfix(buf.as_ref()) && win_valid && (*win).w_buffer == buf {
             (*win).w_onebuf_opt.wo_wfh = 0;
         }
 
@@ -1641,7 +1641,7 @@ pub fn buf_freeall(buf: &mut buf_T, flags: c_int) -> bool {
         buf.b_ml.ml_line_count = 0;
         mc_buf_clear(buf);
 
-        if bt_nofilename(&raw mut *buf) && !g_st().exiting {
+        if bt_nofilename(Some(&*buf)) && !g_st().exiting {
             mark_adjust_buf(
                 buf,
                 1,
@@ -1882,7 +1882,7 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut bufref_T>) {
             if !buf.is_null() {
                 enter_buffer(buf);
                 if old_tw != curbuf_mut().b_p_tw {
-                    check_colorcolumn(ptr::null_mut(), curwin_ptr());
+                    check_colorcolumn(ptr::null_mut(), Some(crate::globals::curwin_mut()));
                 }
             }
 
@@ -2328,7 +2328,7 @@ fn do_buffer_ext(
                         if !buf.is_null() {
                             if buf == g_st().curbuf
                                 || (*buf).b_p_bl == 0
-                                || bt_quickfix(buf)
+                                || bt_quickfix(buf.as_ref())
                                 || (*buf).b_locked_split != 0
                             {
                                 buf = ptr::null_mut();
@@ -2374,7 +2374,7 @@ fn do_buffer_ext(
                     }
                     if (*buf).b_help == curbuf_mut().b_help
                         && (*buf).b_p_bl != 0
-                        && !bt_quickfix(buf)
+                        && !bt_quickfix(buf.as_ref())
                         && (*buf).b_locked_split == 0
                     {
                         if (*buf).b_ml.ml_mfp.is_some() {
@@ -2398,7 +2398,7 @@ fn do_buffer_ext(
                 for buf2 in for_all_buffers_ptr() {
                     if (*buf2).b_p_bl != 0
                         && buf2 != g_st().curbuf
-                        && !bt_quickfix(buf2)
+                        && !bt_quickfix(buf2.as_ref())
                         && (*buf2).b_locked_split == 0
                     {
                         buf = buf2;
@@ -2412,7 +2412,7 @@ fn do_buffer_ext(
                 } else {
                     curbuf_mut().b_prev
                 };
-                if bt_quickfix(buf)
+                if bt_quickfix(buf.as_ref())
                     || (!buf.is_null() && buf != g_st().curbuf && (*buf).b_locked_split != 0)
                 {
                     buf = ptr::null_mut();
@@ -2549,7 +2549,7 @@ pub fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
         if (valid && buf != g_st().curbuf && !aborting()) || curwin_mut().w_buffer.is_null() {
             enter_buffer(if valid { buf } else { g_st().lastbuf });
             if old_tw != curbuf_mut().b_p_tw {
-                check_colorcolumn(ptr::null_mut(), curwin_ptr());
+                check_colorcolumn(ptr::null_mut(), Some(crate::globals::curwin_mut()));
             }
         }
 
@@ -2906,7 +2906,7 @@ pub fn curbuf_reusable() -> bool {
             && curbuf_mut().b_nwindows <= 1
             && curbuf_mut().terminal.is_null()
             && (curbuf_mut().b_ml.ml_mfp.is_none() || buf_is_empty(curbuf_mut()))
-            && !bt_quickfix(g_st().curbuf)
+            && !bt_quickfix(Some(crate::globals::curbuf_mut()))
             && !curbuf_is_changed()
     }
 }
@@ -3659,7 +3659,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
             if !name.is_null() {
                 xstrlcpy(namebuff_ptr, name, MAXPATHL);
             } else {
-                home_replace(buf, (*buf).b_fname, namebuff_ptr, MAXPATHL, true);
+                home_replace(buf.as_ref(), (*buf).b_fname, namebuff_ptr, MAXPATHL, true);
             }
 
             if message_filtered(namebuff_ptr) {
@@ -4007,11 +4007,11 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
                 curbuf_mut().b_ffname
             };
             bufferlen += home_replace(
-                if shorthelp != 0 {
+                (if shorthelp != 0 {
                     g_st().curbuf
                 } else {
                     ptr::null_mut()
-                },
+                }).as_ref(),
                 name,
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
@@ -4019,7 +4019,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
             );
         }
 
-        let dontwrite = bt_dontwrite(g_st().curbuf);
+        let dontwrite = bt_dontwrite(Some(crate::globals::curbuf_mut()));
         let is_changed = curbuf_is_changed();
         let mod_str = if is_changed {
             if shortmess(kShmMod) {
@@ -4420,8 +4420,8 @@ pub fn fname_expand(
 }
 
 /// Return true if `buf` is a prompt buffer.
-pub fn bt_prompt(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && *(*buf).b_p_bt == b'p' as c_char }
+pub fn bt_prompt(buf: Option<&buf_T>) -> bool {
+    unsafe { buf.is_some() && *buf.unwrap().b_p_bt == b'p' as c_char }
 }
 
 /// Return true if `buf` is the `|cmdwin|` scratch buffer.
@@ -4776,33 +4776,33 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
 }
 
 /// Return true if `buf` is a help buffer.
-pub fn bt_help(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && (*buf).b_help }
+pub fn bt_help(buf: Option<&buf_T>) -> bool {
+     buf.is_some() && buf.unwrap().b_help
 }
 
 /// Return true if `buf` is a normal buffer, `'buftype'` is empty.
-pub fn bt_normal(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && *(*buf).b_p_bt == NUL }
+pub fn bt_normal(buf: Option<&buf_T>) -> bool {
+    unsafe { buf.is_some() && *buf.unwrap().b_p_bt == NUL }
 }
 
 /// Return true if `buf` is the quickfix buffer.
-pub fn bt_quickfix(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && *(*buf).b_p_bt == b'q' as c_char }
+pub fn bt_quickfix(buf: Option<&buf_T>) -> bool {
+    unsafe { buf.is_some() && *buf.unwrap().b_p_bt == b'q' as c_char }
 }
 
 /// Return true if `buf` is a terminal buffer.
-pub fn bt_terminal(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && *(*buf).b_p_bt == b't' as c_char }
+pub fn bt_terminal(buf: Option<&buf_T>) -> bool {
+    unsafe { buf.is_some() && *buf.unwrap().b_p_bt == b't' as c_char }
 }
 
 /// Return true if `buf` is a `"nofile"`, `"acwrite"`, `"terminal"` or `"prompt"` buffer.
-pub fn bt_nofilename(buf: *const buf_T) -> bool {
+pub fn bt_nofilename(buf: Option<&buf_T>) -> bool {
     unsafe {
-        !buf.is_null()
-            && ((*(*buf).b_p_bt == b'n' as c_char && *(*buf).b_p_bt.add(2) == b'f' as c_char)
-                || *(*buf).b_p_bt == b'a' as c_char
-                || !(*buf).terminal.is_null()
-                || *(*buf).b_p_bt == b'p' as c_char)
+        buf.is_some()
+            && ((*buf.unwrap().b_p_bt == b'n' as c_char && *buf.unwrap().b_p_bt.add(2) == b'f' as c_char)
+                || *buf.unwrap().b_p_bt == b'a' as c_char
+                || !buf.unwrap().terminal.is_null()
+                || *buf.unwrap().b_p_bt == b'p' as c_char)
     }
 }
 
@@ -4826,17 +4826,17 @@ pub fn bt_nofile(buf: *const buf_T) -> bool {
 }
 
 /// Return true if `buf` is a `"nowrite"`, `"nofile"`, `"terminal"` or `"prompt"` buffer.
-pub fn bt_dontwrite(buf: *const buf_T) -> bool {
+pub fn bt_dontwrite(buf: Option<&buf_T>) -> bool {
     unsafe {
-        !buf.is_null()
-            && (*(*buf).b_p_bt == b'n' as c_char
-                || !(*buf).terminal.is_null()
-                || *(*buf).b_p_bt == b'p' as c_char)
+        buf.is_some()
+            && (*buf.unwrap().b_p_bt == b'n' as c_char
+                || !buf.unwrap().terminal.is_null()
+                || *buf.unwrap().b_p_bt == b'p' as c_char)
     }
 }
 
 pub fn bt_dontwrite_msg(buf: *const buf_T) -> bool {
-    if bt_dontwrite(buf) {
+    if bt_dontwrite(unsafe { buf.as_ref() }) {
             emsg(gettext(
                 c"E382: Cannot write, 'buftype' option is set",
             ));
@@ -4859,20 +4859,20 @@ pub fn buf_hide(buf: &buf_T) -> bool {
 /// Return special buffer name or NULL when the buffer has a normal file name.
 pub fn buf_spname(buf: *mut buf_T) -> *mut c_char {
     unsafe {
-        if bt_quickfix(buf) {
+        if bt_quickfix(buf.as_ref()) {
             if (*buf).b_fnum == qf_stack_get_bufnr() {
                 return gettext(msg_qflist);
             }
             return gettext(msg_loclist);
         }
-        if bt_nofilename(buf) {
+        if bt_nofilename(buf.as_ref()) {
             if !(*buf).b_fname.is_null() {
                 return (*buf).b_fname;
             }
             if bt_cmdwin(buf) {
                 return gettext(c"[Command Line]");
             }
-            if bt_prompt(buf) {
+            if bt_prompt(buf.as_ref()) {
                 return gettext(c"[Prompt]");
             }
             return gettext(c"[Scratch]");
@@ -5015,12 +5015,12 @@ pub fn buf_set_changedtick(buf: &mut buf_T, changedtick: varnumber_T) {
 
         buf.changedtick_di.di_tv.vval = crate::eval::typval::TypvalVval::Number(changedtick);
 
-        if tv_dict_is_watched(buf.b_vars()) {
+        if tv_dict_is_watched(buf.b_vars().as_ref()) {
             buf.b_locked += 1;
             tv_dict_watcher_notify(
                 &mut *buf.b_vars(),
                 buf.changedtick_di.di_key.as_ptr(),
-                &raw mut buf.changedtick_di.di_tv,
+                Some(&buf.changedtick_di.di_tv),
                 Some(&old_val),
             );
             buf.b_locked -= 1;
@@ -5096,12 +5096,12 @@ mod tests {
     fn calc_percentage_and_bt_predicates_work() {
         assert_eq!(calc_percentage(50, 200), 25);
             assert_eq!(calc_percentage(2_000_000, 4_000_000), 50);
-            assert!(!bt_help(ptr::null()));
-            assert!(!bt_normal(ptr::null()));
-            assert!(!bt_quickfix(ptr::null()));
-            assert!(!bt_terminal(ptr::null()));
+            assert!(!bt_help(None));
+            assert!(!bt_normal(None));
+            assert!(!bt_quickfix(None));
+            assert!(!bt_terminal(None));
             assert!(!bt_nofile(ptr::null()));
-            assert!(!bt_dontwrite(ptr::null()));
+            assert!(!bt_dontwrite(None));
     }
 
     #[test]

@@ -689,7 +689,7 @@ pub fn ex_breaklist(_eap: &mut exarg_T) {
         for bp in gap {
             if bp.dbg_type == DBG_FILE {
                 home_replace(
-                    std::ptr::null(),
+                    None,
                     bp.dbg_name.as_ptr(),
                     namebuf.as_mut_ptr(),
                     MAXPATHL,

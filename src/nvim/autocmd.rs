@@ -2483,7 +2483,7 @@ pub fn do_doautocmd(
                 true,
                 group,
                 g_st().curbuf,
-                curwin_ptr(),
+                Some(crate::globals::curwin_mut()),
                 None,
                 ptr::null_mut(),
                 false,
@@ -2620,7 +2620,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
                 false,
                 group,
                 buf,
-                win,
+                win.as_ref(),
                 None,
                 data,
                 false,
@@ -2679,7 +2679,7 @@ pub fn apply_autocmds(
             force,
             AUGROUP_ALL,
             buf,
-            curwin_ptr(),
+            Some(crate::globals::curwin_mut()),
             None,
             ptr::null_mut(),
             false,
@@ -2702,7 +2702,7 @@ pub fn apply_autocmds_win(
             force,
             AUGROUP_ALL,
             buf,
-            win,
+            unsafe { win.as_ref() },
             None,
             ptr::null_mut(),
             false,
@@ -2724,7 +2724,7 @@ pub fn apply_autocmds_exarg(
             force,
             AUGROUP_ALL,
             buf,
-            curwin_ptr(),
+            Some(crate::globals::curwin_mut()),
             (eap.is_some()).then(||  { eap.unwrap() }),
             ptr::null_mut(),
             false,
@@ -2752,7 +2752,7 @@ pub fn apply_autocmds_retval(
             force,
             AUGROUP_ALL,
             buf,
-            curwin_ptr(),
+            Some(crate::globals::curwin_mut()),
             None,
             ptr::null_mut(),
             false,
@@ -2801,7 +2801,7 @@ pub fn apply_autocmds_group(
     force: bool,
     group: c_int,
     buf: *mut buf_T,
-    win: *mut win_T,eap: Option<&exarg_T>,
+    win: Option<&win_T>,eap: Option<&exarg_T>,
     data: *mut Object,
     with_buf: bool,
 ) -> bool {
@@ -2974,8 +2974,8 @@ pub fn apply_autocmds_group(
                 break 'bypass_au;
             }
 
-            au_st().autocmd_winid = if !win.is_null() {
-                (*win).handle
+            au_st().autocmd_winid = if let Some(win) = win {
+                win.handle
             } else if !(curwin_ptr()).is_null() {
                 curwin_mut().handle
             } else {
@@ -3175,7 +3175,7 @@ pub fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
             true,
             AUGROUP_ALL,
             ptr::null_mut(),
-            curwin_ptr(),
+            Some(crate::globals::curwin_mut()),
             None,
             &raw mut data_obj,
             false,

@@ -3181,14 +3181,14 @@ fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw) {
         if opts.flush && (opts.statusline || opts.winbar) {
             wp.w_redr_status = true;
         } else if opts.statusline || opts.winbar {
-            win_check_ns_hl(&raw mut *wp);
+            win_check_ns_hl(Some(&*wp));
             if opts.winbar {
                 win_redr_winbar(&mut *wp);
             }
             if opts.statusline {
                 win_redr_status(&mut *wp);
             }
-            win_check_ns_hl(ptr::null_mut());
+            win_check_ns_hl(None);
         }
     }
 }

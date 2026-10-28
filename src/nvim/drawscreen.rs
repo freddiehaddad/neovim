@@ -605,7 +605,7 @@ pub fn update_screen() -> bool {
 
         decor_providers_start();
 
-        if win_check_ns_hl(ptr::null_mut()) {
+        if win_check_ns_hl(None) {
             g_st().redraw_cmdline = true;
             g_st().redraw_tabline = true;
         }
@@ -684,7 +684,7 @@ pub fn update_screen() -> bool {
                 (*wp).w_redr_type = UPD_NOT_VALID;
             }
 
-            win_check_ns_hl(wp);
+            win_check_ns_hl(wp.as_ref());
             win_grid_alloc(&mut *wp);
 
             if (*wp).w_redr_border || (*wp).w_redr_type >= UPD_NOT_VALID {
@@ -725,13 +725,13 @@ pub fn update_screen() -> bool {
         end_search_hl();
 
         if pum_drawn() && g_st().must_redraw_pum {
-            win_check_ns_hl(curwin_ptr());
+            win_check_ns_hl(Some(crate::globals::curwin_mut()));
             pum_redraw();
         } else if (g_st().State & MODE_CMDLINE) != 0 {
             pum_check_clear();
         }
 
-        win_check_ns_hl(ptr::null_mut());
+        win_check_ns_hl(None);
 
         wp = g_st().firstwin;
         while !wp.is_null() {
@@ -1895,7 +1895,7 @@ fn win_update(wp: &mut win_T) {
             ds_st().conceal_cursor_used = conceal_cursor_line(curwin_mut());
         }
 
-        win_check_ns_hl(&raw mut *wp);
+        win_check_ns_hl(Some(&*wp));
 
         let mut spv = spellvars_T::default();
         let mut lnum = wp.w_topline;
@@ -2748,13 +2748,13 @@ pub fn redraw_statuslines() {
     unsafe {
         for wp in for_all_windows_ptr() {
             if (*wp).w_redr_status {
-                win_check_ns_hl(wp);
+                win_check_ns_hl(wp.as_ref());
                 win_redr_winbar(&mut *wp);
                 win_redr_status(&mut *wp);
             }
         }
 
-        win_check_ns_hl(ptr::null_mut());
+        win_check_ns_hl(None);
         if g_st().redraw_tabline {
             draw_tabline();
         }

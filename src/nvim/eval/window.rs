@@ -445,17 +445,17 @@ fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
         tv_dict_add_nr(
             &mut *dict,
             c"terminal",
-            varnumber_T::from(bt_terminal(wp.w_buffer)),
+            varnumber_T::from(bt_terminal(wp.w_buffer.as_ref())),
         );
         tv_dict_add_nr(
             &mut *dict,
             c"quickfix",
-            varnumber_T::from(bt_quickfix(wp.w_buffer)),
+            varnumber_T::from(bt_quickfix(wp.w_buffer.as_ref())),
         );
         tv_dict_add_nr(
             &mut *dict,
             c"loclist",
-            varnumber_T::from(bt_quickfix(wp.w_buffer) && !wp.w_llist_ref.is_null()),
+            varnumber_T::from(bt_quickfix(wp.w_buffer.as_ref()) && !wp.w_llist_ref.is_null()),
         );
 
         tv_dict_add_dict(&mut *dict, c"variables", wp.w_vars());
@@ -847,7 +847,7 @@ pub fn f_win_gettype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             tv_set_string(rettv, c"popup");
         } else if bt_cmdwin((*wp).w_buffer) {
             tv_set_string(rettv, c"command");
-        } else if bt_quickfix((*wp).w_buffer) {
+        } else if bt_quickfix(((*wp).w_buffer).as_ref()) {
             tv_set_string(
                 rettv,
                 if !(*wp).w_llist_ref.is_null() {

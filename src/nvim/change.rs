@@ -173,7 +173,7 @@ pub fn changed(buf: *mut buf_T) {
 
             change_warning( &mut *buf, 0);
 
-            if (*buf).b_may_swap && !bt_dontwrite(buf) {
+            if (*buf).b_may_swap && !bt_dontwrite(buf.as_ref()) {
                 let save_need_wait_return = g_st().need_wait_return;
 
                 g_st().need_wait_return = false;
@@ -1586,7 +1586,7 @@ pub fn open_line(
         let mut prompt_moved: Option<std::ffi::CString> = None;
 
         if dir == BACKWARD {
-            if bt_prompt(g_st().curbuf) && curwin_mut().w_cursor.lnum == curbuf_mut().b_prompt_start.mark.lnum {
+            if bt_prompt(Some(crate::globals::curbuf_mut())) && curwin_mut().w_cursor.lnum == curbuf_mut().b_prompt_start.mark.lnum {
                 let prompt_line = ml_get(curwin_mut().w_cursor.lnum);
                 let prompt = prompt_text();
                 let prompt_len = crate::memory::cstr_len(prompt);

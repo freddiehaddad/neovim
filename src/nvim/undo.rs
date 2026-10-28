@@ -2922,10 +2922,10 @@ fn u_save_line_buf(buf: &mut buf_T, lnum: linenr_T) -> std::ffi::CString {
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.
 pub fn bufIsChanged(buf: &mut buf_T) -> bool {
-    if bt_prompt(&raw mut *buf) {
+    if bt_prompt(Some(&*buf)) {
             buf.b_modified_was_set
         } else {
-            !bt_dontwrite(&raw mut *buf) && (buf.b_changed != 0 || file_ff_differs(buf, true))
+            !bt_dontwrite(Some(&*buf)) && (buf.b_changed != 0 || file_ff_differs(buf, true))
         }
 }
 

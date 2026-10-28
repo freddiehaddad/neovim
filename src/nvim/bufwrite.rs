@@ -407,7 +407,7 @@ fn buf_write_do_autocmds(
         if append {
             did_cmd = apply_autocmds_exarg(EVENT_FILEAPPENDCMD, sfname, sfname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
             if !did_cmd {
-                if overwriting && bt_nofilename(g_st().curbuf) {
+                if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
                     nofile_err = true;
                 } else {
                     let _ = apply_autocmds_exarg(
@@ -437,7 +437,7 @@ fn buf_write_do_autocmds(
                     u_unchanged(curbuf_mut());
                     u_update_save_nr(curbuf_mut());
                 }
-            } else if overwriting && bt_nofilename(g_st().curbuf) {
+            } else if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
                 nofile_err = true;
             } else {
                 let _ = apply_autocmds_exarg(EVENT_BUFWRITEPRE, sfname, sfname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
@@ -445,7 +445,7 @@ fn buf_write_do_autocmds(
         } else {
             did_cmd = apply_autocmds_exarg(EVENT_FILEWRITECMD, sfname, sfname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
             if !did_cmd {
-                if overwriting && bt_nofilename(g_st().curbuf) {
+                if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
                     nofile_err = true;
                 } else {
                     let _ = apply_autocmds_exarg(
@@ -1161,7 +1161,7 @@ pub fn buf_write(
             && reset_changed
             && whole
             && buf == g_st().curbuf
-            && !bt_nofilename(buf)
+            && !bt_nofilename(buf.as_ref())
             && !filtering
             && (!append || !vim_strchr(opt_vars().p_cpo, kCpoFnameapp).is_null())
             && !vim_strchr(opt_vars().p_cpo, kCpoFnamew).is_null()

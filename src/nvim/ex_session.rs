@@ -235,13 +235,13 @@ fn ses_do_win(wp: &mut win_T) -> c_int {
             return 0;
         }
         let buf = wp.w_buffer;
-        if (*buf).b_fname.is_null() || ((*buf).terminal.is_null() && bt_nofilename(buf)) {
+        if (*buf).b_fname.is_null() || ((*buf).terminal.is_null() && bt_nofilename(buf.as_ref())) {
             return (opt_vars().ssop_flags & kOptSsopFlagBlank) as c_int;
         }
-        if bt_help(buf) {
+        if bt_help(buf.as_ref()) {
             return (opt_vars().ssop_flags & kOptSsopFlagHelp) as c_int;
         }
-        if bt_terminal(buf) {
+        if bt_terminal(buf.as_ref()) {
             return (opt_vars().ssop_flags & kOptSsopFlagTerminal) as c_int;
         }
         1
@@ -375,7 +375,7 @@ fn put_view(
 
         if add_edit && (!did_next || (*wp).w_arg_idx_invalid) {
             let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
-            if bt_help((*wp).w_buffer) {
+            if bt_help(((*wp).w_buffer).as_ref()) {
                 let mut curtag: *const c_char = c"".as_ptr();
                 if 0 < (*wp).w_tagstackidx && (*wp).w_tagstackidx <= (*wp).w_tagstacklen {
                     curtag = (*wp).w_tagstack[((*wp).w_tagstackidx - 1) as usize]
@@ -391,7 +391,7 @@ fn put_view(
                     return false;
                 }
             } else if !(*wp).buf_mut().b_ffname.is_null()
-                && (!bt_nofilename((*wp).w_buffer) || !(*wp).buf_mut().terminal.is_null())
+                && (!bt_nofilename(((*wp).w_buffer).as_ref()) || !(*wp).buf_mut().terminal.is_null())
             {
                 let fesc = cstr_to_str(fname_esc.as_ptr());
                 if !write_fmt(
@@ -422,7 +422,7 @@ fn put_view(
                 && !(*alt).b_fname.is_null()
                 && *(*alt).b_fname != NUL
                 && (*alt).b_p_bl != 0
-                && !(bt_terminal(alt) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
+                && !(bt_terminal(alt.as_ref()) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
                 && (fputs(c"balt ", fd) < 0 || !ses_fname(fd,  &mut *alt, &mut *flagp, true))
             {
                 return false;
@@ -459,7 +459,7 @@ fn put_view(
 
         if (*flagp & kOptSsopFlagFolds) != 0
             && !(*wp).buf_mut().b_ffname.is_null()
-            && (bt_normal((*wp).w_buffer) || bt_help((*wp).w_buffer))
+            && (bt_normal(((*wp).w_buffer).as_ref()) || bt_help(((*wp).w_buffer).as_ref()))
             && !put_folds(fd,  &mut *wp)
         {
             return false;
@@ -681,7 +681,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
         for buf in for_all_buffers_ptr() {
             if !(only_save_windows && (*buf).b_nwindows == 0)
                 && !((*buf).b_help && (opt_vars().ssop_flags & kOptSsopFlagHelp) == 0)
-                && !(bt_terminal(buf) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
+                && !(bt_terminal(buf.as_ref()) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
                 && !(*buf).b_fname.is_null()
                 && (*buf).b_p_bl != 0
             {
@@ -718,7 +718,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     || (*b).b_p_bl == 0
                     || (only_save_windows && (*b).b_nwindows == 0)
                     || ((*b).b_help && (opt_vars().ssop_flags & kOptSsopFlagHelp) == 0)
-                    || (bt_terminal(b) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
+                    || (bt_terminal(b.as_ref()) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
                 {
                     continue;
                 }
@@ -825,8 +825,8 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
             while !wp.is_null() {
                 if ses_do_win(&mut *wp) != 0
                     && !(*wp).buf_mut().b_ffname.is_null()
-                    && !bt_help((*wp).w_buffer)
-                    && !bt_nofilename((*wp).w_buffer)
+                    && !bt_help(((*wp).w_buffer).as_ref())
+                    && !bt_nofilename(((*wp).w_buffer).as_ref())
                 {
                     if need_tabnext && !put_line(fd, c"tabnext") {
                         return false;
